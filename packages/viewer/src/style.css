@@ -1,0 +1,130 @@
+@import "tailwindcss";
+
+/* The prototype's quiet theme. Amber needs you, slate is with the agent, green is settled; recordings stay light in the
+   dark. Only these colours exist, so every colour on the page is one of them. */
+:root {
+  --ground: #f4f4f5;
+  --surface: #ffffff;
+  --fg: #2b2e35;
+  --soft: #6c707a;
+  --faint: #a2a6ae;
+  --line: #e4e5e8;
+  --hover: rgba(30, 34, 44, 0.045);
+  --amber: #d9a23a;
+  --amber-ink: #8a5f12;
+  --green: #3c8a62;
+  --slate: #6e7f9c;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ground: #18191c;
+    --surface: #202227;
+    --fg: #e3e4e7;
+    --soft: #9a9ea7;
+    --faint: #666a73;
+    --line: #2c2e33;
+    --hover: rgba(255, 255, 255, 0.04);
+    --amber: #e2b04f;
+    --amber-ink: #e9c27a;
+    --green: #78c59c;
+    --slate: #9baac4;
+    color-scheme: dark;
+  }
+}
+
+@theme inline {
+  --color-*: initial;
+  --color-ground: var(--ground);
+  --color-surface: var(--surface);
+  --color-fg: var(--fg);
+  --color-soft: var(--soft);
+  --color-faint: var(--faint);
+  --color-line: var(--line);
+  --color-hover: var(--hover);
+  --color-amber: var(--amber);
+  --color-amber-ink: var(--amber-ink);
+  --color-green: var(--green);
+  --color-slate: var(--slate);
+  --color-paper: #f7f7f5;
+  --color-white: #ffffff;
+
+  --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --ease-calm: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --shadow-frame: 0 0 0 1px rgba(20, 24, 34, 0.07), 0 1px 3px rgba(20, 24, 34, 0.05);
+  --shadow-pin: 0 0 0 2px #ffffff, 0 1px 3px rgba(0, 0, 0, 0.2);
+
+  --animate-drop: drop 0.3s var(--ease-calm) both;
+  --animate-glow: glow 1.2s ease-out;
+  --animate-breathe: breathe 2.4s ease-in-out infinite;
+  --animate-arrive: arrive 0.24s var(--ease-calm) both;
+
+  @keyframes drop {
+    0% { scale: 0.3; opacity: 0; }
+    60% { scale: 1.25; opacity: 1; }
+    100% { scale: 1.12; }
+  }
+  @keyframes glow {
+    from { background-color: color-mix(in srgb, var(--amber) 16%, transparent); }
+  }
+  @keyframes breathe {
+    50% { opacity: 0.35; }
+  }
+  @keyframes arrive {
+    from { opacity: 0; }
+  }
+}
+
+@layer base {
+  body {
+    @apply bg-ground font-ui text-[13px] leading-normal text-fg antialiased;
+  }
+  button {
+    @apply cursor-pointer;
+  }
+  :focus-visible {
+    @apply rounded-sm outline-2 outline-offset-2 outline-amber;
+  }
+}
+
+/* rrweb draws the pointer in the recording itself; this is how it looks there. Until the pointer has moved, rrweb hasn't
+   placed it, and it would sit in the corner. */
+.replayer-mouse:not([style*="left"]) {
+  display: none;
+}
+.replayer-mouse {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  transition: left 0.05s linear, top 0.05s linear;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M4 2.5v13.2l3.4-3.1 2.2 5 2.3-1-2.2-4.9h4.6Z' fill='%23111' stroke='%23fff' stroke-width='1.2' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat;
+}
+.replayer-mouse::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 3px;
+  width: 34px;
+  height: 34px;
+  margin: -17px 0 0 -17px;
+  border-radius: 50%;
+  border: 2px solid rgba(43, 46, 53, 0.45);
+  opacity: 0;
+}
+.replayer-mouse.active::after {
+  animation: click 0.45s var(--ease-calm);
+}
+@keyframes click {
+  from { opacity: 1; scale: 0.4; }
+  to { opacity: 0; scale: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "@vantage/cli",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "vantage": "./src/vantage.ts"
+  },
+  "exports": {
+    "./test": "./src/test.ts"
+  },
+  "dependencies": {
+    "@playwright/test": "1.64.1",
+    "@rrweb/record": "2.1.7",
+    "@vantage/review": "*",
+    "@vantage/viewer": "*"
+  }
+}

@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, test } from "node:test";
 import { folder } from "../src/folder.ts";
-import { memory, newId, Refused, Reviews, type Flow, type Round, type Send, type Storage } from "../src/index.ts";
+import { conversation, memory, newId, Refused, Reviews, type Flow, type Round, type Send, type Storage } from "../src/index.ts";
 
 const folders: string[] = [];
 after(() => Promise.all(folders.map((path) => rm(path, { recursive: true }))));
@@ -227,6 +227,21 @@ for (const [kept, storage] of storages) {
       await reviews.take("invoice-export");
       await reviews.saveRound("invoice-export", round(4));
       await reviews.finish("invoice-export", 4);
+    });
+
+    test("a note's conversation reads in order: the note, then each round's reply and what people said about it", async () => {
+      const { reviews, asked } = await working();
+      await reviews.saveRound("invoice-export", round(2, { replies: [{ note: asked.id, words: "It fades in now." }] }));
+      await reviews.finish("invoice-export", 2);
+      await reviews.send("invoice-export", send(2, { verdicts: [{ note: asked.id, verdict: "not quite", words: "Now it's too slow." }] }));
+      await reviews.send("invoice-export", send(2, { by: "Bo", verdicts: [{ note: asked.id, verdict: "looks good" }] }));
+
+      assert.deepEqual(conversation(await reviews.get("invoice-export"), asked.id), [
+        { by: "Ana", round: 1, words: "The dialog snaps in." },
+        { by: "agent", round: 2, words: "It fades in now." },
+        { by: "Ana", round: 2, words: "Now it's too slow.", verdict: "not quite" },
+        { by: "Bo", round: 2, words: "", verdict: "looks good" },
+      ]);
     });
 
     test("when two people judge the same note, the later verdict counts", async () => {

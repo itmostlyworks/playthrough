@@ -2,7 +2,7 @@
 // Each returns what's wrong in plain words, saying what to do about it, and nothing when all is well.
 
 import type { z } from "zod";
-import { fileName, Round, Send, type Change, type Flow, type Note, type Place, type Review } from "./model.ts";
+import { fileName, Round, Send, type Change, type Flow, type Note, type Place, type Review, type Verdict } from "./model.ts";
 
 // The round the agent is working on: the last one until it's finished, then the next.
 export function roundInProgress(review: Review): number {
@@ -17,6 +17,23 @@ export function allNotes(review: Review): Map<string, { note: Note; round: numbe
   for (const round of review.rounds) for (const note of round.unprompted) notes.set(note.id, { note, round: round.number, by: "agent" });
   for (const send of review.sends) for (const note of send.notes) notes.set(note.id, { note, round: send.round, by: send.by });
   return notes;
+}
+
+// A note's conversation, oldest first: the note, then round by round the agent's reply and what people said about it.
+export type Turn = { by: string; round: number; words: string; verdict?: Verdict["verdict"] };
+
+export function conversation(review: Review, id: string): Turn[] {
+  const started = allNotes(review).get(id);
+  if (!started) return [];
+  const turns: { turn: Turn; order: number }[] = [{ turn: { by: started.by, round: started.round, words: started.note.words }, order: 0 }];
+  for (const round of review.rounds.filter((round) => round.number > started.round)) {
+    const reply = round.replies.find((reply) => reply.note === id);
+    if (reply?.words.trim()) turns.push({ turn: { by: "agent", round: round.number, words: reply.words }, order: 1 });
+  }
+  for (const send of review.sends)
+    for (const verdict of send.verdicts.filter((verdict) => verdict.note === id))
+      turns.push({ turn: { by: send.by, round: send.round, words: verdict.words ?? "", verdict: verdict.verdict }, order: 2 });
+  return turns.sort((a, b) => a.turn.round - b.turn.round || a.order - b.order).map(({ turn }) => turn);
 }
 
 // The notes a round has to answer: those in the sends it took that are new, or that someone said aren't quite right.

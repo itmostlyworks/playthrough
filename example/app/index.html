@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Invoices</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Invoices</h1>
+        <div class="filters" role="group" aria-label="Show">
+          <button aria-pressed="true" data-status="all">All</button>
+          <button aria-pressed="false" data-status="open">Open</button>
+          <button aria-pressed="false" data-status="overdue">Overdue</button>
+          <button aria-pressed="false" data-status="paid">Paid</button>
+        </div>
+      </header>
+      <table>
+        <thead>
+          <tr><th>Invoice</th><th>Customer</th><th>Due</th><th class="amount">Amount</th><th>Status</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>

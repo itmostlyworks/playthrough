@@ -6,7 +6,8 @@
   "engines": { "node": ">=24" },
   "scripts": {
     "test": "node --test \"packages/*/test/*.test.ts\"",
-    "check": "tsc"
+    "check": "tsc",
+    "build": "npm run build --workspace @vantage/viewer"
   },
   "devDependencies": {
     "@types/node": "24.19.1",
