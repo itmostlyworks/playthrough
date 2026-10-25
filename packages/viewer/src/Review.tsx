@@ -1,26 +1,26 @@
 // A review on one page: the recording is where you look, the column is the map of what's been said, and the foot is
 // where you act. The view changes only when you change it: a new round says it's in, and waits for you.
 
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { lastLooked, newId, readyToAccept, time, type Flow, type Place, type Point, type Review, type Round, type Verdict } from "@vantage/review";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { lastLooked, newId, readyToAccept, time, waitingForTheAgent, type Flow, type Note, type Place, type Point, type Review, type Round, type Send, type Verdict } from "@vantage/review";
 import { accept, recording, send, useReview, useYou } from "./api.ts";
-import { HOLD, mac } from "./Card.tsx";
+import { HOLD } from "./Card.tsx";
 import { answersTo, diamondAt, diamondsOn, type Changed, type Diamond } from "./changes.ts";
-import { Column, rowsIn } from "./Column.tsx";
+import { Column, rowsIn, settles, type Landed } from "./Column.tsx";
 import { Controls, type Look } from "./Controls.tsx";
-import { useDraft } from "./draft.ts";
+import { useDraft, useWatched } from "./draft.ts";
+import { Foot, type Step } from "./Foot.tsx";
 import { along, CARD, clamp, FLOW_IN, inStep, momentAt, POSTER, type Moment } from "./moments.ts";
-import { fill, goodTo, ink, notesOn, nothing, seen, settledBefore, type Draft, type Shown } from "./notes.ts";
-import { NoteRow, number, opened, SettledCount, SettledList, Writing, type Comparing } from "./Notes.tsx";
+import { asIfSent, fill, goodTo, ink, lookGood, notesOn, nothing, said, seen, sendOf, settledBefore, standings, takeBack, type Shown } from "./notes.ts";
+import { NoteRow, number as numberLook, opened, SettledCount, SettledList, Writing, type Comparing } from "./Notes.tsx";
 import { Playhead, useNow } from "./playhead.ts";
 import { recorded } from "./replay.ts";
 import { roundName } from "./Rounds.tsx";
 import { Stage, type Bare, type Shown as Size } from "./Stage.tsx";
 import { Wire } from "./Wire.tsx";
 
-// What's open in the column: a note, a change you chose, or a new note being written, on a place or, without one, in
-// general.
-type Open = { note: string } | { change: string } | { writing: Place | undefined };
+// What's open in the column: a note, a change you chose, or a new note being written, by its id.
+type Open = { note: string } | { change: string } | { writing: string };
 
 export function ReviewPage({ id }: { id: string }) {
   const kept = useReview(id);
@@ -66,8 +66,12 @@ function Reviewing({ review, you }: { review: Review; you: string }) {
 
 type OnRoundProps = { review: Review; round: Round; latest: Round; arrived: boolean; you: string; onRound: (round: number) => void };
 
-function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps) {
+function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRoundProps) {
+  // What you've just sent shows as sent until the review comes back with it.
+  const [posted, setPosted] = useState<Send>();
+  const review = posted && !kept.sends.some((send) => send.id === posted.id) ? { ...kept, sends: [...kept.sends, posted] } : kept;
   const [draft, change] = useDraft(review.id, round.number);
+  const [watched, see] = useWatched(review.id, round.number);
   const [open, setOpen] = useState<Open>();
   // The note whose Not quite is being written.
   const [asking, setAsking] = useState<string>();
@@ -88,10 +92,10 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
   // at the matching moment, or its start if that round never recorded the flow.
   const [playhead] = useState(() => new Playhead(round.flows, { flow: round.flows[0]?.name ?? "", at: POSTER }));
   useEffect(() => () => playhead.destroy(), [playhead]);
-  const watched = useRef(round.number);
+  const onRoundNow = useRef(round.number);
   useLayoutEffect(() => {
-    if (watched.current === round.number) return playhead.watch(round.flows, playhead.now.moment);
-    watched.current = round.number;
+    if (onRoundNow.current === round.number) return playhead.watch(round.flows, playhead.now.moment);
+    onRoundNow.current = round.number;
     const from = playhead.flow;
     const to = round.flows.find((flow) => flow.name === from.name);
     playhead.pause();
@@ -102,6 +106,31 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
   }, [round, playhead]);
   const watching = useNow(playhead, (now) => now.moment.flow);
   const flow = round.flows.find((flow) => flow.name === watching) ?? round.flows[0];
+  // Where the playhead is, as the foot's step needs it: playing, at a flow's start, partway, or at its end.
+  const where = useNow(playhead, ({ moment, playing }) => {
+    const length = playhead.flows.find((flow) => flow.name === moment.flow)?.length ?? 0;
+    return playing ? "playing" : moment.at >= length - 0.06 ? "end" : moment.at <= 0 ? "start" : "partway";
+  });
+
+  // A flow is watched once it's played to its end from no later than its middle.
+  const seeing = useRef(see);
+  seeing.current = see;
+  useEffect(() => {
+    let from: Moment | undefined;
+    let last = playhead.now.moment;
+    return playhead.subscribe(() => {
+      const { moment, playing } = playhead.now;
+      const length = playhead.flow.length;
+      if (from && (moment.flow !== from.flow || Math.abs(moment.at - last.at) > 0.5)) from = undefined;
+      if (playing && !from) from = moment;
+      if (from && moment.at >= length - 0.06) {
+        const name = moment.flow;
+        if (from.at <= length / 2) seeing.current((flows) => (flows.includes(name) ? flows : [...flows, name]));
+        from = undefined;
+      }
+      last = moment;
+    });
+  }, [playhead]);
 
   // The view is yours: it changes only when you change it, and holds for the review.
   const [look, setLook] = useState<Look>(() => (stored(`vantage:${review.id}:look`) === "side" ? "side" : "one"));
@@ -157,7 +186,7 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
     });
     return () => void (current = false);
   }, [review.id, round.number, flow]);
-  const step = (direction: 1 | -1, fine: boolean) => {
+  const nudge = (direction: 1 | -1, fine: boolean) => {
     const flows = playhead.flows;
     const now = along(flows, playhead.now.moment);
     const starts = flows.map((flow) => along(flows, { flow: flow.name, at: 0 }));
@@ -171,14 +200,23 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
   const readOnly = !!review.accepted || round.number === 0 || (round !== latest && !arrived);
   const notes = notesOn(review, round.number, you, draft);
   const settled = settledBefore(review, round.number, you);
-  const onFlow = (name: string) => notes.filter((note) => note.on?.flow === name);
   const inGeneral = notes.filter((note) => !note.on || !round.flows.some((flow) => flow.name === note.on?.flow));
-  const playingNotes = flow ? onFlow(flow.name).filter((note) => note.on?.at !== undefined) : [];
+  const playingNotes = flow ? notes.filter((note) => note.on?.flow === flow.name && note.on.at !== undefined) : [];
 
-  // Your Looks good holds while nothing of yours in the flow waits, for you or for the agent; a note there takes it back.
   const goodFor = new Map(round.flows.map((flow) => [flow.name, goodTo(review, round.number, flow.name)]));
-  const holds = (name: string) => !onFlow(name).some((note) => note.yours && (note.state === "needs you" || note.state === "with the agent"));
-  const toWatch = round.flows.map((flow) => flow.name).filter((name) => !goodFor.get(name)?.includes(you) && !draft.looksGood.includes(name) && holds(name));
+  // Where each flow stands for you on the round you judge, and, once the work is accepted, on the last.
+  const judging = !readOnly || (!!review.accepted && round === latest);
+  const standing = useMemo(() => (judging ? standings(review, round.number, you, draft, watched) : undefined), [judging, review, round.number, you, draft, watched]);
+  // A flow that still needs you: not good, and not only waiting on what you've said for the agent.
+  const needs = (name: string) => !["good", "to send", "with the agent", undefined].includes(standing?.get(name)?.is);
+
+  // A flow asks whether it's good at its end, once you've watched it, or when you ask it from its end row; it goes once
+  // you move on.
+  const [asked, setAsked] = useState<string>();
+  if (asked && (where !== "end" || watching !== asked)) setAsked(undefined);
+  const question = !open && flow && where === "end" && standing?.get(flow.name)?.asks && (asked === flow.name || standing.get(flow.name)?.is === "is it good") ? flow.name : undefined;
+  // The flow that just turned good, its tick travelling to the meter.
+  const [landed, setLanded] = useState<Landed>();
 
   const go = (name: string, at = FLOW_IN) => {
     playhead.pause();
@@ -242,38 +280,94 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
       ),
     ),
   );
-  const write = (on: Place | undefined) => !readOnly && setOpen({ writing: on });
+  // A new note starts unsaved, where it will sit. With words in it, it's never thrown away by going elsewhere: it stays in
+  // its row, not saved, until you save it or Cancel takes it back. With none, it goes.
+  const write = (on: Place | undefined) => {
+    if (readOnly) return;
+    const id = newId();
+    change((draft) => ({ ...draft, unsaved: [...draft.unsaved, { id, ...(on && { on }), words: "" }] }));
+    setOpen({ writing: id });
+  };
+  const writingId = open && "writing" in open ? open.writing : undefined;
+  useEffect(() => {
+    if (draft.unsaved.some((note) => !note.words.trim() && note.id !== writingId))
+      change((draft) => ({ ...draft, unsaved: draft.unsaved.filter((note) => note.words.trim() || note.id === writingId) }));
+  });
   const glow = (id: string) => {
     setFresh(id);
     setTimeout(() => setFresh((fresh) => (fresh === id ? undefined : fresh)), 1200);
   };
 
-  const saveNote = (on: Place | undefined, words: string) => {
-    const id = newId();
-    change((draft) => ({ ...draft, notes: [...draft.notes, { id, ...(on && { on }), words }], looksGood: draft.looksGood.filter((flow) => flow !== on?.flow) }));
-    setOpen(undefined);
-    glow(id);
+  // Saved, a new note stays open in its row with your words in it, and Play on its way on. A note on a flow you said
+  // looks good takes that back.
+  const saveNote = (note: Note, words: string) => {
+    change((draft) => ({
+      ...(note.on ? takeBack(draft, note.on.flow, notes) : draft),
+      notes: [...draft.notes, { id: note.id, ...(note.on && { on: note.on }), words }],
+      unsaved: draft.unsaved.filter((kept) => kept.id !== note.id),
+    }));
+    setOpen({ note: note.id });
+    glow(note.id);
   };
+  const keepWords = (id: string, words: string) => change((draft) => ({ ...draft, unsaved: draft.unsaved.map((note) => (note.id === id ? { ...note, words } : note)) }));
+  const dropUnsaved = (id: string) => {
+    change((draft) => ({ ...draft, unsaved: draft.unsaved.filter((note) => note.id !== id) }));
+    setOpen(undefined);
+  };
+  // Removing a note you haven't sent takes it away at once, and leaves a way to put it back for a few seconds.
+  const [removed, setRemoved] = useState<{ note: Note; number: number; at: number }>();
+  useEffect(() => {
+    if (!removed) return;
+    const later = setTimeout(() => setRemoved(undefined), 6000);
+    return () => clearTimeout(later);
+  }, [removed]);
   const editNote = (id: string, words: string | undefined) => {
+    const at = draft.notes.findIndex((note) => note.id === id);
+    if (!words && at >= 0) setRemoved({ note: draft.notes[at]!, number: notes.find((note) => note.id === id)?.number ?? 0, at });
     change((draft) => ({ ...draft, notes: draft.notes.flatMap((note) => (note.id !== id ? [note] : words ? [{ ...note, words }] : [])) }));
     if (!words) setOpen(undefined);
   };
+  const undoRemove = () => {
+    if (!removed) return;
+    change((draft) => ({ ...draft, notes: draft.notes.toSpliced(removed.at, 0, removed.note) }));
+    setRemoved(undefined);
+  };
+  // Judging an answer yourself takes it from its flow's Looks good; Not quite takes back the flow's Looks good.
   const judge = (note: Shown, verdict: Verdict | undefined) =>
-    change((draft) => ({
-      ...draft,
-      verdicts: [...draft.verdicts.filter((kept) => kept.note !== note.id), ...(verdict ? [verdict] : [])],
-      looksGood: verdict?.verdict === "not quite" ? draft.looksGood.filter((flow) => flow !== note.on?.flow) : draft.looksGood,
-    }));
-  const toggleGood = (name: string) =>
-    change((draft) => ({ ...draft, looksGood: draft.looksGood.includes(name) ? draft.looksGood.filter((flow) => flow !== name) : [...draft.looksGood, name] }));
-  const sentGood = (name: string) => !!goodFor.get(name)?.includes(you) && !draft.looksGood.includes(name);
-  // Where a flow's line ends: the green tick once it's good to you, else the question, unless something of yours in it
-  // waits, which says it isn't good yet. Looking back, nothing is asked.
-  const end = (name: string) => (readOnly ? undefined : goodFor.get(name)?.includes(you) || draft.looksGood.includes(name) ? "good" : holds(name) ? "ask" : undefined);
+    change((draft) => {
+      const kept = verdict?.verdict === "not quite" && note.on ? takeBack(draft, note.on.flow, notes) : draft;
+      return {
+        ...kept,
+        verdicts: [...kept.verdicts.filter((kept) => kept.note !== note.id), ...(verdict ? [verdict] : [])],
+        withTheFlow: kept.withTheFlow.filter((id) => id !== note.id),
+      };
+    });
+  // A flow's Looks good is a checkbox: pressed again before it's sent, it's taken back. Its question stays where you
+  // answered it, and its tick travels to the meter.
+  const lookingGood = (name: string) => {
+    if (draft.looksGood.includes(name)) return change((draft) => takeBack(draft, name, notes));
+    if (standing?.get(name)?.is === "good") return;
+    change((draft) => lookGood(draft, name, notes));
+    setAsked(name);
+    setLanded({ flow: name, at: performance.now() });
+  };
+  // Asked from its end row, the flow goes to its end and asks there.
+  const ask = (name: string) => {
+    if (readOnly) return;
+    setOpen(undefined);
+    go(name, round.flows.find((flow) => flow.name === name)?.length ?? 0);
+    setAsked(name);
+  };
+  // Watching a flow is from its start.
+  const watchFrom = (name: string) => {
+    setOpen(undefined);
+    playhead.go({ flow: name, at: FLOW_IN });
+    playhead.play();
+  };
 
   // Up and Down go through the column, flows and their rows in its order, the recording going with them.
   const column = [
-    ...round.flows.flatMap((flow) => [{ flow }, ...rowsIn(flow.name, notes, diamonds)]),
+    ...round.flows.flatMap((flow) => [{ flow }, ...rowsIn(flow.name, notes, diamonds, settles(standing?.get(flow.name), flow.name === watching))]),
     ...inGeneral.map((note) => ({ note, at: Infinity })),
   ];
   const through = (direction: 1 | -1) => {
@@ -290,21 +384,68 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
     }
   };
 
+  // Your notes that aren't notes yet sit where they will once saved, numbered after the rest: the one you're writing,
+  // its box opened under it as a card is, and the ones you haven't saved. One just removed leaves a way back where it was.
   const nextNumber = Math.max(0, ...notes.map((note) => note.number)) + 1;
-  const writing = open && "writing" in open ? open : undefined;
-  // A new note is written in its row, where it will sit once saved, its box opened under it as a card is.
-  const composer = (on: Place | undefined) => (
-    <div data-stop={on?.at} data-open className={`relative rounded-r-lg ${opened} [--c:var(--amber)] [--rail:var(--amber)]`}>
-      <div className="grid grid-cols-[18px_minmax(0,1fr)_auto] items-start gap-x-2 py-1.5 pr-2.5 pl-[18px]">
-        <span data-mark className={`${number} relative z-1 mt-px bg-amber in-data-here:line-ring`}>{nextNumber}</span>
-        <span className="truncate">{on?.element ? on.element.name : on?.at !== undefined ? "This moment" : on ? "The whole flow" : "New note"}</span>
-        <span className="min-w-[78px] text-right text-xs leading-5 text-amber-ink tabular-nums">{on?.at === undefined ? "" : time(on.at)}</span>
+  const writing = draft.unsaved.find((note) => note.id === writingId);
+  const placeName = (on: Place | undefined) => (on?.element ? on.element.name : on?.at !== undefined ? "This moment" : on ? "The whole flow" : "New note");
+  const unsaved = (note: Note, number: number) => {
+    const head = (
+      <>
+        <span data-mark className={`${numberLook} relative z-1 mt-px in-data-here:line-ring ${note.id === writingId ? "bg-amber text-white" : "bg-[color-mix(in_srgb,var(--c)_18%,var(--ground))] text-[color-mix(in_srgb,var(--c)_80%,var(--fg))]"}`}>
+          {number}
+        </span>
+        <span className="flex min-w-0 gap-1.5">
+          <span className="truncate">{note.id === writingId || !note.words ? placeName(note.on) : note.words}</span>
+          {note.id !== writingId && <span className="flex-none text-faint">not saved</span>}
+        </span>
+        <span className="min-w-[78px] text-right text-xs leading-5 text-amber-ink tabular-nums">{note.on?.at === undefined ? "" : time(note.on.at)}</span>
+      </>
+    );
+    const row = "grid w-full grid-cols-[18px_minmax(0,1fr)_auto] items-start gap-x-2 py-1.5 pr-2.5 pl-[18px] text-left";
+    return note.id === writingId ? (
+      <div key={note.id} data-key={`note:${note.id}`} data-stop={note.on?.at} data-open className={`relative rounded-r-lg ${opened} [--c:var(--amber)] [--rail:var(--amber)]`}>
+        <div className={row}>{head}</div>
+        <div className="grid gap-2.5 pr-3.5 pl-[44px]">
+          <Writing
+            words={note.words}
+            placeholder={note.on && note.on.at === undefined ? "What isn’t good about it?" : "What do you think?"}
+            question="Your new note"
+            onWords={(words) => keepWords(note.id, words)}
+            onSave={(words) => saveNote(note, words)}
+            onCancel={() => dropUnsaved(note.id)}
+          />
+        </div>
       </div>
-      <div className="grid gap-2.5 pr-3.5 pl-[44px]">
-        <Writing words="" placeholder={on && on.at === undefined ? "What isn’t good about it?" : "What do you think?"} question="Your new note" onSave={(words) => saveNote(on, words)} onCancel={() => setOpen(undefined)} />
+    ) : (
+      <div key={note.id} data-key={`note:${note.id}`} data-stop={note.on?.at} className="relative rounded-r-lg transition-colors duration-150 ease-calm hover:bg-hover" style={{ "--c": "var(--amber)" } as CSSProperties}>
+        <button className={row} onMouseDown={(event) => event.preventDefault()} onClick={() => setOpen({ writing: note.id })}>
+          {head}
+        </button>
       </div>
-    </div>
-  );
+    );
+  };
+  const pending = [
+    ...draft.unsaved.map((note, i) => ({ on: note.on, row: unsaved(note, nextNumber + i) })),
+    ...(removed
+      ? [
+          {
+            on: removed.note.on,
+            row: (
+              <div key={removed.note.id} data-key={`note:${removed.note.id}`} className="grid grid-cols-[18px_minmax(0,1fr)] gap-x-2 py-1.5 pr-2.5 pl-[18px] text-faint">
+                <span />
+                <span>
+                  Removed
+                  <button className="ml-2 text-xs transition-colors duration-150 ease-calm hover:text-fg" onClick={undoRemove}>
+                    Undo
+                  </button>
+                </span>
+              </div>
+            ),
+          },
+        ]
+      : []),
+  ];
   // What isn't right about a change is a note on what it's on, at its moment, or over new steps.
   const noteOn = (diamond: Diamond) => {
     const element = diamond.changes.find((changed) => !changed.answers)?.on.element;
@@ -379,9 +520,80 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
   const cKey = useRef<{ down: number; holding: number }>(undefined);
   const comparedRound = compareNow ? review.rounds.find((kept) => kept.number === compared) : undefined;
 
+  // Sending carries everything you've said on the round at once; what you haven't saved stays. Accepting sends what's
+  // left first.
+  const [trouble, setTrouble] = useState<string[]>([]);
+  const [sent, setSent] = useState<number>();
+  const [acceptedHere, setAcceptedHere] = useState(false);
+  const sending = useRef(false);
+  const sendNow = async () => {
+    if (!said(draft) || sending.current) return false;
+    sending.current = true;
+    const sends: Send = { id: newId(), round: round.number, by: you, sent: new Date().toISOString(), ...sendOf(draft) };
+    const problems = await send(review.id, sends);
+    sending.current = false;
+    setTrouble(problems);
+    if (problems.length) return false;
+    setPosted(sends);
+    change((draft) => ({ ...nothing, unsaved: draft.unsaved }));
+    setSent(performance.now());
+    return true;
+  };
+  const acceptNow = async () => {
+    if (said(draft) && !(await sendNow())) return;
+    const problems = await accept(review.id, you);
+    setTrouble(problems);
+    if (!problems.length) setAcceptedHere(true);
+  };
+
+  // The foot's one step, from where the playhead is: play on through the flow you're in; at its end, its question, or
+  // finishing a note you started there, or watching it from the start; then on to what needs you next. With nothing left
+  // that needs you, Send what asks the agent something; else Accept, which sends what's left with it; else what the
+  // agent is doing.
+  const asksTheAgent = draft.notes.length + draft.verdicts.filter((verdict) => verdict.verdict === "not quite").length;
+  const onward = (from: number): Step => {
+    const below = round.flows.slice(from + 1).find((flow) => needs(flow.name));
+    const general = draft.unsaved.find((note) => !note.on) ?? inGeneral.find((note) => note.state === "needs you");
+    const next = below ?? (general ? undefined : round.flows.slice(0, Math.max(0, from)).find((flow) => needs(flow.name)));
+    if (next) return { kind: "go", words: "Next", what: next.name, take: () => watchFrom(next.name) };
+    if (general && "turns" in general) return { kind: "go", words: "Next to check", what: general.turns[0]?.words, take: () => pick(general) };
+    if (general) return { kind: "go", words: "Finish your note", what: placeName(general.on), take: () => setOpen({ writing: general.id }) };
+    if (asksTheAgent) return { kind: "go", words: "Send", what: `${asksTheAgent} ${asksTheAgent === 1 ? "note" : "notes"} to the agent`, take: sendNow, send: true };
+    if (readyToAccept(asIfSent(review, round.number, you, draft), you)) return { kind: "go", words: "All good", what: "Accept the work", take: acceptNow, final: true };
+    if (said(draft)) return { kind: "go", words: "Send", what: "what you said", take: sendNow, send: true };
+    if (waitingForTheAgent(review).length)
+      return working
+        ? { kind: "agent", words: "The agent is working", what: `since ${new Date(working).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`, busy: true }
+        : { kind: "agent", words: "Sent, waiting for the agent", busy: false };
+    return { kind: "say", words: "All good" };
+  };
+  const footStep = (): Step => {
+    if (review.accepted || acceptedHere)
+      return { kind: "done", words: !review.accepted || review.accepted.by === you ? "Accepted" : `Accepted by ${review.accepted.by}`, just: acceptedHere };
+    if (round !== latest && arrived) return { kind: "go", words: `${roundName(latest.number)} is in`, what: "See it", take: () => toRound(latest.number) };
+    if (round !== latest) return { kind: "go", words: "Back to now", what: roundName(latest.number), take: () => toRound(latest.number) };
+    if (round.number === 0) return { kind: "agent", words: "The agent is working", what: "on round 1", busy: true };
+    if (!flow) return onward(-1);
+    if (where === "playing") return { kind: "say", words: "Playing", what: flow.name };
+    if (where !== "end") return { kind: "go", words: where === "start" ? "Play" : "Play on", what: flow.name, take: () => playhead.play() };
+    if (question) return standing?.get(question)?.is === "good" ? onward(round.flows.indexOf(flow)) : { kind: "say", words: "End of", what: flow.name };
+    if (needs(flow.name)) {
+      const started = draft.unsaved.find((note) => note.on?.flow === flow.name);
+      if (started) return { kind: "go", words: "Finish your note", what: placeName(started.on), take: () => setOpen({ writing: started.id }) };
+      return { kind: "go", words: "Watch it", what: "from the start", take: () => watchFrom(flow.name) };
+    }
+    return onward(round.flows.indexOf(flow));
+  };
+  const step = footStep();
+
   useEffect(() => {
     const writingHere = (event: KeyboardEvent) => event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement;
     const down = (event: KeyboardEvent) => {
+      // What can't be undone takes Ctrl+Enter, never a plain Enter in passing.
+      if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !writingHere(event) && step.kind === "go" && step.final) {
+        event.preventDefault();
+        return step.take();
+      }
       if (writingHere(event) || event.metaKey || event.ctrlKey || event.altKey || event.defaultPrevented) return;
       // Space plays and pauses wherever you are, also on a button you just clicked: it never presses it.
       if (event.key === " ") {
@@ -390,7 +602,7 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
       } else if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
         if ((event.target as Element).closest?.("[role=slider][aria-label=Rounds]")) return;
         event.preventDefault();
-        step(event.key === "ArrowRight" ? 1 : -1, event.shiftKey);
+        nudge(event.key === "ArrowRight" ? 1 : -1, event.shiftKey);
       } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         event.preventDefault();
         through(event.key === "ArrowDown" ? 1 : -1);
@@ -404,19 +616,26 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
         } else if (openNote || chosen) {
           event.preventDefault();
           playOn();
+        } else if (question && standing?.get(question)?.is !== "good") {
+          event.preventDefault();
+          lookingGood(question);
+        } else if (!open && step.kind === "go" && !step.final) {
+          event.preventDefault();
+          step.take();
         }
       } else if (event.key.toLowerCase() === "x" && !event.repeat) {
         // The box it opens takes the next key, not this one.
         event.preventDefault();
         if (asks) setAsking(openNote.id);
         else if (chosen && !readOnly) noteOn(chosen);
+        else if (question) write({ flow: question });
       } else if (event.key.toLowerCase() === "c" && !event.repeat && compareNow) {
         const holding = window.setTimeout(() => compareNow.onHold(true), HOLD);
         cKey.current = { down: performance.now(), holding };
       } else if (event.key === "Escape") {
         // Escape goes back a step you can see: from a note or a change to the column, and looking back, to now.
         if (listing) setListing(false);
-        else if (open && !("writing" in open)) setOpen(undefined);
+        else if (open) setOpen(undefined);
         else if (round !== latest) toRound(latest.number);
       }
     };
@@ -463,7 +682,7 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
               setBare(undefined);
             }}
             pins={playingNotes.flatMap((note) => (note.on?.point && note.on.at !== undefined ? [{ id: note.id, number: note.number, at: note.on.at, until: note.on.until, point: note.on.point, fill: fill(note) }] : []))}
-            placing={writing?.writing?.point}
+            placing={writing?.on?.point}
             onPlace={readOnly ? undefined : (point: Point) => flow && write({ flow: flow.name, at: Math.round(Math.max(0, playhead.now.moment.at) * 100) / 100, point })}
             onPin={(id) => {
               const note = notes.find((note) => note.id === id);
@@ -551,9 +770,12 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
             diamonds={diamonds}
             chosen={chosen?.id}
             lit={lit}
-            end={end}
+            standing={(name) => standing?.get(name)}
+            saidGood={draft.looksGood}
+            asked={question}
+            landed={landed}
             note={row}
-            writing={writing && { on: writing.writing, box: composer(writing.writing) }}
+            pending={pending}
             onFlow={playFlow}
             compare={chosen && chosen.flow === watching ? comparingIt : undefined}
             others={(name) => goodFor.get(name)?.filter((person) => person !== you) ?? []}
@@ -561,23 +783,24 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
             onPlayOn={playOn}
             onNoteOn={noteOn}
             onNote={pick}
-            onEnd={(name) => !sentGood(name) && toggleGood(name)}
+            onAsk={ask}
+            onGood={lookingGood}
+            onNotQuite={(name) => write({ flow: name })}
+            onAgain={(flow) => watchFrom(flow.name)}
+            onTakeBack={(name) => change((draft) => takeBack(draft, name, notes))}
             onGeneral={readOnly ? undefined : () => write(undefined)}
           />
           <Foot
-            review={review}
-            round={round}
-            latest={latest}
-            arrived={arrived}
-            you={you}
-            notes={notes}
-            draft={draft}
-            toWatch={toWatch}
-            watching={watching}
-            onShow={show}
-            onFlow={go}
-            onRound={toRound}
-            onSent={() => change(() => nothing)}
+            step={step}
+            quiet={!!open}
+            notes={asksTheAgent}
+            onSend={!readOnly && asksTheAgent ? sendNow : undefined}
+            sent={sent}
+            trouble={trouble}
+            pieces={judging && standing ? round.flows.map((flow) => ({ flow: flow.name, standing: standing.get(flow.name)!, here: flow.name === watching })) : undefined}
+            landed={landed}
+            busy={!!working}
+            onFlow={watchFrom}
           />
         </aside>
       </main>
@@ -600,143 +823,4 @@ function store(key: string, value: string) {
   } catch {
     // the browser keeps nothing here
   }
-}
-
-type FootProps = OnRoundProps & {
-  notes: Shown[];
-  draft: Draft;
-  toWatch: string[];
-  watching?: string;
-  onShow: (note: Shown) => void;
-  onFlow: (name: string) => void;
-  onSent: () => void;
-};
-
-function Foot(props: FootProps) {
-  const { review, round, latest, you, notes, draft } = props;
-  const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
-  const [trouble, setTrouble] = useState<string[]>([]);
-  const before = round.number === 0;
-  const unsent = draft.notes.length + draft.verdicts.length + draft.looksGood.length;
-  const toCheck = notes.find((note) => note.state === "needs you" && !note.unsent);
-  // The next flow you haven't said looks good, after the one you're watching.
-  const at = props.toWatch.indexOf(props.watching ?? "");
-  const toWatch = [...props.toWatch.slice(at + 1), ...props.toWatch.slice(0, Math.max(0, at))][0];
-  const withTheAgent = notes.some((note) => note.state === "with the agent" && !note.unsent);
-  const taken = review.sends.filter((send) => send.round === round.number).every((send) => review.taken.some((taken) => taken.send === send.id));
-  const canAccept = !review.accepted && latest === round && !unsent && readyToAccept(review, you);
-
-  const sendNow = async () => {
-    if (!unsent || sending) return;
-    setSending(true);
-    const problems = await send(review.id, { id: newId(), round: round.number, by: you, sent: new Date().toISOString(), ...draft });
-    setSending(false);
-    setTrouble(problems);
-    if (problems.length) return;
-    props.onSent();
-    setSent(true);
-    setTimeout(() => setSent(false), 4000);
-  };
-  const acceptNow = async () => {
-    if (canAccept) setTrouble(await accept(review.id, you));
-  };
-
-  useEffect(() => {
-    const keys = (event: KeyboardEvent) => {
-      if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !(event.target instanceof HTMLTextAreaElement)) acceptNow();
-    };
-    addEventListener("keydown", keys);
-    return () => removeEventListener("keydown", keys);
-  });
-
-  const action = "flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-lg bg-hover px-3 text-xs shadow-[inset_0_0_0_1px_var(--line)] transition-colors duration-150 ease-calm hover:bg-line";
-  const said = "flex h-8 min-w-0 flex-1 items-center gap-2 px-1 text-xs";
-  let step: ReactNode;
-  if (review.accepted)
-    step = (
-      <span className={`${said} font-semibold text-green`}>
-        <span className="truncate">✓ Accepted{review.accepted.by === you ? "" : ` by ${review.accepted.by}`}</span>
-      </span>
-    );
-  else if (latest !== round && props.arrived)
-    step = (
-      <button className={action} onClick={() => props.onRound(latest.number)}>
-        <span className="truncate">{roundName(latest.number)} is in</span>
-        <span className="text-faint">· See it</span>
-      </button>
-    );
-  else if (latest !== round)
-    step = (
-      <button className={action} onClick={() => props.onRound(latest.number)}>
-        <span className="truncate text-soft">Looking back</span>
-        <span>· Back to now</span>
-      </button>
-    );
-  else if (before)
-    step = (
-      <span className={`${said} text-soft`}>
-        <span className="size-1.5 flex-none animate-breathe rounded-full bg-slate" />
-        <span className="truncate">The agent is working on round 1</span>
-      </span>
-    );
-  else if (toCheck)
-    step = (
-      <button className={action} onClick={() => props.onShow(toCheck)}>
-        <span className="flex-none text-faint">Next to check ·</span>
-        <span className="truncate">{toCheck.turns[0]?.words}</span>
-      </button>
-    );
-  else if (toWatch)
-    step = (
-      <button className={action} onClick={() => props.onFlow(toWatch)}>
-        <span className="flex-none text-faint">Next ·</span>
-        <span className="truncate">{toWatch}</span>
-      </button>
-    );
-  else if (props.watching && props.toWatch.includes(props.watching))
-    step = (
-      <span className={`${said} text-soft`}>
-        <span className="truncate">Looks good? Say so beside its name.</span>
-      </span>
-    );
-  else if (unsent)
-    step = (
-      <span className={`${said} text-soft`}>
-        <span className="truncate">Nothing reaches the agent until you send it.</span>
-      </span>
-    );
-  else if (withTheAgent)
-    step = (
-      <span className={`${said} text-soft`}>
-        <span className="size-1.5 flex-none animate-breathe rounded-full bg-slate" />
-        <span className="truncate">{taken ? `The agent is working on round ${round.number + 1}` : "Sent, waiting for the agent"}</span>
-      </span>
-    );
-  else if (canAccept)
-    step = (
-      <button className={action} onClick={acceptNow}>
-        <span className="truncate">All good · Accept the work</span>
-        <kbd className="ml-auto font-ui text-[11px] text-faint">{mac ? "⌘" : "Ctrl"} ↵</kbd>
-      </button>
-    );
-
-  return (
-    <div className="border-t border-line px-1 pt-3">
-      {trouble.length > 0 && <p className="mb-2 text-xs text-amber-ink">{trouble.join(" ")}</p>}
-      <div className="flex min-h-8 items-center gap-2">
-        {step}
-        {!review.accepted && !before && (latest === round || props.arrived) && (
-          <button
-            className={`flex h-8 w-[88px] flex-none items-center justify-center gap-2 rounded-lg text-[12.5px] font-semibold transition-colors duration-150 ease-calm ${sent ? "text-slate" : "bg-fg text-ground disabled:opacity-30"}`}
-            disabled={!unsent || sending}
-            onClick={sendNow}
-          >
-            {sent ? "✓ Sent" : "Send"}
-            {!sent && unsent > 0 && <span className="text-[11px] font-medium opacity-60 tabular-nums">{unsent}</span>}
-          </button>
-        )}
-      </div>
-    </div>
-  );
 }

@@ -1,15 +1,17 @@
 // The column is the map. Every flow is drawn as the recording it is: a picture of its page, its name and its length.
 // Under it, by time, a row for each note in it and for each diamond with something new to you. The flow you're in is one
 // line down the column, from under its picture through its rows to its end, where it asks whether it's good, filled to
-// where the playhead is. In general comes last. Nothing in it moves while it plays.
+// where the playhead is. A flow good to you settles once you've left it: its settled rows fold away under its heading.
+// In general comes last. Nothing in it moves while it plays, and when it changes, rows glide.
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { list, time, type Flow, type Place, type Review, type Round } from "@vantage/review";
 import { recording } from "./api.ts";
-import { Answer, Compare, play, Said, Time } from "./Card.tsx";
+import { Answer, Compare, play, Said, tick, Time, useHold } from "./Card.tsx";
 import { when, type Changed, type Diamond } from "./changes.ts";
+import { useGlide } from "./glide.ts";
 import { clamp } from "./moments.ts";
-import type { Shown } from "./notes.ts";
+import type { Shown, Standing } from "./notes.ts";
 import { opened, type Comparing } from "./Notes.tsx";
 import { useNow, type Playhead } from "./playhead.ts";
 import { recorded } from "./replay.ts";
@@ -26,36 +28,56 @@ type Props = {
   chosen?: string;
   lit?: string;
   compare?: Comparing;
-  // Where each flow's line ends: asking whether it's good, saying it is, or nowhere.
-  end: (flow: string) => "ask" | "good" | undefined;
+  // Where each flow stands for you, on the round you judge; looking back, nothing.
+  standing: (flow: string) => Standing | undefined;
+  // The flows you've said look good and haven't sent: their tick takes it back, as a checkbox does.
+  saidGood: string[];
+  // The flow asking whether it's good, at its end, and the one just ticked.
+  asked?: string;
+  landed?: Landed;
   // Who else says a flow looks good.
   others: (flow: string) => string[];
   note: (note: Shown) => ReactNode;
-  writing?: { on?: Place; box: ReactNode };
+  // Your notes that aren't notes yet, or just were: the one you're writing, the ones you haven't saved, one just removed.
+  pending: { on?: Place; row: ReactNode }[];
   onFlow: (flow: Flow) => void;
   onDiamond: (diamond: Diamond) => void;
   onPlayOn: () => void;
   onNoteOn: (diamond: Diamond) => void;
   onNote: (note: Shown) => void;
-  onEnd: (flow: string) => void;
+  onAsk: (flow: string) => void;
+  onGood: (flow: string) => void;
+  onNotQuite: (flow: string) => void;
+  onAgain: (flow: Flow) => void;
+  onTakeBack: (flow: string) => void;
   onGeneral?: () => void;
 };
 
+// A flow that just turned good, and when: its tick pops, in the column and the meter at once.
+export type Landed = { flow: string; at: number };
+export const justLanded = (landed: Landed | undefined, flow: string) => landed?.flow === flow && performance.now() - landed.at < 700;
+
 // A flow's rows, as the column lists them and Up and Down go through them: a note on a moment and a change by their time,
-// and a note on the whole flow last, since it answers the flow as a whole.
+// and a note on the whole flow last, since it answers the flow as a whole. Settled, only what's still on its way stays.
 export type Row = ({ note: Shown } | { diamond: Diamond }) & { at: number };
-export function rowsIn(flow: string, notes: Shown[], diamonds: Diamond[]): Row[] {
+export function rowsIn(flow: string, notes: Shown[], diamonds: Diamond[], settled = false): Row[] {
   const rows: Row[] = [
-    ...notes.filter((note) => note.on?.flow === flow).map((note) => ({ note, at: note.on?.at ?? Infinity })),
-    ...diamonds.filter((diamond) => diamond.flow === flow && diamond.row).map((diamond) => ({ diamond, at: diamond.at })),
+    ...notes.filter((note) => note.on?.flow === flow && (!settled || note.unsent || note.state === "with the agent")).map((note) => ({ note, at: note.on?.at ?? Infinity })),
+    ...diamonds.filter((diamond) => diamond.flow === flow && diamond.row && !settled).map((diamond) => ({ diamond, at: diamond.at })),
   ];
   return rows.sort((a, b) => a.at - b.at);
 }
 
+export function settles(standing: Standing | undefined, on: boolean) {
+  return standing?.is === "good" && !on;
+}
+
 export function Column(props: Props) {
-  const { round, notes, writing } = props;
+  const { round, notes, pending } = props;
   const watching = useNow(props.playhead, (now) => now.moment.flow);
   const map = useRef<HTMLDivElement>(null);
+  const ghosts = useRef<HTMLDivElement>(null);
+  useGlide(map, ghosts);
 
   // Playing on into the next flow brings its heading into view, if it's out of view.
   useEffect(() => {
@@ -71,23 +93,26 @@ export function Column(props: Props) {
       hidden={props.hidden}
       className="relative isolate grid min-h-0 flex-1 auto-rows-max content-start gap-px overflow-y-auto pr-2 pb-4 [scrollbar-gutter:stable] [--ahead:color-mix(in_srgb,var(--faint)_45%,var(--ground))] [--rail:var(--soft)]"
     >
+      <div ref={ghosts} className="absolute inset-x-0 top-0" aria-hidden />
       {round.flows.map((flow) => {
-        const rows = rowsIn(flow.name, notes, props.diamonds).map((row) => ({
+        const on = flow.name === watching;
+        const standing = props.standing(flow.name);
+        const rows = rowsIn(flow.name, notes, props.diamonds, settles(standing, on)).map((row) => ({
           at: row.at,
           shown: "note" in row ? props.note(row.note) : <ChangeRow {...props} key={row.diamond.id} diamond={row.diamond} />,
         }));
-        // What you're writing sits where it will once it's saved.
-        if (writing?.on?.flow === flow.name) {
-          const at = writing.on.at ?? Infinity;
-          rows.splice(rows.filter((row) => row.at <= at).length, 0, { at, shown: <div key="writing">{writing.box}</div> });
+        // What you're writing sits where it will once it's saved, and one just removed where it was.
+        for (const { on, row } of pending.filter(({ on }) => on?.flow === flow.name)) {
+          const at = on?.at ?? Infinity;
+          rows.splice(rows.filter((row) => row.at <= at).length, 0, { at, shown: row });
         }
         return (
-          <FlowBlock {...props} key={flow.name} flow={flow} on={flow.name === watching} end={props.end(flow.name)}>
+          <FlowBlock {...props} key={flow.name} flow={flow} on={on} standing={standing}>
             {rows.map(({ shown }) => shown)}
           </FlowBlock>
         );
       })}
-      <div className="mt-2 grid grid-cols-[64px_minmax(0,1fr)_18px] items-center gap-x-3 py-1.5 pr-2.5 pl-[18px]">
+      <div data-key="general" className="mt-2 grid grid-cols-[64px_minmax(0,1fr)_18px] items-center gap-x-3 py-1.5 pr-2.5 pl-[18px]">
         <span className="relative grid h-10 w-16 place-items-center rounded-[5px] text-faint shadow-[inset_0_0_0_1px_var(--line)]" aria-hidden>
           <svg viewBox="0 0 16 16" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round">
             <path d="M3 3.5h10a1 1 0 011 1v5.5a1 1 0 01-1 1H7l-3 2.5V11H3a1 1 0 01-1-1V4.5a1 1 0 011-1z" />
@@ -108,26 +133,29 @@ export function Column(props: Props) {
           </button>
         )}
       </div>
-      {(general.length > 0 || (writing && !writing.on)) && (
+      {(general.length > 0 || pending.some(({ on }) => !on)) && (
         <div className="-mt-1 grid gap-1.5 pb-1">
           {general.map(props.note)}
-          {writing && !writing.on && writing.box}
+          {pending.filter(({ on }) => !on).map(({ row }) => row)}
         </div>
       )}
     </div>
   );
 }
 
-function FlowBlock(props: Omit<Props, "end"> & { flow: Flow; on: boolean; end?: "ask" | "good"; children: ReactNode }) {
-  const { flow, on, end, playhead } = props;
+function FlowBlock(props: Omit<Props, "standing"> & { flow: Flow; on: boolean; standing?: Standing; children: ReactNode }) {
+  const { flow, on, standing, playhead } = props;
   const others = props.others(flow.name);
   const block = useRef<HTMLDivElement>(null);
   const line = useRef<HTMLDivElement>(null);
   useLine(block, line, playhead, flow, on);
   const playing = useNow(playhead, (now) => now.playing && now.moment.flow === flow.name);
+  const good = standing?.is === "good";
+  const just = justLanded(props.landed, flow.name);
   return (
-    <div ref={block} data-here={on ? "" : undefined} className={`relative ${end === "good" ? "[--rail:var(--green)]" : ""}`}>
+    <div ref={block} data-here={on ? "" : undefined} className={`relative ${good ? "[--rail:var(--green)]" : ""}`}>
       <div
+        data-key={`flow:${flow.name}`}
         data-flow={flow.name}
         role="button"
         tabIndex={0}
@@ -138,9 +166,29 @@ function FlowBlock(props: Omit<Props, "end"> & { flow: Flow; on: boolean; end?: 
         onKeyDown={(event) => event.key === "Enter" && props.onFlow(flow)}
       >
         <Still review={props.review} round={props.round} flow={flow} playing={playing} />
-        {end === "good" && (
-          <span className={`absolute top-[calc(50%+11px)] left-[18px] z-2 transition-opacity duration-200 ease-calm ${on ? "opacity-0" : ""}`} aria-label={`${flow.name} looks good`}>
-            <Tick corner />
+        {/* Where it stands, on its picture's corner: good, or good earlier and changed since. In the flow you're in, the end
+            of its line says it instead. */}
+        {(good || standing?.is === "looked good") && (
+          <span className={`absolute top-[calc(50%+11px)] left-[18px] z-2 transition-opacity duration-200 ease-calm ${on && standing?.asks ? "pointer-events-none opacity-0" : ""}`}>
+            {good && props.saidGood.includes(flow.name) ? (
+              <button
+                className="block transition-transform duration-150 ease-calm hover:scale-112"
+                aria-label={`${flow.name} looks good. Take it back`}
+                aria-pressed
+                tabIndex={on ? -1 : 0}
+                onMouseDown={keepKeys}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  props.onTakeBack(flow.name);
+                }}
+              >
+                <Tick corner travels={flow.name} just={just && !on} />
+              </button>
+            ) : (
+              <span role="img" aria-label={good ? `${flow.name} looks good` : `${flow.name} looked good earlier and has changed since`}>
+                <Tick corner travels={good ? flow.name : undefined} just={just && !on} hollow={!good} />
+              </span>
+            )}
           </span>
         )}
         <span className="grid min-w-0 gap-1.5">
@@ -153,7 +201,7 @@ function FlowBlock(props: Omit<Props, "end"> & { flow: Flow; on: boolean; end?: 
       </div>
       <div className={`relative -mt-1 grid gap-1.5 pb-1 transition-[padding-top] duration-300 ease-calm ${on ? "pt-3" : ""}`}>
         {flow.line && (
-          <div className={`grid text-xs leading-[1.45] transition-[grid-template-rows,opacity,visibility] duration-300 ease-calm ${on ? "visible grid-rows-[1fr] opacity-100" : "invisible grid-rows-[0fr] opacity-0"}`}>
+          <div data-key={`line:${flow.name}`} className={`grid text-xs leading-[1.45] transition-[grid-template-rows,opacity,visibility] duration-300 ease-calm ${on ? "visible grid-rows-[1fr] opacity-100" : "invisible grid-rows-[0fr] opacity-0"}`}>
             <div className="min-h-0 overflow-hidden pl-[44px]">
               <span className="block text-[11.5px] text-faint">{props.round.by}</span>
               <span className="block pb-2 text-soft">{flow.line}</span>
@@ -162,27 +210,79 @@ function FlowBlock(props: Omit<Props, "end"> & { flow: Flow; on: boolean; end?: 
         )}
         {props.children}
       </div>
-      {end && (
-        <div
-          data-stop={flow.length}
-          data-end
-          role="button"
-          tabIndex={on ? 0 : -1}
-          className={`group/end flex cursor-pointer items-center gap-2 overflow-hidden pl-[18px] text-[12.5px] transition-[height,opacity,visibility] duration-300 ease-calm ${on ? "visible h-8 opacity-100" : "invisible h-0 opacity-0"} ${end === "good" ? "text-green" : "text-faint hover:text-soft"}`}
-          onMouseDown={keepKeys}
-          onClick={() => props.onEnd(flow.name)}
-        >
-          {end === "good" ? (
-            <span data-mark className="relative z-1">
-              <Tick />
-            </span>
-          ) : (
-            <span data-mark className="relative z-1 size-[18px] rounded-full bg-ground shadow-[inset_0_0_0_1.5px_var(--ahead)] transition-shadow duration-150 ease-calm group-hover/end:shadow-[inset_0_0_0_1.5px_var(--amber)]" />
-          )}
-          {end === "good" ? "Looks good" : "Is it good?"}
-        </div>
-      )}
+      {standing?.asks &&
+        (props.asked === flow.name && on ? (
+          <Question {...props} standing={standing} just={just} />
+        ) : (
+          <div
+            data-key={`end:${flow.name}`}
+            data-stop={flow.length}
+            data-end
+            role="button"
+            tabIndex={on ? 0 : -1}
+            aria-label={good ? `${flow.name} looks good` : `${flow.name}: is it good?`}
+            className={`group/end flex cursor-pointer items-center gap-2 overflow-hidden pl-[18px] text-[12.5px] transition-[height,opacity,visibility] duration-300 ease-calm ${on ? "visible h-8 opacity-100" : "invisible h-0 opacity-0"} ${good ? "text-green" : "text-faint hover:text-soft"}`}
+            onMouseDown={keepKeys}
+            onClick={() => props.onAsk(flow.name)}
+            onKeyDown={(event) => event.key === "Enter" && props.onAsk(flow.name)}
+          >
+            {good ? (
+              <span data-mark className="relative z-1">
+                <Tick travels={on ? flow.name : undefined} just={just && on} />
+              </span>
+            ) : (
+              <span data-mark className="relative z-1 size-[18px] rounded-full bg-ground shadow-[inset_0_0_0_1.5px_var(--ahead)] transition-shadow duration-150 ease-calm group-hover/end:shadow-[inset_0_0_0_1.5px_var(--amber)]" />
+            )}
+            {good ? "Looks good" : "Is it good?"}
+          </div>
+        ))}
       <div ref={line} aria-hidden className={`pointer-events-none absolute inset-y-0 left-[calc(27px-0.75px)] z-0 w-[1.5px] transition-opacity duration-250 ease-calm ${on ? "opacity-100" : "opacity-0"}`} />
+    </div>
+  );
+}
+
+// A flow's question, at its end under its notes: whether it's good, what Looks good would settle that you haven't
+// answered, and a way to watch it again first. Its ring is where the flow's line ends. Its heading names the flow, so the
+// question doesn't.
+function Question({ flow, standing, just, ...props }: Omit<Props, "standing"> & { flow: Flow; standing: Standing; just: boolean }) {
+  const good = standing.is === "good";
+  const sent = good && !props.saidGood.includes(flow.name);
+  const buttons = useRef<HTMLDivElement>(null);
+  const held = useHold(flow.name, buttons);
+  return (
+    <div
+      data-key={`end:${flow.name}`}
+      data-stop={flow.length}
+      data-end
+      className="relative mt-0.5 mb-1.5 ml-[27px] animate-verd rounded-r-lg bg-hover py-2.5 pr-3 pl-[17px] shadow-[inset_0_0_0_1px_var(--line)]"
+    >
+      <span
+        data-mark
+        data-tick={flow.name}
+        className={`absolute top-2.5 -left-[9px] z-1 grid size-[18px] place-items-center rounded-full transition-[background-color,box-shadow] duration-250 ease-calm ${good ? "bg-green text-ground shadow-[inset_0_0_0_1.5px_color-mix(in_srgb,var(--green)_70%,var(--fg))]" : "bg-[color-mix(in_srgb,var(--amber)_22%,var(--ground))] shadow-[inset_0_0_0_1.5px_var(--amber)]"} ${just ? "animate-pop" : ""}`}
+        aria-hidden
+      >
+        {good && <TickMark className={just ? "animate-tick" : ""} />}
+      </span>
+      <p className="mb-2 text-[13px] leading-[18px] text-soft">
+        <button className="float-right ml-2 inline-flex items-center gap-1 text-xs leading-[18px] text-faint transition-colors duration-150 ease-calm hover:text-fg" onMouseDown={keepKeys} onClick={() => props.onAgain(flow)}>
+          <svg viewBox="0 0 20 20" className="size-3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M4 10a6 6 0 1 0 1.8-4.3" />
+            <path d="M4 3.5v3h3" />
+          </svg>
+          Watch again
+        </button>
+        Is this flow good?
+        {standing.count > 0 && !good && <span className="block text-xs leading-4 text-faint">{standing.count} {standing.count === 1 ? "note" : "notes"} not answered</span>}
+      </p>
+      <div ref={buttons} className={`flex gap-1.5 transition-opacity duration-150 ease-calm ${held ? "pointer-events-none opacity-45" : ""}`}>
+        <Answer keys={good ? undefined : "↵"} tone="good" pressed={good} disabled={sent} onClick={() => props.onGood(flow.name)}>
+          {tick}Looks good
+        </Answer>
+        <Answer keys="X" tone="back" onClick={() => props.onNotQuite(flow.name)}>
+          Not quite
+        </Answer>
+      </div>
     </div>
   );
 }
@@ -200,7 +300,7 @@ function ChangeRow(props: Props & { diamond: Diamond }) {
   const { diamond, chosen, lit, onDiamond } = props;
   const open = chosen === diamond.id;
   return (
-    <div data-stop={diamond.at} data-open={open ? "" : undefined} className={`relative rounded-r-lg transition-colors duration-150 ease-calm [--c:var(--soft)] ${open ? opened : lit === diamond.id ? "bg-hover" : "hover:bg-hover"}`}>
+    <div data-key={`change:${diamond.id}`} data-stop={diamond.at} data-open={open ? "" : undefined} className={`relative rounded-r-lg transition-colors duration-150 ease-calm [--c:var(--soft)] ${open ? opened : lit === diamond.id ? "bg-hover" : "hover:bg-hover"}`}>
       <button className="group/row grid w-full grid-cols-[18px_minmax(0,1fr)] gap-2 py-1.5 pr-2.5 pl-[18px] text-left" onMouseDown={keepKeys} onClick={() => onDiamond(diamond)} aria-expanded={open}>
         <span data-mark className="group/mark relative z-1 mt-px grid size-[18px] place-items-center">
           <i className="size-2 rotate-45 bg-ground shadow-[inset_0_0_0_1.5px_var(--fg),0_0_0_2.5px_var(--ground)] group-data-played/mark:bg-fg group-data-played/mark:shadow-[0_0_0_2.5px_var(--ground)]" />
@@ -265,16 +365,26 @@ function Why({ diamond, notes, onNote }: Props & { diamond: Diamond }) {
   ));
 }
 
-// The flow's tick, green once it looks good: on its picture's corner, or where its line ends.
-function Tick({ corner }: { corner?: boolean }) {
+// The flow's tick, green once it looks good, on its picture's corner or where its line ends; hollow where it looked good
+// earlier and has changed since. Just ticked, it swells and settles as the green comes in, the tick growing after.
+function Tick({ corner, hollow, just, travels }: { corner?: boolean; hollow?: boolean; just?: boolean; travels?: string }) {
+  const look = hollow
+    ? "bg-ground text-green shadow-[inset_0_0_0_1.5px_var(--green),0_0_0_1.5px_var(--ground)]"
+    : corner
+      ? "bg-green text-ground shadow-[inset_0_0_0_1.5px_color-mix(in_srgb,var(--green)_70%,var(--fg)),0_0_0_1.5px_var(--ground)]"
+      : "bg-green text-ground shadow-[inset_0_0_0_1.5px_color-mix(in_srgb,var(--green)_70%,var(--fg))]";
   return (
-    <span
-      className={`grid size-[18px] place-items-center rounded-full bg-green text-white ${corner ? "shadow-[inset_0_0_0_1.5px_color-mix(in_srgb,var(--green)_70%,var(--fg)),0_0_0_1.5px_var(--ground)]" : "shadow-[inset_0_0_0_1.5px_color-mix(in_srgb,var(--green)_70%,var(--fg))]"}`}
-    >
-      <svg viewBox="0 0 12 12" className="size-[11px]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-        <path d="M2.8 6.2l2.2 2.2 4.2-4.6" />
-      </svg>
+    <span data-tick={travels} className={`grid size-[18px] place-items-center rounded-full ${look} ${just ? "animate-pop" : ""}`}>
+      <TickMark className={just ? "animate-tick" : ""} />
     </span>
+  );
+}
+
+function TickMark({ className }: { className: string }) {
+  return (
+    <svg viewBox="0 0 12 12" className={`size-[11px] ${className}`} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M2.8 6.2l2.2 2.2 4.2-4.6" />
+    </svg>
   );
 }
 
@@ -392,7 +502,15 @@ function useLine(block: RefObject<HTMLDivElement | null>, line: RefObject<HTMLDi
       stop.mark.toggleAttribute("data-played", at >= stop.at - 0.001);
     }
   };
-  useLayoutEffect(paint);
+  useLayoutEffect(() => {
+    paint();
+    // While the column's rows glide, the line goes with them.
+    let frame = requestAnimationFrame(function follow() {
+      paint();
+      if (block.current?.getAnimations({ subtree: true }).some((animation) => animation.id === "glide")) frame = requestAnimationFrame(follow);
+    });
+    return () => cancelAnimationFrame(frame);
+  });
   useEffect(() => playhead.subscribe(paint), [playhead]);
   useEffect(() => {
     const observer = new ResizeObserver(() => paint());

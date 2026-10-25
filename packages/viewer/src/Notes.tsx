@@ -54,6 +54,7 @@ export function NoteRow(props: Props) {
   const here = useNow(props.playhead, ({ moment }) => at !== undefined && moment.flow === note.on?.flow && moment.at >= at - 0.05 && moment.at <= (note.on?.until ?? at) + SHOWN_FOR);
   return (
     <div
+      data-key={`note:${note.id}`}
       data-stop={at}
       data-open={open ? "" : undefined}
       className={`relative rounded-r-lg transition-colors duration-150 ease-calm ${open ? `${opened} [--rail:var(--c)]` : "hover:bg-hover"} ${props.fresh ? "animate-glow" : ""}`}
@@ -261,11 +262,28 @@ function Card(props: Props) {
 }
 
 // Writing a note, or what's still not right: the box, what it is, and its two ways out. Escape never throws words away:
-// it only closes an empty box.
-export function Writing(props: { words: string; placeholder: string; question?: ReactNode; tone?: "back"; onSave: (words: string) => void; onCancel: () => void }) {
+// it closes an empty box, and steps out of one with words in it. A new note keeps its words as you write (onWords).
+export function Writing(props: {
+  words: string;
+  placeholder: string;
+  question?: ReactNode;
+  tone?: "back";
+  onSave: (words: string) => void;
+  onCancel: () => void;
+  onWords?: (words: string) => void;
+}) {
   const [words, setWords] = useState(props.words);
   const box = useRef<HTMLTextAreaElement>(null);
   useEffect(() => box.current?.focus(), []);
+  const keep = useRef(props.onWords);
+  keep.current = props.onWords;
+  const latest = useRef(words);
+  latest.current = words;
+  useEffect(() => {
+    const later = setTimeout(() => keep.current?.(words), 300);
+    return () => clearTimeout(later);
+  }, [words]);
+  useEffect(() => () => keep.current?.(latest.current), []);
   const save = () => words.trim() && props.onSave(words.trim());
   return (
     <>
@@ -279,7 +297,11 @@ export function Writing(props: { words: string; placeholder: string; question?: 
         onKeyDown={(event) => {
           event.stopPropagation();
           if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) save();
-          if (event.key === "Escape" && !words.trim()) props.onCancel();
+          if (event.key === "Escape") {
+            keep.current?.(words);
+            if (words.trim()) event.currentTarget.blur();
+            else props.onCancel();
+          }
         }}
       />
       {props.question && <p className="mt-1.5 text-xs leading-[18px] text-soft">{props.question}</p>}

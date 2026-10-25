@@ -1,36 +1,38 @@
-// What you've written on a round and not sent yet, kept in this browser so a reload loses nothing. Nobody else sees it,
-// and sending empties it.
+// What's yours on a round, kept in this browser so a reload loses nothing, and nobody else sees it: what you've written
+// and not sent yet, which sending empties, and the flows you've watched.
 
 import { useState } from "react";
-import { nothing, type Draft } from "./notes.ts";
+import { nothing, said, type Draft } from "./notes.ts";
 
-export function useDraft(review: string, round: number): [Draft, (change: (draft: Draft) => Draft) => void] {
-  const key = `vantage:${review}:${round}`;
-  const [kept, setKept] = useState(() => ({ key, draft: read(key) }));
-  if (kept.key !== key) setKept({ key, draft: read(key) });
+export function useDraft(review: string, round: number) {
+  return useKept<Draft>(`vantage:${review}:${round}`, (kept) => ({ ...nothing, ...(kept as object) }), (draft) => !said(draft) && !draft.unsaved.length);
+}
 
-  const change = (change: (draft: Draft) => Draft) =>
+export function useWatched(review: string, round: number) {
+  return useKept<string[]>(`vantage:${review}:${round}:watched`, (kept) => (Array.isArray(kept) ? kept : []), (flows) => !flows.length);
+}
+
+function useKept<T>(key: string, shape: (kept: unknown) => T, empty: (value: T) => boolean): [T, (change: (value: T) => T) => void] {
+  const read = (key: string) => {
+    try {
+      return shape(JSON.parse(localStorage.getItem(key) ?? "null"));
+    } catch {
+      return shape(null);
+    }
+  };
+  const [kept, setKept] = useState(() => ({ key, value: read(key) }));
+  if (kept.key !== key) setKept({ key, value: read(key) });
+
+  const change = (change: (value: T) => T) =>
     setKept((kept) => {
-      const draft = change(kept.draft);
-      write(kept.key, draft);
-      return { key: kept.key, draft };
+      const value = change(kept.value);
+      try {
+        if (empty(value)) localStorage.removeItem(kept.key);
+        else localStorage.setItem(kept.key, JSON.stringify(value));
+      } catch {
+        // the browser keeps nothing here: it lives until the page closes
+      }
+      return { key: kept.key, value };
     });
-  return [kept.key === key ? kept.draft : read(key), change];
-}
-
-function read(key: string): Draft {
-  try {
-    return { ...nothing, ...JSON.parse(localStorage.getItem(key) ?? "{}") };
-  } catch {
-    return nothing;
-  }
-}
-
-function write(key: string, draft: Draft) {
-  try {
-    if (draft.notes.length || draft.verdicts.length || draft.looksGood.length) localStorage.setItem(key, JSON.stringify(draft));
-    else localStorage.removeItem(key);
-  } catch {
-    // the browser keeps nothing here: the draft lives until the page closes
-  }
+  return [kept.key === key ? kept.value : read(key), change];
 }

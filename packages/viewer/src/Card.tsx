@@ -1,7 +1,7 @@
 // What a row holds once it's opened in the column, its card: what was said, the way to compare, the question, and the
 // answers to it. A key that answers is drawn on its button, faint and outlined, at the button's right edge.
 
-import type { ReactNode } from "react";
+import { useLayoutEffect, useState, type ReactNode, type RefObject } from "react";
 
 export const mac = /Mac|iPhone|iPad/.test(navigator.userAgent);
 
@@ -19,12 +19,14 @@ export function Said({ who, quiet, children, after }: { who: ReactNode; quiet?: 
 }
 
 // A button that answers, its key at its right edge and its words centred in the room left of it.
-export function Answer({ children, keys, pressed, tone, onClick }: { children: ReactNode; keys?: string; pressed?: boolean; tone?: "good" | "back"; onClick: () => void }) {
+export function Answer(props: { children: ReactNode; keys?: string; pressed?: boolean; disabled?: boolean; tone?: "good" | "back"; onClick: () => void }) {
+  const { children, keys, pressed, tone, onClick } = props;
   const look = pressed ? (tone === "good" ? "bg-green/12 text-green" : "bg-slate/14 text-slate") : `bg-hover hover:bg-line hover:text-fg ${tone === "good" ? "text-fg" : "text-soft"}`;
   return (
     <button
       className={`inline-flex h-[30px] flex-[1_1_auto] items-center justify-center rounded-md font-medium whitespace-nowrap transition-colors duration-150 ease-calm ${keys ? "pr-[7px] before:flex-[1_0_10px] before:content-[''] after:order-1 after:flex-[1_0_10px] after:content-['']" : "px-2.5"} ${look}`}
       aria-pressed={pressed}
+      disabled={props.disabled}
       aria-keyshortcuts={keys === "↵" ? "Enter" : keys}
       onMouseDown={(event) => event.preventDefault()}
       onClick={onClick}
@@ -98,4 +100,30 @@ export function Time({ children, className = "" }: { children: ReactNode; classN
       {children}
     </span>
   );
+}
+
+// Buttons that come up under the pointer hold: dimmed, they take no click until the pointer moves off them, or for a
+// little over a second, so one extra click never takes something you haven't looked at. A key always goes through.
+let pointer: { x: number; y: number } | undefined;
+for (const kind of ["pointermove", "pointerdown"] as const) addEventListener(kind, (event) => (pointer = { x: event.clientX, y: event.clientY }), true);
+
+export function useHold(key: string, buttons: RefObject<HTMLElement | null>): boolean {
+  const [held, setHeld] = useState(false);
+  useLayoutEffect(() => {
+    const over = () => {
+      const box = buttons.current?.getBoundingClientRect();
+      return !!box && !!pointer && pointer.x >= box.left && pointer.x <= box.right && pointer.y >= box.top && pointer.y <= box.bottom;
+    };
+    setHeld(over());
+    if (!over()) return;
+    const free = () => setHeld(false);
+    const timer = setTimeout(free, 1200);
+    const moved = () => over() || free();
+    addEventListener("pointermove", moved);
+    return () => {
+      clearTimeout(timer);
+      removeEventListener("pointermove", moved);
+    };
+  }, [key, buttons]);
+  return held;
 }
