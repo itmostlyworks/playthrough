@@ -1,22 +1,39 @@
 // The recordings: the round you're watching, or side by side with the round it's compared with, each at the playhead's
 // moment in its own recording of the flow. Each takes its flow's recorded shape, as large as fits and never larger than
 // it was recorded; at actual size it's a window onto the page that follows the pointer, or stays where you move it.
-// Nothing Vantage draws covers what's recorded except the marks on it, and H hides those.
+// Nothing Vantage draws covers what's recorded except the marks on it, and H hides those. Paused, what a click would note
+// is outlined, and Alt and the wheel widen it to what holds it.
 //
 // Every round once shown keeps its frame and its replays, in the same place in the page, so going back to a flow or a
 // round shows it at once: a recording moved elsewhere in the page would have to be built again.
 
-import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type PointerEvent } from "react";
-import type { Flow, Point, Review, Round } from "@vantage/review";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
+import { elementOf, type Thing } from "@vantage/page";
+import { inStep, type Box, type Flow, type Place, type Point, type Review, type Round } from "@vantage/review";
 import { recording } from "./api.ts";
-import { CARD, clamp, ease, inStep, MORPH, titleCard } from "./moments.ts";
+import { CARD, clamp, ease, MORPH, titleCard } from "./moments.ts";
 import { useNow, type Playhead } from "./playhead.ts";
-import { recorded, Replay, type Rect } from "./replay.ts";
+import { recorded, Replay } from "./replay.ts";
+import { holdersOf, pickAt, type Read } from "./things.ts";
 import { ahead, around, between, centreOf, fitted, GLIDE, moved, type Held, type Size, type View } from "./view.ts";
 
-export type Pin = { id: string; number: number; at: number; until?: number; point: Point; fill: string };
-// What changed at the moment you're stopped on, outlined where it is on the page: firmly once you've chosen it.
-export type Outline = { id: string; nodes: number[]; chosen: boolean };
+// What Vantage draws on a round's recording, each on its thing, by its node in that round's recording, or on a spot or
+// a part of the screen: a note's pin and the outline of what it's on, in its colour; a change's diamond and outline in
+// the recording's own dark ink; the note being written. Without a pin, it's what's chosen on a side where it has none,
+// outlined so both sides point at the same thing.
+export type Mark = {
+  id: string;
+  kind: "note" | "change" | "writing";
+  on: { node: number } | { point: Point } | { box: Box };
+  pin?: { number: number; fill: string } | "diamond";
+  // A note's colour; on a change's diamond, the colour of the note grown out of it.
+  ink?: string;
+  dot?: string;
+  chosen: boolean;
+  // A note shows from its moment, or through its stretch; a change only while you're stopped on it.
+  shows?: { at: number; until?: number };
+};
+export type Placed = { element: NonNullable<Place["element"]> } | { point: Point };
 export type Shown = { fit: number; k: number };
 // Held while H is down, kept after H twice.
 export type Bare = "held" | "kept";
@@ -40,12 +57,17 @@ type Props = {
   bare?: Bare;
   onShown: (shown: Shown) => void;
   onBareOff: () => void;
-  pins: Pin[];
+  // By round.
+  marks: Map<number, Mark[]>;
+  // The spot of the note being written, its pin dropped there; while writing, nothing else is outlined to note.
   placing?: Point;
-  onPlace?: (point: Point) => void;
-  onPin: (id: string) => void;
-  outline?: Outline;
-  onOutline: (id: string) => void;
+  writing: boolean;
+  onPlace?: (on: Placed) => void;
+  onMark: (id: string) => void;
+  // What each round's pages were read as, to name what a click would note.
+  read: Read;
+  // The notes whose things aren't on the page now, on the round you're watching.
+  onGone: (ids: string[]) => void;
   // The way back to every flow at once, on the latest round with more than one.
   onAllFlows?: () => void;
 };
@@ -68,9 +90,15 @@ export function Stage(props: Props) {
   const wasPlaying = useRef(false);
   const [visited, setVisited] = useState<number[]>([]);
   const [aim, setAim] = useState<Point>();
-  // Where the outlined things are, as shares of the page, measured on the page as it's shown.
-  const [outlined, setOutlined] = useState<Rect[]>([]);
-  const outlinedKey = useRef("");
+  // What a click would note, by its node, and how far Alt and the wheel have widened it, at this moment.
+  const [hover, setHover] = useState<number>();
+  const widen = useRef<{ here: string; pick: Thing }>(undefined);
+  const pointer = useRef<{ clientX: number; clientY: number }>(undefined);
+  // When each note's thing was last on the page, and which were gone as last told.
+  const seen = useRef(new Map<string, number>());
+  const told = useRef("");
+  // At actual size, the chosen thing shows whole, at the size it first showed at.
+  const focus = useRef<{ id: string; k?: number }>(undefined);
   const playing = useNow(props.playhead, (now) => now.playing);
   const { review, round, earlier, zoomed } = props;
   const then = earlier ? undefined : props.then;
@@ -179,7 +207,8 @@ export function Stage(props: Props) {
       else if (lead) view = around(box, page, centreOf(lead.view, lead.box), lead.view.k);
       else {
         const hold = held.current?.flow === flow.name ? held.current : undefined;
-        view = around(box, page, hold?.centre ?? (replay ? ahead(replay, at, its.length) : [page.width / 2, 0]), hold?.k ?? 1);
+        const chosen = hold || !replay ? undefined : focusOn(replay, box);
+        view = around(box, page, hold?.centre ?? chosen?.centre ?? (replay ? ahead(replay, at, its.length) : [page.width / 2, 0]), hold?.k ?? chosen?.k ?? 1);
       }
       if (shown === round) {
         lead = { view, box };
@@ -195,8 +224,8 @@ export function Stage(props: Props) {
         replay.show(at, playing, speed);
         if (stopped && wasPlaying.current) replay.rest();
       }
-      if (shown === round) outline(replay && !playing ? replay : undefined, page);
       Object.assign(part.marks.style, { transform: shift, width: `${page.width * view.k}px`, height: `${page.height * view.k}px` });
+      place(part.marks, replay, page, view, box, at, playing, shown === round);
       part.name.textContent = its.name;
       part.card.style.opacity = card ? "1" : "0";
       part.card.style.setProperty("--k", (card?.soft ?? 0).toFixed(3));
@@ -218,17 +247,62 @@ export function Stage(props: Props) {
     if (gliding && !playing) requestAnimationFrame(paint);
   };
 
-  // Playing, nothing is outlined; stopped, what changed there is, wherever it is on the page now.
-  const outline = (replay: Replay | undefined, page: Size) => {
-    const nodes = (replay && latest.current.outline?.nodes) || [];
-    const boxes = nodes.flatMap((node) => {
-      const box = replay!.boxOf(node);
-      return box ? [{ left: box.left / page.width, top: box.top / page.height, width: box.width / page.width, height: box.height / page.height }] : [];
-    });
-    const key = JSON.stringify(boxes);
-    if (key === outlinedKey.current) return;
-    outlinedKey.current = key;
-    setOutlined(boxes);
+  // Each mark goes where its thing is on the page now, and shows while its moment is and it's on the recorded screen,
+  // covering only the part of it that is; a change, only while you're stopped. On the round you're watching, a note
+  // whose thing has been off the page for a moment of the recording is gone: playing past a page redrawing, it doesn't
+  // flicker. Moved out of the screen's view, it's still there.
+  const place = (layer: HTMLElement, replay: Replay | undefined, page: Size, view: View, frame: Size, at: number, playing: boolean, watched: boolean) => {
+    const gone: string[] = [];
+    for (const mark of layer.querySelectorAll<HTMLElement>("[data-mark-id]")) {
+      const { node, from, until, paused, markId } = mark.dataset;
+      const spot = mark.dataset.box?.split(" ").map(Number);
+      const box = node !== undefined ? replay?.boxOf(Number(node)) : spot && { left: spot[0]! * page.width, top: spot[1]! * page.height, width: spot[2]! * page.width, height: spot[3]! * page.height };
+      const left = Math.max(0, box?.left ?? 0);
+      const top = Math.max(0, box?.top ?? 0);
+      const right = Math.min(page.width, (box?.left ?? 0) + (box?.width ?? 0));
+      const bottom = Math.min(page.height, (box?.top ?? 0) + (box?.height ?? 0));
+      const shown = (node === undefined && !spot) || (right - left >= 1 && bottom - top >= 1);
+      const now = from === undefined || (at >= Number(from) - 0.05 && at <= Number(until ?? from) + SHOWN_FOR);
+      mark.hidden = !shown || !now || (paused !== undefined && playing);
+      if (watched && node !== undefined && mark.dataset.kind === "note") {
+        if (box) seen.current.set(markId!, at);
+        else if (!playing || Math.abs(at - (seen.current.get(markId!) ?? -Infinity)) > 0.3) gone.push(markId!);
+      }
+      if (!box || mark.hidden) continue;
+      Object.assign(mark.style, { left: share(left / page.width), top: share(top / page.height), width: share((right - left) / page.width), height: share((bottom - top) / page.height) });
+      const pin = mark.querySelector<HTMLElement>("[data-pin]");
+      if (pin) pinAt(pin, { left, top, right, bottom }, view, frame);
+    }
+    if (!watched) return;
+    const key = gone.sort().join(" ");
+    if (key !== told.current) {
+      told.current = key;
+      latest.current.onGone(gone);
+    }
+  };
+
+  // A pin sits just outside its outline's top right corner like a badge, the line from the column coming to it short and
+  // never crossing what it's on; at its bottom right where the top is out of view, and pulled in where the right is.
+  const pinAt = (pin: HTMLElement, box: { left: number; top: number; right: number; bottom: number }, view: View, frame: Size) => {
+    const out = 14;
+    const right = Math.min(out, frame.width - (box.right - view.x) * view.k - 11);
+    const above = (box.top - view.y) * view.k - out >= 11;
+    Object.assign(pin.style, { left: `calc(100% + ${right - 9}px)`, top: above ? `${-out - 9}px` : `calc(100% + ${out - 9}px)` });
+  };
+
+  // At actual size, the chosen note or change on the round you're watching shows whole, at 100% where it fits, else
+  // zoomed out just enough, at the size it first showed at, so stepping through it holds the zoom.
+  const focusOn = (replay: Replay, frame: Size): { centre: [number, number]; k: number } | undefined => {
+    const chosen = (latest.current.marks.get(latest.current.round.number) ?? []).filter((mark) => mark.chosen && mark.kind !== "writing" && "node" in mark.on);
+    const boxes = chosen.flatMap((mark) => replay.boxOf((mark.on as { node: number }).node) ?? []);
+    if (!boxes.length) return undefined;
+    const left = Math.min(...boxes.map((box) => box.left));
+    const top = Math.min(...boxes.map((box) => box.top));
+    const width = Math.max(...boxes.map((box) => box.left + box.width)) - left;
+    const height = Math.max(...boxes.map((box) => box.top + box.height)) - top;
+    const kept = focus.current?.id === chosen[0]!.id ? focus.current : (focus.current = { id: chosen[0]!.id });
+    kept.k ??= Math.min(1, frame.width / (width + 48), frame.height / (height + 48));
+    return { centre: [left + width / 2, top + height / 2], k: kept.k };
   };
 
   // What the size control says: how large the recording you're watching shows, and where it's going while it glides.
@@ -269,6 +343,15 @@ export function Stage(props: Props) {
     glide.current = matchMedia("(prefers-reduced-motion: reduce)").matches ? undefined : { started: performance.now(), from: new Map(painted.current) };
   }
 
+  // Choosing another note or change lets go of where you moved the view, and glides to it.
+  const chosen = (props.marks.get(round.number) ?? []).find((mark) => mark.chosen && mark.kind !== "writing")?.id;
+  const wasChosen = useRef(chosen);
+  if (wasChosen.current !== chosen) {
+    wasChosen.current = chosen;
+    held.current = undefined;
+    if (zoomed && !matchMedia("(prefers-reduced-motion: reduce)").matches) glide.current = { started: performance.now(), from: new Map(painted.current) };
+  }
+
   // Choosing another view, what's on screen comes in softly.
   const side = !!earlier;
   const wasSide = useRef(side);
@@ -294,25 +377,93 @@ export function Stage(props: Props) {
     held.current = { centre: moved(to(centre, view.k), view, view.page, view.k), k: view.k, flow: latest.current.playhead.now.moment.flow };
     if (!latest.current.playhead.now.playing) paint();
   };
+  // Paused, with Alt (Option) held, the wheel widens what a click would note instead, a notch a step; a trackpad's small
+  // steps add up to a notch.
+  const notches = useRef(0);
   useEffect(() => {
     const room = stage.current;
     const wheel = (event: WheelEvent) => {
+      if (event.altKey && aimingAt(event.target)) {
+        event.preventDefault();
+        notches.current += event.deltaY;
+        if (Math.abs(notches.current) < 40 && Math.abs(event.deltaY) < 40) return;
+        widenBy(event, -Math.sign(notches.current));
+        notches.current = 0;
+        return setHover(pickFor(event)?.node);
+      }
       const number = zoomedFrame(event.target);
       if (number === undefined) return;
       event.preventDefault();
       moveView(number, (centre, k) => [centre[0] + event.deltaX / k, centre[1] + event.deltaY / k]);
     };
+    // Letting go of Alt after widening doesn't take the browser to its menu.
+    const alt = (event: KeyboardEvent) => void (event.key === "Alt" && widen.current && event.preventDefault());
     room?.addEventListener("wheel", wheel, { passive: false });
-    return () => room?.removeEventListener("wheel", wheel);
+    addEventListener("keyup", alt);
+    return () => {
+      room?.removeEventListener("wheel", wheel);
+      removeEventListener("keyup", alt);
+    };
   }, []);
 
-  // A point on the screen as a share of the recorded page.
-  const pointAt = (event: { clientX: number; clientY: number }, number: number): Point | undefined => {
+  // A point on the screen, on the recorded page, in its pixels.
+  const onPage = (event: { clientX: number; clientY: number }, number: number): [number, number] | undefined => {
     const frame = frames.current.get(number);
     const view = painted.current.get(number);
     if (!frame || !view) return undefined;
     const box = frame.getBoundingClientRect();
-    return { x: clamp(((event.clientX - box.left) / view.k + view.x) / view.page.width), y: clamp(((event.clientY - box.top) / view.k + view.y) / view.page.height) };
+    return [clamp((event.clientX - box.left) / view.k + view.x, 0, view.page.width), clamp((event.clientY - box.top) / view.k + view.y, 0, view.page.height)];
+  };
+  // And as a share of it.
+  const pointAt = (event: { clientX: number; clientY: number }, number: number): Point | undefined => {
+    const at = onPage(event, number);
+    const page = painted.current.get(number)?.page;
+    return at && page && { x: at[0] / page.width, y: at[1] / page.height };
+  };
+
+  // What's under the pointer on the round you're watching, paused on its recording: the replay there, what's under the
+  // point and holds it, and what that was read as.
+  const under = (event: { clientX: number; clientY: number }) => {
+    const { round, playhead, read } = latest.current;
+    const { moment } = playhead.now;
+    const flow = round.flows.find((flow) => flow.name === moment.flow);
+    const replay = flow && replays.current.get(key(round, flow));
+    const things = flow && read(round.number, flow.name);
+    const at = onPage(event, round.number);
+    if (!(replay instanceof Replay) || !things || !at || moment.at < 0) return undefined;
+    return { replay, things, at: moment.at, outwards: replay.outwards(at[0], at[1]), here: `${round.number}/${moment.flow}/${moment.at}` };
+  };
+  // What a click there would note: what it's widened to while the pointer stays inside that, else what's under it.
+  const pickFor = (event: { clientX: number; clientY: number }): Thing | undefined => {
+    const here = under(event);
+    if (!here) return undefined;
+    const wide = widen.current;
+    if (wide && wide.here === here.here && here.outwards.includes(wide.pick.node!)) return wide.pick;
+    widen.current = undefined;
+    return pickAt(here.outwards, here.things, here.at);
+  };
+  // Up widens it to what holds it, down narrows it back towards what's under the pointer.
+  const widenBy = (event: { clientX: number; clientY: number }, step: number) => {
+    const here = under(event);
+    const pick = here && pickAt(here.outwards, here.things, here.at);
+    if (!here || !pick) return;
+    const holders = holdersOf(here.outwards, here.things, here.at, pick, (node) => here.replay.boxOf(node), here.replay);
+    const wide = widen.current;
+    const from = wide && wide.here === here.here ? holders.indexOf(wide.pick) + 1 : 0;
+    const to = clamp(from + step, 0, holders.length);
+    widen.current = to ? { here: here.here, pick: holders[to - 1]! } : undefined;
+  };
+  const aimingAt = (target: EventTarget | null) => {
+    const frame = target instanceof Element ? target.closest<HTMLElement>("[data-frame]") : null;
+    const { playhead, onPlace, writing, round } = latest.current;
+    return !!frame && Number(frame.dataset.frame) === round.number && !frame.hasAttribute("data-absent") && !playhead.now.playing && !!onPlace && !writing && !(target as Element).closest("[data-pin]");
+  };
+  const aimAt = (event: PointerEvent<HTMLDivElement>, number: number) => {
+    pointer.current = event;
+    const aiming = number === round.number && aimingAt(event.target) && !dragged.current;
+    const pick = aiming ? pickFor(event) : undefined;
+    setHover(pick?.node);
+    setAim(aiming && !pick ? pointAt(event, number) : undefined);
   };
 
   // A press on the page is a click until it moves 4px; from then on, zoomed in, it drags the page along like a map.
@@ -342,14 +493,19 @@ export function Stage(props: Props) {
     addEventListener("pointercancel", up);
   };
 
+  // A click notes what it would note, or else the spot itself.
   const click = (event: MouseEvent<HTMLDivElement>, number: number) => {
     if (dragged.current || number !== round.number) return;
     if (props.playhead.now.playing) return props.playhead.pause();
+    const pick = pickFor(event);
+    widen.current = undefined;
+    setHover(undefined);
+    if (pick) return props.onPlace?.({ element: elementOf(pick, pick.name) });
     const point = pointAt(event, number);
-    if (point) props.onPlace?.(point);
+    if (point) props.onPlace?.({ point });
   };
 
-  const aiming = !playing && !!props.onPlace && !props.placing;
+  const aiming = !playing && !!props.onPlace && !props.writing;
   // First on the line over the recording, where the grid's own heading was.
   const toAll = props.onAllFlows && (
     <button
@@ -382,17 +538,25 @@ export function Stage(props: Props) {
           key={number}
           ref={(element) => void (element ? frames.current.set(number, element) : frames.current.delete(number))}
           data-frame={number}
-          className={`absolute overflow-hidden rounded-lg bg-paper shadow-frame transition-opacity duration-160 ease-calm data-over:pointer-events-none data-over:z-10 ${number === round.number && aiming ? "cursor-none" : ""}`}
+          className={`absolute overflow-hidden rounded-lg bg-paper shadow-frame transition-opacity duration-160 ease-calm data-over:pointer-events-none data-over:z-10 ${number === round.number && aiming ? (hover === undefined ? "cursor-none" : "cursor-pointer") : ""}`}
           onPointerDown={(event) => press(event, number)}
-          onPointerMove={(event) => setAim(number === round.number && aiming && !dragged.current ? pointAt(event, number) : undefined)}
-          onPointerLeave={() => setAim(undefined)}
+          onPointerMove={(event) => aimAt(event, number)}
+          onPointerLeave={() => {
+            setAim(undefined);
+            setHover(undefined);
+          }}
           onClick={(event) => click(event, number)}
         >
           <div data-app className="absolute inset-0 overflow-hidden">
             <div data-stack className="absolute inset-0" />
             <div data-marks className={`absolute top-0 left-0 z-3 ${hideable} group-data-bare/stage:[&_*]:pointer-events-none`}>
-              {number === round.number && <Outlines boxes={outlined} outline={props.outline} onPin={props.onOutline} />}
-              {number === round.number && <Marks playhead={props.playhead} pins={props.pins} placing={props.placing} aim={aiming ? aim : undefined} onPin={props.onPin} />}
+              {(props.marks.get(number) ?? []).map((mark, i) => (
+                <Drawn key={`${mark.id}:${i}`} mark={mark} onMark={props.onMark} />
+              ))}
+              {number === round.number && aiming && hover !== undefined && (
+                <div data-mark-id="hover" data-node={hover} hidden className="pointer-events-none absolute rounded-[4px] outline-1 outline-offset-4 outline-[rgba(217,162,58,0.55)] outline-solid" />
+              )}
+              {number === round.number && <Spots placing={props.placing} aim={aiming ? aim : undefined} />}
             </div>
           </div>
           <div
@@ -449,65 +613,85 @@ export function Stage(props: Props) {
 // What H fades: everything Vantage draws on the recording.
 const hideable = "transition-[filter] duration-180 ease-calm group-data-bare/stage:[filter:opacity(0)]";
 
-function Marks({ playhead, pins, placing, aim, onPin }: { playhead: Playhead; pins: Pin[]; placing?: Point; aim?: Point; onPin: (id: string) => void }) {
-  const showing = useNow(playhead, ({ moment }) => pins.filter((pin) => moment.at >= pin.at - 0.05 && moment.at <= (pin.until ?? pin.at) + SHOWN_FOR).map((pin) => pin.id).join(" "));
-  const pin = "absolute size-[18px] -translate-x-1/2 -translate-y-1/2 rounded-full text-[10px] leading-[18px] font-semibold text-white shadow-pin";
+// A mark on its thing: an outline around it, never on it, clear of everything it draws, with its pin just outside the
+// corner like a badge; on a spot, its pin right there.
+function Drawn({ mark, onMark }: { mark: Mark; onMark: (id: string) => void }) {
+  const { on, pin, chosen } = mark;
+  const shows = mark.shows && { "data-from": mark.shows.at, "data-until": mark.shows.until };
+  const choose = (event: MouseEvent) => {
+    event.stopPropagation();
+    onMark(mark.id);
+  };
+  const badge =
+    pin === "diamond" ? (
+      <button data-pin={mark.id} aria-label="What changed here" className={`absolute grid size-[18px] place-items-center ${pressable}`} onClick={choose}>
+        <i className="size-[9px] rotate-45 bg-[#2b2e35] shadow-pin" />
+        {mark.dot && <b className="absolute top-px left-[11px] size-1.5 rounded-full shadow-[0_0_0_1.5px_#fff]" style={{ background: mark.dot }} />}
+      </button>
+    ) : (
+      pin && (
+        <button data-pin={mark.id} className={`absolute ${pinLook} ${pin.fill}`} onClick={choose}>
+          {pin.number}
+        </button>
+      )
+    );
+  if ("point" in on)
+    return (
+      <div data-mark-id={mark.id} data-kind={mark.kind} {...shows} className="absolute size-0" style={{ left: share(on.point.x), top: share(on.point.y) }}>
+        {pin && pin !== "diamond" && (
+          <button data-pin={mark.id} className={`${pinLook} ${pin.fill} absolute -top-[9px] -left-[9px]`} onClick={choose}>
+            {pin.number}
+          </button>
+        )}
+      </div>
+    );
+  const look =
+    mark.kind === "writing"
+      ? "outline-[1.5px] outline-dashed outline-amber"
+      : mark.kind === "change"
+        ? chosen
+          ? "outline-[1.5px] outline-[#2b2e35] outline-solid"
+          : "outline-1 outline-[rgba(43,46,53,0.4)] outline-solid"
+        : chosen
+          ? "outline-[1.5px] outline-(--c) outline-solid"
+          : "outline-1 outline-[color-mix(in_srgb,var(--c)_50%,transparent)] outline-solid";
+  return (
+    <div
+      data-mark-id={mark.id}
+      data-kind={mark.kind}
+      data-paused={mark.kind === "change" ? "" : undefined}
+      data-node={"node" in on ? on.node : undefined}
+      data-box={"box" in on ? `${on.box.x} ${on.box.y} ${on.box.width} ${on.box.height}` : undefined}
+      {...shows}
+      hidden
+      className={`pointer-events-none absolute rounded-[4px] outline-offset-4 ${look}`}
+      style={mark.ink ? ({ "--c": mark.ink } as CSSProperties) : undefined}
+    >
+      {badge}
+    </div>
+  );
+}
+
+// The spot being written on, its pin dropped there; and paused, where a click on empty space would leave one.
+function Spots({ placing, aim }: { placing?: Point; aim?: Point }) {
   return (
     <>
-      {pins
-        .filter((shown) => showing.split(" ").includes(shown.id))
-        .map((shown) => (
-          <button
-            key={shown.id}
-            data-pin={shown.id}
-            className={`${pin} ${shown.fill} cursor-pointer opacity-90 transition duration-150 ease-calm hover:scale-112 hover:opacity-100`}
-            style={{ left: `${shown.point.x * 100}%`, top: `${shown.point.y * 100}%` }}
-            onClick={(event) => {
-              event.stopPropagation();
-              onPin(shown.id);
-            }}
-          >
-            {shown.number}
-          </button>
-        ))}
-      {placing && <span className={`${pin} animate-drop bg-amber`} style={{ left: `${placing.x * 100}%`, top: `${placing.y * 100}%` }} />}
+      {placing && <span className={`${pinFace} absolute -translate-x-1/2 -translate-y-1/2 animate-drop bg-amber`} style={{ left: share(placing.x), top: share(placing.y) }} />}
       {aim && (
         <span
           className="pointer-events-none absolute size-[18px] -translate-x-1/2 -translate-y-1/2 rounded-full border-[1.5px] border-amber/70"
-          style={{ left: `${aim.x * 100}%`, top: `${aim.y * 100}%` }}
+          style={{ left: share(aim.x), top: share(aim.y) }}
         />
       )}
     </>
   );
 }
 
-// Each thing that changed, outlined in the change's ink, the recording's own dark grey, never a note's colour; the
-// first carries the change's pin, its diamond, where a note has its number.
-function Outlines({ boxes, outline, onPin }: { boxes: Rect[]; outline?: Outline; onPin: (id: string) => void }) {
-  if (!outline) return null;
-  const percent = (share: number) => `${(share * 100).toFixed(3)}%`;
-  return boxes.map((box, i) => (
-    <div
-      key={i}
-      className={`pointer-events-none absolute rounded-[4px] outline-offset-4 ${outline.chosen ? "outline-[1.5px] outline-[#2b2e35] outline-solid" : "outline-1 outline-[rgba(43,46,53,0.4)] outline-solid"}`}
-      style={{ left: percent(box.left), top: percent(box.top), width: percent(box.width), height: percent(box.height) }}
-    >
-      {i === 0 && (
-        <button
-          data-pin={outline.id}
-          aria-label="What changed here"
-          className="pointer-events-auto absolute -top-[9px] -right-[9px] grid size-[18px] cursor-pointer place-items-center opacity-90 transition duration-150 ease-calm hover:scale-112 hover:opacity-100"
-          onClick={(event) => {
-            event.stopPropagation();
-            onPin(outline.id);
-          }}
-        >
-          <i className="size-[9px] rotate-45 bg-[#2b2e35] shadow-pin" />
-        </button>
-      )}
-    </div>
-  ));
-}
+// A pin on an outline sits at its corner, where each paint puts it.
+const pressable = "pointer-events-auto cursor-pointer opacity-90 transition duration-150 ease-calm hover:scale-112 hover:opacity-100";
+const pinFace = "size-[18px] rounded-full text-[10px] leading-[18px] font-semibold text-white shadow-pin";
+const pinLook = `${pinFace} ${pressable}`;
+const share = (part: number) => `${(part * 100).toFixed(3)}%`;
 
 const fit = (room: Size, shape: Size): Size => {
   const width = Math.floor(Math.max(0, Math.min(room.width, (room.height * shape.width) / shape.height, shape.width)));

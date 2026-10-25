@@ -19,6 +19,16 @@ export function allNotes(review: Review): Map<string, { note: Note; round: numbe
   return notes;
 }
 
+// Where a note was last seen before a round: on the latest round before it where Vantage placed an answer to it, else
+// where it was written. A round's answers are placed on the thing as it's found on that round's recording.
+export function lastSeen(review: Review, id: string, before: number): { round: number; on: Place } | undefined {
+  const started = allNotes(review).get(id);
+  if (!started?.note.on) return undefined;
+  const placed = review.rounds.findLast((round) => round.number > started.round && round.number < before && round.replies.some((reply) => reply.note === id && reply.on));
+  const on = placed?.replies.find((reply) => reply.note === id)?.on;
+  return placed && on ? { round: placed.number, on } : { round: started.round, on: started.note.on };
+}
+
 // A note's conversation, oldest first: the note, then round by round the agent's reply and what people said about it.
 // Each turn says who: a person, or the agent that recorded the round, whatever their names.
 export type Turn = { by: string; agent: boolean; round: number; words: string; verdict?: Verdict["verdict"] };

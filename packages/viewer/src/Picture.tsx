@@ -2,8 +2,9 @@
 // so the same picture drawn at any size shows the same part of it, and one can grow into the other.
 
 import { useEffect, useState } from "react";
+import type { Reading } from "@vantage/page";
 import type { Flow, Review, Round } from "@vantage/review";
-import { picture, readings, recording, type Reading } from "./api.ts";
+import { picture, readings, recording } from "./api.ts";
 import type { Diamond } from "./changes.ts";
 import { clamp } from "./moments.ts";
 import { recorded } from "./replay.ts";

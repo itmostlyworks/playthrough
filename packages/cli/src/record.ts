@@ -1,14 +1,16 @@
 // Records the round being worked on: runs every flow like a person would, keeps each recording, records a flow that's new
-// since Before on Before too, compares the round with each round before it, and says what's left before it can be handed
-// over: an answer to each note, and why each change since the round before is there. Recording again keeps whatever the
-// agent already wrote in the round.
+// since Before on Before too, places each note's answer on its thing there, compares the round with each round before it,
+// and says what's left before it can be handed over: an answer to each note, and why each change since the round before
+// is there. Recording again keeps whatever the agent already wrote in the round.
 
-import { list, notesToAnswer, problemsFinishing, quote, Refused, roundInProgress, type Reply } from "@vantage/review";
+import { placeIn } from "@vantage/page";
+import { lastSeen, list, notesToAnswer, problemsFinishing, quote, Refused, roundInProgress, type Flow, type Reply, type Review } from "@vantage/review";
 import { agent, unnamed } from "./agent.ts";
 import { recordOnBefore } from "./before.ts";
 import { compareWithEarlier } from "./compare.ts";
 import { failedAt, runFlows } from "./flows.ts";
 import type { Repo } from "./repo.ts";
+import { readingsOn } from "./reporter.ts";
 
 export async function record(repo: Repo, id: string) {
   const review = await repo.reviews.get(id);
@@ -34,10 +36,11 @@ export async function record(repo: Repo, id: string) {
     .filter((note) => !written.some((reply) => reply.note === note))
     .map((note) => ({ note, words: "" }));
   const by = agent(saved?.by);
+  const replies = await Promise.all([...written, ...waiting].map((reply) => placed(repo, review, number, flows, reply)));
   // Compared before the round is kept, so it's never there to hand over without them.
   console.log(`\nComparing round ${number} with each round before it…`);
   const comparisons = await compareWithEarlier(repo.reviews, id, number, flows);
-  await repo.reviews.saveRound(id, { number, by, flows, replies: [...written, ...waiting], accounts: saved?.accounts ?? {} });
+  await repo.reviews.saveRound(id, { number, by, flows, replies, accounts: saved?.accounts ?? {} });
   for (const comparison of comparisons) await repo.reviews.saveComparison(id, comparison);
 
   // A flow that's new to the reviewer can say at its start what it starts from, or the choice it shows.
@@ -57,6 +60,18 @@ export async function record(repo: Repo, id: string) {
   }
   if (by === unnamed) console.log(`\nVantage can't tell which agent you are. Write your name in ${file} as “by”, and each of your answers shows it.`);
   console.log(left.length ? `\nThen hand it over: vantage wait ${id}` : `\nHand it over when it's ready: vantage wait ${id}`);
+}
+
+// Each answer shows where its note's thing is on this round's recording, found by Vantage from the last round it was
+// seen on, never said by the agent: the next try lands right beside what was noted.
+async function placed(repo: Repo, review: Review, number: number, flows: Flow[], reply: Reply): Promise<Reply> {
+  const answer: Reply = { note: reply.note, words: reply.words };
+  const seen = lastSeen(review, reply.note, number);
+  const flow = seen && flows.find((flow) => flow.name === seen.on.flow);
+  const then = seen && review.rounds.find((round) => round.number === seen.round)?.flows.find((kept) => kept.name === seen.on.flow);
+  if (!seen || !flow || !then) return answer;
+  const from = { flow: then, readings: await readingsOn(repo.reviews, review.id, seen.round, then) };
+  return { ...answer, on: placeIn(seen.on, from, { flow, readings: await readingsOn(repo.reviews, review.id, number, flow) }) };
 }
 
 const changed = (count: number, since: number) => {

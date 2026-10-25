@@ -47,6 +47,22 @@ function nameOf(changes: Change[]): string {
 // What the agent changed for a note, in the note's own flow.
 export const answersTo = (diamonds: Diamond[], note: string): Changed[] => diamonds.flatMap((diamond) => diamond.changes.filter((changed) => changed.answers && changed.note === note));
 
+// Your note on what changed, at its moment, on what it's on, or over the same new steps: it grows out of the change's
+// row, so the change and what you said about it are one row, one card and one mark.
+export function grownFrom(diamonds: Diamond[], on: Place | undefined): Diamond | undefined {
+  if (on?.at === undefined) return undefined;
+  const near = (a: number, b?: number) => b !== undefined && Math.abs(a - b) < TOGETHER;
+  return diamonds.find(
+    (diamond) =>
+      diamond.row &&
+      diamond.flow === on.flow &&
+      near(diamond.at, on.at) &&
+      (diamond.until !== undefined
+        ? near(diamond.until, on.until)
+        : diamond.changes.some(({ on: there }) => (there.element?.node !== undefined && there.element.node === on.element?.node) || (!!there.box && JSON.stringify(there.box) === JSON.stringify(on.box)))),
+  );
+}
+
 export const when = (diamond: { at: number; until?: number }) => (diamond.until === undefined ? time(diamond.at) : `${time(diamond.at)}–${time(diamond.until)}`);
 
 // The change you're on: at its moment or just past it, while what it shows is still there, until the next click and

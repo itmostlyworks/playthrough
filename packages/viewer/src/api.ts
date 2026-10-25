@@ -2,6 +2,7 @@
 // and what a person sends.
 
 import { useEffect, useState } from "react";
+import type { Reading } from "@vantage/page";
 import type { Review, Send } from "@vantage/review";
 import type { Events } from "./replay.ts";
 
@@ -47,8 +48,6 @@ function file<T>(review: string, round: number, name: string): Promise<T> {
 export const recording = (review: string, round: number, name: string) => file<Events>(review, round, name);
 
 // What was on the page at each step of a flow, read as it was recorded, and its picture then.
-export type Reading = { step: string; at: number; screen: { width: number; height: number }; things: { node?: number; box: Box }[] };
-type Box = { x: number; y: number; width: number; height: number };
 const readingsName = (recording: string) => `readings/${recording.replace(/\.json$/, "")}`;
 export const readings = (review: string, round: number, recording: string) => file<Reading[]>(review, round, `${readingsName(recording)}.json`).catch((): Reading[] => []);
 export const picture = (review: string, round: number, recording: string, reading: number) => `/api/reviews/${review}/rounds/${round}/files/${readingsName(recording)}/${reading + 1}.png`;

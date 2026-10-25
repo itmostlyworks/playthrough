@@ -10,7 +10,7 @@ import { Answer, Compare, play, Said, tick, Time, useHold } from "./Card.tsx";
 import { when, type Changed, type Diamond } from "./changes.ts";
 import { useGlide } from "./glide.ts";
 import { clamp } from "./moments.ts";
-import type { Shown, Standing } from "./notes.ts";
+import { ink, type Shown, type Standing } from "./notes.ts";
 import { opened, type Comparing } from "./Notes.tsx";
 import { Picture, useStill } from "./Picture.tsx";
 import { useNow, type Playhead } from "./playhead.ts";
@@ -23,8 +23,9 @@ type Props = {
   playhead: Playhead;
   notes: Shown[];
   diamonds: Diamond[];
-  // The row you've chosen, opened, and the change you're on.
+  // The row you've chosen, opened, the note that's open, and the change you're on.
   chosen?: string;
+  openNote?: string;
   lit?: string;
   compare?: Comparing;
   // Where each flow stands for you, on the round you judge; looking back, nothing.
@@ -36,9 +37,13 @@ type Props = {
   landed?: Landed;
   // Who else says a flow looks good.
   others: (flow: string) => string[];
-  note: (note: Shown) => ReactNode;
-  // Your notes that aren't notes yet, or just were: the one you're writing, the ones you haven't saved, one just removed.
-  pending: { on?: Place; row: ReactNode }[];
+  // A note's row, or, grown out of a change's row, what it adds there.
+  note: (note: Shown, grown?: boolean) => ReactNode;
+  // Your notes that aren't notes yet, or just were: the one you're writing, the ones you haven't saved, one just removed;
+  // and grown out of a change's row, what each adds there.
+  pending: { id: string; on?: Place; row: ReactNode; grown?: ReactNode; open?: boolean }[];
+  // Which change's row each of your notes on a change grew out of, by their ids.
+  grown: Map<string, string>;
   onFlow: (flow: Flow) => void;
   onDiamond: (diamond: Diamond) => void;
   onPlayOn: () => void;
@@ -96,12 +101,18 @@ export function Column(props: Props) {
       {round.flows.map((flow) => {
         const on = flow.name === watching;
         const standing = props.standing(flow.name);
-        const rows = rowsIn(flow.name, notes, props.diamonds, settles(standing, on)).map((row) => ({
-          at: row.at,
-          shown: "note" in row ? props.note(row.note) : <ChangeRow {...props} key={row.diamond.id} diamond={row.diamond} />,
-        }));
+        const inside = (diamond: string) => [
+          ...notes.filter((note) => props.grown.get(note.id) === diamond).map((note) => ({ id: note.id, open: props.openNote === note.id, shown: props.note(note, true) })),
+          ...pending.filter((kept) => props.grown.get(kept.id) === diamond).map((kept) => ({ id: kept.id, open: !!kept.open, shown: kept.grown })),
+        ];
+        const rows = rowsIn(flow.name, notes, props.diamonds, settles(standing, on))
+          .filter((row) => !("note" in row && props.grown.has(row.note.id)))
+          .map((row) => ({
+            at: row.at,
+            shown: "note" in row ? props.note(row.note) : <ChangeRow {...props} key={row.diamond.id} diamond={row.diamond} inside={inside(row.diamond.id)} />,
+          }));
         // What you're writing sits where it will once it's saved, and one just removed where it was.
-        for (const { on, row } of pending.filter(({ on }) => on?.flow === flow.name)) {
+        for (const { on, row } of pending.filter(({ id, on }) => on?.flow === flow.name && !props.grown.has(id))) {
           const at = on?.at ?? Infinity;
           rows.splice(rows.filter((row) => row.at <= at).length, 0, { at, shown: row });
         }
@@ -134,7 +145,7 @@ export function Column(props: Props) {
       </div>
       {(general.length > 0 || pending.some(({ on }) => !on)) && (
         <div className="-mt-1 grid gap-1.5 pb-1">
-          {general.map(props.note)}
+          {general.map((note) => props.note(note))}
           {pending.filter(({ on }) => !on).map(({ row }) => row)}
         </div>
       )}
@@ -294,15 +305,23 @@ const keepKeys = (event: { preventDefault: () => void }) => event.preventDefault
 
 // A change's row is shaped like a note's: its diamond on the flow's line, filling once the playhead has passed it, its
 // name, wrapping onto a second line rather than cutting, and its time. Opened, it's the agent's why: what changed isn't
-// put in words, since the recording outlines it.
-function ChangeRow(props: Props & { diamond: Diamond }) {
-  const { diamond, chosen, lit, onDiamond } = props;
-  const open = chosen === diamond.id;
+// put in words, since the recording outlines it. Your note on it grows out of it: your words under its name, the note's
+// colour a dot on its diamond, and opened, one card, the change, the agent and you.
+function ChangeRow(props: Props & { diamond: Diamond; inside: { id: string; open: boolean; shown: ReactNode }[] }) {
+  const { diamond, chosen, lit, onDiamond, inside } = props;
+  const open = chosen === diamond.id || inside.some((note) => note.open);
+  const note = inside[0] && props.notes.find((note) => note.id === inside[0]!.id);
   return (
-    <div data-key={`change:${diamond.id}`} data-stop={diamond.at} data-open={open ? "" : undefined} className={`relative rounded-r-lg transition-colors duration-150 ease-calm [--c:var(--soft)] ${open ? opened : lit === diamond.id ? "bg-hover" : "hover:bg-hover"}`}>
+    <div
+      data-key={`change:${diamond.id}`}
+      data-stop={diamond.at}
+      data-open={open ? "" : undefined}
+      className={`relative rounded-r-lg transition-colors duration-150 ease-calm [--c:var(--soft)] ${open ? opened : lit === diamond.id ? "bg-hover" : "hover:bg-hover"}`}
+    >
       <button className="group/row grid w-full grid-cols-[18px_minmax(0,1fr)] gap-2 py-1.5 pr-2.5 pl-[18px] text-left" onMouseDown={keepKeys} onClick={() => onDiamond(diamond)} aria-expanded={open}>
         <span data-mark className="group/mark relative z-1 mt-px grid size-[18px] place-items-center">
           <i className="size-2 rotate-45 bg-ground shadow-[inset_0_0_0_1.5px_var(--fg),0_0_0_2.5px_var(--ground)] group-data-played/mark:bg-fg group-data-played/mark:shadow-[0_0_0_2.5px_var(--ground)]" />
+          {inside.length > 0 && <b className="absolute top-[calc(50%-8px)] left-[calc(50%+2px)] size-1.5 rounded-full shadow-[0_0_0_1.5px_var(--ground)]" style={{ background: note ? ink(note) : "var(--amber)" }} />}
         </span>
         <span className="-mr-[7px] block max-h-10 min-w-0 overflow-hidden pr-[7px]">
           <Time className="float-right ml-2 text-faint">{when(diamond)}</Time>
@@ -312,15 +331,20 @@ function ChangeRow(props: Props & { diamond: Diamond }) {
       {open && (
         <div className="grid gap-2.5 pr-3.5 pl-[44px]">
           <Why {...props} />
-          {props.compare && <Compare {...props.compare} />}
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
-            <Answer keys="↵" onClick={props.onPlayOn}>
-              {play}Play on
-            </Answer>
+          {!inside.length && props.compare && <Compare {...props.compare} />}
+        </div>
+      )}
+      {inside.map((note) => note.shown)}
+      {open && !inside.some((note) => note.open) && (
+        <div className="mt-4 flex flex-wrap gap-1.5 pr-3.5 pl-[44px]">
+          <Answer keys="↵" onClick={props.onPlayOn}>
+            {play}Play on
+          </Answer>
+          {!inside.length && (
             <Answer keys="X" onClick={() => props.onNoteOn(diamond)}>
               Note on this
             </Answer>
-          </div>
+          )}
         </div>
       )}
     </div>

@@ -7,7 +7,7 @@ import { chromium, type Page } from "@playwright/test";
 import { list, quote, Refused, type Change, type Comparison, type Flow, type Place, type Reviews, type Step } from "@vantage/review";
 import { changesAt, idOf } from "./changes.ts";
 import { picturesAt } from "./pictures.ts";
-import type { Reading } from "./read.ts";
+import type { Reading } from "@vantage/page";
 import { readingsOf } from "./reporter.ts";
 
 // A round as recorded: its flows, and what was read at the end of each of their steps, with its picture.

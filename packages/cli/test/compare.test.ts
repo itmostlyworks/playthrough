@@ -4,9 +4,10 @@
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
 import { chromium, type Browser, type Page } from "@playwright/test";
+import type { Reading } from "@vantage/page";
 import type { Flow } from "@vantage/review";
 import { compare, type Recorded } from "../src/compare.ts";
-import { readPage, type Reading } from "../src/read.ts";
+import { readPage } from "../src/read.ts";
 
 let browser: Browser;
 let page: Page;

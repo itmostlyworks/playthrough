@@ -117,26 +117,34 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
     await app.saveRound({ ...(await app.round(1)), accounts });
   });
 
-  test("waiting hands the round over, then brings the notes that ask for something, each with its conversation", async () => {
+  test("waiting hands the round over, then brings the notes that ask for something, each with its conversation and a picture of what it's on", async () => {
     const waiting = app.run(["wait", "overdue"]);
     await app.reviews.wait("overdue", (review) => !!review.rounds.find((round) => round.number === 1)?.finished);
-    const note = { id: newId(), on: { flow: "See what's overdue", at: 2, point: { x: 0.7, y: 0.3 } }, words: "The badge is hard to read." };
+    const [, overdue] = (await app.round(1)).flows;
+    const shown = (await app.readings(1, overdue!))[1]!;
+    const button = shown.things.find((thing) => thing.role === "button" && thing.name === "Overdue")!;
+    const note = { id: newId(), on: { flow: "See what's overdue", at: shown.at, element: { role: "button", name: "Overdue", node: button.node } }, words: "The badge is hard to read." };
     await app.reviews.send("overdue", { id: newId(), round: 1, by: "Ana", sent: new Date().toISOString(), notes: [note], verdicts: [], looksGood: ["See what's paid"] });
 
     const { said, code } = await waiting;
     assert.equal(code, 0);
     assert.match(said, /Ana says “See what's paid” looks good\./);
-    assert.match(said, new RegExp(`${note.id}  on “See what's overdue” at 0:02, 70% across and 30% down the screen\\n    Ana: The badge is hard to read\\.`));
-    assert.match(said, /record round 2: vantage record overdue/);
+    assert.match(said, new RegExp(`${note.id}  on “See what's overdue” at \\d:\\d\\d, the button “Overdue”\\n    As they saw it: \\.vantage/overdue/rounds/2/files/notes/${note.id}\\.png\\n    Ana: The badge is hard to read\\.`));
+    assert.match(said, /Look at what each note is on, change the app, then record round 2: vantage record overdue/);
+    assert.equal((await app.file(2, `notes/${note.id}.png`)).subarray(1, 4).toString(), "PNG", "the page as they saw it, what the note is on outlined");
   });
 
-  test("a round isn't handed over until every note has an answer, which recording again keeps", async () => {
+  test("a round isn't handed over until every note has an answer, which recording again keeps, placed where its note's thing is now", async () => {
     // Recorded again with nothing changed, nothing has changed since round 1.
     assert.match((await app.run(["record", "overdue"])).said, /Nothing changed since round 1\./);
     assert.deepEqual((await app.compared(2, 1)).changes, []);
     assert.equal((await app.compared(2, 0)).changes.length, 2);
     const [reply] = (await app.round(2)).replies;
     assert.equal(reply?.words, "");
+    // Its answer shows where the note's thing is on the new recording, found by what was read at the same step.
+    const [, overdue] = (await app.round(2)).flows;
+    const there = (await app.readings(2, overdue!))[1]!.things.find((thing) => thing.role === "button" && thing.name === "Overdue");
+    assert.deepEqual(reply?.on?.element, { role: "button", name: "Overdue", node: there!.node });
 
     let { said, code } = await app.run(["wait", "overdue"]);
     assert.equal(code, 1);

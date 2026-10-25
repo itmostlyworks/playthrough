@@ -2,23 +2,24 @@
 // where you act. The view changes only when you change it: a new round says it's in, and waits for you.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { lastLooked, newId, readyToAccept, time, waitingForTheAgent, type Flow, type Note, type Place, type Point, type Review, type Round, type Send, type Verdict } from "@vantage/review";
+import { inStep, lastLooked, newId, readyToAccept, time, waitingForTheAgent, type Flow, type Note, type Place, type Review, type Round, type Send, type Verdict } from "@vantage/review";
 import { accept, recording, send, useReview, useYou } from "./api.ts";
 import { HOLD } from "./Card.tsx";
-import { answersTo, diamondAt, diamondsOn, type Changed, type Diamond } from "./changes.ts";
+import { answersTo, diamondAt, diamondsOn, grownFrom, type Changed, type Diamond } from "./changes.ts";
 import { Column, rowsIn, settles, type Landed } from "./Column.tsx";
 import { Controls, type Look } from "./Controls.tsx";
 import { useDraft, useWatched } from "./draft.ts";
 import { land, slideIn, takeOff, type Taking } from "./flight.ts";
 import { Foot, type Step } from "./Foot.tsx";
 import { Grid } from "./Grid.tsx";
-import { along, CARD, clamp, FLOW_IN, inStep, momentAt, POSTER, type Moment } from "./moments.ts";
+import { along, CARD, clamp, FLOW_IN, momentAt, POSTER, type Moment } from "./moments.ts";
 import { asIfSent, fill, goodTo, ink, lookGood, notesOn, nothing, said, seen, sendOf, settledBefore, standings, takeBack, type Shown } from "./notes.ts";
 import { NoteRow, number as numberLook, opened, SettledCount, SettledList, Writing, type Comparing } from "./Notes.tsx";
 import { Playhead, useNow } from "./playhead.ts";
 import { recorded } from "./replay.ts";
 import { roundName } from "./Rounds.tsx";
-import { Stage, type Bare, type Shown as Size } from "./Stage.tsx";
+import { Stage, type Bare, type Mark, type Placed, type Shown as Size } from "./Stage.tsx";
+import { placeFrom, placeName as nameOf, placeOn, useReadings } from "./things.ts";
 import { Wire } from "./Wire.tsx";
 
 // What's open in the column: a note, a change you chose, or a new note being written, by its id.
@@ -212,7 +213,14 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
 
   // Before is how the app was: it's there to look back on, and notes go on the rounds after it.
   const readOnly = !!review.accepted || round.number === 0 || (round !== latest && !arrived);
-  const notes = notesOn(review, round.number, you, draft);
+  const noted = notesOn(review, round.number, you, draft);
+  const read = useReadings(review, [round.number, ...(earlier ? [earlier.number] : []), ...(compared === undefined ? [] : [compared]), ...noted.map((note) => note.written)]);
+  // Each note sits where its thing is on this round: its moment here, on what it's on here, once that's found. One on
+  // something this round doesn't have is lost here.
+  const notes = noted.map((note) => (note.on ? { ...note, on: placeOn(review, note.id, note.on, note.written, round, read) ?? note.on } : note));
+  const lost = noted.filter((note, i) => note.on?.element && notes[i]!.on !== note.on && !notes[i]!.on?.element).map((note) => note.id);
+  // The notes whose things have left the page you're watching.
+  const [gone, setGone] = useState<string[]>([]);
   const settled = settledBefore(review, round.number, you);
   const inGeneral = notes.filter((note) => !note.on || !round.flows.some((flow) => flow.name === note.on?.flow));
   const playingNotes = flow ? notes.filter((note) => note.on?.flow === flow.name && note.on.at !== undefined) : [];
@@ -242,9 +250,17 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const clicks = changes?.flow === flow?.name ? (changes?.clicks ?? []) : [];
   const onNow = useNow(playhead, (now) => diamondAt(diamonds, now.moment, clicks)?.id);
   const chosen = open && "change" in open ? diamonds.find((diamond) => diamond.id === open.change) : undefined;
+  // Your notes on what changed, each grown out of its change's row; and the change whose note is open or being written.
+  const grown = new Map(
+    [...notes.filter((note) => note.yours), ...draft.unsaved].flatMap((note) => {
+      const diamond = grownFrom(diamonds, note.on);
+      return diamond ? [[note.id, diamond] as const] : [];
+    }),
+  );
+  const grownOpen = open && !("change" in open) ? grown.get("note" in open ? open.note : open.writing) : undefined;
   const lit = chosen?.id ?? onNow;
   // Paused on a change, with nothing else open, it's outlined where it is on the page; chosen, more firmly.
-  const outlined = chosen?.flow === watching ? chosen : !open ? diamonds.find((diamond) => diamond.id === onNow) : undefined;
+  const outlined = (chosen ?? grownOpen)?.flow === watching ? (chosen ?? grownOpen) : !open ? diamonds.find((diamond) => diamond.id === onNow) : undefined;
 
   // A row in the column plays its moment, as a click on a video's chapter would: clicked while it plays, it pauses;
   // paused partway, it carries on to its end; anywhere else, it plays from its start.
@@ -448,7 +464,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   // its box opened under it as a card is, and the ones you haven't saved. One just removed leaves a way back where it was.
   const nextNumber = Math.max(0, ...notes.map((note) => note.number)) + 1;
   const writing = draft.unsaved.find((note) => note.id === writingId);
-  const placeName = (on: Place | undefined) => (on?.element ? on.element.name : on?.at !== undefined ? "This moment" : on ? "The whole flow" : "New note");
+  const placeName = (on: Place | undefined) => nameOf(on, read, round.number);
   const unsaved = (note: Note, number: number) => {
     const head = (
       <>
@@ -485,11 +501,30 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
       </div>
     );
   };
+  // Grown out of a change's row: the box under the change's why while you write, and your words under its name after.
+  const grownRow = (note: Note) =>
+    note.id === writingId ? (
+      <div key={note.id} data-key={`note:${note.id}`} className="mt-4 grid gap-2.5 pr-3.5 pl-[44px]">
+        <Writing words={note.words} placeholder="What isn’t right about it?" question="Your new note" onWords={(words) => keepWords(note.id, words)} onSave={(words) => saveNote(note, words)} onCancel={() => dropUnsaved(note.id)} />
+      </div>
+    ) : (
+      <button
+        key={note.id}
+        data-key={`note:${note.id}`}
+        className="-mt-1 flex w-full gap-1.5 pr-2.5 pb-1.5 pl-[44px] text-left text-[12.5px] leading-[18px] text-soft transition-colors duration-150 ease-calm hover:text-fg"
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => setOpen({ writing: note.id })}
+      >
+        <span className="truncate">{note.words}</span>
+        <span className="flex-none text-faint">not saved</span>
+      </button>
+    );
   const pending = [
-    ...draft.unsaved.map((note, i) => ({ on: note.on, row: unsaved(note, nextNumber + i) })),
+    ...draft.unsaved.map((note, i) => ({ id: note.id, on: note.on, row: unsaved(note, nextNumber + i), grown: grownRow(note), open: note.id === writingId })),
     ...(removed
       ? [
           {
+            id: removed.note.id,
             on: removed.note.on,
             row: (
               <div key={removed.note.id} data-key={`note:${removed.note.id}`} className="grid grid-cols-[18px_minmax(0,1fr)] gap-x-2 py-1.5 pr-2.5 pl-[18px] text-faint">
@@ -506,11 +541,16 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
         ]
       : []),
   ];
-  // What isn't right about a change is a note on what it's on, at its moment, or over new steps.
+  // What isn't right about a change is a note on what it's on, at its moment, or over new steps: one note, opened again
+  // once it's there.
   const noteOn = (diamond: Diamond) => {
-    const element = diamond.changes.find((changed) => !changed.answers)?.on.element;
+    const already = [...grown].find(([, on]) => on === diamond)?.[0];
+    const note = notes.find((note) => note.id === already);
+    if (note) return pick(note);
+    if (already) return setOpen({ writing: already });
+    const on = diamond.changes.find((changed) => !changed.answers)?.on;
     go(diamond.flow, diamond.at);
-    write({ flow: diamond.flow, at: diamond.at, ...(diamond.until !== undefined ? { until: diamond.until } : element && { element }) });
+    write({ flow: diamond.flow, at: diamond.at, ...(diamond.until !== undefined ? { until: diamond.until } : on?.element ? { element: on.element } : on?.box && { box: on.box }) });
   };
   // Playing on from an open row lets it go, as moving on from it does.
   const playOn = () => {
@@ -522,10 +562,13 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     const diamond = diamonds.find((diamond) => diamond.changes.includes(changed));
     if (diamond) play(diamond.id, { flow: diamond.flow, at: Math.max(0, diamond.at - 0.8) }, diamond.at);
   };
-  const row = (note: Shown) => {
+  const row = (note: Shown, grownHere?: boolean) => {
     const isOpen = !!open && "note" in open && open.note === note.id;
-    // A note's card is away once you've gone on into another flow: it asks nothing there.
-    const away = !!note.on && round.flows.some((flow) => flow.name === note.on!.flow) && note.on.flow !== watching;
+    // A note's card is away once you've gone on into another flow, or what it's on has left the page: it asks nothing
+    // there. Not while its own moment plays, on the way to it.
+    const away =
+      (!!note.on && round.flows.some((flow) => flow.name === note.on!.flow) && note.on.flow !== watching) ||
+      ((gone.includes(note.id) || lost.includes(note.id)) && !(where === "playing" && running.current === note.id));
     return (
       <NoteRow
         key={note.id}
@@ -539,6 +582,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
         compare={isOpen && answered(note) ? comparingIt : undefined}
         asking={asking === note.id}
         away={away}
+        grown={grownHere}
         onOpen={() => pick(note)}
         onClose={() => (running.current === note.id && playhead.now.playing ? playhead.pause() : setOpen(undefined))}
         onAsking={(on) => setAsking(on ? note.id : undefined)}
@@ -760,9 +804,48 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     };
   });
 
+  // What's drawn on the recordings: on the round you're watching, the notes in its flow on their things, the open one
+  // whenever its thing is there and the rest around their moments, the note being written, and what changed where
+  // you're stopped; on the round beside it, what's chosen, where it is there.
+  // A change carries the colour of the note grown out of it.
+  const grownInk = (diamond: Diamond) => {
+    const id = [...grown].find(([, on]) => on === diamond)?.[0];
+    const note = notes.find((note) => note.id === id);
+    return id === undefined ? undefined : note ? ink(note) : "var(--amber)";
+  };
+  const markOn = (on: Place | undefined): Mark["on"] | undefined =>
+    on?.element?.node !== undefined ? { node: on.element.node } : on?.point ? { point: on.point } : on?.box ? { box: on.box } : undefined;
+  const changed = (outlined?.changes ?? []).flatMap((changed) => markOn(changed.on) ?? []);
+  const marks = new Map<number, Mark[]>([
+    [
+      round.number,
+      [
+        ...playingNotes.flatMap((note): Mark[] => {
+          const on = !grown.has(note.id) && markOn(note.on);
+          const chosen = openNote?.id === note.id;
+          return on ? [{ id: note.id, kind: "note", on, pin: { number: note.number, fill: fill(note) }, ink: ink(note), chosen, shows: chosen ? undefined : { at: note.on!.at!, until: note.on!.until } }] : [];
+        }),
+        ...(writing?.on?.flow === watching && writing.on.element?.node !== undefined && !grown.has(writing.id) ? [{ id: writing.id, kind: "writing" as const, on: { node: writing.on.element.node }, chosen: true }] : []),
+        ...changed.map((on, i): Mark => ({ id: outlined!.id, kind: "change", on, pin: i === 0 ? "diamond" : undefined, dot: grownInk(outlined!), chosen: outlined === chosen || outlined === grownOpen })),
+      ],
+    ],
+  ]);
+  const other = earlier ?? comparedRound;
+  if (other) {
+    const own = openNote && noted.find((note) => note.id === openNote.id);
+    const there = own?.on && markOn(placeOn(review, own.id, own.on, own.written, other, read));
+    marks.set(other.number, [
+      ...(there ? [{ id: own.id, kind: "note" as const, on: there, ink: ink(own), chosen: true }] : []),
+      ...(chosen?.flow === watching ? chosen.changes.flatMap((changed): Mark[] => {
+        const on = markOn(placeFrom(review, changed.on, round.number, other, read));
+        return on ? [{ id: chosen.id, kind: "change", on, chosen: true }] : [];
+      }) : []),
+    ]);
+  }
+
   return (
     <Page title={review.title}>
-      <Wire id={openNote?.id ?? chosen?.id} colour={openNote ? ink(openNote) : "var(--soft)"} hidden={!!bare || peek} />
+      <Wire id={grownOpen?.id ?? openNote?.id ?? chosen?.id} colour={openNote ? ink(openNote) : grownOpen ? "var(--amber)" : "var(--soft)"} hidden={!!bare || peek} />
       <main className="relative grid min-h-0 grid-cols-[minmax(0,1fr)_min(350px,31vw)]">
         <section inert={onGrid} className={`grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto] pr-3.5 pb-4 ${onGrid ? "invisible" : ""}`}>
           <Stage
@@ -780,29 +863,23 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
               bareKeys.current.kept = false;
               setBare(undefined);
             }}
-            pins={playingNotes.flatMap((note) => (note.on?.point && note.on.at !== undefined ? [{ id: note.id, number: note.number, at: note.on.at, until: note.on.until, point: note.on.point, fill: fill(note) }] : []))}
+            marks={marks}
             placing={writing?.on?.point}
-            onPlace={readOnly ? undefined : (point: Point) => flow && write({ flow: flow.name, at: Math.round(Math.max(0, playhead.now.moment.at) * 100) / 100, point })}
-            onPin={(id) => {
+            writing={!!writing}
+            onPlace={readOnly ? undefined : (on: Placed) => flow && write({ flow: flow.name, at: Math.round(Math.max(0, playhead.now.moment.at) * 100) / 100, ...on })}
+            onMark={(id) => {
               const note = notes.find((note) => note.id === id);
-              if (note) show(note);
-            }}
-            outline={
-              outlined && {
-                id: outlined.id,
-                nodes: outlined.changes.flatMap(({ on }) => (on.element?.node === undefined ? [] : [on.element.node])),
-                chosen: outlined === chosen,
-              }
-            }
-            onOutline={(id) => {
               const diamond = diamonds.find((diamond) => diamond.id === id);
-              if (diamond) choose(diamond);
+              if (note) show(note);
+              else if (diamond) choose(diamond);
             }}
+            read={read}
+            onGone={setGone}
             onAllFlows={many ? () => toGrid() : undefined}
           />
           <Controls
             playhead={playhead}
-            dots={playingNotes.map((note) => ({ id: note.id, at: note.on?.at ?? 0, until: note.on?.until, ink: ink(note), number: note.number, words: note.turns[0]?.words ?? "" }))}
+            dots={playingNotes.filter((note) => !grown.has(note.id)).map((note) => ({ id: note.id, at: note.on?.at ?? 0, until: note.on?.until, ink: ink(note), number: note.number, words: note.turns[0]?.words ?? "" }))}
             onDot={(id) => {
               const note = notes.find((note) => note.id === id);
               if (note) pick(note);
@@ -810,7 +887,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
             marks={diamonds
               .filter((diamond) => diamond.flow === watching)
               .map((diamond) => {
-                const answered = notes.find((note) => diamond.changes.some((changed) => changed.answers && changed.note === note.id));
+                const answered = notes.find((note) => grown.get(note.id) === diamond) ?? notes.find((note) => diamond.changes.some((changed) => changed.answers && changed.note === note.id));
                 return {
                   ...diamond,
                   note: answered && { number: answered.number, ink: ink(answered) },
@@ -869,6 +946,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
             notes={notes}
             diamonds={diamonds}
             chosen={chosen?.id}
+            openNote={openNote?.id}
             lit={lit}
             standing={(name) => standing?.get(name)}
             saidGood={draft.looksGood}
@@ -876,6 +954,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
             landed={landed}
             note={row}
             pending={pending}
+            grown={new Map([...grown].map(([id, diamond]) => [id, diamond.id]))}
             onFlow={playFlow}
             compare={chosen && chosen.flow === watching ? comparingIt : undefined}
             others={(name) => goodFor.get(name)?.filter((person) => person !== you) ?? []}

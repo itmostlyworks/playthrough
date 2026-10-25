@@ -1,8 +1,10 @@
 // Hands the round over and waits for what people say about it. Handing over finishes the round, which the rules allow once
-// every note is answered. Then it waits for a send that asks for something, takes it, and prints the notes to answer.
+// every note is answered. Then it waits for a send that asks for something, takes it, and prints the notes to answer,
+// each with a picture of what it's on.
 
 import { allNotes, conversation, list, notesToAnswer, quote, Refused, roundInProgress, time, type Place } from "@vantage/review";
 import { agent } from "./agent.ts";
+import { pictureNotes } from "./noted.ts";
 import type { Repo } from "./repo.ts";
 
 export async function wait(repo: Repo, id: string) {
@@ -45,15 +47,18 @@ export async function wait(repo: Repo, id: string) {
 
     const notes = allNotes(review);
     const you = agent();
+    const pictures = await pictureNotes(repo, review, round, asking);
     console.log(`\nNotes to answer in round ${round}:`);
     for (const note of asking) {
       const turns = conversation(review, note).map((turn) => {
         const who = turn.agent ? `${turn.by === you ? "You" : turn.by}, in round ${turn.round}` : turn.verdict ? `${turn.by}, ${turn.verdict}` : turn.by;
         return `    ${who}${turn.words.trim() ? `: ${turn.words}` : ""}`;
       });
-      console.log(`\n  ${note}  ${where(notes.get(note)?.note.on)}\n${turns.join("\n")}`);
+      const picture = pictures.get(note);
+      console.log(`\n  ${note}  ${where(notes.get(note)?.note.on)}${picture ? `\n    As they saw it: ${picture}` : ""}\n${turns.join("\n")}`);
     }
-    return console.log(`\nChange the app, then record round ${round}: vantage record ${id}`);
+    const first = pictures.size ? "Look at what each note is on, change" : "Change";
+    return console.log(`\n${first} the app, then record round ${round}: vantage record ${id}`);
   }
 }
 

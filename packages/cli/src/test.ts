@@ -6,8 +6,9 @@
 
 import { test as base, expect as playwrightExpect, type Locator, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
+import type { Reading } from "@vantage/page";
 import type { Run } from "./flows.ts";
-import { readPage, unhovered, type Reading } from "./read.ts";
+import { readPage, unhovered } from "./read.ts";
 import { HOLD, PICTURE, READINGS, RECORDING, seconds } from "./reporter.ts";
 import { watchRest } from "./rest.ts";
 

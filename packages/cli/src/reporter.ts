@@ -5,8 +5,8 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Reporter, TestCase, TestResult, TestStep } from "@playwright/test/reporter";
-import type { Flow } from "@vantage/review";
-import type { Reading } from "./read.ts";
+import type { Reading } from "@vantage/page";
+import type { Flow, Reviews } from "@vantage/review";
 
 export const RECORDING = "vantage recording";
 export const READINGS = "vantage readings";
@@ -15,6 +15,11 @@ export const HOLD = 1500; // the end of a flow holds, so its last state can be s
 
 // A flow's readings go beside the round's recordings, under the same name, each picture in a folder of its own.
 export const readingsOf = (flow: Flow) => `readings/${flow.recording}`;
+// As kept: none for a flow recorded before Vantage read each step.
+export async function readingsOn(reviews: Reviews, review: string, round: number, flow: Flow): Promise<Reading[]> {
+  const bytes = await reviews.file(review, round, readingsOf(flow));
+  return bytes ? JSON.parse(Buffer.from(bytes).toString()) : [];
+}
 const picturesOf = (flow: Flow) => `readings/${flow.recording.replace(/\.json$/, "")}`;
 
 export type Failed = { flow: string; at?: string; broken?: true };

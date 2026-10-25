@@ -138,6 +138,16 @@ export class Replay {
     return box && (box.width || box.height) ? { left: box.left, top: box.top, width: box.width, height: box.height } : undefined;
   }
 
+  // What's at a point of the page, in its own pixels, and everything holding it, by their nodes in the recording, from it
+  // outwards.
+  outwards(x: number, y: number): number[] {
+    const page = this.#replayer.iframe.contentDocument;
+    const mirror = this.#replayer.getMirror();
+    const nodes: number[] = [];
+    for (let element = page?.elementFromPoint(x, y) ?? null; element && element !== page?.body; element = element.parentElement) nodes.push(mirror.getId(element));
+    return nodes;
+  }
+
   destroy() {
     this.#replayer.destroy();
     this.host.remove();

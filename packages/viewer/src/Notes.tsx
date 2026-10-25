@@ -38,6 +38,8 @@ type Props = {
   asking: boolean;
   // What it's on isn't on screen: it greys and asks nothing.
   away: boolean;
+  // Grown out of a change's row: your words under its name, and opened, the rest of its card.
+  grown?: boolean;
   onOpen: () => void;
   onClose: () => void;
   onAsking: (asking: boolean) => void;
@@ -52,6 +54,18 @@ export function NoteRow(props: Props) {
   const { note, open, answers } = props;
   const at = note.on?.at;
   const here = useNow(props.playhead, ({ moment }) => at !== undefined && moment.flow === note.on?.flow && moment.at >= at - 0.05 && moment.at <= (note.on?.until ?? at) + SHOWN_FOR);
+  if (props.grown)
+    return (
+      <div data-key={`note:${note.id}`} className={open ? "mt-4" : ""} style={{ "--c": ink(note) } as CSSProperties}>
+        {open ? (
+          <Card {...props} />
+        ) : (
+          <button className="-mt-1 block w-full truncate pr-2.5 pb-1.5 pl-[44px] text-left text-[12.5px] leading-[18px] text-soft transition-colors duration-150 ease-calm hover:text-fg" onMouseDown={(event) => event.preventDefault()} onClick={props.onOpen}>
+            {note.turns[0]?.words}
+          </button>
+        )}
+      </div>
+    );
   return (
     <div
       data-key={`note:${note.id}`}

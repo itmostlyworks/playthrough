@@ -2,7 +2,7 @@
 // each one that changed. A thing is the same one when it's what it was, called what it was, saying what it said; one that's
 // gone where something like it is new may be the same one, reworded or renamed.
 
-import type { Reading, Thing } from "./read.ts";
+import type { Reading, Thing } from "./reading.ts";
 
 export type Difference =
   | { what: "new"; now: Thing }

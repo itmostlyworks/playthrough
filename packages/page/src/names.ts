@@ -1,21 +1,24 @@
 // What Vantage calls things, and what happened to them, in its fixed words: “Export button”, “Total for Q3 $27,785.00”, the
 // “Who owes whom” area. Never the agent's words: the same thing is called the same way in every change.
 
-import type { Thing } from "./read.ts";
+import type { Thing } from "./reading.ts";
 
 export const WORD: Record<string, string> = {
   button: "button", link: "link", dialog: "dialog", alertdialog: "dialog", table: "table", grid: "table", treegrid: "table", heading: "heading", textbox: "field",
   searchbox: "search field", combobox: "menu", checkbox: "checkbox", radio: "option", switch: "switch", slider: "slider", listbox: "list", option: "option",
   tab: "tab", menu: "menu", menuitem: "menu item", img: "image", group: "choice", radiogroup: "choice",
 };
-export const word = (thing: Thing) => WORD[thing.role] ?? thing.role;
+// What a thing is called by: what it is, its name, and what it says itself.
+export type Named = Pick<Thing, "role" | "name" | "words">;
+
+export const word = (thing: Named) => WORD[thing.role] ?? thing.role;
 
 // A button or link that shows only a symbol or an icon, a ⋯ or a +, is called by its label alone: “Actions for INV-1065”,
 // “Create expense”.
-export const symbolOnly = (thing: Thing) => (thing.role === "button" || thing.role === "link") && !!thing.name && thing.words.replace(/\s/g, "").length <= 2 && !/[\p{L}\p{N}]/u.test(thing.words);
+export const symbolOnly = (thing: Named) => (thing.role === "button" || thing.role === "link") && !!thing.name && thing.words.replace(/\s/g, "").length <= 2 && !/[\p{L}\p{N}]/u.test(thing.words);
 const cut = (words: string, most = 60) => (words.length > most ? words.slice(0, most - 1).trimEnd() + "…" : words);
 
-export function called(thing: Thing): string {
+export function called(thing: Named): string {
   if (thing.role === "status" || thing.role === "alert") return "Message";
   if (thing.role === "box") return `“${cut(thing.name)}” area`;
   if (thing.role === "text") return `“${cut(thing.words)}”`;
@@ -23,7 +26,7 @@ export function called(thing: Thing): string {
   if (symbolOnly(thing)) return thing.name;
   return `${cut(thing.name)} ${word(thing)}`.trim();
 }
-export const the = (thing: Thing) => {
+export const the = (thing: Named) => {
   const name = called(thing);
   return name === "Message" ? "the message" : name.startsWith("“") && thing.role === "text" ? name : `the ${name}`;
 };

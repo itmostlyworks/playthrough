@@ -5,10 +5,8 @@
 // so the same change seen in another flow, at another moment or against another round is the same one.
 
 import { createHash } from "node:crypto";
+import { a, called, dataLeftOut, differences, HOLDS, holderOf, identity, lookWords, near, NEAR, parentOf, plural, rewordedWords, sentence, symbolOnly, the, things, together, wayOf, word, WORD, type Difference, type Reading, type Thing } from "@vantage/page";
 import type { Box, Element } from "@vantage/review";
-import { differences, HOLDS, holderOf, identity, near, NEAR, parentOf, type Difference } from "./differences.ts";
-import { a, called, dataLeftOut, lookWords, plural, rewordedWords, sentence, symbolOnly, the, things, together, wayOf, word, WORD } from "./names.ts";
-import type { Reading, Thing } from "./read.ts";
 
 // A change at one moment: what it's on is an element of the newer round, or for something gone, where it was.
 export type Found = { id: string; words: string; element?: Element; box?: Box };
