@@ -115,7 +115,7 @@ export function differences(then: Reading, now: Reading): { differences: Differe
     }
     // A control that only gained or lost words in something inside it is the same control: those words are what changed,
     // read on their own (Actual's account links took a line under their names).
-    a = b.role !== "text" ? take((a) => a.role === b.role && !!a.name && !!b.name && a.name !== b.name && gained(a.name, b.name) && gained(a.words, b.words)) : undefined;
+    a = b.role !== "text" ? take((a) => a.role === b.role && (gained(now, b, a.name) || gained(then, a, b.name))) : undefined;
     if (a) {
       was.set(b, a);
       if (!sameLook(a, b)) found.push({ what: "looks different", then: a, now: b });
@@ -172,6 +172,10 @@ function compared(a: Thing, b: Thing): Difference | undefined {
   if (!near(a.page.x, b.page.x) || !near(a.page.y, b.page.y)) return { what: "moved", then: a, now: b };
 }
 
-// The same words, or the same with more after them.
-const gained = (a: string, b: string) => a === b || b.startsWith(a + " ") || a.startsWith(b + " ");
+// Whether a control is called what another was, with more words after, all of them in something of its own inside it.
+function gained(reading: Reading, control: Thing, was: string): boolean {
+  if (!was || !control.name.startsWith(was + " ")) return false;
+  const more = control.name.slice(was.length + 1);
+  return reading.things.some((thing) => parentOf(reading, thing) === control && thing.words === more);
+}
 const bag = (thing: Thing) => (thing.wordsInside ?? "").split(" ").sort().join(" ");

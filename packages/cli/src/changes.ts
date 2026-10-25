@@ -342,14 +342,14 @@ export function called(thing: Thing): string {
   if (symbolOnly(thing)) return thing.name;
   return `${cut(thing.name)} ${word(thing)}`.trim();
 }
-const the = (thing: Thing) => {
+export const the = (thing: Thing) => {
   const name = called(thing);
   return name === "Message" ? "the message" : name.startsWith("“") && thing.role === "text" ? name : `the ${name}`;
 };
 const a = (word: string) => (/^[aeiou]/.test(word) ? `an ${word}` : `a ${word}`);
 const plural = (word: string) => (/(s|x|ch|sh)$/.test(word) ? `${word}es` : `${word}s`);
 const things = (count: number) => (count > 1 ? "things" : "thing");
-const sentence = (words: string) => words.charAt(0).toUpperCase() + words.slice(1);
+export const sentence = (words: string) => words.charAt(0).toUpperCase() + words.slice(1);
 
 // Two or more of one kind, called together: “Mark as paid” and “Send reminder” in the menu; “Actions for INV-1043,
 // INV-1050 and INV-1057”, the words they all start with said once.
@@ -396,10 +396,10 @@ function lookWords(a: Thing, b: Thing): string {
   return parts.join(", ");
 }
 
-const wayOf = (across: number, down: number) => [down > 0 ? "down" : down < 0 ? "up" : "", across > 0 ? "right" : across < 0 ? "left" : ""].filter(Boolean).join(" and ");
+export const wayOf = (across: number, down: number) => [down > 0 ? "down" : down < 0 ? "up" : "", across > 0 ? "right" : across < 0 ? "left" : ""].filter(Boolean).join(" and ");
 
 // Its id: the thing and what happened to it, as letters that don't read alike, like every id in a review.
-function idOf(thing: string, what: string): string {
+export function idOf(thing: string, what: string): string {
   const letters = "abcdefghijkmnpqrstuvwxyz23456789";
   return Array.from(createHash("sha256").update(`${thing}|${what}`).digest().subarray(0, 8), (byte) => letters[byte % 32]).join("");
 }
@@ -408,11 +408,16 @@ function idOf(thing: string, what: string): string {
 function placeOf(told: Told, now: Reading): { element: Element } | { box: Box } | {} {
   const { thing } = told;
   if (told.in === now && thing.name) return { element: { role: thing.role, name: thing.name, ...(thing.node !== undefined && { node: thing.node }) } };
-  const { width, height } = told.in.screen;
-  const x = Math.max(0, thing.box.x), y = Math.max(0, thing.box.y);
-  const right = Math.min(width, thing.box.x + thing.box.width), bottom = Math.min(height, thing.box.y + thing.box.height);
-  if (right <= x || bottom <= y) return {};
-  return { box: { x: x / width, y: y / height, width: (right - x) / width, height: (bottom - y) / height } };
+  const box = onScreen(thing.box, told.in.screen);
+  return box ? { box } : {};
+}
+
+// The part of a box in pixels that's on the screen, as shares of it.
+export function onScreen(box: Thing["box"], screen: Reading["screen"]): Box | undefined {
+  const x = Math.max(0, box.x), y = Math.max(0, box.y);
+  const right = Math.min(screen.width, box.x + box.width), bottom = Math.min(screen.height, box.y + box.height);
+  if (right <= x || bottom <= y) return undefined;
+  return { x: x / screen.width, y: y / screen.height, width: (right - x) / screen.width, height: (bottom - y) / screen.height };
 }
 
 function groupBy<T, K>(items: T[], key: (item: T) => K): Map<K, T[]> {
