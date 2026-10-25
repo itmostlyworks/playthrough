@@ -10,7 +10,7 @@ import { fades, useFade } from "./fade.ts";
 import { ink, type Shown } from "./notes.ts";
 import { useNow, type Playhead } from "./playhead.ts";
 
-export const number = "size-[18px] flex-none rounded-full text-center text-[10px] leading-[18px] font-semibold text-white";
+export const number = "size-[18px] flex-none rounded-full text-center text-[10px] leading-[18px] font-semibold";
 // A number in the column says where its note stands in its colour: quiet at rest, and real while it's open or on
 // screen, as its pin is. On the line down the flow you're in, it sits in a ring of the line.
 const quiet = "bg-[color-mix(in_srgb,var(--c)_18%,var(--ground))] text-[color-mix(in_srgb,var(--c)_80%,var(--fg))]";

@@ -47,6 +47,9 @@ type Props = {
   grown: Map<string, string>;
   onFlow: (flow: Flow) => void;
   onDiamond: (diamond: Diamond) => void;
+  onClose: () => void;
+  // Pointing at one of several changes in an open row, by its id, or away again.
+  onPoint: (change?: string) => void;
   onPlayOn: () => void;
   onNoteOn: (diamond: Diamond) => void;
   onNote: (note: Shown) => void;
@@ -319,9 +322,10 @@ const keepKeys = (event: { preventDefault: () => void }) => event.preventDefault
 // A change's row is shaped like a note's: its diamond on the flow's line, filling once the playhead has passed it, its
 // name, wrapping onto a second line rather than cutting, and its time. Opened, it's the agent's why: what changed isn't
 // put in words, since the recording outlines it. Your note on it grows out of it: your words under its name, the note's
-// colour a dot on its diamond, and opened, one card, the change, the agent and you.
+// colour a dot on its diamond, and opened, one card, the change, the agent, you and Compare: your note's own, once it's
+// open, and none while you write it.
 function ChangeRow(props: Props & { diamond: Diamond; inside: { id: string; open: boolean; shown: ReactNode }[] }) {
-  const { diamond, chosen, lit, onDiamond, inside } = props;
+  const { diamond, chosen, lit, onDiamond, onClose, inside } = props;
   const open = chosen === diamond.id || inside.some((note) => note.open);
   const note = inside[0] && props.notes.find((note) => note.id === inside[0]!.id);
   return (
@@ -331,7 +335,7 @@ function ChangeRow(props: Props & { diamond: Diamond; inside: { id: string; open
       data-open={open ? "" : undefined}
       className={`relative rounded-r-lg transition-colors duration-150 ease-calm [--c:var(--soft)] ${open ? opened : lit === diamond.id ? "bg-hover" : "hover:bg-hover"}`}
     >
-      <button className="group/row grid w-full grid-cols-[18px_minmax(0,1fr)] gap-2 py-1.5 pr-2.5 pl-[18px] text-left" onMouseDown={keepKeys} onClick={() => onDiamond(diamond)} aria-expanded={open}>
+      <button className="group/row grid w-full grid-cols-[18px_minmax(0,1fr)] gap-2 py-1.5 pr-2.5 pl-[18px] text-left" onMouseDown={keepKeys} onClick={() => (open ? onClose() : onDiamond(diamond))} aria-expanded={open}>
         <span data-mark className="group/mark relative z-1 mt-px grid size-[18px] place-items-center">
           <i className="size-2 rotate-45 bg-ground shadow-[inset_0_0_0_1.5px_var(--fg),0_0_0_2.5px_var(--ground)] group-data-played/mark:bg-fg group-data-played/mark:shadow-[0_0_0_2.5px_var(--ground)]" />
           {inside.length > 0 && <b className="absolute top-[calc(50%-8px)] left-[calc(50%+2px)] size-1.5 rounded-full shadow-[0_0_0_1.5px_var(--ground)]" style={{ background: note ? ink(note) : "var(--amber)" }} />}
@@ -344,10 +348,14 @@ function ChangeRow(props: Props & { diamond: Diamond; inside: { id: string; open
       {open && (
         <div className="grid gap-2.5 pr-3.5 pl-[44px]">
           <Why {...props} />
-          {!inside.length && props.compare && <Compare {...props.compare} />}
         </div>
       )}
       {inside.map((note) => note.shown)}
+      {open && props.compare && !inside.some((note) => note.open) && (
+        <div className="mt-2.5 pr-3.5 pl-[44px]">
+          <Compare {...props.compare} />
+        </div>
+      )}
       {open && !inside.some((note) => note.open) && (
         <div className="mt-4 flex flex-wrap gap-1.5 pr-3.5 pl-[44px]">
           <Answer keys="↵" onClick={props.onPlayOn}>
@@ -366,7 +374,7 @@ function ChangeRow(props: Props & { diamond: Diamond; inside: { id: string; open
 
 // Why each change is there, in the agent's words under its name, or the note it was made for. Several at one moment are
 // each on their own line under a small hollow diamond, so they can be counted, the line set off under the ones it explains.
-function Why({ diamond, notes, onNote }: Props & { diamond: Diamond }) {
+function Why({ diamond, notes, onNote, onPoint }: Props & { diamond: Diamond }) {
   const own = diamond.changes.filter((changed) => !changed.answers);
   const says = (changed: Changed) => {
     const note = changed.note && notes.find((note) => note.id === changed.note);
@@ -391,8 +399,8 @@ function Why({ diamond, notes, onNote }: Props & { diamond: Diamond }) {
   return blocks.map((block) => (
     <div key={block[0]!.change.id} className="grid gap-0.5">
       {block.map(({ change }) => (
-        <span key={change.id} className="flex items-start gap-[9px] leading-normal font-medium">
-          <i className="mx-0.5 mt-1.5 size-[7px] flex-none rotate-45 shadow-[inset_0_0_0_1.5px_var(--soft)]" aria-hidden />
+        <span key={change.id} className="group/name flex items-start gap-[9px] leading-normal font-medium" onPointerEnter={() => onPoint(change.id)} onPointerLeave={() => onPoint(undefined)}>
+          <i className="mx-0.5 mt-1.5 size-[7px] flex-none rotate-45 shadow-[inset_0_0_0_1.5px_var(--soft)] transition-colors duration-150 ease-calm group-hover/name:bg-soft" aria-hidden />
           {change.words}
         </span>
       ))}

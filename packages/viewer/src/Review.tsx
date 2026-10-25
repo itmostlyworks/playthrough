@@ -259,19 +259,22 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     }),
   );
   const grownOpen = open && !("change" in open) ? grown.get("note" in open ? open.note : open.writing) : undefined;
+  // The change whose card is open, chosen or with your note on it open: one card, the change, the agent, you, Compare,
+  // which compares as the change does.
+  const changeOpen = chosen ?? grownOpen;
   const lit = chosen?.id ?? onNow;
+  // Pointing at one of several changes in an open row draws only that one.
+  const [pointedChange, setPointedChange] = useState<string>();
+  useEffect(() => setPointedChange(undefined), [changeOpen?.id]);
   // Paused on a change, with nothing else open, it's outlined where it is on the page; chosen, more firmly.
-  const outlined = (chosen ?? grownOpen)?.flow === watching ? (chosen ?? grownOpen) : !open ? diamonds.find((diamond) => diamond.id === onNow) : undefined;
+  const outlined = changeOpen?.flow === watching ? changeOpen : !open ? diamonds.find((diamond) => diamond.id === onNow) : undefined;
 
-  // A row in the column plays its moment, as a click on a video's chapter would: clicked while it plays, it pauses;
-  // paused partway, it carries on to its end; anywhere else, it plays from its start.
+  // Opened, a row in the column plays its moment, from its start each time: a click on its header opens it or closes
+  // it, and never plays or pauses anything else.
   const running = useRef<string>(undefined);
   const play = (id: string, from: Moment, until: number) => {
-    const { moment, playing } = playhead.now;
-    const inside = running.current === id && moment.flow === from.flow && moment.at >= from.at && moment.at < until - 0.02;
-    if (playing && inside) return playhead.pause();
     running.current = id;
-    playhead.run(inside ? moment : from, until);
+    playhead.run(from, until);
   };
   // A change is played from a beat before it, to where it is; new steps, through them.
   const choose = (diamond: Diamond) => {
@@ -290,13 +293,16 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     setMet((met) => (met.includes(note.id) ? met : [...met, note.id]));
     if (note.on) go(note.on.flow, note.on.at);
   };
-  // Chosen, a note opens and plays its moment, from a beat before it to a second after; one on a whole flow plays the flow.
+  // Chosen, a note opens and plays its moment, from a beat before it to a second after; one on a whole flow plays the
+  // flow, going on if it's already playing.
   const pick = (note: Shown) => {
     const on = note.on;
     const its = on && round.flows.find((flow) => flow.name === on.flow);
     if (!on || !its || on.at === undefined) {
       show(note);
-      return its && playFlow(its);
+      const { moment, playing } = playhead.now;
+      if (its && !(playing && moment.flow === its.name)) playFlow(its);
+      return;
     }
     setOpen({ note: note.id });
     setMet((met) => (met.includes(note.id) ? met : [...met, note.id]));
@@ -581,12 +587,12 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
         open={isOpen}
         fresh={fresh === note.id}
         answers={answersTo(diamonds, note.id)}
-        compare={isOpen && answered(note) ? comparingIt : undefined}
+        compare={isOpen && (answered(note) || grownHere) ? comparingIt : undefined}
         asking={asking === note.id}
         away={away}
         grown={grownHere}
         onOpen={() => pick(note)}
-        onClose={() => (running.current === note.id && playhead.now.playing ? playhead.pause() : setOpen(undefined))}
+        onClose={() => setOpen(undefined)}
         onAsking={(on) => setAsking(on ? note.id : undefined)}
         onJudge={(verdict) => judge(note, verdict)}
         onEdit={(words) => editNote(note.id, words)}
@@ -622,7 +628,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   // a change. C compares, held for a look and tapped for side by side, as the pointer does on Compare.
   const openNote = open && "note" in open ? notes.find((note) => note.id === open.note) : undefined;
   const asks = !!openNote && !readOnly && openNote.toJudge && openNote.on?.flow === watching;
-  const compareNow = (openNote && answered(openNote) && openNote.on?.flow === watching) || chosen?.flow === watching ? comparingIt : undefined;
+  const compareNow = (openNote && answered(openNote) && openNote.on?.flow === watching) || changeOpen?.flow === watching ? comparingIt : undefined;
   const cKey = useRef<{ down: number; holding: number }>(undefined);
   const comparedRound = compareNow ? review.rounds.find((kept) => kept.number === compared) : undefined;
 
@@ -817,7 +823,11 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   };
   const markOn = (on: Place | undefined): Mark["on"] | undefined =>
     on?.element?.node !== undefined ? { node: on.element.node } : on?.point ? { point: on.point } : on?.box ? { box: on.box } : undefined;
-  const changed = (outlined?.changes ?? []).flatMap((changed) => markOn(changed.on) ?? []);
+  const drawn = (diamond: Diamond) => {
+    const pointed = diamond.changes.filter((changed) => changed.change.id === pointedChange);
+    return pointed.length ? pointed : diamond.changes;
+  };
+  const changed = (outlined ? drawn(outlined) : []).flatMap((changed) => markOn(changed.on) ?? []);
   const marks = new Map<number, Mark[]>([
     [
       round.number,
@@ -838,7 +848,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     const there = own?.on && markOn(placeOn(review, own.id, own.on, own.written, other, read));
     marks.set(other.number, [
       ...(there ? [{ id: own.id, kind: "note" as const, on: there, ink: ink(own), chosen: true }] : []),
-      ...(chosen?.flow === watching ? chosen.changes.flatMap((changed): Mark[] => {
+      ...(chosen?.flow === watching ? drawn(chosen).flatMap((changed): Mark[] => {
         const on = markOn(placeFrom(review, changed.on, round.number, other, read));
         return on ? [{ id: chosen.id, kind: "change", on, chosen: true }] : [];
       }) : []),
@@ -959,9 +969,11 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
             pending={pending}
             grown={new Map([...grown].map(([id, diamond]) => [id, diamond.id]))}
             onFlow={playFlow}
-            compare={chosen && chosen.flow === watching ? comparingIt : undefined}
+            compare={changeOpen?.flow === watching ? comparingIt : undefined}
             others={(name) => goodFor.get(name)?.filter((person) => person !== you) ?? []}
             onDiamond={choose}
+            onClose={() => setOpen(undefined)}
+            onPoint={setPointedChange}
             onPlayOn={playOn}
             onNoteOn={noteOn}
             onNote={pick}
