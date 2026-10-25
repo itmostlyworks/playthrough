@@ -1,15 +1,18 @@
 // A review on one page: the recording is where you look, the column is the map of what's been said, and the foot is
 // where you act. The view changes only when you change it: a new round says it's in, and waits for you.
 
-import { useEffect, useState, type ReactNode } from "react";
-import { list, newId, readyToAccept, time, type Flow, type Place, type Point, type Review, type Round, type Verdict } from "@vantage/review";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { lastLooked, list, newId, readyToAccept, time, type Place, type Point, type Review, type Round, type Verdict } from "@vantage/review";
 import { accept, recording, send, useReview, useYou } from "./api.ts";
+import { Controls, type Look } from "./Controls.tsx";
 import { useDraft } from "./draft.ts";
-import { fill, goodTo, notesOn, nothing, seen, type Draft, type Shown } from "./notes.ts";
+import { along, CARD, FLOW_IN, inStep, momentAt, POSTER } from "./moments.ts";
+import { fill, goodTo, ink, notesOn, nothing, seen, type Draft, type Shown } from "./notes.ts";
 import { mac, NoteRow, number, Writing } from "./Notes.tsx";
-import type { Events } from "./player.ts";
-import { Recording, usePlayer } from "./Recording.tsx";
-import { Ruler } from "./Ruler.tsx";
+import { Playhead, useNow } from "./playhead.ts";
+import { recorded } from "./replay.ts";
+import { roundName } from "./Rounds.tsx";
+import { Stage, type Bare, type Shown as Size } from "./Stage.tsx";
 
 // What's open in the column: a note, or a new one being written, on a place or, without one, in general.
 type Open = { note: string } | { writing: Place | undefined };
@@ -53,7 +56,7 @@ function Reviewing({ review, you }: { review: Review; you: string }) {
     setViewing(number);
     if (number === latest.number) setNewest(number);
   };
-  return <OnRound key={round.number} review={review} round={round} latest={latest} arrived={latest.number !== newest} you={you} onRound={choose} />;
+  return <OnRound review={review} round={round} latest={latest} arrived={latest.number !== newest} you={you} onRound={choose} />;
 }
 
 type OnRoundProps = { review: Review; round: Round; latest: Round; arrived: boolean; you: string; onRound: (round: number) => void };
@@ -62,41 +65,89 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
   const [draft, change] = useDraft(review.id, round.number);
   const [open, setOpen] = useState<Open>();
   const [fresh, setFresh] = useState<string>();
-  const [chosen, setChosen] = useState(round.flows[0]?.name);
-  const [startAt, setStartAt] = useState(0);
-  const [loaded, setLoaded] = useState<{ flow: Flow; events: Events }>();
-  const [host, setHost] = useState<HTMLDivElement | null>(null);
-  const flow = round.flows.find((flow) => flow.name === chosen) ?? round.flows[0];
+  const [met, setMet] = useState<string[]>([]);
+  // Looking at another round starts on its map, with nothing open.
+  const [on, setOn] = useState(round.number);
+  if (on !== round.number) {
+    setOn(round.number);
+    setOpen(undefined);
+  }
 
+  // You arrive at the start, as on a video before you press play. Going to another round keeps your place: the same flow
+  // at the matching moment, or its start if that round never recorded the flow.
+  const [playhead] = useState(() => new Playhead(round.flows, { flow: round.flows[0]?.name ?? "", at: POSTER }));
+  useEffect(() => () => playhead.destroy(), [playhead]);
+  const watched = useRef(round.number);
+  useLayoutEffect(() => {
+    if (watched.current === round.number) return playhead.watch(round.flows, playhead.now.moment);
+    watched.current = round.number;
+    const from = playhead.flow;
+    const to = round.flows.find((flow) => flow.name === from.name);
+    playhead.pause();
+    playhead.watch(round.flows, to ? { flow: to.name, at: inStep(playhead.now.moment.at, from, to) } : { flow: round.flows[0]?.name ?? "", at: -CARD });
+  }, [round, playhead]);
+  const watching = useNow(playhead, (now) => now.moment.flow);
+  const flow = round.flows.find((flow) => flow.name === watching) ?? round.flows[0];
+
+  // The view is yours: it changes only when you change it, and holds for the review.
+  const [look, setLook] = useState<Look>(() => (stored(`vantage:${review.id}:look`) === "side" ? "side" : "one"));
+  const [actual, setActual] = useState(false);
+  // Side by side starts at actual size each time you go to it; the size then fits both to the whole page.
+  const [sideFit, setSideFit] = useState(false);
+  const [then, setThen] = useState<number>();
+  const [size, setSize] = useState<Size>();
+  const [bare, setBare] = useState<Bare>();
+  const first = review.rounds[0]!.number;
+  const comparing = round.number > first && look === "side";
+  const earlier = comparing ? review.rounds.find((kept) => kept.number === (then !== undefined && then < round.number ? then : round.number - 1)) : undefined;
+  const zoomed = comparing ? !sideFit : actual;
+  const chooseLook = (chosen: Look) => {
+    if (chosen === look) return;
+    setLook(chosen);
+    store(`vantage:${review.id}:look`, chosen);
+    if (chosen === "side") setSideFit(false);
+  };
+  const toRound = (number: number) => {
+    if (then !== undefined && then >= number) setThen(undefined);
+    onRound(number);
+  };
+  // The earlier side, where it's the round you last looked at this flow, says why it's that one.
+  const looked = flow && round === latest ? lastLooked(review, you, flow.name, round.number) : undefined;
+  const working = review.accepted ? undefined : review.taken.find((taken) => taken.round > latest.number)?.at;
+
+  // Left and Right step to the next moment the page changes, or a second where nothing does; with Shift, a tenth.
+  const [changes, setChanges] = useState<{ flow: string; at: number[] }>();
   useEffect(() => {
     if (!flow) return;
     let current = true;
-    recording(review.id, round.number, flow.recording).then((events) => current && setLoaded({ flow, events }));
+    recording(review.id, round.number, flow.recording).then((events) => current && setChanges({ flow: flow.name, at: recorded(events).changes }));
     return () => void (current = false);
   }, [review.id, round.number, flow]);
-  const player = usePlayer(host, loaded?.events, loaded?.flow.length ?? 1, startAt);
-  const [met, setMet] = useState<string[]>([]);
+  const step = (direction: 1 | -1, fine: boolean) => {
+    const flows = playhead.flows;
+    const now = along(flows, playhead.now.moment);
+    const starts = flows.map((flow) => along(flows, { flow: flow.name, at: 0 }));
+    const here = changes?.flow === flow?.name ? (changes?.at ?? []).map((at) => along(flows, { flow: flow!.name, at: Math.min(at, flow!.length - 0.02) })) : [];
+    const moments = [...starts, ...here].sort((a, b) => a - b);
+    const next = direction > 0 ? moments.find((at) => at > now + 0.02) : moments.findLast((at) => at < now - 0.02);
+    playhead.go(momentAt(flows, fine ? now + direction * 0.1 : next !== undefined && Math.abs(next - now) < 1 ? next : now + direction));
+  };
 
   // Before is how the app was: it's there to look back on, and notes go on the rounds after it.
   const readOnly = !!review.accepted || round.number === 0 || (round !== latest && !arrived);
   const notes = notesOn(review, round.number, you, draft);
   const onFlow = (name: string) => notes.filter((note) => note.on?.flow === name);
   const inGeneral = notes.filter((note) => !note.on || !round.flows.some((flow) => flow.name === note.on?.flow));
-  const playingNotes = loaded ? onFlow(loaded.flow.name).filter((note) => note.on?.at !== undefined) : [];
+  const playingNotes = flow ? onFlow(flow.name).filter((note) => note.on?.at !== undefined) : [];
 
   // Your Looks good holds while nothing of yours in the flow waits, for you or for the agent; a note there takes it back.
   const goodFor = new Map(round.flows.map((flow) => [flow.name, goodTo(review, round.number, flow.name)]));
   const holds = (name: string) => !onFlow(name).some((note) => note.yours && (note.state === "needs you" || note.state === "with the agent"));
   const toWatch = round.flows.map((flow) => flow.name).filter((name) => !goodFor.get(name)?.includes(you) && !draft.looksGood.includes(name) && holds(name));
 
-  const go = (name: string, at = 0) => {
-    if (loaded?.flow.name === name && player) {
-      player.pause();
-      player.seek(at);
-    } else {
-      setStartAt(at);
-      setChosen(name);
-    }
+  const go = (name: string, at = FLOW_IN) => {
+    playhead.pause();
+    playhead.go({ flow: name, at });
   };
   const show = (note: Shown) => {
     setOpen({ note: note.id });
@@ -106,8 +157,10 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
 
   // Playing stops at each answer that waits for you, the first time it gets there, and opens it as a click on it would.
   useEffect(() =>
-    player?.stopAt(
-      playingNotes.flatMap((note) => (note.state === "needs you" && !note.unsent && !met.includes(note.id) ? [{ at: note.on?.at ?? 0, reached: () => show(note) }] : [])),
+    playhead.stopAt(
+      playingNotes.flatMap((note) =>
+        note.on && note.state === "needs you" && !note.unsent && !met.includes(note.id) ? [{ flow: note.on.flow, at: note.on.at ?? 0, reached: () => show(note) }] : [],
+      ),
     ),
   );
   const write = (on: Place | undefined) => !readOnly && setOpen({ writing: on });
@@ -164,53 +217,111 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
     />
   );
 
+  // Holding H shows the recording bare; pressed twice, it stays bare until H again.
+  const bareKeys = useRef({ down: 0, up: 0, kept: false });
+  const bareKey = (down: boolean) => {
+    const keys = bareKeys.current;
+    const now = performance.now();
+    if (down) {
+      if (keys.kept) {
+        keys.kept = false;
+        keys.down = -1;
+        return setBare(undefined);
+      }
+      keys.kept = now - keys.up < 350;
+      keys.down = now;
+      return setBare(keys.kept ? "kept" : "held");
+    }
+    if (keys.down === -1) return void (keys.down = 0);
+    if (keys.kept) return;
+    setBare(undefined);
+    keys.up = now - keys.down < 300 ? now : 0;
+  };
+
   useEffect(() => {
-    const keys = (event: KeyboardEvent) => {
-      if (event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement) return;
+    const writingHere = (event: KeyboardEvent) => event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement;
+    const down = (event: KeyboardEvent) => {
+      if (writingHere(event) || event.metaKey || event.ctrlKey || event.altKey || event.defaultPrevented) return;
+      // Space plays and pauses wherever you are, also on a button you just clicked: it never presses it.
       if (event.key === " ") {
         event.preventDefault();
-        player?.toggle();
+        playhead.toggle();
+      } else if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+        if ((event.target as Element).closest?.("[role=slider][aria-label=Rounds]")) return;
+        event.preventDefault();
+        step(event.key === "ArrowRight" ? 1 : -1, event.shiftKey);
+      } else if (event.key.toLowerCase() === "h") {
+        if (!event.repeat) bareKey(true);
+      } else if (event.key === "Escape") {
+        // Escape goes back a step you can see: from a note to the column, and looking back, to now.
+        if (open && "note" in open) setOpen(undefined);
+        else if (round !== latest) toRound(latest.number);
       }
-      if (event.key === "Escape" && open && "note" in open) setOpen(undefined);
     };
-    addEventListener("keydown", keys);
-    return () => removeEventListener("keydown", keys);
-  }, [player, open]);
+    const up = (event: KeyboardEvent) => {
+      if (event.key === " " && !writingHere(event)) event.preventDefault();
+      if (event.key.toLowerCase() === "h") bareKey(false);
+    };
+    const away = () => bareKeys.current.kept || setBare(undefined);
+    addEventListener("keydown", down);
+    addEventListener("keyup", up);
+    addEventListener("blur", away);
+    return () => {
+      removeEventListener("keydown", down);
+      removeEventListener("keyup", up);
+      removeEventListener("blur", away);
+    };
+  });
 
   return (
     <Page title={review.title}>
       <main className="grid min-h-0 grid-cols-[minmax(0,1fr)_min(350px,31vw)]">
         <section className="grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto] pr-3.5 pb-4">
-          <Recording
-            caption={loaded?.flow.name ?? ""}
-            player={player}
-            host={setHost}
+          <Stage
+            review={review}
+            playhead={playhead}
+            round={round}
+            earlier={earlier}
+            why={earlier && earlier.number === looked ? "· when you last looked" : undefined}
+            zoomed={zoomed}
+            bare={bare}
+            onShown={setSize}
+            onBareOff={() => {
+              bareKeys.current.kept = false;
+              setBare(undefined);
+            }}
             pins={playingNotes.flatMap((note) => (note.on?.point && note.on.at !== undefined ? [{ id: note.id, number: note.number, at: note.on.at, until: note.on.until, point: note.on.point, fill: fill(note) }] : []))}
             placing={writing?.writing?.point}
-            onPlace={readOnly ? undefined : (point: Point) => loaded && player && write({ flow: loaded.flow.name, at: Math.round(player.time * 100) / 100, point })}
+            onPlace={readOnly ? undefined : (point: Point) => flow && write({ flow: flow.name, at: Math.round(Math.max(0, playhead.now.moment.at) * 100) / 100, point })}
             onPin={(id) => {
               const note = notes.find((note) => note.id === id);
               if (note) show(note);
             }}
           />
-          {loaded ? (
-            <Ruler
-              player={player}
-              flow={loaded.flow}
-              dots={playingNotes.map((note) => ({ id: note.id, at: note.on?.at ?? 0, until: note.on?.until, fill: fill(note) }))}
-              onDot={(id) => {
-                const note = notes.find((note) => note.id === id);
-                if (note) show(note);
-              }}
-            />
-          ) : (
-            <div className="h-[54px]" />
-          )}
+          <Controls
+            playhead={playhead}
+            dots={playingNotes.map((note) => ({ id: note.id, at: note.on?.at ?? 0, until: note.on?.until, ink: ink(note), number: note.number, words: note.turns[0]?.words ?? "" }))}
+            onDot={(id) => {
+              const note = notes.find((note) => note.id === id);
+              if (note) show(note);
+            }}
+            shown={size}
+            zoomed={zoomed}
+            onSize={() => (comparing ? setSideFit(!sideFit) : setActual(!actual))}
+            rounds={review.rounds}
+            watching={round.number}
+            earlier={earlier?.number}
+            arrived={arrived ? latest : undefined}
+            working={working}
+            onRound={toRound}
+            onEarlier={(number) => setThen(number >= round.number - 1 ? undefined : Math.max(first, number))}
+            look={look}
+            onLook={chooseLook}
+          />
         </section>
 
         <aside className="flex min-h-0 min-w-0 flex-col pb-4">
-          <Rounds review={review} round={round} latest={latest} arrived={arrived} onRound={onRound} />
-          <div className="min-h-0 flex-1 overflow-y-auto pb-3">
+          <div className="min-h-0 flex-1 overflow-y-auto pt-1 pb-3">
             {(!readOnly || inGeneral.length > 0) && (
               <section className="mb-2">
                 <Heading name="In general" onAdd={readOnly ? undefined : () => write(undefined)} add="Add a note on the work in general" />
@@ -223,7 +334,7 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
                 <Heading
                   name={flow.name}
                   length={flow.length}
-                  current={loaded?.flow.name === flow.name}
+                  current={watching === flow.name}
                   onChoose={() => go(flow.name)}
                   onAdd={readOnly ? undefined : () => write({ flow: flow.name })}
                   add="Add a note on the whole flow"
@@ -245,10 +356,10 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
             notes={notes}
             draft={draft}
             toWatch={toWatch}
-            watching={loaded?.flow.name}
+            watching={watching}
             onShow={show}
             onFlow={go}
-            onRound={onRound}
+            onRound={toRound}
             onSent={() => change(() => nothing)}
           />
         </aside>
@@ -316,24 +427,21 @@ function Said({ line, by, others }: { line?: string; by: string; others: string[
 // A few names by name, then how many more.
 const few = (names: string[]) => (names.length > 3 ? `${names.slice(0, 2).join(", ")} and ${names.length - 2} others` : list(names));
 
-const roundName = (number: number) => (number === 0 ? "Before" : `Round ${number}`);
+// What's kept for you in this browser, such as how you like to look at a review. Without it, nothing is kept.
+function stored(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
 
-function Rounds({ review, round, latest, arrived, onRound }: Omit<OnRoundProps, "you">) {
-  const at = review.rounds.indexOf(round);
-  const step = "grid size-7 place-items-center rounded-md text-soft transition-colors duration-150 ease-calm enabled:hover:bg-hover enabled:hover:text-fg disabled:opacity-30";
-  return (
-    <div className="flex h-10 items-center gap-1 px-1">
-      <button className={step} aria-label="The round before" disabled={at <= 0} onClick={() => onRound(review.rounds[at - 1]!.number)}>‹</button>
-      <b className="w-18 text-center font-semibold">{roundName(round.number)}</b>
-      <button className={step} aria-label="The round after" disabled={at >= review.rounds.length - 1} onClick={() => onRound(review.rounds[at + 1]!.number)}>›</button>
-      {arrived && (
-        <button className="ml-auto flex animate-arrive items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-amber-ink hover:bg-hover" onClick={() => onRound(latest.number)}>
-          <span className="size-1.5 rounded-full bg-amber" />
-          {roundName(latest.number)} is in
-        </button>
-      )}
-    </div>
-  );
+function store(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // the browser keeps nothing here
+  }
 }
 
 type FootProps = OnRoundProps & {

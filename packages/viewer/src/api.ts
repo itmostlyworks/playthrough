@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "react";
 import type { Review, Send } from "@vantage/review";
-import type { Events } from "./player.ts";
+import type { Events } from "./replay.ts";
 
 export type Listed = { id: string; title: string; rounds: number; accepted: boolean };
 

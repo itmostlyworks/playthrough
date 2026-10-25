@@ -85,7 +85,10 @@ export function goodTo(review: Review, round: number, flow: string): string[] {
 
 // What colour a note's marks are: amber while it needs you, which includes what you haven't sent. The pin, its dot on
 // the timeline and its number in the column are always the same colour.
-export function fill(note: Shown): string {
-  if (note.state === "settled") return "bg-green";
-  return note.unsent || note.state === "needs you" ? "bg-amber" : "bg-slate";
+function tone(note: Shown): "amber" | "slate" | "green" {
+  if (note.state === "settled") return "green";
+  return note.unsent || note.state === "needs you" ? "amber" : "slate";
 }
+
+export const fill = (note: Shown) => ({ amber: "bg-amber", slate: "bg-slate", green: "bg-green" })[tone(note)];
+export const ink = (note: Shown) => `var(--${tone(note)})`;

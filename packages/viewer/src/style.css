@@ -51,9 +51,12 @@
   --color-white: #ffffff;
 
   --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  /* What belongs to the recording, like a flow's name over its first frame, is in the recorded app's face. */
+  --font-recorded: system-ui, "Segoe UI", sans-serif;
   --ease-calm: cubic-bezier(0.2, 0.8, 0.2, 1);
   --shadow-frame: 0 0 0 1px rgba(20, 24, 34, 0.07), 0 1px 3px rgba(20, 24, 34, 0.05);
   --shadow-pin: 0 0 0 2px #ffffff, 0 1px 3px rgba(0, 0, 0, 0.2);
+  --shadow-tip: 0 0 0 1px var(--line), 0 2px 6px rgba(20, 24, 34, 0.08);
 
   --animate-drop: drop 0.3s var(--ease-calm) both;
   --animate-glow: glow 1.2s ease-out;
@@ -86,38 +89,6 @@
   :focus-visible {
     @apply rounded-sm outline-2 outline-offset-2 outline-amber;
   }
-}
-
-/* rrweb draws the pointer in the recording itself; this is how it looks there. Until the pointer has moved, rrweb hasn't
-   placed it, and it would sit in the corner. */
-.replayer-mouse:not([style*="left"]) {
-  display: none;
-}
-.replayer-mouse {
-  position: absolute;
-  width: 20px;
-  height: 20px;
-  transition: left 0.05s linear, top 0.05s linear;
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M4 2.5v13.2l3.4-3.1 2.2 5 2.3-1-2.2-4.9h4.6Z' fill='%23111' stroke='%23fff' stroke-width='1.2' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat;
-}
-.replayer-mouse::after {
-  content: "";
-  position: absolute;
-  left: 4px;
-  top: 3px;
-  width: 34px;
-  height: 34px;
-  margin: -17px 0 0 -17px;
-  border-radius: 50%;
-  border: 2px solid rgba(43, 46, 53, 0.45);
-  opacity: 0;
-}
-.replayer-mouse.active::after {
-  animation: click 0.45s var(--ease-calm);
-}
-@keyframes click {
-  from { opacity: 1; scale: 0.4; }
-  to { opacity: 0; scale: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
