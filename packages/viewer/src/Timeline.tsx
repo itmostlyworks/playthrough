@@ -1,6 +1,7 @@
 // Under the recording: play, the time, and the line, which is the flow you're in end to end with its name under it,
-// a dot for each note on it. The line answers the pointer: under it the line thickens, the playhead grows, and a ghost
-// of the playhead with its time says where a click lands. Nothing here changes width as it plays.
+// a dot for each note on it, a diamond where something new to you changed and a band over new steps. The line answers
+// the pointer: under it the line thickens, the playhead grows, and a ghost of the playhead with its time says where a
+// click lands. Nothing here changes width as it plays.
 
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { time, type Flow } from "@vantage/review";
@@ -9,8 +10,12 @@ import { useNow, type Playhead } from "./playhead.ts";
 
 // A note on the line: a dot at its moment, or a pill over its stretch, in its colour (a CSS colour).
 export type Dot = { id: string; at: number; until?: number; ink: string; number: number; words: string };
+// What changed, under the notes: a diamond at its moment, or a band over new steps, named as its row is.
+export type Mark = { id: string; at: number; until?: number; name: string };
 
-export function Timeline({ playhead, dots, onDot }: { playhead: Playhead; dots: Dot[]; onDot: (id: string) => void }) {
+type Props = { playhead: Playhead; dots: Dot[]; onDot: (id: string) => void; marks: Mark[]; lit?: string; onMark: (id: string) => void };
+
+export function Timeline({ playhead, dots, onDot, marks, lit, onMark }: Props) {
   const now = useNow(playhead);
   const flow = playhead.flow;
   const flows = playhead.flows;
@@ -44,11 +49,12 @@ export function Timeline({ playhead, dots, onDot }: { playhead: Playhead; dots: 
     const box = line.current!.getBoundingClientRect();
     return -CARD + clamp((clientX - box.left) / box.width, 0, 0.9995) * (flow.length + CARD);
   };
-  // While you drag, the playhead settles onto a note's moment when it comes within a few pixels, so landing on one is easy.
+  // While you drag, the playhead settles onto a note's or a change's moment when it comes within a few pixels, so
+  // landing on one is easy.
   const snap = (clientX: number, at: number) => {
     let best = at;
     let nearest = Infinity;
-    for (const dot of line.current!.querySelectorAll<HTMLElement>("[data-dot]:not([data-away])")) {
+    for (const dot of line.current!.querySelectorAll<HTMLElement>("[data-at]")) {
       const box = dot.getBoundingClientRect();
       const off = Math.abs(clientX - (box.left + box.width / 2));
       if (off < 5 && off < nearest) [nearest, best] = [off, Number(dot.dataset.at)];
@@ -57,11 +63,11 @@ export function Timeline({ playhead, dots, onDot }: { playhead: Playhead; dots: 
   };
 
   // Like a video: playing, the picture holds under the pointer while you drag and plays on from where you let go. A press
-  // on a note is a click until it moves a few pixels; from then on it scrubs like anywhere else on the line.
+  // on a note or a change is a click until it moves a few pixels; from then on it scrubs like anywhere else on the line.
   const swallow = useRef(false);
   const press = (event: PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
-    const onDot = !!(event.target as Element).closest("[data-dot]");
+    const onDot = !!(event.target as Element).closest("[data-mark]");
     const start = event.clientX;
     const id = event.pointerId;
     const playing = playhead.now.playing;
@@ -108,7 +114,9 @@ export function Timeline({ playhead, dots, onDot }: { playhead: Playhead; dots: 
   const moving = shifting ? "transition-[left,width,opacity] duration-300 ease-calm" : "";
   const label = "pointer-events-none absolute bottom-[calc(100%-1px)] -translate-x-1/2 rounded-[5px] bg-surface px-[7px] py-px text-[11px] leading-[14px] whitespace-nowrap shadow-tip transition-[opacity,translate] duration-150 ease-calm";
   const dot = dots.find((dot) => dot.id === named);
-  const ghost = !scrubbing && pointing !== undefined && !dot;
+  const mark = marks.find((mark) => mark.id === named);
+  const tip = dot ?? mark;
+  const ghost = !scrubbing && pointing !== undefined && !tip;
 
   return (
     <>
@@ -145,7 +153,7 @@ export function Timeline({ playhead, dots, onDot }: { playhead: Playhead; dots: 
         onPointerDown={press}
         // Pressing it with the pointer leaves the keys where they were, so Space afterwards doesn't ring the whole line.
         onMouseDown={(event) => event.preventDefault()}
-        onPointerMove={(event) => !scrubbing && setPointing((event.target as Element).closest("[data-dot]") ? undefined : timeAt(event.clientX))}
+        onPointerMove={(event) => !scrubbing && setPointing((event.target as Element).closest("[data-mark]") ? undefined : timeAt(event.clientX))}
         onPointerLeave={() => setPointing(undefined)}
       >
         <div className="absolute inset-x-0 top-[17px] h-0.5 rounded-[1px] bg-line transition-[top,height,border-radius] duration-150 ease-calm group-hover/line:top-4 group-hover/line:h-1 group-hover/line:rounded-[2px] group-data-scrubbing/line:top-4 group-data-scrubbing/line:h-1 group-data-scrubbing/line:rounded-[2px]">
@@ -164,6 +172,34 @@ export function Timeline({ playhead, dots, onDot }: { playhead: Playhead; dots: 
               {other.name}
             </span>
           ))}
+        {marks.map((shown) => {
+          const pointed = { onPointerEnter: () => setNamed(shown.id), onPointerLeave: () => setNamed(undefined), onClick: () => !swallow.current && onMark(shown.id) };
+          const left = percent(flow, shown.at);
+          if (shown.until !== undefined)
+            return (
+              <button
+                key={shown.id}
+                data-mark
+                aria-label={`${shown.name}, ${time(shown.at)} to ${time(shown.until)}`}
+                className={`absolute top-[13px] z-0 h-2.5 rounded-[5px] bg-[color-mix(in_srgb,var(--fg)_16%,transparent)] transition-[background-color,box-shadow] duration-150 ease-calm hover:bg-[color-mix(in_srgb,var(--fg)_26%,transparent)] ${lit === shown.id ? "shadow-[inset_0_0_0_1.5px_var(--fg)]" : ""} ${moving}`}
+                style={{ left, width: `calc(${percent(flow, shown.until)} - ${left})` }}
+                {...pointed}
+              />
+            );
+          // Hollow ahead of the playhead and filled once passed, as a dot fills; ringed while it's the one you're on.
+          const look = at < shown.at - 0.02
+            ? lit === shown.id
+              ? "bg-ground shadow-[inset_0_0_0_1.5px_var(--fg),0_0_0_1.5px_var(--ground),0_0_0_3px_var(--fg)]"
+              : "bg-ground shadow-[inset_0_0_0_1.5px_var(--fg),0_0_0_1.5px_var(--ground)]"
+            : lit === shown.id
+              ? "bg-fg shadow-[0_0_0_1.5px_var(--ground),0_0_0_3px_var(--fg)]"
+              : "bg-fg shadow-[0_0_0_1.5px_var(--ground)]";
+          return (
+            <button key={shown.id} data-mark data-at={shown.at} aria-label={`${shown.name}, ${time(shown.at)}`} className={`group/mark absolute top-[11px] z-3 -ml-[7px] grid size-3.5 place-items-center ${moving}`} style={{ left }} {...pointed}>
+              <i className={`size-[7px] rotate-45 transition-[scale,background-color] duration-150 ease-calm group-hover/mark:scale-130 ${look}`} />
+            </button>
+          );
+        })}
         {dots.map((shown) => {
           const ahead = at < shown.at - 0.02;
           const played = shown.until === undefined ? 0 : clamp((at - shown.at) / (shown.until - shown.at)) * 100;
@@ -172,7 +208,7 @@ export function Timeline({ playhead, dots, onDot }: { playhead: Playhead; dots: 
           return (
             <button
               key={shown.id}
-              data-dot
+              data-mark
               data-at={shown.at}
               aria-label={`Note ${shown.number} at ${time(shown.at)}`}
               className={`group/dot absolute z-4 grid place-items-center ${shown.until === undefined ? "top-[11px] size-3.5 -translate-x-1/2" : "top-[15px] -ml-[3px] box-content h-1.5 rounded-[3px] px-[3px] shadow-[0_0_0_2px_var(--ground)] transition-[top,height,border-radius] duration-150 ease-calm hover:top-3.5 hover:h-2 hover:rounded-[4px]"} ${moving}`}
@@ -199,17 +235,18 @@ export function Timeline({ playhead, dots, onDot }: { playhead: Playhead; dots: 
           className={`pointer-events-none absolute top-1.5 bottom-1.5 z-4 -ml-[1.5px] w-[3px] rounded-[1.5px] bg-fg transition-opacity duration-120 ease-calm ${ghost ? "opacity-30" : "opacity-0"}`}
           style={{ left: pointing === undefined ? undefined : percent(flow, pointing) }}
         />
-        <span aria-hidden className={`${label} z-300 text-fg ${dot ? "translate-y-0 opacity-100" : "translate-y-[2px] opacity-0"}`} style={{ left: dot ? percent(flow, dot.until === undefined ? dot.at : (dot.at + dot.until) / 2) : undefined }}>
+        <span aria-hidden className={`${label} z-300 text-fg ${tip ? "translate-y-0 opacity-100" : "translate-y-[2px] opacity-0"}`} style={{ left: tip ? percent(flow, tip.until === undefined ? tip.at : (tip.at + tip.until) / 2) : undefined }}>
           {dot && (
             <>
               <b className="mr-[5px] font-semibold text-amber-ink">{dot.number}</b>
               {dot.words}
             </>
           )}
+          {mark?.name}
         </span>
         <span
           aria-hidden
-          className={`${label} z-299 tabular-nums ${scrubbing ? "text-fg" : "text-soft"} ${!dot && (scrubbing || pointing !== undefined) ? "translate-y-0 opacity-100" : "translate-y-[2px] opacity-0"}`}
+          className={`${label} z-299 tabular-nums ${scrubbing ? "text-fg" : "text-soft"} ${!tip && (scrubbing || pointing !== undefined) ? "translate-y-0 opacity-100" : "translate-y-[2px] opacity-0"}`}
           style={{ left: scrubbing ? head : pointing === undefined ? undefined : percent(flow, pointing) }}
         >
           {time(Math.max(0, scrubbing ? at : (pointing ?? 0)))}

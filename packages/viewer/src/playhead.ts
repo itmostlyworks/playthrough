@@ -18,6 +18,8 @@ export class Playhead {
   #last = 0;
   #frame = 0;
   #stops: Stop[] = [];
+  // Where a moment you asked to see ends, and playing stops by itself.
+  #until?: number;
   #listeners = new Set<() => void>();
 
   constructor(flows: Flow[], moment: Moment) {
@@ -43,6 +45,7 @@ export class Playhead {
   }
 
   pause() {
+    this.#until = undefined;
     if (!this.now.playing) return;
     cancelAnimationFrame(this.#frame);
     this.#set({ playing: false });
@@ -55,10 +58,12 @@ export class Playhead {
 
   // Seeking while playing keeps playing.
   seek(at: number) {
+    this.#until = undefined;
     this.#set({ moment: { flow: this.flow.name, at: clamp(at, -CARD, this.flow.length) } });
   }
 
   go(moment: Moment) {
+    this.#until = undefined;
     const flow = this.flows.find((flow) => flow.name === moment.flow);
     if (flow) this.#set({ moment: { flow: flow.name, at: clamp(moment.at, -CARD, flow.length) } });
   }
@@ -68,6 +73,14 @@ export class Playhead {
     this.pause();
     this.flows = flows;
     this.go(moment);
+  }
+
+  // A moment of a flow played on its own: from where it starts to where it ends, then stopped there.
+  run(from: Moment, until: number) {
+    this.pause();
+    this.go(from);
+    this.#until = until;
+    this.play();
   }
 
   slower() {
@@ -107,8 +120,15 @@ export class Playhead {
     const stop = this.#stops.find((stop) => stop.flow === flow.name && stop.at > was && stop.at <= at);
     if (stop) {
       cancelAnimationFrame(this.#frame);
+      this.#until = undefined;
       this.#set({ moment: { flow: flow.name, at: stop.at }, playing: false, stopped: true });
       return stop.reached();
+    }
+    if (this.#until !== undefined && at >= this.#until) {
+      cancelAnimationFrame(this.#frame);
+      const until = this.#until;
+      this.#until = undefined;
+      return this.#set({ moment: { flow: flow.name, at: until }, playing: false, stopped: true });
     }
     if (at >= flow.length) cancelAnimationFrame(this.#frame);
     this.#set({ moment: { flow: flow.name, at }, playing: at < flow.length });

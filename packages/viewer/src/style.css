@@ -79,6 +79,25 @@
   }
 }
 
+/* A number on the line down the column sits in a ring of the line, its own 1.5px, 1.5px out: pale ahead, and drawn round
+   both its sides together as the playhead passes (--a, from 0 to 180deg). Where ink meets pale it's feathered a little,
+   and it's cut to a drawn circle, so its edge is smooth at every screen scale. */
+@utility line-ring {
+  &::after {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    pointer-events: none;
+    --f: min(2.5deg, var(--a, 0deg), calc(180deg - var(--a, 0deg)));
+    background: conic-gradient(
+      var(--rail) 0 calc(var(--a, 0deg) - var(--f)),
+      var(--ahead) calc(var(--a, 0deg) + var(--f)) calc(360deg - var(--a, 0deg) - var(--f)),
+      var(--rail) calc(360deg - var(--a, 0deg) + var(--f))
+    );
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='11.25' fill='none' stroke='%23000' stroke-width='1.5'/%3E%3C/svg%3E") 0 0 / 100% 100%;
+  }
+}
+
 @layer base {
   body {
     @apply bg-ground font-ui text-[13px] leading-normal text-fg antialiased;

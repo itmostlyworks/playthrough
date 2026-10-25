@@ -6,6 +6,7 @@
 import { EventType, IncrementalSource, MouseInteractions, Replayer, type eventWithTime } from "rrweb";
 
 export type Events = eventWithTime[];
+export type Rect = { left: number; top: number; width: number; height: number };
 
 // What a recording shows besides its page.
 export type Recorded = {
@@ -127,6 +128,14 @@ export class Replay {
     if (!b || at <= a[0] || b[0] - a[0] > 0.25) return [a[1], a[2]];
     const u = (at - a[0]) / (b[0] - a[0]);
     return [a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u];
+  }
+
+  // Where one of the page's elements is now, in the page's own pixels, by its node in the recording; nothing while it
+  // isn't on the page.
+  boxOf(node: number): Rect | undefined {
+    const element = this.#replayer.getMirror().getNode(node) as Element | null;
+    const box = element?.getBoundingClientRect?.();
+    return box && (box.width || box.height) ? { left: box.left, top: box.top, width: box.width, height: box.height } : undefined;
   }
 
   destroy() {

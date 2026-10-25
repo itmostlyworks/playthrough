@@ -1,0 +1,53 @@
+// What changed, as the timeline and the column draw it: a diamond for each moment, a band for new steps, and the one
+// you're on as the playhead passes.
+
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import type { Change, Flow, Review, Round } from "@vantage/review";
+import { diamondAt, diamondsOn } from "../src/changes.ts";
+
+const flow = (name: string): Flow => ({ name, length: 6, steps: [{ title: "Open the expenses", at: 0 }], recording: `${name.toLowerCase().replace(/\W+/g, "-")}.json` });
+const round = (number: number): Round => ({ number, by: "Claude Code", flows: [flow("See who owes whom"), flow("Search the expenses")], replies: [], accounts: {}, finished: "2026-10-25T09:00:00Z" });
+const change = (id: string, words: string, flow: string, at: number, until?: number): Change => ({ id, words, seen: [{ flow, at, ...(until !== undefined && { until }) }] });
+const review = (changes: Change[]): Review => ({
+  id: "tidy-expenses",
+  title: "Make the expenses list easier to scan",
+  started: "2026-10-25T08:00:00Z",
+  rounds: [round(0), round(1)],
+  comparisons: [{ round: 1, since: 0, changes }],
+  sends: [],
+  taken: [],
+});
+
+test("changes at one moment of a flow are one diamond, named by the first and how many more", () => {
+  const diamonds = diamondsOn(
+    review([change("swap", "Create expense and Export have swapped places", "See who owes whom", 0.9), change("words", "“Here are the expenses…” now says “Everything your group has spent”", "See who owes whom", 0.92)]),
+    1,
+    "Ana",
+  );
+  assert.equal(diamonds.length, 1);
+  assert.equal(diamonds[0]!.name, "Create expense and Export have swapped places and 1 more");
+  assert.deepEqual(diamonds[0]!.changes.map(({ change }) => change.id), ["swap", "words"]);
+});
+
+test("new steps are a band over the stretch they take, never folded into a diamond at its start", () => {
+  const diamonds = diamondsOn(review([change("steps", "New steps: “Clear the search”", "Search the expenses", 2, 4.6), change("green", "“$…” looks different", "Search the expenses", 2)]), 1, "Ana");
+  assert.deepEqual(
+    diamonds.map(({ id, at, until }) => ({ id, at, until })),
+    [
+      { id: "steps", at: 2, until: 4.6 },
+      { id: "green", at: 2, until: undefined },
+    ],
+  );
+});
+
+test("the change you're on lasts from its moment until the next click, a moment and a half at most, and else it's the new steps you're in", () => {
+  const diamonds = diamondsOn(review([change("swap", "Create expense and Export have swapped places", "Search the expenses", 1), change("steps", "New steps: “Clear the search”", "Search the expenses", 2, 4.6)]), 1, "Ana");
+  const on = (at: number, clicks: number[] = []) => diamondAt(diamonds, { flow: "Search the expenses", at }, clicks)?.id;
+  assert.equal(on(0.9), undefined);
+  assert.equal(on(1), "swap");
+  assert.equal(on(1.6, [1.5]), undefined, "the next click takes you past it");
+  assert.equal(on(1.9), "swap");
+  assert.equal(on(2.6), "steps", "a moment and a half after it, the new steps you're in");
+  assert.equal(diamondAt(diamonds, { flow: "See who owes whom", at: 1 }, [])?.id, undefined, "only in the flow you're in");
+});

@@ -11,10 +11,12 @@ import type { Flow, Point, Review, Round } from "@vantage/review";
 import { recording } from "./api.ts";
 import { CARD, clamp, ease, inStep, MORPH, titleCard } from "./moments.ts";
 import { useNow, type Playhead } from "./playhead.ts";
-import { recorded, Replay } from "./replay.ts";
+import { recorded, Replay, type Rect } from "./replay.ts";
 import { ahead, around, between, centreOf, fitted, GLIDE, moved, type Held, type Size, type View } from "./view.ts";
 
 export type Pin = { id: string; number: number; at: number; until?: number; point: Point; fill: string };
+// What changed at the moment you're stopped on, outlined where it is on the page: firmly once you've chosen it.
+export type Outline = { id: string; nodes: number[]; chosen: boolean };
 export type Shown = { fit: number; k: number };
 // Held while H is down, kept after H twice.
 export type Bare = "held" | "kept";
@@ -39,6 +41,8 @@ type Props = {
   placing?: Point;
   onPlace?: (point: Point) => void;
   onPin: (id: string) => void;
+  outline?: Outline;
+  onOutline: (id: string) => void;
 };
 
 type Painted = View & Size & { page: Size };
@@ -58,6 +62,9 @@ export function Stage(props: Props) {
   const wasPlaying = useRef(false);
   const [visited, setVisited] = useState<number[]>([]);
   const [aim, setAim] = useState<Point>();
+  // Where the outlined things are, as shares of the page, measured on the page as it's shown.
+  const [outlined, setOutlined] = useState<Rect[]>([]);
+  const outlinedKey = useRef("");
   const playing = useNow(props.playhead, (now) => now.playing);
   const { review, round, earlier, zoomed } = props;
 
@@ -169,6 +176,7 @@ export function Stage(props: Props) {
         replay.show(at, playing, speed);
         if (stopped && wasPlaying.current) replay.rest();
       }
+      if (shown === round) outline(replay && !playing ? replay : undefined, page);
       Object.assign(part.marks.style, { transform: shift, width: `${page.width * view.k}px`, height: `${page.height * view.k}px` });
       part.name.textContent = its.name;
       part.card.style.opacity = card ? "1" : "0";
@@ -189,6 +197,19 @@ export function Stage(props: Props) {
     }
     wasPlaying.current = playing;
     if (gliding && !playing) requestAnimationFrame(paint);
+  };
+
+  // Playing, nothing is outlined; stopped, what changed there is, wherever it is on the page now.
+  const outline = (replay: Replay | undefined, page: Size) => {
+    const nodes = (replay && latest.current.outline?.nodes) || [];
+    const boxes = nodes.flatMap((node) => {
+      const box = replay!.boxOf(node);
+      return box ? [{ left: box.left / page.width, top: box.top / page.height, width: box.width / page.width, height: box.height / page.height }] : [];
+    });
+    const key = JSON.stringify(boxes);
+    if (key === outlinedKey.current) return;
+    outlinedKey.current = key;
+    setOutlined(boxes);
   };
 
   // What the size control says: how large the recording you're watching shows, and where it's going while it glides.
@@ -339,6 +360,7 @@ export function Stage(props: Props) {
           <div data-app className="absolute inset-0 overflow-hidden">
             <div data-stack className="absolute inset-0" />
             <div data-marks className={`absolute top-0 left-0 z-3 ${hideable} group-data-bare/stage:[&_*]:pointer-events-none`}>
+              {number === round.number && <Outlines boxes={outlined} outline={props.outline} onPin={props.onOutline} />}
               {number === round.number && <Marks playhead={props.playhead} pins={props.pins} placing={props.placing} aim={aiming ? aim : undefined} onPin={props.onPin} />}
             </div>
           </div>
@@ -414,6 +436,34 @@ function Marks({ playhead, pins, placing, aim, onPin }: { playhead: Playhead; pi
       )}
     </>
   );
+}
+
+// Each thing that changed, outlined in the change's ink, the recording's own dark grey, never a note's colour; the
+// first carries the change's pin, its diamond, where a note has its number.
+function Outlines({ boxes, outline, onPin }: { boxes: Rect[]; outline?: Outline; onPin: (id: string) => void }) {
+  if (!outline) return null;
+  const percent = (share: number) => `${(share * 100).toFixed(3)}%`;
+  return boxes.map((box, i) => (
+    <div
+      key={i}
+      className={`pointer-events-none absolute rounded-[4px] outline-offset-4 ${outline.chosen ? "outline-[1.5px] outline-[#2b2e35] outline-solid" : "outline-1 outline-[rgba(43,46,53,0.4)] outline-solid"}`}
+      style={{ left: percent(box.left), top: percent(box.top), width: percent(box.width), height: percent(box.height) }}
+    >
+      {i === 0 && (
+        <button
+          data-pin
+          aria-label="What changed here"
+          className="pointer-events-auto absolute -top-[9px] -right-[9px] grid size-[18px] cursor-pointer place-items-center opacity-90 transition duration-150 ease-calm hover:scale-112 hover:opacity-100"
+          onClick={(event) => {
+            event.stopPropagation();
+            onPin(outline.id);
+          }}
+        >
+          <i className="size-[9px] rotate-45 bg-[#2b2e35] shadow-pin" />
+        </button>
+      )}
+    </div>
+  ));
 }
 
 const fit = (room: Size, shape: Size): Size => {

@@ -2,11 +2,13 @@
 // where you act. The view changes only when you change it: a new round says it's in, and waits for you.
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { lastLooked, list, newId, readyToAccept, time, type Place, type Point, type Review, type Round, type Verdict } from "@vantage/review";
+import { lastLooked, newId, readyToAccept, time, type Flow, type Place, type Point, type Review, type Round, type Verdict } from "@vantage/review";
 import { accept, recording, send, useReview, useYou } from "./api.ts";
+import { diamondAt, diamondsOn, type Diamond } from "./changes.ts";
+import { Column, rowsIn } from "./Column.tsx";
 import { Controls, type Look } from "./Controls.tsx";
 import { useDraft } from "./draft.ts";
-import { along, CARD, FLOW_IN, inStep, momentAt, POSTER } from "./moments.ts";
+import { along, CARD, clamp, FLOW_IN, inStep, momentAt, POSTER, type Moment } from "./moments.ts";
 import { fill, goodTo, ink, notesOn, nothing, seen, type Draft, type Shown } from "./notes.ts";
 import { mac, NoteRow, number, Writing } from "./Notes.tsx";
 import { Playhead, useNow } from "./playhead.ts";
@@ -14,8 +16,9 @@ import { recorded } from "./replay.ts";
 import { roundName } from "./Rounds.tsx";
 import { Stage, type Bare, type Shown as Size } from "./Stage.tsx";
 
-// What's open in the column: a note, or a new one being written, on a place or, without one, in general.
-type Open = { note: string } | { writing: Place | undefined };
+// What's open in the column: a note, a change you chose, or a new note being written, on a place or, without one, in
+// general.
+type Open = { note: string } | { change: string } | { writing: Place | undefined };
 
 export function ReviewPage({ id }: { id: string }) {
   const kept = useReview(id);
@@ -116,11 +119,14 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
   const working = review.accepted ? undefined : review.taken.find((taken) => taken.round > latest.number)?.at;
 
   // Left and Right step to the next moment the page changes, or a second where nothing does; with Shift, a tenth.
-  const [changes, setChanges] = useState<{ flow: string; at: number[] }>();
+  const [changes, setChanges] = useState<{ flow: string; at: number[]; clicks: number[] }>();
   useEffect(() => {
     if (!flow) return;
     let current = true;
-    recording(review.id, round.number, flow.recording).then((events) => current && setChanges({ flow: flow.name, at: recorded(events).changes }));
+    recording(review.id, round.number, flow.recording).then((events) => {
+      const { changes, clicks } = recorded(events);
+      if (current) setChanges({ flow: flow.name, at: changes, clicks });
+    });
     return () => void (current = false);
   }, [review.id, round.number, flow]);
   const step = (direction: 1 | -1, fine: boolean) => {
@@ -148,6 +154,38 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
   const go = (name: string, at = FLOW_IN) => {
     playhead.pause();
     playhead.go({ flow: name, at });
+  };
+
+  // What's new to you on this round: a diamond at each moment something changed, on the timeline and in the column.
+  const diamonds = diamondsOn(review, round.number, you);
+  const clicks = changes?.flow === flow?.name ? (changes?.clicks ?? []) : [];
+  const onNow = useNow(playhead, (now) => diamondAt(diamonds, now.moment, clicks)?.id);
+  const chosen = open && "change" in open ? diamonds.find((diamond) => diamond.id === open.change) : undefined;
+  const lit = chosen?.id ?? onNow;
+  // Paused on a change, with nothing else open, it's outlined where it is on the page; chosen, more firmly.
+  const outlined = chosen?.flow === watching ? chosen : !open ? diamonds.find((diamond) => diamond.id === onNow) : undefined;
+
+  // A row in the column plays its moment, as a click on a video's chapter would: clicked while it plays, it pauses;
+  // paused partway, it carries on to its end; anywhere else, it plays from its start.
+  const running = useRef<string>(undefined);
+  const play = (id: string, from: Moment, until: number) => {
+    const { moment, playing } = playhead.now;
+    const inside = running.current === id && moment.flow === from.flow && moment.at >= from.at && moment.at < until - 0.02;
+    if (playing && inside) return playhead.pause();
+    running.current = id;
+    playhead.run(inside ? moment : from, until);
+  };
+  // A change is played from a beat before it, to where it is; new steps, through them.
+  const choose = (diamond: Diamond) => {
+    setOpen({ change: diamond.id });
+    play(diamond.id, { flow: diamond.flow, at: Math.max(0, diamond.at - (diamond.until === undefined ? 0.8 : 0.3)) }, diamond.until ?? diamond.at);
+  };
+  // A flow's heading plays and pauses it: from its start, unless you're partway through it.
+  const playFlow = (chosen: Flow) => {
+    const { moment, playing } = playhead.now;
+    if (moment.flow !== chosen.name || moment.at >= chosen.length - 0.06) playhead.go({ flow: chosen.name, at: FLOW_IN });
+    else if (playing) return playhead.pause();
+    playhead.play();
   };
   const show = (note: Shown) => {
     setOpen({ note: note.id });
@@ -187,17 +225,40 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
     }));
   const toggleGood = (name: string) =>
     change((draft) => ({ ...draft, looksGood: draft.looksGood.includes(name) ? draft.looksGood.filter((flow) => flow !== name) : [...draft.looksGood, name] }));
+  const sentGood = (name: string) => !!goodFor.get(name)?.includes(you) && !draft.looksGood.includes(name);
+  // Where a flow's line ends: the green tick once it's good to you, else the question, unless something of yours in it
+  // waits, which says it isn't good yet. Looking back, nothing is asked.
+  const end = (name: string) => (readOnly ? undefined : goodFor.get(name)?.includes(you) || draft.looksGood.includes(name) ? "good" : holds(name) ? "ask" : undefined);
+
+  // Up and Down go through the column, flows and their rows in its order, the recording going with them.
+  const column = [
+    ...round.flows.flatMap((flow) => [{ flow }, ...rowsIn(flow.name, notes, diamonds)]),
+    ...inGeneral.map((note) => ({ note, at: Infinity })),
+  ];
+  const through = (direction: 1 | -1) => {
+    const here = column.findIndex((row) =>
+      "note" in row ? open && "note" in open && open.note === row.note.id : "diamond" in row ? chosen === row.diamond : !open && row.flow.name === watching,
+    );
+    const next = column[here < 0 ? 0 : clamp(here + direction, 0, column.length - 1)];
+    if (!next || (here >= 0 && column[here] === next)) return;
+    if ("note" in next) show(next.note);
+    else if ("diamond" in next) choose(next.diamond);
+    else {
+      setOpen(undefined);
+      go(next.flow.name);
+    }
+  };
 
   const nextNumber = Math.max(0, ...notes.map((note) => note.number)) + 1;
   const writing = open && "writing" in open ? open : undefined;
   const composer = (on: Place | undefined) => (
-    <div className="rounded-lg bg-hover">
-      <div className="grid grid-cols-[18px_minmax(0,1fr)_auto] items-start gap-2 px-2.5 py-2">
-        <span className={`${number} mt-px bg-amber`}>{nextNumber}</span>
+    <div data-stop={on?.at} className="relative rounded-r-lg bg-hover [--c:var(--amber)]">
+      <div className="grid grid-cols-[18px_minmax(0,1fr)_auto] items-start gap-2 py-1.5 pr-2.5 pl-[18px]">
+        <span data-mark className={`${number} relative z-1 mt-px bg-amber in-data-here:line-ring`}>{nextNumber}</span>
         <span className="font-medium">{on?.point ? "This moment" : on ? "The whole flow" : "New note"}</span>
-        <span className="text-xs leading-5 text-faint tabular-nums">{on?.at === undefined ? "" : time(on.at)}</span>
+        <span className="min-w-[78px] text-right text-xs leading-5 text-faint tabular-nums">{on?.at === undefined ? "" : time(on.at)}</span>
       </div>
-      <div className="pr-2.5 pb-2.5 pl-9">
+      <div className="pr-2.5 pb-2.5 pl-[44px]">
         <Writing words="" placeholder={on && !on.point ? "What isn’t good about it?" : "What do you think?"} onSave={(words) => saveNote(on, words)} onCancel={() => setOpen(undefined)} />
       </div>
     </div>
@@ -206,6 +267,7 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
     <NoteRow
       key={note.id}
       note={note}
+      playhead={playhead}
       you={you}
       readOnly={readOnly}
       open={!!open && "note" in open && open.note === note.id}
@@ -250,11 +312,14 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
         if ((event.target as Element).closest?.("[role=slider][aria-label=Rounds]")) return;
         event.preventDefault();
         step(event.key === "ArrowRight" ? 1 : -1, event.shiftKey);
+      } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        through(event.key === "ArrowDown" ? 1 : -1);
       } else if (event.key.toLowerCase() === "h") {
         if (!event.repeat) bareKey(true);
       } else if (event.key === "Escape") {
-        // Escape goes back a step you can see: from a note to the column, and looking back, to now.
-        if (open && "note" in open) setOpen(undefined);
+        // Escape goes back a step you can see: from a note or a change to the column, and looking back, to now.
+        if (open && !("writing" in open)) setOpen(undefined);
         else if (round !== latest) toRound(latest.number);
       }
     };
@@ -297,6 +362,17 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
               const note = notes.find((note) => note.id === id);
               if (note) show(note);
             }}
+            outline={
+              outlined && {
+                id: outlined.id,
+                nodes: outlined.changes.flatMap(({ on }) => (on.element?.node === undefined ? [] : [on.element.node])),
+                chosen: outlined === chosen,
+              }
+            }
+            onOutline={(id) => {
+              const diamond = diamonds.find((diamond) => diamond.id === id);
+              if (diamond) choose(diamond);
+            }}
           />
           <Controls
             playhead={playhead}
@@ -304,6 +380,12 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
             onDot={(id) => {
               const note = notes.find((note) => note.id === id);
               if (note) show(note);
+            }}
+            marks={diamonds.filter((diamond) => diamond.flow === watching)}
+            lit={lit}
+            onMark={(id) => {
+              const diamond = diamonds.find((diamond) => diamond.id === id);
+              if (diamond) choose(diamond);
             }}
             shown={size}
             zoomed={zoomed}
@@ -321,32 +403,25 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
         </section>
 
         <aside className="flex min-h-0 min-w-0 flex-col pb-4">
-          <div className="min-h-0 flex-1 overflow-y-auto pt-1 pb-3">
-            {(!readOnly || inGeneral.length > 0) && (
-              <section className="mb-2">
-                <Heading name="In general" onAdd={readOnly ? undefined : () => write(undefined)} add="Add a note on the work in general" />
-                {inGeneral.map(row)}
-                {writing && !writing.writing && composer(undefined)}
-              </section>
-            )}
-            {round.flows.map((flow) => (
-              <section key={flow.name} className="mb-2">
-                <Heading
-                  name={flow.name}
-                  length={flow.length}
-                  current={watching === flow.name}
-                  onChoose={() => go(flow.name)}
-                  onAdd={readOnly ? undefined : () => write({ flow: flow.name })}
-                  add="Add a note on the whole flow"
-                  good={goodFor.get(flow.name)?.includes(you) ? "sent" : draft.looksGood.includes(flow.name)}
-                  onGood={readOnly || !holds(flow.name) ? undefined : () => toggleGood(flow.name)}
-                />
-                <Said line={flow.line} by={round.by} others={goodFor.get(flow.name)?.filter((person) => person !== you) ?? []} />
-                {onFlow(flow.name).map(row)}
-                {writing?.writing?.flow === flow.name && composer(writing.writing)}
-              </section>
-            ))}
+          <div className="flex items-baseline gap-2 px-[18px] pt-1 pb-2">
+            <span className="font-semibold">{roundName(round.number)}</span>
           </div>
+          <Column
+            review={review}
+            round={round}
+            playhead={playhead}
+            notes={notes}
+            diamonds={diamonds}
+            chosen={chosen?.id}
+            lit={lit}
+            end={end}
+            note={row}
+            writing={writing && { on: writing.writing, box: composer(writing.writing) }}
+            onFlow={playFlow}
+            onDiamond={choose}
+            onEnd={(name) => !sentGood(name) && toggleGood(name)}
+            onGeneral={readOnly ? undefined : () => write(undefined)}
+          />
           <Foot
             review={review}
             round={round}
@@ -367,65 +442,6 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
     </Page>
   );
 }
-
-function Heading(props: {
-  name: string;
-  length?: number;
-  current?: boolean;
-  onChoose?: () => void;
-  onAdd?: () => void;
-  add: string;
-  good?: boolean | "sent";
-  onGood?: () => void;
-}) {
-  const quiet = "grid h-6 place-items-center rounded-md px-2 text-xs font-medium text-soft opacity-0 transition duration-150 ease-calm group-hover:opacity-100 hover:bg-hover hover:text-fg";
-  return (
-    <div className={`group flex h-9 items-center gap-2 rounded-lg px-2.5 ${props.onChoose ? "cursor-pointer" : ""}`} onClick={props.onChoose}>
-      <span className={`truncate font-semibold ${props.current === false ? "text-soft" : "text-fg"}`}>{props.name}</span>
-      {props.length !== undefined && <span className="text-xs text-faint tabular-nums">{time(props.length)}</span>}
-      <span className="ml-auto flex flex-none items-center gap-1">
-        {props.good === "sent" ? (
-          <span className="px-2 text-xs font-medium text-green">✓ Looks good</span>
-        ) : (
-          props.onGood && (
-            <button
-              className={`${quiet} ${props.current ? "opacity-100" : ""} aria-pressed:bg-green/12 aria-pressed:text-green aria-pressed:opacity-100`}
-              aria-pressed={!!props.good}
-              onClick={(event) => (event.stopPropagation(), props.onGood?.())}
-            >
-              {props.good ? "✓ Looks good" : "Looks good"}
-            </button>
-          )
-        )}
-        {props.onAdd && (
-          <button className={`${quiet} ${props.current ? "opacity-100" : ""} w-6 px-0 text-base`} title={props.add} aria-label={props.add} onClick={(event) => (event.stopPropagation(), props.onAdd?.())}>
-            +
-          </button>
-        )}
-      </span>
-    </div>
-  );
-}
-
-// Under a flow's name: the agent's line at its start, under the agent's own name as in a note's conversation, and who
-// else it looks good to.
-function Said({ line, by, others }: { line?: string; by: string; others: string[] }) {
-  if (!line && !others.length) return null;
-  return (
-    <div className="-mt-1 flex flex-col gap-0.5 px-2.5 pb-1.5">
-      {line && (
-        <p className="text-soft">
-          <span className="mr-1 font-medium">{by}:</span>
-          {line}
-        </p>
-      )}
-      {others.length > 0 && <p className="text-xs text-green">✓ Looks good to {few(others)}</p>}
-    </div>
-  );
-}
-
-// A few names by name, then how many more.
-const few = (names: string[]) => (names.length > 3 ? `${names.slice(0, 2).join(", ")} and ${names.length - 2} others` : list(names));
 
 // What's kept for you in this browser, such as how you like to look at a review. Without it, nothing is kept.
 function stored(key: string): string | null {

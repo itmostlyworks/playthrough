@@ -1,14 +1,22 @@
 // A note in the column: one line while it's closed, and open, its conversation and the one thing you can do with it.
 // A new note is written where it will live, never over the recording.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { list, time, type Verdict } from "@vantage/review";
-import { fill, type Shown } from "./notes.ts";
+import { ink, type Shown } from "./notes.ts";
+import { useNow, type Playhead } from "./playhead.ts";
 
 export const number = "size-[18px] flex-none rounded-full text-center text-[10px] leading-[18px] font-semibold text-white";
+// A number in the column says where its note stands in its colour: quiet at rest, and real while it's open or on
+// screen, as its pin is. On the line down the flow you're in, it sits in a ring of the line.
+const quiet = "bg-[color-mix(in_srgb,var(--c)_18%,var(--ground))] text-[color-mix(in_srgb,var(--c)_80%,var(--fg))]";
+const real = "bg-(--c) text-white";
+// How long past its moment a note is on screen, as its pin is.
+const SHOWN_FOR = 1.5;
 
 export function NoteRow(props: {
   note: Shown;
+  playhead: Playhead;
   open: boolean;
   fresh: boolean;
   you: string;
@@ -19,12 +27,25 @@ export function NoteRow(props: {
   onEdit: (words: string | undefined) => void;
 }) {
   const { note, open } = props;
+  const at = note.on?.at;
+  const here = useNow(props.playhead, ({ moment }) => at !== undefined && moment.flow === note.on?.flow && moment.at >= at - 0.05 && moment.at <= (note.on?.until ?? at) + SHOWN_FOR);
   return (
-    <div className={`rounded-lg transition-colors duration-150 ease-calm ${open ? "bg-hover" : "hover:bg-hover"} ${props.fresh ? "animate-glow" : ""}`}>
-      <button className="grid w-full grid-cols-[18px_minmax(0,1fr)_auto] items-start gap-2 px-2.5 py-2 text-left" onClick={open ? props.onClose : props.onOpen} aria-expanded={open}>
-        <span className={`${number} mt-px ${fill(note)}`}>{note.number}</span>
+    <div
+      data-stop={at}
+      className={`relative rounded-r-lg transition-colors duration-150 ease-calm ${open ? "bg-hover" : "hover:bg-hover"} ${props.fresh ? "animate-glow" : ""}`}
+      style={{ "--c": ink(note) } as CSSProperties}
+    >
+      <button
+        className="grid w-full grid-cols-[18px_minmax(0,1fr)_auto] items-start gap-2 py-1.5 pr-2.5 pl-[18px] text-left"
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={open ? props.onClose : props.onOpen}
+        aria-expanded={open}
+      >
+        <span data-mark className={`${number} relative z-1 mt-px in-data-here:line-ring ${open || here ? real : quiet}`}>
+          {note.number}
+        </span>
         <span className={open ? "" : "truncate"}>{note.turns[0]?.words}</span>
-        <span className="text-xs leading-5 text-faint tabular-nums">{note.on?.at === undefined ? "" : time(note.on.at)}</span>
+        <span className="min-w-[78px] text-right text-xs leading-5 text-faint tabular-nums">{at === undefined ? "" : time(at)}</span>
       </button>
       {open && <Card {...props} />}
     </div>
@@ -35,7 +56,7 @@ function Card({ note, you, readOnly, onJudge, onEdit, onClose }: Parameters<type
   const draftNote = note.unsent && note.turns.length === 1;
   const judged = note.unsent && !draftNote ? note.turns.at(-1) : undefined;
   const [asking, setAsking] = useState(judged?.verdict === "not quite");
-  const inset = "pr-2.5 pb-2.5 pl-9";
+  const inset = "pr-2.5 pb-2.5 pl-[44px]";
 
   if (draftNote && !readOnly)
     return (
