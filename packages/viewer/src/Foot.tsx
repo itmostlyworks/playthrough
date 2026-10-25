@@ -70,24 +70,35 @@ export function Foot(props: Props) {
       </p>
     );
 
+  const sending = props.onSend && !(step.kind === "go" && step.send);
+  const justSent = (step.kind === "go" || step.kind === "say") && since < 4000;
+  // On a phone, where room is short, the row folds away while there's nothing in it to press, leaving the meter. It
+  // keeps its 4px round its buttons, for the ring a key leaves on them.
+  const idle = (props.quiet || step.kind === "say") && !sending && !justSent;
   return (
-    <div className="flex-none px-[18px] pt-3">
-      {props.trouble.length > 0 && <p className="mb-2 text-xs leading-[18px] text-amber-ink">{props.trouble.join(" ")}</p>}
-      <div ref={buttons} className={`flex min-h-8 items-center gap-2 transition-opacity duration-150 ease-calm ${held ? "pointer-events-none opacity-45" : ""}`}>
-        {shown}
-        {props.onSend && !(step.kind === "go" && step.send) ? (
-          <button
-            className="flex h-8 flex-none items-center gap-2 rounded-lg bg-fg pr-3.5 pl-3 text-[12.5px] font-semibold text-ground transition-opacity duration-150 ease-calm hover:opacity-88"
-            aria-label={props.notes ? `Send ${props.notes} ${props.notes === 1 ? "note" : "notes"} to the agent` : "Send what you said"}
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={props.onSend}
-          >
-            {stack("shadow-[0_0_0_1.5px_var(--fg)]")}
-            Send
-          </button>
-        ) : (
-          (step.kind === "go" || step.kind === "say") && since < 4000 && <Sent words="Sent" />
-        )}
+    <div className="flex-none px-[18px]">
+      <div className={`grid grid-rows-[1fr] transition-[grid-template-rows] duration-200 ease-calm ${idle ? "phone:grid-rows-[0fr]" : ""}`}>
+        <div className="-mx-1 -mb-1 min-h-0 overflow-hidden">
+          <div className="px-1 pt-3 pb-1">
+            {props.trouble.length > 0 && <p className="mb-2 text-xs leading-[18px] text-amber-ink">{props.trouble.join(" ")}</p>}
+            <div ref={buttons} className={`flex min-h-8 items-center gap-2 transition-opacity duration-150 ease-calm ${held ? "pointer-events-none opacity-45" : ""}`}>
+              {shown}
+              {sending ? (
+                <button
+                  className="flex h-8 flex-none items-center gap-2 rounded-lg bg-fg pr-3.5 pl-3 text-[12.5px] font-semibold text-ground transition-opacity duration-150 ease-calm hover:opacity-88"
+                  aria-label={props.notes ? `Send ${props.notes} ${props.notes === 1 ? "note" : "notes"} to the agent` : "Send what you said"}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={props.onSend}
+                >
+                  {stack("shadow-[0_0_0_1.5px_var(--fg)]")}
+                  Send
+                </button>
+              ) : (
+                justSent && <Sent words="Sent" />
+              )}
+            </div>
+          </div>
+        </div>
       </div>
       {props.pieces ? <Meter {...props} pieces={props.pieces} /> : <p className="pt-3.5 text-xs leading-4 text-faint">Looking back. Nothing to decide here.</p>}
     </div>

@@ -8,6 +8,7 @@ import { useEffect, useLayoutEffect, useRef, type CSSProperties, type ReactNode,
 import { list, time, type Flow, type Place, type Review, type Round } from "@vantage/review";
 import { Answer, Compare, play, Said, tick, Time, useHold } from "./Card.tsx";
 import { when, type Changed, type Diamond } from "./changes.ts";
+import { fades, useFade } from "./fade.ts";
 import { useGlide } from "./glide.ts";
 import { clamp } from "./moments.ts";
 import { ink, type Shown, type Standing } from "./notes.ts";
@@ -82,6 +83,7 @@ export function Column(props: Props) {
   const map = useRef<HTMLDivElement>(null);
   const ghosts = useRef<HTMLDivElement>(null);
   useGlide(map, ghosts);
+  useFade(map);
 
   // Playing on into the next flow brings its heading into view, if it's out of view.
   useEffect(() => {
@@ -106,7 +108,7 @@ export function Column(props: Props) {
       ref={map}
       data-map
       hidden={props.hidden}
-      className="relative isolate grid min-h-0 flex-1 auto-rows-max content-start gap-px overflow-y-auto pr-2 pb-4 [scrollbar-gutter:stable] [--ahead:color-mix(in_srgb,var(--faint)_45%,var(--ground))] [--rail:var(--soft)]"
+      className={`relative isolate grid min-h-0 flex-1 auto-rows-max content-start gap-px overflow-y-auto pr-2 pb-4 [scrollbar-gutter:stable] [--ahead:color-mix(in_srgb,var(--faint)_45%,var(--ground))] [--rail:var(--soft)] ${fades}`}
     >
       <div ref={ghosts} className="absolute inset-x-0 top-0" aria-hidden />
       {round.flows.map((flow) => {

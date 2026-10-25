@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { list, time, type Turn, type Verdict } from "@vantage/review";
 import { Answer, Compare, mac, play, Said, tick, Time } from "./Card.tsx";
 import type { Changed } from "./changes.ts";
+import { fades, useFade } from "./fade.ts";
 import { ink, type Shown } from "./notes.ts";
 import { useNow, type Playhead } from "./playhead.ts";
 
@@ -365,8 +366,10 @@ export function SettledCount({ notes, open, onOpen }: { notes: Shown[]; open: bo
 export function SettledList({ notes, onNote }: { notes: Shown[]; onNote: (note: Shown) => void }) {
   const settledOn = (note: Shown) => note.turns.at(-1)?.round ?? 0;
   const rounds = [...new Set(notes.map(settledOn))].sort((a, b) => b - a);
+  const shown = useRef<HTMLDivElement>(null);
+  useFade(shown);
   return (
-    <div className="min-h-0 flex-1 animate-rise overflow-y-auto pr-2 pb-4 [scrollbar-gutter:stable]">
+    <div ref={shown} className={`min-h-0 flex-1 animate-rise overflow-y-auto pr-2 pb-4 [scrollbar-gutter:stable] ${fades}`}>
       {rounds.map((round) => (
         <div key={round} className="grid gap-px">
           <p className="mt-2 mb-0.5 pl-[18px] text-xs text-faint">{round === 0 ? "Before" : `Round ${round}`}</p>
