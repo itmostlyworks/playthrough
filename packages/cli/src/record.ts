@@ -23,7 +23,7 @@ export async function record(repo: Repo, id: string) {
     const line = saved?.flows.find((kept) => kept.name === flow.name)?.line;
     return line ? { ...flow, line } : flow;
   });
-  for (const { flow, bytes } of recorded) await repo.reviews.saveFile(id, number, flow.recording, bytes);
+  for (const { files } of recorded) for (const { name, bytes } of files) await repo.reviews.saveFile(id, number, name, bytes);
   const written = saved?.replies ?? [];
   const waiting: Reply[] = notesToAnswer(review, number)
     .filter((note) => !written.some((reply) => reply.note === note))

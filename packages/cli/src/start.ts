@@ -31,7 +31,7 @@ Then run vantage start ${id} again. It records Before: each flow on the app as i
   if (!recorded.length)
     return console.log(`\nNone of the flows can start on the app as it is, so there's no Before. If one should, fix it and run this again. Otherwise change the app, then record round 1: vantage record ${id}`);
 
-  for (const { flow, bytes } of recorded) await repo.reviews.saveFile(id, 0, flow.recording, bytes);
+  for (const { files } of recorded) for (const { name, bytes } of files) await repo.reviews.saveFile(id, 0, name, bytes);
   await repo.reviews.saveRound(id, { number: 0, by: agent(), flows: recorded.map(({ flow }) => flow), replies: [], accounts: {} });
   await repo.reviews.finish(id, 0);
   console.log(`\nRecorded Before: ${list(recorded.map(({ flow }) => quote(flow.name)))}.`);

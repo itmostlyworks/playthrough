@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Refused, type Flow } from "@vantage/review";
-import type { Failed } from "./reporter.ts";
+import type { Failed, Recorded } from "./reporter.ts";
 import type { App, Repo } from "./repo.ts";
 
 // What the run needs to know, passed to Playwright whole: where the flows are, the folder the recordings go to, the app,
@@ -39,9 +39,10 @@ export function howToWriteFlows(repo: Repo, id: string): string {
 The test's name is the flow's, and steps are matched across rounds by their names.`;
 }
 
-// Runs every flow of the review on the app, the way a person would use it, for a round: its recordings, and each flow
-// that failed with the step it failed at. On Before, round 0, a flow that stops is recorded as far as it went.
-export async function runFlows(repo: Repo, id: string, round: number): Promise<{ recorded: { flow: Flow; bytes: Buffer }[]; failed: Failed[] }> {
+// Runs every flow of the review on the app, the way a person would use it, for a round: each flow with its files, its
+// recording and what was read at the end of each step, and each flow that failed with the step it failed at. On Before,
+// round 0, a flow that stops is recorded as far as it went.
+export async function runFlows(repo: Repo, id: string, round: number): Promise<{ recorded: { flow: Flow; files: { name: string; bytes: Buffer }[] }[]; failed: Failed[] }> {
   const flows = repo.flows(id);
   if (!(await readdir(flows).catch(() => [])).some((name) => /\.[cm]?[jt]s$/.test(name)))
     throw new Refused([`${id} has no flows yet. ${howToWriteFlows(repo, id)}`]);
@@ -54,9 +55,10 @@ export async function runFlows(repo: Repo, id: string, round: number): Promise<{
     const recorder = join(dirname(createRequire(import.meta.url).resolve("@rrweb/record")), "record.umd.min.cjs");
     const ran = await playwright({ flows, folder, app, root: repo.root, recorder, before: round === 0 });
     const text = await readFile(join(folder, "flows.json"), "utf8").catch(() => undefined);
-    const { recorded, failed }: { recorded: Flow[]; failed: Failed[] } = text ? JSON.parse(text) : { recorded: [], failed: [] };
+    const { recorded, failed }: { recorded: Recorded[]; failed: Failed[] } = text ? JSON.parse(text) : { recorded: [], failed: [] };
     if (!ran && !failed.length) throw new Refused(["The flows didn't run, for the reason Playwright gives above. Fix that and run this again."]);
-    return { recorded: await Promise.all(recorded.map(async (flow) => ({ flow, bytes: await readFile(join(folder, flow.recording)) }))), failed };
+    const withFiles = ({ flow, files }: Recorded) => Promise.all(files.map(async (name) => ({ name, bytes: await readFile(join(folder, name)) }))).then((files) => ({ flow, files }));
+    return { recorded: await Promise.all(recorded.map(withFiles)), failed };
   } finally {
     await rm(folder, { recursive: true });
   }

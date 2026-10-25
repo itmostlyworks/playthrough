@@ -1,11 +1,15 @@
 // What every flow imports in place of "@playwright/test". While `vantage record` runs, it records each flow the way a person
 // would watch it: rrweb in every page, the pointer gliding to what it acts on, and a beat after each action so its result can
-// be seen. Run as plain tests, it does nothing. Each recording goes to the reporter, which makes it a flow (reporter.ts).
+// be seen. Each step ends once the page is at rest, and the page it left is read there, with a picture of it: what the
+// comparison compares. Run as plain tests, it does nothing. Each recording and its readings go to the reporter, which makes
+// them a flow (reporter.ts).
 
 import { test as base, expect as playwrightExpect, type Locator, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import type { Run } from "./flows.ts";
-import { HOLD, RECORDING } from "./reporter.ts";
+import { readPage, type Reading } from "./read.ts";
+import { HOLD, PICTURE, READINGS, RECORDING, seconds } from "./reporter.ts";
+import { watchRest } from "./rest.ts";
 
 // Everything it needs comes with the run (flows.ts), so it never has to find anything for itself.
 const run: Run | undefined = process.env.VANTAGE_RUN ? JSON.parse(process.env.VANTAGE_RUN) : undefined;
@@ -53,21 +57,29 @@ const BEAT = 650; // after each action, so its result can be seen
 
 let pointer: { page: Page; x: number; y: number } | undefined;
 
-export const test = base.extend<{ recorder: void }>({
+// The flow underway: what waits for its page to rest, and what was read at the end of each step so far, with its picture.
+type Underway = { page: Page; events: { timestamp: number }[]; rest: () => Promise<void>; depth: number; readings: Omit<Reading, "picture">[]; pictures: Buffer[] };
+let underway: Underway | undefined;
+
+const recorded = base.extend<{ recorder: void }>({
   recorder: [
     async ({ page }, use, testInfo) => {
       if (!run) return use();
       testInfo.setTimeout(testInfo.timeout * 3);
-      const events: unknown[] = [];
-      await page.exposeFunction("__vantage", (event: unknown) => void events.push(event));
+      const events: { timestamp: number }[] = [];
+      await page.exposeFunction("__vantage", (event: { timestamp: number }) => void events.push(event));
       await page.addInitScript({ content: recorder(run.recorder) });
+      const rest = await watchRest(page);
       pace(page);
       pointer = { page, x: 640, y: 640 };
+      underway = { page, events, rest, depth: 0, readings: [], pictures: [] };
+      const { readings, pictures } = underway;
       await page.mouse.move(pointer.x, pointer.y);
       try {
         await use();
       } finally {
         pointer = undefined;
+        underway = undefined;
       }
       const ended = testInfo.status === testInfo.expectedStatus;
       if (!ended && !run.before) return;
@@ -78,10 +90,47 @@ export const test = base.extend<{ recorder: void }>({
         await page.waitForTimeout(100);
       }
       await testInfo.attach(RECORDING, { body: JSON.stringify(events), contentType: "application/json" });
+      await testInfo.attach(READINGS, { body: JSON.stringify(readings), contentType: "application/json" });
+      for (const picture of pictures) await testInfo.attach(PICTURE, { body: picture, contentType: "image/png" });
     },
     { auto: true },
   ],
 });
+
+// A flow's steps are the ones it takes itself, not steps inside them. Each ends once the page is at rest, and the page
+// it left is read there, unless the step failed.
+const playwrightStep = base.step;
+const step = Object.assign(async (title: string, body: (info: unknown) => unknown, options?: object) => {
+  const flow = underway;
+  if (!flow || flow.depth) return playwrightStep(title, body, options);
+  return playwrightStep(
+    title,
+    async (info) => {
+      flow.depth++;
+      let done: unknown;
+      try {
+        done = await body(info);
+      } finally {
+        flow.depth--;
+      }
+      await flow.rest();
+      const at = seconds(Date.now() - (flow.events[0]?.timestamp ?? Date.now()));
+      const { screen, things } = await readPage(flow.page);
+      flow.readings.push({ step: title, at, screen, things });
+      flow.pictures.push(await flow.page.screenshot({ animations: "disabled", caret: "hide" }));
+      return done;
+    },
+    options,
+  );
+}, playwrightStep) as typeof base.step;
+
+// A test built on this one with extend() keeps its steps, and so does anything built on that in turn: Playwright's own
+// would record no readings.
+function withSteps<T extends typeof recorded>(test: T): T {
+  const extend = test.extend;
+  return Object.assign(test, { step, extend: (...args: Parameters<typeof extend>) => withSteps(extend.apply(test, args)) });
+}
+export const test = withSteps(recorded);
 
 // Every action on an element glides there first and pauses after. Patched once in each worker, for every locator.
 const actions = ["click", "dblclick", "check", "uncheck", "setChecked", "hover", "tap", "fill", "selectOption", "press"] as const;

@@ -8,8 +8,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { newId, Reviews, type Round } from "@vantage/review";
+import { newId, Reviews, type Flow, type Round } from "@vantage/review";
 import { folder } from "@vantage/review/folder";
+import type { Reading } from "../src/read.ts";
 
 const core = fileURLToPath(new URL("../../..", import.meta.url));
 const vantage = join(core, "packages/cli/src/vantage.ts");
@@ -81,6 +82,8 @@ const exportThem = flow(
 );
 const flows = () => join(repo, ".vantage/overdue/flows");
 const round = async (n: number): Promise<Round> => JSON.parse(await readFile(join(repo, `.vantage/overdue/rounds/${n}/round.json`), "utf8"));
+const file = (n: number, name: string) => readFile(join(repo, `.vantage/overdue/rounds/${n}/files/${name}`));
+const readings = async (n: number, flow: Flow): Promise<Reading[]> => JSON.parse((await file(n, `readings/${flow.recording}`)).toString());
 
 describe("The command line, as an agent uses it", { timeout: 120_000 }, () => {
   test("start begins a review and asks for its flows from the task, before anything changes", async () => {
@@ -123,6 +126,8 @@ describe("The command line, as an agent uses it", { timeout: 120_000 }, () => {
     const events: { type: number; data: { tag?: string } }[] = JSON.parse(await readFile(join(repo, `.vantage/overdue/rounds/0/files/${cut!.recording}`), "utf8"));
     assert.equal(events.at(-1)?.data.tag, "end");
     assert.ok(cut!.length > 1.5 && cut!.length < 6, `it ends where it stopped, not where it gave up: ${cut!.length}s`);
+    // The step it stopped at left nothing to read.
+    assert.deepEqual((await readings(0, cut!)).map((reading) => reading.step), ["Open the invoices"]);
 
     ({ said, code } = await run(["start", "overdue"]));
     assert.equal(code, 1);
@@ -156,6 +161,15 @@ describe("The command line, as an agent uses it", { timeout: 120_000 }, () => {
       assert.ok((await stat(join(repo, `.vantage/overdue/rounds/1/files/${flow.recording}`))).size > 1000);
     }
     assert.deepEqual(recorded.flows.map((flow) => flow.recording), ["export-the-overdue-ones.json", "see-whats-overdue.json", "see-whats-paid.json"]);
+  });
+
+  test("each step is read where it ended, once the page was at rest, with a picture of the page it left", async () => {
+    const [, overdue] = (await round(1)).flows;
+    const read = await readings(1, overdue!);
+    assert.deepEqual(read.map((reading) => reading.step), ["Open the invoices", "Show only the overdue ones"]);
+    assert.ok(read[0]!.at < overdue!.steps[1]!.at && read[1]!.at < overdue!.length, "each is read after its step starts, before the next one");
+    assert.ok(read[1]!.things.some((thing) => thing.role === "button" && thing.name === "Overdue"));
+    for (const reading of read) assert.equal((await file(1, reading.picture)).subarray(1, 4).toString(), "PNG");
   });
 
   test("waiting hands the round over, then brings the notes that ask for something, each with its conversation", async () => {
