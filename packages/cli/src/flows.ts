@@ -6,13 +6,14 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { Refused, type Flow } from "@vantage/review";
+import { list, quote, Refused, type Flow } from "@vantage/review";
 import type { Failed, Recorded } from "./reporter.ts";
 import type { App, Repo } from "./repo.ts";
 
-// What the run needs to know, passed to Playwright whole: where the flows are, the folder the recordings go to, the app,
-// rrweb's recorder, which goes into every page, and whether it's Before.
-export type Run = { flows: string; folder: string; app: App; root: string; recorder: string; before: boolean };
+// What the run needs to know, passed to Playwright whole: where the flows are and which of them to run, the folder the
+// recordings go to, the app, rrweb's recorder, which goes into every page, whether it's Before, and the recordings the
+// round has already, so a flow added to it is named apart from them.
+export type Run = { flows: string; only?: string[]; folder: string; app: App; root: string; recorder: string; before: boolean; taken: string[] };
 
 // Flows are modules whatever the app's own package.json says, so they load the same way in every repo.
 export async function makeFlowsFolder(repo: Repo, id: string) {
@@ -41,8 +42,13 @@ The test's name is the flow's, and steps are matched across rounds by their name
 
 // Runs every flow of the review on the app, the way a person would use it, for a round: each flow with its files, its
 // recording and what was read at the end of each step, and each flow that failed with the step it failed at. On Before,
-// round 0, a flow that stops is recorded as far as it went.
-export async function runFlows(repo: Repo, id: string, round: number): Promise<{ recorded: { flow: Flow; files: { name: string; bytes: Buffer }[] }[]; failed: Failed[] }> {
+// round 0, a flow that stops is recorded as far as it went. Flows added later are run on Before by themselves.
+export async function runFlows(
+  repo: Repo,
+  id: string,
+  round: number,
+  later?: { flows: string[]; taken: string[] },
+): Promise<{ recorded: { flow: Flow; files: { name: string; bytes: Buffer }[] }[]; failed: Failed[] }> {
   const flows = repo.flows(id);
   if (!(await readdir(flows).catch(() => [])).some((name) => /\.[cm]?[jt]s$/.test(name)))
     throw new Refused([`${id} has no flows yet. ${howToWriteFlows(repo, id)}`]);
@@ -51,9 +57,15 @@ export async function runFlows(repo: Repo, id: string, round: number): Promise<{
 
   const folder = await mkdtemp(join(tmpdir(), "vantage-"));
   try {
-    console.log(round === 0 ? `Recording Before: each flow of ${id} on the app as it is…` : `Recording round ${round} of ${id}…`);
+    console.log(
+      later
+        ? `Recording ${list(later.flows.map(quote))} on Before, the app as it was…`
+        : round === 0
+          ? `Recording Before: each flow of ${id} on the app as it is…`
+          : `Recording round ${round} of ${id}…`,
+    );
     const recorder = join(dirname(createRequire(import.meta.url).resolve("@rrweb/record")), "record.umd.min.cjs");
-    const ran = await playwright({ flows, folder, app, root: repo.root, recorder, before: round === 0 });
+    const ran = await playwright({ flows, only: later?.flows, folder, app, root: repo.root, recorder, before: round === 0, taken: later?.taken ?? [] });
     const text = await readFile(join(folder, "flows.json"), "utf8").catch(() => undefined);
     const { recorded, failed }: { recorded: Recorded[]; failed: Failed[] } = text ? JSON.parse(text) : { recorded: [], failed: [] };
     if (!ran && !failed.length) throw new Refused(["The flows didn't run, for the reason Playwright gives above. Fix that and run this again."]);

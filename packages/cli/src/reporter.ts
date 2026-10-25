@@ -24,11 +24,13 @@ type Event = { timestamp: number; [field: string]: unknown };
 export default class Flows implements Reporter {
   #folder: string;
   #before: boolean;
+  #taken: string[];
   #ran: { file: string; line: number; recorded?: Recorded; failed?: Failed }[] = [];
 
-  constructor({ folder, before }: { folder: string; before: boolean }) {
+  constructor({ folder, before, taken }: { folder: string; before: boolean; taken: string[] }) {
     this.#folder = folder;
     this.#before = before;
+    this.#taken = taken;
   }
 
   onTestEnd(test: TestCase, result: TestResult) {
@@ -83,7 +85,7 @@ export default class Flows implements Reporter {
   // Named after the flow, so the files read as what they are.
   #fileFor(name: string): string {
     const base = name.toLowerCase().normalize("NFKD").replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "flow";
-    const taken = new Set(this.#ran.map((run) => run.recorded?.flow.recording));
+    const taken = new Set([...this.#taken, ...this.#ran.map((run) => run.recorded?.flow.recording)]);
     for (let n = 1; ; n++) {
       const file = n === 1 ? `${base}.json` : `${base}-${n}.json`;
       if (!taken.has(file)) return file;

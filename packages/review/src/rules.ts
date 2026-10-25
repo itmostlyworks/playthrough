@@ -94,20 +94,35 @@ export function problemsWithRound(review: Review, round: Round): string[] {
   }
 
   const at = `Round ${round.number}`;
-  const problems: string[] = [];
-  problems.push(...duplicates(round.flows.map((flow) => flow.name), (name) => `${at} has two flows called “${name}”.`));
-  for (const flow of round.flows) {
-    const steps = flow.steps.map((step) => step.title);
-    problems.push(...duplicates(steps, (title) => `${at}: the flow “${flow.name}” has two steps called “${title}”. Steps are matched by title.`));
-    for (const step of flow.steps.filter((step) => step.at > flow.length))
-      problems.push(`${at}: the step “${step.title}” in the flow “${flow.name}” starts after the flow ends.`);
-  }
-
+  const problems = problemsWithFlows(round, at);
   const notes = allNotes(review);
   problems.push(...duplicates(round.replies.map((reply) => reply.note), (id) => `${at} has two replies to note ${id}. Say it all in one.`));
   for (const reply of round.replies) {
     if (!notes.has(reply.note)) problems.push(`${at} replies to note ${reply.note}, which doesn't exist.`);
     if (reply.on) problems.push(...problemsWithPlace(reply.on, round.flows, `${at}: the reply to note ${reply.note}`));
+  }
+  return problems;
+}
+
+// Before, once recorded, only gains: a flow added later, recorded on the app as it was, or the word that the app as it
+// was can't start it.
+export function problemsAddingToBefore(review: Review, flows: Flow[], cantStart: string[]): string[] {
+  if (review.accepted) return ["This review is accepted, so nothing more can be recorded."];
+  const before = review.rounds.find((round) => round.number === 0);
+  if (!before) return ["There's no Before to add a flow to: the app was new."];
+  const after = { ...before, flows: [...before.flows, ...flows], cantStart: [...(before.cantStart ?? []), ...cantStart] };
+  const shape = problemsWithShape(Round, after, "Before");
+  return shape.length ? shape : problemsWithFlows(after, "Before");
+}
+
+// Flows are told apart by their names, and their steps by their titles, so each is there once.
+function problemsWithFlows(round: Round, at: string): string[] {
+  const problems = duplicates([...round.flows.map((flow) => flow.name), ...(round.cantStart ?? [])], (name) => `${at} has two flows called “${name}”.`);
+  for (const flow of round.flows) {
+    const steps = flow.steps.map((step) => step.title);
+    problems.push(...duplicates(steps, (title) => `${at}: the flow “${flow.name}” has two steps called “${title}”. Steps are matched by title.`));
+    for (const step of flow.steps.filter((step) => step.at > flow.length))
+      problems.push(`${at}: the step “${step.title}” in the flow “${flow.name}” starts after the flow ends.`);
   }
   return problems;
 }

@@ -2,7 +2,7 @@
 // app, recording in Chromium. The steps build on each other, like a review does.
 
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { cp, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -24,19 +24,36 @@ before(async () => {
   await cp(join(core, "example/serve.ts"), join(repo, "serve.ts"));
   await writeFile(join(repo, "serve.ts"), (await readFile(join(repo, "serve.ts"), "utf8")).replaceAll("4400", String(PORT)));
   await symlink(join(core, "node_modules"), join(repo, "node_modules"));
+  await writeFile(join(repo, ".gitignore"), "node_modules\n");
+  git("init", "--quiet", "--initial-branch=main");
+  git("add", "--all");
+  git("commit", "--quiet", "--message", "The example app");
   reviews = new Reviews(folder(join(repo, ".vantage")));
 });
 after(() => rm(repo, { recursive: true }));
 
-// Runs a command in the repo and gives back what it said. One that doesn't end by itself is stopped after `stopAfter`.
-function run(args: string[], stopAfter?: number): Promise<{ said: string; code: number | null }> {
+const git = (...args: string[]) =>
+  execFileSync("git", ["-c", "commit.gpgSign=false", ...args], {
+    cwd: repo,
+    encoding: "utf8",
+    env: { ...process.env, GIT_AUTHOR_NAME: "Ana", GIT_AUTHOR_EMAIL: "ana@example.com", GIT_COMMITTER_NAME: "Ana", GIT_COMMITTER_EMAIL: "ana@example.com" },
+  }).trim();
+
+// Runs a command in the repo and gives back what it said. One that doesn't end by itself is stopped after `stopAfter`,
+// and one can be stopped the moment it says something.
+function run(args: string[], stopAfter?: number, stopWhen?: { says: RegExp; signal: NodeJS.Signals }): Promise<{ said: string; code: number | null }> {
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [vantage, ...args], { cwd: repo });
     let said = "";
-    child.stdout.on("data", (chunk) => (said += chunk));
+    let stopped = false;
+    child.stdout.on("data", (chunk) => {
+      said += chunk;
+      if (stopWhen?.says.test(said) && !stopped) stopped = child.kill(stopWhen.signal);
+    });
     child.stderr.on("data", (chunk) => (said += chunk));
     const stop = stopAfter && setTimeout(() => child.kill(), stopAfter);
-    child.on("exit", (code) => {
+    // Once everything it started is done with what it says, the Playwright it ran among them.
+    child.on("close", (code) => {
       if (stop) clearTimeout(stop);
       resolve({ said, code });
     });
@@ -80,13 +97,39 @@ const exportThem = flow(
     await page.getByRole("button", { name: "Export" }).click();
   });`,
 );
+// Added later, after Before: the app as it was can take the first two steps of one, and none of the other.
+const exportPaid = flow(
+  "Export the paid ones",
+  `  await test.step("Open the invoices", async () => {
+    await page.goto("/");
+  });
+  await test.step("Show only the paid ones", async () => {
+    await page.getByRole("button", { name: "Paid" }).click();
+  });
+  await test.step("Export them", async () => {
+    await page.getByRole("button", { name: "Export" }).click();
+  });`,
+);
+const openExport = flow(
+  "Open the export",
+  `  await test.step("Open the export", async () => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Export" }).click();
+  });`,
+);
+const lookThrough = flow(
+  "Look through the invoices",
+  `  await test.step("Open the invoices", async () => {
+    await page.goto("/");
+  });`,
+);
 const flows = () => join(repo, ".vantage/overdue/flows");
 const round = async (n: number): Promise<Round> => JSON.parse(await readFile(join(repo, `.vantage/overdue/rounds/${n}/round.json`), "utf8"));
 const file = (n: number, name: string) => readFile(join(repo, `.vantage/overdue/rounds/${n}/files/${name}`));
 const readings = async (n: number, flow: Flow): Promise<Reading[]> => JSON.parse((await file(n, `readings/${flow.recording}`)).toString());
 const compared = async (n: number, since: number): Promise<Comparison> => JSON.parse(await readFile(join(repo, `.vantage/overdue/rounds/${n}/since/${since}.json`), "utf8"));
 
-describe("The command line, as an agent uses it", { timeout: 120_000 }, () => {
+describe("The command line, as an agent uses it", { timeout: 300_000 }, () => {
   test("start begins a review and asks for its flows from the task, before anything changes", async () => {
     const { said, code } = await run(["start", "overdue", "Show", "only", "the", "overdue", "invoices"]);
     assert.equal(code, 0);
@@ -120,6 +163,10 @@ describe("The command line, as an agent uses it", { timeout: 120_000 }, () => {
     const before = await round(0);
     assert.deepEqual(before.flows.map((flow) => flow.name), ["Export the overdue ones", "See what's overdue", "See what's paid"]);
     assert.ok(before.finished, "nothing is reviewed on it, so it's done once it's recorded");
+    // What it was recorded from is kept, with vantage/app.json, which isn't committed yet.
+    assert.equal(git("rev-parse", "refs/vantage/overdue/before"), before.commit);
+    assert.match(git("show", `${before.commit}:vantage/app.json`), /node serve\.ts/);
+    assert.equal(git("status", "--porcelain"), "?? vantage/", "and the reviews are out of git");
 
     // What it expects of the finished work only waits on Before; where it can't act, it stops, and holds there.
     const [cut] = before.flows;
@@ -242,6 +289,56 @@ describe("The command line, as an agent uses it", { timeout: 120_000 }, () => {
     await run(["record", "overdue"]);
     await writeFile(join(repo, ".vantage/overdue/rounds/3/round.json"), JSON.stringify({ ...(await round(3)), replies: [{ note, words: "It's bolder on small screens." }] }));
     assert.match((await run(["wait", "overdue"], 3000)).said, /Round 3 is ready for review\./);
+  });
+
+  // The agent's work as git sees it: its branch, what it changed and staged, and the page it changed.
+  const work = async () => ({
+    branch: git("symbolic-ref", "--short", "HEAD"),
+    status: git("status", "--porcelain"),
+    staged: git("diff", "--cached", "--name-only"),
+    page: await readFile(join(repo, "app/index.html"), "utf8"),
+    stashes: git("stash", "list"),
+  });
+
+  test("a flow added later is recorded on Before too, as far as the app as it was can take it, and the agent's work is put back", async () => {
+    git("add", "app/index.html");
+    await writeFile(join(repo, "notes.txt"), "What's left to do");
+    const was = await work();
+    await writeFile(join(flows(), "export-paid.ts"), exportPaid);
+    await writeFile(join(flows(), "open-export.ts"), openExport);
+
+    const { said, code } = await run(["record", "overdue"]);
+    assert.equal(code, 0, said);
+    assert.match(
+      said,
+      /“Export the paid ones” and “Open the export” are new, so they're recorded on Before too\. Your work is set aside with git stash meanwhile\.\nRecording “Export the paid ones” and “Open the export” on Before, the app as it was…/,
+    );
+    assert.match(
+      said,
+      /Your work is back\.\n“Export the paid ones” stops at “Export them”, which the app as it was can't do, so its Before goes as far as that\.\n“Open the export” can't start on the app as it was, so it has no Before\./,
+    );
+    assert.deepEqual(await work(), was);
+    assert.equal(await readFile(join(repo, "notes.txt"), "utf8"), "What's left to do");
+
+    const before = await round(0);
+    assert.ok(before.finished);
+    assert.deepEqual(before.flows.at(-1)?.steps.map((step) => step.title), ["Open the invoices", "Show only the paid ones"]);
+    assert.deepEqual(before.cantStart, ["Open the export"]);
+    // Compared with Before, it takes a step the app as it was couldn't, and shows what's new since it.
+    const { changes } = await compared(4, 0);
+    const seenIn = (words: RegExp) => changes.find((change) => words.test(change.words))?.seen.map((seen) => seen.flow);
+    assert.deepEqual(seenIn(/^New steps: “Export them”$/), ["Export the paid ones"]);
+    assert.ok(seenIn(/^Export button is new/)?.includes("Export the paid ones"));
+  });
+
+  test("stopped while a flow records on Before, Vantage puts the agent's work back before it ends", async () => {
+    const was = await work();
+    await writeFile(join(flows(), "look.ts"), lookThrough);
+    const { said } = await run(["record", "overdue"], undefined, { says: /on Before, the app as it was…/, signal: "SIGTERM" });
+    assert.match(said, /“Look through the invoices” is new, so it's recorded on Before too\./, "Before was tried on the others already, so only this one");
+    assert.match(said, /Stopped, with your work back\./);
+    assert.deepEqual(await work(), was);
+    assert.ok(!(await round(0)).flows.some((flow) => flow.name === "Look through the invoices"));
   });
 
   test("accepting the work ends the wait, and nothing more can be recorded", async () => {

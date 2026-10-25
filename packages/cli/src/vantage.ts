@@ -2,6 +2,7 @@
 // The command line: four commands an agent runs to have a person review its work. When one stops, it says why and what to do.
 
 import { Refused } from "@vantage/review";
+import { putBack } from "./before.ts";
 import { open } from "./open.ts";
 import { record } from "./record.ts";
 import { repo } from "./repo.ts";
@@ -23,17 +24,21 @@ const needs = (usage: string) => new Refused([`That needs more: ${usage}`]);
 
 try {
   if (!command || ["help", "--help", "-h"].includes(command)) console.log(HELP);
-  else if (command === "start") {
-    if (!review) throw needs(`vantage start <review> "<title>"`);
-    await start(repo(), review, words.join(" ") || undefined);
-  } else if (command === "record") {
-    if (!review) throw needs("vantage record <review>");
-    await record(repo(), review);
-  } else if (command === "wait") {
-    if (!review) throw needs("vantage wait <review>");
-    await wait(repo(), review);
-  } else if (command === "open") await open(repo(), review);
-  else throw new Refused([`There's no command “${command}”.\n\n${HELP}`]);
+  else {
+    // A command stopped while flows recorded on Before left the agent's work set aside: it's put back before anything else.
+    await putBack(repo());
+    if (command === "start") {
+      if (!review) throw needs(`vantage start <review> "<title>"`);
+      await start(repo(), review, words.join(" ") || undefined);
+    } else if (command === "record") {
+      if (!review) throw needs("vantage record <review>");
+      await record(repo(), review);
+    } else if (command === "wait") {
+      if (!review) throw needs("vantage wait <review>");
+      await wait(repo(), review);
+    } else if (command === "open") await open(repo(), review);
+    else throw new Refused([`There's no command “${command}”.\n\n${HELP}`]);
+  }
 } catch (error) {
   if (!(error instanceof Refused)) throw error;
   console.error(error.problems.join("\n"));

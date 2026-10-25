@@ -1,7 +1,8 @@
 // Where Vantage keeps things in the app's repo: each review in .vantage/, out of git, with the flows written for it,
-// and how to start the app in vantage/app.json, which is committed so every review uses it.
+// and how to start the app in vantage/app.json, which is committed so every review uses it. While a flow added later
+// records on Before, where the agent's work is set aside is written down in .vantage/ too.
 
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { Refused, Reviews } from "@vantage/review";
 import { folder } from "@vantage/review/folder";
@@ -16,8 +17,15 @@ export function repo(root = process.cwd()) {
     reviews: new Reviews(folder(reviews)),
     flows: (review: string) => join(reviews, review, "flows"),
     round: (review: string, round: number) => join(reviews, review, "rounds", String(round), "round.json"),
+    setAside: join(reviews, "set-aside.json"),
     // As a person at this folder would type it.
     show: (path: string) => relative(process.cwd(), path) || ".",
+
+    // Git never sees .vantage/, so setting the agent's work aside, or putting the app as it was in place, never moves it.
+    async keepOutOfGit() {
+      await mkdir(reviews, { recursive: true });
+      await writeFile(join(reviews, ".gitignore"), "*\n");
+    },
 
     async app(): Promise<App> {
       const file = join(root, "vantage", "app.json");

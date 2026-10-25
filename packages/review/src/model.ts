@@ -1,7 +1,7 @@
 // What a review is. A review is one piece of work an agent does, round after round, until a person accepts it.
 // The agent records rounds, answers notes and says why each change is there; Vantage compares each round with the ones
 // before it; people send notes and verdicts. Each thing here has one writer, and once written, only a round still being
-// worked on ever changes.
+// worked on ever changes, and Before, which gains each flow added later.
 //
 // Each shape is a schema, so the types and what's checked at the door are one statement. An error is written as
 // what the thing still needs, to follow its name: “the flow “Export a quarter” needs its length, in seconds”.
@@ -107,7 +107,8 @@ export const Note = z.strictObject({
   words: text("needs words"),
 });
 
-// What the agent recorded, and what it says about it. Once finished, a round never changes.
+// What the agent recorded, and what it says about it. Once finished, a round never changes, except that Before gains each
+// flow added later, recorded on the app as it was.
 export const Round = z.strictObject({
   number: z.number().int().min(0).describe("Round 0 is Before: the app as it was"),
   by: text("needs to say which agent recorded it").describe("By the name it goes by, “Claude Code” or “Codex”: one review can pass between agents"),
@@ -115,6 +116,7 @@ export const Round = z.strictObject({
   replies: z.array(Reply).describe("The agent's answer to each note that asks for one"),
   accounts: z.record(z.string(), Account).describe("What the agent says about each change new since the round before, by its id"),
   commit: z.string().optional().describe("What it was recorded from"),
+  cantStart: z.array(text("needs the flow's name")).optional().describe("Before: the flows the app as it was can't start, so they have no Before"),
   finished: z.iso.datetime().optional(),
 });
 

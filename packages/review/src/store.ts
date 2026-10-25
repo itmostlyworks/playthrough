@@ -1,9 +1,10 @@
 // The review store: the steps of the loop, each checked against the rules before anything is kept.
 // Where things are kept is a Storage, so a folder, memory and later a hosted store all keep reviews the same way.
 
-import type { Accepted, Comparison, Review, Round, Send, Taken } from "./model.ts";
+import type { Accepted, Comparison, Flow, Review, Round, Send, Taken } from "./model.ts";
 import {
   problemsAccepting,
+  problemsAddingToBefore,
   problemsFinishing,
   problemsStarting,
   problemsWithComparison,
@@ -34,7 +35,7 @@ export class Refused extends Error {
 
 // How a review is laid out in its storage, each file with one writer:
 //   <review>/review.json                 the agent, when it starts
-//   <review>/rounds/<n>/round.json       the agent, until the round is finished
+//   <review>/rounds/<n>/round.json       the agent, until the round is finished; Before, as it gains a flow added later
 //   <review>/rounds/<n>/files/<name>     the agent: recordings, pictures
 //   <review>/rounds/<n>/since/<k>.json   Vantage: round n compared with round k, while n is being worked on
 //   <review>/sends/<id>.json             whoever sent it
@@ -49,7 +50,8 @@ export class Reviews {
   }
 
   async list(): Promise<string[]> {
-    const ids = await this.storage.list("");
+    // Only what's named like a review is one: Vantage keeps a few files of its own beside them.
+    const ids = (await this.storage.list("")).filter((id) => !problemsWithId(id).length);
     const started = await Promise.all(ids.map(async (id) => (await this.storage.read(`${id}/review.json`)) !== undefined));
     return ids.filter((_, i) => started[i]).sort();
   }
@@ -136,6 +138,28 @@ export class Reviews {
       const problems = problemsFinishing(review, round);
       if (problems.length || !saved) throw new Refused(problems);
       await this.#writeJson(`${id}/rounds/${round}/round.json`, { ...saved, finished: now() });
+    });
+  }
+
+  // Before gains a flow added later, recorded on the app as it was, with its files, or the word that it can't start
+  // there. What Before has already never changes.
+  async addToBefore(id: string, added: { flows: Flow[]; cantStart: string[]; files: { name: string; bytes: Uint8Array }[] }): Promise<void> {
+    return this.#one(id, async () => {
+      const review = await this.get(id);
+      const problems = problemsAddingToBefore(review, added.flows, added.cantStart);
+      for (const { name } of added.files) {
+        const named = problemsWithFileName(name);
+        problems.push(...named);
+        if (!named.length && (await this.storage.read(`${id}/rounds/0/files/${name}`))) problems.push(`Before has a file called “${name}” already.`);
+      }
+      if (problems.length) throw new Refused(problems);
+      const before = review.rounds.find((round) => round.number === 0)!;
+      for (const { name, bytes } of added.files) await this.storage.write(`${id}/rounds/0/files/${name}`, bytes);
+      await this.#writeJson(`${id}/rounds/0/round.json`, {
+        ...before,
+        flows: [...before.flows, ...added.flows],
+        cantStart: [...(before.cantStart ?? []), ...added.cantStart],
+      });
     });
   }
 

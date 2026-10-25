@@ -134,6 +134,27 @@ for (const [kept, storage] of storages) {
       await assert.rejects(reviews.saveRound("invoice-export", round(4)), refused(/being worked on is 3/));
     });
 
+    test("Before only gains: a flow added later, with its files, or the word that the app as it was can't start it", async () => {
+      const reviews = await recorded();
+      const recording = new TextEncoder().encode("[]");
+      const add = (flows: Flow[], cantStart: string[], files = [{ name: "export-a-year.json", bytes: recording }]) =>
+        reviews.addToBefore("invoice-export", { flows, cantStart, files });
+      await add([flow("Export a year")], ["Open the export"]);
+      const before = (await reviews.get("invoice-export")).rounds[0];
+      assert.deepEqual(before?.flows.map((flow) => flow.name), ["Export a quarter", "Cancel halfway", "Export a year"]);
+      assert.deepEqual([before?.cantStart, !!before?.finished], [["Open the export"], true]);
+      assert.deepEqual(await reviews.file("invoice-export", 0, "export-a-year.json"), recording);
+
+      await assert.rejects(add([flow("Export a quarter")], [], []), refused(/Before has two flows called “Export a quarter”/));
+      await assert.rejects(add([], ["Open the export"], []), refused(/Before has two flows called “Open the export”/));
+      await assert.rejects(add([flow("Export a month")], []), refused(/Before has a file called “export-a-year\.json” already/));
+
+      const app = new Reviews(await storage());
+      await app.start("new-app", "A title");
+      await app.saveRound("new-app", round(1));
+      await assert.rejects(app.addToBefore("new-app", { flows: [flow("Export a year")], cantStart: [], files: [] }), refused(/no Before to add a flow to/));
+    });
+
     test("finishing twice is the same as finishing once", async () => {
       const reviews = await recorded();
       const finished = (await reviews.get("invoice-export")).rounds[1]?.finished;

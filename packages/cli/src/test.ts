@@ -65,6 +65,8 @@ const recorded = base.extend<{ recorder: void }>({
   recorder: [
     async ({ page }, use, testInfo) => {
       if (!run) return use();
+      // Recording flows added later on Before, the others aren't run.
+      if (run.only && !run.only.includes(testInfo.title)) testInfo.skip();
       testInfo.setTimeout(testInfo.timeout * 3);
       const events: { timestamp: number }[] = [];
       await page.exposeFunction("__vantage", (event: { timestamp: number }) => void events.push(event));

@@ -1,9 +1,11 @@
-// Records the round being worked on: runs every flow like a person would, keeps each recording, compares the round with
-// each round before it, and says what's left before it can be handed over: an answer to each note, and why each change
-// since the round before is there. Recording again keeps whatever the agent already wrote in the round.
+// Records the round being worked on: runs every flow like a person would, keeps each recording, records a flow that's new
+// since Before on Before too, compares the round with each round before it, and says what's left before it can be handed
+// over: an answer to each note, and why each change since the round before is there. Recording again keeps whatever the
+// agent already wrote in the round.
 
 import { list, notesToAnswer, problemsFinishing, quote, Refused, roundInProgress, type Reply } from "@vantage/review";
 import { agent, unnamed } from "./agent.ts";
+import { recordOnBefore } from "./before.ts";
 import { compareWithEarlier } from "./compare.ts";
 import { runFlows } from "./flows.ts";
 import type { Repo } from "./repo.ts";
@@ -19,6 +21,7 @@ export async function record(repo: Repo, id: string) {
       ...failed.map(({ flow, at }) => `  ${quote(flow)}${at ? `, at the step ${quote(at)}` : ""}`),
       `Fix ${failed.length > 1 ? "them" : "it"} and record again.`,
     ]);
+  await recordOnBefore(repo, id, number, recorded.map(({ flow }) => flow.name));
 
   const saved = review.rounds.find((round) => round.number === number);
   const flows = recorded.map(({ flow }) => {
