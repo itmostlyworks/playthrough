@@ -18,7 +18,7 @@ Write its flows before you change anything. They show what was asked, so write t
 
 ${howToWriteFlows(repo, id)}
 
-Then run vantage start ${id} again. It records Before: each flow the app as it is can already run. If the app is new, there's no Before: go straight to the work.`);
+Then run vantage start ${id} again. It records Before: each flow on the app as it is, as far as the app can take it. If the app is new, there's no Before: go straight to the work.`);
   }
 
   const review = await repo.reviews.get(id);
@@ -28,15 +28,17 @@ Then run vantage start ${id} again. It records Before: each flow the app as it i
   if (last?.number === 0) throw new Refused([`Before is recorded already. Change the app, then record round 1: vantage record ${id}`]);
   if (last) throw new Refused([`Before is how the app was before the work, and ${id} has round ${last.number} already. Record the round being worked on: vantage record ${id}`]);
 
-  const { recorded, failed } = await runFlows(repo, id, `Recording Before: each flow of ${id} on the app as it is…`);
+  const { recorded, failed } = await runFlows(repo, id, 0);
   if (!recorded.length)
-    return console.log(`\nNone of the flows run on the app as it is, so there's no Before. If one should, fix it and run this again. Otherwise change the app, then record round 1: vantage record ${id}`);
+    return console.log(`\nNone of the flows can start on the app as it is, so there's no Before. If one should, fix it and run this again. Otherwise change the app, then record round 1: vantage record ${id}`);
 
   for (const { flow, bytes } of recorded) await repo.reviews.saveFile(id, 0, flow.recording, bytes);
   await repo.reviews.saveRound(id, { number: 0, by: agent(), flows: recorded.map(({ flow }) => flow), replies: [], accounts: {} });
   await repo.reviews.finish(id, 0);
   console.log(`\nRecorded Before: ${list(recorded.map(({ flow }) => quote(flow.name)))}.`);
-  if (failed.length) console.log(`${list(failed.map(quote))} ${failed.length > 1 ? "don't" : "doesn't"} run on the app as it is, so ${failed.length > 1 ? "they have" : "it has"} no Before.`);
+  for (const { flow, at } of failed)
+    if (!recorded.some((kept) => kept.flow.name === flow)) console.log(`${quote(flow)} can't start on the app as it is, so it has no Before.`);
+    else console.log(`${quote(flow)} ${at ? `stops at ${quote(at)}, which the app as it is can't do` : "stops after its last step"}, so its Before goes as far as that.`);
   console.log(`
 Now change the app. Keep each flow's name, and each step's while it does the same job: they're matched across rounds by name. Once the work is done, add a flow for each choice you made that the reviewer can see and didn't ask for. Then record round 1: vantage record ${id}`);
 }

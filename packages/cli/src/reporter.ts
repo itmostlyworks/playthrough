@@ -1,37 +1,56 @@
 // Turns each recorded test into a flow: its name, where each step starts in the recording, and how long it is, and names
-// each one that failed. It runs inside Playwright, so it only writes them down, in the folder the run gave it.
+// each one that failed and the step it failed at. It runs inside Playwright, so it only writes them down, in the folder
+// the run gave it.
 
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { Reporter, TestCase, TestResult } from "@playwright/test/reporter";
+import type { Reporter, TestCase, TestResult, TestStep } from "@playwright/test/reporter";
 import type { Flow } from "@vantage/review";
 
 export const RECORDING = "vantage recording";
+export const HOLD = 1500; // the end of a flow holds, so its last state can be seen
+
+export type Failed = { flow: string; at?: string };
+type Event = { timestamp: number; [field: string]: unknown };
 
 export default class Flows implements Reporter {
   #folder: string;
-  #ran: { file: string; line: number; flow?: Flow; failed?: string }[] = [];
+  #before: boolean;
+  #ran: { file: string; line: number; flow?: Flow; failed?: Failed }[] = [];
 
-  constructor({ folder }: { folder: string }) {
+  constructor({ folder, before }: { folder: string; before: boolean }) {
     this.#folder = folder;
+    this.#before = before;
   }
 
   onTestEnd(test: TestCase, result: TestResult) {
-    const at = { file: test.location.file, line: test.location.line };
-    if (["failed", "timedOut", "interrupted"].includes(result.status)) return void this.#ran.push({ ...at, failed: test.title });
+    if (result.status === "skipped") return;
+    const where = { file: test.location.file, line: test.location.line };
     const recording = result.attachments.find((attachment) => attachment.name === RECORDING)?.body;
-    if (!recording || result.status !== "passed") return;
-    const events: { timestamp: number }[] = JSON.parse(recording.toString());
-    const start = events[0]?.timestamp ?? result.startTime.getTime();
-    const length = seconds((events.at(-1)?.timestamp ?? start) - start);
-    // A step's start and the recording's events are both read from this machine's clock.
-    const steps = result.steps
-      .filter((step) => step.category === "test.step")
-      .map((step) => ({ title: step.title, at: Math.min(length, seconds(step.startTime.getTime() - start)) }));
+    const steps = result.steps.filter((step) => step.category === "test.step");
+    if (result.status === "passed") return void (recording && this.#ran.push({ ...where, flow: this.#flow(test.title, recording, steps) }));
 
-    const file = this.#fileFor(test.title);
-    writeFileSync(join(this.#folder, file), recording);
-    this.#ran.push({ ...at, flow: { name: test.title, length, steps, recording: file } });
+    // It stopped at the step it couldn't do, or after the last one when it failed between them. On Before, it's kept as
+    // far as that: what the app as it was could do.
+    const stop = steps.at(-1);
+    const kept = stop?.error ? steps.slice(0, -1) : steps;
+    const failed = { flow: test.title, ...(stop?.error && { at: stop.title }) };
+    if (!this.#before || !recording || !stop || !kept.length) return void this.#ran.push({ ...where, failed });
+    const until = stop.startTime.getTime() + (stop.error ? 0 : stop.duration);
+    this.#ran.push({ ...where, failed, flow: this.#flow(test.title, recording, kept, until) });
+  }
+
+  // A flow cut short ends where it stopped, held as long as any flow's end, with the same last event (rrweb's custom
+  // events are type 5).
+  #flow(name: string, recording: Buffer, steps: TestStep[], until?: number): Flow {
+    let events: Event[] = JSON.parse(recording.toString());
+    if (until !== undefined) events = [...events.filter((event) => event.timestamp < until), { type: 5, data: { tag: "end", payload: {} }, timestamp: until + HOLD }];
+    const start = events[0]!.timestamp;
+    const length = seconds(events.at(-1)!.timestamp - start);
+    const file = this.#fileFor(name);
+    writeFileSync(join(this.#folder, file), JSON.stringify(events));
+    // A step's start and the recording's events are both read from this machine's clock.
+    return { name, length, steps: steps.map((step) => ({ title: step.title, at: Math.min(length, seconds(step.startTime.getTime() - start)) })), recording: file };
   }
 
   onEnd() {

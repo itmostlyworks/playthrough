@@ -12,7 +12,7 @@ export default defineConfig({
   testMatch: /\.[cm]?[jt]s$/,
   outputDir: `${run.folder}/results`,
   workers: 1,
-  reporter: [["list"], [fileURLToPath(new URL("./reporter.ts", import.meta.url)), { folder: run.folder }]],
+  reporter: [["list"], [fileURLToPath(new URL("./reporter.ts", import.meta.url)), { folder: run.folder, before: run.before }]],
   // An action that can't happen fails in seconds rather than at the test's end: recording Before, a flow that shows
   // what's new stops at the first thing the app as it is doesn't have.
   use: { baseURL: run.app.url, viewport: { width: 1280, height: 800 }, actionTimeout: 10_000 },

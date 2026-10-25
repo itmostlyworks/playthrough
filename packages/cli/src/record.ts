@@ -11,8 +11,13 @@ export async function record(repo: Repo, id: string) {
   const review = await repo.reviews.get(id);
   if (review.accepted) throw new Refused(["This review is accepted, so nothing more can be recorded."]);
   const number = review.rounds.length ? roundInProgress(review) : 1;
-  const { recorded, failed } = await runFlows(repo, id, `Recording round ${number} of ${id}…`);
-  if (failed.length) throw new Refused([`Round ${number} wasn't recorded, because ${list(failed.map(quote))} failed. Fix ${failed.length > 1 ? "them" : "it"} and record again.`]);
+  const { recorded, failed } = await runFlows(repo, id, number);
+  if (failed.length)
+    throw new Refused([
+      `Round ${number} wasn't recorded, because ${failed.length > 1 ? "these flows" : "a flow"} failed:`,
+      ...failed.map(({ flow, at }) => `  ${quote(flow)}${at ? `, at the step ${quote(at)}` : ""}`),
+      `Fix ${failed.length > 1 ? "them" : "it"} and record again.`,
+    ]);
 
   const saved = review.rounds.find((round) => round.number === number);
   const flows = recorded.map(({ flow }) => {

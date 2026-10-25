@@ -72,6 +72,7 @@ const exportThem = flow(
   "Export the overdue ones",
   `  await test.step("Open the invoices", async () => {
     await page.goto("/");
+    await expect(page.getByRole("button", { name: "Export" })).toBeVisible();
   });
   await test.step("Export them", async () => {
     await page.getByRole("button", { name: "Overdue" }).click();
@@ -102,19 +103,26 @@ describe("The command line, as an agent uses it", { timeout: 120_000 }, () => {
     assert.match(said, /Say how to start the app in vantage\/app\.json/);
   });
 
-  test("run again, start records Before: each flow the app as it is can already run", async () => {
+  test("run again, start records Before: each flow on the app as it is, as far as the app can take it", async () => {
     await mkdir(join(repo, "vantage"));
     await writeFile(join(repo, "vantage/app.json"), JSON.stringify({ start: "node serve.ts", url: `http://localhost:${PORT}` }));
     await writeFile(join(flows(), "paid.ts"), seePaid);
     await writeFile(join(flows(), "export.ts"), exportThem);
     let { said, code } = await run(["start", "overdue"]);
     assert.equal(code, 0, said);
-    assert.match(said, /Recorded Before: “See what's overdue” and “See what's paid”\.\n“Export the overdue ones” doesn't run on the app as it is, so it has no Before\./);
+    assert.match(said, /Recorded Before: “Export the overdue ones”, “See what's overdue” and “See what's paid”\.\n“Export the overdue ones” stops at “Export them”, which the app as it is can't do, so its Before goes as far as that\./);
     assert.match(said, /add a flow for each choice you made that the reviewer can see and didn't ask for\. Then record round 1: vantage record overdue/);
 
     const before = await round(0);
-    assert.deepEqual(before.flows.map((flow) => flow.name), ["See what's overdue", "See what's paid"]);
+    assert.deepEqual(before.flows.map((flow) => flow.name), ["Export the overdue ones", "See what's overdue", "See what's paid"]);
     assert.ok(before.finished, "nothing is reviewed on it, so it's done once it's recorded");
+
+    // What it expects of the finished work only waits on Before; where it can't act, it stops, and holds there.
+    const [cut] = before.flows;
+    assert.deepEqual(cut?.steps.map((step) => step.title), ["Open the invoices"]);
+    const events: { type: number; data: { tag?: string } }[] = JSON.parse(await readFile(join(repo, `.vantage/overdue/rounds/0/files/${cut!.recording}`), "utf8"));
+    assert.equal(events.at(-1)?.data.tag, "end");
+    assert.ok(cut!.length > 1.5 && cut!.length < 6, `it ends where it stopped, not where it gave up: ${cut!.length}s`);
 
     ({ said, code } = await run(["start", "overdue"]));
     assert.equal(code, 1);
@@ -127,7 +135,7 @@ describe("The command line, as an agent uses it", { timeout: 120_000 }, () => {
     await writeFile(join(flows(), "overdue.ts"), seeOverdue.replace("toHaveCount(3)", "toHaveCount(30)"));
     const { said, code } = await run(["record", "overdue"]);
     assert.equal(code, 1);
-    assert.match(said, /Round 1 wasn't recorded, because “See what's overdue” failed\. Fix it and record again\./);
+    assert.match(said, /Round 1 wasn't recorded, because a flow failed:\n  “See what's overdue”, at the step “Show only the overdue ones”\nFix it and record again\./);
     assert.deepEqual((await reviews.get("overdue")).rounds.map((round) => round.number), [0]);
   });
 

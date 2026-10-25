@@ -2,15 +2,35 @@
 // would watch it: rrweb in every page, the pointer gliding to what it acts on, and a beat after each action so its result can
 // be seen. Run as plain tests, it does nothing. Each recording goes to the reporter, which makes it a flow (reporter.ts).
 
-import { test as base, expect, type Locator, type Page } from "@playwright/test";
+import { test as base, expect as playwrightExpect, type Locator, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import type { Run } from "./flows.ts";
-import { RECORDING } from "./reporter.ts";
+import { HOLD, RECORDING } from "./reporter.ts";
 
-export { expect };
-
-// Everything it needs comes with the run (record.ts), so it never has to find anything for itself.
+// Everything it needs comes with the run (flows.ts), so it never has to find anything for itself.
 const run: Run | undefined = process.env.VANTAGE_RUN ? JSON.parse(process.env.VANTAGE_RUN) : undefined;
+
+// On Before, what a flow expects is the finished work, which the app as it is may not show. So each expectation waits a
+// moment for it, as for a step's result, and the flow goes on either way: it stops only where the app as it is can't
+// do something, and it's recorded as far as that.
+export const expect = run?.before ? onlyWaits(playwrightExpect.configure({ timeout: 1000 })) : playwrightExpect;
+
+function onlyWaits(expect: typeof playwrightExpect): typeof playwrightExpect {
+  const checks = (matchers: object): any =>
+    new Proxy(matchers, {
+      get(target, name) {
+        const check = Reflect.get(target, name);
+        if (name === "not") return checks(check);
+        if (typeof check !== "function") return check;
+        return (...args: unknown[]) => {
+          try {
+            return Promise.resolve(check.apply(target, args)).catch(() => {});
+          } catch {}
+        };
+      },
+    });
+  return new Proxy(expect, { apply: (target, self, args) => checks(Reflect.apply(target, self, args)) });
+}
 
 // The page's own clock and timers are taken before a flow can fake them: under page.clock.setFixedTime, rrweb's throttle
 // let one pointer move through, timed by the gap between the fixed time and the real one.
@@ -30,7 +50,6 @@ if (window.top === window) window.rrwebRecord.record({
 const FRAME = 16; // a move each frame while gliding or scrolling
 const REST = 140; // the pointer rests on its target before acting
 const BEAT = 650; // after each action, so its result can be seen
-const HOLD = 1500; // the end of a flow holds, so its last state can be seen
 
 let pointer: { page: Page; x: number; y: number } | undefined;
 
@@ -50,11 +69,14 @@ export const test = base.extend<{ recorder: void }>({
       } finally {
         pointer = undefined;
       }
-      if (testInfo.status !== testInfo.expectedStatus) return;
-      await page.waitForTimeout(HOLD);
-      // Nothing changes while the end holds, so a last event makes the recording long enough to include it.
-      await page.evaluate(() => (window as any).rrwebRecord.record.addCustomEvent("end", {}));
-      await page.waitForTimeout(100);
+      const ended = testInfo.status === testInfo.expectedStatus;
+      if (!ended && !run.before) return;
+      if (ended) {
+        await page.waitForTimeout(HOLD);
+        // Nothing changes while the end holds, so a last event makes the recording long enough to include it.
+        await page.evaluate(() => (window as any).rrwebRecord.record.addCustomEvent("end", {}));
+        await page.waitForTimeout(100);
+      }
       await testInfo.attach(RECORDING, { body: JSON.stringify(events), contentType: "application/json" });
     },
     { auto: true },
