@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, test } from "node:test";
 import { folder } from "../src/folder.ts";
-import { conversation, memory, newId, Refused, Reviews, type Flow, type Round, type Send, type Storage } from "../src/index.ts";
+import { conversation, memory, newId, Refused, Reviews, type Change, type Flow, type Round, type Send, type Storage } from "../src/index.ts";
 
 const folders: string[] = [];
 after(() => Promise.all(folders.map((path) => rm(path, { recursive: true }))));
@@ -29,11 +29,12 @@ const flow = (name: string, length = 6): Flow => ({
 const round = (number: number, parts: Partial<Round> = {}): Round => ({
   number,
   flows: [flow("Export a quarter"), flow("Cancel halfway")],
-  changes: [],
   replies: [],
-  unprompted: [],
+  accounts: {},
   ...parts,
 });
+
+const change = (id: string, words: string, at = 2, flow = "Export a quarter"): Change => ({ id, words, seen: [{ flow, at }] });
 
 let clock = Date.parse("2026-10-22T09:00:00Z");
 const send = (round: number, parts: Partial<Send> = {}): Send => ({
@@ -57,14 +58,14 @@ const refused = (pattern: RegExp) => (error: unknown) => {
 
 for (const [kept, storage] of storages) {
   describe(`Reviews kept ${kept}`, () => {
-    // A review with its before and a first round recorded, ready for notes.
+    // A review with Before and a first round recorded, ready for notes.
     async function recorded() {
       const reviews = new Reviews(await storage());
       await reviews.start("invoice-export", "Export a quarter's invoices as a CSV");
       await reviews.saveRound("invoice-export", round(0));
       await reviews.finish("invoice-export", 0);
-      const change = { id: "c1", on: { flow: "Export a quarter", at: 2 }, words: "Says “Export”, was nothing", because: "asked" as const };
-      await reviews.saveRound("invoice-export", round(1, { changes: [change] }));
+      await reviews.saveRound("invoice-export", round(1, { accounts: { c1: { line: "Export sits where the totals are." } } }));
+      await reviews.saveComparison("invoice-export", { round: 1, since: 0, changes: [change("c1", "“Export” button is new")] });
       await reviews.finish("invoice-export", 1);
       return reviews;
     }
@@ -94,7 +95,7 @@ for (const [kept, storage] of storages) {
       await assert.rejects(reviews.start("invoice-export", "Another"), refused(/already a review called/));
     });
 
-    test("the first round is the before, or round 1 when the app is new", async () => {
+    test("the first round is Before, or round 1 when the app is new", async () => {
       const reviews = new Reviews(await storage());
       await reviews.start("invoice-export", "A title");
       await assert.rejects(reviews.saveRound("invoice-export", round(2)), refused(/first round is 0/));
@@ -103,11 +104,23 @@ for (const [kept, storage] of storages) {
       assert.equal((await reviews.get("invoice-export")).rounds[0]?.number, 1);
     });
 
-    test("a round with no round before it has nothing to compare, so no changes", async () => {
+    test("a round is compared only with a round before it, so a first round with no Before has no changes", async () => {
       const reviews = new Reviews(await storage());
       await reviews.start("invoice-export", "A title");
-      const change = { id: "c1", on: { flow: "Export a quarter", at: 1 }, words: "Says “Export”" };
-      await assert.rejects(reviews.saveRound("invoice-export", round(1, { changes: [change] })), refused(/no round before it/));
+      await reviews.saveRound("invoice-export", round(1));
+      const compared = { round: 1, since: 0, changes: [change("c1", "“Export” button is new")] };
+      await assert.rejects(reviews.saveComparison("invoice-export", compared), refused(/there's no Before to compare it with/));
+      await assert.rejects(reviews.saveComparison("invoice-export", { ...compared, since: 1 }), refused(/only compared with a round before it/));
+    });
+
+    test("what a round is compared with is kept until the round is finished, then it never changes", async () => {
+      const reviews = await recorded();
+      assert.deepEqual((await reviews.get("invoice-export")).comparisons.map(({ round, since }) => [round, since]), [[1, 0]]);
+      await assert.rejects(reviews.saveComparison("invoice-export", { round: 1, since: 0, changes: [] }), refused(/Round 1 is finished/));
+      await reviews.saveRound("invoice-export", round(2));
+      await reviews.saveComparison("invoice-export", { round: 2, since: 1, changes: [change("c2", "Moved down")] });
+      await reviews.saveComparison("invoice-export", { round: 2, since: 1, changes: [] });
+      assert.deepEqual((await reviews.get("invoice-export")).comparisons.at(-1)?.changes, []);
     });
 
     test("a round can be saved as often as needed until it's finished, then it never changes", async () => {
@@ -127,52 +140,50 @@ for (const [kept, storage] of storages) {
       assert.equal((await reviews.get("invoice-export")).rounds[1]?.finished, finished);
     });
 
-    test("a round can't finish until every change on screen is accounted for", async () => {
+    test("a round isn't handed over until the agent says why each change new since the round before is there", async () => {
       const reviews = await recorded();
-      const change = { id: "c2", on: { flow: "Export a quarter", at: 2 }, words: "Download CSV and Cancel swapped places" };
-      await reviews.saveRound("invoice-export", round(2, { changes: [change] }));
-      await assert.rejects(reviews.finish("invoice-export", 2), refused(/“Download CSV and Cancel swapped places” needs a because/));
-      await reviews.saveRound("invoice-export", round(2, { changes: [{ ...change, because: { noise: "The clock moved on." } }] }));
+      await reviews.saveRound("invoice-export", round(2));
+      await reviews.saveComparison("invoice-export", { round: 2, since: 0, changes: [change("c1", "“Export” button is new"), change("c2", "Download CSV and Cancel swapped")] });
+      await reviews.saveComparison("invoice-export", { round: 2, since: 1, changes: [change("c2", "Download CSV and Cancel swapped")] });
+      await assert.rejects(
+        reviews.finish("invoice-export", 2),
+        refused(/^Round 2: say why the change “Download CSV and Cancel swapped” is there: its line, the note it was made for, or why nothing really changed\.$/),
+      );
+      await reviews.saveRound("invoice-export", round(2, { accounts: { c2: { notReal: "The page was still drawing." } } }));
       await reviews.finish("invoice-export", 2);
     });
 
-    test("only round 1 can say a change was asked for, against the before", async () => {
+    test("what the agent says is about one of the round's changes, and a change made for a note names a note that exists", async () => {
       const reviews = await recorded();
-      const change = { id: "c2", on: { flow: "Export a quarter", at: 2 }, words: "Says “CSV”", because: "asked" as const };
-      await reviews.saveRound("invoice-export", round(2, { changes: [change] }));
-      await assert.rejects(reviews.finish("invoice-export", 2), refused(/only round 1 can say/));
+      await reviews.saveRound("invoice-export", round(2, { accounts: { c9: { line: "Moved it." }, c1: { note: "nobody" } } }));
+      await reviews.saveComparison("invoice-export", { round: 2, since: 1, changes: [] });
+      await reviews.saveComparison("invoice-export", { round: 2, since: 0, changes: [change("c1", "“Export” button is new")] });
+      await assert.rejects(reviews.finish("invoice-export", 2), (error: unknown) => {
+        assert.ok(error instanceof Refused);
+        assert.deepEqual(error.problems, [
+          "Round 2 says something about the change c9, which isn't one of this round's changes.",
+          "Round 2: the change ““Export” button is new” was made for note nobody, which doesn't exist.",
+        ]);
+        return true;
+      });
     });
 
-    test("a change that follows from another has to lead back to a cause, not round in a circle", async () => {
+    test("a flow that's gone is a change with no moment, on the earlier round's flow", async () => {
       const reviews = await recorded();
-      const at = { flow: "Export a quarter", at: 2 };
-      const changes = [
-        { id: "c2", on: at, words: "The table moved down", because: { follows: "c3" } },
-        { id: "c3", on: at, words: "A banner shows", because: { follows: "c2" } },
-      ];
-      await reviews.saveRound("invoice-export", round(2, { changes }));
-      await assert.rejects(reviews.finish("invoice-export", 2), refused(/leads back to it/));
-      const banner = { id: "x1", on: at, words: "I added a banner saying the export is ready." };
-      await reviews.saveRound("invoice-export", round(2, { changes: [changes[0]!, { ...changes[1]!, because: { unprompted: "x1" } }], unprompted: [banner] }));
-      await reviews.finish("invoice-export", 2);
+      await reviews.saveRound("invoice-export", round(2, { flows: [flow("Export a quarter")] }));
+      const gone = { id: "c2", words: "No longer recorded", seen: [{ flow: "Cancel halfway" }] };
+      await reviews.saveComparison("invoice-export", { round: 2, since: 1, changes: [gone] });
+      const late = { ...gone, seen: [{ flow: "Cancel halfway", at: 1 }] };
+      await assert.rejects(reviews.saveComparison("invoice-export", { round: 2, since: 1, changes: [late] }), refused(/isn't there/));
     });
 
-    test("a flow that's gone is a change with no moment, on the round before's flow", async () => {
-      const reviews = await recorded();
-      const gone = { id: "c2", on: { flow: "Cancel halfway" }, words: "No longer recorded", because: { noise: "The task dropped it." } };
-      await reviews.saveRound("invoice-export", round(2, { flows: [flow("Export a quarter")], changes: [gone] }));
-      await reviews.finish("invoice-export", 2);
-      const late = { ...gone, on: { flow: "Cancel halfway", at: 1 } };
-      await assert.rejects(reviews.saveRound("invoice-export", round(3, { flows: [flow("Export a quarter")], changes: [late] })), refused(/isn't there/));
-    });
-
-    test("notes go only on finished rounds after the before", async () => {
+    test("notes go only on finished rounds after Before", async () => {
       const reviews = new Reviews(await storage());
       await reviews.start("invoice-export", "A title");
       await reviews.saveRound("invoice-export", round(0));
       await reviews.finish("invoice-export", 0);
       await reviews.saveRound("invoice-export", round(1));
-      await assert.rejects(reviews.send("invoice-export", send(0, { notes: [note("Hm")] })), refused(/Round 0 is the before/));
+      await assert.rejects(reviews.send("invoice-export", send(0, { notes: [note("Hm")] })), refused(/Round 0 is Before/));
       await assert.rejects(reviews.send("invoice-export", send(1, { notes: [note("Hm")] })), refused(/isn't finished/));
     });
 
@@ -198,16 +209,6 @@ for (const [kept, storage] of storages) {
       const reply = { note: asked.id, words: "It fades in now.", on: { flow: "Cancel halfway", at: 1 } };
       await reviews.saveRound("invoice-export", round(2, { replies: [reply] }));
       await assert.rejects(reviews.finish("invoice-export", 2), refused(/A reply goes in its note's flow/));
-    });
-
-    test("a change answering a note has to answer one this round took", async () => {
-      const { reviews, asked } = await working();
-      const reply = { note: asked.id, words: "It fades in now." };
-      const change = (note: string) => ({ id: "c2", on: { flow: "Export a quarter", at: 2 }, words: "Looks different", because: { note } });
-      await reviews.saveRound("invoice-export", round(2, { replies: [reply], changes: [change("someone-else")] }));
-      await assert.rejects(reviews.finish("invoice-export", 2), refused(/isn't one this round answers/));
-      await reviews.saveRound("invoice-export", round(2, { replies: [reply], changes: [change(asked.id)] }));
-      await reviews.finish("invoice-export", 2);
     });
 
     test("looks good settles a note, and not quite asks again, in words", async () => {
@@ -244,26 +245,28 @@ for (const [kept, storage] of storages) {
       ]);
     });
 
-    test("when two people judge the same note, the later verdict counts", async () => {
+    test("each person's verdict is their own, so a Not quite from anyone sends the answer back", async () => {
       const { reviews, asked } = await working();
       await reviews.saveRound("invoice-export", round(2, { replies: [{ note: asked.id, words: "It fades in now." }] }));
       await reviews.finish("invoice-export", 2);
-      await reviews.send("invoice-export", send(2, { by: "Ana", verdicts: [{ note: asked.id, verdict: "not quite", words: "Too slow." }] }));
-      await reviews.send("invoice-export", send(2, { by: "Ben", verdicts: [{ note: asked.id, verdict: "looks good" }] }));
-      assert.equal((await reviews.take("invoice-export")).length, 2);
+      await reviews.send("invoice-export", send(2, { by: "Ana", verdicts: [{ note: asked.id, verdict: "looks good" }] }));
+      await reviews.send("invoice-export", send(2, { by: "Ben", verdicts: [{ note: asked.id, verdict: "not quite", words: "Too slow." }] }));
+      await reviews.send("invoice-export", send(2, { by: "Ana", verdicts: [{ note: asked.id, verdict: "not quite", words: "Ben's right." }] }));
+      await reviews.send("invoice-export", send(2, { by: "Ana", verdicts: [{ note: asked.id, verdict: "looks good", words: "No, it's fine." }] }));
+      assert.equal((await reviews.take("invoice-export")).length, 4);
       await reviews.saveRound("invoice-export", round(3));
-      await reviews.finish("invoice-export", 3);
+      await assert.rejects(reviews.finish("invoice-export", 3), refused(/needs an answer to note/));
     });
 
-    test("the agent's unprompted notes are judged like anyone's", async () => {
-      const reviews = await recorded();
-      const banner = { id: newId(), on: { flow: "Export a quarter", at: 2 }, words: "I added a banner saying the export is ready." };
-      await reviews.saveRound("invoice-export", round(2, { unprompted: [banner] }));
+    test("a note everyone last said looks good asks nothing more", async () => {
+      const { reviews, asked } = await working();
+      await reviews.saveRound("invoice-export", round(2, { replies: [{ note: asked.id, words: "It fades in now." }] }));
       await reviews.finish("invoice-export", 2);
-      await reviews.send("invoice-export", send(2, { verdicts: [{ note: banner.id, verdict: "not quite", words: "Please change this back." }] }));
+      await reviews.send("invoice-export", send(2, { by: "Ben", verdicts: [{ note: asked.id, verdict: "not quite", words: "Too slow." }] }));
+      await reviews.send("invoice-export", send(2, { by: "Ben", verdicts: [{ note: asked.id, verdict: "looks good", words: "Actually, it's fine." }] }));
       await reviews.take("invoice-export");
       await reviews.saveRound("invoice-export", round(3));
-      await assert.rejects(reviews.finish("invoice-export", 3), refused(/needs an answer to note .*“I added a banner/));
+      await reviews.finish("invoice-export", 3);
     });
 
     test("a verdict is on a note that exists, and a new note has words, not a verdict", async () => {
@@ -298,8 +301,24 @@ for (const [kept, storage] of storages) {
         ]);
         return true;
       });
-      const misspelled = { id: "c2", on: { flow: "Export a quarter", at: 2 }, words: "Says “CSV”", because: { nte: "abc" } };
-      await assert.rejects(reviews.saveRound("invoice-export", round(2, { changes: [misspelled as never] })), refused(/the change “Says “CSV”” has a because that isn't one of/));
+      const misspelled = round(2, { accounts: { c2: { lne: "Moved it." } as never } });
+      await assert.rejects(reviews.saveRound("invoice-export", misspelled), refused(/^Round 2: what it says about the change c2 says one of \{ line \}, \{ note \} or \{ notReal \}\.$/));
+    });
+
+    test("a round the agent edited by hand is checked when it's handed over, so a misspelling is refused by name", async () => {
+      const reviews = await recorded();
+      await reviews.saveRound("invoice-export", round(2));
+      await reviews.saveComparison("invoice-export", { round: 2, since: 1, changes: [change("c2", "Download CSV and Cancel swapped")] });
+      const edited = { ...round(2), accounts: { c2: { lne: "Download sits on the right." } }, brief: "I swapped them." };
+      await reviews.storage.write("invoice-export/rounds/2/round.json", new TextEncoder().encode(JSON.stringify(edited)));
+      await assert.rejects(reviews.finish("invoice-export", 2), (error: unknown) => {
+        assert.ok(error instanceof Refused);
+        assert.deepEqual(error.problems, [
+          "Round 2: what it says about the change c2 says one of { line }, { note } or { notReal }.",
+          "Round 2 has “brief”, which isn't one of its fields.",
+        ]);
+        return true;
+      });
     });
 
     test("sending the same send twice keeps it once, and a different send can't reuse its id", async () => {
@@ -342,6 +361,14 @@ for (const [kept, storage] of storages) {
       await assert.rejects(reviews.saveRound("invoice-export", round(2)), refused(/accepted/));
       await assert.rejects(reviews.send("invoice-export", send(1, { notes: [note("Hm")] })), refused(/accepted/));
       assert.deepEqual(await reviews.take("invoice-export"), []);
+    });
+
+    test("the work can't be accepted while a note waits for the agent's answer", async () => {
+      const { reviews, asked } = await working();
+      await assert.rejects(reviews.accept("invoice-export", "Ben"), refused(new RegExp(`Note ${asked.id}, “The dialog snaps in.”, still waits for the agent's answer`)));
+      await reviews.saveRound("invoice-export", round(2, { replies: [{ note: asked.id, words: "It fades in now." }] }));
+      await reviews.finish("invoice-export", 2);
+      await reviews.accept("invoice-export", "Ben");
     });
 
     test("there's nothing to accept before a round is finished", async () => {

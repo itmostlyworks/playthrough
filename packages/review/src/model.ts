@@ -1,6 +1,7 @@
 // What a review is. A review is one piece of work an agent does, round after round, until a person accepts it.
-// The agent records rounds and answers notes; people send notes and verdicts. Each thing here has one writer,
-// and once written, only a round still being worked on ever changes.
+// The agent records rounds, answers notes and says why each change is there; Vantage compares each round with the ones
+// before it; people send notes and verdicts. Each thing here has one writer, and once written, only a round still being
+// worked on ever changes.
 //
 // Each shape is a schema, so the types and what's checked at the door are one statement. An error is written as
 // what the thing still needs, to follow its name: “the flow “Export a quarter” needs its length, in seconds”.
@@ -59,26 +60,38 @@ export const Flow = z.strictObject({
   length: z.number({ error: "needs its length, in seconds" }).positive({ error: "needs its length, in seconds" }),
   steps: z.array(Step),
   recording: fileName("needs its recording: the name of a file in the round"),
+  line: text("needs words in its line, or no line").optional().describe("The agent's, at the flow's start: what it starts from, or the choice it shows"),
 });
 
-export const Because = z.union(
-  [
-    z.literal("asked").describe("What the review asked for, on round 1 against the before"),
-    z.strictObject({ note: text("needs the note it answers") }).describe("How the agent answered this note"),
-    z.strictObject({ unprompted: text("needs the unprompted note") }).describe("One of the agent's unprompted notes"),
-    z.strictObject({ follows: text("needs the change it follows") }).describe("It only follows from another change"),
-    z.strictObject({ noise: text("needs to say why nothing really changed") }).describe("Nothing really changed; the reviewer never sees it"),
-  ],
-  { error: "has a because that isn't one of “asked”, { note }, { unprompted }, { follows } or { noise }" },
-);
-
-// What the comparison found, in Vantage's fixed words, and what the agent says caused it.
+// Something different on screen between two rounds, found by Vantage and said in its fixed words.
 export const Change = z.strictObject({
-  id: text("needs an id"),
-  on: Place.describe("A flow that's gone is a change with no moment"),
-  words: text("needs its words").describe("Says “Download CSV”, was “Export”"),
-  because: Because.optional(),
+  id: text("needs an id").describe("Its thing and its kind of change, so it keeps its id in every round while it's the same change"),
+  words: text("needs its words").describe("What changed, for the agent: “Download CSV and Cancel have swapped places”"),
+  seen: z
+    .array(Place, { error: "needs where it's seen, a list" })
+    .min(1, { error: "needs where it's seen: each flow, at its moment there" })
+    .describe("Each flow it's seen in, at its moment there; a flow that's gone, with no moment"),
 });
+
+// A round compared with one before it. Against Before it's the work so far; against the round before, what the agent
+// did this round; against the round someone last looked at a flow on, what's new to them. The same difference found by
+// two comparisons has the same id, so what the agent said about it holds in both.
+export const Comparison = z.strictObject({
+  round: z.number({ error: "needs its round" }).int().min(1, { error: "needs its round, after Before" }),
+  since: z.number({ error: "needs the round it's compared with" }).int().min(0).describe("0 is Before"),
+  changes: z.array(Change, { error: "needs its changes, a list, even if it's empty" }),
+});
+
+// What the agent says about a change: why it's there, the note it was made for, or that nothing really changed. One of
+// them, in the round where something about the change is new.
+export const Account = z.union(
+  [
+    z.strictObject({ line: text("needs words in its line") }).describe("Why it's there, in the agent's voice: what it meant or chose"),
+    z.strictObject({ note: text("needs the note it was made for") }).describe("Made for that note: the reply on the note says why"),
+    z.strictObject({ notReal: text("needs to say why nothing really changed") }).describe("Nothing really changed; nobody is shown it"),
+  ],
+  { error: "says one of { line }, { note } or { notReal }" },
+);
 
 export const Reply = z.strictObject({
   note: text("needs the note it answers"),
@@ -86,8 +99,8 @@ export const Reply = z.strictObject({
   on: Place.optional().describe("Where it shows on this round's recording; without it, the note's place was lost"),
 });
 
-// A note is a conversation about one thing. A person starts it in a send, or the agent starts it with something
-// unprompted; then verdicts and replies take turns on it until it looks good.
+// A note is a conversation about one thing. A person starts it in a send; then the agent's replies and people's verdicts
+// take turns on it until it looks good.
 export const Note = z.strictObject({
   id: text("needs an id"),
   on: Place.optional().describe("Without it, about the work in general"),
@@ -96,11 +109,10 @@ export const Note = z.strictObject({
 
 // What the agent recorded, and what it says about it. Once finished, a round never changes.
 export const Round = z.strictObject({
-  number: z.number().int().min(0).describe("Round 0 is the before: the app as it was"),
+  number: z.number().int().min(0).describe("Round 0 is Before: the app as it was"),
   flows: z.array(Flow),
-  changes: z.array(Change).describe("What's different on screen since the round before"),
   replies: z.array(Reply).describe("The agent's answer to each note that asks for one"),
-  unprompted: z.array(Note).describe("What the agent changed that nobody asked for, each starting a note of its own"),
+  accounts: z.record(z.string(), Account).describe("What the agent says about each change new since the round before, by its id"),
   commit: z.string().optional().describe("What it was recorded from"),
   finished: z.iso.datetime().optional(),
 });
@@ -137,6 +149,7 @@ export const Review = z.strictObject({
   title: z.string().describe("What was asked, in the person's words"),
   started: z.iso.datetime(),
   rounds: z.array(Round),
+  comparisons: z.array(Comparison),
   sends: z.array(Send),
   taken: z.array(Taken),
   accepted: Accepted.optional(),
@@ -148,8 +161,9 @@ export type Point = z.infer<typeof Point>;
 export type Place = z.infer<typeof Place>;
 export type Step = z.infer<typeof Step>;
 export type Flow = z.infer<typeof Flow>;
-export type Because = z.infer<typeof Because>;
 export type Change = z.infer<typeof Change>;
+export type Comparison = z.infer<typeof Comparison>;
+export type Account = z.infer<typeof Account>;
 export type Reply = z.infer<typeof Reply>;
 export type Note = z.infer<typeof Note>;
 export type Round = z.infer<typeof Round>;

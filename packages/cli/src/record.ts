@@ -32,14 +32,17 @@ export async function record(repo: Repo, id: string) {
   if (!(await playwright({ flows, folder, app, root: repo.root, recorder })))
     throw new Refused([`Round ${number} wasn't recorded, because a flow failed. Fix it and record again.`]);
 
-  const recorded: Flow[] = JSON.parse(await readFile(join(folder, "flows.json"), "utf8"));
-  for (const flow of recorded) await repo.reviews.saveFile(id, number, flow.recording, await readFile(join(folder, flow.recording)));
   const saved = review.rounds.find((round) => round.number === number);
+  const recorded: Flow[] = (JSON.parse(await readFile(join(folder, "flows.json"), "utf8")) as Flow[]).map((flow) => {
+    const line = saved?.flows.find((kept) => kept.name === flow.name)?.line;
+    return line ? { ...flow, line } : flow;
+  });
+  for (const flow of recorded) await repo.reviews.saveFile(id, number, flow.recording, await readFile(join(folder, flow.recording)));
   const written = saved?.replies ?? [];
   const waiting: Reply[] = notesToAnswer(review, number)
     .filter((note) => !written.some((reply) => reply.note === note))
     .map((note) => ({ note, words: "" }));
-  await repo.reviews.saveRound(id, { number, flows: recorded, changes: [], replies: [...written, ...waiting], unprompted: saved?.unprompted ?? [] });
+  await repo.reviews.saveRound(id, { number, flows: recorded, replies: [...written, ...waiting], accounts: saved?.accounts ?? {} });
   await rm(folder, { recursive: true });
 
   const left = problemsFinishing(await repo.reviews.get(id), number);

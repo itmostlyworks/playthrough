@@ -1,11 +1,12 @@
 // The review store: the steps of the loop, each checked against the rules before anything is kept.
 // Where things are kept is a Storage, so a folder, memory and later a hosted store all keep reviews the same way.
 
-import type { Accepted, Review, Round, Send, Taken } from "./model.ts";
+import type { Accepted, Comparison, Review, Round, Send, Taken } from "./model.ts";
 import {
   problemsAccepting,
   problemsFinishing,
   problemsStarting,
+  problemsWithComparison,
   problemsWithFile,
   problemsWithFileName,
   problemsWithId,
@@ -35,6 +36,7 @@ export class Refused extends Error {
 //   <review>/review.json                 the agent, when it starts
 //   <review>/rounds/<n>/round.json       the agent, until the round is finished
 //   <review>/rounds/<n>/files/<name>     the agent: recordings, pictures
+//   <review>/rounds/<n>/since/<k>.json   Vantage: round n compared with round k, while n is being worked on
 //   <review>/sends/<id>.json             whoever sent it
 //   <review>/taken.json                  the agent
 //   <review>/accepted.json               whoever accepted
@@ -59,6 +61,12 @@ export class Reviews {
 
     const numbers = (await this.storage.list(`${id}/rounds`)).map(Number).filter(Number.isInteger).sort((a, b) => a - b);
     const rounds = await Promise.all(numbers.map((n) => this.#readJson<Round>(`${id}/rounds/${n}/round.json`)));
+    const comparisons = await Promise.all(
+      numbers.map(async (n) => {
+        const names = (await this.storage.list(`${id}/rounds/${n}/since`)).filter((name) => name.endsWith(".json"));
+        return Promise.all(names.map((name) => this.#readJson<Comparison>(`${id}/rounds/${n}/since/${name}`)));
+      }),
+    );
     const names = (await this.storage.list(`${id}/sends`)).filter((name) => name.endsWith(".json"));
     const sends = await Promise.all(names.map((name) => this.#readJson<Send>(`${id}/sends/${name}`)));
     const accepted = await this.#readJson<Accepted>(`${id}/accepted.json`);
@@ -68,6 +76,7 @@ export class Reviews {
       title: about.title,
       started: about.started,
       rounds: rounds.filter((round) => round !== undefined),
+      comparisons: comparisons.flat().filter((comparison) => comparison !== undefined).sort((a, b) => a.round - b.round || a.since - b.since),
       sends: sends.filter((send) => send !== undefined).sort((a, b) => a.sent.localeCompare(b.sent) || a.id.localeCompare(b.id)),
       taken: (await this.#readJson<Taken[]>(`${id}/taken.json`)) ?? [],
       ...(accepted && { accepted }),
@@ -127,6 +136,17 @@ export class Reviews {
       const problems = problemsFinishing(review, round);
       if (problems.length || !saved) throw new Refused(problems);
       await this.#writeJson(`${id}/rounds/${round}/round.json`, { ...saved, finished: now() });
+    });
+  }
+
+  // Vantage
+
+  // What Vantage found comparing the round being worked on with one before it. Comparing them again replaces it.
+  async saveComparison(id: string, comparison: Comparison): Promise<void> {
+    return this.#one(id, async () => {
+      const problems = problemsWithComparison(await this.get(id), comparison);
+      if (problems.length) throw new Refused(problems);
+      await this.#writeJson(`${id}/rounds/${comparison.round}/since/${comparison.since}.json`, comparison);
     });
   }
 

@@ -2,7 +2,7 @@
 // Each returns what's wrong in plain words, saying what to do about it, and nothing when all is well.
 
 import type { z } from "zod";
-import { fileName, Round, Send, type Change, type Flow, type Note, type Place, type Review, type Verdict } from "./model.ts";
+import { Comparison, fileName, Round, Send, type Account, type Change, type Flow, type Note, type Place, type Review, type Verdict } from "./model.ts";
 
 // The round the agent is working on: the last one until it's finished, then the next.
 export function roundInProgress(review: Review): number {
@@ -11,10 +11,9 @@ export function roundInProgress(review: Review): number {
   return last.finished ? last.number + 1 : last.number;
 }
 
-// Every note in the review, whoever started it, with the round it's on.
+// Every note in the review, with the round it was written on and who wrote it.
 export function allNotes(review: Review): Map<string, { note: Note; round: number; by: string }> {
   const notes = new Map<string, { note: Note; round: number; by: string }>();
-  for (const round of review.rounds) for (const note of round.unprompted) notes.set(note.id, { note, round: round.number, by: "agent" });
   for (const send of review.sends) for (const note of send.notes) notes.set(note.id, { note, round: send.round, by: send.by });
   return notes;
 }
@@ -36,16 +35,36 @@ export function conversation(review: Review, id: string): Turn[] {
   return turns.sort((a, b) => a.turn.round - b.turn.round || a.order - b.order).map(({ turn }) => turn);
 }
 
-// The notes a round has to answer: those in the sends it took that are new, or that someone said aren't quite right.
-// When two people judge the same note, the later verdict counts.
+// The notes a round has to answer: those in the sends it took that are new, or that anyone said aren't quite right.
 export function notesToAnswer(review: Review, round: number): string[] {
-  const asks = new Map<string, boolean>();
-  for (const taken of review.taken.filter((taken) => taken.round === round)) {
-    const send = review.sends.find((send) => send.id === taken.send);
-    for (const note of send?.notes ?? []) asks.set(note.id, true);
-    for (const verdict of send?.verdicts ?? []) asks.set(verdict.note, verdict.verdict === "not quite");
+  return asking(review.sends.filter((send) => review.taken.some((taken) => taken.send === send.id && taken.round === round)));
+}
+
+// The notes waiting for the agent: asking for an answer that no finished round has given yet.
+export function waitingForTheAgent(review: Review): string[] {
+  const answered = (send: Send) => {
+    const taken = review.taken.find((taken) => taken.send === send.id);
+    return !!taken && review.rounds.some((round) => round.number === taken.round && round.finished);
+  };
+  return asking(review.sends.filter((send) => !answered(send)));
+}
+
+// What asks for an answer in some sends: a new note, or one whose answer someone last said isn't quite right. A person
+// who changes their mind counts once, as they said it last.
+function asking(sends: Send[]): string[] {
+  const asks = new Set<string>();
+  const said = new Map<string, Map<string, Verdict["verdict"]>>();
+  for (const send of sends) {
+    for (const note of send.notes) asks.add(note.id);
+    for (const verdict of send.verdicts) said.set(verdict.note, (said.get(verdict.note) ?? new Map()).set(send.by, verdict.verdict));
   }
-  return [...asks].filter(([, asking]) => asking).map(([id]) => id);
+  for (const [note, verdicts] of said) if ([...verdicts.values()].includes("not quite")) asks.add(note);
+  return [...asks];
+}
+
+// What the agent last said about a change, on this round or before it.
+export function accountOf(review: Review, round: number, change: string): Account | undefined {
+  return review.rounds.findLast((kept) => kept.number <= round && kept.accounts[change])?.accounts[change];
 }
 
 export function problemsWithId(id: string): string[] {
@@ -67,17 +86,13 @@ export function problemsWithRound(review: Review, round: Round): string[] {
 
   const due = roundInProgress(review);
   if (round.number !== due && !(review.rounds.length === 0 && round.number === 1)) {
-    if (review.rounds.length === 0) return ["The first round is 0, the before, or 1 when the app is new and there's no before."];
+    if (review.rounds.length === 0) return ["The first round is 0, Before, or 1 when the app is new and there's no Before."];
     if (round.number < due) return [`Round ${round.number} is finished, so it can't change.`];
     return [`Round ${round.number} can't be recorded yet: the round being worked on is ${due}.`];
   }
 
   const at = `Round ${round.number}`;
   const problems: string[] = [];
-  const before = review.rounds.find((other) => other.number === round.number - 1);
-  if (!before && (round.changes.length || round.replies.length || round.unprompted.length))
-    problems.push(`${at} has no round before it, so it has no changes, replies or unprompted notes.`);
-
   problems.push(...duplicates(round.flows.map((flow) => flow.name), (name) => `${at} has two flows called “${name}”.`));
   for (const flow of round.flows) {
     const steps = flow.steps.map((step) => step.title);
@@ -86,19 +101,7 @@ export function problemsWithRound(review: Review, round: Round): string[] {
       problems.push(`${at}: the step “${step.title}” in the flow “${flow.name}” starts after the flow ends.`);
   }
 
-  problems.push(...duplicates(round.changes.map((change) => change.id), (id) => `${at} has two changes with the id ${id}.`));
-  for (const change of round.changes) {
-    const gone = change.on.at === undefined && !round.flows.some((flow) => flow.name === change.on.flow);
-    problems.push(...problemsWithPlace(change.on, gone ? (before?.flows ?? []) : round.flows, `${at}: ${describe(change)}`));
-  }
-
   const notes = allNotes(review);
-  problems.push(...duplicates(round.unprompted.map((note) => note.id), (id) => `${at} has two unprompted notes with the id ${id}.`));
-  for (const note of round.unprompted) {
-    if (notes.has(note.id) && notes.get(note.id)?.round !== round.number) problems.push(`${at}: the id ${note.id} is already a note's. Make a new one.`);
-    if (note.on) problems.push(...problemsWithPlace(note.on, round.flows, `${at}: the unprompted note ${note.id}`));
-  }
-
   problems.push(...duplicates(round.replies.map((reply) => reply.note), (id) => `${at} has two replies to note ${id}. Say it all in one.`));
   for (const reply of round.replies) {
     if (!notes.has(reply.note)) problems.push(`${at} replies to note ${reply.note}, which doesn't exist.`);
@@ -107,41 +110,59 @@ export function problemsWithRound(review: Review, round: Round): string[] {
   return problems;
 }
 
-// A round is finished once every note it took is answered and every change on screen is accounted for.
+// Vantage compares the round being worked on with each round before it, and can compare again until it's finished.
+export function problemsWithComparison(review: Review, comparison: Comparison): string[] {
+  const shape = problemsWithShape(Comparison, comparison, "This comparison");
+  if (shape.length) return shape;
+  if (review.accepted) return ["This review is accepted, so nothing more can be recorded."];
+  const at = `Round ${comparison.round} against ${roundName(comparison.since)}`;
+  const round = review.rounds.find((kept) => kept.number === comparison.round);
+  const earlier = review.rounds.find((kept) => kept.number === comparison.since);
+  if (!round) return [`Round ${comparison.round} hasn't been recorded yet, so it can't be compared.`];
+  if (round.finished) return [`Round ${comparison.round} is finished, so what it's compared with can't change.`];
+  if (comparison.since >= comparison.round) return [`${at}: a round is only compared with a round before it.`];
+  if (!earlier) return [`${at}: there's no ${roundName(comparison.since)} to compare it with.`];
+
+  const problems = duplicates(comparison.changes.map((change) => change.id), (id) => `${at} has two changes with the id ${id}.`);
+  for (const change of comparison.changes)
+    for (const seen of change.seen) {
+      const gone = seen.at === undefined && !round.flows.some((flow) => flow.name === seen.flow);
+      problems.push(...problemsWithPlace(seen, gone ? earlier.flows : round.flows, `${at}: ${describe(change)}`));
+    }
+  return problems;
+}
+
+// A round is handed over once its file is in the right shape, every note it took is answered, and the agent has said
+// why each change new since the round before is there.
 export function problemsFinishing(review: Review, number: number): string[] {
   if (review.accepted) return ["This review is accepted, so nothing more can be recorded."];
   const round = review.rounds.find((round) => round.number === number);
   if (!round) return [`Round ${number} hasn't been recorded yet.`];
   const at = `Round ${number}`;
+  const shape = problemsWithShape(Round, round, at);
+  if (shape.length) return shape;
   if (!round.flows.length) return [`${at} has no flows yet. Record them first.`];
 
   const problems: string[] = [];
   const notes = allNotes(review);
-  const answering = notesToAnswer(review, number);
-  const changes = new Map(round.changes.map((change) => [change.id, change]));
-
-  for (const change of round.changes) {
-    const because = change.because;
-    const what = `${at}: ${describe(change)}`;
-    if (because === undefined)
-      problems.push(`${what} needs a because: the note it answers, an unprompted note, another change it follows from, or noise.`);
-    else if (because === "asked") {
-      if (number !== 1 || review.rounds[0]?.number !== 0) problems.push(`${what} says it was asked for, which only round 1 can say, against the before.`);
-    } else if ("note" in because) {
-      if (!answering.includes(because.note)) problems.push(`${what} answers note ${because.note}, which isn't one this round answers.`);
-    } else if ("unprompted" in because) {
-      if (!round.unprompted.some((note) => note.id === because.unprompted))
-        problems.push(`${what} is put down to the unprompted note ${because.unprompted}, which this round doesn't have.`);
-    } else if ("follows" in because && !followsToAnEnd(change, changes))
-      problems.push(`${what} follows from a change that isn't in this round, or that leads back to it.`);
-  }
-
-  for (const id of answering) {
+  for (const id of notesToAnswer(review, number)) {
     const reply = round.replies.find((reply) => reply.note === id);
     const note = notes.get(id)?.note;
     if (!isText(reply?.words)) problems.push(`${at} needs an answer to note ${id}${note ? `, “${cut(note.words)}”` : ""}.`);
     else if (reply?.on && note?.on && reply.on.flow !== note.on.flow)
       problems.push(`${at}: the reply to note ${id} is on “${reply.on.flow}”, but the note is on “${note.on.flow}”. A reply goes in its note's flow.`);
+  }
+
+  const comparisons = review.comparisons.filter((comparison) => comparison.round === number);
+  const changes = new Map(comparisons.flatMap((comparison) => comparison.changes.map((change) => [change.id, change])));
+  for (const change of comparisons.find((comparison) => comparison.since === number - 1)?.changes ?? [])
+    if (!round.accounts[change.id])
+      problems.push(`${at}: say why ${describe(change)} is there: its line, the note it was made for, or why nothing really changed.`);
+  for (const [id, account] of Object.entries(round.accounts)) {
+    const change = changes.get(id);
+    if (!change) problems.push(`${at} says something about the change ${id}, which isn't one of this round's changes.`);
+    else if ("note" in account && !notes.has(account.note))
+      problems.push(`${at}: ${describe(change)} was made for note ${account.note}, which doesn't exist.`);
   }
   return problems;
 }
@@ -167,7 +188,7 @@ export function problemsWithSend(review: Review, send: Send): string[] {
   if (!send.notes.length && !send.verdicts.length && !send.looksGood.length) return ["There's nothing in this send."];
 
   const round = review.rounds.find((round) => round.number === send.round);
-  if (send.round === 0) return ["Round 0 is the before: notes go on the rounds after it."];
+  if (send.round === 0) return ["Round 0 is Before: notes go on the rounds after it."];
   if (!round?.finished) return [`Round ${send.round} isn't finished, so it can't take notes yet.`];
 
   const problems: string[] = [];
@@ -191,10 +212,15 @@ export function problemsWithSend(review: Review, send: Send): string[] {
   return problems;
 }
 
+// Accepting ends the review, so it waits until the agent has answered every note that asks for something.
 export function problemsAccepting(review: Review, by: string): string[] {
   if (!isText(by)) return ["Accepting needs to say who accepted."];
   if (!review.rounds.some((round) => round.finished && round.number > 0)) return ["There's no finished round to accept yet."];
-  return [];
+  const notes = allNotes(review);
+  return waitingForTheAgent(review).map((id) => {
+    const note = notes.get(id);
+    return `Note ${id}${note ? `, “${cut(note.note.words)}”,` : ""} still waits for the agent's answer, so the work can't be accepted yet.`;
+  });
 }
 
 // What's wrong with something's shape: its name, then what it needs, as in “Round 2: flow 3 needs a name.”
@@ -227,6 +253,7 @@ function whose(subject: string, path: PropertyKey[], value: unknown): string {
   for (const [i, key] of path.entries()) {
     here = here && typeof here === "object" ? (here as Record<PropertyKey, unknown>)[key] : undefined;
     if (typeof key === "number") things.unshift(nameOf(String(path[i - 1]), here as Record<string, unknown> | undefined, key));
+    else if (path[i - 1] === "accounts") things.unshift(`what it says about the change ${String(key)}`);
   }
   return things.length ? `${subject}: ${things.join(" in ")}` : subject;
 }
@@ -238,11 +265,10 @@ function nameOf(list: string, item: Record<string, unknown> | undefined, index: 
     steps: isText(title) && `the step “${title}”`,
     changes: (isText(words) && `the change “${cut(words)}”`) || (isText(id) && `the change ${id}`),
     replies: isText(note) && `the reply to note ${note}`,
-    unprompted: isText(id) && `the unprompted note ${id}`,
     notes: isText(id) && `note ${id}`,
     verdicts: isText(note) && `the verdict on note ${note}`,
   };
-  const singular: Record<string, string> = { flows: "flow", steps: "step", changes: "change", replies: "reply", unprompted: "unprompted note", notes: "note", verdicts: "verdict", looksGood: "flow said to look good" };
+  const singular: Record<string, string> = { flows: "flow", steps: "step", changes: "change", seen: "place it's seen", replies: "reply", notes: "note", verdicts: "verdict", looksGood: "flow said to look good" };
   return named[list] || `${singular[list] ?? list} ${index + 1}`;
 }
 
@@ -253,25 +279,13 @@ function problemsWithPlace(place: Place, flows: Flow[], what: string): string[] 
   return end <= flow.length ? [] : [`${what} is at ${end}s, but “${flow.name}” is ${flow.length}s long.`];
 }
 
-function followsToAnEnd(change: Change, changes: Map<string, Change>): boolean {
-  const seen = new Set<string>([change.id]);
-  let next = change.because;
-  while (next !== undefined && next !== "asked" && "follows" in next) {
-    if (seen.has(next.follows)) return false;
-    seen.add(next.follows);
-    const followed = changes.get(next.follows);
-    if (!followed) return false;
-    next = followed.because;
-  }
-  return true;
-}
-
 function duplicates(values: string[], problem: (value: string) => string): string[] {
   const seen = new Set<string>();
   const twice = new Set(values.filter((value) => seen.has(value) || !seen.add(value)));
   return [...twice].map(problem);
 }
 
+const roundName = (number: number) => (number === 0 ? "Before" : `round ${number}`);
 const describe = (change: Change) => `the change “${cut(change.words)}”`;
 const cut = (words: string) => (words.length > 48 ? `${words.slice(0, 47).trimEnd()}…` : words);
 const isText = (value: unknown): value is string => typeof value === "string" && value.trim() !== "";

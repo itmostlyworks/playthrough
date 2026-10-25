@@ -46,11 +46,9 @@ function Card({ note, you, readOnly, onJudge, onEdit, onClose }: Parameters<type
     );
 
   const said = judged ? note.turns.slice(0, -1) : note.turns;
-  const theAgents = said[0]?.by === "agent";
   const choice = "h-[26px] flex-1 rounded-md bg-hover px-2.5 font-medium text-soft transition-colors duration-150 ease-calm hover:text-fg";
   return (
     <div className={`${inset} flex flex-col gap-2`}>
-      {theAgents && <p className="text-xs text-faint">The agent changed this unprompted.</p>}
       {said.slice(1).map((turn, i) => (
         <p key={i} className={turn.by === "agent" ? "text-soft" : ""}>
           <span className="mr-1 font-medium text-soft">{who(turn.by, you)}:</span>
@@ -61,7 +59,7 @@ function Card({ note, you, readOnly, onJudge, onEdit, onClose }: Parameters<type
       ))}
       {readOnly ? null : note.state === "needs you" || judged ? (
         <>
-          <p className="mt-1 font-medium">{theAgents ? "Is this right?" : "Does this fix it?"}</p>
+          <p className="mt-1 font-medium">Does this fix it?</p>
           <div className="flex gap-2">
             <button
               className={`${choice} aria-pressed:bg-green/12 aria-pressed:text-green`}

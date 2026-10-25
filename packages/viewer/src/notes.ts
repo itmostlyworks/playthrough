@@ -22,14 +22,12 @@ function asOf(review: Review, round: number): Review {
   return { ...review, rounds: review.rounds.filter((kept) => kept.number <= round), sends: review.sends.filter((send) => send.round <= round) };
 }
 
-// Numbered in the order they were started, across the whole review: on each round the agent's own come with the round,
-// then each send's in turn, then what you haven't sent.
+// Numbered in the order they were started, across the whole review: each round's sends in turn, then what you haven't
+// sent.
 function numbers(review: Review, draft: Draft): Map<string, number> {
   const order: string[] = [];
-  for (const round of review.rounds) {
-    order.push(...round.unprompted.map((note) => note.id));
+  for (const round of review.rounds)
     for (const send of review.sends.filter((send) => send.round === round.number)) order.push(...send.notes.map((note) => note.id));
-  }
   order.push(...draft.notes.map((note) => note.id));
   return new Map(order.map((id, i) => [id, i + 1]));
 }
