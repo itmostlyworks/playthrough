@@ -1,5 +1,5 @@
-// Before kept as a commit, and the agent's work put back after Vantage was stopped while a flow recorded on Before, in
-// a small repo of its own. Recording on Before itself is in the loop's promises.
+// How far Before goes with a flow, Before kept as a commit, and the agent's work put back after Vantage was stopped while
+// a flow recorded on Before, in a small repo of its own. Recording on Before itself is in the loop's promises.
 
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
@@ -8,8 +8,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, test } from "node:test";
 import { Refused } from "@vantage/review";
-import { keepBefore, putBack } from "../src/before.ts";
+import type { TestCase, TestResult } from "@playwright/test/reporter";
+import { keepBefore, putBack, refuseIfBroken } from "../src/before.ts";
 import { repo, type Repo } from "../src/repo.ts";
+import Flows, { READINGS, RECORDING, type Failed, type Recorded } from "../src/reporter.ts";
 
 let root = "";
 let app: Repo;
@@ -93,6 +95,43 @@ describe("The agent's work, set aside while a flow records on Before", () => {
         error instanceof Refused &&
         /Your work is still set aside, from recording a flow on Before, and git couldn't put it back by itself, because it says:\n  error: Your local changes/.test(error.message) &&
         /Put it back with git checkout main, then git stash pop --index stash@\{0\}\. Vantage carries on once it's back\./.test(error.message),
+    );
+  });
+});
+
+describe("How far Before goes with a flow", () => {
+  // A flow as Playwright tells the reporter it ended on Before: its two steps, the second stopped by `error`.
+  async function ended(error: string) {
+    const folder = await mkdtemp(join(tmpdir(), "vantage-"));
+    const reporter = new Flows({ folder, before: true, taken: [] });
+    const start = Date.now();
+    const steps = [
+      { category: "test.step", title: "Open the expenses", startTime: new Date(start), duration: 1000 },
+      { category: "test.step", title: "Search for the cabin", startTime: new Date(start + 1000), duration: 10_000, error: { message: error } },
+    ];
+    const attachments = [
+      { name: RECORDING, contentType: "application/json", body: Buffer.from(JSON.stringify([{ timestamp: start }, { timestamp: start + 11_000 }])) },
+      { name: READINGS, contentType: "application/json", body: Buffer.from("[]") },
+    ];
+    reporter.onTestEnd({ title: "Search the expenses", location: { file: "spliit.ts", line: 1 } } as TestCase, { status: "failed", steps, attachments, error: { message: error } } as unknown as TestResult);
+    reporter.onEnd();
+    const ran: { recorded: Recorded[]; failed: Failed[] } = JSON.parse(await readFile(join(folder, "flows.json"), "utf8"));
+    await rm(folder, { recursive: true });
+    return ran;
+  }
+
+  test("it goes as far as the app as it was can take it", async () => {
+    const { recorded, failed } = await ended("TimeoutError: locator.click: Timeout 10000ms exceeded.");
+    assert.deepEqual(recorded[0]?.flow.steps.map((step) => step.title), ["Open the expenses"]);
+    assert.deepEqual(failed, [{ flow: "Search the expenses", at: "Search for the cabin" }]);
+  });
+
+  test("a flow the browser stopped, not the app, says nothing about the app: nothing of the run is kept, and running again tries again", async () => {
+    const { recorded, failed } = await ended("Error: page.goto: Page crashed");
+    assert.deepEqual([recorded, failed], [[], [{ flow: "Search the expenses", at: "Search for the cabin", broken: true }]]);
+    assert.throws(
+      () => refuseIfBroken(failed, "Before wasn't recorded", "Run this again."),
+      /Before wasn't recorded, because the browser stopped a flow, not the app:\n  “Search the expenses”, at the step “Search for the cabin”\nPlaywright says why above\. Run this again\.$/,
     );
   });
 });

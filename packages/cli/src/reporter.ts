@@ -17,7 +17,9 @@ export const HOLD = 1500; // the end of a flow holds, so its last state can be s
 export const readingsOf = (flow: Flow) => `readings/${flow.recording}`;
 const picturesOf = (flow: Flow) => `readings/${flow.recording.replace(/\.json$/, "")}`;
 
-export type Failed = { flow: string; at?: string };
+export type Failed = { flow: string; at?: string; broken?: true };
+// What Playwright says when the browser stops a flow, not the app: the page crashed or closed, or the app stopped answering.
+const BROKEN = /Page crashed|Target crashed|Target page, context or browser has been closed|net::ERR_CONNECTION_REFUSED/;
 export type Recorded = { flow: Flow; files: string[] };
 type Event = { timestamp: number; [field: string]: unknown };
 
@@ -45,11 +47,12 @@ export default class Flows implements Reporter {
     if (result.status === "passed") return void (recording && this.#ran.push({ ...where, recorded: this.#flow(test.title, recording, read, steps) }));
 
     // It stopped at the step it couldn't do, or after the last one when it failed between them. On Before, it's kept as
-    // far as that: what the app as it was could do.
+    // far as that: what the app as it was could do. Stopped by the browser, it says nothing about the app, so it failed.
     const stop = steps.at(-1);
     const kept = stop?.error ? steps.slice(0, -1) : steps;
-    const failed = { flow: test.title, ...(stop?.error && { at: stop.title }) };
-    if (!this.#before || !recording || !stop || !kept.length) return void this.#ran.push({ ...where, failed });
+    const broken = BROKEN.test((stop?.error ?? result.error)?.message ?? "");
+    const failed: Failed = { flow: test.title, ...(stop?.error && { at: stop.title }), ...(broken && { broken }) };
+    if (!this.#before || broken || !recording || !stop || !kept.length) return void this.#ran.push({ ...where, failed });
     const until = stop.startTime.getTime() + (stop.error ? 0 : stop.duration);
     this.#ran.push({ ...where, failed, recorded: this.#flow(test.title, recording, read, kept, until) });
   }

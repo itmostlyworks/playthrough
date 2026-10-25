@@ -9,7 +9,7 @@ import { copyFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "
 import { constants, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { list, quote, Refused, type Flow } from "@vantage/review";
-import { runFlows } from "./flows.ts";
+import { failedAt, runFlows } from "./flows.ts";
 import type { Failed } from "./reporter.ts";
 import type { Repo } from "./repo.ts";
 
@@ -65,8 +65,17 @@ export async function recordOnBefore(repo: Repo, id: string, number: number, flo
       throw error;
     }),
   );
+  refuseIfBroken(ran.failed, `Round ${number} wasn't recorded`, "Record again.");
   await repo.reviews.addToBefore(id, { flows: ran.recorded.map(({ flow }) => flow), cantStart: cantStart(ran.recorded, ran.failed), files: ran.recorded.flatMap(({ files }) => files) });
   for (const line of howFar(ran.recorded, ran.failed, "the app as it was")) console.log(line);
+}
+
+// A flow the browser stopped, not the app, says nothing about how far the app goes, so nothing of the run is kept, and
+// recording again tries again.
+export function refuseIfBroken(failed: Failed[], unrecorded: string, again: string) {
+  const broken = failed.filter((failure) => failure.broken);
+  if (broken.length)
+    throw new Refused([`${unrecorded}, because the browser stopped ${broken.length > 1 ? "these flows" : "a flow"}, not the app:`, ...broken.map(failedAt), `Playwright says why above. ${again}`]);
 }
 
 // The flows Before has nothing of: they didn't take a step.

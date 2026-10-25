@@ -7,7 +7,7 @@ import { list, notesToAnswer, problemsFinishing, quote, Refused, roundInProgress
 import { agent, unnamed } from "./agent.ts";
 import { recordOnBefore } from "./before.ts";
 import { compareWithEarlier } from "./compare.ts";
-import { runFlows } from "./flows.ts";
+import { failedAt, runFlows } from "./flows.ts";
 import type { Repo } from "./repo.ts";
 
 export async function record(repo: Repo, id: string) {
@@ -18,7 +18,7 @@ export async function record(repo: Repo, id: string) {
   if (failed.length)
     throw new Refused([
       `Round ${number} wasn't recorded, because ${failed.length > 1 ? "these flows" : "a flow"} failed:`,
-      ...failed.map(({ flow, at }) => `  ${quote(flow)}${at ? `, at the step ${quote(at)}` : ""}`),
+      ...failed.map(failedAt),
       `Fix ${failed.length > 1 ? "them" : "it"} and record again.`,
     ]);
   await recordOnBefore(repo, id, number, recorded.map(({ flow }) => flow.name));

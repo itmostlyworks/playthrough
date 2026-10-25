@@ -76,6 +76,9 @@ export async function runFlows(
   }
 }
 
+// A flow that failed, at the step it failed at, as a line of a refusal.
+export const failedAt = ({ flow, at }: Failed) => `  ${quote(flow)}${at ? `, at the step ${quote(at)}` : ""}`;
+
 function playwright(run: Run): Promise<boolean> {
   const cli = createRequire(import.meta.url).resolve("@playwright/test/cli");
   const config = fileURLToPath(new URL("./playwright.config.ts", import.meta.url));
