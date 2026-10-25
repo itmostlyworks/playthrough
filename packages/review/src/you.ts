@@ -20,8 +20,8 @@ export function lastLooked(review: Review, you: string, flow: string, before = I
   return rounds.length ? Math.max(...rounds) : undefined;
 }
 
-// A change new to you, told once, where you'll meet it.
-export type Shown = { change: Change; on: Place };
+// A change new to you, told once, where you'll meet it, and the round it's new since.
+export type Shown = { change: Change; on: Place; since: number };
 
 // What's new to you on a round: each change that's different from the last round you looked at any flow it's in, or
 // from Before when you've looked at none of them. It's told in the flow of the note it was made for, or else the first
@@ -48,7 +48,7 @@ export function newToYou(review: Review, round: number, you: string): Shown[] {
     const noted = account && "note" in account ? notes.get(account.note)?.note.on?.flow : undefined;
     const flow = [noted, ...order].find((name) => change.seen.some((seen) => seen.flow === name)) ?? change.seen[0]!.flow;
     const on = change.seen.filter((seen) => seen.flow === flow).sort((a, b) => (a.at ?? 0) - (b.at ?? 0))[0]!;
-    shown.push({ change, on });
+    shown.push({ change, on, since });
   }
   return shown.sort((a, b) => order.indexOf(a.on.flow) - order.indexOf(b.on.flow) || (a.on.at ?? 0) - (b.on.at ?? 0));
 }

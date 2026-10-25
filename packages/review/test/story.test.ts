@@ -103,6 +103,10 @@ test("two people review the same work, each from where they last looked", async 
   // since he saw it in the second flow. His good flow asks again for what's new in it.
   assert.deepEqual(told(review, 2, "Ben"), ["swap in Export a quarter", "format in Export a quarter", "buttons in Cancel halfway"]);
   assert.equal(goodForYou(review, 2, "Ben", "Cancel halfway"), false);
+  // Each change says which round it's new since, so how it was then can be shown beside it: for Ben, the swap since round
+  // 1, when he looked at the second flow, which shows it too, and the first flow's own change since Before.
+  assert.deepEqual(newToYou(review, 2, "Ana").map(({ since }) => since), [1, 1]);
+  assert.deepEqual(newToYou(review, 2, "Ben").map(({ since }) => since), [1, 0, 1]);
   assert.deepEqual(waitingForYou(review, 2, "Ben"), []);
 
   // Ana is happy with the answer and the first flow. Ben isn't: a Not quite from anyone sends the answer back.

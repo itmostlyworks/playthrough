@@ -9,7 +9,9 @@ import { answersTo, diamondAt, diamondsOn, type Changed, type Diamond } from "./
 import { Column, rowsIn, settles, type Landed } from "./Column.tsx";
 import { Controls, type Look } from "./Controls.tsx";
 import { useDraft, useWatched } from "./draft.ts";
+import { land, slideIn, takeOff, type Taking } from "./flight.ts";
 import { Foot, type Step } from "./Foot.tsx";
+import { Grid } from "./Grid.tsx";
 import { along, CARD, clamp, FLOW_IN, inStep, momentAt, POSTER, type Moment } from "./moments.ts";
 import { asIfSent, fill, goodTo, ink, lookGood, notesOn, nothing, said, seen, sendOf, settledBefore, standings, takeBack, type Shown } from "./notes.ts";
 import { NoteRow, number as numberLook, opened, SettledCount, SettledList, Writing, type Comparing } from "./Notes.tsx";
@@ -21,6 +23,10 @@ import { Wire } from "./Wire.tsx";
 
 // What's open in the column: a note, a change you chose, or a new note being written, by its id.
 type Open = { note: string } | { change: string } | { writing: string };
+
+// Leaving every flow at once for one, the recording waits on its first frame until the pictures have landed, and this
+// long after: one thing moves at a time.
+const SETTLE = 400;
 
 export function ReviewPage({ id }: { id: string }) {
   const kept = useReview(id);
@@ -82,10 +88,18 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const [on, setOn] = useState(round.number);
   const toNote = useRef<Shown>(undefined);
   const [listing, setListing] = useState(false);
+  // Every flow at once: where you arrive on the latest round when it has more than one, and come back to. A round
+  // that's new to you starts there too.
+  const many = round === latest && round.flows.length > 1;
+  const [grid, setGrid] = useState(many);
+  const onGrid = grid && many;
+  const been = useRef([round.number]);
   if (on !== round.number) {
     setOn(round.number);
     setOpen(toNote.current && { note: toNote.current.id });
     setListing(false);
+    setGrid(many && !been.current.includes(round.number));
+    been.current.push(round.number);
   }
 
   // You arrive at the start, as on a video before you press play. Going to another round keeps your place: the same flow
@@ -365,6 +379,52 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     playhead.play();
   };
 
+  // Leaving every flow at once, each picture flies from its tile into the column as it comes in; going to a flow, it
+  // plays once they've landed. Coming back, the pictures in the column's view fly home, paused at the start, and what
+  // you were reading is let go, unless you're writing it.
+  const gridRoom = useRef<HTMLDivElement>(null);
+  const aside = useRef<HTMLElement>(null);
+  const flying = useRef<{ taking: Taking; to: "column" | "grid"; playing?: boolean }>(undefined);
+  const settling = useRef<number>(undefined);
+  useEffect(() => () => clearTimeout(settling.current), []);
+  const [done, setDone] = useState<number>();
+  const leave = (name: string | undefined, playing: boolean) => {
+    flying.current = { taking: takeOff(gridRoom.current!), to: "column", playing };
+    setGrid(false);
+    if (name) go(name);
+  };
+  // Called a moment after Accept, it knows whether you're there already.
+  const gridNow = useRef(onGrid);
+  gridNow.current = onGrid;
+  const toGrid = (accepted?: number) => {
+    const map = aside.current?.querySelector("[data-map]");
+    if (map && !gridNow.current) flying.current = { taking: takeOff(map, map.getBoundingClientRect()), to: "grid" };
+    playhead.pause();
+    playhead.go({ flow: round.flows[0]!.name, at: POSTER });
+    if (open && !("writing" in open)) setOpen(undefined);
+    setListing(false);
+    setDone(accepted);
+    setGrid(true);
+  };
+  useLayoutEffect(() => {
+    const flight = flying.current;
+    flying.current = undefined;
+    if (!flight) return;
+    if (flight.to === "grid") return void land(flight.taking, gridRoom.current!);
+    // Each picture flies to where its still will stand once the column has settled, not to where it's passing.
+    const map = aside.current!.querySelector("[data-map]")!;
+    for (const animation of map.getAnimations({ subtree: true })) if (animation.id === "glide") animation.finish();
+    const last = land(flight.taking, map, map.getBoundingClientRect());
+    slideIn(aside.current!);
+    if (!flight.playing) return;
+    const from = playhead.now.moment;
+    clearTimeout(settling.current);
+    settling.current = window.setTimeout(() => {
+      const { moment, playing } = playhead.now;
+      if (!playing && moment.flow === from.flow && moment.at === from.at) playhead.play();
+    }, last + SETTLE);
+  });
+
   // Up and Down go through the column, flows and their rows in its order, the recording going with them.
   const column = [
     ...round.flows.flatMap((flow) => [{ flow }, ...rowsIn(flow.name, notes, diamonds, settles(standing?.get(flow.name), flow.name === watching))]),
@@ -543,7 +603,10 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     if (said(draft) && !(await sendNow())) return;
     const problems = await accept(review.id, you);
     setTrouble(problems);
-    if (!problems.length) setAcceptedHere(true);
+    if (problems.length) return;
+    setAcceptedHere(true);
+    // Done, it goes back to every flow, where their ticks land in turn.
+    if (many) setTimeout(() => toGrid(performance.now()), 900);
   };
 
   // The foot's one step, from where the playhead is: play on through the flow you're in; at its end, its question, or
@@ -555,7 +618,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     const below = round.flows.slice(from + 1).find((flow) => needs(flow.name));
     const general = draft.unsaved.find((note) => !note.on) ?? inGeneral.find((note) => note.state === "needs you");
     const next = below ?? (general ? undefined : round.flows.slice(0, Math.max(0, from)).find((flow) => needs(flow.name)));
-    if (next) return { kind: "go", words: "Next", what: next.name, take: () => watchFrom(next.name) };
+    if (next) return { kind: "go", words: "Next", what: next.name, flow: next.name, take: () => watchFrom(next.name) };
     if (general && "turns" in general) return { kind: "go", words: "Next to check", what: general.turns[0]?.words, take: () => pick(general) };
     if (general) return { kind: "go", words: "Finish your note", what: placeName(general.on), take: () => setOpen({ writing: general.id }) };
     if (asksTheAgent) return { kind: "go", words: "Send", what: `${asksTheAgent} ${asksTheAgent === 1 ? "note" : "notes"} to the agent`, take: sendNow, send: true };
@@ -586,15 +649,49 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   };
   const step = footStep();
 
+  // Over every flow, the foot's step from the top: to the first flow that needs you, from its start, as Start checking,
+  // or Carry on checking once you've begun; else what the foot would offer, sending and accepting where you are.
+  const begun = watched.length > 0 || said(draft) > 0 || draft.unsaved.length > 0;
+  const gridStep = ((): Step | undefined => {
+    if (review.accepted || acceptedHere || readOnly) return undefined;
+    const step = onward(-1);
+    if (step.kind === "agent") return step;
+    if (step.kind !== "go") return undefined;
+    if (step.flow) return { ...step, words: begun ? "Carry on checking" : "Start checking", what: undefined, take: () => leave(step.flow, true) };
+    if (step.send || step.final) return step;
+    return {
+      ...step,
+      take: () => {
+        leave(undefined, false);
+        step.take();
+      },
+    };
+  })();
+  const acting = onGrid ? gridStep : step;
+  // Accepted, how it got there: after how many rounds, with how many notes settled.
+  const settledNotes = [...settled, ...notes].filter((note) => note.state === "settled").length;
+  const acceptedAfter = `Accepted after ${latest.number} ${latest.number === 1 ? "round" : "rounds"}${settledNotes ? ` · ${settledNotes} ${settledNotes === 1 ? "note" : "notes"} settled` : ""}`;
+
   useEffect(() => {
     const writingHere = (event: KeyboardEvent) => event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement;
     const down = (event: KeyboardEvent) => {
       // What can't be undone takes Ctrl+Enter, never a plain Enter in passing.
-      if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !writingHere(event) && step.kind === "go" && step.final) {
+      if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !writingHere(event) && acting?.kind === "go" && acting.final) {
         event.preventDefault();
-        return step.take();
+        return acting.take();
       }
       if (writingHere(event) || event.metaKey || event.ctrlKey || event.altKey || event.defaultPrevented) return;
+      // Over every flow, Space plays from the start and Enter takes the step; a tile is chosen as a button is.
+      if (onGrid) {
+        if (event.key === " ") {
+          event.preventDefault();
+          leave(playhead.flow.name, true);
+        } else if (event.key === "Enter" && !(event.target as Element).closest?.("button") && gridStep?.kind === "go" && !gridStep.final) {
+          event.preventDefault();
+          gridStep.take();
+        }
+        return;
+      }
       // Space plays and pauses wherever you are, also on a button you just clicked: it never presses it.
       if (event.key === " ") {
         event.preventDefault();
@@ -633,10 +730,12 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
         const holding = window.setTimeout(() => compareNow.onHold(true), HOLD);
         cKey.current = { down: performance.now(), holding };
       } else if (event.key === "Escape") {
-        // Escape goes back a step you can see: from a note or a change to the column, and looking back, to now.
+        // Escape goes back a step you can see: from a note or a change to the column, looking back to now, and from a
+        // flow to every flow.
         if (listing) setListing(false);
         else if (open) setOpen(undefined);
         else if (round !== latest) toRound(latest.number);
+        else if (many) toGrid();
       }
     };
     const up = (event: KeyboardEvent) => {
@@ -664,8 +763,8 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   return (
     <Page title={review.title}>
       <Wire id={openNote?.id ?? chosen?.id} colour={openNote ? ink(openNote) : "var(--soft)"} hidden={!!bare || peek} />
-      <main className="grid min-h-0 grid-cols-[minmax(0,1fr)_min(350px,31vw)]">
-        <section className="grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto] pr-3.5 pb-4">
+      <main className="relative grid min-h-0 grid-cols-[minmax(0,1fr)_min(350px,31vw)]">
+        <section inert={onGrid} className={`grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto] pr-3.5 pb-4 ${onGrid ? "invisible" : ""}`}>
           <Stage
             review={review}
             playhead={playhead}
@@ -699,6 +798,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
               const diamond = diamonds.find((diamond) => diamond.id === id);
               if (diamond) choose(diamond);
             }}
+            onAllFlows={many ? () => toGrid() : undefined}
           />
           <Controls
             playhead={playhead}
@@ -736,7 +836,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
           />
         </section>
 
-        <aside className="flex min-h-0 min-w-0 flex-col pb-4">
+        <aside ref={aside} inert={onGrid} className={`flex min-h-0 min-w-0 flex-col pb-4 ${onGrid ? "invisible" : ""}`}>
           <div className="flex items-baseline gap-2 px-[18px] pt-1 pb-2">
             {listing ? (
               <button className="-ml-1 flex items-center gap-0.5 text-soft hover:text-fg" onClick={() => setListing(false)}>
@@ -803,6 +903,21 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
             onFlow={watchFrom}
           />
         </aside>
+        {many && (
+          <Grid
+            room={gridRoom}
+            review={review}
+            round={round}
+            up={onGrid}
+            standing={(name) => standing?.get(name)}
+            needs={needs}
+            diamonds={review.accepted ? [] : diamonds}
+            accepted={review.accepted || acceptedHere ? acceptedAfter : undefined}
+            step={gridStep}
+            done={done}
+            onFlow={(name) => leave(name, true)}
+          />
+        )}
       </main>
     </Page>
   );

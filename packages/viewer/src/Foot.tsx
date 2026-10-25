@@ -1,15 +1,16 @@
 // The foot is where you act: one step, worked out from where the playhead is, and Send beside it while there's
 // something to send. Under it the meter, a piece for each flow, green from the left as each looks good to you.
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { justLanded, type Landed } from "./Column.tsx";
 import { Key, mac, useHold } from "./Card.tsx";
 import type { Standing } from "./notes.ts";
 
-// A button takes the step, as Enter does, or Ctrl+Enter for what can't be undone. Otherwise the foot only says where
-// things stand: what's playing, where the flow's question is, what the agent is doing, or that it's done.
+// A button takes the step, as Enter does, or Ctrl+Enter for what can't be undone; one that goes to a flow names it.
+// Otherwise the foot only says where things stand: what's playing, where the flow's question is, what the agent is
+// doing, or that it's done.
 export type Step =
-  | { kind: "go"; words: string; what?: string; take: () => void; send?: boolean; final?: boolean }
+  | { kind: "go"; words: string; what?: string; take: () => void; flow?: string; send?: boolean; final?: boolean }
   | { kind: "say"; words: string; what?: string }
   | { kind: "agent"; words: string; what?: string; busy: boolean }
   | { kind: "done"; words: string; just: boolean };
@@ -54,41 +55,20 @@ export function Foot(props: Props) {
         ))}
       </span>
     );
-  const words = (words: string, what?: string, quiet?: boolean) => (
-    <>
-      <span className="flex-none">{words}</span>
-      {what && <span className="flex-none text-faint">·</span>}
-      {what && <b className={`min-w-0 truncate ${quiet ? "font-medium text-fg" : "font-medium"}`}>{what}</b>}
-    </>
-  );
-
   let shown;
   if (props.quiet) shown = <span className="min-w-0 flex-1" />;
-  else if (step.kind === "go")
-    shown = (
-      <button
-        className="flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-lg bg-hover px-3 text-xs leading-4 text-fg shadow-[inset_0_0_0_1px_var(--line)] transition-colors duration-150 ease-calm"
-        aria-keyshortcuts={step.final ? "Control+Enter" : "Enter"}
-        onMouseDown={(event) => event.preventDefault()}
-        onClick={step.take}
-      >
-        {step.send && stack("shadow-[0_0_0_1.5px_var(--ground)]")}
-        {words(step.words, step.what)}
-        <Key className="ml-auto">{step.final ? `${mac ? "⌘" : "Ctrl"} ↵` : "↵"}</Key>
-      </button>
-    );
+  else if (step.kind === "go") shown = <Go step={step} before={step.send && stack("shadow-[0_0_0_1.5px_var(--ground)]")} className="flex-1 gap-1.5" />;
   else if (step.kind === "agent" && since < 2400) shown = <Sent words="Sent to the agent" className="flex-1" />;
-  else if (step.kind === "agent")
+  else if (step.kind === "agent") shown = <Agent step={step} className="flex-1" />;
+  else if (step.kind === "done") shown = <Sent words={step.words} done just={step.just} className="flex-1" />;
+  else
     shown = (
-      <p key={step.words} className="flex h-8 min-w-0 flex-1 animate-arrive items-center gap-1.5 text-xs font-medium whitespace-nowrap text-fg" role="status">
-        <i className={`mr-0.5 size-1.5 flex-none rounded-full bg-slate ${step.busy ? "animate-breathe" : "opacity-45"}`} aria-hidden />
+      <p className="flex h-8 min-w-0 flex-1 items-center gap-1.5 truncate text-xs leading-4 text-soft">
         <span className="flex-none">{step.words}</span>
-        {step.what && <span className="flex-none font-normal text-faint">·</span>}
-        {step.what && <span className="min-w-0 truncate font-normal text-soft">{step.what}</span>}
+        {step.what && <span className="flex-none text-faint">·</span>}
+        {step.what && <b className="min-w-0 truncate font-medium text-fg">{step.what}</b>}
       </p>
     );
-  else if (step.kind === "done") shown = <Sent words={step.words} done just={step.just} className="flex-1" />;
-  else shown = <p className="flex h-8 min-w-0 flex-1 items-center gap-1.5 truncate text-xs leading-4 text-soft">{words(step.words, step.what, true)}</p>;
 
   return (
     <div className="flex-none px-[18px] pt-3">
@@ -111,6 +91,35 @@ export function Foot(props: Props) {
       </div>
       {props.pieces ? <Meter {...props} pieces={props.pieces} /> : <p className="pt-3.5 text-xs leading-4 text-faint">Looking back. Nothing to decide here.</p>}
     </div>
+  );
+}
+
+export function Go({ step, before, className }: { step: Extract<Step, { kind: "go" }>; before?: ReactNode; className: string }) {
+  return (
+    <button
+      className={`flex h-8 min-w-0 items-center rounded-lg bg-hover px-3 text-xs leading-4 text-fg shadow-[inset_0_0_0_1px_var(--line)] transition-colors duration-150 ease-calm ${className}`}
+      aria-keyshortcuts={step.final ? "Control+Enter" : "Enter"}
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={step.take}
+    >
+      {before}
+      <span className="flex-none">{step.words}</span>
+      {step.what && <span className="flex-none text-faint">·</span>}
+      {step.what && <b className="min-w-0 truncate font-medium">{step.what}</b>}
+      <Key className="ml-auto">{step.final ? `${mac ? "⌘" : "Ctrl"} ↵` : "↵"}</Key>
+    </button>
+  );
+}
+
+// What the agent is doing, its dot breathing while it works.
+export function Agent({ step, className }: { step: Extract<Step, { kind: "agent" }>; className: string }) {
+  return (
+    <p key={step.words} className={`flex h-8 min-w-0 animate-arrive items-center gap-1.5 text-xs font-medium whitespace-nowrap text-fg ${className}`} role="status">
+      <i className={`mr-0.5 size-1.5 flex-none rounded-full bg-slate ${step.busy ? "animate-breathe" : "opacity-45"}`} aria-hidden />
+      <span className="flex-none">{step.words}</span>
+      {step.what && <span className="flex-none font-normal text-faint">·</span>}
+      {step.what && <span className="min-w-0 truncate font-normal text-soft">{step.what}</span>}
+    </p>
   );
 }
 
@@ -196,7 +205,8 @@ function Meter({ pieces, landed, busy, onFlow }: Props & { pieces: Piece[] }) {
   );
 }
 
-const says = (standing: Standing) => {
+// Where a flow stands, in words.
+export const says = (standing: Standing) => {
   const notes = `${standing.count} ${standing.count === 1 ? "note" : "notes"}`;
   return {
     good: "Looks good",

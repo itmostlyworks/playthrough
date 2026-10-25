@@ -46,6 +46,8 @@ type Props = {
   onPin: (id: string) => void;
   outline?: Outline;
   onOutline: (id: string) => void;
+  // The way back to every flow at once, on the latest round with more than one.
+  onAllFlows?: () => void;
 };
 
 type Painted = View & Size & { page: Size };
@@ -56,6 +58,7 @@ export function Stage(props: Props) {
   const stage = useRef<HTMLDivElement>(null);
   const frames = useRef(new Map<number, HTMLDivElement>());
   const captions = useRef(new Map<number, HTMLDivElement>());
+  const allFlows = useRef<HTMLDivElement>(null);
   const replays = useRef(new Map<string, Replay | "loading">());
   const sizes = useRef(new Map<string, Size>());
   const held = useRef<Held>(undefined);
@@ -130,6 +133,11 @@ export function Stage(props: Props) {
       frame.toggleAttribute("data-over", number === then?.number);
       frame.style.opacity = number === then?.number && !peeking ? "0" : "";
     }
+    // Watching one round, "All flows" keeps one place whatever the flow's shape: over the left edge of the round's
+    // widest recording.
+    const own = panes.get(round.number)!;
+    const widest = Math.max(...round.flows.map((flow) => fit({ width: own.width, height: own.height - CAPTION }, sizeOf(round, flow)).width));
+    if (allFlows.current) allFlows.current.style.left = `${Math.round(own.left + (own.width - widest) / 2)}px`;
     if (!flow) return;
 
     const gliding = glide.current && performance.now() - glide.current.started < GLIDE ? glide.current : undefined;
@@ -342,6 +350,18 @@ export function Stage(props: Props) {
   };
 
   const aiming = !playing && !!props.onPlace && !props.placing;
+  // First on the line over the recording, where the grid's own heading was.
+  const toAll = props.onAllFlows && (
+    <button
+      className="-my-0.5 mr-1 -ml-1 inline-flex flex-none items-baseline gap-0.5 rounded-md py-0.5 pr-2 pl-0.5 text-xs leading-4 text-soft transition-colors duration-150 ease-calm hover:bg-hover hover:text-fg"
+      onClick={props.onAllFlows}
+    >
+      <svg viewBox="0 0 12 12" className="size-3.5 self-center" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M7.5 3L4.5 6l3 3" />
+      </svg>
+      All flows
+    </button>
+  );
   const roundName = (number: number) => (number === 0 ? "Before" : `Round ${number}`);
   // Kept hidden, the marks say so on the line over the recording: centred watching one round, and side by side at the
   // end of the watched side's line, clear of both rounds' names.
@@ -404,6 +424,7 @@ export function Stage(props: Props) {
             ref={(element) => void (element ? captions.current.set(shown.number, element) : captions.current.delete(shown.number))}
             className="absolute flex h-[26px] items-baseline gap-2 px-0.5 pt-0.5 pb-1.5 text-xs text-faint"
           >
+            {shown === earlier && toAll}
             <b className="flex-none font-medium text-soft">{roundName(shown.number)}</b>
             {shown === earlier && props.why && <span className="truncate">{props.why}</span>}
             {shown === round && props.bare === "kept" && bareOff("-mt-px ml-auto flex-none self-start")}
@@ -413,6 +434,11 @@ export function Stage(props: Props) {
         <div className={`pointer-events-none absolute top-0 left-0 flex h-[26px] items-baseline gap-2 px-0.5 pt-0.5 pb-1.5 text-xs text-faint transition-opacity duration-160 ease-calm ${props.peeking ? "opacity-100" : "opacity-0"}`} ref={(element) => void (element ? captions.current.set(then.number, element) : captions.current.delete(then.number))}>
           <b className="flex-none font-medium text-soft">{roundName(then.number)}</b>
           {props.why && <span className="truncate">{props.why}</span>}
+        </div>
+      )}
+      {!earlier && toAll && (
+        <div ref={allFlows} className="absolute top-0 z-20 flex h-[26px] items-baseline px-0.5 pt-0.5 pb-1.5 text-xs">
+          {toAll}
         </div>
       )}
       {!earlier && props.bare === "kept" && bareOff("absolute -top-px left-1/2 -translate-x-1/2")}

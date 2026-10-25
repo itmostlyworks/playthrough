@@ -4,17 +4,16 @@
 // where the playhead is. A flow good to you settles once you've left it: its settled rows fold away under its heading.
 // In general comes last. Nothing in it moves while it plays, and when it changes, rows glide.
 
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { list, time, type Flow, type Place, type Review, type Round } from "@vantage/review";
-import { recording } from "./api.ts";
 import { Answer, Compare, play, Said, tick, Time, useHold } from "./Card.tsx";
 import { when, type Changed, type Diamond } from "./changes.ts";
 import { useGlide } from "./glide.ts";
 import { clamp } from "./moments.ts";
 import type { Shown, Standing } from "./notes.ts";
 import { opened, type Comparing } from "./Notes.tsx";
+import { Picture, useStill } from "./Picture.tsx";
 import { useNow, type Playhead } from "./playhead.ts";
-import { recorded } from "./replay.ts";
 
 type Props = {
   // Under the settled notes' list, the map keeps its place.
@@ -169,7 +168,7 @@ function FlowBlock(props: Omit<Props, "standing"> & { flow: Flow; on: boolean; s
         {/* Where it stands, on its picture's corner: good, or good earlier and changed since. In the flow you're in, the end
             of its line says it instead. */}
         {(good || standing?.is === "looked good") && (
-          <span className={`absolute top-[calc(50%+11px)] left-[18px] z-2 transition-opacity duration-200 ease-calm ${on && standing?.asks ? "pointer-events-none opacity-0" : ""}`}>
+          <span className={`absolute top-[calc(50%+11px)] left-[18px] z-2 transition-opacity duration-200 ease-calm peer-data-flying:opacity-0 ${on && standing?.asks ? "pointer-events-none opacity-0" : ""}`}>
             {good && props.saidGood.includes(flow.name) ? (
               <button
                 className="block transition-transform duration-150 ease-calm hover:scale-112"
@@ -262,7 +261,7 @@ function Question({ flow, standing, just, ...props }: Omit<Props, "standing"> & 
         className={`absolute top-2.5 -left-[9px] z-1 grid size-[18px] place-items-center rounded-full transition-[background-color,box-shadow] duration-250 ease-calm ${good ? "bg-green text-ground shadow-[inset_0_0_0_1.5px_color-mix(in_srgb,var(--green)_70%,var(--fg))]" : "bg-[color-mix(in_srgb,var(--amber)_22%,var(--ground))] shadow-[inset_0_0_0_1.5px_var(--amber)]"} ${just ? "animate-pop" : ""}`}
         aria-hidden
       >
-        {good && <TickMark className={just ? "animate-tick" : ""} />}
+        {good && <TickMark className={`size-[11px] ${just ? "animate-tick" : ""}`} />}
       </span>
       <p className="mb-2 text-[13px] leading-[18px] text-soft">
         <button className="float-right ml-2 inline-flex items-center gap-1 text-xs leading-[18px] text-faint transition-colors duration-150 ease-calm hover:text-fg" onMouseDown={keepKeys} onClick={() => props.onAgain(flow)}>
@@ -375,56 +374,32 @@ function Tick({ corner, hollow, just, travels }: { corner?: boolean; hollow?: bo
       : "bg-green text-ground shadow-[inset_0_0_0_1.5px_color-mix(in_srgb,var(--green)_70%,var(--fg))]";
   return (
     <span data-tick={travels} className={`grid size-[18px] place-items-center rounded-full ${look} ${just ? "animate-pop" : ""}`}>
-      <TickMark className={just ? "animate-tick" : ""} />
+      <TickMark className={`size-[11px] ${just ? "animate-tick" : ""}`} />
     </span>
   );
 }
 
-function TickMark({ className }: { className: string }) {
+export function TickMark({ className, style }: { className: string; style?: CSSProperties }) {
   return (
-    <svg viewBox="0 0 12 12" className={`size-[11px] ${className}`} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <svg viewBox="0 0 12 12" className={className} style={style} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M2.8 6.2l2.2 2.2 4.2-4.6" />
     </svg>
   );
 }
 
-// A flow's picture: its page just before its last step, close on what that step clicks, so flows on one page look
-// different. Pointing at the heading puts the play mark over it, as on any video.
+// A flow's picture, small. Pointing at the heading puts the play mark over it, as on any video.
 function Still({ review, round, flow, playing }: { review: Review; round: Round; flow: Flow; playing: boolean }) {
-  const shown = Math.max(1, flow.steps.length - 1);
-  const [close, setClose] = useState<{ x: number; y: number; width: number; height: number }>();
-  const [missing, setMissing] = useState(false);
-  useEffect(() => {
-    let current = true;
-    const last = flow.steps.at(-1);
-    if (flow.steps.length > 1 && last)
-      recording(review.id, round.number, flow.recording).then((events) => {
-        const { width, height, clicks, pointer } = recorded(events);
-        const click = clicks.find((click) => click >= last.at);
-        const point = click === undefined ? undefined : pointer.findLast(([moment]) => moment <= click + 0.01)?.slice(1);
-        if (current && point && Math.abs(width / height - 1.6) < 0.05) setClose({ x: point[0]!, y: point[1]!, width, height });
-      });
-    return () => void (current = false);
-  }, [review.id, round.number, flow]);
-
-  // Two and a half times closer, centred on the click and kept inside the page.
-  const zoom = 2.5;
-  const scale = close && (64 * zoom) / close.width;
-  const placed = close && scale
-    ? { width: 64 * zoom, height: close.height * scale, left: clamp(32 - close.x * scale, 64 - close.width * scale, 0), top: clamp(20 - close.y * scale, 40 - close.height * scale, 0) }
-    : undefined;
+  const still = useStill(review, round, flow);
   return (
-    <span data-still className="relative grid h-10 w-16 place-items-center overflow-hidden rounded-[5px] bg-hover after:absolute after:inset-0 after:rounded-[inherit] after:shadow-[inset_0_0_0_1px_var(--line)]" aria-hidden>
-      {!missing && (
-        <img
-          src={`/api/reviews/${review.id}/rounds/${round.number}/files/readings/${flow.recording.replace(/\.json$/, "")}/${shown}.png`}
-          alt=""
-          draggable={false}
-          className={`pointer-events-none absolute transition-opacity duration-150 ease-calm group-hover/head:opacity-80 ${placed ? "max-w-none" : "inset-0 size-full object-contain"}`}
-          style={placed && { width: placed.width, height: placed.height, left: placed.left, top: placed.top }}
-          onError={() => setMissing(true)}
-        />
-      )}
+    <span
+      data-still
+      data-picture={flow.name}
+      className="peer relative grid h-10 w-16 place-items-center overflow-hidden rounded-[5px] bg-hover after:absolute after:inset-0 after:rounded-[inherit] after:shadow-[inset_0_0_0_1px_var(--line)] data-flying:invisible"
+      aria-hidden
+    >
+      <span className="absolute inset-0 transition-opacity duration-150 ease-calm group-hover/head:opacity-80">
+        <Picture shot={still} />
+      </span>
       <span className="absolute top-[calc(50%-11px)] left-[calc(50%-11px)] z-2 grid size-[22px] scale-70 place-items-center rounded-full bg-ground text-fg opacity-0 transition-[opacity,scale] duration-150 ease-calm group-hover/head:scale-100 group-hover/head:opacity-100">
         <svg viewBox="0 0 20 20" fill="currentColor" className="size-3">
           {playing ? (

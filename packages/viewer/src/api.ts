@@ -36,13 +36,22 @@ export function useYou(): string | undefined {
   return you;
 }
 
-// A recording never changes once its round is finished, so each is fetched once.
-const recordings = new Map<string, Promise<Events>>();
-export function recording(review: string, round: number, file: string): Promise<Events> {
-  const path = `/api/reviews/${review}/rounds/${round}/files/${file}`;
-  if (!recordings.has(path)) recordings.set(path, get<Events>(path));
-  return recordings.get(path)!;
+// A round's files never change once it's finished, so each is fetched once.
+const files = new Map<string, Promise<unknown>>();
+function file<T>(review: string, round: number, name: string): Promise<T> {
+  const path = `/api/reviews/${review}/rounds/${round}/files/${name}`;
+  if (!files.has(path)) files.set(path, get<T>(path));
+  return files.get(path) as Promise<T>;
 }
+
+export const recording = (review: string, round: number, name: string) => file<Events>(review, round, name);
+
+// What was on the page at each step of a flow, read as it was recorded, and its picture then.
+export type Reading = { step: string; at: number; screen: { width: number; height: number }; things: { node?: number; box: Box }[] };
+type Box = { x: number; y: number; width: number; height: number };
+const readingsName = (recording: string) => `readings/${recording.replace(/\.json$/, "")}`;
+export const readings = (review: string, round: number, recording: string) => file<Reading[]>(review, round, `${readingsName(recording)}.json`).catch((): Reading[] => []);
+export const picture = (review: string, round: number, recording: string, reading: number) => `/api/reviews/${review}/rounds/${round}/files/${readingsName(recording)}/${reading + 1}.png`;
 
 // What's wrong in plain words, or nothing once it's kept.
 export async function send(review: string, send: Send): Promise<string[]> {
