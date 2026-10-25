@@ -4,29 +4,39 @@
 // where the playhead is. In general comes last. Nothing in it moves while it plays.
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { time, type Flow, type Place, type Review, type Round } from "@vantage/review";
+import { list, time, type Flow, type Place, type Review, type Round } from "@vantage/review";
 import { recording } from "./api.ts";
-import { when, type Diamond } from "./changes.ts";
+import { Answer, Compare, play, Said, Time } from "./Card.tsx";
+import { when, type Changed, type Diamond } from "./changes.ts";
 import { clamp } from "./moments.ts";
 import type { Shown } from "./notes.ts";
+import { opened, type Comparing } from "./Notes.tsx";
 import { useNow, type Playhead } from "./playhead.ts";
 import { recorded } from "./replay.ts";
 
 type Props = {
+  // Under the settled notes' list, the map keeps its place.
+  hidden?: boolean;
   review: Review;
   round: Round;
   playhead: Playhead;
   notes: Shown[];
   diamonds: Diamond[];
-  // The row you've chosen, and the change you're on.
+  // The row you've chosen, opened, and the change you're on.
   chosen?: string;
   lit?: string;
+  compare?: Comparing;
   // Where each flow's line ends: asking whether it's good, saying it is, or nowhere.
   end: (flow: string) => "ask" | "good" | undefined;
+  // Who else says a flow looks good.
+  others: (flow: string) => string[];
   note: (note: Shown) => ReactNode;
   writing?: { on?: Place; box: ReactNode };
   onFlow: (flow: Flow) => void;
   onDiamond: (diamond: Diamond) => void;
+  onPlayOn: () => void;
+  onNoteOn: (diamond: Diamond) => void;
+  onNote: (note: Shown) => void;
   onEnd: (flow: string) => void;
   onGeneral?: () => void;
 };
@@ -37,7 +47,7 @@ export type Row = ({ note: Shown } | { diamond: Diamond }) & { at: number };
 export function rowsIn(flow: string, notes: Shown[], diamonds: Diamond[]): Row[] {
   const rows: Row[] = [
     ...notes.filter((note) => note.on?.flow === flow).map((note) => ({ note, at: note.on?.at ?? Infinity })),
-    ...diamonds.filter((diamond) => diamond.flow === flow).map((diamond) => ({ diamond, at: diamond.at })),
+    ...diamonds.filter((diamond) => diamond.flow === flow && diamond.row).map((diamond) => ({ diamond, at: diamond.at })),
   ];
   return rows.sort((a, b) => a.at - b.at);
 }
@@ -57,6 +67,8 @@ export function Column(props: Props) {
   return (
     <div
       ref={map}
+      data-map
+      hidden={props.hidden}
       className="relative isolate grid min-h-0 flex-1 auto-rows-max content-start gap-px overflow-y-auto pr-2 pb-4 [scrollbar-gutter:stable] [--ahead:color-mix(in_srgb,var(--faint)_45%,var(--ground))] [--rail:var(--soft)]"
     >
       {round.flows.map((flow) => {
@@ -108,6 +120,7 @@ export function Column(props: Props) {
 
 function FlowBlock(props: Omit<Props, "end"> & { flow: Flow; on: boolean; end?: "ask" | "good"; children: ReactNode }) {
   const { flow, on, end, playhead } = props;
+  const others = props.others(flow.name);
   const block = useRef<HTMLDivElement>(null);
   const line = useRef<HTMLDivElement>(null);
   useLine(block, line, playhead, flow, on);
@@ -132,7 +145,10 @@ function FlowBlock(props: Omit<Props, "end"> & { flow: Flow; on: boolean; end?: 
         )}
         <span className="grid min-w-0 gap-1.5">
           <span className="line-clamp-2 leading-[17px]">{flow.name}</span>
-          <span className="flex min-h-[18px] items-center text-[11.5px] leading-[14px] font-normal text-faint tabular-nums">{time(flow.length)}</span>
+          <span className="flex min-h-[18px] min-w-0 items-center gap-2.5 text-[11.5px] leading-[14px] font-normal text-faint">
+            <span className="tabular-nums">{time(flow.length)}</span>
+            {others.length > 0 && <span className="truncate text-green">✓ Looks good to {few(others)}</span>}
+          </span>
         </span>
       </div>
       <div className={`relative -mt-1 grid gap-1.5 pb-1 transition-[padding-top] duration-300 ease-calm ${on ? "pt-3" : ""}`}>
@@ -171,29 +187,82 @@ function FlowBlock(props: Omit<Props, "end"> & { flow: Flow; on: boolean; end?: 
   );
 }
 
+// A few names by name, then how many more.
+const few = (names: string[]) => (names.length > 3 ? `${names.slice(0, 2).join(", ")} and ${names.length - 2} others` : list(names));
+
 // Clicking a row leaves the keys where they were, so Up and Down afterwards don't ring the row as if you'd tabbed to it.
 const keepKeys = (event: { preventDefault: () => void }) => event.preventDefault();
 
 // A change's row is shaped like a note's: its diamond on the flow's line, filling once the playhead has passed it, its
-// name, wrapping onto a second line rather than cutting, and its time.
-function ChangeRow({ diamond, chosen, lit, onDiamond }: Props & { diamond: Diamond }) {
-  const marked = chosen === diamond.id || lit === diamond.id;
+// name, wrapping onto a second line rather than cutting, and its time. Opened, it's the agent's why: what changed isn't
+// put in words, since the recording outlines it.
+function ChangeRow(props: Props & { diamond: Diamond }) {
+  const { diamond, chosen, lit, onDiamond } = props;
+  const open = chosen === diamond.id;
   return (
-    <button
-      data-stop={diamond.at}
-      className={`relative grid grid-cols-[18px_minmax(0,1fr)] gap-2 rounded-r-lg py-1.5 pr-2.5 pl-[18px] text-left transition-colors duration-150 ease-calm hover:bg-hover ${marked ? "bg-hover" : ""}`}
-      onMouseDown={keepKeys}
-      onClick={() => onDiamond(diamond)}
-    >
-      <span data-mark className="group/mark relative z-1 mt-px grid size-[18px] place-items-center">
-        <i className="size-2 rotate-45 bg-ground shadow-[inset_0_0_0_1.5px_var(--fg),0_0_0_2.5px_var(--ground)] group-data-played/mark:bg-fg group-data-played/mark:shadow-[0_0_0_2.5px_var(--ground)]" />
-      </span>
-      <span className="block max-h-10 min-w-0 overflow-hidden">
-        <span className="float-right ml-2 inline-flex h-5 min-w-[78px] items-center justify-end text-xs text-faint tabular-nums">{when(diamond)}</span>
-        <span className="block leading-5 [overflow-wrap:anywhere]">{diamond.name}</span>
-      </span>
-    </button>
+    <div data-stop={diamond.at} data-open={open ? "" : undefined} className={`relative rounded-r-lg transition-colors duration-150 ease-calm [--c:var(--soft)] ${open ? opened : lit === diamond.id ? "bg-hover" : "hover:bg-hover"}`}>
+      <button className="group/row grid w-full grid-cols-[18px_minmax(0,1fr)] gap-2 py-1.5 pr-2.5 pl-[18px] text-left" onMouseDown={keepKeys} onClick={() => onDiamond(diamond)} aria-expanded={open}>
+        <span data-mark className="group/mark relative z-1 mt-px grid size-[18px] place-items-center">
+          <i className="size-2 rotate-45 bg-ground shadow-[inset_0_0_0_1.5px_var(--fg),0_0_0_2.5px_var(--ground)] group-data-played/mark:bg-fg group-data-played/mark:shadow-[0_0_0_2.5px_var(--ground)]" />
+        </span>
+        <span className="-mr-[7px] block max-h-10 min-w-0 overflow-hidden pr-[7px]">
+          <Time className="float-right ml-2 text-faint">{when(diamond)}</Time>
+          <span className="block leading-5 [overflow-wrap:anywhere]">{diamond.name}</span>
+        </span>
+      </button>
+      {open && (
+        <div className="grid gap-2.5 pr-3.5 pl-[44px]">
+          <Why {...props} />
+          {props.compare && <Compare {...props.compare} />}
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            <Answer keys="↵" onClick={props.onPlayOn}>
+              {play}Play on
+            </Answer>
+            <Answer keys="X" onClick={() => props.onNoteOn(diamond)}>
+              Note on this
+            </Answer>
+          </div>
+        </div>
+      )}
+    </div>
   );
+}
+
+// Why each change is there, in the agent's words under its name, or the note it was made for. Several at one moment are
+// each on their own line under a small hollow diamond, so they can be counted, the line set off under the ones it explains.
+function Why({ diamond, notes, onNote }: Props & { diamond: Diamond }) {
+  const own = diamond.changes.filter((changed) => !changed.answers);
+  const says = (changed: Changed) => {
+    const note = changed.note && notes.find((note) => note.id === changed.note);
+    if (note)
+      return (
+        <Said who={`For your note ${note.number}`}>
+          <button className="-mx-[3px] rounded px-[3px] text-left transition-colors duration-150 ease-calm hover:bg-line" onClick={() => onNote(note)}>
+            {note.turns[0]?.words}
+          </button>
+        </Said>
+      );
+    return changed.line && <Said who={changed.by} quiet>{changed.line}</Said>;
+  };
+  if (own.length === 1) return says(own[0]!);
+  // Changes one line explains stand together over it.
+  const blocks: Changed[][] = [];
+  for (const changed of own) {
+    const last = blocks.at(-1);
+    if (last && changed.line && last[0]!.line === changed.line) last.push(changed);
+    else blocks.push([changed]);
+  }
+  return blocks.map((block) => (
+    <div key={block[0]!.change.id} className="grid gap-0.5">
+      {block.map(({ change }) => (
+        <span key={change.id} className="flex items-start gap-[9px] leading-normal font-medium">
+          <i className="mx-0.5 mt-1.5 size-[7px] flex-none rotate-45 shadow-[inset_0_0_0_1.5px_var(--soft)]" aria-hidden />
+          {change.words}
+        </span>
+      ))}
+      <div className="mt-[3px] ml-[19px] border-l-2 border-line pl-2.5 text-[12.5px] [&_p]:text-[12.5px]">{says(block[0]!)}</div>
+    </div>
+  ));
 }
 
 // The flow's tick, green once it looks good: on its picture's corner, or where its line ends.
@@ -276,16 +345,22 @@ function useLine(block: RefObject<HTMLDivElement | null>, line: RefObject<HTMLDi
     const stops = [...room.querySelectorAll<HTMLElement>("[data-stop]")].map((row) => {
       const mark = row.querySelector<HTMLElement>("[data-mark]")!;
       const box = mark.getBoundingClientRect();
-      return { at: Number(row.dataset.stop), top: box.top - top, bottom: box.bottom - top, mark, end: row.hasAttribute("data-end") };
+      // An opened row hangs off the line: below its stop the line is its edge, in its colour, to its foot.
+      const edge = row.hasAttribute("data-open") ? { foot: row.getBoundingClientRect().bottom - top, colour: getComputedStyle(row).getPropertyValue("--c") } : undefined;
+      return { at: Number(row.dataset.stop), top: box.top - top, bottom: box.bottom - top, mark, end: row.hasAttribute("data-end"), edge };
     });
     if (!stops.length) return drawn.replaceChildren();
 
     // Each piece runs from just past one stop to just before the next; the last ends inside the flow's end, if it has one.
-    const pieces: [number, number][] = [];
+    const pieces: [number, number, string?][] = [];
     let from = still.bottom - top + 5;
     for (const stop of stops) {
       pieces.push([from, stop.end ? stop.top + 1 : stop.top - 2.75]);
       from = stop.bottom + 2.75;
+      if (stop.edge) {
+        pieces.push([from, stop.edge.foot, stop.edge.colour]);
+        from = stop.edge.foot;
+      }
     }
     // Where the playhead is along it: each stop is passed in an instant, so stopping on one stops on it full.
     const points: [number, number][] = [[0, still.bottom - top + 5]];
@@ -305,12 +380,12 @@ function useLine(block: RefObject<HTMLDivElement | null>, line: RefObject<HTMLDi
 
     while (drawn.children.length > pieces.length) drawn.lastChild!.remove();
     while (drawn.children.length < pieces.length) drawn.append(Object.assign(document.createElement("i"), { className: "absolute left-0 w-full" }));
-    pieces.forEach(([start, end], i) => {
+    pieces.forEach(([start, end, edge], i) => {
       const piece = drawn.children[i] as HTMLElement;
       const filled = clamp((y - start) / Math.max(1, end - start)) * 100;
       Object.assign(piece.style, { top: `${start}px`, height: `${Math.max(0, end - start)}px` });
       // Filled all the way it's one colour, so no hairline of pale is left at its foot.
-      piece.style.background = filled >= 100 ? "var(--rail)" : `linear-gradient(var(--rail) ${filled}%, var(--ahead) ${filled}%)`;
+      piece.style.background = edge || (filled >= 100 ? "var(--rail)" : `linear-gradient(var(--rail) ${filled}%, var(--ahead) ${filled}%)`);
     });
     for (const stop of stops) {
       stop.mark.style.setProperty("--a", `${(clamp((y - stop.top + 3) / (stop.bottom - stop.top + 6)) * 180).toFixed(1)}deg`);

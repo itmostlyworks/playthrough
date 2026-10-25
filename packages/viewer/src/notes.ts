@@ -52,6 +52,15 @@ function numbers(review: Review): Map<string, number> {
 // The notes on a round: those started on it, those with something said on it, and any not settled yet.
 // The draft counts only on the round it was written on.
 export function notesOn(review: Review, round: number, you: string, draft: Draft = nothing): Shown[] {
+  return everyNote(review, round, you, draft).filter(([, on]) => on).map(([note]) => note);
+}
+
+// The notes settled on the rounds before it, nothing said about them since.
+export function settledBefore(review: Review, round: number, you: string): Shown[] {
+  return everyNote(review, round, you, nothing).filter(([, on]) => !on).map(([note]) => note);
+}
+
+function everyNote(review: Review, round: number, you: string, draft: Draft): [Shown, boolean][] {
   const then = sending(asOf(review, round), round, you, draft);
   const numbered = numbers(then);
   const people = new Set([you, ...then.sends.map((send) => send.by)]);
@@ -59,7 +68,7 @@ export function notesOn(review: Review, round: number, you: string, draft: Draft
   const withTheAgent = waitingForTheAgent(then);
   const yours = yourNotes(then, round, you);
 
-  const shown: Shown[] = [];
+  const every: [Shown, boolean][] = [];
   for (const [id, { note, round: started }] of allNotes(then)) {
     const turns = conversation(then, id);
     const waitingFor = [...people].filter((person) => person !== you && waiting.get(person)?.includes(id));
@@ -71,10 +80,10 @@ export function notesOn(review: Review, round: number, you: string, draft: Draft
           ? "with someone else"
           : "settled";
     const unsent = draft.notes.some((kept) => kept.id === id) || draft.verdicts.some((verdict) => verdict.note === id);
-    if (started === round || turns.some((turn) => turn.round === round) || state !== "settled")
-      shown.push({ id, number: numbered.get(id) ?? 0, on: note.on, turns, state, waitingFor, yours: yours.has(id), toJudge: toJudge(turns, you), unsent });
+    const shown = { id, number: numbered.get(id) ?? 0, on: note.on, turns, state, waitingFor, yours: yours.has(id), toJudge: toJudge(turns, you), unsent };
+    every.push([shown, started === round || turns.some((turn) => turn.round === round) || state !== "settled"]);
   }
-  return shown.sort((a, b) => a.number - b.number);
+  return every.sort(([a], [b]) => a.number - b.number);
 }
 
 // Everyone a flow is good for on a round, as they've sent it.

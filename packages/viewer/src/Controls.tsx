@@ -14,7 +14,6 @@ type Props = {
   dots: Dot[];
   onDot: (id: string) => void;
   marks: Mark[];
-  lit?: string;
   onMark: (id: string) => void;
   shown?: Shown;
   zoomed: boolean;
@@ -45,7 +44,7 @@ export function Controls(props: Props) {
 
   return (
     <div className="group/controls flex min-w-0 flex-wrap items-center gap-3 pt-[18px] select-none">
-      <Timeline playhead={props.playhead} dots={props.dots} onDot={props.onDot} marks={props.marks} lit={props.lit} onMark={props.onMark} />
+      <Timeline playhead={props.playhead} dots={props.dots} onDot={props.onDot} marks={props.marks} onMark={props.onMark} />
       <button
         data-speed
         className={`${quiet} ${coveredBack} text-center hover:bg-hover hover:text-fg ${speed < 1 ? "text-amber-ink" : ""}`}

@@ -10,12 +10,14 @@ import { useNow, type Playhead } from "./playhead.ts";
 
 // A note on the line: a dot at its moment, or a pill over its stretch, in its colour (a CSS colour).
 export type Dot = { id: string; at: number; until?: number; ink: string; number: number; words: string };
-// What changed, under the notes: a diamond at its moment, or a band over new steps, named as its row is.
-export type Mark = { id: string; at: number; until?: number; name: string };
+// What changed, under the notes: a diamond at its moment, or a band over new steps, named as its row is. One the agent
+// made for a note carries the note's dot on its corner, its number before its name. Lit, it's ringed: the change you're
+// on, or what changed for the note you've opened.
+export type Mark = { id: string; at: number; until?: number; name: string; note?: { number: number; ink: string }; lit: boolean };
 
-type Props = { playhead: Playhead; dots: Dot[]; onDot: (id: string) => void; marks: Mark[]; lit?: string; onMark: (id: string) => void };
+type Props = { playhead: Playhead; dots: Dot[]; onDot: (id: string) => void; marks: Mark[]; onMark: (id: string) => void };
 
-export function Timeline({ playhead, dots, onDot, marks, lit, onMark }: Props) {
+export function Timeline({ playhead, dots, onDot, marks, onMark }: Props) {
   const now = useNow(playhead);
   const flow = playhead.flow;
   const flows = playhead.flows;
@@ -181,22 +183,23 @@ export function Timeline({ playhead, dots, onDot, marks, lit, onMark }: Props) {
                 key={shown.id}
                 data-mark
                 aria-label={`${shown.name}, ${time(shown.at)} to ${time(shown.until)}`}
-                className={`absolute top-[13px] z-0 h-2.5 rounded-[5px] bg-[color-mix(in_srgb,var(--fg)_16%,transparent)] transition-[background-color,box-shadow] duration-150 ease-calm hover:bg-[color-mix(in_srgb,var(--fg)_26%,transparent)] ${lit === shown.id ? "shadow-[inset_0_0_0_1.5px_var(--fg)]" : ""} ${moving}`}
+                className={`absolute top-[13px] z-0 h-2.5 rounded-[5px] bg-[color-mix(in_srgb,var(--fg)_16%,transparent)] transition-[background-color,box-shadow] duration-150 ease-calm hover:bg-[color-mix(in_srgb,var(--fg)_26%,transparent)] ${shown.lit ? "shadow-[inset_0_0_0_1.5px_var(--fg)]" : ""} ${moving}`}
                 style={{ left, width: `calc(${percent(flow, shown.until)} - ${left})` }}
                 {...pointed}
               />
             );
           // Hollow ahead of the playhead and filled once passed, as a dot fills; ringed while it's the one you're on.
           const look = at < shown.at - 0.02
-            ? lit === shown.id
+            ? shown.lit
               ? "bg-ground shadow-[inset_0_0_0_1.5px_var(--fg),0_0_0_1.5px_var(--ground),0_0_0_3px_var(--fg)]"
               : "bg-ground shadow-[inset_0_0_0_1.5px_var(--fg),0_0_0_1.5px_var(--ground)]"
-            : lit === shown.id
+            : shown.lit
               ? "bg-fg shadow-[0_0_0_1.5px_var(--ground),0_0_0_3px_var(--fg)]"
               : "bg-fg shadow-[0_0_0_1.5px_var(--ground)]";
           return (
             <button key={shown.id} data-mark data-at={shown.at} aria-label={`${shown.name}, ${time(shown.at)}`} className={`group/mark absolute top-[11px] z-3 -ml-[7px] grid size-3.5 place-items-center ${moving}`} style={{ left }} {...pointed}>
               <i className={`size-[7px] rotate-45 transition-[scale,background-color] duration-150 ease-calm group-hover/mark:scale-130 ${look}`} />
+              {shown.note && <b className="absolute top-[calc(50%-8px)] left-[calc(50%+2px)] size-1.5 rounded-full shadow-[0_0_0_1.5px_var(--ground)]" style={{ background: shown.note.ink }} />}
             </button>
           );
         })}
@@ -242,6 +245,7 @@ export function Timeline({ playhead, dots, onDot, marks, lit, onMark }: Props) {
               {dot.words}
             </>
           )}
+          {mark?.note && <b className="mr-[5px] font-semibold text-amber-ink">{mark.note.number}</b>}
           {mark?.name}
         </span>
         <span

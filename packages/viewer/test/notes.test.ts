@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { memory, newId, Reviews, type Flow, type Review, type Round, type Send } from "@vantage/review";
-import { fill, goodTo, notesOn } from "../src/notes.ts";
+import { fill, goodTo, notesOn, settledBefore } from "../src/notes.ts";
 
 const flow = (name: string): Flow => ({ name, length: 6, steps: [{ title: "Open the invoices", at: 0 }], recording: `${name.toLowerCase().replace(/\W+/g, "-")}.json` });
 const round = (number: number, parts: Partial<Round> = {}): Round => ({
@@ -29,8 +29,7 @@ const send = (by: string, round: number, parts: Partial<Send>): Send => ({
 
 // Ana and Ben both look at round 1. Ana leaves a note on the export; round 2 answers it.
 const note = { id: newId(), on: { flow: "Export them", at: 2 }, words: "Export should only take the overdue ones." };
-async function twoPeople(): Promise<Review> {
-  const reviews = new Reviews(memory());
+async function twoPeople(reviews = new Reviews(memory())): Promise<Review> {
   await reviews.start("export", "Export the overdue invoices");
   for (const number of [0, 1]) {
     await reviews.saveRound("export", round(number));
@@ -73,4 +72,18 @@ test("looking back shows what was said then, and nothing after", async () => {
   const review = await twoPeople();
   const [then] = notesOn(review, 1, "Ana");
   assert.deepEqual([then?.state, then?.turns.length], ["with the agent", 1]);
+});
+
+test("a note settled on an earlier round is counted apart, and no longer a row on the rounds after", async () => {
+  const reviews = new Reviews(memory());
+  await twoPeople(reviews);
+  const another = { id: newId(), on: { flow: "Export them", at: 4 }, words: "The file could be named for the month." };
+  await reviews.send("export", send("Ana", 2, { verdicts: [{ note: note.id, verdict: "looks good" }], notes: [another] }));
+  await reviews.take("export");
+  await reviews.saveRound("export", round(3, { replies: [{ note: another.id, words: "It's named for the month now." }] }));
+  await reviews.finish("export", 3);
+  const later = await reviews.get("export");
+  assert.deepEqual(notesOn(later, 2, "Ben").map((shown) => shown.number), [1, 2], "settled on round 2, it's still a row there");
+  assert.deepEqual(settledBefore(later, 3, "Ben").map((shown) => shown.number), [1]);
+  assert.deepEqual(notesOn(later, 3, "Ben").map((shown) => shown.number), [2]);
 });

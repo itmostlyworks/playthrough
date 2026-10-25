@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Change, Flow, Review, Round } from "@vantage/review";
-import { diamondAt, diamondsOn } from "../src/changes.ts";
+import { answersTo, diamondAt, diamondsOn } from "../src/changes.ts";
 
 const flow = (name: string): Flow => ({ name, length: 6, steps: [{ title: "Open the expenses", at: 0 }], recording: `${name.toLowerCase().replace(/\W+/g, "-")}.json` });
 const round = (number: number): Round => ({ number, by: "Claude Code", flows: [flow("See who owes whom"), flow("Search the expenses")], replies: [], accounts: {}, finished: "2026-10-25T09:00:00Z" });
@@ -50,4 +50,14 @@ test("the change you're on lasts from its moment until the next click, a moment 
   assert.equal(on(1.9), "swap");
   assert.equal(on(2.6), "steps", "a moment and a half after it, the new steps you're in");
   assert.equal(diamondAt(diamonds, { flow: "See who owes whom", at: 1 }, [])?.id, undefined, "only in the flow you're in");
+});
+
+test("a change made for a note in the note's flow is told with the note, and one made for a note elsewhere is a row that says so", () => {
+  const asked = review([change("moved", "“Who owes whom” area moved down", "See who owes whom", 0.9), change("dark", "“$…” looks different", "Search the expenses", 1)]);
+  asked.sends = [{ id: "sent", round: 0, by: "Ben", sent: "2026-10-25T08:30:00Z", notes: [{ id: "first", on: { flow: "See who owes whom", at: 1.5 }, words: "Could who owes whom come after the expenses?" }], verdicts: [], looksGood: [] }];
+  asked.rounds[1]!.accounts = { moved: { note: "first" }, dark: { note: "first" } };
+  const diamonds = diamondsOn(asked, 1, "Ana");
+  assert.deepEqual(diamonds.map(({ id, row }) => ({ id, row })), [{ id: "moved", row: false }, { id: "dark", row: true }]);
+  assert.deepEqual(answersTo(diamonds, "first").map(({ change }) => change.id), ["moved"]);
+  assert.equal(diamonds[1]!.changes[0]!.note, "first", "the row says which note it was made for");
 });

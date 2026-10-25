@@ -4,17 +4,19 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { lastLooked, newId, readyToAccept, time, type Flow, type Place, type Point, type Review, type Round, type Verdict } from "@vantage/review";
 import { accept, recording, send, useReview, useYou } from "./api.ts";
-import { diamondAt, diamondsOn, type Diamond } from "./changes.ts";
+import { HOLD, mac } from "./Card.tsx";
+import { answersTo, diamondAt, diamondsOn, type Changed, type Diamond } from "./changes.ts";
 import { Column, rowsIn } from "./Column.tsx";
 import { Controls, type Look } from "./Controls.tsx";
 import { useDraft } from "./draft.ts";
 import { along, CARD, clamp, FLOW_IN, inStep, momentAt, POSTER, type Moment } from "./moments.ts";
-import { fill, goodTo, ink, notesOn, nothing, seen, type Draft, type Shown } from "./notes.ts";
-import { mac, NoteRow, number, Writing } from "./Notes.tsx";
+import { fill, goodTo, ink, notesOn, nothing, seen, settledBefore, type Draft, type Shown } from "./notes.ts";
+import { NoteRow, number, opened, SettledCount, SettledList, Writing, type Comparing } from "./Notes.tsx";
 import { Playhead, useNow } from "./playhead.ts";
 import { recorded } from "./replay.ts";
 import { roundName } from "./Rounds.tsx";
 import { Stage, type Bare, type Shown as Size } from "./Stage.tsx";
+import { Wire } from "./Wire.tsx";
 
 // What's open in the column: a note, a change you chose, or a new note being written, on a place or, without one, in
 // general.
@@ -67,13 +69,19 @@ type OnRoundProps = { review: Review; round: Round; latest: Round; arrived: bool
 function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps) {
   const [draft, change] = useDraft(review.id, round.number);
   const [open, setOpen] = useState<Open>();
+  // The note whose Not quite is being written.
+  const [asking, setAsking] = useState<string>();
+  if (asking && !(open && "note" in open && open.note === asking)) setAsking(undefined);
   const [fresh, setFresh] = useState<string>();
   const [met, setMet] = useState<string[]>([]);
-  // Looking at another round starts on its map, with nothing open.
+  // Looking at another round starts on its map, with nothing open, unless you went there to a settled note.
   const [on, setOn] = useState(round.number);
+  const toNote = useRef<Shown>(undefined);
+  const [listing, setListing] = useState(false);
   if (on !== round.number) {
     setOn(round.number);
-    setOpen(undefined);
+    setOpen(toNote.current && { note: toNote.current.id });
+    setListing(false);
   }
 
   // You arrive at the start, as on a video before you press play. Going to another round keeps your place: the same flow
@@ -88,6 +96,9 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
     const to = round.flows.find((flow) => flow.name === from.name);
     playhead.pause();
     playhead.watch(round.flows, to ? { flow: to.name, at: inStep(playhead.now.moment.at, from, to) } : { flow: round.flows[0]?.name ?? "", at: -CARD });
+    const place = toNote.current?.on;
+    toNote.current = undefined;
+    if (place) playhead.go({ flow: place.flow, at: place.at ?? FLOW_IN });
   }, [round, playhead]);
   const watching = useNow(playhead, (now) => now.moment.flow);
   const flow = round.flows.find((flow) => flow.name === watching) ?? round.flows[0];
@@ -116,6 +127,23 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
   };
   // The earlier side, where it's the round you last looked at this flow, says why it's that one.
   const looked = flow && round === latest ? lastLooked(review, you, flow.name, round.number) : undefined;
+  // What you judge on the latest round is a difference from the round you last looked at its flow, or Before: held,
+  // that round shows in place; clicked, the two go side by side.
+  const compared = round === latest && round.number > first && !review.accepted ? (looked ?? first) : undefined;
+  const [peek, setPeek] = useState(false);
+  // Only an answer is a difference to judge: a note nobody has answered has nothing to compare.
+  const answered = (note: Shown) => note.on?.at !== undefined && note.turns.some((turn) => turn.agent);
+  const beside = comparing && earlier?.number === compared;
+  const comparingIt: Comparing | undefined = compared === undefined ? undefined : {
+    held: peek,
+    beside,
+    onHold: setPeek,
+    onBeside: () => {
+      if (beside) return chooseLook("one");
+      setThen(compared);
+      chooseLook("side");
+    },
+  };
   const working = review.accepted ? undefined : review.taken.find((taken) => taken.round > latest.number)?.at;
 
   // Left and Right step to the next moment the page changes, or a second where nothing does; with Shift, a tenth.
@@ -142,6 +170,7 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
   // Before is how the app was: it's there to look back on, and notes go on the rounds after it.
   const readOnly = !!review.accepted || round.number === 0 || (round !== latest && !arrived);
   const notes = notesOn(review, round.number, you, draft);
+  const settled = settledBefore(review, round.number, you);
   const onFlow = (name: string) => notes.filter((note) => note.on?.flow === name);
   const inGeneral = notes.filter((note) => !note.on || !round.flows.some((flow) => flow.name === note.on?.flow));
   const playingNotes = flow ? onFlow(flow.name).filter((note) => note.on?.at !== undefined) : [];
@@ -192,6 +221,18 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
     setMet((met) => (met.includes(note.id) ? met : [...met, note.id]));
     if (note.on) go(note.on.flow, note.on.at);
   };
+  // Chosen, a note opens and plays its moment, from a beat before it to a second after; one on a whole flow plays the flow.
+  const pick = (note: Shown) => {
+    const on = note.on;
+    const its = on && round.flows.find((flow) => flow.name === on.flow);
+    if (!on || !its || on.at === undefined) {
+      show(note);
+      return its && playFlow(its);
+    }
+    setOpen({ note: note.id });
+    setMet((met) => (met.includes(note.id) ? met : [...met, note.id]));
+    play(note.id, { flow: on.flow, at: Math.max(0, on.at - 0.8) }, Math.min(its.length, (on.until ?? on.at) + 1));
+  };
 
   // Playing stops at each answer that waits for you, the first time it gets there, and opens it as a click on it would.
   useEffect(() =>
@@ -241,7 +282,7 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
     );
     const next = column[here < 0 ? 0 : clamp(here + direction, 0, column.length - 1)];
     if (!next || (here >= 0 && column[here] === next)) return;
-    if ("note" in next) show(next.note);
+    if ("note" in next) pick(next.note);
     else if ("diamond" in next) choose(next.diamond);
     else {
       setOpen(undefined);
@@ -251,33 +292,63 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
 
   const nextNumber = Math.max(0, ...notes.map((note) => note.number)) + 1;
   const writing = open && "writing" in open ? open : undefined;
+  // A new note is written in its row, where it will sit once saved, its box opened under it as a card is.
   const composer = (on: Place | undefined) => (
-    <div data-stop={on?.at} className="relative rounded-r-lg bg-hover [--c:var(--amber)]">
-      <div className="grid grid-cols-[18px_minmax(0,1fr)_auto] items-start gap-2 py-1.5 pr-2.5 pl-[18px]">
+    <div data-stop={on?.at} data-open className={`relative rounded-r-lg ${opened} [--c:var(--amber)] [--rail:var(--amber)]`}>
+      <div className="grid grid-cols-[18px_minmax(0,1fr)_auto] items-start gap-x-2 py-1.5 pr-2.5 pl-[18px]">
         <span data-mark className={`${number} relative z-1 mt-px bg-amber in-data-here:line-ring`}>{nextNumber}</span>
-        <span className="font-medium">{on?.point ? "This moment" : on ? "The whole flow" : "New note"}</span>
-        <span className="min-w-[78px] text-right text-xs leading-5 text-faint tabular-nums">{on?.at === undefined ? "" : time(on.at)}</span>
+        <span className="truncate">{on?.element ? on.element.name : on?.at !== undefined ? "This moment" : on ? "The whole flow" : "New note"}</span>
+        <span className="min-w-[78px] text-right text-xs leading-5 text-amber-ink tabular-nums">{on?.at === undefined ? "" : time(on.at)}</span>
       </div>
-      <div className="pr-2.5 pb-2.5 pl-[44px]">
-        <Writing words="" placeholder={on && !on.point ? "What isn’t good about it?" : "What do you think?"} onSave={(words) => saveNote(on, words)} onCancel={() => setOpen(undefined)} />
+      <div className="grid gap-2.5 pr-3.5 pl-[44px]">
+        <Writing words="" placeholder={on && on.at === undefined ? "What isn’t good about it?" : "What do you think?"} question="Your new note" onSave={(words) => saveNote(on, words)} onCancel={() => setOpen(undefined)} />
       </div>
     </div>
   );
-  const row = (note: Shown) => (
-    <NoteRow
-      key={note.id}
-      note={note}
-      playhead={playhead}
-      you={you}
-      readOnly={readOnly}
-      open={!!open && "note" in open && open.note === note.id}
-      fresh={fresh === note.id}
-      onOpen={() => show(note)}
-      onClose={() => setOpen(undefined)}
-      onJudge={(verdict) => judge(note, verdict)}
-      onEdit={(words) => editNote(note.id, words)}
-    />
-  );
+  // What isn't right about a change is a note on what it's on, at its moment, or over new steps.
+  const noteOn = (diamond: Diamond) => {
+    const element = diamond.changes.find((changed) => !changed.answers)?.on.element;
+    go(diamond.flow, diamond.at);
+    write({ flow: diamond.flow, at: diamond.at, ...(diamond.until !== undefined ? { until: diamond.until } : element && { element }) });
+  };
+  // Playing on from an open row lets it go, as moving on from it does.
+  const playOn = () => {
+    setOpen(undefined);
+    playhead.play();
+  };
+  // What the agent changed for a note is gone to as its diamond is, the note staying open.
+  const toAnswer = (changed: Changed) => {
+    const diamond = diamonds.find((diamond) => diamond.changes.includes(changed));
+    if (diamond) play(diamond.id, { flow: diamond.flow, at: Math.max(0, diamond.at - 0.8) }, diamond.at);
+  };
+  const row = (note: Shown) => {
+    const isOpen = !!open && "note" in open && open.note === note.id;
+    // A note's card is away once you've gone on into another flow: it asks nothing there.
+    const away = !!note.on && round.flows.some((flow) => flow.name === note.on!.flow) && note.on.flow !== watching;
+    return (
+      <NoteRow
+        key={note.id}
+        note={note}
+        playhead={playhead}
+        you={you}
+        readOnly={readOnly}
+        open={isOpen}
+        fresh={fresh === note.id}
+        answers={answersTo(diamonds, note.id)}
+        compare={isOpen && answered(note) ? comparingIt : undefined}
+        asking={asking === note.id}
+        away={away}
+        onOpen={() => pick(note)}
+        onClose={() => (running.current === note.id && playhead.now.playing ? playhead.pause() : setOpen(undefined))}
+        onAsking={(on) => setAsking(on ? note.id : undefined)}
+        onJudge={(verdict) => judge(note, verdict)}
+        onEdit={(words) => editNote(note.id, words)}
+        onAnswer={toAnswer}
+        onPlayOn={playOn}
+        onShow={() => show(note)}
+      />
+    );
+  };
 
   // Holding H shows the recording bare; pressed twice, it stays bare until H again.
   const bareKeys = useRef({ down: 0, up: 0, kept: false });
@@ -300,6 +371,14 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
     keys.up = now - keys.down < 300 ? now : 0;
   };
 
+  // The open card answers Enter and X, as its buttons say: Looks good and Not quite on an answer, Play on and a note on
+  // a change. C compares, held for a look and tapped for side by side, as the pointer does on Compare.
+  const openNote = open && "note" in open ? notes.find((note) => note.id === open.note) : undefined;
+  const asks = !!openNote && !readOnly && openNote.toJudge && openNote.on?.flow === watching;
+  const compareNow = (openNote && answered(openNote) && openNote.on?.flow === watching) || chosen?.flow === watching ? comparingIt : undefined;
+  const cKey = useRef<{ down: number; holding: number }>(undefined);
+  const comparedRound = compareNow ? review.rounds.find((kept) => kept.number === compared) : undefined;
+
   useEffect(() => {
     const writingHere = (event: KeyboardEvent) => event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement;
     const down = (event: KeyboardEvent) => {
@@ -317,15 +396,40 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
         through(event.key === "ArrowDown" ? 1 : -1);
       } else if (event.key.toLowerCase() === "h") {
         if (!event.repeat) bareKey(true);
+      } else if (event.key === "Enter" && !(event.target as Element).closest?.("button, [role=button], [role=slider]")) {
+        if (asks) {
+          event.preventDefault();
+          judge(openNote, { note: openNote.id, verdict: "looks good" });
+          playOn();
+        } else if (openNote || chosen) {
+          event.preventDefault();
+          playOn();
+        }
+      } else if (event.key.toLowerCase() === "x" && !event.repeat) {
+        // The box it opens takes the next key, not this one.
+        event.preventDefault();
+        if (asks) setAsking(openNote.id);
+        else if (chosen && !readOnly) noteOn(chosen);
+      } else if (event.key.toLowerCase() === "c" && !event.repeat && compareNow) {
+        const holding = window.setTimeout(() => compareNow.onHold(true), HOLD);
+        cKey.current = { down: performance.now(), holding };
       } else if (event.key === "Escape") {
         // Escape goes back a step you can see: from a note or a change to the column, and looking back, to now.
-        if (open && !("writing" in open)) setOpen(undefined);
+        if (listing) setListing(false);
+        else if (open && !("writing" in open)) setOpen(undefined);
         else if (round !== latest) toRound(latest.number);
       }
     };
     const up = (event: KeyboardEvent) => {
       if (event.key === " " && !writingHere(event)) event.preventDefault();
       if (event.key.toLowerCase() === "h") bareKey(false);
+      if (event.key.toLowerCase() === "c" && cKey.current) {
+        clearTimeout(cKey.current.holding);
+        const tapped = performance.now() - cKey.current.down < HOLD;
+        cKey.current = undefined;
+        comparingIt?.onHold(false);
+        if (tapped) comparingIt?.onBeside();
+      }
     };
     const away = () => bareKeys.current.kept || setBare(undefined);
     addEventListener("keydown", down);
@@ -340,6 +444,7 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
 
   return (
     <Page title={review.title}>
+      <Wire id={openNote?.id ?? chosen?.id} colour={openNote ? ink(openNote) : "var(--soft)"} hidden={!!bare || peek} />
       <main className="grid min-h-0 grid-cols-[minmax(0,1fr)_min(350px,31vw)]">
         <section className="grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto] pr-3.5 pb-4">
           <Stage
@@ -347,7 +452,9 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
             playhead={playhead}
             round={round}
             earlier={earlier}
-            why={earlier && earlier.number === looked ? "· when you last looked" : undefined}
+            why={(earlier ?? comparedRound)?.number === looked ? "· when you last looked" : undefined}
+            then={comparedRound}
+            peeking={peek}
             zoomed={zoomed}
             bare={bare}
             onShown={setSize}
@@ -379,10 +486,18 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
             dots={playingNotes.map((note) => ({ id: note.id, at: note.on?.at ?? 0, until: note.on?.until, ink: ink(note), number: note.number, words: note.turns[0]?.words ?? "" }))}
             onDot={(id) => {
               const note = notes.find((note) => note.id === id);
-              if (note) show(note);
+              if (note) pick(note);
             }}
-            marks={diamonds.filter((diamond) => diamond.flow === watching)}
-            lit={lit}
+            marks={diamonds
+              .filter((diamond) => diamond.flow === watching)
+              .map((diamond) => {
+                const answered = notes.find((note) => diamond.changes.some((changed) => changed.answers && changed.note === note.id));
+                return {
+                  ...diamond,
+                  note: answered && { number: answered.number, ink: ink(answered) },
+                  lit: diamond.id === lit || (!!answered && answered === openNote),
+                };
+              })}
             onMark={(id) => {
               const diamond = diamonds.find((diamond) => diamond.id === id);
               if (diamond) choose(diamond);
@@ -404,9 +519,31 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
 
         <aside className="flex min-h-0 min-w-0 flex-col pb-4">
           <div className="flex items-baseline gap-2 px-[18px] pt-1 pb-2">
-            <span className="font-semibold">{roundName(round.number)}</span>
+            {listing ? (
+              <button className="-ml-1 flex items-center gap-0.5 text-soft hover:text-fg" onClick={() => setListing(false)}>
+                <svg viewBox="0 0 12 12" className="size-3" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M7.5 3L4.5 6l3 3" />
+                </svg>
+                All notes
+              </button>
+            ) : (
+              <span className="font-semibold">{roundName(round.number)}</span>
+            )}
           </div>
+          <SettledCount notes={settled} open={listing} onOpen={() => setListing(!listing)} />
+          {listing && (
+            <SettledList
+              notes={settled}
+              onNote={(note) => {
+                const on = note.turns.at(-1)?.round ?? round.number;
+                if (on === round.number) return setListing(false);
+                toNote.current = note;
+                toRound(on);
+              }}
+            />
+          )}
           <Column
+            hidden={listing}
             review={review}
             round={round}
             playhead={playhead}
@@ -418,7 +555,12 @@ function OnRound({ review, round, latest, arrived, you, onRound }: OnRoundProps)
             note={row}
             writing={writing && { on: writing.writing, box: composer(writing.writing) }}
             onFlow={playFlow}
+            compare={chosen && chosen.flow === watching ? comparingIt : undefined}
+            others={(name) => goodFor.get(name)?.filter((person) => person !== you) ?? []}
             onDiamond={choose}
+            onPlayOn={playOn}
+            onNoteOn={noteOn}
+            onNote={pick}
             onEnd={(name) => !sentGood(name) && toggleGood(name)}
             onGeneral={readOnly ? undefined : () => write(undefined)}
           />

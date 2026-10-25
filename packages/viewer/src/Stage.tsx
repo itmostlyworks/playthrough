@@ -33,6 +33,9 @@ type Props = {
   earlier?: Round;
   // After the earlier side's name, why it's that round.
   why?: string;
+  // Watching one round, the round Compare goes back to waits unseen over it, and shows while Compare is held.
+  then?: Round;
+  peeking: boolean;
   zoomed: boolean;
   bare?: Bare;
   onShown: (shown: Shown) => void;
@@ -67,8 +70,9 @@ export function Stage(props: Props) {
   const outlinedKey = useRef("");
   const playing = useNow(props.playhead, (now) => now.playing);
   const { review, round, earlier, zoomed } = props;
+  const then = earlier ? undefined : props.then;
 
-  const onScreen = earlier ? [earlier, round] : [round];
+  const onScreen = earlier ? [earlier, round] : then ? [then, round] : [round];
   if (onScreen.some((shown) => !visited.includes(shown.number))) setVisited([...new Set([...visited, ...onScreen.map((shown) => shown.number)])].sort((a, b) => a - b));
 
   const key = (round: Round, flow: Flow) => `${round.number}/${flow.name}`;
@@ -100,7 +104,8 @@ export function Stage(props: Props) {
   };
 
   const paint = () => {
-    const { playhead, round, earlier, zoomed } = latest.current;
+    const { playhead, round, earlier, zoomed, peeking } = latest.current;
+    const then = earlier ? undefined : latest.current.then;
     const room = stage.current;
     if (!room) return;
     const { moment, playing, speed, stopped } = playhead.now;
@@ -118,13 +123,19 @@ export function Stage(props: Props) {
           ]
         : [[round.number, { left: 0, top: 0, width, height }]],
     );
-    for (const [number, frame] of frames.current) frame.hidden = !panes.has(number);
+    if (then) panes.set(then.number, panes.get(round.number)!);
+    for (const [number, frame] of frames.current) {
+      frame.hidden = !panes.has(number);
+      // Laid over the recording, the earlier round is drawn exactly where it is, and fades in only while it's held.
+      frame.toggleAttribute("data-over", number === then?.number);
+      frame.style.opacity = number === then?.number && !peeking ? "0" : "";
+    }
     if (!flow) return;
 
     const gliding = glide.current && performance.now() - glide.current.started < GLIDE ? glide.current : undefined;
     let lead: { view: View; box: Size } | undefined;
-    // The round you're watching first: side by side, the other side shows the same part of the page as it.
-    for (const shown of earlier ? [round, earlier] : [round]) {
+    // The round you're watching first: side by side, or held over it, the other shows the same part of the page as it.
+    for (const shown of earlier ? [round, earlier] : then ? [round, then] : [round]) {
       const frame = frames.current.get(shown.number);
       const pane = panes.get(shown.number)!;
       if (!frame) continue;
@@ -351,7 +362,7 @@ export function Stage(props: Props) {
           key={number}
           ref={(element) => void (element ? frames.current.set(number, element) : frames.current.delete(number))}
           data-frame={number}
-          className={`absolute overflow-hidden rounded-lg bg-paper shadow-frame ${number === round.number && aiming ? "cursor-none" : ""}`}
+          className={`absolute overflow-hidden rounded-lg bg-paper shadow-frame transition-opacity duration-160 ease-calm data-over:pointer-events-none data-over:z-10 ${number === round.number && aiming ? "cursor-none" : ""}`}
           onPointerDown={(event) => press(event, number)}
           onPointerMove={(event) => setAim(number === round.number && aiming && !dragged.current ? pointAt(event, number) : undefined)}
           onPointerLeave={() => setAim(undefined)}
@@ -398,6 +409,12 @@ export function Stage(props: Props) {
             {shown === round && props.bare === "kept" && bareOff("-mt-px ml-auto flex-none self-start")}
           </div>
         ))}
+      {then && (
+        <div className={`pointer-events-none absolute top-0 left-0 flex h-[26px] items-baseline gap-2 px-0.5 pt-0.5 pb-1.5 text-xs text-faint transition-opacity duration-160 ease-calm ${props.peeking ? "opacity-100" : "opacity-0"}`} ref={(element) => void (element ? captions.current.set(then.number, element) : captions.current.delete(then.number))}>
+          <b className="flex-none font-medium text-soft">{roundName(then.number)}</b>
+          {props.why && <span className="truncate">{props.why}</span>}
+        </div>
+      )}
       {!earlier && props.bare === "kept" && bareOff("absolute -top-px left-1/2 -translate-x-1/2")}
     </div>
   );
@@ -416,7 +433,7 @@ function Marks({ playhead, pins, placing, aim, onPin }: { playhead: Playhead; pi
         .map((shown) => (
           <button
             key={shown.id}
-            data-pin
+            data-pin={shown.id}
             className={`${pin} ${shown.fill} cursor-pointer opacity-90 transition duration-150 ease-calm hover:scale-112 hover:opacity-100`}
             style={{ left: `${shown.point.x * 100}%`, top: `${shown.point.y * 100}%` }}
             onClick={(event) => {
@@ -451,7 +468,7 @@ function Outlines({ boxes, outline, onPin }: { boxes: Rect[]; outline?: Outline;
     >
       {i === 0 && (
         <button
-          data-pin
+          data-pin={outline.id}
           aria-label="What changed here"
           className="pointer-events-auto absolute -top-[9px] -right-[9px] grid size-[18px] cursor-pointer place-items-center opacity-90 transition duration-150 ease-calm hover:scale-112 hover:opacity-100"
           onClick={(event) => {

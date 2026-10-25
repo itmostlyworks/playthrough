@@ -62,6 +62,7 @@
   --animate-glow: glow 1.2s ease-out;
   --animate-breathe: breathe 2.4s ease-in-out infinite;
   --animate-arrive: arrive 0.24s var(--ease-calm) both;
+  --animate-rise: rise 0.24s var(--ease-calm);
 
   @keyframes drop {
     0% { scale: 0.3; opacity: 0; }
@@ -76,6 +77,9 @@
   }
   @keyframes arrive {
     from { opacity: 0; }
+  }
+  @keyframes rise {
+    from { opacity: 0; translate: 18px 0; }
   }
 }
 
