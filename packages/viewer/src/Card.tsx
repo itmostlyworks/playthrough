@@ -92,11 +92,13 @@ export function Compare({ held, beside, onHold, onBeside }: { held: boolean; bes
 export const HOLD = 160;
 
 // A row's time plays its moment, as the time on a comment on a video does: quiet at rest, and a pill with the play mark
-// when you point at the row.
-export function Time({ children, className = "" }: { children: ReactNode; className?: string }) {
+// when you point at it. Closed, the whole row opens and plays, so pointing at the row lights it; open, the row closes,
+// and only the time itself plays its moment again.
+export function Time({ children, open = false, className = "" }: { children: ReactNode; open?: boolean; className?: string }) {
+  const lit = open ? "hover:bg-hover hover:text-fg" : "group-hover/row:bg-hover group-hover/row:text-fg";
   return (
-    <span className={`-mr-[7px] inline-flex h-5 min-w-[78px] items-center justify-end gap-[3px] rounded-[10px] pr-[7px] pl-1 text-xs tabular-nums transition-colors duration-150 ease-calm group-hover/row:bg-hover group-hover/row:text-fg ${className}`}>
-      <svg viewBox="0 0 20 20" fill="currentColor" className="size-2.5 opacity-0 transition-opacity duration-150 ease-calm group-hover/row:opacity-100" aria-hidden>
+    <span data-time className={`group/time -mr-[7px] inline-flex h-5 min-w-[78px] items-center justify-end gap-[3px] rounded-[10px] pr-[7px] pl-1 text-xs tabular-nums transition-colors duration-150 ease-calm ${lit} ${className}`}>
+      <svg viewBox="0 0 20 20" fill="currentColor" className={`size-2.5 opacity-0 transition-opacity duration-150 ease-calm ${open ? "group-hover/time:opacity-100" : "group-hover/row:opacity-100"}`} aria-hidden>
         <path d="M7 4.8v10.4c0 .6.7 1 1.2.6l8-5.2a.7.7 0 000-1.2l-8-5.2c-.5-.4-1.2 0-1.2.6z" />
       </svg>
       {children}

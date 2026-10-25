@@ -175,9 +175,15 @@ export function Stage(props: Props) {
     if (then) panes.set(then.number, panes.get(round.number)!);
     for (const [number, frame] of frames.current) {
       frame.hidden = !panes.has(number);
-      // Laid over the recording, the earlier round is drawn exactly where it is, and fades in only while it's held.
-      frame.toggleAttribute("data-over", number === then?.number);
-      frame.style.opacity = number === then?.number && !peeking ? "0" : "";
+      // Laid over the recording, the earlier round is drawn exactly where it is, and fades in only while it's held. Laid
+      // there from beside it, it's unseen at once rather than fading out over the recording.
+      const over = number === then?.number;
+      const arriving = over && !frame.hasAttribute("data-over");
+      frame.toggleAttribute("data-over", over);
+      frame.style.transition = arriving ? "none" : "";
+      frame.style.opacity = over && !peeking ? "0" : "";
+      if (arriving) void frame.offsetWidth;
+      frame.style.transition = "";
     }
     // Watching one round, "All flows" keeps one place whatever the flow's shape: over the left edge of the round's
     // widest recording.
@@ -370,14 +376,15 @@ export function Stage(props: Props) {
     if (zoomed && !matchMedia("(prefers-reduced-motion: reduce)").matches) glide.current = { started: performance.now(), from: new Map(painted.current) };
   }
 
-  // Choosing another view, what's on screen comes in softly.
+  // Choosing another view, what's on screen comes in softly; the earlier round laid over the recording, unseen until
+  // it's held, stays unseen.
   const side = !!earlier;
   const wasSide = useRef(side);
   useLayoutEffect(() => {
     if (wasSide.current === side) return;
     wasSide.current = side;
-    for (const element of stage.current?.querySelectorAll(":scope > :not([hidden])") ?? [])
-      element.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 250, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
+    for (const element of stage.current?.querySelectorAll(":scope > :not([hidden], [data-over])") ?? [])
+      if (getComputedStyle(element).opacity !== "0") element.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 250, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
   }, [side]);
 
   // At actual size, the wheel and a drag move the view around the page.

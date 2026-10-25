@@ -78,14 +78,14 @@ export function NoteRow(props: Props) {
       <button
         className={`group/row grid w-full grid-cols-[18px_minmax(0,1fr)_auto] items-start gap-x-2 py-1.5 pr-2.5 pl-[18px] text-left ${open && props.away ? "[&>:not([data-mark])]:opacity-45" : ""}`}
         onMouseDown={(event) => event.preventDefault()}
-        onClick={open ? props.onClose : props.onOpen}
+        onClick={(event) => (open && !(event.target as Element).closest("[data-time]") ? props.onClose() : props.onOpen())}
         aria-expanded={open}
       >
         <span data-mark className={`${number} relative z-1 mt-px in-data-here:line-ring ${open || here ? real : quiet}`}>
           {note.number}
         </span>
         <span className="truncate">{note.turns[0]?.words}</span>
-        {at === undefined ? <span className="w-[78px]" /> : <Time className={open || here ? "text-[color-mix(in_srgb,var(--c)_80%,var(--fg))]" : "text-faint"}>{time(at)}</Time>}
+        {at === undefined ? <span className="w-[78px]" /> : <Time open={open} className={open || here ? "text-[color-mix(in_srgb,var(--c)_80%,var(--fg))]" : "text-faint"}>{time(at)}</Time>}
         {!open && answers.length > 0 && <Listed answers={answers} className="col-start-2 col-end-4 mt-[3px] text-[12.5px] leading-[18px] text-soft" />}
       </button>
       {open && <Card {...props} />}

@@ -170,14 +170,25 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     if (then !== undefined && then >= number) setThen(undefined);
     onRound(number);
   };
-  // The earlier side, where it's the round you last looked at this flow, says why it's that one.
-  const looked = flow && round === latest ? lastLooked(review, you, flow.name, round.number) : undefined;
-  // What you judge on the latest round is a difference from the round you last looked at its flow, or Before: held,
-  // that round shows in place; clicked, the two go side by side.
-  const compared = round === latest && round.number > first && !review.accepted ? (looked ?? first) : undefined;
-  const [peek, setPeek] = useState(false);
+  const noted = notesOn(review, round.number, you, draft);
   // Only an answer is a difference to judge: a note nobody has answered has nothing to compare.
   const answered = (note: Shown) => note.on?.at !== undefined && note.turns.some((turn) => turn.agent);
+  // An answer is judged against what its note asked about: the round it was written on, or the round it was last sent
+  // back on, whoever wrote it.
+  const noteOpen = open && "note" in open ? noted.find((note) => note.id === open.note) : undefined;
+  const askedIn = noteOpen && answered(noteOpen) ? noteOpen.turns.filter((turn) => !turn.agent && turn.round < round.number).map((turn) => turn.round) : [];
+  const askedFrom = askedIn.length ? Math.max(...askedIn) : undefined;
+  const looked = flow && round === latest ? lastLooked(review, you, flow.name, round.number) : undefined;
+  // What you judge on the latest round is a difference from there, or else from the round you last looked at its flow,
+  // or Before: held, that round shows in place; clicked, the two go side by side. The earlier side says why it's that one.
+  const compared = round === latest && round.number > first && !review.accepted ? (askedFrom ?? looked ?? first) : undefined;
+  const why =
+    askedFrom !== undefined
+      ? `· when note ${noteOpen!.number} was ${askedFrom === noteOpen!.written ? "written" : "sent back"}`
+      : compared === looked
+        ? "· when you last looked"
+        : undefined;
+  const [peek, setPeek] = useState(false);
   const beside = comparing && earlier?.number === compared;
   const comparingIt: Comparing | undefined = compared === undefined ? undefined : {
     held: peek,
@@ -214,7 +225,6 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
 
   // Before is how the app was: it's there to look back on, and notes go on the rounds after it.
   const readOnly = !!review.accepted || round.number === 0 || (round !== latest && !arrived);
-  const noted = notesOn(review, round.number, you, draft);
   const read = useReadings(review, [round.number, ...(earlier ? [earlier.number] : []), ...(compared === undefined ? [] : [compared]), ...noted.map((note) => note.written)]);
   // Each note sits where its thing is on this round: its moment here, on what it's on here, once that's found. One on
   // something this round doesn't have is lost here.
@@ -269,8 +279,8 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   // Paused on a change, with nothing else open, it's outlined where it is on the page; chosen, more firmly.
   const outlined = changeOpen?.flow === watching ? changeOpen : !open ? diamonds.find((diamond) => diamond.id === onNow) : undefined;
 
-  // Opened, a row in the column plays its moment, from its start each time: a click on its header opens it or closes
-  // it, and never plays or pauses anything else.
+  // Opened, a row in the column plays its moment, from its start each time, and its time plays it again: a click on the
+  // rest of its header opens it or closes it, and never plays or pauses anything else.
   const running = useRef<string>(undefined);
   const play = (id: string, from: Moment, until: number) => {
     running.current = id;
@@ -865,7 +875,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
             playhead={playhead}
             round={round}
             earlier={earlier}
-            why={(earlier ?? comparedRound)?.number === looked ? "· when you last looked" : undefined}
+            why={(earlier ?? comparedRound)?.number === compared ? why : undefined}
             then={comparedRound}
             peeking={peek}
             zoomed={zoomed}

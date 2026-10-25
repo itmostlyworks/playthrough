@@ -335,13 +335,13 @@ function ChangeRow(props: Props & { diamond: Diamond; inside: { id: string; open
       data-open={open ? "" : undefined}
       className={`relative rounded-r-lg transition-colors duration-150 ease-calm [--c:var(--soft)] ${open ? opened : lit === diamond.id ? "bg-hover" : "hover:bg-hover"}`}
     >
-      <button className="group/row grid w-full grid-cols-[18px_minmax(0,1fr)] gap-2 py-1.5 pr-2.5 pl-[18px] text-left" onMouseDown={keepKeys} onClick={() => (open ? onClose() : onDiamond(diamond))} aria-expanded={open}>
+      <button className="group/row grid w-full grid-cols-[18px_minmax(0,1fr)] gap-2 py-1.5 pr-2.5 pl-[18px] text-left" onMouseDown={keepKeys} onClick={(event) => (open && !(event.target as Element).closest("[data-time]") ? onClose() : onDiamond(diamond))} aria-expanded={open}>
         <span data-mark className="group/mark relative z-1 mt-px grid size-[18px] place-items-center">
           <i className="size-2 rotate-45 bg-ground shadow-[inset_0_0_0_1.5px_var(--fg),0_0_0_2.5px_var(--ground)] group-data-played/mark:bg-fg group-data-played/mark:shadow-[0_0_0_2.5px_var(--ground)]" />
           {inside.length > 0 && <b className="absolute top-[calc(50%-8px)] left-[calc(50%+2px)] size-1.5 rounded-full shadow-[0_0_0_1.5px_var(--ground)]" style={{ background: note ? ink(note) : "var(--amber)" }} />}
         </span>
         <span className="-mr-[7px] block max-h-10 min-w-0 overflow-hidden pr-[7px]">
-          <Time className="float-right ml-2 text-faint">{when(diamond)}</Time>
+          <Time open={open} className="float-right ml-2 text-faint">{when(diamond)}</Time>
           <span className="block leading-5 [overflow-wrap:anywhere]">{diamond.name}</span>
         </span>
       </button>
