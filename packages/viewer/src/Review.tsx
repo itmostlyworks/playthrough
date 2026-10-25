@@ -303,8 +303,9 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     setMet((met) => (met.includes(note.id) ? met : [...met, note.id]));
     if (note.on) go(note.on.flow, note.on.at);
   };
-  // Chosen, a note opens and plays its moment, from a beat before it to a second after; one on a whole flow plays the
-  // flow, going on if it's already playing.
+  // Chosen, a note opens and plays its moment, from a beat before it to the frame it was written on (the end of its
+  // stretch), as a change plays to where it is: past it, the page may have moved its thing away. One on a whole flow
+  // plays the flow, going on if it's already playing.
   const pick = (note: Shown) => {
     const on = note.on;
     const its = on && round.flows.find((flow) => flow.name === on.flow);
@@ -316,7 +317,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     }
     setOpen({ note: note.id });
     setMet((met) => (met.includes(note.id) ? met : [...met, note.id]));
-    play(note.id, { flow: on.flow, at: Math.max(0, on.at - 0.8) }, Math.min(its.length, (on.until ?? on.at) + 1));
+    play(note.id, { flow: on.flow, at: Math.max(0, on.at - 0.8) }, Math.min(its.length, on.until ?? on.at));
   };
 
   // Playing stops at each answer that waits for you, the first time it gets there, and opens it as a click on it would.
