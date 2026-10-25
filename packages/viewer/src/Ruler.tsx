@@ -2,13 +2,13 @@
 // note. Nothing here changes width as it plays.
 
 import { useRef, type PointerEvent } from "react";
-import type { Flow } from "@vantage/review";
+import { time, type Flow } from "@vantage/review";
 import { usePlaying, useTime, type Player } from "./player.ts";
 
 export type Dot = { id: string; at: number; until?: number; fill: string };
 
 export function Ruler({ player, flow, dots, onDot }: { player: Player | undefined; flow: Flow; dots: Dot[]; onDot: (id: string) => void }) {
-  const time = useTime(player);
+  const now = useTime(player);
   const playing = usePlaying(player);
   const line = useRef<HTMLDivElement>(null);
   const share = (seconds: number) => `${(Math.min(seconds, flow.length) / flow.length) * 100}%`;
@@ -36,7 +36,7 @@ export function Ruler({ player, flow, dots, onDot }: { player: Player | undefine
           )}
         </svg>
       </button>
-      <span className="w-9 text-soft tabular-nums">{clock(time)}</span>
+      <span className="w-9 text-soft tabular-nums">{time(now)}</span>
       <div
         ref={line}
         className="relative h-9 min-w-30 flex-1 cursor-pointer touch-none"
@@ -47,7 +47,7 @@ export function Ruler({ player, flow, dots, onDot }: { player: Player | undefine
         onPointerMove={(event) => event.currentTarget.hasPointerCapture(event.pointerId) && scrub(event)}
       >
         <div className="absolute inset-x-0 top-[17px] h-0.5 rounded-full bg-line">
-          <div className="absolute top-0 left-0 h-0.5 rounded-full bg-faint" style={{ width: share(time) }} />
+          <div className="absolute top-0 left-0 h-0.5 rounded-full bg-faint" style={{ width: share(now) }} />
         </div>
         {flow.steps.slice(1).map((step) => (
           <span key={step.title} className="absolute top-[15px] -ml-px h-1.5 w-0.5 rounded-full bg-faint" style={{ left: share(step.at) }} title={step.title} />
@@ -61,11 +61,9 @@ export function Ruler({ player, flow, dots, onDot }: { player: Player | undefine
             onClick={() => onDot(dot.id)}
           />
         ))}
-        <div className="absolute top-[9px] bottom-[9px] z-10 -ml-px w-0.5 rounded-full bg-fg" style={{ left: share(time) }} />
+        <div className="absolute top-[9px] bottom-[9px] z-10 -ml-px w-0.5 rounded-full bg-fg" style={{ left: share(now) }} />
       </div>
-      <span className="w-9 text-right text-faint tabular-nums">{clock(flow.length)}</span>
+      <span className="w-9 text-right text-faint tabular-nums">{time(flow.length)}</span>
     </div>
   );
 }
-
-export const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;

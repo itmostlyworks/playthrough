@@ -54,7 +54,7 @@ export function newToYou(review: Review, round: number, you: string): Shown[] {
 }
 
 // Your notes are the ones you've said something on, up to this round: you wrote them, or judged an answer on them.
-function yourNotes(review: Review, round: number, you: string): Map<string, Turn[]> {
+export function yourNotes(review: Review, round: number, you: string): Map<string, Turn[]> {
   const yours = new Map<string, Turn[]>();
   for (const id of allNotes(review).keys()) {
     const turns = conversation(review, id).filter((turn) => turn.round <= round);
@@ -63,14 +63,15 @@ function yourNotes(review: Review, round: number, you: string): Map<string, Turn
   return yours;
 }
 
+// A note's latest answer is yours to judge until you've said whether it fixes it. Anyone can, on anyone's note.
+export function toJudge(turns: Turn[], you: string): boolean {
+  const answered = turns.findLast((turn) => turn.agent)?.round;
+  return answered !== undefined && !turns.some((turn) => !turn.agent && turn.by === you && turn.verdict && turn.round >= answered);
+}
+
 // One of your notes waits for you once it has an answer you haven't judged.
 export function waitingForYou(review: Review, round: number, you: string): string[] {
-  return [...yourNotes(review, round, you)]
-    .filter(([, turns]) => {
-      const answered = turns.findLast((turn) => turn.agent)?.round;
-      return answered !== undefined && !turns.some((turn) => !turn.agent && turn.by === you && turn.verdict && turn.round >= answered);
-    })
-    .map(([id]) => id);
+  return [...yourNotes(review, round, you)].filter(([, turns]) => toJudge(turns, you)).map(([id]) => id);
 }
 
 // A flow is good for you once you've said it looks good, while nothing new to you is told in it on the rounds since and

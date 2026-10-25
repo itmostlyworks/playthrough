@@ -1,11 +1,10 @@
 // Starts a review: what was asked, in the person's words, and the flows that will show it, written before anything changes
 // so they show the task as the person put it. Run again once they're written, it records Before: the app as it is.
 
-import { Refused } from "@vantage/review";
+import { list, quote, Refused } from "@vantage/review";
 import { agent } from "./agent.ts";
 import { howToWriteFlows, makeFlowsFolder, runFlows } from "./flows.ts";
 import type { Repo } from "./repo.ts";
-import { list, quote } from "./words.ts";
 
 export async function start(repo: Repo, id: string, title?: string) {
   if (!(await repo.reviews.list()).includes(id)) {

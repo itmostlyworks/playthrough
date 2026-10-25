@@ -1,5 +1,6 @@
 // The recording, as large as fits and never larger than it was recorded, with the notes on it pinned where they are.
-// While it's paused, a click drops a pin there and starts a note on that moment; while it plays, a click pauses it.
+// While it's paused, a click drops a pin there and starts a note on that moment, on a round that takes notes; while it
+// plays, a click pauses it.
 
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import type { Point } from "@vantage/review";
@@ -20,10 +21,10 @@ export function Recording(props: {
   host: (element: HTMLDivElement | null) => void;
   pins: Pin[];
   placing?: Point;
-  onPlace: (point: Point) => void;
+  onPlace?: (point: Point) => void;
   onPin: (id: string) => void;
 }) {
-  const { player, pins, placing } = props;
+  const { player, pins, placing, onPlace } = props;
   const time = useTime(player);
   const playing = usePlaying(player);
   const stage = useRef<HTMLDivElement>(null);
@@ -59,10 +60,10 @@ export function Recording(props: {
           style={{ width: recorded.width, height: recorded.height, transform: `scale(${width / recorded.width})` }}
         />
         <div
-          className={`absolute inset-0 z-10 ${playing ? "" : "cursor-none"}`}
-          onPointerMove={(event) => !playing && setAim(pointAt(event))}
+          className={`absolute inset-0 z-10 ${playing || !onPlace ? "" : "cursor-none"}`}
+          onPointerMove={(event) => !playing && onPlace && setAim(pointAt(event))}
           onPointerLeave={() => setAim(undefined)}
-          onClick={(event) => (playing ? player?.pause() : props.onPlace(pointAt(event)))}
+          onClick={(event) => (playing ? player?.pause() : onPlace?.(pointAt(event)))}
         >
           {pins
             .filter((shown) => time >= shown.at - 0.05 && time <= (shown.until ?? shown.at) + SHOWN_FOR)

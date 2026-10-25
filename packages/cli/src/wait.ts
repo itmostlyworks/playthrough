@@ -1,10 +1,9 @@
 // Hands the round over and waits for what people say about it. Handing over finishes the round, which the rules allow once
 // every note is answered. Then it waits for a send that asks for something, takes it, and prints the notes to answer.
 
-import { allNotes, conversation, notesToAnswer, Refused, roundInProgress, type Place } from "@vantage/review";
+import { allNotes, conversation, list, notesToAnswer, quote, Refused, roundInProgress, time, type Place } from "@vantage/review";
 import { agent } from "./agent.ts";
 import type { Repo } from "./repo.ts";
-import { list, quote, time } from "./words.ts";
 
 export async function wait(repo: Repo, id: string) {
   const reviews = repo.reviews;

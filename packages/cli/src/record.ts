@@ -1,11 +1,10 @@
 // Records the round being worked on: runs every flow like a person would, keeps each recording, and says what's left
 // before the round can be handed over. Recording again keeps whatever the agent already wrote in the round.
 
-import { notesToAnswer, problemsFinishing, Refused, roundInProgress, type Reply } from "@vantage/review";
+import { list, notesToAnswer, problemsFinishing, quote, Refused, roundInProgress, type Reply } from "@vantage/review";
 import { agent, unnamed } from "./agent.ts";
 import { runFlows } from "./flows.ts";
 import type { Repo } from "./repo.ts";
-import { list, quote } from "./words.ts";
 
 export async function record(repo: Repo, id: string) {
   const review = await repo.reviews.get(id);

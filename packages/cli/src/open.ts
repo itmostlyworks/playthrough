@@ -50,7 +50,7 @@ async function answer(repo: Repo, page: string, you: string, request: IncomingMe
 
   if (request.method === "GET" && !id) {
     const all = await Promise.all((await reviews.list()).map((id) => reviews.get(id)));
-    return json(response, 200, all.map(({ id, title, rounds, accepted }) => ({ id, title, rounds: rounds.filter((round) => round.finished).length, accepted: !!accepted })));
+    return json(response, 200, all.map(({ id, title, rounds, accepted }) => ({ id, title, rounds: rounds.filter((round) => round.finished && round.number > 0).length, accepted: !!accepted })));
   }
   if (!id) return json(response, 404, { problems: [`There's nothing at ${path}.`] });
 

@@ -2,9 +2,8 @@
 // A new note is written where it will live, never over the recording.
 
 import { useEffect, useRef, useState } from "react";
-import type { Verdict } from "@vantage/review";
+import { list, time, type Verdict } from "@vantage/review";
 import { fill, type Shown } from "./notes.ts";
-import { clock } from "./Ruler.tsx";
 
 export const number = "size-[18px] flex-none rounded-full text-center text-[10px] leading-[18px] font-semibold text-white";
 
@@ -25,7 +24,7 @@ export function NoteRow(props: {
       <button className="grid w-full grid-cols-[18px_minmax(0,1fr)_auto] items-start gap-2 px-2.5 py-2 text-left" onClick={open ? props.onClose : props.onOpen} aria-expanded={open}>
         <span className={`${number} mt-px ${fill(note)}`}>{note.number}</span>
         <span className={open ? "" : "truncate"}>{note.turns[0]?.words}</span>
-        <span className="text-xs leading-5 text-faint tabular-nums">{note.on?.at === undefined ? "" : clock(note.on.at)}</span>
+        <span className="text-xs leading-5 text-faint tabular-nums">{note.on?.at === undefined ? "" : time(note.on.at)}</span>
       </button>
       {open && <Card {...props} />}
     </div>
@@ -57,7 +56,8 @@ function Card({ note, you, readOnly, onJudge, onEdit, onClose }: Parameters<type
           {turn.words}
         </p>
       ))}
-      {readOnly ? null : note.state === "needs you" || judged ? (
+      {!readOnly && note.state === "with someone else" && <p className="text-xs text-slate">Waiting for {list(note.waitingFor)}</p>}
+      {readOnly ? null : note.toJudge || judged ? (
         <>
           <p className="mt-1 font-medium">Does this fix it?</p>
           <div className="flex gap-2">

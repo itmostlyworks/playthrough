@@ -5,6 +5,7 @@ import { useSyncExternalStore } from "react";
 import { EventType, Replayer, type eventWithTime } from "rrweb";
 
 export type Events = eventWithTime[];
+export type Stop = { at: number; reached: () => void };
 
 export class Player {
   length: number;
@@ -14,6 +15,7 @@ export class Player {
   #time = 0;
   #playing = false;
   #frame = 0;
+  #stops: Stop[] = [];
   #listeners = new Set<() => void>();
 
   constructor(events: Events, host: HTMLElement, length: number) {
@@ -45,11 +47,23 @@ export class Player {
     this.#replayer.play(this.#time * 1000);
     const tick = () => {
       if (!this.#playing) return;
+      const was = this.#time;
       this.#time = Math.min(this.length, this.#replayer.getCurrentTime() / 1000);
+      const stop = this.#stops.find((stop) => stop.at > was && stop.at <= this.#time);
+      if (stop) {
+        this.pause();
+        this.seek(stop.at);
+        return stop.reached();
+      }
       this.#changed();
       this.#frame = requestAnimationFrame(tick);
     };
     tick();
+  }
+
+  // Where playing stops by itself on its way past. Playing on from one goes on.
+  stopAt(stops: Stop[]) {
+    this.#stops = stops;
   }
 
   pause() {
