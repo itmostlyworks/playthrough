@@ -78,7 +78,7 @@ describe("Reading a page", () => {
     assert.equal(find(things, "box", "Payment failed").wordsInside, "Payment failed");
   });
 
-  test("words set apart inside words are part of them, and what's laid out apart reads apart", async () => {
+  test("words marked inside words are part of them, and what's laid out apart reads apart", async () => {
     const { page } = await open(`
       <p>Total for <b>Q3</b> $27,785.00</p>
       <a href="/hsbc"><span style="display: block">HSBC</span><span style="display: block">7,810.00</span></a>`);

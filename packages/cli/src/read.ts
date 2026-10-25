@@ -7,7 +7,7 @@ import type { Page } from "@playwright/test";
 export type Thing = {
   role: string; // button, link, dialog, table, heading…; text for words with no role of their own; box for a panel or bar
   name: string; // what a person would call it: its label, its words, or a panel's own label or first words
-  words: string; // what it says itself, with what's set apart inside it (“Total for Q3 $27,785”)
+  words: string; // what it says itself, with words marked inside it, bold or in a span (“Total for Q3 $27,785”)
   wordsInside?: string; // every word in a panel or menu: one that holds the same words is the same one, wherever it went
   box: { x: number; y: number; width: number; height: number }; // on the screen, in pixels
   page: { x: number; y: number }; // on the page, so a page scrolled further hasn't moved everything on it
@@ -31,7 +31,7 @@ function read() {
   const ROLES = /^(button|link|dialog|alertdialog|group|radiogroup|table|grid|treegrid|heading|status|alert|textbox|searchbox|combobox|checkbox|radio|switch|slider|listbox|option|tab|menu|menuitem|img)$/;
   const HOLDERS = /^(dialog|alertdialog|status|alert|group|radiogroup|table|grid|treegrid|listbox|menu|box)$/;
   const NAMED_BY_WORDS = /^(button|link|heading|option|tab|menuitem|radio|checkbox|switch)$/;
-  const SET_APART = /^(B|STRONG|I|EM|U|S|MARK|SMALL|CODE|KBD|SPAN|ABBR|TIME|SUB|SUP|Q|DATA|VAR|DEL|INS|BDI|CITE|DFN)$/;
+  const MARKED = /^(B|STRONG|I|EM|U|S|MARK|SMALL|CODE|KBD|SPAN|ABBR|TIME|SUB|SUP|Q|DATA|VAR|DEL|INS|BDI|CITE|DFN)$/;
   const INPUTS: Record<string, string> = { checkbox: "checkbox", radio: "radio", range: "slider", button: "button", submit: "button", reset: "button", search: "searchbox" };
   const TAGS: Record<string, string> = {
     BUTTON: "button", SUMMARY: "button", DIALOG: "dialog", TABLE: "table", SELECT: "combobox", TEXTAREA: "textbox", OUTPUT: "status", FIELDSET: "group", IMG: "img",
@@ -54,6 +54,12 @@ function read() {
     return TAGS[element.tagName];
   }
 
+  // A space between words laid out apart: on lines of their own, or with room between them.
+  const apart = (element: Element, side: "Left" | "Right") => {
+    const looks = style(element);
+    return !looks.display.startsWith("inline") || parseFloat(looks[`margin${side}`]) + parseFloat(looks[`padding${side}`]) > 0 ? " " : "";
+  };
+
   // Words as a person reads them: a space between words laid out apart, where the page's own text may run them together
   // (Actual's “HSBC7,810.00” is “HSBC 7,810.00”).
   function spoken(element: Element): string {
@@ -61,25 +67,20 @@ function read() {
     for (const node of element.childNodes) {
       if (node.nodeType === Node.TEXT_NODE) words += node.textContent;
       else if (node instanceof HTMLBRElement) words += " ";
-      else if (node instanceof Element) {
-        const looks = style(node);
-        const apart = (side: "Left" | "Right") => (!looks.display.startsWith("inline") || parseFloat(looks[`margin${side}`]) + parseFloat(looks[`padding${side}`]) > 0 ? " " : "");
-        words += apart("Left") + spoken(node) + apart("Right");
-      }
+      else if (node instanceof Element) words += apart(node, "Left") + spoken(node) + apart(node, "Right");
     }
     return words;
   }
 
-  // What it says itself, with words set apart inside it, bold or in a span, as part of it.
+  // What it says itself, with words marked inside it as part of it.
   function ownWords(element: Element): string {
     let words = "";
     for (const node of element.childNodes) {
       if (node.nodeType === Node.TEXT_NODE) words += node.textContent;
-      else if (node instanceof Element && SET_APART.test(node.tagName) && !called(node) && !panel(node)) {
+      else if (node instanceof Element && MARKED.test(node.tagName) && !called(node) && !panel(node)) {
         const looks = style(node);
         if (looks.display === "none" || looks.visibility === "hidden") continue;
-        const apart = (side: "Left" | "Right") => (parseFloat(looks[`margin${side}`]) + parseFloat(looks[`padding${side}`]) > 0 ? " " : "");
-        words += apart("Left") + ownWords(node) + apart("Right");
+        words += apart(node, "Left") + ownWords(node) + apart(node, "Right");
       }
     }
     return plain(words);
@@ -186,7 +187,7 @@ function read() {
           ...(wordsInside && wordsInside !== words && { wordsInside }),
           box: { x: Math.round(box.left), y: Math.round(box.top), width: Math.round(box.width), height: Math.round(box.height) },
           page: { x: Math.round(box.left + scrollX), y: Math.round(box.top + scrollY) },
-          look: { color: looks.color, background: looks.backgroundColor, size: looks.fontSize, weight: looks.fontWeight, border: `${looks.borderTopWidth} ${looks.borderTopStyle} ${looks.borderTopColor}` },
+          look: { color: looks.color, background: looks.backgroundColor, size: looks.fontSize, weight: looks.fontWeight, border: parseFloat(looks.borderTopWidth) && looks.borderTopStyle !== "none" ? `${looks.borderTopWidth} ${looks.borderTopStyle} ${looks.borderTopColor}` : "none" },
           ...(holder !== undefined && { holder }),
           ...(parent !== undefined && { parent }),
           ...(column && { column }),
