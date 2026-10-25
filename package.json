@@ -5,7 +5,8 @@
   "workspaces": ["packages/*"],
   "engines": { "node": ">=24" },
   "scripts": {
-    "test": "node --test \"packages/*/test/*.test.ts\"",
+    "test": "node --test \"packages/*/test/*.test.ts\" \"packages/*/test/loop/*.test.ts\"",
+    "quick": "node --test \"packages/*/test/*.test.ts\"",
     "check": "tsc",
     "build": "npm run build --workspace @vantage/viewer"
   },

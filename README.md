@@ -45,6 +45,6 @@ npx vantage wait overdue
 npx vantage open overdue           # in another terminal
 ```
 
-`npm test` holds the review model, the comparison, the command line and what the viewer shows each person to their promises. The comparison's rules are each tested on two small pages, and the command line is run for real in Chromium, in a copy of the example made a git repo. `npm run check` checks the types. While working on the viewer, `npm run dev --workspace @vantage/viewer` serves it with instant reloads beside a running `vantage open`.
+`npm test` holds the review model, the comparison, the command line and what the viewer shows each person to their promises, in about a minute and a half. The comparison's rules are each tested on two small pages, and the command line is run for real in Chromium, as two stories side by side, each in a copy of the example made a git repo. While iterating, `npm run quick` runs everything but those two stories, in about ten seconds; run `npm test` before each commit. `npm run check` checks the types. While working on the viewer, `npm run dev --workspace @vantage/viewer` serves it with instant reloads beside a running `vantage open`.
 
 Needs Node 24 or later, which runs the TypeScript as it is.
