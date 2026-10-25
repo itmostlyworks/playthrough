@@ -4,25 +4,28 @@ Review an AI agent's work on a web app by watching recordings of it, saying what
 
 Early work. What's here so far:
 
-- **`packages/review`**: what a review is, and the store that keeps it. A review is rounds the agent records and sends people make, each with one writer. The store takes the loop's steps (start, save a round, take the notes, finish, send, accept, wait) and refuses anything that breaks a rule, saying what's wrong in plain words. It keeps reviews in memory or in a folder.
-- **`packages/cli`**: the four commands an agent runs, over the store, with reviews kept in `.vantage/` in the app's repo.
-- **`packages/viewer`**: the page a person reviews in. Bare so far: a round's flows, a recording playing, notes on a moment, a flow or the work, Looks good or Not quite on each answer, send and accept.
+- **`packages/review`**: what a review is, and the store that keeps it. A review is rounds the agent records and sends people make, each with one writer. The store takes the loop's steps (start, save a round, take the notes, finish, send, accept, wait) and refuses anything that breaks a rule, saying what's wrong in plain words. It keeps reviews in memory or in a folder. Several people can review, and each person's judgement is their own: what's new to you, which notes wait for you, and whether a flow is good for you are worked out for each person, never kept.
+- **`packages/cli`**: the commands an agent runs, over the store, with reviews kept in `.vantage/` in the app's repo.
+- **`packages/viewer`**: the page a person reviews in. Bare so far: a round's flows, Before among the rounds, a recording that stops at each answer waiting for you, notes on a moment, a flow or the work, Looks good or Not quite on each answer and Looks good on each flow, each shown with whose it is, send and accept. What changed between rounds isn't shown yet.
 - **`example`**: a small invoices app to try it on.
 
 ## The loop
 
 ```bash
 vantage start <review> "<title>"   # what was asked, in the person's words
+vantage start <review>             # once its flows are written: Before, the app as it is
 vantage record <review>            # records every flow, the way a person would use it
 vantage wait <review>              # hands the round over, then waits for the notes to answer
 vantage open [<review>]            # the viewer, on this machine
 ```
 
-1. The agent starts a review and writes its flows in `.vantage/<review>/flows/`: one Playwright test for each thing a person does, with a `test.step` for each part of it, importing `test` and `expect` from `@vantage/cli/test`. The test's name is the flow's.
-2. `vantage record` starts the app as `vantage/app.json` says (`{ "start": "<command>", "url": "<address>" }`), runs each flow with rrweb in every page, the pointer gliding to what it acts on and a beat after each action, and keeps each recording with where its steps start. A flow that fails records nothing.
-3. The agent answers each note by writing in the round's file, `.vantage/<review>/rounds/<n>/round.json`, where `record` left a reply for each with empty words. Recording again keeps what it wrote.
-4. `vantage wait` hands the round over, which the rules allow once every note has an answer; if one hasn't, it says which. Then it waits for a send that asks for something and prints each note to answer, with its conversation so far.
-5. In the viewer, the person watches, leaves notes, says Looks good or Not quite to each answer, and sends. When nothing's left, they accept the work, and `wait` says the review is done.
+1. The agent starts a review and writes its flows in `.vantage/<review>/flows/` before it changes anything. They show what was asked, so they're written from the task, not the code: by a fresh subagent given the task and what the screens look like, where the agent can start one. Each flow is one Playwright test for each thing a person does, with a `test.step` for each part of it, importing `test` and `expect` from `@vantage/cli/test`. The test's name is the flow's.
+2. `vantage start <review>` again records Before: each flow on the app as it is, as far as the app can take it. What a flow expects of the finished work only waits a moment there, and a flow stops only where the app can't do a step, kept up to that step. Before is recorded once.
+3. The agent changes the app. `vantage record` starts it as `vantage/app.json` says (`{ "start": "<command>", "url": "<address>" }`), runs each flow with rrweb in every page, the pointer gliding to what it acts on and a beat after each action, and keeps each recording with where its steps start. A flow that fails records nothing, and `record` names it and the step it failed at.
+4. The agent answers each note by writing in the round's file, `.vantage/<review>/rounds/<n>/round.json`, where `record` left a reply for each with empty words. A flow that's new to the reviewer can have a `line` at its start: what it starts from, or the choice it shows. Recording again keeps what it wrote.
+5. Each round says which agent recorded it. Claude Code, Codex, Cursor and Gemini CLI are known from their shell; any other agent writes its name in the round as `by`, and `record` asks it to until it does.
+6. `vantage wait` hands the round over, which the rules allow once every note has an answer; if one hasn't, it says which. Then it waits for a send that asks for something and prints each note to answer, with its conversation so far and whose each verdict is.
+7. In the viewer, each person watches, leaves notes, says Looks good or Not quite to each answer and Looks good to each flow, and sends. A Not quite from anyone sends a note back to the agent. Anyone can accept once every flow is good for them and nothing waits for the agent, and `wait` says the review is done.
 
 ## Trying it
 
@@ -32,12 +35,14 @@ npx playwright install chromium
 npm run build                      # the viewer
 cd example
 npx vantage start overdue "Show only the overdue invoices"
-# write a flow in .vantage/overdue/flows/, then:
+# write its flows in .vantage/overdue/flows/, then record Before:
+npx vantage start overdue
+# change the app, then:
 npx vantage record overdue
 npx vantage wait overdue
 npx vantage open overdue           # in another terminal
 ```
 
-`npm test` holds the store and the command line to their promises; the command line's run for real in Chromium, in a copy of the example. `npm run check` checks the types. While working on the viewer, `npm run dev --workspace @vantage/viewer` serves it with instant reloads beside a running `vantage open`.
+`npm test` holds the review model, the command line and what the viewer shows each person to their promises; the command line's run for real in Chromium, in a copy of the example. `npm run check` checks the types. While working on the viewer, `npm run dev --workspace @vantage/viewer` serves it with instant reloads beside a running `vantage open`.
 
 Needs Node 24 or later, which runs the TypeScript as it is.
