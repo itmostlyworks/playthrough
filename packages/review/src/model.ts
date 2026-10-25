@@ -110,6 +110,7 @@ export const Note = z.strictObject({
 // What the agent recorded, and what it says about it. Once finished, a round never changes.
 export const Round = z.strictObject({
   number: z.number().int().min(0).describe("Round 0 is Before: the app as it was"),
+  by: text("needs to say which agent recorded it").describe("By the name it goes by, “Claude Code” or “Codex”: one review can pass between agents"),
   flows: z.array(Flow),
   replies: z.array(Reply).describe("The agent's answer to each note that asks for one"),
   accounts: z.record(z.string(), Account).describe("What the agent says about each change new since the round before, by its id"),

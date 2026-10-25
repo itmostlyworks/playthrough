@@ -42,7 +42,9 @@ export async function record(repo: Repo, id: string) {
   const waiting: Reply[] = notesToAnswer(review, number)
     .filter((note) => !written.some((reply) => reply.note === note))
     .map((note) => ({ note, words: "" }));
-  await repo.reviews.saveRound(id, { number, flows: recorded, replies: [...written, ...waiting], accounts: saved?.accounts ?? {} });
+  // Claude Code says in its shell that it's Claude Code. Any other agent writes its name in the round, as `by`, once.
+  const by = process.env.CLAUDECODE ? "Claude Code" : ((saved ?? review.rounds.at(-1))?.by ?? "Agent");
+  await repo.reviews.saveRound(id, { number, by, flows: recorded, replies: [...written, ...waiting], accounts: saved?.accounts ?? {} });
   await rm(folder, { recursive: true });
 
   const left = problemsFinishing(await repo.reviews.get(id), number);

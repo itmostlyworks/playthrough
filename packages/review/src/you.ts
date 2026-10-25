@@ -2,7 +2,7 @@
 // for you, whether a flow is good for you, and whether you can accept. Each person's judgement is their own.
 
 import type { Change, Place, Review } from "./model.ts";
-import { accountOf, allNotes, conversation, problemsAccepting, waitingForTheAgent } from "./rules.ts";
+import { accountOf, allNotes, conversation, problemsAccepting, waitingForTheAgent, type Turn } from "./rules.ts";
 
 // The last round before `before` you said something about a flow on: a note in it, a verdict on an answer in it, or
 // Looks good on it. Once you have, you've seen what's in it. Nothing for a flow you haven't.
@@ -34,15 +34,16 @@ export function newToYou(review: Review, round: number, you: string): Shown[] {
   const notes = allNotes(review);
   const order = recorded.flows.map((flow) => flow.name);
 
+  const found = comparisons.flatMap((comparison) => comparison.changes);
   const shown: Shown[] = [];
-  for (const id of new Set(comparisons.flatMap((comparison) => comparison.changes.map((change) => change.id)))) {
+  for (const id of new Set(found.map((change) => change.id))) {
     const account = accountOf(review, round, id);
     if (account && "notReal" in account) continue;
-    const flows = new Set(comparisons.flatMap((comparison) => comparison.changes.filter((change) => change.id === id).flatMap((change) => change.seen.map((seen) => seen.flow))));
+    const flows = new Set(found.filter((change) => change.id === id).flatMap((change) => change.seen.map((seen) => seen.flow)));
     const looked = [...flows].map((flow) => lastLooked(review, you, flow, round)).filter((looked) => looked !== undefined);
     const since = looked.length ? Math.max(...looked) : first;
     const change = comparisons.find((comparison) => comparison.since === since)?.changes.find((change) => change.id === id);
-    if (!change) continue;
+    if (!change) continue; // the same as when you last looked
 
     const noted = account && "note" in account ? notes.get(account.note)?.note.on?.flow : undefined;
     const flow = [noted, ...order].find((name) => change.seen.some((seen) => seen.flow === name)) ?? change.seen[0]!.flow;
@@ -52,15 +53,24 @@ export function newToYou(review: Review, round: number, you: string): Shown[] {
   return shown.sort((a, b) => order.indexOf(a.on.flow) - order.indexOf(b.on.flow) || (a.on.at ?? 0) - (b.on.at ?? 0));
 }
 
-// Your notes are the ones you wrote and the ones whose answer you've judged. One waits for you once it has an answer,
-// up to this round, that you haven't judged.
-export function waitingForYou(review: Review, round: number, you: string): string[] {
-  return [...allNotes(review).keys()].filter((id) => {
+// Your notes are the ones you've said something on, up to this round: you wrote them, or judged an answer on them.
+function yourNotes(review: Review, round: number, you: string): Map<string, Turn[]> {
+  const yours = new Map<string, Turn[]>();
+  for (const id of allNotes(review).keys()) {
     const turns = conversation(review, id).filter((turn) => turn.round <= round);
-    const yours = turns[0]?.by === you || turns.some((turn) => turn.by === you && turn.verdict);
-    const answered = turns.findLast((turn) => turn.by === "agent")?.round;
-    return yours && answered !== undefined && !turns.some((turn) => turn.by === you && turn.verdict && turn.round >= answered);
-  });
+    if (turns.some((turn) => !turn.agent && turn.by === you)) yours.set(id, turns);
+  }
+  return yours;
+}
+
+// One of your notes waits for you once it has an answer you haven't judged.
+export function waitingForYou(review: Review, round: number, you: string): string[] {
+  return [...yourNotes(review, round, you)]
+    .filter(([, turns]) => {
+      const answered = turns.findLast((turn) => turn.agent)?.round;
+      return answered !== undefined && !turns.some((turn) => !turn.agent && turn.by === you && turn.verdict && turn.round >= answered);
+    })
+    .map(([id]) => id);
 }
 
 // A flow is good for you once you've said it looks good, while nothing new to you is told in it on the rounds since and
@@ -72,8 +82,8 @@ export function goodForYou(review: Review, round: number, you: string, flow: str
     if (newToYou(review, later, you).some((shown) => shown.on.flow === flow)) return false;
 
   const notes = allNotes(review);
-  const mine = (id: string) => notes.get(id)?.by === you || conversation(review, id).some((turn) => turn.by === you && turn.verdict);
-  const waiting = [...waitingForYou(review, round, you), ...waitingForTheAgent(review).filter(mine)];
+  const yours = yourNotes(review, round, you);
+  const waiting = [...waitingForYou(review, round, you), ...waitingForTheAgent(review).filter((id) => yours.has(id))];
   return !waiting.some((id) => notes.get(id)?.note.on?.flow === flow);
 }
 

@@ -19,19 +19,20 @@ export function allNotes(review: Review): Map<string, { note: Note; round: numbe
 }
 
 // A note's conversation, oldest first: the note, then round by round the agent's reply and what people said about it.
-export type Turn = { by: string; round: number; words: string; verdict?: Verdict["verdict"] };
+// Each turn says who: a person, or the agent that recorded the round, whatever their names.
+export type Turn = { by: string; agent: boolean; round: number; words: string; verdict?: Verdict["verdict"] };
 
 export function conversation(review: Review, id: string): Turn[] {
   const started = allNotes(review).get(id);
   if (!started) return [];
-  const turns: { turn: Turn; order: number }[] = [{ turn: { by: started.by, round: started.round, words: started.note.words }, order: 0 }];
+  const turns: { turn: Turn; order: number }[] = [{ turn: { by: started.by, agent: false, round: started.round, words: started.note.words }, order: 0 }];
   for (const round of review.rounds.filter((round) => round.number > started.round)) {
     const reply = round.replies.find((reply) => reply.note === id);
-    if (reply?.words.trim()) turns.push({ turn: { by: "agent", round: round.number, words: reply.words }, order: 1 });
+    if (reply?.words.trim()) turns.push({ turn: { by: round.by, agent: true, round: round.number, words: reply.words }, order: 1 });
   }
   for (const send of review.sends)
     for (const verdict of send.verdicts.filter((verdict) => verdict.note === id))
-      turns.push({ turn: { by: send.by, round: send.round, words: verdict.words ?? "", verdict: verdict.verdict }, order: 2 });
+      turns.push({ turn: { by: send.by, agent: false, round: send.round, words: verdict.words ?? "", verdict: verdict.verdict }, order: 2 });
   return turns.sort((a, b) => a.turn.round - b.turn.round || a.order - b.order).map(({ turn }) => turn);
 }
 
@@ -132,8 +133,8 @@ export function problemsWithComparison(review: Review, comparison: Comparison): 
   return problems;
 }
 
-// A round is handed over once its file is in the right shape, every note it took is answered, and the agent has said
-// why each change new since the round before is there.
+// A round is handed over once its file is in the right shape, every note it took is answered, it's compared with every
+// round before it, and the agent has said why each change new since the round before is there.
 export function problemsFinishing(review: Review, number: number): string[] {
   if (review.accepted) return ["This review is accepted, so nothing more can be recorded."];
   const round = review.rounds.find((round) => round.number === number);
@@ -153,7 +154,12 @@ export function problemsFinishing(review: Review, number: number): string[] {
       problems.push(`${at}: the reply to note ${id} is on “${reply.on.flow}”, but the note is on “${note.on.flow}”. A reply goes in its note's flow.`);
   }
 
+  // Compared at all, a round is compared with every round before it, so what's new to anyone, wherever they last
+  // looked, is known.
   const comparisons = review.comparisons.filter((comparison) => comparison.round === number);
+  if (comparisons.length)
+    for (const earlier of review.rounds.filter((earlier) => earlier.number < number && !comparisons.some((comparison) => comparison.since === earlier.number)))
+      problems.push(`${at} isn't compared with ${roundName(earlier.number)} yet, so it can't be handed over. Record it again.`);
   const changes = new Map(comparisons.flatMap((comparison) => comparison.changes.map((change) => [change.id, change])));
   for (const change of comparisons.find((comparison) => comparison.since === number - 1)?.changes ?? [])
     if (!round.accounts[change.id])

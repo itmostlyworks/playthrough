@@ -41,20 +41,20 @@ export function notesOn(review: Review, round: number, you: string, draft: Draft
   for (const [id, { note, round: started }] of allNotes(then)) {
     const turns = conversation(then, id);
     const verdict = draft.verdicts.find((verdict) => verdict.note === id);
-    if (verdict) turns.push({ by: you, round, words: verdict.words ?? "", verdict: verdict.verdict });
+    if (verdict) turns.push({ by: you, agent: false, round, words: verdict.words ?? "", verdict: verdict.verdict });
     const state = stateOf(turns);
     if (started === round || turns.some((turn) => turn.round === round) || state !== "settled")
       shown.push({ id, number: numbered.get(id) ?? 0, on: note.on, turns, state, unsent: !!verdict });
   }
   for (const note of draft.notes)
-    shown.push({ id: note.id, number: numbered.get(note.id) ?? 0, on: note.on, turns: [{ by: you, round, words: note.words }], state: "with the agent", unsent: true });
+    shown.push({ id: note.id, number: numbered.get(note.id) ?? 0, on: note.on, turns: [{ by: you, agent: false, round, words: note.words }], state: "with the agent", unsent: true });
   return shown.sort((a, b) => a.number - b.number);
 }
 
 function stateOf(turns: Turn[]): State {
   const last = turns.at(-1);
   if (last?.verdict === "looks good") return "settled";
-  return last?.by === "agent" ? "needs you" : "with the agent";
+  return last?.agent ? "needs you" : "with the agent";
 }
 
 // What colour a note's marks are: amber while it needs you, which includes what you haven't sent. The pin, its dot on

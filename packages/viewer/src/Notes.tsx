@@ -50,8 +50,8 @@ function Card({ note, you, readOnly, onJudge, onEdit, onClose }: Parameters<type
   return (
     <div className={`${inset} flex flex-col gap-2`}>
       {said.slice(1).map((turn, i) => (
-        <p key={i} className={turn.by === "agent" ? "text-soft" : ""}>
-          <span className="mr-1 font-medium text-soft">{who(turn.by, you)}:</span>
+        <p key={i} className={turn.agent ? "text-soft" : ""}>
+          <span className="mr-1 font-medium text-soft">{turn.agent || turn.by !== you ? turn.by : "You"}:</span>
           {turn.verdict === "looks good" && <span className="text-green">Looks good. </span>}
           {turn.verdict === "not quite" && <span className="text-amber-ink">Not quite. </span>}
           {turn.words}
@@ -133,4 +133,3 @@ export function Writing(props: { words: string; placeholder: string; onSave: (wo
 }
 
 export const mac = /Mac|iPhone|iPad/.test(navigator.userAgent);
-const who = (by: string, you: string) => (by === "agent" ? "The agent" : by === you ? "You" : by);

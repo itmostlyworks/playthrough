@@ -29,7 +29,7 @@ const flow = (name: string): Flow => ({
   recording: `${name.toLowerCase().replaceAll(" ", "-")}.json`,
 });
 const flows = [flow("Export a quarter"), flow("Cancel halfway")];
-const round = (number: number, parts: Partial<Round> = {}): Round => ({ number, flows, replies: [], accounts: {}, ...parts });
+const round = (number: number, parts: Partial<Round> = {}): Round => ({ number, by: "Claude Code", flows, replies: [], accounts: {}, ...parts });
 
 // Both flows open the same Export dialog; each has a part of its own.
 const seenIn = (...places: [string, number][]) => places.map(([flow, at]) => ({ flow, at }));

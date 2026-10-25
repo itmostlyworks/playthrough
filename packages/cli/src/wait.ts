@@ -43,8 +43,8 @@ export async function wait(repo: Repo, id: string) {
     const notes = allNotes(review);
     console.log(`\nNotes to answer in round ${round}:`);
     for (const note of asking) {
-      const turns = conversation(review, note).map(({ by, round, words, verdict }) => {
-        const who = by === "agent" ? `You, in round ${round}` : verdict ? `${by}, ${verdict}` : by;
+      const turns = conversation(review, note).map(({ by, agent, round, words, verdict }) => {
+        const who = agent ? `You, in round ${round}` : verdict ? `${by}, ${verdict}` : by;
         return `    ${who}${words.trim() ? `: ${words}` : ""}`;
       });
       console.log(`\n  ${note}  ${where(notes.get(note)?.note.on)}\n${turns.join("\n")}`);
