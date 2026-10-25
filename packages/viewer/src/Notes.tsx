@@ -20,8 +20,12 @@ const SHOWN_FOR = 1.5;
 // An answer lists up to this many changes whole; more, one fewer and how many more.
 const LISTED = 4;
 
-// An opened row: tinted from the line rightwards, the line running down its left edge in its colour.
-export const opened = "bg-[linear-gradient(90deg,transparent_27px,var(--hover)_27px)] pb-3";
+// A row's tint hangs to the right of the flow's line, never over it, its number or diamond on the line at its corner:
+// while you point at the row, while it's lit, and opened, as its card.
+const hangs = "isolate before:pointer-events-none before:absolute before:inset-y-0 before:right-0 before:left-[31px] before:-z-1 before:rounded-lg before:transition-colors before:duration-150 before:ease-calm before:content-['']";
+export const pointed = `${hangs} hover:before:bg-hover`;
+export const tinted = `${hangs} before:bg-hover`;
+export const opened = `${tinted} pb-3`;
 
 export type Comparing = { held: boolean; beside: boolean; onHold: (held: boolean) => void; onBeside: () => void };
 
@@ -72,7 +76,7 @@ export function NoteRow(props: Props) {
       data-key={`note:${note.id}`}
       data-stop={at}
       data-open={open ? "" : undefined}
-      className={`relative rounded-r-lg transition-colors duration-150 ease-calm ${open ? `${opened} [--rail:var(--c)]` : "hover:bg-hover"} ${props.fresh ? "animate-glow" : ""}`}
+      className={`relative ${open ? opened : pointed} ${props.fresh ? "before:animate-glow" : ""}`}
       style={{ "--c": ink(note) } as CSSProperties}
     >
       <button

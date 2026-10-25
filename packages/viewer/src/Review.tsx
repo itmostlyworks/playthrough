@@ -15,7 +15,7 @@ import { Foot, type Step } from "./Foot.tsx";
 import { Grid } from "./Grid.tsx";
 import { along, CARD, clamp, FLOW_IN, momentAt, POSTER, type Moment } from "./moments.ts";
 import { asIfSent, fill, goodTo, ink, lookGood, notesOn, nothing, said, seen, sendOf, settledBefore, standings, takeBack, type Shown } from "./notes.ts";
-import { NoteRow, number as numberLook, opened, SettledCount, SettledList, Writing, type Comparing } from "./Notes.tsx";
+import { NoteRow, number as numberLook, opened, pointed, SettledCount, SettledList, Writing, type Comparing } from "./Notes.tsx";
 import { Playhead, useNow } from "./playhead.ts";
 import { recorded } from "./replay.ts";
 import { roundName } from "./Rounds.tsx";
@@ -498,7 +498,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     );
     const row = "grid w-full grid-cols-[18px_minmax(0,1fr)_auto] items-start gap-x-2 py-1.5 pr-2.5 pl-[18px] text-left";
     return note.id === writingId ? (
-      <div key={note.id} data-key={`note:${note.id}`} data-stop={note.on?.at} data-open className={`relative rounded-r-lg ${opened} [--c:var(--amber)] [--rail:var(--amber)]`}>
+      <div key={note.id} data-key={`note:${note.id}`} data-stop={note.on?.at} data-open className={`relative ${opened} [--c:var(--amber)]`}>
         <div className={row}>{head}</div>
         <div className="grid gap-2.5 pr-3.5 pl-[44px]">
           <Writing
@@ -512,7 +512,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
         </div>
       </div>
     ) : (
-      <div key={note.id} data-key={`note:${note.id}`} data-stop={note.on?.at} className="relative rounded-r-lg transition-colors duration-150 ease-calm hover:bg-hover" style={{ "--c": "var(--amber)" } as CSSProperties}>
+      <div key={note.id} data-key={`note:${note.id}`} data-stop={note.on?.at} className={`relative ${pointed}`} style={{ "--c": "var(--amber)" } as CSSProperties}>
         <button className={row} onMouseDown={(event) => event.preventDefault()} onClick={() => setOpen({ writing: note.id })}>
           {head}
         </button>

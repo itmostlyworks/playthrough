@@ -12,7 +12,7 @@ import { fades, useFade } from "./fade.ts";
 import { useGlide } from "./glide.ts";
 import { clamp } from "./moments.ts";
 import { ink, type Shown, type Standing } from "./notes.ts";
-import { opened, type Comparing } from "./Notes.tsx";
+import { opened, pointed, tinted, type Comparing } from "./Notes.tsx";
 import { Picture, useStill } from "./Picture.tsx";
 import { useNow, type Playhead } from "./playhead.ts";
 
@@ -179,7 +179,7 @@ function FlowBlock(props: Omit<Props, "standing"> & { flow: Flow; on: boolean; s
   const good = standing?.is === "good";
   const just = justLanded(props.landed, flow.name);
   return (
-    <div ref={block} data-here={on ? "" : undefined} className={`relative ${good ? "[--rail:var(--green)]" : ""}`}>
+    <div ref={block} data-here={on ? "" : undefined} className="relative">
       <div
         data-key={`flow:${flow.name}`}
         data-flow={flow.name}
@@ -280,12 +280,12 @@ function Question({ flow, standing, just, ...props }: Omit<Props, "standing"> & 
       data-key={`end:${flow.name}`}
       data-stop={flow.length}
       data-end
-      className="relative mt-0.5 mb-1.5 ml-[27px] animate-verd rounded-r-lg bg-hover py-2.5 pr-3 pl-[17px] shadow-[inset_0_0_0_1px_var(--line)]"
+      className="relative mt-0.5 mb-1.5 ml-[31px] animate-verd rounded-lg bg-hover py-2.5 pr-3 pl-[13px] shadow-[inset_0_0_0_1px_var(--line)]"
     >
       <span
         data-mark
         data-tick={flow.name}
-        className={`absolute top-2.5 -left-[9px] z-1 grid size-[18px] place-items-center rounded-full transition-[background-color,box-shadow] duration-250 ease-calm ${good ? "bg-green text-ground shadow-[inset_0_0_0_1.5px_color-mix(in_srgb,var(--green)_70%,var(--fg))]" : "bg-[color-mix(in_srgb,var(--amber)_22%,var(--ground))] shadow-[inset_0_0_0_1.5px_var(--amber)]"} ${just ? "animate-pop" : ""}`}
+        className={`absolute top-2.5 -left-[13px] z-1 grid size-[18px] place-items-center rounded-full transition-[background-color,box-shadow] duration-250 ease-calm ${good ? "bg-green text-ground shadow-[inset_0_0_0_1.5px_color-mix(in_srgb,var(--green)_70%,var(--fg))]" : "bg-[color-mix(in_srgb,var(--amber)_22%,var(--ground))] shadow-[inset_0_0_0_1.5px_var(--amber)]"} ${just ? "animate-pop" : ""}`}
         aria-hidden
       >
         {good && <TickMark className={`size-[11px] ${just ? "animate-tick" : ""}`} />}
@@ -333,7 +333,7 @@ function ChangeRow(props: Props & { diamond: Diamond; inside: { id: string; open
       data-key={`change:${diamond.id}`}
       data-stop={diamond.at}
       data-open={open ? "" : undefined}
-      className={`relative rounded-r-lg transition-colors duration-150 ease-calm [--c:var(--soft)] ${open ? opened : lit === diamond.id ? "bg-hover" : "hover:bg-hover"}`}
+      className={`relative [--c:var(--soft)] ${open ? opened : lit === diamond.id ? tinted : pointed}`}
     >
       <button className="group/row grid w-full grid-cols-[18px_minmax(0,1fr)] gap-2 py-1.5 pr-2.5 pl-[18px] text-left" onMouseDown={keepKeys} onClick={(event) => (open && !(event.target as Element).closest("[data-time]") ? onClose() : onDiamond(diamond))} aria-expanded={open}>
         <span data-mark className="group/mark relative z-1 mt-px grid size-[18px] place-items-center">
@@ -475,22 +475,16 @@ function useLine(block: RefObject<HTMLDivElement | null>, line: RefObject<HTMLDi
     const stops = [...room.querySelectorAll<HTMLElement>("[data-stop]")].map((row) => {
       const mark = row.querySelector<HTMLElement>("[data-mark]")!;
       const box = mark.getBoundingClientRect();
-      // An opened row hangs off the line: below its stop the line is its edge, in its colour, to its foot.
-      const edge = row.hasAttribute("data-open") ? { foot: row.getBoundingClientRect().bottom - top, colour: getComputedStyle(row).getPropertyValue("--c") } : undefined;
-      return { at: Number(row.dataset.stop), top: box.top - top, bottom: box.bottom - top, mark, end: row.hasAttribute("data-end"), edge };
+      return { at: Number(row.dataset.stop), top: box.top - top, bottom: box.bottom - top, mark, end: row.hasAttribute("data-end") };
     });
     if (!stops.length) return drawn.replaceChildren();
 
     // Each piece runs from just past one stop to just before the next; the last ends inside the flow's end, if it has one.
-    const pieces: [number, number, string?][] = [];
+    const pieces: [number, number][] = [];
     let from = still.bottom - top + 5;
     for (const stop of stops) {
       pieces.push([from, stop.end ? stop.top + 1 : stop.top - 2.75]);
       from = stop.bottom + 2.75;
-      if (stop.edge) {
-        pieces.push([from, stop.edge.foot, stop.edge.colour]);
-        from = stop.edge.foot;
-      }
     }
     // Where the playhead is along it: each stop is passed in an instant, so stopping on one stops on it full.
     const points: [number, number][] = [[0, still.bottom - top + 5]];
@@ -510,12 +504,12 @@ function useLine(block: RefObject<HTMLDivElement | null>, line: RefObject<HTMLDi
 
     while (drawn.children.length > pieces.length) drawn.lastChild!.remove();
     while (drawn.children.length < pieces.length) drawn.append(Object.assign(document.createElement("i"), { className: "absolute left-0 w-full" }));
-    pieces.forEach(([start, end, edge], i) => {
+    pieces.forEach(([start, end], i) => {
       const piece = drawn.children[i] as HTMLElement;
       const filled = clamp((y - start) / Math.max(1, end - start)) * 100;
       Object.assign(piece.style, { top: `${start}px`, height: `${Math.max(0, end - start)}px` });
       // Filled all the way it's one colour, so no hairline of pale is left at its foot.
-      piece.style.background = edge || (filled >= 100 ? "var(--rail)" : `linear-gradient(var(--rail) ${filled}%, var(--ahead) ${filled}%)`);
+      piece.style.background = filled >= 100 ? "var(--rail)" : `linear-gradient(var(--rail) ${filled}%, var(--ahead) ${filled}%)`;
     });
     for (const stop of stops) {
       stop.mark.style.setProperty("--a", `${(clamp((y - stop.top + 3) / (stop.bottom - stop.top + 6)) * 180).toFixed(1)}deg`);
@@ -531,9 +525,12 @@ function useLine(block: RefObject<HTMLDivElement | null>, line: RefObject<HTMLDi
     });
     return () => cancelAnimationFrame(frame);
   });
-  useEffect(() => playhead.subscribe(paint), [playhead]);
+  // The playhead and the room's size paint it as it is now: which flow you're in changes without either changing.
+  const latest = useRef(paint);
+  latest.current = paint;
+  useEffect(() => playhead.subscribe(() => latest.current()), [playhead]);
   useEffect(() => {
-    const observer = new ResizeObserver(() => paint());
+    const observer = new ResizeObserver(() => latest.current());
     if (block.current) observer.observe(block.current);
     return () => observer.disconnect();
   }, []);
