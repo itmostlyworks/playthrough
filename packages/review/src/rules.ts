@@ -3,6 +3,7 @@
 
 import type { z } from "zod";
 import { Comparison, fileName, Round, Send, type Account, type Change, type Flow, type Note, type Place, type Review, type Verdict } from "./model.ts";
+import { quote, time } from "./words.ts";
 
 // The round the agent is working on: the last one until it's finished, then the next.
 export function roundInProgress(review: Review): number {
@@ -163,7 +164,7 @@ export function problemsFinishing(review: Review, number: number): string[] {
   const changes = new Map(comparisons.flatMap((comparison) => comparison.changes.map((change) => [change.id, change])));
   for (const change of comparisons.find((comparison) => comparison.since === number - 1)?.changes ?? [])
     if (!round.accounts[change.id])
-      problems.push(`${at}: say why ${describe(change)} is there: its line, the note it was made for, or why nothing really changed.`);
+      problems.push(`${at}: say why ${change.id} is there (${change.words}${where(change)}): its line, the note it was made for, or why nothing really changed.`);
   for (const [id, account] of Object.entries(round.accounts)) {
     const change = changes.get(id);
     if (!change) problems.push(`${at} says something about the change ${id}, which isn't one of this round's changes.`);
@@ -292,6 +293,8 @@ function duplicates(values: string[], problem: (value: string) => string): strin
 }
 
 const roundName = (number: number) => (number === 0 ? "Before" : `round ${number}`);
-const describe = (change: Change) => `the change “${cut(change.words)}”`;
+const describe = (change: Change) => `the change ${change.id} (${cut(change.words)})`;
+// Where it's first seen, so the agent can find it: “in “Export a quarter” at 0:02”.
+const where = ({ seen: [first] }: Change) => (first ? `, in ${quote(first.flow)}${first.at === undefined ? "" : ` at ${time(first.at)}`}` : "");
 const cut = (words: string) => (words.length > 48 ? `${words.slice(0, 47).trimEnd()}…` : words);
 const isText = (value: unknown): value is string => typeof value === "string" && value.trim() !== "";

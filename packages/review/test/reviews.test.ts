@@ -148,7 +148,7 @@ for (const [kept, storage] of storages) {
       await reviews.saveComparison("invoice-export", { round: 2, since: 1, changes: [change("c2", "Download CSV and Cancel swapped")] });
       await assert.rejects(
         reviews.finish("invoice-export", 2),
-        refused(/^Round 2: say why the change “Download CSV and Cancel swapped” is there: its line, the note it was made for, or why nothing really changed\.$/),
+        refused(/^Round 2: say why c2 is there \(Download CSV and Cancel swapped, in “Export a quarter” at 0:02\): its line, the note it was made for, or why nothing really changed\.$/),
       );
       await reviews.saveRound("invoice-export", round(2, { accounts: { c2: { notReal: "The page was still drawing." } } }));
       await reviews.finish("invoice-export", 2);
@@ -172,7 +172,7 @@ for (const [kept, storage] of storages) {
         assert.ok(error instanceof Refused);
         assert.deepEqual(error.problems, [
           "Round 2 says something about the change c9, which isn't one of this round's changes.",
-          "Round 2: the change ““Export” button is new” was made for note nobody, which doesn't exist.",
+          "Round 2: the change c1 (“Export” button is new) was made for note nobody, which doesn't exist.",
         ]);
         return true;
       });

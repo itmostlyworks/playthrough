@@ -14,7 +14,7 @@ export const PICTURE = "vantage picture";
 export const HOLD = 1500; // the end of a flow holds, so its last state can be seen
 
 // A flow's readings go beside the round's recordings, under the same name, each picture in a folder of its own.
-const readingsOf = (flow: Flow) => `readings/${flow.recording}`;
+export const readingsOf = (flow: Flow) => `readings/${flow.recording}`;
 const picturesOf = (flow: Flow) => `readings/${flow.recording.replace(/\.json$/, "")}`;
 
 export type Failed = { flow: string; at?: string };

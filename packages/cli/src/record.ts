@@ -1,8 +1,10 @@
-// Records the round being worked on: runs every flow like a person would, keeps each recording, and says what's left
-// before the round can be handed over. Recording again keeps whatever the agent already wrote in the round.
+// Records the round being worked on: runs every flow like a person would, keeps each recording, compares the round with
+// each round before it, and says what's left before it can be handed over: an answer to each note, and why each change
+// since the round before is there. Recording again keeps whatever the agent already wrote in the round.
 
 import { list, notesToAnswer, problemsFinishing, quote, Refused, roundInProgress, type Reply } from "@vantage/review";
 import { agent, unnamed } from "./agent.ts";
+import { compareWithEarlier } from "./compare.ts";
 import { runFlows } from "./flows.ts";
 import type { Repo } from "./repo.ts";
 
@@ -29,7 +31,11 @@ export async function record(repo: Repo, id: string) {
     .filter((note) => !written.some((reply) => reply.note === note))
     .map((note) => ({ note, words: "" }));
   const by = agent(saved?.by);
+  // Compared before the round is kept, so it's never there to hand over without them.
+  console.log(`\nComparing round ${number} with each round before it…`);
+  const comparisons = await compareWithEarlier(repo.reviews, id, number, flows);
   await repo.reviews.saveRound(id, { number, by, flows, replies: [...written, ...waiting], accounts: saved?.accounts ?? {} });
+  for (const comparison of comparisons) await repo.reviews.saveComparison(id, comparison);
 
   // A flow that's new to the reviewer can say at its start what it starts from, or the choice it shows.
   const previous = review.rounds.findLast((round) => round.number > 0 && round.number < number);
@@ -37,7 +43,11 @@ export async function record(repo: Repo, id: string) {
   const file = repo.show(repo.round(id, number));
   const left = problemsFinishing(await repo.reviews.get(id), number);
   console.log(`\nRecorded round ${number}: ${list(flows.map((flow) => `${quote(flow.name)} (${Math.round(flow.length)}s)`))}.`);
+  const since = comparisons.find((comparison) => comparison.since === number - 1);
+  if (since) console.log(`\n${changed(since.changes.length, number - 1)}`);
   if (left.length) console.log(`\nStill to do, in ${file}:\n${left.map((problem) => `  ${problem}`).join("\n")}`);
+  if (since?.changes.some((change) => !saved?.accounts[change.id]))
+    console.log(`\nSay why each change is there in “accounts”, by its id: { "line": "<why, in your words>" }, { "note": "<the note it was made for>" }, or { "notReal": "<why nothing really changed>" }.`);
   if (unsaid.length) {
     const [are, each] = unsaid.length > 1 ? ["are", "each"] : ["is", "it"];
     console.log(`\n${list(unsaid.map((flow) => quote(flow.name)))} ${are} new to the reviewer. In ${file}, ${each} can have a line at its start: what it starts from, or the choice it shows.`);
@@ -45,3 +55,8 @@ export async function record(repo: Repo, id: string) {
   if (by === unnamed) console.log(`\nVantage can't tell which agent you are. Write your name in ${file} as “by”, and each of your answers shows it.`);
   console.log(left.length ? `\nThen hand it over: vantage wait ${id}` : `\nHand it over when it's ready: vantage wait ${id}`);
 }
+
+const changed = (count: number, since: number) => {
+  const round = since === 0 ? "Before" : `round ${since}`;
+  return count ? `${count} ${count > 1 ? "changes" : "change"} since ${round}.` : `Nothing changed since ${round}.`;
+};

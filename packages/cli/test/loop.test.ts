@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { newId, Reviews, type Flow, type Round } from "@vantage/review";
+import { newId, Reviews, type Comparison, type Flow, type Round } from "@vantage/review";
 import { folder } from "@vantage/review/folder";
 import type { Reading } from "../src/read.ts";
 
@@ -84,6 +84,7 @@ const flows = () => join(repo, ".vantage/overdue/flows");
 const round = async (n: number): Promise<Round> => JSON.parse(await readFile(join(repo, `.vantage/overdue/rounds/${n}/round.json`), "utf8"));
 const file = (n: number, name: string) => readFile(join(repo, `.vantage/overdue/rounds/${n}/files/${name}`));
 const readings = async (n: number, flow: Flow): Promise<Reading[]> => JSON.parse((await file(n, `readings/${flow.recording}`)).toString());
+const compared = async (n: number, since: number): Promise<Comparison> => JSON.parse(await readFile(join(repo, `.vantage/overdue/rounds/${n}/since/${since}.json`), "utf8"));
 
 describe("The command line, as an agent uses it", { timeout: 120_000 }, () => {
   test("start begins a review and asks for its flows from the task, before anything changes", async () => {
@@ -172,6 +173,23 @@ describe("The command line, as an agent uses it", { timeout: 120_000 }, () => {
     for (const reading of read) assert.equal((await file(1, reading.picture)).subarray(1, 4).toString(), "PNG");
   });
 
+  test("record compares the round with Before, and it isn't handed over until the agent says why each change is there", async () => {
+    // Since Before, the app has an Export button, and the flow that exports takes the step Before couldn't.
+    const { changes } = await compared(1, 0);
+    const button = changes.find((change) => change.words === "Export button is new, and moved the Show choice left");
+    assert.deepEqual(
+      changes.map((change) => change.words),
+      ["Export button is new, and moved the Show choice left", "New steps: “Export them”"],
+    );
+    assert.deepEqual(button?.seen.map((seen) => seen.flow), ["Export the overdue ones", "See what's overdue", "See what's paid"], "one change, seen in each flow");
+
+    let { said, code } = await run(["wait", "overdue"]);
+    assert.equal(code, 1);
+    assert.match(said, new RegExp(`say why ${button!.id} is there \\(Export button is new, and moved the Show choice left, in “Export the overdue ones” at 0:00\\)`));
+    const accounts = Object.fromEntries(changes.map((change) => [change.id, { line: "The export the task asked for." }]));
+    await writeFile(join(repo, ".vantage/overdue/rounds/1/round.json"), JSON.stringify({ ...(await round(1)), accounts }));
+  });
+
   test("waiting hands the round over, then brings the notes that ask for something, each with its conversation", async () => {
     const waiting = run(["wait", "overdue"]);
     await reviews.wait("overdue", (review) => !!review.rounds.find((round) => round.number === 1)?.finished);
@@ -186,7 +204,10 @@ describe("The command line, as an agent uses it", { timeout: 120_000 }, () => {
   });
 
   test("a round isn't handed over until every note has an answer, which recording again keeps", async () => {
-    await run(["record", "overdue"]);
+    // Recorded again with nothing changed, nothing has changed since round 1.
+    assert.match((await run(["record", "overdue"])).said, /Nothing changed since round 1\./);
+    assert.deepEqual((await compared(2, 1)).changes, []);
+    assert.equal((await compared(2, 0)).changes.length, 2);
     const [reply] = (await round(2)).replies;
     assert.equal(reply?.words, "");
 
