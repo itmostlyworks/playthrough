@@ -1,6 +1,8 @@
 # Vantage
 
-Review an AI agent's work on a web app by watching recordings of it, saying what's right and what isn't, and judging the next round, without rebuilding the situation by hand.
+The agent says it's done. You decide if it's good.
+
+Vantage records every flow your agent's change touched, before and after, including what the agent didn't mention. Click what's wrong, and the next try lands right beside it. It runs on your machine, with any coding agent that has a shell.
 
 Early work. What's here so far:
 
