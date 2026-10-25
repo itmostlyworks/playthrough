@@ -1,6 +1,7 @@
 // Every control in one row under the recordings: play, the time and the timeline, the speed, the size, the rounds, and
 // how to look at them, on their own or side by side. Nothing in it appears, disappears or changes width as you move.
 
+import type { RefObject } from "react";
 import type { Round } from "@vantage/review";
 import { useNow, type Playhead } from "./playhead.ts";
 import { Rounds } from "./Rounds.tsx";
@@ -10,6 +11,7 @@ import { Timeline, type Dot, type Mark } from "./Timeline.tsx";
 export type Look = "one" | "side";
 
 type Props = {
+  ref?: RefObject<HTMLDivElement | null>;
   playhead: Playhead;
   dots: Dot[];
   onDot: (id: string) => void;
@@ -43,7 +45,7 @@ export function Controls(props: Props) {
   const coveredForward = "transition-opacity duration-200 ease-calm group-has-[[data-open=right]]/controls:pointer-events-none group-has-[[data-open=right]]/controls:opacity-0";
 
   return (
-    <div className="group/controls flex min-w-0 flex-wrap items-center gap-3 pt-[18px] select-none">
+    <div ref={props.ref} className="group/controls flex min-w-0 flex-wrap items-center gap-3 pt-[18px] select-none">
       <Timeline playhead={props.playhead} dots={props.dots} onDot={props.onDot} marks={props.marks} onMark={props.onMark} />
       <button
         data-speed

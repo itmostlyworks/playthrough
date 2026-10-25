@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* A phone, or any screen as narrow, as phone.ts says. */
+@custom-variant phone (@media (max-width: 820px));
+
 /* The prototype's quiet theme. Amber needs you, slate is with the agent, green is settled; recordings stay light in the
    dark. Only these colours exist, so every colour on the page is one of them. */
 :root {

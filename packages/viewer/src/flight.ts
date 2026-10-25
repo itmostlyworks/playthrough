@@ -4,6 +4,8 @@
 //
 // A picture is marked by data-picture, its flow's name; data-flying hides it while its copy is in the air.
 
+import { onPhone } from "./phone.ts";
+
 const FLIGHT = { duration: 420, apart: 30, easing: "cubic-bezier(.3,.7,.1,1)" };
 
 export type Taking = { flow: string; from: HTMLElement; box: DOMRect; copy: HTMLElement }[];
@@ -66,8 +68,8 @@ function copyOf(picture: HTMLElement): HTMLElement {
   return copy;
 }
 
-// The column comes in from the right as the pictures fly into it.
+// The column comes in from the right as the pictures fly into it; on a phone, the drawer comes up from below.
 export function slideIn(column: Element) {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  column.animate([{ opacity: 0, transform: "translateX(40px)" }, {}], { duration: FLIGHT.duration, easing: FLIGHT.easing });
+  column.animate([{ opacity: 0, transform: onPhone() ? "translateY(40px)" : "translateX(40px)" }, {}], { duration: FLIGHT.duration, easing: FLIGHT.easing });
 }

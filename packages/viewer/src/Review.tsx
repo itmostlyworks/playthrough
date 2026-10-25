@@ -8,6 +8,7 @@ import { HOLD } from "./Card.tsx";
 import { answersTo, diamondAt, diamondsOn, grownFrom, type Changed, type Diamond } from "./changes.ts";
 import { Column, rowsIn, settles, type Landed } from "./Column.tsx";
 import { Controls, type Look } from "./Controls.tsx";
+import { Drawer } from "./Drawer.tsx";
 import { useDraft, useWatched } from "./draft.ts";
 import { land, slideIn, takeOff, type Taking } from "./flight.ts";
 import { Foot, type Step } from "./Foot.tsx";
@@ -41,7 +42,7 @@ export function ReviewPage({ id }: { id: string }) {
 
 export function Page({ title, children }: { title?: string; children?: ReactNode }) {
   return (
-    <div className="grid h-dvh grid-rows-[auto_minmax(0,1fr)] overflow-hidden px-5">
+    <div className="grid h-dvh grid-rows-[auto_minmax(0,1fr)] overflow-hidden px-5 phone:px-4">
       <header className="flex min-h-[46px] min-w-0 items-center gap-2 py-2.5 text-soft">
         <a href="/" className="font-semibold text-fg">Vantage</a>
         {title && <span className="text-faint">/</span>}
@@ -400,6 +401,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   // you were reading is let go, unless you're writing it.
   const gridRoom = useRef<HTMLDivElement>(null);
   const aside = useRef<HTMLElement>(null);
+  const controls = useRef<HTMLDivElement>(null);
   const flying = useRef<{ taking: Taking; to: "column" | "grid"; playing?: boolean }>(undefined);
   const settling = useRef<number>(undefined);
   useEffect(() => () => clearTimeout(settling.current), []);
@@ -846,8 +848,8 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   return (
     <Page title={review.title}>
       <Wire id={grownOpen?.id ?? openNote?.id ?? chosen?.id} colour={openNote ? ink(openNote) : grownOpen ? "var(--amber)" : "var(--soft)"} hidden={!!bare || peek} />
-      <main className="relative grid min-h-0 grid-cols-[minmax(0,1fr)_min(350px,31vw)]">
-        <section inert={onGrid} className={`grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto] pr-3.5 pb-4 ${onGrid ? "invisible" : ""}`}>
+      <main className="relative grid min-h-0 grid-cols-[minmax(0,1fr)_min(350px,31vw)] phone:flex phone:flex-col">
+        <section inert={onGrid} className={`grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto] pr-3.5 pb-4 phone:flex-none phone:grid-rows-[auto_auto] phone:pr-0 phone:pb-3 ${onGrid ? "invisible" : ""}`}>
           <Stage
             review={review}
             playhead={playhead}
@@ -878,6 +880,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
             onAllFlows={many ? () => toGrid() : undefined}
           />
           <Controls
+            ref={controls}
             playhead={playhead}
             dots={playingNotes.filter((note) => !grown.has(note.id)).map((note) => ({ id: note.id, at: note.on?.at ?? 0, until: note.on?.until, ink: ink(note), number: note.number, words: note.turns[0]?.words ?? "" }))}
             onDot={(id) => {
@@ -913,7 +916,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
           />
         </section>
 
-        <aside ref={aside} inert={onGrid} className={`flex min-h-0 min-w-0 flex-col pb-4 ${onGrid ? "invisible" : ""}`}>
+        <Drawer ref={aside} over={controls} away={onGrid}>
           <div className="flex items-baseline gap-2 px-[18px] pt-1 pb-2">
             {listing ? (
               <button className="-ml-1 flex items-center gap-0.5 text-soft hover:text-fg" onClick={() => setListing(false)}>
@@ -981,7 +984,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
             busy={!!working}
             onFlow={watchFrom}
           />
-        </aside>
+        </Drawer>
         {many && (
           <Grid
             room={gridRoom}

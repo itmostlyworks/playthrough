@@ -328,7 +328,7 @@ export function Writing(props: {
           onClick={save}
         >
           Save
-          <kbd className="order-2 rounded-[3px] px-1 font-ui text-[11px] leading-4 font-normal opacity-60 shadow-[0_0_0_1px_currentColor]">{mac ? "⌘" : "Ctrl"} ↵</kbd>
+          <kbd className="order-2 rounded-[3px] px-1 font-ui pointer-coarse:hidden text-[11px] leading-4 font-normal opacity-60 shadow-[0_0_0_1px_currentColor]">{mac ? "⌘" : "Ctrl"} ↵</kbd>
         </button>
       </div>
     </>

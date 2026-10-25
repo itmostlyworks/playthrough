@@ -12,6 +12,7 @@ import { elementOf, type Thing } from "@vantage/page";
 import { inStep, type Box, type Flow, type Place, type Point, type Review, type Round } from "@vantage/review";
 import { recording } from "./api.ts";
 import { CARD, clamp, ease, MORPH, titleCard } from "./moments.ts";
+import { onPhone } from "./phone.ts";
 import { useNow, type Playhead } from "./playhead.ts";
 import { recorded, Replay } from "./replay.ts";
 import { holdersOf, pickAt, type Read } from "./things.ts";
@@ -134,6 +135,22 @@ export function Stage(props: Props) {
     return { width: was.width + (own.width - was.width) * u, height: was.height + (own.height - was.height) * u };
   };
 
+  // On a phone the recordings take the height they need at the screen's width, up to a little over half the screen, and
+  // the controls and the column follow under them with no room between. Side by side at actual size, they fill it.
+  const onPhoneNeeds = (width: number, flow: Flow | undefined, at: number): number => {
+    const { round, earlier, zoomed } = latest.current;
+    const most = Math.max(160, Math.round(innerHeight * 0.58));
+    if (!flow || (earlier && zoomed)) return most;
+    const shapes = (earlier ? [earlier, round] : [round]).map((shown) => {
+      const its = shown.flows.find((other) => other.name === flow.name);
+      return shown === round || !its ? shapeAt(round, flow, at) : sizeOf(shown, its);
+    });
+    const tallest = (room: Size) => CAPTION + Math.max(...shapes.map((shape) => fit(room, shape).height));
+    if (!earlier) return tallest({ width, height: most - CAPTION });
+    if (width > 700) return tallest({ width: (width - 20) / 2, height: most - CAPTION });
+    return 2 * tallest({ width, height: (most - 12) / 2 - CAPTION }) + 12;
+  };
+
   const paint = () => {
     const { playhead, round, earlier, zoomed, peeking } = latest.current;
     const then = earlier ? undefined : latest.current.then;
@@ -142,7 +159,8 @@ export function Stage(props: Props) {
     const { moment, playing, speed, stopped } = playhead.now;
     const flow = round.flows.find((flow) => flow.name === moment.flow);
     const width = room.clientWidth;
-    const height = room.clientHeight;
+    const height = onPhone() ? onPhoneNeeds(width, flow, moment.at) : room.clientHeight;
+    room.style.height = onPhone() ? `${height}px` : "";
     const across = width > 700;
     const half = across ? (width - 20) / 2 : width;
     const tall = across ? height : (height - 12) / 2;
@@ -538,7 +556,7 @@ export function Stage(props: Props) {
           key={number}
           ref={(element) => void (element ? frames.current.set(number, element) : frames.current.delete(number))}
           data-frame={number}
-          className={`absolute overflow-hidden rounded-lg bg-paper shadow-frame transition-opacity duration-160 ease-calm data-over:pointer-events-none data-over:z-10 ${number === round.number && aiming ? (hover === undefined ? "cursor-none" : "cursor-pointer") : ""}`}
+          className={`absolute touch-none overflow-hidden rounded-lg bg-paper shadow-frame transition-opacity duration-160 ease-calm data-over:pointer-events-none data-over:z-10 ${number === round.number && aiming ? (hover === undefined ? "cursor-none" : "cursor-pointer") : ""}`}
           onPointerDown={(event) => press(event, number)}
           onPointerMove={(event) => aimAt(event, number)}
           onPointerLeave={() => {

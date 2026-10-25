@@ -38,7 +38,7 @@ export function Answer(props: { children: ReactNode; keys?: string; pressed?: bo
 }
 
 export function Key({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <kbd className={`min-w-4 flex-none rounded-[3px] px-[3px] text-center font-ui text-[11px] leading-4 font-normal text-faint shadow-[0_0_0_1px_var(--line)] in-aria-pressed:text-inherit in-aria-pressed:opacity-60 in-aria-pressed:shadow-[0_0_0_1px_currentColor] ${className}`}>{children}</kbd>;
+  return <kbd className={`min-w-4 flex-none rounded-[3px] pointer-coarse:hidden px-[3px] text-center font-ui text-[11px] leading-4 font-normal text-faint shadow-[0_0_0_1px_var(--line)] in-aria-pressed:text-inherit in-aria-pressed:opacity-60 in-aria-pressed:shadow-[0_0_0_1px_currentColor] ${className}`}>{children}</kbd>;
 }
 
 export const tick = (
@@ -61,12 +61,13 @@ export function Compare({ held, beside, onHold, onBeside }: { held: boolean; bes
     event.preventDefault();
     const started = performance.now();
     const holding = setTimeout(() => onHold(true), HOLD);
-    const up = () => {
+    // A touch that turns into scrolling the column is let go, not tapped.
+    const up = (ending: PointerEvent) => {
       clearTimeout(holding);
       removeEventListener("pointerup", up);
       removeEventListener("pointercancel", up);
       onHold(false);
-      if (performance.now() - started < HOLD) onBeside();
+      if (ending.type === "pointerup" && performance.now() - started < HOLD) onBeside();
     };
     addEventListener("pointerup", up);
     addEventListener("pointercancel", up);
@@ -77,6 +78,7 @@ export function Compare({ held, beside, onHold, onBeside }: { held: boolean; bes
       aria-pressed={beside}
       aria-keyshortcuts="C"
       onPointerDown={press}
+      onContextMenu={(event) => event.preventDefault()}
       onKeyDown={(event) => event.key === "Enter" && onBeside()}
     >
       <span className={`size-2.5 flex-none rounded-full shadow-[inset_0_0_0_1.5px_currentColor] ${held || beside ? "bg-current" : "bg-[linear-gradient(90deg,currentColor_50%,transparent_50%)]"}`} />

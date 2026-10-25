@@ -9,6 +9,7 @@ import type { Diamond } from "./changes.ts";
 import { TickMark } from "./Column.tsx";
 import { Agent, Go, says, type Step } from "./Foot.tsx";
 import type { Standing } from "./notes.ts";
+import { onPhone } from "./phone.ts";
 import { Picture, useFirstNew, useStill, useStory, type Frame } from "./Picture.tsx";
 import { roundName } from "./Rounds.tsx";
 
@@ -60,9 +61,9 @@ export function Grid(props: Props) {
 
   return (
     <div ref={props.room} inert={!up} className={`absolute inset-0 z-20 flex flex-col bg-ground transition-[opacity,visibility] duration-240 ease-calm ${up ? "visible opacity-100" : "invisible opacity-0"}`}>
-      <div ref={grid} className="grid min-h-0 flex-1 auto-rows-max content-center-safe justify-center gap-6 overflow-y-auto px-8 pb-[30px]">
-        <div data-head className="col-span-full flex h-12 items-end gap-6">
-          <div className="min-w-0 flex-[1_0_auto] *:truncate">
+      <div ref={grid} className="grid min-h-0 flex-1 auto-rows-max content-center-safe justify-center gap-6 overflow-y-auto px-8 pb-[30px] phone:content-start phone:px-0 phone:pb-4">
+        <div data-head className="col-span-full flex h-12 items-end gap-6 phone:h-auto phone:flex-wrap phone:gap-y-2.5 phone:pt-2">
+          <div className="min-w-0 flex-[1_0_auto] *:truncate phone:flex-[1_1_auto] phone:*:whitespace-normal">
             <h2 className="text-[20px] leading-[26px] font-semibold tracking-[-0.01em]">{review.title}</h2>
             <p className="mt-0.5 text-[13px] leading-5 text-soft">
               {props.accepted ?? roundName(round.number)}
@@ -78,7 +79,7 @@ export function Grid(props: Props) {
         {fold && (
           <div data-quiet className="col-span-full mt-2 grid gap-2 justify-self-start">
             <p className="text-xs leading-[18px] text-faint">Nothing to check</p>
-            <div className="flex flex-wrap gap-4">{round.flows.filter((flow) => !props.needs(flow.name)).map((flow) => tile(flow, true))}</div>
+            <div className="flex flex-wrap gap-4 phone:gap-3">{round.flows.filter((flow) => !props.needs(flow.name)).map((flow) => tile(flow, true))}</div>
           </div>
         )}
       </div>
@@ -97,7 +98,7 @@ function Tile({ review, round, flow, small, up, standing, diamonds, wave, onFlow
       ref={skim.tile}
       data-tile
       data-small={small ? "" : undefined}
-      className={`group/tile grid min-w-0 content-start text-left focus-visible:outline-none ${small ? "w-[150px]" : "row-span-3 grid-rows-subgrid gap-y-0"}`}
+      className={`group/tile grid min-w-0 content-start text-left focus-visible:outline-none ${small ? "w-[150px] phone:w-[calc((100%-24px)/3)]" : "row-span-3 grid-rows-subgrid gap-y-0"}`}
       aria-label={`Play ${flow.name}${shown ? `. ${says(shown)}` : ""}`}
       onClick={() => onFlow(flow.name)}
       onPointerEnter={skim.enter}
@@ -255,7 +256,7 @@ function lay(grid: HTMLElement) {
     const top = Math.max(0, ...fits.map((fit) => fit.size));
     let best = fits.findLast((fit) => fit.size >= top - 0.5) ?? { across: 1, size: 0 };
     // Where they can't all be in view at a size worth looking at, they fill the width and scroll.
-    if (best.size < 120 || matchMedia("(max-width: 820px)").matches) {
+    if (best.size < 120 || onPhone()) {
       const across = Math.max(1, Math.floor((width + TILE.gap) / (TILE.small + TILE.gap)));
       best = { across, size: Math.min(TILE.most, (width - (across - 1) * TILE.gap) / across) };
     }

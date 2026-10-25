@@ -88,6 +88,17 @@ export function Column(props: Props) {
     const heading = map.current?.querySelector(`[data-flow="${CSS.escape(watching)}"]`);
     heading?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [watching]);
+  // So does what opens: a note chosen by its pin, one you start on the recording, an answer playing stopped at, a flow's
+  // question at its end.
+  const question = props.asked && `end:${props.asked}`;
+  const opened = props.openNote ?? props.chosen ?? pending.find((kept) => kept.open)?.id ?? question;
+  useEffect(() => {
+    if (!opened) return;
+    const frame = requestAnimationFrame(() =>
+      map.current?.querySelector(opened === question ? `[data-key="${CSS.escape(question)}"]` : "[data-open]")?.scrollIntoView({ block: "nearest", behavior: "smooth" }),
+    );
+    return () => cancelAnimationFrame(frame);
+  }, [opened]);
 
   const general = notes.filter((note) => !note.on || !round.flows.some((flow) => flow.name === note.on?.flow));
   return (
