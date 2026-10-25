@@ -4,7 +4,7 @@
 
 import { test as base, expect, type Locator, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
-import type { Run } from "./record.ts";
+import type { Run } from "./flows.ts";
 import { RECORDING } from "./reporter.ts";
 
 export { expect };
@@ -90,7 +90,8 @@ async function approach(target: Locator, at: { page: Page; x: number; y: number 
       const most = document.documentElement.scrollHeight - innerHeight;
       return { from: scrollY, to: Math.max(0, Math.min(most, scrollY + box.top + box.height / 2 - innerHeight / 2)) };
     }, undefined, { timeout: 5000 })
-    .catch(() => undefined);
+    .catch(() => "missing" as const);
+  if (scroll === "missing") return; // the action itself waits for it, and says why it can't
   if (scroll && Math.abs(scroll.to - scroll.from) >= 1) {
     const moves = Math.max(10, Math.min(36, Math.round(Math.abs(scroll.to - scroll.from) / 25)));
     for (let i = 1; i <= moves; i++) {

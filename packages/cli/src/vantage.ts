@@ -11,6 +11,7 @@ import { wait } from "./wait.ts";
 const HELP = `Vantage: a person reviews your work on a web app by watching recordings of it, round after round.
 
   vantage start <review> "<title>"   start a review of what was asked, in the person's words
+  vantage start <review>             once its flows are written, record Before: the app as it is
   vantage record <review>            record the round being worked on, every flow, the way a person would use it
   vantage wait <review>              hand the round over, then wait for the notes to answer
   vantage open [<review>]            open the viewer on this machine
@@ -23,8 +24,8 @@ const needs = (usage: string) => new Refused([`That needs more: ${usage}`]);
 try {
   if (!command || ["help", "--help", "-h"].includes(command)) console.log(HELP);
   else if (command === "start") {
-    if (!review || !words.length) throw needs(`vantage start <review> "<title>"`);
-    await start(repo(), review, words.join(" "));
+    if (!review) throw needs(`vantage start <review> "<title>"`);
+    await start(repo(), review, words.join(" ") || undefined);
   } else if (command === "record") {
     if (!review) throw needs("vantage record <review>");
     await record(repo(), review);

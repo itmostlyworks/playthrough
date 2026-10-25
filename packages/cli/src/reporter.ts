@@ -1,5 +1,5 @@
-// Turns each recorded test into a flow: its name, where each step starts in the recording, and how long it is.
-// It runs inside Playwright, so it only writes them down, in the folder `vantage record` gave it, which keeps them.
+// Turns each recorded test into a flow: its name, where each step starts in the recording, and how long it is, and names
+// each one that failed. It runs inside Playwright, so it only writes them down, in the folder the run gave it.
 
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -10,13 +10,15 @@ export const RECORDING = "vantage recording";
 
 export default class Flows implements Reporter {
   #folder: string;
-  #recorded: { flow: Flow; file: string; line: number }[] = [];
+  #ran: { file: string; line: number; flow?: Flow; failed?: string }[] = [];
 
   constructor({ folder }: { folder: string }) {
     this.#folder = folder;
   }
 
   onTestEnd(test: TestCase, result: TestResult) {
+    const at = { file: test.location.file, line: test.location.line };
+    if (["failed", "timedOut", "interrupted"].includes(result.status)) return void this.#ran.push({ ...at, failed: test.title });
     const recording = result.attachments.find((attachment) => attachment.name === RECORDING)?.body;
     if (!recording || result.status !== "passed") return;
     const events: { timestamp: number }[] = JSON.parse(recording.toString());
@@ -29,12 +31,12 @@ export default class Flows implements Reporter {
 
     const file = this.#fileFor(test.title);
     writeFileSync(join(this.#folder, file), recording);
-    this.#recorded.push({ flow: { name: test.title, length, steps, recording: file }, file: test.location.file, line: test.location.line });
+    this.#ran.push({ ...at, flow: { name: test.title, length, steps, recording: file } });
   }
 
   onEnd() {
-    const inOrder = this.#recorded.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line);
-    writeFileSync(join(this.#folder, "flows.json"), JSON.stringify(inOrder.map((recorded) => recorded.flow)));
+    const ran = this.#ran.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line);
+    writeFileSync(join(this.#folder, "flows.json"), JSON.stringify({ recorded: ran.flatMap((run) => run.flow ?? []), failed: ran.flatMap((run) => run.failed ?? []) }));
   }
 
   printsToStdio() {
@@ -44,7 +46,7 @@ export default class Flows implements Reporter {
   // Named after the flow, so the files read as what they are.
   #fileFor(name: string): string {
     const base = name.toLowerCase().normalize("NFKD").replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "flow";
-    const taken = new Set(this.#recorded.map((recorded) => recorded.flow.recording));
+    const taken = new Set(this.#ran.map((run) => run.flow?.recording));
     for (let n = 1; ; n++) {
       const file = n === 1 ? `${base}.json` : `${base}-${n}.json`;
       if (!taken.has(file)) return file;

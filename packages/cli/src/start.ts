@@ -1,36 +1,42 @@
-// Starts a review: what was asked, in the person's words, and a folder for the flows that will show it.
+// Starts a review: what was asked, in the person's words, and the flows that will show it, written before anything changes
+// so they show the task as the person put it. Run again once they're written, it records Before: the app as it is.
 
-import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { Refused } from "@vantage/review";
+import { agent } from "./agent.ts";
+import { howToWriteFlows, makeFlowsFolder, runFlows } from "./flows.ts";
 import type { Repo } from "./repo.ts";
+import { list, quote } from "./words.ts";
 
-export async function start(repo: Repo, id: string, title: string) {
-  await repo.reviews.start(id, title);
-  await makeFlowsFolder(repo, id);
-  console.log(`Started ${id}: “${title}”.\n\n${howToWriteFlows(repo, id)}\n\nThen record round 1: vantage record ${id}`);
-}
+export async function start(repo: Repo, id: string, title?: string) {
+  if (!(await repo.reviews.list()).includes(id)) {
+    if (!title) throw new Refused([`There's no review called “${id}” yet. Start it with what was asked, in the person's words: vantage start ${id} "<title>"`]);
+    await repo.reviews.start(id, title);
+    await makeFlowsFolder(repo, id);
+    return console.log(`Started ${id}: “${title}”.
 
-// Flows are modules whatever the app's own package.json says, so they load the same way in every repo.
-export async function makeFlowsFolder(repo: Repo, id: string) {
-  await mkdir(repo.flows(id), { recursive: true });
-  await writeFile(join(repo.flows(id), "package.json"), `{ "type": "module" }\n`, { flag: "wx" }).catch((error) => {
-    if (error.code !== "EEXIST") throw error;
-  });
-}
+Write its flows before you change anything. They show what was asked, so write them from the task, not from the code: if you can start a fresh subagent, give it the task and what the screens look like, never the code, and use the flows it writes.
 
-export function howToWriteFlows(repo: Repo, id: string): string {
-  return `Write its flows in ${repo.show(repo.flows(id))}, one Playwright test for each thing a person does, with a step for each part of it:
+${howToWriteFlows(repo, id)}
 
-  import { test, expect } from "@vantage/cli/test";
+Then run vantage start ${id} again. It records Before: each flow the app as it is can already run. If the app is new, there's no Before: go straight to the work.`);
+  }
 
-  test("Export a quarter", async ({ page }) => {
-    await test.step("Open the invoices", async () => {
-      await page.goto("/");
-    });
-    await test.step("Export the third quarter", async () => {
-      await page.getByRole("button", { name: "Export" }).click();
-    });
-  });
+  const review = await repo.reviews.get(id);
+  if (title && title !== review.title)
+    throw new Refused([`There's already a review called “${id}”, of “${review.title}”. Give this one another name, or record that one's Before: vantage start ${id}`]);
+  const last = review.rounds.at(-1);
+  if (last?.number === 0) throw new Refused([`Before is recorded already. Change the app, then record round 1: vantage record ${id}`]);
+  if (last) throw new Refused([`Before is how the app was before the work, and ${id} has round ${last.number} already. Record the round being worked on: vantage record ${id}`]);
 
-The test's name is the flow's, and steps are matched across rounds by their names.`;
+  const { recorded, failed } = await runFlows(repo, id, `Recording Before: each flow of ${id} on the app as it is…`);
+  if (!recorded.length)
+    return console.log(`\nNone of the flows run on the app as it is, so there's no Before. If one should, fix it and run this again. Otherwise change the app, then record round 1: vantage record ${id}`);
+
+  for (const { flow, bytes } of recorded) await repo.reviews.saveFile(id, 0, flow.recording, bytes);
+  await repo.reviews.saveRound(id, { number: 0, by: agent(), flows: recorded.map(({ flow }) => flow), replies: [], accounts: {} });
+  await repo.reviews.finish(id, 0);
+  console.log(`\nRecorded Before: ${list(recorded.map(({ flow }) => quote(flow.name)))}.`);
+  if (failed.length) console.log(`${list(failed.map(quote))} ${failed.length > 1 ? "don't" : "doesn't"} run on the app as it is, so ${failed.length > 1 ? "they have" : "it has"} no Before.`);
+  console.log(`
+Now change the app. Keep each flow's name, and each step's while it does the same job: they're matched across rounds by name. Once the work is done, add a flow for each choice you made that the reviewer can see and didn't ask for. Then record round 1: vantage record ${id}`);
 }

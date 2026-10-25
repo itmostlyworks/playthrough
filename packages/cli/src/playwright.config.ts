@@ -3,7 +3,7 @@
 
 import { defineConfig } from "@playwright/test";
 import { fileURLToPath } from "node:url";
-import type { Run } from "./record.ts";
+import type { Run } from "./flows.ts";
 
 const run: Run = JSON.parse(process.env.VANTAGE_RUN ?? "null");
 
@@ -13,6 +13,8 @@ export default defineConfig({
   outputDir: `${run.folder}/results`,
   workers: 1,
   reporter: [["list"], [fileURLToPath(new URL("./reporter.ts", import.meta.url)), { folder: run.folder }]],
-  use: { baseURL: run.app.url, viewport: { width: 1280, height: 800 } },
+  // An action that can't happen fails in seconds rather than at the test's end: recording Before, a flow that shows
+  // what's new stops at the first thing the app as it is doesn't have.
+  use: { baseURL: run.app.url, viewport: { width: 1280, height: 800 }, actionTimeout: 10_000 },
   webServer: { command: run.app.start, url: run.app.url, cwd: run.root, reuseExistingServer: true },
 });

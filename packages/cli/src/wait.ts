@@ -2,15 +2,16 @@
 // every note is answered. Then it waits for a send that asks for something, takes it, and prints the notes to answer.
 
 import { allNotes, conversation, notesToAnswer, Refused, roundInProgress, type Place } from "@vantage/review";
+import { agent } from "./agent.ts";
 import type { Repo } from "./repo.ts";
-import { list, time } from "./words.ts";
+import { list, quote, time } from "./words.ts";
 
 export async function wait(repo: Repo, id: string) {
   const reviews = repo.reviews;
   let review = await reviews.get(id);
   const last = review.rounds.at(-1);
   if (!review.accepted) {
-    if (!last) throw new Refused([`There's nothing to hand over yet. Record round 1 first: vantage record ${id}`]);
+    if (!last || last.number === 0) throw new Refused([`There's nothing to hand over yet. Record round 1 first: vantage record ${id}`]);
     if (!last.finished) {
       try {
         await reviews.finish(id, last.number);
@@ -35,17 +36,21 @@ export async function wait(repo: Repo, id: string) {
     const round = roundInProgress(review);
     const asking = notesToAnswer(review, round);
     for (const send of taken) {
-      const good = [...send.looksGood.map((flow) => `“${flow}”`), ...send.verdicts.filter((verdict) => verdict.verdict === "looks good").map((verdict) => `note ${verdict.note}`)];
+      const good = [
+        ...send.looksGood.map(quote),
+        ...send.verdicts.filter((verdict) => verdict.verdict === "looks good").map((verdict) => `your answer to note ${verdict.note}`),
+      ];
       if (good.length) console.log(`\n${send.by} says ${list(good)} ${good.length > 1 ? "look" : "looks"} good.`);
     }
     if (!asking.length) continue;
 
     const notes = allNotes(review);
+    const you = agent();
     console.log(`\nNotes to answer in round ${round}:`);
     for (const note of asking) {
-      const turns = conversation(review, note).map(({ by, agent, round, words, verdict }) => {
-        const who = agent ? `You, in round ${round}` : verdict ? `${by}, ${verdict}` : by;
-        return `    ${who}${words.trim() ? `: ${words}` : ""}`;
+      const turns = conversation(review, note).map((turn) => {
+        const who = turn.agent ? `${turn.by === you ? "You" : turn.by}, in round ${turn.round}` : turn.verdict ? `${turn.by}, ${turn.verdict}` : turn.by;
+        return `    ${who}${turn.words.trim() ? `: ${turn.words}` : ""}`;
       });
       console.log(`\n  ${note}  ${where(notes.get(note)?.note.on)}\n${turns.join("\n")}`);
     }
