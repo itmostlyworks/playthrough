@@ -93,7 +93,11 @@ export function differences(then: Reading, now: Reading): { differences: Differe
   // As many words gone as new in the same table, dialog or panel are those words reworded, in order, wherever they went.
   const wordsIn = (reading: Reading, things: Thing[]) => {
     const count = new Map<string, number>();
-    for (const thing of things) if (thing.role === "text" && holderOf(reading, thing)) count.set(holderKey(reading, thing), (count.get(holderKey(reading, thing)) ?? 0) + 1);
+    for (const thing of things) {
+      if (thing.role !== "text" || !holderOf(reading, thing)) continue;
+      const key = holderKey(reading, thing);
+      count.set(key, (count.get(key) ?? 0) + 1);
+    }
     return count;
   };
   const goneWords = wordsIn(then, gone);
@@ -126,7 +130,7 @@ export function differences(then: Reading, now: Reading): { differences: Differe
         ? // The same kind of thing with the same name, or in the same place; a table, dialog or panel mostly where the old
           // one was; or a panel or menu holding the same words, wherever it went (a menu that opens higher, its items in
           // another order).
-          take((a) => a.role === b.role && (a.name === b.name || samePlace(a, b) || (HOLDS.test(b.role) && overlap(a, b) > 0.5) || (/^(box|menu)$/.test(b.role) && !!a.wordsInside && bag(a) === bag(b))))
+          take((a) => a.role === b.role && (a.name === b.name || samePlace(a, b) || mostlyWhereItWas(a, b) || holdsTheSameWords(a, b)))
         : // Words in the same place; or one of as many words gone as new in the same thing; or the same words with other
           // data in them, in the same thing (“Total $56,145.00” is now “Total for 2026 $56,145.00”).
           (take((a) => a.role === "text" && samePlace(a, b)) ??
@@ -178,4 +182,6 @@ function gained(reading: Reading, control: Thing, was: string): boolean {
   const more = control.name.slice(was.length + 1);
   return reading.things.some((thing) => parentOf(reading, thing) === control && thing.words === more);
 }
+const mostlyWhereItWas = (a: Thing, b: Thing) => HOLDS.test(b.role) && overlap(a, b) > 0.5;
+const holdsTheSameWords = (a: Thing, b: Thing) => /^(box|menu)$/.test(b.role) && !!a.wordsInside && bag(a) === bag(b);
 const bag = (thing: Thing) => (thing.wordsInside ?? "").split(" ").sort().join(" ");

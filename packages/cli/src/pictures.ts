@@ -5,8 +5,9 @@
 // same at every step looks the same.
 
 import type { Page } from "@playwright/test";
-import { called, idOf, onScreen, sentence, the, wayOf, type Found } from "./changes.ts";
+import { idOf, onScreen, type Found } from "./changes.ts";
 import { bare, differences, HOLDS, holderOf, identity } from "./differences.ts";
+import { called, sentence, the, wayOf } from "./names.ts";
 import type { Reading, Thing } from "./read.ts";
 
 // Where two pictures differ: a patch of the screen, in pixels; whether it's the same picture nudged up to 2px, which only
@@ -80,7 +81,7 @@ const around = (a: Area, b: Area): Area => {
 };
 const contains = (outer: Area, inner: Area, by = 0) =>
   outer.x <= inner.x + by && outer.y <= inner.y + by && outer.x + outer.width >= inner.x + inner.width - by && outer.y + outer.height >= inner.y + inner.height - by;
-const scrollOf = (reading: Reading) => (reading.things[0] ? `${reading.things[0].page.x - reading.things[0].box.x},${reading.things[0].page.y - reading.things[0].box.y}` : "");
+const scrollOf = ({ things: [first] }: Reading) => (first ? `${first.page.x - first.box.x},${first.page.y - first.box.y}` : "");
 
 // Runs in the page, where the browser reads the pictures, so everything it uses is inside it. Gives each patch where the
 // pictures differ that nothing in `explained` is at.
@@ -143,7 +144,9 @@ async function differ({ then, now, explained }: { then: string; now: string; exp
     // As far as its different dots reach.
     const reach = part.map(([x, y]) => squares.get(`${x},${y}`)!);
     const x = Math.min(...reach.map((square) => square.x)), y = Math.min(...reach.map((square) => square.y));
-    patches.push({ x, y, width: Math.max(...reach.map((square) => square.right)) - x, height: Math.max(...reach.map((square) => square.bottom)) - y, squares: part.length });
+    const right = Math.max(...reach.map((square) => square.right));
+    const bottom = Math.max(...reach.map((square) => square.bottom));
+    patches.push({ x, y, width: right - x, height: bottom - y, squares: part.length });
   }
   const meets = (patch: Area, box: Area) =>
     box.x - AROUND < patch.x + patch.width && patch.x < box.x + box.width + AROUND && box.y - AROUND < patch.y + patch.height && patch.y < box.y + box.height + AROUND;
@@ -177,7 +180,7 @@ async function differ({ then, now, explained }: { then: string; now: string; exp
   };
   const off = (x: number, y: number, dx: number, dy: number) => {
     const p = (y * width + x) * 3;
-    return Math.max(Math.abs(softB[p]! - earlier(x + dx, y + dy, 0)), Math.abs(softB[p + 1]! - earlier(x + dx, y + dy, 1)), Math.abs(softB[p + 2]! - earlier(x + dx, y + dy, 2))) > MISFIT;
+    return [0, 1, 2].some((channel) => Math.abs(softB[p + channel]! - earlier(x + dx, y + dy, channel)) > MISFIT);
   };
   const fits = (patch: Area & { squares: number }, dx: number, dy: number) => {
     const misfits = new Map<string, number>();
