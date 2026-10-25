@@ -63,20 +63,27 @@ export function differences(then: Reading, now: Reading): { differences: Differe
     if (difference) found.push(difference);
   };
 
-  // The same thing, called the same and saying the same. As many alike in both (every “Overdue” in a list) pair in order,
-  // so rows pushed down further than a row's height still pair with themselves. Otherwise each pairs with the nearest
-  // that looks the same in the same table or panel, so a new line repeating a table's amount doesn't take the table's own.
+  // The same thing, called the same and saying the same. As many alike in both in one table or panel (every “Overdue” in
+  // a list) pair in order, so rows pushed down further than a row's height still pair with themselves, and a panel moved
+  // below another keeps its own: Spliit's “Dev” in who owes whom isn't the first “Dev” in the expenses. Otherwise each
+  // pairs with the nearest that looks the same in the same table or panel, so a new line repeating a table's amount
+  // doesn't take the table's own.
   const alike = new Map<string, { then: Thing[]; now: Thing[] }>();
   const alikeTo = (key: string) => alike.get(key) ?? alike.set(key, { then: [], now: [] }).get(key)!;
   for (const thing of then.things) alikeTo(exactly(thing)).then.push(thing);
   for (const thing of now.things) alikeTo(exactly(thing)).now.push(thing);
   const gone: Thing[] = [];
   const added: Thing[] = [];
-  for (const { then: as, now: bs } of alike.values()) {
-    if (as.length === bs.length) {
-      as.forEach((a, i) => pair(a, bs[i]!));
-      continue;
+  for (const { then: all, now: allNow } of alike.values()) {
+    const as: Thing[] = [];
+    const bs: Thing[] = [];
+    for (const key of new Set(all.map((a) => holderKey(then, a)))) {
+      const here = all.filter((a) => holderKey(then, a) === key);
+      const hereNow = allNow.filter((b) => holderKey(now, b) === key);
+      if (here.length === hereNow.length) here.forEach((a, i) => pair(a, hereNow[i]!));
+      else as.push(...here);
     }
+    bs.push(...allNow.filter((b) => !was.has(b)));
     const costs = as.flatMap((a) => bs.map((b) => ({ a, b, cost: distance(a, b) + (sameLook(a, b) ? 0 : 200) + (holderKey(then, a) === holderKey(now, b) ? 0 : 400) })));
     const paired = new Set<Thing>();
     for (const { a, b } of costs.sort((x, y) => x.cost - y.cost)) {

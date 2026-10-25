@@ -67,9 +67,36 @@ describe("What changed at a moment", () => {
     ]);
   });
 
+  test("a button or link that shows only an icon is called by its label (Spliit's Create expense and Export, swapped)", async () => {
+    const header = (first: string, second: string) => `<div class="panel" style="display: flex; gap: 8px"><h1>Expenses</h1>${first}${second}</div>`;
+    const icon = `<svg width="16" height="16"><path d="M8 2v12M2 8h12" stroke="black" /></svg>`;
+    const create = `<a href="#" title="Create expense">${icon}</a>`;
+    const exportThem = `<button title="Export">${icon}</button>`;
+    assert.deepEqual(await said(header(exportThem, create), header(create, exportThem)), ["Create expense and Export have swapped places"]);
+  });
+
   test("a layout shift belongs to what caused it, above the things it moved", async () => {
     const page = (banner: string) => `<h1>Invoices</h1>${banner}<p>INV-1043</p><p>INV-1050</p><p>INV-1057</p>`;
     assert.deepEqual(await said(page(""), page(`<div class="panel"><p>Payment failed</p></div>`)), ["“Payment failed” area is new, and moved 3 things down"]);
+  });
+
+  test("something that moved past others, from above them to below, moved them, and keeps its own words (Spliit's who owes whom, below the expenses)", async () => {
+    const owes = `<section aria-label="Who owes whom" class="panel"><p>You owe <b>Dev</b> $65.00</p><p>You owe <b>Ana</b> $90.00</p></section>`;
+    const expenses = `<p>Paid by <b>Dev</b> for everyone</p><p>Paid by <b>Ana</b> for everyone</p><p>Groceries</p>`;
+    assert.deepEqual(await said(`<h1>Expenses</h1>${owes}${expenses}`, `<h1>Expenses</h1>${expenses}${owes}`), ["“Who owes whom” area moved down, and moved 3 things up"]);
+  });
+
+  test("words reworded without taking more room push nothing, and what moved with a shift says only how it looks (Spliit, all at once)", async () => {
+    const owes = `<section aria-label="Who owes whom" class="panel"><p>You owe <b>Dev</b> $65.00</p><p>You owe <b>Ana</b> $90.00</p></section>`;
+    const expenses = (colour: string) =>
+      ["Taxi to the station", "Dinner at the harbour", "Groceries"].map((title, i) => `<p>${title}</p><p style="font-weight: bold; color: ${colour}">${["$40.00", "$180.00", "$120.00"][i]}</p>`).join("");
+    const then = `<h1>Expenses</h1><p>Here are the expenses that you created for your group.</p>${owes}${expenses("black")}`;
+    const now = `<h1>Expenses</h1><p>Everything your group has spent, newest first.</p>${expenses("green")}${owes}`;
+    assert.deepEqual(await said(then, now), [
+      "“Here are the expenses that you created for your group.” now says “Everything your group has spent, newest first.”",
+      "“$…” looks different: text colour, in 3 places",
+      "“Who owes whom” area moved down, and moved 3 things up",
+    ]);
   });
 
   test("a small new thing on a row moves its neighbour, which is named when it's the only one (the example's Export button)", async () => {
@@ -84,6 +111,11 @@ describe("What changed at a moment", () => {
       "“Payment failed” area is new, and moved the table down",
       "“Overdue” looks different: background, in 2 places",
     ]);
+  });
+
+  test("alike words changed alike, differing only by their data, are called by what they share (Spliit's amounts, made green)", async () => {
+    const amounts = (colour: string) => ["$40.00", "$180.00", "$120.00"].map((amount) => `<p style="font-weight: bold; color: ${colour}">${amount}</p>`).join("");
+    assert.deepEqual(await said(amounts("black"), amounts("green")), ["“$…” looks different: text colour, in 3 places"]);
   });
 
   test("what moves with what holds it isn't a change of its own", async () => {

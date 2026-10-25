@@ -26,6 +26,47 @@ export function readPage(page: Page): Promise<{ screen: Reading["screen"]; thing
   return page.evaluate(read);
 }
 
+// The page as the app shows it, not as the pointer happens to rest on it: its :hover rules are set aside while it's read
+// and pictured, and put back. Moved by a change, the pointer rests on something else, which lit up only for it. What the
+// app does on hovering itself, a tooltip it opens, stays. rrweb doesn't record a rule's selector changing.
+export async function unhovered<T>(page: Page, look: () => Promise<T>): Promise<T> {
+  await page.evaluate(hovering, false);
+  try {
+    return await look();
+  } finally {
+    await page.evaluate(hovering, true);
+  }
+}
+
+function hovering(on: boolean) {
+  const kept = window as unknown as { __vantageHover?: [CSSStyleRule, string][] };
+  if (on) {
+    for (const [rule, selector] of kept.__vantageHover ?? []) rule.selectorText = selector;
+    kept.__vantageHover = [];
+    return;
+  }
+  const set: [CSSStyleRule, string][] = (kept.__vantageHover = []);
+  const visit = (rules: CSSRuleList) => {
+    for (const rule of rules) {
+      // Nothing matches :not(*), so it reads as nothing hovered, and :not(:hover) as everything not.
+      if (rule instanceof CSSStyleRule && rule.selectorText.includes(":hover")) {
+        set.push([rule, rule.selectorText]);
+        rule.selectorText = rule.selectorText.replaceAll(":hover", ":not(*)");
+      }
+      if ("cssRules" in rule) visit((rule as CSSGroupingRule).cssRules);
+    }
+  };
+  for (const sheet of [...document.styleSheets, ...document.adoptedStyleSheets])
+    try {
+      visit(sheet.cssRules);
+    } catch {
+      // another site's stylesheet can't be read
+    }
+  // What it eases back from, it's at already.
+  getComputedStyle(document.body).color;
+  for (const animation of document.getAnimations()) if (animation instanceof CSSTransition) animation.finish();
+}
+
 // Runs in the page, so everything it uses is inside it.
 function read() {
   const ROLES = /^(button|link|dialog|alertdialog|group|radiogroup|table|grid|treegrid|heading|status|alert|textbox|searchbox|combobox|checkbox|radio|switch|slider|listbox|option|tab|menu|menuitem|img)$/;

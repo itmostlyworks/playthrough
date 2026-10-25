@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
 import { chromium, type Browser, type Page } from "@playwright/test";
-import { readPage, type Thing } from "../src/read.ts";
+import { readPage, unhovered, type Thing } from "../src/read.ts";
 import { watchRest } from "../src/rest.ts";
 
 let browser: Browser;
@@ -107,6 +107,19 @@ describe("Reading a page", () => {
     const { things } = await readPage(page);
     assert.equal(find(things, "text", "$1,475.00").column, "Amount");
     assert.equal(find(things, "text", "$3,650.00").column, undefined);
+  });
+
+  test("what the pointer rests on is read as the app shows it, its hover look set aside while it's read and back after (Spliit's card)", async () => {
+    const { page } = await open(
+      `<style>.card { padding: 16px; transition: background-color 150ms } .card:hover { background-color: rgb(244, 244, 245) }</style><div class="card"><p>Taxi to the station</p><p>$40.00</p></div>`,
+    );
+    const lit = () => page.waitForFunction(() => getComputedStyle(document.querySelector(".card")!).backgroundColor === "rgb(244, 244, 245)");
+    await page.mouse.move(60, 40);
+    await lit();
+    const { things } = await unhovered(page, () => readPage(page));
+    assert.ok(!things.some((thing) => thing.role === "box"), "a background only the pointer gives it doesn't make it a panel");
+    assert.equal(find(things, "text", "Taxi to the station").look.background, "rgba(0, 0, 0, 0)");
+    await lit();
   });
 
   test("what isn't shown isn't read, and what's below the fold is, where it is on the page", async () => {

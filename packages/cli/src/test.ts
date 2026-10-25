@@ -7,7 +7,7 @@
 import { test as base, expect as playwrightExpect, type Locator, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import type { Run } from "./flows.ts";
-import { readPage, type Reading } from "./read.ts";
+import { readPage, unhovered, type Reading } from "./read.ts";
 import { HOLD, PICTURE, READINGS, RECORDING, seconds } from "./reporter.ts";
 import { watchRest } from "./rest.ts";
 
@@ -117,9 +117,11 @@ const step = Object.assign(async (title: string, body: (info: unknown) => unknow
       }
       await flow.rest();
       const at = seconds(Date.now() - (flow.events[0]?.timestamp ?? Date.now()));
-      const { screen, things } = await readPage(flow.page);
-      flow.readings.push({ step: title, at, screen, things });
-      flow.pictures.push(await flow.page.screenshot({ animations: "disabled", caret: "hide" }));
+      await unhovered(flow.page, async () => {
+        const { screen, things } = await readPage(flow.page);
+        flow.readings.push({ step: title, at, screen, things });
+        flow.pictures.push(await flow.page.screenshot({ animations: "disabled", caret: "hide" }));
+      });
       return done;
     },
     options,

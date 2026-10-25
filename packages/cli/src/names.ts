@@ -10,8 +10,9 @@ export const WORD: Record<string, string> = {
 };
 export const word = (thing: Thing) => WORD[thing.role] ?? thing.role;
 
-// A button that shows only a symbol, a ⋯ or a ×, is called by its label alone: “Actions for INV-1065”.
-export const symbolOnly = (thing: Thing) => thing.role === "button" && !!thing.name && thing.words.replace(/\s/g, "").length <= 2 && !/[\p{L}\p{N}]/u.test(thing.words);
+// A button or link that shows only a symbol or an icon, a ⋯ or a +, is called by its label alone: “Actions for INV-1065”,
+// “Create expense”.
+export const symbolOnly = (thing: Thing) => (thing.role === "button" || thing.role === "link") && !!thing.name && thing.words.replace(/\s/g, "").length <= 2 && !/[\p{L}\p{N}]/u.test(thing.words);
 const cut = (words: string, most = 60) => (words.length > most ? words.slice(0, most - 1).trimEnd() + "…" : words);
 
 export function called(thing: Thing): string {
@@ -29,6 +30,8 @@ export const the = (thing: Thing) => {
 export const a = (word: string) => (/^[aeiou]/.test(word) ? `an ${word}` : `a ${word}`);
 export const plural = (word: string) => (/(s|x|ch|sh)$/.test(word) ? `${word}es` : `${word}s`);
 export const things = (count: number) => (count > 1 ? "things" : "thing");
+// Words with their data as “…”, for alike things that differ only by it: “$40.00” and “$120.00” are both “$…”.
+export const dataLeftOut = (words: string) => words.replace(/\d[\d.,:/]*/g, "…");
 export const sentence = (words: string) => words.charAt(0).toUpperCase() + words.slice(1);
 export const wayOf = (across: number, down: number) => [down > 0 ? "down" : down < 0 ? "up" : "", across > 0 ? "right" : across < 0 ? "left" : ""].filter(Boolean).join(" and ");
 

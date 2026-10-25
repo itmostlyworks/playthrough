@@ -7,7 +7,7 @@
 import { createHash } from "node:crypto";
 import type { Box, Element } from "@vantage/review";
 import { differences, HOLDS, holderOf, identity, near, NEAR, parentOf, type Difference } from "./differences.ts";
-import { a, called, lookWords, plural, rewordedWords, sentence, symbolOnly, the, things, together, wayOf, word, WORD } from "./names.ts";
+import { a, called, dataLeftOut, lookWords, plural, rewordedWords, sentence, symbolOnly, the, things, together, wayOf, word, WORD } from "./names.ts";
 import type { Reading, Thing } from "./read.ts";
 
 // A change at one moment: what it's on is an element of the newer round, or for something gone, where it was.
@@ -43,6 +43,7 @@ export function changesAt(then: Reading, now: Reading): Found[] {
 
   const { reordered, left } = rowsReordered(moment, own.filter(isMove));
   const { shifts, loose } = layoutShifts(left, carried);
+  moment.shifts = shifts.map((shift) => shift.by);
   const widened = widenedTogether(others, caused, along);
   const told = [
     ...reordered,
@@ -60,6 +61,7 @@ class Moment {
   readonly differences: Difference[];
   readonly was: Map<Thing, Thing>; // each thing now, as it was then
   readonly isNow: Map<Thing, Thing>; // each thing then, as it is now
+  shifts: { x: number; y: number }[] = []; // how far each layout shift moved what's in it, once they're found
 
   constructor(then: Reading, now: Reading) {
     const { differences: found, was } = differences(then, now);
@@ -77,6 +79,12 @@ class Moment {
       const went = before && moveOf(before, around!);
       return went && (went.x || went.y) && near(moveOf(a, b).x, went.x) && near(moveOf(a, b).y, went.y);
     });
+  }
+
+  // Its move is another's: what holds it or what it's in moved as far, or a layout shift it's part of did.
+  movedAlong(a: Thing, b: Thing): boolean {
+    const by = moveOf(a, b);
+    return !!this.movedWith(a, b) || this.shifts.some((shift) => near(shift.x, by.x) && near(shift.y, by.y));
   }
 
   // A dialog, message or panel it's in now and wasn't in before: it moved into it.
@@ -240,11 +248,13 @@ function widenedTogether(others: Difference[], caused: Set<Difference>, along: M
 }
 
 // What made a layout shift: something that got wider or narrower, moving what's in its column to its edge; else something
-// new, gone or resized above it, or beside it on the side it moved away from. With no cause, the shift is told by the
-// first thing in it.
+// new, gone or resized above it, or beside it on the side it moved away from; else something that moved past it, from
+// one side to the other, taking its room along (Spliit's who owes whom, moved below the expenses). With no cause, the
+// shift is told by the first thing in it.
 function causesOfShifts(moment: Moment, shifts: Shift[], widened: Widened[], others: Difference[], caused: Set<Difference>, along: Map<Difference, With>): Told[] {
-  const told: Told[] = [];
-  for (const { by, moves } of shifts) {
+  const unexplained: Shift[] = [];
+  for (const shift of shifts) {
+    const { by, moves } = shift;
     const way = wayOf(by.x, by.y);
     const pushed = moves.map((move) => move.now);
     const column = near(by.y, 0) ? widened.find((group) => movedToItsEdge(group.top, moves, by.x)) : undefined;
@@ -252,21 +262,47 @@ function causesOfShifts(moment: Moment, shifts: Shift[], widened: Widened[], oth
       addAlong(along, column.cause ?? column.top, "pushed", pushed, way);
       continue;
     }
-    const first = [...moves].sort((p, q) => p.now.page.y - q.now.page.y || p.now.page.x - q.now.page.x)[0]!;
     const vertical = Math.abs(by.y) >= Math.abs(by.x);
     const looking = { vertical, by: vertical ? by.y : by.x, moving: true };
     const candidates = others.filter((d) => !caused.has(d));
     const span = spanOf(pushed);
     // Across, in a row laid out with space between, a small new thing can move its neighbour a long way: the nearest change
     // on the side it moved away from, when nothing beside it is big enough.
-    const cause = moment.into(first) ? undefined : (causeOf(span, looking, candidates) ?? (vertical ? undefined : causeOf(span, { ...looking, share: 0 }, candidates)));
+    const cause = moment.into(firstOf(moves)) ? undefined : (causeOf(span, looking, candidates) ?? (vertical ? undefined : causeOf(span, { ...looking, share: 0 }, candidates)));
     if (cause) addAlong(along, cause, "pushed", pushed, way);
-    else {
-      const more = moves.length > 1 ? `, with ${moves.length - 1} more ${things(moves.length - 1)} around it` : "";
-      told.push({ what: "moved", thing: first.now, in: moment.now, words: `${called(first.now)} ${movedWords(moment, first)}${more}` });
-    }
+    else unexplained.push(shift);
   }
-  return told;
+
+  // Of two that went past each other, it's the one with fewer things in it that moved the other: one panel past a list.
+  const movedPast = new Map<Shift, Along>();
+  const passed = new Set<Shift>();
+  for (const shift of [...unexplained].sort((p, q) => q.moves.length - p.moves.length)) {
+    const past = unexplained.find((other) => other !== shift && !passed.has(other) && other.moves.length <= shift.moves.length && wentPast(other, shift));
+    if (!past) continue;
+    const had = movedPast.get(past)?.things ?? [];
+    movedPast.set(past, { things: [...had, ...shift.moves.map((move) => move.now)], way: wayOf(shift.by.x, shift.by.y) });
+    passed.add(shift);
+  }
+  return unexplained
+    .filter((shift) => !passed.has(shift))
+    .map((shift) => {
+      const first = firstOf(shift.moves);
+      const more = shift.moves.length > 1 ? `, with ${shift.moves.length - 1} more ${things(shift.moves.length - 1)} around it` : "";
+      const pushed = movedPast.get(shift);
+      return { what: "moved", thing: first.now, in: moment.now, words: `${called(first.now)} ${movedWords(moment, first)}${more}`, ...(pushed && { pushed }) };
+    });
+}
+
+const firstOf = (moves: Move[]) => [...moves].sort((p, q) => p.now.page.y - q.now.page.y || p.now.page.x - q.now.page.x)[0]!;
+
+// One shift went past another, from one side of it to the other, along the way the other moved: before them, it's after
+// them now, or after them, before.
+function wentPast(mover: Shift, moved: Shift): boolean {
+  const [was, is] = [spanOf(mover.moves.map((move) => move.then)), spanOf(mover.moves.map((move) => move.now))];
+  const [wasThere, isThere] = [spanOf(moved.moves.map((move) => move.then)), spanOf(moved.moves.map((move) => move.now))];
+  if (Math.abs(moved.by.y) >= Math.abs(moved.by.x))
+    return moved.by.y < 0 ? was.bottom <= wasThere.y + NEAR && is.y >= isThere.bottom - NEAR : was.y >= wasThere.bottom - NEAR && is.bottom <= isThere.y + NEAR;
+  return moved.by.x < 0 ? was.right <= wasThere.x + NEAR && is.x >= isThere.right - NEAR : was.x >= wasThere.right - NEAR && is.right <= isThere.x + NEAR;
 }
 
 // Things moved left or right as far as an edge of something that got wider or narrower, and in its column: it moved them.
@@ -283,6 +319,9 @@ type Span = { x: number; y: number; right: number; bottom: number };
 type Looking = { vertical: boolean; by: number; kinds?: RegExp; share?: number; moving?: boolean };
 function causeOf(span: Span, { vertical, by, kinds = /^(new|gone|resized|reworded)$/, share = 0.5, moving = false }: Looking, candidates: Difference[]): Difference | undefined {
   const wide = (d: Difference) => (d.what === "new" || d.what === "gone" ? thingOf(d).box.width : isPair(d) ? Math.abs(growthOf(d.then, d.now).x) : 0);
+  // Up or down, only what took room or gave it moves things: new or taller pushes them down, gone or shorter lets them up.
+  const tall = (d: Difference) => (d.what === "new" || d.what === "gone" ? thingOf(d).box.height : isPair(d) ? Math.abs(growthOf(d.then, d.now).y) : 0);
+  const down = (d: Difference) => d.what === "new" || (isPair(d) && growthOf(d.then, d.now).y > 0);
   const above = (d: Difference) => {
     const thing = thingOf(d);
     return (d.what === "gone" ? thing.page.y : bottom(thing)) <= span.y + NEAR && thing.page.x < span.right && right(thing) > span.x;
@@ -297,7 +336,7 @@ function causeOf(span: Span, { vertical, by, kinds = /^(new|gone|resized|reworde
   };
   const offCentre = (thing: Thing) => Math.abs(thing.page.x + thing.box.width / 2 - (span.x + span.right) / 2);
   return candidates
-    .filter((d) => kinds.test(d.what) && (vertical || wide(d) >= Math.abs(by) * share))
+    .filter((d) => kinds.test(d.what) && (vertical ? tall(d) > NEAR && (!moving || by > 0 === down(d)) : wide(d) >= Math.abs(by) * share))
     .filter((d) => (vertical ? above(d) : beside(d)))
     .sort((p, q) => (vertical ? thingOf(q).page.y - thingOf(p).page.y : offCentre(thingOf(p)) - offCentre(thingOf(q))))[0];
 }
@@ -344,7 +383,7 @@ function sizeWords(moment: Moment, pair: Pair): string {
   };
   const across = edges(b.page.x, b.box.width, a.page.x, a.box.width);
   const down = edges(b.page.y, b.box.height, a.page.y, a.box.height);
-  const went = (across || down) && !moment.movedWith(a, b) ? `moved ${wayOf(across, down)}` : "";
+  const went = (across || down) && !moment.movedAlong(a, b) ? `moved ${wayOf(across, down)}` : "";
   return [sizes.length ? `is ${sizes.join(" and ")}` : "", went].filter(Boolean).join(", and ");
 }
 
@@ -411,7 +450,10 @@ function alikeWords(alike: Told[]): string {
     const them = symbolOnly(first.thing) ? together(all) : `${together(all, (thing) => thing.name)} ${plural(WORD[first.thing.role]!)}`;
     return sentence(`${them} ${verb}${along}`);
   }
-  return sentence(`${first.words}${along}, in ${alike.length} places`);
+  // Called differently only by their data, they're called by what they share: “$…” looks different, in 5 places.
+  const name = called(first.thing);
+  const shared = new Set(alike.map((told) => called(told.thing))).size > 1 && first.words.startsWith(name) ? dataLeftOut(name) + first.words.slice(name.length) : first.words;
+  return sentence(`${shared}${along}, in ${alike.length} places`);
 }
 
 // Its id: the thing and what happened to it, as letters that don't read alike, like every id in a review.
