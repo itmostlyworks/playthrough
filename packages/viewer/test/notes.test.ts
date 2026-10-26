@@ -53,6 +53,27 @@ test("an answer waits for whoever wrote the note, and everyone else sees who it 
   assert.equal(ben?.toJudge, true);
 });
 
+test("whoever says an answer looks good settles the note for everyone, under their name, and it doesn't become theirs", async () => {
+  const reviews = new Reviews(memory());
+  await twoPeople(reviews);
+  await reviews.send("export", send("Ben", 2, { verdicts: [{ note: note.id, verdict: "looks good" }] }));
+  const review = await reviews.get("export");
+  const [ana] = notesOn(review, 2, "Ana");
+  const [ben] = notesOn(review, 2, "Ben");
+  assert.deepEqual([ana?.state, ana?.toJudge, ana?.turns.at(-1)?.by, fill(ana!)], ["settled", false, "Ben", "bg-green"]);
+  assert.deepEqual([ben?.state, ben?.yours], ["settled", false]);
+});
+
+test("a Not quite after someone's Looks good sends the note back for everyone", async () => {
+  const reviews = new Reviews(memory());
+  await twoPeople(reviews);
+  await reviews.send("export", send("Ben", 2, { verdicts: [{ note: note.id, verdict: "looks good" }] }));
+  await reviews.send("export", send("Ana", 2, { verdicts: [{ note: note.id, verdict: "not quite", words: "It should still be only the overdue ones." }] }));
+  const review = await reviews.get("export");
+  assert.deepEqual(notesOn(review, 2, "Ben").map((note) => note.state), ["with the agent"]);
+  assert.deepEqual(notesOn(review, 2, "Ana").map((note) => note.state), ["with the agent"]);
+});
+
 test("each person's Looks good is their own, and a note of theirs in the flow takes it back", async () => {
   const review = await twoPeople();
   assert.deepEqual(goodTo(review, 1, "See what's overdue"), ["Ana", "Ben"]);

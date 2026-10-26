@@ -276,25 +276,23 @@ for (const [kept, storage] of storages) {
       ]);
     });
 
-    test("each person's verdict is their own, so a Not quite from anyone sends the answer back", async () => {
+    test("a note has one state for everyone, so a Not quite from anyone after a Looks good sends the answer back", async () => {
       const { reviews, asked } = await working();
       await reviews.saveRound("invoice-export", round(2, { replies: [{ note: asked.id, words: "It fades in now." }] }));
       await reviews.finish("invoice-export", 2);
       await reviews.send("invoice-export", send(2, { by: "Ana", verdicts: [{ note: asked.id, verdict: "looks good" }] }));
       await reviews.send("invoice-export", send(2, { by: "Ben", verdicts: [{ note: asked.id, verdict: "not quite", words: "Too slow." }] }));
-      await reviews.send("invoice-export", send(2, { by: "Ana", verdicts: [{ note: asked.id, verdict: "not quite", words: "Ben's right." }] }));
-      await reviews.send("invoice-export", send(2, { by: "Ana", verdicts: [{ note: asked.id, verdict: "looks good", words: "No, it's fine." }] }));
-      assert.equal((await reviews.take("invoice-export")).length, 4);
+      assert.equal((await reviews.take("invoice-export")).length, 2);
       await reviews.saveRound("invoice-export", round(3));
       await assert.rejects(reviews.finish("invoice-export", 3), refused(/needs an answer to note/));
     });
 
-    test("a note everyone last said looks good asks nothing more", async () => {
+    test("a note whose last word is Looks good asks nothing more, whoever said the words before it", async () => {
       const { reviews, asked } = await working();
       await reviews.saveRound("invoice-export", round(2, { replies: [{ note: asked.id, words: "It fades in now." }] }));
       await reviews.finish("invoice-export", 2);
       await reviews.send("invoice-export", send(2, { by: "Ben", verdicts: [{ note: asked.id, verdict: "not quite", words: "Too slow." }] }));
-      await reviews.send("invoice-export", send(2, { by: "Ben", verdicts: [{ note: asked.id, verdict: "looks good", words: "Actually, it's fine." }] }));
+      await reviews.send("invoice-export", send(2, { by: "Ana", verdicts: [{ note: asked.id, verdict: "looks good", words: "It's fine, it's meant to be calm." }] }));
       await reviews.take("invoice-export");
       await reviews.saveRound("invoice-export", round(3));
       await reviews.finish("invoice-export", 3);

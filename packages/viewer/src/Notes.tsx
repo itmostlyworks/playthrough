@@ -126,12 +126,13 @@ function Listed({ answers, className, onAnswer }: { answers: Changed[]; classNam
   );
 }
 
-// The conversation in exchanges: what someone said, and the agent's answer to it.
+// The conversation in exchanges: what someone asked, the agent's answer to it, and the Looks good it was given. What asks
+// again starts the next.
 function exchanges(turns: Turn[]): Turn[][] {
   const grouped: Turn[][] = [];
   for (const turn of turns) {
     const last = grouped.at(-1);
-    if (!last || (!turn.agent && last.at(-1)!.agent)) grouped.push([turn]);
+    if (!last || (!turn.agent && turn.verdict !== "looks good" && last.some((said) => said.agent))) grouped.push([turn]);
     else last.push(turn);
   }
   return grouped;
@@ -141,6 +142,10 @@ function Card(props: Props) {
   const { note, you, readOnly, compare, asking } = props;
   const draftNote = note.unsent && note.turns.length === 1;
   const judged = note.unsent && !draftNote ? note.turns.at(-1) : undefined;
+  // Someone's Looks good, sent, settles the latest answer for everyone, under their name; anyone can still send it back,
+  // as a resolved thread is reopened.
+  const answeredOn = note.turns.findLast((turn) => turn.agent)?.round;
+  const settled = !judged && note.state === "settled" && answeredOn !== undefined && note.turns.findLast((turn) => turn.verdict && turn.round >= answeredOn)?.verdict === "looks good";
   const setAsking = props.onAsking;
   const [editing, setEditing] = useState(false);
   const [earlier, setEarlier] = useState(false);
@@ -236,22 +241,23 @@ function Card(props: Props) {
         onCancel={() => setAsking(false)}
       />
     );
-  else if ((note.toJudge || judged) && !props.away)
+  else if ((note.toJudge || judged || settled) && !props.away)
     [question, answers] = [
       "Does this fix it?",
       <>
         <Answer
-          keys={judged ? undefined : "↵"}
+          keys={judged || settled ? undefined : "↵"}
           tone="good"
-          pressed={judged?.verdict === "looks good"}
+          pressed={judged?.verdict === "looks good" || settled}
           onClick={() => {
+            if (settled) return;
             props.onJudge(judged?.verdict === "looks good" ? undefined : { note: note.id, verdict: "looks good" });
             if (judged?.verdict !== "looks good") props.onPlayOn();
           }}
         >
           {tick}Looks good
         </Answer>
-        <Answer keys={judged ? undefined : "X"} tone="back" pressed={judged?.verdict === "not quite"} onClick={() => (judged?.verdict === "not quite" ? props.onJudge(undefined) : setAsking(true))}>
+        <Answer keys={judged || settled ? undefined : "X"} tone="back" pressed={judged?.verdict === "not quite"} onClick={() => (judged?.verdict === "not quite" ? props.onJudge(undefined) : setAsking(true))}>
           Not quite
         </Answer>
       </>,

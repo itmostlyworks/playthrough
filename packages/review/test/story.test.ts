@@ -118,7 +118,7 @@ test("two people review the same work, each from where they last looked", async 
   await reviews.take(id);
   assert.deepEqual(notesToAnswer(await reviews.get(id), 3), [small.id]);
 
-  // Round 3 answers again. The note is Ana's, so its new answer waits for her as well as for Ben, who judged it.
+  // Round 3 answers again. The note is Ana's, so its new answer waits for her as well as for Ben, who sent it back.
   await reviews.saveRound(id, round(3, { replies: [{ note: small.id, words: "Cancel is full width on a phone." }], accounts: { buttons: { note: small.id } } }));
   await reviews.saveComparison(id, { round: 3, since: 0, changes: [dialog, format, keep, buttons, swap] });
   await reviews.saveComparison(id, { round: 3, since: 1, changes: [buttons, swap] });
@@ -130,9 +130,13 @@ test("two people review the same work, each from where they last looked", async 
   assert.deepEqual(told(review, 3, "Ana"), ["buttons in Cancel halfway"]);
   assert.equal(goodForYou(review, 3, "Ana", "Export a quarter"), true);
 
-  // Both are happy. Each says so for themselves, and either of them can accept.
-  await reviews.send(id, send("Ana", 3, { verdicts: [{ note: small.id, verdict: "looks good" }], looksGood: ["Cancel halfway"] }));
+  // Ben says the answer looks good, which settles it for Ana too: a note has one state, the last word on it. Each says
+  // their flows look good for themselves, and either of them can accept.
   await reviews.send(id, send("Ben", 3, { verdicts: [{ note: small.id, verdict: "looks good" }], looksGood: ["Export a quarter", "Cancel halfway"] }));
+  review = await reviews.get(id);
+  assert.deepEqual(waitingForYou(review, 3, "Ana"), []);
+  assert.equal(readyToAccept(review, "Ana"), false);
+  await reviews.send(id, send("Ana", 3, { looksGood: ["Cancel halfway"] }));
   review = await reviews.get(id);
   assert.equal(readyToAccept(review, "Ana"), true);
   assert.equal(readyToAccept(review, "Ben"), true);

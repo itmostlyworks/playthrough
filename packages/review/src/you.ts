@@ -1,5 +1,6 @@
 // What's worked out for each person, never kept: where you last looked at each flow, what's new to you, which notes wait
-// for you, whether a flow is good for you, and whether you can accept. Each person's judgement is their own.
+// for you, whether a flow is good for you, and whether you can accept. A note has one state for everyone, the last word on
+// it; Looks good on a flow, and accepting, are each person's own.
 
 import type { Change, Place, Review } from "./model.ts";
 import { accountOf, allNotes, conversation, problemsAccepting, waitingForTheAgent, type Turn } from "./rules.ts";
@@ -53,25 +54,25 @@ export function newToYou(review: Review, round: number, you: string): Shown[] {
   return shown.sort((a, b) => order.indexOf(a.on.flow) - order.indexOf(b.on.flow) || (a.on.at ?? 0) - (b.on.at ?? 0));
 }
 
-// Your notes are the ones you've said something on, up to this round: you wrote them, or judged an answer on them.
+// Your notes are the ones you asked the agent about, up to this round: you wrote them, or sent an answer on them back.
 export function yourNotes(review: Review, round: number, you: string): Map<string, Turn[]> {
   const yours = new Map<string, Turn[]>();
   for (const id of allNotes(review).keys()) {
     const turns = conversation(review, id).filter((turn) => turn.round <= round);
-    if (turns.some((turn) => !turn.agent && turn.by === you)) yours.set(id, turns);
+    if (turns.some((turn) => !turn.agent && turn.by === you && turn.verdict !== "looks good")) yours.set(id, turns);
   }
   return yours;
 }
 
-// A note's latest answer is yours to judge until you've said whether it fixes it. Anyone can, on anyone's note.
-export function toJudge(turns: Turn[], you: string): boolean {
+// A note's latest answer is to judge until someone says whether it fixes it. Anyone can, on anyone's note.
+export function toJudge(turns: Turn[]): boolean {
   const answered = turns.findLast((turn) => turn.agent)?.round;
-  return answered !== undefined && !turns.some((turn) => !turn.agent && turn.by === you && turn.verdict && turn.round >= answered);
+  return answered !== undefined && !turns.some((turn) => !turn.agent && turn.verdict && turn.round >= answered);
 }
 
-// One of your notes waits for you once it has an answer you haven't judged.
+// One of your notes waits for you once it has an answer nobody has judged yet.
 export function waitingForYou(review: Review, round: number, you: string): string[] {
-  return [...yourNotes(review, round, you)].filter(([, turns]) => toJudge(turns, you)).map(([id]) => id);
+  return [...yourNotes(review, round, you)].filter(([, turns]) => toJudge(turns)).map(([id]) => id);
 }
 
 // A flow is good for you once you've said it looks good, while nothing new to you is told in it on the rounds since and

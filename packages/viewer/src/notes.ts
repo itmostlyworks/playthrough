@@ -30,7 +30,7 @@ export const said = (draft: Draft) => draft.notes.length + draft.verdicts.length
 export type State = "needs you" | "with the agent" | "with someone else" | "settled";
 
 // `written` is the round it was written on; `waitingFor` names the others it waits for; `toJudge` says it has an answer
-// you haven't judged, on your note or not.
+// nobody has judged yet, which anyone can.
 export type Shown = { id: string; number: number; on?: Place; written: number; turns: Turn[]; state: State; waitingFor: string[]; yours: boolean; toJudge: boolean; unsent: boolean };
 
 // The rounds anyone can see: the one being worked on is the agent's until it's finished.
@@ -86,7 +86,7 @@ function everyNote(review: Review, round: number, you: string, draft: Draft): [S
           ? "with someone else"
           : "settled";
     const unsent = draft.notes.some((kept) => kept.id === id) || draft.verdicts.some((verdict) => verdict.note === id);
-    const shown = { id, number: numbered.get(id) ?? 0, on: note.on, written: started, turns, state, waitingFor, yours: yours.has(id), toJudge: toJudge(turns, you), unsent };
+    const shown = { id, number: numbered.get(id) ?? 0, on: note.on, written: started, turns, state, waitingFor, yours: yours.has(id), toJudge: toJudge(turns), unsent };
     every.push([shown, started === round || turns.some((turn) => turn.round === round) || state !== "settled"]);
   }
   return every.sort(([a], [b]) => a.number - b.number);

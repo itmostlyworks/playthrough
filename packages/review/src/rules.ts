@@ -61,16 +61,16 @@ export function waitingForTheAgent(review: Review): string[] {
   return asking(review.sends.filter((send) => !answered(send)));
 }
 
-// What asks for an answer in some sends: a new note, or one whose answer someone last said isn't quite right. A person
-// who changes their mind counts once, as they said it last.
+// What asks for an answer in some sends: a new note, or one whose answer was last said not to be quite right. A note
+// has one state for everyone, so the last word on it decides, whoever said it.
 function asking(sends: Send[]): string[] {
   const asks = new Set<string>();
-  const said = new Map<string, Map<string, Verdict["verdict"]>>();
+  const last = new Map<string, Verdict["verdict"]>();
   for (const send of sends) {
     for (const note of send.notes) asks.add(note.id);
-    for (const verdict of send.verdicts) said.set(verdict.note, (said.get(verdict.note) ?? new Map()).set(send.by, verdict.verdict));
+    for (const verdict of send.verdicts) last.set(verdict.note, verdict.verdict);
   }
-  for (const [note, verdicts] of said) if ([...verdicts.values()].includes("not quite")) asks.add(note);
+  for (const [note, verdict] of last) if (verdict === "not quite") asks.add(note);
   return [...asks];
 }
 
