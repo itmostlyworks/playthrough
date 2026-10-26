@@ -3,8 +3,8 @@
 // change, and a note sits on its thing in every round, found the way the agent's answer to it was placed.
 
 import { useEffect, useState } from "react";
-import { called, placeIn, type Reading, type Thing } from "@vantage/page";
-import type { Element, Place, Point, Review, Round } from "@vantage/review";
+import { called, placeIn, type Reading, type Thing } from "@mostlyworks/vantage-page";
+import type { Element, Place, Point, Review, Round } from "@mostlyworks/vantage-review";
 import { readings } from "./api.ts";
 import type { Rect } from "./replay.ts";
 

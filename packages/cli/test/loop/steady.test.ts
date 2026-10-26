@@ -18,7 +18,7 @@ const DOT = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
 
 // What the flow shows: the day, a random number, the setup's word, the image, and how long the page has been open, which
 // is never the same twice.
-const shows = `import { test } from "@vantage/cli/test";
+const shows = `import { test } from "@mostlyworks/vantage/test";
 
 test("Look at the invoices", async ({ page, setup }) => {
   await test.step("Open the invoices", async () => {
@@ -28,7 +28,8 @@ test("Look at the invoices", async ({ page, setup }) => {
       say(\`Today is \${new Date().toISOString().slice(0, 10)}\`);
       say(\`Drawn \${Math.random().toFixed(6)}\`);
       say(\`Set up for \${word}\`);
-      say(\`Open for \${performance.now().toFixed(3)} ms\`);
+      // On a line of its own at the end, so it pushes nothing else along when its length changes.
+      document.body.insertAdjacentHTML("beforeend", \`<p>Open for \${performance.now().toFixed(3)} ms</p>\`);
       document.querySelector("h1").insertAdjacentHTML("beforeend", '<img src="/dot.png" alt="" width="8" height="8">');
     }, setup.word);
   });

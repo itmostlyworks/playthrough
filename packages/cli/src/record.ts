@@ -3,8 +3,8 @@
 // and says what's left before it can be handed over: an answer to each note, and why each change since the round before
 // is there. Recording again keeps whatever the agent already wrote in the round.
 
-import { placeIn } from "@vantage/page";
-import { lastSeen, list, notesToAnswer, problemsFinishing, quote, Refused, roundInProgress, type Flow, type Reply, type Review } from "@vantage/review";
+import { placeIn } from "@mostlyworks/vantage-page";
+import { lastSeen, list, notesToAnswer, problemsFinishing, quote, Refused, roundInProgress, type Flow, type Reply, type Review } from "@mostlyworks/vantage-review";
 import { agent, unnamed } from "./agent.ts";
 import { recordOnBefore } from "./before.ts";
 import { compareWithEarlier } from "./compare.ts";

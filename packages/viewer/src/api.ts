@@ -2,8 +2,8 @@
 // and what a person sends.
 
 import { useEffect, useState } from "react";
-import type { Reading } from "@vantage/page";
-import type { Review, Send } from "@vantage/review";
+import type { Reading } from "@mostlyworks/vantage-page";
+import type { Review, Send } from "@mostlyworks/vantage-review";
 import type { Events } from "./replay.ts";
 
 export type Listed = { id: string; title: string; rounds: number; accepted: boolean };

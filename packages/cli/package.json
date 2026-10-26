@@ -1,5 +1,5 @@
 {
-  "name": "@vantage/cli",
+  "name": "@mostlyworks/vantage",
   "private": true,
   "type": "module",
   "bin": {
@@ -11,8 +11,8 @@
   "dependencies": {
     "@playwright/test": "1.64.1",
     "@rrweb/record": "2.1.7",
-    "@vantage/page": "*",
-    "@vantage/review": "*",
-    "@vantage/viewer": "*"
+    "@mostlyworks/vantage-page": "*",
+    "@mostlyworks/vantage-review": "*",
+    "@mostlyworks/vantage-viewer": "*"
   }
 }

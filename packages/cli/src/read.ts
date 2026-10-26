@@ -3,7 +3,7 @@
 // everything it can tell apart.
 
 import type { Page } from "@playwright/test";
-import type { Reading, Thing } from "@vantage/page";
+import type { Reading, Thing } from "@mostlyworks/vantage-page";
 
 export function readPage(page: Page): Promise<{ screen: Reading["screen"]; things: Thing[] }> {
   return page.evaluate(read);

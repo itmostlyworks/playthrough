@@ -5,8 +5,8 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Reporter, TestCase, TestResult, TestStep } from "@playwright/test/reporter";
-import type { Reading } from "@vantage/page";
-import type { Flow, Reviews } from "@vantage/review";
+import type { Reading } from "@mostlyworks/vantage-page";
+import type { Flow, Reviews } from "@mostlyworks/vantage-review";
 import { assetsOf, type Assets } from "./assets.ts";
 
 export const RECORDING = "vantage recording";

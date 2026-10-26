@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
 import { chromium, type Browser, type Page } from "@playwright/test";
-import type { Thing } from "@vantage/page";
+import type { Thing } from "@mostlyworks/vantage-page";
 import { readPage, unhovered } from "../src/read.ts";
 import { watchRest } from "../src/rest.ts";
 

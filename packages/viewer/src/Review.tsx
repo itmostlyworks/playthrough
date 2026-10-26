@@ -2,7 +2,7 @@
 // where you act. The view changes only when you change it: a new round says it's in, and waits for you.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { inStep, lastLooked, newId, readyToAccept, time, waitingForTheAgent, type Flow, type Note, type Place, type Review, type Round, type Send, type Verdict } from "@vantage/review";
+import { inStep, lastLooked, newId, readyToAccept, time, waitingForTheAgent, type Flow, type Note, type Place, type Review, type Round, type Send, type Verdict } from "@mostlyworks/vantage-review";
 import { accept, recording, send, useReview, useYou } from "./api.ts";
 import { HOLD } from "./Card.tsx";
 import { answersTo, diamondAt, diamondsOn, grownFrom, type Changed, type Diamond } from "./changes.ts";

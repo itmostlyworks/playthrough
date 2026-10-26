@@ -2,7 +2,7 @@
 // The command line: four commands an agent runs to have a person review its work. When one stops, it says why and what to do.
 
 import { readFileSync } from "node:fs";
-import { Refused } from "@vantage/review";
+import { Refused } from "@mostlyworks/vantage-review";
 import { putBack } from "./before.ts";
 import { open } from "./open.ts";
 import { record } from "./record.ts";

@@ -3,7 +3,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { memory, newId, Reviews, type Flow, type Review, type Round, type Send } from "@vantage/review";
+import { memory, newId, Reviews, type Flow, type Review, type Round, type Send } from "@mostlyworks/vantage-review";
 import { fill, goodTo, lookGood, nothing, notesOn, settledBefore, standings, takeBack } from "../src/notes.ts";
 
 const flow = (name: string): Flow => ({ name, length: 6, steps: [{ title: "Open the invoices", at: 0 }], recording: `${name.toLowerCase().replace(/\W+/g, "-")}.json` });

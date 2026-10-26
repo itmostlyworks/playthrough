@@ -3,7 +3,7 @@
 // end, and play there goes on into the next. Every recording on screen is moved to the moment it says.
 
 import { useSyncExternalStore } from "react";
-import type { Flow } from "@vantage/review";
+import type { Flow } from "@mostlyworks/vantage-review";
 import { CARD, clamp, type Moment } from "./moments.ts";
 
 export type Speed = 1 | 0.5 | 0.25;

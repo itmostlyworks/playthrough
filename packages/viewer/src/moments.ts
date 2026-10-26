@@ -2,7 +2,7 @@
 // title card, part of its time like everything else: for the CARD seconds before its recording starts, its name is up
 // over its first frame. The times people see are within a flow, from its recording's start.
 
-import type { Flow } from "@vantage/review";
+import type { Flow } from "@mostlyworks/vantage-review";
 
 export type Moment = { flow: string; at: number };
 

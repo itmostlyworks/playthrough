@@ -8,8 +8,8 @@
 // round shows it at once: a recording moved elsewhere in the page would have to be built again.
 
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
-import { elementOf, type Thing } from "@vantage/page";
-import { inStep, type Box, type Flow, type Place, type Point, type Review, type Round } from "@vantage/review";
+import { elementOf, type Thing } from "@mostlyworks/vantage-page";
+import { inStep, type Box, type Flow, type Place, type Point, type Review, type Round } from "@mostlyworks/vantage-review";
 import { recording } from "./api.ts";
 import { CARD, clamp, ease, MORPH, titleCard } from "./moments.ts";
 import { onPhone } from "./phone.ts";

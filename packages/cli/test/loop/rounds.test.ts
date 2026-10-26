@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { mkdir, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, describe, test } from "node:test";
-import { newId } from "@vantage/review";
+import { newId } from "@mostlyworks/vantage-review";
 import { addExport, example, exportThem, seeOverdue, seePaid, type Example } from "./example.ts";
 
 let app: Example;

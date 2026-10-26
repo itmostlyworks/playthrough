@@ -3,7 +3,7 @@
 // thing you can do with it. A new note is written where it will live, never over the recording.
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { list, time, type Turn, type Verdict } from "@vantage/review";
+import { list, time, type Turn, type Verdict } from "@mostlyworks/vantage-review";
 import { Answer, Compare, mac, play, Said, tick, Time } from "./Card.tsx";
 import type { Changed } from "./changes.ts";
 import { fades, useFade } from "./fade.ts";

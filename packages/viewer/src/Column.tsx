@@ -5,7 +5,7 @@
 // In general comes last. Nothing in it moves while it plays, and when it changes, rows glide.
 
 import { useEffect, useLayoutEffect, useRef, type CSSProperties, type ReactNode, type RefObject } from "react";
-import { list, time, type Flow, type Place, type Review, type Round } from "@vantage/review";
+import { list, time, type Flow, type Place, type Review, type Round } from "@mostlyworks/vantage-review";
 import { Answer, Compare, play, Said, tick, Time, useHold } from "./Card.tsx";
 import { when, type Changed, type Diamond } from "./changes.ts";
 import { fades, useFade } from "./fade.ts";

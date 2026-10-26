@@ -4,7 +4,7 @@
 // and choosing one plays it. Over the tiles, the work, the round and what's left, and the one step to take.
 
 import { useEffect, useLayoutEffect, useRef, type PointerEvent, type RefObject } from "react";
-import { time, type Flow, type Review, type Round } from "@vantage/review";
+import { time, type Flow, type Review, type Round } from "@mostlyworks/vantage-review";
 import type { Diamond } from "./changes.ts";
 import { TickMark } from "./Column.tsx";
 import { Agent, Go, says, type Step } from "./Foot.tsx";

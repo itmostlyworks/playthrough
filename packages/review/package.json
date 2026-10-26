@@ -1,5 +1,5 @@
 {
-  "name": "@vantage/review",
+  "name": "@mostlyworks/vantage-review",
   "private": true,
   "type": "module",
   "exports": {

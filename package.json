@@ -8,7 +8,7 @@
     "test": "node --test \"packages/*/test/*.test.ts\" \"packages/*/test/loop/*.test.ts\"",
     "quick": "node --test \"packages/*/test/*.test.ts\"",
     "check": "tsc",
-    "build": "npm run build --workspace @vantage/viewer"
+    "build": "npm run build --workspace @mostlyworks/vantage-viewer"
   },
   "devDependencies": {
     "@types/node": "24.19.1",

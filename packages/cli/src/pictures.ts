@@ -5,7 +5,7 @@
 // same at every step looks the same.
 
 import type { Page } from "@playwright/test";
-import { bare, called, differences, HOLDS, holderOf, identity, sentence, the, wayOf, type Reading, type Thing } from "@vantage/page";
+import { bare, called, differences, HOLDS, holderOf, identity, sentence, the, wayOf, type Reading, type Thing } from "@mostlyworks/vantage-page";
 import { idOf, onScreen, type Found } from "./changes.ts";
 
 // Where two pictures differ: a patch of the screen, in pixels; whether it's the same picture nudged up to 2px, which only

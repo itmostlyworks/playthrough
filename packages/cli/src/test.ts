@@ -7,7 +7,7 @@
 import { test as base, expect as playwrightExpect, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 import { existsSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
-import type { Reading } from "@vantage/page";
+import type { Reading } from "@mostlyworks/vantage-page";
 import { keepAssets } from "./assets.ts";
 import type { Run } from "./flows.ts";
 import { readPage, unhovered } from "./read.ts";

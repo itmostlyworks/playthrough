@@ -7,7 +7,7 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { list, quote, Refused, type Flow } from "@vantage/review";
+import { list, quote, Refused, type Flow } from "@mostlyworks/vantage-review";
 import { changesByThemselves, type Recorded as Compared } from "./compare.ts";
 import { readingsOf, type Failed, type Recorded } from "./reporter.ts";
 import type { App, Repo } from "./repo.ts";
@@ -30,7 +30,7 @@ export function howToWriteFlows(repo: Repo, id: string): string {
   const setupMissing = !existsSync(repo.setup);
   return `Each flow is a Playwright test in ${repo.show(repo.flows(id))}, one for each thing a person does, with a step for each part of it:
 
-  import { test, expect } from "@vantage/cli/test";
+  import { test, expect } from "@mostlyworks/vantage/test";
 
   test("Export a quarter", async ({ page, setup }) => {
     await test.step("Open the invoices", async () => {

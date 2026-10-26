@@ -4,7 +4,7 @@
 // click lands. Nothing here changes width as it plays.
 
 import { useEffect, useRef, useState, type PointerEvent } from "react";
-import { time, type Flow } from "@vantage/review";
+import { time, type Flow } from "@mostlyworks/vantage-review";
 import { CARD, clamp } from "./moments.ts";
 import { useNow, type Playhead } from "./playhead.ts";
 

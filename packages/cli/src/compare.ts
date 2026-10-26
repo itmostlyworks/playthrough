@@ -4,10 +4,10 @@
 // several flows, or at several steps, is one change, seen in each flow where it first shows there.
 
 import { chromium, type Page } from "@playwright/test";
-import { list, quote, Refused, type Change, type Comparison, type Flow, type Place, type Reviews, type Step } from "@vantage/review";
+import { list, quote, Refused, type Change, type Comparison, type Flow, type Place, type Reviews, type Step } from "@mostlyworks/vantage-review";
 import { changesAt, idOf } from "./changes.ts";
 import { picturesAt } from "./pictures.ts";
-import type { Reading } from "@vantage/page";
+import type { Reading } from "@mostlyworks/vantage-page";
 import { readingsOf } from "./reporter.ts";
 
 // A round as recorded: its flows, and what was read at the end of each of their steps, with its picture.

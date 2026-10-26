@@ -7,7 +7,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, test } from "node:test";
-import { Refused } from "@vantage/review";
+import { Refused } from "@mostlyworks/vantage-review";
 import type { TestCase, TestResult } from "@playwright/test/reporter";
 import { keepBefore, putBack, refuseIfBroken } from "../src/before.ts";
 import { repo, type Repo } from "../src/repo.ts";

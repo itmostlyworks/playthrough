@@ -4,8 +4,8 @@
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
-import { Refused, Reviews } from "@vantage/review";
-import { folder } from "@vantage/review/folder";
+import { Refused, Reviews } from "@mostlyworks/vantage-review";
+import { folder } from "@mostlyworks/vantage-review/folder";
 
 export type App = { start: string; url: string };
 export type Repo = ReturnType<typeof repo>;

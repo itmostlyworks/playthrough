@@ -2,7 +2,7 @@
 // every note is answered. Then it waits for a send that asks for something, takes it, and prints the notes to answer,
 // each with a picture of what it's on.
 
-import { allNotes, conversation, list, notesToAnswer, quote, Refused, roundInProgress, time, type Place } from "@vantage/review";
+import { allNotes, conversation, list, notesToAnswer, quote, Refused, roundInProgress, time, type Place } from "@mostlyworks/vantage-review";
 import { agent } from "./agent.ts";
 import { pictureNotes } from "./noted.ts";
 import type { Repo } from "./repo.ts";

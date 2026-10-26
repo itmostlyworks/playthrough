@@ -1,7 +1,7 @@
 // Starts a review: what was asked, in the person's words, and the flows that will show it, written before anything changes
 // so they show the task as the person put it. Run again once they're written, it records Before: the app as it is.
 
-import { list, quote, Refused } from "@vantage/review";
+import { list, quote, Refused } from "@mostlyworks/vantage-review";
 import { agent } from "./agent.ts";
 import { cantStart, howFar, keepBefore, refuseIfBroken } from "./before.ts";
 import { howToWriteFlows, makeFlowsFolder, runFlows } from "./flows.ts";

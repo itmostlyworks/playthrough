@@ -2,7 +2,7 @@
 // how to look at them, on their own or side by side. Nothing in it appears, disappears or changes width as you move.
 
 import type { RefObject } from "react";
-import type { Round } from "@vantage/review";
+import type { Round } from "@mostlyworks/vantage-review";
 import { useNow, type Playhead } from "./playhead.ts";
 import { Rounds } from "./Rounds.tsx";
 import type { Shown } from "./Stage.tsx";

@@ -1,5 +1,5 @@
 {
-  "name": "@vantage/viewer",
+  "name": "@mostlyworks/vantage-viewer",
   "private": true,
   "type": "module",
   "exports": {
@@ -10,8 +10,8 @@
     "dev": "vite"
   },
   "dependencies": {
-    "@vantage/page": "*",
-    "@vantage/review": "*",
+    "@mostlyworks/vantage-page": "*",
+    "@mostlyworks/vantage-review": "*",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "rrweb": "2.1.7"

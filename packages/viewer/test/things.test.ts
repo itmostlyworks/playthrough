@@ -2,8 +2,8 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { Reading, Thing } from "@vantage/page";
-import type { Flow, Review, Round } from "@vantage/review";
+import type { Reading, Thing } from "@mostlyworks/vantage-page";
+import type { Flow, Review, Round } from "@mostlyworks/vantage-review";
 import { holdersOf, nearTo, pickAt, placeName, placeOn } from "../src/things.ts";
 
 const look = { color: "rgb(9, 9, 11)", background: "rgba(0, 0, 0, 0)", size: "16px", weight: "400", border: "none" };

@@ -15,7 +15,7 @@ import {
   type Review,
   type Turn,
   type Verdict,
-} from "@vantage/review";
+} from "@mostlyworks/vantage-review";
 
 // What you've written on a round and not sent yet: what a send will carry, the answers that came with their flow's Looks
 // good, and the notes you started and haven't saved, which never go.

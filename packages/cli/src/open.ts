@@ -7,7 +7,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { createRequire } from "node:module";
 import { userInfo } from "node:os";
 import { dirname, extname, join, normalize, sep } from "node:path";
-import { Refused, type Send } from "@vantage/review";
+import { Refused, type Send } from "@mostlyworks/vantage-review";
 import type { Repo } from "./repo.ts";
 
 const PORT = 5790;
@@ -31,7 +31,7 @@ const TYPES: Record<string, string> = {
 
 export async function open(repo: Repo, id?: string) {
   if (id) await repo.reviews.get(id);
-  const page = join(dirname(createRequire(import.meta.url).resolve("@vantage/viewer/package.json")), "dist");
+  const page = join(dirname(createRequire(import.meta.url).resolve("@mostlyworks/vantage-viewer/package.json")), "dist");
   if (!(await readFile(join(page, "index.html")).catch(() => undefined)))
     throw new Refused(["The viewer isn't built yet. Build it from core with npm run build."]);
   const you = whoYouAre(repo.root);

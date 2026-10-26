@@ -6,9 +6,9 @@ import { cp, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Reading } from "@vantage/page";
-import { Reviews, type Comparison, type Flow, type Round } from "@vantage/review";
-import { folder } from "@vantage/review/folder";
+import type { Reading } from "@mostlyworks/vantage-page";
+import { Reviews, type Comparison, type Flow, type Round } from "@mostlyworks/vantage-review";
+import { folder } from "@mostlyworks/vantage-review/folder";
 
 const core = fileURLToPath(new URL("../../../..", import.meta.url));
 const vantage = join(core, "packages/cli/src/vantage.ts");
@@ -65,7 +65,7 @@ export async function example(port: number) {
   };
 }
 
-const flow = (name: string, steps: string) => `import { test, expect } from "@vantage/cli/test";
+const flow = (name: string, steps: string) => `import { test, expect } from "@mostlyworks/vantage/test";
 
 test(${JSON.stringify(name)}, async ({ page }) => {
 ${steps}

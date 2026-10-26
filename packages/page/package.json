@@ -1,11 +1,11 @@
 {
-  "name": "@vantage/page",
+  "name": "@mostlyworks/vantage-page",
   "private": true,
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@vantage/review": "*"
+    "@mostlyworks/vantage-review": "*"
   }
 }

@@ -4,8 +4,8 @@
 
 import { dirname, join } from "node:path";
 import { chromium } from "@playwright/test";
-import { shownAt } from "@vantage/page";
-import { lastSeen, type Review } from "@vantage/review";
+import { shownAt } from "@mostlyworks/vantage-page";
+import { lastSeen, type Review } from "@mostlyworks/vantage-review";
 import type { Repo } from "./repo.ts";
 import { readingsOn } from "./reporter.ts";
 

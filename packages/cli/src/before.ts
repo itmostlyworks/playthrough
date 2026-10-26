@@ -8,7 +8,7 @@ import { execFileSync } from "node:child_process";
 import { copyFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { constants, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { list, quote, Refused, type Flow } from "@vantage/review";
+import { list, quote, Refused, type Flow } from "@mostlyworks/vantage-review";
 import { failedAt, runFlows } from "./flows.ts";
 import type { Failed } from "./reporter.ts";
 import type { Repo } from "./repo.ts";

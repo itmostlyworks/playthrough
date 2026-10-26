@@ -3,7 +3,7 @@
 // over the stretch they take. A change the agent made for a note in the same flow is that note's answer, told with the
 // note rather than in a row of its own; made for a note in another flow, it's a change like any other, which says so.
 
-import { allNotes, newToYou, time, type Change, type Place, type Review } from "@vantage/review";
+import { allNotes, newToYou, time, type Change, type Place, type Review } from "@mostlyworks/vantage-review";
 import type { Moment } from "./moments.ts";
 
 // A change as it's told: where, the round it's new since, the agent's line on why and which agent said it, or the note

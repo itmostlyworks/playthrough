@@ -33,7 +33,7 @@ FLOWS
 
 Each flow is a Playwright test in .vantage/<review>/flows/, with a step for each part of it. The test's name is the flow's:
 
-  import { test, expect } from "@vantage/cli/test";
+  import { test, expect } from "@mostlyworks/vantage/test";
 
   test("Export a quarter", async ({ page, setup }) => {
     await test.step("Open the invoices", async () => {
