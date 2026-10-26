@@ -329,11 +329,11 @@ export function Writing(props: {
         <button
           className="inline-flex h-[30px] flex-[1_1_auto] items-center justify-center rounded-[7px] bg-fg pr-[7px] font-medium text-ground transition-opacity duration-150 ease-calm before:flex-[1_0_10px] after:order-1 after:flex-[1_0_10px] hover:opacity-88 disabled:bg-transparent disabled:text-faint disabled:shadow-[inset_0_0_0_1px_var(--line)]"
           disabled={!words.trim()}
-          aria-keyshortcuts="Control+Enter"
+          aria-keyshortcuts={mac ? "Meta+Enter" : "Control+Enter"}
           onClick={save}
         >
           Save
-          <kbd className="order-2 rounded-[3px] px-1 font-ui pointer-coarse:hidden text-[11px] leading-4 font-normal opacity-60 shadow-[0_0_0_1px_currentColor]">{mac ? "⌘" : "Ctrl"} ↵</kbd>
+          <kbd className="order-2 flex-none rounded-[3px] px-1 font-ui whitespace-nowrap pointer-coarse:hidden text-[11px] leading-4 font-normal opacity-60 shadow-[0_0_0_1px_currentColor]">{mac ? "⌘↵" : "Ctrl ↵"}</kbd>
         </button>
       </div>
     </>

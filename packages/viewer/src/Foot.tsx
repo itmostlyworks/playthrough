@@ -109,7 +109,7 @@ export function Go({ step, before, className }: { step: Extract<Step, { kind: "g
   return (
     <button
       className={`flex h-8 min-w-0 items-center rounded-lg bg-hover px-3 text-xs leading-4 text-fg shadow-[inset_0_0_0_1px_var(--line)] transition-colors duration-150 ease-calm ${className}`}
-      aria-keyshortcuts={step.final ? "Control+Enter" : "Enter"}
+      aria-keyshortcuts={step.final ? (mac ? "Meta+Enter" : "Control+Enter") : "Enter"}
       onMouseDown={(event) => event.preventDefault()}
       onClick={step.take}
     >
@@ -117,7 +117,7 @@ export function Go({ step, before, className }: { step: Extract<Step, { kind: "g
       <span className="flex-none">{step.words}</span>
       {step.what && <span className="flex-none text-faint">·</span>}
       {step.what && <b className="min-w-0 truncate font-medium">{step.what}</b>}
-      <Key className="ml-auto">{step.final ? `${mac ? "⌘" : "Ctrl"} ↵` : "↵"}</Key>
+      <Key className="ml-auto">{step.final ? mac ? "⌘↵" : "Ctrl ↵" : "↵"}</Key>
     </button>
   );
 }
