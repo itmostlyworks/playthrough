@@ -61,6 +61,10 @@ export const Flow = z.strictObject({
   steps: z.array(Step),
   recording: fileName("needs its recording: the name of a file in the round"),
   line: text("needs words in its line, or no line").optional().describe("The agent's, at the flow's start: what it starts from, or the choice it shows"),
+  unsteady: z
+    .array(text("needs the ids of the changes it makes by itself"))
+    .optional()
+    .describe("Changes found between two recordings of the same app, like a time the server stamps: left out of every comparison of the flow"),
 });
 
 // Something different on screen between two rounds, found by Vantage and said in its fixed words.

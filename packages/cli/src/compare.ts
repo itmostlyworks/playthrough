@@ -18,13 +18,26 @@ export async function compareWithEarlier(reviews: Reviews, id: string, number: n
   const review = await reviews.get(id);
   const earlier = review.rounds.filter((round) => round.number < number);
   if (!earlier.length) return [];
+  const unsteady = new Map<string, string[]>();
+  for (const flow of [...earlier.flatMap((round) => round.flows), ...flows]) unsteady.set(flow.name, [...(unsteady.get(flow.name) ?? []), ...(flow.unsteady ?? [])]);
   const browser = await chromium.launch();
   try {
     const page = await browser.newPage();
     const now = kept(reviews, id, number, flows);
     const comparisons: Comparison[] = [];
-    for (const round of earlier) comparisons.push(await compare(page, kept(reviews, id, round.number, round.flows), now));
+    for (const round of earlier) comparisons.push(await compare(page, kept(reviews, id, round.number, round.flows), now, unsteady));
     return comparisons;
+  } finally {
+    await browser.close();
+  }
+}
+
+// The same flows recorded twice on the same app: whatever differs between the two changes by itself, like a time the
+// server stamps, so it's left out of every comparison of the flow from then on.
+export async function changesByThemselves(first: Recorded, second: Recorded): Promise<Change[]> {
+  const browser = await chromium.launch();
+  try {
+    return (await compare(await browser.newPage(), first, second)).changes;
   } finally {
     await browser.close();
   }
@@ -40,9 +53,10 @@ function kept(reviews: Reviews, id: string, number: number, flows: Flow[]): Reco
   return { number, flows, readings: async (flow) => JSON.parse((await file(readingsOf(flow))).toString()), picture: file };
 }
 
-export async function compare(page: Page, earlier: Recorded, round: Recorded): Promise<Comparison> {
+export async function compare(page: Page, earlier: Recorded, round: Recorded, unsteady = new Map<string, string[]>()): Promise<Comparison> {
   const changes = new Map<string, Change>();
   const see = ({ id, words, place }: Sighting) => {
+    if (unsteady.get(place.flow)?.includes(id)) return;
     const change = changes.get(id);
     if (!change) changes.set(id, { id, words, seen: [place] });
     else if (!change.seen.some((seen) => seen.flow === place.flow)) change.seen.push(place);

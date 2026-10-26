@@ -31,7 +31,7 @@ Then run vantage start ${id} again. It records Before: each flow on the app as i
 
   // What it's recorded from is kept first, before running the app can change anything.
   const commit = keepBefore(repo, id);
-  const { recorded, failed } = await runFlows(repo, id, 0);
+  const { recorded, failed } = await runFlows(repo, id, 0, { first: () => true });
   refuseIfBroken(failed, "Before wasn't recorded", "Run this again.");
   if (!recorded.length)
     return console.log(`\nNone of the flows can start on the app as it is, so there's no Before. If one should, fix it and run this again. Otherwise change the app, then record round 1: vantage record ${id}`);

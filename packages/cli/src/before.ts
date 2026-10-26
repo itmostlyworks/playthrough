@@ -60,7 +60,7 @@ export async function recordOnBefore(repo: Repo, id: string, number: number, flo
   const taken = before.flows.map((flow) => flow.recording);
   // An app as it was that doesn't start, for the reason Playwright gives, can't start any of them.
   const ran = await asItWas(repo, number, before.commit, () =>
-    runFlows(repo, id, 0, { flows: later, taken }).catch((error) => {
+    runFlows(repo, id, 0, { later: { flows: later, taken }, first: () => true }).catch((error) => {
       if (error instanceof Refused) return { recorded: [], failed: later.map((flow) => ({ flow })) };
       throw error;
     }),

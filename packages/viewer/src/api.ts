@@ -45,7 +45,28 @@ function file<T>(review: string, round: number, name: string): Promise<T> {
   return files.get(path) as Promise<T>;
 }
 
-export const recording = (review: string, round: number, name: string) => file<Events>(review, round, name);
+// A recording plays with the fonts, images and stylesheets kept with it, never the app's own, which may be gone or
+// somewhere else. Of the sizes an image offered, the one it was recorded at is the one it shows.
+export function recording(review: string, round: number, name: string): Promise<Events> {
+  const path = `/api/reviews/${review}/rounds/${round}/files/${name}`;
+  if (!files.has(path)) {
+    const kept = file<Record<string, string>>(review, round, `assets/${name}`).catch(() => ({}));
+    const events = fetch(path).then((answer) => (answer.ok ? answer.text() : Promise.reject(new Error(`${path}: ${answer.status}`))));
+    files.set(path, Promise.all([events, kept]).then(([events, kept]) => JSON.parse(fromKept(events, kept, `/api/reviews/${review}/rounds/${round}/files/`))));
+  }
+  return files.get(path) as Promise<Events>;
+}
+
+export function fromKept(events: string, kept: Record<string, string>, files: string): string {
+  if (!Object.keys(kept).length) return events;
+  const recorded = (address: string) => address.trim().split(/\s+/)[0]!;
+  return events
+    .replace(/"srcset":"([^"]*)"/g, (whole, offered: string) => {
+      const shown = offered.split(/,\s+/).map(recorded).find((address) => address in kept);
+      return shown ? `"srcset":"${shown}"` : whole;
+    })
+    .replace(/https?:\/\/[^\s"'()\\]+/g, (address) => (address in kept ? files + kept[address] : address));
+}
 
 // What was on the page at each step of a flow, read as it was recorded, and its picture then.
 const readingsName = (recording: string) => `readings/${recording.replace(/\.json$/, "")}`;

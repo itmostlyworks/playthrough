@@ -147,10 +147,12 @@ export class Reviews {
     return this.#one(id, async () => {
       const review = await this.get(id);
       const problems = problemsAddingToBefore(review, added.flows, added.cantStart);
-      for (const { name } of added.files) {
+      for (const { name, bytes } of added.files) {
         const named = problemsWithFileName(name);
         problems.push(...named);
-        if (!named.length && (await this.storage.read(`${id}/rounds/0/files/${name}`))) problems.push(`Before has a file called “${name}” already.`);
+        // What's kept by its content, like a font two flows load, is the same file again.
+        const there = named.length ? undefined : await this.storage.read(`${id}/rounds/0/files/${name}`);
+        if (there && Buffer.compare(there, bytes)) problems.push(`Before has a file called “${name}” already, with something else in it.`);
       }
       if (problems.length) throw new Refused(problems);
       const before = review.rounds.find((round) => round.number === 0)!;

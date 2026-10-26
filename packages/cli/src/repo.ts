@@ -18,6 +18,8 @@ export function repo(root = process.cwd()) {
     flows: (review: string) => join(reviews, review, "flows"),
     round: (review: string, round: number) => join(reviews, review, "rounds", String(round), "round.json"),
     setAside: join(reviews, "set-aside.json"),
+    // What every flow of the app starts from, committed beside app.json.
+    setup: join(root, "vantage", "setup.ts"),
     // As a person at this folder would type it.
     show: (path: string) => relative(process.cwd(), path) || ".",
 

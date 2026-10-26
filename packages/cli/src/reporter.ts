@@ -7,10 +7,12 @@ import { join } from "node:path";
 import type { Reporter, TestCase, TestResult, TestStep } from "@playwright/test/reporter";
 import type { Reading } from "@vantage/page";
 import type { Flow, Reviews } from "@vantage/review";
+import { assetsOf, type Assets } from "./assets.ts";
 
 export const RECORDING = "vantage recording";
 export const READINGS = "vantage readings";
 export const PICTURE = "vantage picture";
+export const ASSETS = "vantage assets";
 export const HOLD = 1500; // the end of a flow holds, so its last state can be seen
 
 // A flow's readings go beside the round's recordings, under the same name, each picture in a folder of its own.
@@ -47,6 +49,7 @@ export default class Flows implements Reporter {
     const read = {
       readings: JSON.parse(result.attachments.find((attachment) => attachment.name === READINGS)?.body?.toString() ?? "[]"),
       pictures: result.attachments.filter((attachment) => attachment.name === PICTURE).map((attachment) => attachment.body!),
+      assets: JSON.parse(result.attachments.find((attachment) => attachment.name === ASSETS)?.body?.toString() ?? "{}"),
     };
     const steps = result.steps.filter((step) => step.category === "test.step");
     if (result.status === "passed") return void (recording && this.#ran.push({ ...where, recorded: this.#flow(test.title, recording, read, steps) }));
@@ -64,7 +67,7 @@ export default class Flows implements Reporter {
 
   // A flow cut short ends where it stopped, held as long as any flow's end, with the same last event (rrweb's custom
   // events are type 5). The step it stopped at left nothing to read.
-  #flow(name: string, recording: Buffer, read: { readings: Omit<Reading, "picture">[]; pictures: Buffer[] }, steps: TestStep[], until?: number): Recorded {
+  #flow(name: string, recording: Buffer, read: { readings: Omit<Reading, "picture">[]; pictures: Buffer[]; assets: Assets }, steps: TestStep[], until?: number): Recorded {
     let events: Event[] = JSON.parse(recording.toString());
     if (until !== undefined) events = [...events.filter((event) => event.timestamp < until), { type: 5, data: { tag: "end", payload: {} }, timestamp: until + HOLD }];
     const start = events[0]!.timestamp;
@@ -73,10 +76,12 @@ export default class Flows implements Reporter {
     const flow: Flow = { name, length, steps: steps.map((step) => ({ title: step.title, at: Math.min(length, seconds(step.startTime.getTime() - start)) })), recording: this.#fileFor(name) };
     const readings: Reading[] = read.readings.map((reading, i) => ({ ...reading, picture: `${picturesOf(flow)}/${i + 1}.png` }));
 
-    const files = [flow.recording, readingsOf(flow), ...readings.map((reading) => reading.picture)];
-    mkdirSync(join(this.#folder, picturesOf(flow)), { recursive: true });
+    // The assets are in the folder already, kept as the page loaded them.
+    const files = [flow.recording, readingsOf(flow), ...readings.map((reading) => reading.picture), assetsOf(flow.recording), ...new Set(Object.values(read.assets))];
+    for (const folder of [picturesOf(flow), "assets"]) mkdirSync(join(this.#folder, folder), { recursive: true });
     writeFileSync(join(this.#folder, flow.recording), JSON.stringify(events));
     writeFileSync(join(this.#folder, readingsOf(flow)), JSON.stringify(readings));
+    writeFileSync(join(this.#folder, assetsOf(flow.recording)), JSON.stringify(read.assets));
     read.pictures.forEach((picture, i) => writeFileSync(join(this.#folder, readings[i]!.picture), picture));
     return { flow, files };
   }

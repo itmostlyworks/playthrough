@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // The command line: four commands an agent runs to have a person review its work. When one stops, it says why and what to do.
 
+import { readFileSync } from "node:fs";
 import { Refused } from "@vantage/review";
 import { putBack } from "./before.ts";
 import { open } from "./open.ts";
@@ -9,15 +10,8 @@ import { repo } from "./repo.ts";
 import { start } from "./start.ts";
 import { wait } from "./wait.ts";
 
-const HELP = `Vantage: a person reviews your work on a web app by watching recordings of it, round after round.
-
-  vantage start <review> "<title>"   start a review of what was asked, in the person's words
-  vantage start <review>             once its flows are written, record Before: the app as it is
-  vantage record <review>            record the round being worked on, every flow, the way a person would use it
-  vantage wait <review>              hand the round over, then wait for the notes to answer
-  vantage open [<review>]            open the viewer on this machine
-
-Reviews are kept in .vantage/ in this folder, and the app is started as vantage/app.json says.`;
+// Everything an agent needs to know, read once: bare, the command says it.
+const HELP = readFileSync(new URL("../INSTRUCTIONS.md", import.meta.url), "utf8").trimEnd();
 
 const [command, review, ...words] = process.argv.slice(2);
 const needs = (usage: string) => new Refused([`That needs more: ${usage}`]);
@@ -37,7 +31,7 @@ try {
       if (!review) throw needs("vantage wait <review>");
       await wait(repo(), review);
     } else if (command === "open") await open(repo(), review);
-    else throw new Refused([`There's no command “${command}”.\n\n${HELP}`]);
+    else throw new Refused([`There's no command “${command}”. Run vantage alone for what each one does.`]);
   }
 } catch (error) {
   if (!(error instanceof Refused)) throw error;

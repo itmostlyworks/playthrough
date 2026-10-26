@@ -16,7 +16,10 @@ export async function record(repo: Repo, id: string) {
   const review = await repo.reviews.get(id);
   if (review.accepted) throw new Refused(["This review is accepted, so nothing more can be recorded."]);
   const number = review.rounds.length ? roundInProgress(review) : 1;
-  const { recorded, failed } = await runFlows(repo, id, number);
+  // A flow new since the last round is recorded twice on Before, when there's a Before to put back; otherwise here.
+  const onBefore = !!review.rounds.find((round) => round.number === 0)?.commit;
+  const first = (flow: string) => !onBefore && !review.rounds.some((round) => round.number !== number && round.flows.some((kept) => kept.name === flow));
+  const { recorded, failed } = await runFlows(repo, id, number, { first });
   if (failed.length)
     throw new Refused([
       `Round ${number} wasn't recorded, because ${failed.length > 1 ? "these flows" : "a flow"} failed:`,

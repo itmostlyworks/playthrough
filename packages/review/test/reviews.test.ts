@@ -134,7 +134,7 @@ for (const [kept, storage] of storages) {
       await assert.rejects(reviews.saveRound("invoice-export", round(4)), refused(/being worked on is 3/));
     });
 
-    test("Before only gains: a flow added later, with its files, or the word that the app as it was can't start it", async () => {
+    test("Before only gains: a flow added later, with its files, or the word that the app as it was can't start it; a file it has stays as it is", async () => {
       const reviews = await recorded();
       const recording = new TextEncoder().encode("[]");
       const add = (flows: Flow[], cantStart: string[], files = [{ name: "export-a-year.json", bytes: recording }]) =>
@@ -147,7 +147,10 @@ for (const [kept, storage] of storages) {
 
       await assert.rejects(add([flow("Export a quarter")], [], []), refused(/Before has two flows called “Export a quarter”/));
       await assert.rejects(add([], ["Open the export"], []), refused(/Before has two flows called “Open the export”/));
-      await assert.rejects(add([flow("Export a month")], []), refused(/Before has a file called “export-a-year\.json” already/));
+      const other = [{ name: "export-a-year.json", bytes: new TextEncoder().encode("[{}]") }];
+      await assert.rejects(add([flow("Export a month")], [], other), refused(/Before has a file called “export-a-year\.json” already, with something else in it/));
+      // A file kept by what's in it, like a font two flows load, comes again the same.
+      await add([flow("Export a month")], []);
 
       const app = new Reviews(await storage());
       await app.start("new-app", "A title");

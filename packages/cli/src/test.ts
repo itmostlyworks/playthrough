@@ -4,12 +4,15 @@
 // comparison compares. Run as plain tests, it does nothing. Each recording and its readings go to the reporter, which makes
 // them a flow (reporter.ts).
 
-import { test as base, expect as playwrightExpect, type Locator, type Page } from "@playwright/test";
-import { readFileSync } from "node:fs";
+import { test as base, expect as playwrightExpect, type APIRequestContext, type Locator, type Page } from "@playwright/test";
+import { existsSync, readFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 import type { Reading } from "@vantage/page";
+import { keepAssets } from "./assets.ts";
 import type { Run } from "./flows.ts";
 import { readPage, unhovered } from "./read.ts";
-import { HOLD, PICTURE, READINGS, RECORDING, seconds } from "./reporter.ts";
+import { repo } from "./repo.ts";
+import { ASSETS, HOLD, PICTURE, READINGS, RECORDING, seconds } from "./reporter.ts";
 import { watchRest } from "./rest.ts";
 
 // Everything it needs comes with the run (flows.ts), so it never has to find anything for itself.
@@ -37,13 +40,14 @@ function onlyWaits(expect: typeof playwrightExpect): typeof playwrightExpect {
   return new Proxy(expect, { apply: (target, self, args) => checks(Reflect.apply(target, self, args)) });
 }
 
-// The page's own clock and timers are taken before a flow can fake them: under page.clock.setFixedTime, rrweb's throttle
-// let one pointer move through, timed by the gap between the fixed time and the real one.
+// The page's own clock and timers are taken before anything fakes them: under a set clock, rrweb's throttle let one
+// pointer move through, timed by the gap between the set time and the real one.
 const recorder = (rrweb: string) => `;((Date, setTimeout, clearTimeout, requestAnimationFrame, cancelAnimationFrame) => {
 ${readFileSync(rrweb, "utf8")}
 })(Date, setTimeout, clearTimeout, requestAnimationFrame, cancelAnimationFrame);
 if (window.top === window) window.rrwebRecord.record({
-  emit: (event) => window.__vantage(event),
+  // Nothing is kept until the flow itself starts, after whatever the app's setup did on the page.
+  emit: (event) => window.__vantage?.(event),
   // every input, not just the last: with "last", rrweb only hears a field change when it loses focus,
   // so words typed into a search box that kept focus never reached the recording
   sampling: { mousemove: 20, scroll: 16, input: "all" },
@@ -62,16 +66,51 @@ let pointer: { page: Page; x: number; y: number } | undefined;
 type Underway = { page: Page; events: { timestamp: number }[]; rest: () => Promise<void>; depth: number; readings: Omit<Reading, "picture">[]; pictures: Buffer[] };
 let underway: Underway | undefined;
 
-const recorded = base.extend<{ recorder: void }>({
+// What every flow of the app starts from, made by vantage/setup.ts before each flow, if the app has one: its default
+// export is given the page and Playwright's request, and what it returns is each flow's “setup”.
+const { setup: setupFile } = repo(run?.root);
+type MakeSetup = (given: { page: Page; request: APIRequestContext; baseURL?: string }) => unknown;
+// In an app whose package.json doesn't say it's a module, Playwright loads the file as CommonJS, its export one level down.
+const setupModule: { default?: MakeSetup | { default?: MakeSetup } } | undefined = existsSync(setupFile) ? await import(pathToFileURL(setupFile).href) : undefined;
+const makeSetup = typeof setupModule?.default === "function" ? setupModule.default : setupModule?.default?.default;
+
+// Every round starts at the same moment, noon on the day the review started, with the page's random numbers from the same
+// seed, so what the page works out from them reads the same each time. The clock runs on from there, as a person's does:
+// page.clock.setFixedTime would stop it, and whatever the page times by it.
+const DAY = (started: string) => new Date(`${started.slice(0, 10)}T12:00:00Z`);
+const seeded = `(() => {
+  let seed = 20251026;
+  Math.random = () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+})();`;
+
+const recorded = base.extend<{ setup: Record<string, any>; recorder: void }>({
+  // In one language and time zone wherever it's recorded.
+  locale: "en-US",
+  timezoneId: "UTC",
+  setup: async ({ page, request, baseURL }, use, testInfo) => {
+    // Recording flows added later on Before, the others aren't run, nor is anything made for them.
+    if (run?.only && !run.only.includes(testInfo.title)) testInfo.skip();
+    if (run) {
+      // rrweb goes in first, to take the page's own clock before it's set.
+      await page.addInitScript({ content: recorder(run.recorder) });
+      await page.clock.setSystemTime(DAY(run.started));
+      await page.addInitScript({ content: seeded });
+    }
+    await use(((await makeSetup?.({ page, request, baseURL })) ?? {}) as Record<string, any>);
+  },
   recorder: [
-    async ({ page }, use, testInfo) => {
+    // Once what the flow starts from is made, so making it isn't in the recording.
+    async ({ page, setup: _ }, use, testInfo) => {
       if (!run) return use();
-      // Recording flows added later on Before, the others aren't run.
-      if (run.only && !run.only.includes(testInfo.title)) testInfo.skip();
       testInfo.setTimeout(testInfo.timeout * 3);
       const events: { timestamp: number }[] = [];
       await page.exposeFunction("__vantage", (event: { timestamp: number }) => void events.push(event));
-      await page.addInitScript({ content: recorder(run.recorder) });
+      const assets = keepAssets(page, run.folder);
       const rest = await watchRest(page);
       pace(page);
       pointer = { page, x: 640, y: 640 };
@@ -94,6 +133,7 @@ const recorded = base.extend<{ recorder: void }>({
       }
       await testInfo.attach(RECORDING, { body: JSON.stringify(events), contentType: "application/json" });
       await testInfo.attach(READINGS, { body: JSON.stringify(readings), contentType: "application/json" });
+      await testInfo.attach(ASSETS, { body: JSON.stringify(await assets()), contentType: "application/json" });
       for (const picture of pictures) await testInfo.attach(PICTURE, { body: picture, contentType: "image/png" });
     },
     { auto: true },
