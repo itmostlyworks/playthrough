@@ -232,7 +232,6 @@ function Card(props: Props) {
         onSave={(words) => {
           props.onJudge({ note: note.id, verdict: "not quite", words });
           setAsking(false);
-          props.onPlayOn();
         }}
         onCancel={() => setAsking(false)}
       />
@@ -242,7 +241,7 @@ function Card(props: Props) {
       "Does this fix it?",
       <>
         <Answer
-          keys="↵"
+          keys={judged ? undefined : "↵"}
           tone="good"
           pressed={judged?.verdict === "looks good"}
           onClick={() => {
@@ -252,7 +251,7 @@ function Card(props: Props) {
         >
           {tick}Looks good
         </Answer>
-        <Answer keys="X" tone="back" pressed={judged?.verdict === "not quite"} onClick={() => (judged?.verdict === "not quite" ? props.onJudge(undefined) : setAsking(true))}>
+        <Answer keys={judged ? undefined : "X"} tone="back" pressed={judged?.verdict === "not quite"} onClick={() => (judged?.verdict === "not quite" ? props.onJudge(undefined) : setAsking(true))}>
           Not quite
         </Answer>
       </>,

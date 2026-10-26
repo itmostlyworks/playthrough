@@ -352,7 +352,7 @@ function ChangeRow(props: Props & { diamond: Diamond; inside: { id: string; open
       )}
       {inside.map((note) => note.shown)}
       {open && props.compare && !inside.some((note) => note.open) && (
-        <div className="mt-2.5 pr-3.5 pl-[44px]">
+        <div className="mt-2.5 grid pr-3.5 pl-[44px]">
           <Compare {...props.compare} />
         </div>
       )}

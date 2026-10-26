@@ -635,10 +635,10 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     keys.up = now - keys.down < 300 ? now : 0;
   };
 
-  // The open card answers Enter and X, as its buttons say: Looks good and Not quite on an answer, Play on and a note on
+  // The open card answers Enter and X, as its buttons say: Looks good and Not quite on an answer not yet judged, Play on and a note on
   // a change. C compares, held for a look and tapped for side by side, as the pointer does on Compare.
   const openNote = open && "note" in open ? notes.find((note) => note.id === open.note) : undefined;
-  const asks = !!openNote && !readOnly && openNote.toJudge && openNote.on?.flow === watching;
+  const asks = !!openNote && !readOnly && openNote.toJudge && !draft.verdicts.some((verdict) => verdict.note === openNote.id) && openNote.on?.flow === watching;
   const compareNow = (openNote && answered(openNote) && openNote.on?.flow === watching) || changeOpen?.flow === watching ? comparingIt : undefined;
   const cKey = useRef<{ down: number; holding: number }>(undefined);
   const comparedRound = compareNow ? review.rounds.find((kept) => kept.number === compared) : undefined;
