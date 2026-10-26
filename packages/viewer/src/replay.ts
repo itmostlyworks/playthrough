@@ -19,13 +19,15 @@ export type Recorded = {
   touch: boolean;
   // The moments its page changes: a click, something on the page changing, typing or a scroll.
   changes: number[];
+  // What was clicked or typed into, as [seconds, node].
+  acted: [number, number][];
 };
 
 export function recorded(events: Events): Recorded {
   const start = events[0]?.timestamp ?? 0;
   const seconds = (timestamp: number) => (timestamp - start) / 1000;
   const size = events.find((event) => event.type === EventType.Meta)?.data as { width?: number; height?: number } | undefined;
-  const shown: Recorded = { width: size?.width ?? 1280, height: size?.height ?? 800, pointer: [], clicks: [], touch: false, changes: [] };
+  const shown: Recorded = { width: size?.width ?? 1280, height: size?.height ?? 800, pointer: [], clicks: [], touch: false, changes: [], acted: [] };
   for (const event of events) {
     if (event.type !== EventType.IncrementalSnapshot) continue;
     const data = event.data;
@@ -34,7 +36,8 @@ export function recorded(events: Events): Recorded {
       shown.pointer.push([seconds(event.timestamp), data.x, data.y]);
       if (data.type === MouseInteractions.Click) shown.clicks.push(seconds(event.timestamp));
       if (data.type === MouseInteractions.TouchStart) shown.touch = true;
-    }
+      if (data.type === MouseInteractions.Click) shown.acted.push([seconds(event.timestamp), data.id]);
+    } else if (data.source === IncrementalSource.Input) shown.acted.push([seconds(event.timestamp), data.id]);
     const changes = [IncrementalSource.Mutation, IncrementalSource.Scroll, IncrementalSource.Input].includes(data.source);
     if (changes || (data.source === IncrementalSource.MouseInteraction && data.type === MouseInteractions.Click)) shown.changes.push(seconds(event.timestamp) + 0.01);
   }

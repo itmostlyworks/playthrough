@@ -203,13 +203,13 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const working = review.accepted ? undefined : review.taken.find((taken) => taken.round > latest.number)?.at;
 
   // Left and Right step to the next moment the page changes, or a second where nothing does; with Shift, a tenth.
-  const [changes, setChanges] = useState<{ flow: string; at: number[]; clicks: number[] }>();
+  const [changes, setChanges] = useState<{ flow: string; at: number[]; clicks: number[]; acted: [number, number][] }>();
   useEffect(() => {
     if (!flow) return;
     let current = true;
     recording(review.id, round.number, flow.recording).then((events) => {
-      const { changes, clicks } = recorded(events);
-      if (current) setChanges({ flow: flow.name, at: changes, clicks });
+      const { changes, clicks, acted } = recorded(events);
+      if (current) setChanges({ flow: flow.name, at: changes, clicks, acted });
     });
     return () => void (current = false);
   }, [review.id, round.number, flow]);
@@ -838,7 +838,12 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     const pointed = diamond.changes.filter((changed) => changed.change.id === pointedChange);
     return pointed.length ? pointed : diamond.changes;
   };
-  const changed = (outlined ? drawn(outlined) : []).flatMap((changed) => markOn(changed.on) ?? []);
+  // New steps aren't on one thing: they're outlined on what they click or type into, as the recording shows it.
+  const actedOn = (diamond: Diamond): Mark["on"][] =>
+    diamond.until === undefined || changes?.flow !== diamond.flow
+      ? []
+      : [...new Set(changes.acted.filter(([at]) => at >= diamond.at && at <= diamond.until!).map(([, node]) => node))].map((node) => ({ node }));
+  const changed = (outlined ? drawn(outlined) : []).flatMap((changed) => markOn(changed.on) ?? actedOn(outlined!));
   const marks = new Map<number, Mark[]>([
     [
       round.number,
