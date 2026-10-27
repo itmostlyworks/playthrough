@@ -56,3 +56,10 @@ test("a note noted by role and name alone is found by them, and a spot or a stre
   assert.deepEqual(placeIn({ flow: "Settle up", at: 0.5, until: 1, point: { x: 0.2, y: 0.4 } }, then, now), { flow: "Settle up", at: 1, until: 2, point: { x: 0.2, y: 0.4 } });
   assert.deepEqual(placeIn({ flow: "Settle up" }, then, now), { flow: "Settle up" });
 });
+
+test("a stretch to a flow's end ends at the end of the round it's found on, however that's rounded (person-filter's 5.689s)", () => {
+  const steps: [string, number][] = [["Open the expenses", 0]];
+  const then = round(flow(5.69, steps), reading("Open the expenses", 1, []));
+  const now = round(flow(5.689, steps), reading("Open the expenses", 1, []));
+  assert.deepEqual(placeIn({ flow: "Settle up", at: 1, until: 5.69, point: { x: 0.5, y: 0.5 } }, then, now), { flow: "Settle up", at: 1, until: 5.689, point: { x: 0.5, y: 0.5 } });
+});

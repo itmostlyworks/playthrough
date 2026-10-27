@@ -75,7 +75,9 @@ export class Replay {
     this.host.className = "absolute top-0 left-0 origin-top-left [&_.replayer-mouse]:hidden [&_iframe]:pointer-events-none [&_iframe]:block [&_iframe]:border-0";
     Object.assign(this.host.style, { width: `${this.width}px`, height: `${this.height}px` });
     into.append(this.host);
-    this.#replayer = new Replayer(events, { root: this.host, mouseTail: false, triggerFocus: false, pauseAnimation: false, showWarning: false });
+    // Played a little at a time, rrweb builds each step in a page of its own and copies it across, and where a menu's list
+    // left the page it put everything beside it back too: a box that had faded in faded in again, "It still flashes".
+    this.#replayer = new Replayer(events, { root: this.host, useVirtualDom: false, mouseTail: false, triggerFocus: false, pauseAnimation: false, showWarning: false });
     this.#replayer.pause(this.#drawn);
   }
 

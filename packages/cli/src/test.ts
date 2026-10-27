@@ -218,26 +218,46 @@ async function approach(target: Locator, at: { page: Page; x: number; y: number 
   }
 
   // A page still settling moves the target while the pointer is on its way, and Playwright then acts where it is now:
-  // the pointer jumped there. So it follows the target, as a person's eyes would, until the target holds still.
-  for (let tries = 0; tries < 4; tries++) {
+  // the pointer jumped there. So the pointer keeps its eye on the target, re-aiming as it goes, until both hold still.
+  const centre = async () => {
     const box = await target.boundingBox({ timeout: 5000 }).catch(() => null);
-    if (!box) return;
-    const to = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-    if (tries > 0 && Math.hypot(to.x - at.x, to.y - at.y) < 3) return;
-    await glide(at, to);
+    return box && { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  };
+  let to = await centre();
+  if (!to) return;
+  for (let tries = 0; tries < 3 && to; tries++) {
+    to = await glide(at, to, centre);
     await at.page.waitForTimeout(REST);
+    const now = await centre();
+    if (!now || Math.hypot(now.x - at.x, now.y - at.y) < 3) return;
+    to = now;
   }
 }
 
-async function glide(at: { page: Page; x: number; y: number }, to: { x: number; y: number }) {
+// The way a hand moves a pointer: longer the further it goes, speeding up and slowing down smoothly (minimum jerk), in a
+// slight arc. A step at a time it was as fast across the screen as across a button: 2000px/s, and "fast and unnatural".
+async function glide(at: { page: Page; x: number; y: number }, aim: { x: number; y: number }, centre: () => Promise<{ x: number; y: number } | null>) {
   const from = { x: at.x, y: at.y };
-  const moves = Math.max(6, Math.min(30, Math.round(Math.hypot(to.x - from.x, to.y - from.y) / 22)));
-  for (let i = 1; i <= moves; i++) {
-    const k = ease(i / moves);
-    await at.page.mouse.move(from.x + (to.x - from.x) * k, from.y + (to.y - from.y) * k);
+  let to = aim;
+  const far = Math.hypot(to.x - from.x, to.y - from.y);
+  if (far < 1) return to;
+  const takes = Math.min(800, 220 + 110 * Math.log2(1 + far / 24));
+  const bow = Math.min(36, far * 0.08) * (from.x <= to.x ? 1 : -1);
+  const began = Date.now();
+  for (let frame = 0; ; frame++) {
+    const t = Math.min(1, (Date.now() - began) / takes);
+    const k = t ** 3 * (10 - 15 * t + 6 * t ** 2);
+    const [dx, dy] = [to.x - from.x, to.y - from.y];
+    const length = Math.hypot(dx, dy) || 1;
+    const side = bow * Math.sin(Math.PI * k);
+    await at.page.mouse.move(from.x + dx * k - (dy / length) * side, from.y + dy * k + (dx / length) * side);
+    if (t === 1) break;
+    // A look at the target now and then, so a move of the page bends the path rather than ending in a jump.
+    if (frame % 6 === 5) to = (await centre()) ?? to;
     await at.page.waitForTimeout(FRAME);
   }
   Object.assign(at, to);
+  return to;
 }
 
 const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);

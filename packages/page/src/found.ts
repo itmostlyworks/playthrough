@@ -15,7 +15,8 @@ export type Shown = { reading: Reading; thing: Thing };
 // isn't there leaves only the moment.
 export function placeIn(place: Place, from: Recorded, to: Recorded): Place {
   if (place.at === undefined) return { flow: place.flow };
-  const at = (moment: number) => Math.round(inStep(moment, from.flow, to.flow) * 100) / 100;
+  // To the hundredth, but never past the flow's end, which isn't rounded: 5.689s long, an answer at its end was at 5.69s.
+  const at = (moment: number) => Math.min(to.flow.length, Math.round(inStep(moment, from.flow, to.flow) * 100) / 100);
   const until = place.until === undefined ? undefined : at(place.until);
   const moment = { flow: place.flow, at: at(place.at), ...(until !== undefined && until > at(place.at) && { until }) };
   if (place.box) return { ...moment, box: place.box };
