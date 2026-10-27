@@ -42,7 +42,7 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
     await writeFile(join(app.flows, "export.ts"), exportThem);
     let { said, code } = await app.run(["start", "overdue"]);
     assert.equal(code, 0, said);
-    assert.match(said, /Recorded Before: “Export the overdue ones”, “See what's overdue” and “See what's paid”\.\n“Export the overdue ones” stops at “Export them”, which the app as it is can't do, so its Before goes as far as that\./);
+    assert.match(said, /Recorded Before: “Export the overdue ones”, “See what's overdue” and “See what's paid”\.\n“Export the overdue ones” stops at “Export them”, where Playwright says “[^”\n]+”, so its Before goes as far as that\./);
     assert.match(said, /add a flow for each choice you made that the reviewer can see and didn't ask for\. Then record round 1: vantage record overdue/);
 
     const before = await app.round(0);
@@ -58,9 +58,12 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
     // The step it stopped at left nothing to read.
     assert.deepEqual((await app.readings(0, cut!)).map((reading) => reading.step), ["Open the invoices"]);
 
+    // Run again, it tries the flow Before cut short once more, in case that was the flow's own mistake: here it's the app.
     ({ said, code } = await app.run(["start", "overdue"]));
-    assert.equal(code, 1);
-    assert.match(said, /Before is recorded already\. Change the app, then record round 1: vantage record overdue/);
+    assert.equal(code, 0, said);
+    assert.match(said, /Before cut “Export the overdue ones” short, so it is tried on it again, in place of what it has of it\./);
+    assert.match(said, /“Export the overdue ones” stops at “Export them”, where Playwright says/);
+    assert.deepEqual((await app.round(0)).flows.map((flow) => [flow.name, flow.stopped]), [["See what's overdue", undefined], ["See what's paid", undefined], ["Export the overdue ones", "Export them"]]);
   });
 
   test("a flow that fails records nothing, and names itself", async () => {
@@ -77,7 +80,7 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
     const { said, code } = await app.run(["record", "overdue"]);
     assert.equal(code, 0, said);
     assert.match(said, /Recorded round 1: “Export the overdue ones” \(\d+s\), “See what's overdue” \(\d+s\) and “See what's paid” \(\d+s\)/);
-    assert.match(said, /are new to the reviewer\. In \.vantage\/overdue\/rounds\/1\/round\.json, each can have a line at its start: what it starts from, or the choice it shows\./);
+    assert.match(said, /are new to the reviewer\. In \.vantage\/overdue\/rounds\/1\/round\.json, each can have a line at its start, as “line” in its flow under “flows”: what it starts from, or the choice it shows\./);
 
     const recorded = await app.round(1);
     const steps: Record<string, string> = { "Export the overdue ones": "Export them", "See what's overdue": "Show only the overdue ones", "See what's paid": "Show only the paid ones" };

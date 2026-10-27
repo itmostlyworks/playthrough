@@ -46,28 +46,39 @@ export async function recordOnBefore(repo: Repo, id: string, number: number, flo
   if (!before) return;
   const later = flows.filter((name) => !before.flows.some((flow) => flow.name === name) && !before.cantStart?.includes(name));
   if (!later.length) return;
-  const named = list(later.map(quote));
-  const [are, have, they] = later.length > 1 ? ["are", "have", "they're"] : ["is", "has", "it's"];
-  if (!before.commit) return console.log(`\n${named} ${have} no Before: Before wasn't kept as a commit, so the app as it was can't be put back.`);
+  const [are, they] = later.length > 1 ? ["are", "they're"] : ["is", "it's"];
+  await onBefore(repo, id, later, `${list(later.map(quote))} ${are} new, so ${they} recorded on Before too`, `Round ${number} wasn't recorded`, "Record again.");
+}
+
+// The flows Before cut short or couldn't start, tried on it again, as vantage start does once Before is recorded: a flow
+// that stopped for its own mistake, not the app's, goes as far as the app as it was can take it once it's fixed.
+export async function tryBeforeAgain(repo: Repo, id: string, flows: string[]) {
+  const [them, they] = flows.length > 1 ? ["them", "they"] : ["it", "it"];
+  await onBefore(repo, id, flows, `Before cut ${list(flows.map(quote))} short, so ${they} ${flows.length > 1 ? "are" : "is"} tried on it again, in place of what it has of ${them}`, "Before wasn't recorded again", "Run this again.");
+}
+
+async function onBefore(repo: Repo, id: string, flows: string[], doing: string, unrecorded: string, again: string) {
+  const before = (await repo.reviews.get(id)).rounds.find((round) => round.number === 0)!;
+  const named = list(flows.map(quote));
+  if (!before.commit) return console.log(`\n${named} ${flows.length > 1 ? "have" : "has"} no Before: Before wasn't kept as a commit, so the app as it was can't be put back.`);
   // Left running, the agent's own server would go on serving its work, not the app as it was.
   const { url } = await repo.app();
   if (await serving(url))
-    throw new Refused([
-      `Round ${number} wasn't recorded: ${named} ${are} new, so ${they} recorded on Before too, and Vantage starts the app as it was itself, on ${url}. Something is serving there already: stop it, then record again.`,
-    ]);
+    throw new Refused([`${unrecorded}: ${doing}, and Vantage starts the app as it was itself, on ${url}. Something is serving there already: stop it, then try again.`]);
 
-  console.log(`\n${named} ${are} new, so ${they} recorded on Before too. Your work is set aside with git stash meanwhile.`);
+  console.log(`\n${doing}. Your work is set aside with git stash meanwhile.`);
+  const later = flows;
   const taken = before.flows.map((flow) => flow.recording);
   // An app as it was that doesn't start, for the reason Playwright gives, can't start any of them.
-  const ran = await asItWas(repo, number, before.commit, () =>
+  const ran = await asItWas(repo, unrecorded, before.commit, () =>
     runFlows(repo, id, 0, { later: { flows: later, taken }, first: () => true }).catch((error) => {
       if (error instanceof Refused) return { recorded: [], failed: later.map((flow) => ({ flow })) };
       throw error;
     }),
   );
-  refuseIfBroken(ran.failed, `Round ${number} wasn't recorded`, "Record again.");
+  refuseIfBroken(ran.failed, unrecorded, again);
   await repo.reviews.addToBefore(id, { flows: ran.recorded.map(({ flow }) => flow), cantStart: cantStart(ran.recorded, ran.failed), files: ran.recorded.flatMap(({ files }) => files) });
-  for (const line of howFar(ran.recorded, ran.failed, "the app as it was")) console.log(line);
+  for (const line of howFar(ran.recorded, ran.failed, "the app as it was", id)) console.log(line);
 }
 
 // A flow the browser stopped, not the app, says nothing about how far the app goes, so nothing of the run is kept, and
@@ -83,12 +94,16 @@ export const cantStart = (recorded: { flow: Flow }[], failed: Failed[]) =>
   failed.map(({ flow }) => flow).filter((flow) => !recorded.some((kept) => kept.flow.name === flow));
 
 // How far Before goes with each flow that didn't run to its end on the app as it is, or was.
-export function howFar(recorded: { flow: Flow }[], failed: Failed[], app: string): string[] {
-  return failed.map(({ flow, at }) =>
-    !recorded.some((kept) => kept.flow.name === flow)
-      ? `${quote(flow)} can't start on ${app}, so it has no Before.`
-      : `${quote(flow)} ${at ? `stops at ${quote(at)}, which ${app} can't do` : "stops after its last step"}, so its Before goes as far as that.`,
-  );
+// Playwright's reason is said with it: the flow's own mistake reads the same as something the app can't do yet.
+export function howFar(recorded: { flow: Flow }[], failed: Failed[], app: string, id: string): string[] {
+  const lines = failed.map(({ flow, at, why }) => {
+    const because = why ? `, where Playwright says “${why}”` : "";
+    return !recorded.some((kept) => kept.flow.name === flow)
+      ? `${quote(flow)} can't start on ${app}${because}, so it has no Before.`
+      : `${quote(flow)} ${at ? `stops at ${quote(at)}${because}` : "stops after its last step"}, so its Before goes as far as that.`;
+  });
+  if (lines.length) lines.push(`If that's the app as it was, that's Before. If it's the flow's own mistake, fix the flow and run vantage start ${id} again: it tries the flows Before cut short again.`);
+  return lines;
 }
 
 // Where the agent's work is while the working copy holds the app as it was: the branch or commit to come back to, the
@@ -99,7 +114,7 @@ const SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP"] as const;
 // The working copy holds the app as it was while `run` runs, then the agent's work again. Where the work is goes in
 // .vantage/ first, so if Vantage is stopped halfway the next command puts it back; stopped by a signal, it puts it back
 // itself before it ends.
-async function asItWas<T>(repo: Repo, number: number, commit: string, run: () => Promise<T>): Promise<T> {
+async function asItWas<T>(repo: Repo, unrecorded: string, commit: string, run: () => Promise<T>): Promise<T> {
   await repo.keepOutOfGit();
   const aside: SetAside = { back: here(repo), stash: `Vantage: your work, set aside while flows record on Before, ${new Date().toISOString()}`, by: process.pid };
   writeFileSync(repo.setAside, JSON.stringify(aside));
@@ -120,7 +135,7 @@ async function asItWas<T>(repo: Repo, number: number, commit: string, run: () =>
       git(repo, ["checkout", "--quiet", "--detach", commit]);
       moved = true;
     } catch (error) {
-      throw new Refused([`Round ${number} wasn't recorded: git couldn't put the app as it was in place, because it says:`, `  ${said(error)}`, "Fix that, then record again."]);
+      throw new Refused([`${unrecorded}: git couldn't put the app as it was in place, because it says:`, `  ${said(error)}`, "Fix that, then try again."]);
     }
     return await run();
   } finally {

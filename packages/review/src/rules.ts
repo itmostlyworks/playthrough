@@ -120,9 +120,19 @@ export function problemsAddingToBefore(review: Review, flows: Flow[], cantStart:
   if (review.accepted) return ["This review is accepted, so nothing more can be recorded."];
   const before = review.rounds.find((round) => round.number === 0);
   if (!before) return ["There's no Before to add a flow to: the app was new."];
-  const after = { ...before, flows: [...before.flows, ...flows], cantStart: [...(before.cantStart ?? []), ...cantStart] };
+  const after = withInBefore(before, flows, cantStart);
   const shape = problemsWithShape(Round, after, "Before");
   return shape.length ? shape : problemsWithFlows(after, "Before");
+}
+
+// Before with these flows in it, in place of what it had of them: a flow tried again replaces how far it went before.
+export function withInBefore(before: Round, flows: Flow[], cantStart: string[]): Round {
+  const names = new Set([...flows.map((flow) => flow.name), ...cantStart]);
+  return {
+    ...before,
+    flows: [...before.flows.filter((flow) => !names.has(flow.name)), ...flows],
+    cantStart: [...(before.cantStart ?? []).filter((name) => !names.has(name)), ...cantStart],
+  };
 }
 
 // Flows are told apart by their names, and their steps by their titles, so each is there once.

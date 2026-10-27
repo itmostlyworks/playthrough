@@ -52,7 +52,7 @@ describe("The command line, as an agent uses it, on Before", { timeout: 300_000 
     );
     assert.match(
       said,
-      /Your work is back\.\n“Export the paid ones” stops at “Export them”, which the app as it was can't do, so its Before goes as far as that\.\n“Open the export” can't start on the app as it was, so it has no Before\./,
+      /Your work is back\.\n“Export the paid ones” stops at “Export them”, where Playwright says “[^”\n]+”, so its Before goes as far as that\.\n“Open the export” can't start on the app as it was, where Playwright says “[^”\n]+”, so it has no Before\.\nIf that's the app as it was, that's Before\. If it's the flow's own mistake, fix the flow and run vantage start \S+ again/,
     );
     assert.deepEqual(await work(), was);
     assert.equal(await readFile(join(app.repo, "notes.txt"), "utf8"), "What's left to do");

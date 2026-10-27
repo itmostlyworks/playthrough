@@ -134,7 +134,7 @@ for (const [kept, storage] of storages) {
       await assert.rejects(reviews.saveRound("invoice-export", round(4)), refused(/being worked on is 3/));
     });
 
-    test("Before only gains: a flow added later, with its files, or the word that the app as it was can't start it; a file it has stays as it is", async () => {
+    test("Before gains a flow added later, with its files, or the word that the app as it was can't start it; a flow tried again takes the place of what it had of it; a file it has stays as it is", async () => {
       const reviews = await recorded();
       const recording = new TextEncoder().encode("[]");
       const add = (flows: Flow[], cantStart: string[], files = [{ name: "export-a-year.json", bytes: recording }]) =>
@@ -145,8 +145,10 @@ for (const [kept, storage] of storages) {
       assert.deepEqual([before?.cantStart, !!before?.finished], [["Open the export"], true]);
       assert.deepEqual(await reviews.file("invoice-export", 0, "export-a-year.json"), recording);
 
-      await assert.rejects(add([flow("Export a quarter")], [], []), refused(/Before has two flows called “Export a quarter”/));
-      await assert.rejects(add([], ["Open the export"], []), refused(/Before has two flows called “Open the export”/));
+      await add([flow("Export a quarter")], [], []);
+      await add([flow("Open the export")], [], []);
+      const again = (await reviews.get("invoice-export")).rounds[0];
+      assert.deepEqual([again?.flows.map((flow) => flow.name), again?.cantStart], [["Cancel halfway", "Export a year", "Export a quarter", "Open the export"], []]);
       const other = [{ name: "export-a-year.json", bytes: new TextEncoder().encode("[{}]") }];
       await assert.rejects(add([flow("Export a month")], [], other), refused(/Before has a file called “export-a-year\.json” already, with something else in it/));
       // A file kept by what's in it, like a font two flows load, comes again the same.

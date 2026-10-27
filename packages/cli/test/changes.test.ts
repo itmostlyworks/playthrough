@@ -40,6 +40,13 @@ describe("What changed at a moment", () => {
     assert.deepEqual(await said(now, then), ["Export dialog is gone"]);
   });
 
+  test("words that took something beside them in a row of their own are the same words, and what's beside them is new (group-totals' “Earlier this month”)", async () => {
+    const row = `background: #fff; padding: 4px 24px; width: 600px`;
+    const then = `<p>Lunch</p><div style="${row}">Earlier this month</div>`;
+    const now = `<p>Lunch</p><div style="${row}; display: flex; justify-content: space-between"><span>Earlier this month</span><span>$1,300.00</span></div>`;
+    assert.deepEqual(await said(then, now), ["“$1,300.00” is new"]);
+  });
+
   test("words whose data changed are reworded, with what's marked in them", async () => {
     assert.deepEqual(await said(`<p>Total <b>$56,145.00</b></p>`, `<p>Total for <b>2026</b> <b>$56,145.00</b></p>`), ["“Total $56,145.00” now says “Total for 2026 $56,145.00”"]);
   });

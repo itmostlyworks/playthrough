@@ -158,6 +158,23 @@ export function differences(then: Reading, now: Reading): { differences: Differe
   }
   for (const a of gone) found.push({ what: "gone", then: a });
 
+  // Words that became a panel of their own name, in the same place and as big, are that panel: the same thing, holding
+  // those words and whatever's new beside them. Spliit's heading “Earlier this month” took its total, “$1,300.00”.
+  for (const [i, difference] of [...found.entries()].reverse()) {
+    if (difference.what !== "new" || difference.now.role !== "box") continue;
+    const b = difference.now;
+    const own = now.things.find((thing) => thing.role === "text" && holderOf(now, thing) === b && thing.words === b.name);
+    const a = own && was.get(own);
+    if (!a || !samePlace(a, b) || !near(a.box.width, b.box.width) || !near(a.box.height, b.box.height)) continue;
+    was.set(b, a);
+    found.splice(i, 1);
+    const kept = found.findIndex((other) => "now" in other && other.now === own);
+    if (kept >= 0) found.splice(kept, 1);
+    const { background: _, ...looked } = a.look;
+    const { background: __, ...looks } = own.look;
+    if (JSON.stringify(looked) !== JSON.stringify(looks)) found.push({ what: "looks different", then: a, now: own });
+  }
+
   // What's inside something new is part of it, and what's inside something gone went with it. What's marked inside
   // reworded words, the amount in “Total for 2026 $56,145.00”, is part of their rewording.
   const fresh = new Set(found.flatMap((difference) => (difference.what === "new" ? [difference.now] : [])));

@@ -61,6 +61,9 @@ export const Flow = z.strictObject({
   steps: z.array(Step),
   recording: fileName("needs its recording: the name of a file in the round"),
   line: text("needs words in its line, or no line").optional().describe("The agent's, at the flow's start: what it starts from, or the choice it shows"),
+  stopped: text("needs the step it stopped at")
+    .optional()
+    .describe("On Before, the step the flow couldn't take there: it's kept as far as that, and tried again by vantage start"),
   unsteady: z
     .array(text("needs the ids of the changes it makes by itself"))
     .optional()

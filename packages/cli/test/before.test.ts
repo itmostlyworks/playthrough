@@ -120,15 +120,16 @@ describe("How far Before goes with a flow", () => {
     return ran;
   }
 
-  test("it goes as far as the app as it was can take it", async () => {
-    const { recorded, failed } = await ended("TimeoutError: locator.click: Timeout 10000ms exceeded.");
+  test("it goes as far as the app as it was can take it, marked where it stopped, with Playwright's reason", async () => {
+    const { recorded, failed } = await ended("TimeoutError: locator.click: Timeout 10000ms exceeded.\nCall log: …");
     assert.deepEqual(recorded[0]?.flow.steps.map((step) => step.title), ["Open the expenses"]);
-    assert.deepEqual(failed, [{ flow: "Search the expenses", at: "Search for the cabin" }]);
+    assert.equal(recorded[0]?.flow.stopped, "Search for the cabin");
+    assert.deepEqual(failed, [{ flow: "Search the expenses", at: "Search for the cabin", why: "TimeoutError: locator.click: Timeout 10000ms exceeded." }]);
   });
 
   test("a flow the browser stopped, not the app, says nothing about the app: nothing of the run is kept, and running again tries again", async () => {
     const { recorded, failed } = await ended("Error: page.goto: Page crashed");
-    assert.deepEqual([recorded, failed], [[], [{ flow: "Search the expenses", at: "Search for the cabin", broken: true }]]);
+    assert.deepEqual([recorded, failed], [[], [{ flow: "Search the expenses", at: "Search for the cabin", why: "Error: page.goto: Page crashed", broken: true }]]);
     assert.throws(
       () => refuseIfBroken(failed, "Before wasn't recorded", "Run this again."),
       /Before wasn't recorded, because the browser stopped a flow, not the app:\n  “Search the expenses”, at the step “Search for the cabin”\nPlaywright says why above\. Run this again\.$/,

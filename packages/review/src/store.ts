@@ -14,6 +14,7 @@ import {
   problemsWithRound,
   problemsWithSend,
   roundInProgress,
+  withInBefore,
 } from "./rules.ts";
 
 export interface Storage {
@@ -157,11 +158,7 @@ export class Reviews {
       if (problems.length) throw new Refused(problems);
       const before = review.rounds.find((round) => round.number === 0)!;
       for (const { name, bytes } of added.files) await this.storage.write(`${id}/rounds/0/files/${name}`, bytes);
-      await this.#writeJson(`${id}/rounds/0/round.json`, {
-        ...before,
-        flows: [...before.flows, ...added.flows],
-        cantStart: [...(before.cantStart ?? []), ...added.cantStart],
-      });
+      await this.#writeJson(`${id}/rounds/0/round.json`, withInBefore(before, added.flows, added.cantStart));
     });
   }
 

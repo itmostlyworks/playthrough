@@ -3,7 +3,7 @@
 
 import { list, quote, Refused } from "@mostlyworks/vantage-review";
 import { agent } from "./agent.ts";
-import { cantStart, howFar, keepBefore, refuseIfBroken } from "./before.ts";
+import { cantStart, howFar, keepBefore, refuseIfBroken, tryBeforeAgain } from "./before.ts";
 import { addKeptFlows, howToWriteFlows, makeFlowsFolder, runFlows } from "./flows.ts";
 import type { Repo } from "./repo.ts";
 
@@ -30,6 +30,9 @@ Then run vantage start ${id} again. It records Before: each flow on the app as i
   if (title && title !== review.title)
     throw new Refused([`There's already a review called “${id}”, of “${review.title}”. Give this one another name, or record that one's Before: vantage start ${id}`]);
   const last = review.rounds.at(-1);
+  const before = review.rounds.find((round) => round.number === 0);
+  const short = before ? [...before.flows.filter((flow) => flow.stopped).map((flow) => flow.name), ...(before.cantStart ?? [])] : [];
+  if (before && short.length) return tryBeforeAgain(repo, id, short);
   if (last?.number === 0) throw new Refused([`Before is recorded already. Change the app, then record round 1: vantage record ${id}`]);
   if (last) throw new Refused([`Before is how the app was before the work, and ${id} has round ${last.number} already. Record the round being worked on: vantage record ${id}`]);
 
@@ -45,7 +48,7 @@ Then run vantage start ${id} again. It records Before: each flow on the app as i
   await repo.reviews.saveRound(id, { number: 0, by: agent(), flows, replies: [], accounts: {}, cantStart: cantStart(recorded, failed), ...(commit && { commit }) });
   await repo.reviews.finish(id, 0);
   console.log(`\nRecorded Before: ${list(flows.map((flow) => quote(flow.name)))}.`);
-  for (const line of howFar(recorded, failed, "the app as it is")) console.log(line);
+  for (const line of howFar(recorded, failed, "the app as it is", id)) console.log(line);
   if (!commit) console.log(`This folder isn't in git, so Before isn't kept as a commit, and a flow added later can't be recorded on it.`);
   console.log(`
 Now change the app. Keep each flow's name, and each step's while it does the same job: they're matched across rounds by name. Once the work is done, add a flow for each choice you made that the reviewer can see and didn't ask for. Then record round 1: vantage record ${id}`);
