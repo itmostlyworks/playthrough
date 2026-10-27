@@ -20,8 +20,9 @@ export type Run = { flows: string; only?: string[]; folder: string; app: App; ro
 
 // Where a person takes a flow over: the end of one of its steps, or of the whole flow.
 export type To = { flow: string; step?: string };
-// The flow's page there, as a browser keeps it: its address, its cookies, and what the app kept in the browser.
-export type Handed = { url: string; cookies: Cookie[]; local: Record<string, string>; session: Record<string, string> };
+// The flow's page there, as a browser keeps it: its address, its cookies, what the app kept in the browser, and how far
+// it was scrolled.
+export type Handed = { url: string; cookies: Cookie[]; local: Record<string, string>; session: Record<string, string>; scroll: { x: number; y: number } };
 export type Cookie = { name: string; value: string; path: string; expires: number; httpOnly: boolean };
 export const HANDED = "handed.json";
 

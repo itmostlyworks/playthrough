@@ -113,7 +113,7 @@ function passOn(app: App, handed: (moment: string) => Handed | undefined): Promi
         const html = Buffer.concat(chunks).toString("utf8");
         const at = html.search(/<head[^>]*>/i);
         const end = at < 0 ? 0 : at + html.slice(at).indexOf(">") + 1;
-        const body = html.slice(0, end) + ESCAPE + html.slice(end);
+        const body = html.slice(0, end) + SAYS + html.slice(end);
         delete told["content-length"];
         response.writeHead(answer.statusCode ?? 502, told);
         response.end(body);
@@ -143,9 +143,34 @@ function asIfDirect(request: IncomingMessage, target: URL) {
   return headers;
 }
 
-// Taken over in the viewer, the app sits in its frame, where every key goes to the app. Escape, if the app doesn't
-// use it itself, goes back to the viewer, which lays the recording back over it.
-const ESCAPE = `<script>addEventListener("keydown", (e) => { if (e.key === "Escape" && !e.defaultPrevented && window.parent !== window) window.parent.postMessage("vantage:escape", "*"); });</script>`;
+// Taken over in the viewer, the app sits in its frame, and this goes into each of its pages, first. Scrolled where the
+// flow's page was, it tells the viewer once it has settled (loaded, its fonts and pictures in, nothing on its way and
+// nothing changing for a moment), so the frame turns into it with nothing on screen changing. And as every key there
+// goes to the app, Escape, if the app doesn't use it itself, goes back to the viewer, with where the pointer is.
+const SAYS = `<script>(() => {
+  if (window.parent === window) return;
+  let asked = 0, stirred = performance.now();
+  const stir = () => (stirred = performance.now());
+  const fetching = window.fetch;
+  window.fetch = (...args) => { asked++; stir(); return fetching(...args).finally(() => { asked--; stir(); }); };
+  const sending = XMLHttpRequest.prototype.send;
+  XMLHttpRequest.prototype.send = function (...args) { asked++; stir(); this.addEventListener("loadend", () => { asked--; stir(); }); return sending.apply(this, args); };
+  new MutationObserver(stir).observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
+  const scroll = JSON.parse(sessionStorage.getItem("vantage:scroll") || "null");
+  sessionStorage.removeItem("vantage:scroll");
+  let x = innerWidth / 2, y = innerHeight / 2;
+  addEventListener("pointermove", (e) => { x = e.clientX; y = e.clientY; }, true);
+  addEventListener("keydown", (e) => { if (e.key === "Escape" && !e.defaultPrevented) parent.postMessage({ vantage: "escape", x, y }, "*"); });
+  const began = performance.now();
+  const settle = async () => {
+    await document.fonts?.ready;
+    const still = document.readyState === "complete" && !asked && performance.now() - stirred > 300 && [...document.images].every((image) => image.complete);
+    if (!still && performance.now() - began < 8000) return setTimeout(settle, 80);
+    if (scroll) scrollTo(scroll.x, scroll.y);
+    requestAnimationFrame(() => requestAnimationFrame(() => parent.postMessage({ vantage: "settled" }, "*")));
+  };
+  addEventListener("load", () => setTimeout(settle, 50));
+})();</script>`;
 
 // Whatever the app says about its own address is said about Vantage's, so the browser stays here, and the app may show
 // in the viewer's frame.
@@ -165,19 +190,20 @@ function handOver(handed: Handed | undefined, response: ServerResponse) {
     response.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
     return void response.end("There's no moment ready at this address. Take it over again from the viewer, or with vantage take-over.");
   }
-  const { url, cookies, local, session } = handed;
+  const { url, cookies, local, session, scroll } = handed;
   const { pathname, search, hash } = new URL(url);
   const setCookies = cookies.map(
     ({ name, value, path, expires, httpOnly }) =>
       `${name}=${value}; Path=${path}; SameSite=Lax${httpOnly ? "; HttpOnly" : ""}${expires > 0 ? `; Expires=${new Date(expires * 1000).toUTCString()}` : ""}`,
   );
-  const keep = JSON.stringify({ local, session, to: pathname + search + hash }).replace(/</g, "\\u003c");
+  const keep = JSON.stringify({ local, session, scroll, to: pathname + search + hash }).replace(/</g, "\\u003c");
   response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "set-cookie": setCookies });
   response.end(`<!doctype html><meta name="viewport" content="width=device-width"><title>Taking over…</title>
 <script>
-const { local, session, to } = ${keep};
+const { local, session, scroll, to } = ${keep};
 for (const [key, value] of Object.entries(local)) localStorage.setItem(key, value);
 for (const [key, value] of Object.entries(session)) sessionStorage.setItem(key, value);
+sessionStorage.setItem("vantage:scroll", JSON.stringify(scroll));
 location.replace(to);
 </script>`);
 }

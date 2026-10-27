@@ -152,7 +152,7 @@ let taking: { page: Page; depth: number; rest: () => Promise<void> } | undefined
 // (take-over.ts), and the flow goes no further. Straight after its last action, it was still on its way to the next page.
 async function handOver({ page, rest }: { page: Page; rest: () => Promise<void> }) {
   await rest();
-  const kept = await page.evaluate(() => ({ local: { ...localStorage }, session: { ...sessionStorage } }));
+  const kept = await page.evaluate(() => ({ local: { ...localStorage }, session: { ...sessionStorage }, scroll: { x: scrollX, y: scrollY } }));
   const handed: Handed = { url: page.url(), cookies: await page.context().cookies(), ...kept };
   writeFileSync(join(run!.folder, HANDED), JSON.stringify(handed));
 }

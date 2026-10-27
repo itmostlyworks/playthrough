@@ -5,7 +5,9 @@
 import type { Flow } from "@mostlyworks/vantage-review";
 
 // Shown, the app covers the recording; hidden, it waits under it, so taking the same moment over again carries on.
-export type Live = { flow: string; step?: string; address?: string; problems?: string[]; shown: boolean };
+// It shows only once it has settled, so the frame turns into it with nothing on screen changing. Left from inside the
+// app, `at` is where the pointer was there, on its page, for the way out to close on.
+export type Live = { flow: string; step?: string; address?: string; problems?: string[]; shown: boolean; settled?: boolean; at?: { x: number; y: number } };
 
 export const stepAt = (flow: Flow, at: number) => flow.steps.findLast((step) => step.at <= at + 0.05) ?? flow.steps[0];
 

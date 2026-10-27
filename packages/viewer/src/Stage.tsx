@@ -253,7 +253,7 @@ export function Stage(props: Props) {
         if (stopped && wasPlaying.current) replay.rest();
       }
       Object.assign(part.marks.style, { transform: shift, width: `${page.width * view.k}px`, height: `${page.height * view.k}px` });
-      const app = frame.querySelector<HTMLElement>("[data-live]");
+      const app = frame.querySelector<HTMLElement>("[data-live] iframe");
       if (app) Object.assign(app.style, liveAt(view, page));
       place(part.marks, replay, page, view, box, at, playing, shown === round);
       part.name.textContent = its.name;
@@ -489,6 +489,78 @@ export function Stage(props: Props) {
     const { playhead, onPlace, writing, round } = latest.current;
     return !!frame && Number(frame.dataset.frame) === round.number && !frame.hasAttribute("data-absent") && !playhead.now.playing && !!onPlace && !writing && !(target as Element).closest("[data-pin]");
   };
+  // The portal into the app opens from where you last pointed, held within the frame: on the recording, or from the
+  // frame's edge nearest Take over; it closes on where the pointer was in the app, or the same way.
+  const pointed = useRef<{ x: number; y: number }>(undefined);
+  useEffect(() => {
+    const aimed = (event: globalThis.PointerEvent) => void (pointed.current = { x: event.clientX, y: event.clientY });
+    addEventListener("pointermove", aimed, true);
+    addEventListener("pointerdown", aimed, true);
+    return () => {
+      removeEventListener("pointermove", aimed, true);
+      removeEventListener("pointerdown", aimed, true);
+    };
+  }, []);
+  const inPortal = !!props.live?.shown && !!props.live.settled && !!props.live.address;
+  const open = useRef(false);
+  useLayoutEffect(() => {
+    const frame = frames.current.get(round.number);
+    const app = frame?.querySelector<HTMLElement>("[data-live]");
+    const sheen = frame?.querySelector<HTMLElement>("[data-sheen]");
+    const ring = frame?.querySelector<HTMLElement>("[data-portal]");
+    const edge = frame?.querySelector<HTMLElement>("[data-edge]");
+    const hand = frame?.querySelector<HTMLElement>("[data-cursor]");
+    if (!frame || !app || !sheen || !ring || !edge || !hand || inPortal === open.current) return;
+    open.current = inPortal;
+    const box = frame.getBoundingClientRect();
+    const view = painted.current.get(round.number);
+    // Your pointer, if it's on the frame; the agent's, where the recording drew it; the tip of each, in the frame.
+    const yours = pointed.current && { x: pointed.current.x - box.left, y: pointed.current.y - box.top };
+    const mine = yours && yours.x >= 0 && yours.y >= 0 && yours.x <= box.width && yours.y <= box.height ? yours : undefined;
+    const drawnAt = hand.getBoundingClientRect();
+    const theirs = getComputedStyle(hand).opacity !== "0" ? { x: drawnAt.left - box.left + 3, y: drawnAt.top - box.top + 2 } : undefined;
+    const left = props.live?.at && view && !inPortal ? { x: (props.live.at.x - view.x) * view.k, y: (props.live.at.y - view.y) * view.k } : undefined;
+    const at = (inPortal ? (mine ?? theirs) : (left ?? mine ?? theirs)) ?? { x: box.width / 2, y: box.height / 2 };
+    const reach = Math.max(...[[0, 0], [box.width, 0], [0, box.height], [box.width, box.height]].map(([x, y]) => Math.hypot(x! - at.x, y! - at.y)));
+    const circle = (r: number) => `circle(${r.toFixed(1)}px at ${at.x.toFixed(1)}px ${at.y.toFixed(1)}px)`;
+    const tip = (point: { x: number; y: number }) => `translate(${(point.x - 3).toFixed(1)}px,${(point.y - 2).toFixed(1)}px)`;
+    Object.assign(ring.style, { left: `${at.x - reach}px`, top: `${at.y - reach}px`, width: `${reach * 2}px`, height: `${reach * 2}px` });
+    sheen.style.setProperty("--x", `${at.x}px`);
+    sheen.style.setProperty("--y", `${at.y}px`);
+    for (const part of [app, sheen, ring, edge, hand]) part.getAnimations().forEach((animation) => animation.cancel());
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (inPortal) {
+      app.style.visibility = "visible";
+      edge.style.opacity = "1";
+      if (still) return;
+      // The agent's pointer goes to yours and hands over there; the portal opens from where they meet.
+      const handing = mine && theirs && Math.hypot(mine.x - theirs.x, mine.y - theirs.y) > 4 ? HANDING : 0;
+      if (theirs)
+        hand.animate([{ transform: tip(theirs), opacity: 1 }, { transform: tip(at), opacity: 1, offset: handing ? 0.8 : 0 }, { transform: tip(at), opacity: 0 }], {
+          duration: handing + 260,
+          easing: PORTAL,
+          fill: "forwards",
+        });
+      const after = { delay: handing, easing: PORTAL, fill: "backwards" as const };
+      app.animate([{ clipPath: circle(0) }, { clipPath: circle(reach) }], { ...after, duration: OPENING });
+      sheen.animate([{ opacity: 1 }, { opacity: 0 }], { ...after, duration: OPENING + 240 });
+      ring.animate([{ transform: "scale(0)", opacity: 0 }, { opacity: 1, offset: 0.1 }, { opacity: 0.85, offset: 0.7 }, { transform: "scale(1)", opacity: 0 }], { ...after, duration: OPENING });
+      edge.animate([{ opacity: 0 }, { opacity: 0, offset: 0.5 }, { opacity: 1, boxShadow: "inset 0 0 0 2px rgba(236,178,72,0.95), inset 0 0 40px rgba(255,214,150,0.45)", offset: 0.75 }, { opacity: 1 }], { ...after, duration: OPENING + 500 });
+    } else {
+      edge.style.opacity = "0";
+      const hide = () => void (app.style.visibility = "hidden");
+      if (still) return hide();
+      const closing = { duration: CLOSING, easing: "cubic-bezier(0.55, 0, 0.7, 0.2)" };
+      edge.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, easing: "ease-in" });
+      ring.animate([{ transform: "scale(1)", opacity: 0 }, { opacity: 0.9, offset: 0.65 }, { transform: "scale(0)", opacity: 0 }], closing);
+      sheen.animate([{ opacity: 0 }, { opacity: 0.8 }], closing);
+      app.animate([{ clipPath: circle(reach) }, { clipPath: circle(0) }], closing).finished.then(hide, () => {});
+      // And the agent's pointer, back from where you left, to where the recording has it.
+      if (theirs)
+        hand.animate([{ transform: tip(at), opacity: 0 }, { transform: tip(at), opacity: 1, offset: 0.3 }, { transform: tip(theirs), opacity: 1 }], { delay: CLOSING - 80, duration: HANDING + 120, easing: PORTAL, fill: "backwards" });
+    }
+  }, [inPortal]);
+
   const aimAt = (event: PointerEvent<HTMLDivElement>, number: number) => {
     pointer.current = event;
     const aiming = number === round.number && aimingAt(event.target) && !dragged.current;
@@ -578,15 +650,25 @@ export function Stage(props: Props) {
           }}
           onClick={(event) => click(event, number)}
         >
+          {/* Taken over, the app opens like a portal from where you last pointed, and the ring of its opening settles into
+              the frame's edge while you're in it. It's shown, and hidden, by the portal itself (useLayoutEffect below). */}
           {number === round.number && props.live?.address && (
-            <iframe
-              data-live
-              key={props.live.address}
-              src={props.live.address}
-              title="The app, taken over"
-              className={`absolute top-0 left-0 z-9 origin-top-left border-0 bg-paper ${props.live.shown ? "" : "pointer-events-none invisible"}`}
-              style={painted.current.get(number) && liveAt(painted.current.get(number)!, painted.current.get(number)!.page)}
-            />
+            <div data-live className="invisible absolute inset-0 z-9 overflow-hidden">
+              <div data-sheen className="pointer-events-none absolute inset-0 z-1 opacity-0 [background:radial-gradient(circle_at_var(--x)_var(--y),rgba(255,232,190,0.15),rgba(255,214,150,0.5))]" />
+              <iframe
+                key={props.live.address}
+                src={props.live.address}
+                title="The app, taken over"
+                className="absolute top-0 left-0 origin-top-left border-0 bg-paper"
+                style={painted.current.get(number) && liveAt(painted.current.get(number)!, painted.current.get(number)!.page)}
+              />
+            </div>
+          )}
+          {number === round.number && (
+            <>
+              <div data-portal className="pointer-events-none absolute top-0 left-0 z-10 rounded-full opacity-0 [border:2.5px_solid_rgba(236,178,72,0.95)] [box-shadow:0_0_40px_14px_rgba(226,170,70,0.38),inset_0_0_36px_10px_rgba(255,214,150,0.4)]" />
+              <div data-edge className="pointer-events-none absolute inset-0 z-10 rounded-lg opacity-0 [box-shadow:inset_0_0_0_1.5px_rgba(217,162,58,0.75),inset_0_0_22px_rgba(217,162,58,0.16)]" />
+            </>
           )}
           <div data-app className="absolute inset-0 overflow-hidden">
             <div data-stack className="absolute inset-0" />
@@ -738,6 +820,13 @@ const fit = (room: Size, shape: Size): Size => {
   const width = Math.floor(Math.max(0, Math.min(room.width, (room.height * shape.width) / shape.height, shape.width)));
   return { width, height: Math.floor((width * shape.height) / shape.width) };
 };
+
+// Opening into the app takes a breath, after the agent's pointer has come to yours; leaving it is quicker, as stepping
+// out is.
+const HANDING = 420;
+const OPENING = 1050;
+const CLOSING = 560;
+const PORTAL = "cubic-bezier(0.22, 0.8, 0.24, 1)";
 
 // The app is the page the recording was made of, at its size, moved and scaled as the recording is.
 const liveAt = (view: View, page: Size) => ({

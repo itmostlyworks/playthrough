@@ -151,8 +151,8 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     return () => clearTimeout(soon);
   }, [resting, review.id]);
   const playingNow = useNow(playhead, (now) => now.playing);
-  const backToRecording = () => {
-    setLive((now) => now && { ...now, shown: false });
+  const backToRecording = (at?: { x: number; y: number }) => {
+    setLive((now) => now && { ...now, shown: false, at });
     window.focus();
   };
   if (live?.shown && (playingNow || round !== latest)) setLive({ ...live, shown: false });
@@ -162,15 +162,18 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     const step = stepAt(on, playhead.now.moment.at)?.title;
     if (round !== latest || playhead.now.moment.at < 0) return;
     playhead.pause();
-    if (live && live.flow === on.name && live.step === step && live.address) return setLive({ ...live, shown: true });
+    if (live && live.flow === on.name && live.step === step && live.address) return setLive({ ...live, shown: true, at: undefined });
     setLive({ flow: on.name, step, shown: true });
     readyAt(review.id, on.name, step).then((answer) =>
       setLive((now) => (now?.flow === on.name && now.step === step ? (typeof answer === "string" ? { ...now, address: answer } : { ...now, problems: answer, shown: false }) : now)),
     );
   };
-  // The app's pages send Escape back here, as keys there never reach the viewer.
+  // The app's pages say when they've settled, and send Escape back here, as keys there never reach the viewer.
   useEffect(() => {
-    const told = (message: MessageEvent) => message.data === "vantage:escape" && backToRecording();
+    const told = ({ data }: MessageEvent) => {
+      if (data?.vantage === "settled") setLive((now) => now && { ...now, settled: true });
+      if (data?.vantage === "escape") backToRecording({ x: data.x, y: data.y });
+    };
     addEventListener("message", told);
     return () => removeEventListener("message", told);
   }, []);
@@ -465,6 +468,14 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   // you were reading is let go, unless you're writing it.
   const gridRoom = useRef<HTMLDivElement>(null);
   const aside = useRef<HTMLElement>(null);
+  // In the app, the column steps back, so the frame is all there is; it comes forward as the portal closes.
+  const inApp = !!live?.shown && !!live.settled && !!live.address;
+  useEffect(() => {
+    const column = aside.current;
+    if (!column) return;
+    column.style.transition = "opacity 520ms cubic-bezier(0.22, 0.8, 0.24, 1)";
+    column.style.opacity = inApp ? "0.32" : "";
+  }, [inApp]);
   const controls = useRef<HTMLDivElement>(null);
   const flying = useRef<{ taking: Taking; to: "column" | "grid"; playing?: boolean }>(undefined);
   const settling = useRef<number>(undefined);
@@ -968,7 +979,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
             </div>
           )}
           <Controls
-            live={live?.shown ? (live.address ? "shown" : "waiting") : undefined}
+            live={live?.shown ? (live.address && live.settled ? "shown" : "waiting") : undefined}
             onTakeOver={takeOver}
             ref={controls}
             playhead={playhead}
