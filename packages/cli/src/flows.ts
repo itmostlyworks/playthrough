@@ -16,7 +16,14 @@ import type { App, Repo } from "./repo.ts";
 // recordings go to, the app, rrweb's recorder, which goes into every page, whether it's Before, and the recordings the
 // round has already, so a flow added to it is named apart from them. And when the review started, which every round's
 // clock starts from.
-export type Run = { flows: string; only?: string[]; folder: string; app: App; root: string; recorder: string; before: boolean; taken: string[]; started: string };
+export type Run = { flows: string; only?: string[]; folder: string; app: App; root: string; recorder: string; before: boolean; taken: string[]; started: string; to?: To };
+
+// Where a person takes a flow over: the end of one of its steps, or of the whole flow.
+export type To = { flow: string; step?: string };
+// The flow's page there, as a browser keeps it: its address, its cookies, and what the app kept in the browser.
+export type Handed = { url: string; cookies: Cookie[]; local: Record<string, string>; session: Record<string, string> };
+export type Cookie = { name: string; value: string; path: string; expires: number; httpOnly: boolean };
+export const HANDED = "handed.json";
 
 // Flows are modules whatever the app's own package.json says, so they load the same way in every repo.
 export async function makeFlowsFolder(repo: Repo, id: string) {
@@ -109,6 +116,27 @@ export async function runFlows(
     console.log(`\nIn ${quote(flow.name)}, this changes by itself, so it's left out of every comparison of the flow:\n${unsteady.map((change) => `  ${change.words}`).join("\n")}\nIf it can be made the same each time, in vantage/setup.ts, do that and record again: a real change to it won't be seen.`);
   }
   return once;
+}
+
+// Runs one flow to where a person takes it over, on the app as it is now: quickly and unrecorded, from what every flow
+// starts from, so they carry on from a fresh copy of the moment rather than a picture of it.
+export async function runTo(repo: Repo, id: string, to: To): Promise<Handed> {
+  const app = await repo.app();
+  const { started } = await repo.reviews.get(id);
+  const recorder = join(dirname(createRequire(import.meta.url).resolve("@rrweb/record")), "record.umd.min.cjs");
+  const folder = await mkdtemp(join(tmpdir(), "vantage-"));
+  try {
+    await playwright({ flows: repo.flows(id), folder, app, root: repo.root, recorder, before: false, taken: [], started, to });
+    const text = await readFile(join(folder, HANDED), "utf8").catch(() => undefined);
+    if (!text) {
+      const { failed }: { failed: Failed[] } = JSON.parse(await readFile(join(folder, "flows.json"), "utf8").catch(() => `{ "failed": [] }`));
+      const where = to.step ? `the end of ${quote(to.step)}` : "its end";
+      throw new Refused([failed.length ? `${quote(to.flow)} didn't get to ${where}:\n${failed.map(failedAt).join("\n")}` : `${quote(to.flow)} didn't get to ${where}, for the reason Playwright gives above.`]);
+    }
+    return JSON.parse(text);
+  } finally {
+    await rm(folder, { recursive: true });
+  }
 }
 
 // A run as it came, read from its files rather than from what's kept.

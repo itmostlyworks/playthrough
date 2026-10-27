@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// The command line: four commands an agent runs to have a person review its work. When one stops, it says why and what to do.
+// The command line: the commands an agent runs to have a person review its work, and take-over, for a person to carry on
+// from a moment of a flow by hand. When one stops, it says why and what to do.
 
 import { readFileSync } from "node:fs";
 import { Refused } from "@mostlyworks/vantage-review";
@@ -8,6 +9,7 @@ import { open } from "./open.ts";
 import { record } from "./record.ts";
 import { repo } from "./repo.ts";
 import { start } from "./start.ts";
+import { takeOver } from "./take-over.ts";
 import { wait } from "./wait.ts";
 
 // Everything an agent needs to know, read once: bare, the command says it.
@@ -31,6 +33,10 @@ try {
       if (!review) throw needs("vantage wait <review>");
       await wait(repo(), review);
     } else if (command === "open") await open(repo(), review);
+    else if (command === "take-over") {
+      if (!review) throw needs(`vantage take-over <review> "<flow>" ["<step>"]`);
+      await takeOver(repo(), review, words[0], words[1]);
+    }
     else throw new Refused([`There's no command “${command}”. Run vantage alone for what each one does.`]);
   }
 } catch (error) {

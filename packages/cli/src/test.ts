@@ -5,11 +5,12 @@
 // them a flow (reporter.ts).
 
 import { test as base, expect as playwrightExpect, type APIRequestContext, type Locator, type Page } from "@playwright/test";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Reading } from "@mostlyworks/vantage-page";
 import { keepAssets } from "./assets.ts";
-import type { Run } from "./flows.ts";
+import { HANDED, type Handed, type Run } from "./flows.ts";
 import { readPage, unhovered } from "./read.ts";
 import { repo } from "./repo.ts";
 import { ASSETS, HOLD, PICTURE, READINGS, RECORDING, seconds } from "./reporter.ts";
@@ -95,18 +96,22 @@ const recorded = base.extend<{ setup: Record<string, any>; recorder: void }>({
   setup: async ({ page, request, baseURL }, use, testInfo) => {
     // Recording flows added later on Before, the others aren't run, nor is anything made for them.
     if (run?.only && !run.only.includes(testInfo.title)) testInfo.skip();
-    if (run) {
+    // Taken over, only that flow runs, unrecorded and on today's clock, as the app will run for the person carrying on.
+    if (run?.to && testInfo.title !== run.to.flow) testInfo.skip();
+    if (run && !run.to) {
       // rrweb goes in first, to take the page's own clock before it's set.
       await page.addInitScript({ content: recorder(run.recorder) });
       await page.clock.setSystemTime(DAY(run.started));
       await page.addInitScript({ content: seeded });
     }
+    if (run?.to) taking = { page, depth: 0, rest: await watchRest(page) };
     await use(((await makeSetup?.({ page, request, baseURL })) ?? {}) as Record<string, any>);
+    if (taking && run?.to && !run.to.step && testInfo.status === testInfo.expectedStatus) await handOver(taking);
   },
   recorder: [
     // Once what the flow starts from is made, so making it isn't in the recording.
     async ({ page, setup: _ }, use, testInfo) => {
-      if (!run) return use();
+      if (!run || run.to) return use();
       testInfo.setTimeout(testInfo.timeout * 3);
       const events: { timestamp: number }[] = [];
       await page.exposeFunction("__vantage", (event: { timestamp: number }) => void events.push(event));
@@ -140,10 +145,44 @@ const recorded = base.extend<{ setup: Record<string, any>; recorder: void }>({
   ],
 });
 
+// The flow being taken over, and how deep in its steps it is: only its own steps are places to take it over.
+let taking: { page: Page; depth: number; rest: () => Promise<void> } | undefined;
+
+// The page as the flow left it once it's at rest, as each step's is read, for the person to carry on from
+// (take-over.ts), and the flow goes no further. Straight after its last action, it was still on its way to the next page.
+async function handOver({ page, rest }: { page: Page; rest: () => Promise<void> }) {
+  await rest();
+  const kept = await page.evaluate(() => ({ local: { ...localStorage }, session: { ...sessionStorage } }));
+  const handed: Handed = { url: page.url(), cookies: await page.context().cookies(), ...kept };
+  writeFileSync(join(run!.folder, HANDED), JSON.stringify(handed));
+}
+
 // A flow's steps are the ones it takes itself, not steps inside them. Each ends once the page is at rest, and the page
 // it left is read there, unless the step failed.
 const playwrightStep = base.step;
 const step = Object.assign(async (title: string, body: (info: unknown) => unknown, options?: object) => {
+  if (taking && run?.to) {
+    const flow = taking;
+    const own = !flow.depth;
+    return playwrightStep(
+      title,
+      async (info) => {
+        flow.depth++;
+        let done: unknown;
+        try {
+          done = await body(info);
+        } finally {
+          flow.depth--;
+        }
+        if (own && title === run.to!.step) {
+          await handOver(flow);
+          base.info().skip(true, "Taken over here");
+        }
+        return done;
+      },
+      options,
+    );
+  }
   const flow = underway;
   if (!flow || flow.depth) return playwrightStep(title, body, options);
   return playwrightStep(

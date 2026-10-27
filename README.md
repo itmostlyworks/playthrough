@@ -33,6 +33,14 @@ vantage open [<review>]            # the viewer, on this machine
 9. `vantage wait` hands the round over, which the rules allow once every note has an answer and every change since the round before has its account; if one hasn't, it says which. Then it waits for a send that asks for something and prints each note to answer, with its conversation so far, whose each verdict is, and a picture of the page as the person saw it, what the note is on outlined.
 10. In the viewer, each person watches, leaves notes, says Looks good or Not quite to each answer and Looks good to each flow, and sends. A note has one state for everyone, the last word on its answer, whoever said it and under their name: Looks good settles it, and a Not quite, even after someone's Looks good, sends it back to the agent. An answer waits for whoever asked for it, by writing the note or sending it back; anyone can judge it. Looks good on a flow, and accepting, are each person's own. Anyone can accept once every flow is good for them and nothing waits for the agent, and `wait` says the review is done.
 
+## Taking a flow over
+
+```bash
+vantage take-over <review> "<flow>" ["<step>"]
+```
+
+Runs the flow to the end of that step (or of the whole flow) on the app as it is now, quickly and unrecorded, from what every flow starts from, then hands its page to you at http://localhost:5830/take-over: the same address, cookies and what the app kept in the browser, so you carry on by hand in the real app, from a fresh copy of that moment. The app is passed on through Vantage while the command runs, on every network this machine is on, so a phone on the same one can open it too. On Spliit, with the app already running, it's ready in about three seconds. An early try: only the app as it is now, not Before, and on today's clock rather than the review's.
+
 ## Trying it
 
 ```bash

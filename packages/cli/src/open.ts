@@ -134,13 +134,13 @@ function whoYouAre(root: string): string {
   }
 }
 
-// The usual port, or the next free one when something else has it.
-function listen(server: ReturnType<typeof createServer>, port: number): Promise<number> {
+// The usual port, or the next free one when something else has it. Only this machine reaches it, unless it's for a phone.
+export function listen(server: ReturnType<typeof createServer>, usual: number, host = "127.0.0.1", port = usual): Promise<number> {
   return new Promise((resolve, reject) => {
     server.once("error", (error: NodeJS.ErrnoException) => {
-      if (error.code === "EADDRINUSE" && port < PORT + 20) resolve(listen(server, port + 1));
+      if (error.code === "EADDRINUSE" && port < usual + 20) resolve(listen(server, usual, host, port + 1));
       else reject(error);
     });
-    server.listen(port, "127.0.0.1", () => resolve(port));
+    server.listen(port, host, () => resolve(port));
   });
 }
