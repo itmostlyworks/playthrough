@@ -15,61 +15,69 @@ import type { App, Repo } from "./repo.ts";
 // Clear of the viewer's, which takes the next free one from 5790 when several are open.
 const PORT = 5830;
 
+// From the command line: ready, then passed on until Ctrl+C.
 export async function takeOver(repo: Repo, id: string, flowName?: string, stepName?: string) {
-  const review = await repo.reviews.get(id);
-  const round = review.rounds.findLast((round) => round.number > 0) ?? review.rounds.at(-1);
-  if (!round) throw new Refused([`${id} has nothing recorded yet, so there's nothing to take over. Record it first: vantage record ${id}`]);
-  const usage = `vantage take-over ${id} "<flow>" ["<step>"]`;
-  const names = list(round.flows.map((flow) => quote(flow.name)));
-  if (!flowName) throw new Refused([`Take over which flow? ${usage}\nIts flows: ${names}.`]);
-  const flow = round.flows.find((flow) => flow.name === flowName);
-  if (!flow) throw new Refused([`${id} has no flow called ${quote(flowName)}. Its flows: ${names}.`]);
-  if (stepName && !flow.steps.some((step) => step.title === stepName))
-    throw new Refused([`${quote(flow.name)} has no step called ${quote(stepName)}. Its steps: ${list(flow.steps.map((step) => quote(step.title)))}.`]);
-
-  const app = await repo.app();
-  const started = await keepRunning(app, repo.root);
-  const began = Date.now();
-  console.log(`Running ${quote(flow.name)} to ${stepName ? `the end of ${quote(stepName)}` : "its end"}, on the app as it is now…`);
-  let handed: Handed, port: number;
-  try {
-    handed = await runTo(repo, id, { flow: flow.name, ...(stepName && { step: stepName }) });
-    port = await passOn(app, handed);
-  } catch (error) {
-    started?.kill();
-    throw error;
+  if (!flowName) {
+    const round = await recorded(repo, id);
+    throw new Refused([`Take over which flow? vantage take-over ${id} "<flow>" ["<step>"]\nIts flows: ${list(round.flows.map((flow) => quote(flow.name)))}.`]);
   }
-  const seconds = ((Date.now() - began) / 1000).toFixed(1);
-
+  console.log(`Running ${quote(flowName)} to ${stepName ? `the end of ${quote(stepName)}` : "its end"}, on the app as it is now…`);
+  const { port, seconds } = await getReady(repo, id, flowName, stepName);
   const here = `http://localhost:${port}/take-over`;
   const away = addresses().map((address) => `http://${address}:${port}/take-over`);
   console.log(`
 Ready in ${seconds}s. Carry on from there in your browser: ${here}${away.length ? `\nOr on your phone, on the same network: ${list(away)}` : ""}
 Each address hands over the same copy, and the app is passed on through Vantage while this runs. Ctrl+C ends it.`);
-  const end = () => {
-    started?.kill();
-    process.exit(0);
-  };
-  process.once("SIGINT", end);
-  process.once("SIGTERM", end);
 }
 
-// The app, as vantage/app.json starts it, kept running for as long as the person uses it, or the one already running:
+// Runs the flow to where it's taken over and passes the app on, then says where. Taken over again, the same address
+// hands over the newer moment. In the viewer, it's Take over, at the step the playhead is in.
+export async function getReady(repo: Repo, id: string, flowName: string, stepName?: string): Promise<{ port: number; seconds: string }> {
+  const round = await recorded(repo, id);
+  const flow = round.flows.find((flow) => flow.name === flowName);
+  if (!flow) throw new Refused([`${id} has no flow called ${quote(flowName)}. Its flows: ${list(round.flows.map((flow) => quote(flow.name)))}.`]);
+  if (stepName && !flow.steps.some((step) => step.title === stepName))
+    throw new Refused([`${quote(flow.name)} has no step called ${quote(stepName)}. Its steps: ${list(flow.steps.map((step) => quote(step.title)))}.`]);
+
+  const app = await repo.app();
+  await keepRunning(app, repo.root);
+  const began = Date.now();
+  const handed = await runTo(repo, id, { flow: flow.name, ...(stepName && { step: stepName }) });
+  passing ??= { handed, port: passOn(app, () => passing!.handed) };
+  passing.handed = handed;
+  return { port: await passing.port, seconds: ((Date.now() - began) / 1000).toFixed(1) };
+}
+
+// One way through to the app for as long as Vantage runs, handing over whichever moment was taken over last.
+let passing: { handed: Handed; port: Promise<number> } | undefined;
+
+async function recorded(repo: Repo, id: string) {
+  const review = await repo.reviews.get(id);
+  const round = review.rounds.findLast((round) => round.number > 0) ?? review.rounds.at(-1);
+  if (!round) throw new Refused([`${id} has nothing recorded yet, so there's nothing to take over. Record it first: vantage record ${id}`]);
+  return round;
+}
+
+// The app, as vantage/app.json starts it, kept running for as long as Vantage runs, or the one already running:
 // Playwright would stop one it started itself as soon as the flow was done.
-async function keepRunning(app: App, root: string): Promise<ChildProcess | undefined> {
-  if (await answers(app.url)) return undefined;
+let started: ChildProcess | undefined;
+async function keepRunning(app: App, root: string) {
+  if (await answers(app.url)) return;
   console.log(`Starting the app: ${app.start}`);
-  const child = spawn(app.start, { cwd: root, shell: true, stdio: "ignore", detached: true });
-  const kill = () => {
+  started = spawn(app.start, { cwd: root, shell: true, stdio: "ignore", detached: true });
+  // The app goes when Vantage does, with everything its command started.
+  const stop = () => {
     try {
-      process.kill(-child.pid!);
+      process.kill(-started!.pid!);
     } catch {}
   };
+  process.once("exit", stop);
+  for (const signal of ["SIGINT", "SIGTERM"] as const) process.once(signal, () => process.exit(0));
   for (let waited = 0; waited < 180; waited++) {
-    if (await answers(app.url)) return Object.assign(child, { kill });
+    if (await answers(app.url)) return;
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
-  kill();
+  stop();
   throw new Refused([`The app didn't answer at ${app.url} within three minutes of ${quote(app.start)}. Check that vantage/app.json starts it there.`]);
 }
 
@@ -82,11 +90,11 @@ const answers = (url: string) =>
 // Everything that isn't /take-over goes to the app as it is, answers and live connections both, as if the browser
 // were talking to it directly, so the app sees nothing unusual: its own address, and its own address as where a
 // request came from.
-function passOn(app: App, handed: Handed): Promise<number> {
+function passOn(app: App, handed: () => Handed): Promise<number> {
   const target = new URL(app.url);
   const server = createServer((request, response) => {
     const path = new URL(request.url ?? "/", "http://vantage").pathname;
-    if (path === "/take-over") return handOver(handed, response);
+    if (path === "/take-over") return handOver(handed(), response);
     const forward = ask(
       { host: target.hostname, port: target.port, method: request.method, path: request.url, headers: asIfDirect(request, target) },
       (answer) => {

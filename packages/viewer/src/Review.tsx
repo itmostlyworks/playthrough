@@ -907,6 +907,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
             onAllFlows={many ? () => toGrid() : undefined}
           />
           <Controls
+            review={review.id}
             ref={controls}
             playhead={playhead}
             dots={playingNotes.filter((note) => !grown.has(note.id)).map((note) => ({ id: note.id, at: note.on?.at ?? 0, until: note.on?.until, ink: ink(note), number: note.number, words: note.turns[0]?.words ?? "" }))}

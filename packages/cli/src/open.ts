@@ -9,6 +9,7 @@ import { userInfo } from "node:os";
 import { dirname, extname, join, normalize, sep } from "node:path";
 import { Refused, type Send } from "@mostlyworks/vantage-review";
 import type { Repo } from "./repo.ts";
+import { getReady } from "./take-over.ts";
 
 const PORT = 5790;
 const TYPES: Record<string, string> = {
@@ -69,6 +70,7 @@ async function answer(repo: Repo, page: string, you: string, request: IncomingMe
     response.writeHead(200, { "content-type": TYPES[extname(path)] ?? "application/octet-stream", "cache-control": "max-age=31536000, immutable" });
     return response.end(bytes);
   }
+  if (request.method === "GET" && rest[0] === "take-over") return takeOver(repo, id, request, response);
   if (request.method === "POST" && rest[0] === "sends") {
     await reviews.send(id, await body<Send>(request));
     return json(response, 200, {});
@@ -95,6 +97,23 @@ async function live(repo: Repo, id: string, request: IncomingMessage, response: 
     response.write(`data: ${last}\n\n`);
   }
   response.end();
+}
+
+// Take over opens in a tab of its own, which waits here while the flow runs to its step, then goes on to the app at
+// that moment, on the same machine name the viewer was reached by. What stops it is said on the tab, in words.
+async function takeOver(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
+  const asked = new URL(request.url ?? "/", "http://localhost").searchParams;
+  try {
+    const { port } = await getReady(repo, id, asked.get("flow") ?? "", asked.get("step") || undefined);
+    const host = new URL(`http://${request.headers.host ?? "localhost"}`).hostname;
+    response.writeHead(303, { location: `http://${host}:${port}/take-over`, "cache-control": "no-store" });
+    response.end();
+  } catch (error) {
+    const problems = error instanceof Refused ? error.problems : [String((error as Error)?.message ?? error)];
+    const escape = (words: string) => words.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]!);
+    response.writeHead(200, { "content-type": TYPES[".html"], "cache-control": "no-store" });
+    response.end(`<!doctype html><meta name="viewport" content="width=device-width"><title>Couldn't take it over</title><body style="font:15px/1.5 system-ui;max-width:36em;margin:15vh auto;padding:0 16px;white-space:pre-wrap">${problems.map(escape).join("\n")}</body>`);
+  }
 }
 
 // The viewer is one page: any address that isn't one of its files is the page, which reads the address itself.

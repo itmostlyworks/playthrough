@@ -39,7 +39,7 @@ vantage open [<review>]            # the viewer, on this machine
 vantage take-over <review> "<flow>" ["<step>"]
 ```
 
-Runs the flow to the end of that step (or of the whole flow) on the app as it is now, quickly and unrecorded, from what every flow starts from, then hands its page to you at http://localhost:5830/take-over: the same address, cookies and what the app kept in the browser, so you carry on by hand in the real app, from a fresh copy of that moment. The app is passed on through Vantage while the command runs, on every network this machine is on, so a phone on the same one can open it too. On Spliit, with the app already running, it's ready in about three seconds. An early try: only the app as it is now, not Before, and on today's clock rather than the review's.
+In the viewer it's Take over, at the end of the row under the recording: a tab of its own waits while the flow runs to the step the playhead is in, then lands in the app there. From the command line, it runs the flow to the end of that step (or of the whole flow) on the app as it is now, quickly and unrecorded, from what every flow starts from, then hands its page to you at http://localhost:5830/take-over: the same address, cookies and what the app kept in the browser, so you carry on by hand in the real app, from a fresh copy of that moment. The app is passed on through Vantage while the command runs, on every network this machine is on, so a phone on the same one can open it too. On Spliit, with the app already running, it's ready in about three seconds. An early try: only the app as it is now, not Before, and on today's clock rather than the review's.
 
 ## Trying it
 

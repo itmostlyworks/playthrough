@@ -1,5 +1,5 @@
-// Every control in one row under the recordings: play, the time and the timeline, the speed, the size, the rounds, and
-// how to look at them, on their own or side by side. Nothing in it appears, disappears or changes width as you move.
+// Every control in one row under the recordings: play, the time and the timeline, the speed, the size, the rounds, how
+// to look at them, on their own or side by side, and taking the flow over to carry on by hand. Nothing in it appears, disappears or changes width as you move.
 
 import type { RefObject } from "react";
 import type { Round } from "@mostlyworks/vantage-review";
@@ -11,6 +11,7 @@ import { Timeline, type Dot, type Mark } from "./Timeline.tsx";
 export type Look = "one" | "side";
 
 type Props = {
+  review: string;
   ref?: RefObject<HTMLDivElement | null>;
   playhead: Playhead;
   dots: Dot[];
@@ -42,6 +43,7 @@ export function Controls(props: Props) {
   const quiet = "rounded-md px-1.5 py-[3px] whitespace-nowrap text-faint transition-colors duration-150 ease-calm";
   // Opened, the rounds' line covers the controls it reaches over, and they step back.
   const coveredBack = "transition-opacity duration-200 ease-calm group-has-[[data-open=left]]/controls:pointer-events-none group-has-[[data-open=left]]/controls:opacity-0";
+  const latest = props.watching === props.rounds.at(-1)?.number;
   const coveredForward = "transition-opacity duration-200 ease-calm group-has-[[data-open=right]]/controls:pointer-events-none group-has-[[data-open=right]]/controls:opacity-0";
 
   return (
@@ -108,6 +110,26 @@ export function Controls(props: Props) {
           );
         })}
       </div>
+      <span className={`h-4 w-px flex-none bg-line ${coveredForward}`} />
+      {/* The real app, in a tab of its own, at the step the playhead is in: the flow runs there on the app as it is now. */}
+      <button
+        disabled={!latest}
+        className={`group/take relative ${quiet} ${coveredForward} enabled:hover:bg-hover enabled:hover:text-fg disabled:cursor-default disabled:opacity-55`}
+        onClick={() => {
+          const flow = props.playhead.flow;
+          const step = flow.steps.findLast((step) => step.at <= props.playhead.now.moment.at + 0.05) ?? flow.steps[0];
+          const asked = new URLSearchParams({ flow: flow.name, ...(step && { step: step.title }) });
+          window.open(`/api/reviews/${encodeURIComponent(props.review)}/take-over?${asked}`, "_blank");
+        }}
+      >
+        Take over
+        <span
+          aria-hidden
+          className="pointer-events-none absolute right-0 bottom-[calc(100%+5px)] translate-y-[2px] rounded-[5px] bg-surface px-[7px] py-px text-[11px] leading-[14px] whitespace-nowrap text-fg opacity-0 shadow-tip transition-[opacity,translate] duration-150 ease-calm group-hover/take:translate-y-0 group-hover/take:opacity-100"
+        >
+          {latest ? "Carry on from here in the app, by hand" : "Only the latest round is the app as it is now"}
+        </span>
+      </button>
     </div>
   );
 }
