@@ -18,11 +18,15 @@ import type { App, Repo } from "./repo.ts";
 // clock starts from.
 export type Run = { flows: string; only?: string[]; folder: string; app: App; root: string; recorder: string; before: boolean; taken: string[]; started: string; to?: To };
 
-// Where a person takes a flow over: the end of one of its steps, or of the whole flow.
-export type To = { flow: string; step?: string };
-// The flow's page there, as a browser keeps it: its address, its cookies, what the app kept in the browser, and how far
-// it was scrolled.
-export type Handed = { url: string; cookies: Cookie[]; local: Record<string, string>; session: Record<string, string>; scroll: { x: number; y: number } };
+// Where a person takes a flow over: the end of one of its steps, or of the whole flow, or within a step, after as many of
+// its actions.
+export type To = { flow: string; step?: string; actions?: number };
+// The flow's page there, as a browser keeps it: its address, its cookies, what the app kept in the browser, how far it
+// was scrolled, and how far its clock, the recordings', is ahead of the real one, in milliseconds. And partway through a
+// step, the actions to do again there, which changed only what was in the page's memory.
+export type Handed = { url: string; cookies: Cookie[]; local: Record<string, string>; session: Record<string, string>; scroll: { x: number; y: number }; clock: number; again?: Action[] };
+// An action of the flow's, done again in the person's browser: what it did, on the element at that path, with what.
+export type Action = { does: string; on: string; with?: string | boolean | string[] };
 export type Cookie = { name: string; value: string; path: string; expires: number; httpOnly: boolean };
 export const HANDED = "handed.json";
 
@@ -131,7 +135,7 @@ export async function runTo(repo: Repo, id: string, to: To): Promise<Handed> {
     const text = await readFile(join(folder, HANDED), "utf8").catch(() => undefined);
     if (!text) {
       const { failed }: { failed: Failed[] } = JSON.parse(await readFile(join(folder, "flows.json"), "utf8").catch(() => `{ "failed": [] }`));
-      const where = to.step ? `the end of ${quote(to.step)}` : "its end";
+      const where = !to.step ? "its end" : to.actions ? `action ${to.actions} of ${quote(to.step)}` : `the end of ${quote(to.step)}`;
       throw new Refused([failed.length ? `${quote(to.flow)} didn't get to ${where}:\n${failed.map(failedAt).join("\n")}` : `${quote(to.flow)} didn't get to ${where}, for the reason Playwright gives above.`]);
     }
     return JSON.parse(text);

@@ -33,7 +33,7 @@ Each address hands over the same copy, and the app is passed on through Vantage 
 // Runs the flow to where it's taken over and passes the app on, then says where: each moment made ready has an address
 // of its own, /take-over/<moment>, so several can wait at once. In the viewer, the moment the playhead rests on is made
 // ready while you look, and Take over turns the frame into the app there.
-export async function getReady(repo: Repo, id: string, flowName: string, stepName?: string): Promise<{ port: number; moment: string; seconds: string }> {
+export async function getReady(repo: Repo, id: string, flowName: string, stepName?: string, actions?: number): Promise<{ port: number; moment: string; seconds: string }> {
   const round = await recorded(repo, id);
   const flow = round.flows.find((flow) => flow.name === flowName);
   if (!flow) throw new Refused([`${id} has no flow called ${quote(flowName)}. Its flows: ${list(round.flows.map((flow) => quote(flow.name)))}.`]);
@@ -43,7 +43,7 @@ export async function getReady(repo: Repo, id: string, flowName: string, stepNam
   const app = await repo.app();
   await keepRunning(app, repo.root);
   const began = Date.now();
-  const handed = await runTo(repo, id, { flow: flow.name, ...(stepName && { step: stepName }) });
+  const handed = await runTo(repo, id, { flow: flow.name, ...(stepName && { step: stepName, ...(actions && { actions }) }) });
   passing ??= { moments: new Map(), port: passOn(app, (moment) => passing!.moments.get(moment)) };
   const moment = String(passing.moments.size + 1);
   passing.moments.set(moment, handed);
@@ -151,6 +151,18 @@ function asIfDirect(request: IncomingMessage, target: URL) {
 // use it itself, goes back to the viewer.
 const SAYS = `<script>(() => {
   if (window.parent === window) return;
+  // On the recordings' clock, so what the page says about time reads as it did there.
+  const ahead = Number(sessionStorage.getItem("vantage:clock")) || 0;
+  if (ahead) {
+    const Real = Date;
+    function Shifted(...given) {
+      if (!new.target) return new Real(Real.now() + ahead).toString();
+      return given.length ? new Real(...given) : new Real(Real.now() + ahead);
+    }
+    Shifted.prototype = Real.prototype;
+    Object.assign(Shifted, { now: () => Real.now() + ahead, parse: Real.parse, UTC: Real.UTC });
+    window.Date = Shifted;
+  }
   let asked = 0, stirred = performance.now();
   const stir = () => (stirred = performance.now());
   const fetching = window.fetch;
@@ -170,13 +182,67 @@ const SAYS = `<script>(() => {
   addEventListener("onpointerrawupdate" in window ? "pointerrawupdate" : "pointermove", moved, true);
   document.addEventListener("pointerleave", () => parent.postMessage({ vantage: "pointer", x, y, inside: false }, "*"));
   addEventListener("keydown", (e) => { if (e.key === "Escape" && !e.defaultPrevented) parent.postMessage({ vantage: "escape", x, y }, "*"); });
-  const began = performance.now();
-  const settle = async () => {
+  const again = JSON.parse(sessionStorage.getItem("vantage:again") || "[]");
+  sessionStorage.removeItem("vantage:again");
+  const wait = (ms) => new Promise((done) => setTimeout(done, ms));
+  const still = () => document.readyState === "complete" && !asked && performance.now() - stirred > 300 && [...document.images].every((image) => image.complete);
+  const rested = async () => {
+    const since = performance.now();
     await document.fonts?.ready;
-    const still = document.readyState === "complete" && !asked && performance.now() - stirred > 300 && [...document.images].every((image) => image.complete);
-    if (!still && performance.now() - began < 8000) return setTimeout(settle, 80);
+    while (!still() && performance.now() - since < 8000) await wait(80);
+  };
+  // Partway through a step, the actions that only changed what was on the page are done again here, as the flow did them.
+  const find = async (path) => {
+    for (const until = performance.now() + 3000; performance.now() < until; await wait(80)) {
+      const found = document.querySelector(path);
+      if (found) return found;
+    }
+  };
+  const press = (element, ...types) => {
+    const box = element.getBoundingClientRect();
+    const at = { bubbles: true, cancelable: true, composed: true, view: window, clientX: box.x + box.width / 2, clientY: box.y + box.height / 2, button: 0, buttons: 1, pointerId: 1, pointerType: "mouse", isPrimary: true };
+    for (const type of types) element.dispatchEvent(new (type.startsWith("pointer") ? PointerEvent : MouseEvent)(type, at));
+  };
+  const click = (element) => {
+    press(element, "pointerover", "pointerenter", "mouseover", "pointermove", "mousemove", "pointerdown", "mousedown");
+    element.focus?.();
+    press(element, "pointerup", "mouseup", "click");
+  };
+  const changed = (element) => ["input", "change"].forEach((type) => element.dispatchEvent(new Event(type, { bubbles: true })));
+  // Filled, what's there is replaced; typed, it's added where the caret is.
+  const type = (element, words, adding) => {
+    element.focus();
+    if (element.isContentEditable) return void (adding || document.execCommand("selectAll"), document.execCommand("insertText", false, words));
+    const value = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(element), "value")?.set;
+    value ? value.call(element, words) : (element.value = words);
+    changed(element);
+  };
+  const doAgain = async ({ does, on, with: given }) => {
+    const element = await find(on);
+    if (!element) return false;
+    if (does === "click" || does === "tap") click(element);
+    else if (does === "dblclick") (click(element), click(element), press(element, "dblclick"));
+    else if (does === "fill") type(element, given);
+    else if (does === "type") type(element, (element.isContentEditable ? "" : element.value ?? "") + given, true);
+    else if (does === "press") for (const type of ["keydown", "keypress", "keyup"]) element.dispatchEvent(new KeyboardEvent(type, { key: given, bubbles: true, cancelable: true }));
+    else if (does === "hover") press(element, "pointerover", "pointerenter", "mouseover", "pointermove", "mousemove");
+    else if (does === "selectOption") (element.value = [given].flat()[0], changed(element));
+    else if (element.checked !== (does === "check" || (does === "setChecked" && given))) click(element);
+    return true;
+  };
+  const settle = async () => {
+    await rested();
     if (scroll) scrollTo(scroll.x, scroll.y);
-    requestAnimationFrame(() => requestAnimationFrame(() => parent.postMessage({ vantage: "settled" }, "*")));
+    for (const action of again) {
+      if (!(await doAgain(action))) break;
+      stir();
+      await rested();
+    }
+    // Once it's drawn, or soon anyway, as a browser may not draw a frame it thinks is hidden.
+    let said = false;
+    const say = () => said || ((said = true), parent.postMessage({ vantage: "settled" }, "*"));
+    requestAnimationFrame(() => requestAnimationFrame(say));
+    setTimeout(say, 250);
   };
   addEventListener("load", () => setTimeout(settle, 50));
 })();</script>`;
@@ -199,20 +265,22 @@ function handOver(handed: Handed | undefined, response: ServerResponse) {
     response.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
     return void response.end("There's no moment ready at this address. Take it over again from the viewer, or with vantage take-over.");
   }
-  const { url, cookies, local, session, scroll } = handed;
+  const { url, cookies, local, session, scroll, clock, again } = handed;
   const { pathname, search, hash } = new URL(url);
   const setCookies = cookies.map(
     ({ name, value, path, expires, httpOnly }) =>
       `${name}=${value}; Path=${path}; SameSite=Lax${httpOnly ? "; HttpOnly" : ""}${expires > 0 ? `; Expires=${new Date(expires * 1000).toUTCString()}` : ""}`,
   );
-  const keep = JSON.stringify({ local, session, scroll, to: pathname + search + hash }).replace(/</g, "\\u003c");
+  const keep = JSON.stringify({ local, session, scroll, clock, again, to: pathname + search + hash }).replace(/</g, "\\u003c");
   response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "set-cookie": setCookies });
   response.end(`<!doctype html><meta name="viewport" content="width=device-width"><title>Taking over…</title>
 <script>
-const { local, session, scroll, to } = ${keep};
+const { local, session, scroll, clock, again, to } = ${keep};
 for (const [key, value] of Object.entries(local)) localStorage.setItem(key, value);
 for (const [key, value] of Object.entries(session)) sessionStorage.setItem(key, value);
 sessionStorage.setItem("vantage:scroll", JSON.stringify(scroll));
+sessionStorage.setItem("vantage:clock", String(clock));
+if (again) sessionStorage.setItem("vantage:again", JSON.stringify(again));
 location.replace(to);
 </script>`);
 }

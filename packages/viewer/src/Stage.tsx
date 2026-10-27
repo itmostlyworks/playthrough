@@ -550,7 +550,7 @@ export function Stage(props: Props) {
     open.current = inPortal;
 
     if (inPortal) {
-      Object.assign(app.style, { visibility: "visible", pointerEvents: "" });
+      Object.assign(app.style, { opacity: "1", pointerEvents: "auto" });
       edge.style.opacity = "1";
       // The recording's pointer becomes yours: above the app, where your hand is, its name changing hands with it.
       yourHand.current = at;
@@ -585,7 +585,7 @@ export function Stage(props: Props) {
     // The recording has the pointer again: it goes back from your hand to where the recording has it, its name back to
     // the person the flow acts as.
     paint();
-    const hide = () => void (app.style.visibility = "hidden");
+    const hide = () => void (app.style.opacity = "0");
     // Over the closing app until it's home, then under the marks again, as the recording's.
     const home = () => void (hand.style.zIndex = "");
     if (still) return void (hide(), home());
@@ -711,9 +711,11 @@ export function Stage(props: Props) {
           onClick={(event) => click(event, number)}
         >
           {/* Taken over, the app opens like a portal from where you last pointed, and the ring of its opening settles into
-              the frame's edge while you're in it. It's shown, and hidden, by the portal itself (useLayoutEffect below). */}
+              the frame's edge while you're in it. It's shown, and hidden, by the portal itself (useLayoutEffect below):
+              see-through rather than hidden, as browsers stop drawing a hidden frame from another address, and the app
+              there would never settle. */}
           {number === round.number && props.live?.address && (
-            <div data-live className="invisible absolute inset-0 z-9 overflow-hidden">
+            <div data-live className="pointer-events-none absolute inset-0 z-9 overflow-hidden opacity-0">
               <div data-sheen className="pointer-events-none absolute inset-0 z-1 opacity-0 [background:radial-gradient(circle_at_var(--x)_var(--y),rgba(255,232,190,0.15),rgba(255,214,150,0.5))]" />
               <iframe
                 key={props.live.address}

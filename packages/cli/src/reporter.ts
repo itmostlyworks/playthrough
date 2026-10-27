@@ -14,6 +14,7 @@ export const READINGS = "vantage readings";
 export const PICTURE = "vantage picture";
 export const ASSETS = "vantage assets";
 export const PERSON = "vantage person";
+export const ACTIONS = "vantage actions";
 export const HOLD = 1500; // the end of a flow holds, so its last state can be seen
 
 // A flow's readings go beside the round's recordings, under the same name, each picture in a folder of its own.
@@ -52,6 +53,7 @@ export default class Flows implements Reporter {
       readings: JSON.parse(result.attachments.find((attachment) => attachment.name === READINGS)?.body?.toString() ?? "[]"),
       pictures: result.attachments.filter((attachment) => attachment.name === PICTURE).map((attachment) => attachment.body!),
       assets: JSON.parse(result.attachments.find((attachment) => attachment.name === ASSETS)?.body?.toString() ?? "{}"),
+      actions: JSON.parse(result.attachments.find((attachment) => attachment.name === ACTIONS)?.body?.toString() ?? "[]"),
     };
     const steps = result.steps.filter((step) => step.category === "test.step");
     const person = result.attachments.find((attachment) => attachment.name === PERSON)?.body?.toString();
@@ -76,13 +78,24 @@ export default class Flows implements Reporter {
 
   // A flow cut short ends where it stopped, held as long as any flow's end, with the same last event (rrweb's custom
   // events are type 5). The step it stopped at left nothing to read.
-  #flow(name: string, recording: Buffer, read: { readings: Omit<Reading, "picture">[]; pictures: Buffer[]; assets: Assets }, steps: TestStep[], until?: number): Recorded {
+  #flow(name: string, recording: Buffer, read: { readings: Omit<Reading, "picture">[]; pictures: Buffer[]; assets: Assets; actions: number[] }, steps: TestStep[], until?: number): Recorded {
     let events: Event[] = JSON.parse(recording.toString());
     if (until !== undefined) events = [...events.filter((event) => event.timestamp < until), { type: 5, data: { tag: "end", payload: {} }, timestamp: until + HOLD }];
     const start = events[0]!.timestamp;
     const length = seconds(events.at(-1)!.timestamp - start);
     // A step's start and the recording's events are both read from this machine's clock.
-    const flow: Flow = { name, length, steps: steps.map((step) => ({ title: step.title, at: Math.min(length, seconds(step.startTime.getTime() - start)) })), recording: this.#fileFor(name) };
+    // Each action is the step's it was done in.
+    const actionsIn = (step: TestStep, next?: TestStep) =>
+      read.actions.filter((done) => done >= step.startTime.getTime() && done < (next?.startTime.getTime() ?? until ?? Infinity)).map((done) => Math.min(length, seconds(done - start)));
+    const flow: Flow = {
+      name,
+      length,
+      steps: steps.map((step, i) => {
+        const actions = actionsIn(step, steps[i + 1]);
+        return { title: step.title, at: Math.min(length, seconds(step.startTime.getTime() - start)), ...(actions.length && { actions }) };
+      }),
+      recording: this.#fileFor(name),
+    };
     const readings: Reading[] = read.readings.map((reading, i) => ({ ...reading, picture: `${picturesOf(flow)}/${i + 1}.png` }));
 
     // The assets are in the folder already, kept as the page loaded them.

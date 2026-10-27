@@ -10,10 +10,10 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Reading } from "@mostlyworks/vantage-page";
 import { keepAssets } from "./assets.ts";
-import { HANDED, type Handed, type Run } from "./flows.ts";
+import { HANDED, type Action, type Handed, type Run } from "./flows.ts";
 import { readPage, unhovered } from "./read.ts";
 import { repo } from "./repo.ts";
-import { ASSETS, HOLD, PERSON, PICTURE, READINGS, RECORDING, seconds } from "./reporter.ts";
+import { ACTIONS, ASSETS, HOLD, PERSON, PICTURE, READINGS, RECORDING, seconds } from "./reporter.ts";
 import { watchRest } from "./rest.ts";
 
 // Everything it needs comes with the run (flows.ts), so it never has to find anything for itself.
@@ -63,8 +63,9 @@ const BEAT = 650; // after each action, so its result can be seen
 
 let pointer: { page: Page; x: number; y: number } | undefined;
 
-// The flow underway: what waits for its page to rest, and what was read at the end of each step so far, with its picture.
-type Underway = { page: Page; events: { timestamp: number }[]; rest: () => Promise<void>; depth: number; readings: Omit<Reading, "picture">[]; pictures: Buffer[] };
+// The flow underway: what waits for its page to rest, what was read at the end of each step so far, with its picture,
+// and when each action was done.
+type Underway = { page: Page; events: { timestamp: number }[]; rest: () => Promise<void>; depth: number; readings: Omit<Reading, "picture">[]; pictures: Buffer[]; actions: number[] };
 let underway: Underway | undefined;
 
 // What every flow of the app starts from, made by vantage/setup.ts before each flow, if the app has one: its default
@@ -96,15 +97,20 @@ const recorded = base.extend<{ setup: Record<string, any>; recorder: void }>({
   setup: async ({ page, request, baseURL }, use, testInfo) => {
     // Recording flows added later on Before, the others aren't run, nor is anything made for them.
     if (run?.only && !run.only.includes(testInfo.title)) testInfo.skip();
-    // Taken over, only that flow runs, unrecorded and on today's clock, as the app will run for the person carrying on.
+    // Taken over, only that flow runs, unrecorded, on the recordings' clock, which the person carries on with.
     if (run?.to && testInfo.title !== run.to.flow) testInfo.skip();
-    if (run && !run.to) {
+    if (run) {
       // rrweb goes in first, to take the page's own clock before it's set.
-      await page.addInitScript({ content: recorder(run.recorder) });
+      if (!run.to) await page.addInitScript({ content: recorder(run.recorder) });
       await page.clock.setSystemTime(DAY(run.started));
       await page.addInitScript({ content: seeded });
     }
-    if (run?.to) taking = { page, depth: 0, rest: await watchRest(page) };
+    if (run?.to) {
+      const now: NonNullable<typeof taking> = { page, depth: 0, rest: await watchRest(page), actions: 0, again: [], wrote: false };
+      taking = now;
+      page.on("request", (request) => void (["GET", "HEAD", "OPTIONS"].includes(request.method()) || (now.wrote = true)));
+      pace(page);
+    }
     await use(((await makeSetup?.({ page, request, baseURL })) ?? {}) as Record<string, any>);
     if (taking && run?.to && !run.to.step && testInfo.status === testInfo.expectedStatus) await handOver(taking);
   },
@@ -119,8 +125,8 @@ const recorded = base.extend<{ setup: Record<string, any>; recorder: void }>({
       const rest = await watchRest(page);
       pace(page);
       pointer = { page, x: 640, y: 640 };
-      underway = { page, events, rest, depth: 0, readings: [], pictures: [] };
-      const { readings, pictures } = underway;
+      underway = { page, events, rest, depth: 0, readings: [], pictures: [], actions: [] };
+      const { readings, pictures, actions } = underway;
       await page.mouse.move(pointer.x, pointer.y);
       try {
         await use();
@@ -139,6 +145,7 @@ const recorded = base.extend<{ setup: Record<string, any>; recorder: void }>({
       await testInfo.attach(RECORDING, { body: JSON.stringify(events), contentType: "application/json" });
       await testInfo.attach(READINGS, { body: JSON.stringify(readings), contentType: "application/json" });
       await testInfo.attach(ASSETS, { body: JSON.stringify(await assets()), contentType: "application/json" });
+      await testInfo.attach(ACTIONS, { body: JSON.stringify(actions), contentType: "application/json" });
       if (typeof setup.person === "string" && setup.person.trim()) await testInfo.attach(PERSON, { body: setup.person.trim(), contentType: "text/plain" });
       for (const picture of pictures) await testInfo.attach(PICTURE, { body: picture, contentType: "image/png" });
     },
@@ -146,17 +153,40 @@ const recorded = base.extend<{ setup: Record<string, any>; recorder: void }>({
   ],
 });
 
-// The flow being taken over, and how deep in its steps it is: only its own steps are places to take it over.
-let taking: { page: Page; depth: number; rest: () => Promise<void> } | undefined;
+// The flow being taken over, how deep in its steps it is, as only its own steps are places to take it over, and the
+// step it's in, with how many of its actions are done.
+// Taken over partway through a step, what's only in the page's memory, like an open form, wouldn't survive loading it in
+// the person's browser. So it's handed over as it was before the actions that only changed what's on it (`from`), and
+// they're done again there. One that wrote something, or went to another address, isn't: it starts again after it.
+let taking: { page: Page; depth: number; rest: () => Promise<void>; step?: string; actions: number; from?: Handed; again: Action[]; wrote: boolean } | undefined;
 
-// The page as the flow left it once it's at rest, as each step's is read, for the person to carry on from
-// (take-over.ts), and the flow goes no further. Straight after its last action, it was still on its way to the next page.
-async function handOver({ page, rest }: { page: Page; rest: () => Promise<void> }) {
+// The page as it is once it's at rest, as each step's is read, for the person to carry on from (take-over.ts).
+// Straight after its last action, it was still on its way to the next page.
+async function kept(page: Page, rest: () => Promise<void>): Promise<Handed> {
   await rest();
-  const kept = await page.evaluate(() => ({ local: { ...localStorage }, session: { ...sessionStorage }, scroll: { x: scrollX, y: scrollY } }));
-  const handed: Handed = { url: page.url(), cookies: await page.context().cookies(), ...kept };
+  const kept = await page.evaluate(() => ({ local: { ...localStorage }, session: { ...sessionStorage }, scroll: { x: scrollX, y: scrollY }, clock: Date.now() }));
+  return { url: page.url(), cookies: await page.context().cookies(), ...kept, clock: kept.clock - Date.now() };
+}
+
+// The flow goes no further.
+async function handOver({ page, rest, from, again }: NonNullable<typeof taking>) {
+  const handed = from && again.length ? { ...from, again } : await kept(page, rest);
   writeFileSync(join(run!.folder, HANDED), JSON.stringify(handed));
 }
+
+// Where an element is on its page, the same on a copy made the same way.
+const pathTo = (target: Locator) =>
+  target
+    .evaluate((element) => {
+      const path: string[] = [];
+      for (let at: Element | null = element; at && at !== document.documentElement; at = at.parentElement) {
+        let nth = 1;
+        for (let before = at.previousElementSibling; before; before = before.previousElementSibling) if (before.tagName === at.tagName) nth++;
+        path.unshift(`${at.tagName.toLowerCase()}:nth-of-type(${nth})`);
+      }
+      return ["html", ...path].join(" > ");
+    }, undefined, { timeout: 5000 })
+    .catch(() => undefined);
 
 // A flow's steps are the ones it takes itself, not steps inside them. Each ends once the page is at rest, and the page
 // it left is read there, unless the step failed.
@@ -168,6 +198,7 @@ const step = Object.assign(async (title: string, body: (info: unknown) => unknow
     return playwrightStep(
       title,
       async (info) => {
+        if (own) Object.assign(flow, { step: title, actions: 0 });
         flow.depth++;
         let done: unknown;
         try {
@@ -217,7 +248,8 @@ function withSteps<T extends typeof recorded>(test: T): T {
 }
 export const test = withSteps(recorded);
 
-// Every action on an element glides there first and pauses after. Patched once in each worker, for every locator.
+// Every action on an element glides there first and pauses after, and once it's done is a place to take the flow over.
+// Patched once in each worker, for every locator.
 const actions = ["click", "dblclick", "check", "uncheck", "setChecked", "hover", "tap", "fill", "selectOption", "press"] as const;
 const paced = new WeakSet<object>();
 
@@ -229,11 +261,48 @@ function pace(page: Page) {
     const original = prototype[action];
     prototype[action] = async function (this: Locator, ...args: unknown[]) {
       if (pointer) await approach(this, pointer);
-      const result = await original.apply(this, args);
+      const result = await acted(action, () => pathTo(this), () => original.apply(this, args), args[0]);
       if (pointer) await pointer.page.waitForTimeout(BEAT);
       return result;
     };
   }
+  // Typing and pressing keys are actions too, on whatever has the focus.
+  const keyboard = Object.getPrototypeOf(page.keyboard);
+  for (const [action, does] of [["type", "type"], ["insertText", "type"], ["press", "press"]] as const) {
+    const original = keyboard[action];
+    keyboard[action] = async function (this: unknown, ...args: unknown[]) {
+      const focused = async () => {
+        const on = page.locator(":focus").first();
+        return (await on.count()) ? pathTo(on) : undefined;
+      };
+      return acted(does, focused, () => original.apply(this, args), args[0]);
+    };
+  }
+}
+
+// An action is done, and when, and taken over partway through the step it's in, kept to be done again in the person's
+// browser if it only changed what's on the page; the flow is handed over once it's done as many as the recording had.
+async function acted(does: string, target: () => Promise<string | undefined>, act: () => Promise<unknown>, given: unknown) {
+  const handing = taking && run?.to?.actions && taking.step === run.to.step ? taking : undefined;
+  let on: string | undefined, address: string | undefined;
+  if (handing) {
+    handing.from ??= await kept(handing.page, handing.rest);
+    handing.wrote = false;
+    [on, address] = [await target(), handing.page.url()];
+  }
+  const result = await act();
+  underway?.actions.push(Date.now());
+  if (handing) {
+    await handing.rest();
+    const plain = typeof given === "string" || typeof given === "boolean" || (Array.isArray(given) && given.every((one) => typeof one === "string"));
+    if (on && !handing.wrote && handing.page.url() === address) handing.again.push({ does, on, ...(plain && { with: given }) });
+    else Object.assign(handing, { from: undefined, again: [] });
+    if (++handing.actions === run!.to!.actions) {
+      await handOver(handing);
+      base.info().skip(true, "Taken over here");
+    }
+  }
+  return result;
 }
 
 // A target out of view is scrolled to first, smoothly, the way a person scrolls. Left to Playwright, the page jumped there

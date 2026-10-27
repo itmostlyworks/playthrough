@@ -13,7 +13,7 @@ import { useDraft, useWatched } from "./draft.ts";
 import { land, slideIn, takeOff, type Taking } from "./flight.ts";
 import { Foot, type Step } from "./Foot.tsx";
 import { Grid } from "./Grid.tsx";
-import { readyAt, stepAt, type Live } from "./live.ts";
+import { pausedAt, readyAt, samePaused, takenOver, type Live, type Paused } from "./live.ts";
 import { along, CARD, clamp, FLOW_IN, momentAt, POSTER, type Moment } from "./moments.ts";
 import { asIfSent, fill, goodTo, ink, lookGood, notesOn, nothing, said, seen, sendOf, settledBefore, standings, takeBack, type Shown } from "./notes.ts";
 import { NoteRow, number as numberLook, opened, pointed, SettledCount, SettledList, Writing, type Comparing } from "./Notes.tsx";
@@ -135,17 +135,15 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const [live, setLive] = useState<Live>();
   const resting = useNow(playhead, ({ moment, playing }) => {
     const on = playhead.flows.find((flow) => flow.name === moment.flow);
-    return !playing && round === latest && on && moment.at >= 0 ? `${on.name}\n${stepAt(on, moment.at)?.title ?? ""}` : undefined;
+    const paused = !playing && round === latest && on && moment.at >= 0 ? pausedAt(on, moment.at) : undefined;
+    return paused && JSON.stringify({ flow: on!.name, paused });
   });
   useEffect(() => {
     if (!resting) return;
-    const [flow, step] = resting.split("\n");
+    const { flow, paused }: { flow: string; paused: Paused } = JSON.parse(resting);
     // Once it's ready, the app loads unseen in the frame, so Take over only has to show it.
     const soon = setTimeout(
-      () =>
-        void readyAt(review.id, flow!, step || undefined).then(
-          (answer) => typeof answer === "string" && setLive((now) => (now?.shown ? now : { flow: flow!, step: step || undefined, address: answer, shown: false })),
-        ),
+      () => void readyAt(review.id, flow, paused).then((answer) => typeof answer === "string" && setLive((now) => (now?.shown ? now : { flow, paused, address: answer, shown: false }))),
       500,
     );
     return () => clearTimeout(soon);
@@ -159,19 +157,23 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const takeOver = () => {
     if (live?.shown) return backToRecording();
     const on = playhead.flow;
-    const step = stepAt(on, playhead.now.moment.at)?.title;
-    if (round !== latest || playhead.now.moment.at < 0) return;
+    const paused = pausedAt(on, playhead.now.moment.at);
+    if (round !== latest || playhead.now.moment.at < 0 || !paused) return;
     playhead.pause();
-    if (live && live.flow === on.name && live.step === step && live.address) return setLive({ ...live, shown: true, at: undefined });
-    setLive({ flow: on.name, step, shown: true });
-    readyAt(review.id, on.name, step).then((answer) =>
-      setLive((now) => (now?.flow === on.name && now.step === step ? (typeof answer === "string" ? { ...now, address: answer } : { ...now, problems: answer, shown: false }) : now)),
-    );
+    takenOver(review.id, on.name, paused);
+    if (live && live.flow === on.name && samePaused(live.paused, paused) && live.address) return setLive({ ...live, shown: true, at: undefined });
+    setLive({ flow: on.name, paused, shown: true });
+    readyAt(review.id, on.name, paused).then((answer) => {
+      takenOver(review.id, on.name, paused);
+      setLive((now) => (now?.flow === on.name && samePaused(now.paused, paused) ? (typeof answer === "string" ? { ...now, address: answer } : { ...now, problems: answer, shown: false }) : now));
+    });
   };
   // The app's pages say when they've settled, and send Escape back here, as keys there never reach the viewer.
   useEffect(() => {
-    const told = ({ data }: MessageEvent) => {
-      if (data?.vantage === "settled") setLive((now) => now && { ...now, settled: true });
+    const told = ({ data, source }: MessageEvent) => {
+      // Only from the moment that's waiting: one just left can still be settling.
+      const waiting = document.querySelector<HTMLIFrameElement>("[data-live] iframe")?.contentWindow;
+      if (data?.vantage === "settled" && source === waiting) setLive((now) => now && { ...now, settled: true });
       if (data?.vantage === "escape") backToRecording({ x: data.x, y: data.y });
     };
     addEventListener("message", told);

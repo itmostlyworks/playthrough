@@ -53,6 +53,10 @@ export const Place = z
 export const Step = z.strictObject({
   title: text("needs a title").describe("Steps are matched across rounds by their title"),
   at: seconds("needs the moment it starts, in seconds"),
+  actions: z
+    .array(seconds("needs the moment each of its actions was done, in seconds"))
+    .optional()
+    .describe("When each of its actions was done: between them the page rests, and a person can take the flow over there"),
 });
 
 export const Flow = z.strictObject({
