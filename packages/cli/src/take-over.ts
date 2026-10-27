@@ -233,11 +233,9 @@ const SAYS = `<script>(() => {
   const settle = async () => {
     await rested();
     if (scroll) scrollTo(scroll.x, scroll.y);
-    for (const action of again) {
-      if (!(await doAgain(action))) break;
-      stir();
-      await rested();
-    }
+    // Each waits only for what it acts on to be there; the page rests once they're all done.
+    for (const action of again) if (!(await doAgain(action))) break;
+    if (again.length) (stir(), await rested());
     // Once it's drawn, or soon anyway, as a browser may not draw a frame it thinks is hidden.
     let said = false;
     const say = () => said || ((said = true), parent.postMessage({ vantage: "settled" }, "*"));

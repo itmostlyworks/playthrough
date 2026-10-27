@@ -1,8 +1,8 @@
 // A review's flows: where they're written, how to write them, and running them on the app the way a person would use it.
 
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { constants, existsSync } from "node:fs";
-import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -15,8 +15,8 @@ import type { App, Repo } from "./repo.ts";
 // What the run needs to know, passed to Playwright whole: where the flows are and which of them to run, the folder the
 // recordings go to, the app, rrweb's recorder, which goes into every page, whether it's Before, and the recordings the
 // round has already, so a flow added to it is named apart from them. And when the review started, which every round's
-// clock starts from.
-export type Run = { flows: string; only?: string[]; folder: string; app: App; root: string; recorder: string; before: boolean; taken: string[]; started: string; to?: To };
+// clock starts from. Or where a person takes a flow over, which a run waiting in the background is told in `orders`.
+export type Run = { flows: string; only?: string[]; folder: string; app: App; root: string; recorder: string; before: boolean; taken: string[]; started: string; to?: To; orders?: string };
 
 // Where a person takes a flow over: the end of one of its steps, or of the whole flow, or within a step, after as many of
 // its actions.
@@ -126,12 +126,11 @@ export async function runFlows(
 // Runs one flow to where a person takes it over, on the app as it is now: quickly and unrecorded, from what every flow
 // starts from, so they carry on from a fresh copy of the moment rather than a picture of it.
 export async function runTo(repo: Repo, id: string, to: To): Promise<Handed> {
-  const app = await repo.app();
-  const { started } = await repo.reviews.get(id);
-  const recorder = join(dirname(createRequire(import.meta.url).resolve("@rrweb/record")), "record.umd.min.cjs");
-  const folder = await mkdtemp(join(tmpdir(), "vantage-"));
+  const { folder, orders, ran } = await waitingFor(repo, id);
   try {
-    await playwright({ flows: repo.flows(id), folder, app, root: repo.root, recorder, before: false, taken: [], started, to });
+    await writeFile(`${orders}.part`, JSON.stringify(to));
+    await rename(`${orders}.part`, orders);
+    await ran;
     const text = await readFile(join(folder, HANDED), "utf8").catch(() => undefined);
     if (!text) {
       const { failed }: { failed: Failed[] } = JSON.parse(await readFile(join(folder, "flows.json"), "utf8").catch(() => `{ "failed": [] }`));
@@ -141,7 +140,37 @@ export async function runTo(repo: Repo, id: string, to: To): Promise<Handed> {
     return JSON.parse(text);
   } finally {
     await rm(folder, { recursive: true });
+    // The next one starts while the person looks.
+    if (!waiting.has(`${repo.root}\n${id}`)) void waitingFor(repo, id, true);
   }
+}
+
+// A run of a review's flows waiting in the background, its browser open, for the next take-over: starting one takes
+// most of a second. One waiting for flows or a setup that have changed since is stopped, and another started.
+type Waiting = { folder: string; orders: string; ran: Promise<boolean>; stop: () => void; over?: boolean; written: number };
+const waiting = new Map<string, Waiting>();
+
+async function waitingFor(repo: Repo, id: string, keep = false): Promise<Waiting> {
+  const key = `${repo.root}\n${id}`;
+  const files = [...(await readdir(repo.flows(id))).filter(isFlow).map((name) => join(repo.flows(id), name)), repo.setup];
+  const written = Math.max(...(await Promise.all(files.map((file) => stat(file).then((it) => it.mtimeMs, () => 0)))));
+  let one = waiting.get(key);
+  if (one && (one.over || one.written !== written)) one.stop();
+  if (!one || one.over || one.written !== written) {
+    const app = await repo.app();
+    const { started } = await repo.reviews.get(id);
+    const recorder = join(dirname(createRequire(import.meta.url).resolve("@rrweb/record")), "record.umd.min.cjs");
+    const folder = await mkdtemp(join(tmpdir(), "vantage-"));
+    const orders = join(folder, "orders.json");
+    const made: Waiting = { folder, orders, written, stop: () => {}, ran: Promise.resolve(false) };
+    made.ran = playwright({ flows: repo.flows(id), folder, app, root: repo.root, recorder, before: false, taken: [], started, to: { flow: "" }, orders }, (child) => {
+      made.stop = () => child.kill();
+    }).finally(() => (made.over = true));
+    one = made;
+  }
+  if (keep) waiting.set(key, one);
+  else waiting.delete(key);
+  return one;
 }
 
 // A run as it came, read from its files rather than from what's kept.
@@ -170,7 +199,7 @@ async function runOnce(run: Omit<Run, "folder">): Promise<Ran> {
 // A flow that failed, at the step it failed at, as a line of a refusal.
 export const failedAt = ({ flow, at }: Failed) => `  ${quote(flow)}${at ? `, at the step ${quote(at)}` : ""}`;
 
-function playwright(run: Run): Promise<boolean> {
+function playwright(run: Run, started?: (child: ChildProcess) => void): Promise<boolean> {
   const cli = createRequire(import.meta.url).resolve("@playwright/test/cli");
   const config = fileURLToPath(new URL("./playwright.config.ts", import.meta.url));
   return new Promise((resolve, reject) => {
@@ -179,7 +208,14 @@ function playwright(run: Run): Promise<boolean> {
       stdio: "inherit",
       env: { ...process.env, VANTAGE_RUN: JSON.stringify(run) },
     });
+    // It goes when Vantage does, waiting or not.
+    const stop = () => child.kill();
+    process.once("exit", stop);
+    started?.(child);
     child.on("error", reject);
-    child.on("exit", (code) => resolve(code === 0));
+    child.on("exit", (code) => {
+      process.off("exit", stop);
+      resolve(code === 0);
+    });
   });
 }

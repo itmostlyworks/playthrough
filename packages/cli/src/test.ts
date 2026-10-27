@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Reading } from "@mostlyworks/vantage-page";
 import { keepAssets } from "./assets.ts";
-import { HANDED, type Action, type Handed, type Run } from "./flows.ts";
+import { HANDED, type Action, type Handed, type Run, type To } from "./flows.ts";
 import { readPage, unhovered } from "./read.ts";
 import { repo } from "./repo.ts";
 import { ACTIONS, ASSETS, HOLD, PERSON, PICTURE, READINGS, RECORDING, seconds } from "./reporter.ts";
@@ -95,6 +95,12 @@ const recorded = base.extend<{ setup: Record<string, any>; recorder: void }>({
   locale: "en-US",
   timezoneId: "UTC",
   setup: async ({ page, request, baseURL }, use, testInfo) => {
+    // Waiting in the background, with its browser open, it's told which flow to take over, and where, once someone asks.
+    if (run?.orders && !run.to!.flow) {
+      testInfo.setTimeout(0);
+      Object.assign(run.to!, await ordered(run.orders));
+      testInfo.setTimeout(testInfo.project.timeout);
+    }
     // Recording flows added later on Before, the others aren't run, nor is anything made for them.
     if (run?.only && !run.only.includes(testInfo.title)) testInfo.skip();
     // Taken over, only that flow runs, unrecorded, on the recordings' clock, which the person carries on with.
@@ -159,6 +165,11 @@ const recorded = base.extend<{ setup: Record<string, any>; recorder: void }>({
 // the person's browser. So it's handed over as it was before the actions that only changed what's on it (`from`), and
 // they're done again there. One that wrote something, or went to another address, isn't: it starts again after it.
 let taking: { page: Page; depth: number; rest: () => Promise<void>; step?: string; actions: number; from?: Handed; again: Action[]; wrote: boolean } | undefined;
+
+async function ordered(orders: string): Promise<To> {
+  while (!existsSync(orders)) await new Promise((done) => setTimeout(done, 20));
+  return JSON.parse(readFileSync(orders, "utf8"));
+}
 
 // The page as it is once it's at rest, as each step's is read, for the person to carry on from (take-over.ts).
 // Straight after its last action, it was still on its way to the next page.

@@ -144,7 +144,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     // Once it's ready, the app loads unseen in the frame, so Take over only has to show it.
     const soon = setTimeout(
       () => void readyAt(review.id, flow, paused).then((answer) => typeof answer === "string" && setLive((now) => (now?.shown ? now : { flow, paused, address: answer, shown: false }))),
-      500,
+      200,
     );
     return () => clearTimeout(soon);
   }, [resting, review.id]);
@@ -160,8 +160,11 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     const paused = pausedAt(on, playhead.now.moment.at);
     if (round !== latest || playhead.now.moment.at < 0 || !paused) return;
     playhead.pause();
-    takenOver(review.id, on.name, paused);
-    if (live && live.flow === on.name && samePaused(live.paused, paused) && live.address) return setLive({ ...live, shown: true, at: undefined });
+    if (live && live.flow === on.name && samePaused(live.paused, paused) && live.address) {
+      takenOver(review.id, on.name, paused);
+      return setLive({ ...live, shown: true, at: undefined });
+    }
+    // The one being made ready since you paused, if it is.
     setLive({ flow: on.name, paused, shown: true });
     readyAt(review.id, on.name, paused).then((answer) => {
       takenOver(review.id, on.name, paused);
