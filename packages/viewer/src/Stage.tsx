@@ -550,7 +550,7 @@ export function Stage(props: Props) {
     open.current = inPortal;
 
     if (inPortal) {
-      app.style.visibility = "visible";
+      Object.assign(app.style, { visibility: "visible", pointerEvents: "" });
       edge.style.opacity = "1";
       // The recording's pointer becomes yours: above the app, where your hand is, its name changing hands with it.
       yourHand.current = at;
@@ -575,7 +575,13 @@ export function Stage(props: Props) {
 
     edge.style.opacity = "0";
     shape(hand, false);
+    const inApp = hand.style.opacity !== "0" && !!yourHand.current;
     yourHand.current = undefined;
+    // Your hand stays where it was, on the recording at once, as it shows there paused: the closing app lets the
+    // pointer through, and the browser, which hid its own in the app, is told where it is without waiting for a move.
+    app.style.pointerEvents = "none";
+    const client = { clientX: box.left + at.x, clientY: box.top + at.y };
+    if (inApp) document.elementFromPoint(client.clientX, client.clientY)?.dispatchEvent(new PointerEvent("pointermove", { ...client, bubbles: true }));
     // The recording has the pointer again: it goes back from your hand to where the recording has it, its name back to
     // the person the flow acts as.
     paint();
