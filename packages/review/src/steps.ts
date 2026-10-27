@@ -4,10 +4,12 @@ import type { Flow } from "./model.ts";
 
 // The same moment in another round's recording of the flow. The two keep in step through the steps both have, by title,
 // at each one's start and end: a step only one side has plays there while the other holds just before the step they
-// share next, so Before waits while round 1 opens a menu it didn't have, then both go on together.
-export function inStep(at: number, from: Flow, to: Flow): number {
+// share next, so Before waits while round 1 opens a menu it didn't have, then both go on together. Given when each side
+// clicks, a step both take with as many clicks keeps in step at each click too: a pointer that glides at another pace
+// clicked half a second apart, side by side.
+export function inStep(at: number, from: Flow, to: Flow, clicks?: { from: number[]; to: number[] }): number {
   if (at <= 0) return at;
-  const [mine, theirs] = pairs(from, to);
+  const [mine, theirs] = clicks ? withClicks(pairs(from, to), clicks) : pairs(from, to);
   for (let i = 0; i < mine.length - 1; i++)
     if (at <= mine[i + 1]!) return theirs[i]! + (theirs[i + 1]! - theirs[i]!) * Math.min(1, Math.max(0, (at - mine[i]!) / (mine[i + 1]! - mine[i]!)));
   return to.length;
@@ -36,4 +38,19 @@ function pairs(from: Flow, to: Flow): [number[], number[]] {
   });
   pair(ours.at(-1), others.at(-1));
   return [mine, theirs];
+}
+
+// Between each two moments paired already, the clicks each side makes there, paired in turn when there are as many.
+function withClicks([mine, theirs]: [number[], number[]], clicks: { from: number[]; to: number[] }): [number[], number[]] {
+  const ours: number[] = [mine[0]!];
+  const others: number[] = [theirs[0]!];
+  for (let i = 0; i < mine.length - 1; i++) {
+    const inside = (all: number[], from: number, to: number) => all.filter((click) => click > from && click < to);
+    const a = inside(clicks.from, mine[i]!, mine[i + 1]!);
+    const b = inside(clicks.to, theirs[i]!, theirs[i + 1]!);
+    if (a.length === b.length) ours.push(...a), others.push(...b);
+    ours.push(mine[i + 1]!);
+    others.push(theirs[i + 1]!);
+  }
+  return [ours, others];
 }

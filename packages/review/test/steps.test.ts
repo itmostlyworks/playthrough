@@ -29,3 +29,12 @@ test("the title card plays the same in every round, and a flow cut short holds a
   assert.equal(inStep(-0.5, whole, short), -0.5);
   assert.equal(inStep(5, whole, short), 2);
 });
+
+test("given when each side clicks, a step both take with as many clicks keeps in step at each click (person-filter's rounds 3 and 4)", () => {
+  const then: Flow = { name: "Pick Ana", length: 4, steps: [{ title: "Pick Ana", at: 0 }], recording: "a.json" };
+  const now: Flow = { name: "Pick Ana", length: 4, steps: [{ title: "Pick Ana", at: 0 }], recording: "b.json" };
+  assert.equal(inStep(1, then, now), 1);
+  assert.equal(inStep(1, then, now, { from: [1, 3], to: [1.5, 3.2] }), 1.5);
+  assert.equal(inStep(3, then, now, { from: [1, 3], to: [1.5, 3.2] }), 3.2);
+  assert.equal(inStep(1, then, now, { from: [1, 3], to: [1.5] }), 1, "with other counts of clicks, only the step keeps them in step");
+});

@@ -200,7 +200,8 @@ export function Stage(props: Props) {
       const pane = panes.get(shown.number)!;
       if (!frame) continue;
       const its = shown === round ? flow : shown.flows.find((other) => other.name === flow.name);
-      const at = !its || its === flow ? moment.at : inStep(moment.at, flow, its);
+      const clicks = its && its !== flow && { from: replayOf(round, flow)?.clicks ?? [], to: replayOf(shown, its)?.clicks ?? [] };
+      const at = !its || its === flow ? moment.at : inStep(moment.at, flow, its, clicks || undefined);
       const shape = its ? shapeAt(shown, its, at) : shapeAt(round, flow, moment.at);
       const room = { width: pane.width, height: pane.height - CAPTION };
       const box = zoomed && earlier ? { width: Math.floor(Math.min(room.width, shape.width)), height: Math.floor(Math.min(room.height, shape.height)) } : fit(room, shape);
