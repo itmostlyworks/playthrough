@@ -59,6 +59,11 @@ export class Replay {
   #at = -1;
   #jumpedTo = -Infinity;
   #seen = new WeakSet<Animation>();
+  // When each element's animations started, by name, in the recording's time. Played a little at a time, rrweb takes
+  // what changed out of the page and puts it back, and anything put back starts its animation over: the who-owes-whom
+  // box faded in again when the Person menu closed ("It still flashes"), and the open menu itself, as the pointer moved
+  // over it. Started again, an animation goes on from where it had got to.
+  #started = new WeakMap<Element, Map<string, number>>();
 
   // Built where it will show: rrweb builds its page only in one that's already in the document.
   constructor(events: Events, into: HTMLElement) {
@@ -75,9 +80,7 @@ export class Replay {
     this.host.className = "absolute top-0 left-0 origin-top-left [&_.replayer-mouse]:hidden [&_iframe]:pointer-events-none [&_iframe]:block [&_iframe]:border-0";
     Object.assign(this.host.style, { width: `${this.width}px`, height: `${this.height}px` });
     into.append(this.host);
-    // Played a little at a time, rrweb builds each step in a page of its own and copies it across, and where a menu's list
-    // left the page it put everything beside it back too: a box that had faded in faded in again, "It still flashes".
-    this.#replayer = new Replayer(events, { root: this.host, useVirtualDom: false, mouseTail: false, triggerFocus: false, pauseAnimation: false, showWarning: false });
+    this.#replayer = new Replayer(events, { root: this.host, mouseTail: false, triggerFocus: false, pauseAnimation: false, showWarning: false });
     this.#replayer.pause(this.#drawn);
   }
 
@@ -87,6 +90,7 @@ export class Replay {
     const moved = ms !== this.#at;
     if (moved) {
       const jumped = this.#at < 0 || ms < this.#at || ms - this.#at > 300;
+      if (jumped) this.#started = new WeakMap();
       this.#replayer.pause(ms);
       this.#at = ms;
       if (jumped) this.#settle();
@@ -97,6 +101,9 @@ export class Replay {
     for (const animation of this.#animations()) {
       try {
         if (settling) finish(animation);
+        else if (this.#goesOn(animation)) {
+          // carried on to where it had got to
+        }
         else if (playing) {
           if (animation.playbackRate !== speed) animation.playbackRate = speed;
           if (animation.playState === "paused") animation.play();
@@ -169,6 +176,27 @@ export class Replay {
       if (performance.now() < until) requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
+  }
+
+  // An animation new to the replay that its element started before, by the same name: the element was put back, and
+  // the animation is carried on from where it had got to, or shown at its end.
+  #goesOn(animation: Animation): boolean {
+    if (this.#seen.has(animation) || !("animationName" in animation)) return false;
+    const effect = animation.effect as KeyframeEffect | null;
+    const element = effect?.target;
+    if (!element || effect.getTiming().iterations === Infinity) return false;
+    const name = String(animation.animationName);
+    const started = this.#started.get(element) ?? new Map<string, number>();
+    this.#started.set(element, started);
+    const since = started.get(name);
+    if (since === undefined) {
+      started.set(name, this.#at);
+      return false;
+    }
+    const end = Number(effect.getComputedTiming().endTime);
+    if (this.#at - since >= end) finish(animation);
+    else animation.currentTime = this.#at - since;
+    return true;
   }
 
   #animations(): Animation[] {
