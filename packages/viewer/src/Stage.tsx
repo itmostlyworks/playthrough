@@ -15,6 +15,7 @@ import { CARD, clamp, ease, MORPH, titleCard } from "./moments.ts";
 import { onPhone } from "./phone.ts";
 import { useNow, type Playhead } from "./playhead.ts";
 import { recorded, Replay } from "./replay.ts";
+import type { Live } from "./live.ts";
 import { holdersOf, pickAt, type Read } from "./things.ts";
 import { ahead, around, between, centreOf, fitted, GLIDE, moved, type Held, type Size, type View } from "./view.ts";
 
@@ -71,6 +72,8 @@ type Props = {
   onGone: (ids: string[]) => void;
   // The way back to every flow at once, on the latest round with more than one.
   onAllFlows?: () => void;
+  // Taken over, the app itself at that moment, in the round's frame exactly where its recording is.
+  live?: Live;
 };
 
 type Painted = View & Size & { page: Size };
@@ -250,6 +253,8 @@ export function Stage(props: Props) {
         if (stopped && wasPlaying.current) replay.rest();
       }
       Object.assign(part.marks.style, { transform: shift, width: `${page.width * view.k}px`, height: `${page.height * view.k}px` });
+      const app = frame.querySelector<HTMLElement>("[data-live]");
+      if (app) Object.assign(app.style, liveAt(view, page));
       place(part.marks, replay, page, view, box, at, playing, shown === round);
       part.name.textContent = its.name;
       part.card.style.opacity = card ? "1" : "0";
@@ -573,6 +578,16 @@ export function Stage(props: Props) {
           }}
           onClick={(event) => click(event, number)}
         >
+          {number === round.number && props.live?.address && (
+            <iframe
+              data-live
+              key={props.live.address}
+              src={props.live.address}
+              title="The app, taken over"
+              className={`absolute top-0 left-0 z-9 origin-top-left border-0 bg-paper ${props.live.shown ? "" : "pointer-events-none invisible"}`}
+              style={painted.current.get(number) && liveAt(painted.current.get(number)!, painted.current.get(number)!.page)}
+            />
+          )}
           <div data-app className="absolute inset-0 overflow-hidden">
             <div data-stack className="absolute inset-0" />
             <div data-marks className={`absolute top-0 left-0 z-3 ${hideable} group-data-bare/stage:[&_*]:pointer-events-none`}>
@@ -723,6 +738,13 @@ const fit = (room: Size, shape: Size): Size => {
   const width = Math.floor(Math.max(0, Math.min(room.width, (room.height * shape.width) / shape.height, shape.width)));
   return { width, height: Math.floor((width * shape.height) / shape.width) };
 };
+
+// The app is the page the recording was made of, at its size, moved and scaled as the recording is.
+const liveAt = (view: View, page: Size) => ({
+  width: `${page.width}px`,
+  height: `${page.height}px`,
+  transform: `translate(${(-view.x * view.k).toFixed(2)}px,${(-view.y * view.k).toFixed(2)}px) scale(${view.k.toFixed(5)})`,
+});
 
 type Parts = { app: HTMLElement; stack: HTMLElement; marks: HTMLElement; ring: HTMLElement; cursor: HTMLElement; card: HTMLElement; name: HTMLElement };
 const known = new WeakMap<HTMLElement, Parts>();

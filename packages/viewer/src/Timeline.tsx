@@ -15,9 +15,9 @@ export type Dot = { id: string; at: number; until?: number; ink: string; number:
 // on, or what changed for the note you've opened.
 export type Mark = { id: string; at: number; until?: number; name: string; note?: { number: number; ink: string }; lit: boolean };
 
-type Props = { playhead: Playhead; dots: Dot[]; onDot: (id: string) => void; marks: Mark[]; onMark: (id: string) => void };
+type Props = { playhead: Playhead; dots: Dot[]; onDot: (id: string) => void; marks: Mark[]; onMark: (id: string) => void; live?: boolean };
 
-export function Timeline({ playhead, dots, onDot, marks, onMark }: Props) {
+export function Timeline({ playhead, dots, onDot, marks, onMark, live }: Props) {
   const now = useNow(playhead);
   const flow = playhead.flow;
   const flows = playhead.flows;
@@ -140,9 +140,13 @@ export function Timeline({ playhead, dots, onDot, marks, onMark }: Props) {
           )}
         </svg>
       </button>
-      <span className="text-soft tabular-nums">
-        {time(Math.max(0, at))}
-        <small className="text-[smaller] text-faint"> / {time(flow.length)}</small>
+      {/* Taken over, the time says Live in its place, in the room the time keeps, so nothing beside it moves. */}
+      <span className="grid text-soft tabular-nums">
+        <span className={`col-start-1 row-start-1 ${live ? "invisible" : ""}`}>
+          {time(Math.max(0, at))}
+          <small className="text-[smaller] text-faint"> / {time(flow.length)}</small>
+        </span>
+        {live && <span className="col-start-1 row-start-1 text-fg">Live</span>}
       </span>
       <div
         ref={line}

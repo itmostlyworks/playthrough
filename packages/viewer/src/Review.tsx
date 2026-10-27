@@ -13,6 +13,7 @@ import { useDraft, useWatched } from "./draft.ts";
 import { land, slideIn, takeOff, type Taking } from "./flight.ts";
 import { Foot, type Step } from "./Foot.tsx";
 import { Grid } from "./Grid.tsx";
+import { readyAt, stepAt, type Live } from "./live.ts";
 import { along, CARD, clamp, FLOW_IN, momentAt, POSTER, type Moment } from "./moments.ts";
 import { asIfSent, fill, goodTo, ink, lookGood, notesOn, nothing, said, seen, sendOf, settledBefore, standings, takeBack, type Shown } from "./notes.ts";
 import { NoteRow, number as numberLook, opened, pointed, SettledCount, SettledList, Writing, type Comparing } from "./Notes.tsx";
@@ -127,6 +128,52 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     const length = playhead.flows.find((flow) => flow.name === moment.flow)?.length ?? 0;
     return playing ? "playing" : moment.at >= length - 0.06 ? "end" : moment.at <= 0 ? "start" : "partway";
   });
+
+  // Taking over: the moment the playhead rests on, on the latest round, is made ready after a beat of stillness and
+  // loaded unseen, so Take over turns the frame into the app at once. Playing again, or another round, lays the
+  // recording back over it.
+  const [live, setLive] = useState<Live>();
+  const resting = useNow(playhead, ({ moment, playing }) => {
+    const on = playhead.flows.find((flow) => flow.name === moment.flow);
+    return !playing && round === latest && on && moment.at >= 0 ? `${on.name}\n${stepAt(on, moment.at)?.title ?? ""}` : undefined;
+  });
+  useEffect(() => {
+    if (!resting) return;
+    const [flow, step] = resting.split("\n");
+    // Once it's ready, the app loads unseen in the frame, so Take over only has to show it.
+    const soon = setTimeout(
+      () =>
+        void readyAt(review.id, flow!, step || undefined).then(
+          (answer) => typeof answer === "string" && setLive((now) => (now?.shown ? now : { flow: flow!, step: step || undefined, address: answer, shown: false })),
+        ),
+      500,
+    );
+    return () => clearTimeout(soon);
+  }, [resting, review.id]);
+  const playingNow = useNow(playhead, (now) => now.playing);
+  const backToRecording = () => {
+    setLive((now) => now && { ...now, shown: false });
+    window.focus();
+  };
+  if (live?.shown && (playingNow || round !== latest)) setLive({ ...live, shown: false });
+  const takeOver = () => {
+    if (live?.shown) return backToRecording();
+    const on = playhead.flow;
+    const step = stepAt(on, playhead.now.moment.at)?.title;
+    if (round !== latest || playhead.now.moment.at < 0) return;
+    playhead.pause();
+    if (live && live.flow === on.name && live.step === step && live.address) return setLive({ ...live, shown: true });
+    setLive({ flow: on.name, step, shown: true });
+    readyAt(review.id, on.name, step).then((answer) =>
+      setLive((now) => (now?.flow === on.name && now.step === step ? (typeof answer === "string" ? { ...now, address: answer } : { ...now, problems: answer, shown: false }) : now)),
+    );
+  };
+  // The app's pages send Escape back here, as keys there never reach the viewer.
+  useEffect(() => {
+    const told = (message: MessageEvent) => message.data === "vantage:escape" && backToRecording();
+    addEventListener("message", told);
+    return () => removeEventListener("message", told);
+  }, []);
 
   // A flow is watched once it's played to its end from no later than its middle.
   const seeing = useRef(see);
@@ -793,6 +840,11 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
       } else if (event.key.toLowerCase() === "c" && !event.repeat && compareNow) {
         const holding = window.setTimeout(() => compareNow.onHold(true), HOLD);
         cKey.current = { down: performance.now(), holding };
+      } else if (event.key.toLowerCase() === "t" && !event.repeat) {
+        event.preventDefault();
+        takeOver();
+      } else if (event.key === "Escape" && live?.shown) {
+        backToRecording();
       } else if (event.key === "Escape") {
         // Escape goes back a step you can see: from a note or a change to the column, looking back to now, and from a
         // flow to every flow.
@@ -905,9 +957,19 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
             read={read}
             onGone={setGone}
             onAllFlows={many ? () => toGrid() : undefined}
+            live={live}
           />
+          {live?.problems && (
+            <div role="alert" className="fixed right-4 bottom-4 z-30 max-w-[28rem] rounded-lg bg-surface px-3 py-2 text-sm whitespace-pre-wrap shadow-tip">
+              {live.problems.join("\n")}
+              <button className="ml-3 text-soft hover:text-fg" onClick={() => setLive(undefined)}>
+                Close
+              </button>
+            </div>
+          )}
           <Controls
-            review={review.id}
+            live={live?.shown ? (live.address ? "shown" : "waiting") : undefined}
+            onTakeOver={takeOver}
             ref={controls}
             playhead={playhead}
             dots={playingNotes.filter((note) => !grown.has(note.id)).map((note) => ({ id: note.id, at: note.on?.at ?? 0, until: note.on?.until, ink: ink(note), number: note.number, words: note.turns[0]?.words ?? "" }))}

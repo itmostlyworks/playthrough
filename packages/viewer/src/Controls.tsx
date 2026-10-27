@@ -11,7 +11,9 @@ import { Timeline, type Dot, type Mark } from "./Timeline.tsx";
 export type Look = "one" | "side";
 
 type Props = {
-  review: string;
+  // Taken over: waiting while the moment is made ready, or the app showing in the frame.
+  live?: "waiting" | "shown";
+  onTakeOver: () => void;
   ref?: RefObject<HTMLDivElement | null>;
   playhead: Playhead;
   dots: Dot[];
@@ -48,7 +50,7 @@ export function Controls(props: Props) {
 
   return (
     <div ref={props.ref} className="group/controls flex min-w-0 flex-wrap items-center gap-3 pt-[18px] select-none">
-      <Timeline playhead={props.playhead} dots={props.dots} onDot={props.onDot} marks={props.marks} onMark={props.onMark} />
+      <Timeline playhead={props.playhead} dots={props.dots} onDot={props.onDot} marks={props.marks} onMark={props.onMark} live={props.live === "shown"} />
       <button
         data-speed
         className={`${quiet} ${coveredBack} text-center hover:bg-hover hover:text-fg ${speed < 1 ? "text-amber-ink" : ""}`}
@@ -111,23 +113,19 @@ export function Controls(props: Props) {
         })}
       </div>
       <span className={`h-4 w-px flex-none bg-line ${coveredForward}`} />
-      {/* The real app, in a tab of its own, at the step the playhead is in: the flow runs there on the app as it is now. */}
+      {/* The frame turns into the app itself, at the step the playhead is in, on the app as it is now (live.ts). */}
       <button
         disabled={!latest}
-        className={`group/take relative ${quiet} ${coveredForward} enabled:hover:bg-hover enabled:hover:text-fg disabled:cursor-default disabled:opacity-55`}
-        onClick={() => {
-          const flow = props.playhead.flow;
-          const step = flow.steps.findLast((step) => step.at <= props.playhead.now.moment.at + 0.05) ?? flow.steps[0];
-          const asked = new URLSearchParams({ flow: flow.name, ...(step && { step: step.title }) });
-          window.open(`/api/reviews/${encodeURIComponent(props.review)}/take-over?${asked}`, "_blank");
-        }}
+        aria-pressed={!!props.live}
+        className={`group/take relative ${quiet} ${coveredForward} enabled:hover:bg-hover enabled:hover:text-fg disabled:cursor-default disabled:opacity-55 aria-pressed:text-fg ${props.live === "waiting" ? "animate-pulse" : ""}`}
+        onClick={props.onTakeOver}
       >
         Take over
         <span
           aria-hidden
           className="pointer-events-none absolute right-0 bottom-[calc(100%+5px)] translate-y-[2px] rounded-[5px] bg-surface px-[7px] py-px text-[11px] leading-[14px] whitespace-nowrap text-fg opacity-0 shadow-tip transition-[opacity,translate] duration-150 ease-calm group-hover/take:translate-y-0 group-hover/take:opacity-100"
         >
-          {latest ? "Carry on from here in the app, by hand" : "Only the latest round is the app as it is now"}
+          {!latest ? "Only the latest round is the app as it is now" : props.live === "shown" ? "Back to the recording · Esc" : props.live === "waiting" ? "Getting it ready…" : "Carry on from here in the app, by hand · T"}
         </span>
       </button>
     </div>

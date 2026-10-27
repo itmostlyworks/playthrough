@@ -22,17 +22,18 @@ export async function takeOver(repo: Repo, id: string, flowName?: string, stepNa
     throw new Refused([`Take over which flow? vantage take-over ${id} "<flow>" ["<step>"]\nIts flows: ${list(round.flows.map((flow) => quote(flow.name)))}.`]);
   }
   console.log(`Running ${quote(flowName)} to ${stepName ? `the end of ${quote(stepName)}` : "its end"}, on the app as it is now…`);
-  const { port, seconds } = await getReady(repo, id, flowName, stepName);
-  const here = `http://localhost:${port}/take-over`;
-  const away = addresses().map((address) => `http://${address}:${port}/take-over`);
+  const { port, moment, seconds } = await getReady(repo, id, flowName, stepName);
+  const here = `http://localhost:${port}/take-over/${moment}`;
+  const away = addresses().map((address) => `http://${address}:${port}/take-over/${moment}`);
   console.log(`
 Ready in ${seconds}s. Carry on from there in your browser: ${here}${away.length ? `\nOr on your phone, on the same network: ${list(away)}` : ""}
 Each address hands over the same copy, and the app is passed on through Vantage while this runs. Ctrl+C ends it.`);
 }
 
-// Runs the flow to where it's taken over and passes the app on, then says where. Taken over again, the same address
-// hands over the newer moment. In the viewer, it's Take over, at the step the playhead is in.
-export async function getReady(repo: Repo, id: string, flowName: string, stepName?: string): Promise<{ port: number; seconds: string }> {
+// Runs the flow to where it's taken over and passes the app on, then says where: each moment made ready has an address
+// of its own, /take-over/<moment>, so several can wait at once. In the viewer, the moment the playhead rests on is made
+// ready while you look, and Take over turns the frame into the app there.
+export async function getReady(repo: Repo, id: string, flowName: string, stepName?: string): Promise<{ port: number; moment: string; seconds: string }> {
   const round = await recorded(repo, id);
   const flow = round.flows.find((flow) => flow.name === flowName);
   if (!flow) throw new Refused([`${id} has no flow called ${quote(flowName)}. Its flows: ${list(round.flows.map((flow) => quote(flow.name)))}.`]);
@@ -43,13 +44,14 @@ export async function getReady(repo: Repo, id: string, flowName: string, stepNam
   await keepRunning(app, repo.root);
   const began = Date.now();
   const handed = await runTo(repo, id, { flow: flow.name, ...(stepName && { step: stepName }) });
-  passing ??= { handed, port: passOn(app, () => passing!.handed) };
-  passing.handed = handed;
-  return { port: await passing.port, seconds: ((Date.now() - began) / 1000).toFixed(1) };
+  passing ??= { moments: new Map(), port: passOn(app, (moment) => passing!.moments.get(moment)) };
+  const moment = String(passing.moments.size + 1);
+  passing.moments.set(moment, handed);
+  return { port: await passing.port, moment, seconds: ((Date.now() - began) / 1000).toFixed(1) };
 }
 
-// One way through to the app for as long as Vantage runs, handing over whichever moment was taken over last.
-let passing: { handed: Handed; port: Promise<number> } | undefined;
+// One way through to the app for as long as Vantage runs, handing over each moment made ready, by its number.
+let passing: { moments: Map<string, Handed>; port: Promise<number> } | undefined;
 
 async function recorded(repo: Repo, id: string) {
   const review = await repo.reviews.get(id);
@@ -90,18 +92,33 @@ const answers = (url: string) =>
 // Everything that isn't /take-over goes to the app as it is, answers and live connections both, as if the browser
 // were talking to it directly, so the app sees nothing unusual: its own address, and its own address as where a
 // request came from.
-function passOn(app: App, handed: () => Handed): Promise<number> {
+function passOn(app: App, handed: (moment: string) => Handed | undefined): Promise<number> {
   const target = new URL(app.url);
   const server = createServer((request, response) => {
-    const path = new URL(request.url ?? "/", "http://vantage").pathname;
-    if (path === "/take-over") return handOver(handed(), response);
-    const forward = ask(
-      { host: target.hostname, port: target.port, method: request.method, path: request.url, headers: asIfDirect(request, target) },
-      (answer) => {
-        response.writeHead(answer.statusCode ?? 502, fromTheApp(answer, target));
-        answer.pipe(response);
-      },
-    );
+    const [first, moment] = new URL(request.url ?? "/", "http://vantage").pathname.split("/").filter(Boolean);
+    if (first === "take-over") return handOver(handed(moment ?? ""), response);
+    // A page is asked for whole, so a word can be added to it: the app is told not to squeeze it.
+    const page = /text\/html/.test(request.headers.accept ?? "");
+    const headers = asIfDirect(request, target);
+    if (page) delete headers["accept-encoding"];
+    const forward = ask({ host: target.hostname, port: target.port, method: request.method, path: request.url, headers }, (answer) => {
+      const told = fromTheApp(answer, target);
+      if (!page || !/text\/html/.test(String(answer.headers["content-type"])) || answer.headers["content-encoding"]) {
+        response.writeHead(answer.statusCode ?? 502, told);
+        return void answer.pipe(response);
+      }
+      const chunks: Buffer[] = [];
+      answer.on("data", (chunk) => chunks.push(chunk));
+      answer.on("end", () => {
+        const html = Buffer.concat(chunks).toString("utf8");
+        const at = html.search(/<head[^>]*>/i);
+        const end = at < 0 ? 0 : at + html.slice(at).indexOf(">") + 1;
+        const body = html.slice(0, end) + ESCAPE + html.slice(end);
+        delete told["content-length"];
+        response.writeHead(answer.statusCode ?? 502, told);
+        response.end(body);
+      });
+    });
     forward.on("error", () => notAnswering(response, app));
     request.pipe(forward);
   });
@@ -126,16 +143,29 @@ function asIfDirect(request: IncomingMessage, target: URL) {
   return headers;
 }
 
-// Whatever the app says about its own address is said about Vantage's, so the browser stays here.
+// Taken over in the viewer, the app sits in its frame, where every key goes to the app. Escape, if the app doesn't
+// use it itself, goes back to the viewer, which lays the recording back over it.
+const ESCAPE = `<script>addEventListener("keydown", (e) => { if (e.key === "Escape" && !e.defaultPrevented && window.parent !== window) window.parent.postMessage("vantage:escape", "*"); });</script>`;
+
+// Whatever the app says about its own address is said about Vantage's, so the browser stays here, and the app may show
+// in the viewer's frame.
 function fromTheApp(answer: IncomingMessage, target: URL) {
   const headers = { ...answer.headers };
+  delete headers["x-frame-options"];
+  const policy = headers["content-security-policy"];
+  if (policy) headers["content-security-policy"] = [policy].flat().map((rule) => rule.replace(/frame-ancestors[^;]*;?/i, ""));
   if (headers.location?.startsWith(target.origin)) headers.location = headers.location.slice(target.origin.length) || "/";
   if (headers["set-cookie"]) headers["set-cookie"] = headers["set-cookie"].map((cookie) => cookie.replace(/;\s*Domain=[^;]*/i, ""));
   return headers;
 }
 
 // The browser gets the flow's cookies and what the app kept in it, then goes to where the flow's page was.
-function handOver({ url, cookies, local, session }: Handed, response: ServerResponse) {
+function handOver(handed: Handed | undefined, response: ServerResponse) {
+  if (!handed) {
+    response.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
+    return void response.end("There's no moment ready at this address. Take it over again from the viewer, or with vantage take-over.");
+  }
+  const { url, cookies, local, session } = handed;
   const { pathname, search, hash } = new URL(url);
   const setCookies = cookies.map(
     ({ name, value, path, expires, httpOnly }) =>
