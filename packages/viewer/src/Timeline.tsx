@@ -52,14 +52,16 @@ export function Timeline({ playhead, dots, onDot, marks, onMark }: Props) {
     return -CARD + clamp((clientX - box.left) / box.width, 0, 0.9995) * (flow.length + CARD);
   };
   // While you drag, the playhead settles onto a note's or a change's moment when it comes within a few pixels, so
-  // landing on one is easy.
+  // landing on one is easy. Measured to the moment itself: a note on a stretch is drawn across it, and its middle pulled
+  // the playhead back to its start.
   const snap = (clientX: number, at: number) => {
+    const box = line.current!.getBoundingClientRect();
     let best = at;
     let nearest = Infinity;
     for (const dot of line.current!.querySelectorAll<HTMLElement>("[data-at]")) {
-      const box = dot.getBoundingClientRect();
-      const off = Math.abs(clientX - (box.left + box.width / 2));
-      if (off < 5 && off < nearest) [nearest, best] = [off, Number(dot.dataset.at)];
+      const moment = Number(dot.dataset.at);
+      const off = Math.abs(clientX - (box.left + share(flow, moment) * box.width));
+      if (off < 5 && off < nearest) [nearest, best] = [off, moment];
     }
     return best;
   };
