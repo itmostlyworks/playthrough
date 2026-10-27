@@ -14,9 +14,13 @@ export function Wire({ id, colour, hidden }: { id?: string; colour: string; hidd
     const from = mark && mark.getBoundingClientRect();
     const to = pin && pin.getBoundingClientRect();
     const room = map && map.getBoundingClientRect();
-    if (hidden || !from || !to || !room || !to.width || from.top < room.top || from.bottom > room.bottom) return line.setAttribute("d", "");
+    // A pin on something scrolled out of the recording is outside it, and so out of view.
+    const shown = pin && pin.closest<HTMLElement>("[data-frame]")?.getBoundingClientRect();
+    const inside = (box: DOMRect, at: number[]) => at[0]! >= box.left && at[0]! <= box.right && at[1]! >= box.top && at[1]! <= box.bottom;
+    if (hidden || !from || !to || !room || !shown || !to.width || from.top < room.top || from.bottom > room.bottom) return line.setAttribute("d", "");
     const start = [from.left - 1, from.top + from.height / 2];
     const end = [to.right + 1, to.top + to.height / 2];
+    if (!inside(shown, [to.left + to.width / 2, end[1]!])) return line.setAttribute("d", "");
     const reach = Math.max(40, (start[0]! - end[0]!) * 0.5);
     line.setAttribute("d", `M${start[0]},${start[1]} C${start[0]! - reach},${start[1]} ${end[0]! + reach},${end[1]} ${end[0]},${end[1]}`);
   };

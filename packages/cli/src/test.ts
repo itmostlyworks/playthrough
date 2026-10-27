@@ -217,10 +217,20 @@ async function approach(target: Locator, at: { page: Page; x: number; y: number 
     await at.page.waitForTimeout(REST);
   }
 
-  const box = await target.boundingBox({ timeout: 5000 }).catch(() => null);
-  if (!box) return;
+  // A page still settling moves the target while the pointer is on its way, and Playwright then acts where it is now:
+  // the pointer jumped there. So it follows the target, as a person's eyes would, until the target holds still.
+  for (let tries = 0; tries < 4; tries++) {
+    const box = await target.boundingBox({ timeout: 5000 }).catch(() => null);
+    if (!box) return;
+    const to = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    if (tries > 0 && Math.hypot(to.x - at.x, to.y - at.y) < 3) return;
+    await glide(at, to);
+    await at.page.waitForTimeout(REST);
+  }
+}
+
+async function glide(at: { page: Page; x: number; y: number }, to: { x: number; y: number }) {
   const from = { x: at.x, y: at.y };
-  const to = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
   const moves = Math.max(6, Math.min(30, Math.round(Math.hypot(to.x - from.x, to.y - from.y) / 22)));
   for (let i = 1; i <= moves; i++) {
     const k = ease(i / moves);
@@ -228,7 +238,6 @@ async function approach(target: Locator, at: { page: Page; x: number; y: number 
     await at.page.waitForTimeout(FRAME);
   }
   Object.assign(at, to);
-  await at.page.waitForTimeout(REST);
 }
 
 const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);

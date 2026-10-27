@@ -1,8 +1,8 @@
 // A review's flows: where they're written, how to write them, and running them on the app the way a person would use it.
 
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { constants, existsSync } from "node:fs";
+import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -24,6 +24,22 @@ export async function makeFlowsFolder(repo: Repo, id: string) {
   await writeFile(join(repo.flows(id), "package.json"), `{ "type": "module" }\n`, { flag: "wx" }).catch((error) => {
     if (error.code !== "EEXIST") throw error;
   });
+}
+
+const isFlow = (name: string) => /\.[cm]?[jt]s$/.test(name);
+
+// An accepted review's flows are kept for the app, as they were accepted, so every later review records them too and a
+// change to what they show is seen.
+export async function keepFlows(repo: Repo, id: string) {
+  await mkdir(repo.kept, { recursive: true });
+  for (const name of (await readdir(repo.flows(id))).filter(isFlow)) await copyFile(join(repo.flows(id), name), join(repo.kept, name));
+}
+
+// Into a new review, the files of the flows kept so far, leaving any it has by the same name.
+export async function addKeptFlows(repo: Repo, id: string): Promise<string[]> {
+  const kept = (await readdir(repo.kept).catch(() => [])).filter(isFlow);
+  for (const name of kept) await copyFile(join(repo.kept, name), join(repo.flows(id), name), constants.COPYFILE_EXCL).catch(() => {});
+  return kept;
 }
 
 export function howToWriteFlows(repo: Repo, id: string): string {
@@ -56,7 +72,7 @@ export async function runFlows(
   { later, first }: { later?: { flows: string[]; taken: string[] }; first: (flow: string) => boolean },
 ): Promise<Ran> {
   const flows = repo.flows(id);
-  if (!(await readdir(flows).catch(() => [])).some((name) => /\.[cm]?[jt]s$/.test(name)))
+  if (!(await readdir(flows).catch(() => [])).some(isFlow))
     throw new Refused([`${id} has no flows yet. ${howToWriteFlows(repo, id)}`]);
   await makeFlowsFolder(repo, id);
   const app = await repo.app();

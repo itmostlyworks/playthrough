@@ -63,7 +63,8 @@ export function Grid(props: Props) {
     <div ref={props.room} inert={!up} className={`absolute inset-0 z-20 flex flex-col bg-ground transition-[opacity,visibility] duration-240 ease-calm ${up ? "visible opacity-100" : "invisible opacity-0"}`}>
       <div ref={grid} className="grid min-h-0 flex-1 auto-rows-max content-center-safe justify-center gap-6 overflow-y-auto px-8 pb-[30px] phone:content-start phone:px-0 phone:pb-4">
         <div data-head className="col-span-full flex h-12 items-end gap-6 phone:h-auto phone:flex-wrap phone:gap-y-2.5 phone:pt-2">
-          <div className="min-w-0 flex-[1_0_auto] *:truncate phone:flex-[1_1_auto] phone:*:whitespace-normal">
+          {/* As wide as the tiles: a long title is cut, never widening the grid. */}
+          <div className="w-0 min-w-0 flex-[1_0_auto] *:truncate phone:w-auto phone:flex-[1_1_auto] phone:*:whitespace-normal">
             <h2 className="text-[20px] leading-[26px] font-semibold tracking-[-0.01em]">{review.title}</h2>
             <p className="mt-0.5 text-[13px] leading-5 text-soft">
               {props.accepted ?? roundName(round.number)}

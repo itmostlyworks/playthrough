@@ -49,7 +49,8 @@ function whatsThere(reading: Reading, patch: Area): { called: string; identity?:
   // Words and controls are drawn smaller than their boxes, which run the width of what holds them; what holds things is
   // only named by a patch that's a fair part of it.
   const fair = (thing: Thing, most: number) => !HOLDS.test(thing.role) || area(thing.box) < most;
-  const round = named.filter((thing) => contains(thing.box, patch, 2) && fair(thing, 6 * area(patch))).sort((p, q) => area(p.box) - area(q.box))[0];
+  // A focus ring or a shadow is drawn just outside its thing's box, and is still that thing's.
+  const round = named.filter((thing) => contains(thing.box, patch, 6) && fair(thing, 6 * area(patch))).sort((p, q) => area(p.box) - area(q.box))[0];
   const middle = patch.x + patch.width / 2;
   const table = reading.things.find((thing) => /^(table|grid|treegrid)$/.test(thing.role) && contains(thing.box, patch, 2));
   const cell = table && reading.things.find((thing) => thing.column && holderOf(reading, thing) === table && middle >= thing.box.x && middle < thing.box.x + thing.box.width);

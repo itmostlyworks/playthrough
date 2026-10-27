@@ -4,7 +4,7 @@
 import { list, quote, Refused } from "@mostlyworks/vantage-review";
 import { agent } from "./agent.ts";
 import { cantStart, howFar, keepBefore, refuseIfBroken } from "./before.ts";
-import { howToWriteFlows, makeFlowsFolder, runFlows } from "./flows.ts";
+import { addKeptFlows, howToWriteFlows, makeFlowsFolder, runFlows } from "./flows.ts";
 import type { Repo } from "./repo.ts";
 
 export async function start(repo: Repo, id: string, title?: string) {
@@ -13,7 +13,11 @@ export async function start(repo: Repo, id: string, title?: string) {
     await repo.reviews.start(id, title);
     await repo.keepOutOfGit();
     await makeFlowsFolder(repo, id);
-    return console.log(`Started ${id}: “${title}”.
+    const kept = await addKeptFlows(repo, id);
+    const keptSaid = kept.length
+      ? `\n\nThe flows of reviews accepted before are in its flows already (${list(kept)}), so they're recorded with yours and a change your work makes to them is seen. Keep them as they are, unless your work changes what one does.`
+      : "";
+    return console.log(`Started ${id}: “${title}”.${keptSaid}
 
 Write its flows before you change anything. They show what was asked, so write them from the task, not from the code: if you can start a fresh subagent, give it the task and what the screens look like, never the code, and use the flows it writes.
 

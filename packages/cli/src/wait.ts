@@ -4,6 +4,7 @@
 
 import { allNotes, conversation, list, notesToAnswer, quote, Refused, roundInProgress, time, type Place } from "@mostlyworks/vantage-review";
 import { agent } from "./agent.ts";
+import { keepFlows } from "./flows.ts";
 import { pictureNotes } from "./noted.ts";
 import type { Repo } from "./repo.ts";
 
@@ -31,7 +32,10 @@ export async function wait(repo: Repo, id: string) {
 
   for (;;) {
     review = await reviews.wait(id, (review) => !!review.accepted || review.sends.some((send) => !review.taken.some((taken) => taken.send === send.id)));
-    if (review.accepted) return console.log(`\n${review.accepted.by} accepted the work. The review is done.`);
+    if (review.accepted) {
+      await keepFlows(repo, id);
+      return console.log(`\n${review.accepted.by} accepted the work. The review is done. Its flows are kept in vantage/flows/, so every later review records them too: commit them with the work.`);
+    }
     const taken = await reviews.take(id);
     review = await reviews.get(id);
     const round = roundInProgress(review);

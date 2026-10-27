@@ -571,10 +571,11 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     go(diamond.flow, diamond.at);
     write({ flow: diamond.flow, at: diamond.at, ...(diamond.until !== undefined ? { until: diamond.until } : on?.element ? { element: on.element } : on?.box && { box: on.box }) });
   };
-  // Playing on from an open row lets it go, as moving on from it does.
+  // Playing on from an open row lets it go, as moving on from it does. At the flow's end there's nothing left to play,
+  // and the flow asks whether it's good before the next one starts.
   const playOn = () => {
     setOpen(undefined);
-    playhead.play();
+    if (where !== "end") playhead.play();
   };
   // What the agent changed for a note is gone to as its diamond is, the note staying open.
   const toAnswer = (changed: Changed) => {

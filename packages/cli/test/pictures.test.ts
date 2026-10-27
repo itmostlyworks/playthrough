@@ -39,6 +39,11 @@ describe("What only the pictures show", { timeout: 60_000 }, () => {
     assert.deepEqual(await said(chart("#4a8"), chart("#a48")), ["Something near the Spending heading looks different"]);
   });
 
+  test("a ring drawn just outside a control is that control's, not something near it (person-filter's Person menu)", async () => {
+    const menu = (ring: string) => `<p>Ana's expenses</p><button role="combobox" aria-label="Person" style="width: 160px; height: 40px; outline: ${ring}; outline-offset: 2px">Ana</button>`;
+    assert.deepEqual(await said(menu("none"), menu("2px solid #333")), ["Person menu looks different"]);
+  });
+
   test("what the reading found isn't told again", async () => {
     assert.deepEqual(await said(`<button>Export</button>`, `<button>Export CSV</button>`), []);
   });

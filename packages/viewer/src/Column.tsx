@@ -111,7 +111,7 @@ export function Column(props: Props) {
       ref={map}
       data-map
       hidden={props.hidden}
-      className={`relative isolate grid min-h-0 flex-1 auto-rows-max content-start gap-px overflow-y-auto pr-2 pb-4 [scrollbar-gutter:stable] [--ahead:color-mix(in_srgb,var(--faint)_45%,var(--ground))] [--rail:var(--soft)] ${fades}`}
+      className={`relative isolate grid min-h-0 flex-1 auto-rows-max grid-cols-[minmax(0,1fr)] content-start gap-px overflow-y-auto pr-2 pb-4 [scrollbar-gutter:stable] [--ahead:color-mix(in_srgb,var(--faint)_45%,var(--ground))] [--rail:var(--soft)] ${fades}`}
     >
       <div ref={ghosts} className="absolute inset-x-0 top-0" aria-hidden />
       {round.flows.map((flow) => {
@@ -160,7 +160,7 @@ export function Column(props: Props) {
         )}
       </div>
       {(general.length > 0 || pending.some(({ on }) => !on)) && (
-        <div className="-mt-1 grid gap-1.5 pb-1">
+        <div className="-mt-1 grid grid-cols-[minmax(0,1fr)] gap-1.5 pb-1">
           {general.map((note) => props.note(note))}
           {pending.filter(({ on }) => !on).map(({ row }) => row)}
         </div>
@@ -225,7 +225,7 @@ function FlowBlock(props: Omit<Props, "standing"> & { flow: Flow; on: boolean; s
           </span>
         </span>
       </div>
-      <div className={`relative -mt-1 grid gap-1.5 pb-1 transition-[padding-top] duration-300 ease-calm ${on ? "pt-3" : ""}`}>
+      <div className={`relative -mt-1 grid grid-cols-[minmax(0,1fr)] gap-1.5 pb-1 transition-[padding-top] duration-300 ease-calm ${on ? "pt-3" : ""}`}>
         {flow.line && (
           <div data-key={`line:${flow.name}`} className={`grid text-xs leading-[1.45] transition-[grid-template-rows,opacity,visibility] duration-300 ease-calm ${on ? "visible grid-rows-[1fr] opacity-100" : "invisible grid-rows-[0fr] opacity-0"}`}>
             <div className="min-h-0 overflow-hidden pl-[44px]">
@@ -340,9 +340,12 @@ function ChangeRow(props: Props & { diamond: Diamond; inside: { id: string; open
           <i className="size-2 rotate-45 bg-ground shadow-[inset_0_0_0_1.5px_var(--fg),0_0_0_2.5px_var(--ground)] group-data-played/mark:bg-fg group-data-played/mark:shadow-[0_0_0_2.5px_var(--ground)]" />
           {inside.length > 0 && <b className="absolute top-[calc(50%-8px)] left-[calc(50%+2px)] size-1.5 rounded-full shadow-[0_0_0_1.5px_var(--ground)]" style={{ background: note ? ink(note) : "var(--amber)" }} />}
         </span>
-        <span className="-mr-[7px] block max-h-10 min-w-0 overflow-hidden pr-[7px]">
-          <Time open={open} className="float-right ml-2 text-faint">{when(diamond)}</Time>
-          <span className="block leading-5 [overflow-wrap:anywhere]">{diamond.name}</span>
+        {/* Two lines closed, ending in an ellipsis; open, all of it. */}
+        <span className={`-mr-[7px] min-w-0 pr-[7px] ${open ? "block" : "line-clamp-2"}`}>
+          <span className="block leading-5 [overflow-wrap:anywhere]">
+            <Time open={open} className="float-right ml-2 text-faint">{when(diamond)}</Time>
+            <span>{diamond.name}</span>
+          </span>
         </span>
       </button>
       {open && (
