@@ -13,6 +13,7 @@ export const RECORDING = "vantage recording";
 export const READINGS = "vantage readings";
 export const PICTURE = "vantage picture";
 export const ASSETS = "vantage assets";
+export const PERSON = "vantage person";
 export const HOLD = 1500; // the end of a flow holds, so its last state can be seen
 
 // A flow's readings go beside the round's recordings, under the same name, each picture in a folder of its own.
@@ -53,7 +54,10 @@ export default class Flows implements Reporter {
       assets: JSON.parse(result.attachments.find((attachment) => attachment.name === ASSETS)?.body?.toString() ?? "{}"),
     };
     const steps = result.steps.filter((step) => step.category === "test.step");
-    if (result.status === "passed") return void (recording && this.#ran.push({ ...where, recorded: this.#flow(test.title, recording, read, steps) }));
+    const person = result.attachments.find((attachment) => attachment.name === PERSON)?.body?.toString();
+    // Who it acts as, if the app's setup said.
+    const as = (made: Recorded) => (person && (made.flow.person = person), made);
+    if (result.status === "passed") return void (recording && this.#ran.push({ ...where, recorded: as(this.#flow(test.title, recording, read, steps)) }));
 
     // It stopped at the step it couldn't do, or after the last one when it failed between them. On Before, it's kept as
     // far as that: what the app as it was could do. Stopped by the browser, it says nothing about the app, so it failed.
@@ -65,7 +69,7 @@ export default class Flows implements Reporter {
     const failed: Failed = { flow: test.title, ...(stop?.error && { at: stop.title }), ...(why && { why }), ...(broken && { broken }) };
     if (!this.#before || broken || !recording || !stop || !kept.length) return void this.#ran.push({ ...where, failed });
     const until = stop.startTime.getTime() + (stop.error ? 0 : stop.duration);
-    const recorded = this.#flow(test.title, recording, read, kept, until);
+    const recorded = as(this.#flow(test.title, recording, read, kept, until));
     if (stop.error) recorded.flow.stopped = stop.title;
     this.#ran.push({ ...where, failed, recorded });
   }

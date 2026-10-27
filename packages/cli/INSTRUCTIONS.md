@@ -66,7 +66,9 @@ page, Playwright's request and the app's address as baseURL, and what it returns
   }
 
 Use what the project has (a test account, seed data, a reset hook), make data through the app's API or database rather
-than on screen, and stub what you can't control at the network. Dates the server works out don't follow the page's
+than on screen, and stub what you can't control at the network. Sign in with page.request, not request: it shares the
+page's cookies, so the page is signed in, and so is a person who takes the flow over. If the flow acts as someone,
+return their name as person ({ person: "Ana", ... }): it's the name on the pointer the reviewer watches. Dates the server works out don't follow the page's
 clock: fix them through the app's own test hook if it has one.
 
 Each new flow is recorded twice. What changes by itself between the two, like a time the server stamps, is left out of

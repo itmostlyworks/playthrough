@@ -145,8 +145,9 @@ function asIfDirect(request: IncomingMessage, target: URL) {
 
 // Taken over in the viewer, the app sits in its frame, and this goes into each of its pages, first. Scrolled where the
 // flow's page was, it tells the viewer once it has settled (loaded, its fonts and pictures in, nothing on its way and
-// nothing changing for a moment), so the frame turns into it with nothing on screen changing. And as every key there
-// goes to the app, Escape, if the app doesn't use it itself, goes back to the viewer, with where the pointer is.
+// nothing changing for a moment), so the frame turns into it with nothing on screen changing. Its pointer is the arrow
+// the recording draws, text fields aside, and it tells the viewer where it is, for the name that follows it. And as
+// every key there goes to the app, Escape, if the app doesn't use it itself, goes back to the viewer.
 const SAYS = `<script>(() => {
   if (window.parent === window) return;
   let asked = 0, stirred = performance.now();
@@ -158,8 +159,13 @@ const SAYS = `<script>(() => {
   new MutationObserver(stir).observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
   const scroll = JSON.parse(sessionStorage.getItem("vantage:scroll") || "null");
   sessionStorage.removeItem("vantage:scroll");
-  let x = innerWidth / 2, y = innerHeight / 2;
-  addEventListener("pointermove", (e) => { x = e.clientX; y = e.clientY; }, true);
+  const arrow = document.createElement("style");
+  arrow.textContent = 'html, html * { cursor: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2720%27 height=%2720%27%3E%3Cpath d=%27M3 2l13 7.5-5.6 1.3L7.6 16z%27 fill=%27white%27 stroke=%27%231E2330%27 stroke-width=%271.3%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E") 3 2, default !important; } input:not([type=button]):not([type=submit]):not([type=checkbox]):not([type=radio]), textarea, [contenteditable=true], [contenteditable=true] * { cursor: text !important; }';
+  document.documentElement.appendChild(arrow);
+  let x = innerWidth / 2, y = innerHeight / 2, told = false;
+  const tell = (inside) => { if (told) return; told = true; requestAnimationFrame(() => { told = false; parent.postMessage({ vantage: "pointer", x, y, inside }, "*"); }); };
+  addEventListener("pointermove", (e) => { x = e.clientX; y = e.clientY; tell(true); }, true);
+  document.addEventListener("pointerleave", () => parent.postMessage({ vantage: "pointer", x, y, inside: false }, "*"));
   addEventListener("keydown", (e) => { if (e.key === "Escape" && !e.defaultPrevented) parent.postMessage({ vantage: "escape", x, y }, "*"); });
   const began = performance.now();
   const settle = async () => {

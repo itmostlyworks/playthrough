@@ -13,7 +13,7 @@ import { keepAssets } from "./assets.ts";
 import { HANDED, type Handed, type Run } from "./flows.ts";
 import { readPage, unhovered } from "./read.ts";
 import { repo } from "./repo.ts";
-import { ASSETS, HOLD, PICTURE, READINGS, RECORDING, seconds } from "./reporter.ts";
+import { ASSETS, HOLD, PERSON, PICTURE, READINGS, RECORDING, seconds } from "./reporter.ts";
 import { watchRest } from "./rest.ts";
 
 // Everything it needs comes with the run (flows.ts), so it never has to find anything for itself.
@@ -110,7 +110,7 @@ const recorded = base.extend<{ setup: Record<string, any>; recorder: void }>({
   },
   recorder: [
     // Once what the flow starts from is made, so making it isn't in the recording.
-    async ({ page, setup: _ }, use, testInfo) => {
+    async ({ page, setup }, use, testInfo) => {
       if (!run || run.to) return use();
       testInfo.setTimeout(testInfo.timeout * 3);
       const events: { timestamp: number }[] = [];
@@ -139,6 +139,7 @@ const recorded = base.extend<{ setup: Record<string, any>; recorder: void }>({
       await testInfo.attach(RECORDING, { body: JSON.stringify(events), contentType: "application/json" });
       await testInfo.attach(READINGS, { body: JSON.stringify(readings), contentType: "application/json" });
       await testInfo.attach(ASSETS, { body: JSON.stringify(await assets()), contentType: "application/json" });
+      if (typeof setup.person === "string" && setup.person.trim()) await testInfo.attach(PERSON, { body: setup.person.trim(), contentType: "text/plain" });
       for (const picture of pictures) await testInfo.attach(PICTURE, { body: picture, contentType: "image/png" });
     },
     { auto: true },
