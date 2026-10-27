@@ -265,12 +265,17 @@ export function Stage(props: Props) {
       // The pointer belongs to the flow: it stays out of the title, and appears as the frame comes into focus.
       const pointer = replay && !replay.touch ? replay.pointerAt(at) : undefined;
       const drawn: [number, number] | undefined = pointer && [(pointer[0] - view.x) * view.k, (pointer[1] - view.y) * view.k];
-      part.cursor.style.opacity = drawn ? String(1 - (card?.soft ?? 0)) : "0";
-      if (drawn) part.cursor.style.transform = `translate(${drawn[0] - 3}px,${drawn[1] - 2}px)`;
+      // Taken over, the pointer is yours, and follows your hand in the app rather than the recording.
+      const yours = shown === round && open.current;
+      if (!yours) part.cursor.style.opacity = drawn ? String(1 - (card?.soft ?? 0)) : "0";
+      if (drawn && !yours) part.cursor.style.transform = `translate(${drawn[0] - 3}px,${drawn[1] - 2}px)`;
       // Whose hand it is: the person the flow acts as, from the app's setup.
       const tag = part.cursor.querySelector<HTMLElement>("[data-tag]")!;
-      tag.textContent = its.person ?? "";
-      tag.hidden = !its.person;
+      if (!yours) {
+        tag.querySelector("[data-words]")!.textContent = its.person ?? "";
+        tag.hidden = !its.person;
+        delete tag.dataset.mine;
+      }
       const click = replay && drawn && !card ? replay.clicks.find((click) => at >= click && at < click + 0.5) : undefined;
       if (click !== undefined && drawn) {
         const u = (at - click) / 0.5;
@@ -507,6 +512,8 @@ export function Stage(props: Props) {
   }, []);
   const inPortal = !!props.live?.shown && !!props.live.settled && !!props.live.address;
   const open = useRef(false);
+  // Where your hand is in the app, in the frame, while you're in it.
+  const yourHand = useRef<{ x: number; y: number }>(undefined);
   useLayoutEffect(() => {
     const frame = frames.current.get(round.number);
     const app = frame?.querySelector<HTMLElement>("[data-live]");
@@ -514,81 +521,95 @@ export function Stage(props: Props) {
     const ring = frame?.querySelector<HTMLElement>("[data-portal]");
     const edge = frame?.querySelector<HTMLElement>("[data-edge]");
     const hand = frame?.querySelector<HTMLElement>("[data-cursor]");
-    const you = frame?.querySelector<HTMLElement>("[data-you]");
-    const yourTag = you?.querySelector<HTMLElement>("[data-tag]");
-    const words = you?.querySelector<HTMLElement>("[data-words]");
-    if (!frame || !app || !sheen || !ring || !edge || !hand || !you || !yourTag || !words || inPortal === open.current) return;
-    open.current = inPortal;
+    const tag = hand?.querySelector<HTMLElement>("[data-tag]");
+    const words = tag?.querySelector<HTMLElement>("[data-words]");
+    if (!frame || !app || !sheen || !ring || !edge || !hand || !tag || !words || inPortal === open.current) return;
     handing.current.forEach(clearTimeout);
     handing.current = [];
+    for (const part of [app, sheen, ring, edge, hand, tag, words]) part.getAnimations().forEach((animation) => animation.cancel());
     const box = frame.getBoundingClientRect();
     const view = painted.current.get(round.number);
-    // Your pointer, if it's on the frame; the agent's, where the recording drew it; the tip of each, in the frame.
+    const person = props.playhead.flow.person;
+    const tip = (point: { x: number; y: number }) => `translate(${(point.x - 3).toFixed(1)}px,${(point.y - 2).toFixed(1)}px)`;
+    const tipOf = (element: HTMLElement) => {
+      const drawn = element.getBoundingClientRect();
+      return { x: drawn.left - box.left + 3, y: drawn.top - box.top + 2 };
+    };
+    // Your pointer, if it's on the frame; the agent's, where the recording draws it.
     const yours = pointed.current && { x: pointed.current.x - box.left, y: pointed.current.y - box.top };
     const mine = yours && yours.x >= 0 && yours.y >= 0 && yours.x <= box.width && yours.y <= box.height ? yours : undefined;
-    const drawnAt = hand.getBoundingClientRect();
-    const theirs = getComputedStyle(hand).opacity !== "0" ? { x: drawnAt.left - box.left + 3, y: drawnAt.top - box.top + 2 } : undefined;
-    const left = props.live?.at && view && !inPortal ? { x: (props.live.at.x - view.x) * view.k, y: (props.live.at.y - view.y) * view.k } : undefined;
-    const at = (inPortal ? (mine ?? theirs) : (left ?? mine ?? theirs)) ?? { x: box.width / 2, y: box.height / 2 };
+    const left = props.live?.at && view ? { x: (props.live.at.x - view.x) * view.k, y: (props.live.at.y - view.y) * view.k } : undefined;
+    const theirs = inPortal && hand.style.opacity !== "0" ? tipOf(hand) : undefined;
+    const at = (inPortal ? (mine ?? theirs) : (yourHand.current ?? left ?? mine)) ?? { x: box.width / 2, y: box.height / 2 };
     const reach = Math.max(...[[0, 0], [box.width, 0], [0, box.height], [box.width, box.height]].map(([x, y]) => Math.hypot(x! - at.x, y! - at.y)));
     const circle = (r: number) => `circle(${r.toFixed(1)}px at ${at.x.toFixed(1)}px ${at.y.toFixed(1)}px)`;
-    const tip = (point: { x: number; y: number }) => `translate(${(point.x - 3).toFixed(1)}px,${(point.y - 2).toFixed(1)}px)`;
     Object.assign(ring.style, { left: `${at.x - reach}px`, top: `${at.y - reach}px`, width: `${reach * 2}px`, height: `${reach * 2}px` });
     sheen.style.setProperty("--x", `${at.x}px`);
     sheen.style.setProperty("--y", `${at.y}px`);
-    for (const part of [app, sheen, ring, edge, hand, yourTag, words]) part.getAnimations().forEach((animation) => animation.cancel());
     const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    open.current = inPortal;
+
     if (inPortal) {
       app.style.visibility = "visible";
       edge.style.opacity = "1";
-      // The name on the pointer changes hands with it: the person the flow acts as, then you, in control.
-      const person = props.playhead.flow.person;
-      Object.assign(you.style, { transform: tip(at), opacity: "1" });
-      if (still) return void say(yourTag, words, "You", true, false);
-      say(yourTag, words, person ?? "You are in control", !person, false);
-      // The agent's pointer goes to yours and hands over there; the portal opens from where they meet.
-      const handing = mine && theirs && Math.hypot(mine.x - theirs.x, mine.y - theirs.y) > 4 ? HANDING : 0;
-      yourTag.animate([{ opacity: 0 }, { opacity: 1 }], { delay: theirs ? handing + 60 : 0, duration: 200, fill: "backwards" });
-      const handed = handing + (person ? 260 : 0);
-      if (person) handingOver(() => say(yourTag, words, "You are in control"), handed);
-      handingOver(() => say(yourTag, words, "You"), handed + 1700);
-      if (theirs)
-        hand.animate([{ transform: tip(theirs), opacity: 1 }, { transform: tip(at), opacity: 1, offset: handing ? 0.8 : 0 }, { transform: tip(at), opacity: 0 }], {
-          duration: handing + 260,
-          easing: PORTAL,
-          fill: "forwards",
-        });
+      // The recording's pointer becomes yours: above the app, where your hand is, its name changing hands with it.
+      yourHand.current = at;
+      Object.assign(hand.style, { transform: tip(at), opacity: "1", zIndex: "11" });
+      tag.hidden = false;
+      if (still) return void say(tag, words, "You", true, false);
+      say(tag, words, person ?? "You are in control", !person, false);
+      // It goes from where the recording had it to your hand, and the portal opens from where they meet.
+      const handing = theirs && mine && Math.hypot(mine.x - theirs.x, mine.y - theirs.y) > 4 ? HANDING : 0;
+      if (handing) hand.animate([{ transform: tip(theirs!) }, { transform: tip(at) }], { duration: handing, easing: PORTAL });
+      else if (!theirs) hand.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200 });
+      const handed = handing + (person ? 240 : 0);
+      if (person) handingOver(() => say(tag, words, "You are in control"), handed);
+      handingOver(() => say(tag, words, "You"), handed + 1700);
       const after = { delay: handing, easing: PORTAL, fill: "backwards" as const };
       app.animate([{ clipPath: circle(0) }, { clipPath: circle(reach) }], { ...after, duration: OPENING });
       sheen.animate([{ opacity: 1 }, { opacity: 0 }], { ...after, duration: OPENING + 240 });
       ring.animate([{ transform: "scale(0)", opacity: 0 }, { opacity: 1, offset: 0.1 }, { opacity: 0.85, offset: 0.7 }, { transform: "scale(1)", opacity: 0 }], { ...after, duration: OPENING });
       edge.animate([{ opacity: 0 }, { opacity: 0, offset: 0.5 }, { opacity: 1, boxShadow: "inset 0 0 0 2px rgba(236,178,72,0.95), inset 0 0 40px rgba(255,214,150,0.45)", offset: 0.75 }, { opacity: 1 }], { ...after, duration: OPENING + 500 });
-    } else {
-      edge.style.opacity = "0";
-      you.style.opacity = "0";
-      const hide = () => void (app.style.visibility = "hidden");
-      if (still) return hide();
-      const closing = { duration: CLOSING, easing: "cubic-bezier(0.55, 0, 0.7, 0.2)" };
-      edge.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, easing: "ease-in" });
-      ring.animate([{ transform: "scale(1)", opacity: 0 }, { opacity: 0.9, offset: 0.65 }, { transform: "scale(0)", opacity: 0 }], closing);
-      sheen.animate([{ opacity: 0 }, { opacity: 0.8 }], closing);
-      app.animate([{ clipPath: circle(reach) }, { clipPath: circle(0) }], closing).finished.then(hide, () => {});
-      // And the agent's pointer, back from where you left, to where the recording has it.
-      if (theirs)
-        hand.animate([{ transform: tip(at), opacity: 0 }, { transform: tip(at), opacity: 1, offset: 0.3 }, { transform: tip(theirs), opacity: 1 }], { delay: CLOSING - 80, duration: HANDING + 120, easing: PORTAL, fill: "backwards" });
+      return;
     }
+
+    edge.style.opacity = "0";
+    shape(hand, false);
+    yourHand.current = undefined;
+    // The recording has the pointer again: it goes back from your hand to where the recording has it, its name back to
+    // the person the flow acts as.
+    paint();
+    const hide = () => void (app.style.visibility = "hidden");
+    // Over the closing app until it's home, then under the marks again, as the recording's.
+    const home = () => void (hand.style.zIndex = "");
+    if (still) return void (hide(), home());
+    const back = hand.style.transform;
+    hand.animate([{ transform: tip(at), opacity: 1 }, { transform: tip(at), opacity: 1, offset: 0.3 }, { transform: back, opacity: Number(hand.style.opacity || 1) }], { duration: CLOSING + HANDING, easing: PORTAL }).finished.then(home, () => {});
+    if (person) {
+      words.textContent = "You";
+      tag.dataset.mine = "";
+      say(tag, words, person, false);
+    }
+    const closing = { duration: CLOSING, easing: "cubic-bezier(0.55, 0, 0.7, 0.2)" };
+    edge.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, easing: "ease-in" });
+    ring.animate([{ transform: "scale(1)", opacity: 0 }, { opacity: 0.9, offset: 0.65 }, { transform: "scale(0)", opacity: 0 }], closing);
+    sheen.animate([{ opacity: 0 }, { opacity: 0.8 }], closing);
+    app.animate([{ clipPath: circle(reach) }, { clipPath: circle(0) }], closing).finished.then(hide, () => {});
   }, [inPortal]);
   const handing = useRef<number[]>([]);
   const handingOver = (then: () => void, after: number) => void handing.current.push(window.setTimeout(then, after));
-  // In the app, your name follows your pointer there, and leaves the frame with it.
+  // In the app, the pointer is drawn here, with its name, so the two move as one: the app's own is hidden there. It
+  // leaves the frame with your hand, and over words you can type into it's the text cursor.
   useEffect(() => {
     const told = ({ data }: MessageEvent) => {
       if (data?.vantage !== "pointer" || !open.current) return;
       const number = latest.current.round.number;
-      const you = frames.current.get(number)?.querySelector<HTMLElement>("[data-you]");
+      const hand = frames.current.get(number)?.querySelector<HTMLElement>("[data-cursor]");
       const view = painted.current.get(number);
-      if (!you || !view) return;
-      Object.assign(you.style, { transform: `translate(${((data.x - view.x) * view.k - 3).toFixed(1)}px,${((data.y - view.y) * view.k - 2).toFixed(1)}px)`, opacity: data.inside ? "1" : "0" });
+      if (!hand || !view) return;
+      yourHand.current = { x: (data.x - view.x) * view.k, y: (data.y - view.y) * view.k };
+      Object.assign(hand.style, { transform: `translate(${(yourHand.current.x - 3).toFixed(1)}px,${(yourHand.current.y - 2).toFixed(1)}px)`, opacity: data.inside ? "1" : "0" });
+      shape(hand, !!data.text);
     };
     addEventListener("message", told);
     return () => removeEventListener("message", told);
@@ -723,19 +744,18 @@ export function Stage(props: Props) {
             data-cursor
             className="pointer-events-none absolute top-0 left-0 z-8 size-5 opacity-0 transition-[filter] duration-180 ease-calm will-change-transform [filter:drop-shadow(0_1px_1px_rgba(0,0,0,.3))] group-data-bare/stage:[filter:drop-shadow(0_1px_1px_rgba(0,0,0,.3))_opacity(0)]"
           >
-            <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden>
+            <svg data-arrow viewBox="0 0 20 20" width="20" height="20" aria-hidden>
               <path d="M3 2l13 7.5-5.6 1.3L7.6 16z" fill="#FFFFFF" stroke="#1E2330" strokeWidth="1.3" strokeLinejoin="round" />
             </svg>
-            <span data-tag hidden className={TAG} />
+            {/* Over words you can type into, in the app, the pointer is the text cursor, its middle where the arrow's tip is. */}
+            <svg data-beam viewBox="0 0 20 20" style={{ display: "none" }} width="20" height="20" className="absolute -top-2 -left-[7px]" aria-hidden>
+              <path d="M7 3.5h6M10 3.5v13M7 16.5h6" fill="none" stroke="#FFFFFF" strokeWidth="3.2" strokeLinecap="round" />
+              <path d="M7 3.5h6M10 3.5v13M7 16.5h6" fill="none" stroke="#1E2330" strokeWidth="1.4" strokeLinecap="round" />
+            </svg>
+            <span data-tag hidden className={`${TAG} transition-[background-color,color] duration-300 ease-calm data-mine:bg-[#EDB654] data-mine:text-[#3B2A07]`}>
+              <span data-words />
+            </span>
           </div>
-          {/* Yours, while you're in the app: it grows out of the agent's as the pointer changes hands, and follows you. */}
-          {number === round.number && (
-            <div data-you className="pointer-events-none absolute top-0 left-0 z-11 size-5 opacity-0">
-              <span data-tag className={`${TAG} transition-[background-color,color] duration-300 ease-calm data-mine:bg-[#EDB654] data-mine:text-[#3B2A07]`}>
-                <span data-words />
-              </span>
-            </div>
-          )}
           {/* Between flows, the flow's name over its own first frame, softened under a veil in the recorded app's background,
               in the app's ink and face: it belongs to the recording, so it looks the same in both themes. */}
           <div
@@ -862,6 +882,12 @@ const fit = (room: Size, shape: Size): Size => {
   const width = Math.floor(Math.max(0, Math.min(room.width, (room.height * shape.width) / shape.height, shape.width)));
   return { width, height: Math.floor((width * shape.height) / shape.width) };
 };
+
+// The pointer's shape: the arrow, or the text cursor over words you can type into.
+function shape(hand: HTMLElement, text: boolean) {
+  hand.querySelector<SVGElement>("[data-arrow]")!.style.display = text ? "none" : "";
+  hand.querySelector<SVGElement>("[data-beam]")!.style.display = text ? "" : "none";
+}
 
 // A name changes in place: its pill grows or shrinks to the new words as they come in, warm once they're yours.
 function say(tag: HTMLElement, words: HTMLElement, said: string, mine = true, gently = true) {
