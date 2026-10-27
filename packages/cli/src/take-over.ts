@@ -162,9 +162,10 @@ const SAYS = `<script>(() => {
   const arrow = document.createElement("style");
   arrow.textContent = 'html, html * { cursor: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2720%27 height=%2720%27%3E%3Cpath d=%27M3 2l13 7.5-5.6 1.3L7.6 16z%27 fill=%27white%27 stroke=%27%231E2330%27 stroke-width=%271.3%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E") 3 2, default !important; } input:not([type=button]):not([type=submit]):not([type=checkbox]):not([type=radio]), textarea, [contenteditable=true], [contenteditable=true] * { cursor: text !important; }';
   document.documentElement.appendChild(arrow);
-  let x = innerWidth / 2, y = innerHeight / 2, told = false;
-  const tell = (inside) => { if (told) return; told = true; requestAnimationFrame(() => { told = false; parent.postMessage({ vantage: "pointer", x, y, inside }, "*"); }); };
-  addEventListener("pointermove", (e) => { x = e.clientX; y = e.clientY; tell(true); }, true);
+  // Every move, as early as the browser has it: held for a frame, the name trailed the pointer like a smoothed one.
+  let x = innerWidth / 2, y = innerHeight / 2;
+  const moved = (e) => { x = e.clientX; y = e.clientY; parent.postMessage({ vantage: "pointer", x, y, inside: true }, "*"); };
+  addEventListener("onpointerrawupdate" in window ? "pointerrawupdate" : "pointermove", moved, true);
   document.addEventListener("pointerleave", () => parent.postMessage({ vantage: "pointer", x, y, inside: false }, "*"));
   addEventListener("keydown", (e) => { if (e.key === "Escape" && !e.defaultPrevented) parent.postMessage({ vantage: "escape", x, y }, "*"); });
   const began = performance.now();
