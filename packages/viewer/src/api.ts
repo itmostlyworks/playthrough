@@ -37,13 +37,6 @@ export function useYou(): string | undefined {
   return you;
 }
 
-// The app by its name, when its package has one.
-export function useApp(): string | undefined {
-  const [app, setApp] = useState<string>();
-  useEffect(() => void get<{ name?: string }>("/api/app").then(({ name }) => setApp(name), () => {}), []);
-  return app;
-}
-
 // A round's files never change once it's finished, so each is fetched once.
 const files = new Map<string, Promise<unknown>>();
 function file<T>(review: string, round: number, name: string): Promise<T> {
@@ -85,9 +78,8 @@ export async function send(review: string, send: Send): Promise<string[]> {
   return post(`/api/reviews/${review}/sends`, send);
 }
 
-// Accepting, the new flows chosen join the app's.
-export async function accept(review: string, by: string, keep: string[]): Promise<string[]> {
-  return post(`/api/reviews/${review}/accept`, { by, keep });
+export async function accept(review: string, by: string): Promise<string[]> {
+  return post(`/api/reviews/${review}/accept`, { by });
 }
 
 async function get<T>(path: string): Promise<T> {

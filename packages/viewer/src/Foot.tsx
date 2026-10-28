@@ -2,7 +2,7 @@
 // something to send. Under it the meter, a piece for each flow, green from the left as each looks good to you.
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { justLanded, TickMark, type Landed } from "./Column.tsx";
+import { justLanded, type Landed } from "./Column.tsx";
 import { Key, mac, useHold } from "./Card.tsx";
 import type { Standing } from "./notes.ts";
 
@@ -32,8 +32,6 @@ type Props = {
   landed?: Landed;
   // The agent is working: its pieces breathe.
   busy: boolean;
-  // Accepting, the new flows to keep with the app's.
-  keep?: ReactNode;
   onFlow: (flow: string) => void;
 };
 
@@ -83,7 +81,6 @@ export function Foot(props: Props) {
         <div className="-mx-1 -mb-1 min-h-0 overflow-hidden">
           <div className="px-1 pt-3 pb-1">
             {props.trouble.length > 0 && <p className="mb-2 text-xs leading-[18px] text-amber-ink">{props.trouble.join(" ")}</p>}
-            {!props.quiet && step.kind === "go" && step.final && props.keep}
             <div ref={buttons} className={`flex min-h-8 items-center gap-2 transition-opacity duration-150 ease-calm ${held ? "pointer-events-none opacity-45" : ""}`}>
               {shown}
               {sending ? (
@@ -107,39 +104,6 @@ export function Foot(props: Props) {
     </div>
   );
 }
-
-// Accepting, the new flows chosen join the app's, for every later review to record: those the agent asks for are chosen
-// to begin with, and pressing one chooses it or not. The rest stay with this review.
-export function Keep({ app, flows, chosen, onChoose }: { app?: string; flows: string[]; chosen: string[]; onChoose: (chosen: string[]) => void }) {
-  return (
-    <div className="mb-2.5 grid min-w-0" role="group" aria-label={`Keep in ${owned(app)} flows`}>
-      <p className="mb-1 text-xs leading-4 text-soft">Keep in {owned(app)} flows</p>
-      {flows.map((name) => {
-        const on = chosen.includes(name);
-        return (
-          <button
-            key={name}
-            role="checkbox"
-            aria-checked={on}
-            className="group/keep flex min-w-0 items-center gap-2 py-1 text-left text-xs leading-4"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => onChoose(on ? chosen.filter((other) => other !== name) : [...chosen, name])}
-          >
-            <span
-              className={`grid size-3 flex-none place-items-center rounded-[3px] transition-colors duration-150 ease-calm ${on ? "bg-fg text-ground" : "shadow-[inset_0_0_0_1.25px_var(--faint)] group-hover/keep:shadow-[inset_0_0_0_1.25px_var(--soft)]"}`}
-            >
-              {on && <TickMark className="size-2.5" />}
-            </span>
-            <span className={`truncate transition-colors duration-150 ease-calm ${on ? "text-fg" : "text-soft"}`}>{name}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-// Whose the kept flows are: Kan's, or the app's when it has no name.
-export const owned = (app?: string) => (app ? `${app}'s` : "the app's");
 
 export function Go({ step, before, className }: { step: Extract<Step, { kind: "go" }>; before?: ReactNode; className: string }) {
   return (

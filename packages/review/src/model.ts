@@ -92,8 +92,6 @@ export const Flow = z.strictObject({
     .array(text("needs the ids of the changes it makes by itself"))
     .optional()
     .describe("Changes found between two recordings of the same app, like a time the server stamps: left out of every comparison of the flow"),
-  kept: z.literal(true).optional().describe("Already one of the app's flows, kept when a review before was accepted"),
-  keep: z.literal(true).optional().describe("New, and the agent asks for it to be kept with the app's flows once the work is accepted"),
 });
 
 // Something different on screen between two rounds, found by Vantage and said in its fixed words.
@@ -177,8 +175,8 @@ export const Send = z.strictObject({
 // The agent took a send, and answers it in this round.
 export const Taken = z.strictObject({ send: z.string(), round: z.number().int(), at: z.iso.datetime() });
 
-// Final: no rounds or sends come after it. The new flows chosen then join the app's.
-export const Accepted = z.strictObject({ by: z.string(), at: z.iso.datetime(), keep: z.array(z.string()).optional() });
+// Final: no rounds or sends come after it.
+export const Accepted = z.strictObject({ by: z.string(), at: z.iso.datetime() });
 
 export const Review = z.strictObject({
   id: z.string(),

@@ -113,7 +113,7 @@ describe("How far Before goes with a flow", () => {
       { name: RECORDING, contentType: "application/json", body: Buffer.from(JSON.stringify([{ timestamp: start }, { timestamp: start + 11_000 }])) },
       { name: READINGS, contentType: "application/json", body: Buffer.from("[]") },
     ];
-    reporter.onTestEnd({ title: "Search the expenses", tags: [], location: { file: "search-the-expenses.ts", line: 1 } } as unknown as TestCase, { status: "failed", steps, attachments, error: { message: error } } as unknown as TestResult);
+    reporter.onTestEnd({ title: "Search the expenses", location: { file: "spliit.ts", line: 1 } } as TestCase, { status: "failed", steps, attachments, error: { message: error } } as unknown as TestResult);
     reporter.onEnd();
     const ran: { recorded: Recorded[]; failed: Failed[] } = JSON.parse(await readFile(join(folder, "flows.json"), "utf8"));
     await rm(folder, { recursive: true });

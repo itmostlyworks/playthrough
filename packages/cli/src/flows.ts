@@ -1,15 +1,15 @@
 // A review's flows: where they're written, how to write them, and running them on the app the way a person would use it.
 
 import { spawn, type ChildProcess } from "node:child_process";
-import { constants, existsSync } from "node:fs";
-import { copyFile, mkdir, mkdtemp, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdir, mkdtemp, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { list, quote, Refused, type Did, type Flow, type Review } from "@mostlyworks/vantage-review";
+import { list, quote, Refused, type Did, type Flow } from "@mostlyworks/vantage-review";
 import { changesByThemselves, type Recorded as Compared } from "./compare.ts";
-import { fileNameOf, KEEP, readingsOf, type Failed, type Recorded } from "./reporter.ts";
+import { readingsOf, type Failed, type Recorded } from "./reporter.ts";
 import type { App, Repo } from "./repo.ts";
 
 // What the run needs to know, passed to Playwright whole: where the flows are and which of them to run, the folder the
@@ -45,49 +45,10 @@ export async function makeFlowsFolder(repo: Repo, id: string) {
 }
 
 const isFlow = (name: string) => /\.[cm]?[jt]s$/.test(name);
-const flowIn = (file: string) => file.replace(/\.[cm]?[jt]s$/, "");
-
-// Whether a flow is one of the app's: kept, in a file named after it.
-export async function keptFlow(repo: Repo): Promise<(name: string) => boolean> {
-  const kept = new Set((await readdir(repo.kept).catch(() => [])).filter(isFlow).map(flowIn));
-  return (name) => kept.has(fileNameOf(name));
-}
-
-// Once the work is accepted, the new flows chosen then join the app's, and the app's own that the work changed are kept
-// as they are now, so every later review records them too and a change to what they show is seen. The rest stay with
-// the review.
-export async function keepFlows(repo: Repo, review: Review): Promise<{ joined: string[]; updated: string[] }> {
-  const last = review.rounds.findLast((round) => round.finished && round.number > 0);
-  const files = (await readdir(repo.flows(review.id))).filter(isFlow);
-  const joined: string[] = [];
-  const updated: string[] = [];
-  await mkdir(repo.kept, { recursive: true });
-  for (const flow of last?.flows ?? []) {
-    const file = files.find((file) => flowIn(file) === fileNameOf(flow.name));
-    if (!file || !(flow.kept || review.accepted?.keep?.includes(flow.name))) continue;
-    const now = await readFile(join(repo.flows(review.id), file));
-    if ((await readFile(join(repo.kept, file)).catch(() => undefined))?.equals(now)) continue;
-    await writeFile(join(repo.kept, file), now);
-    (flow.kept ? updated : joined).push(flow.name);
-  }
-  return { joined, updated };
-}
-
-// Each flow in a file of its own, named after it, so each can be kept on its own: as a line of a refusal, where one isn't.
-export const misfiled = ({ flow, written }: { flow: Flow; written: string }) =>
-  flowIn(written) === fileNameOf(flow.name) ? [] : [`  Move ${quote(flow.name)} from ${written} to a file of its own, ${fileNameOf(flow.name)}.ts.`];
-
-// Into a new review, the files of the flows kept so far, leaving any it has by the same name.
-export async function addKeptFlows(repo: Repo, id: string): Promise<string[]> {
-  const kept = (await readdir(repo.kept).catch(() => [])).filter(isFlow);
-  for (const name of kept) await copyFile(join(repo.kept, name), join(repo.flows(id), name), constants.COPYFILE_EXCL).catch(() => {});
-  return kept;
-}
 
 export function howToWriteFlows(repo: Repo, id: string): string {
   const setupMissing = !existsSync(repo.setup);
-  return `Each flow is a Playwright test in ${repo.show(repo.flows(id))}, one for each thing a person does, in a file of its own named after
-it, with a step for each part of it. "Export a quarter" is in export-a-quarter.ts:
+  return `Each flow is a Playwright test in ${repo.show(repo.flows(id))}, one for each thing a person does, with a step for each part of it:
 
   import { test, expect } from "@mostlyworks/vantage/test";
 
@@ -100,8 +61,7 @@ it, with a step for each part of it. "Export a quarter" is in export-a-quarter.t
     });
   });
 
-The test's name is the flow's, and steps are matched across rounds by their names. When the work is accepted, the person
-chooses which new flows join the app's flows: tag each that's a journey a person would name with { tag: "${KEEP}" }. What every flow starts from, like
+The test's name is the flow's, and steps are matched across rounds by their names. What every flow starts from, like
 the account it opens, is made in vantage/setup.ts${setupMissing ? ", which this app doesn't have yet" : ""}: run vantage alone for how.`;
 }
 
@@ -252,7 +212,7 @@ function inMemory(number: number, recorded: Ran["recorded"]): Compared {
   return { number, flows, readings: async (flow) => JSON.parse(file(readingsOf(flow)).toString()), picture: async (name) => file(name) };
 }
 
-type Ran = { recorded: { flow: Flow; written: string; files: { name: string; bytes: Buffer }[] }[]; failed: Failed[] };
+type Ran = { recorded: { flow: Flow; files: { name: string; bytes: Buffer }[] }[]; failed: Failed[] };
 
 async function runOnce(run: Omit<Run, "folder">): Promise<Ran> {
   const folder = await mkdtemp(join(tmpdir(), "vantage-"));
@@ -261,7 +221,7 @@ async function runOnce(run: Omit<Run, "folder">): Promise<Ran> {
     const text = await readFile(join(folder, "flows.json"), "utf8").catch(() => undefined);
     const { recorded, failed }: { recorded: Recorded[]; failed: Failed[] } = text ? JSON.parse(text) : { recorded: [], failed: [] };
     if (!ran && !failed.length) throw new Refused(["The flows didn't run, for the reason Playwright gives above. Fix that and run this again."]);
-    const withFiles = ({ files, ...recorded }: Recorded) => Promise.all(files.map(async (name) => ({ name, bytes: await readFile(join(folder, name)) }))).then((files) => ({ ...recorded, files }));
+    const withFiles = ({ flow, files }: Recorded) => Promise.all(files.map(async (name) => ({ name, bytes: await readFile(join(folder, name)) }))).then((files) => ({ flow, files }));
     return { recorded: await Promise.all(recorded.map(withFiles)), failed };
   } finally {
     await rm(folder, { recursive: true });

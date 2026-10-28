@@ -3,7 +3,7 @@
 // the flow you point at as it opens, its name over its first picture. Each row says the flow's length and, in words, where it stands. Choosing one plays it, its picture
 // growing into the frame. Under the frame, the one step to take.
 
-import { useState, type ReactNode, type RefObject } from "react";
+import { useState, type RefObject } from "react";
 import { time, type Flow, type Review, type Round } from "@mostlyworks/vantage-review";
 import { picture } from "./api.ts";
 import { TickMark } from "./Column.tsx";
@@ -22,8 +22,6 @@ type Props = {
   // Accepted, how it got there, in fixed words.
   accepted?: string;
   step?: Step;
-  // Accepting, the new flows to keep with the app's.
-  keep?: ReactNode;
   onFlow: (flow: string) => void;
 };
 
@@ -66,7 +64,6 @@ export function Grid(props: Props) {
           <Opening review={review} round={round} flow={shown} onFlow={props.onFlow} />
           <div className="mt-3 flex min-h-8 items-start justify-end gap-2">
             <div className="w-[300px] max-w-full">
-              {step?.kind === "go" && step.final && props.keep}
               {step?.kind === "go" && <Go step={step} className="w-full gap-3" />}
               {step?.kind === "agent" && <Agent step={step} className="justify-end" />}
             </div>

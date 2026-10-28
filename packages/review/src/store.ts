@@ -201,14 +201,14 @@ export class Reviews {
     });
   }
 
-  // Final. Accepting twice keeps the first. The new flows chosen to keep join the app's.
-  async accept(id: string, by: string, keep: string[] = []): Promise<void> {
+  // Final. Accepting twice keeps the first.
+  async accept(id: string, by: string): Promise<void> {
     return this.#one(id, async () => {
       const review = await this.get(id);
       if (review.accepted) return;
-      const problems = problemsAccepting(review, by, keep);
+      const problems = problemsAccepting(review, by);
       if (problems.length) throw new Refused(problems);
-      await this.#writeJson(`${id}/accepted.json`, { by, at: now(), ...(keep.length && { keep }) });
+      await this.#writeJson(`${id}/accepted.json`, { by, at: now() });
     });
   }
 

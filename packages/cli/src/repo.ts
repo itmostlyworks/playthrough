@@ -20,8 +20,6 @@ export function repo(root = process.cwd()) {
     setAside: join(reviews, "set-aside.json"),
     // What every flow of the app starts from, committed beside app.json.
     setup: join(root, "vantage", "setup.ts"),
-    // The flows of every accepted review, committed with the work, so every later review records them too.
-    kept: join(root, "vantage", "flows"),
     // As a person at this folder would type it.
     show: (path: string) => relative(process.cwd(), path) || ".",
 

@@ -4,7 +4,6 @@
 
 import { allNotes, conversation, list, notesToAnswer, quote, Refused, roundInProgress, time, type Did, type Place } from "@mostlyworks/vantage-review";
 import { agent } from "./agent.ts";
-import { keepFlows } from "./flows.ts";
 import { pictureNotes } from "./noted.ts";
 import type { Repo } from "./repo.ts";
 
@@ -32,17 +31,7 @@ export async function wait(repo: Repo, id: string) {
 
   for (;;) {
     review = await reviews.wait(id, (review) => !!review.accepted || review.sends.some((send) => !review.taken.some((taken) => taken.send === send.id)));
-    if (review.accepted) {
-      const { joined, updated } = await keepFlows(repo, review);
-      const kept = [
-        joined.length && `${list(joined.map(quote))} joined the app's flows in vantage/flows/`,
-        updated.length && `${list(updated.map(quote))} ${updated.length > 1 ? "were" : "was"} updated there`,
-      ].filter(Boolean);
-      const them = joined.length + updated.length > 1 ? "them" : "it";
-      return console.log(
-        `\n${review.accepted.by} accepted the work. The review is done.${kept.length ? ` ${kept.join(", and ")}: commit ${them} with the work, so every later review records ${them} too.` : ""}`,
-      );
-    }
+    if (review.accepted) return console.log(`\n${review.accepted.by} accepted the work. The review is done.`);
     const taken = await reviews.take(id);
     review = await reviews.get(id);
     const round = roundInProgress(review);

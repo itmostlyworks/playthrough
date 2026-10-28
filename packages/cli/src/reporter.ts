@@ -3,7 +3,7 @@
 // so it only writes them down, in the folder the run gave it.
 
 import { mkdirSync, writeFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { join } from "node:path";
 import type { Reporter, TestCase, TestResult, TestStep } from "@playwright/test/reporter";
 import type { Reading } from "@mostlyworks/vantage-page";
 import type { Flow, Reviews } from "@mostlyworks/vantage-review";
@@ -16,8 +16,6 @@ export const ASSETS = "vantage assets";
 export const PERSON = "vantage person";
 export const ACTIONS = "vantage actions";
 export const HOLD = 1500; // the end of a flow holds, so its last state can be seen
-// The agent asks for a flow to be kept with the app's flows by tagging its test with this.
-export const KEEP = "@keep";
 
 // A flow's readings go beside the round's recordings, under the same name, each picture in a folder of its own.
 export const readingsOf = (flow: Flow) => `readings/${flow.recording}`;
@@ -32,12 +30,7 @@ const picturesOf = (flow: Flow) => `readings/${flow.recording.replace(/\.json$/,
 export type Failed = { flow: string; at?: string; why?: string; broken?: true };
 // What Playwright says when the browser stops a flow, not the app: the page crashed or closed, or the app stopped answering.
 const BROKEN = /Page crashed|Target crashed|Target page, context or browser has been closed|net::ERR_CONNECTION_REFUSED/;
-// Where it's written too: each flow has a file of its own, named after it, so each can be kept on its own.
-export type Recorded = { flow: Flow; files: string[]; written: string };
-
-// A flow's name as a file's, so the files read as what they are.
-export const fileNameOf = (name: string) =>
-  name.toLowerCase().normalize("NFKD").replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "flow";
+export type Recorded = { flow: Flow; files: string[] };
 type Event = { timestamp: number; [field: string]: unknown };
 
 export default class Flows implements Reporter {
@@ -64,12 +57,8 @@ export default class Flows implements Reporter {
     };
     const steps = result.steps.filter((step) => step.category === "test.step");
     const person = result.attachments.find((attachment) => attachment.name === PERSON)?.body?.toString();
-    // Who it acts as, if the app's setup said, whether the agent asks to keep it, and where it's written.
-    const as = (made: Omit<Recorded, "written">): Recorded => {
-      if (person) made.flow.person = person;
-      if (test.tags.includes(KEEP)) made.flow.keep = true;
-      return { ...made, written: basename(test.location.file) };
-    };
+    // Who it acts as, if the app's setup said.
+    const as = (made: Recorded) => (person && (made.flow.person = person), made);
     if (result.status === "passed") return void (recording && this.#ran.push({ ...where, recorded: as(this.#flow(test.title, recording, read, steps)) }));
 
     // It stopped at the step it couldn't do, or after the last one when it failed between them. On Before, it's kept as
@@ -89,7 +78,7 @@ export default class Flows implements Reporter {
 
   // A flow cut short ends where it stopped, held as long as any flow's end, with the same last event (rrweb's custom
   // events are type 5). The step it stopped at left nothing to read.
-  #flow(name: string, recording: Buffer, read: { readings: Omit<Reading, "picture">[]; pictures: Buffer[]; assets: Assets; actions: number[] }, steps: TestStep[], until?: number): Omit<Recorded, "written"> {
+  #flow(name: string, recording: Buffer, read: { readings: Omit<Reading, "picture">[]; pictures: Buffer[]; assets: Assets; actions: number[] }, steps: TestStep[], until?: number): Recorded {
     let events: Event[] = JSON.parse(recording.toString());
     if (until !== undefined) events = [...events.filter((event) => event.timestamp < until), { type: 5, data: { tag: "end", payload: {} }, timestamp: until + HOLD }];
     const start = events[0]!.timestamp;
@@ -128,8 +117,9 @@ export default class Flows implements Reporter {
     return false;
   }
 
+  // Named after the flow, so the files read as what they are.
   #fileFor(name: string): string {
-    const base = fileNameOf(name);
+    const base = name.toLowerCase().normalize("NFKD").replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "flow";
     const taken = new Set([...this.#taken, ...this.#ran.map((run) => run.recorded?.flow.recording)]);
     for (let n = 1; ; n++) {
       const file = n === 1 ? `${base}.json` : `${base}-${n}.json`;
