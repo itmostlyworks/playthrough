@@ -165,6 +165,9 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const playingNow = useNow(playhead, (now) => now.playing);
   const backToRecording = (at?: { x: number; y: number }) => {
     setLive((now) => now && { ...now, shown: false, at });
+    // Left while your steps played, they stop there.
+    goingThere.current = undefined;
+    setReplayed(undefined);
     window.focus();
   };
   if (live?.shown && (playingNow || round !== latest)) setLive({ ...live, shown: false });
@@ -198,6 +201,8 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
         arrivedInApp.current();
       }
       if (data?.vantage === "pinned") pinnedInApp(data.at);
+      if (data?.vantage === "step") setReplayed({ done: data.done, total: data.total });
+      if (data?.vantage === "replayed") replayedInApp.current();
       if (data?.vantage === "escape") {
         if (notingNow.current) setNoting(false);
         else backToRecording({ x: data.x, y: data.y });
@@ -279,6 +284,9 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   notingNow.current = noting;
   const notedInApp = useRef<(noted: NotedInApp) => void>(() => {});
   const arrivedInApp = useRef(() => {});
+  const replayedInApp = useRef(() => {});
+  // Going back to a note in the app, how far its steps have played.
+  const [replayed, setReplayed] = useState<{ done: number; total: number }>();
   // Where each note's pin is in the app, on the page: its card sits by it.
   const appPins = useRef(new Map<string, { x: number; y: number }>());
   const pinnedInApp = (at: Record<string, { x: number; y: number }>) => {
@@ -456,25 +464,36 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     document
       .querySelector<HTMLIFrameElement>("[data-live] iframe")
       ?.contentWindow?.postMessage({ vantage: "pin", id, number: notes.find((note) => note.id === id)?.number ?? notes.length + 1, css: on.element?.css, point: on.point }, "*");
-  // Gone back there, the app shows the note's pin, and the note opens by it.
-  const goingThere = useRef<{ id: string; on: Place }>(undefined);
-  arrivedInApp.current = () => {
+  // Gone back there, once the app has opened, your steps play in it, and then the app shows the note's pin, and the
+  // note opens by it.
+  const goingThere = useRef<{ id: string; on: Place; playing?: boolean }>(undefined);
+  replayedInApp.current = () => {
     const going = goingThere.current;
     if (!going) return;
     goingThere.current = undefined;
+    setReplayed(undefined);
     pinInApp(going.id, going.on);
     setOpen({ note: going.id });
+  };
+  arrivedInApp.current = () => {
+    const going = goingThere.current;
+    if (!going || going.playing) return;
+    going.playing = true;
+    const did = going.on.app?.did ?? [];
+    if (!did.length) return replayedInApp.current();
+    setReplayed({ done: 0, total: did.length });
+    setTimeout(() => document.querySelector<HTMLIFrameElement>("[data-live] iframe")?.contentWindow?.postMessage({ vantage: "replay", did }, "*"), 700);
   };
   const goThere = (id: string, on: Place) => {
     const there = latest.flows.find((flow) => flow.name === on.flow);
     if (!there || on.at === undefined || !on.app) return;
-    goingThere.current = { id, on };
     setListed(false);
     setOpen(undefined);
     playhead.go({ flow: on.flow, at: on.at });
     // From inside the app, it closes first, so the fresh copy opens as any other does.
-    if (!live?.shown) return takeOverAt(there, on.at, on.app.did);
+    if (!live?.shown) return void ((goingThere.current = { id, on }), takeOverAt(there, on.at, on.app.did));
     backToRecording();
+    goingThere.current = { id, on };
     requestAnimationFrame(() => takeOverAt(there, on.at!, on.app!.did));
   };
   useEffect(() => {
@@ -1147,6 +1166,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
           <div className="min-w-0 flex-1">
           <Controls
             stage
+            steps={replayed}
             live={live?.shown ? (live.address && live.settled ? "shown" : "waiting") : undefined}
             onTakeOver={takeOver}
             ref={controls}

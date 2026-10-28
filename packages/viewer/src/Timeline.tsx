@@ -15,11 +15,14 @@ export type Dot = { id: string; at: number; until?: number; ink: string; number:
 // on, or what changed for the note you've opened.
 export type Mark = { id: string; at: number; until?: number; name: string; note?: { number: number; ink: string }; lit: boolean };
 
-type Props = { playhead: Playhead; dots: Dot[]; onDot: (id: string) => void; marks: Mark[]; onMark: (id: string) => void; live?: boolean };
+// Going back to a note in the app, the steps you took there, as they play again: how many are done of how many.
+export type Steps = { done: number; total: number };
+
+type Props = { playhead: Playhead; dots: Dot[]; onDot: (id: string) => void; marks: Mark[]; onMark: (id: string) => void; live?: boolean; steps?: Steps };
 
 const DOT = 14;
 
-export function Timeline({ playhead, dots, onDot, marks, onMark, live }: Props) {
+export function Timeline({ playhead, dots, onDot, marks, onMark, live, steps }: Props) {
   const now = useNow(playhead);
   const flow = playhead.flow;
   const flows = playhead.flows;
@@ -256,6 +259,7 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live }: Props) 
             </button>
           );
         })}
+        <Branch steps={steps} left={head} />
         <div className={`pointer-events-none absolute top-[9px] bottom-[9px] z-5 -ml-px w-0.5 rounded-[1px] bg-fg transition-[top,bottom,width,margin,border-radius] duration-150 ease-calm ${inHand} ${moving}`} style={{ left: head }} />
         <div
           aria-hidden
@@ -281,5 +285,43 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live }: Props) 
         </span>
       </div>
     </>
+  );
+}
+
+// Your steps in the app branch off the line where you took over: a stem rising from the playhead, a dot for each step,
+// filling as it's done. Done, they fold back into the playhead, where the note's dot is.
+function Branch({ steps, left }: { steps?: Steps; left: string }) {
+  const [shown, setShown] = useState(steps);
+  const [folding, setFolding] = useState(false);
+  useEffect(() => {
+    if (steps) return void (setShown(steps), setFolding(false));
+    setFolding(true);
+    const gone = setTimeout(() => setShown(undefined), 380);
+    return () => clearTimeout(gone);
+  }, [steps?.done, steps?.total]);
+  if (!shown) return null;
+  const end = 16 + (shown.total - 1) * 11;
+  return (
+    <svg
+      aria-label={`Your steps in the app, ${shown.done} of ${shown.total}`}
+      width={end + 6}
+      height="20"
+      className={`pointer-events-none absolute top-0 z-6 origin-[0_18px] overflow-visible transition-[scale,opacity] duration-350 ease-calm starting:scale-x-0 starting:opacity-0 ${folding ? "scale-0 opacity-0" : "scale-100 opacity-100"}`}
+      style={{ left }}
+    >
+      <path d={`M0 18 C 5 18, 5 5, 11 5 H ${end}`} fill="none" stroke="var(--amber)" strokeWidth="1.5" strokeLinecap="round" opacity="0.55" />
+      {Array.from({ length: shown.total }, (_, i) => (
+        <circle
+          key={i}
+          cx={16 + i * 11}
+          cy="5"
+          r="3"
+          strokeWidth="1.5"
+          className="transition-[fill,stroke] duration-200 ease-calm"
+          fill={i < shown.done ? "var(--amber)" : "var(--ground)"}
+          stroke={i <= shown.done ? "var(--amber)" : "color-mix(in srgb, var(--faint) 60%, var(--ground))"}
+        />
+      ))}
+    </svg>
   );
 }

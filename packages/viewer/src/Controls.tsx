@@ -6,7 +6,7 @@ import type { Round } from "@mostlyworks/vantage-review";
 import { useNow, type Playhead } from "./playhead.ts";
 import { Rounds } from "./Rounds.tsx";
 import type { Shown } from "./Stage.tsx";
-import { Timeline, type Dot, type Mark } from "./Timeline.tsx";
+import { Timeline, type Dot, type Mark, type Steps } from "./Timeline.tsx";
 
 export type Look = "one" | "side";
 
@@ -34,6 +34,7 @@ type Props = {
   onLook: (look: Look) => void;
   // With the action bar on the stage, the row keeps only what's about time.
   stage?: boolean;
+  steps?: Steps;
 };
 
 export function Controls(props: Props) {
@@ -52,7 +53,7 @@ export function Controls(props: Props) {
 
   return (
     <div ref={props.ref} className="group/controls flex min-w-0 flex-wrap items-center gap-3 pt-[18px] select-none">
-      <Timeline playhead={props.playhead} dots={props.dots} onDot={props.onDot} marks={props.marks} onMark={props.onMark} live={props.live === "shown"} />
+      <Timeline playhead={props.playhead} dots={props.dots} onDot={props.onDot} marks={props.marks} onMark={props.onMark} live={props.live === "shown"} steps={props.steps} />
       <button
         data-speed
         className={`${quiet} ${coveredBack} text-center hover:bg-hover hover:text-fg ${speed < 1 ? "text-amber-ink" : ""}`}

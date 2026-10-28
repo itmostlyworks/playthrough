@@ -33,7 +33,8 @@ Each address hands over the same copy, and the app is passed on through Vantage 
 // Runs the flow to where it's taken over and passes the app on, then says where: each moment made ready has an address
 // of its own, /take-over/<moment>, so several can wait at once. In the viewer, the moment the playhead rests on is made
 // ready while you look, and Take over turns the frame into the app there.
-// With what a person did there, as a note in the app keeps it, it's done again after them, to go back there.
+// With what a person did there, as a note in the app keeps it, it's kept in the app again, to be played where they can see
+// it, and kept on by whatever they do next.
 export async function getReady(repo: Repo, id: string, flowName: string, stepName?: string, actions?: number, did?: Did[]): Promise<{ port: number; moment: string; seconds: string }> {
   const round = await recorded(repo, id);
   const flow = round.flows.find((flow) => flow.name === flowName);
@@ -191,7 +192,7 @@ const SAYS = `<script>(() => {
   // Every move, as it comes: held for a frame, the name trailed the pointer like a smoothed one. Not the earlier raw
   // updates: in a scaled frame, Chrome gives them the page's position rather than the app's.
   let x = innerWidth / 2, y = innerHeight / 2;
-  const moved = (e) => { x = e.clientX; y = e.clientY; parent.postMessage({ vantage: "pointer", x, y, inside: true, text: typing(e.target) }, "*"); };
+  const moved = (e) => { if (replaying) return; x = e.clientX; y = e.clientY; parent.postMessage({ vantage: "pointer", x, y, inside: true, text: typing(e.target) }, "*"); };
   addEventListener("pointermove", moved, true);
   // A click here is a click elsewhere, to what the viewer has open.
   addEventListener("pointerdown", (e) => e.isTrusted && parent.postMessage({ vantage: "down" }, "*"), true);
@@ -217,8 +218,8 @@ const SAYS = `<script>(() => {
   const path = (element) => {
     const parts = [];
     for (; element && element.nodeType === 1 && element !== document.documentElement; element = element.parentElement) {
-      // Not the ids an app makes up as it draws, which differ next time.
-      if (element.id && !/[:\\d]{2}/.test(element.id)) { parts.unshift("#" + CSS.escape(element.id)); break; }
+      // Not the ids an app makes up as it draws, or numbers, which differ next time.
+      if (element.id && !/[:«»\\d]/.test(element.id)) { parts.unshift("#" + CSS.escape(element.id)); break; }
       let nth = 1;
       for (let sibling = element.previousElementSibling; sibling; sibling = sibling.previousElementSibling) if (sibling.tagName === element.tagName) nth++;
       parts.unshift(element.tagName.toLowerCase() + ":nth-of-type(" + nth + ")");
@@ -265,6 +266,8 @@ const SAYS = `<script>(() => {
   });
   addEventListener("pointermove", (e) => noting && ringed(e.target), true);
   const swallow = (e) => {
+    // While your steps play, a click finishes them at once, and does nothing else.
+    if (e.isTrusted && replaying) return void ((hurry = true), e.preventDefault(), e.stopImmediatePropagation());
     if (!e.isTrusted || !(noting || swallowing)) return;
     e.preventDefault();
     e.stopImmediatePropagation();
@@ -364,6 +367,70 @@ const SAYS = `<script>(() => {
     else if (element.checked !== (does === "check" || (does === "setChecked" && given))) click(element);
     return true;
   };
+  // Gone back to a note in the app, what you did there is done again where you can see it: your pointer goes to each
+  // thing in turn and does it, as the recording shows a flow's. What's left is kept as each is done, so a click that goes
+  // to another page carries on there. A click or a key while it plays finishes it at once.
+  let replaying = false, hurry = false;
+  const glide = async (to) => {
+    const from = { x, y }, began = performance.now();
+    const long = hurry ? 0 : Math.min(700, 280 + Math.hypot(to.x - from.x, to.y - from.y) * 0.5);
+    for (let t = 0; ; await new Promise(requestAnimationFrame)) {
+      t = long ? Math.min(1, (performance.now() - began) / long) : 1;
+      const k = t < 0.5 ? 2 * t * t : 1 - (2 - 2 * t) ** 2 / 2;
+      x = from.x + (to.x - from.x) * k;
+      y = from.y + (to.y - from.y) * k;
+      parent.postMessage({ vantage: "pointer", x, y, inside: true, text: false }, "*");
+      if (t >= 1) return;
+    }
+  };
+  const pressed = () => {
+    if (hurry) return;
+    const ring = document.createElement("div");
+    ring.style.cssText = "position:fixed;z-index:2147483647;pointer-events:none;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;box-shadow:0 0 0 2px rgba(236,178,72,.9);left:" + x + "px;top:" + y + "px";
+    document.documentElement.appendChild(ring);
+    ring.animate([{ transform: "scale(.4)", opacity: 1 }, { transform: "scale(1.15)", opacity: 0 }], { duration: 420, easing: "ease-out" }).finished.then(() => ring.remove());
+  };
+  const typeOut = async (element, words) => {
+    element.focus();
+    const each = Math.min(45, 900 / Math.max(1, words.length));
+    for (let i = 1; i < words.length && !hurry; i++) (type(element, words.slice(0, i)), await wait(each));
+    type(element, words);
+  };
+  const replay = async () => {
+    const kept = JSON.parse(sessionStorage.getItem("vantage:replay") || "null");
+    if (!kept || replaying) return;
+    replaying = true;
+    hidden.disabled = false;
+    parent.postMessage({ vantage: "replaying", on: true }, "*");
+    for (let i = kept.done; i < kept.did.length; i++) {
+      sessionStorage.setItem("vantage:replay", JSON.stringify({ did: kept.did, done: i + 1 }));
+      const step = kept.did[i];
+      const element = await find(step.on);
+      if (!element) break;
+      element.scrollIntoView?.({ block: "nearest" });
+      const box = element.getBoundingClientRect();
+      await glide({ x: box.left + box.width / 2, y: box.top + box.height / 2 });
+      if (!hurry) await wait(140);
+      if (step.does !== "press") pressed();
+      if (step.does === "fill") (click(element), await typeOut(element, step.with ?? ""));
+      else await doAgain(step);
+      parent.postMessage({ vantage: "step", done: i + 1, total: kept.did.length }, "*");
+      stir();
+      await rested();
+      if (!hurry) await wait(260);
+    }
+    sessionStorage.removeItem("vantage:replay");
+    replaying = hurry = false;
+    yours(!!sessionStorage.getItem("vantage:yours"));
+    parent.postMessage({ vantage: "replaying", on: false }, "*");
+    parent.postMessage({ vantage: "replayed" }, "*");
+  };
+  addEventListener("message", ({ source, data }) => {
+    if (source !== parent || data?.vantage !== "replay") return;
+    sessionStorage.setItem("vantage:replay", JSON.stringify({ did: data.did, done: 0 }));
+    replay();
+  });
+  addEventListener("keydown", (e) => e.isTrusted && replaying && e.key !== "Escape" && ((hurry = true), e.preventDefault(), e.stopImmediatePropagation()), true);
   const settle = async () => {
     await rested();
     if (scroll) scrollTo(scroll.x, scroll.y);
@@ -380,6 +447,7 @@ const SAYS = `<script>(() => {
     const say = () => said || ((said = true), parent.postMessage({ vantage: "settled" }, "*"));
     requestAnimationFrame(() => requestAnimationFrame(say));
     setTimeout(say, 250);
+    if (sessionStorage.getItem("vantage:replay")) setTimeout(replay, 300);
   };
   addEventListener("load", () => setTimeout(settle, 50));
 })();</script>`;
@@ -403,7 +471,7 @@ function handOver(handed: Handed | undefined, response: ServerResponse) {
     return void response.end("There's no moment ready at this address. Take it over again from the viewer, or with vantage take-over.");
   }
   const { url, cookies, local, session, scroll, clock, did = [] } = handed;
-  const again = [...(handed.again ?? []), ...did];
+  const again = handed.again ?? [];
   const { pathname, search, hash } = new URL(url);
   const setCookies = cookies.map(
     ({ name, value, path, expires, httpOnly }) =>
