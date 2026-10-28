@@ -8,7 +8,7 @@ import { createServer, request as ask, type IncomingMessage, type ServerResponse
 import { connect } from "node:net";
 import { networkInterfaces } from "node:os";
 import { list, quote, Refused } from "@mostlyworks/vantage-review";
-import { runTo, type Handed } from "./flows.ts";
+import { follow, runTo, type Handed } from "./flows.ts";
 import { listen } from "./open.ts";
 import type { App, Repo } from "./repo.ts";
 
@@ -48,6 +48,13 @@ export async function getReady(repo: Repo, id: string, flowName: string, stepNam
   const moment = String(passing.moments.size + 1);
   passing.moments.set(moment, handed);
   return { port: await passing.port, moment, seconds: ((Date.now() - began) / 1000).toFixed(1) };
+}
+
+// While the latest round plays, its flow is run alongside, as far as the playhead has gone, so the moment it comes to
+// rest on is quick to make ready.
+export async function keepUp(repo: Repo, id: string, flow: string, step?: string, actions?: number) {
+  await keepRunning(await repo.app(), repo.root);
+  await follow(repo, id, { flow, ...(step && { step, ...(actions && { actions }) }) });
 }
 
 // One way through to the app for as long as Vantage runs, handing over each moment made ready, by its number.

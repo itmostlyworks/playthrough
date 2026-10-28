@@ -15,12 +15,13 @@ import type { App, Repo } from "./repo.ts";
 // What the run needs to know, passed to Playwright whole: where the flows are and which of them to run, the folder the
 // recordings go to, the app, rrweb's recorder, which goes into every page, whether it's Before, and the recordings the
 // round has already, so a flow added to it is named apart from them. And when the review started, which every round's
-// clock starts from. Or where a person takes a flow over, which a run waiting in the background is told in `orders`.
+// clock starts from. Or where a person takes a flow over, which a run in the background is told, and told again, in
+// `orders`.
 export type Run = { flows: string; only?: string[]; folder: string; app: App; root: string; recorder: string; before: boolean; taken: string[]; started: string; to?: To; orders?: string };
 
 // Where a person takes a flow over: the end of one of its steps, or of the whole flow, or within a step, after as many of
-// its actions.
-export type To = { flow: string; step?: string; actions?: number };
+// its actions. Followed, it's as far as the run may go, and the playhead rests there once it's to be handed over.
+export type To = { flow: string; step?: string; actions?: number; rests?: boolean };
 // The flow's page there, as a browser keeps it: its address, its cookies, what the app kept in the browser, how far it
 // was scrolled, and how far its clock, the recordings', is ahead of the real one, in milliseconds. And partway through a
 // step, the actions to do again there, which changed only what was in the page's memory.
@@ -124,53 +125,93 @@ export async function runFlows(
 }
 
 // Runs one flow to where a person takes it over, on the app as it is now: quickly and unrecorded, from what every flow
-// starts from, so they carry on from a fresh copy of the moment rather than a picture of it.
+// starts from, so they carry on from a fresh copy of the moment rather than a picture of it. The run that has followed
+// the playhead there is there already; one that went past it, the playhead having gone back, is run again.
 export async function runTo(repo: Repo, id: string, to: To): Promise<Handed> {
-  const { folder, orders, ran } = await waitingFor(repo, id);
+  const where = !to.step ? "its end" : to.actions ? `action ${to.actions} of ${quote(to.step)}` : `the end of ${quote(to.step)}`;
   try {
-    await writeFile(`${orders}.part`, JSON.stringify(to));
-    await rename(`${orders}.part`, orders);
-    await ran;
-    const text = await readFile(join(folder, HANDED), "utf8").catch(() => undefined);
-    if (!text) {
-      const { failed }: { failed: Failed[] } = JSON.parse(await readFile(join(folder, "flows.json"), "utf8").catch(() => `{ "failed": [] }`));
-      const where = !to.step ? "its end" : to.actions ? `action ${to.actions} of ${quote(to.step)}` : `the end of ${quote(to.step)}`;
-      throw new Refused([failed.length ? `${quote(to.flow)} didn't get to ${where}:\n${failed.map(failedAt).join("\n")}` : `${quote(to.flow)} didn't get to ${where}, for the reason Playwright gives above.`]);
+    for (const fresh of [false, true]) {
+      const one = await inTurn(repo, id, async () => {
+        const one = await followingFor(repo, id, to.flow, fresh);
+        following.delete(key(repo, id));
+        return one;
+      });
+      try {
+        await order(one, { ...to, rests: true });
+        await one.ran;
+        const text = await readFile(join(one.folder, HANDED), "utf8").catch(() => undefined);
+        if (text) return JSON.parse(text);
+        const { failed }: { failed: Failed[] } = JSON.parse(await readFile(join(one.folder, "flows.json"), "utf8").catch(() => `{ "failed": [] }`));
+        if (failed.length) throw new Refused([`${quote(to.flow)} didn't get to ${where}:\n${failed.map(failedAt).join("\n")}`]);
+      } finally {
+        await rm(one.folder, { recursive: true, force: true });
+      }
     }
-    return JSON.parse(text);
+    throw new Refused([`${quote(to.flow)} didn't get to ${where}, for the reason Playwright gives above.`]);
   } finally {
-    await rm(folder, { recursive: true });
-    // The next one starts while the person looks.
-    if (!waiting.has(`${repo.root}\n${id}`)) void waitingFor(repo, id, true);
+    // The next one starts there while the person looks, in case they play on.
+    void follow(repo, id, { flow: to.flow, step: to.step, actions: to.actions }).catch(() => {});
   }
 }
 
-// A run of a review's flows waiting in the background, its browser open, for the next take-over: starting one takes
-// most of a second. One waiting for flows or a setup that have changed since is stopped, and another started.
-type Waiting = { folder: string; orders: string; ran: Promise<boolean>; stop: () => void; over?: boolean; written: number };
-const waiting = new Map<string, Waiting>();
+// While the latest round plays, a run of the flow keeps up with the playhead, as far as it has gone and no further, so
+// the moment it comes to rest on is there already.
+export const follow = (repo: Repo, id: string, to: To) => inTurn(repo, id, async () => order(await followingFor(repo, id, to.flow), to));
 
-async function waitingFor(repo: Repo, id: string, keep = false): Promise<Waiting> {
-  const key = `${repo.root}\n${id}`;
+// A run of one flow in the background, its browser open, told how far it may go. One that's over, or for flows or a
+// setup that have changed since, or for another flow, is stopped, and a spare takes its place: starting one takes most
+// of a second, and the playhead going back to a flow's start, which no run can follow, is common.
+type Following = { folder: string; orders: string; ran: Promise<boolean>; stop: () => void; over?: boolean; written: number; flow: string };
+const following = new Map<string, Following>();
+const spares = new Map<string, Following>();
+const key = (repo: Repo, id: string) => `${repo.root}\n${id}`;
+
+async function followingFor(repo: Repo, id: string, flow: string, fresh = false): Promise<Following> {
   const files = [...(await readdir(repo.flows(id))).filter(isFlow).map((name) => join(repo.flows(id), name)), repo.setup];
   const written = Math.max(...(await Promise.all(files.map((file) => stat(file).then((it) => it.mtimeMs, () => 0)))));
-  let one = waiting.get(key);
-  if (one && (one.over || one.written !== written)) one.stop();
-  if (!one || one.over || one.written !== written) {
-    const app = await repo.app();
-    const { started } = await repo.reviews.get(id);
-    const recorder = join(dirname(createRequire(import.meta.url).resolve("@rrweb/record")), "record.umd.min.cjs");
-    const folder = await mkdtemp(join(tmpdir(), "vantage-"));
-    const orders = join(folder, "orders.json");
-    const made: Waiting = { folder, orders, written, stop: () => {}, ran: Promise.resolve(false) };
-    made.ran = playwright({ flows: repo.flows(id), folder, app, root: repo.root, recorder, before: false, taken: [], started, to: { flow: "" }, orders }, (child) => {
-      made.stop = () => child.kill();
-    }).finally(() => (made.over = true));
-    one = made;
+  const one = following.get(key(repo, id));
+  if (one && !one.over && !fresh && one.written === written && one.flow === flow) return one;
+  if (one) done(one);
+  let spare = spares.get(key(repo, id));
+  if (!spare || spare.over || spare.written !== written) {
+    if (spare) done(spare);
+    spare = await start(repo, id, written);
   }
-  if (keep) waiting.set(key, one);
-  else waiting.delete(key);
-  return one;
+  following.set(key(repo, id), Object.assign(spare, { flow }));
+  spares.set(key(repo, id), await start(repo, id, written));
+  return spare;
+}
+
+async function start(repo: Repo, id: string, written: number): Promise<Following> {
+  const app = await repo.app();
+  const { started } = await repo.reviews.get(id);
+  const recorder = join(dirname(createRequire(import.meta.url).resolve("@rrweb/record")), "record.umd.min.cjs");
+  const folder = await mkdtemp(join(tmpdir(), "vantage-"));
+  const orders = join(folder, "orders.json");
+  const made: Following = { folder, orders, written, flow: "", stop: () => {}, ran: Promise.resolve(false) };
+  made.ran = playwright({ flows: repo.flows(id), folder, app, root: repo.root, recorder, before: false, taken: [], started, to: { flow: "" }, orders }, (child) => {
+    made.stop = () => child.kill();
+  }).finally(() => (made.over = true));
+  return made;
+}
+
+function done(one: Following) {
+  one.stop();
+  void one.ran.then(() => rm(one.folder, { recursive: true, force: true }));
+}
+
+// Told whole, so it never reads half of it.
+async function order({ orders }: Following, to: To) {
+  await writeFile(`${orders}.part`, JSON.stringify(to));
+  await rename(`${orders}.part`, orders);
+}
+
+// One at a time for each review, as the playhead moves faster than a run starts.
+const turns = new Map<string, Promise<unknown>>();
+function inTurn<T>(repo: Repo, id: string, then: () => Promise<T>): Promise<T> {
+  const done = (turns.get(key(repo, id)) ?? Promise.resolve()).then(then);
+  turns.set(key(repo, id), done.catch(() => {}));
+  return done;
 }
 
 // A run as it came, read from its files rather than from what's kept.

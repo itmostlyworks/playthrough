@@ -13,7 +13,7 @@ import { useDraft, useWatched } from "./draft.ts";
 import { land, slideIn, takeOff, type Taking } from "./flight.ts";
 import { Foot, type Step } from "./Foot.tsx";
 import { Grid } from "./Grid.tsx";
-import { pausedAt, readyAt, samePaused, takenOver, type Live, type Paused } from "./live.ts";
+import { follow, pausedAt, readyAt, samePaused, takenOver, type Live, type Paused } from "./live.ts";
 import { along, CARD, clamp, FLOW_IN, momentAt, POSTER, type Moment } from "./moments.ts";
 import { asIfSent, fill, goodTo, ink, lookGood, notesOn, nothing, said, seen, sendOf, settledBefore, standings, takeBack, type Shown } from "./notes.ts";
 import { NoteRow, number as numberLook, opened, pointed, SettledCount, SettledList, Writing, type Comparing } from "./Notes.tsx";
@@ -135,7 +135,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const [live, setLive] = useState<Live>();
   const resting = useNow(playhead, ({ moment, playing }) => {
     const on = playhead.flows.find((flow) => flow.name === moment.flow);
-    const paused = !playing && round === latest && on && moment.at >= 0 ? pausedAt(on, moment.at) : undefined;
+    const paused = !playing && round === latest && !onGrid && on && moment.at >= 0 ? pausedAt(on, moment.at) : undefined;
     return paused && JSON.stringify({ flow: on!.name, paused });
   });
   useEffect(() => {
@@ -148,6 +148,16 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     );
     return () => clearTimeout(soon);
   }, [resting, review.id]);
+  const passing = useNow(playhead, ({ moment, playing }) => {
+    const on = playhead.flows.find((flow) => flow.name === moment.flow);
+    const paused = playing && round === latest && !onGrid && on && moment.at >= 0 ? pausedAt(on, moment.at) : undefined;
+    return paused && JSON.stringify({ flow: on!.name, paused });
+  });
+  useEffect(() => {
+    if (!passing) return;
+    const { flow, paused }: { flow: string; paused: Paused } = JSON.parse(passing);
+    follow(review.id, flow, paused);
+  }, [passing, review.id]);
   const playingNow = useNow(playhead, (now) => now.playing);
   const backToRecording = (at?: { x: number; y: number }) => {
     setLive((now) => now && { ...now, shown: false, at });

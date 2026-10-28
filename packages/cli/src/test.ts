@@ -96,11 +96,11 @@ const recorded = base.extend<{ setup: Record<string, any>; recorder: void }>({
   locale: "en-US",
   timezoneId: "UTC",
   setup: async ({ page, request, baseURL }, use, testInfo) => {
-    // Waiting in the background, with its browser open, it's told which flow to take over, and where, once someone asks.
+    // Waiting in the background, with its browser open, it's told which flow to follow, and how far. It goes at the
+    // playhead's pace, so it has no time limit of its own.
     if (run?.orders && !run.to!.flow) {
       testInfo.setTimeout(0);
       Object.assign(run.to!, await ordered(run.orders));
-      testInfo.setTimeout(testInfo.project.timeout);
     }
     // Recording flows added later on Before, the others aren't run, nor is anything made for them.
     if (run?.only && !run.only.includes(testInfo.title)) testInfo.skip();
@@ -113,13 +113,13 @@ const recorded = base.extend<{ setup: Record<string, any>; recorder: void }>({
       await page.addInitScript({ content: seeded });
     }
     if (run?.to) {
-      const now: NonNullable<typeof taking> = { page, depth: 0, rest: await watchRest(page), actions: 0, again: [], wrote: false };
+      const now: NonNullable<typeof taking> = { page, depth: 0, rest: await watchRest(page), actions: 0, again: [], wrote: false, passed: [] };
       taking = now;
       page.on("request", (request) => void (["GET", "HEAD", "OPTIONS"].includes(request.method()) || (now.wrote = true)));
       pace(page);
     }
     await use(((await makeSetup?.({ page, request, baseURL })) ?? {}) as Record<string, any>);
-    if (taking && run?.to && !run.to.step && testInfo.status === testInfo.expectedStatus) await handOver(taking);
+    if (taking && run?.to && testInfo.status === testInfo.expectedStatus) await reached(taking);
   },
   recorder: [
     // Once what the flow starts from is made, so making it isn't in the recording.
@@ -165,11 +165,35 @@ const recorded = base.extend<{ setup: Record<string, any>; recorder: void }>({
 // Taken over partway through a step, what's only in the page's memory, like an open form, wouldn't survive loading it in
 // the person's browser. So it's handed over as it was before the actions that only changed what's on it (`from`), and
 // they're done again there. One that wrote something, or went to another address, isn't: it starts again after it.
-let taking: { page: Page; depth: number; rest: () => Promise<void>; step?: string; actions: number; from?: Handed; again: Action[]; wrote: boolean } | undefined;
+// The steps it has finished say how far it has got, against how far the playhead has.
+let taking: { page: Page; depth: number; rest: () => Promise<void>; step?: string; actions: number; from?: Handed; again: Action[]; wrote: boolean; passed: string[] } | undefined;
 
 async function ordered(orders: string): Promise<To> {
   while (!existsSync(orders)) await new Promise((done) => setTimeout(done, 20));
   return JSON.parse(readFileSync(orders, "utf8"));
+}
+
+// After an action, at a step's end, or at the flow's end (no step): it goes on once the playhead has passed, waits while
+// the playhead is there, and hands over once it rests there. Nothing here can be undone, so if the playhead went back
+// before it, it stops.
+async function reached(flow: NonNullable<typeof taking>, step?: string, actions?: number) {
+  for (;;) {
+    const to: To = run!.orders ? JSON.parse(readFileSync(run!.orders, "utf8")) : run!.to!;
+    const where = against(flow.passed, step, actions, to);
+    if (where === "on") return;
+    if (where === "here" && to.rests) await handOver(flow);
+    if (where === "past" || to.rests) return void (step && base.info().skip(true, where === "past" ? "The playhead went back before it" : "Taken over here"));
+    await new Promise((done) => setTimeout(done, 20));
+  }
+}
+
+function against(passed: string[], step: string | undefined, actions: number | undefined, to: To): "on" | "here" | "past" {
+  if (!step) return to.step ? "past" : "here";
+  if (!to.step) return "on";
+  if (passed.includes(to.step)) return "past";
+  if (to.step !== step) return "on";
+  if (actions === undefined) return to.actions === undefined ? "here" : "past";
+  return to.actions === undefined || to.actions > actions ? "on" : to.actions === actions ? "here" : "past";
 }
 
 // The page as it is once it's at rest, as each step's is read, for the person to carry on from (take-over.ts).
@@ -210,7 +234,7 @@ const step = Object.assign(async (title: string, body: (info: unknown) => unknow
     return playwrightStep(
       title,
       async (info) => {
-        if (own) Object.assign(flow, { step: title, actions: 0 });
+        if (own) Object.assign(flow, { step: title, actions: 0, from: undefined, again: [] });
         flow.depth++;
         let done: unknown;
         try {
@@ -218,9 +242,11 @@ const step = Object.assign(async (title: string, body: (info: unknown) => unknow
         } finally {
           flow.depth--;
         }
-        if (own && title === run.to!.step) {
-          await handOver(flow);
-          base.info().skip(true, "Taken over here");
+        if (own) {
+          // At its end, the page is handed over as it is.
+          Object.assign(flow, { from: undefined, again: [] });
+          await reached(flow, title);
+          flow.passed.push(title);
         }
         return done;
       },
@@ -295,7 +321,7 @@ function pace(page: Page) {
 // An action is done, and when, and taken over partway through the step it's in, kept to be done again in the person's
 // browser if it only changed what's on the page; the flow is handed over once it's done as many as the recording had.
 async function acted(does: string, target: () => Promise<string | undefined>, act: () => Promise<unknown>, given: unknown) {
-  const handing = taking && run?.to?.actions && taking.step === run.to.step ? taking : undefined;
+  const handing = taking?.depth ? taking : undefined;
   let on: string | undefined, address: string | undefined;
   if (handing) {
     handing.from ??= await kept(handing.page, handing.rest);
@@ -311,10 +337,7 @@ async function acted(does: string, target: () => Promise<string | undefined>, ac
     const plain = typeof given === "string" || typeof given === "boolean" || (Array.isArray(given) && given.every((one) => typeof one === "string"));
     if (on && !handing.wrote && handing.page.url() === address) handing.again.push({ does, on, ...(plain && { with: given }) });
     else Object.assign(handing, { from: undefined, again: [] });
-    if (++handing.actions === run!.to!.actions) {
-      await handOver(handing);
-      base.info().skip(true, "Taken over here");
-    }
+    await reached(handing, handing.step, ++handing.actions);
   }
   return result;
 }

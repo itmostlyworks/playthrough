@@ -9,7 +9,7 @@ import { userInfo } from "node:os";
 import { dirname, extname, join, normalize, sep } from "node:path";
 import { Refused, type Send } from "@mostlyworks/vantage-review";
 import type { Repo } from "./repo.ts";
-import { getReady } from "./take-over.ts";
+import { getReady, keepUp } from "./take-over.ts";
 
 const PORT = 5790;
 const TYPES: Record<string, string> = {
@@ -71,6 +71,7 @@ async function answer(repo: Repo, page: string, you: string, request: IncomingMe
     return response.end(bytes);
   }
   if (request.method === "POST" && rest[0] === "take-over") return takeOver(repo, id, request, response);
+  if (request.method === "POST" && rest[0] === "follow") return followAlong(repo, id, request, response);
   if (request.method === "POST" && rest[0] === "sends") {
     await reviews.send(id, await body<Send>(request));
     return json(response, 200, {});
@@ -105,6 +106,13 @@ async function takeOver(repo: Repo, id: string, request: IncomingMessage, respon
   const { flow, step, actions } = await body<{ flow: string; step?: string; actions?: number }>(request);
   const { port, moment } = await getReady(repo, id, flow, step, actions);
   json(response, 200, { port, moment });
+}
+
+// Where the playhead has got to while the latest round plays, for the flow run alongside it.
+async function followAlong(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
+  const { flow, step, actions } = await body<{ flow: string; step?: string; actions?: number }>(request);
+  await keepUp(repo, id, flow, step, actions);
+  json(response, 200, {});
 }
 
 // The viewer is one page: any address that isn't one of its files is the page, which reads the address itself.

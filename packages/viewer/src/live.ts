@@ -46,6 +46,11 @@ export function readyAt(review: string, flow: string, paused: Paused): Promise<s
   return ready.get(moment)!;
 }
 
+// Playing, the flow is run alongside the playhead, as far as it has gone, so the moment it comes to rest on is ready
+// sooner. It's only a head start: what it can't do, taking over does again.
+export const follow = (review: string, flow: string, paused: Paused) =>
+  void fetch(`/api/reviews/${encodeURIComponent(review)}/follow`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ flow, ...paused }) }).catch(() => {});
+
 // Where the app is at that moment, through Vantage, on the same machine name the viewer was reached by; or what stops it.
 async function getReady(review: string, flow: string, paused: Paused): Promise<string | string[]> {
   try {
