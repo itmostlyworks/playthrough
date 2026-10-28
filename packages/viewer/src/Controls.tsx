@@ -6,7 +6,7 @@ import type { Round } from "@mostlyworks/vantage-review";
 import { useNow, type Playhead } from "./playhead.ts";
 import { Rounds } from "./Rounds.tsx";
 import type { Shown } from "./Stage.tsx";
-import { Timeline, type Dot, type Mark } from "./Timeline.tsx";
+import { Timeline, type Dot, type ForkLine, type Mark } from "./Timeline.tsx";
 
 export type Look = "one" | "side";
 
@@ -34,8 +34,9 @@ type Props = {
   onLook: (look: Look) => void;
   // With the action bar on the stage, the row keeps only what's about time.
   stage?: boolean;
-  // On your branch, where it leaves the flow it's off.
-  branch?: number;
+  // Where you took the flow over and carried on by hand, and the one you're making now.
+  forks?: ForkLine[];
+  growing?: ForkLine & { origin: number };
 };
 
 export function Controls(props: Props) {
@@ -54,7 +55,7 @@ export function Controls(props: Props) {
 
   return (
     <div ref={props.ref} className="group/controls flex min-w-0 flex-wrap items-center gap-3 pt-[18px] select-none">
-      <Timeline playhead={props.playhead} dots={props.dots} onDot={props.onDot} marks={props.marks} onMark={props.onMark} live={props.live === "shown"} branch={props.branch} />
+      <Timeline playhead={props.playhead} dots={props.dots} onDot={props.onDot} marks={props.marks} onMark={props.onMark} live={props.live === "shown"} forks={props.forks} growing={props.growing} />
       <button
         data-speed
         className={`${quiet} ${coveredBack} text-center hover:bg-hover hover:text-fg ${speed < 1 ? "text-amber-ink" : ""}`}

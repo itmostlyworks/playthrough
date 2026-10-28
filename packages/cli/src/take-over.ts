@@ -247,6 +247,7 @@ const SAYS = `<script>(() => {
     if (done.does === "fill" && last?.does === "fill" && last.on === done.on) did.pop();
     did.push(done);
     sessionStorage.setItem("vantage:did", JSON.stringify(did));
+    parent.postMessage({ vantage: "did", did }, "*");
   };
   addEventListener("click", (e) => {
     if (!e.isTrusted || swallowing) return;

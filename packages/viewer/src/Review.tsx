@@ -10,6 +10,7 @@ import { HOLD } from "./Card.tsx";
 import { answersTo, diamondAt, diamondsOn, grownFrom, type Changed, type Diamond } from "./changes.ts";
 import { Chosen, Column, rowsIn, settles, type Landed, type Props as ColumnProps } from "./Column.tsx";
 import { Controls, type Look } from "./Controls.tsx";
+import type { ForkLine } from "./Timeline.tsx";
 import { Drawer } from "./Drawer.tsx";
 import { useDraft, useWatched } from "./draft.ts";
 import { land, slideIn, takeOff, type Taking } from "./flight.ts";
@@ -19,8 +20,8 @@ import { follow, pausedAt, readyAt, samePaused, takenOver, type Live, type Pause
 import { along, CARD, clamp, FLOW_IN, momentAt, POSTER, type Moment } from "./moments.ts";
 import { asIfSent, fill, goodTo, ink, lookGood, notesOn, nothing, said, seen, sendOf, settledBefore, standings, takeBack, type Shown } from "./notes.ts";
 import { NoteRow, number as numberLook, opened, pointed, SettledCount, SettledList, Writing, type Comparing } from "./Notes.tsx";
-import { Playhead, useNow } from "./playhead.ts";
-import { recorded } from "./replay.ts";
+import { Playhead, useNow, type Forked } from "./playhead.ts";
+import { acts, recorded } from "./replay.ts";
 import { roundName } from "./Rounds.tsx";
 import { Stage, type Bare, type Mark, type Placed, type Shown as Size } from "./Stage.tsx";
 import { placeFrom, placeName as nameOf, placeOn, useReadings } from "./things.ts";
@@ -79,16 +80,23 @@ function Reviewing({ review, you }: { review: Review; you: string }) {
 
 type OnRoundProps = { review: Review; round: Round; latest: Round; arrived: boolean; you: string; onRound: (round: number) => void };
 
-function OnRound({ review: kept, round: asRecorded, latest: recordedLatest, arrived, you, onRound }: OnRoundProps) {
+function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRoundProps) {
   // What you've just sent shows as sent until the review comes back with it.
   const [posted, setPosted] = useState<Send>();
   const review = posted && !kept.sends.some((send) => send.id === posted.id) ? { ...kept, sends: [...kept.sends, posted] } : kept;
-  const [draft, change] = useDraft(review.id, asRecorded.number);
-  // The round as you see it: its flows, each with your branches off it, from the notes you made in the app on it.
-  const madeHere = [...review.sends.filter((send) => send.round === asRecorded.number).flatMap((send) => send.notes), ...draft.notes, ...draft.unsaved];
-  const branches = JSON.stringify(branchesIn(madeHere));
-  const round = useMemo(() => branched(asRecorded, JSON.parse(branches)), [asRecorded, branches]);
-  const latest = recordedLatest === asRecorded ? round : recordedLatest;
+  const [draft, change] = useDraft(review.id, round.number);
+  // A note made in the app before forks were part of their flow named a flow of its own.
+  useEffect(() => {
+    const own = (note: Note) => (note.on?.app && note.on.flow !== note.on.app.from.flow ? { ...note, on: { ...note.on, flow: note.on.app.from.flow } } : note);
+    if ([...draft.notes, ...draft.unsaved].some((note) => own(note) !== note)) change((draft) => ({ ...draft, notes: draft.notes.map(own), unsaved: draft.unsaved.map(own) }));
+  }, [draft, change]);
+  // The round as it plays: each flow with your forks off it, where you took it over and carried on by hand, from the
+  // notes you made in the app on it and the one you've just let go of, until you leave its flow.
+  const madeHere = [...review.sends.filter((send) => send.round === round.number).flatMap((send) => send.notes), ...draft.notes, ...draft.unsaved];
+  const [loose, setLoose] = useState<Fork>();
+  const forks = JSON.stringify(forksIn(madeHere, loose));
+  const forkList: Fork[] = useMemo(() => JSON.parse(forks), [forks]);
+  const played = useMemo(() => forked(round, forkList), [round, forkList]);
   const [watched, see] = useWatched(review.id, round.number);
   const [open, setOpen] = useState<Open>();
   // The note whose Not quite is being written.
@@ -116,34 +124,47 @@ function OnRound({ review: kept, round: asRecorded, latest: recordedLatest, arri
 
   // You arrive at the start, as on a video before you press play. Going to another round keeps your place: the same flow
   // at the matching moment, or its start if that round never recorded the flow.
-  const [playhead] = useState(() => new Playhead(round.flows, { flow: round.flows[0]?.name ?? "", at: POSTER }));
+  const [playhead] = useState(() => new Playhead(played.flows, { flow: round.flows[0]?.name ?? "", at: POSTER }));
   useEffect(() => () => playhead.destroy(), [playhead]);
   const onRoundNow = useRef(round.number);
+  // Where the playhead goes once a fork you've just let go of is there to go to.
+  const landOn = useRef<Moment>(undefined);
   useLayoutEffect(() => {
-    if (onRoundNow.current === round.number) return playhead.watch(round.flows, playhead.now.moment);
+    if (onRoundNow.current === round.number) {
+      playhead.watch(played.flows, playhead.now.moment);
+      if (landOn.current) playhead.go(landOn.current);
+      landOn.current = undefined;
+      return;
+    }
     onRoundNow.current = round.number;
     const from = playhead.flow;
-    const to = round.flows.find((flow) => flow.name === from.name);
+    const to = played.flows.find((flow) => flow.name === from.name);
     playhead.pause();
-    playhead.watch(round.flows, to ? { flow: to.name, at: inStep(playhead.now.moment.at, from, to) } : { flow: round.flows[0]?.name ?? "", at: -CARD });
+    playhead.watch(played.flows, to ? { flow: to.name, at: inStep(playhead.now.moment.at, from, to) } : { flow: round.flows[0]?.name ?? "", at: -CARD });
     const place = toNote.current?.on;
     toNote.current = undefined;
-    if (place) playhead.go({ flow: place.flow, at: place.at ?? FLOW_IN });
-  }, [round, playhead]);
-  const watching = useNow(playhead, (now) => now.moment.flow);
+    if (place) playhead.go({ flow: playedOn(place), at: place.at ?? FLOW_IN });
+  }, [round, played, playhead]);
+  // On a fork, you're still watching its flow.
+  const inPlay = useNow(playhead, (now) => now.moment.flow);
+  const onFork = forkList.find((fork) => fork.name === inPlay);
+  const watching = onFork?.from.flow ?? inPlay;
   const flow = round.flows.find((flow) => flow.name === watching) ?? round.flows[0];
-  // Where the playhead is, as the foot's step needs it: playing, at a flow's start, partway, or at its end.
+  // Where the playhead is, as the foot's step needs it: playing, at a flow's start, partway, or at its end. A fork's end
+  // isn't the flow's.
   const where = useNow(playhead, ({ moment, playing }) => {
     const length = playhead.flows.find((flow) => flow.name === moment.flow)?.length ?? 0;
-    return playing ? "playing" : moment.at >= length - 0.06 ? "end" : moment.at <= 0 ? "start" : "partway";
+    const forking = forkList.some((fork) => fork.name === moment.flow);
+    return playing ? "playing" : moment.at >= length - 0.06 && !forking ? "end" : moment.at <= 0 ? "start" : "partway";
   });
 
   // Taking over: the moment the playhead rests on, on the latest round, is made ready after a beat of stillness and
   // loaded unseen, so Take over turns the frame into the app at once. Playing again, or another round, lays the
   // recording back over it.
   const [live, setLive] = useState<Live>();
+  // Not on a fork: taking one over carries it on from its end.
   const resting = useNow(playhead, ({ moment, playing }) => {
-    const on = playhead.flows.find((flow) => flow.name === moment.flow);
+    const on = round.flows.find((flow) => flow.name === moment.flow);
     const paused = !playing && round === latest && !onGrid && on && moment.at >= 0 ? pausedAt(on, moment.at) : undefined;
     return paused && JSON.stringify({ flow: on!.name, paused });
   });
@@ -158,7 +179,7 @@ function OnRound({ review: kept, round: asRecorded, latest: recordedLatest, arri
     return () => clearTimeout(soon);
   }, [resting, review.id]);
   const passing = useNow(playhead, ({ moment, playing }) => {
-    const on = playhead.flows.find((flow) => flow.name === moment.flow);
+    const on = round.flows.find((flow) => flow.name === moment.flow);
     const paused = playing && round === latest && !onGrid && on && moment.at >= 0 ? pausedAt(on, moment.at) : undefined;
     return paused && JSON.stringify({ flow: on!.name, paused });
   });
@@ -173,16 +194,31 @@ function OnRound({ review: kept, round: asRecorded, latest: recordedLatest, arri
     window.focus();
   };
   if (live?.shown && (playingNow || round !== latest)) setLive({ ...live, shown: false });
-  // On your branch, it's the flow where you took it over, with what you did there done again.
-  const branchOf = (name: string) => (JSON.parse(branches) as Branch[]).find((branch) => branch.name === name);
+  // Letting go, what you did is kept as a fork off the flow, and you land at its end, on the recording of it.
+  const letGo = async (at?: { x: number; y: number }) => {
+    const session = yours.current;
+    if (live?.shown && session.address === live.address && session.events.length && !readOnly) {
+      const fork = await keepFork(session);
+      if (fork) {
+        setLoose(fork);
+        landOn.current = { flow: fork.name, at: fork.length };
+      }
+    }
+    backToRecording(at);
+  };
+  const letGoNow = useRef(letGo);
+  letGoNow.current = letGo;
+  // On a fork, taking over carries it on from its end: the flow taken over where you took it, your steps done again.
   const takeOver = () => {
-    if (live?.shown) return backToRecording();
-    const branch = branchOf(playhead.flow.name);
-    const from = branch && round.flows.find((flow) => flow.name === branch.from.flow);
-    if (branch && from) return takeOverAt(from, branch.from.at, branch.did);
+    if (live?.shown) return void letGo();
+    const base = onFork && round.flows.find((flow) => flow.name === onFork.from.flow);
+    if (onFork && base) {
+      starting.current = { from: onFork.from, carry: yours.current.id === onFork.session ? yours.current : undefined };
+      return takeOverAt(base, onFork.from.at, onFork.did);
+    }
+    starting.current = { from: { flow: playhead.flow.name, at: Math.round(Math.max(0, playhead.now.moment.at) * 100) / 100 } };
     takeOverAt(playhead.flow, playhead.now.moment.at);
   };
-  // On your branch, with what you did there: the moment you took the flow over at, and your steps done again after it.
   const takeOverAt = (on: Flow, at: number, did?: Did[]) => {
     const paused = pausedAt(on, at);
     if (round !== latest || at < 0 || !paused) return;
@@ -205,10 +241,11 @@ function OnRound({ review: kept, round: asRecorded, latest: recordedLatest, arri
       const waiting = document.querySelector<HTMLIFrameElement>("[data-live] iframe")?.contentWindow;
       if (data?.vantage === "settled" && source === waiting) setLive((now) => now && { ...now, settled: true });
       if (data?.vantage === "recorded" && source === waiting) recordedInApp.current(data.events);
+      if (data?.vantage === "did" && source === waiting) yours.current.did = data.did;
       if (data?.vantage === "pinned") pinnedInApp(data.at);
       if (data?.vantage === "escape") {
         if (notingNow.current) setNoting(false);
-        else backToRecording({ x: data.x, y: data.y });
+        else letGoNow.current({ x: data.x, y: data.y });
       }
       if (data?.vantage === "note") setNoting((now) => !now);
       if (data?.vantage === "noted") notedInApp.current(data);
@@ -286,14 +323,48 @@ function OnRound({ review: kept, round: asRecorded, latest: recordedLatest, arri
   const notingNow = useRef(noting);
   notingNow.current = noting;
   const notedInApp = useRef<(noted: NotedInApp) => void>(() => {});
-  // While you're in the app, what you do there is recorded, from when it was handed to you. Kept with a note you make
-  // there, it's your branch off the flow: a flow of its own, named for you, each note on it where you made it.
-  const yours = useRef<{ address?: string; events: unknown[]; branch: string; name?: string; kept: number }>({ events: [], branch: "", kept: 0 });
-  const recordedInApp = useRef<(events: unknown[]) => void>(() => {});
+  // While you're in the app, what you do there is recorded, from when it was handed to you: a fork off the flow, growing
+  // on the timeline as you go. Carried on from a fork, it goes on from where that one ended.
+  const yours = useRef<Session>({ id: "", events: [], did: [], kept: 0, shift: 0, from: { flow: "", at: 0 } });
+  const starting = useRef<{ from: Fork["from"]; carry?: Session }>(undefined);
+  const [growing, setGrowing] = useState<Growing>();
+  const recordedInApp = useRef<(events: { timestamp: number }[]) => void>(() => {});
   recordedInApp.current = (events) => {
-    if (yours.current.address !== live?.address) yours.current = { address: live?.address, events: [], branch: newId(), kept: 0 };
-    yours.current.events.push(...events);
+    if (!live || !events.length) return;
+    if (yours.current.address !== live.address) {
+      const { from, carry } = starting.current ?? { from: { flow: live.flow, at: 0 } };
+      const last = carry?.events.at(-1);
+      yours.current = carry && last
+        ? { ...carry, address: live.address, shift: last.timestamp + 400 - events[0]!.timestamp }
+        : { address: live.address, id: newId(), events: [], did: [], kept: 0, shift: 0, from };
+    }
+    const session = yours.current;
+    session.events.push(...events.map((event) => ({ ...event, timestamp: event.timestamp + session.shift })));
+    session.heard = Date.now();
+    const first = session.events[0]!.timestamp;
+    const at = (timestamp: number) => session.from.at + (timestamp - first) / 1000;
+    const ticks = acts(session.events).map(at);
+    const address = live.address ?? "";
+    setGrowing((now) =>
+      now && now.address === address && now.ticks.length === ticks.length
+        ? now
+        : { address, name: `fork:${session.id}`, at: session.from.at, length: session.from.at, origin: now && now.address === address ? now.origin : Date.now() - (at(session.events.at(-1)!.timestamp) - session.from.at) * 1000, ticks },
+    );
   };
+  // Kept as a recording, what you did plays as the flow up to where you took it over, then you. What you said earlier on
+  // the same fork goes on with the longer one.
+  const keepFork = async (session: Session): Promise<Fork | undefined> => {
+    const kept = `${session.id}-${++session.kept}.json`;
+    // It ends now, not at the last thing the page did: still time is time you spent there too.
+    const now = { type: 5, data: { tag: "now", payload: {} }, timestamp: session.events.at(-1)!.timestamp + Date.now() - (session.heard ?? Date.now()) };
+    const length = await keepBranch(review.id, latest.number, session.from, [...session.events, now], kept);
+    if (!length) return undefined;
+    const recording = `branches/${kept}`;
+    const longer = (note: Note) => (note.on?.app && sessionOf(note.on.app.recording) === session.id ? { ...note, on: { ...note.on, app: { ...note.on.app, recording, length } } } : note);
+    change((draft) => ({ ...draft, notes: draft.notes.map(longer), unsaved: draft.unsaved.map(longer) }));
+    return { name: `fork:${session.id}`, session: session.id, from: session.from, did: session.did, recording, length };
+  };
+  if (loose && watching !== loose.from.flow && !live?.shown) setLoose(undefined);
   // Where each note's pin is in the app, on the page: its card sits by it.
   const appPins = useRef(new Map<string, { x: number; y: number }>());
   const pinnedInApp = (at: Record<string, { x: number; y: number }>) => {
@@ -334,6 +405,20 @@ function OnRound({ review: kept, round: asRecorded, latest: recordedLatest, arri
     });
     return () => void (current = false);
   }, [review.id, round.number, flow]);
+  // The forks off the flow you're watching, each with a tick where you clicked or typed.
+  const [ticked, setTicked] = useState(() => new Map<string, number[]>());
+  useEffect(() => {
+    let current = true;
+    for (const fork of forkList)
+      if (!ticked.has(fork.recording))
+        recording(review.id, round.number, fork.recording).then((events) => {
+          const start = events[0]?.timestamp ?? 0;
+          const ticks = acts(events).map((timestamp) => (timestamp - start) / 1000).filter((at) => at > fork.from.at);
+          if (current) setTicked((now) => new Map(now).set(fork.recording, ticks));
+        });
+    return () => void (current = false);
+  }, [forkList, ticked, review.id, round.number]);
+  const forksHere = forkList.filter((fork) => fork.from.flow === watching).map((fork): ForkLine => ({ name: fork.name, at: fork.from.at, length: fork.length, ticks: ticked.get(fork.recording) ?? [] }));
   const nudge = (direction: 1 | -1, fine: boolean) => {
     const flows = playhead.flows;
     const now = along(flows, playhead.now.moment);
@@ -422,14 +507,14 @@ function OnRound({ review: kept, round: asRecorded, latest: recordedLatest, arri
   const show = (note: Shown) => {
     setOpen({ note: note.id });
     setMet((met) => (met.includes(note.id) ? met : [...met, note.id]));
-    if (note.on) go(note.on.flow, note.on.at);
+    if (note.on) go(playedOn(note.on), note.on.at);
   };
   // Chosen, a note opens and plays its moment, from a beat before it to the frame it was written on (the end of its
   // stretch), as a change plays to where it is: past it, the page may have moved its thing away. One on a whole flow
   // plays the flow, going on if it's already playing.
   const pick = (note: Shown) => {
     const on = note.on;
-    const its = on && round.flows.find((flow) => flow.name === on.flow);
+    const its = on && played.flows.find((flow) => flow.name === playedOn(on));
     if (!on || !its || on.at === undefined) {
       show(note);
       const { moment, playing } = playhead.now;
@@ -438,14 +523,14 @@ function OnRound({ review: kept, round: asRecorded, latest: recordedLatest, arri
     }
     setOpen({ note: note.id });
     setMet((met) => (met.includes(note.id) ? met : [...met, note.id]));
-    play(note.id, { flow: on.flow, at: Math.max(0, on.at - 0.8) }, Math.min(its.length, on.until ?? on.at));
+    play(note.id, { flow: its.name, at: Math.max(0, on.at - 0.8) }, Math.min(its.length, on.until ?? on.at));
   };
 
   // Playing stops at each answer that waits for you, the first time it gets there, and opens it as a click on it would.
   useEffect(() =>
     playhead.stopAt(
       playingNotes.flatMap((note) =>
-        note.on && note.state === "needs you" && !note.unsent && !met.includes(note.id) ? [{ flow: note.on.flow, at: note.on.at ?? 0, reached: () => show(note) }] : [],
+        note.on && note.state === "needs you" && !note.unsent && !met.includes(note.id) ? [{ flow: playedOn(note.on), at: note.on.at ?? 0, reached: () => show(note) }] : [],
       ),
     ),
   );
@@ -466,50 +551,17 @@ function OnRound({ review: kept, round: asRecorded, latest: recordedLatest, arri
     if (frame && box) clickedAt(box.left + (x * box.width) / frame.offsetWidth, box.top + (y * box.height) / frame.offsetHeight);
     const session = yours.current;
     if (!live || readOnly || session.address !== live.address || !session.events.length) return;
-    const from = branchOf(playhead.flow.name)?.from ?? { flow: live.flow, at: Math.round(Math.max(0, playhead.now.moment.at) * 100) / 100 };
-    const kept = `${session.branch}-${++session.kept}.json`;
-    const length = await keepBranch(review.id, latest.number, from, session.events, kept);
-    const recording = `branches/${kept}`;
-    if (!length) return;
-    if (!session.name) {
-      const taken = new Set(round.flows.map((flow) => flow.name));
-      session.name = `You, in “${from.flow}”`;
-      for (let n = 2; taken.has(session.name); n++) session.name = `You, in “${from.flow}” ${n}`;
-    }
-    const name = session.name;
-    const app = { from, did, recording, length };
-    // What you said earlier on the same branch goes on with it.
-    const longer = (note: Note) => (note.on?.app && note.on.flow === name ? { ...note, on: { ...note.on, app: { ...note.on.app, recording, length } } } : note);
-    change((draft) => ({ ...draft, notes: draft.notes.map(longer), unsaved: draft.unsaved.map(longer) }));
-    write({ flow: name, at: Math.floor(length * 100) / 100, ...(element ? { element } : point && { point }), app });
+    session.did = did;
+    const fork = await keepFork(session);
+    if (!fork) return;
+    const app = { from: fork.from, did, recording: fork.recording, length: fork.length };
+    write({ flow: fork.from.flow, at: Math.floor(fork.length * 100) / 100, ...(element ? { element } : point && { point }), app });
   };
   // A note in the app shows there as a pin on what it's on.
   const pinInApp = (id: string, on: Place) =>
     document
       .querySelector<HTMLIFrameElement>("[data-live] iframe")
       ?.contentWindow?.postMessage({ vantage: "pin", id, number: notes.find((note) => note.id === id)?.number ?? notes.length + 1, css: on.element?.css, point: on.point }, "*");
-  // How you got here: your branch plays from where you took the flow over, and stops at the note, open.
-  const arriving = useRef<{ id: string; at: number }>(undefined);
-  const howYouGotHere = (note: Shown) => {
-    const app = note.on?.app;
-    if (!app || note.on?.at === undefined) return;
-    setListed(false);
-    setOpen(undefined);
-    if (live?.shown) backToRecording();
-    playhead.run({ flow: note.on.flow, at: Math.max(0, app.from.at - 0.6) }, note.on.at);
-    arriving.current = { id: note.id, at: note.on.at };
-  };
-  useEffect(
-    () =>
-      playhead.subscribe(() => {
-        const to = arriving.current;
-        if (!to || playhead.now.playing) return;
-        // There, at the note or at the branch's end, which may come first.
-        if (playhead.now.moment.at >= to.at - 0.15) setOpen({ note: to.id });
-        arriving.current = undefined;
-      }),
-    [playhead],
-  );
   useEffect(() => {
     if (draft.unsaved.some((note) => !note.words.trim() && note.id !== writingId))
       change((draft) => ({ ...draft, unsaved: draft.unsaved.filter((note) => note.words.trim() || note.id === writingId) }));
@@ -794,7 +846,6 @@ function OnRound({ review: kept, round: asRecorded, latest: recordedLatest, arri
         onAnswer={toAnswer}
         onPlayOn={playOn}
         onShow={() => show(note)}
-        onHowYouGotHere={note.on?.app ? () => howYouGotHere(note) : undefined}
       />
     );
   };
@@ -990,7 +1041,7 @@ function OnRound({ review: kept, round: asRecorded, latest: recordedLatest, arri
         event.preventDefault();
         takeOver();
       } else if (event.key === "Escape" && live?.shown) {
-        backToRecording();
+        void letGo();
       } else if (event.key === "Escape") {
         // Escape goes back a step you can see: from a note or a change to the column, looking back to now, and from a
         // flow to every flow.
@@ -1049,7 +1100,7 @@ function OnRound({ review: kept, round: asRecorded, latest: recordedLatest, arri
       round.number,
       [
         ...playingNotes.flatMap((note): Mark[] => {
-          const on = !grown.has(note.id) && markOn(note.on);
+          const on = !grown.has(note.id) && playedOn(note.on!) === inPlay && markOn(note.on);
           const chosen = openNote?.id === note.id;
           return on ? [{ id: note.id, kind: "note", on, pin: { number: note.number, fill: fill(note) }, ink: ink(note), chosen, shows: chosen ? undefined : { at: note.on!.at!, until: note.on!.until } }] : [];
         }),
@@ -1114,7 +1165,7 @@ function OnRound({ review: kept, round: asRecorded, latest: recordedLatest, arri
           <Stage
             review={review}
             playhead={playhead}
-            round={round}
+            round={played}
             earlier={earlier}
             why={(earlier ?? comparedRound)?.number === compared ? why : undefined}
             then={comparedRound}
@@ -1161,7 +1212,7 @@ function OnRound({ review: kept, round: asRecorded, latest: recordedLatest, arri
                 setNoting(!noting);
               }}
               onTakeOver={takeOver}
-              onBack={backToRecording}
+              onBack={() => void letGo()}
               notes={notes.length}
               listed={listed}
               onList={() => setListed(!listed)}
@@ -1180,12 +1231,13 @@ function OnRound({ review: kept, round: asRecorded, latest: recordedLatest, arri
           <div className="min-w-0 flex-1">
           <Controls
             stage
-            branch={branchOf(watching)?.from.at}
+            forks={forksHere}
+            growing={inApp ? growing : undefined}
             live={live?.shown ? (live.address && live.settled ? "shown" : "waiting") : undefined}
             onTakeOver={takeOver}
             ref={controls}
             playhead={playhead}
-            dots={playingNotes.filter((note) => !grown.has(note.id)).map((note) => ({ id: note.id, at: note.on?.at ?? 0, until: note.on?.until, ink: ink(note), number: note.number, words: note.turns[0]?.words ?? "" }))}
+            dots={playingNotes.filter((note) => !grown.has(note.id)).map((note) => ({ id: note.id, at: note.on?.at ?? 0, until: note.on?.until, ink: ink(note), number: note.number, words: note.turns[0]?.words ?? "", ...(note.on?.app && { fork: playedOn(note.on) }) }))}
             onDot={(id) => {
               const note = notes.find((note) => note.id === id);
               if (note) pick(note);
@@ -1309,30 +1361,41 @@ function store(key: string, value: string) {
   }
 }
 
-// Your branches off a round's flows: for each, where you took the flow over, what you did, and the longest recording
-// kept of it.
-type Branch = { name: string; from: { flow: string; at: number }; did: Did[]; recording: string; length: number };
-function branchesIn(notes: Note[]): Branch[] {
-  const longest = new Map<string, Branch>();
-  for (const { on } of notes) {
-    if (!on?.app || (longest.get(on.flow)?.length ?? 0) >= on.app.length) continue;
-    longest.set(on.flow, { name: on.flow, ...on.app });
-  }
+// What you did taken over, as it's kept while you're there: the flow and moment you took it over at, the recording so
+// far on one clock, and what you did, for taking it over again.
+type Session = { address?: string; id: string; from: { flow: string; at: number }; events: { timestamp: number }[]; did: Did[]; kept: number; shift: number; heard?: number };
+// The fork growing on the timeline while you're in the app: from where, since when on this page's clock, and its ticks.
+type Growing = ForkLine & { address: string; origin: number };
+
+// A fork off a flow: where you took it over, what you did there, and the longest recording kept of it, which plays the
+// flow up to there, then you. It's named for the time you were in the app, as each note there keeps it.
+type Fork = { name: string; session: string; from: { flow: string; at: number }; did: Did[]; recording: string; length: number };
+const sessionOf = (recording: string) => recording.match(/^branches\/(.+)-\d+\.json$/)?.[1] ?? recording;
+const forkName = (recording: string) => `fork:${sessionOf(recording)}`;
+// The recording a place is on: its flow's, or its fork's.
+const playedOn = (place: Place) => (place.app ? forkName(place.app.recording) : place.flow);
+function forksIn(notes: Note[], loose?: Fork): Fork[] {
+  const longest = new Map<string, Fork>();
+  const keep = (fork: Fork) => void ((longest.get(fork.name)?.length ?? 0) < fork.length && longest.set(fork.name, fork));
+  for (const { on } of notes) if (on?.app) keep({ name: forkName(on.app.recording), session: sessionOf(on.app.recording), ...on.app });
+  if (loose) keep(loose);
   return [...longest.values()];
 }
 
-// Each branch follows its flow: the flow's steps up to where you took over, then yours, in the app.
-function branched(round: Round, branches: Branch[]): Round {
-  if (!branches.length) return round;
-  const off = (flow: Flow): Flow[] =>
-    branches
-      .filter((branch) => branch.from.flow === flow.name)
-      .map((branch) => ({
-        name: branch.name,
-        length: branch.length,
-        steps: [...flow.steps.filter((step) => step.at < branch.from.at), { title: "In the app", at: branch.from.at }],
-        recording: branch.recording,
+// Each fork plays after its flow, as the flow's steps up to where you took over, then yours, in the app.
+function forked(round: Round, forks: Fork[]): Round {
+  if (!forks.length) return round;
+  const off = (flow: Flow): Forked[] =>
+    forks
+      .filter((fork) => fork.from.flow === flow.name)
+      .map((fork) => ({
+        name: fork.name,
+        length: fork.length,
+        steps: [...flow.steps.filter((step) => step.at < fork.from.at), { title: "In the app", at: fork.from.at }],
+        recording: fork.recording,
         person: "You",
+        fork: flow.name,
       }));
   return { ...round, flows: round.flows.flatMap((flow) => [flow, ...off(flow)]) };
 }
+

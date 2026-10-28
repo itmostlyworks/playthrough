@@ -7,6 +7,9 @@ import type { Flow } from "@mostlyworks/vantage-review";
 import { CARD, clamp, type Moment } from "./moments.ts";
 
 export type Speed = 1 | 0.5 | 0.25;
+// A fork off a flow, where a person took it over and carried on by hand: played as a flow of its own, drawn as part of
+// the flow it's off.
+export type Forked = Flow & { fork?: string };
 export type Stop = { flow: string; at: number; reached: () => void };
 // `stopped` says it stopped by itself on its way past something, rather than being paused.
 export type Now = { moment: Moment; playing: boolean; speed: Speed; stopped: boolean };
@@ -34,9 +37,10 @@ export class Playhead {
   play() {
     if (this.now.playing || !this.flows.length) return;
     const flow = this.flow;
-    // At a flow's end, play goes on into the next one, from its title; at the last one's end, from the start.
+    // At a flow's end, play goes on into the next one, from its title; at the last one's end, from the start. A fork
+    // off a flow is gone to, never played into.
     if (this.now.moment.at >= flow.length - 0.06) {
-      const next = this.flows[this.flows.indexOf(flow) + 1] ?? this.flows[0]!;
+      const next = this.flows.slice(this.flows.indexOf(flow) + 1).find((flow) => !(flow as Forked).fork) ?? this.flows[0]!;
       this.#set({ moment: { flow: next.name, at: -CARD } });
     }
     this.#last = performance.now();
