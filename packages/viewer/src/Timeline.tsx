@@ -32,6 +32,10 @@ type Props = {
 };
 
 const DOT = 14;
+// While you're in the app, the fork is this long, its open end breathing as what's under way does everywhere; let go,
+// it runs on to the end of the line.
+const UNDER_WAY = 64;
+const OPEN_END = 18;
 
 export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [], growing }: Props) {
   const now = useNow(playhead);
@@ -57,7 +61,7 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
   const pc = (share: number) => `${(share * 100).toFixed(4)}%`;
 
   // A fork runs from where it leaves to the end of the line, however long you were in the app: the flow's line never
-  // moves for it, and while you're there it's simply there, your place at its end.
+  // moves for it. While you're there, it's a short one, under way, your place where it opens.
   const grown = growing && (forks.find((fork) => fork.name === growing.name) ?? growing);
   const lines = [...forks.filter((fork) => fork.name !== grown?.name), ...(grown ? [grown] : [])];
   const forkShare = (fork: ForkLine, at: number) => {
@@ -177,7 +181,8 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
   const at = now.moment.at;
   // In the app, the playhead rests at the end of the fork you're making.
   const riding = grown ?? onFork;
-  const head = pc(grown ? 1 : onFork ? forkShare(onFork, at) : share(flow, at));
+  const underWay = (fork: ForkLine) => `calc(${pc(share(flow, fork.at))} + ${UNDER_WAY - OPEN_END}px)`;
+  const head = grown ? underWay(grown) : pc(onFork ? forkShare(onFork, at) : share(flow, at));
   const filled = riding ? percent(flow, riding.at) : head;
   // The line under the pointer, or being dragged along, thickens, and so does the playhead on it: "" for the flow's.
   const hot = held ?? pointing?.fork ?? (pointing ? "" : undefined);
@@ -248,20 +253,33 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
         {lines.map((fork) => {
           const start = share(flow, fork.at);
           const on = fork === riding;
-          const played = on ? (grown ? 1 : forkShare(fork, at)) : start;
+          const going = fork === grown;
+          const played = on ? (going ? 1 : forkShare(fork, at)) : start;
           const lit = hot === fork.name;
           const ink = lit || on ? "var(--amber)" : "color-mix(in srgb, var(--amber) 55%, var(--ground))";
           const pale = `color-mix(in srgb, var(--amber) ${lit ? 50 : 32}%, var(--ground))`;
           return (
-            <div key={fork.name} data-fork={fork.name} className="absolute top-0 h-[11px]" style={{ left: pc(start), right: 0 }}>
+            <div
+              key={fork.name}
+              data-fork={fork.name}
+              className="absolute top-0 h-[11px] transition-[width] duration-500 ease-calm"
+              style={{ left: pc(start), width: going ? `${UNDER_WAY}px` : `calc(${pc(1 - start)})` }}
+            >
               <svg width="12" height="14" aria-hidden className="pointer-events-none absolute top-1 left-0 overflow-visible">
                 <path d="M0 14 C 6 14, 6 1, 12 1" fill="none" stroke={ink} strokeWidth={lit ? 3 : 2} strokeLinecap="round" className="transition-[stroke-width] duration-150 ease-calm" />
               </svg>
               <div
                 aria-hidden
-                className={`pointer-events-none absolute right-0 left-3 transition-[top,height,border-radius] duration-150 ease-calm ${lit ? "top-[3px] h-1 rounded-[2px]" : "top-1 h-0.5 rounded-[1px]"}`}
-                style={{ background: `linear-gradient(90deg, ${ink} ${pc(clamp((played - start) / Math.max(0.0001, 1 - start)))}, ${pale} 0)` }}
+                className={`pointer-events-none absolute left-3 transition-[top,height,border-radius] duration-150 ease-calm ${going ? "right-[18px]" : "right-0"} ${lit ? "top-[3px] h-1 rounded-[2px]" : "top-1 h-0.5 rounded-[1px]"}`}
+                style={{ background: going ? ink : `linear-gradient(90deg, ${ink} ${pc(clamp((played - start) / Math.max(0.0001, 1 - start)))}, ${pale} 0)` }}
               />
+              {going && (
+                <div
+                  aria-hidden
+                  className={`pointer-events-none absolute right-0 w-[18px] animate-breathe motion-reduce:animate-none ${lit ? "top-[3px] h-1 rounded-r-[2px]" : "top-1 h-0.5 rounded-r-[1px]"}`}
+                  style={{ background: `linear-gradient(90deg, ${ink}, transparent)` }}
+                />
+              )}
             </div>
           );
         })}
@@ -317,7 +335,7 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
               aria-label={`Note ${shown.number} at ${time(shown.at)}`}
               className={`group/dot absolute z-4 grid place-items-center ${shown.until === undefined ? `${shown.fork ? "-top-0.5" : "top-[11px]"} size-3.5 -translate-x-1/2` : "top-[15px] -ml-[3px] box-content h-1.5 rounded-[3px] px-[3px] shadow-[0_0_0_2px_var(--ground)] transition-[top,height,border-radius] duration-150 ease-calm hover:top-3.5 hover:h-2 hover:rounded-[4px]"} ${moving}`}
               style={{
-                left: `calc(${pc(dotShare(shown))} + ${apart.get(shown.id) ?? 0}px)`,
+                left: `calc(${shown.fork && shown.fork === grown?.name ? underWay(grown) : pc(dotShare(shown))} + ${apart.get(shown.id) ?? 0}px)`,
                 ...(shown.until !== undefined && { width: `calc(${percent(flow, shown.until)} - ${percent(flow, shown.at)})`, background: `linear-gradient(90deg, ${ink} ${played}%, ${pale} ${played}%)` }),
               }}
               onPointerEnter={() => setNamed(shown.id)}
@@ -342,7 +360,7 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
           className={`pointer-events-none absolute z-4 -ml-[1.5px] w-[3px] rounded-[1.5px] bg-fg transition-opacity duration-120 ease-calm ${pointedFork ? "-top-[3px] bottom-[21px]" : "top-1.5 bottom-1.5"} ${ghost ? "opacity-30" : "opacity-0"}`}
           style={{ left: pointed }}
         />
-        <span aria-hidden className={`${label} z-300 text-fg ${tip ? "translate-y-0 opacity-100" : "translate-y-[2px] opacity-0"}`} style={{ left: tip ? (dot ? pc(dotShare(dot)) : percent(flow, tip.until === undefined ? tip.at : (tip.at + tip.until) / 2)) : undefined }}>
+        <span aria-hidden className={`${label} z-300 text-fg ${tip ? "translate-y-0 opacity-100" : "translate-y-[2px] opacity-0"}`} style={{ left: tip ? (dot ? (dot.fork && dot.fork === grown?.name ? underWay(grown) : pc(dotShare(dot))) : percent(flow, tip.until === undefined ? tip.at : (tip.at + tip.until) / 2)) : undefined }}>
           {dot && (
             <>
               <b className="mr-[5px] font-semibold text-amber-ink">{dot.number}</b>
