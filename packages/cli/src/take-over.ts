@@ -152,10 +152,10 @@ function asIfDirect(request: IncomingMessage, target: URL) {
 
 // Taken over in the viewer, the app sits in its frame, and this goes into each of its pages, first. Scrolled where the
 // flow's page was, it tells the viewer once it has settled (loaded, its fonts and pictures in, nothing on its way and
-// nothing changing for a moment), so the frame turns into it with nothing on screen changing. Its own pointer is hidden:
-// it tells the viewer where it is, and whether it's over words you can type into, and the viewer draws it, the
-// recording's pointer become yours, with its name. And as every key there goes to the app, Escape goes back to the
-// viewer instead.
+// nothing changing for a moment), so the frame turns into it with nothing on screen changing. It tells the viewer where
+// the pointer is, and whether it's over words you can type into: the viewer draws the recording's pointer coming to
+// yours, hiding the app's own until they meet, and then only your name, beside the app's own. And as every key there
+// goes to the app, Escape goes back to the viewer instead.
 const SAYS = `<script>(() => {
   if (window.parent === window) return;
   // On the recordings' clock, so what the page says about time reads as it did there.
@@ -182,6 +182,10 @@ const SAYS = `<script>(() => {
   const hidden = document.createElement("style");
   hidden.textContent = "html, html * { cursor: none !important; }";
   document.documentElement.appendChild(hidden);
+  // Yours across the pages you go to, until you leave.
+  const yours = (mine) => { hidden.disabled = mine; if (mine) sessionStorage.setItem("vantage:yours", "1"); else sessionStorage.removeItem("vantage:yours"); };
+  yours(!!sessionStorage.getItem("vantage:yours"));
+  addEventListener("message", ({ source, data }) => { if (source === parent && data?.vantage === "yours") yours(data.yours); });
   const typing = (target) => !!target?.closest?.('input:not([type=button]):not([type=submit]):not([type=checkbox]):not([type=radio]):not([type=range]), textarea, [contenteditable=""], [contenteditable=true]');
   // Every move, as it comes: held for a frame, the name trailed the pointer like a smoothed one. Not the earlier raw
   // updates: in a scaled frame, Chrome gives them the page's position rather than the app's.
@@ -290,6 +294,7 @@ for (const [key, value] of Object.entries(local)) localStorage.setItem(key, valu
 for (const [key, value] of Object.entries(session)) sessionStorage.setItem(key, value);
 sessionStorage.setItem("vantage:scroll", JSON.stringify(scroll));
 sessionStorage.setItem("vantage:clock", String(clock));
+sessionStorage.removeItem("vantage:yours");
 if (again) sessionStorage.setItem("vantage:again", JSON.stringify(again));
 location.replace(to);
 </script>`);

@@ -558,6 +558,13 @@ export function Stage(props: Props) {
     sheen.style.setProperty("--y", `${at.y}px`);
     const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
     open.current = inPortal;
+    // Once the recording's pointer has come to yours, the pointer is your own, with no drawn one trailing it: only your
+    // name goes with it.
+    const real = (mine: boolean) => {
+      frame.style.cursor = mine ? "default" : "";
+      hand.toggleAttribute("data-yours", mine);
+      app.querySelector("iframe")?.contentWindow?.postMessage({ vantage: "yours", yours: mine }, "*");
+    };
 
     if (inPortal) {
       Object.assign(app.style, { opacity: "1", pointerEvents: "auto" });
@@ -567,13 +574,14 @@ export function Stage(props: Props) {
       yourHand.current = at;
       Object.assign(hand.style, { transform: tip(at), opacity: "1", zIndex: "11" });
       tag.hidden = false;
-      if (still) return void say(tag, words, "You", true, false);
+      if (still) return void (real(true), say(tag, words, "You", true, false));
       if (!waited) say(tag, words, person ?? "You are in control", !person, false);
       // It goes from where the recording had it to your hand, and the portal opens from where they meet.
       const handing = theirs && mine && Math.hypot(mine.x - theirs.x, mine.y - theirs.y) > 4 ? HANDING : 0;
       // Moved along with your hand as it comes, so it keeps up when you move.
       if (handing) hand.animate([{ translate: `${theirs!.x - at.x}px ${theirs!.y - at.y}px` }, { translate: "0px 0px" }], { duration: handing, easing: PORTAL });
       else if (!theirs) hand.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200 });
+      handingOver(() => real(true), handing);
       const handed = handing + (person || waited ? 240 : 0);
       if (person || waited) handingOver(() => say(tag, words, "You are in control"), handed);
       handingOver(() => say(tag, words, "You"), handed + 1700);
@@ -586,6 +594,7 @@ export function Stage(props: Props) {
     }
 
     edge.style.opacity = "0";
+    real(false);
     shape(hand, false);
     const inApp = hand.style.opacity !== "0" && !!yourHand.current;
     yourHand.current = undefined;
@@ -659,8 +668,8 @@ export function Stage(props: Props) {
   };
   const handing = useRef<number[]>([]);
   const handingOver = (then: () => void, after: number) => void handing.current.push(window.setTimeout(then, after));
-  // In the app, the pointer is drawn here, with its name, so the two move as one: the app's own is hidden there. It
-  // leaves the frame with your hand, and over words you can type into it's the text cursor.
+  // In the app, your name goes where your pointer is, and leaves the frame with it. Until the recording's pointer has come
+  // to yours, it's drawn here too, the app's own hidden, and over words you can type into it's the text cursor.
   useEffect(() => {
     const told = ({ data }: MessageEvent) => {
       if (data?.vantage !== "pointer" || !open.current) return;
@@ -800,7 +809,7 @@ export function Stage(props: Props) {
           />
           <div
             data-cursor
-            className="pointer-events-none absolute top-0 left-0 z-8 size-5 opacity-0 transition-[filter] duration-180 ease-calm will-change-transform [filter:drop-shadow(0_1px_1px_rgba(0,0,0,.3))] group-data-bare/stage:[filter:drop-shadow(0_1px_1px_rgba(0,0,0,.3))_opacity(0)]"
+            className="pointer-events-none absolute top-0 left-0 z-8 size-5 opacity-0 transition-[filter] duration-180 ease-calm will-change-transform [&[data-yours]>svg]:invisible [filter:drop-shadow(0_1px_1px_rgba(0,0,0,.3))] group-data-bare/stage:[filter:drop-shadow(0_1px_1px_rgba(0,0,0,.3))_opacity(0)]"
           >
             <svg data-arrow viewBox="0 0 20 20" width="20" height="20" aria-hidden>
               <path d="M3 2l13 7.5-5.6 1.3L7.6 16z" fill="#FFFFFF" stroke="#1E2330" strokeWidth="1.3" strokeLinejoin="round" />
