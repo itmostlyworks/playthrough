@@ -271,7 +271,7 @@ export function Stage(props: Props) {
       if (drawn && !yours) part.cursor.style.transform = `translate(${drawn[0] - 3}px,${drawn[1] - 2}px)`;
       // Whose hand it is: the person the flow acts as, from the app's setup.
       const tag = part.cursor.querySelector<HTMLElement>("[data-tag]")!;
-      if (!yours) {
+      if (!yours && !taking.current) {
         tag.querySelector("[data-words]")!.textContent = its.person ?? "";
         tag.hidden = !its.person;
         delete tag.dataset.mine;
@@ -526,6 +526,9 @@ export function Stage(props: Props) {
     if (!frame || !app || !sheen || !ring || !edge || !hand || !tag || !words || inPortal === open.current) return;
     handing.current.forEach(clearTimeout);
     handing.current = [];
+    // Waited for, the edge is already glowing, and the opening carries on from there.
+    const glowing = Number(getComputedStyle(edge).opacity);
+    const waited = taking.current;
     for (const part of [app, sheen, ring, edge, hand, tag, words]) part.getAnimations().forEach((animation) => animation.cancel());
     const box = frame.getBoundingClientRect();
     const view = painted.current.get(round.number);
@@ -557,19 +560,19 @@ export function Stage(props: Props) {
       Object.assign(hand.style, { transform: tip(at), opacity: "1", zIndex: "11" });
       tag.hidden = false;
       if (still) return void say(tag, words, "You", true, false);
-      say(tag, words, person ?? "You are in control", !person, false);
+      if (!waited) say(tag, words, person ?? "You are in control", !person, false);
       // It goes from where the recording had it to your hand, and the portal opens from where they meet.
       const handing = theirs && mine && Math.hypot(mine.x - theirs.x, mine.y - theirs.y) > 4 ? HANDING : 0;
       if (handing) hand.animate([{ transform: tip(theirs!) }, { transform: tip(at) }], { duration: handing, easing: PORTAL });
       else if (!theirs) hand.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200 });
-      const handed = handing + (person ? 240 : 0);
-      if (person) handingOver(() => say(tag, words, "You are in control"), handed);
+      const handed = handing + (person || waited ? 240 : 0);
+      if (person || waited) handingOver(() => say(tag, words, "You are in control"), handed);
       handingOver(() => say(tag, words, "You"), handed + 1700);
       const after = { delay: handing, easing: PORTAL, fill: "backwards" as const };
       app.animate([{ clipPath: circle(0) }, { clipPath: circle(reach) }], { ...after, duration: OPENING });
       sheen.animate([{ opacity: 1 }, { opacity: 0 }], { ...after, duration: OPENING + 240 });
       ring.animate([{ transform: "scale(0)", opacity: 0 }, { opacity: 1, offset: 0.1 }, { opacity: 0.85, offset: 0.7 }, { transform: "scale(1)", opacity: 0 }], { ...after, duration: OPENING });
-      edge.animate([{ opacity: 0 }, { opacity: 0, offset: 0.5 }, { opacity: 1, boxShadow: "inset 0 0 0 2px rgba(236,178,72,0.95), inset 0 0 40px rgba(255,214,150,0.45)", offset: 0.75 }, { opacity: 1 }], { ...after, duration: OPENING + 500 });
+      edge.animate([{ opacity: glowing }, { opacity: glowing, offset: 0.5 }, { opacity: 1, boxShadow: "inset 0 0 0 2px rgba(236,178,72,0.95), inset 0 0 40px rgba(255,214,150,0.45)", offset: 0.75 }, { opacity: 1 }], { ...after, duration: OPENING + 500 });
       return;
     }
 
@@ -602,6 +605,30 @@ export function Stage(props: Props) {
     sheen.animate([{ opacity: 0 }, { opacity: 0.8 }], closing);
     app.animate([{ clipPath: circle(reach) }, { clipPath: circle(0) }], closing).finished.then(hide, () => {});
   }, [inPortal]);
+  // Asked for before it's ready, the frame says so where it will open: its edge glows, breathing, and the recording's
+  // pointer says it's being taken over, until the portal opens or it's called off.
+  const waiting = !!props.live?.shown && !inPortal;
+  const taking = useRef(false);
+  useLayoutEffect(() => {
+    const edge = frames.current.get(round.number)?.querySelector<HTMLElement>("[data-edge]");
+    const tag = frames.current.get(round.number)?.querySelector<HTMLElement>("[data-cursor] [data-tag]");
+    const words = tag?.querySelector<HTMLElement>("[data-words]");
+    if (!edge || !tag || !words || waiting === taking.current) return;
+    taking.current = waiting;
+    const person = props.playhead.flow.person;
+    if (waiting) {
+      tag.hidden = false;
+      say(tag, words, "Taking over…", false);
+      if (matchMedia("(prefers-reduced-motion: reduce)").matches) return void (edge.style.opacity = "0.6");
+      edge.animate([{ opacity: 0 }, { opacity: 0.75 }], { duration: 1100, easing: "ease-in-out", direction: "alternate", iterations: Infinity });
+      return;
+    }
+    if (inPortal) return;
+    edge.getAnimations().forEach((animation) => animation.cancel());
+    edge.style.opacity = "0";
+    say(tag, words, person ?? "", false);
+    tag.hidden = !person;
+  }, [waiting]);
   const handing = useRef<number[]>([]);
   const handingOver = (then: () => void, after: number) => void handing.current.push(window.setTimeout(then, after));
   // In the app, the pointer is drawn here, with its name, so the two move as one: the app's own is hidden there. It
