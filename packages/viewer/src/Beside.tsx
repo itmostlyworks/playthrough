@@ -1,5 +1,7 @@
 // What's open sits beside its spot on the recording, on whichever side has room: a note by its pin, the one you're
 // writing by what it's on, or by where you clicked, a change by its outline. A flow's question sits over its last frame.
+// In the app, a note sits by its pin there (pinned). Where nothing marks the spot, it stays where it opened. Opened by
+// you, it closes as you do something else (onAway): a click anywhere else, here or in the app.
 
 import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 
@@ -7,18 +9,31 @@ import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 const clicked = { x: innerWidth / 2, y: innerHeight / 2 };
 export const clickedAt = (x: number, y: number) => Object.assign(clicked, { x, y });
 
-export function Beside({ id, over, children }: { id?: string; over?: boolean; children?: ReactNode }) {
+type Spot = { x: number; y: number };
+
+export function Beside({ id, over, pinned, onAway, children }: { id?: string; over?: boolean; pinned?: () => Spot | undefined; onAway?: () => void; children?: ReactNode }) {
   const card = useRef<HTMLElement>(null);
+  const opened = useRef<{ id?: string; at: Spot }>(undefined);
+  const away = useRef(onAway);
+  away.current = onAway;
   useEffect(() => {
     const down = (event: PointerEvent) => {
-      if (!card.current?.contains(event.target as Node)) clickedAt(event.clientX, event.clientY);
+      if (card.current?.contains(event.target as Node)) return;
+      clickedAt(event.clientX, event.clientY);
+      if (card.current) away.current?.();
     };
+    // The app keeps its clicks to itself, and says so.
+    const inApp = ({ data }: MessageEvent) => data?.vantage === "down" && card.current && away.current?.();
     addEventListener("pointerdown", down, true);
-    return () => removeEventListener("pointerdown", down, true);
+    addEventListener("message", inApp);
+    return () => {
+      removeEventListener("pointerdown", down, true);
+      removeEventListener("message", inApp);
+    };
   }, []);
   // The spot moves as the view glides and the card grows, so it's placed again every frame while it's open.
   useLayoutEffect(() => {
-    if (!children) return;
+    if (!children) return void (opened.current = undefined);
     const place = () => {
       const box = card.current;
       if (!box) return;
@@ -30,7 +45,9 @@ export function Beside({ id, over, children }: { id?: string; over?: boolean; ch
       }
       const pin = !id ? null : document.querySelector<HTMLElement>(`[data-frame] [data-pin="${CSS.escape(id)}"], [data-frame] [data-mark-id="${CSS.escape(id)}"]`);
       const drawn = pin?.getBoundingClientRect();
-      const spot = drawn?.width || drawn?.height ? drawn : new DOMRect(clicked.x, clicked.y, 0, 0);
+      const first = opened.current && opened.current.id === id ? opened.current : (opened.current = { id, at: { ...clicked } });
+      const at = pinned?.() ?? first.at;
+      const spot = drawn?.width || drawn?.height ? drawn : new DOMRect(at.x, at.y, 0, 0);
       const right = spot.right + 28;
       const left = right + box.offsetWidth <= innerWidth - 16 ? right : Math.max(16, spot.left - 28 - box.offsetWidth);
       const top = Math.min(Math.max(16, spot.top - 24), innerHeight - box.offsetHeight - 16);

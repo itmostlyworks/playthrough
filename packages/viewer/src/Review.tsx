@@ -193,7 +193,11 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     const told = ({ data, source }: MessageEvent) => {
       // Only from the moment that's waiting: one just left can still be settling.
       const waiting = document.querySelector<HTMLIFrameElement>("[data-live] iframe")?.contentWindow;
-      if (data?.vantage === "settled" && source === waiting) setLive((now) => now && { ...now, settled: true });
+      if (data?.vantage === "settled" && source === waiting) {
+        setLive((now) => now && { ...now, settled: true });
+        arrivedInApp.current();
+      }
+      if (data?.vantage === "pinned") pinnedInApp(data.at);
       if (data?.vantage === "escape") {
         if (notingNow.current) setNoting(false);
         else backToRecording({ x: data.x, y: data.y });
@@ -274,6 +278,16 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const notingNow = useRef(noting);
   notingNow.current = noting;
   const notedInApp = useRef<(noted: NotedInApp) => void>(() => {});
+  const arrivedInApp = useRef(() => {});
+  // Where each note's pin is in the app, on the page: its card sits by it.
+  const appPins = useRef(new Map<string, { x: number; y: number }>());
+  const pinnedInApp = (at: Record<string, { x: number; y: number }>) => {
+    const frame = document.querySelector<HTMLIFrameElement>("[data-live] iframe");
+    const box = frame?.getBoundingClientRect();
+    if (!frame || !box) return;
+    const k = box.width / frame.offsetWidth;
+    appPins.current = new Map(Object.entries(at).map(([id, spot]) => [id, { x: box.left + spot.x * k, y: box.top + spot.y * k }]));
+  };
   // In the app, Note goes there too: the app rings what's under the pointer and keeps the click it notes.
   const inApp = !!live?.shown && !!live.settled && !!live.address;
   useEffect(() => {
@@ -437,9 +451,24 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     if (frame && box) clickedAt(box.left + (x * box.width) / frame.offsetWidth, box.top + (y * box.height) / frame.offsetHeight);
     if (live) write({ flow: live.flow, at: Math.round(Math.max(0, playhead.now.moment.at) * 100) / 100, ...(element ? { element } : point && { point }), app: { did } });
   };
-  const goThere = (on: Place) => {
+  // A note in the app shows there as a pin on what it's on.
+  const pinInApp = (id: string, on: Place) =>
+    document
+      .querySelector<HTMLIFrameElement>("[data-live] iframe")
+      ?.contentWindow?.postMessage({ vantage: "pin", id, number: notes.find((note) => note.id === id)?.number ?? notes.length + 1, css: on.element?.css, point: on.point }, "*");
+  // Gone back there, the app shows the note's pin, and the note opens by it.
+  const goingThere = useRef<{ id: string; on: Place }>(undefined);
+  arrivedInApp.current = () => {
+    const going = goingThere.current;
+    if (!going) return;
+    goingThere.current = undefined;
+    pinInApp(going.id, going.on);
+    setOpen({ note: going.id });
+  };
+  const goThere = (id: string, on: Place) => {
     const there = latest.flows.find((flow) => flow.name === on.flow);
     if (!there || on.at === undefined || !on.app) return;
+    goingThere.current = { id, on };
     setListed(false);
     setOpen(undefined);
     playhead.go({ flow: on.flow, at: on.at });
@@ -467,6 +496,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     }));
     setOpen({ note: note.id });
     glow(note.id);
+    if (note.on?.app && inApp) pinInApp(note.id, note.on);
   };
   const keepWords = (id: string, words: string) => change((draft) => ({ ...draft, unsaved: draft.unsaved.map((note) => (note.id === id ? { ...note, words } : note)) }));
   const dropUnsaved = (id: string) => {
@@ -731,7 +761,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
         onAnswer={toAnswer}
         onPlayOn={playOn}
         onShow={() => show(note)}
-        onGoThere={note.on?.app ? () => goThere(note.on!) : undefined}
+        onGoThere={note.on?.app ? () => goThere(note.id, note.on!) : undefined}
       />
     );
   };
@@ -1171,7 +1201,12 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
           </div>
         </section>
 
-        <Beside id={openNote?.id ?? writingId ?? chosen?.id} over={!openNote && !writingId && !chosen && !!question}>
+        <Beside
+          id={openNote?.id ?? writingId ?? chosen?.id}
+          over={!openNote && !writingId && !chosen && !!question}
+          pinned={openNote?.on?.app && inApp ? () => appPins.current.get(openNote.id) : undefined}
+          onAway={openNote || chosen ? () => setOpen(undefined) : undefined}
+        >
           {listed || onGrid ? undefined : openNote ? row(openNote) : (pending.find((kept) => "open" in kept && kept.open)?.row ?? (chosen || question ? <Chosen {...map} /> : undefined))}
         </Beside>
         <div className={`absolute top-2 right-2 bottom-28 z-30 w-[350px] flex-col overflow-hidden rounded-xl bg-ground pt-3 shadow-[0_0_0_1px_rgba(20,24,34,0.08),0_10px_30px_rgba(20,24,34,0.16)] ${listed && !onGrid ? "flex" : "hidden"}`}>

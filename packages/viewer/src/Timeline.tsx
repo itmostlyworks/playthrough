@@ -17,6 +17,8 @@ export type Mark = { id: string; at: number; until?: number; name: string; note?
 
 type Props = { playhead: Playhead; dots: Dot[]; onDot: (id: string) => void; marks: Mark[]; onMark: (id: string) => void; live?: boolean };
 
+const DOT = 14;
+
 export function Timeline({ playhead, dots, onDot, marks, onMark, live }: Props) {
   const now = useNow(playhead);
   const flow = playhead.flow;
@@ -33,6 +35,22 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live }: Props) 
     return k < here ? 0 : k > here ? 1 : clamp((at + CARD) / (on.length + CARD));
   };
   const percent = (on: Flow, at: number) => `${(share(on, at) * 100).toFixed(4)}%`;
+
+  // Notes too close to tell apart stand side by side around their moment, each wide enough to click.
+  const [wide, setWide] = useState(0);
+  useEffect(() => {
+    const measured = new ResizeObserver(([seen]) => setWide(seen!.contentRect.width));
+    measured.observe(line.current!);
+    return () => measured.disconnect();
+  }, []);
+  const apart = new Map<string, number>();
+  const points = dots.filter((dot) => dot.until === undefined).sort((a, b) => a.at - b.at);
+  for (let i = 0; i < points.length; ) {
+    let j = i + 1;
+    while (j < points.length && (share(flow, points[j]!.at) - share(flow, points[j - 1]!.at)) * wide < DOT) j++;
+    points.slice(i, j).forEach((dot, k) => apart.set(dot.id, (k - (j - i - 1) / 2) * DOT));
+    i = j;
+  }
 
   // Crossing into another flow opens it up in one smooth shift, never while you're dragging.
   const [shifting, setShifting] = useState(false);
@@ -222,7 +240,7 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live }: Props) 
               aria-label={`Note ${shown.number} at ${time(shown.at)}`}
               className={`group/dot absolute z-4 grid place-items-center ${shown.until === undefined ? "top-[11px] size-3.5 -translate-x-1/2" : "top-[15px] -ml-[3px] box-content h-1.5 rounded-[3px] px-[3px] shadow-[0_0_0_2px_var(--ground)] transition-[top,height,border-radius] duration-150 ease-calm hover:top-3.5 hover:h-2 hover:rounded-[4px]"} ${moving}`}
               style={{
-                left: percent(flow, shown.at),
+                left: `calc(${percent(flow, shown.at)} + ${apart.get(shown.id) ?? 0}px)`,
                 ...(shown.until !== undefined && { width: `calc(${percent(flow, shown.until)} - ${percent(flow, shown.at)})`, background: `linear-gradient(90deg, ${ink} ${played}%, ${pale} ${played}%)` }),
               }}
               onPointerEnter={() => setNamed(shown.id)}

@@ -193,6 +193,8 @@ const SAYS = `<script>(() => {
   let x = innerWidth / 2, y = innerHeight / 2;
   const moved = (e) => { x = e.clientX; y = e.clientY; parent.postMessage({ vantage: "pointer", x, y, inside: true, text: typing(e.target) }, "*"); };
   addEventListener("pointermove", moved, true);
+  // A click here is a click elsewhere, to what the viewer has open.
+  addEventListener("pointerdown", (e) => e.isTrusted && parent.postMessage({ vantage: "down" }, "*"), true);
   document.addEventListener("pointerleave", () => parent.postMessage({ vantage: "pointer", x, y, inside: false }, "*"));
   // Caught before the app's own listeners, as this runs before its scripts: the app never sees it, so leaving doesn't
   // also close what was open there, and coming back finds it as it was.
@@ -200,7 +202,15 @@ const SAYS = `<script>(() => {
   addEventListener("keydown", leave, true);
   addEventListener("keyup", leave, true);
   // What a thing is called, and the path back to it, so a note says what it's on and Go there does what you did again.
-  const thing = (target) => target?.closest?.("a, button, input, select, textarea, label, summary, [role], h1, h2, h3, h4, li, td, th, p") || target;
+  // Something you can press or type into, or else the nearest thing with words of its own: inside a dialog, what's in
+  // it, not the dialog.
+  const pressable = "a, button, input, select, textarea, label, summary, [role=button], [role=link], [role=checkbox], [role=radio], [role=switch], [role=tab], [role=menuitem], [role=option], [role=combobox]";
+  const thing = (target) => {
+    const pressed = target?.closest?.(pressable);
+    if (pressed) return pressed;
+    for (let at = target; at && at !== document.body; at = at.parentElement) if (at.nodeType === 1 && words(at)) return at;
+    return target;
+  };
   const words = (element) => (element.getAttribute?.("aria-label") || element.innerText || element.value || element.placeholder || "").trim().replace(/\\s+/g, " ").slice(0, 80);
   const roles = { A: "link", BUTTON: "button", SELECT: "combobox", TEXTAREA: "textbox", H1: "heading", H2: "heading", H3: "heading", H4: "heading", LI: "listitem", TD: "cell", TH: "columnheader", LABEL: "text", P: "text" };
   const role = (element) => element.getAttribute("role") || (element.tagName === "INPUT" ? (["checkbox", "radio"].includes(element.type) ? element.type : "textbox") : roles[element.tagName]) || "text";
@@ -269,6 +279,35 @@ const SAYS = `<script>(() => {
     if (e.type === "click") swallowing = false;
   };
   for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup", "click"]) addEventListener(type, swallow, true);
+  // A note's pin, on what it's on, and where it is, for its card to sit by.
+  const pins = new Map();
+  addEventListener("message", ({ source, data }) => {
+    if (source !== parent || data?.vantage !== "pin") return;
+    const pin = pins.get(data.id) ?? document.createElement("div");
+    pin.textContent = data.number;
+    pin.style.cssText = "position:fixed;z-index:2147483646;pointer-events:none;display:none;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;background:#e0a33a;color:#fff;font:600 11px/18px system-ui,sans-serif;text-align:center;box-shadow:0 0 0 2px #fff";
+    pin.dataset.css = data.css || "";
+    pin.dataset.x = data.point?.x ?? "";
+    pin.dataset.y = data.point?.y ?? "";
+    document.documentElement.appendChild(pin);
+    pins.set(data.id, pin);
+  });
+  let told = "";
+  requestAnimationFrame(function place() {
+    const at = {};
+    for (const [id, pin] of pins) {
+      const on = pin.dataset.css && document.querySelector(pin.dataset.css);
+      const box = on?.getBoundingClientRect();
+      const spot = box?.width ? { x: box.right, y: box.top } : pin.dataset.x !== "" && !pin.dataset.css ? { x: pin.dataset.x * innerWidth, y: pin.dataset.y * innerHeight } : undefined;
+      pin.style.display = spot ? "block" : "none";
+      if (!spot) continue;
+      Object.assign(pin.style, { left: spot.x + "px", top: spot.y + "px" });
+      at[id] = spot;
+    }
+    const now = JSON.stringify(at);
+    if (now !== told) parent.postMessage({ vantage: "pinned", at: (told = now, at) }, "*");
+    requestAnimationFrame(place);
+  });
   const note = (e) => {
     if (e.key.toLowerCase() !== "n" || e.ctrlKey || e.metaKey || e.altKey || typing(e.target)) return;
     e.preventDefault();
