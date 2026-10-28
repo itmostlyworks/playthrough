@@ -106,17 +106,19 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
     free = left + SPROUT + (sprout.notes.length ? 3 + (sprout.notes.length - 1) * DOT + DOT / 2 : 0) + GAP;
   }
 
-  // Crossing into another flow opens it up in one smooth shift, never while you're dragging.
+  // Crossing into another flow, or onto a fork and back, opens it up in one smooth shift, never while you're dragging.
+  // Known as the line changes, not after: the shift has to be there when everything moves, or there's nothing to ease.
   const [shifting, setShifting] = useState(false);
-  const was = useRef(flow.name);
+  const [was, setWas] = useState(flow.name);
+  if (was !== flow.name) {
+    setWas(flow.name);
+    if (!scrubbing) setShifting(true);
+  }
   useEffect(() => {
-    if (was.current === flow.name) return;
-    was.current = flow.name;
-    if (scrubbing) return;
-    setShifting(true);
+    if (!shifting) return;
     const done = setTimeout(() => setShifting(false), 400);
     return () => clearTimeout(done);
-  }, [flow.name, scrubbing]);
+  }, [shifting, was]);
 
   // A drag stays inside the open flow and holds at its edges.
   const timeAt = (clientX: number) => {
