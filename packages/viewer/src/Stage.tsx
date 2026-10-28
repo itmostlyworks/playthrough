@@ -502,7 +502,14 @@ export function Stage(props: Props) {
   // frame's edge nearest Take over; it closes on where the pointer was in the app, or the same way.
   const pointed = useRef<{ x: number; y: number }>(undefined);
   useEffect(() => {
-    const aimed = (event: globalThis.PointerEvent) => void (pointed.current = { x: event.clientX, y: event.clientY });
+    const aimed = (event: globalThis.PointerEvent) => {
+      pointed.current = { x: event.clientX, y: event.clientY };
+      // In the app, outside the part it has opened so far, the hand still follows yours.
+      const box = open.current && frames.current.get(latest.current.round.number)?.getBoundingClientRect();
+      if (!box) return;
+      const at = { x: event.clientX - box.left, y: event.clientY - box.top };
+      handTo(at, at.x >= 0 && at.y >= 0 && at.x <= box.width && at.y <= box.height, false);
+    };
     addEventListener("pointermove", aimed, true);
     addEventListener("pointerdown", aimed, true);
     return () => {
@@ -554,6 +561,7 @@ export function Stage(props: Props) {
 
     if (inPortal) {
       Object.assign(app.style, { opacity: "1", pointerEvents: "auto" });
+      app.querySelector("iframe")?.focus();
       edge.style.opacity = "1";
       // The recording's pointer becomes yours: above the app, where your hand is, its name changing hands with it.
       yourHand.current = at;
@@ -563,7 +571,8 @@ export function Stage(props: Props) {
       if (!waited) say(tag, words, person ?? "You are in control", !person, false);
       // It goes from where the recording had it to your hand, and the portal opens from where they meet.
       const handing = theirs && mine && Math.hypot(mine.x - theirs.x, mine.y - theirs.y) > 4 ? HANDING : 0;
-      if (handing) hand.animate([{ transform: tip(theirs!) }, { transform: tip(at) }], { duration: handing, easing: PORTAL });
+      // Moved along with your hand as it comes, so it keeps up when you move.
+      if (handing) hand.animate([{ translate: `${theirs!.x - at.x}px ${theirs!.y - at.y}px` }, { translate: "0px 0px" }], { duration: handing, easing: PORTAL });
       else if (!theirs) hand.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200 });
       const handed = handing + (person || waited ? 240 : 0);
       if (person || waited) handingOver(() => say(tag, words, "You are in control"), handed);
@@ -629,6 +638,25 @@ export function Stage(props: Props) {
     say(tag, words, person ?? "", false);
     tag.hidden = !person;
   }, [waiting]);
+  // Made ready unseen, the app may put its text cursor where the recording had it, which would take the keyboard: it
+  // stays with the review until you're in the app, and goes into it as you are.
+  useEffect(() => {
+    const kept = () =>
+      setTimeout(() => {
+        const app = document.activeElement;
+        if (app instanceof HTMLIFrameElement && app.closest("[data-live]") && !open.current) app.blur();
+      });
+    addEventListener("blur", kept);
+    return () => removeEventListener("blur", kept);
+  }, []);
+  // Your hand, drawn where it is in the frame, over the app or over the part of it not yet opened.
+  const handTo = (at: { x: number; y: number }, inside: boolean, text: boolean) => {
+    const hand = frames.current.get(latest.current.round.number)?.querySelector<HTMLElement>("[data-cursor]");
+    if (!hand) return;
+    yourHand.current = at;
+    Object.assign(hand.style, { transform: `translate(${(at.x - 3).toFixed(1)}px,${(at.y - 2).toFixed(1)}px)`, opacity: inside ? "1" : "0" });
+    shape(hand, text);
+  };
   const handing = useRef<number[]>([]);
   const handingOver = (then: () => void, after: number) => void handing.current.push(window.setTimeout(then, after));
   // In the app, the pointer is drawn here, with its name, so the two move as one: the app's own is hidden there. It
@@ -636,13 +664,8 @@ export function Stage(props: Props) {
   useEffect(() => {
     const told = ({ data }: MessageEvent) => {
       if (data?.vantage !== "pointer" || !open.current) return;
-      const number = latest.current.round.number;
-      const hand = frames.current.get(number)?.querySelector<HTMLElement>("[data-cursor]");
-      const view = painted.current.get(number);
-      if (!hand || !view) return;
-      yourHand.current = { x: (data.x - view.x) * view.k, y: (data.y - view.y) * view.k };
-      Object.assign(hand.style, { transform: `translate(${(yourHand.current.x - 3).toFixed(1)}px,${(yourHand.current.y - 2).toFixed(1)}px)`, opacity: data.inside ? "1" : "0" });
-      shape(hand, !!data.text);
+      const view = painted.current.get(latest.current.round.number);
+      if (view) handTo({ x: (data.x - view.x) * view.k, y: (data.y - view.y) * view.k }, data.inside, !!data.text);
     };
     addEventListener("message", told);
     return () => removeEventListener("message", told);

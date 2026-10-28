@@ -176,10 +176,11 @@ const SAYS = `<script>(() => {
   hidden.textContent = "html, html * { cursor: none !important; }";
   document.documentElement.appendChild(hidden);
   const typing = (target) => !!target?.closest?.('input:not([type=button]):not([type=submit]):not([type=checkbox]):not([type=radio]):not([type=range]), textarea, [contenteditable=""], [contenteditable=true]');
-  // Every move, as early as the browser has it: held for a frame, the name trailed the pointer like a smoothed one.
+  // Every move, as it comes: held for a frame, the name trailed the pointer like a smoothed one. Not the earlier raw
+  // updates: in a scaled frame, Chrome gives them the page's position rather than the app's.
   let x = innerWidth / 2, y = innerHeight / 2;
   const moved = (e) => { x = e.clientX; y = e.clientY; parent.postMessage({ vantage: "pointer", x, y, inside: true, text: typing(e.target) }, "*"); };
-  addEventListener("onpointerrawupdate" in window ? "pointerrawupdate" : "pointermove", moved, true);
+  addEventListener("pointermove", moved, true);
   document.addEventListener("pointerleave", () => parent.postMessage({ vantage: "pointer", x, y, inside: false }, "*"));
   addEventListener("keydown", (e) => { if (e.key === "Escape" && !e.defaultPrevented) parent.postMessage({ vantage: "escape", x, y }, "*"); });
   const again = JSON.parse(sessionStorage.getItem("vantage:again") || "[]");
