@@ -2,8 +2,8 @@
 // a dot for each note on it, a diamond where something new to you changed and a band over new steps. The line answers
 // the pointer: under it the line thickens, the playhead grows, and a ghost of the playhead with its time says where a
 // click lands. Nothing here changes width as it plays. Where you took the flow over and carried on by hand, a fork
-// leaves the line there and runs on above it to the end: pointed at, it answers as the line does, and it plays like
-// the rest of the line.
+// leaves the line there and runs above it as long as you were there, faint until pointed at or played: then it answers
+// as the line does, and it plays like the rest of the line.
 
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { time, type Flow } from "@mostlyworks/vantage-review";
@@ -33,9 +33,11 @@ type Props = {
 
 const DOT = 14;
 // While you're in the app, the fork is this long, its open end breathing as what's under way does everywhere; let go,
-// it runs on to the end of the line.
+// it runs on to its own end.
 const UNDER_WAY = 64;
 const OPEN_END = 18;
+// Of the line, so a fork of a moment can still be found and pressed.
+const SHORTEST = 0.03;
 
 export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [], growing }: Props) {
   const now = useNow(playhead);
@@ -60,18 +62,23 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
   const percent = (on: Flow, at: number) => `${(share(on, at) * 100).toFixed(4)}%`;
   const pc = (share: number) => `${(share * 100).toFixed(4)}%`;
 
-  // A fork runs from where it leaves to the end of the line, however long you were in the app: the flow's line never
-  // moves for it. While you're there, it's a short one, under way, your place where it opens.
+  // A fork runs as long as you were there, on the flow's clock, from where it leaves; one longer than what's left of the
+  // flow ends with the line, which never moves for it. While you're there, it's a short one, under way, your place
+  // where it opens.
   const grown = growing && (forks.find((fork) => fork.name === growing.name) ?? growing);
   const lines = [...forks.filter((fork) => fork.name !== grown?.name), ...(grown ? [grown] : [])];
-  const forkShare = (fork: ForkLine, at: number) => {
+  const reach = (fork: ForkLine) => {
     const start = share(flow, fork.at);
-    return fork.length <= fork.at ? 1 : start + ((clamp(at, fork.at, fork.length) - fork.at) / (fork.length - fork.at)) * (1 - start);
+    return { start, end: Math.min(1, Math.max(share(flow, fork.length), start + SHORTEST)) };
+  };
+  const forkShare = (fork: ForkLine, at: number) => {
+    const { start, end } = reach(fork);
+    return fork.length <= fork.at ? end : start + ((clamp(at, fork.at, fork.length) - fork.at) / (fork.length - fork.at)) * (end - start);
   };
   const forkTimeAt = (fork: ForkLine, clientX: number) => {
     const box = line.current!.getBoundingClientRect();
-    const start = share(flow, fork.at);
-    return clamp(fork.at + ((clamp((clientX - box.left) / box.width) - start) / Math.max(0.0001, 1 - start)) * (fork.length - fork.at), fork.at, fork.length);
+    const { start, end } = reach(fork);
+    return clamp(fork.at + ((clamp((clientX - box.left) / box.width) - start) / Math.max(0.0001, end - start)) * (fork.length - fork.at), fork.at, fork.length);
   };
   const dotShare = (dot: { at: number; fork?: string }) => {
     const fork = dot.fork ? lines.find((line) => line.name === dot.fork) : undefined;
@@ -251,19 +258,20 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
           />
         </div>
         {lines.map((fork) => {
-          const start = share(flow, fork.at);
+          const { start, end } = reach(fork);
           const on = fork === riding;
           const going = fork === grown;
           const played = on ? (going ? 1 : forkShare(fork, at)) : start;
           const lit = hot === fork.name;
-          const ink = lit || on ? "var(--amber)" : "color-mix(in srgb, var(--amber) 55%, var(--ground))";
-          const pale = `color-mix(in srgb, var(--amber) ${lit ? 50 : 32}%, var(--ground))`;
+          // Faint until it's pointed at or played: an aside to the flow, there when you look for it.
+          const ink = lit || on ? "var(--amber)" : "color-mix(in srgb, var(--amber) 40%, var(--ground))";
+          const pale = `color-mix(in srgb, var(--amber) ${lit ? 45 : 25}%, var(--ground))`;
           return (
             <div
               key={fork.name}
               data-fork={fork.name}
               className="absolute top-0 h-[11px] transition-[width] duration-500 ease-calm"
-              style={{ left: pc(start), width: going ? `${UNDER_WAY}px` : `calc(${pc(1 - start)})` }}
+              style={{ left: pc(start), width: going ? `${UNDER_WAY}px` : pc(end - start) }}
             >
               <svg width="12" height="14" aria-hidden className="pointer-events-none absolute top-1 left-0 overflow-visible">
                 <path d="M0 14 C 6 14, 6 1, 12 1" fill="none" stroke={ink} strokeWidth={lit ? 3 : 2} strokeLinecap="round" className="transition-[stroke-width] duration-150 ease-calm" />
@@ -271,7 +279,7 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
               <div
                 aria-hidden
                 className={`pointer-events-none absolute left-3 transition-[top,height,border-radius] duration-150 ease-calm ${going ? "right-[18px]" : "right-0"} ${lit ? "top-[3px] h-1 rounded-[2px]" : "top-1 h-0.5 rounded-[1px]"}`}
-                style={{ background: going ? ink : `linear-gradient(90deg, ${ink} ${pc(clamp((played - start) / Math.max(0.0001, 1 - start)))}, ${pale} 0)` }}
+                style={{ background: going ? ink : `linear-gradient(90deg, ${ink} ${pc(clamp((played - start) / Math.max(0.0001, end - start)))}, ${pale} 0)` }}
               />
               {going && (
                 <div
