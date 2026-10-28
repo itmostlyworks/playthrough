@@ -54,7 +54,7 @@ type Props = {
   onPlayOn: () => void;
   onShow: () => void;
   // Noted in the app: your branch played from where you took the flow over to it.
-  onGoThere?: () => void;
+  onHowYouGotHere?: () => void;
 };
 
 export function NoteRow(props: Props) {
@@ -273,9 +273,9 @@ function Card(props: Props) {
     );
   else if (!editing)
     [question, answers] = [
-      `${props.onGoThere ? "In the app · " : ""}${note.unsent ? "Not sent yet" : note.state === "with the agent" ? "Sent to the agent" : note.state === "settled" ? "Settled" : ""}`,
-      props.onGoThere ? (
-        <button className="h-[30px] flex-[1_1_100%] rounded-[7px] bg-hover font-medium text-fg shadow-[inset_0_0_0_1px_var(--line)] hover:opacity-88" onClick={props.onGoThere}>
+      `${note.on?.app ? "In the app · " : ""}${note.unsent ? "Not sent yet" : note.state === "with the agent" ? "Sent to the agent" : note.state === "settled" ? "Settled" : ""}`,
+      props.onHowYouGotHere ? (
+        <button className="h-[30px] flex-[1_1_100%] rounded-[7px] bg-hover font-medium text-fg shadow-[inset_0_0_0_1px_var(--line)] hover:opacity-88" onClick={props.onHowYouGotHere}>
           How you got here
         </button>
       ) : note.on?.at !== undefined ? (

@@ -209,7 +209,7 @@ const SAYS = `<script>(() => {
   const leave = (e) => { if (e.key !== "Escape") return; e.preventDefault(); e.stopImmediatePropagation(); if (e.type === "keydown") parent.postMessage({ vantage: "escape", x, y }, "*"); };
   addEventListener("keydown", leave, true);
   addEventListener("keyup", leave, true);
-  // What a thing is called, and the path back to it, so a note says what it's on and Go there does what you did again.
+  // What a thing is called, and the path back to it, so a note says what it's on, and taking your branch over does what you did again.
   // Something you can press or type into, or else the nearest thing with words of its own: inside a dialog, what's in
   // it, not the dialog.
   const pressable = "a, button, input, select, textarea, label, summary, [role=button], [role=link], [role=checkbox], [role=radio], [role=switch], [role=tab], [role=menuitem], [role=option], [role=combobox]";

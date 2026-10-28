@@ -182,7 +182,7 @@ function OnRound({ review: kept, round: asRecorded, latest: recordedLatest, arri
     if (branch && from) return takeOverAt(from, branch.from.at, branch.did);
     takeOverAt(playhead.flow, playhead.now.moment.at);
   };
-  // With what a note in the app kept, it goes back there: the moment it was taken over at, and what was done since.
+  // On your branch, with what you did there: the moment you took the flow over at, and your steps done again after it.
   const takeOverAt = (on: Flow, at: number, did?: Did[]) => {
     const paused = pausedAt(on, at);
     if (round !== latest || at < 0 || !paused) return;
@@ -490,7 +490,7 @@ function OnRound({ review: kept, round: asRecorded, latest: recordedLatest, arri
       ?.contentWindow?.postMessage({ vantage: "pin", id, number: notes.find((note) => note.id === id)?.number ?? notes.length + 1, css: on.element?.css, point: on.point }, "*");
   // How you got here: your branch plays from where you took the flow over, and stops at the note, open.
   const arriving = useRef<{ id: string; at: number }>(undefined);
-  const goThere = (note: Shown) => {
+  const howYouGotHere = (note: Shown) => {
     const app = note.on?.app;
     if (!app || note.on?.at === undefined) return;
     setListed(false);
@@ -794,7 +794,7 @@ function OnRound({ review: kept, round: asRecorded, latest: recordedLatest, arri
         onAnswer={toAnswer}
         onPlayOn={playOn}
         onShow={() => show(note)}
-        onGoThere={note.on?.app ? () => goThere(note) : undefined}
+        onHowYouGotHere={note.on?.app ? () => howYouGotHere(note) : undefined}
       />
     );
   };
