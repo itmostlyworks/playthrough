@@ -29,6 +29,8 @@ type Props = {
   forks?: ForkLine[];
   // The one you're making in the app.
   growing?: ForkLine;
+  // A note pointed at elsewhere: its dot grows and says its words, as if pointed at here.
+  lit?: string;
 };
 
 const DOT = 14;
@@ -51,7 +53,7 @@ const TIE = 6;
 // A fork that runs on less than this past its last note ends at it, so no crumb of line trails the dot.
 const CRUMB = 8;
 
-export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [], growing }: Props) {
+export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [], growing, lit }: Props) {
   const now = useNow(playhead);
   const flows = playhead.flows;
   // On a fork, the line is still its flow's.
@@ -242,7 +244,7 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
   const thick = "-ml-[1.5px] w-[3px] rounded-[1.5px]";
   const moving = shifting ? "transition-[left,width,opacity] duration-300 ease-calm" : "";
   const label = "pointer-events-none absolute bottom-[calc(100%-1px)] -translate-x-1/2 rounded-[5px] bg-surface px-[7px] py-px text-[11px] leading-[14px] whitespace-nowrap shadow-tip transition-[opacity,translate] duration-150 ease-calm";
-  const dot = dots.find((dot) => dot.id === named);
+  const dot = dots.find((dot) => dot.id === (named ?? lit));
   const mark = marks.find((mark) => mark.id === named);
   const tip = dot ?? mark;
   const ghost = !scrubbing && pointing !== undefined && !tip;
@@ -407,7 +409,7 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
             >
               {shown.until === undefined && (
                 <span
-                  className="size-1.5 rounded-full shadow-[0_0_0_2px_var(--ground)] transition-[scale,background-color] duration-150 ease-calm group-hover/dot:scale-140"
+                  className={`size-1.5 rounded-full shadow-[0_0_0_2px_var(--ground)] transition-[scale,background-color] duration-150 ease-calm group-hover/dot:scale-140 ${lit === shown.id ? "scale-140" : ""}`}
                   style={{ background: ahead ? pale : ink }}
                 />
               )}

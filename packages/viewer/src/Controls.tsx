@@ -37,6 +37,8 @@ type Props = {
   // Where you took the flow over and carried on by hand, and the one you're making now.
   forks?: ForkLine[];
   growing?: ForkLine;
+  // A note pointed at elsewhere, lit on the line.
+  lit?: string;
 };
 
 export function Controls(props: Props) {
@@ -55,7 +57,7 @@ export function Controls(props: Props) {
 
   return (
     <div ref={props.ref} className="group/controls flex min-w-0 flex-wrap items-center gap-3 pt-[18px] select-none">
-      <Timeline playhead={props.playhead} dots={props.dots} onDot={props.onDot} marks={props.marks} onMark={props.onMark} live={props.live === "shown"} forks={props.forks} growing={props.growing} />
+      <Timeline playhead={props.playhead} dots={props.dots} onDot={props.onDot} marks={props.marks} onMark={props.onMark} live={props.live === "shown"} forks={props.forks} growing={props.growing} lit={props.lit} />
       <button
         data-speed
         className={`${quiet} ${coveredBack} text-center hover:bg-hover hover:text-fg ${speed < 1 ? "text-amber-ink" : ""}`}

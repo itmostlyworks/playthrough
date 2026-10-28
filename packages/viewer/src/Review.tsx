@@ -305,6 +305,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   // Held, how it was before the change, in place; the notes you've said, listed, while it's open.
   const [howItWas, setHowItWas] = useState(false);
   const [listed, setListed] = useState(false);
+  const [litNote, setLitNote] = useState<string>();
   // Watching, a click on the recording does nothing: only with Note on does it note what's under it, once.
   const [noting, setNoting] = useState(false);
   const notingNow = useRef(noting);
@@ -422,6 +423,10 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const [asked, setAsked] = useState<string>();
   if (asked && (where !== "end" || watching !== asked)) setAsked(undefined);
   const question = !open && flow && where === "end" && standing?.get(flow.name)?.asks && (asked === flow.name || standing.get(flow.name)?.is === "is it good") ? flow.name : undefined;
+  // What you said about the whole flow sits over its last frame, with its question; one of them open, it opens there.
+  const general = flow && where === "end" ? noted.filter((note) => note.on?.flow === flow.name && note.on.at === undefined) : [];
+  const generalOpen = !!open && "note" in open && general.some((note) => note.id === open.note);
+  const overEnd = (!open || generalOpen) && (!!question || general.length > 0);
   // The flow that just turned good, its tick travelling to the meter.
   const [landed, setLanded] = useState<Landed>();
 
@@ -1186,12 +1191,14 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
               flow={watching ?? ""}
               notes={notes
                 .filter((note) => note.on?.flow === watching && note.on.at !== undefined && note.turns[0]?.words)
-                .sort((a, b) => (a.on!.app?.from.at ?? a.on!.at!) - (b.on!.app?.from.at ?? b.on!.at!) || a.on!.at! - b.on!.at!)
-                .map((note) => ({ id: note.id, number: note.number, ink: ink(note), words: note.turns[0]!.words, where: note.on!.app ? `In the app, after ${time(note.on!.app.from.at)}` : time(note.on!.at!) }))}
+                .sort((a, b) => a.on!.at! - b.on!.at!)
+                .map((note) => ({ id: note.id, ink: ink(note), words: note.turns[0]!.words, at: time(note.on!.at!), app: !!note.on!.app }))}
               listed={listed}
-              onList={setListed}
+              onList={(listed) => (setListed(listed), listed || setLitNote(undefined))}
+              onLight={setLitNote}
               onSaid={(id) => {
                 setListed(false);
+                setLitNote(undefined);
                 const note = notes.find((note) => note.id === id);
                 if (note) pick(note);
               }}
@@ -1211,6 +1218,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
           <Controls
             stage
             forks={forksHere}
+            lit={litNote}
             growing={inApp ? growing : undefined}
             live={live?.shown ? (live.address && live.settled ? "shown" : "waiting") : undefined}
             onTakeOver={takeOver}
@@ -1268,11 +1276,11 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
 
         <Beside
           id={openNote?.id ?? writingId ?? chosen?.id}
-          over={!openNote && !writingId && !chosen && !!question}
+          over={!writingId && !chosen && overEnd}
           pinned={openNote?.on?.app && inApp ? () => appPins.current.get(openNote.id) : undefined}
           onAway={openNote || chosen ? () => setOpen(undefined) : undefined}
         >
-          {listed || onGrid ? undefined : openNote ? row(openNote) : (pending.find((kept) => "open" in kept && kept.open)?.row ?? (chosen || question ? <Chosen {...map} /> : undefined))}
+          {listed || onGrid ? undefined : openNote && !generalOpen ? row(openNote) : (pending.find((kept) => "open" in kept && kept.open)?.row ?? (chosen || overEnd ? <Chosen {...map} /> : undefined))}
         </Beside>
         <div className={`absolute top-2 right-2 bottom-28 z-30 w-[350px] flex-col overflow-hidden rounded-xl bg-ground pt-3 shadow-[0_0_0_1px_rgba(20,24,34,0.08),0_10px_30px_rgba(20,24,34,0.16)] hidden`}>
         <Drawer ref={aside} over={controls} away={onGrid}>

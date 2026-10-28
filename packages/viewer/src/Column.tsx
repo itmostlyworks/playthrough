@@ -4,7 +4,7 @@
 // where the playhead is. A flow good to you settles once you've left it: its settled rows fold away under its heading.
 // In general comes last. Nothing in it moves while it plays, and when it changes, rows glide.
 
-import { useEffect, useLayoutEffect, useRef, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { list, time, type Flow, type Place, type Review, type Round } from "@mostlyworks/vantage-review";
 import { Answer, Compare, play, Said, tick, Time, useHold } from "./Card.tsx";
 import { when, type Changed, type Diamond } from "./changes.ts";
@@ -280,9 +280,19 @@ export function Chosen(props: Props) {
     const inside = props.notes.filter((note) => props.grown.get(note.id) === diamond.id).map((note) => ({ id: note.id, open: props.openNote === note.id, shown: props.note(note, true) }));
     return <ChangeRow {...props} diamond={diamond} inside={inside} />;
   }
+  // Over the flow's last frame: what you said about the whole of it, then whether it's good, if that's still asked.
   const standing = flow && props.standing(flow.name);
-  if (flow && standing && props.asked === flow.name) return <Question {...props} flow={flow} standing={standing} just={justLanded(props.landed, flow.name)} onStage />;
-  return null;
+  const general = flow ? props.notes.filter((note) => note.on?.flow === flow.name && note.on.at === undefined) : [];
+  const asking = !!flow && !!standing && props.asked === flow.name;
+  if (!flow || (!asking && !general.length)) return null;
+  return (
+    <>
+      {general.map((note) => (
+        <Fragment key={note.id}>{props.note(note)}</Fragment>
+      ))}
+      {asking && <Question {...props} flow={flow} standing={standing!} just={justLanded(props.landed, flow.name)} onStage />}
+    </>
+  );
 }
 
 function Question({ flow, standing, just, onStage, ...props }: Omit<Props, "standing"> & { flow: Flow; standing: Standing; just: boolean; onStage?: boolean }) {

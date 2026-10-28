@@ -4,10 +4,9 @@
 
 import { useEffect, useRef } from "react";
 import { Key } from "./Card.tsx";
-import { number } from "./Notes.tsx";
 
-// A note on this flow, as the list says it: its number in its colour, its words, and where it is.
-export type Said = { id: string; number: number; ink: string; words: string; where: string };
+// A note on this flow, as the list says it: its dot in its colour, its words, and its moment, made in the app or not.
+export type Said = { id: string; ink: string; words: string; at: string; app: boolean };
 
 type Props = {
   live?: "waiting" | "shown";
@@ -24,6 +23,8 @@ type Props = {
   listed: boolean;
   onList: (listed: boolean) => void;
   onSaid: (id: string) => void;
+  // The note pointed at in the list, lit on the line too.
+  onLight: (id: string | undefined) => void;
 };
 
 export function Bar(props: Props) {
@@ -48,29 +49,36 @@ export function Bar(props: Props) {
         role="dialog"
         aria-label={`Notes on ${props.flow}`}
         aria-hidden={!listed}
-        className={`absolute right-0 bottom-full mb-2 w-[400px] max-w-[calc(100vw-32px)] origin-bottom-right rounded-xl bg-surface py-2 shadow-[0_0_0_1px_rgba(20,24,34,0.08),0_10px_32px_rgba(20,24,34,0.16)] transition-[opacity,translate] duration-150 ease-calm ${listed ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-1 opacity-0"}`}
+        className={`absolute right-0 bottom-full mb-2 w-[340px] max-w-[calc(100vw-32px)] rounded-xl bg-surface p-1.5 shadow-[0_0_0_1px_rgba(20,24,34,0.08),0_10px_32px_rgba(20,24,34,0.16)] transition-[opacity,translate] duration-150 ease-calm ${listed ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-1 opacity-0"}`}
       >
-        <div className="truncate px-4 pt-1 pb-2 text-[11.5px] text-faint">{props.flow}</div>
         <div className="max-h-[min(55vh,420px)] overflow-y-auto">
           {count ? (
             props.notes.map((said) => (
               <button
                 key={said.id}
                 tabIndex={listed ? 0 : -1}
-                className="grid w-full grid-cols-[18px_minmax(0,1fr)] gap-x-2.5 border-t border-line px-4 py-2.5 text-left transition-colors duration-150 ease-calm hover:bg-hover"
+                className="grid w-full grid-cols-[6px_minmax(0,1fr)_auto] items-center gap-x-2.5 rounded-lg px-2.5 py-[7px] text-left transition-colors duration-150 ease-calm hover:bg-hover focus-visible:bg-hover"
+                onPointerEnter={() => props.onLight(said.id)}
+                onPointerLeave={() => props.onLight(undefined)}
+                onFocus={() => props.onLight(said.id)}
+                onBlur={() => props.onLight(undefined)}
                 onClick={() => props.onSaid(said.id)}
               >
-                <span className={`${number} mt-px text-white`} style={{ background: said.ink }}>
-                  {said.number}
-                </span>
-                <span className="grid min-w-0 gap-0.5">
-                  <span className="line-clamp-2 text-[13px] leading-[1.4] text-fg">{said.words}</span>
-                  <span className="text-[11.5px] text-faint tabular-nums">{said.where}</span>
+                <span className="size-1.5 rounded-full" style={{ background: said.ink }} />
+                <span className="truncate text-[13px] leading-[18px] text-fg">{said.words}</span>
+                <span className="flex items-center gap-1 text-[11.5px] text-faint tabular-nums">
+                  {/* Made in the app: the fork's own curve, as it leaves the line. */}
+                  {said.app && (
+                    <svg viewBox="0 0 10 8" className="h-2 w-2.5" fill="none" stroke="var(--amber)" strokeWidth="1.5" aria-label="In the app">
+                      <path d="M0 7 C 2.5 7, 2.5 1, 5 1 L 10 1" />
+                    </svg>
+                  )}
+                  {said.at}
                 </span>
               </button>
             ))
           ) : (
-            <p className="border-t border-line px-4 pt-2.5 pb-1.5 text-[13px] text-soft">Nothing said on this flow yet. Note what you see with N.</p>
+            <p className="px-2.5 py-[7px] text-[13px] text-soft">Nothing said on this flow yet. Note what you see with N.</p>
           )}
         </div>
       </div>
