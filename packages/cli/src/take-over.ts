@@ -13,6 +13,7 @@ import { dirname, join } from "node:path";
 import { list, quote, Refused, type Did } from "@mostlyworks/vantage-review";
 import { follow, runTo, type Handed } from "./flows.ts";
 import { listen } from "./open.ts";
+import { read } from "./read.ts";
 import type { App, Repo } from "./repo.ts";
 
 // Clear of the viewer's, which takes the next free one from 5790 when several are open.
@@ -248,7 +249,14 @@ const SAYS = `<script>(() => {
     did.push(done);
     sessionStorage.setItem("vantage:did", JSON.stringify(did));
     parent.postMessage({ vantage: "did", did }, "*");
+    readSoon();
   };
+  // What's on the page, read as a flow's page is after each step, once what you did has settled: a note on your
+  // recording is on a thing there, as on any flow's.
+  const read = ${read};
+  let recording = false, reading;
+  const readNow = () => recording && window.rrwebRecord.record.addCustomEvent("reading", read());
+  const readSoon = () => (clearTimeout(reading), (reading = setTimeout(() => rested().then(readNow), 300)));
   addEventListener("click", (e) => {
     if (!e.isTrusted || swallowing) return;
     const on = thing(e.target);
@@ -265,9 +273,13 @@ const SAYS = `<script>(() => {
   }, true);
   // With Note on, the next thing you click is noted, and the app never sees the click. N turns it on, unless you're typing.
   let noting = false, swallowing = false;
+  // Vantage's own marks, out of the recording's sight, as the app never drew them.
+  const holder = document.createElement("vantage-marks");
+  const marks = holder.attachShadow({ mode: "closed" });
+  document.documentElement.appendChild(holder);
   const ring = document.createElement("div");
   ring.style.cssText = "position:fixed;z-index:2147483647;pointer-events:none;border-radius:6px;box-shadow:0 0 0 2px rgba(236,178,72,.95),0 0 0 6px rgba(236,178,72,.18);display:none;transition:all 90ms ease-out";
-  document.documentElement.appendChild(ring);
+  marks.appendChild(ring);
   const ringed = (target) => {
     if (!noting) return void (ring.style.display = "none");
     const box = thing(target).getBoundingClientRect();
@@ -286,6 +298,7 @@ const SAYS = `<script>(() => {
     if (e.type === "pointerdown") {
       const on = thing(e.target);
       const name = words(on);
+      readNow();
       send();
       const node = window.rrwebRecord?.record?.mirror?.getId(on);
       parent.postMessage({ vantage: "noted", ...(name ? { element: { role: role(on), name, css: path(on), ...(node > 0 && { node }) } } : { point: { x: e.clientX / innerWidth, y: e.clientY / innerHeight } }), did, x: e.clientX, y: e.clientY }, "*");
@@ -306,7 +319,7 @@ const SAYS = `<script>(() => {
     pin.dataset.css = data.css || "";
     pin.dataset.x = data.point?.x ?? "";
     pin.dataset.y = data.point?.y ?? "";
-    document.documentElement.appendChild(pin);
+    marks.appendChild(pin);
     pins.set(data.id, pin);
   });
   let told = "";
@@ -391,7 +404,7 @@ const SAYS = `<script>(() => {
       sampling: { mousemove: 20, scroll: 16, input: "all" },
       maskAllInputs: false,
       inlineStylesheet: true,
-    });
+    }) && ((recording = true), readNow());
   const settle = async () => {
     await rested();
     if (scroll) scrollTo(scroll.x, scroll.y);

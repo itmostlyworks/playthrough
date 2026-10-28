@@ -11,18 +11,22 @@ import type { Rect } from "./replay.ts";
 // What was read on a round's flow, once it's here.
 export type Read = (round: number, flow: string) => Reading[] | undefined;
 
-// Every flow's readings on these rounds, as they arrive.
-export function useReadings(review: Review, numbers: number[]): Read {
+// Every flow's readings on these rounds, as they arrive, your forks' with them.
+export function useReadings(review: Review, rounds: Round[]): Read {
   const [kept, setKept] = useState(() => new Map<string, Reading[]>());
-  const wanted = review.rounds.filter((round) => numbers.includes(round.number)).flatMap((round) => round.flows.map((flow) => ({ round: round.number, flow })));
-  const key = wanted.map(({ round, flow }) => `${round}/${flow.name}`).join("\n");
+  const wanted = rounds.flatMap((round) => round.flows.map((flow) => ({ round: round.number, flow })));
+  const key = wanted.map(({ round, flow }) => `${round}/${flow.name}/${flow.recording}`).join("\n");
   useEffect(() => {
     let current = true;
     for (const { round, flow } of wanted)
-      readings(review.id, round, flow.recording).then((read) => current && setKept((kept) => (kept.has(`${round}/${flow.name}`) ? kept : new Map(kept).set(`${round}/${flow.name}`, read))));
+      readings(review.id, round, flow.recording).then((read) => current && setKept((kept) => (kept.has(`${round}/${flow.recording}`) ? kept : new Map(kept).set(`${round}/${flow.recording}`, read))));
     return () => void (current = false);
   }, [review.id, key]);
-  return (round, flow) => kept.get(`${round}/${flow}`);
+  // A fork is kept again, longer, under a new recording, and read again with it.
+  return (round, name) => {
+    const flow = wanted.find((wanted) => wanted.round === round && wanted.flow.name === name)?.flow;
+    return flow && kept.get(`${round}/${flow.recording}`);
+  };
 }
 
 // A node is one element for as long as it's on the page, so it's read as it was at the step nearest the moment.

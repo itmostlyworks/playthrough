@@ -50,8 +50,8 @@ function hovering(on: boolean) {
   for (const animation of document.getAnimations()) if (animation instanceof CSSTransition) animation.finish();
 }
 
-// Runs in the page, so everything it uses is inside it.
-function read() {
+// Runs in the page, so everything it uses is inside it: a flow's, and the app taken over, where it's said as words.
+export function read() {
   const ROLES = /^(button|link|dialog|alertdialog|group|radiogroup|table|grid|treegrid|heading|status|alert|textbox|searchbox|combobox|checkbox|radio|switch|slider|listbox|option|tab|menu|menuitem|img)$/;
   const HOLDERS = /^(dialog|alertdialog|status|alert|group|radiogroup|table|grid|treegrid|listbox|menu|box)$/;
   const NAMED_BY_WORDS = /^(button|link|heading|option|tab|menuitem|radio|checkbox|switch)$/;

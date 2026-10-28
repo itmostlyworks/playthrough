@@ -7,6 +7,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { createRequire } from "node:module";
 import { userInfo } from "node:os";
 import { dirname, extname, join, normalize, sep } from "node:path";
+import type { Reading } from "@mostlyworks/vantage-page";
 import { Refused, type Did, type Send } from "@mostlyworks/vantage-review";
 import type { Repo } from "./repo.ts";
 import { getReady, keepUp } from "./take-over.ts";
@@ -67,7 +68,7 @@ async function answer(repo: Repo, page: string, you: string, request: IncomingMe
   if (request.method === "GET" && rest[0] === "rounds" && rest[2] === "files" && rest[3]) {
     // Your branches play beside the round's recordings, as if they were its own.
     const name = rest.slice(3).join("/");
-    const branch = name.match(/^(assets\/)?branches\/(.+)$/);
+    const branch = name.match(/^(assets\/|readings\/)?branches\/(.+)$/);
     const bytes = branch ? await reviews.branch(id, `${branch[1] ?? ""}${branch[2]}`) : await reviews.file(id, Number(rest[1]), name);
     if (!bytes) return json(response, 404, { problems: [`Round ${rest[1]} of ${id} has no file called “${rest.slice(3).join("/")}”.`] });
     response.writeHead(200, { "content-type": TYPES[extname(path)] ?? "application/octet-stream", "cache-control": "max-age=31536000, immutable" });
@@ -117,20 +118,28 @@ async function takeOver(repo: Repo, id: string, request: IncomingMessage, respon
 // app's files, and a note on it is on what they saw. Each time it's kept, it's kept whole, under a new name, as what
 // the viewer has fetched once it keeps.
 async function branch(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
-  const { round, flow: name, at, events, recording } = await body<{ round: number; flow: string; at: number; events: { timestamp: number }[]; recording: string }>(request);
+  const { round, flow: name, at, events, recording } = await body<{ round: number; flow: string; at: number; events: Event[]; recording: string }>(request);
   const flow = (await repo.reviews.get(id)).rounds.find((kept) => kept.number === round)?.flows.find((flow) => flow.name === name);
   const was = flow && (await repo.reviews.file(id, round, flow.recording));
   if (!flow || !was || !events.length) return json(response, 404, { problems: [`Round ${round} of ${id} has no recording of “${name}” to branch off.`] });
-  const before: { timestamp: number }[] = JSON.parse(Buffer.from(was).toString("utf8"));
+  const before: Event[] = JSON.parse(Buffer.from(was).toString("utf8"));
   const start = before[0]!.timestamp;
   const then = start + at * 1000;
   const shift = then + 1 - events[0]!.timestamp;
-  const joined = [...before.filter((event) => event.timestamp <= then), ...events.map((event) => ({ ...event, timestamp: event.timestamp + shift }))];
+  const yours = events.map((event) => ({ ...event, timestamp: event.timestamp + shift }));
+  const joined = [...before.filter((event) => event.timestamp <= then), ...yours.filter((event) => !readingOf(event))];
   await repo.reviews.saveBranch(id, recording, Buffer.from(JSON.stringify(joined)));
+  // As the app read itself while you were in it. Only yours: the page there is recorded afresh, its elements numbered
+  // anew, so the flow's readings from before would name the wrong things.
+  const readings = yours.filter(readingOf).map((event) => ({ step: "In the app", at: (event.timestamp - start) / 1000, ...readingOf(event)! }));
+  await repo.reviews.saveBranch(id, `readings/${recording}`, Buffer.from(JSON.stringify(readings)));
   const kept = await repo.reviews.file(id, round, `assets/${flow.recording}`);
   if (kept) await repo.reviews.saveBranch(id, `assets/${recording}`, kept);
   json(response, 200, { length: (joined.at(-1)!.timestamp - start) / 1000 });
 }
+
+type Event = { timestamp: number; type?: number; data?: { tag?: string; payload?: Pick<Reading, "screen" | "things"> } };
+const readingOf = (event: Event) => (event.type === 5 && event.data?.tag === "reading" ? event.data.payload : undefined);
 
 // Where the playhead has got to while the latest round plays, for the flow run alongside it.
 async function followAlong(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {

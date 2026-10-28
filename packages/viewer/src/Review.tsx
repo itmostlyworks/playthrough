@@ -398,7 +398,8 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
 
   // Before is how the app was: it's there to look back on, and notes go on the rounds after it.
   const readOnly = !!review.accepted || round.number === 0 || (round !== latest && !arrived);
-  const read = useReadings(review, [round.number, ...(earlier ? [earlier.number] : []), ...(compared === undefined ? [] : [compared]), ...noted.map((note) => note.written)]);
+  const readOn = [round.number, ...(earlier ? [earlier.number] : []), ...(compared === undefined ? [] : [compared]), ...noted.map((note) => note.written)];
+  const read = useReadings(review, review.rounds.filter((kept) => readOn.includes(kept.number)).map((kept) => (kept.number === round.number ? played : kept)));
   // Each note sits where its thing is on this round: its moment here, on what it's on here, once that's found. One on
   // something this round doesn't have is lost here.
   const notes = noted.map((note) => (note.on && !note.on.app ? { ...note, on: placeOn(review, note.id, note.on, note.written, round, read) ?? note.on } : note));
@@ -685,7 +686,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   // its box opened under it as a card is, and the ones you haven't saved. One just removed leaves a way back where it was.
   const nextNumber = Math.max(0, ...notes.map((note) => note.number)) + 1;
   const writing = draft.unsaved.find((note) => note.id === writingId);
-  const placeName = (on: Place | undefined) => nameOf(on, read, round.number);
+  const placeName = (on: Place | undefined) => nameOf(on && { ...on, flow: playedOn(on) }, read, round.number);
   const unsaved = (note: Note, number: number) => {
     const head = (
       <>
@@ -1152,7 +1153,9 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
                 ? undefined
                 : (on: Placed) => {
                     setNoting(false);
-                    if (flow) write({ flow: flow.name, at: Math.round(Math.max(0, playhead.now.moment.at) * 100) / 100, ...on });
+                    // On a fork, it's on your recording, as one made in the app is.
+                    const app = onFork && { from: onFork.from, did: onFork.did, recording: onFork.recording, length: onFork.length };
+                    if (flow) write({ flow: flow.name, at: Math.round(Math.max(0, playhead.now.moment.at) * 100) / 100, ...on, ...(app && { app }) });
                   }
             }
             onMark={(id) => {
