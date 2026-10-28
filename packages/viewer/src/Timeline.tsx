@@ -251,7 +251,8 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
         }}
         onPointerLeave={() => setPointing(undefined)}
       >
-        <div className={`absolute inset-x-0 bg-line transition-[top,height,border-radius] duration-150 ease-calm ${hot === "" ? "top-4 h-1 rounded-[2px]" : "top-[17px] h-0.5 rounded-[1px]"}`}>
+        {/* Over the forks, so each rises out of it rather than lying across it. */}
+        <div className={`absolute inset-x-0 z-1 bg-line transition-[top,height,border-radius] duration-150 ease-calm ${hot === "" ? "top-4 h-1 rounded-[2px]" : "top-[17px] h-0.5 rounded-[1px]"}`}>
           <div
             className={`absolute top-0 left-0 h-full rounded-[inherit] ${hot === "" ? "bg-soft" : "bg-faint"} ${moving}`}
             style={{ width: filled }}
@@ -275,8 +276,8 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
             >
               <svg width="12" height="14" aria-hidden className="pointer-events-none absolute top-1 left-0 overflow-visible">
                 {/* One piece with the line it leaves and the line it runs into: as wide as its line, the colour of its start,
-                    and square at both ends, so nothing shows where they meet. */}
-                <path d="M0 14 C 6 14, 6 1, 12 1" fill="none" stroke={on ? ink : pale} strokeWidth={lit ? 4 : 2} className="transition-[stroke-width] duration-150 ease-calm" />
+                    and square at both ends, so nothing shows where they meet. Its foot is under the flow's line. */}
+                <path d="M0 13 C 6 13, 6 1, 12 1" fill="none" stroke={on ? ink : pale} strokeWidth={lit ? 4 : 2} className="transition-[stroke-width] duration-150 ease-calm" />
               </svg>
               <div
                 aria-hidden
