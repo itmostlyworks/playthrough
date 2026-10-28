@@ -758,10 +758,10 @@ export function Stage(props: Props) {
     shown.animate(
       [
         { opacity: 0.95, transform: `translate(-50%,-50%) scale(${still ? 1 : 0.85})` },
-        { opacity: 0.95, transform: "translate(-50%,-50%) scale(1)", offset: 0.35 },
+        { opacity: 0.95, transform: "translate(-50%,-50%) scale(1)", offset: 0.3 },
         { opacity: 0, transform: `translate(-50%,-50%) scale(${still ? 1 : 1.25})` },
       ],
-      { duration: 700, easing: "ease-out" },
+      { duration: 480, easing: "ease-out" },
     );
   }, [playing]);
   // First on the line over the recording, where the grid's own heading was.
