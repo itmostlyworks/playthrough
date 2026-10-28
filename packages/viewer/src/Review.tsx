@@ -628,7 +628,6 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const flying = useRef<{ taking: Taking; to: "column" | "grid"; playing?: boolean }>(undefined);
   const settling = useRef<number>(undefined);
   useEffect(() => () => clearTimeout(settling.current), []);
-  const [done, setDone] = useState<number>();
   const leave = (name: string | undefined, playing: boolean) => {
     flying.current = { taking: takeOff(gridRoom.current!), to: "column", playing };
     setGrid(false);
@@ -637,14 +636,13 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   // Called a moment after Accept, it knows whether you're there already.
   const gridNow = useRef(onGrid);
   gridNow.current = onGrid;
-  const toGrid = (accepted?: number) => {
+  const toGrid = () => {
     const map = aside.current?.querySelector<HTMLElement>("[data-map]");
     if (map?.offsetParent && !gridNow.current) flying.current = { taking: takeOff(map, map.getBoundingClientRect()), to: "grid" };
     playhead.pause();
     playhead.go({ flow: round.flows[0]!.name, at: POSTER });
     if (open && !("writing" in open)) setOpen(undefined);
     setListing(false);
-    setDone(accepted);
     setGrid(true);
   };
   useLayoutEffect(() => {
@@ -890,7 +888,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     if (problems.length) return;
     setAcceptedHere(true);
     // Done, it goes back to every flow, where their ticks land in turn.
-    if (many) setTimeout(() => toGrid(performance.now()), 900);
+    if (many) setTimeout(toGrid, 900);
   };
 
   // The foot's one step, from where the playhead is: play on through the flow you're in; at its end, its question, or
@@ -1338,12 +1336,10 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
             standing={(name) => standing?.get(name)}
             needs={needs}
             changed={changedByWork}
-            marks={(name) => notes.flatMap((note) => (note.on?.flow === name && note.on.at !== undefined ? [{ at: note.on.at, ink: ink(note) }] : []))}
             accepted={review.accepted || acceptedHere ? acceptedAfter : undefined}
             step={gridStep}
             app={app}
             keep={keepChoice}
-            done={done}
             onFlow={(name) => leave(name, true)}
           />
         )}
