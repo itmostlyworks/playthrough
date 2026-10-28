@@ -96,3 +96,13 @@ async function post(path: string, body: unknown): Promise<string[]> {
     return ["Vantage isn't running here any more. Start it again with vantage open, then try again."];
   }
 }
+
+// What you did in the app, kept as your branch off the flow you took over: its length, in seconds, once it's kept.
+export async function keepBranch(review: string, round: number, from: { flow: string; at: number }, events: unknown[], recording: string): Promise<number | undefined> {
+  try {
+    const answer = await fetch(`/api/reviews/${review}/branches`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ round, ...from, events, recording }) });
+    return answer.ok ? ((await answer.json()) as { length: number }).length : undefined;
+  } catch {
+    return undefined;
+  }
+}

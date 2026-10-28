@@ -238,7 +238,8 @@ export function problemsWithSend(review: Review, send: Send): string[] {
   problems.push(...duplicates(send.notes.map((note) => note.id), (id) => `This send has two notes with the id ${id}.`));
   for (const note of send.notes) {
     if (notes.has(note.id)) problems.push(`The id ${note.id} is already a note's. Make a new one.`);
-    if (note.on) problems.push(...problemsWithPlace(note.on, round.flows, `Note ${note.id}`));
+    // One in the app is on the person's own recording, which branches off a flow of the round.
+    if (note.on) problems.push(...problemsWithPlace(note.on.app ? { flow: note.on.app.from.flow } : note.on, round.flows, `Note ${note.id}`));
   }
 
   problems.push(...duplicates(send.verdicts.map((verdict) => verdict.note), (id) => `This send has two verdicts on note ${id}.`));

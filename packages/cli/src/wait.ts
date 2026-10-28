@@ -76,7 +76,7 @@ function where(place: Place | undefined): string {
       : place.box
         ? `, the part of the screen ${share(place.box.x)} across and ${share(place.box.y)} down`
         : "";
-  if (place.app) return `on “${place.flow}”, in the app: taken over${at}, then ${place.app.did.length ? list(place.app.did.map(done)) : "nothing done there yet"}${on}`;
+  if (place.app) return `on “${place.app.from.flow}”, in the app: taken over at ${time(place.app.from.at)}, then ${place.app.did.length ? list(place.app.did.map(done)) : "nothing done there yet"}${on}`;
   return `on “${place.flow}”${at}${on}`;
 }
 

@@ -65,13 +65,17 @@ async function answer(repo: Repo, page: string, you: string, request: IncomingMe
 
   if (request.method === "GET" && rest[0] === "live") return live(repo, id, request, response);
   if (request.method === "GET" && rest[0] === "rounds" && rest[2] === "files" && rest[3]) {
-    const bytes = await reviews.file(id, Number(rest[1]), rest.slice(3).join("/"));
+    // Your branches play beside the round's recordings, as if they were its own.
+    const name = rest.slice(3).join("/");
+    const branch = name.match(/^(assets\/)?branches\/(.+)$/);
+    const bytes = branch ? await reviews.branch(id, `${branch[1] ?? ""}${branch[2]}`) : await reviews.file(id, Number(rest[1]), name);
     if (!bytes) return json(response, 404, { problems: [`Round ${rest[1]} of ${id} has no file called “${rest.slice(3).join("/")}”.`] });
     response.writeHead(200, { "content-type": TYPES[extname(path)] ?? "application/octet-stream", "cache-control": "max-age=31536000, immutable" });
     return response.end(bytes);
   }
   if (request.method === "POST" && rest[0] === "take-over") return takeOver(repo, id, request, response);
   if (request.method === "POST" && rest[0] === "follow") return followAlong(repo, id, request, response);
+  if (request.method === "POST" && rest[0] === "branches") return branch(repo, id, request, response);
   if (request.method === "POST" && rest[0] === "sends") {
     await reviews.send(id, await body<Send>(request));
     return json(response, 200, {});
@@ -106,6 +110,26 @@ async function takeOver(repo: Repo, id: string, request: IncomingMessage, respon
   const { flow, step, actions, did } = await body<{ flow: string; step?: string; actions?: number; did?: Did[] }>(request);
   const { port, moment } = await getReady(repo, id, flow, step, actions, did);
   json(response, 200, { port, moment });
+}
+
+// What a person did in the app, taken over, kept as a recording of its own: the flow as it was recorded up to where they
+// took it over, then theirs, going on from there. It plays like any flow, with what the flow's recording kept of the
+// app's files, and a note on it is on what they saw. Each time it's kept, it's kept whole, under a new name, as what
+// the viewer has fetched once it keeps.
+async function branch(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
+  const { round, flow: name, at, events, recording } = await body<{ round: number; flow: string; at: number; events: { timestamp: number }[]; recording: string }>(request);
+  const flow = (await repo.reviews.get(id)).rounds.find((kept) => kept.number === round)?.flows.find((flow) => flow.name === name);
+  const was = flow && (await repo.reviews.file(id, round, flow.recording));
+  if (!flow || !was || !events.length) return json(response, 404, { problems: [`Round ${round} of ${id} has no recording of “${name}” to branch off.`] });
+  const before: { timestamp: number }[] = JSON.parse(Buffer.from(was).toString("utf8"));
+  const start = before[0]!.timestamp;
+  const then = start + at * 1000;
+  const shift = then + 1 - events[0]!.timestamp;
+  const joined = [...before.filter((event) => event.timestamp <= then), ...events.map((event) => ({ ...event, timestamp: event.timestamp + shift }))];
+  await repo.reviews.saveBranch(id, recording, Buffer.from(JSON.stringify(joined)));
+  const kept = await repo.reviews.file(id, round, `assets/${flow.recording}`);
+  if (kept) await repo.reviews.saveBranch(id, `assets/${recording}`, kept);
+  json(response, 200, { length: (joined.at(-1)!.timestamp - start) / 1000 });
 }
 
 // Where the playhead has got to while the latest round plays, for the flow run alongside it.

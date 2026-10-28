@@ -672,21 +672,6 @@ export function Stage(props: Props) {
   // to yours, it's drawn here too, the app's own hidden, and over words you can type into it's the text cursor.
   useEffect(() => {
     const told = ({ data }: MessageEvent) => {
-      // While your steps play again in the app, your pointer is drawn, as the recording's is, and goes where they go.
-      // It's yours from the start, so the handing over is cut short: it plays as soon as the app has opened.
-      if (data?.vantage === "replaying" && open.current) {
-        const frame = frames.current.get(latest.current.round.number);
-        const hand = frame?.querySelector<HTMLElement>("[data-cursor]");
-        const tag = hand?.querySelector<HTMLElement>("[data-tag]");
-        const words = tag?.querySelector<HTMLElement>("[data-words]");
-        hand?.toggleAttribute("data-yours", !data.on);
-        if (frame) frame.style.cursor = data.on ? "none" : "default";
-        if (data.on && tag && words) {
-          handing.current.forEach(clearTimeout);
-          handing.current = [];
-          say(tag, words, "You");
-        }
-      }
       if (data?.vantage !== "pointer" || !open.current) return;
       const view = painted.current.get(latest.current.round.number);
       if (view) handTo({ x: (data.x - view.x) * view.k, y: (data.y - view.y) * view.k }, data.inside, !!data.text);

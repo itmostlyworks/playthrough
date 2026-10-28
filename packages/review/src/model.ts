@@ -48,9 +48,14 @@ export const Place = z
     box: Box.optional().describe("Something with no words of its own, or where only the pixels changed"),
     point: Point.optional().describe("Empty space"),
     app: z
-      .strictObject({ did: z.array(Did) })
+      .strictObject({
+        from: z.strictObject({ flow: text("needs the flow it was taken over in"), at: seconds("needs the moment it was taken over at, in seconds") }),
+        did: z.array(Did).describe("What the person did there, in order"),
+        recording: fileName("needs its recording: the name of a file in the round").describe("The flow up to where it was taken over, then the person's own steps"),
+        length: z.number({ error: "needs its length, in seconds" }).positive({ error: "needs its length, in seconds" }),
+      })
       .optional()
-      .describe("In the app: taken over at its moment, then what the person did there, in order. What it's on is in the app, not the recording"),
+      .describe("In the app: on the person's own recording, which branches off a flow where they took it over. Its flow names the branch"),
   })
   .refine((place) => [place.element, place.box, place.point].filter((thing) => thing).length <= 1, {
     error: "is on more than one thing. Choose an element, a box or a point",

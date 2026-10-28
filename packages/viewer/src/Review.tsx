@@ -3,7 +3,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { inStep, lastLooked, newId, readyToAccept, time, waitingForTheAgent, type Did, type Element as Thing, type Flow, type Note, type Point, type Place, type Review, type Round, type Send, type Verdict } from "@mostlyworks/vantage-review";
-import { accept, recording, send, useReview, useYou } from "./api.ts";
+import { accept, keepBranch, recording, send, useReview, useYou } from "./api.ts";
 import { Bar } from "./Bar.tsx";
 import { Beside, clickedAt } from "./Beside.tsx";
 import { HOLD } from "./Card.tsx";
@@ -79,11 +79,16 @@ function Reviewing({ review, you }: { review: Review; you: string }) {
 
 type OnRoundProps = { review: Review; round: Round; latest: Round; arrived: boolean; you: string; onRound: (round: number) => void };
 
-function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRoundProps) {
+function OnRound({ review: kept, round: asRecorded, latest: recordedLatest, arrived, you, onRound }: OnRoundProps) {
   // What you've just sent shows as sent until the review comes back with it.
   const [posted, setPosted] = useState<Send>();
   const review = posted && !kept.sends.some((send) => send.id === posted.id) ? { ...kept, sends: [...kept.sends, posted] } : kept;
-  const [draft, change] = useDraft(review.id, round.number);
+  const [draft, change] = useDraft(review.id, asRecorded.number);
+  // The round as you see it: its flows, each with your branches off it, from the notes you made in the app on it.
+  const madeHere = [...review.sends.filter((send) => send.round === asRecorded.number).flatMap((send) => send.notes), ...draft.notes, ...draft.unsaved];
+  const branches = JSON.stringify(branchesIn(madeHere));
+  const round = useMemo(() => branched(asRecorded, JSON.parse(branches)), [asRecorded, branches]);
+  const latest = recordedLatest === asRecorded ? round : recordedLatest;
   const [watched, see] = useWatched(review.id, round.number);
   const [open, setOpen] = useState<Open>();
   // The note whose Not quite is being written.
@@ -165,14 +170,16 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const playingNow = useNow(playhead, (now) => now.playing);
   const backToRecording = (at?: { x: number; y: number }) => {
     setLive((now) => now && { ...now, shown: false, at });
-    // Left while your steps played, they stop there.
-    goingThere.current = undefined;
-    setReplayed(undefined);
     window.focus();
   };
   if (live?.shown && (playingNow || round !== latest)) setLive({ ...live, shown: false });
+  // On your branch, it's the flow where you took it over, with what you did there done again.
+  const branchOf = (name: string) => (JSON.parse(branches) as Branch[]).find((branch) => branch.name === name);
   const takeOver = () => {
     if (live?.shown) return backToRecording();
+    const branch = branchOf(playhead.flow.name);
+    const from = branch && round.flows.find((flow) => flow.name === branch.from.flow);
+    if (branch && from) return takeOverAt(from, branch.from.at, branch.did);
     takeOverAt(playhead.flow, playhead.now.moment.at);
   };
   // With what a note in the app kept, it goes back there: the moment it was taken over at, and what was done since.
@@ -196,13 +203,9 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     const told = ({ data, source }: MessageEvent) => {
       // Only from the moment that's waiting: one just left can still be settling.
       const waiting = document.querySelector<HTMLIFrameElement>("[data-live] iframe")?.contentWindow;
-      if (data?.vantage === "settled" && source === waiting) {
-        setLive((now) => now && { ...now, settled: true });
-        arrivedInApp.current();
-      }
+      if (data?.vantage === "settled" && source === waiting) setLive((now) => now && { ...now, settled: true });
+      if (data?.vantage === "recorded" && source === waiting) recordedInApp.current(data.events);
       if (data?.vantage === "pinned") pinnedInApp(data.at);
-      if (data?.vantage === "step") setReplayed({ done: data.done, total: data.total });
-      if (data?.vantage === "replayed") replayedInApp.current();
       if (data?.vantage === "escape") {
         if (notingNow.current) setNoting(false);
         else backToRecording({ x: data.x, y: data.y });
@@ -283,10 +286,14 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const notingNow = useRef(noting);
   notingNow.current = noting;
   const notedInApp = useRef<(noted: NotedInApp) => void>(() => {});
-  const arrivedInApp = useRef(() => {});
-  const replayedInApp = useRef(() => {});
-  // Going back to a note in the app, how far its steps have played.
-  const [replayed, setReplayed] = useState<{ done: number; total: number }>();
+  // While you're in the app, what you do there is recorded, from when it was handed to you. Kept with a note you make
+  // there, it's your branch off the flow: a flow of its own, named for you, each note on it where you made it.
+  const yours = useRef<{ address?: string; events: unknown[]; branch: string; name?: string; kept: number }>({ events: [], branch: "", kept: 0 });
+  const recordedInApp = useRef<(events: unknown[]) => void>(() => {});
+  recordedInApp.current = (events) => {
+    if (yours.current.address !== live?.address) yours.current = { address: live?.address, events: [], branch: newId(), kept: 0 };
+    yours.current.events.push(...events);
+  };
   // Where each note's pin is in the app, on the page: its card sits by it.
   const appPins = useRef(new Map<string, { x: number; y: number }>());
   const pinnedInApp = (at: Record<string, { x: number; y: number }>) => {
@@ -452,50 +459,57 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   };
   const writingId = open && "writing" in open ? open.writing : undefined;
   // Noted in the app: a new note on what you clicked there, by it, keeping what you did there since taking over.
-  notedInApp.current = ({ element, point, did, x, y }) => {
+  notedInApp.current = async ({ element, point, did, x, y }) => {
     setNoting(false);
     const frame = document.querySelector<HTMLIFrameElement>("[data-live] iframe");
     const box = frame?.getBoundingClientRect();
     if (frame && box) clickedAt(box.left + (x * box.width) / frame.offsetWidth, box.top + (y * box.height) / frame.offsetHeight);
-    if (live) write({ flow: live.flow, at: Math.round(Math.max(0, playhead.now.moment.at) * 100) / 100, ...(element ? { element } : point && { point }), app: { did } });
+    const session = yours.current;
+    if (!live || readOnly || session.address !== live.address || !session.events.length) return;
+    const from = branchOf(playhead.flow.name)?.from ?? { flow: live.flow, at: Math.round(Math.max(0, playhead.now.moment.at) * 100) / 100 };
+    const kept = `${session.branch}-${++session.kept}.json`;
+    const length = await keepBranch(review.id, latest.number, from, session.events, kept);
+    const recording = `branches/${kept}`;
+    if (!length) return;
+    if (!session.name) {
+      const taken = new Set(round.flows.map((flow) => flow.name));
+      session.name = `You, in “${from.flow}”`;
+      for (let n = 2; taken.has(session.name); n++) session.name = `You, in “${from.flow}” ${n}`;
+    }
+    const name = session.name;
+    const app = { from, did, recording, length };
+    // What you said earlier on the same branch goes on with it.
+    const longer = (note: Note) => (note.on?.app && note.on.flow === name ? { ...note, on: { ...note.on, app: { ...note.on.app, recording, length } } } : note);
+    change((draft) => ({ ...draft, notes: draft.notes.map(longer), unsaved: draft.unsaved.map(longer) }));
+    write({ flow: name, at: Math.floor(length * 100) / 100, ...(element ? { element } : point && { point }), app });
   };
   // A note in the app shows there as a pin on what it's on.
   const pinInApp = (id: string, on: Place) =>
     document
       .querySelector<HTMLIFrameElement>("[data-live] iframe")
       ?.contentWindow?.postMessage({ vantage: "pin", id, number: notes.find((note) => note.id === id)?.number ?? notes.length + 1, css: on.element?.css, point: on.point }, "*");
-  // Gone back there, once the app has opened, your steps play in it, and then the app shows the note's pin, and the
-  // note opens by it.
-  const goingThere = useRef<{ id: string; on: Place; playing?: boolean }>(undefined);
-  replayedInApp.current = () => {
-    const going = goingThere.current;
-    if (!going) return;
-    goingThere.current = undefined;
-    setReplayed(undefined);
-    pinInApp(going.id, going.on);
-    setOpen({ note: going.id });
-  };
-  arrivedInApp.current = () => {
-    const going = goingThere.current;
-    if (!going || going.playing) return;
-    going.playing = true;
-    const did = going.on.app?.did ?? [];
-    if (!did.length) return replayedInApp.current();
-    setReplayed({ done: 0, total: did.length });
-    setTimeout(() => document.querySelector<HTMLIFrameElement>("[data-live] iframe")?.contentWindow?.postMessage({ vantage: "replay", did }, "*"), 700);
-  };
-  const goThere = (id: string, on: Place) => {
-    const there = latest.flows.find((flow) => flow.name === on.flow);
-    if (!there || on.at === undefined || !on.app) return;
+  // How you got here: your branch plays from where you took the flow over, and stops at the note, open.
+  const arriving = useRef<{ id: string; at: number }>(undefined);
+  const goThere = (note: Shown) => {
+    const app = note.on?.app;
+    if (!app || note.on?.at === undefined) return;
     setListed(false);
     setOpen(undefined);
-    playhead.go({ flow: on.flow, at: on.at });
-    // From inside the app, it closes first, so the fresh copy opens as any other does.
-    if (!live?.shown) return void ((goingThere.current = { id, on }), takeOverAt(there, on.at, on.app.did));
-    backToRecording();
-    goingThere.current = { id, on };
-    requestAnimationFrame(() => takeOverAt(there, on.at!, on.app!.did));
+    if (live?.shown) backToRecording();
+    playhead.run({ flow: note.on.flow, at: Math.max(0, app.from.at - 0.6) }, note.on.at);
+    arriving.current = { id: note.id, at: note.on.at };
   };
+  useEffect(
+    () =>
+      playhead.subscribe(() => {
+        const to = arriving.current;
+        if (!to || playhead.now.playing) return;
+        // There, at the note or at the branch's end, which may come first.
+        if (playhead.now.moment.at >= to.at - 0.15) setOpen({ note: to.id });
+        arriving.current = undefined;
+      }),
+    [playhead],
+  );
   useEffect(() => {
     if (draft.unsaved.some((note) => !note.words.trim() && note.id !== writingId))
       change((draft) => ({ ...draft, unsaved: draft.unsaved.filter((note) => note.words.trim() || note.id === writingId) }));
@@ -780,7 +794,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
         onAnswer={toAnswer}
         onPlayOn={playOn}
         onShow={() => show(note)}
-        onGoThere={note.on?.app ? () => goThere(note.id, note.on!) : undefined}
+        onGoThere={note.on?.app ? () => goThere(note) : undefined}
       />
     );
   };
@@ -1019,7 +1033,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     return id === undefined ? undefined : note ? ink(note) : "var(--amber)";
   };
   const markOn = (on: Place | undefined): Mark["on"] | undefined =>
-    on?.app ? undefined : on?.element?.node !== undefined ? { node: on.element.node } : on?.point ? { point: on.point } : on?.box ? { box: on.box } : undefined;
+    on?.element?.node !== undefined ? { node: on.element.node } : on?.point ? { point: on.point } : on?.box ? { box: on.box } : undefined;
   const drawn = (diamond: Diamond) => {
     const pointed = diamond.changes.filter((changed) => changed.change.id === pointedChange);
     return pointed.length ? pointed : diamond.changes;
@@ -1166,7 +1180,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
           <div className="min-w-0 flex-1">
           <Controls
             stage
-            steps={replayed}
+            branch={branchOf(watching)?.from.at}
             live={live?.shown ? (live.address && live.settled ? "shown" : "waiting") : undefined}
             onTakeOver={takeOver}
             ref={controls}
@@ -1212,7 +1226,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
               onSend={!readOnly && asksTheAgent ? sendNow : undefined}
               sent={sent}
               trouble={trouble}
-              pieces={judging && standing ? round.flows.map((flow) => ({ flow: flow.name, standing: standing.get(flow.name)!, here: flow.name === watching })) : undefined}
+              pieces={judging && standing ? round.flows.flatMap((flow) => (standing.has(flow.name) ? [{ flow: flow.name, standing: standing.get(flow.name)!, here: flow.name === watching }] : [])) : undefined}
               landed={landed}
               busy={!!working}
               onFlow={watchFrom}
@@ -1293,4 +1307,32 @@ function store(key: string, value: string) {
   } catch {
     // the browser keeps nothing here
   }
+}
+
+// Your branches off a round's flows: for each, where you took the flow over, what you did, and the longest recording
+// kept of it.
+type Branch = { name: string; from: { flow: string; at: number }; did: Did[]; recording: string; length: number };
+function branchesIn(notes: Note[]): Branch[] {
+  const longest = new Map<string, Branch>();
+  for (const { on } of notes) {
+    if (!on?.app || (longest.get(on.flow)?.length ?? 0) >= on.app.length) continue;
+    longest.set(on.flow, { name: on.flow, ...on.app });
+  }
+  return [...longest.values()];
+}
+
+// Each branch follows its flow: the flow's steps up to where you took over, then yours, in the app.
+function branched(round: Round, branches: Branch[]): Round {
+  if (!branches.length) return round;
+  const off = (flow: Flow): Flow[] =>
+    branches
+      .filter((branch) => branch.from.flow === flow.name)
+      .map((branch) => ({
+        name: branch.name,
+        length: branch.length,
+        steps: [...flow.steps.filter((step) => step.at < branch.from.at), { title: "In the app", at: branch.from.at }],
+        recording: branch.recording,
+        person: "You",
+      }));
+  return { ...round, flows: round.flows.flatMap((flow) => [flow, ...off(flow)]) };
 }

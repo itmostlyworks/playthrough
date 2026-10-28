@@ -117,6 +117,20 @@ export class Reviews {
     });
   }
 
+  // What a person did in the app, kept as their branch off a flow: theirs, not a round's, so it's kept beside the rounds
+  // and can be kept again, longer, while the round it branches off never changes.
+  async saveBranch(id: string, name: string, bytes: Uint8Array): Promise<void> {
+    const problems = [...problemsWithId(id), ...problemsWithFileName(name)];
+    if (problems.length) throw new Refused(problems);
+    await this.storage.write(`${id}/branches/${name}`, bytes);
+  }
+
+  async branch(id: string, name: string): Promise<Uint8Array | undefined> {
+    const problems = [...problemsWithId(id), ...problemsWithFileName(name)];
+    if (problems.length) throw new Refused(problems);
+    return this.storage.read(`${id}/branches/${name}`);
+  }
+
   // Takes what's been sent and not yet taken. The round being worked on answers it.
   async take(id: string): Promise<Send[]> {
     return this.#one(id, async () => {

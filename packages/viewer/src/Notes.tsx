@@ -53,7 +53,7 @@ type Props = {
   onAnswer: (changed: Changed) => void;
   onPlayOn: () => void;
   onShow: () => void;
-  // Noted in the app: back there, with what was done there before it.
+  // Noted in the app: your branch played from where you took the flow over to it.
   onGoThere?: () => void;
 };
 
@@ -276,7 +276,7 @@ function Card(props: Props) {
       `${props.onGoThere ? "In the app · " : ""}${note.unsent ? "Not sent yet" : note.state === "with the agent" ? "Sent to the agent" : note.state === "settled" ? "Settled" : ""}`,
       props.onGoThere ? (
         <button className="h-[30px] flex-[1_1_100%] rounded-[7px] bg-hover font-medium text-fg shadow-[inset_0_0_0_1px_var(--line)] hover:opacity-88" onClick={props.onGoThere}>
-          Go there
+          How you got here
         </button>
       ) : note.on?.at !== undefined ? (
         playOn

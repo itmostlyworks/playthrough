@@ -25,7 +25,7 @@ export type To = { flow: string; step?: string; actions?: number; rests?: boolea
 // The flow's page there, as a browser keeps it: its address, its cookies, what the app kept in the browser, how far it
 // was scrolled, and how far its clock, the recordings', is ahead of the real one, in milliseconds. And partway through a
 // step, the actions to do again there, which changed only what was in the page's memory. Gone back to from a note in the
-// app, what the person did there, to play again.
+// app, what the person did there, done again after them.
 export type Handed = { url: string; cookies: Cookie[]; local: Record<string, string>; session: Record<string, string>; scroll: { x: number; y: number }; clock: number; again?: Action[]; did?: Did[] };
 // An action of the flow's, done again in the person's browser: what it did, on the element at that path, with what.
 export type Action = { does: string; on: string; with?: string | boolean | string[] };
