@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Reading } from "@mostlyworks/vantage-page";
 import { keepAssets } from "./assets.ts";
-import { HANDED, type Action, type Handed, type Run, type To } from "./flows.ts";
+import { BEAT, HANDED, type Action, type Handed, type Run, type To } from "./flows.ts";
 import { readPage, unhovered } from "./read.ts";
 import { repo } from "./repo.ts";
 import { ACTIONS, ASSETS, HOLD, PERSON, PICTURE, READINGS, RECORDING, seconds } from "./reporter.ts";
@@ -59,7 +59,6 @@ if (window.top === window) window.rrwebRecord.record({
 // Playwright acts instantly, and a recording made at that speed can't be watched.
 const FRAME = 16; // a move each frame while gliding or scrolling
 const REST = 140; // the pointer rests on its target before acting
-const BEAT = 650; // after each action, so its result can be seen
 const SAVING = 100; // taking over, how soon an action that saves or goes to another page shows it
 
 let pointer: { page: Page; x: number; y: number } | undefined;

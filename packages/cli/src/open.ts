@@ -9,6 +9,7 @@ import { userInfo } from "node:os";
 import { dirname, extname, join, normalize, sep } from "node:path";
 import type { Reading } from "@mostlyworks/vantage-page";
 import { Refused, type Did, type Send } from "@mostlyworks/vantage-review";
+import { BEAT } from "./flows.ts";
 import type { Repo } from "./repo.ts";
 import { getReady, keepUp } from "./take-over.ts";
 
@@ -126,7 +127,7 @@ async function branch(repo: Repo, id: string, request: IncomingMessage, response
   const start = before[0]!.timestamp;
   const then = start + at * 1000;
   const shift = then + 1 - events[0]!.timestamp;
-  const yours = events.map((event) => ({ ...event, timestamp: event.timestamp + shift }));
+  const yours = paced(events).map((event) => ({ ...event, timestamp: event.timestamp + shift }));
   const joined = [...before.filter((event) => event.timestamp <= then), ...yours.filter((event) => !readingOf(event))];
   await repo.reviews.saveBranch(id, recording, Buffer.from(JSON.stringify(joined)));
   // As the app read itself while you were in it. Only yours: the page there is recorded afresh, its elements numbered
@@ -139,6 +140,15 @@ async function branch(repo: Repo, id: string, request: IncomingMessage, response
 }
 
 type Event = { timestamp: number; type?: number; data?: { tag?: string; payload?: Pick<Reading, "screen" | "things"> } };
+// Watched later, yours keeps its pace while you act, but a while spent looking, when nothing happened, goes by in a
+// flow's pause.
+function paced(events: Event[]): Event[] {
+  let cut = 0;
+  return events.map((event, i) => {
+    cut += Math.max(0, event.timestamp - (events[i - 1]?.timestamp ?? event.timestamp) - BEAT);
+    return { ...event, timestamp: event.timestamp - cut };
+  });
+}
 const readingOf = (event: Event) => (event.type === 5 && event.data?.tag === "reading" ? event.data.payload : undefined);
 
 // Where the playhead has got to while the latest round plays, for the flow run alongside it.

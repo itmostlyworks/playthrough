@@ -31,6 +31,8 @@ export type Handed = { url: string; cookies: Cookie[]; local: Record<string, str
 export type Action = { does: string; on: string; with?: string | boolean | string[] };
 export type Cookie = { name: string; value: string; path: string; expires: number; httpOnly: boolean };
 export const HANDED = "handed.json";
+// A flow pauses this long after each action, so its result can be seen: the pace every recording is watched at.
+export const BEAT = 650;
 
 // Flows are modules whatever the app's own package.json says, so they load the same way in every repo.
 export async function makeFlowsFolder(repo: Repo, id: string) {
