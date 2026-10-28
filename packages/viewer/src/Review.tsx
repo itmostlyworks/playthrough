@@ -90,11 +90,10 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     const own = (note: Note) => (note.on?.app && note.on.flow !== note.on.app.from.flow ? { ...note, on: { ...note.on, flow: note.on.app.from.flow } } : note);
     if ([...draft.notes, ...draft.unsaved].some((note) => own(note) !== note)) change((draft) => ({ ...draft, notes: draft.notes.map(own), unsaved: draft.unsaved.map(own) }));
   }, [draft, change]);
-  // The round as it plays: each flow with your forks off it, where you took it over and carried on by hand, from the
-  // notes you made in the app on it and the one you've just let go of, until you leave its flow.
+  // The round as it plays: each flow with your forks off it, where you took it over, carried on by hand and said
+  // something there, from the notes you made in the app on it.
   const madeHere = [...review.sends.filter((send) => send.round === round.number).flatMap((send) => send.notes), ...draft.notes, ...draft.unsaved];
-  const [loose, setLoose] = useState<Fork>();
-  const forks = JSON.stringify(forksIn(madeHere, loose));
+  const forks = JSON.stringify(forksIn(madeHere));
   const forkList: Fork[] = useMemo(() => JSON.parse(forks), [forks]);
   const played = useMemo(() => forked(round, forkList), [round, forkList]);
   const [watched, see] = useWatched(review.id, round.number);
@@ -127,15 +126,8 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const [playhead] = useState(() => new Playhead(played.flows, { flow: round.flows[0]?.name ?? "", at: POSTER }));
   useEffect(() => () => playhead.destroy(), [playhead]);
   const onRoundNow = useRef(round.number);
-  // Where the playhead goes once a fork you've just let go of is there to go to.
-  const landOn = useRef<Moment>(undefined);
   useLayoutEffect(() => {
-    if (onRoundNow.current === round.number) {
-      playhead.watch(played.flows, playhead.now.moment);
-      if (landOn.current) playhead.go(landOn.current);
-      landOn.current = undefined;
-      return;
-    }
+    if (onRoundNow.current === round.number) return playhead.watch(played.flows, playhead.now.moment);
     onRoundNow.current = round.number;
     const from = playhead.flow;
     const to = played.flows.find((flow) => flow.name === from.name);
@@ -194,23 +186,18 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     window.focus();
   };
   if (live?.shown && (playingNow || round !== latest)) setLive({ ...live, shown: false });
-  // Letting go, what you did is kept as a fork off the flow, and you land at its end, on the recording of it.
-  const letGo = async (at?: { x: number; y: number }) => {
-    const session = yours.current;
-    if (live?.shown && session.address === live.address && session.events.length && !readOnly) {
-      const fork = await keepFork(session);
-      if (fork) {
-        setLoose(fork);
-        landOn.current = { flow: fork.name, at: fork.length };
-      }
-    }
+  // Letting go, what you did is kept only as far as you said something about it: you land at your last note on the
+  // fork, or with nothing said, back where you took the flow over, with nothing left behind.
+  const letGo = (at?: { x: number; y: number }) => {
+    const kept = live?.shown && yours.current.address === live.address && forkList.find((fork) => fork.session === yours.current.id);
+    if (kept) playhead.go({ flow: kept.name, at: kept.length });
     backToRecording(at);
   };
   const letGoNow = useRef(letGo);
   letGoNow.current = letGo;
   // On a fork, taking over carries it on from its end: the flow taken over where you took it, your steps done again.
   const takeOver = () => {
-    if (live?.shown) return void letGo();
+    if (live?.shown) return letGo();
     const base = onFork && round.flows.find((flow) => flow.name === onFork.from.flow);
     if (onFork && base) {
       starting.current = { from: onFork.from, carry: yours.current.id === onFork.session ? yours.current : undefined };
@@ -357,7 +344,6 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     change((draft) => ({ ...draft, notes: draft.notes.map(longer), unsaved: draft.unsaved.map(longer) }));
     return { name: `fork:${session.id}`, session: session.id, from: session.from, did: session.did, recording, length };
   };
-  if (loose && watching !== loose.from.flow && !live?.shown) setLoose(undefined);
   // Where each note's pin is in the app, on the page: its card sits by it.
   const appPins = useRef(new Map<string, { x: number; y: number }>());
   const pinnedInApp = (at: Record<string, { x: number; y: number }>) => {
@@ -1022,7 +1008,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
         event.preventDefault();
         takeOver();
       } else if (event.key === "Escape" && live?.shown) {
-        void letGo();
+        letGo();
       } else if (event.key === "Escape") {
         // Escape goes back a step you can see: from a note or a change to the column, looking back to now, and from a
         // flow to every flow.
@@ -1193,7 +1179,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
                 setNoting(!noting);
               }}
               onTakeOver={takeOver}
-              onBack={() => void letGo()}
+              onBack={() => letGo()}
               notes={notes.length}
               listed={listed}
               onList={() => setListed(!listed)}
@@ -1355,11 +1341,10 @@ const sessionOf = (recording: string) => recording.match(/^branches\/(.+)-\d+\.j
 const forkName = (recording: string) => `fork:${sessionOf(recording)}`;
 // The recording a place is on: its flow's, or its fork's.
 const playedOn = (place: Place) => (place.app ? forkName(place.app.recording) : place.flow);
-function forksIn(notes: Note[], loose?: Fork): Fork[] {
+function forksIn(notes: Note[]): Fork[] {
   const longest = new Map<string, Fork>();
   const keep = (fork: Fork) => void ((longest.get(fork.name)?.length ?? 0) < fork.length && longest.set(fork.name, fork));
   for (const { on } of notes) if (on?.app) keep({ name: forkName(on.app.recording), session: sessionOf(on.app.recording), ...on.app });
-  if (loose) keep(loose);
   return [...longest.values()];
 }
 
