@@ -1,10 +1,10 @@
 // Under the recording: play, the time, and the line, which is the flow you're in end to end with its name under it,
 // a dot for each note on it, a diamond where something new to you changed and a band over new steps. The line answers
 // the pointer: under it the line thickens, the playhead grows, and a ghost of the playhead with its time says where a
-// click lands. Nothing here changes width as it plays. Where someone took the flow over and carried on by hand, a fork
-// leaves the line, folded like a thread: a sprout with its notes on the tip, one thing to point at and press, saying who
-// and how many. Opened, by a press or by going to one of its notes in the column, it grows to run above the line as long as they were there, and plays like the rest
-// of it. Only the one you're on is open.
+// click lands. Nothing here changes width as it plays.
+// Where someone took the flow over and carried on by hand, a sprout leaves the line: another way it went from there,
+// with its notes on the tip, saying who and how many. Pressed, the line is theirs, as any flow's is: the flow's up to
+// where they took it over, theirs from there, and a sprout where the flow carried on, to go back by.
 
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { time, type Flow } from "@mostlyworks/vantage-review";
@@ -13,8 +13,8 @@ import { useNow, type Forked, type Playhead } from "./playhead.ts";
 
 // A note on the line: a dot at its moment, or a pill over its stretch, in its colour (a CSS colour).
 export type Dot = { id: string; at: number; until?: number; ink: string; number: number; words: string; fork?: string };
-// A fork off the flow: the moment it leaves at, and how long it runs.
-export type ForkLine = { name: string; at: number; length: number };
+// A fork off the flow, by its name, and the moment it leaves at.
+export type ForkLine = { name: string; at: number };
 // What changed, under the notes: a diamond at its moment, or a band over new steps, named as its row is. One the agent
 // made for a note carries the note's dot on its corner, its number before its name. Lit, it's ringed: the change you're
 // on, or what changed for the note you've opened.
@@ -33,32 +33,31 @@ type Props = {
 };
 
 const DOT = 14;
-// While you're in the app, the fork is this long, its open end breathing as what's under way does everywhere; let go,
-// it runs on to its own end.
+// In the app, your part of the line is this long, its open end breathing as what's under way does everywhere; let go,
+// the line is your fork's.
 const UNDER_WAY = 64;
 const OPEN_END = 18;
-// The fork's curve, before its line: played up to a share of the whole fork is that far along the fork, not its line.
-const CURVE = 12;
-const filledTo = (share: number) => `calc(${(share * 100).toFixed(4)}% - ${(CURVE * (1 - share)).toFixed(2)}px)`;
-// Of the line, so a fork of a moment can still be found and pressed.
-const SHORTEST = 0.03;
-// Folded, a fork is its curve and this much of its line; folded ones that would touch stand this far apart.
+// A sprout is a curve and this much line; sprouts that would touch stand this far apart.
 const SPROUT = 22;
 const GAP = 6;
+
+// Another way the flow went from a moment: where a press goes, and what it says.
+type Sprout = { key: string; at: number; flow: boolean; said: string; notes: Dot[]; to: { flow: string; at: number } };
 
 export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [], growing }: Props) {
   const now = useNow(playhead);
   const flows = playhead.flows;
-  // On a fork, the line is still its flow's.
-  const of = (playhead.flow as Forked).fork;
-  const flow = (of && flows.find((flow) => flow.name === of)) || playhead.flow;
+  const flow = playhead.flow;
   const here = flows.indexOf(flow);
-  const onFork = forks.find((fork) => fork.name === playhead.flow.name);
+  // On a fork, the flow it left. Yours, on a fork or in the app, from where it leaves the flow.
+  const of = (flow as Forked).fork;
+  const onFork = of ? forks.find((fork) => fork.name === flow.name) : undefined;
+  const yours = onFork?.at ?? growing?.at;
   const line = useRef<HTMLDivElement>(null);
-  // Where the pointer is on the line, and which line it's on: the flow's, or a fork's by its name.
-  const [pointing, setPointing] = useState<{ at: number; fork?: string }>();
+  // Where the pointer is on the line, or the sprout it's on.
+  const [pointing, setPointing] = useState<{ at: number; sprout?: string }>();
   const [scrubbing, setScrubbing] = useState(false);
-  const [held, setHeld] = useState<string>();
+  const [held, setHeld] = useState(false);
   const [named, setNamed] = useState<string>();
 
   // Where a moment of a flow sits: the line is the flow you're in, and the others' marks wait at its ends, out of sight.
@@ -69,30 +68,18 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
   const percent = (on: Flow, at: number) => `${(share(on, at) * 100).toFixed(4)}%`;
   const pc = (share: number) => `${(share * 100).toFixed(4)}%`;
 
-  // A fork runs as long as you were there, on the flow's clock, from where it leaves; one longer than what's left of the
-  // flow ends with the line, which never moves for it. While you're there, it's a short one, under way, your place
-  // where it opens.
-  const grown = growing && (forks.find((fork) => fork.name === growing.name) ?? growing);
-  const lines = [...forks.filter((fork) => fork.name !== grown?.name), ...(grown ? [grown] : [])];
-  // In the app, the playhead rests at the end of the fork you're making; that one, or the one you're on, is open.
-  const riding = grown ?? onFork;
-  const reach = (fork: ForkLine) => {
-    const start = share(flow, fork.at);
-    return { start, end: Math.min(1, Math.max(share(flow, fork.length), start + SHORTEST)) };
+  // Yours shares the flow up to where it leaves; what the flow did after that isn't on your line.
+  const shared = (at: number) => yours === undefined || at <= yours + 0.01;
+  const shown = dots.filter((dot) => (dot.fork ? dot.fork === onFork?.name || dot.fork === growing?.name : shared(dot.at)));
+  const person = (name: string) => flows.find((flow) => flow.name === name)?.person ?? "You";
+  const forkSprout = (fork: ForkLine): Sprout => {
+    const notes = dots.filter((dot) => dot.fork === fork.name).sort((a, b) => a.at - b.at);
+    return { key: fork.name, at: fork.at, flow: false, said: `${person(fork.name)} · ${notes.length} ${notes.length === 1 ? "note" : "notes"}`, notes, to: { flow: fork.name, at: fork.at } };
   };
-  const forkShare = (fork: ForkLine, at: number) => {
-    const { start, end } = reach(fork);
-    return fork.length <= fork.at ? end : start + ((clamp(at, fork.at, fork.length) - fork.at) / (fork.length - fork.at)) * (end - start);
-  };
-  const forkTimeAt = (fork: ForkLine, clientX: number) => {
-    const box = line.current!.getBoundingClientRect();
-    const { start, end } = reach(fork);
-    return clamp(fork.at + ((clamp((clientX - box.left) / box.width) - start) / Math.max(0.0001, end - start)) * (fork.length - fork.at), fork.at, fork.length);
-  };
-  const dotShare = (dot: { at: number; fork?: string }) => {
-    const fork = dot.fork ? lines.find((line) => line.name === dot.fork) : undefined;
-    return fork ? forkShare(fork, dot.at) : share(flow, dot.at);
-  };
+  const sprouts: Sprout[] = [
+    ...(onFork && of ? [{ key: of, at: onFork.at, flow: true, said: of, notes: [], to: { flow: of, at: onFork.at } }] : []),
+    ...forks.filter((fork) => fork.name !== onFork?.name && fork.name !== growing?.name && shared(fork.at)).map(forkSprout),
+  ];
 
   // Notes too close to tell apart stand side by side around their moment, each wide enough to click.
   const [wide, setWide] = useState(0);
@@ -102,41 +89,29 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
     return () => measured.disconnect();
   }, []);
   const apart = new Map<string, number>();
-  const points = dots.filter((dot) => dot.until === undefined).sort((a, b) => a.at - b.at);
+  const points = shown.filter((dot) => dot.until === undefined && dot.fork !== growing?.name).sort((a, b) => a.at - b.at);
   for (let i = 0; i < points.length; ) {
     let j = i + 1;
     while (j < points.length && (share(flow, points[j]!.at) - share(flow, points[j - 1]!.at)) * wide < DOT) j++;
     points.slice(i, j).forEach((dot, k) => apart.set(dot.id, (k - (j - i - 1) / 2) * DOT));
     i = j;
   }
-
-  // Each folded fork where it leaves, unless it would touch the one before: then just after it, with its notes. Its notes
-  // sit along its tip, the first capping it.
-  const notesOn = (fork: ForkLine) => dots.filter((dot) => dot.fork === fork.name).sort((a, b) => a.at - b.at);
-  // Open, it's still kept there, folded, for it to fade back to.
-  const sprouts = new Map<string, number>();
+  // Each sprout where it leaves, unless it would touch the one before: then just after it and its notes. The flow's own
+  // comes first, right where yours turns.
+  const placed = new Map<string, number>();
   let free = -Infinity;
-  for (const fork of [...lines].sort((a, b) => a.at - b.at)) {
-    const left = fork === riding ? share(flow, fork.at) * wide : Math.max(share(flow, fork.at) * wide, free);
-    sprouts.set(fork.name, left);
-    free = left + SPROUT + (fork === riding ? 0 : Math.max(0, notesOn(fork).length - 1) * DOT + DOT / 2) + GAP;
+  for (const sprout of [...sprouts].sort((a, b) => a.at - b.at || Number(b.flow) - Number(a.flow))) {
+    const left = Math.max(share(flow, sprout.at) * wide, free);
+    placed.set(sprout.key, left);
+    free = left + SPROUT + (sprout.notes.length ? 3 + (sprout.notes.length - 1) * DOT + DOT / 2 : 0) + GAP;
   }
-  const folded = (fork: ForkLine | undefined) => !!fork && fork !== riding;
-  const tipOf = (dot: Dot) => {
-    const fork = lines.find((line) => line.name === dot.fork)!;
-    return `calc(0% + ${sprouts.get(fork.name)! + SPROUT + 3 + notesOn(fork).indexOf(dot) * DOT}px)`;
-  };
-  const said = (fork: ForkLine) => {
-    const count = notesOn(fork).length;
-    return `${flows.find((flow) => flow.name === fork.name)?.person ?? "You"} · ${count} ${count === 1 ? "note" : "notes"}`;
-  };
 
   // Crossing into another flow opens it up in one smooth shift, never while you're dragging.
   const [shifting, setShifting] = useState(false);
-  const shown = useRef(flow.name);
+  const was = useRef(flow.name);
   useEffect(() => {
-    if (shown.current === flow.name) return;
-    shown.current = flow.name;
+    if (was.current === flow.name) return;
+    was.current = flow.name;
     if (scrubbing) return;
     setShifting(true);
     const done = setTimeout(() => setShifting(false), 400);
@@ -169,25 +144,24 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
   const press = (event: PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
     const onDot = !!(event.target as Element).closest("[data-mark]");
-    // Pressed on a fork, the drag goes along it; anywhere else, along the flow. A folded one opens, from where it leaves.
-    const fork = forks.find((fork) => fork.name === (event.target as Element).closest("[data-fork]")?.getAttribute("data-fork"));
-    if (folded(fork)) return void playhead.go({ flow: fork!.name, at: fork!.at });
-    const to = (clientX: number) => (fork ? playhead.go({ flow: fork.name, at: forkTimeAt(fork, clientX) }) : playhead.go({ flow: flow.name, at: snap(clientX, timeAt(clientX)) }));
+    // A sprout goes to the line it starts, where it leaves this one.
+    const sprout = sprouts.find((sprout) => sprout.key === (event.target as Element).closest("[data-sprout]")?.getAttribute("data-sprout"));
+    if (sprout) return void playhead.go(sprout.to);
+    const to = (clientX: number) => playhead.go({ flow: flow.name, at: snap(clientX, timeAt(clientX)) });
     const start = event.clientX;
     const id = event.pointerId;
     const playing = playhead.now.playing;
     let live = false;
     const begin = () => {
       live = true;
-      setHeld(fork?.name ?? "");
+      setHeld(true);
       setScrubbing(true);
       playhead.scrub(true);
       line.current!.setPointerCapture(id);
     };
     if (!onDot) {
       begin();
-      if (fork) to(start);
-      else playhead.go({ flow: flow.name, at: timeAt(start) });
+      playhead.go({ flow: flow.name, at: timeAt(start) });
     }
     const move = (moving: globalThis.PointerEvent) => {
       if (moving.pointerId !== id) return;
@@ -201,7 +175,7 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
       removeEventListener("pointerup", up);
       removeEventListener("pointercancel", up);
       if (!live) return;
-      setHeld(undefined);
+      setHeld(false);
       if (onDot) {
         swallow.current = true;
         setTimeout(() => (swallow.current = false));
@@ -217,23 +191,25 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
   };
 
   const at = now.moment.at;
-  const underWay = (fork: ForkLine) => `calc(${pc(share(flow, fork.at))} + ${UNDER_WAY - OPEN_END}px)`;
-  const head = grown ? underWay(grown) : pc(onFork ? forkShare(onFork, at) : share(flow, at));
-  const filled = riding ? percent(flow, riding.at) : head;
-  // The line under the pointer, or being dragged along, thickens, and so does the playhead on it: "" for the flow's.
-  const hot = held ?? pointing?.fork ?? (pointing ? "" : undefined);
-  const headHot = hot !== undefined && hot === (riding ? riding.name : "");
+  // Yours on the line: where it leaves the flow, and in the app, where its open end is.
+  const turn = yours === undefined ? undefined : share(flow, yours);
+  const underWay = turn === undefined ? undefined : `calc(${pc(turn)} + ${UNDER_WAY - OPEN_END}px)`;
+  const head = growing ? underWay! : pc(share(flow, at));
+  // The line under the pointer, or being dragged along, thickens, and so does the playhead on it; or the sprout under it.
+  const hot = held ? "" : (pointing?.sprout ?? (pointing ? "" : undefined));
+  const headHot = hot === "";
   const thick = "-ml-[1.5px] w-[3px] rounded-[1.5px]";
   const moving = shifting ? "transition-[left,width,opacity] duration-300 ease-calm" : "";
   const label = "pointer-events-none absolute bottom-[calc(100%-1px)] -translate-x-1/2 rounded-[5px] bg-surface px-[7px] py-px text-[11px] leading-[14px] whitespace-nowrap shadow-tip transition-[opacity,translate] duration-150 ease-calm";
-  const dot = dots.find((dot) => dot.id === named);
+  const dot = shown.find((dot) => dot.id === named);
   const mark = marks.find((mark) => mark.id === named);
   const tip = dot ?? mark;
-  const pointedFork = pointing?.fork ? lines.find((line) => line.name === pointing.fork) : undefined;
-  // A folded fork pointed at says whose it is and how many notes it holds, over its sprout, with no time to land on.
-  const sprout = folded(pointedFork) ? pointedFork : undefined;
+  // A sprout pointed at says whose it is and how many notes it holds, or the flow's name, with no time to land on.
+  const sprout = pointing?.sprout ? sprouts.find((sprout) => sprout.key === pointing.sprout) : undefined;
   const ghost = !scrubbing && pointing !== undefined && !tip && !sprout;
-  const pointed = pointing === undefined ? undefined : sprout ? `${sprouts.get(sprout.name)! + SPROUT / 2}px` : pc(pointedFork ? forkShare(pointedFork, pointing.at) : share(flow, pointing.at));
+  const pointed = pointing === undefined ? undefined : sprout ? `${placed.get(sprout.key)! + SPROUT / 2}px` : pc(share(flow, pointing.at));
+  const dotAt = (dot: Dot) => (dot.fork && dot.fork === growing?.name ? underWay! : pc(share(flow, dot.at)));
+  const amber = (strength: number) => `color-mix(in srgb, var(--amber) ${strength}%, var(--ground))`;
 
   return (
     <>
@@ -277,60 +253,70 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
         onPointerMove={(event) => {
           if (scrubbing) return;
           const target = event.target as Element;
-          const fork = lines.find((line) => line.name === target.closest("[data-fork]")?.getAttribute("data-fork"));
-          setPointing(target.closest("[data-mark]") ? undefined : fork ? { at: forkTimeAt(fork, event.clientX), fork: fork.name } : { at: timeAt(event.clientX) });
+          const sprout = target.closest("[data-sprout]")?.getAttribute("data-sprout");
+          setPointing(target.closest("[data-mark]") ? undefined : sprout ? { at: 0, sprout } : { at: timeAt(event.clientX) });
         }}
         onPointerLeave={() => setPointing(undefined)}
       >
-        {/* Over the forks, so each rises out of it rather than lying across it. */}
-        <div className={`absolute inset-x-0 z-1 bg-line transition-[top,height,border-radius] duration-150 ease-calm ${hot === "" ? "top-4 h-1 rounded-[2px]" : "top-[17px] h-0.5 rounded-[1px]"}`}>
+        {/* Over the sprouts, so each rises out of it rather than lying across it. Yours, from where it leaves the flow, is
+            amber; in the app, it's under way, its open end breathing. */}
+        <div className={`absolute inset-x-0 z-1 transition-[top,height,border-radius] duration-150 ease-calm ${hot === "" ? "top-4 h-1 rounded-[2px]" : "top-[17px] h-0.5 rounded-[1px]"}`}>
+          <div className={`absolute inset-y-0 left-0 bg-line ${turn === undefined ? "rounded-[inherit]" : "rounded-l-[inherit]"} ${moving}`} style={{ width: turn === undefined ? "100%" : pc(turn) }} />
           <div
-            className={`absolute top-0 left-0 h-full rounded-[inherit] ${hot === "" ? "bg-soft" : "bg-faint"} ${moving}`}
-            style={{ width: filled }}
+            className={`absolute inset-y-0 left-0 ${turn === undefined ? "rounded-[inherit]" : "rounded-l-[inherit]"} ${hot === "" ? "bg-soft" : "bg-faint"} ${moving}`}
+            style={{ width: turn === undefined ? head : `min(${head}, ${pc(turn)})` }}
           />
-        </div>
-        {/* Each fork twice, open and folded, in the same place where it leaves: opening, one fades into the other, and
-            nothing slides. Only the one shown can be pointed at. */}
-        {lines.flatMap((fork) => {
-          const { start, end } = reach(fork);
-          const on = fork === riding;
-          const going = fork === grown;
-          const played = on ? (going ? 1 : forkShare(fork, at)) : start;
-          const lit = hot === fork.name;
-          // Faint until it's pointed at or played: an aside to the flow, there when you look for it.
-          const ink = lit || on ? "var(--amber)" : "color-mix(in srgb, var(--amber) 40%, var(--ground))";
-          const pale = `color-mix(in srgb, var(--amber) ${lit ? 45 : 25}%, var(--ground))`;
-          // Folded, its notes are part of it: pressed anywhere along them, it opens.
-          const along = 3 + Math.max(0, notesOn(fork).length - 1) * DOT + DOT / 2;
-          const layer = (open: boolean) => (
+          {turn !== undefined && !growing && (
             <div
-              key={`${fork.name}/${open ? "open" : "folded"}`}
-              data-fork={open === on ? fork.name : undefined}
-              aria-label={open || on ? undefined : `${said(fork)}: open`}
-              className={`absolute top-0 h-[11px] transition-[width,opacity] ease-calm ${open === on ? "opacity-100" : "pointer-events-none opacity-0"} ${going ? "duration-500" : "duration-200"}`}
-              style={open ? { left: pc(start), width: going ? `${UNDER_WAY}px` : pc(end - start) } : { left: `calc(0% + ${sprouts.get(fork.name)}px)`, width: `${SPROUT}px` }}
+              className={`absolute inset-y-0 rounded-r-[inherit] ${moving}`}
+              style={{ left: pc(turn), right: 0, background: `linear-gradient(90deg, ${amber(hot === "" ? 100 : 75)} calc(${head} - ${pc(turn)}), ${amber(hot === "" ? 45 : 30)} 0)` }}
+            />
+          )}
+          {growing && (
+            <>
+              <div className="absolute inset-y-0" style={{ left: pc(turn!), width: UNDER_WAY - OPEN_END, background: "var(--amber)" }} />
+              <div
+                className="absolute inset-y-0 animate-breathe rounded-r-[inherit] motion-reduce:animate-none"
+                style={{ left: underWay, width: OPEN_END, background: "linear-gradient(90deg, var(--amber), transparent)" }}
+              />
+            </>
+          )}
+        </div>
+        {sprouts.map((sprout) => {
+          const lit = hot === sprout.key;
+          // The flow's in its grey, a fork's in amber; faint until pointed at.
+          const ink = sprout.flow ? (lit ? "var(--soft)" : "var(--faint)") : amber(lit ? 55 : 30);
+          const left = placed.get(sprout.key)!;
+          const along = sprout.notes.length ? 3 + (sprout.notes.length - 1) * DOT + DOT / 2 : 0;
+          return (
+            <div
+              key={sprout.key}
+              data-sprout={sprout.key}
+              aria-label={`${sprout.said}: go there`}
+              className={`absolute top-0 h-[11px] ${moving}`}
+              style={{ left, width: SPROUT }}
             >
-              <svg width={CURVE} height="14" aria-hidden className="pointer-events-none absolute top-1 left-0 overflow-visible">
-                {/* One piece with the line it leaves and the line it runs into: as wide as its line, the colour of its start,
-                    and square at both ends, so nothing shows where they meet. Its foot is under the flow's line. */}
-                <path d="M0 13 C 6 13, 6 1, 12 1" fill="none" stroke={on ? ink : pale} strokeWidth={lit ? 4 : 2} className="transition-[stroke-width] duration-150 ease-calm" />
+              <svg width="12" height="14" aria-hidden className="pointer-events-none absolute top-1 left-0 overflow-visible">
+                {/* One piece with the line it leaves, under it, and its own: as wide, as coloured, square where they meet. */}
+                <path d="M0 13 C 6 13, 6 1, 12 1" fill="none" stroke={ink} strokeWidth={lit ? 4 : 2} className="transition-[stroke-width,stroke] duration-150 ease-calm" />
               </svg>
               <div
                 aria-hidden
-                className={`pointer-events-none absolute left-3 transition-[top,height,border-radius] duration-150 ease-calm ${going ? "right-[18px]" : "right-0"} ${lit ? "top-[3px] h-1 rounded-r-[2px]" : "top-1 h-0.5 rounded-r-[1px]"}`}
-                style={{ background: going ? ink : `linear-gradient(90deg, ${ink} ${filledTo(open ? clamp((played - start) / Math.max(0.0001, end - start)) : 0)}, ${pale} 0)` }}
+                className={`pointer-events-none absolute right-0 left-3 transition-[top,height,border-radius,background-color] duration-150 ease-calm ${lit ? "top-[3px] h-1 rounded-r-[2px]" : "top-1 h-0.5 rounded-r-[1px]"}`}
+                style={{ backgroundColor: ink }}
               />
-              {!open && <span aria-hidden className="absolute -top-1 -bottom-1 -left-1" style={{ width: SPROUT + along + 4 }} />}
-              {going && (
-                <div
-                  aria-hidden
-                  className={`pointer-events-none absolute right-0 w-[18px] animate-breathe motion-reduce:animate-none ${lit ? "top-[3px] h-1 rounded-r-[2px]" : "top-1 h-0.5 rounded-r-[1px]"}`}
-                  style={{ background: `linear-gradient(90deg, ${ink}, transparent)` }}
-                />
-              )}
+              {/* Its notes are part of it: pressed anywhere along them, it goes there. */}
+              <span aria-hidden className="absolute -top-1 -bottom-1 -left-1" style={{ width: SPROUT + along + 4 }} />
+              {sprout.notes.map((note, k) => (
+                <span key={note.id} aria-hidden className="pointer-events-none absolute -top-0.5 grid size-3.5 -translate-x-1/2 place-items-center" style={{ left: SPROUT + 3 + k * DOT }}>
+                  <span
+                    className={`size-1.5 rounded-full shadow-[0_0_0_2px_var(--ground)] transition-[scale,background-color] duration-150 ease-calm ${lit ? "scale-140" : ""}`}
+                    style={{ background: share(flow, at) < share(flow, sprout.at) ? `color-mix(in srgb, ${note.ink} 35%, var(--ground))` : note.ink }}
+                  />
+                </span>
+              ))}
             </div>
           );
-          return [layer(true), layer(false)];
         })}
         {flows.filter((other) => !(other as Forked).fork).length > 1 &&
           flows.filter((other) => !(other as Forked).fork).map((other) => (
@@ -342,7 +328,12 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
               {other.name}
             </span>
           ))}
-        {marks.map((shown) => {
+        {onFork && (
+          <span className="pointer-events-none absolute inset-x-0 top-[23px] truncate text-[10.5px] leading-3 whitespace-nowrap text-faint">
+            {of} · {person(flow.name)}, from {time(onFork.at)}
+          </span>
+        )}
+        {marks.filter((mark) => shared(mark.at)).map((shown) => {
           const pointed = { onPointerEnter: () => setNamed(shown.id), onPointerLeave: () => setNamed(undefined), onClick: () => !swallow.current && onMark(shown.id) };
           const left = percent(flow, shown.at);
           if (shown.until !== undefined)
@@ -371,36 +362,20 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
             </button>
           );
         })}
-        {dots.flatMap((shown) => {
-          // A fork's note is drawn on its tip too, and the two fade into each other as it opens and folds. On the tip,
-          // it's ahead until the playhead passes where the fork leaves, and lights with the fork.
-          const fork = shown.fork && shown.fork !== grown?.name ? lines.find((line) => line.name === shown.fork) : undefined;
-          const tipped = folded(fork);
+        {shown.map((shown) => {
           const ahead = at < shown.at - 0.02;
           const played = shown.until === undefined ? 0 : clamp((at - shown.at) / (shown.until - shown.at)) * 100;
           const ink = shown.ink;
           const pale = `color-mix(in srgb, ${ink} 35%, var(--ground))`;
-          const bead = "size-1.5 rounded-full shadow-[0_0_0_2px_var(--ground)] transition-[scale,background-color] duration-150 ease-calm";
-          const onTip = fork && (
-            <span
-              key={`${shown.id}/tip`}
-              aria-hidden
-              className={`pointer-events-none absolute -top-0.5 z-4 grid size-3.5 -translate-x-1/2 place-items-center transition-opacity duration-200 ease-calm ${tipped ? "opacity-100" : "opacity-0"}`}
-              style={{ left: tipOf(shown) }}
-            >
-              <span className={`${bead} ${tipped && hot === fork.name ? "scale-140" : ""}`} style={{ background: share(flow, at) < share(flow, fork.at) ? pale : ink }} />
-            </span>
-          );
-          return [
-            onTip,
+          return (
             <button
               key={shown.id}
               data-mark
               data-at={shown.at}
               aria-label={`Note ${shown.number} at ${time(shown.at)}`}
-              className={`group/dot absolute z-4 grid place-items-center ${fork ? `transition-opacity duration-200 ease-calm ${tipped ? "pointer-events-none opacity-0" : "opacity-100"}` : ""} ${shown.until === undefined ? `${shown.fork ? "-top-0.5" : "top-[11px]"} size-3.5 -translate-x-1/2` : "top-[15px] -ml-[3px] box-content h-1.5 rounded-[3px] px-[3px] shadow-[0_0_0_2px_var(--ground)] transition-[top,height,border-radius] duration-150 ease-calm hover:top-3.5 hover:h-2 hover:rounded-[4px]"} ${moving}`}
+              className={`group/dot absolute z-4 grid place-items-center ${shown.until === undefined ? "top-[11px] size-3.5 -translate-x-1/2" : "top-[15px] -ml-[3px] box-content h-1.5 rounded-[3px] px-[3px] shadow-[0_0_0_2px_var(--ground)] transition-[top,height,border-radius] duration-150 ease-calm hover:top-3.5 hover:h-2 hover:rounded-[4px]"} ${moving}`}
               style={{
-                left: `calc(${shown.fork && shown.fork === grown?.name ? underWay(grown) : pc(dotShare(shown))} + ${apart.get(shown.id) ?? 0}px)`,
+                left: `calc(${dotAt(shown)} + ${apart.get(shown.id) ?? 0}px)`,
                 ...(shown.until !== undefined && { width: `calc(${percent(flow, shown.until)} - ${percent(flow, shown.at)})`, background: `linear-gradient(90deg, ${ink} ${played}%, ${pale} ${played}%)` }),
               }}
               onPointerEnter={() => setNamed(shown.id)}
@@ -408,21 +383,24 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
               onClick={() => !swallow.current && onDot(shown.id)}
             >
               {shown.until === undefined && (
-                <span className={`${bead} group-hover/dot:scale-140`} style={{ background: ahead ? pale : ink }} />
+                <span
+                  className="size-1.5 rounded-full shadow-[0_0_0_2px_var(--ground)] transition-[scale,background-color] duration-150 ease-calm group-hover/dot:scale-140"
+                  style={{ background: ahead ? pale : ink }}
+                />
               )}
-            </button>,
-          ];
+            </button>
+          );
         })}
         <div
-          className={`pointer-events-none absolute z-5 bg-fg transition-[top,bottom,width,margin,border-radius] duration-150 ease-calm ${riding ? (headHot ? "-top-[3px] bottom-[21px]" : "-top-[2px] bottom-[22px]") : headHot ? "top-1.5 bottom-1.5" : "top-[9px] bottom-[9px]"} ${headHot ? thick : "-ml-px w-0.5 rounded-[1px]"} ${moving}`}
+          className={`pointer-events-none absolute z-5 bg-fg transition-[top,bottom,width,margin,border-radius] duration-150 ease-calm ${headHot ? "top-1.5 bottom-1.5" : "top-[9px] bottom-[9px]"} ${headHot ? thick : "-ml-px w-0.5 rounded-[1px]"} ${moving}`}
           style={{ left: head }}
         />
         <div
           aria-hidden
-          className={`pointer-events-none absolute z-4 -ml-[1.5px] w-[3px] rounded-[1.5px] bg-fg transition-opacity duration-120 ease-calm ${pointedFork ? "-top-[3px] bottom-[21px]" : "top-1.5 bottom-1.5"} ${ghost ? "opacity-30" : "opacity-0"}`}
+          className={`pointer-events-none absolute z-4 -ml-[1.5px] w-[3px] rounded-[1.5px] bg-fg transition-opacity duration-120 ease-calm top-1.5 bottom-1.5 ${ghost ? "opacity-30" : "opacity-0"}`}
           style={{ left: pointed }}
         />
-        <span aria-hidden className={`${label} z-300 text-fg ${tip ? "translate-y-0 opacity-100" : "translate-y-[2px] opacity-0"}`} style={{ left: tip ? (dot ? (dot.fork && dot.fork === grown?.name ? underWay(grown) : pc(dotShare(dot))) : percent(flow, tip.until === undefined ? tip.at : (tip.at + tip.until) / 2)) : undefined }}>
+        <span aria-hidden className={`${label} z-300 text-fg ${tip ? "translate-y-0 opacity-100" : "translate-y-[2px] opacity-0"}`} style={{ left: tip ? (dot ? dotAt(dot) : percent(flow, tip.until === undefined ? tip.at : (tip.at + tip.until) / 2)) : undefined }}>
           {dot && (
             <>
               <b className="mr-[5px] font-semibold text-amber-ink">{dot.number}</b>
@@ -437,7 +415,7 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
           className={`${label} z-299 tabular-nums ${scrubbing || sprout ? "text-fg" : "text-soft"} ${!tip && (scrubbing || pointing !== undefined) ? "translate-y-0 opacity-100" : "translate-y-[2px] opacity-0"}`}
           style={{ left: scrubbing ? head : pointed }}
         >
-          {sprout && !scrubbing ? said(sprout) : time(Math.max(0, scrubbing ? at : (pointing?.at ?? 0)))}
+          {sprout && !scrubbing ? sprout.said : time(Math.max(0, scrubbing ? at : (pointing?.at ?? 0)))}
         </span>
       </div>
     </>

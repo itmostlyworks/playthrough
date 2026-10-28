@@ -385,7 +385,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     return () => void (current = false);
   }, [review.id, round.number, flow]);
   // The forks off the flow you're watching.
-  const forksHere = forkList.filter((fork) => fork.from.flow === watching).map((fork): ForkLine => ({ name: fork.name, at: fork.from.at, length: fork.length }));
+  const forksHere = forkList.filter((fork) => fork.from.flow === watching).map((fork): ForkLine => ({ name: fork.name, at: fork.from.at }));
   const nudge = (direction: 1 | -1, fine: boolean) => {
     const flows = playhead.flows;
     const now = along(flows, playhead.now.moment);
