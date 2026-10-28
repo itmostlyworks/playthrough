@@ -715,10 +715,11 @@ export function Stage(props: Props) {
     addEventListener("pointercancel", up);
   };
 
-  // A click notes what it would note, or else the spot itself.
+  // A click pauses and plays, as a video's does; noting, it notes what it would note, or else the spot itself.
   const click = (event: MouseEvent<HTMLDivElement>, number: number) => {
     if (dragged.current || number !== round.number) return;
     if (props.playhead.now.playing) return props.playhead.pause();
+    if (!props.onPlace) return void (!props.writing && props.playhead.play());
     const pick = pickFor(event);
     widen.current = undefined;
     setHover(undefined);
