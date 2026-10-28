@@ -259,6 +259,10 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   // Held, how it was before the change, in place; the notes you've said, listed, while it's open.
   const [howItWas, setHowItWas] = useState(false);
   const [listed, setListed] = useState(false);
+  // Watching, a click on the recording does nothing: only with Note on does it note what's under it, once.
+  const [noting, setNoting] = useState(false);
+  const playingOn = useNow(playhead, (now) => now.playing);
+  useEffect(() => void (playingOn && setNoting(false)), [playingOn]);
   const beside = comparing && earlier?.number === compared;
   const comparingIt: Comparing | undefined = compared === undefined ? undefined : {
     held: peek,
@@ -874,9 +878,12 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
       } else if (event.key.toLowerCase() === "c" && !event.repeat && compareNow) {
         const holding = window.setTimeout(() => compareNow.onHold(true), HOLD);
         cKey.current = { down: performance.now(), holding };
-      } else if (event.key.toLowerCase() === "n" && !event.repeat && !live?.shown) {
+      } else if (event.key.toLowerCase() === "n" && !event.repeat && !live?.shown && !readOnly) {
         event.preventDefault();
         playhead.pause();
+        setNoting(!noting);
+      } else if (event.key === "Escape" && noting) {
+        setNoting(false);
       } else if (event.key.toLowerCase() === "b" && !event.repeat && !live?.shown && before) {
         setHowItWas(true);
       } else if (event.key.toLowerCase() === "t" && !event.repeat) {
@@ -988,7 +995,14 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
             marks={marks}
             placing={writing?.on?.point}
             writing={!!writing}
-            onPlace={readOnly ? undefined : (on: Placed) => flow && write({ flow: flow.name, at: Math.round(Math.max(0, playhead.now.moment.at) * 100) / 100, ...on })}
+            onPlace={
+              readOnly || !noting
+                ? undefined
+                : (on: Placed) => {
+                    setNoting(false);
+                    if (flow) write({ flow: flow.name, at: Math.round(Math.max(0, playhead.now.moment.at) * 100) / 100, ...on });
+                  }
+            }
             onMark={(id) => {
               const note = notes.find((note) => note.id === id);
               const diamond = diamonds.find((diamond) => diamond.id === id);
@@ -1007,7 +1021,11 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
               before={before}
               howItWas={howItWas}
               onHowItWas={setHowItWas}
-              onNote={() => playhead.pause()}
+              noting={noting}
+              onNote={() => {
+                playhead.pause();
+                setNoting(!noting);
+              }}
               onTakeOver={takeOver}
               onBack={backToRecording}
               notes={notes.length}
