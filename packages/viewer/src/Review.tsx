@@ -4,6 +4,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { inStep, lastLooked, newId, readyToAccept, time, waitingForTheAgent, type Flow, type Note, type Place, type Review, type Round, type Send, type Verdict } from "@mostlyworks/vantage-review";
 import { accept, recording, send, useReview, useYou } from "./api.ts";
+import { Bar } from "./Bar.tsx";
+import { Beside } from "./Beside.tsx";
 import { HOLD } from "./Card.tsx";
 import { answersTo, diamondAt, diamondsOn, grownFrom, type Changed, type Diamond } from "./changes.ts";
 import { Column, rowsIn, settles, type Landed } from "./Column.tsx";
@@ -254,6 +256,9 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
         ? "· when you last looked"
         : undefined;
   const [peek, setPeek] = useState(false);
+  // Held, how it was before the change, in place; the notes you've said, listed, while it's open.
+  const [howItWas, setHowItWas] = useState(false);
+  const [listed, setListed] = useState(false);
   const beside = comparing && earlier?.number === compared;
   const comparingIt: Comparing | undefined = compared === undefined ? undefined : {
     held: peek,
@@ -505,8 +510,8 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const gridNow = useRef(onGrid);
   gridNow.current = onGrid;
   const toGrid = (accepted?: number) => {
-    const map = aside.current?.querySelector("[data-map]");
-    if (map && !gridNow.current) flying.current = { taking: takeOff(map, map.getBoundingClientRect()), to: "grid" };
+    const map = aside.current?.querySelector<HTMLElement>("[data-map]");
+    if (map?.offsetParent && !gridNow.current) flying.current = { taking: takeOff(map, map.getBoundingClientRect()), to: "grid" };
     playhead.pause();
     playhead.go({ flow: round.flows[0]!.name, at: POSTER });
     if (open && !("writing" in open)) setOpen(undefined);
@@ -519,6 +524,8 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     flying.current = undefined;
     if (!flight) return;
     if (flight.to === "grid") return void land(flight.taking, gridRoom.current!);
+    // With the column folded away, there's nowhere for the pictures to land: the flow just plays.
+    if (!aside.current?.querySelector<HTMLElement>("[data-map]")?.offsetParent) return void (flight.playing && playhead.play());
     // Each picture flies to where its still will stand once the column has settled, not to where it's passing.
     const map = aside.current!.querySelector("[data-map]")!;
     for (const animation of map.getAnimations({ subtree: true })) if (animation.id === "glide") animation.finish();
@@ -715,7 +722,8 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const asks = !!openNote && !readOnly && openNote.toJudge && !draft.verdicts.some((verdict) => verdict.note === openNote.id) && openNote.on?.flow === watching;
   const compareNow = (openNote && answered(openNote) && openNote.on?.flow === watching) || changeOpen?.flow === watching ? comparingIt : undefined;
   const cKey = useRef<{ down: number; holding: number }>(undefined);
-  const comparedRound = compareNow ? review.rounds.find((kept) => kept.number === compared) : undefined;
+  const before = round === latest && round.number > first;
+  const comparedRound = howItWas && before ? review.rounds.find((kept) => kept.number === first) : compareNow ? review.rounds.find((kept) => kept.number === compared) : undefined;
 
   // Sending carries everything you've said on the round at once; what you haven't saved stays. Accepting sends what's
   // left first.
@@ -866,6 +874,11 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
       } else if (event.key.toLowerCase() === "c" && !event.repeat && compareNow) {
         const holding = window.setTimeout(() => compareNow.onHold(true), HOLD);
         cKey.current = { down: performance.now(), holding };
+      } else if (event.key.toLowerCase() === "n" && !event.repeat && !live?.shown) {
+        event.preventDefault();
+        playhead.pause();
+      } else if (event.key.toLowerCase() === "b" && !event.repeat && !live?.shown && before) {
+        setHowItWas(true);
       } else if (event.key.toLowerCase() === "t" && !event.repeat) {
         event.preventDefault();
         takeOver();
@@ -883,6 +896,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     const up = (event: KeyboardEvent) => {
       if (event.key === " " && !writingHere(event)) event.preventDefault();
       if (event.key.toLowerCase() === "h") bareKey(false);
+      if (event.key.toLowerCase() === "b") setHowItWas(false);
       if (event.key.toLowerCase() === "c" && cKey.current) {
         clearTimeout(cKey.current.holding);
         const tapped = performance.now() - cKey.current.down < HOLD;
@@ -953,8 +967,9 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   return (
     <Page title={review.title}>
       <Wire id={grownOpen?.id ?? openNote?.id ?? chosen?.id} colour={openNote ? ink(openNote) : grownOpen ? "var(--amber)" : "var(--soft)"} hidden={!!bare || peek} />
-      <main className="relative grid min-h-0 grid-cols-[minmax(0,1fr)_min(350px,31vw)] phone:flex phone:flex-col">
-        <section inert={onGrid} className={`grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto] pr-3.5 pb-4 phone:flex-none phone:grid-rows-[auto_auto] phone:pr-0 phone:pb-3 ${onGrid ? "invisible" : ""}`}>
+      <main className="relative grid min-h-0 grid-cols-[minmax(0,1fr)] phone:flex phone:flex-col">
+        <section inert={onGrid} className={`grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto] pb-4 phone:flex-none phone:grid-rows-[auto_auto] phone:pr-0 phone:pb-3 ${onGrid ? "invisible" : ""}`}>
+          <div className="relative grid min-h-0 grid-rows-[minmax(0,1fr)] pb-6">
           <Stage
             review={review}
             playhead={playhead}
@@ -985,6 +1000,22 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
             onAllFlows={many ? () => toGrid() : undefined}
             live={live}
           />
+          <div className="absolute bottom-6 left-1/2 z-20 -translate-x-1/2 translate-y-1/2">
+            <Bar
+              live={live?.shown ? (live.address && live.settled ? "shown" : "waiting") : undefined}
+              latest={round === latest}
+              before={before}
+              howItWas={howItWas}
+              onHowItWas={setHowItWas}
+              onNote={() => playhead.pause()}
+              onTakeOver={takeOver}
+              onBack={backToRecording}
+              notes={notes.length}
+              listed={listed}
+              onList={() => setListed(!listed)}
+            />
+          </div>
+          </div>
           {live?.problems && (
             <div role="alert" className="fixed right-4 bottom-4 z-30 max-w-[28rem] rounded-lg bg-surface px-3 py-2 text-sm whitespace-pre-wrap shadow-tip">
               {live.problems.join("\n")}
@@ -993,7 +1024,10 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
               </button>
             </div>
           )}
+          <div className="flex items-end gap-5">
+          <div className="min-w-0 flex-1">
           <Controls
+            stage
             live={live?.shown ? (live.address && live.settled ? "shown" : "waiting") : undefined}
             onTakeOver={takeOver}
             ref={controls}
@@ -1030,8 +1064,26 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
             look={look}
             onLook={chooseLook}
           />
+          </div>
+          <div className="w-[300px] flex-none">
+            <Foot
+              step={step}
+              quiet={!!open}
+              notes={asksTheAgent}
+              onSend={!readOnly && asksTheAgent ? sendNow : undefined}
+              sent={sent}
+              trouble={trouble}
+              pieces={judging && standing ? round.flows.map((flow) => ({ flow: flow.name, standing: standing.get(flow.name)!, here: flow.name === watching })) : undefined}
+              landed={landed}
+              busy={!!working}
+              onFlow={watchFrom}
+            />
+          </div>
+          </div>
         </section>
 
+        <Beside id={openNote?.id ?? writingId}>{listed || onGrid ? undefined : openNote ? row(openNote) : pending.find((kept) => "open" in kept && kept.open)?.row}</Beside>
+        <div className={`absolute top-2 right-2 bottom-28 z-30 w-[350px] flex-col overflow-hidden rounded-xl bg-ground pt-3 shadow-[0_0_0_1px_rgba(20,24,34,0.08),0_10px_30px_rgba(20,24,34,0.16)] ${listed && !onGrid ? "flex" : "hidden"}`}>
         <Drawer ref={aside} over={controls} away={onGrid}>
           <div className="flex items-baseline gap-2 px-[18px] pt-1 pb-2">
             {listing ? (
@@ -1057,7 +1109,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
               }}
             />
           )}
-          <Column
+          {listed && <Column
             hidden={listing}
             review={review}
             round={round}
@@ -1089,20 +1141,9 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
             onAgain={(flow) => watchFrom(flow.name)}
             onTakeBack={(name) => change((draft) => takeBack(draft, name, notes))}
             onGeneral={readOnly ? undefined : () => write(undefined)}
-          />
-          <Foot
-            step={step}
-            quiet={!!open}
-            notes={asksTheAgent}
-            onSend={!readOnly && asksTheAgent ? sendNow : undefined}
-            sent={sent}
-            trouble={trouble}
-            pieces={judging && standing ? round.flows.map((flow) => ({ flow: flow.name, standing: standing.get(flow.name)!, here: flow.name === watching })) : undefined}
-            landed={landed}
-            busy={!!working}
-            onFlow={watchFrom}
-          />
+          />}
         </Drawer>
+        </div>
         {many && (
           <Grid
             room={gridRoom}

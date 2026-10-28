@@ -32,6 +32,8 @@ type Props = {
   onEarlier: (round: number) => void;
   look: Look;
   onLook: (look: Look) => void;
+  // With the action bar on the stage, the row keeps only what's about time.
+  stage?: boolean;
 };
 
 export function Controls(props: Props) {
@@ -66,6 +68,8 @@ export function Controls(props: Props) {
       >
         {percent}
       </button>
+      {!props.stage && (
+      <>
       <span className={`h-4 w-px flex-none bg-line ${coveredBack}`} />
       <Rounds
         rounds={props.rounds}
@@ -128,6 +132,8 @@ export function Controls(props: Props) {
           {!latest ? "Only the latest round is the app as it is now" : props.live === "shown" ? "Back to the recording · Esc" : props.live === "waiting" ? "Getting it ready…" : "Carry on from here in the app, by hand · T"}
         </span>
       </button>
+      </>
+      )}
     </div>
   );
 }
