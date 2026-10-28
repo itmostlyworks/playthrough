@@ -8,9 +8,9 @@ import { lastSeen, list, notesToAnswer, problemsFinishing, quote, Refused, round
 import { agent, unnamed } from "./agent.ts";
 import { recordOnBefore } from "./before.ts";
 import { compareWithEarlier } from "./compare.ts";
-import { failedAt, runFlows } from "./flows.ts";
+import { failedAt, keptFlow, misfiled, runFlows } from "./flows.ts";
 import type { Repo } from "./repo.ts";
-import { readingsOn } from "./reporter.ts";
+import { KEEP, readingsOn } from "./reporter.ts";
 
 export async function record(repo: Repo, id: string) {
   const review = await repo.reviews.get(id);
@@ -26,10 +26,18 @@ export async function record(repo: Repo, id: string) {
       ...failed.map(failedAt),
       `Fix ${failed.length > 1 ? "them" : "it"} and record again.`,
     ]);
+  const astray = recorded.flatMap(misfiled);
+  if (astray.length)
+    throw new Refused([`Round ${number} wasn't recorded, because each flow needs a file of its own, named after it, so it can be kept with the app's flows on its own:`, ...astray, "Then record again."]);
   await recordOnBefore(repo, id, number, recorded.map(({ flow }) => flow.name));
 
   const saved = review.rounds.find((round) => round.number === number);
+  const kept = await keptFlow(repo);
   const flows = recorded.map(({ flow }) => {
+    if (kept(flow.name)) {
+      delete flow.keep;
+      flow.kept = true;
+    }
     const line = saved?.flows.find((kept) => kept.name === flow.name)?.line;
     return line ? { ...flow, line } : flow;
   });
@@ -60,6 +68,14 @@ export async function record(repo: Repo, id: string) {
   if (unsaid.length) {
     const [are, each] = unsaid.length > 1 ? ["are", "each"] : ["is", "it"];
     console.log(`\n${list(unsaid.map((flow) => quote(flow.name)))} ${are} new to the reviewer. In ${file}, ${each} can have a line at its start, as “line” in its flow under “flows”: what it starts from, or the choice it shows.`);
+  }
+  // The person chooses which new flows join the app's, the agent's asking chosen to begin with.
+  const fresh = flows.filter((flow) => !flow.kept);
+  if (fresh.length) {
+    const asking = fresh.filter((flow) => flow.keep).map((flow) => quote(flow.name));
+    console.log(
+      `\nWhen the work is accepted, the person chooses which new flows join the app's flows in vantage/flows/, for every later review to record. ${asking.length ? `You ask for ${list(asking)}.` : "You ask for none."} Ask for each that's a journey a person would name and finish in one sitting, not a check of this work alone, by tagging its test: test("…", { tag: "${KEEP}" }, async ({ page, setup }) => …).`,
+    );
   }
   if (by === unnamed) console.log(`\nVantage can't tell which agent you are. Write your name in ${file} as “by”, and each of your answers shows it.`);
   console.log(left.length ? `\nThen hand it over: vantage wait ${id}` : `\nHand it over when it's ready: vantage wait ${id}`);

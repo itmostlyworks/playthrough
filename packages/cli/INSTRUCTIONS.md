@@ -31,7 +31,8 @@ vantage/app.json says how to start the app, and is committed so every review use
 
 FLOWS
 
-Each flow is a Playwright test in .vantage/<review>/flows/, with a step for each part of it. The test's name is the flow's:
+Each flow is a Playwright test in .vantage/<review>/flows/, in a file of its own named after it, with a step for each
+part of it. The test's name is the flow's, so "Export a quarter" is in export-a-quarter.ts:
 
   import { test, expect } from "@mostlyworks/vantage/test";
 
@@ -47,6 +48,13 @@ Each flow is a Playwright test in .vantage/<review>/flows/, with a step for each
 
 Act on the page as a person would, by role and label. Vantage glides the pointer, waits for the page to rest after each
 step, and reads what's on it there.
+
+The app's flows, kept from reviews accepted before, are in the folder from the start: keep them as they are unless your
+work changes what one does. When the work is accepted, the person chooses which of your new flows join them. Ask for
+each that's a journey a person would name and finish in one sitting, like "Export a quarter", not a check of this work
+alone, by tagging its test:
+
+  test("Export a quarter", { tag: "@keep" }, async ({ page, setup }) => { … });
 
 WHAT EVERY FLOW STARTS FROM
 

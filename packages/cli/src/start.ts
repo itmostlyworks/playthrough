@@ -15,7 +15,7 @@ export async function start(repo: Repo, id: string, title?: string) {
     await makeFlowsFolder(repo, id);
     const kept = await addKeptFlows(repo, id);
     const keptSaid = kept.length
-      ? `\n\nThe flows of reviews accepted before are in its flows already (${list(kept)}), so they're recorded with yours and a change your work makes to them is seen. Keep them as they are, unless your work changes what one does.`
+      ? `\n\nThe app's flows, kept from reviews accepted before, are in its flows already (${list(kept)}), so they're recorded with yours and a change your work makes to them is seen. Keep them as they are, unless your work changes what one does.`
       : "";
     return console.log(`Started ${id}: “${title}”.${keptSaid}
 

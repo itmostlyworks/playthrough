@@ -256,14 +256,21 @@ export function problemsWithSend(review: Review, send: Send): string[] {
 }
 
 // Accepting ends the review, so it waits until the agent has answered every note that asks for something.
-export function problemsAccepting(review: Review, by: string): string[] {
+// Only a new flow of the last round can be chosen to keep: the app's own are kept already.
+export function problemsAccepting(review: Review, by: string, keep: string[] = []): string[] {
   if (!isText(by)) return ["Accepting needs to say who accepted."];
-  if (!review.rounds.some((round) => round.finished && round.number > 0)) return ["There's no finished round to accept yet."];
+  const last = review.rounds.findLast((round) => round.finished && round.number > 0);
+  if (!last) return ["There's no finished round to accept yet."];
   const notes = allNotes(review);
-  return waitingForTheAgent(review).map((id) => {
-    const note = notes.get(id);
-    return `Note ${id}${note ? `, “${cut(note.note.words)}”,` : ""} still waits for the agent's answer, so the work can't be accepted yet.`;
-  });
+  return [
+    ...waitingForTheAgent(review).map((id) => {
+      const note = notes.get(id);
+      return `Note ${id}${note ? `, “${cut(note.note.words)}”,` : ""} still waits for the agent's answer, so the work can't be accepted yet.`;
+    }),
+    ...keep
+      .filter((name) => !last.flows.some((flow) => flow.name === name && !flow.kept))
+      .map((name) => `“${cut(name)}” isn't a new flow of round ${last.number}, so it can't be chosen to keep with the app's flows.`),
+  ];
 }
 
 // What's wrong with something's shape: its name, then what it needs, as in “Round 2: flow 3 needs a name.”

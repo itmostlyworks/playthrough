@@ -1,13 +1,14 @@
 // Every flow at once: where you arrive on a round with more than one flow, and where "All flows" brings you back. Each
-// flow is a tile: its picture, its name, its length and where it stands. What needs you is large and the rest a quiet row
-// under it, so the grid has the shape of the work left. A tile opens on what's new in it, resting on one plays its story,
-// and choosing one plays it. Over the tiles, the work, the round and what's left, and the one step to take.
+// flow is a tile: its picture, its name, its length and where it stands. The flows new in this work come first, then the
+// app's own it touched, once the app has some. In each, what needs you is large and the rest a quiet row under it, so the
+// grid has the shape of the work left. A tile opens on what's new in it, resting on one plays its story, and choosing one
+// plays it. Over the tiles, the work, the round and what's left, and the one step to take.
 
-import { useEffect, useLayoutEffect, useRef, type PointerEvent, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, type PointerEvent, type ReactNode, type RefObject } from "react";
 import { time, type Flow, type Review, type Round } from "@mostlyworks/vantage-review";
 import type { Diamond } from "./changes.ts";
 import { TickMark } from "./Column.tsx";
-import { Agent, Go, says, type Step } from "./Foot.tsx";
+import { Agent, Go, owned, says, type Step } from "./Foot.tsx";
 import type { Standing } from "./notes.ts";
 import { onPhone } from "./phone.ts";
 import { Picture, useFirstNew, useStill, useStory, type Frame } from "./Picture.tsx";
@@ -25,6 +26,9 @@ type Props = {
   // Accepted, how it got there, in fixed words.
   accepted?: string;
   step?: Step;
+  // The app's name, for its flows, and, accepting, the new flows to keep with them.
+  app?: string;
+  keep?: ReactNode;
   // When the grid came back after you accepted: each flow's tick lands in turn.
   done?: number;
   onFlow: (flow: string) => void;
@@ -45,9 +49,29 @@ export function Grid(props: Props) {
   // Just accepted, the ticks land across then down, for the first few seconds only: coming back later, it's simply done.
   const ago = props.done === undefined ? Infinity : performance.now() - props.done;
   let landing = 0;
-  const tile = (flow: Flow, small: boolean) => (
-    <Tile key={flow.name} {...props} flow={flow} small={small} wave={ago < 3000 && props.standing(flow.name)?.is === "good" ? 450 + landing++ * 110 - ago : undefined} />
+  const tile = (flow: Flow, small: boolean, group = 0) => (
+    <Tile key={flow.name} {...props} flow={flow} small={small} group={group} wave={ago < 3000 && props.standing(flow.name)?.is === "good" ? 450 + landing++ * 110 - ago : undefined} />
   );
+  // Each group with its name over it, once the app has flows of its own: when nothing in it needs you, the name goes on
+  // its quiet row instead.
+  const apart = round.flows.some((flow) => flow.kept);
+  const group = (flows: Flow[], name?: string, group = 0) => {
+    if (!flows.length) return null;
+    const large = flows.filter((flow) => !fold || props.needs(flow.name));
+    const quiet = fold ? flows.filter((flow) => !props.needs(flow.name)) : [];
+    return (
+      <>
+        {name && large.length > 0 && <p data-row className="col-span-full -mb-3 text-xs leading-[18px] text-faint">{name}</p>}
+        {large.map((flow) => tile(flow, false, group))}
+        {quiet.length > 0 && (
+          <div data-quiet className="col-span-full mt-2 grid gap-2 justify-self-start">
+            <p className="text-xs leading-[18px] text-faint">{name && !large.length ? `${name} · nothing to check` : "Nothing to check"}</p>
+            <div className="flex flex-wrap gap-4 phone:gap-3">{quiet.map((flow) => tile(flow, true))}</div>
+          </div>
+        )}
+      </>
+    );
+  };
   const left = review.accepted ? null : toCheck ? (
     <>
       {" "}
@@ -76,19 +100,21 @@ export function Grid(props: Props) {
             {step?.kind === "agent" && <Agent step={step} className="flex-none" />}
           </div>
         </div>
-        {round.flows.filter((flow) => !fold || props.needs(flow.name)).map((flow) => tile(flow, false))}
-        {fold && (
-          <div data-quiet className="col-span-full mt-2 grid gap-2 justify-self-start">
-            <p className="text-xs leading-[18px] text-faint">Nothing to check</p>
-            <div className="flex flex-wrap gap-4 phone:gap-3">{round.flows.filter((flow) => !props.needs(flow.name)).map((flow) => tile(flow, true))}</div>
-          </div>
+        {step?.kind === "go" && step.final && props.keep && <div data-row className="col-span-full -mt-2 w-[300px] max-w-full justify-self-end">{props.keep}</div>}
+        {apart ? (
+          <>
+            {group(round.flows.filter((flow) => !flow.kept), "New in this work")}
+            {group(round.flows.filter((flow) => flow.kept), `${capital(owned(props.app))} flows`, 1)}
+          </>
+        ) : (
+          group(round.flows)
         )}
       </div>
     </div>
   );
 }
 
-function Tile({ review, round, flow, small, up, standing, diamonds, wave, onFlow }: Props & { flow: Flow; small: boolean; wave?: number }) {
+function Tile({ review, round, flow, small, group, up, standing, diamonds, wave, onFlow }: Props & { flow: Flow; small: boolean; group: number; wave?: number }) {
   const still = useStill(review, round, flow);
   const fresh = useFirstNew(review, round, flow, diamonds);
   const story = useStory(review, round, flow);
@@ -99,6 +125,7 @@ function Tile({ review, round, flow, small, up, standing, diamonds, wave, onFlow
       ref={skim.tile}
       data-tile
       data-small={small ? "" : undefined}
+      data-group={group}
       className={`group/tile grid min-w-0 content-start text-left focus-visible:outline-none ${small ? "w-[150px] phone:w-[calc((100%-24px)/3)]" : "row-span-3 grid-rows-subgrid gap-y-0"}`}
       aria-label={`Play ${flow.name}${shown ? `. ${says(shown)}` : ""}`}
       onClick={() => onFlow(flow.name)}
@@ -139,6 +166,8 @@ function Tile({ review, round, flow, small, up, standing, diamonds, wave, onFlow
     </button>
   );
 }
+
+const capital = (words: string) => words[0]!.toUpperCase() + words.slice(1);
 
 const placed = (frame: Frame) => ({ left: `${frame.x * 100}%`, top: `${frame.y * 100}%`, width: `${frame.width * 100}%`, height: `${frame.height * 100}%` });
 
@@ -241,17 +270,20 @@ const TILE = { most: 340, picture: 512, gap: 24, label: 64, head: 48, small: 150
 function lay(grid: HTMLElement) {
   const style = getComputedStyle(grid);
   const width = grid.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-  const quiet = grid.querySelector<HTMLElement>("[data-quiet]");
-  const large = grid.querySelectorAll("[data-tile]:not([data-small])").length;
+  // Besides the large tiles, in their groups, rows across the whole grid: quiet rows, groups' names, the flows to keep.
+  const quiet = [...grid.querySelectorAll<HTMLElement>("[data-quiet]")];
+  const across = [...quiet, ...grid.querySelectorAll<HTMLElement>("[data-row]")];
+  const groups = [0, 1].map((group) => grid.querySelectorAll(`[data-tile][data-group="${group}"]:not([data-small])`).length).filter(Boolean);
+  const large = groups.reduce((all, count) => all + count, 0);
   const head = grid.querySelector<HTMLElement>("[data-head]");
   const headWidth = head ? head.firstElementChild!.scrollWidth + TILE.gap + head.lastElementChild!.scrollWidth : 0;
   const most = large <= 2 ? TILE.picture : TILE.most;
-  if (quiet) quiet.style.width = `${Math.floor(width)}px`;
-  for (let pass = 0; pass < (quiet ? 2 : 1); pass++) {
-    const height = grid.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom) - TILE.head - TILE.gap - (quiet ? quiet.offsetHeight + TILE.gap : 0);
-    const fits = Array.from({ length: large }, (_, i) => {
+  for (const row of quiet) row.style.width = `${Math.floor(width)}px`;
+  for (let pass = 0; pass < (quiet.length ? 2 : 1); pass++) {
+    const height = grid.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom) - TILE.head - TILE.gap - across.reduce((all, row) => all + row.offsetHeight + TILE.gap, 0);
+    const fits = Array.from({ length: Math.max(...groups, 0) }, (_, i) => {
       const across = i + 1;
-      const rows = Math.ceil(large / across);
+      const rows = groups.reduce((all, count) => all + Math.ceil(count / across), 0);
       return { across, size: Math.min(most, (width - (across - 1) * TILE.gap) / across, ((height - (rows - 1) * TILE.gap) / rows - TILE.label) * 1.6) };
     });
     const top = Math.max(0, ...fits.map((fit) => fit.size));
@@ -264,6 +296,6 @@ function lay(grid: HTMLElement) {
     const tiles = best.across * Math.floor(best.size) + (best.across - 1) * TILE.gap;
     const room = Math.min(width, Math.max(tiles, headWidth)) - tiles;
     grid.style.gridTemplateColumns = `repeat(${best.across}, ${Math.floor(best.size)}px)${room > TILE.gap ? ` ${Math.floor(room - TILE.gap)}px` : ""}`;
-    if (quiet) quiet.style.width = `${tiles + Math.max(0, room)}px`;
+    for (const row of quiet) row.style.width = `${tiles + Math.max(0, room)}px`;
   }
 }

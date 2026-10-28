@@ -33,8 +33,15 @@ export async function wait(repo: Repo, id: string) {
   for (;;) {
     review = await reviews.wait(id, (review) => !!review.accepted || review.sends.some((send) => !review.taken.some((taken) => taken.send === send.id)));
     if (review.accepted) {
-      await keepFlows(repo, id);
-      return console.log(`\n${review.accepted.by} accepted the work. The review is done. Its flows are kept in vantage/flows/, so every later review records them too: commit them with the work.`);
+      const { joined, updated } = await keepFlows(repo, review);
+      const kept = [
+        joined.length && `${list(joined.map(quote))} joined the app's flows in vantage/flows/`,
+        updated.length && `${list(updated.map(quote))} ${updated.length > 1 ? "were" : "was"} updated there`,
+      ].filter(Boolean);
+      const them = joined.length + updated.length > 1 ? "them" : "it";
+      return console.log(
+        `\n${review.accepted.by} accepted the work. The review is done.${kept.length ? ` ${kept.join(", and ")}: commit ${them} with the work, so every later review records ${them} too.` : ""}`,
+      );
     }
     const taken = await reviews.take(id);
     review = await reviews.get(id);

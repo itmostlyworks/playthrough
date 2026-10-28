@@ -3,7 +3,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { inStep, lastLooked, newId, readyToAccept, time, waitingForTheAgent, type Did, type Element as Thing, type Flow, type Note, type Point, type Place, type Review, type Round, type Send, type Verdict } from "@mostlyworks/vantage-review";
-import { accept, keepBranch, recording, send, useReview, useYou } from "./api.ts";
+import { accept, keepBranch, recording, send, useApp, useReview, useYou } from "./api.ts";
 import { Bar } from "./Bar.tsx";
 import { Beside, clickedAt } from "./Beside.tsx";
 import { HOLD } from "./Card.tsx";
@@ -14,7 +14,7 @@ import type { ForkLine } from "./Timeline.tsx";
 import { Drawer } from "./Drawer.tsx";
 import { useDraft, useWatched } from "./draft.ts";
 import { land, slideIn, takeOff, type Taking } from "./flight.ts";
-import { Foot, type Step } from "./Foot.tsx";
+import { Foot, Keep, type Step } from "./Foot.tsx";
 import { Grid } from "./Grid.tsx";
 import { follow, pausedAt, readyAt, samePaused, takenOver, type Live, type Paused } from "./live.ts";
 import { along, CARD, clamp, FLOW_IN, momentAt, POSTER, type Moment } from "./moments.ts";
@@ -872,9 +872,15 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     setSent(performance.now());
     return true;
   };
+  // The new flows to keep with the app's once the work is accepted: those the agent asks for, until you choose.
+  const app = useApp();
+  const newFlows = latest.flows.filter((flow) => !flow.kept).map((flow) => flow.name);
+  const [keeping, setKeeping] = useState<string[]>();
+  const keep = keeping ?? latest.flows.filter((flow) => !flow.kept && flow.keep).map((flow) => flow.name);
+  const keepChoice = newFlows.length > 0 && <Keep app={app} flows={newFlows} chosen={keep} onChoose={setKeeping} />;
   const acceptNow = async () => {
     if (said(draft) && !(await sendNow())) return;
-    const problems = await accept(review.id, you);
+    const problems = await accept(review.id, you, keep.filter((name) => newFlows.includes(name)));
     setTrouble(problems);
     if (problems.length) return;
     setAcceptedHere(true);
@@ -1268,6 +1274,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
               pieces={judging && standing ? round.flows.flatMap((flow) => (standing.has(flow.name) ? [{ flow: flow.name, standing: standing.get(flow.name)!, here: flow.name === watching }] : [])) : undefined}
               landed={landed}
               busy={!!working}
+              keep={keepChoice}
               onFlow={watchFrom}
             />
           </div>
@@ -1321,6 +1328,8 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
             diamonds={review.accepted ? [] : diamonds}
             accepted={review.accepted || acceptedHere ? acceptedAfter : undefined}
             step={gridStep}
+            app={app}
+            keep={keepChoice}
             done={done}
             onFlow={(name) => leave(name, true)}
           />

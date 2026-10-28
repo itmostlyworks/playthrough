@@ -57,6 +57,7 @@ async function answer(repo: Repo, page: string, you: string, request: IncomingMe
   if (api !== "api") return serve(page, path, response);
 
   if (request.method === "GET" && collection === "you") return json(response, 200, { name: you });
+  if (request.method === "GET" && collection === "app") return json(response, 200, { name: await appName(repo) });
   if (collection !== "reviews") return json(response, 404, { problems: [`There's nothing at ${path}.`] });
 
   if (request.method === "GET" && !id) {
@@ -83,8 +84,8 @@ async function answer(repo: Repo, page: string, you: string, request: IncomingMe
     return json(response, 200, {});
   }
   if (request.method === "POST" && rest[0] === "accept") {
-    const { by } = await body<{ by: string }>(request);
-    await reviews.accept(id, by);
+    const { by, keep } = await body<{ by: string; keep?: string[] }>(request);
+    await reviews.accept(id, by, keep);
     return json(response, 200, {});
   }
   return json(response, 404, { problems: [`There's nothing at ${path}.`] });
@@ -184,6 +185,15 @@ async function body<T>(request: IncomingMessage): Promise<T> {
 function json(response: ServerResponse, status: number, value: unknown) {
   response.writeHead(status, { "content-type": TYPES[".json"], "cache-control": "no-store" });
   response.end(JSON.stringify(value));
+}
+
+// The app by the name its package goes by, without its scope and capitalised: “kan” is Kan.
+async function appName(repo: Repo): Promise<string | undefined> {
+  const text = await readFile(join(repo.root, "package.json"), "utf8").catch(() => undefined);
+  const name: unknown = text && JSON.parse(text).name;
+  if (typeof name !== "string" || !name) return undefined;
+  const bare = name.replace(/^@[^/]+\//, "");
+  return bare[0]!.toUpperCase() + bare.slice(1);
 }
 
 // Locally, whoever runs the viewer is the one sending: by the name git knows them by, or their name on this machine.
