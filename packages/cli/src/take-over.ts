@@ -154,8 +154,8 @@ function asIfDirect(request: IncomingMessage, target: URL) {
 // flow's page was, it tells the viewer once it has settled (loaded, its fonts and pictures in, nothing on its way and
 // nothing changing for a moment), so the frame turns into it with nothing on screen changing. Its own pointer is hidden:
 // it tells the viewer where it is, and whether it's over words you can type into, and the viewer draws it, the
-// recording's pointer become yours, with its name. And as every key there goes to the app, Escape, if the app doesn't
-// use it itself, goes back to the viewer.
+// recording's pointer become yours, with its name. And as every key there goes to the app, Escape goes back to the
+// viewer instead.
 const SAYS = `<script>(() => {
   if (window.parent === window) return;
   // On the recordings' clock, so what the page says about time reads as it did there.
@@ -189,7 +189,11 @@ const SAYS = `<script>(() => {
   const moved = (e) => { x = e.clientX; y = e.clientY; parent.postMessage({ vantage: "pointer", x, y, inside: true, text: typing(e.target) }, "*"); };
   addEventListener("pointermove", moved, true);
   document.addEventListener("pointerleave", () => parent.postMessage({ vantage: "pointer", x, y, inside: false }, "*"));
-  addEventListener("keydown", (e) => { if (e.key === "Escape" && !e.defaultPrevented) parent.postMessage({ vantage: "escape", x, y }, "*"); });
+  // Caught before the app's own listeners, as this runs before its scripts: the app never sees it, so leaving doesn't
+  // also close what was open there, and coming back finds it as it was.
+  const leave = (e) => { if (e.key !== "Escape") return; e.preventDefault(); e.stopImmediatePropagation(); if (e.type === "keydown") parent.postMessage({ vantage: "escape", x, y }, "*"); };
+  addEventListener("keydown", leave, true);
+  addEventListener("keyup", leave, true);
   const again = JSON.parse(sessionStorage.getItem("vantage:again") || "[]");
   sessionStorage.removeItem("vantage:again");
   const wait = (ms) => new Promise((done) => setTimeout(done, ms));
