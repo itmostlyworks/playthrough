@@ -274,11 +274,13 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
               style={{ left: pc(start), width: going ? `${UNDER_WAY}px` : pc(end - start) }}
             >
               <svg width="12" height="14" aria-hidden className="pointer-events-none absolute top-1 left-0 overflow-visible">
-                <path d="M0 14 C 6 14, 6 1, 12 1" fill="none" stroke={ink} strokeWidth={lit ? 3 : 2} strokeLinecap="round" className="transition-[stroke-width] duration-150 ease-calm" />
+                {/* One piece with the line it leaves and the line it runs into: as wide as its line, the colour of its start,
+                    and square at both ends, so nothing shows where they meet. */}
+                <path d="M0 14 C 6 14, 6 1, 12 1" fill="none" stroke={on ? ink : pale} strokeWidth={lit ? 4 : 2} className="transition-[stroke-width] duration-150 ease-calm" />
               </svg>
               <div
                 aria-hidden
-                className={`pointer-events-none absolute left-3 transition-[top,height,border-radius] duration-150 ease-calm ${going ? "right-[18px]" : "right-0"} ${lit ? "top-[3px] h-1 rounded-[2px]" : "top-1 h-0.5 rounded-[1px]"}`}
+                className={`pointer-events-none absolute left-3 transition-[top,height,border-radius] duration-150 ease-calm ${going ? "right-[18px]" : "right-0"} ${lit ? "top-[3px] h-1 rounded-r-[2px]" : "top-1 h-0.5 rounded-r-[1px]"}`}
                 style={{ background: going ? ink : `linear-gradient(90deg, ${ink} ${pc(clamp((played - start) / Math.max(0.0001, end - start)))}, ${pale} 0)` }}
               />
               {going && (
