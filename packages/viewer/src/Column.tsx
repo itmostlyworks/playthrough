@@ -16,7 +16,7 @@ import { opened, pointed, tinted, type Comparing } from "./Notes.tsx";
 import { Picture, useStill } from "./Picture.tsx";
 import { useNow, type Playhead } from "./playhead.ts";
 
-type Props = {
+export type Props = {
   // Under the settled notes' list, the map keeps its place.
   hidden?: boolean;
   review: Review;
@@ -270,7 +270,22 @@ function FlowBlock(props: Omit<Props, "standing"> & { flow: Flow; on: boolean; s
 // A flow's question, at its end under its notes: whether it's good, what Looks good would settle that you haven't
 // answered, and a way to watch it again first. Its ring is where the flow's line ends. Its heading names the flow, so the
 // question doesn't.
-function Question({ flow, standing, just, ...props }: Omit<Props, "standing"> & { flow: Flow; standing: Standing; just: boolean }) {
+// On the stage, what's chosen opens beside the recording as the column's own row: a change by its outline, and a flow's
+// question over its last frame.
+export function Chosen(props: Props) {
+  const watching = useNow(props.playhead, (now) => now.moment.flow);
+  const flow = props.round.flows.find((flow) => flow.name === watching);
+  const diamond = props.diamonds.find((diamond) => diamond.id === props.chosen);
+  if (diamond) {
+    const inside = props.notes.filter((note) => props.grown.get(note.id) === diamond.id).map((note) => ({ id: note.id, open: props.openNote === note.id, shown: props.note(note, true) }));
+    return <ChangeRow {...props} diamond={diamond} inside={inside} />;
+  }
+  const standing = flow && props.standing(flow.name);
+  if (flow && standing && props.asked === flow.name) return <Question {...props} flow={flow} standing={standing} just={justLanded(props.landed, flow.name)} onStage />;
+  return null;
+}
+
+function Question({ flow, standing, just, onStage, ...props }: Omit<Props, "standing"> & { flow: Flow; standing: Standing; just: boolean; onStage?: boolean }) {
   const good = standing.is === "good";
   const sent = good && !props.saidGood.includes(flow.name);
   const buttons = useRef<HTMLDivElement>(null);
@@ -280,12 +295,12 @@ function Question({ flow, standing, just, ...props }: Omit<Props, "standing"> & 
       data-key={`end:${flow.name}`}
       data-stop={flow.length}
       data-end
-      className="relative mt-0.5 mb-1.5 ml-[31px] animate-verd rounded-lg bg-hover py-2.5 pr-3 pl-[13px] shadow-[inset_0_0_0_1px_var(--line)]"
+      className={onStage ? "relative py-2 pr-3 pl-[44px]" : "relative mt-0.5 mb-1.5 ml-[31px] animate-verd rounded-lg bg-hover py-2.5 pr-3 pl-[13px] shadow-[inset_0_0_0_1px_var(--line)]"}
     >
       <span
         data-mark
         data-tick={flow.name}
-        className={`absolute top-2.5 -left-[13px] z-1 grid size-[18px] place-items-center rounded-full transition-[background-color,box-shadow] duration-250 ease-calm ${good ? "bg-green text-ground shadow-[inset_0_0_0_1.5px_color-mix(in_srgb,var(--green)_70%,var(--fg))]" : "bg-[color-mix(in_srgb,var(--amber)_22%,var(--ground))] shadow-[inset_0_0_0_1.5px_var(--amber)]"} ${just ? "animate-pop" : ""}`}
+        className={`absolute ${onStage ? "top-2 left-[18px]" : "top-2.5 -left-[13px]"} z-1 grid size-[18px] place-items-center rounded-full transition-[background-color,box-shadow] duration-250 ease-calm ${good ? "bg-green text-ground shadow-[inset_0_0_0_1.5px_color-mix(in_srgb,var(--green)_70%,var(--fg))]" : "bg-[color-mix(in_srgb,var(--amber)_22%,var(--ground))] shadow-[inset_0_0_0_1.5px_var(--amber)]"} ${just ? "animate-pop" : ""}`}
         aria-hidden
       >
         {good && <TickMark className={`size-[11px] ${just ? "animate-tick" : ""}`} />}

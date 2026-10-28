@@ -7,7 +7,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { createServer, request as ask, type IncomingMessage, type ServerResponse } from "node:http";
 import { connect } from "node:net";
 import { networkInterfaces } from "node:os";
-import { list, quote, Refused } from "@mostlyworks/vantage-review";
+import { list, quote, Refused, type Did } from "@mostlyworks/vantage-review";
 import { follow, runTo, type Handed } from "./flows.ts";
 import { listen } from "./open.ts";
 import type { App, Repo } from "./repo.ts";
@@ -33,7 +33,8 @@ Each address hands over the same copy, and the app is passed on through Vantage 
 // Runs the flow to where it's taken over and passes the app on, then says where: each moment made ready has an address
 // of its own, /take-over/<moment>, so several can wait at once. In the viewer, the moment the playhead rests on is made
 // ready while you look, and Take over turns the frame into the app there.
-export async function getReady(repo: Repo, id: string, flowName: string, stepName?: string, actions?: number): Promise<{ port: number; moment: string; seconds: string }> {
+// With what a person did there, as a note in the app keeps it, it's done again after them, to go back there.
+export async function getReady(repo: Repo, id: string, flowName: string, stepName?: string, actions?: number, did?: Did[]): Promise<{ port: number; moment: string; seconds: string }> {
   const round = await recorded(repo, id);
   const flow = round.flows.find((flow) => flow.name === flowName);
   if (!flow) throw new Refused([`${id} has no flow called ${quote(flowName)}. Its flows: ${list(round.flows.map((flow) => quote(flow.name)))}.`]);
@@ -46,7 +47,7 @@ export async function getReady(repo: Repo, id: string, flowName: string, stepNam
   const handed = await runTo(repo, id, { flow: flow.name, ...(stepName && { step: stepName, ...(actions && { actions }) }) });
   passing ??= { moments: new Map(), port: passOn(app, (moment) => passing!.moments.get(moment)) };
   const moment = String(passing.moments.size + 1);
-  passing.moments.set(moment, handed);
+  passing.moments.set(moment, did?.length ? { ...handed, did } : handed);
   return { port: await passing.port, moment, seconds: ((Date.now() - began) / 1000).toFixed(1) };
 }
 
@@ -198,6 +199,84 @@ const SAYS = `<script>(() => {
   const leave = (e) => { if (e.key !== "Escape") return; e.preventDefault(); e.stopImmediatePropagation(); if (e.type === "keydown") parent.postMessage({ vantage: "escape", x, y }, "*"); };
   addEventListener("keydown", leave, true);
   addEventListener("keyup", leave, true);
+  // What a thing is called, and the path back to it, so a note says what it's on and Go there does what you did again.
+  const thing = (target) => target?.closest?.("a, button, input, select, textarea, label, summary, [role], h1, h2, h3, h4, li, td, th, p") || target;
+  const words = (element) => (element.getAttribute?.("aria-label") || element.innerText || element.value || element.placeholder || "").trim().replace(/\\s+/g, " ").slice(0, 80);
+  const roles = { A: "link", BUTTON: "button", SELECT: "combobox", TEXTAREA: "textbox", H1: "heading", H2: "heading", H3: "heading", H4: "heading", LI: "listitem", TD: "cell", TH: "columnheader", LABEL: "text", P: "text" };
+  const role = (element) => element.getAttribute("role") || (element.tagName === "INPUT" ? (["checkbox", "radio"].includes(element.type) ? element.type : "textbox") : roles[element.tagName]) || "text";
+  const path = (element) => {
+    const parts = [];
+    for (; element && element.nodeType === 1 && element !== document.documentElement; element = element.parentElement) {
+      // Not the ids an app makes up as it draws, which differ next time.
+      if (element.id && !/[:\\d]{2}/.test(element.id)) { parts.unshift("#" + CSS.escape(element.id)); break; }
+      let nth = 1;
+      for (let sibling = element.previousElementSibling; sibling; sibling = sibling.previousElementSibling) if (sibling.tagName === element.tagName) nth++;
+      parts.unshift(element.tagName.toLowerCase() + ":nth-of-type(" + nth + ")");
+    }
+    return parts.join(" > ");
+  };
+  // What you do here is kept, across the pages you go to, for a note to keep. Only what you did: what's done again for
+  // you isn't trusted by the browser, so it isn't kept.
+  const did = JSON.parse(sessionStorage.getItem("vantage:did") || "[]");
+  const keep = (done) => {
+    const last = did.at(-1);
+    if (done.does === "fill" && last?.does === "fill" && last.on === done.on) did.pop();
+    did.push(done);
+    sessionStorage.setItem("vantage:did", JSON.stringify(did));
+  };
+  addEventListener("click", (e) => {
+    if (!e.isTrusted || swallowing) return;
+    const on = thing(e.target);
+    if (!on.matches?.("input:not([type=checkbox]):not([type=radio]), textarea, select")) keep({ does: "click", on: path(on), what: words(on) });
+  }, true);
+  addEventListener("input", (e) => {
+    const on = e.target;
+    if (!e.isTrusted || !on.matches?.("input, textarea, select, [contenteditable]")) return;
+    if (on.tagName === "SELECT") keep({ does: "selectOption", on: path(on), with: on.value, what: words(on) });
+    else if (!["checkbox", "radio"].includes(on.type)) keep({ does: "fill", on: path(on), with: on.isContentEditable ? on.innerText : on.value, what: on.getAttribute("aria-label") || on.placeholder || "" });
+  }, true);
+  addEventListener("keydown", (e) => {
+    if (e.isTrusted && e.key === "Enter" && e.target.matches?.("input")) keep({ does: "press", on: path(e.target), with: "Enter", what: words(e.target) });
+  }, true);
+  // With Note on, the next thing you click is noted, and the app never sees the click. N turns it on, unless you're typing.
+  let noting = false, swallowing = false;
+  const ring = document.createElement("div");
+  ring.style.cssText = "position:fixed;z-index:2147483647;pointer-events:none;border-radius:6px;box-shadow:0 0 0 2px rgba(236,178,72,.95),0 0 0 6px rgba(236,178,72,.18);display:none;transition:all 90ms ease-out";
+  document.documentElement.appendChild(ring);
+  const ringed = (target) => {
+    if (!noting) return void (ring.style.display = "none");
+    const box = thing(target).getBoundingClientRect();
+    Object.assign(ring.style, { display: "block", left: box.left - 3 + "px", top: box.top - 3 + "px", width: box.width + 6 + "px", height: box.height + 6 + "px" });
+  };
+  addEventListener("message", ({ source, data }) => {
+    if (source !== parent || data?.vantage !== "noting") return;
+    noting = data.on;
+    ringed(document.elementFromPoint(x, y));
+  });
+  addEventListener("pointermove", (e) => noting && ringed(e.target), true);
+  const swallow = (e) => {
+    if (!e.isTrusted || !(noting || swallowing)) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (e.type === "pointerdown") {
+      const on = thing(e.target);
+      const name = words(on);
+      parent.postMessage({ vantage: "noted", ...(name ? { element: { role: role(on), name, css: path(on) } } : { point: { x: e.clientX / innerWidth, y: e.clientY / innerHeight } }), did, x: e.clientX, y: e.clientY }, "*");
+      noting = false;
+      swallowing = true;
+      ringed();
+    }
+    if (e.type === "click") swallowing = false;
+  };
+  for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup", "click"]) addEventListener(type, swallow, true);
+  const note = (e) => {
+    if (e.key.toLowerCase() !== "n" || e.ctrlKey || e.metaKey || e.altKey || typing(e.target)) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (e.type === "keydown" && !e.repeat) parent.postMessage({ vantage: "note" }, "*");
+  };
+  addEventListener("keydown", note, true);
+  addEventListener("keyup", note, true);
   const again = JSON.parse(sessionStorage.getItem("vantage:again") || "[]");
   sessionStorage.removeItem("vantage:again");
   const wait = (ms) => new Promise((done) => setTimeout(done, ms));
@@ -250,7 +329,12 @@ const SAYS = `<script>(() => {
     await rested();
     if (scroll) scrollTo(scroll.x, scroll.y);
     // Each waits only for what it acts on to be there; the page rests once they're all done.
-    for (const action of again) if (!(await doAgain(action))) break;
+    // What's left is kept as each is done, so a click that goes to another page carries on there.
+    for (const [i, action] of again.entries()) {
+      sessionStorage.setItem("vantage:again", JSON.stringify(again.slice(i + 1)));
+      if (!(await doAgain(action))) break;
+    }
+    sessionStorage.removeItem("vantage:again");
     if (again.length) (stir(), await rested());
     // Once it's drawn, or soon anyway, as a browser may not draw a frame it thinks is hidden.
     let said = false;
@@ -279,23 +363,25 @@ function handOver(handed: Handed | undefined, response: ServerResponse) {
     response.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
     return void response.end("There's no moment ready at this address. Take it over again from the viewer, or with vantage take-over.");
   }
-  const { url, cookies, local, session, scroll, clock, again } = handed;
+  const { url, cookies, local, session, scroll, clock, did = [] } = handed;
+  const again = [...(handed.again ?? []), ...did];
   const { pathname, search, hash } = new URL(url);
   const setCookies = cookies.map(
     ({ name, value, path, expires, httpOnly }) =>
       `${name}=${value}; Path=${path}; SameSite=Lax${httpOnly ? "; HttpOnly" : ""}${expires > 0 ? `; Expires=${new Date(expires * 1000).toUTCString()}` : ""}`,
   );
-  const keep = JSON.stringify({ local, session, scroll, clock, again, to: pathname + search + hash }).replace(/</g, "\\u003c");
+  const keep = JSON.stringify({ local, session, scroll, clock, again, did, to: pathname + search + hash }).replace(/</g, "\\u003c");
   response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "set-cookie": setCookies });
   response.end(`<!doctype html><meta name="viewport" content="width=device-width"><title>Taking over…</title>
 <script>
-const { local, session, scroll, clock, again, to } = ${keep};
+const { local, session, scroll, clock, again, did, to } = ${keep};
 for (const [key, value] of Object.entries(local)) localStorage.setItem(key, value);
 for (const [key, value] of Object.entries(session)) sessionStorage.setItem(key, value);
 sessionStorage.setItem("vantage:scroll", JSON.stringify(scroll));
 sessionStorage.setItem("vantage:clock", String(clock));
 sessionStorage.removeItem("vantage:yours");
-if (again) sessionStorage.setItem("vantage:again", JSON.stringify(again));
+if (again.length) sessionStorage.setItem("vantage:again", JSON.stringify(again));
+sessionStorage.setItem("vantage:did", JSON.stringify(did));
 location.replace(to);
 </script>`);
 }

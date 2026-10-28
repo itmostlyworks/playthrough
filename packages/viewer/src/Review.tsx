@@ -2,13 +2,13 @@
 // where you act. The view changes only when you change it: a new round says it's in, and waits for you.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { inStep, lastLooked, newId, readyToAccept, time, waitingForTheAgent, type Flow, type Note, type Place, type Review, type Round, type Send, type Verdict } from "@mostlyworks/vantage-review";
+import { inStep, lastLooked, newId, readyToAccept, time, waitingForTheAgent, type Did, type Element as Thing, type Flow, type Note, type Point, type Place, type Review, type Round, type Send, type Verdict } from "@mostlyworks/vantage-review";
 import { accept, recording, send, useReview, useYou } from "./api.ts";
 import { Bar } from "./Bar.tsx";
-import { Beside } from "./Beside.tsx";
+import { Beside, clickedAt } from "./Beside.tsx";
 import { HOLD } from "./Card.tsx";
 import { answersTo, diamondAt, diamondsOn, grownFrom, type Changed, type Diamond } from "./changes.ts";
-import { Column, rowsIn, settles, type Landed } from "./Column.tsx";
+import { Chosen, Column, rowsIn, settles, type Landed, type Props as ColumnProps } from "./Column.tsx";
 import { Controls, type Look } from "./Controls.tsx";
 import { Drawer } from "./Drawer.tsx";
 import { useDraft, useWatched } from "./draft.ts";
@@ -28,6 +28,8 @@ import { Wire } from "./Wire.tsx";
 
 // What's open in the column: a note, a change you chose, or a new note being written, by its id.
 type Open = { note: string } | { change: string } | { writing: string };
+// A click noted in the app: what it's on there, what was done there before it, and where, in the app's page.
+type NotedInApp = { element?: Thing; point?: Point; did: Did[]; x: number; y: number };
 
 // Leaving every flow at once for one, the recording waits on its first frame until the pictures have landed, and this
 // long after: one thing moves at a time.
@@ -168,17 +170,20 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   if (live?.shown && (playingNow || round !== latest)) setLive({ ...live, shown: false });
   const takeOver = () => {
     if (live?.shown) return backToRecording();
-    const on = playhead.flow;
-    const paused = pausedAt(on, playhead.now.moment.at);
-    if (round !== latest || playhead.now.moment.at < 0 || !paused) return;
+    takeOverAt(playhead.flow, playhead.now.moment.at);
+  };
+  // With what a note in the app kept, it goes back there: the moment it was taken over at, and what was done since.
+  const takeOverAt = (on: Flow, at: number, did?: Did[]) => {
+    const paused = pausedAt(on, at);
+    if (round !== latest || at < 0 || !paused) return;
     playhead.pause();
-    if (live && live.flow === on.name && samePaused(live.paused, paused) && live.address) {
+    if (!did && live && live.flow === on.name && samePaused(live.paused, paused) && live.address) {
       takenOver(review.id, on.name, paused);
       return setLive({ ...live, shown: true, at: undefined });
     }
     // The one being made ready since you paused, if it is.
     setLive({ flow: on.name, paused, shown: true });
-    readyAt(review.id, on.name, paused).then((answer) => {
+    readyAt(review.id, on.name, paused, did).then((answer) => {
       takenOver(review.id, on.name, paused);
       setLive((now) => (now?.flow === on.name && samePaused(now.paused, paused) ? (typeof answer === "string" ? { ...now, address: answer } : { ...now, problems: answer, shown: false }) : now));
     });
@@ -189,7 +194,12 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
       // Only from the moment that's waiting: one just left can still be settling.
       const waiting = document.querySelector<HTMLIFrameElement>("[data-live] iframe")?.contentWindow;
       if (data?.vantage === "settled" && source === waiting) setLive((now) => now && { ...now, settled: true });
-      if (data?.vantage === "escape") backToRecording({ x: data.x, y: data.y });
+      if (data?.vantage === "escape") {
+        if (notingNow.current) setNoting(false);
+        else backToRecording({ x: data.x, y: data.y });
+      }
+      if (data?.vantage === "note") setNoting((now) => !now);
+      if (data?.vantage === "noted") notedInApp.current(data);
     };
     addEventListener("message", told);
     return () => removeEventListener("message", told);
@@ -261,6 +271,14 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const [listed, setListed] = useState(false);
   // Watching, a click on the recording does nothing: only with Note on does it note what's under it, once.
   const [noting, setNoting] = useState(false);
+  const notingNow = useRef(noting);
+  notingNow.current = noting;
+  const notedInApp = useRef<(noted: NotedInApp) => void>(() => {});
+  // In the app, Note goes there too: the app rings what's under the pointer and keeps the click it notes.
+  const inApp = !!live?.shown && !!live.settled && !!live.address;
+  useEffect(() => {
+    document.querySelector<HTMLIFrameElement>("[data-live] iframe")?.contentWindow?.postMessage({ vantage: "noting", on: noting && inApp }, "*");
+  }, [noting, inApp]);
   const playingOn = useNow(playhead, (now) => now.playing);
   useEffect(() => void (playingOn && setNoting(false)), [playingOn]);
   const beside = comparing && earlier?.number === compared;
@@ -302,8 +320,8 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const read = useReadings(review, [round.number, ...(earlier ? [earlier.number] : []), ...(compared === undefined ? [] : [compared]), ...noted.map((note) => note.written)]);
   // Each note sits where its thing is on this round: its moment here, on what it's on here, once that's found. One on
   // something this round doesn't have is lost here.
-  const notes = noted.map((note) => (note.on ? { ...note, on: placeOn(review, note.id, note.on, note.written, round, read) ?? note.on } : note));
-  const lost = noted.filter((note, i) => note.on?.element && notes[i]!.on !== note.on && !notes[i]!.on?.element).map((note) => note.id);
+  const notes = noted.map((note) => (note.on && !note.on.app ? { ...note, on: placeOn(review, note.id, note.on, note.written, round, read) ?? note.on } : note));
+  const lost = noted.filter((note, i) => note.on?.element && !note.on.app && notes[i]!.on !== note.on && !notes[i]!.on?.element).map((note) => note.id);
   // The notes whose things have left the page you're watching.
   const [gone, setGone] = useState<string[]>([]);
   const settled = settledBefore(review, round.number, you);
@@ -411,6 +429,25 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     setOpen({ writing: id });
   };
   const writingId = open && "writing" in open ? open.writing : undefined;
+  // Noted in the app: a new note on what you clicked there, by it, keeping what you did there since taking over.
+  notedInApp.current = ({ element, point, did, x, y }) => {
+    setNoting(false);
+    const frame = document.querySelector<HTMLIFrameElement>("[data-live] iframe");
+    const box = frame?.getBoundingClientRect();
+    if (frame && box) clickedAt(box.left + (x * box.width) / frame.offsetWidth, box.top + (y * box.height) / frame.offsetHeight);
+    if (live) write({ flow: live.flow, at: Math.round(Math.max(0, playhead.now.moment.at) * 100) / 100, ...(element ? { element } : point && { point }), app: { did } });
+  };
+  const goThere = (on: Place) => {
+    const there = latest.flows.find((flow) => flow.name === on.flow);
+    if (!there || on.at === undefined || !on.app) return;
+    setListed(false);
+    setOpen(undefined);
+    playhead.go({ flow: on.flow, at: on.at });
+    // From inside the app, it closes first, so the fresh copy opens as any other does.
+    if (!live?.shown) return takeOverAt(there, on.at, on.app.did);
+    backToRecording();
+    requestAnimationFrame(() => takeOverAt(there, on.at!, on.app!.did));
+  };
   useEffect(() => {
     if (draft.unsaved.some((note) => !note.words.trim() && note.id !== writingId))
       change((draft) => ({ ...draft, unsaved: draft.unsaved.filter((note) => note.words.trim() || note.id === writingId) }));
@@ -493,7 +530,6 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const gridRoom = useRef<HTMLDivElement>(null);
   const aside = useRef<HTMLElement>(null);
   // In the app, the column steps back, so the frame is all there is; it comes forward as the portal closes.
-  const inApp = !!live?.shown && !!live.settled && !!live.address;
   useEffect(() => {
     const column = aside.current;
     if (!column) return;
@@ -589,7 +625,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
           <Writing
             words={note.words}
             placeholder={note.on && note.on.at === undefined ? "What isn’t good about it?" : "What do you think?"}
-            question="Your new note"
+            question={note.on?.app ? "Your new note, on what’s in the app" : "Your new note"}
             onWords={(words) => keepWords(note.id, words)}
             onSave={(words) => saveNote(note, words)}
             onCancel={() => dropUnsaved(note.id)}
@@ -695,6 +731,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
         onAnswer={toAnswer}
         onPlayOn={playOn}
         onShow={() => show(note)}
+        onGoThere={note.on?.app ? () => goThere(note.on!) : undefined}
       />
     );
   };
@@ -878,7 +915,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
       } else if (event.key.toLowerCase() === "c" && !event.repeat && compareNow) {
         const holding = window.setTimeout(() => compareNow.onHold(true), HOLD);
         cKey.current = { down: performance.now(), holding };
-      } else if (event.key.toLowerCase() === "n" && !event.repeat && !live?.shown && !readOnly) {
+      } else if (event.key.toLowerCase() === "n" && !event.repeat && !readOnly) {
         event.preventDefault();
         playhead.pause();
         setNoting(!noting);
@@ -933,7 +970,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     return id === undefined ? undefined : note ? ink(note) : "var(--amber)";
   };
   const markOn = (on: Place | undefined): Mark["on"] | undefined =>
-    on?.element?.node !== undefined ? { node: on.element.node } : on?.point ? { point: on.point } : on?.box ? { box: on.box } : undefined;
+    on?.app ? undefined : on?.element?.node !== undefined ? { node: on.element.node } : on?.point ? { point: on.point } : on?.box ? { box: on.box } : undefined;
   const drawn = (diamond: Diamond) => {
     const pointed = diamond.changes.filter((changed) => changed.change.id === pointedChange);
     return pointed.length ? pointed : diamond.changes;
@@ -971,6 +1008,40 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     ]);
   }
 
+  // What the column draws, and the stage beside the recording, from the same rows.
+  const map: ColumnProps = {
+    hidden: listing,
+    review: review,
+    round: round,
+    playhead: playhead,
+    notes: notes,
+    diamonds: diamonds,
+    chosen: chosen?.id,
+    openNote: openNote?.id,
+    lit: lit,
+    standing: (name) => standing?.get(name),
+    saidGood: draft.looksGood,
+    asked: question,
+    landed: landed,
+    note: row,
+    pending: pending,
+    grown: new Map([...grown].map(([id, diamond]) => [id, diamond.id])),
+    onFlow: playFlow,
+    compare: changeOpen?.flow === watching ? comparingIt : undefined,
+    others: (name) => goodFor.get(name)?.filter((person) => person !== you) ?? [],
+    onDiamond: choose,
+    onClose: () => setOpen(undefined),
+    onPoint: setPointedChange,
+    onPlayOn: playOn,
+    onNoteOn: noteOn,
+    onNote: pick,
+    onAsk: ask,
+    onGood: lookingGood,
+    onNotQuite: (name) => write({ flow: name }),
+    onAgain: (flow) => watchFrom(flow.name),
+    onTakeBack: (name) => change((draft) => takeBack(draft, name, notes)),
+    onGeneral: readOnly ? undefined : () => write(undefined),
+  };
   return (
     <Page title={review.title}>
       <Wire id={grownOpen?.id ?? openNote?.id ?? chosen?.id} colour={openNote ? ink(openNote) : grownOpen ? "var(--amber)" : "var(--soft)"} hidden={!!bare || peek} />
@@ -1100,7 +1171,9 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
           </div>
         </section>
 
-        <Beside id={openNote?.id ?? writingId}>{listed || onGrid ? undefined : openNote ? row(openNote) : pending.find((kept) => "open" in kept && kept.open)?.row}</Beside>
+        <Beside id={openNote?.id ?? writingId ?? chosen?.id} over={!openNote && !writingId && !chosen && !!question}>
+          {listed || onGrid ? undefined : openNote ? row(openNote) : (pending.find((kept) => "open" in kept && kept.open)?.row ?? (chosen || question ? <Chosen {...map} /> : undefined))}
+        </Beside>
         <div className={`absolute top-2 right-2 bottom-28 z-30 w-[350px] flex-col overflow-hidden rounded-xl bg-ground pt-3 shadow-[0_0_0_1px_rgba(20,24,34,0.08),0_10px_30px_rgba(20,24,34,0.16)] ${listed && !onGrid ? "flex" : "hidden"}`}>
         <Drawer ref={aside} over={controls} away={onGrid}>
           <div className="flex items-baseline gap-2 px-[18px] pt-1 pb-2">
@@ -1127,39 +1200,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
               }}
             />
           )}
-          {listed && <Column
-            hidden={listing}
-            review={review}
-            round={round}
-            playhead={playhead}
-            notes={notes}
-            diamonds={diamonds}
-            chosen={chosen?.id}
-            openNote={openNote?.id}
-            lit={lit}
-            standing={(name) => standing?.get(name)}
-            saidGood={draft.looksGood}
-            asked={question}
-            landed={landed}
-            note={row}
-            pending={pending}
-            grown={new Map([...grown].map(([id, diamond]) => [id, diamond.id]))}
-            onFlow={playFlow}
-            compare={changeOpen?.flow === watching ? comparingIt : undefined}
-            others={(name) => goodFor.get(name)?.filter((person) => person !== you) ?? []}
-            onDiamond={choose}
-            onClose={() => setOpen(undefined)}
-            onPoint={setPointedChange}
-            onPlayOn={playOn}
-            onNoteOn={noteOn}
-            onNote={pick}
-            onAsk={ask}
-            onGood={lookingGood}
-            onNotQuite={(name) => write({ flow: name })}
-            onAgain={(flow) => watchFrom(flow.name)}
-            onTakeBack={(name) => change((draft) => takeBack(draft, name, notes))}
-            onGeneral={readOnly ? undefined : () => write(undefined)}
-          />}
+          {listed && <Column {...map} />}
         </Drawer>
         </div>
         {many && (

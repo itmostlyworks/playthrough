@@ -31,6 +31,14 @@ export const Box = z
   .refine((box) => box.x + box.width <= 1 && box.y + box.height <= 1, { error: onScreen });
 export const Point = z.strictObject({ x: share(onScreen), y: share(onScreen) });
 
+// Something a person did in the app, taken over: what, on the element at that path, with what, and its words.
+export const Did = z.strictObject({
+  does: text("needs what it did"),
+  on: text("needs the path to what it was done on"),
+  with: z.union([z.string(), z.boolean(), z.array(z.string())]).optional(),
+  what: z.string().optional().describe("The words of what it was done on"),
+});
+
 export const Place = z
   .strictObject({
     flow: text("needs the flow it's on"),
@@ -39,6 +47,10 @@ export const Place = z
     element: Element.optional(),
     box: Box.optional().describe("Something with no words of its own, or where only the pixels changed"),
     point: Point.optional().describe("Empty space"),
+    app: z
+      .strictObject({ did: z.array(Did) })
+      .optional()
+      .describe("In the app: taken over at its moment, then what the person did there, in order. What it's on is in the app, not the recording"),
   })
   .refine((place) => [place.element, place.box, place.point].filter((thing) => thing).length <= 1, {
     error: "is on more than one thing. Choose an element, a box or a point",
@@ -175,6 +187,7 @@ export const Review = z.strictObject({
 export type Element = z.infer<typeof Element>;
 export type Box = z.infer<typeof Box>;
 export type Point = z.infer<typeof Point>;
+export type Did = z.infer<typeof Did>;
 export type Place = z.infer<typeof Place>;
 export type Step = z.infer<typeof Step>;
 export type Flow = z.infer<typeof Flow>;

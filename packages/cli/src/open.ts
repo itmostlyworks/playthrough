@@ -7,7 +7,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { createRequire } from "node:module";
 import { userInfo } from "node:os";
 import { dirname, extname, join, normalize, sep } from "node:path";
-import { Refused, type Send } from "@mostlyworks/vantage-review";
+import { Refused, type Did, type Send } from "@mostlyworks/vantage-review";
 import type { Repo } from "./repo.ts";
 import { getReady, keepUp } from "./take-over.ts";
 
@@ -103,8 +103,8 @@ async function live(repo: Repo, id: string, request: IncomingMessage, response: 
 // A moment of a flow made ready to take over: the viewer asks while the playhead rests on it, and shows the app there,
 // through Vantage, at the port and moment this answers with.
 async function takeOver(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
-  const { flow, step, actions } = await body<{ flow: string; step?: string; actions?: number }>(request);
-  const { port, moment } = await getReady(repo, id, flow, step, actions);
+  const { flow, step, actions, did } = await body<{ flow: string; step?: string; actions?: number; did?: Did[] }>(request);
+  const { port, moment } = await getReady(repo, id, flow, step, actions, did);
   json(response, 200, { port, moment });
 }
 

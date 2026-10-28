@@ -2,7 +2,7 @@
 // every note is answered. Then it waits for a send that asks for something, takes it, and prints the notes to answer,
 // each with a picture of what it's on.
 
-import { allNotes, conversation, list, notesToAnswer, quote, Refused, roundInProgress, time, type Place } from "@mostlyworks/vantage-review";
+import { allNotes, conversation, list, notesToAnswer, quote, Refused, roundInProgress, time, type Did, type Place } from "@mostlyworks/vantage-review";
 import { agent } from "./agent.ts";
 import { keepFlows } from "./flows.ts";
 import { pictureNotes } from "./noted.ts";
@@ -76,7 +76,17 @@ function where(place: Place | undefined): string {
       : place.box
         ? `, the part of the screen ${share(place.box.x)} across and ${share(place.box.y)} down`
         : "";
+  if (place.app) return `on “${place.flow}”, in the app: taken over${at}, then ${place.app.did.length ? list(place.app.did.map(done)) : "nothing done there yet"}${on}`;
   return `on “${place.flow}”${at}${on}`;
+}
+
+// What a person did in the app, as they'd say it.
+function done({ does, with: given, what }: Did): string {
+  const named = what ? ` “${what}”` : "";
+  if (does === "fill") return `typed “${given}” into${named || " a box"}`;
+  if (does === "press") return `pressed ${given}`;
+  if (does === "selectOption") return `chose “${given}”${named && ` in${named}`}`;
+  return `clicked${named || " something with no words"}`;
 }
 
 const share = (fraction: number) => `${Math.round(fraction * 100)}%`;

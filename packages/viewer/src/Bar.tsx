@@ -1,5 +1,5 @@
 // What you can do to the moment you're on, across the frame's bottom edge: note it, see how it was, take it over, and
-// what you've said so far. Only what you can do now is in it.
+// what you've said so far. Only what you can do now is in it: in the app, noting what's there, and going back.
 
 import { Key } from "./Card.tsx";
 
@@ -28,11 +28,9 @@ export function Bar(props: Props) {
       aria-label="This moment"
       className={`flex gap-0.5 rounded-xl bg-surface p-1 text-[13px] select-none ${inApp ? "shadow-[0_0_0_1.5px_rgba(236,178,72,0.95),0_6px_20px_rgba(20,24,34,0.12)]" : "shadow-[0_0_0_1px_rgba(20,24,34,0.08),0_6px_20px_rgba(20,24,34,0.12)]"}`}
     >
-      {!inApp && (
-        <button className={item} aria-pressed={props.noting} onClick={props.onNote}>
-          Note <Key>N</Key>
-        </button>
-      )}
+      <button className={item} aria-pressed={props.noting} onClick={props.onNote}>
+        Note <Key>N</Key>
+      </button>
       {!inApp && props.before && (
         <button
           className={item}

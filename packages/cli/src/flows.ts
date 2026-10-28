@@ -7,7 +7,7 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { list, quote, Refused, type Flow } from "@mostlyworks/vantage-review";
+import { list, quote, Refused, type Did, type Flow } from "@mostlyworks/vantage-review";
 import { changesByThemselves, type Recorded as Compared } from "./compare.ts";
 import { readingsOf, type Failed, type Recorded } from "./reporter.ts";
 import type { App, Repo } from "./repo.ts";
@@ -24,8 +24,9 @@ export type Run = { flows: string; only?: string[]; folder: string; app: App; ro
 export type To = { flow: string; step?: string; actions?: number; rests?: boolean };
 // The flow's page there, as a browser keeps it: its address, its cookies, what the app kept in the browser, how far it
 // was scrolled, and how far its clock, the recordings', is ahead of the real one, in milliseconds. And partway through a
-// step, the actions to do again there, which changed only what was in the page's memory.
-export type Handed = { url: string; cookies: Cookie[]; local: Record<string, string>; session: Record<string, string>; scroll: { x: number; y: number }; clock: number; again?: Action[] };
+// step, the actions to do again there, which changed only what was in the page's memory. Gone back to from a note in the
+// app, what the person did there, done after them.
+export type Handed = { url: string; cookies: Cookie[]; local: Record<string, string>; session: Record<string, string>; scroll: { x: number; y: number }; clock: number; again?: Action[]; did?: Did[] };
 // An action of the flow's, done again in the person's browser: what it did, on the element at that path, with what.
 export type Action = { does: string; on: string; with?: string | boolean | string[] };
 export type Cookie = { name: string; value: string; path: string; expires: number; httpOnly: boolean };

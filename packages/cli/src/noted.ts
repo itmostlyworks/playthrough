@@ -5,7 +5,7 @@
 import { dirname, join } from "node:path";
 import { chromium } from "@playwright/test";
 import { shownAt } from "@mostlyworks/vantage-page";
-import { lastSeen, type Review } from "@mostlyworks/vantage-review";
+import { allNotes, lastSeen, type Review } from "@mostlyworks/vantage-review";
 import type { Repo } from "./repo.ts";
 import { readingsOn } from "./reporter.ts";
 
@@ -17,6 +17,8 @@ export async function pictureNotes(repo: Repo, review: Review, round: number, no
   const browser = await chromium.launch();
   try {
     for (const id of notes) {
+      // One in the app is on what was there, not on the recording.
+      if (allNotes(review).get(id)?.note.on?.app) continue;
       const found = await whereSeen(repo, review, id, round).catch(() => undefined);
       if (!found) continue;
       const page = await browser.newPage({ viewport: { width: found.width, height: found.height } });

@@ -2,7 +2,7 @@
 // so Take over (T) turns the frame into the app there at once, and Escape lays the recording back over it. Each is a
 // fresh copy of that moment, made the way every flow starts (`vantage take-over`).
 
-import type { Flow } from "@mostlyworks/vantage-review";
+import type { Did, Flow } from "@mostlyworks/vantage-review";
 
 // Where a flow is taken over, as the recording was where you paused: after as many of a step's actions as it had done,
 // or at the step's end, as the page rests between them.
@@ -36,7 +36,9 @@ const momentOf = (review: string, flow: string, paused: Paused) => JSON.stringif
 
 export const takenOver = (review: string, flow: string, paused: Paused) => void ready.delete(momentOf(review, flow, paused));
 
-export function readyAt(review: string, flow: string, paused: Paused): Promise<string | string[]> {
+// Gone back to from a note in the app, with what was done there: always a fresh copy.
+export function readyAt(review: string, flow: string, paused: Paused, did?: Did[]): Promise<string | string[]> {
+  if (did) return getReady(review, flow, paused, did);
   const moment = momentOf(review, flow, paused);
   if (!ready.has(moment)) {
     const made = getReady(review, flow, paused);
@@ -52,9 +54,9 @@ export const follow = (review: string, flow: string, paused: Paused) =>
   void fetch(`/api/reviews/${encodeURIComponent(review)}/follow`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ flow, ...paused }) }).catch(() => {});
 
 // Where the app is at that moment, through Vantage, on the same machine name the viewer was reached by; or what stops it.
-async function getReady(review: string, flow: string, paused: Paused): Promise<string | string[]> {
+async function getReady(review: string, flow: string, paused: Paused, did?: Did[]): Promise<string | string[]> {
   try {
-    const answer = await fetch(`/api/reviews/${encodeURIComponent(review)}/take-over`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ flow, ...paused }) });
+    const answer = await fetch(`/api/reviews/${encodeURIComponent(review)}/take-over`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ flow, ...paused, did }) });
     const said = await answer.json();
     return answer.ok ? `${location.protocol}//${location.hostname}:${said.port}/take-over/${said.moment}` : (said.problems ?? [`It couldn't be made ready (${answer.status}).`]);
   } catch {
