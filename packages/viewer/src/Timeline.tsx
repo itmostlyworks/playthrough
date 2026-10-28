@@ -36,6 +36,9 @@ const DOT = 14;
 // it runs on to its own end.
 const UNDER_WAY = 64;
 const OPEN_END = 18;
+// The fork's curve, before its line: played up to a share of the whole fork is that far along the fork, not its line.
+const CURVE = 12;
+const filledTo = (share: number) => `calc(${(share * 100).toFixed(4)}% - ${(CURVE * (1 - share)).toFixed(2)}px)`;
 // Of the line, so a fork of a moment can still be found and pressed.
 const SHORTEST = 0.03;
 
@@ -274,7 +277,7 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
               className="absolute top-0 h-[11px] transition-[width] duration-500 ease-calm"
               style={{ left: pc(start), width: going ? `${UNDER_WAY}px` : pc(end - start) }}
             >
-              <svg width="12" height="14" aria-hidden className="pointer-events-none absolute top-1 left-0 overflow-visible">
+              <svg width={CURVE} height="14" aria-hidden className="pointer-events-none absolute top-1 left-0 overflow-visible">
                 {/* One piece with the line it leaves and the line it runs into: as wide as its line, the colour of its start,
                     and square at both ends, so nothing shows where they meet. Its foot is under the flow's line. */}
                 <path d="M0 13 C 6 13, 6 1, 12 1" fill="none" stroke={on ? ink : pale} strokeWidth={lit ? 4 : 2} className="transition-[stroke-width] duration-150 ease-calm" />
@@ -282,7 +285,7 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
               <div
                 aria-hidden
                 className={`pointer-events-none absolute left-3 transition-[top,height,border-radius] duration-150 ease-calm ${going ? "right-[18px]" : "right-0"} ${lit ? "top-[3px] h-1 rounded-r-[2px]" : "top-1 h-0.5 rounded-r-[1px]"}`}
-                style={{ background: going ? ink : `linear-gradient(90deg, ${ink} ${pc(clamp((played - start) / Math.max(0.0001, end - start)))}, ${pale} 0)` }}
+                style={{ background: going ? ink : `linear-gradient(90deg, ${ink} ${filledTo(clamp((played - start) / Math.max(0.0001, end - start)))}, ${pale} 0)` }}
               />
               {going && (
                 <div
