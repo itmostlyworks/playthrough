@@ -199,7 +199,13 @@ function against(passed: string[], step: string | undefined, actions: number | u
 // Straight after its last action, it was still on its way to the next page.
 async function kept(page: Page, rest: () => Promise<void>): Promise<Handed> {
   await rest();
-  const kept = await page.evaluate(() => ({ local: { ...localStorage }, session: { ...sessionStorage }, scroll: { x: scrollX, y: scrollY }, clock: Date.now() }));
+  const kept = await page.evaluate(() => ({
+    local: { ...localStorage },
+    session: { ...sessionStorage },
+    scroll: { x: scrollX, y: scrollY },
+    clock: Date.now(),
+    browser: { dark: matchMedia("(prefers-color-scheme: dark)").matches, still: matchMedia("(prefers-reduced-motion: reduce)").matches, languages: [...navigator.languages] },
+  }));
   return { url: page.url(), cookies: await page.context().cookies(), ...kept, clock: kept.clock - Date.now() };
 }
 

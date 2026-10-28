@@ -186,6 +186,61 @@ const SAYS = `<script>(() => {
     Object.assign(Shifted, { now: () => Real.now() + ahead, parse: Real.parse, UTC: Real.UTC });
     window.Date = Shifted;
   }
+  // In the browser the flow was recorded in, whatever yours says: light or dark, still or moving, in its languages. A
+  // page asks in its scripts and its styles, and each asking is answered before the app hears it.
+  const browser = JSON.parse(sessionStorage.getItem("vantage:browser") || "null");
+  if (browser) {
+    const recorded = { "prefers-color-scheme": browser.dark ? "dark" : "light", "prefers-reduced-motion": browser.still ? "reduce" : "no-preference" };
+    const as = (query) =>
+      String(query).replace(/\\(\\s*(prefers-color-scheme|prefers-reduced-motion)\\s*(?::\\s*([a-z-]+)\\s*)?\\)/gi, (_, feature, value) => {
+        feature = feature.toLowerCase();
+        const holds = value ? value.toLowerCase() === recorded[feature] : feature === "prefers-color-scheme" || browser.still;
+        return holds ? "(min-width: 0px)" : "(max-width: 0px)";
+      });
+    const matching = window.matchMedia;
+    window.matchMedia = (query) => matching.call(window, as(query));
+    for (const name of ["insertRule", "replace", "replaceSync"]) {
+      const real = CSSStyleSheet.prototype[name];
+      if (real) CSSStyleSheet.prototype[name] = function (text, ...rest) { return real.call(this, as(text), ...rest); };
+    }
+    const rewrite = (rules) => {
+      for (const rule of rules) {
+        if (rule.media && as(rule.media.mediaText) !== rule.media.mediaText) rule.media.mediaText = as(rule.media.mediaText);
+        if (rule.styleSheet) restyle(rule.styleSheet);
+        if (rule.cssRules) rewrite(rule.cssRules);
+      }
+    };
+    const restyle = (sheet) => { try { rewrite(sheet.cssRules); } catch {} };
+    const restyleAll = () => {
+      for (const sheet of document.styleSheets) restyle(sheet);
+      for (const sheet of document.adoptedStyleSheets ?? []) restyle(sheet);
+      for (const element of document.querySelectorAll("[media]")) {
+        const media = element.getAttribute("media");
+        if (as(media) !== media) element.setAttribute("media", as(media));
+      }
+    };
+    const styling = (node) => /^(STYLE|LINK|SOURCE|META)$/.test(node?.nodeName);
+    new MutationObserver((changes) => changes.some((change) => styling(change.target) || styling(change.target.parentNode) || [...change.addedNodes].some(styling)) && restyleAll())
+      .observe(document, { subtree: true, childList: true, characterData: true, attributeFilter: ["media"] });
+    document.addEventListener("load", (event) => styling(event.target) && restyleAll(), true);
+    const languages = browser.languages;
+    Object.defineProperty(navigator, "language", { get: () => languages[0] });
+    Object.defineProperty(navigator, "languages", { get: () => languages });
+    for (const name of ["DateTimeFormat", "NumberFormat", "Collator", "PluralRules", "RelativeTimeFormat", "ListFormat", "DisplayNames", "Segmenter"]) {
+      const Real = Intl[name];
+      if (!Real) continue;
+      const Spoken = function (locales, options) { return new.target ? new Real(locales ?? languages, options) : Real(locales ?? languages, options); };
+      Object.assign(Spoken, { prototype: Real.prototype, supportedLocalesOf: Real.supportedLocalesOf });
+      Intl[name] = Spoken;
+    }
+    const speak = (kind, name, at) => {
+      const real = kind.prototype[name];
+      kind.prototype[name] = function (...given) { given[at] ??= languages; return real.apply(this, given); };
+    };
+    for (const name of ["toLocaleString", "toLocaleDateString", "toLocaleTimeString"]) speak(Date, name, 0);
+    speak(Number, "toLocaleString", 0);
+    speak(String, "localeCompare", 1);
+  }
   let asked = 0, stirred = performance.now();
   const stir = () => (stirred = performance.now());
   const fetching = window.fetch;
@@ -446,22 +501,23 @@ function handOver(handed: Handed | undefined, response: ServerResponse) {
     response.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
     return void response.end("There's no moment ready at this address. Take it over again from the viewer, or with vantage take-over.");
   }
-  const { url, cookies, local, session, scroll, clock, did = [] } = handed;
+  const { url, cookies, local, session, scroll, clock, browser, did = [] } = handed;
   const again = [...(handed.again ?? []), ...did];
   const { pathname, search, hash } = new URL(url);
   const setCookies = cookies.map(
     ({ name, value, path, expires, httpOnly }) =>
       `${name}=${value}; Path=${path}; SameSite=Lax${httpOnly ? "; HttpOnly" : ""}${expires > 0 ? `; Expires=${new Date(expires * 1000).toUTCString()}` : ""}`,
   );
-  const keep = JSON.stringify({ local, session, scroll, clock, again, did, to: pathname + search + hash }).replace(/</g, "\\u003c");
+  const keep = JSON.stringify({ local, session, scroll, clock, browser, again, did, to: pathname + search + hash }).replace(/</g, "\\u003c");
   response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "set-cookie": setCookies });
   response.end(`<!doctype html><meta name="viewport" content="width=device-width"><title>Taking over…</title>
 <script>
-const { local, session, scroll, clock, again, did, to } = ${keep};
+const { local, session, scroll, clock, browser, again, did, to } = ${keep};
 for (const [key, value] of Object.entries(local)) localStorage.setItem(key, value);
 for (const [key, value] of Object.entries(session)) sessionStorage.setItem(key, value);
 sessionStorage.setItem("vantage:scroll", JSON.stringify(scroll));
 sessionStorage.setItem("vantage:clock", String(clock));
+sessionStorage.setItem("vantage:browser", JSON.stringify(browser));
 sessionStorage.removeItem("vantage:yours");
 if (again.length) sessionStorage.setItem("vantage:again", JSON.stringify(again));
 sessionStorage.setItem("vantage:did", JSON.stringify(did));

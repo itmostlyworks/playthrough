@@ -23,10 +23,12 @@ export type Run = { flows: string; only?: string[]; folder: string; app: App; ro
 // its actions. Followed, it's as far as the run may go, and the playhead rests there once it's to be handed over.
 export type To = { flow: string; step?: string; actions?: number; rests?: boolean };
 // The flow's page there, as a browser keeps it: its address, its cookies, what the app kept in the browser, how far it
-// was scrolled, and how far its clock, the recordings', is ahead of the real one, in milliseconds. And partway through a
-// step, the actions to do again there, which changed only what was in the page's memory. Taken over on a person's
-// branch, what they did there, done again after them.
-export type Handed = { url: string; cookies: Cookie[]; local: Record<string, string>; session: Record<string, string>; scroll: { x: number; y: number }; clock: number; again?: Action[]; did?: Did[] };
+// was scrolled, how far its clock, the recordings', is ahead of the real one, in milliseconds, and what its browser said
+// of itself. And partway through a step, the actions to do again there, which changed only what was in the page's
+// memory. Taken over on a person's branch, what they did there, done again after them.
+export type Handed = { url: string; cookies: Cookie[]; local: Record<string, string>; session: Record<string, string>; scroll: { x: number; y: number }; clock: number; browser: Browser; again?: Action[]; did?: Did[] };
+// Whether it asked for dark and for little motion, and the languages it read in.
+export type Browser = { dark: boolean; still: boolean; languages: string[] };
 // An action of the flow's, done again in the person's browser: what it did, on the element at that path, with what.
 export type Action = { does: string; on: string; with?: string | boolean | string[] };
 export type Cookie = { name: string; value: string; path: string; expires: number; httpOnly: boolean };
