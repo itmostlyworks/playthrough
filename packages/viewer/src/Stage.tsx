@@ -729,6 +729,41 @@ export function Stage(props: Props) {
   };
 
   const aiming = !playing && !!props.onPlace && !props.writing;
+  // Played or paused by hand, the recording says so where you're looking: what just happened, in its middle, growing a
+  // little as it fades, as a video's does. Not when it stops by itself.
+  const sign = useRef<HTMLDivElement>(null);
+  const touched = useRef(0);
+  useEffect(() => {
+    const now = () => void (touched.current = performance.now());
+    addEventListener("pointerdown", now, true);
+    addEventListener("keydown", now, true);
+    return () => {
+      removeEventListener("pointerdown", now, true);
+      removeEventListener("keydown", now, true);
+    };
+  }, []);
+  const signedPlaying = useRef(playing);
+  useEffect(() => {
+    if (signedPlaying.current === playing) return;
+    signedPlaying.current = playing;
+    const shown = sign.current;
+    const frame = frames.current.get(round.number)?.getBoundingClientRect();
+    const box = stage.current?.getBoundingClientRect();
+    if (!shown || !frame || !box || performance.now() - touched.current > 300) return;
+    shown.querySelector<SVGElement>("[data-play]")!.style.display = playing ? "" : "none";
+    shown.querySelector<SVGElement>("[data-pause]")!.style.display = playing ? "none" : "";
+    Object.assign(shown.style, { left: `${frame.left - box.left + frame.width / 2}px`, top: `${frame.top - box.top + frame.height / 2}px` });
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    shown.getAnimations().forEach((animation) => animation.cancel());
+    shown.animate(
+      [
+        { opacity: 0.95, transform: `translate(-50%,-50%) scale(${still ? 1 : 0.85})` },
+        { opacity: 0.95, transform: "translate(-50%,-50%) scale(1)", offset: 0.35 },
+        { opacity: 0, transform: `translate(-50%,-50%) scale(${still ? 1 : 1.25})` },
+      ],
+      { duration: 700, easing: "ease-out" },
+    );
+  }, [playing]);
   // First on the line over the recording, where the grid's own heading was.
   const toAll = props.onAllFlows && (
     <button
@@ -756,6 +791,15 @@ export function Stage(props: Props) {
 
   return (
     <div ref={stage} className="group/stage relative min-h-0 select-none" data-bare={props.bare ? "" : undefined}>
+      <div ref={sign} aria-hidden className="pointer-events-none absolute z-20 grid size-16 place-items-center rounded-full bg-[rgba(30,34,44,0.62)] text-white opacity-0">
+        <svg data-play viewBox="0 0 24 24" className="ml-1 size-7" fill="currentColor">
+          <path d="M7 4.5l13 7.5-13 7.5z" />
+        </svg>
+        <svg data-pause viewBox="0 0 24 24" className="size-7" fill="currentColor">
+          <rect x="6" y="5" width="4" height="14" rx="1" />
+          <rect x="14" y="5" width="4" height="14" rx="1" />
+        </svg>
+      </div>
       {visited.map((number) => (
         <div
           key={number}
