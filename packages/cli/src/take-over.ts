@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { createServer, request as ask, type IncomingMessage, type ServerResponse } from "node:http";
 import { connect } from "node:net";
-import { networkInterfaces } from "node:os";
+import { constants, networkInterfaces } from "node:os";
 import { dirname, join } from "node:path";
 import { list, quote, Refused, type Did } from "@mostlyworks/vantage-review";
 import { follow, runTo, type Handed } from "./flows.ts";
@@ -75,7 +75,14 @@ async function recorded(repo: Repo, id: string) {
 // The app, as vantage/app.json starts it, kept running for as long as Vantage runs, or the one already running:
 // Playwright would stop one it started itself as soon as the flow was done.
 let started: ChildProcess | undefined;
+let ending = false;
 async function keepRunning(app: App, root: string) {
+  // Stopped by a signal, Node ends without saying it's exiting, and what it started here runs on, orphaned: the flows
+  // kept ready and the app. Told, they go with it.
+  if (!ending) {
+    ending = true;
+    for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) process.once(signal, () => process.exit(128 + constants.signals[signal]));
+  }
   if (await answers(app.url)) return;
   console.log(`Starting the app: ${app.start}`);
   started = spawn(app.start, { cwd: root, shell: true, stdio: "ignore", detached: true });
@@ -86,7 +93,6 @@ async function keepRunning(app: App, root: string) {
     } catch {}
   };
   process.once("exit", stop);
-  for (const signal of ["SIGINT", "SIGTERM"] as const) process.once(signal, () => process.exit(0));
   for (let waited = 0; waited < 180; waited++) {
     if (await answers(app.url)) return;
     await new Promise((resolve) => setTimeout(resolve, 1000));
