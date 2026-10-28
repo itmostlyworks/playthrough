@@ -13,9 +13,9 @@ import { Controls, type Look } from "./Controls.tsx";
 import type { ForkLine } from "./Timeline.tsx";
 import { Drawer } from "./Drawer.tsx";
 import { useDraft, useWatched } from "./draft.ts";
-import { land, slideIn, takeOff, type Taking } from "./flight.ts";
+import { grow, land, slideIn, takeOff, type Taking } from "./flight.ts";
 import { Foot, Keep, type Step } from "./Foot.tsx";
-import { Grid } from "./Grid.tsx";
+import { Grid, groups } from "./Grid.tsx";
 import { follow, pausedAt, readyAt, samePaused, takenOver, type Live, type Paused } from "./live.ts";
 import { along, CARD, clamp, FLOW_IN, momentAt, POSTER, type Moment } from "./moments.ts";
 import { asIfSent, fill, goodTo, ink, lookGood, notesOn, nothing, said, seen, sendOf, settledBefore, standings, takeBack, type Shown } from "./notes.ts";
@@ -652,13 +652,18 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     flying.current = undefined;
     if (!flight) return;
     if (flight.to === "grid") return void land(flight.taking, gridRoom.current!);
-    // With the column folded away, there's nowhere for the pictures to land: the flow just plays.
-    if (!aside.current?.querySelector<HTMLElement>("[data-map]")?.offsetParent) return void (flight.playing && playhead.play());
-    // Each picture flies to where its still will stand once the column has settled, not to where it's passing.
-    const map = aside.current!.querySelector("[data-map]")!;
-    for (const animation of map.getAnimations({ subtree: true })) if (animation.id === "glide") animation.finish();
-    const last = land(flight.taking, map, map.getBoundingClientRect());
-    slideIn(aside.current!);
+    // With the column folded away, the flow's picture grows into the frame it plays in; with it there, each picture flies
+    // to where its still will stand once the column has settled, not to where it's passing.
+    const map = aside.current?.querySelector<HTMLElement>("[data-map]");
+    let last: number;
+    if (!map?.offsetParent) {
+      const frame = document.querySelector<HTMLElement>(`[data-frame="${round.number}"]`);
+      last = frame ? grow(flight.taking, frame) : 0;
+    } else {
+      for (const animation of map.getAnimations({ subtree: true })) if (animation.id === "glide") animation.finish();
+      last = land(flight.taking, map, map.getBoundingClientRect());
+      slideIn(aside.current!);
+    }
     if (!flight.playing) return;
     const from = playhead.now.moment;
     clearTimeout(settling.current);
@@ -930,13 +935,20 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
 
   // Over every flow, the foot's step from the top: to the first flow that needs you, from its start, as Start checking,
   // or Carry on checking once you've begun; else what the foot would offer, sending and accepting where you are.
+  // Against Before, whether the work changed a flow: the app's own it didn't wait folded on every flow at once.
+  const changedByWork = (name: string) =>
+    review.comparisons.some((comparison) => comparison.round === round.number && comparison.since === 0 && comparison.changes.some((change) => change.seen.some((seen) => seen.flow === name)));
   const begun = watched.length > 0 || said(draft) > 0 || draft.unsaved.length > 0;
   const gridStep = ((): Step | undefined => {
     if (review.accepted || acceptedHere || readOnly) return undefined;
     const step = onward(-1);
     if (step.kind === "agent") return step;
     if (step.kind !== "go") return undefined;
-    if (step.flow) return { ...step, words: begun ? "Carry on checking" : "Start checking", what: undefined, take: () => leave(step.flow, true) };
+    if (step.flow) {
+      const { fresh, changed, unchanged } = groups(round, changedByWork);
+      const first = [...fresh, ...changed, ...unchanged].find((flow) => needs(flow.name))?.name ?? step.flow;
+      return { ...step, flow: first, words: begun ? "Carry on checking" : "Start checking", what: undefined, take: () => leave(first, true) };
+    }
     if (step.send || step.final) return step;
     return {
       ...step,
@@ -1325,7 +1337,8 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
             up={onGrid}
             standing={(name) => standing?.get(name)}
             needs={needs}
-            diamonds={review.accepted ? [] : diamonds}
+            changed={changedByWork}
+            marks={(name) => notes.flatMap((note) => (note.on?.flow === name && note.on.at !== undefined ? [{ at: note.on.at, ink: ink(note) }] : []))}
             accepted={review.accepted || acceptedHere ? acceptedAfter : undefined}
             step={gridStep}
             app={app}

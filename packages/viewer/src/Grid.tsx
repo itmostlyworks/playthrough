@@ -1,17 +1,17 @@
-// Every flow at once: where you arrive on a round with more than one flow, and where "All flows" brings you back. Each
-// flow is a tile: its picture, its name, its length and where it stands. The flows new in this work come first, then the
-// app's own it touched, once the app has some. In each, what needs you is large and the rest a quiet row under it, so the
-// grid has the shape of the work left. A tile opens on what's new in it, resting on one plays its story, and choosing one
-// plays it. Over the tiles, the work, the round and what's left, and the one step to take.
+// Every flow at once: where you arrive on a round with more than one flow, and where "All flows" brings you back. The
+// work's name and where it stands, then its flows as a list, and beside them the frame the recording plays in, showing
+// the flow you point at as it opens, its name over its first picture. The flows new in this work come first, then the
+// app's own it changed; those it didn't change wait folded on one line. Each row says the flow's length and where it
+// stands, over a line with its notes on it as the timeline has them. Choosing one plays it, its picture growing into the
+// frame. Under the frame, the one step to take.
 
-import { useEffect, useLayoutEffect, useRef, type PointerEvent, type ReactNode, type RefObject } from "react";
+import { useState, type ReactNode, type RefObject } from "react";
 import { time, type Flow, type Review, type Round } from "@mostlyworks/vantage-review";
-import type { Diamond } from "./changes.ts";
+import { picture } from "./api.ts";
 import { TickMark } from "./Column.tsx";
 import { Agent, Go, owned, says, type Step } from "./Foot.tsx";
 import type { Standing } from "./notes.ts";
-import { onPhone } from "./phone.ts";
-import { Picture, useFirstNew, useStill, useStory, type Frame } from "./Picture.tsx";
+import { Picture } from "./Picture.tsx";
 import { roundName } from "./Rounds.tsx";
 
 type Props = {
@@ -21,57 +21,49 @@ type Props = {
   up: boolean;
   standing: (flow: string) => Standing | undefined;
   needs: (flow: string) => boolean;
-  // What's new to you, which tiles open on.
-  diamonds: Diamond[];
+  // Whether the work changed one of the app's flows, against Before.
+  changed: (flow: string) => boolean;
+  // Each note on a flow, at its moment, in its ink.
+  marks: (flow: string) => { at: number; ink: string }[];
   // Accepted, how it got there, in fixed words.
   accepted?: string;
   step?: Step;
   // The app's name, for its flows, and, accepting, the new flows to keep with them.
   app?: string;
   keep?: ReactNode;
-  // When the grid came back after you accepted: each flow's tick lands in turn.
+  // When it came back after you accepted: each flow's tick lands in turn.
   done?: number;
   onFlow: (flow: string) => void;
 };
 
 export function Grid(props: Props) {
   const { review, round, up, step } = props;
-  const grid = useRef<HTMLDivElement>(null);
+  const [pointed, setPointed] = useState<string>();
+  const [unfolded, setUnfolded] = useState(false);
   const toCheck = round.flows.filter((flow) => props.needs(flow.name)).length;
-  const fold = toCheck > 0 && toCheck < round.flows.length && !review.accepted;
-  useLayoutEffect(() => lay(grid.current!));
-  useEffect(() => {
-    const observer = new ResizeObserver(() => lay(grid.current!));
-    observer.observe(grid.current!);
-    return () => observer.disconnect();
-  }, []);
+  const { fresh, changed, unchanged } = groups(round, props.changed);
+  const apart = fresh.length < round.flows.length;
+  const longest = Math.max(...round.flows.map((flow) => flow.length));
+  const first = [...fresh, ...changed, ...unchanged][0]!;
+  const shown = round.flows.find((flow) => flow.name === pointed) ?? round.flows.find((flow) => flow.name === (step?.kind === "go" ? step.flow : undefined)) ?? first;
 
-  // Just accepted, the ticks land across then down, for the first few seconds only: coming back later, it's simply done.
+  // Just accepted, the ticks land down the list, for the first few seconds only: coming back later, it's simply done.
   const ago = props.done === undefined ? Infinity : performance.now() - props.done;
   let landing = 0;
-  const tile = (flow: Flow, small: boolean, group = 0) => (
-    <Tile key={flow.name} {...props} flow={flow} small={small} group={group} wave={ago < 3000 && props.standing(flow.name)?.is === "good" ? 450 + landing++ * 110 - ago : undefined} />
+  const row = (flow: Flow) => (
+    <Row
+      key={flow.name}
+      flow={flow}
+      standing={props.standing(flow.name)}
+      marks={props.marks(flow.name)}
+      share={flow.length / longest}
+      on={flow === shown}
+      wave={ago < 3000 && props.standing(flow.name)?.is === "good" ? 450 + landing++ * 110 - ago : undefined}
+      onPoint={setPointed}
+      onFlow={props.onFlow}
+    />
   );
-  // Each group with its name over it, once the app has flows of its own: when nothing in it needs you, the name goes on
-  // its quiet row instead.
-  const apart = round.flows.some((flow) => flow.kept);
-  const group = (flows: Flow[], name?: string, group = 0) => {
-    if (!flows.length) return null;
-    const large = flows.filter((flow) => !fold || props.needs(flow.name));
-    const quiet = fold ? flows.filter((flow) => !props.needs(flow.name)) : [];
-    return (
-      <>
-        {name && large.length > 0 && <p data-row className="col-span-full -mb-3 text-xs leading-[18px] text-faint">{name}</p>}
-        {large.map((flow) => tile(flow, false, group))}
-        {quiet.length > 0 && (
-          <div data-quiet className="col-span-full mt-2 grid gap-2 justify-self-start">
-            <p className="text-xs leading-[18px] text-faint">{name && !large.length ? `${name} · nothing to check` : "Nothing to check"}</p>
-            <div className="flex flex-wrap gap-4 phone:gap-3">{quiet.map((flow) => tile(flow, true))}</div>
-          </div>
-        )}
-      </>
-    );
-  };
+  const heading = (words: string) => <p className="mt-4 mb-1 px-2.5 text-xs leading-[18px] text-faint first:mt-0">{words}</p>;
   const left = review.accepted ? null : toCheck ? (
     <>
       {" "}
@@ -82,94 +74,105 @@ export function Grid(props: Props) {
   ) : round.flows.every((flow) => props.standing(flow.name)?.is === "good") ? (
     " · All good"
   ) : null;
+  const theirs = `${capital(owned(props.app))} flows`;
 
   return (
-    <div ref={props.room} inert={!up} className={`absolute inset-0 z-20 flex flex-col bg-ground transition-[opacity,visibility] duration-240 ease-calm ${up ? "visible opacity-100" : "invisible opacity-0"}`}>
-      <div ref={grid} className="grid min-h-0 flex-1 auto-rows-max content-center-safe justify-center gap-6 overflow-y-auto px-8 pb-[30px] phone:content-start phone:px-0 phone:pb-4">
-        <div data-head className="col-span-full flex h-12 items-end gap-6 phone:h-auto phone:flex-wrap phone:gap-y-2.5 phone:pt-2">
-          {/* As wide as the tiles: a long title is cut, never widening the grid. */}
-          <div className="w-0 min-w-0 flex-[1_0_auto] *:truncate phone:w-auto phone:flex-[1_1_auto] phone:*:whitespace-normal">
-            <h2 className="text-[20px] leading-[26px] font-semibold tracking-[-0.01em]">{review.title}</h2>
-            <p className="mt-0.5 text-[13px] leading-5 text-soft">
+    <div ref={props.room} inert={!up} className={`absolute inset-0 z-20 flex bg-ground transition-[opacity,visibility] duration-240 ease-calm ${up ? "visible opacity-100" : "invisible opacity-0"}`}>
+      <div className="m-auto grid w-full max-w-[1240px] grid-cols-[280px_minmax(0,1fr)] gap-10 px-8 py-6 phone:grid-cols-1 phone:gap-5 phone:px-0">
+        <div className="flex max-h-[calc(100dvh-140px)] min-h-0 flex-col phone:max-h-none">
+          <div className="px-2.5">
+            <h2 className="line-clamp-4 text-[17px] leading-[23px] font-semibold tracking-[-0.01em]">{review.title}</h2>
+            <p className="mt-1 text-[13px] leading-5 text-soft">
               {props.accepted ?? roundName(round.number)}
               {left}
             </p>
           </div>
-          <div className="flex max-w-full min-w-0 items-center gap-2">
-            {step?.kind === "go" && <Go step={step} className="flex-none gap-3" />}
-            {step?.kind === "agent" && <Agent step={step} className="flex-none" />}
+          <div className="-mx-1 mt-5 min-h-0 overflow-y-auto px-1" onPointerLeave={() => setPointed(undefined)}>
+            {apart && fresh.length > 0 && heading("New in this work")}
+            {fresh.map(row)}
+            {apart && changed.length > 0 && heading(`${theirs} it changed`)}
+            {changed.map(row)}
+            {unchanged.length > 0 && (unfolded ? (
+              <>
+                {heading(`${theirs} it didn't change`)}
+                {unchanged.map(row)}
+              </>
+            ) : (
+              <button className="mt-4 px-2.5 text-left text-xs leading-[18px] text-faint transition-colors duration-150 ease-calm hover:text-soft" onClick={() => setUnfolded(true)}>
+                {changed.length ? `${unchanged.length} more of ${theirs}` : theirs}, unchanged
+              </button>
+            ))}
           </div>
         </div>
-        {step?.kind === "go" && step.final && props.keep && <div data-row className="col-span-full -mt-2 w-[300px] max-w-full justify-self-end">{props.keep}</div>}
-        {apart ? (
-          <>
-            {group(round.flows.filter((flow) => !flow.kept), "New in this work")}
-            {group(round.flows.filter((flow) => flow.kept), `${capital(owned(props.app))} flows`, 1)}
-          </>
-        ) : (
-          group(round.flows)
-        )}
+        <div className="flex min-w-0 flex-col justify-center">
+          <Opening review={review} round={round} flow={shown} onFlow={props.onFlow} />
+          <div className="mt-3 flex min-h-8 items-start justify-end gap-2">
+            <div className="w-[300px] max-w-full">
+              {step?.kind === "go" && step.final && props.keep}
+              {step?.kind === "go" && <Go step={step} className="w-full gap-3" />}
+              {step?.kind === "agent" && <Agent step={step} className="justify-end" />}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-function Tile({ review, round, flow, small, group, up, standing, diamonds, wave, onFlow }: Props & { flow: Flow; small: boolean; group: number; wave?: number }) {
-  const still = useStill(review, round, flow);
-  const fresh = useFirstNew(review, round, flow, diamonds);
-  const story = useStory(review, round, flow);
-  const skim = useSkim(fresh ? 0 : story.length, up);
-  const shown = standing(flow.name);
+// A flow in the list: its name, its length and where it stands, over its line with its notes on it, as long beside the
+// others' as the flow is.
+function Row({ flow, standing, marks, share, on, wave, onPoint, onFlow }: { flow: Flow; standing?: Standing; marks: { at: number; ink: string }[]; share: number; on: boolean; wave?: number; onPoint: (flow: string) => void; onFlow: (flow: string) => void }) {
   return (
     <button
-      ref={skim.tile}
-      data-tile
-      data-small={small ? "" : undefined}
-      data-group={group}
-      className={`group/tile grid min-w-0 content-start text-left focus-visible:outline-none ${small ? "w-[150px] phone:w-[calc((100%-24px)/3)]" : "row-span-3 grid-rows-subgrid gap-y-0"}`}
-      aria-label={`Play ${flow.name}${shown ? `. ${says(shown)}` : ""}`}
+      data-on={on ? "" : undefined}
+      className="grid w-full grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-2.5 rounded-lg px-2.5 pt-2 pb-2.5 text-left transition-colors duration-150 ease-calm hover:bg-hover data-on:bg-hover"
+      aria-label={`Play ${flow.name}${standing ? `. ${says(standing)}` : ""}`}
+      onPointerEnter={() => onPoint(flow.name)}
+      onFocus={() => onPoint(flow.name)}
       onClick={() => onFlow(flow.name)}
-      onPointerEnter={skim.enter}
-      onPointerLeave={skim.leave}
     >
-      {/* Pointing at a tile outlines its picture at once, with nothing to animate, so a quick pass leaves nothing half done. */}
-      <span
-        data-picture={flow.name}
-        className={`relative block aspect-[1.6] overflow-hidden bg-paper shadow-frame group-hover/tile:shadow-[0_0_0_1px_var(--faint)] group-focus-visible/tile:outline-2 group-focus-visible/tile:outline-offset-2 group-focus-visible/tile:outline-amber data-flying:invisible ${small ? "rounded-md" : "rounded-lg"}`}
-      >
-        <Picture shot={fresh ?? still} />
-        {/* Resting on what's new shows how it was, the outline held where it is. */}
-        {fresh?.was && (
-          <span data-pointing className="absolute inset-0 opacity-0 transition-opacity duration-160 ease-calm group-hover/tile:opacity-100 group-hover/tile:delay-120">
-            <Picture shot={fresh.was} />
-            <span className="absolute bottom-2 left-2 rounded-full bg-[rgba(20,24,34,0.62)] px-[7px] py-0.5 text-[11px] leading-4 text-white">{roundName(fresh.was.round)}</span>
-          </span>
-        )}
-        {fresh && <span className="absolute rounded-[3px] outline-[1.5px] outline-offset-3 outline-[#2b2e35] outline-solid" style={placed(fresh.outline)} />}
-        {!fresh &&
-          story.length > 1 &&
-          story.map((shot, k) => (
-            <span
-              key={k}
-              data-story
-              className="absolute inset-0 opacity-0 transition-opacity duration-160 ease-calm group-data-skimming/tile:transition-none data-was:z-1 data-was:opacity-100 data-on:z-2 group-data-skimming/tile:data-on:opacity-100 group-data-skimming/tile:data-on:transition-opacity group-data-skimming/tile:data-on:duration-300"
-            >
-              <Picture shot={shot} />
-            </span>
-          ))}
-      </span>
-      <span className={small ? "mt-1.5 line-clamp-1 text-xs leading-[18px] font-medium text-soft" : "mt-2.5 line-clamp-2 text-[13px] leading-[18px] font-semibold"}>{flow.name}</span>
-      <span className="flex items-center justify-between gap-2 text-xs leading-[18px] text-faint tabular-nums">
-        {time(flow.length)}
-        {shown && <Box standing={shown} wave={wave} />}
+      <span className="truncate text-[13px] leading-[18px] text-fg">{flow.name}</span>
+      <span className="text-xs leading-[18px] text-faint tabular-nums">{time(flow.length)}</span>
+      {standing ? <Box standing={standing} wave={wave} /> : <span className="size-3" />}
+      <span className="relative col-span-full mt-2 block h-px bg-line" style={{ width: `${share * 100}%` }}>
+        {marks.map((mark, k) => (
+          <i key={k} className="absolute -top-[2px] size-[5px] -translate-x-1/2 rounded-full" style={{ left: `${Math.min(100, (mark.at / flow.length) * 100)}%`, background: mark.ink }} />
+        ))}
       </span>
     </button>
   );
 }
 
-const capital = (words: string) => words[0]!.toUpperCase() + words.slice(1);
+// The frame, as the flow opens in it: its name over its first picture, softened under a veil in the recorded app's
+// background and in its ink and face, as the stage draws it between flows. It's the picture that grows into the frame
+// the flow plays in.
+function Opening({ review, round, flow, onFlow }: { review: Review; round: Round; flow: Flow; onFlow: (flow: string) => void }) {
+  return (
+    <button
+      data-picture={flow.name}
+      className="relative aspect-[1.6] w-full max-w-[calc((100dvh-200px)*1.6)] self-center overflow-hidden rounded-lg bg-paper shadow-frame data-flying:invisible"
+      aria-label={`Play ${flow.name}`}
+      onClick={() => onFlow(flow.name)}
+    >
+      <Picture key={flow.name} shot={{ src: picture(review.id, round.number, flow.recording, 0) }} />
+      <span className="absolute inset-0 grid place-items-center bg-[rgba(247,247,245,.45)] p-4 text-center font-recorded text-[20px] leading-[1.2] font-medium tracking-[-0.01em] text-[#222222]">
+        {flow.name}
+      </span>
+    </button>
+  );
+}
 
-const placed = (frame: Frame) => ({ left: `${frame.x * 100}%`, top: `${frame.y * 100}%`, width: `${frame.width * 100}%`, height: `${frame.height * 100}%` });
+// The flows new in this work, then the app's own it changed, then the rest of the app's: the list's order, and so where
+// checking starts.
+export function groups(round: Round, changed: (flow: string) => boolean) {
+  return {
+    fresh: round.flows.filter((flow) => !flow.kept),
+    changed: round.flows.filter((flow) => flow.kept && changed(flow.name)),
+    unchanged: round.flows.filter((flow) => flow.kept && !changed(flow.name)),
+  };
+}
+
+const capital = (words: string) => words[0]!.toUpperCase() + words.slice(1);
 
 // Where the flow stands, drawn small where it can't be pressed, since the tile is a button already: green and ticked
 // once good, hollow if it was good before and changed; amber while it needs you, with how many answers wait; slate
@@ -201,101 +204,4 @@ function Box({ standing, wave }: { standing: Standing; wave?: number }) {
       {mark}
     </span>
   );
-}
-
-// Resting on a tile plays its story by itself, a picture at a time, looping; leaving it brings its picture back. Each
-// picture fades in over the last one that arrived whole, never more than two stacked.
-const SKIM = { rest: 400, every: 800, whole: 160 };
-
-function useSkim(pictures: number, up: boolean) {
-  const tile = useRef<HTMLButtonElement>(null);
-  const timer = useRef<number>(undefined);
-  const stop = () => {
-    clearTimeout(timer.current);
-    const element = tile.current;
-    if (!element) return;
-    element.removeAttribute("data-skimming");
-    delete element.dataset.at;
-    delete element.dataset.k;
-    for (const layer of element.querySelectorAll("[data-story]")) {
-      layer.removeAttribute("data-on");
-      layer.removeAttribute("data-was");
-    }
-  };
-  useEffect(() => {
-    if (!up) stop();
-    return () => clearTimeout(timer.current);
-  }, [up]);
-
-  const show = (element: HTMLElement, k: number) => {
-    const layers = [...element.querySelectorAll<HTMLElement>("[data-story]")];
-    const now = performance.now();
-    const whole = now - Number(element.dataset.at ?? 0) >= SKIM.whole;
-    const was = layers.map((layer) => (layer.hasAttribute("data-on") ? "on" : layer.hasAttribute("data-was") ? "was" : ""));
-    // The one coming in always fades in from nothing, the one beneath included.
-    if (was[k] === "was") {
-      layers[k]!.removeAttribute("data-was");
-      void layers[k]!.offsetWidth;
-    }
-    layers.forEach((layer, j) => {
-      layer.toggleAttribute("data-on", j === k);
-      layer.toggleAttribute("data-was", j !== k && was[j] === (whole ? "on" : "was"));
-    });
-    Object.assign(element.dataset, { at: String(now), k: String(k) });
-    element.toggleAttribute("data-skimming", true);
-  };
-  const next = () => {
-    const element = tile.current;
-    if (!element?.isConnected) return;
-    show(element, element.dataset.k === undefined ? 0 : (Number(element.dataset.k) + 1) % pictures);
-    timer.current = window.setTimeout(next, SKIM.every);
-  };
-  return {
-    tile,
-    enter: (event: PointerEvent) => {
-      if (pictures < 2 || event.pointerType === "touch") return;
-      clearTimeout(timer.current);
-      timer.current = window.setTimeout(next, SKIM.rest);
-    },
-    leave: stop,
-  };
-}
-
-// As many to a row as lets the pictures be largest with every flow that needs you in view, and where more to a row lets
-// them be as large, more, so the grid fills across before down; never larger than the pictures are. One or two to check
-// are as large as that; three or more, smaller. The quiet row is as wide as the tiles over it, and its height can change
-// their size, so it's laid out twice. The grid is never narrower than its heading.
-const TILE = { most: 340, picture: 512, gap: 24, label: 64, head: 48, small: 150 };
-
-function lay(grid: HTMLElement) {
-  const style = getComputedStyle(grid);
-  const width = grid.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-  // Besides the large tiles, in their groups, rows across the whole grid: quiet rows, groups' names, the flows to keep.
-  const quiet = [...grid.querySelectorAll<HTMLElement>("[data-quiet]")];
-  const across = [...quiet, ...grid.querySelectorAll<HTMLElement>("[data-row]")];
-  const groups = [0, 1].map((group) => grid.querySelectorAll(`[data-tile][data-group="${group}"]:not([data-small])`).length).filter(Boolean);
-  const large = groups.reduce((all, count) => all + count, 0);
-  const head = grid.querySelector<HTMLElement>("[data-head]");
-  const headWidth = head ? head.firstElementChild!.scrollWidth + TILE.gap + head.lastElementChild!.scrollWidth : 0;
-  const most = large <= 2 ? TILE.picture : TILE.most;
-  for (const row of quiet) row.style.width = `${Math.floor(width)}px`;
-  for (let pass = 0; pass < (quiet.length ? 2 : 1); pass++) {
-    const height = grid.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom) - TILE.head - TILE.gap - across.reduce((all, row) => all + row.offsetHeight + TILE.gap, 0);
-    const fits = Array.from({ length: Math.max(...groups, 0) }, (_, i) => {
-      const across = i + 1;
-      const rows = groups.reduce((all, count) => all + Math.ceil(count / across), 0);
-      return { across, size: Math.min(most, (width - (across - 1) * TILE.gap) / across, ((height - (rows - 1) * TILE.gap) / rows - TILE.label) * 1.6) };
-    });
-    const top = Math.max(0, ...fits.map((fit) => fit.size));
-    let best = fits.findLast((fit) => fit.size >= top - 0.5) ?? { across: 1, size: 0 };
-    // Where they can't all be in view at a size worth looking at, they fill the width and scroll.
-    if (best.size < 120 || onPhone()) {
-      const across = Math.max(1, Math.floor((width + TILE.gap) / (TILE.small + TILE.gap)));
-      best = { across, size: Math.min(TILE.most, (width - (across - 1) * TILE.gap) / across) };
-    }
-    const tiles = best.across * Math.floor(best.size) + (best.across - 1) * TILE.gap;
-    const room = Math.min(width, Math.max(tiles, headWidth)) - tiles;
-    grid.style.gridTemplateColumns = `repeat(${best.across}, ${Math.floor(best.size)}px)${room > TILE.gap ? ` ${Math.floor(room - TILE.gap)}px` : ""}`;
-    for (const row of quiet) row.style.width = `${tiles + Math.max(0, room)}px`;
-  }
 }

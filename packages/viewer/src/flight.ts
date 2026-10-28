@@ -27,12 +27,7 @@ export function land(taking: Taking, room: Element, view?: DOMRect): number {
     const to = room.querySelector<HTMLElement>(`[data-picture="${CSS.escape(flow)}"]`);
     const there = to?.getBoundingClientRect();
     const home = to && there && there.width > 0 && (!view || (there.top >= view.top && there.bottom <= view.bottom));
-    const flier = document.createElement("div");
-    flier.className = "pointer-events-none fixed z-60 overflow-hidden bg-paper shadow-frame";
-    Object.assign(flier.style, { left: `${box.left}px`, top: `${box.top}px`, width: `${box.width}px`, height: `${box.height}px`, borderRadius: getComputedStyle(from).borderRadius });
-    flier.append(copy);
-    document.body.append(flier);
-    from.toggleAttribute("data-flying", true);
+    const flier = lift(from, box, copy);
     const delay = i * FLIGHT.apart;
     const done = () => {
       for (const picture of [from, to]) picture?.removeAttribute("data-flying");
@@ -52,6 +47,33 @@ export function land(taking: Taking, room: Element, view?: DOMRect): number {
     last = Math.max(last, delay + FLIGHT.duration);
   });
   return last;
+}
+
+// Into one flow, its picture grows into the frame it plays in, which shows once it's there: what the frame shows is
+// the picture it grows from, the flow opening. How long until it has.
+export function grow(taking: Taking, frame: HTMLElement): number {
+  const one = taking[0];
+  const there = frame.getBoundingClientRect();
+  if (!one || !there.width) return 0;
+  const flier = lift(one.from, one.box, one.copy);
+  frame.toggleAttribute("data-flying", true);
+  const landed = { left: `${there.left}px`, top: `${there.top}px`, width: `${there.width}px`, height: `${there.height}px`, borderRadius: getComputedStyle(frame).borderRadius };
+  flier.animate([{}, landed], { duration: FLIGHT.duration, easing: FLIGHT.easing, fill: "forwards" }).onfinish = () => {
+    for (const picture of [one.from, frame]) picture.removeAttribute("data-flying");
+    flier.remove();
+  };
+  return FLIGHT.duration;
+}
+
+// A picture's copy, in the air where the picture is, which hides while it's away.
+function lift(from: HTMLElement, box: DOMRect, copy: HTMLElement): HTMLElement {
+  const flier = document.createElement("div");
+  flier.className = "pointer-events-none fixed z-60 overflow-hidden bg-paper shadow-frame";
+  Object.assign(flier.style, { left: `${box.left}px`, top: `${box.top}px`, width: `${box.width}px`, height: `${box.height}px`, borderRadius: getComputedStyle(from).borderRadius });
+  flier.append(copy);
+  document.body.append(flier);
+  from.toggleAttribute("data-flying", true);
+  return flier;
 }
 
 // What a picture shows, as it shows it: what's only there while you point at it stays behind.
