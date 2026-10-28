@@ -60,6 +60,7 @@ if (window.top === window) window.rrwebRecord.record({
 const FRAME = 16; // a move each frame while gliding or scrolling
 const REST = 140; // the pointer rests on its target before acting
 const BEAT = 650; // after each action, so its result can be seen
+const SAVING = 100; // taking over, how soon an action that saves or goes to another page shows it
 
 let pointer: { page: Page; x: number; y: number } | undefined;
 
@@ -304,7 +305,9 @@ async function acted(does: string, target: () => Promise<string | undefined>, ac
   const result = await act();
   underway?.actions.push(Date.now());
   if (handing) {
-    await handing.rest();
+    // Done again where the person takes over, it needn't wait for the page to be still here: only to see whether it
+    // saved something or went to another page, which shows at once. The next action's page is waited for as it's taken.
+    await handing.page.waitForTimeout(SAVING);
     const plain = typeof given === "string" || typeof given === "boolean" || (Array.isArray(given) && given.every((one) => typeof one === "string"));
     if (on && !handing.wrote && handing.page.url() === address) handing.again.push({ does, on, ...(plain && { with: given }) });
     else Object.assign(handing, { from: undefined, again: [] });
