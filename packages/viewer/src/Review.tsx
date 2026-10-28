@@ -1183,9 +1183,18 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
               }}
               onTakeOver={takeOver}
               onBack={() => letGo()}
-              notes={notes.length}
+              flow={watching ?? ""}
+              notes={notes
+                .filter((note) => note.on?.flow === watching && note.on.at !== undefined && note.turns[0]?.words)
+                .sort((a, b) => (a.on!.app?.from.at ?? a.on!.at!) - (b.on!.app?.from.at ?? b.on!.at!) || a.on!.at! - b.on!.at!)
+                .map((note) => ({ id: note.id, number: note.number, ink: ink(note), words: note.turns[0]!.words, where: note.on!.app ? `In the app, after ${time(note.on!.app.from.at)}` : time(note.on!.at!) }))}
               listed={listed}
-              onList={() => setListed(!listed)}
+              onList={setListed}
+              onSaid={(id) => {
+                setListed(false);
+                const note = notes.find((note) => note.id === id);
+                if (note) pick(note);
+              }}
             />
           </div>
           </div>
@@ -1265,7 +1274,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
         >
           {listed || onGrid ? undefined : openNote ? row(openNote) : (pending.find((kept) => "open" in kept && kept.open)?.row ?? (chosen || question ? <Chosen {...map} /> : undefined))}
         </Beside>
-        <div className={`absolute top-2 right-2 bottom-28 z-30 w-[350px] flex-col overflow-hidden rounded-xl bg-ground pt-3 shadow-[0_0_0_1px_rgba(20,24,34,0.08),0_10px_30px_rgba(20,24,34,0.16)] ${listed && !onGrid ? "flex" : "hidden"}`}>
+        <div className={`absolute top-2 right-2 bottom-28 z-30 w-[350px] flex-col overflow-hidden rounded-xl bg-ground pt-3 shadow-[0_0_0_1px_rgba(20,24,34,0.08),0_10px_30px_rgba(20,24,34,0.16)] hidden`}>
         <Drawer ref={aside} over={controls} away={onGrid}>
           <div className="flex items-baseline gap-2 px-[18px] pt-1 pb-2">
             {listing ? (
@@ -1291,7 +1300,6 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
               }}
             />
           )}
-          {listed && <Column {...map} />}
         </Drawer>
         </div>
         {many && (
