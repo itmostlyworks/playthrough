@@ -29,7 +29,7 @@ type Props = {
   forks?: ForkLine[];
   // The one you're making in the app.
   growing?: ForkLine;
-  // A note pointed at elsewhere: its dot grows and says its words, as if pointed at here.
+  // A note pointed at elsewhere: its dot grows.
   lit?: string;
 };
 
@@ -142,9 +142,8 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
     const under = spans.filter((other) => other.from > span.from && other.from < span.to).map((other) => laneOf.get(other.fork.name)!);
     laneOf.set(span.fork.name, Math.min(LANES - 1, under.length ? 1 + Math.max(...under) : 0));
   }
-  // How far over the first lane a fork rises, and over the line, the highest.
+  // How far over the first lane a fork rises: what's on it, and what it says, rises with it.
   const rise = (fork: ForkLine | undefined) => (fork ? (laneOf.get(fork.name) ?? 0) * LANE : 0);
-  const highest = Math.max(0, ...laneOf.values()) * LANE;
 
   // Crossing into another flow opens it up in one smooth shift, never while you're dragging. Known as the line changes,
   // not after: the shift has to be there when everything moves, or there's nothing to ease.
@@ -244,7 +243,8 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
   const thick = "-ml-[1.5px] w-[3px] rounded-[1.5px]";
   const moving = shifting ? "transition-[left,width,opacity] duration-300 ease-calm" : "";
   const label = "pointer-events-none absolute bottom-[calc(100%-1px)] -translate-x-1/2 rounded-[5px] bg-surface px-[7px] py-px text-[11px] leading-[14px] whitespace-nowrap shadow-tip transition-[opacity,translate] duration-150 ease-calm";
-  const dot = dots.find((dot) => dot.id === (named ?? lit));
+  // Pointed at here, a note says its first words; lit from the list, where its words already are, it only grows.
+  const dot = dots.find((dot) => dot.id === named);
   const mark = marks.find((mark) => mark.id === named);
   const tip = dot ?? mark;
   const ghost = !scrubbing && pointing !== undefined && !tip;
@@ -425,20 +425,15 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
           className={`pointer-events-none absolute z-4 transition-opacity duration-120 ease-calm ${pointedFork ? "-top-[3px] bottom-[21px] -ml-px w-0.5 rounded-[1px] bg-amber" : "top-1.5 bottom-1.5 -ml-[1.5px] w-[3px] rounded-[1.5px] bg-fg"} ${ghost ? (pointedFork ? "opacity-60" : "opacity-30") : "opacity-0"}`}
           style={{ left: pointed, translate: `0 ${-rise(pointedFork)}px` }}
         />
-        <span aria-hidden className={`${label} z-300 text-fg ${tip ? "translate-y-0 opacity-100" : "translate-y-[2px] opacity-0"}`} style={{ marginBottom: highest, left: tip ? (dot ? (dot.fork && dot.fork === grown?.name ? underWay(grown) : pc(dotShare(dot))) : percent(flow, tip.until === undefined ? tip.at : (tip.at + tip.until) / 2)) : undefined }}>
-          {dot && (
-            <>
-              <b className="mr-[5px] font-semibold text-amber-ink">{dot.number}</b>
-              {dot.words}
-            </>
-          )}
+        <span aria-hidden className={`${label} z-300 text-fg ${tip ? "translate-y-0 opacity-100" : "translate-y-[2px] opacity-0"}`} style={{ marginBottom: rise(dot?.fork ? lines.find((line) => line.name === dot.fork) : undefined), left: tip ? (dot ? (dot.fork && dot.fork === grown?.name ? underWay(grown) : pc(dotShare(dot))) : percent(flow, tip.until === undefined ? tip.at : (tip.at + tip.until) / 2)) : undefined }}>
+          {dot && <span className="block max-w-[220px] truncate">{dot.words}</span>}
           {mark?.note && <b className="mr-[5px] font-semibold text-amber-ink">{mark.note.number}</b>}
           {mark?.name}
         </span>
         <span
           aria-hidden
           className={`${label} z-299 tabular-nums ${scrubbing ? "text-fg" : "text-soft"} ${!tip && (scrubbing || pointing !== undefined) ? "translate-y-0 opacity-100" : "translate-y-[2px] opacity-0"}`}
-          style={{ marginBottom: highest, left: scrubbing ? head : pointed }}
+          style={{ marginBottom: rise(scrubbing ? riding : pointedFork), left: scrubbing ? head : pointed }}
         >
           {time(Math.max(0, scrubbing ? at : (pointing?.at ?? 0)))}
         </span>
