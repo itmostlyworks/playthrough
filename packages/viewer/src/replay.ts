@@ -45,18 +45,6 @@ export function recorded(events: Events): Recorded {
   return shown;
 }
 
-// When a person clicked and typed, as a recording keeps it: once for each word typed, not each letter.
-export function acts(events: { timestamp: number }[]): number[] {
-  const at: number[] = [];
-  for (const event of events as eventWithTime[]) {
-    if (event.type !== EventType.IncrementalSnapshot) continue;
-    const click = event.data.source === IncrementalSource.MouseInteraction && event.data.type === MouseInteractions.Click;
-    const typed = event.data.source === IncrementalSource.Input;
-    if (click || (typed && !(at.length && event.timestamp - at.at(-1)! < 1500))) at.push(event.timestamp);
-  }
-  return at;
-}
-
 export class Replay {
   readonly host = document.createElement("div");
   readonly width: number;

@@ -21,7 +21,7 @@ import { along, CARD, clamp, FLOW_IN, momentAt, POSTER, type Moment } from "./mo
 import { asIfSent, fill, goodTo, ink, lookGood, notesOn, nothing, said, seen, sendOf, settledBefore, standings, takeBack, type Shown } from "./notes.ts";
 import { NoteRow, number as numberLook, opened, pointed, SettledCount, SettledList, Writing, type Comparing } from "./Notes.tsx";
 import { Playhead, useNow, type Forked } from "./playhead.ts";
-import { acts, recorded } from "./replay.ts";
+import { recorded } from "./replay.ts";
 import { roundName } from "./Rounds.tsx";
 import { Stage, type Bare, type Mark, type Placed, type Shown as Size } from "./Stage.tsx";
 import { placeFrom, placeName as nameOf, placeOn, useReadings } from "./things.ts";
@@ -323,8 +323,8 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const notingNow = useRef(noting);
   notingNow.current = noting;
   const notedInApp = useRef<(noted: NotedInApp) => void>(() => {});
-  // While you're in the app, what you do there is recorded, from when it was handed to you: a fork off the flow, growing
-  // on the timeline as you go. Carried on from a fork, it goes on from where that one ended.
+  // While you're in the app, what you do there is recorded, from when it was handed to you: a fork off the flow, on the
+  // timeline as soon as you're there. Carried on from a fork, it goes on from where that one ended.
   const yours = useRef<Session>({ id: "", events: [], did: [], kept: 0, shift: 0, from: { flow: "", at: 0 } });
   const starting = useRef<{ from: Fork["from"]; carry?: Session }>(undefined);
   const [growing, setGrowing] = useState<Growing>();
@@ -341,15 +341,8 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     const session = yours.current;
     session.events.push(...events.map((event) => ({ ...event, timestamp: event.timestamp + session.shift })));
     session.heard = Date.now();
-    const first = session.events[0]!.timestamp;
-    const at = (timestamp: number) => session.from.at + (timestamp - first) / 1000;
-    const ticks = acts(session.events).map(at);
     const address = live.address ?? "";
-    setGrowing((now) =>
-      now && now.address === address && now.ticks.length === ticks.length
-        ? now
-        : { address, name: `fork:${session.id}`, at: session.from.at, length: session.from.at, origin: now && now.address === address ? now.origin : Date.now() - (at(session.events.at(-1)!.timestamp) - session.from.at) * 1000, ticks },
-    );
+    setGrowing((now) => (now?.address === address ? now : { address, name: `fork:${session.id}`, at: session.from.at, length: session.from.at }));
   };
   // Kept as a recording, what you did plays as the flow up to where you took it over, then you. What you said earlier on
   // the same fork goes on with the longer one.
@@ -405,20 +398,8 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     });
     return () => void (current = false);
   }, [review.id, round.number, flow]);
-  // The forks off the flow you're watching, each with a tick where you clicked or typed.
-  const [ticked, setTicked] = useState(() => new Map<string, number[]>());
-  useEffect(() => {
-    let current = true;
-    for (const fork of forkList)
-      if (!ticked.has(fork.recording))
-        recording(review.id, round.number, fork.recording).then((events) => {
-          const start = events[0]?.timestamp ?? 0;
-          const ticks = acts(events).map((timestamp) => (timestamp - start) / 1000).filter((at) => at > fork.from.at);
-          if (current) setTicked((now) => new Map(now).set(fork.recording, ticks));
-        });
-    return () => void (current = false);
-  }, [forkList, ticked, review.id, round.number]);
-  const forksHere = forkList.filter((fork) => fork.from.flow === watching).map((fork): ForkLine => ({ name: fork.name, at: fork.from.at, length: fork.length, ticks: ticked.get(fork.recording) ?? [] }));
+  // The forks off the flow you're watching.
+  const forksHere = forkList.filter((fork) => fork.from.flow === watching).map((fork): ForkLine => ({ name: fork.name, at: fork.from.at, length: fork.length }));
   const nudge = (direction: 1 | -1, fine: boolean) => {
     const flows = playhead.flows;
     const now = along(flows, playhead.now.moment);
@@ -1364,8 +1345,8 @@ function store(key: string, value: string) {
 // What you did taken over, as it's kept while you're there: the flow and moment you took it over at, the recording so
 // far on one clock, and what you did, for taking it over again.
 type Session = { address?: string; id: string; from: { flow: string; at: number }; events: { timestamp: number }[]; did: Did[]; kept: number; shift: number; heard?: number };
-// The fork growing on the timeline while you're in the app: from where, since when on this page's clock, and its ticks.
-type Growing = ForkLine & { address: string; origin: number };
+// The fork you're making while you're in the app, on the page you're in.
+type Growing = ForkLine & { address: string };
 
 // A fork off a flow: where you took it over, what you did there, and the longest recording kept of it, which plays the
 // flow up to there, then you. It's named for the time you were in the app, as each note there keeps it.

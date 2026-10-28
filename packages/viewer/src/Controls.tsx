@@ -36,7 +36,7 @@ type Props = {
   stage?: boolean;
   // Where you took the flow over and carried on by hand, and the one you're making now.
   forks?: ForkLine[];
-  growing?: ForkLine & { origin: number };
+  growing?: ForkLine;
 };
 
 export function Controls(props: Props) {
