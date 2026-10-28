@@ -527,7 +527,7 @@ export function Stage(props: Props) {
     handing.current.forEach(clearTimeout);
     handing.current = [];
     // Waited for, the edge is already glowing, and the opening carries on from there.
-    const glowing = Number(getComputedStyle(edge).opacity);
+    const glowing = { opacity: getComputedStyle(edge).opacity, boxShadow: getComputedStyle(edge).boxShadow };
     const waited = taking.current;
     for (const part of [app, sheen, ring, edge, hand, tag, words]) part.getAnimations().forEach((animation) => animation.cancel());
     const box = frame.getBoundingClientRect();
@@ -572,7 +572,7 @@ export function Stage(props: Props) {
       app.animate([{ clipPath: circle(0) }, { clipPath: circle(reach) }], { ...after, duration: OPENING });
       sheen.animate([{ opacity: 1 }, { opacity: 0 }], { ...after, duration: OPENING + 240 });
       ring.animate([{ transform: "scale(0)", opacity: 0 }, { opacity: 1, offset: 0.1 }, { opacity: 0.85, offset: 0.7 }, { transform: "scale(1)", opacity: 0 }], { ...after, duration: OPENING });
-      edge.animate([{ opacity: glowing }, { opacity: glowing, offset: 0.5 }, { opacity: 1, boxShadow: "inset 0 0 0 2px rgba(236,178,72,0.95), inset 0 0 40px rgba(255,214,150,0.45)", offset: 0.75 }, { opacity: 1 }], { ...after, duration: OPENING + 500 });
+      edge.animate([glowing, { ...glowing, offset: 0.5 }, { opacity: 1, boxShadow: "inset 0 0 0 2px rgba(236,178,72,0.95), inset 0 0 40px rgba(255,214,150,0.45)", offset: 0.75 }, { opacity: 1 }], { ...after, duration: OPENING + 500 });
       return;
     }
 
@@ -619,8 +619,8 @@ export function Stage(props: Props) {
     if (waiting) {
       tag.hidden = false;
       say(tag, words, "Taking over…", false);
-      if (matchMedia("(prefers-reduced-motion: reduce)").matches) return void (edge.style.opacity = "0.6");
-      edge.animate([{ opacity: 0 }, { opacity: 0.75 }], { duration: 1100, easing: "ease-in-out", direction: "alternate", iterations: Infinity });
+      if (matchMedia("(prefers-reduced-motion: reduce)").matches) return void (edge.style.opacity = "1");
+      edge.animate([{ opacity: 0.25 }, { opacity: 1, boxShadow: BREATH }], { duration: 1000, easing: "ease-in-out", direction: "alternate", iterations: Infinity });
       return;
     }
     if (inPortal) return;
@@ -942,6 +942,8 @@ const TAG = "absolute top-[17px] left-[13px] overflow-hidden rounded-full bg-[#2
 // Opening into the app takes a breath, after the agent's pointer has come to yours; leaving it is quicker, as stepping
 // out is.
 const HANDING = 420;
+// The edge at the top of a breath, while it waits: deeper than while you're in the app, to be seen over any page.
+const BREATH = "inset 0 0 0 3px rgba(236,170,50,1), inset 0 0 70px 6px rgba(226,160,50,0.55)";
 const OPENING = 1050;
 const CLOSING = 560;
 const PORTAL = "cubic-bezier(0.22, 0.8, 0.24, 1)";
