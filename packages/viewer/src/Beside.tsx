@@ -152,7 +152,7 @@ export function Beside({ id, over, pinned, onAway, children }: { id?: string; ov
       onPointerLeave={() => (pointing.current = false)}
       className="fixed top-0 left-0 z-30 w-[330px] rounded-xl bg-ground py-1.5 shadow-[0_0_0_1px_rgba(20,24,34,0.08),0_10px_30px_rgba(20,24,34,0.16)]"
     >
-      <div data-map className={`grid grid-cols-[minmax(0,1fr)] [--ahead:color-mix(in_srgb,var(--faint)_45%,var(--ground))] [--rail:var(--soft)] ${onAway ? "[&>*>:first-child]:pr-9" : ""}`}>
+      <div data-map className={`grid grid-cols-[minmax(0,1fr)] [--ahead:color-mix(in_srgb,var(--faint)_45%,var(--ground))] [--rail:var(--soft)] ${onAway ? "[&>*>button:first-child]:pr-9" : ""}`}>
         {children}
       </div>
       {onAway && (

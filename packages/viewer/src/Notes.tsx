@@ -20,6 +20,9 @@ const SHOWN_FOR = 1.5;
 // An answer lists up to this many changes whole; more, one fewer and how many more.
 const LISTED = 4;
 
+// Compare in a note's card, as quiet as the words around it.
+const quietly = "-my-0.5 -mr-1.5 inline-flex flex-none items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs text-soft transition-colors duration-150 ease-calm select-none enabled:hover:text-fg disabled:cursor-default disabled:text-faint aria-pressed:bg-hover aria-pressed:text-fg";
+
 // A row's tint hangs to the right of the flow's line, never over it, its number or diamond on the line at its corner:
 // while you point at the row, while it's lit, and opened, as its card.
 const hangs = "isolate before:pointer-events-none before:absolute before:inset-y-0 before:right-0 before:left-[31px] before:-z-1 before:rounded-lg before:transition-colors before:duration-150 before:ease-calm before:content-['']";
@@ -76,28 +79,33 @@ export function NoteRow(props: Props) {
         )}
       </div>
     );
+  // Opened, it's beside its pin, which says its number and where it is: the card is the conversation alone.
+  if (open)
+    return (
+      <div data-key={`note:${note.id}`} data-stop={at} data-open="" style={{ "--c": ink(note) } as CSSProperties}>
+        <Card {...props} />
+      </div>
+    );
   return (
     <div
       data-key={`note:${note.id}`}
       data-stop={at}
-      data-open={open ? "" : undefined}
-      className={`relative ${open ? opened : pointed} ${props.fresh ? "before:animate-glow" : ""}`}
+      className={`relative ${pointed} ${props.fresh ? "before:animate-glow" : ""}`}
       style={{ "--c": ink(note) } as CSSProperties}
     >
       <button
-        className={`group/row grid w-full grid-cols-[18px_minmax(0,1fr)_auto] items-start gap-x-2 py-1.5 pr-2.5 pl-[18px] text-left ${open && props.away ? "[&>:not([data-mark])]:opacity-45" : ""}`}
+        className="group/row grid w-full grid-cols-[18px_minmax(0,1fr)_auto] items-start gap-x-2 py-1.5 pr-2.5 pl-[18px] text-left"
         onMouseDown={(event) => event.preventDefault()}
-        onClick={(event) => (open && !(event.target as Element).closest("[data-time]") ? props.onClose() : props.onOpen())}
-        aria-expanded={open}
+        onClick={props.onOpen}
+        aria-expanded={false}
       >
-        <span data-mark className={`${number} relative z-1 mt-px in-data-here:line-ring ${open || here ? real : quiet}`}>
+        <span data-mark className={`${number} relative z-1 mt-px in-data-here:line-ring ${here ? real : quiet}`}>
           {note.number}
         </span>
         <span className="truncate">{note.turns[0]?.words}</span>
-        {at === undefined ? <span className="w-[78px]" /> : <Time open={open} className={open || here ? "text-[color-mix(in_srgb,var(--c)_80%,var(--fg))]" : "text-faint"}>{time(at)}</Time>}
-        {!open && answers.length > 0 && <Listed answers={answers} className="col-start-2 col-end-4 mt-[3px] text-[12.5px] leading-[18px] text-soft" />}
+        {at === undefined ? <span className="w-[78px]" /> : <Time className={here ? "text-[color-mix(in_srgb,var(--c)_80%,var(--fg))]" : "text-faint"}>{time(at)}</Time>}
+        {answers.length > 0 && <Listed answers={answers} className="col-start-2 col-end-4 mt-[3px] text-[12.5px] leading-[18px] text-soft" />}
       </button>
-      {open && <Card {...props} />}
     </div>
   );
 }
@@ -158,11 +166,12 @@ function Card(props: Props) {
   const groups = exchanges(said);
   const shown = earlier ? groups.flat() : (groups.at(-1) ?? []);
   const folded = groups.length - 1;
-  const lastAgent = shown.findLastIndex((turn) => turn.agent);
   const name = (turn: Turn) => (turn.agent || turn.by !== you ? turn.by : "You");
+  const comparing = compare && !asking && !editing && !props.away && <Compare {...compare} bar={quietly} />;
+  const lastAgent = shown.findLastIndex((turn) => turn.agent);
   const verdict = (turn: Turn) => turn.verdict && <span className={turn.verdict === "looks good" ? "text-green" : "text-slate"}> · {turn.verdict === "looks good" ? "Looks good" : "Not quite"}</span>;
   const edits = (onEdit: () => void, onRemove?: () => void) => (
-    <span className="flex gap-3 text-[11.5px] text-soft">
+    <span className={`flex gap-3 text-[11.5px] text-soft ${onRemove && !props.grown ? "mr-5" : ""}`}>
       <button className="hover:text-fg" onClick={onEdit}>
         Edit
       </button>
@@ -206,13 +215,12 @@ function Card(props: Props) {
                     {verdict(turn)}
                   </>
                 }
-                quiet={turn.agent}
                 after={draftNote && !readOnly ? edits(() => setEditing(true), () => props.onEdit(undefined)) : undefined}
               >
                 {turn.words}
               </Said>
             )}
-            {i === lastAgent && props.answers.length > 0 && <Listed answers={props.answers} className="-mt-0.5 text-[13px] leading-normal" onAnswer={props.onAnswer} />}
+            {i === lastAgent && props.answers.length > 0 && <Listed answers={props.answers} className="-mt-0.5 leading-normal" onAnswer={props.onAnswer} />}
           </div>
         ))}
         {note.state === "with someone else" && !readOnly && <p className="text-xs leading-[18px] text-slate">Waiting for {list(note.waitingFor)}</p>}
@@ -281,11 +289,12 @@ function Card(props: Props) {
     ];
 
   return (
-    <div className="grid gap-2.5 pr-3.5 pl-[44px]">
+    // Grown out of a change, it sits under the change's words; on its own, its first line keeps clear of the card's ×, as
+    // a draft's Edit and Remove do.
+    <div className={`grid gap-2.5 ${props.grown ? "pr-3.5 pl-[44px]" : "px-4 py-2 [&>p:first-child]:pr-5"}`}>
       {/* Walked again, your steps stopped short: what couldn't be done, over the screen where they stopped. */}
       {whereYouWere?.stopped && <p className="leading-normal text-fg">{whereYouWere.stopped}</p>}
       <div className={`grid gap-2.5 transition-opacity duration-250 ease-calm ${props.away && !readOnly ? "opacity-45" : ""}`}>{words}</div>
-      {compare && !asking && !editing && !props.away && <Compare {...compare} />}
       {/* In the app, you're already there. */}
       {whereYouWere && whereYouWere.live !== "shown" && !asking && !editing && !props.away &&
         (whereYouWere.onTakeOver ? (
@@ -293,7 +302,13 @@ function Card(props: Props) {
         ) : (
           !whereYouWere.stopped && <p className="text-xs leading-[18px] text-soft">Where you took this flow over isn’t in round {whereYouWere.round}’s recording.</p>
         ))}
-      {question && <p className="mt-1.5 text-xs leading-[18px] text-soft">{question}</p>}
+      {/* Compare is how to tell: how it was, beside the question. */}
+      {(question || comparing) && (
+        <div className="mt-1.5 flex items-center justify-between gap-2 text-xs leading-[18px] text-soft">
+          <span>{question}</span>
+          {comparing}
+        </div>
+      )}
       {answers && <div className="flex flex-wrap gap-1.5">{answers}</div>}
     </div>
   );

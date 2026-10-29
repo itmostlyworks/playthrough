@@ -422,7 +422,7 @@ function Why({ diamond, notes, onNote, onPoint }: Props & { diamond: Diamond }) 
           </button>
         </Said>
       );
-    return changed.line && <Said who={changed.by} quiet>{changed.line}</Said>;
+    return changed.line && <Said who={changed.by}>{changed.line}</Said>;
   };
   if (own.length === 1) return says(own[0]!);
   // Changes one line explains stand together over it.

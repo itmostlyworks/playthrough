@@ -6,15 +6,15 @@ import type { Comparing } from "./Notes.tsx";
 
 export const mac = /Mac|iPhone|iPad/.test(navigator.userAgent);
 
-// Someone's words under their name: yours, another person's, or the agent's, quieter.
-export function Said({ who, quiet, children, after }: { who: ReactNode; quiet?: boolean; children: ReactNode; after?: ReactNode }) {
+// Someone's words under their name: yours, another person's, or the agent's, all in one ink.
+export function Said({ who, children, after }: { who: ReactNode; children: ReactNode; after?: ReactNode }) {
   return (
     <div className="grid gap-px">
       <span className="flex items-baseline gap-3 text-[11.5px] text-faint">
         <span className="min-w-0 flex-1">{who}</span>
         {after}
       </span>
-      <p className={`leading-normal whitespace-pre-wrap ${quiet ? "text-soft" : "text-fg"}`}>{children}</p>
+      <p className="leading-normal whitespace-pre-wrap text-fg">{children}</p>
     </div>
   );
 }
@@ -22,7 +22,7 @@ export function Said({ who, quiet, children, after }: { who: ReactNode; quiet?: 
 // A button that answers, its key at its right edge and its words centred in the room left of it.
 export function Answer(props: { children: ReactNode; keys?: string; pressed?: boolean; disabled?: boolean; tone?: "good" | "back"; onClick: () => void }) {
   const { children, keys, pressed, tone, onClick } = props;
-  const look = pressed ? (tone === "good" ? "bg-green/12 text-green" : "bg-slate/14 text-slate") : `bg-hover hover:bg-line hover:text-fg ${tone === "good" ? "text-fg" : "text-soft"}`;
+  const look = pressed ? (tone === "good" ? "bg-green/12 text-green" : "bg-slate/14 text-slate") : "bg-hover text-fg hover:bg-line";
   return (
     <button
       className={`inline-flex h-[30px] flex-[1_1_auto] items-center justify-center rounded-md font-medium whitespace-nowrap transition-colors duration-150 ease-calm ${keys ? "pr-[7px] before:flex-[1_0_10px] before:content-[''] after:order-1 after:flex-[1_0_10px] after:content-['']" : "px-2.5"} ${look}`}
@@ -54,8 +54,8 @@ export const play = (
   </svg>
 );
 
-// Compare: this moment as it was, over the recording. In an answer's card it's a row of its own above the question,
-// quieter than the answers, its mark a circle half full, now and then. Pressed and let go, it stays on until it's
+// Compare: this moment as it was, over the recording. In a change's card it's a row of its own above the question,
+// quieter than the answers, its mark a circle half full, now and then; in a note's, beside the question it helps answer. Pressed and let go, it stays on until it's
 // pressed again; held, it's on while it's held, as C is. On the action bar, it's one of the bar's own (`bar`).
 export function Compare({ on, off, onPress, onRelease, bar }: Comparing & { bar?: string }) {
   return (
