@@ -341,12 +341,14 @@ export function Stage(props: Props) {
   };
 
   // A pin sits just outside its outline's top right corner like a badge, the line from the column coming to it short and
-  // never crossing what it's on; at its bottom right where the top is out of view, and pulled in where the right is.
+  // never crossing what it's on; at its bottom right where the top is out of view, and pulled in where the right or the
+  // bottom is, so it's never cut off by the frame.
   const pinAt = (pin: HTMLElement, box: { left: number; top: number; right: number; bottom: number }, view: View, frame: Size) => {
     const out = 14;
     const right = Math.min(out, frame.width - (box.right - view.x) * view.k - 11);
     const above = (box.top - view.y) * view.k - out >= 11;
-    Object.assign(pin.style, { left: `calc(100% + ${right - 9}px)`, top: above ? `${-out - 9}px` : `calc(100% + ${out - 9}px)` });
+    const below = Math.min(out, frame.height - (box.bottom - view.y) * view.k - 11);
+    Object.assign(pin.style, { left: `calc(100% + ${right - 9}px)`, top: above ? `${-out - 9}px` : `calc(100% + ${below - 9}px)` });
   };
 
   // At actual size, the chosen note or change on the round you're watching shows whole, at 100% where it fits, else
