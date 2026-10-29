@@ -20,6 +20,8 @@ type Props = {
   onBack: () => void;
   flow: string;
   notes: Said[];
+  // How many notes are on the whole flow: they're over its end, not in the list.
+  whole: number;
   listed: boolean;
   onList: (listed: boolean) => void;
   onSaid: (id: string) => void;
@@ -78,7 +80,9 @@ export function Bar(props: Props) {
               </button>
             ))
           ) : (
-            <p className="px-2.5 py-[7px] text-[13px] text-soft">Nothing said on this flow yet. Note what you see with N.</p>
+            <p className="px-2.5 py-[7px] text-[13px] text-soft">
+              {props.whole ? `${props.whole} ${props.whole === 1 ? "note" : "notes"} on the whole flow, at its end.` : "No notes on this flow yet."}
+            </p>
           )}
         </div>
       </div>

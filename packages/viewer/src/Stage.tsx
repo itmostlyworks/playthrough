@@ -16,6 +16,7 @@ import { onPhone } from "./phone.ts";
 import { useNow, type Playhead } from "./playhead.ts";
 import { recorded, Replay } from "./replay.ts";
 import type { Live } from "./live.ts";
+import { roundName } from "./Rounds.tsx";
 import { holdersOf, pickAt, type Read } from "./things.ts";
 import { ahead, around, between, centreOf, fitted, GLIDE, moved, type Held, type Size, type View } from "./view.ts";
 
@@ -219,7 +220,7 @@ export function Stage(props: Props) {
       frame.toggleAttribute("data-absent", !its);
       // A round that never recorded this flow says so plainly, rather than freezing on something unrelated.
       if (!its) {
-        part.name.textContent = "Not recorded then";
+        part.name.textContent = `Not in ${roundName(shown.number)}`;
         part.card.style.opacity = "1";
         part.card.style.setProperty("--n", "1");
         part.app.style.filter = "";
@@ -776,7 +777,6 @@ export function Stage(props: Props) {
       All flows
     </button>
   );
-  const roundName = (number: number) => (number === 0 ? "Before" : `Round ${number}`);
   // Kept hidden, the marks say so on the line over the recording: centred watching one round, and side by side at the
   // end of the watched side's line, clear of both rounds' names.
   const bareOff = (where: string) => (

@@ -22,6 +22,8 @@ export function called(thing: Named): string {
   if (thing.role === "status" || thing.role === "alert") return "Message";
   if (thing.role === "box") return `“${cut(thing.name)}” area`;
   if (thing.role === "text") return `“${cut(thing.words)}”`;
+  // What Vantage has no word for, such as a list item noted in the app, is called by its words, as a text is.
+  if (!WORD[thing.role] && thing.name) return `“${cut(thing.name)}”`;
   if (thing.role === "menuitem" && thing.name) return `“${cut(thing.name)}” in the menu`;
   if (symbolOnly(thing)) return thing.name;
   return `${cut(thing.name)} ${word(thing)}`.trim();

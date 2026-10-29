@@ -133,12 +133,12 @@ export async function runTo(repo: Repo, id: string, to: To): Promise<Handed> {
         const text = await readFile(join(one.folder, HANDED), "utf8").catch(() => undefined);
         if (text) return JSON.parse(text);
         const { failed }: { failed: Failed[] } = JSON.parse(await readFile(join(one.folder, "flows.json"), "utf8").catch(() => `{ "failed": [] }`));
-        if (failed.length) throw new Refused([`${quote(to.flow)} didn't get to ${where}:\n${failed.map(failedAt).join("\n")}`]);
+        if (failed.length) throw new Refused([`${quote(to.flow)} didn't get to ${where}: ${failed.map(stoppedAt).join(" ")}`]);
       } finally {
         await rm(one.folder, { recursive: true, force: true });
       }
     }
-    throw new Refused([`${quote(to.flow)} didn't get to ${where}, for the reason Playwright gives above.`]);
+    throw new Refused([`${quote(to.flow)} didn't get to ${where}. Playwright says why in the terminal running Vantage.`]);
   } finally {
     // The next one starts there while the person looks, in case they play on.
     void follow(repo, id, { flow: to.flow, step: to.step, actions: to.actions }).catch(() => {});
@@ -230,6 +230,9 @@ async function runOnce(run: Omit<Run, "folder">): Promise<Ran> {
 
 // A flow that failed, at the step it failed at, as a line of a refusal.
 export const failedAt = ({ flow, at }: Failed) => `  ${quote(flow)}${at ? `, at the step ${quote(at)}` : ""}`;
+// Where a flow taken over stopped, and why, in Playwright's words: read in the viewer too, where there's no terminal
+// above it to point to.
+const stoppedAt = ({ at, why }: Failed) => `it stopped${at ? ` at ${quote(at)}` : ""}${why ? `, where Playwright says “${why}”` : ""}.`;
 
 function playwright(run: Run, started?: (child: ChildProcess) => void): Promise<boolean> {
   const cli = createRequire(import.meta.url).resolve("@playwright/test/cli");

@@ -1198,6 +1198,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
                 .filter((note) => note.on?.flow === watching && note.on.at !== undefined && note.turns[0]?.words)
                 .sort((a, b) => a.on!.at! - b.on!.at!)
                 .map((note) => ({ id: note.id, ink: ink(note), words: note.turns[0]!.words, at: time(note.on!.at!), app: !!note.on!.app }))}
+              whole={notes.filter((note) => note.on?.flow === watching && note.on.at === undefined && note.turns[0]?.words).length}
               listed={listed}
               onList={(listed) => (setListed(listed), listed || setLitNote(undefined))}
               onLight={setLitNote}
