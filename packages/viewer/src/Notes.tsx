@@ -27,7 +27,8 @@ export const pointed = `${hangs} hover:before:bg-hover`;
 export const tinted = `${hangs} before:bg-hover`;
 export const opened = `${tinted} pb-3`;
 
-export type Comparing = { held: boolean; beside: boolean; onHold: (held: boolean) => void; onBeside: () => void };
+// Compare, on or off: pressed and let go it stays on, held it's on while you hold it.
+export type Comparing = { on: boolean; onPress: () => void; onRelease: () => void };
 
 type Props = {
   note: Shown;

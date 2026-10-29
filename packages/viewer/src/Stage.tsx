@@ -905,8 +905,16 @@ export function Stage(props: Props) {
             {shown === round && props.bare === "kept" && bareOff("-mt-px ml-auto flex-none self-start")}
           </div>
         ))}
-      {/* Held over the recording, the round it is says so in the middle of the line over the frame, clear of All flows at
-          its start; Marks hidden, which sits there too, steps aside while it's held. */}
+      {/* The line over the frame says what you're looking at, in its middle, clear of All flows at its start: the round
+          you're watching, or the round Compare shows over it. Marks hidden, kept, sits there in its place. */}
+      {!earlier && props.bare !== "kept" && (
+        <div
+          ref={(element) => void (element ? captions.current.set(round.number, element) : captions.current.delete(round.number))}
+          className={`pointer-events-none absolute top-0 left-0 flex h-[26px] items-baseline justify-center px-0.5 pt-0.5 pb-1.5 text-xs transition-opacity duration-160 ease-calm ${then && props.peeking ? "opacity-0" : "opacity-100"}`}
+        >
+          <b className="flex-none font-medium text-soft">{roundName(round.number)}</b>
+        </div>
+      )}
       {then && (
         <div className={`pointer-events-none absolute top-0 left-0 flex h-[26px] items-baseline justify-center gap-2 px-0.5 pt-0.5 pb-1.5 text-xs text-faint transition-opacity duration-160 ease-calm ${props.peeking ? "opacity-100" : "opacity-0"}`} ref={(element) => void (element ? captions.current.set(then.number, element) : captions.current.delete(then.number))}>
           <b className="flex-none font-medium text-soft">{roundName(then.number)}</b>

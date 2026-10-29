@@ -1,9 +1,10 @@
-// What you can do to the moment you're on, across the frame's bottom edge: note it, see how it was, take it over, and
-// what you've said on this flow, which opens over it. Only what you can do now is in it: in the app, noting what's
+// What you can do to the moment you're on, across the frame's bottom edge: note it, compare it with how it was, take it
+// over, and what you've said on this flow, which opens over it. Only what you can do now is in it: in the app, noting what's
 // there, and going back.
 
 import { useEffect, useRef } from "react";
-import { ForkMark, Key } from "./Card.tsx";
+import { Compare, ForkMark, Key } from "./Card.tsx";
+import type { Comparing } from "./Notes.tsx";
 
 // A note on this flow, as the list says it: its dot in its colour, its words, and its moment, made in the app or not.
 export type Said = { id: string; ink: string; words: string; at: string; app: boolean };
@@ -11,10 +12,9 @@ export type Said = { id: string; ink: string; words: string; at: string; app: bo
 type Props = {
   live?: "waiting" | "shown";
   latest: boolean;
-  before: boolean;
-  howItWas: boolean;
+  // How it was, where there's a round before this one to compare it with.
+  compare?: Comparing;
   noting: boolean;
-  onHowItWas: (held: boolean) => void;
   onNote: () => void;
   onTakeOver: () => void;
   onBack: () => void;
@@ -89,17 +89,7 @@ export function Bar(props: Props) {
         <button className={item} aria-pressed={props.noting} onClick={props.onNote}>
           Note <Key>N</Key>
         </button>
-        {!inApp && props.before && (
-          <button
-            className={item}
-            aria-pressed={props.howItWas}
-            onPointerDown={() => props.onHowItWas(true)}
-            onPointerUp={() => props.onHowItWas(false)}
-            onPointerLeave={() => props.onHowItWas(false)}
-          >
-            How it was <Key>B</Key>
-          </button>
-        )}
+        {!inApp && props.compare && <Compare {...props.compare} bar={item} />}
         {inApp ? (
           <button className={item} onClick={props.onBack}>
             Back to the recording <Key>Esc</Key>

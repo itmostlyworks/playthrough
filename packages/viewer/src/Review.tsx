@@ -283,7 +283,8 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   }, [playhead]);
 
   // The view is yours: it changes only when you change it, and holds for the review.
-  const [look, setLook] = useState<Look>(() => (stored(`vantage:${review.id}:look`) === "side" ? "side" : "one"));
+  // On the stage, Compare shows how it was in place, so the recording is always one.
+  const [look, setLook] = useState<Look>("one");
   const [actual, setActual] = useState(false);
   // Side by side starts at actual size each time you go to it; the size then fits both to the whole page.
   const [sideFit, setSideFit] = useState(false);
@@ -312,19 +313,22 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const noteOpen = open && "note" in open ? noted.find((note) => note.id === open.note) : undefined;
   const askedIn = noteOpen && answered(noteOpen) ? noteOpen.turns.filter((turn) => !turn.agent && turn.round < round.number).map((turn) => turn.round) : [];
   const askedFrom = askedIn.length ? Math.max(...askedIn) : undefined;
-  const looked = flow && round === latest ? lastLooked(review, you, flow.name, round.number) : undefined;
-  // What you judge on the latest round is a difference from there, or else from the round you last looked at its flow,
-  // or Before: held, that round shows in place; clicked, the two go side by side. The earlier side says why it's that one.
-  const compared = round === latest && round.number > first && !review.accepted ? (askedFrom ?? looked ?? first) : undefined;
-  const why =
-    askedFrom !== undefined
-      ? `· when note ${noteOpen!.number} was ${askedFrom === noteOpen!.written ? "written" : "sent back"}`
-      : compared === looked
-        ? "· when you last looked"
-        : undefined;
+  const looked = flow ? lastLooked(review, you, flow.name, round.number) : undefined;
+  // Compare is this moment as it was: on the round an open answer's note asked about, or else the round you last looked
+  // at this flow on, or Before. Held, it's a look while you hold it; pressed and let go, it stays until you press it
+  // again, or Escape.
+  const compared = round.number > first ? (askedFrom ?? looked ?? first) : undefined;
   const [peek, setPeek] = useState(false);
-  // Held, how it was before the change, in place; the notes you've said, listed, while it's open.
-  const [howItWas, setHowItWas] = useState(false);
+  const pressed = useRef<{ at: number; was: boolean }>(undefined);
+  const pressCompare = () => {
+    pressed.current ??= { at: performance.now(), was: peek };
+    setPeek(true);
+  };
+  const releaseCompare = () => {
+    const press = pressed.current;
+    pressed.current = undefined;
+    if (press) setPeek(performance.now() - press.at < HOLD && !press.was);
+  };
   const [listed, setListed] = useState(false);
   const [litNote, setLitNote] = useState<string>();
   // Watching, a click on the recording does nothing: only with Note on does it note what's under it, once.
@@ -384,17 +388,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   }, [noting, inApp]);
   const playingOn = useNow(playhead, (now) => now.playing);
   useEffect(() => void (playingOn && setNoting(false)), [playingOn]);
-  const beside = comparing && earlier?.number === compared;
-  const comparingIt: Comparing | undefined = compared === undefined ? undefined : {
-    held: peek,
-    beside,
-    onHold: setPeek,
-    onBeside: () => {
-      if (beside) return chooseLook("one");
-      setThen(compared);
-      chooseLook("side");
-    },
-  };
+  const comparingIt: Comparing | undefined = compared === undefined ? undefined : { on: peek, onPress: pressCompare, onRelease: releaseCompare };
   const working = review.accepted ? undefined : review.taken.find((taken) => taken.round > latest.number)?.at;
 
   // Left and Right step to the next moment the page changes, or a second where nothing does; with Shift, a tenth.
@@ -928,16 +922,15 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const compareNow = (openNote && answered(openNote) && !whereYouWere.has(openNote.id) && openNote.on?.flow === watching) || changeOpen?.flow === watching ? comparingIt : undefined;
   // In the app where you were, with the note you're trying open: it stays by its pin there while you try it.
   const tryingHere = inApp && !!openNote && trying.current === openNote.id;
-  const cKey = useRef<{ down: number; holding: number }>(undefined);
-  const before = round.number > first;
-  const comparedRound = howItWas && before ? review.rounds.find((kept) => kept.number === first) : compareNow ? review.rounds.find((kept) => kept.number === compared) : undefined;
+  const comparedRound = compared === undefined ? undefined : review.rounds.find((kept) => kept.number === compared);
   // A note on a fork walked again is compared with the fork it was walked from, at the note.
   const walkedFrom = openNote && walkedTo(openNote) ? noted.find((note) => note.id === openNote.id)?.on : undefined;
   const heldOver = comparedRound && walkedFrom?.app && walkedFrom.at !== undefined
     ? forked(comparedRound, [{ name: forkName(walkedFrom.app.recording), session: sessionOf(walkedFrom.app.recording), ...walkedFrom.app, notes: [{ id: openNote!.id, at: walkedFrom.at }] }])
     : comparedRound;
   // Holding Compare or How it was, that round shows over the recording, in place.
-  const peeking = peek || (howItWas && before);
+  // It waits unseen over the recording while it's paused, so Compare shows it at once; playing, only while it's on.
+  const peeking = peek && !!comparedRound;
 
   // Sending carries everything you've said on the round at once; what you haven't saved stays. Accepting sends what's
   // left first.
@@ -1088,22 +1081,21 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
         if (asks) setAsking(openNote.id);
         else if (chosen && !readOnly) noteOn(chosen);
         else if (question) write({ flow: question });
-      } else if (event.key.toLowerCase() === "c" && !event.repeat && compareNow) {
-        const holding = window.setTimeout(() => compareNow.onHold(true), HOLD);
-        cKey.current = { down: performance.now(), holding };
+      } else if (event.key.toLowerCase() === "c" && !event.repeat && comparingIt && !live?.shown) {
+        pressCompare();
       } else if (event.key.toLowerCase() === "n" && !event.repeat && !readOnly) {
         event.preventDefault();
         playhead.pause();
         setNoting(!noting);
       } else if (event.key === "Escape" && noting) {
         setNoting(false);
-      } else if (event.key.toLowerCase() === "b" && !event.repeat && !live?.shown && before) {
-        setHowItWas(true);
       } else if (event.key.toLowerCase() === "t" && !event.repeat) {
         event.preventDefault();
         takeOver();
       } else if (event.key === "Escape" && live?.shown) {
         letGo();
+      } else if (event.key === "Escape" && peek) {
+        setPeek(false);
       } else if (event.key === "Escape") {
         // Escape goes back a step you can see: from a note or a change to the column, from a flow to every flow, and
         // looking back to now.
@@ -1116,14 +1108,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     const up = (event: KeyboardEvent) => {
       if (event.key === " " && !writingHere(event)) event.preventDefault();
       if (event.key.toLowerCase() === "h") bareKey(false);
-      if (event.key.toLowerCase() === "b") setHowItWas(false);
-      if (event.key.toLowerCase() === "c" && cKey.current) {
-        clearTimeout(cKey.current.holding);
-        const tapped = performance.now() - cKey.current.down < HOLD;
-        cKey.current = undefined;
-        comparingIt?.onHold(false);
-        if (tapped) comparingIt?.onBeside();
-      }
+      if (event.key.toLowerCase() === "c") releaseCompare();
     };
     const away = () => bareKeys.current.kept || setBare(undefined);
     addEventListener("keydown", down);
@@ -1231,8 +1216,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
             playhead={playhead}
             round={played}
             earlier={earlier}
-            why={(earlier ?? comparedRound)?.number === compared ? why : undefined}
-            then={heldOver}
+            then={peeking || !playingNow ? heldOver : undefined}
             peeking={peeking}
             zoomed={zoomed}
             bare={bare}
@@ -1269,9 +1253,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
             <Bar
               live={liveNow}
               latest={round === latest}
-              before={before}
-              howItWas={howItWas}
-              onHowItWas={setHowItWas}
+              compare={liveNow === "shown" ? undefined : comparingIt}
               noting={noting}
               onNote={() => {
                 playhead.pause();

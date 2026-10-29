@@ -2,6 +2,7 @@
 // answers to it. A key that answers is drawn on its button, faint and outlined, at the button's right edge.
 
 import { useLayoutEffect, useState, type ReactNode, type RefObject } from "react";
+import type { Comparing } from "./Notes.tsx";
 
 export const mac = /Mac|iPhone|iPad/.test(navigator.userAgent);
 
@@ -53,39 +54,36 @@ export const play = (
   </svg>
 );
 
-// Compare: a row of its own above the question, quieter than the answers, its mark a circle half full, now and then.
-// Held, or with C held, the earlier round shows in place; a click puts the two side by side, and a second goes back.
-export function Compare({ held, beside, onHold, onBeside }: { held: boolean; beside: boolean; onHold: (held: boolean) => void; onBeside: () => void }) {
-  const press = (event: React.PointerEvent) => {
-    if (event.button !== 0) return;
-    event.preventDefault();
-    const started = performance.now();
-    const holding = setTimeout(() => onHold(true), HOLD);
-    // A touch that turns into scrolling the column is let go, not tapped.
-    const up = (ending: PointerEvent) => {
-      clearTimeout(holding);
-      removeEventListener("pointerup", up);
-      removeEventListener("pointercancel", up);
-      onHold(false);
-      if (ending.type === "pointerup" && performance.now() - started < HOLD) onBeside();
-    };
-    addEventListener("pointerup", up);
-    addEventListener("pointercancel", up);
-  };
+// Compare: this moment as it was, over the recording. In an answer's card it's a row of its own above the question,
+// quieter than the answers, its mark a circle half full, now and then. Pressed and let go, it stays on until it's
+// pressed again; held, it's on while it's held, as C is. On the action bar, it's one of the bar's own (`bar`).
+export function Compare({ on, onPress, onRelease, bar }: Comparing & { bar?: string }) {
   return (
     <button
-      className={`flex h-[30px] flex-none items-center gap-2 rounded-md px-2.5 text-xs font-medium text-fg shadow-[inset_0_0_0_1px_var(--line)] transition-[background-color,box-shadow,scale] duration-150 ease-calm select-none hover:shadow-[inset_0_0_0_1px_var(--faint)] ${held || beside ? "bg-hover" : ""} ${held ? "scale-99" : ""}`}
-      aria-pressed={beside}
+      className={bar ?? `flex h-[30px] flex-none items-center gap-2 rounded-md px-2.5 text-xs font-medium text-fg shadow-[inset_0_0_0_1px_var(--line)] transition-[background-color,box-shadow] duration-150 ease-calm select-none hover:shadow-[inset_0_0_0_1px_var(--faint)] aria-pressed:bg-hover`}
+      aria-pressed={on}
       aria-keyshortcuts="C"
-      onPointerDown={press}
+      onPointerDown={(event) => event.button === 0 && (event.preventDefault(), pressedUntilLetGo(onPress, onRelease))}
       onContextMenu={(event) => event.preventDefault()}
-      onKeyDown={(event) => event.key === "Enter" && onBeside()}
+      onKeyDown={(event) => event.key === "Enter" && (onPress(), onRelease())}
     >
-      <span className={`size-2.5 flex-none rounded-full shadow-[inset_0_0_0_1.5px_currentColor] ${held || beside ? "bg-current" : "bg-[linear-gradient(90deg,currentColor_50%,transparent_50%)]"}`} />
-      <span className="min-w-0 flex-1 truncate text-left">{beside ? "Comparing" : "Compare"}</span>
-      {beside ? <span className="text-[15px] leading-none font-normal text-faint hover:text-fg">×</span> : <Key className="text-soft">C</Key>}
+      {!bar && <span className={`size-2.5 flex-none rounded-full shadow-[inset_0_0_0_1.5px_currentColor] ${on ? "bg-current" : "bg-[linear-gradient(90deg,currentColor_50%,transparent_50%)]"}`} />}
+      <span className={bar ? "" : "min-w-0 flex-1 truncate text-left"}>Compare</span>
+      <Key className={bar ? "" : "text-soft"}>C</Key>
     </button>
   );
+}
+
+// Pressed, and let go wherever the pointer is by then.
+function pressedUntilLetGo(onPress: () => void, onRelease: () => void) {
+  onPress();
+  const up = () => {
+    removeEventListener("pointerup", up);
+    removeEventListener("pointercancel", up);
+    onRelease();
+  };
+  addEventListener("pointerup", up);
+  addEventListener("pointercancel", up);
 }
 
 // Held this long, Compare is a look; let go sooner, it's a click.
