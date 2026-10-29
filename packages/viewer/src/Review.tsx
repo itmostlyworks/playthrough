@@ -1342,7 +1342,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
             onMark={(id) => {
               const note = notes.find((note) => note.id === id);
               const diamond = diamonds.find((diamond) => diamond.id === id);
-              if (note) show(note);
+              if (note) pick(note);
               else if (diamond) choose(diamond);
             }}
             read={read}
