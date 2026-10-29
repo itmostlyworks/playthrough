@@ -272,7 +272,8 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
       // Only from the moment that's waiting: one just left can still be settling.
       const waiting = document.querySelector<HTMLIFrameElement>("[data-live] iframe")?.contentWindow;
       if (data?.vantage === "settled" && source === waiting) {
-        if (loading.current.since) loading.current.took = Date.now() - loading.current.since;
+        // Once for each moment: it says so again on every page it loads while it's yours.
+        if (loading.current.since) loading.current = { took: Date.now() - loading.current.since };
         setLive((now) => now && { ...now, settled: true });
       }
       if (data?.vantage === "recorded" && source === waiting) recordedInApp.current(data.events);
