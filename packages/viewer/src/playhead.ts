@@ -10,7 +10,8 @@ export type Speed = 1 | 0.5 | 0.25;
 // A fork off a flow, where a person took it over and carried on by hand: played as a flow of its own, drawn as part of
 // the flow it's off.
 export type Forked = Flow & { fork?: string };
-export type Stop = { flow: string; at: number; reached: () => void };
+// What waits there, by an id of its own: two can wait at one moment.
+export type Stop = { id: string; flow: string; at: number; reached: () => void };
 // `stopped` says it stopped by itself on its way past something, rather than being paused.
 export type Now = { moment: Moment; playing: boolean; speed: Speed; stopped: boolean };
 
@@ -21,6 +22,8 @@ export class Playhead {
   #last = 0;
   #frame = 0;
   #stops: Stop[] = [];
+  // The stops already stopped at, at the moment it last stopped: playing on from there stops for each other one there.
+  #stoppedFor?: { flow: string; at: number; ids: string[] };
   // Where a moment you asked to see ends, and playing stops by itself.
   #until?: number;
   #listeners = new Set<() => void>();
@@ -103,8 +106,8 @@ export class Playhead {
     this.#last = performance.now();
   }
 
-  // Where playing stops by itself on its way past. Playing on from one goes on, and a moment played on its own (a run)
-  // stops only at its end.
+  // Where playing stops by itself on its way past. Playing on from one goes on, stopping first for each other one at
+  // that moment, and a moment played on its own (a run) stops only at its end.
   stopAt(stops: Stop[]) {
     this.#stops = stops;
   }
@@ -128,10 +131,13 @@ export class Playhead {
     const flow = this.flow;
     const was = this.now.moment.at;
     const at = Math.min(flow.length, was + passed * this.now.speed);
-    const stop = this.#until === undefined && this.#stops.find((stop) => stop.flow === flow.name && stop.at > was && stop.at <= at);
+    const here = this.#stoppedFor?.flow === flow.name && this.#stoppedFor.at === was ? this.#stoppedFor.ids : undefined;
+    const ahead = (stop: Stop) => stop.at > was || (!!here && stop.at === was && !here.includes(stop.id));
+    const stop = this.#until === undefined && this.#stops.find((stop) => stop.flow === flow.name && ahead(stop) && stop.at <= at);
     if (stop) {
       cancelAnimationFrame(this.#frame);
       this.#until = undefined;
+      this.#stoppedFor = { flow: flow.name, at: stop.at, ids: [...(stop.at === was ? (here ?? []) : []), stop.id] };
       this.#set({ moment: { flow: flow.name, at: stop.at }, playing: false, stopped: true });
       return stop.reached();
     }

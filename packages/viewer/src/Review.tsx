@@ -595,10 +595,10 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   };
   useEffect(() =>
     playhead.stopAt([
-      ...walkedForks.filter(waitsOn).map((fork) => ({ flow: fork.from.flow, at: fork.from.at, reached: onto(fork.name, fork.from.at) })),
-      ...round.flows.filter((flow) => flow.line && !readLines.includes(flow.name)).map((flow) => ({ flow: flow.name, at: POSTER, reached: () => {} })),
+      ...walkedForks.filter(waitsOn).map((fork) => ({ id: fork.name, flow: fork.from.flow, at: fork.from.at, reached: onto(fork.name, fork.from.at) })),
+      ...round.flows.filter((flow) => flow.line && !readLines.includes(flow.name)).map((flow) => ({ id: `card:${flow.name}`, flow: flow.name, at: POSTER, reached: () => {} })),
       ...playingNotes.flatMap((note) =>
-        note.on && note.state === "needs you" && !note.unsent && !met.includes(note.id) ? [{ flow: playedOn(note.on), at: span(note).at, reached: () => (watchedIn(round, note.id) ? pick(note) : show(note)) }] : [],
+        note.on && note.state === "needs you" && !note.unsent && !met.includes(note.id) ? [{ id: note.id, flow: playedOn(note.on), at: span(note).at, reached: () => (watchedIn(round, note.id) ? pick(note) : show(note)) }] : [],
       ),
     ]),
   );
