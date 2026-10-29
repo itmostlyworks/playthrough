@@ -170,10 +170,11 @@ function browser(): Promise<Browser> {
   return opened;
 }
 
-// The review's flows and the app's setup as they're written now, loaded once each time they're written again.
+// The review's flows and the app's setup as they're written now, loaded once each time they're written again: a flow file
+// added or taken away changes its folder's time. A module of their own that they import isn't loaded again.
 async function writtenOf(repo: Repo, id: string) {
   const files = (await readdir(repo.flows(id))).filter(isFlow).map((name) => join(repo.flows(id), name));
-  const written = Math.max(...(await Promise.all([...files, repo.setup].map((file) => stat(file).then((it) => it.mtimeMs, () => 0)))));
+  const written = Math.max(...(await Promise.all([repo.flows(id), ...files, repo.setup].map((file) => stat(file).then((it) => it.mtimeMs, () => 0)))));
   return { files, written };
 }
 
