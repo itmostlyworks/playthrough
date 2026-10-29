@@ -172,10 +172,12 @@ describe("What changed at a moment", () => {
     assert.deepEqual(await said(link(""), link(`<small style="display: block">Reconciled 1 month ago</small>`)), ["“Reconciled 1 month ago” is new"]);
   });
 
-  test("a control named by everything inside it is the same control, and what changed inside it is what's told", async () => {
-    // Kan's list is one button you drag, called by its name, its count and every card's title.
-    const list = (count: string) => `<div role="button" tabindex="0"><div><span>Done</span> ${count}</div><button style="display: block">BS-4 Set up the domain</button><button style="display: block">BS-5 Choose the fonts</button></div>`;
-    assert.deepEqual(await said(list(""), list(`<span>2</span>`)), ["“2” is new"]);
+  test("a control holding other controls is what holds them, and what changed inside it is what's told", async () => {
+    // Kan's list is one button you drag, called by its name, its count and every card's title, or with no cards, its count.
+    const list = (count: string, cards = "") => `<div role="button" tabindex="0"><div><input aria-label="List name" value="Done"> ${count}</div>${cards}</div>`;
+    const cards = `<button style="display: block">BS-4 Set up the domain</button><button style="display: block">BS-5 Choose the fonts</button>`;
+    assert.deepEqual(await said(list("", cards), list(`<span>2</span>`, cards)), ["“2” is new"]);
+    assert.deepEqual(await said(list(`<span>0 of 2</span>`), list(`<span>0/2</span>`)), ["“0 of 2” now says “0/2”"]);
   });
 
   test("a page scrolled further hasn't moved what's on it", async () => {

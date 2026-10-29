@@ -1353,7 +1353,13 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
               })}
             onMark={(id) => {
               const diamond = diamonds.find((diamond) => diamond.id === id);
-              if (diamond) choose(diamond);
+              if (!diamond) return;
+              // Carrying a note's number, it's that note's: made for it, it opens the note's answer, at this moment.
+              const answered = notes.find((note) => diamond.changes.every((changed) => changed.answers && changed.note === note.id));
+              if (!answered) return choose(diamond);
+              setOpen({ note: answered.id });
+              setMet((met) => (met.includes(answered.id) ? met : [...met, answered.id]));
+              play(answered.id, { flow: diamond.flow, at: Math.max(0, diamond.at - 0.8) }, diamond.until ?? diamond.at);
             }}
             shown={size}
             zoomed={zoomed}

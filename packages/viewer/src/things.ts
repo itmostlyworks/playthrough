@@ -3,7 +3,7 @@
 // change, and a note sits on its thing in every round, found the way the agent's answer to it was placed.
 
 import { useEffect, useState } from "react";
-import { called, namedByInside, placeIn, type Reading, type Thing } from "@mostlyworks/vantage-page";
+import { called, holdsControls, placeIn, type Reading, type Thing } from "@mostlyworks/vantage-page";
 import type { Element, Place, Point, Review, Round } from "@mostlyworks/vantage-review";
 import { readings } from "./api.ts";
 import type { Rect } from "./replay.ts";
@@ -48,11 +48,11 @@ const loose = (thing: Thing) => thing.role === "text" || thing.role === "box";
 // What a click there would note, from the element under the pointer outwards: the nearest thing with a role a person
 // would name, unless words or a panel of their own come first inside something that holds things. A click on a
 // button's words notes the button; on words in a dialog, the words; on the space in a panel, the panel. Only what has a
-// name can be noted by it. A "button" named by the controls inside it holds things too: Kan's whole list is one you
-// drag, and the count by its name is noted for itself.
+// name can be noted by it. A "button" holding other controls holds things too: Kan's whole list is one you drag, and
+// the count by its name is noted for itself.
 export function pickAt(outwards: number[], read: Reading[], at: number): Thing | undefined {
   let near: Thing | undefined;
-  const holds = (thing: Thing) => HOLDING.test(thing.role) || read.some((reading) => reading.things.includes(thing) && namedByInside(reading, thing));
+  const holds = (thing: Thing) => HOLDING.test(thing.role) || read.some((reading) => reading.things.includes(thing) && holdsControls(reading, thing));
   for (const node of outwards) {
     const thing = thingAt(read, node, at);
     if (!thing?.name) continue;

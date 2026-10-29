@@ -125,11 +125,11 @@ export function differences(then: Reading, now: Reading): { differences: Differe
       continue;
     }
     // A control that only gained or lost words in something inside it is the same control: those words are what changed,
-    // read on their own (Actual's account links took a line under their names). So is one named by everything inside
-    // it, where it was: Kan's whole list is one button you drag, called by its name, its count and every card's title.
+    // read on their own (Actual's account links took a line under their names). So is one holding other controls, where
+    // it was: Kan's whole list is one button you drag, called by its name, its count and every card's title.
     a =
       b.role !== "text"
-        ? take((a) => a.role === b.role && (gained(now, b, a.name) || gained(then, a, b.name) || (namedByInside(then, a) && namedByInside(now, b) && overlap(a, b) > 0.5)))
+        ? take((a) => a.role === b.role && (gained(now, b, a.name) || gained(then, a, b.name) || (holdsControls(then, a) && holdsControls(now, b) && overlap(a, b) > 0.5)))
         : undefined;
     if (a) {
       was.set(b, a);
@@ -210,9 +210,10 @@ function gained(reading: Reading, control: Thing, was: string): boolean {
   const more = control.name.slice(was.length + 1);
   return reading.things.some((thing) => parentOf(reading, thing) === control && thing.words === more);
 }
-// Named by a control inside it: what it's called is what it holds, not a label of its own.
-export const namedByInside = (reading: Reading, thing: Thing) =>
-  !!thing.name && reading.things.some((inside) => parentOf(reading, inside) === thing && inside.role !== "text" && !!inside.name && thing.name.includes(inside.name));
+// A control that holds other controls, a field or a button, isn't one control but what holds them: a real button never
+// holds another. Kan's list is one you drag, its name field, its + and its cards inside it, called by all their words.
+const CONTROL = /^(button|link|textbox|searchbox|combobox|checkbox|radio|switch|slider|tab|menuitem|option)$/;
+export const holdsControls = (reading: Reading, thing: Thing) => reading.things.some((inside) => parentOf(reading, inside) === thing && CONTROL.test(inside.role));
 const mostlyWhereItWas =(a: Thing, b: Thing) => HOLDS.test(b.role) && overlap(a, b) > 0.5;
 const holdsTheSameWords = (a: Thing, b: Thing) => /^(box|menu)$/.test(b.role) && !!a.wordsInside && bag(a) === bag(b);
 const bag = (thing: Thing) => (thing.wordsInside ?? "").split(" ").sort().join(" ");
