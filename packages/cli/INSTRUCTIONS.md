@@ -18,8 +18,9 @@ THE LOOP
 4. vantage record <review> records the round and compares it with every round before it. In the round's round.json, say
    why each change since the round before is there, under "accounts" by its id: { "line": "<why, in your words>" },
    { "note": "<the note it was made for>" }, or { "notReal": "<why nothing really changed>" }.
-5. vantage wait <review> hands the round over and waits. When notes come, it prints each with a picture of what it's on.
-   Change the app and record the next round, then answer each note in its round.json, under "replies".
+5. vantage wait <review> hands the round over and waits. When notes come, it prints each with a picture of what it's on,
+   or for one made in the app, what the person did there. Change the app and record the next round, then answer each
+   note in its round.json, under "replies".
 
 The person can only judge what the flows show, so keep them true to how a person uses the app.
 

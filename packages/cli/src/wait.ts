@@ -1,6 +1,7 @@
 // Hands the round over and waits for what people say about it. Handing over finishes the round, which the rules allow once
 // every note is answered. Then it waits for a send that asks for something, takes it, and prints the notes to answer,
-// each with a picture of what it's on.
+// each with a picture of what it's on, or for one made in the app, what was done there. The agent reading them may be a
+// fresh one, so they say which review they're for and where the rest is.
 
 import { allNotes, conversation, list, notesToAnswer, quote, Refused, roundInProgress, time, type Did, type Place } from "@mostlyworks/vantage-review";
 import { agent } from "./agent.ts";
@@ -48,7 +49,7 @@ export async function wait(repo: Repo, id: string) {
     const notes = allNotes(review);
     const you = agent();
     const pictures = await pictureNotes(repo, review, round, asking);
-    console.log(`\nNotes to answer in round ${round}:`);
+    console.log(`\nNotes to answer in round ${round} of ${id}: ${quote(review.title)}`);
     for (const note of asking) {
       const turns = conversation(review, note).map((turn) => {
         const who = turn.agent ? `${turn.by === you ? "You" : turn.by}, in round ${turn.round}` : turn.verdict ? `${turn.by}, ${turn.verdict}` : turn.by;
@@ -58,7 +59,8 @@ export async function wait(repo: Repo, id: string) {
       console.log(`\n  ${note}  ${where(notes.get(note)?.note.on)}${picture ? `\n    As they saw it: ${picture}` : ""}\n${turns.join("\n")}`);
     }
     const first = pictures.size ? "Look at what each note is on, change" : "Change";
-    return console.log(`\n${first} the app, then record round ${round}: vantage record ${id}`);
+    console.log(`\n${first} the app, then record round ${round}: vantage record ${id}`);
+    return console.log(`New to this review? Run vantage alone for how Vantage works. Its flows are in ${repo.show(repo.flows(id))}.`);
   }
 }
 
@@ -72,7 +74,11 @@ function where(place: Place | undefined): string {
       : place.box
         ? `, the part of the screen ${share(place.box.x)} across and ${share(place.box.y)} down`
         : "";
-  if (place.app) return `on “${place.app.from.flow}”, in the app: taken over at ${time(place.app.from.at)}, then ${place.app.did.length ? list(place.app.did.map(done)) : "nothing done there yet"}${on}`;
+  // Made in the app itself, not on a recording: the person took the flow over there and carried on by hand.
+  if (place.app) {
+    const did = place.app.did.length ? ` and carried on by hand (${list(place.app.did.map(done))})` : "";
+    return `on “${place.app.from.flow}”, in the app: they took the flow over at ${time(place.app.from.at)}${did}${on}`;
+  }
   return `on “${place.flow}”${at}${on}`;
 }
 

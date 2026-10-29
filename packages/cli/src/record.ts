@@ -66,13 +66,14 @@ export async function record(repo: Repo, id: string) {
 }
 
 // Each answer shows where its note's thing is on this round's recording, found by Vantage from the last round it was
-// seen on, never said by the agent: the next try lands right beside what was noted.
+// seen on, never said by the agent: the next try lands right beside what was noted. One made in the app is on what was
+// there, not on a recording, so its answer isn't placed on one.
 async function placed(repo: Repo, review: Review, number: number, flows: Flow[], reply: Reply): Promise<Reply> {
   const answer: Reply = { note: reply.note, words: reply.words };
   const seen = lastSeen(review, reply.note, number);
   const flow = seen && flows.find((flow) => flow.name === seen.on.flow);
   const then = seen && review.rounds.find((round) => round.number === seen.round)?.flows.find((kept) => kept.name === seen.on.flow);
-  if (!seen || !flow || !then) return answer;
+  if (!seen || seen.on.app || !flow || !then) return answer;
   const from = { flow: then, readings: await readingsOn(repo.reviews, review.id, seen.round, then) };
   return { ...answer, on: placeIn(seen.on, from, { flow, readings: await readingsOn(repo.reviews, review.id, number, flow) }) };
 }
