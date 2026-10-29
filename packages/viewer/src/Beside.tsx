@@ -25,7 +25,10 @@ const WAIT = 1500;
 
 export function Beside({ id, over, pinned, onAway, children }: { id?: string; over?: boolean; pinned?: () => Spot | undefined; onAway?: () => void; children?: ReactNode }) {
   const card = useRef<HTMLElement>(null);
-  const opened = useRef<{ id?: string; at: Spot; since: number; side?: Side; put?: Spot; was?: Spot }>(undefined);
+  const opened = useRef<{ id?: string; at: Spot; since: number; side?: Side; put?: Spot; was?: Spot; last?: Spot }>(undefined);
+  // While you point at it, it holds still: what you point at inside it may be drawn somewhere else, and it's not to
+  // move from under you.
+  const pointing = useRef(false);
   const away = useRef(onAway);
   away.current = onAway;
   useEffect(() => {
@@ -58,13 +61,17 @@ export function Beside({ id, over, pinned, onAway, children }: { id?: string; ov
       if (!box) return;
       const w = box.offsetWidth;
       const h = box.offsetHeight;
-      const to = (x: number, y: number) => void (box.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`);
+      const first = opened.current && opened.current.id === id ? opened.current : (opened.current = { id, at: { ...clicked }, since: performance.now() });
+      const to = (x: number, y: number) => {
+        if (pointing.current && first.last && !first.put) [x, y] = [first.last.x, first.last.y];
+        first.last = { x, y };
+        box.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
+      };
       // A flow's question sits over its last frame, clear of the bar. Only the round you're watching is where it sits:
       // not one held over it or beside it, or one you've been to and left.
       const shown = "[data-frame][data-watched]";
       const frame = over && document.querySelector<HTMLElement>(shown)?.getBoundingClientRect();
       if (frame) return to(frame.left + frame.width / 2 - w / 2, frame.bottom - h - 44);
-      const first = opened.current && opened.current.id === id ? opened.current : (opened.current = { id, at: { ...clicked }, since: performance.now() });
       if (first.put) return to(clamp(first.put.x, EDGE, innerWidth - w - EDGE), clamp(first.put.y, EDGE, innerHeight - h - EDGE));
       const outline = !id ? null : document.querySelector<HTMLElement>(`${shown} [data-pin="${CSS.escape(id)}"], ${shown} [data-mark-id="${CSS.escape(id)}"]`);
       const drawn = outline?.getBoundingClientRect();
@@ -141,6 +148,8 @@ export function Beside({ id, over, pinned, onAway, children }: { id?: string; ov
     <aside
       ref={card}
       onPointerDown={drag}
+      onPointerEnter={() => (pointing.current = true)}
+      onPointerLeave={() => (pointing.current = false)}
       className="fixed top-0 left-0 z-30 w-[330px] rounded-xl bg-ground py-1.5 shadow-[0_0_0_1px_rgba(20,24,34,0.08),0_10px_30px_rgba(20,24,34,0.16)]"
     >
       <div data-map className={`grid grid-cols-[minmax(0,1fr)] [--ahead:color-mix(in_srgb,var(--faint)_45%,var(--ground))] [--rail:var(--soft)] ${onAway ? "[&>*>:first-child]:pr-9" : ""}`}>
