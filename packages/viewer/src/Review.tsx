@@ -1218,7 +1218,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
               </button>
             </div>
           )}
-          <div className="flex items-end gap-5">
+          <div className="flex items-end gap-5 phone:flex-col phone:items-stretch phone:gap-0">
           <div className="min-w-0 flex-1">
           <Controls
             stage
@@ -1262,7 +1262,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
             onLook={chooseLook}
           />
           </div>
-          <div className="w-[300px] flex-none">
+          <div className="w-[300px] flex-none phone:w-auto">
             <Foot
               step={step}
               quiet={!!open}

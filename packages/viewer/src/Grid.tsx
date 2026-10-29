@@ -47,7 +47,7 @@ export function Grid(props: Props) {
   ) : null;
 
   return (
-    <div ref={props.room} inert={!up} className={`absolute inset-0 z-20 flex bg-ground transition-[opacity,visibility] duration-240 ease-calm ${up ? "visible opacity-100" : "invisible opacity-0"}`}>
+    <div ref={props.room} inert={!up} className={`absolute inset-0 z-20 flex overflow-y-auto bg-ground transition-[opacity,visibility] duration-240 ease-calm ${up ? "visible opacity-100" : "invisible opacity-0"}`}>
       <div className="m-auto grid w-full max-w-[1240px] grid-cols-[320px_minmax(0,1fr)] gap-10 px-8 py-6 phone:grid-cols-1 phone:gap-5 phone:px-0" onPointerLeave={() => setPointed(undefined)}>
         <div className="flex max-h-[calc(100dvh-140px)] min-h-0 flex-col phone:max-h-none">
           <div className="px-2.5">
