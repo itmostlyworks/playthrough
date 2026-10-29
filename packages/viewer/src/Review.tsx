@@ -230,6 +230,9 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     const paused = pausedAt(on, at);
     if (round !== latest || at < 0 || !paused) return;
     playhead.pause();
+    // The app is now, alone: how it was goes.
+    setPeek(false);
+    chooseLook("one");
     if (!did && live && live.flow === on.name && samePaused(live.paused, paused) && live.address) {
       takenOver(review.id, on.name, paused);
       return setLive({ ...live, shown: true, at: undefined });
