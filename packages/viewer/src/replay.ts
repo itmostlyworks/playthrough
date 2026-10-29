@@ -187,12 +187,16 @@ export class Replay {
   }
 
   // What's at a point of the page, in its own pixels, and everything holding it, by their nodes in the recording, from it
-  // outwards.
+  // outwards. What's drawn there, whether or not a click could reach it: behind an open menu, a page can make the rest of
+  // itself inert, and Kan's board was then one block with no cards in it.
   outwards(x: number, y: number): number[] {
     const page = this.#replayer.iframe.contentDocument;
     const mirror = this.#replayer.getMirror();
+    const inert = [...(page?.querySelectorAll("[inert]") ?? [])];
+    for (const element of inert) element.removeAttribute("inert");
     const nodes: number[] = [];
     for (let element = page?.elementFromPoint(x, y) ?? null; element && element !== page?.body; element = element.parentElement) nodes.push(mirror.getId(element));
+    for (const element of inert) element.setAttribute("inert", "");
     return nodes;
   }
 
