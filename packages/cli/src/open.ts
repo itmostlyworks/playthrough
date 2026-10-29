@@ -11,6 +11,7 @@ import type { Reading } from "@mostlyworks/vantage-page";
 import { Refused, type Did, type Send } from "@mostlyworks/vantage-review";
 import { BEAT } from "./flows.ts";
 import type { Repo } from "./repo.ts";
+import { readyIn } from "./following.ts";
 import { getReady, keepUp } from "./take-over.ts";
 
 const PORT = 5790;
@@ -77,6 +78,7 @@ async function answer(repo: Repo, page: string, you: string, request: IncomingMe
   }
   if (request.method === "POST" && rest[0] === "take-over") return takeOver(repo, id, request, response);
   if (request.method === "POST" && rest[0] === "follow") return followAlong(repo, id, request, response);
+  if (request.method === "POST" && rest[0] === "ready-in") return readyInFor(repo, id, request, response);
   if (request.method === "POST" && rest[0] === "branches") return branch(repo, id, request, response);
   if (request.method === "POST" && rest[0] === "sends") {
     await reviews.send(id, await body<Send>(request));
@@ -150,6 +152,12 @@ function paced(events: Event[]): Event[] {
   });
 }
 const readingOf = (event: Event) => (event.type === 5 && event.data?.tag === "reading" ? event.data.payload : undefined);
+
+// How long until a moment asked for is ready, for the viewer to count down to, if it can be known.
+async function readyInFor(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
+  const { flow, step, actions } = await body<{ flow: string; step?: string; actions?: number }>(request);
+  json(response, 200, { in: await readyIn(repo, id, { flow, step, actions }) });
+}
 
 // Where the playhead has got to while the latest round plays, for the flow run alongside it.
 async function followAlong(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {

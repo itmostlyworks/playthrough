@@ -195,8 +195,11 @@ export function flowsIn(files: string[], written: number): Promise<Map<string, B
 // the person's browser. So it's handed over as it was before the actions that only changed what's on it (`from`), and
 // they're done again there. One that wrote something, or went to another address, isn't: it starts again after it.
 // The steps it has finished say how far it has got, against how far the playhead has. Several run at once, one for each
-// review open, each in its own window, and each knows its own by what it was called from.
-type Taking = { page: Page; depth: number; rest: () => Promise<void>; step?: string; actions: number; from?: Handed; again: Action[]; wrote: boolean; passed: string[]; orders: Orders; handed?: Handed };
+// review open, each in its own window, and each knows its own by what it was called from. And how long it has worked,
+// not counting waiting for the playhead, which it says as it gets to each place to take it over: on the same app, the
+// same each time to within a few percent. While it waits, it can be told to go on (`moved`).
+type Taking = { page: Page; depth: number; rest: () => Promise<void>; step?: string; actions: number; from?: Handed; again: Action[]; wrote: boolean; passed: string[]; orders: Orders; handed?: Handed; began: number; waited: number; arrived?: Arrived };
+export type Arrived = (step: string | undefined, actions: number | undefined, worked: number) => void;
 const taking = new AsyncLocalStorage<Taking>();
 
 // The playhead went back before it, it's been handed over, or it's no longer wanted: the flow goes no further.
@@ -204,13 +207,13 @@ class Stopped extends Error {}
 
 export async function runAlongside(
   page: Page,
-  { request, baseURL, started, makeSetup }: { request: APIRequestContext; baseURL: string; started: string; makeSetup?: MakeSetup },
+  { request, baseURL, started, makeSetup, arrived }: { request: APIRequestContext; baseURL: string; started: string; makeSetup?: MakeSetup; arrived?: Arrived },
   body: Body,
   orders: Orders,
 ): Promise<{ handed?: Handed; stopped?: Pick<Failed, "at" | "why"> }> {
   await page.clock.setSystemTime(DAY(started));
   await page.addInitScript({ content: seeded });
-  const flow: Taking = { page, depth: 0, rest: await watchRest(page), actions: 0, again: [], wrote: false, passed: [], orders };
+  const flow: Taking = { page, depth: 0, rest: await watchRest(page), actions: 0, again: [], wrote: false, passed: [], orders, began: Date.now(), waited: 0, arrived };
   page.on("request", (request) => void (["GET", "HEAD", "OPTIONS"].includes(request.method()) || (flow.wrote = true)));
   pace(page);
   return taking.run(flow, async () => {
@@ -230,6 +233,7 @@ export async function runAlongside(
 // the playhead is there, and hands over once it rests there. Nothing here can be undone, so if the playhead went back
 // before it, it stops.
 async function reached(flow: Taking, step?: string, actions?: number) {
+  flow.arrived?.(step, actions, Date.now() - flow.began - flow.waited);
   for (;;) {
     const { to, stopped } = flow.orders;
     if (stopped) throw new Stopped();
@@ -240,7 +244,10 @@ async function reached(flow: Taking, step?: string, actions?: number) {
       if (step) throw new Stopped();
       return;
     }
+    const since = Date.now();
     await new Promise<void>((moved) => (flow.orders.moved = moved));
+    flow.orders.moved = undefined;
+    flow.waited += Date.now() - since;
   }
 }
 
@@ -402,11 +409,14 @@ function pace(page: Page) {
 async function acted(does: string, target: (page: Page) => Promise<string | undefined>, act: () => Promise<unknown>, given: unknown) {
   const taken = taking.getStore();
   const handing = taken?.depth ? taken : undefined;
+  // Told to rest at a later step, or at the flow's end, it won't be handed over in this one, so nothing here need be
+  // kept to do again, nor waited for: it goes straight on.
+  const keeping = handing && !(handing.orders.to.rests && handing.orders.to.step !== handing.step) ? handing : undefined;
   let on: string | undefined, address: string | undefined;
-  if (handing) {
-    handing.from ??= await kept(handing.page, handing.rest);
-    handing.wrote = false;
-    [on, address] = [await target(handing.page), handing.page.url()];
+  if (keeping) {
+    keeping.from ??= await kept(keeping.page, keeping.rest);
+    keeping.wrote = false;
+    [on, address] = [await target(keeping.page), keeping.page.url()];
   }
   const result = await act();
   underway?.actions.push(Date.now());
@@ -416,15 +426,15 @@ async function acted(does: string, target: (page: Page) => Promise<string | unde
     await underway.page.waitForTimeout(BEAT);
     await walkOn(underway, walk);
   }
-  if (handing) {
+  if (keeping) {
     // Done again where the person takes over, it needn't wait for the page to be still here: only to see whether it
     // saved something or went to another page, which shows at once. The next action's page is waited for as it's taken.
-    await handing.page.waitForTimeout(SAVING);
+    await keeping.page.waitForTimeout(SAVING);
     const plain = typeof given === "string" || typeof given === "boolean" || (Array.isArray(given) && given.every((one) => typeof one === "string"));
-    if (on && !handing.wrote && handing.page.url() === address) handing.again.push({ does, on, ...(plain && { with: given }) });
-    else Object.assign(handing, { from: undefined, again: [] });
-    await reached(handing, handing.step, ++handing.actions);
+    if (on && !keeping.wrote && keeping.page.url() === address) keeping.again.push({ does, on, ...(plain && { with: given }) });
+    else Object.assign(keeping, { from: undefined, again: [] });
   }
+  if (handing) await reached(handing, handing.step, ++handing.actions);
   return result;
 }
 

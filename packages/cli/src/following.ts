@@ -22,15 +22,20 @@ export async function runTo(repo: Repo, id: string, to: To): Promise<Handed> {
       const one = await inTurn(repo, id, async () => {
         const one = await followingFor(repo, id, to, fresh);
         following.delete(key(repo, id));
+        asked.set(key(repo, id), one);
         return one;
       });
       try {
         order(one, { ...to, rests: true });
         const { handed, stopped } = await one.ran;
-        if (handed) return handed;
+        if (handed) {
+          timesOf(repo, id, one).handing = Date.now() - one.last.when;
+          return handed;
+        }
         if (stopped) throw new Refused([`${quote(to.flow)} didn't get to ${where}: ${stoppedAt(stopped)}`]);
       } finally {
         one.stop();
+        if (asked.get(key(repo, id)) === one) asked.delete(key(repo, id));
       }
     }
     throw new Refused([`${quote(to.flow)} didn't get to ${where}.`]);
@@ -44,10 +49,48 @@ export async function runTo(repo: Repo, id: string, to: To): Promise<Handed> {
 // the moment it comes to rest on is there already.
 export const follow = (repo: Repo, id: string, to: To) => inTurn(repo, id, async () => order(await followingFor(repo, id, to), to));
 
-// A run of one flow, told how far it may go. One that's over, or for flows or a setup that have changed since, or for
-// another flow, is stopped, and a new one takes its place.
-type Following = { flow: string; written: number; orders: Orders; ran: ReturnType<Alongside["runAlongside"]>; stop: () => void; over?: boolean };
+// How long until a moment asked for is ready, in milliseconds: what the runs before took from each of its moments to the
+// next, from where this one has got to that one, as it will go, and to hand it over there. Nothing until a run has got
+// there once, for flows and a setup written as they are now.
+export const readyIn = (repo: Repo, id: string, to: To) =>
+  inTurn(repo, id, async () => {
+    const one = asked.get(key(repo, id)) ?? following.get(key(repo, id));
+    if (!one || one.flow !== to.flow) return undefined;
+    const { moments, straight, keeping, handing = 0 } = timesOf(repo, id, one);
+    const there = moments.indexOf(momentOf(to.step, to.actions));
+    const here = moments.indexOf(one.passed.at(-1)!);
+    if (there < 0) return undefined;
+    // One that's past it, the playhead having gone back, gives way to a new one. One waiting for the playhead goes on
+    // once it's asked, from where it is.
+    const fresh = here > there;
+    let left = handing - (fresh || one.orders.moved ? 0 : Date.now() - one.last.when);
+    for (const moment of moments.slice(fresh ? 0 : here + 1, there + 1)) {
+      const [first, second] = stepOf(moment) === (to.step ?? "") ? [keeping, straight] : [straight, keeping];
+      const took = first.get(moment) ?? second.get(moment);
+      if (took === undefined) return undefined;
+      left += took;
+    }
+    return Math.max(0, Math.round(left));
+  });
+
+// A run of one flow, told how far it may go, and how far it has got: the moments it has passed, how long it had worked
+// at the last, and when. One that's over, or for flows or a setup that have changed since, or for another flow, is
+// stopped, and a new one takes its place. One asked for is kept apart while it gets there.
+type Following = { flow: string; written: number; orders: Orders; ran: ReturnType<Alongside["runAlongside"]>; stop: () => void; over?: boolean; passed: string[]; last: { worked: number; when: number } };
 const following = new Map<string, Following>();
+const asked = new Map<string, Following>();
+
+// How long the runs of a flow took to get to each of its moments from the one before, working: going straight on, or
+// keeping what's done in the step it may be handed over in, which takes longer. And its moments in order, and how long
+// the last took to hand its page over once it was there.
+type Took = { moments: string[]; straight: Map<string, number>; keeping: Map<string, number>; handing?: number };
+const took = new Map<string, Took>();
+function timesOf(repo: Repo, id: string, { flow, written }: Following): Took {
+  const at = `${key(repo, id)}\n${flow}\n${written}`;
+  return took.get(at) ?? took.set(at, { moments: [], straight: new Map(), keeping: new Map() }).get(at)!;
+}
+const momentOf = (step?: string, actions?: number) => `${step ?? ""}\n${actions ?? ""}`;
+const stepOf = (moment: string) => moment.split("\n")[0];
 const key = (repo: Repo, id: string) => `${repo.root}\n${id}`;
 
 async function followingFor(repo: Repo, id: string, to: To, fresh = false): Promise<Following> {
@@ -75,9 +118,19 @@ async function start(repo: Repo, id: string, to: To, files: string[], written: n
   const request = await requests.newContext({ baseURL: app.url });
   const close = () => void Promise.all([context.close(), request.dispose()]).catch(() => {});
   const orders: Orders = { to };
-  const ran = runAlongside(await context.newPage(), { request, baseURL: app.url, started, makeSetup }, body, orders).catch((error) => ({ stopped: { why: firstLine(String(error?.message ?? error)) } }));
-  const one: Following = { flow: to.flow, written, orders, ran, stop: () => ((orders.stopped = true), orders.moved?.(), close()) };
-  void ran.finally(() => ((one.over = true), close()));
+  const page = await context.newPage();
+  const one = { flow: to.flow, written, orders, stop: () => ((orders.stopped = true), orders.moved?.(), close()), passed: [] as string[], last: { worked: 0, when: Date.now() } } as Following;
+  const times = timesOf(repo, id, one);
+  const arrived = (step: string | undefined, actions: number | undefined, worked: number) => {
+    const moment = momentOf(step, actions);
+    const { to } = orders;
+    (to.rests && to.step !== step ? times.straight : times.keeping).set(moment, worked - one.last.worked);
+    one.passed.push(moment);
+    if (one.passed.length > times.moments.length) times.moments = [...one.passed];
+    one.last = { worked, when: Date.now() };
+  };
+  one.ran = runAlongside(page, { request, baseURL: app.url, started, makeSetup, arrived }, body, orders).catch((error) => ({ stopped: { why: firstLine(String(error?.message ?? error)) } }));
+  void one.ran.finally(() => ((one.over = true), close()));
   return one;
 }
 

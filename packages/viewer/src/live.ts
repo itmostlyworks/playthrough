@@ -8,8 +8,9 @@ export { pausedAt, type Paused };
 
 // Shown, the app covers the recording; hidden, it waits under it, so taking the same moment over again carries on.
 // It shows only once it has settled, so the frame turns into it with nothing on screen changing. Left from inside the
-// app, `at` is where the pointer was there, on its page, for the way out to close on.
-export type Live = { flow: string; paused: Paused; address?: string; problems?: string[]; shown: boolean; settled?: boolean; at?: { x: number; y: number } };
+// app, `at` is where the pointer was there, on its page, for the way out to close on. Asked for before it's ready, `due`
+// is when it should be, by this page's clock, if that can be known.
+export type Live = { flow: string; paused: Paused; address?: string; problems?: string[]; shown: boolean; settled?: boolean; at?: { x: number; y: number }; due?: number };
 
 export const samePaused = (one: Paused | undefined, other: Paused | undefined) => one?.step === other?.step && one?.actions === other?.actions;
 
@@ -36,6 +37,13 @@ export function readyAt(review: string, flow: string, paused: Paused, did?: Did[
 // sooner. It's only a head start: what it can't do, taking over does again.
 export const follow = (review: string, flow: string, paused: Paused) =>
   void fetch(`/api/reviews/${encodeURIComponent(review)}/follow`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ flow, ...paused }) }).catch(() => {});
+
+// How long until a moment asked for is ready, in milliseconds, as long as the last run took to get there; nothing when
+// that can't be known yet.
+export const readyIn = (review: string, flow: string, paused: Paused): Promise<number | undefined> =>
+  fetch(`/api/reviews/${encodeURIComponent(review)}/ready-in`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ flow, ...paused }) })
+    .then((answer) => answer.json())
+    .then((said) => said.in ?? undefined, () => undefined);
 
 // Where the app is at that moment, through Vantage, on the same machine name the viewer was reached by; or what stops it.
 async function getReady(review: string, flow: string, paused: Paused, did?: Did[]): Promise<string | string[]> {

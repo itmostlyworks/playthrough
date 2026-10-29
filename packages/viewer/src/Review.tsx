@@ -17,7 +17,7 @@ import { useDraft, useWatched } from "./draft.ts";
 import { grow, land, slideIn, takeOff, type Taking } from "./flight.ts";
 import { Foot, type Step } from "./Foot.tsx";
 import { Grid } from "./Grid.tsx";
-import { follow, pausedAt, readyAt, samePaused, takenOver, type Live, type Paused } from "./live.ts";
+import { follow, pausedAt, readyAt, readyIn, samePaused, takenOver, type Live, type Paused } from "./live.ts";
 import { along, CARD, clamp, FLOW_IN, momentAt, POSTER, type Moment } from "./moments.ts";
 import { asIfSent, fill, goodTo, ink, lookGood, notesOn, nothing, said, seen, sendOf, settledBefore, standings, takeBack, type Shown } from "./notes.ts";
 import { NoteRow, number as numberLook, opened, pointed, SettledCount, SettledList, Writing, type Comparing } from "./Notes.tsx";
@@ -157,6 +157,10 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   // loaded unseen, so Take over turns the frame into the app at once. Playing again, or going to another round, lays the
   // recording back over it; a round arriving doesn't.
   const [live, setLive] = useState<Live>();
+  // How long the app took to load and settle in the frame the last time, from when its address came: on top of how long
+  // the moment takes to be made ready, part of how long taking over takes.
+  const loading = useRef<{ since?: number; took?: number }>({});
+  useEffect(() => void (live?.address && !live.settled && (loading.current.since = Date.now())), [live?.address]);
   // Not on a fork: taking one over carries it on from its end.
   const resting = useNow(playhead, ({ moment, playing }) => {
     const on = round.flows.find((flow) => flow.name === moment.flow);
@@ -164,7 +168,8 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     return paused && JSON.stringify({ flow: on!.name, paused });
   });
   useEffect(() => {
-    if (!resting) return;
+    // Taken over already, it's asked for as it's taken.
+    if (!resting || live?.shown) return;
     const { flow, paused }: { flow: string; paused: Paused } = JSON.parse(resting);
     // Once it's ready, the app loads unseen in the frame, so Take over only has to show it.
     const soon = setTimeout(
@@ -246,21 +251,30 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     chooseLook("one");
     if (!did && live && live.flow === on.name && samePaused(live.paused, paused) && live.address) {
       takenOver(review.id, on.name, paused);
-      return setLive({ ...live, shown: true, at: undefined });
+      const { since, took } = loading.current;
+      return setLive({ ...live, shown: true, at: undefined, due: !live.settled && since && took ? since + took : undefined });
     }
-    // The one being made ready since you paused, if it is.
+    // The one being made ready since you paused, if it is, and how long it will be, if the last run says.
     setLive({ flow: on.name, paused, shown: true });
+    const same = (now: Live | undefined): now is Live => now?.flow === on.name && samePaused(now.paused, paused);
     readyAt(review.id, on.name, paused, did).then((answer) => {
       takenOver(review.id, on.name, paused);
-      setLive((now) => (now?.flow === on.name && samePaused(now.paused, paused) ? (typeof answer === "string" ? { ...now, address: answer } : { ...now, problems: answer, shown: false }) : now));
+      setLive((now) => (same(now) ? (typeof answer === "string" ? { ...now, address: answer } : { ...now, problems: answer, shown: false }) : now));
     });
+    if (!did)
+      void readyIn(review.id, on.name, paused).then(
+        (left) => left !== undefined && setLive((now) => (same(now) && now.shown && !now.address ? { ...now, due: Date.now() + left + (loading.current.took ?? 0) } : now)),
+      );
   };
   // The app's pages say when they've settled, and send Escape back here, as keys there never reach the viewer.
   useEffect(() => {
     const told = ({ data, source }: MessageEvent) => {
       // Only from the moment that's waiting: one just left can still be settling.
       const waiting = document.querySelector<HTMLIFrameElement>("[data-live] iframe")?.contentWindow;
-      if (data?.vantage === "settled" && source === waiting) setLive((now) => now && { ...now, settled: true });
+      if (data?.vantage === "settled" && source === waiting) {
+        if (loading.current.since) loading.current.took = Date.now() - loading.current.since;
+        setLive((now) => now && { ...now, settled: true });
+      }
       if (data?.vantage === "recorded" && source === waiting) recordedInApp.current(data.events);
       if (data?.vantage === "did" && source === waiting) yours.current.did = data.did;
       if (data?.vantage === "pinned") pinnedInApp(data.at);

@@ -679,6 +679,34 @@ export function Stage(props: Props) {
     say(tag, words, person ?? "", false);
     tag.hidden = !person;
   }, [waiting]);
+  // Known how long it will be, and more than a moment, the pointer counts down to it a second at a time, only the number
+  // changing; if it isn't there when the count is done, it says it's taking over until it is.
+  const due = waiting ? props.live?.due : undefined;
+  useEffect(() => {
+    const tag = frames.current.get(round.number)?.querySelector<HTMLElement>("[data-cursor] [data-tag]");
+    const words = tag?.querySelector<HTMLElement>("[data-words]");
+    if (!due || !tag || !words || due - Date.now() < COUNTED) return;
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let shown = 0;
+    // Each number is shown for a second, the first for at least half of one, and the count only goes down.
+    const tick = () => {
+      const seconds = (due - Date.now()) / 1000;
+      const left = shown ? Math.min(shown, Math.ceil(seconds)) : Math.ceil(seconds - 0.5);
+      if (left === shown) return;
+      if (left < 1) return void (clearInterval(ticking), say(tag, words, "Taking over…", false));
+      const from = !shown && tag.getBoundingClientRect().width;
+      const number = document.createElement("span");
+      number.className = "inline-block";
+      number.textContent = String((shown = left));
+      words.replaceChildren("Taking over in ", number);
+      if (still) return;
+      if (from) tag.animate([{ width: `${from}px` }, { width: `${tag.getBoundingClientRect().width}px` }], { duration: 380, easing: PORTAL });
+      number.animate([{ opacity: 0, transform: "translateY(3px)" }, { opacity: 1, transform: "none" }], { duration: 280, easing: PORTAL });
+    };
+    const ticking = setInterval(tick, 100);
+    tick();
+    return () => clearInterval(ticking);
+  }, [due]);
   // Made ready unseen, the app may put its text cursor where the recording had it, which would take the keyboard: it
   // stays with the review until you're in the app, and goes into it as you are.
   useEffect(() => {
@@ -1075,7 +1103,7 @@ function say(tag: HTMLElement, words: HTMLElement, said: string, mine = true, ge
 }
 
 // The name on a pointer, just below and right of its tip.
-const TAG = "absolute top-[17px] left-[13px] overflow-hidden rounded-full bg-[#2B2E35] px-[7px] font-ui text-[11px] leading-[17px] whitespace-nowrap text-white shadow-[0_1px_3px_rgba(0,0,0,0.25)]";
+const TAG = "absolute top-[17px] left-[13px] overflow-hidden rounded-full bg-[#2B2E35] px-[7px] font-ui text-[11px] leading-[17px] whitespace-nowrap text-white tabular-nums shadow-[0_1px_3px_rgba(0,0,0,0.25)]";
 
 // Opening into the app takes a breath, after the agent's pointer has come to yours; leaving it is quicker, as stepping
 // out is.
@@ -1085,6 +1113,8 @@ const BREATH = "inset 0 0 0 3px rgba(236,170,50,1), inset 0 0 70px 6px rgba(226,
 const OPENING = 1050;
 const CLOSING = 560;
 const PORTAL = "cubic-bezier(0.22, 0.8, 0.24, 1)";
+// Taking over in less than this, there's no counting: it opens as soon as it would be read.
+const COUNTED = 1500;
 
 // The app is the page the recording was made of, at its size, moved and scaled as the recording is.
 const liveAt = (view: View, page: Size) => ({
