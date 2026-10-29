@@ -582,9 +582,11 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     document
       .querySelector<HTMLIFrameElement>("[data-live] iframe")
       ?.contentWindow?.postMessage({ vantage: "pin", id, number: notes.find((note) => note.id === id)?.number ?? notes.length + 1, css: on.element?.css, point: on.point }, "*");
-  // Taken over where you were, once your steps are done again and the app shows, the note you're trying is pinned there.
+  // Taken over where you were, once your steps are done again and the app shows, the note made in the app that's open, or
+  // that you're trying, is pinned there, on what it's on.
   useEffect(() => {
-    const note = inApp ? noted.find((note) => note.id === trying.current) : undefined;
+    const id = trying.current ?? openNote?.id;
+    const note = inApp ? noted.find((note) => note.id === id && note.on?.app) : undefined;
     if (note?.on) pinInApp(note.id, note.on);
   }, [inApp]);
   useEffect(() => {

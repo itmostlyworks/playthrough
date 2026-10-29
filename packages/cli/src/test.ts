@@ -194,7 +194,7 @@ async function reached(flow: NonNullable<typeof taking>, step?: string, actions?
     const to: To = run!.orders ? JSON.parse(readFileSync(run!.orders, "utf8")) : run!.to!;
     const where = against(flow.passed, step, actions, to);
     if (where === "on") return;
-    if (where === "here" && to.rests) await handOver(flow);
+    if (where === "here" && to.rests) await handOver(flow, to.did);
     if (where === "past" || to.rests) return void (step && base.info().skip(true, where === "past" ? "The playhead went back before it" : "Taken over here"));
     await new Promise((done) => setTimeout(done, 20));
   }
@@ -223,8 +223,22 @@ async function kept(page: Page, rest: () => Promise<void>): Promise<Handed> {
   return { url: page.url(), cookies: await page.context().cookies(), ...kept, clock: kept.clock - Date.now() };
 }
 
-// The flow goes no further.
-async function handOver({ page, rest, from, again }: NonNullable<typeof taking>) {
+// The flow goes no further. Taken over where a person was on their fork, their steps are done here first, as a person
+// does them, so what they saved is saved, and the page is handed over as they left it: done again in their browser, a
+// date picked in a calendar never took.
+async function handOver({ page, rest, from, again }: NonNullable<typeof taking>, did?: Did[]) {
+  if (did?.length) {
+    // Theirs, not the flow's: none of them is a place to take the flow over.
+    const flow = taking;
+    taking = undefined;
+    for (const one of did) {
+      const done = await doAgain(page, one).then(() => true, () => false);
+      if (!done) break;
+      await rest();
+    }
+    taking = flow;
+    return writeFileSync(join(run!.folder, HANDED), JSON.stringify(await kept(page, rest)));
+  }
   const handed = from && again.length ? { ...from, again } : await kept(page, rest);
   writeFileSync(join(run!.folder, HANDED), JSON.stringify(handed));
 }

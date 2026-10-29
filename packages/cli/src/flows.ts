@@ -29,8 +29,9 @@ export type Walked = { from: number; done: number[]; found: (number | null)[]; s
 export const WALKED = "walked.json";
 
 // Where a person takes a flow over: the end of one of its steps, or of the whole flow, or within a step, after as many of
-// its actions. Followed, it's as far as the run may go, and the playhead rests there once it's to be handed over.
-export type To = { flow: string; step?: string; actions?: number; rests?: boolean };
+// its actions. Followed, it's as far as the run may go, and the playhead rests there once it's to be handed over. Taken
+// over where they were on their fork, what they did there, done before it's handed over.
+export type To = { flow: string; step?: string; actions?: number; rests?: boolean; did?: Did[] };
 // The flow's page there, as a browser keeps it: its address, its cookies, what the app kept in the browser, how far it
 // was scrolled, how far its clock, the recordings', is ahead of the real one, in milliseconds, and what its browser said
 // of itself. And partway through a step, the actions to do again there, which changed only what was in the page's

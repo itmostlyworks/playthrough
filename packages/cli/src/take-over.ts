@@ -49,7 +49,7 @@ export async function getReady(repo: Repo, id: string, flowName: string, stepNam
   const app = await repo.app();
   await keepRunning(app, repo.root);
   const began = Date.now();
-  const handed = await runTo(repo, id, { flow: flow.name, ...(stepName && { step: stepName, ...(actions && { actions }) }) });
+  const handed = await runTo(repo, id, { flow: flow.name, ...(stepName && { step: stepName, ...(actions && { actions }) }), ...(did?.length && { did }) });
   passing ??= { moments: new Map(), port: passOn(app, (moment) => passing!.moments.get(moment)) };
   const moment = String(passing.moments.size + 1);
   passing.moments.set(moment, did?.length ? { ...handed, did } : handed);
@@ -515,7 +515,8 @@ function handOver(handed: Handed | undefined, response: ServerResponse) {
     return void response.end("There's no moment ready at this address. Take it over again from the viewer, or with vantage take-over.");
   }
   const { url, cookies, local, session, scroll, clock, browser, did = [] } = handed;
-  const again = [...(handed.again ?? []), ...did];
+  // What the person did there was done before it was handed over: it's kept for what they do next to carry on from.
+  const again = handed.again ?? [];
   const { pathname, search, hash } = new URL(url);
   const setCookies = cookies.map(
     ({ name, value, path, expires, httpOnly }) =>
