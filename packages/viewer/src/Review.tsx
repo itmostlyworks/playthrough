@@ -20,7 +20,7 @@ import { Grid } from "./Grid.tsx";
 import { follow, pausedAt, readyAt, readyIn, samePaused, takenOver, type Live, type Paused } from "./live.ts";
 import { along, CARD, clamp, FLOW_IN, momentAt, POSTER, type Moment } from "./moments.ts";
 import { asIfSent, fill, goodTo, ink, lookGood, notesOn, nothing, said, seen, sendOf, settledBefore, standings, takeBack, type Shown } from "./notes.ts";
-import { NoteRow, number as numberLook, opened, pointed, SettledCount, SettledList, Writing, type Comparing } from "./Notes.tsx";
+import { NoteRow, number as numberLook, pointed, SettledCount, SettledList, Writing, type Comparing } from "./Notes.tsx";
 import { Playhead, useNow, type Forked } from "./playhead.ts";
 import { changesIn, recorded } from "./replay.ts";
 import { roundName } from "./Rounds.tsx";
@@ -823,19 +823,18 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
       </>
     );
     const row = "grid w-full grid-cols-[18px_minmax(0,1fr)_auto] items-start gap-x-2 py-1.5 pr-2.5 pl-[18px] text-left";
+    // Being written, it's a card beside what it's on, in a card's own margins, as an open note's is.
     return note.id === writingId ? (
-      <div key={note.id} data-key={`note:${note.id}`} data-stop={note.on?.at} data-open className={`relative ${opened} [--c:var(--amber)]`}>
-        <div className={row}>{head}</div>
-        <div className="grid gap-2.5 pr-3.5 pl-[44px]">
-          <Writing
-            words={note.words}
-            placeholder={note.on && note.on.at === undefined ? "What isn’t good about it?" : "What do you think?"}
-            question={note.on?.app ? "Your new note, on what’s in the app" : "Your new note"}
-            onWords={(words) => keepWords(note.id, words)}
-            onSave={(words) => saveNote(note, words)}
-            onCancel={() => dropUnsaved(note.id)}
-          />
-        </div>
+      <div key={note.id} data-key={`note:${note.id}`} data-stop={note.on?.at} data-open className="grid gap-2.5 px-4 py-2 [--c:var(--amber)]">
+        <div className="grid grid-cols-[18px_minmax(0,1fr)_auto] items-start gap-x-2">{head}</div>
+        <Writing
+          words={note.words}
+          placeholder={note.on && note.on.at === undefined ? "What isn’t good about it?" : "What do you think?"}
+          question={note.on?.app ? "Your new note, on what’s in the app" : "Your new note"}
+          onWords={(words) => keepWords(note.id, words)}
+          onSave={(words) => saveNote(note, words)}
+          onCancel={() => dropUnsaved(note.id)}
+        />
       </div>
     ) : (
       <div key={note.id} data-key={`note:${note.id}`} data-stop={note.on?.at} className={`relative ${pointed}`} style={{ "--c": "var(--amber)" } as CSSProperties}>
