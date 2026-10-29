@@ -129,6 +129,7 @@ export const Reply = z.strictObject({
   note: text("needs the note it answers"),
   words: z.string({ error: "needs its words, even if empty until it's answered" }),
   on: Place.optional().describe("Where it shows on this round's recording; without it, the note's place was lost"),
+  watch: text("needs a step's title").optional().describe("For an answer that moves: the step of its flow it's seen in, which the note then plays"),
 });
 
 // A note is a conversation about one thing. A person starts it in a send; then the agent's replies and people's verdicts

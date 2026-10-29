@@ -21,7 +21,8 @@ THE LOOP
    { "note": "<the note it was made for>" }, or { "notReal": "<why nothing really changed>" }.
 5. vantage wait <review> hands the round over and waits. When notes come, it prints each with a picture of what it's on,
    or for one made in the app, what the person did there. Change the app and record the next round, then answer each
-   note in its round.json, under "replies". For one made in the app, record walks the person's steps again on the new
+   note in its round.json, under "replies". Where your answer is something that moves, such as an animation, add
+   "watch": "<the title of the step it's seen in>", and the note plays that step. For one made in the app, record walks the person's steps again on the new
    version and puts your answer where they lead, saying whether they still get there: answer it in words, not with a
    new flow, and check your fix with vantage walk <review> while you work. Where their steps stop short, fix that, or
    say in your answer why they changed.

@@ -72,7 +72,7 @@ export async function record(repo: Repo, id: string) {
 // seen on, never said by the agent: the next try lands right beside what was noted. One made in the app is placed on its
 // fork as it was walked again, where the person's steps got to.
 async function placed(repo: Repo, review: Review, number: number, flows: Flow[], reply: Reply, walked: WalkedNote[]): Promise<Reply> {
-  const answer: Reply = { note: reply.note, words: reply.words };
+  const answer: Reply = { note: reply.note, words: reply.words, ...(reply.watch && { watch: reply.watch }) };
   const seen = lastSeen(review, reply.note, number);
   const walk = seen?.on.app && walked.find((one) => one.note === reply.note)?.on;
   if (walk) return { ...answer, on: walk };

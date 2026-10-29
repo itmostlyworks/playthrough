@@ -2,8 +2,8 @@
 // Each returns what's wrong in plain words, saying what to do about it, and nothing when all is well.
 
 import type { z } from "zod";
-import { Comparison, fileName, Round, Send, type Account, type Change, type Flow, type Note, type Place, type Review, type Verdict } from "./model.ts";
-import { quote, time } from "./words.ts";
+import { Comparison, fileName, Round, Send, type Account, type Change, type Flow, type Note, type Place, type Reply, type Review, type Verdict } from "./model.ts";
+import { list, quote, time } from "./words.ts";
 
 // The round the agent is working on: the last one until it's finished, then the next.
 export function roundInProgress(review: Review): number {
@@ -111,8 +111,18 @@ export function problemsWithRound(review: Review, round: Round): string[] {
     if (!notes.has(reply.note)) problems.push(`${at} replies to note ${reply.note}, which doesn't exist.`);
     // One on a person's fork, walked again, is on that fork's recording, which branches off a flow of the round.
     if (reply.on) problems.push(...problemsWithPlace(reply.on.app ? { flow: reply.on.app.from.flow } : reply.on, round.flows, `${at}: the reply to note ${reply.note}`));
+    if (reply.watch) problems.push(...problemsWatching(reply, round, at));
   }
   return problems;
+}
+
+// An answer watched in a step plays it, so the step is one of its flow's, here; one in the app plays where the person's
+// steps went.
+function problemsWatching(reply: Reply, round: Round, at: string): string[] {
+  const flow = reply.on && !reply.on.app ? round.flows.find((flow) => flow.name === reply.on!.flow) : undefined;
+  if (!flow) return [`${at}: the reply to note ${reply.note} watches ${quote(reply.watch!)}, but it isn't on one of this round's flows. Take "watch" out.`];
+  if (flow.steps.some((step) => step.title === reply.watch)) return [];
+  return [`${at}: the reply to note ${reply.note} watches ${quote(reply.watch!)}, which isn't a step of ${quote(flow.name)}. Name one of its steps: ${list(flow.steps.map((step) => quote(step.title)))}.`];
 }
 
 // Before, once recorded, only gains: a flow added later, recorded on the app as it was, or the word that the app as it

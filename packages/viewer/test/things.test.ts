@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Reading, Thing } from "@mostlyworks/vantage-page";
 import type { Flow, Review, Round } from "@mostlyworks/vantage-review";
-import { holdersOf, nearTo, pickAt, placeName, placeOn } from "../src/things.ts";
+import { holdersOf, nearTo, pickAt, placeName, placeOn, watchedIn } from "../src/things.ts";
 
 const look = { color: "rgb(9, 9, 11)", background: "rgba(0, 0, 0, 0)", size: "16px", weight: "400", border: "none" };
 const box = (x: number, y: number, width: number, height: number) => ({ box: { x, y, width, height }, page: { x, y } });
@@ -72,4 +72,17 @@ test("a note sits on its own thing where it was written, where Vantage placed th
   assert.equal(placeOn(review, "n1", on, 1, review.rounds[0]!, read), on);
   assert.equal(placeOn(review, "n1", on, 1, review.rounds[1]!, read), placed);
   assert.deepEqual(placeOn(review, "n1", on, 1, review.rounds[2]!, read)?.element, { role: "text", name: "$600.00", node: 77 });
+});
+
+test("an answer that moves is watched through the step its reply names, from its start to the next step's", () => {
+  const steps = [{ title: "Open the board", at: 0 }, { title: "Filter to Design", at: 2 }, { title: "Clear the filter", at: 3.5 }];
+  const flow: Flow = { name: "Filter", length: 5, steps, recording: "filter.json" };
+  const round = (number: number, replies: Round["replies"] = []): Round => ({ number, by: "Claude Code", flows: [flow], replies, accounts: {} });
+  const on = { flow: "Filter", at: 2.4, element: { role: "button", name: "To do 0/2", node: 9 } };
+  const review: Review = {
+    id: "fold", title: "Fold", started: "2026-10-29T16:00:00.000Z", comparisons: [], sends: [], taken: [],
+    rounds: [round(1), round(2, [{ note: "n1", words: "Cards fold away now.", on, watch: "Filter to Design" }])],
+  };
+  assert.deepEqual(watchedIn(review.rounds[1]!, "n1"), { flow: "Filter", at: 2, until: 3.5 });
+  assert.equal(watchedIn(review.rounds[0]!, "n1"), undefined);
 });

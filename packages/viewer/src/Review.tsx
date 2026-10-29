@@ -25,7 +25,7 @@ import { Playhead, useNow, type Forked } from "./playhead.ts";
 import { recorded } from "./replay.ts";
 import { roundName } from "./Rounds.tsx";
 import { Stage, type Bare, type Mark, type Placed, type Shown as Size } from "./Stage.tsx";
-import { placeFrom, placeName as nameOf, placeOn, useReadings, type Read } from "./things.ts";
+import { placeFrom, placeName as nameOf, placeOn, useReadings, watchedIn, type Read } from "./things.ts";
 import { Wire } from "./Wire.tsx";
 
 // What's open in the column: a note, a change you chose, or a new note being written, by its id.
@@ -522,11 +522,17 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     if (note.on) go(playedOn(note.on), note.on.at);
   };
   // Chosen, a note opens on the frame it was written on, still: that frame is what it's about. One on a stretch plays the
-  // stretch, to the frame it was written on (its end): past it, the page may have moved its thing away. One on a whole
-  // flow plays the flow, going on if it's already playing.
+  // stretch, to the frame it was written on (its end): past it, the page may have moved its thing away. One whose answer
+  // moves plays the step it's watched in. One on a whole flow plays the flow, going on if it's already playing.
   const pick = (note: Shown) => {
     const on = note.on;
     const its = on && played.flows.find((flow) => flow.name === playedOn(on));
+    const watched = watchedIn(round, note.id);
+    if (watched && its?.name === watched.flow) {
+      setOpen({ note: note.id });
+      setMet((met) => (met.includes(note.id) ? met : [...met, note.id]));
+      return play(note.id, { flow: watched.flow, at: watched.at }, watched.until);
+    }
     if (!on || !its || on.at === undefined || on.until === undefined) {
       show(note);
       const { moment, playing } = playhead.now;

@@ -103,7 +103,8 @@ export class Playhead {
     this.#last = performance.now();
   }
 
-  // Where playing stops by itself on its way past. Playing on from one goes on.
+  // Where playing stops by itself on its way past. Playing on from one goes on, and a moment played on its own (a run)
+  // stops only at its end.
   stopAt(stops: Stop[]) {
     this.#stops = stops;
   }
@@ -127,7 +128,7 @@ export class Playhead {
     const flow = this.flow;
     const was = this.now.moment.at;
     const at = Math.min(flow.length, was + passed * this.now.speed);
-    const stop = this.#stops.find((stop) => stop.flow === flow.name && stop.at > was && stop.at <= at);
+    const stop = this.#until === undefined && this.#stops.find((stop) => stop.flow === flow.name && stop.at > was && stop.at <= at);
     if (stop) {
       cancelAnimationFrame(this.#frame);
       this.#until = undefined;
