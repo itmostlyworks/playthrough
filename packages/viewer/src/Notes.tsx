@@ -41,7 +41,7 @@ type Props = {
   compare?: Comparing;
   // Made in the app on an earlier round, it's checked by trying it: taken over where you were, in Compare's place, or
   // without onTakeOver, said plainly that this round's recording doesn't go there.
-  whereYouWere?: { round: number; live?: "waiting" | "shown"; onTakeOver?: () => void };
+  whereYouWere?: { round: number; live?: "waiting" | "shown"; onTakeOver?: () => void; stopped?: boolean };
   // Not quite, being written.
   asking: boolean;
   // What it's on isn't on screen: it greys and asks nothing.
@@ -283,11 +283,12 @@ function Card(props: Props) {
       <div className={`grid gap-2.5 transition-opacity duration-250 ease-calm ${props.away && !readOnly ? "opacity-45" : ""}`}>{words}</div>
       {compare && !asking && !editing && !props.away && <Compare {...compare} />}
       {/* In the app, you're already there. */}
+      {whereYouWere?.stopped && !asking && !editing && !props.away && <p className="text-xs leading-[18px] text-soft">Your steps stop here now.</p>}
       {whereYouWere && whereYouWere.live !== "shown" && !asking && !editing && !props.away &&
         (whereYouWere.onTakeOver ? (
           <TakeOverHere waiting={whereYouWere.live === "waiting"} onTakeOver={whereYouWere.onTakeOver} />
         ) : (
-          <p className="text-xs leading-[18px] text-soft">Where you took this flow over isn’t in round {whereYouWere.round}’s recording.</p>
+          !whereYouWere.stopped && <p className="text-xs leading-[18px] text-soft">Where you took this flow over isn’t in round {whereYouWere.round}’s recording.</p>
         ))}
       {question && <p className="mt-1.5 text-xs leading-[18px] text-soft">{question}</p>}
       {answers && <div className="flex flex-wrap gap-1.5">{answers}</div>}

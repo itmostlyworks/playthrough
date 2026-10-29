@@ -94,7 +94,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   // The round as it plays: each flow with your forks off it, where you took it over, carried on by hand and said
   // something there, from the notes you made in the app on it.
   const madeHere = [...review.sends.filter((send) => send.round === round.number).flatMap((send) => send.notes), ...draft.notes, ...draft.unsaved];
-  const forks = JSON.stringify(forksIn(madeHere));
+  const forks = JSON.stringify([...forksIn(madeHere), ...walkedIn(round)]);
   const forkList: Fork[] = useMemo(() => JSON.parse(forks), [forks]);
   const played = useMemo(() => forked(round, forkList), [round, forkList]);
   const [watched, see] = useWatched(review.id, round.number);
@@ -261,18 +261,19 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     return () => removeEventListener("message", told);
   }, []);
 
-  // A flow is watched once it's played to its end from no later than its middle.
+  // A flow is watched once it's played to its end from no later than its middle, going up a fork and back on the way.
   const seeing = useRef(see);
   seeing.current = see;
   useEffect(() => {
     let from: Moment | undefined;
     let last = playhead.now.moment;
+    const flowOf = (name: string) => (playhead.flows.find((flow) => flow.name === name) as Forked | undefined)?.fork ?? name;
     return playhead.subscribe(() => {
       const { moment, playing } = playhead.now;
       const length = playhead.flow.length;
-      if (from && (moment.flow !== from.flow || Math.abs(moment.at - last.at) > 0.5)) from = undefined;
+      if (from && (flowOf(moment.flow) !== flowOf(from.flow) || (moment.flow === last.flow && Math.abs(moment.at - last.at) > 0.5))) from = undefined;
       if (playing && !from) from = moment;
-      if (from && moment.at >= length - 0.06) {
+      if (from && moment.at >= length - 0.06 && !(playhead.flow as Forked).fork) {
         const name = moment.flow;
         if (from.at <= length / 2) seeing.current((flows) => (flows.includes(name) ? flows : [...flows, name]));
         from = undefined;
@@ -427,10 +428,15 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   // something this round doesn't have is lost here. One made in the app on an earlier round sits where you took its
   // flow over, which this round's recording shows, as nothing recorded what you did after; where this round's flow
   // doesn't go that far, it's on the whole flow.
+  // Walked again for this round, it's on the walk, where your steps got to; one whose steps stop short of it says so.
+  const walkedTo = (note: Shown) => (note.on?.app && note.written !== round.number ? round.replies.find((reply) => reply.note === note.id && reply.on?.app)?.on : undefined);
+  const stopsShort = new Set(noted.filter((note) => (walkedTo(note)?.app?.did.length ?? Infinity) < (note.on?.app?.did.length ?? 0)).map((note) => note.id));
   const whereYouWere = new Map(
-    noted.flatMap((note) => (note.on?.app && note.written !== round.number ? [[note.id, { ...takenOverIn(review, note.on, note.written, round, read), did: note.on.app.did }] as const] : [])),
+    noted.flatMap((note) => (note.on?.app && note.written !== round.number && !walkedTo(note) ? [[note.id, { ...takenOverIn(review, note.on, note.written, round, read), did: note.on.app.did }] as const] : [])),
   );
   const notes = noted.map((note) => {
+    const walked = walkedTo(note);
+    if (walked) return { ...note, on: walked };
     const was = whereYouWere.get(note.id);
     if (was) return { ...note, on: { flow: note.on!.app!.from.flow, ...(was.at !== undefined && { at: was.at, ...(was.element && { element: was.element }) }) } };
     return note.on && !note.on.app ? { ...note, on: placeOn(review, note.id, note.on, note.written, round, read) ?? note.on } : note;
@@ -536,8 +542,18 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const pastCard = useNow(playhead, (now) => (now.moment.at >= 0 ? now.moment.flow : undefined));
   if (pastCard && !readLines.includes(pastCard)) setReadLines([...readLines, pastCard]);
   // Playing stops at each answer that waits for you, the first time it gets there, and opens it as a click on it would.
+  // One on a fork walked again is on the way: playing goes up the fork where you took the flow over, and at the fork's
+  // end, back down to the flow there.
+  const walkedForks = forkList.filter((fork) => fork.walked);
+  const waitsOn = (fork: Fork) => playingNotes.some((note) => note.on && playedOn(note.on) === fork.name && note.state === "needs you" && !note.unsent && !met.includes(note.id));
+  const onto = (flow: string, at: number) => () => {
+    playhead.go({ flow, at });
+    playhead.play();
+  };
   useEffect(() =>
     playhead.stopAt([
+      ...walkedForks.filter(waitsOn).map((fork) => ({ flow: fork.from.flow, at: fork.from.at, reached: onto(fork.name, fork.from.at) })),
+      ...walkedForks.map((fork) => ({ flow: fork.name, at: fork.length, reached: onto(fork.from.flow, fork.from.at) })),
       ...round.flows.filter((flow) => flow.line && !readLines.includes(flow.name)).map((flow) => ({ flow: flow.name, at: POSTER, reached: () => {} })),
       ...playingNotes.flatMap((note) =>
         note.on && note.state === "needs you" && !note.unsent && !met.includes(note.id) ? [{ flow: playedOn(note.on), at: note.on.at ?? 0, reached: () => show(note) }] : [],
@@ -851,7 +867,12 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     // Made in the app on an earlier round, it's tried where you were rather than compared, on the round that's the app
     // as it is now; in the app, a Looks good stays where you said it, as there's nothing to play on to.
     const was = whereYouWere.get(note.id);
-    const tryHere = was && (was.at === undefined || (round === latest && !readOnly)) ? { round: round.number, live: trying.current === note.id ? liveNow : undefined, ...(was.at !== undefined && { onTakeOver: () => tryWhereYouWere(note) }) } : undefined;
+    const takeable = round === latest && !readOnly;
+    // Walked again, it's checked by watching, as any answer is; where your steps stop short of it, by carrying on
+    // from there, as T on the fork does.
+    const tryHere = stopsShort.has(note.id)
+      ? { round: round.number, stopped: true, live: liveNow, ...(takeable && { onTakeOver: takeOver }) }
+      : was && (was.at === undefined || takeable) ? { round: round.number, live: trying.current === note.id ? liveNow : undefined, ...(was.at !== undefined && { onTakeOver: () => tryWhereYouWere(note) }) } : undefined;
     return (
       <NoteRow
         key={note.id}
@@ -862,7 +883,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
         open={isOpen}
         fresh={fresh === note.id}
         answers={answersTo(diamonds, note.id)}
-        compare={isOpen && !was && (answered(note) || grownHere) ? comparingIt : undefined}
+        compare={isOpen && !was && !stopsShort.has(note.id) && (answered(note) || grownHere) ? comparingIt : undefined}
         whereYouWere={tryHere}
         asking={asking === note.id}
         away={away}
@@ -910,6 +931,11 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const cKey = useRef<{ down: number; holding: number }>(undefined);
   const before = round.number > first;
   const comparedRound = howItWas && before ? review.rounds.find((kept) => kept.number === first) : compareNow ? review.rounds.find((kept) => kept.number === compared) : undefined;
+  // A note on a fork walked again is compared with the fork it was walked from, at the note.
+  const walkedFrom = openNote && walkedTo(openNote) ? noted.find((note) => note.id === openNote.id)?.on : undefined;
+  const heldOver = comparedRound && walkedFrom?.app && walkedFrom.at !== undefined
+    ? forked(comparedRound, [{ name: forkName(walkedFrom.app.recording), session: sessionOf(walkedFrom.app.recording), ...walkedFrom.app, notes: [{ id: openNote!.id, at: walkedFrom.at }] }])
+    : comparedRound;
   // Holding Compare or How it was, that round shows over the recording, in place.
   const peeking = peek || (howItWas && before);
 
@@ -1206,7 +1232,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
             round={played}
             earlier={earlier}
             why={(earlier ?? comparedRound)?.number === compared ? why : undefined}
-            then={comparedRound}
+            then={heldOver}
             peeking={peeking}
             zoomed={zoomed}
             bare={bare}
@@ -1418,9 +1444,11 @@ type Session = { address?: string; id: string; from: { flow: string; at: number 
 type Growing = ForkLine & { address: string };
 
 // A fork off a flow: where you took it over, what you did there, and the longest recording kept of it, which plays the
-// flow up to there, then you. It's named for the time you were in the app, as each note there keeps it.
-type Fork = { name: string; session: string; from: { flow: string; at: number }; did: Did[]; recording: string; length: number };
-const sessionOf = (recording: string) => recording.match(/^branches\/(.+)-\d+\.json$/)?.[1] ?? recording;
+// flow up to there, then you. It's named for the time you were in the app, as each note there keeps it. Walked again on
+// a later round, it's that round's recording of your steps, with your notes on it where they got to: the same fork,
+// under the same name, so the two are compared as two rounds of a flow are.
+type Fork = { name: string; session: string; from: { flow: string; at: number }; did: Did[]; recording: string; length: number; walked?: boolean; notes?: { id: string; at: number }[] };
+const sessionOf = (recording: string) => recording.match(/^(?:branches\/(.+)-\d+|walks\/(.+))\.json$/)?.slice(1).find(Boolean) ?? recording;
 const forkName = (recording: string) => `fork:${sessionOf(recording)}`;
 // The recording a place is on: its flow's, or its fork's.
 const playedOn = (place: Place) => (place.app ? forkName(place.app.recording) : place.flow);
@@ -1431,7 +1459,20 @@ function forksIn(notes: Note[]): Fork[] {
   return [...longest.values()];
 }
 
-// Each fork plays after its flow, as the flow's steps up to where you took over, then yours, in the app.
+// The forks walked again for a round, from where its answers to notes made in the app were placed.
+function walkedIn(round: Round): Fork[] {
+  const walked = new Map<string, Fork>();
+  for (const { note, on } of round.replies) {
+    if (!on?.app || on.at === undefined) continue;
+    const name = forkName(on.app.recording);
+    const fork = walked.get(name) ?? walked.set(name, { name, session: sessionOf(on.app.recording), ...on.app, walked: true, notes: [] }).get(name)!;
+    fork.notes!.push({ id: note, at: on.at });
+  }
+  return [...walked.values()];
+}
+
+// Each fork plays after its flow, as the flow's steps up to where you took over, then yours, in the app, each of your
+// notes a step of its own, so a fork and the same fork walked again keep in step at each note.
 function forked(round: Round, forks: Fork[]): Round {
   if (!forks.length) return round;
   const off = (flow: Flow): Forked[] =>
@@ -1440,7 +1481,11 @@ function forked(round: Round, forks: Fork[]): Round {
       .map((fork) => ({
         name: fork.name,
         length: fork.length,
-        steps: [...flow.steps.filter((step) => step.at < fork.from.at), { title: "In the app", at: fork.from.at }],
+        steps: [
+          ...flow.steps.filter((step) => step.at < fork.from.at),
+          { title: "In the app", at: fork.from.at },
+          ...(fork.notes ?? []).toSorted((a, b) => a.at - b.at).map((note) => ({ title: `Note ${note.id}`, at: note.at })),
+        ],
         recording: fork.recording,
         person: "You",
         fork: flow.name,
