@@ -524,21 +524,21 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     setMet((met) => (met.includes(note.id) ? met : [...met, note.id]));
     if (note.on) go(playedOn(note.on), note.on.at);
   };
-  // Chosen, a note opens and plays its moment, from a beat before it to the frame it was written on (the end of its
-  // stretch), as a change plays to where it is: past it, the page may have moved its thing away. One on a whole flow
-  // plays the flow, going on if it's already playing.
+  // Chosen, a note opens on the frame it was written on, still: that frame is what it's about. One on a stretch plays the
+  // stretch, to the frame it was written on (its end): past it, the page may have moved its thing away. One on a whole
+  // flow plays the flow, going on if it's already playing.
   const pick = (note: Shown) => {
     const on = note.on;
     const its = on && played.flows.find((flow) => flow.name === playedOn(on));
-    if (!on || !its || on.at === undefined) {
+    if (!on || !its || on.at === undefined || on.until === undefined) {
       show(note);
       const { moment, playing } = playhead.now;
-      if (its && !(playing && moment.flow === its.name)) playFlow(its);
+      if (its && on?.at === undefined && !(playing && moment.flow === its.name)) playFlow(its);
       return;
     }
     setOpen({ note: note.id });
     setMet((met) => (met.includes(note.id) ? met : [...met, note.id]));
-    play(note.id, { flow: its.name, at: Math.max(0, on.at - 0.8) }, Math.min(its.length, on.until ?? on.at));
+    play(note.id, { flow: its.name, at: on.at }, Math.min(its.length, on.until));
   };
 
   // The agent's line about a flow is on its title card: the first time you come to the flow, playing waits there, the
