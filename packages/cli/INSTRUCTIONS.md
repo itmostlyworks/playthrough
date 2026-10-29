@@ -20,7 +20,8 @@ THE LOOP
    { "note": "<the note it was made for>" }, or { "notReal": "<why nothing really changed>" }.
 5. vantage wait <review> hands the round over and waits. When notes come, it prints each with a picture of what it's on,
    or for one made in the app, what the person did there. Change the app and record the next round, then answer each
-   note in its round.json, under "replies".
+   note in its round.json, under "replies". Answer one made in the app in words, saying what you changed and where it
+   shows, not with a new flow: Vantage puts the answer where the person took the flow over, and they try it from there.
 
 The person can only judge what the flows show, so keep them true to how a person uses the app.
 
