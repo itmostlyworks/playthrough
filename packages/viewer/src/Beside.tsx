@@ -37,13 +37,15 @@ export function Beside({ id, over, pinned, onAway, children }: { id?: string; ov
     const place = () => {
       const box = card.current;
       if (!box) return;
-      // A flow's question sits over its last frame, clear of the bar.
-      const frame = over && document.querySelector<HTMLElement>("[data-frame]")?.getBoundingClientRect();
+      // A flow's question sits over its last frame, clear of the bar. A round held over the recording, or one you've
+      // been to and left, isn't where it sits.
+      const shown = "[data-frame]:not([hidden], [data-over])";
+      const frame = over && document.querySelector<HTMLElement>(shown)?.getBoundingClientRect();
       if (frame) {
         box.style.transform = `translate(${(frame.left + frame.width / 2 - box.offsetWidth / 2).toFixed(1)}px,${(frame.bottom - box.offsetHeight - 44).toFixed(1)}px)`;
         return;
       }
-      const pin = !id ? null : document.querySelector<HTMLElement>(`[data-frame] [data-pin="${CSS.escape(id)}"], [data-frame] [data-mark-id="${CSS.escape(id)}"]`);
+      const pin = !id ? null : document.querySelector<HTMLElement>(`${shown} [data-pin="${CSS.escape(id)}"], ${shown} [data-mark-id="${CSS.escape(id)}"]`);
       const drawn = pin?.getBoundingClientRect();
       const first = opened.current && opened.current.id === id ? opened.current : (opened.current = { id, at: { ...clicked } });
       const at = pinned?.() ?? first.at;

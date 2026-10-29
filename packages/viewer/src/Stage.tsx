@@ -53,7 +53,8 @@ type Props = {
   earlier?: Round;
   // After the earlier side's name, why it's that round.
   why?: string;
-  // Watching one round, the round Compare goes back to waits unseen over it, and shows while Compare is held.
+  // Watching one round, the round Compare or How it was goes back to waits unseen over it, and shows while either is
+  // held.
   then?: Round;
   peeking: boolean;
   zoomed: boolean;
@@ -904,8 +905,10 @@ export function Stage(props: Props) {
             {shown === round && props.bare === "kept" && bareOff("-mt-px ml-auto flex-none self-start")}
           </div>
         ))}
+      {/* Held over the recording, the round it is says so in the middle of the line over the frame, clear of All flows at
+          its start; Marks hidden, which sits there too, steps aside while it's held. */}
       {then && (
-        <div className={`pointer-events-none absolute top-0 left-0 flex h-[26px] items-baseline gap-2 px-0.5 pt-0.5 pb-1.5 text-xs text-faint transition-opacity duration-160 ease-calm ${props.peeking ? "opacity-100" : "opacity-0"}`} ref={(element) => void (element ? captions.current.set(then.number, element) : captions.current.delete(then.number))}>
+        <div className={`pointer-events-none absolute top-0 left-0 flex h-[26px] items-baseline justify-center gap-2 px-0.5 pt-0.5 pb-1.5 text-xs text-faint transition-opacity duration-160 ease-calm ${props.peeking ? "opacity-100" : "opacity-0"}`} ref={(element) => void (element ? captions.current.set(then.number, element) : captions.current.delete(then.number))}>
           <b className="flex-none font-medium text-soft">{roundName(then.number)}</b>
           {props.why && <span className="truncate">{props.why}</span>}
         </div>
@@ -915,7 +918,7 @@ export function Stage(props: Props) {
           {toAll}
         </div>
       )}
-      {!earlier && props.bare === "kept" && bareOff("absolute -top-px left-1/2 -translate-x-1/2")}
+      {!earlier && props.bare === "kept" && !(then && props.peeking) && bareOff("absolute -top-px left-1/2 -translate-x-1/2")}
     </div>
   );
 }

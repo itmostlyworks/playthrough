@@ -910,6 +910,8 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const cKey = useRef<{ down: number; holding: number }>(undefined);
   const before = round.number > first;
   const comparedRound = howItWas && before ? review.rounds.find((kept) => kept.number === first) : compareNow ? review.rounds.find((kept) => kept.number === compared) : undefined;
+  // Holding Compare or How it was, that round shows over the recording, in place.
+  const peeking = peek || (howItWas && before);
 
   // Sending carries everything you've said on the round at once; what you haven't saved stays. Accepting sends what's
   // left first.
@@ -1194,7 +1196,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   return (
     <Page title={review.title}>
       {/* In the app, the recording's pins are under it: a card there sits by the app's own pin, with nothing drawn to it. */}
-      <Wire id={grownOpen?.id ?? openNote?.id ?? chosen?.id} colour={openNote ? ink(openNote) : grownOpen ? "var(--amber)" : "var(--soft)"} hidden={!!bare || peek || inApp} />
+      <Wire id={grownOpen?.id ?? openNote?.id ?? chosen?.id} colour={openNote ? ink(openNote) : grownOpen ? "var(--amber)" : "var(--soft)"} hidden={!!bare || peeking || inApp} />
       <main className="relative grid min-h-0 grid-cols-[minmax(0,1fr)] phone:flex phone:flex-col">
         <section inert={onGrid} className={`grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto] pb-4 phone:flex-none phone:grid-rows-[auto_auto] phone:pr-0 phone:pb-3 ${onGrid ? "invisible" : ""}`}>
           <div className="relative grid min-h-0 grid-rows-[minmax(0,1fr)] pb-6">
@@ -1205,7 +1207,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
             earlier={earlier}
             why={(earlier ?? comparedRound)?.number === compared ? why : undefined}
             then={comparedRound}
-            peeking={peek}
+            peeking={peeking}
             zoomed={zoomed}
             bare={bare}
             onShown={setSize}
