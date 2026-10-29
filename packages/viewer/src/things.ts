@@ -122,13 +122,17 @@ export function placeOn(review: Review, id: string, on: Place, written: number, 
   return answered ?? placeFrom(review, on, written, round, read);
 }
 
-// An answer that moves is watched through the step its reply names, from its start to the next step's, while the note
-// stays where it was written.
+// An answer that moves is watched in the step its reply names, from the action that set it moving (its last before the
+// note, or before the step ends) to the next step, while the note stays where it was written.
 export function watchedIn(round: Round, id: string): { flow: string; at: number; until: number } | undefined {
   const reply = round.replies.find((reply) => reply.note === id);
   const flow = reply?.watch ? round.flows.find((flow) => flow.name === reply.on?.flow) : undefined;
-  const step = flow?.steps.findIndex((step) => step.title === reply!.watch) ?? -1;
-  return flow && step >= 0 ? { flow: flow.name, at: flow.steps[step]!.at, until: flow.steps[step + 1]?.at ?? flow.length } : undefined;
+  const index = flow?.steps.findIndex((step) => step.title === reply!.watch) ?? -1;
+  if (!flow || index < 0) return undefined;
+  const step = flow.steps[index]!;
+  const until = flow.steps[index + 1]?.at ?? flow.length;
+  const before = Math.min(reply!.on?.at ?? until, until);
+  return { flow: flow.name, at: step.actions?.findLast((action) => action <= before) ?? step.at, until };
 }
 
 // A place on one round, found on another.

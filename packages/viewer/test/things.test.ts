@@ -74,8 +74,8 @@ test("a note sits on its own thing where it was written, where Vantage placed th
   assert.deepEqual(placeOn(review, "n1", on, 1, review.rounds[2]!, read)?.element, { role: "text", name: "$600.00", node: 77 });
 });
 
-test("an answer that moves is watched through the step its reply names, from its start to the next step's", () => {
-  const steps = [{ title: "Open the board", at: 0 }, { title: "Filter to Design", at: 2 }, { title: "Clear the filter", at: 3.5 }];
+test("an answer that moves is watched in the step its reply names, from the action that set it moving to the next step", () => {
+  const steps = [{ title: "Open the board", at: 0 }, { title: "Filter to Design", at: 2, actions: [2.2, 2.3, 2.6] }, { title: "Clear the filter", at: 3.5 }];
   const flow: Flow = { name: "Filter", length: 5, steps, recording: "filter.json" };
   const round = (number: number, replies: Round["replies"] = []): Round => ({ number, by: "Claude Code", flows: [flow], replies, accounts: {} });
   const on = { flow: "Filter", at: 2.4, element: { role: "button", name: "To do 0/2", node: 9 } };
@@ -83,6 +83,6 @@ test("an answer that moves is watched through the step its reply names, from its
     id: "fold", title: "Fold", started: "2026-10-29T16:00:00.000Z", comparisons: [], sends: [], taken: [],
     rounds: [round(1), round(2, [{ note: "n1", words: "Cards fold away now.", on, watch: "Filter to Design" }])],
   };
-  assert.deepEqual(watchedIn(review.rounds[1]!, "n1"), { flow: "Filter", at: 2, until: 3.5 });
+  assert.deepEqual(watchedIn(review.rounds[1]!, "n1"), { flow: "Filter", at: 2.3, until: 3.5 });
   assert.equal(watchedIn(review.rounds[0]!, "n1"), undefined);
 });
