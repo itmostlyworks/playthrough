@@ -540,8 +540,8 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const pastCard = useNow(playhead, (now) => (now.moment.at >= 0 ? now.moment.flow : undefined));
   if (pastCard && !readLines.includes(pastCard)) setReadLines([...readLines, pastCard]);
   // Playing stops at each answer that waits for you, the first time it gets there, and opens it as a click on it would.
-  // One on a fork walked again is on the way: playing goes up the fork where you took the flow over, and at the fork's
-  // end, back down to the flow there.
+  // One on a fork walked again is on the way: playing goes up the fork where you took the flow over, and stops at the
+  // fork's end, as it does at a flow's.
   const walkedForks = forkList.filter((fork) => fork.walked);
   const waitsOn = (fork: Fork) => playingNotes.some((note) => note.on && playedOn(note.on) === fork.name && note.state === "needs you" && !note.unsent && !met.includes(note.id));
   const onto = (flow: string, at: number) => () => {
@@ -551,7 +551,6 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   useEffect(() =>
     playhead.stopAt([
       ...walkedForks.filter(waitsOn).map((fork) => ({ flow: fork.from.flow, at: fork.from.at, reached: onto(fork.name, fork.from.at) })),
-      ...walkedForks.map((fork) => ({ flow: fork.name, at: fork.length, reached: onto(fork.from.flow, fork.from.at) })),
       ...round.flows.filter((flow) => flow.line && !readLines.includes(flow.name)).map((flow) => ({ flow: flow.name, at: POSTER, reached: () => {} })),
       ...playingNotes.flatMap((note) =>
         note.on && note.state === "needs you" && !note.unsent && !met.includes(note.id) ? [{ flow: playedOn(note.on), at: note.on.at ?? 0, reached: () => show(note) }] : [],
@@ -934,8 +933,20 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const walkedNote = openNote && walkedTo(openNote) ? openNote : look === "side" ? notes.find((note) => note.id === besideFork.current) : undefined;
   besideFork.current = look === "side" ? walkedNote?.id : undefined;
   const walkedFrom = walkedNote ? noted.find((note) => note.id === walkedNote.id)?.on : undefined;
+  // Past the note, your fork plays on at its own pace and ends where the walk does: what you did after it was writing
+  // the note, and kept in step with the walk's short end, it raced.
+  const walk = walkedNote && played.flows.find((flow) => (flow as Forked).fork && flow.steps.some((step) => step.title === `Note ${walkedNote.id}`));
+  const after = walk && walk.length - walk.steps.find((step) => step.title === `Note ${walkedNote!.id}`)!.at;
   const heldOver = comparedRound && walkedFrom?.app && walkedFrom.at !== undefined
-    ? forked(comparedRound, [{ name: forkName(walkedFrom.app.recording), session: sessionOf(walkedFrom.app.recording), ...walkedFrom.app, notes: [{ id: walkedNote!.id, at: walkedFrom.at }] }])
+    ? forked(comparedRound, [
+        {
+          name: forkName(walkedFrom.app.recording),
+          session: sessionOf(walkedFrom.app.recording),
+          ...walkedFrom.app,
+          length: after === undefined ? walkedFrom.app.length : Math.min(walkedFrom.app.length, walkedFrom.at + after),
+          notes: [{ id: walkedNote!.id, at: walkedFrom.at }],
+        },
+      ])
     : comparedRound;
   // Side by side, the round it compares with is on the left, or above.
   const comparing = look === "side" && !!heldOver;

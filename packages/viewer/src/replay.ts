@@ -15,6 +15,8 @@ export type Recorded = {
   // Where the pointer was, as [seconds, x, y], and when it clicked. A flow on a phone is tapped: there's no pointer
   // between taps, so none is drawn.
   pointer: [number, number, number][];
+  // When the hand was out of the app: in a recording you made by taking a flow over, going to Vantage's own controls.
+  away: [number, number][];
   clicks: number[];
   touch: boolean;
   // The moments its page changes: a click, something on the page changing, typing or a scroll.
@@ -27,7 +29,7 @@ export function recorded(events: Events): Recorded {
   const start = events[0]?.timestamp ?? 0;
   const seconds = (timestamp: number) => (timestamp - start) / 1000;
   const size = events.find((event) => event.type === EventType.Meta)?.data as { width?: number; height?: number } | undefined;
-  const shown: Recorded = { width: size?.width ?? 1280, height: size?.height ?? 800, pointer: [], clicks: [], touch: false, changes: [], acted: [] };
+  const shown: Recorded = { width: size?.width ?? 1280, height: size?.height ?? 800, pointer: [], away: [], clicks: [], touch: false, changes: [], acted: [] };
   for (const event of events) {
     if (event.type !== EventType.IncrementalSnapshot) continue;
     const data = event.data;
@@ -42,7 +44,40 @@ export function recorded(events: Events): Recorded {
     if (changes || (data.source === IncrementalSource.MouseInteraction && data.type === MouseInteractions.Click)) shown.changes.push(seconds(event.timestamp) + 0.01);
   }
   shown.pointer.sort((a, b) => a[0] - b[0]);
+  shown.away = awayFrom(shown);
   return shown;
+}
+
+// The hand leaves the app at its edge, or where the pointer is gone a while and comes back by an edge. It's away from
+// where it rushed or wandered to that edge, to where it's come in from it again, so neither the dash out nor the dash
+// back is drawn.
+const EDGE = 2;
+const NEAR = 24;
+const GONE = 0.4;
+const RUSH = 1500;
+function awayFrom({ pointer, width, height }: Recorded): [number, number][] {
+  const off = (x: number, y: number) => Math.min(x, y, width - 1 - x, height - 1 - y);
+  const fast = (i: number) => {
+    const [a, b] = [pointer[i]!, pointer[i + 1]!];
+    return Math.hypot(b[1] - a[1], b[2] - a[2]) / Math.max(0.016, b[0] - a[0]) > RUSH;
+  };
+  const near = (i: number) => off(pointer[i]![1], pointer[i]![2]) <= NEAR;
+  const spans: [number, number][] = [];
+  for (let i = 0; i < pointer.length; i++) {
+    const out = off(pointer[i]![1], pointer[i]![2]) <= EDGE;
+    const gone = i + 1 < pointer.length && pointer[i + 1]![0] - pointer[i]![0] > GONE && near(i + 1);
+    if (!out && !gone) continue;
+    let from = i;
+    while (from > 0 && (fast(from - 1) || near(from - 1))) from--;
+    let to = gone ? i + 1 : i;
+    while (to + 1 < pointer.length && (fast(to) || near(to + 1))) to++;
+    const span: [number, number] = [pointer[from]![0], pointer[to]![0]];
+    const last = spans.at(-1);
+    if (last && span[0] <= last[1]) last[1] = Math.max(last[1], span[1]);
+    else spans.push(span);
+    i = Math.max(i, to);
+  }
+  return spans;
 }
 
 export class Replay {
@@ -50,6 +85,7 @@ export class Replay {
   readonly width: number;
   readonly height: number;
   readonly pointer: Recorded["pointer"];
+  readonly away: Recorded["away"];
   readonly clicks: number[];
   readonly touch: boolean;
   #replayer: Replayer;
@@ -75,7 +111,7 @@ export class Replay {
       const removes = event.data.removes;
       Object.defineProperty(event.data, "removes", { get: () => removes, set() {}, enumerable: true, configurable: true });
     }
-    ({ width: this.width, height: this.height, pointer: this.pointer, clicks: this.clicks, touch: this.touch } = recorded(events));
+    ({ width: this.width, height: this.height, pointer: this.pointer, away: this.away, clicks: this.clicks, touch: this.touch } = recorded(events));
     this.#drawn = Math.max(0, (events.find((event) => event.type === EventType.FullSnapshot)?.timestamp ?? start) - start + 1);
     this.host.className = "absolute top-0 left-0 origin-top-left [&_.replayer-mouse]:hidden [&_iframe]:pointer-events-none [&_iframe]:block [&_iframe]:border-0";
     Object.assign(this.host.style, { width: `${this.width}px`, height: `${this.height}px` });
@@ -128,7 +164,7 @@ export class Replay {
 
   pointerAt(at: number): [number, number] | undefined {
     const pointer = this.pointer;
-    if (!pointer.length || at < 0) return undefined;
+    if (!pointer.length || at < 0 || this.away.some(([from, to]) => at >= from && at <= to)) return undefined;
     let low = 0;
     let high = pointer.length - 1;
     while (low < high) {
