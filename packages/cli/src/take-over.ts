@@ -203,9 +203,13 @@ const SAYS = `<script>(() => {
       const real = CSSStyleSheet.prototype[name];
       if (real) CSSStyleSheet.prototype[name] = function (text, ...rest) { return real.call(this, as(text), ...rest); };
     }
+    // light-dark(), system colours, form controls and scrollbars follow the page's colour-scheme, not a media query.
+    const scheme = browser.dark ? "dark" : "light";
+    const inScheme = (value) => (/\\blight\\b/.test(value) && /\\bdark\\b/.test(value) ? scheme : value);
     const rewrite = (rules) => {
       for (const rule of rules) {
         if (rule.media && as(rule.media.mediaText) !== rule.media.mediaText) rule.media.mediaText = as(rule.media.mediaText);
+        if (rule.style?.colorScheme && inScheme(rule.style.colorScheme) !== rule.style.colorScheme) rule.style.colorScheme = inScheme(rule.style.colorScheme);
         if (rule.styleSheet) restyle(rule.styleSheet);
         if (rule.cssRules) rewrite(rule.cssRules);
       }
@@ -218,27 +222,36 @@ const SAYS = `<script>(() => {
         const media = element.getAttribute("media");
         if (as(media) !== media) element.setAttribute("media", as(media));
       }
+      for (const meta of document.querySelectorAll('meta[name="color-scheme"]')) {
+        const content = meta.getAttribute("content") ?? "";
+        if (inScheme(content) !== content) meta.setAttribute("content", inScheme(content));
+      }
     };
-    const styling = (node) => /^(STYLE|LINK|SOURCE|META)$/.test(node?.nodeName);
-    new MutationObserver((changes) => changes.some((change) => styling(change.target) || styling(change.target.parentNode) || [...change.addedNodes].some(styling)) && restyleAll())
-      .observe(document, { subtree: true, childList: true, characterData: true, attributeFilter: ["media"] });
+    const styling = (node) => /^(style|link|source|meta)$/i.test(node?.nodeName);
+    const bringsStyle = (node) => styling(node) || !!node.querySelector?.("style, link, source, meta");
+    new MutationObserver((changes) => changes.some((change) => styling(change.target) || styling(change.target.parentNode) || [...change.addedNodes].some(bringsStyle)) && restyleAll())
+      .observe(document, { subtree: true, childList: true, characterData: true, attributeFilter: ["media", "content"] });
     document.addEventListener("load", (event) => styling(event.target) && restyleAll(), true);
     const languages = browser.languages;
     Object.defineProperty(navigator, "language", { get: () => languages[0] });
     Object.defineProperty(navigator, "languages", { get: () => languages });
-    for (const name of ["DateTimeFormat", "NumberFormat", "Collator", "PluralRules", "RelativeTimeFormat", "ListFormat", "DisplayNames", "Segmenter"]) {
+    // What the page asks for first, then the recorded languages, where the browser would fall back on its own: [] and
+    // "default" mean the browser's.
+    const spoken = (locales) => [...(locales == null ? [] : [locales].flat()), ...languages];
+    for (const name of ["DateTimeFormat", "NumberFormat", "Collator", "PluralRules", "RelativeTimeFormat", "ListFormat", "DisplayNames", "Segmenter", "DurationFormat"]) {
       const Real = Intl[name];
       if (!Real) continue;
-      const Spoken = function (locales, options) { return new.target ? new Real(locales ?? languages, options) : Real(locales ?? languages, options); };
+      const Spoken = function (locales, options) { return new.target ? Reflect.construct(Real, [spoken(locales), options], new.target) : Real(spoken(locales), options); };
       Object.assign(Spoken, { prototype: Real.prototype, supportedLocalesOf: Real.supportedLocalesOf });
       Intl[name] = Spoken;
     }
     const speak = (kind, name, at) => {
       const real = kind.prototype[name];
-      kind.prototype[name] = function (...given) { given[at] ??= languages; return real.apply(this, given); };
+      kind.prototype[name] = function (...given) { given[at] = spoken(given[at]); return real.apply(this, given); };
     };
     for (const name of ["toLocaleString", "toLocaleDateString", "toLocaleTimeString"]) speak(Date, name, 0);
     speak(Number, "toLocaleString", 0);
+    speak(BigInt, "toLocaleString", 0);
     speak(String, "localeCompare", 1);
   }
   let asked = 0, stirred = performance.now();
