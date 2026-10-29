@@ -521,6 +521,11 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     setMet((met) => (met.includes(note.id) ? met : [...met, note.id]));
     if (note.on) go(playedOn(note.on), note.on.at);
   };
+  // The time a note covers on the timeline is the time it plays: its moment, its stretch, or the step it's watched in.
+  const span = (note: Shown) => {
+    const watched = watchedIn(round, note.id);
+    return watched && note.on && playedOn(note.on) === watched.flow ? { at: watched.at, until: watched.until } : { at: note.on?.at ?? 0, until: note.on?.until };
+  };
   // Chosen, a note opens on the frame it was written on, still: that frame is what it's about. One on a stretch plays the
   // stretch, to the frame it was written on (its end): past it, the page may have moved its thing away. One whose answer
   // moves plays the step it's watched in. One on a whole flow plays the flow, going on if it's already playing.
@@ -563,7 +568,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
       ...walkedForks.filter(waitsOn).map((fork) => ({ flow: fork.from.flow, at: fork.from.at, reached: onto(fork.name, fork.from.at) })),
       ...round.flows.filter((flow) => flow.line && !readLines.includes(flow.name)).map((flow) => ({ flow: flow.name, at: POSTER, reached: () => {} })),
       ...playingNotes.flatMap((note) =>
-        note.on && note.state === "needs you" && !note.unsent && !met.includes(note.id) ? [{ flow: playedOn(note.on), at: note.on.at ?? 0, reached: () => show(note) }] : [],
+        note.on && note.state === "needs you" && !note.unsent && !met.includes(note.id) ? [{ flow: playedOn(note.on), at: span(note).at, reached: () => (watchedIn(round, note.id) ? pick(note) : show(note)) }] : [],
       ),
     ]),
   );
@@ -1207,7 +1212,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
         ...playingNotes.flatMap((note): Mark[] => {
           const on = !grown.has(note.id) && playedOn(note.on!) === inPlay && markOn(note.on);
           const chosen = openNote?.id === note.id;
-          return on ? [{ id: note.id, kind: "note", on, pin: { number: note.number, fill: fill(note) }, ink: ink(note), chosen, shows: chosen ? undefined : { at: note.on!.at!, until: note.on!.until } }] : [];
+          return on ? [{ id: note.id, kind: "note", on, pin: { number: note.number, fill: fill(note) }, ink: ink(note), chosen, shows: chosen ? undefined : span(note) }] : [];
         }),
         ...(writing?.on?.flow === watching && writing.on.element?.node !== undefined && !grown.has(writing.id) ? [{ id: writing.id, kind: "writing" as const, on: { node: writing.on.element.node }, chosen: true }] : []),
         ...changed.map((on, i): Mark => ({ id: outlined!.id, kind: "change", on, pin: i === 0 ? "diamond" : undefined, dot: grownInk(outlined!), chosen: outlined === chosen || outlined === grownOpen })),
@@ -1356,7 +1361,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
             onTakeOver={takeOver}
             ref={controls}
             playhead={playhead}
-            dots={playingNotes.filter((note) => !grown.has(note.id)).map((note) => ({ id: note.id, at: note.on?.at ?? 0, until: note.on?.until, ink: ink(note), number: note.number, words: note.turns[0]?.words ?? "", ...(note.on?.app && { fork: playedOn(note.on) }) }))}
+            dots={playingNotes.filter((note) => !grown.has(note.id)).map((note) => ({ id: note.id, ...span(note), ink: ink(note), number: note.number, words: note.turns[0]?.words ?? "", ...(note.on?.app && { fork: playedOn(note.on) }) }))}
             onDot={(id) => {
               const note = notes.find((note) => note.id === id);
               if (note) pick(note);
