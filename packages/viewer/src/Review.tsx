@@ -928,23 +928,34 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   // In the app where you were, with the note you're trying open: it stays by its pin there while you try it.
   const tryingHere = inApp && !!openNote && trying.current === openNote.id;
   const comparedRound = compared === undefined ? undefined : review.rounds.find((kept) => kept.number === compared);
-  // A note on a fork walked again is compared with the fork it was walked from, at the note. Side by side, that fork
-  // stays beside it once the note is closed, until you go back to one.
-  const walkedNote = openNote && walkedTo(openNote) ? openNote : look === "side" ? notes.find((note) => note.id === besideFork.current) : undefined;
-  besideFork.current = look === "side" ? walkedNote?.id : undefined;
-  const walkedFrom = walkedNote ? noted.find((note) => note.id === walkedNote.id)?.on : undefined;
-  // Past the note, your fork plays on at its own pace and ends where the walk does: what you did after it was writing
-  // the note, and kept in step with the walk's short end, it raced.
-  const walk = walkedNote && played.flows.find((flow) => (flow as Forked).fork && flow.steps.some((step) => step.title === `Note ${walkedNote.id}`));
-  const after = walk && walk.length - walk.steps.find((step) => step.title === `Note ${walkedNote!.id}`)!.at;
-  const heldOver = comparedRound && walkedFrom?.app && walkedFrom.at !== undefined
+  // A fork walked again is compared with the fork it was walked from, at its notes: the fork whose note is open, or
+  // the one you're watching, open note or not. Side by side, it stays beside it once you've left it, until you go back
+  // to one.
+  const walkHere =
+    (openNote && walkedTo(openNote) ? walkedForks.find((fork) => fork.notes?.some((note) => note.id === openNote.id)) : undefined) ??
+    (onFork?.walked ? onFork : undefined) ??
+    (look === "side" ? walkedForks.find((fork) => fork.name === besideFork.current) : undefined);
+  besideFork.current = look === "side" ? walkHere?.name : undefined;
+  const walkedFrom = (walkHere?.notes ?? []).flatMap(({ id }) => {
+    const on = noted.find((note) => note.id === id)?.on;
+    return on?.app && on.at !== undefined ? [{ id, at: on.at, app: on.app }] : [];
+  });
+  // Kept longer as you went on, the fork's longest recording.
+  const source = walkedFrom.toSorted((a, b) => b.app.length - a.app.length)[0]?.app;
+  // Past your last note, your fork plays on at its own pace and ends where the walk does: what you did after it was
+  // writing the note, and kept in step with the walk's short end, it raced.
+  const walk = walkHere && played.flows.find((flow) => flow.name === walkHere.name);
+  const lastNote = walk?.steps.findLast((step) => step.title.startsWith("Note "));
+  const after = walk && lastNote ? walk.length - lastNote.at : undefined;
+  const lastAt = Math.max(...walkedFrom.map((from) => from.at));
+  const heldOver = comparedRound && source
     ? forked(comparedRound, [
         {
-          name: forkName(walkedFrom.app.recording),
-          session: sessionOf(walkedFrom.app.recording),
-          ...walkedFrom.app,
-          length: after === undefined ? walkedFrom.app.length : Math.min(walkedFrom.app.length, walkedFrom.at + after),
-          notes: [{ id: walkedNote!.id, at: walkedFrom.at }],
+          name: forkName(source.recording),
+          session: sessionOf(source.recording),
+          ...source,
+          length: after === undefined ? source.length : Math.min(source.length, lastAt + after),
+          notes: walkedFrom.map(({ id, at }) => ({ id, at })),
         },
       ])
     : comparedRound;
