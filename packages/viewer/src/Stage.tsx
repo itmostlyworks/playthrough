@@ -29,7 +29,7 @@ export type Mark = {
   kind: "note" | "change" | "writing";
   on: { node: number } | { point: Point } | { box: Box };
   pin?: { number: number; fill: string } | "diamond";
-  // A note's colour; on a change's diamond, the colour of the note grown out of it.
+  // A note's colour, and a change's made for it; on a change's diamond, the colour of the note grown out of it.
   ink?: string;
   dot?: string;
   chosen: boolean;
@@ -1003,7 +1003,9 @@ function Drawn({ mark, onMark }: { mark: Mark; onMark: (id: string) => void }) {
     mark.kind === "writing"
       ? "outline-[1.5px] outline-dashed outline-amber"
       : mark.kind === "change"
-        ? chosen
+        ? mark.ink
+          ? "outline-1 outline-(--c) outline-solid"
+          : chosen
           ? "outline-[1.5px] outline-[#2b2e35] outline-solid"
           : "outline-1 outline-[rgba(43,46,53,0.4)] outline-solid"
         : chosen

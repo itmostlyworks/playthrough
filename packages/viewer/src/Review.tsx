@@ -492,16 +492,9 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   // Pointing at one of several changes in an open row draws only that one.
   const [pointedChange, setPointedChange] = useState<string>();
   useEffect(() => setPointedChange(undefined), [changeOpen?.id]);
-  // A change made for the open note, gone to from its answer, is outlined while the note is open.
-  const [answerShown, setAnswerShown] = useState<string>();
-  useEffect(() => setAnswerShown(undefined), [open]);
-  // Paused on a change, with nothing else open, it's outlined where it is on the page; chosen, more firmly.
-  const outlined =
-    changeOpen?.flow === watching
-      ? changeOpen
-      : !open
-        ? diamonds.find((diamond) => diamond.id === onNow)
-        : diamonds.find((diamond) => diamond.id === answerShown && diamond.flow === watching);
+  // Paused on a change, with nothing else open, it's outlined where it is on the page; chosen, more firmly. What the agent
+  // changed for the open note is the note's, drawn with it.
+  const outlined = changeOpen?.flow === watching ? changeOpen : !open ? diamonds.find((diamond) => diamond.id === onNow) : undefined;
 
   // Opened, a row in the column goes to its moment, or plays it when it's a stretch, and its time goes there again: a
   // click on the rest of its header opens it or closes it, and never plays or pauses anything else.
@@ -866,7 +859,6 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const toAnswer = (changed: Changed) => {
     const diamond = diamonds.find((diamond) => diamond.changes.includes(changed));
     if (!diamond) return;
-    setAnswerShown(diamond.id);
     go(diamond.flow, diamond.at);
   };
   const row = (note: Shown, grownHere?: boolean) => {
@@ -1183,6 +1175,15 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   };
   const markOn = (on: Place | undefined): Mark["on"] | undefined =>
     on?.element?.node !== undefined ? { node: on.element.node } : on?.point ? { point: on.point } : on?.box ? { box: on.box } : undefined;
+  // A change in each place it's seen: things changed alike are one change, in several places.
+  const marksOn = (on: Place | undefined): Mark["on"][] => [markOn(on), ...(on?.alike ?? []).map((element) => element.node !== undefined && { node: element.node })].filter((mark) => !!mark);
+  // The open note's answer, outlined in every place in the note's colour, on the round you're watching and the one beside it.
+  const answerMarks = (on: (changed: Changed) => Place | undefined): Mark[] =>
+    openNote
+      ? answersTo(diamonds, openNote.id)
+          .filter((changed) => changed.on.flow === watching)
+          .flatMap((changed) => marksOn(on(changed)).map((at): Mark => ({ id: changed.change.id, kind: "change", on: at, ink: ink(openNote), chosen: false })))
+      : [];
   const drawn = (diamond: Diamond) => {
     const pointed = diamond.changes.filter((changed) => changed.change.id === pointedChange);
     return pointed.length ? pointed : diamond.changes;
@@ -1192,7 +1193,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     diamond.until === undefined || changes?.flow !== diamond.flow
       ? []
       : [...new Set(changes.acted.filter(([at]) => at >= diamond.at && at <= diamond.until!).map(([, node]) => node))].map((node) => ({ node }));
-  const changed = (outlined ? drawn(outlined) : []).flatMap((changed) => markOn(changed.on) ?? actedOn(outlined!));
+  const changed = (outlined ? drawn(outlined) : []).flatMap((changed) => (markOn(changed.on) ? marksOn(changed.on) : actedOn(outlined!)));
   const marks = new Map<number, Mark[]>([
     [
       round.number,
@@ -1204,6 +1205,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
         }),
         ...(writing?.on?.flow === watching && writing.on.element?.node !== undefined && !grown.has(writing.id) ? [{ id: writing.id, kind: "writing" as const, on: { node: writing.on.element.node }, chosen: true }] : []),
         ...changed.map((on, i): Mark => ({ id: outlined!.id, kind: "change", on, pin: i === 0 ? "diamond" : undefined, dot: grownInk(outlined!), chosen: outlined === chosen || outlined === grownOpen })),
+        ...answerMarks((changed) => changed.on),
       ],
     ],
   ]);
@@ -1213,10 +1215,8 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     const there = own?.on && markOn(placeOn(review, own.id, own.on, own.written, other, read));
     marks.set(other.number, [
       ...(there ? [{ id: own.id, kind: "note" as const, on: there, ink: ink(own), chosen: true }] : []),
-      ...(chosen?.flow === watching ? drawn(chosen).flatMap((changed): Mark[] => {
-        const on = markOn(placeFrom(review, changed.on, round.number, other, read));
-        return on ? [{ id: chosen.id, kind: "change", on, chosen: true }] : [];
-      }) : []),
+      ...(chosen?.flow === watching ? drawn(chosen).flatMap((changed) => marksOn(placeFrom(review, changed.on, round.number, other, read)).map((on): Mark => ({ id: chosen.id, kind: "change", on, chosen: true }))) : []),
+      ...answerMarks((changed) => placeFrom(review, changed.on, round.number, other, read)),
     ]);
   }
 

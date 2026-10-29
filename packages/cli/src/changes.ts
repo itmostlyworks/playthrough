@@ -9,7 +9,7 @@ import { a, called, dataLeftOut, differences, HOLDS, holderOf, identity, lookWor
 import type { Box, Element } from "@mostlyworks/vantage-review";
 
 // A change at one moment: what it's on is an element of the newer round, or for something gone, where it was.
-export type Found = { id: string; words: string; element?: Element; box?: Box };
+export type Found = { id: string; words: string; element?: Element; alike?: Element[]; box?: Box };
 
 // What happened to a thing, before it's said in full: what it's on, in which of the two readings, and what came with it.
 type Told = { what: string; thing: Thing; in: Reading; words: string } & With;
@@ -406,7 +406,7 @@ function said(told: Told[], moment: Moment): Found[] {
   const found: Found[] = [];
   for (const [holder, all] of inside) {
     if (!holder || all.length <= MOST_INSIDE) {
-      for (const alike of all) found.push({ id: id(alike[0]!), words: alikeWords(alike), ...placeOf(alike[0]!, now) });
+      for (const alike of all) found.push({ id: id(alike[0]!), words: alikeWords(alike), ...placeOf(alike[0]!, now), ...alikeOf(alike, now) });
       continue;
     }
     const kinds = groupBy(
@@ -465,10 +465,18 @@ export function idOf(thing: string, what: string): string {
 // Where it is: an element of the newer round, by its role and name, or where something gone was, as shares of the screen.
 function placeOf(told: Told, now: Reading): { element: Element } | { box: Box } | {} {
   const { thing } = told;
-  if (told.in === now && thing.name) return { element: { role: thing.role, name: thing.name, ...(thing.node !== undefined && { node: thing.node }) } };
+  if (told.in === now && thing.name) return { element: elementOf(thing) };
   const box = onScreen(thing.box, told.in.screen);
   return box ? { box } : {};
 }
+
+// Where the others changed alike with the first are, those still on the newer round.
+function alikeOf([first, ...others]: Told[], now: Reading): { alike?: Element[] } {
+  const alike = others.filter((told) => told.in === now && told.thing.name).map((told) => elementOf(told.thing));
+  return first!.in === now && first!.thing.name && alike.length ? { alike } : {};
+}
+
+const elementOf = (thing: Thing): Element => ({ role: thing.role, name: thing.name, ...(thing.node !== undefined && { node: thing.node }) });
 
 // The part of a box in pixels that's on the screen, as shares of it.
 export function onScreen(box: Thing["box"], screen: Reading["screen"]): Box | undefined {

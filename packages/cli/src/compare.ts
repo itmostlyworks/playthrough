@@ -87,7 +87,7 @@ async function compareFlow(page: Page, earlier: Recorded, before: Flow, round: R
     if (!was) continue;
     const pictures = { then: await earlier.picture(was.picture), now: await round.picture(reading.picture) };
     for (const found of [...changesAt(was, reading), ...(await picturesAt(page, was, reading, pictures))]) {
-      const on = found.element ? { element: found.element } : found.box ? { box: found.box } : {};
+      const on = found.element ? { element: found.element, ...(found.alike && { alike: found.alike }) } : found.box ? { box: found.box } : {};
       sightings.push({ id: found.id, words: found.words, place: { flow: flow.name, at: reading.at, ...on } });
     }
   }

@@ -45,6 +45,7 @@ export const Place = z
     at: seconds("needs its moment, in seconds").optional().describe("Without it, the whole flow"),
     until: seconds("needs its end, in seconds").optional().describe("The end of a stretch"),
     element: Element.optional(),
+    alike: z.array(Element).optional().describe("The other things changed alike with its element, each where it is"),
     box: Box.optional().describe("Something with no words of its own, or where only the pixels changed"),
     point: Point.optional().describe("Empty space"),
     app: z

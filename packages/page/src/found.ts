@@ -21,8 +21,13 @@ export function placeIn(place: Place, from: Recorded, to: Recorded): Place {
   const moment = { flow: place.flow, at: at(place.at), ...(until !== undefined && until > at(place.at) && { until }) };
   if (place.box) return { ...moment, box: place.box };
   if (place.point) return { ...moment, point: place.point };
-  const found = place.element && foundIn(from.readings, place.element, place.at, to.readings);
-  return found ? { ...moment, element: elementOf(found.thing, place.element!.name) } : moment;
+  const there = (element: Element) => {
+    const found = foundIn(from.readings, element, place.at!, to.readings);
+    return found && elementOf(found.thing, element.name);
+  };
+  const element = place.element && there(place.element);
+  const alike = element && place.alike?.map(there).filter((found) => found !== undefined);
+  return element ? { ...moment, element, ...(alike?.length && { alike }) } : moment;
 }
 
 // The same thing on another round: where it shows nearest its moment, then the same step there.
