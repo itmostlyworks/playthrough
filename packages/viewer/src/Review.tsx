@@ -288,6 +288,8 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const [actual, setActual] = useState(false);
   // Side by side starts at actual size each time you go to it; the size then fits both to the whole page.
   const [sideFit, setSideFit] = useState(false);
+  // The note whose old fork is side by side with its walk.
+  const besideFork = useRef<string>(undefined);
   const [size, setSize] = useState<Size>();
   const [bare, setBare] = useState<Bare>();
   const first = review.rounds[0]!.number;
@@ -927,10 +929,13 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   // In the app where you were, with the note you're trying open: it stays by its pin there while you try it.
   const tryingHere = inApp && !!openNote && trying.current === openNote.id;
   const comparedRound = compared === undefined ? undefined : review.rounds.find((kept) => kept.number === compared);
-  // A note on a fork walked again is compared with the fork it was walked from, at the note.
-  const walkedFrom = openNote && walkedTo(openNote) ? noted.find((note) => note.id === openNote.id)?.on : undefined;
+  // A note on a fork walked again is compared with the fork it was walked from, at the note. Side by side, that fork
+  // stays beside it once the note is closed, until you go back to one.
+  const walkedNote = openNote && walkedTo(openNote) ? openNote : look === "side" ? notes.find((note) => note.id === besideFork.current) : undefined;
+  besideFork.current = look === "side" ? walkedNote?.id : undefined;
+  const walkedFrom = walkedNote ? noted.find((note) => note.id === walkedNote.id)?.on : undefined;
   const heldOver = comparedRound && walkedFrom?.app && walkedFrom.at !== undefined
-    ? forked(comparedRound, [{ name: forkName(walkedFrom.app.recording), session: sessionOf(walkedFrom.app.recording), ...walkedFrom.app, notes: [{ id: openNote!.id, at: walkedFrom.at }] }])
+    ? forked(comparedRound, [{ name: forkName(walkedFrom.app.recording), session: sessionOf(walkedFrom.app.recording), ...walkedFrom.app, notes: [{ id: walkedNote!.id, at: walkedFrom.at }] }])
     : comparedRound;
   // Side by side, the round it compares with is on the left, or above.
   const comparing = look === "side" && !!heldOver;

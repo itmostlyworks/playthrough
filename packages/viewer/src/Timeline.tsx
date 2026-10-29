@@ -326,6 +326,8 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
               className="absolute h-2 transition-[width] duration-500 ease-calm"
               style={{ top: 1 - up, left: `calc(${pc(start)} + ${step}px)`, width: going ? `${UNDER_WAY}px` : `calc(${pc(end - start)} - ${step}px)` }}
             >
+              {/* Pressed nearer it than the line under it, it's the fork: halfway down to the flow's line, or to the next lane. */}
+              <span aria-hidden className="absolute inset-x-0 -top-1" style={{ bottom: up ? 0 : -2 }} />
               <svg width={run} height="8" aria-hidden className="pointer-events-none absolute top-0 left-0 overflow-visible">
                 {/* One piece with the line it leaves and the line it runs into: as wide as its line, the colour of its start,
                     and square at both ends, so nothing shows where they meet. Its foot is under the flow's line. */}

@@ -19,14 +19,24 @@ export function Wire({ id, colour, hidden }: { id?: string; colour: string; hidd
     const shown = pin && pin.closest<HTMLElement>("[data-frame]")?.getBoundingClientRect();
     const inside = (box: DOMRect, at: number[]) => at[0]! >= box.left && at[0]! <= box.right && at[1]! >= box.top && at[1]! <= box.bottom;
     if (hidden || !from || !to || !room || !shown || !to.width || from.top < room.top || from.bottom > room.bottom) return line.setAttribute("d", "");
-    // From the card's edge nearer the pin: its left, or its right where it sits to the pin's left, with no room past it.
+    if (!inside(shown, [to.left + to.width / 2, to.top + to.height / 2])) return line.setAttribute("d", "");
+    // From the card's edge facing the pin: from its number when it's to the pin's right, from its side when it's to the
+    // left, and straight up or down to the pin when it's under it or over it. Where they overlap, there's no line.
     const card = map.getBoundingClientRect();
-    const leftOf = card.right <= to.left;
-    const start = [leftOf ? card.right + 1 : from.left - 1, from.top + from.height / 2];
-    const end = [leftOf ? to.left - 1 : to.right + 1, to.top + to.height / 2];
-    if (!inside(shown, [to.left + to.width / 2, end[1]!])) return line.setAttribute("d", "");
-    const reach = Math.max(40, Math.abs(start[0]! - end[0]!) * 0.5) * (leftOf ? -1 : 1);
-    line.setAttribute("d", `M${start[0]},${start[1]} C${start[0]! - reach},${start[1]} ${end[0]! + reach},${end[1]} ${end[0]},${end[1]}`);
+    const middle = to.left + to.width / 2;
+    if (card.left >= to.right || card.right <= to.left) {
+      const rightOf = card.left >= to.right;
+      const start = [rightOf ? from.left - 1 : card.right + 1, from.top + from.height / 2];
+      const end = [rightOf ? to.right + 1 : to.left - 1, to.top + to.height / 2];
+      const reach = Math.max(40, Math.abs(start[0]! - end[0]!) * 0.5) * (rightOf ? 1 : -1);
+      return line.setAttribute("d", `M${start[0]},${start[1]} C${start[0]! - reach},${start[1]} ${end[0]! + reach},${end[1]} ${end[0]},${end[1]}`);
+    }
+    if (card.top >= to.bottom || card.bottom <= to.top) {
+      const under = card.top >= to.bottom;
+      const x = Math.min(Math.max(middle, card.left + 12), card.right - 12);
+      return line.setAttribute("d", `M${x},${under ? card.top - 1 : card.bottom + 1} L${middle},${under ? to.bottom + 1 : to.top - 1}`);
+    }
+    line.setAttribute("d", "");
   };
   // Both ends move: the view glides, the column scrolls, a card opens. While something is open, it's drawn every frame.
   useLayoutEffect(paint);
