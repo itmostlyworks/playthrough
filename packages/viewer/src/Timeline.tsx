@@ -273,7 +273,8 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
       <span className="grid text-soft tabular-nums">
         <span className={`col-start-1 row-start-1 ${live ? "invisible" : ""}`}>
           {time(Math.max(0, at))}
-          <small className="text-[smaller] text-faint"> / {time(flow.length)}</small>
+          {/* On a fork, out of the fork's own length, which runs on past its flow's. */}
+          <small className="text-[smaller] text-faint"> / {time(playhead.flow.length)}</small>
         </span>
         {live && <span className="col-start-1 row-start-1 text-fg">Live</span>}
       </span>

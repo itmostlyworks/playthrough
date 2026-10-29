@@ -13,7 +13,7 @@ import { inStep, type Box, type Flow, type Place, type Point, type Review, type 
 import { recording } from "./api.ts";
 import { CARD, clamp, ease, MORPH, titleCard } from "./moments.ts";
 import { onPhone } from "./phone.ts";
-import { useNow, type Playhead } from "./playhead.ts";
+import { useNow, type Forked, type Playhead } from "./playhead.ts";
 import { recorded, Replay } from "./replay.ts";
 import type { Live } from "./live.ts";
 import { roundName } from "./Rounds.tsx";
@@ -266,7 +266,8 @@ export function Stage(props: Props) {
       const app = frame.querySelector<HTMLElement>("[data-live] iframe");
       if (app) Object.assign(app.style, liveAt(view, page));
       place(part.marks, replay, page, view, box, at, playing, shown === round);
-      part.name.textContent = its.name;
+      // A fork is called by the flow it leaves, as everywhere you see it.
+      part.name.textContent = (its as Forked).fork ?? its.name;
       // Under it, on the round you're watching, what the agent says the flow starts from or the choice it shows.
       const line = shown === round ? (its.line ?? "") : "";
       const [by, words] = part.line.children as unknown as [HTMLElement, HTMLElement];

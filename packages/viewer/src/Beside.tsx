@@ -1,5 +1,5 @@
 // What's open sits beside its spot on the recording, where it covers neither the thing it's on nor that thing in the
-// round beside it: to its right, its left, under it or over it, the first with room. A note by its pin, the one you're
+// round beside it: to its right, its left, over it or under it, the first with room. A note by its pin, the one you're
 // writing by what it's on, or by where you clicked, a change by its outline. A flow's question sits over its last frame.
 // In the app, a note sits by its pin there (pinned). Where nothing marks the spot, it stays where it opened. Dragged, it
 // stays where you put it. Opened by you, it closes with its ×, or as you do something else (onAway): a click anywhere
@@ -13,7 +13,8 @@ export const clickedAt = (x: number, y: number) => Object.assign(clicked, { x, y
 
 type Spot = { x: number; y: number };
 type Side = "right" | "left" | "under" | "over";
-const SIDES: Side[] = ["right", "left", "under", "over"];
+// Over before under: what comes of something on a page tends to show under it.
+const SIDES: Side[] = ["right", "left", "over", "under"];
 const EDGE = 16;
 const GAP = 28;
 // A press that moves this far is a drag, not a click.
