@@ -489,8 +489,16 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   // Pointing at one of several changes in an open row draws only that one.
   const [pointedChange, setPointedChange] = useState<string>();
   useEffect(() => setPointedChange(undefined), [changeOpen?.id]);
+  // A change made for the open note, gone to from its answer, is outlined while the note is open.
+  const [answerShown, setAnswerShown] = useState<string>();
+  useEffect(() => setAnswerShown(undefined), [open]);
   // Paused on a change, with nothing else open, it's outlined where it is on the page; chosen, more firmly.
-  const outlined = changeOpen?.flow === watching ? changeOpen : !open ? diamonds.find((diamond) => diamond.id === onNow) : undefined;
+  const outlined =
+    changeOpen?.flow === watching
+      ? changeOpen
+      : !open
+        ? diamonds.find((diamond) => diamond.id === onNow)
+        : diamonds.find((diamond) => diamond.id === answerShown && diamond.flow === watching);
 
   // Opened, a row in the column plays its moment, from its start each time, and its time plays it again: a click on the
   // rest of its header opens it or closes it, and never plays or pauses anything else.
@@ -853,7 +861,9 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   // What the agent changed for a note is gone to as its diamond is, the note staying open.
   const toAnswer = (changed: Changed) => {
     const diamond = diamonds.find((diamond) => diamond.changes.includes(changed));
-    if (diamond) play(diamond.id, { flow: diamond.flow, at: Math.max(0, diamond.at - 0.8) }, diamond.at);
+    if (!diamond) return;
+    setAnswerShown(diamond.id);
+    play(diamond.id, { flow: diamond.flow, at: Math.max(0, diamond.at - 0.8) }, diamond.at);
   };
   const row = (note: Shown, grownHere?: boolean) => {
     const isOpen = !!open && "note" in open && open.note === note.id;
@@ -1341,10 +1351,11 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
               const note = notes.find((note) => note.id === id);
               if (note) pick(note);
             }}
+            // What was changed for a note is in the note's answer, not marked again: its dot is the one mark for both.
             marks={diamonds
-              .filter((diamond) => diamond.flow === watching)
+              .filter((diamond) => diamond.flow === watching && diamond.row)
               .map((diamond) => {
-                const answered = notes.find((note) => grown.get(note.id) === diamond) ?? notes.find((note) => diamond.changes.some((changed) => changed.answers && changed.note === note.id));
+                const answered = notes.find((note) => grown.get(note.id) === diamond);
                 return {
                   ...diamond,
                   note: answered && { number: answered.number, ink: ink(answered) },
@@ -1353,13 +1364,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
               })}
             onMark={(id) => {
               const diamond = diamonds.find((diamond) => diamond.id === id);
-              if (!diamond) return;
-              // Carrying a note's number, it's that note's: made for it, it opens the note's answer, at this moment.
-              const answered = notes.find((note) => diamond.changes.every((changed) => changed.answers && changed.note === note.id));
-              if (!answered) return choose(diamond);
-              setOpen({ note: answered.id });
-              setMet((met) => (met.includes(answered.id) ? met : [...met, answered.id]));
-              play(answered.id, { flow: diamond.flow, at: Math.max(0, diamond.at - 0.8) }, diamond.until ?? diamond.at);
+              if (diamond) choose(diamond);
             }}
             shown={size}
             zoomed={zoomed}
