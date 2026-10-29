@@ -27,7 +27,8 @@ export async function readingsOn(reviews: Reviews, review: string, round: number
 const picturesOf = (flow: Flow) => `readings/${flow.recording.replace(/\.json$/, "")}`;
 
 // Why, in Playwright's words: the first line of what it says.
-export type Failed = { flow: string; at?: string; why?: string; broken?: true };
+export const firstLine = (said: string) => said.replace(/\x1b\[[0-9;]*m/g, "").split("\n")[0]?.trim();
+export type Failed ={ flow: string; at?: string; why?: string; broken?: true };
 // What Playwright says when the browser stops a flow, not the app: the page crashed or closed, or the app stopped answering.
 const BROKEN = /Page crashed|Target crashed|Target page, context or browser has been closed|net::ERR_CONNECTION_REFUSED/;
 export type Recorded = { flow: Flow; files: string[] };
@@ -67,7 +68,7 @@ export default class Flows implements Reporter {
     const kept = stop?.error ? steps.slice(0, -1) : steps;
     const said = (stop?.error ?? result.error)?.message ?? "";
     const broken = BROKEN.test(said);
-    const why = said.replace(/\x1b\[[0-9;]*m/g, "").split("\n")[0]?.trim();
+    const why = firstLine(said);
     const failed: Failed = { flow: test.title, ...(stop?.error && { at: stop.title }), ...(why && { why }), ...(broken && { broken }) };
     if (!this.#before || broken || !recording || !stop || !kept.length) return void this.#ran.push({ ...where, failed });
     const until = stop.startTime.getTime() + (stop.error ? 0 : stop.duration);

@@ -2,19 +2,20 @@
 // would watch it: rrweb in every page, the pointer gliding to what it acts on, and a beat after each action so its result can
 // be seen. Each step ends once the page is at rest, and the page it left is read there, with a picture of it: what the
 // comparison compares. Run as plain tests, it does nothing. Each recording and its readings go to the reporter, which makes
-// them a flow (reporter.ts).
+// them a flow (reporter.ts). Taken over, a flow runs in Vantage itself instead (following.ts), on the same pace and steps.
 
-import { test as base, expect as playwrightExpect, type APIRequestContext, type Locator, type Page } from "@playwright/test";
+import { test as base, expect as playwrightExpect, type APIRequestContext, type BrowserContext, type Locator, type Page } from "@playwright/test";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Reading } from "@mostlyworks/vantage-page";
 import { keepAssets } from "./assets.ts";
 import type { Did } from "@mostlyworks/vantage-review";
-import { BEAT, HANDED, WALKED, type Action, type Handed, type Run, type To, type Walk, type Walked } from "./flows.ts";
+import { ALONGSIDE, BEAT, WALKED, type Action, type Handed, type Run, type To, type Walk, type Walked } from "./flows.ts";
 import { readPage, unhovered } from "./read.ts";
 import { repo } from "./repo.ts";
-import { ACTIONS, ASSETS, HOLD, PERSON, PICTURE, READINGS, RECORDING, seconds } from "./reporter.ts";
+import { ACTIONS, ASSETS, firstLine, HOLD, PERSON, PICTURE, READINGS, RECORDING, seconds, type Failed } from "./reporter.ts";
 import { watchRest } from "./rest.ts";
 
 // Everything it needs comes with the run (flows.ts), so it never has to find anything for itself.
@@ -71,12 +72,16 @@ type Underway = { page: Page; events: { timestamp: number }[]; rest: () => Promi
 let underway: Underway | undefined;
 
 // What every flow of the app starts from, made by vantage/setup.ts before each flow, if the app has one: its default
-// export is given the page and Playwright's request, and what it returns is each flow's “setup”.
-const { setup: setupFile } = repo(run?.root);
-type MakeSetup = (given: { page: Page; request: APIRequestContext; baseURL?: string }) => unknown;
-// In an app whose package.json doesn't say it's a module, Playwright loads the file as CommonJS, its export one level down.
-const setupModule: { default?: MakeSetup | { default?: MakeSetup } } | undefined = existsSync(setupFile) ? await import(pathToFileURL(setupFile).href) : undefined;
-const makeSetup = typeof setupModule?.default === "function" ? setupModule.default : setupModule?.default?.default;
+// export is given the page and Playwright's request, and what it returns is each flow's “setup”. Loaded again in Vantage
+// once it's written again, by when.
+export type MakeSetup = (given: { page: Page; request: APIRequestContext; baseURL?: string }) => unknown;
+export async function setupIn(file: string, written?: number): Promise<MakeSetup | undefined> {
+  if (!existsSync(file)) return undefined;
+  // In an app whose package.json doesn't say it's a module, Playwright loads the file as CommonJS, its export one level down.
+  const module: { default?: MakeSetup | { default?: MakeSetup } } = await import(`${pathToFileURL(file).href}${written ? `?${written}` : ""}`);
+  return typeof module.default === "function" ? module.default : module.default?.default;
+}
+let makeSetup: Promise<MakeSetup | undefined> | undefined;
 
 // Every round starts at the same moment, noon on the day the review started, with the page's random numbers from the same
 // seed, so what the page works out from them reads the same each time. The clock runs on from there, as a person's does:
@@ -97,37 +102,23 @@ const recorded = base.extend<{ setup: Record<string, any>; recorder: void }>({
   locale: "en-US",
   timezoneId: "UTC",
   setup: async ({ page, request, baseURL }, use, testInfo) => {
-    // Waiting in the background, with its browser open, it's told which flow to follow, and how far. It goes at the
-    // playhead's pace, so none of its flows has a time limit of its own, the one it follows least of all.
-    if (run?.orders) {
-      testInfo.setTimeout(0);
-      if (!run.to!.flow) Object.assign(run.to!, await ordered(run.orders));
-    }
-    // Recording flows added later on Before, the others aren't run, nor is anything made for them.
+    // Recording flows added later on Before, the others aren't run, nor is anything made for them. Walking a fork again,
+    // only the flow it's off.
     if (run?.only && !run.only.includes(testInfo.title)) testInfo.skip();
-    // Taken over, only that flow runs, unrecorded, on the recordings' clock, which the person carries on with. Walking a
-    // fork again, only the flow it's off, recorded.
-    if (run?.to && testInfo.title !== run.to.flow) testInfo.skip();
     if (run?.walk && testInfo.title !== run.walk.flow) testInfo.skip();
     if (run) {
       // rrweb goes in first, to take the page's own clock before it's set.
-      if (!run.to) await page.addInitScript({ content: recorder(run.recorder) });
+      await page.addInitScript({ content: recorder(run.recorder) });
       await page.clock.setSystemTime(DAY(run.started));
       await page.addInitScript({ content: seeded });
     }
-    if (run?.to) {
-      const now: NonNullable<typeof taking> = { page, depth: 0, rest: await watchRest(page), actions: 0, again: [], wrote: false, passed: [] };
-      taking = now;
-      page.on("request", (request) => void (["GET", "HEAD", "OPTIONS"].includes(request.method()) || (now.wrote = true)));
-      pace(page);
-    }
-    await use(((await makeSetup?.({ page, request, baseURL })) ?? {}) as Record<string, any>);
-    if (taking && run?.to && testInfo.status === testInfo.expectedStatus) await reached(taking);
+    makeSetup ??= setupIn(repo(run?.root).setup);
+    await use(((await (await makeSetup)?.({ page, request, baseURL })) ?? {}) as Record<string, any>);
   },
   recorder: [
     // Once what the flow starts from is made, so making it isn't in the recording.
     async ({ page, setup }, use, testInfo) => {
-      if (!run || run.to) return use();
+      if (!run) return use();
       testInfo.setTimeout(testInfo.timeout * 3);
       const events: { timestamp: number }[] = [];
       await page.exposeFunction("__vantage", (event: { timestamp: number }) => void events.push(event));
@@ -173,30 +164,83 @@ const recorded = base.extend<{ setup: Record<string, any>; recorder: void }>({
   ],
 });
 
+// Taken over, a flow runs in Vantage (following.ts), unrecorded, on the recordings' clock, which the person carries on
+// with. It's told how far the playhead has gone, and told again each time it moves; once the playhead rests where the
+// flow is, to hand its page over; and to stop, once it's no longer wanted.
+export type Orders = { to: To; stopped?: boolean; moved?: () => void };
+// A flow, as its file gives it to test(): with the page, what Playwright gives every test besides, and the setup.
+export type Body = (given: { page: Page; context: BrowserContext; request: APIRequestContext; baseURL: string; setup: Record<string, any> }) => Promise<unknown>;
+
+// Loaded in Vantage, each flow is kept by its name instead of run. A file at a time, as test() can't tell whose it is.
+let collecting: Map<string, Body> | undefined;
+let loading = Promise.resolve();
+export function flowsIn(files: string[], written: number): Promise<Map<string, Body>> {
+  const flows = new Map<string, Body>();
+  const loaded = loading.then(async () => {
+    collecting = flows;
+    try {
+      for (const file of files) await import(`${pathToFileURL(file).href}?${written}`);
+    } finally {
+      collecting = undefined;
+    }
+    return flows;
+  });
+  loading = loaded.then(() => {}, () => {});
+  return loaded;
+}
+
 // The flow being taken over, how deep in its steps it is, as only its own steps are places to take it over, and the
 // step it's in, with how many of its actions are done.
 // Taken over partway through a step, what's only in the page's memory, like an open form, wouldn't survive loading it in
 // the person's browser. So it's handed over as it was before the actions that only changed what's on it (`from`), and
 // they're done again there. One that wrote something, or went to another address, isn't: it starts again after it.
-// The steps it has finished say how far it has got, against how far the playhead has.
-let taking: { page: Page; depth: number; rest: () => Promise<void>; step?: string; actions: number; from?: Handed; again: Action[]; wrote: boolean; passed: string[] } | undefined;
+// The steps it has finished say how far it has got, against how far the playhead has. Several run at once, one for each
+// review open, each in its own window, and each knows its own by what it was called from.
+type Taking = { page: Page; depth: number; rest: () => Promise<void>; step?: string; actions: number; from?: Handed; again: Action[]; wrote: boolean; passed: string[]; orders: Orders; handed?: Handed };
+const taking = new AsyncLocalStorage<Taking>();
 
-async function ordered(orders: string): Promise<To> {
-  while (!existsSync(orders)) await new Promise((done) => setTimeout(done, 20));
-  return JSON.parse(readFileSync(orders, "utf8"));
+// The playhead went back before it, it's been handed over, or it's no longer wanted: the flow goes no further.
+class Stopped extends Error {}
+
+export async function runAlongside(
+  page: Page,
+  { request, baseURL, started, makeSetup }: { request: APIRequestContext; baseURL: string; started: string; makeSetup?: MakeSetup },
+  body: Body,
+  orders: Orders,
+): Promise<{ handed?: Handed; stopped?: Pick<Failed, "at" | "why"> }> {
+  await page.clock.setSystemTime(DAY(started));
+  await page.addInitScript({ content: seeded });
+  const flow: Taking = { page, depth: 0, rest: await watchRest(page), actions: 0, again: [], wrote: false, passed: [], orders };
+  page.on("request", (request) => void (["GET", "HEAD", "OPTIONS"].includes(request.method()) || (flow.wrote = true)));
+  pace(page);
+  return taking.run(flow, async () => {
+    try {
+      const setup = ((await makeSetup?.({ page, request, baseURL })) ?? {}) as Record<string, any>;
+      await body({ page, context: page.context(), request, baseURL, setup });
+      await reached(flow);
+      return { handed: flow.handed };
+    } catch (error) {
+      if (error instanceof Stopped || orders.stopped) return { handed: flow.handed };
+      return { stopped: { at: flow.step, why: firstLine(String((error as Error)?.message ?? error)) } };
+    }
+  });
 }
 
 // After an action, at a step's end, or at the flow's end (no step): it goes on once the playhead has passed, waits while
 // the playhead is there, and hands over once it rests there. Nothing here can be undone, so if the playhead went back
 // before it, it stops.
-async function reached(flow: NonNullable<typeof taking>, step?: string, actions?: number) {
+async function reached(flow: Taking, step?: string, actions?: number) {
   for (;;) {
-    const to: To = run!.orders ? JSON.parse(readFileSync(run!.orders, "utf8")) : run!.to!;
+    const { to, stopped } = flow.orders;
+    if (stopped) throw new Stopped();
     const where = against(flow.passed, step, actions, to);
     if (where === "on") return;
     if (where === "here" && to.rests) await handOver(flow, to.did);
-    if (where === "past" || to.rests) return void (step && base.info().skip(true, where === "past" ? "The playhead went back before it" : "Taken over here"));
-    await new Promise((done) => setTimeout(done, 20));
+    if (where === "past" || to.rests) {
+      if (step) throw new Stopped();
+      return;
+    }
+    await new Promise<void>((moved) => (flow.orders.moved = moved));
   }
 }
 
@@ -226,21 +270,21 @@ async function kept(page: Page, rest: () => Promise<void>): Promise<Handed> {
 // The flow goes no further. Taken over where a person was on their fork, their steps are done here first, as a person
 // does them, so what they saved is saved, and the page is handed over as they left it: done again in their browser, a
 // date picked in a calendar never took.
-async function handOver({ page, rest, from, again }: NonNullable<typeof taking>, did?: Did[]) {
+async function handOver(flow: Taking, did?: Did[]) {
+  const { page, rest, from, again } = flow;
   if (did?.length) {
     // Theirs, not the flow's: none of them is a place to take the flow over.
-    const flow = taking;
-    taking = undefined;
-    for (const one of did) {
-      const done = await doAgain(page, one).then(() => true, () => false);
-      if (!done) break;
-      await rest();
-    }
-    taking = flow;
-    return writeFileSync(join(run!.folder, HANDED), JSON.stringify(await kept(page, rest)));
+    await taking.exit(async () => {
+      for (const one of did) {
+        const done = await doAgain(page, one).then(() => true, () => false);
+        if (!done) break;
+        await rest();
+      }
+    });
+    flow.handed = await kept(page, rest);
+    return;
   }
-  const handed = from && again.length ? { ...from, again } : await kept(page, rest);
-  writeFileSync(join(run!.folder, HANDED), JSON.stringify(handed));
+  flow.handed = from && again.length ? { ...from, again } : await kept(page, rest);
 }
 
 // Where an element is on its page, the same on a copy made the same way.
@@ -261,30 +305,24 @@ const pathTo = (target: Locator) =>
 // it left is read there, unless the step failed.
 const playwrightStep = base.step;
 const step = Object.assign(async (title: string, body: (info: unknown) => unknown, options?: object) => {
-  if (taking && run?.to) {
-    const flow = taking;
-    const own = !flow.depth;
-    return playwrightStep(
-      title,
-      async (info) => {
-        if (own) Object.assign(flow, { step: title, actions: 0, from: undefined, again: [] });
-        flow.depth++;
-        let done: unknown;
-        try {
-          done = await body(info);
-        } finally {
-          flow.depth--;
-        }
-        if (own) {
-          // At its end, the page is handed over as it is.
-          Object.assign(flow, { from: undefined, again: [] });
-          await reached(flow, title);
-          flow.passed.push(title);
-        }
-        return done;
-      },
-      options,
-    );
+  const taken = taking.getStore();
+  if (taken) {
+    const own = !taken.depth;
+    if (own) Object.assign(taken, { step: title, actions: 0, from: undefined, again: [] });
+    taken.depth++;
+    let done: unknown;
+    try {
+      done = await body(undefined);
+    } finally {
+      taken.depth--;
+    }
+    if (own) {
+      // At its end, the page is handed over as it is.
+      Object.assign(taken, { from: undefined, again: [] });
+      await reached(taken, title);
+      taken.passed.push(title);
+    }
+    return done;
   }
   const flow = underway;
   if (!flow || flow.depth) return playwrightStep(title, body, options);
@@ -319,7 +357,13 @@ function withSteps<T extends typeof recorded>(test: T): T {
   const extend = test.extend;
   return Object.assign(test, { step, extend: (...args: Parameters<typeof extend>) => withSteps(extend.apply(test, args)) });
 }
-export const test = withSteps(recorded);
+// Loaded in Vantage, which says so first (following.ts), test() keeps each flow by its name instead. It's settled once,
+// as the file loads: wrapped, Playwright's test() would take the wrapper for where each test is written.
+const keeping: object = Object.assign((title: string, ...rest: unknown[]) => void collecting?.set(title, rest.at(-1) as Body), {
+  step,
+  extend: () => keeping,
+});
+export const test = (globalThis as Record<symbol, unknown>)[ALONGSIDE] ? (keeping as unknown as typeof recorded) : withSteps(recorded);
 
 // Every action on an element glides there first and pauses after, and once it's done is a place to take the flow over.
 // Patched once in each worker, for every locator.
@@ -339,15 +383,15 @@ function pace(page: Page) {
       return result;
     };
   }
-  // Typing and pressing keys are actions too, on whatever has the focus.
+  // Typing and pressing keys are actions too, on whatever has the focus, on the page taken over.
   const keyboard = Object.getPrototypeOf(page.keyboard);
+  const focused = async (page: Page) => {
+    const on = page.locator(":focus").first();
+    return (await on.count()) ? pathTo(on) : undefined;
+  };
   for (const [action, does] of [["type", "type"], ["insertText", "type"], ["press", "press"]] as const) {
     const original = keyboard[action];
     keyboard[action] = async function (this: unknown, ...args: unknown[]) {
-      const focused = async () => {
-        const on = page.locator(":focus").first();
-        return (await on.count()) ? pathTo(on) : undefined;
-      };
       return acted(does, focused, () => original.apply(this, args), args[0]);
     };
   }
@@ -355,13 +399,14 @@ function pace(page: Page) {
 
 // An action is done, and when, and taken over partway through the step it's in, kept to be done again in the person's
 // browser if it only changed what's on the page; the flow is handed over once it's done as many as the recording had.
-async function acted(does: string, target: () => Promise<string | undefined>, act: () => Promise<unknown>, given: unknown) {
-  const handing = taking?.depth ? taking : undefined;
+async function acted(does: string, target: (page: Page) => Promise<string | undefined>, act: () => Promise<unknown>, given: unknown) {
+  const taken = taking.getStore();
+  const handing = taken?.depth ? taken : undefined;
   let on: string | undefined, address: string | undefined;
   if (handing) {
     handing.from ??= await kept(handing.page, handing.rest);
     handing.wrote = false;
-    [on, address] = [await target(), handing.page.url()];
+    [on, address] = [await target(handing.page), handing.page.url()];
   }
   const result = await act();
   underway?.actions.push(Date.now());

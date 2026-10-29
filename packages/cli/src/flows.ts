@@ -1,8 +1,8 @@
 // A review's flows: where they're written, how to write them, and running them on the app the way a person would use it.
 
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -15,9 +15,8 @@ import type { App, Repo } from "./repo.ts";
 // What the run needs to know, passed to Playwright whole: where the flows are and which of them to run, the folder the
 // recordings go to, the app, rrweb's recorder, which goes into every page, whether it's Before, and the recordings the
 // round has already, so a flow added to it is named apart from them. And when the review started, which every round's
-// clock starts from. Or where a person takes a flow over, which a run in the background is told, and told again, in
-// `orders`.
-export type Run = { flows: string; only?: string[]; folder: string; app: App; root: string; recorder: string; before: boolean; taken: string[]; started: string; to?: To; orders?: string; walk?: Walk };
+// clock starts from.
+export type Run = { flows: string; only?: string[]; folder: string; app: App; root: string; recorder: string; before: boolean; taken: string[]; started: string; walk?: Walk };
 
 // A person's fork walked again on the app as it is now: the flow recorded to where they took it over (a step, and how
 // far into it), what they did there done again after it, and after so many of their steps, what each of their notes is
@@ -42,7 +41,8 @@ export type Browser = { dark: boolean; still: boolean; languages: string[] };
 // An action of the flow's, done again in the person's browser: what it did, on the element at that path, with what.
 export type Action = { does: string; on: string; with?: string | boolean | string[] };
 export type Cookie = { name: string; value: string; path: string; expires: number; httpOnly: boolean };
-export const HANDED = "handed.json";
+// Set in Vantage before it loads what flows import, so test() there keeps each flow to take over (following.ts).
+export const ALONGSIDE = Symbol.for("vantage: flows taken over here");
 // A flow pauses this long after each action, so its result can be seen: the pace every recording is watched at.
 export const BEAT = 650;
 
@@ -54,7 +54,7 @@ export async function makeFlowsFolder(repo: Repo, id: string) {
   });
 }
 
-const isFlow = (name: string) => /\.[cm]?[jt]s$/.test(name);
+export const isFlow = (name: string) => /\.[cm]?[jt]s$/.test(name);
 
 export function howToWriteFlows(repo: Repo, id: string): string {
   const setupMissing = !existsSync(repo.setup);
@@ -125,96 +125,6 @@ export async function runFlows(
   return once;
 }
 
-// Runs one flow to where a person takes it over, on the app as it is now: quickly and unrecorded, from what every flow
-// starts from, so they carry on from a fresh copy of the moment rather than a picture of it. The run that has followed
-// the playhead there is there already; one that went past it, the playhead having gone back, is run again.
-export async function runTo(repo: Repo, id: string, to: To): Promise<Handed> {
-  const where = !to.step ? "its end" : to.actions ? `action ${to.actions} of ${quote(to.step)}` : `the end of ${quote(to.step)}`;
-  try {
-    for (const fresh of [false, true]) {
-      const one = await inTurn(repo, id, async () => {
-        const one = await followingFor(repo, id, to.flow, fresh);
-        following.delete(key(repo, id));
-        return one;
-      });
-      try {
-        await order(one, { ...to, rests: true });
-        await one.ran;
-        const text = await readFile(join(one.folder, HANDED), "utf8").catch(() => undefined);
-        if (text) return JSON.parse(text);
-        const { failed }: { failed: Failed[] } = JSON.parse(await readFile(join(one.folder, "flows.json"), "utf8").catch(() => `{ "failed": [] }`));
-        if (failed.length) throw new Refused([`${quote(to.flow)} didn't get to ${where}: ${failed.map(stoppedAt).join(" ")}`]);
-      } finally {
-        await rm(one.folder, { recursive: true, force: true });
-      }
-    }
-    throw new Refused([`${quote(to.flow)} didn't get to ${where}. Playwright says why in the terminal running Vantage.`]);
-  } finally {
-    // The next one starts there while the person looks, in case they play on.
-    void follow(repo, id, { flow: to.flow, step: to.step, actions: to.actions }).catch(() => {});
-  }
-}
-
-// While the latest round plays, a run of the flow keeps up with the playhead, as far as it has gone and no further, so
-// the moment it comes to rest on is there already.
-export const follow = (repo: Repo, id: string, to: To) => inTurn(repo, id, async () => order(await followingFor(repo, id, to.flow), to));
-
-// A run of one flow in the background, its browser open, told how far it may go. One that's over, or for flows or a
-// setup that have changed since, or for another flow, is stopped, and a spare takes its place: starting one takes most
-// of a second, and the playhead going back to a flow's start, which no run can follow, is common.
-type Following = { folder: string; orders: string; ran: Promise<boolean>; stop: () => void; over?: boolean; written: number; flow: string };
-const following = new Map<string, Following>();
-const spares = new Map<string, Following>();
-const key = (repo: Repo, id: string) => `${repo.root}\n${id}`;
-
-async function followingFor(repo: Repo, id: string, flow: string, fresh = false): Promise<Following> {
-  const files = [...(await readdir(repo.flows(id))).filter(isFlow).map((name) => join(repo.flows(id), name)), repo.setup];
-  const written = Math.max(...(await Promise.all(files.map((file) => stat(file).then((it) => it.mtimeMs, () => 0)))));
-  const one = following.get(key(repo, id));
-  if (one && !one.over && !fresh && one.written === written && one.flow === flow) return one;
-  if (one) done(one);
-  let spare = spares.get(key(repo, id));
-  if (!spare || spare.over || spare.written !== written) {
-    if (spare) done(spare);
-    spare = await start(repo, id, written);
-  }
-  following.set(key(repo, id), Object.assign(spare, { flow }));
-  spares.set(key(repo, id), await start(repo, id, written));
-  return spare;
-}
-
-async function start(repo: Repo, id: string, written: number): Promise<Following> {
-  const app = await repo.app();
-  const { started } = await repo.reviews.get(id);
-  const recorder = join(dirname(createRequire(import.meta.url).resolve("@rrweb/record")), "record.umd.min.cjs");
-  const folder = await mkdtemp(join(tmpdir(), "vantage-"));
-  const orders = join(folder, "orders.json");
-  const made: Following = { folder, orders, written, flow: "", stop: () => {}, ran: Promise.resolve(false) };
-  made.ran = playwright({ flows: repo.flows(id), folder, app, root: repo.root, recorder, before: false, taken: [], started, to: { flow: "" }, orders }, (child) => {
-    made.stop = () => child.kill();
-  }).finally(() => (made.over = true));
-  return made;
-}
-
-function done(one: Following) {
-  one.stop();
-  void one.ran.then(() => rm(one.folder, { recursive: true, force: true }));
-}
-
-// Told whole, so it never reads half of it.
-async function order({ orders }: Following, to: To) {
-  await writeFile(`${orders}.part`, JSON.stringify(to));
-  await rename(`${orders}.part`, orders);
-}
-
-// One at a time for each review, as the playhead moves faster than a run starts.
-const turns = new Map<string, Promise<unknown>>();
-function inTurn<T>(repo: Repo, id: string, then: () => Promise<T>): Promise<T> {
-  const done = (turns.get(key(repo, id)) ?? Promise.resolve()).then(then);
-  turns.set(key(repo, id), done.catch(() => {}));
-  return done;
-}
-
 // A run as it came, read from its files rather than from what's kept.
 function inMemory(number: number, recorded: Ran["recorded"]): Compared {
   const flows = recorded.map(({ flow }) => flow);
@@ -263,11 +173,7 @@ export async function walkFork(repo: Repo, id: string, walk: Walk): Promise<Walk
 
 // A flow that failed, at the step it failed at, as a line of a refusal.
 export const failedAt = ({ flow, at }: Failed) => `  ${quote(flow)}${at ? `, at the step ${quote(at)}` : ""}`;
-// Where a flow taken over stopped, and why, in Playwright's words: read in the viewer too, where there's no terminal
-// above it to point to.
-const stoppedAt = ({ at, why }: Failed) => `it stopped${at ? ` at ${quote(at)}` : ""}${why ? `, where Playwright says “${why}”` : ""}.`;
-
-function playwright(run: Run, started?: (child: ChildProcess) => void): Promise<boolean> {
+function playwright(run: Run): Promise<boolean> {
   const cli = createRequire(import.meta.url).resolve("@playwright/test/cli");
   const config = fileURLToPath(new URL("./playwright.config.ts", import.meta.url));
   return new Promise((resolve, reject) => {
@@ -276,10 +182,9 @@ function playwright(run: Run, started?: (child: ChildProcess) => void): Promise<
       stdio: "inherit",
       env: { ...process.env, VANTAGE_RUN: JSON.stringify(run) },
     });
-    // It goes when Vantage does, waiting or not.
+    // It goes when Vantage does.
     const stop = () => child.kill();
     process.once("exit", stop);
-    started?.(child);
     child.on("error", reject);
     child.on("exit", (code) => {
       process.off("exit", stop);

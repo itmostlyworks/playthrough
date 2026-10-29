@@ -1,4 +1,6 @@
-#!/usr/bin/env node
+#!/usr/bin/env -S node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+// An app's vantage/setup.ts is loaded here to take flows over, and Node would say each time that an app not written as
+// modules has one: nothing anyone need act on.
 // The command line: the commands an agent runs to have a person review its work, and take-over, for a person to carry on
 // from a moment of a flow by hand. When one stops, it says why and what to do.
 
