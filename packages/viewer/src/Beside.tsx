@@ -1,11 +1,13 @@
 // What's open sits beside its spot on the recording, where it covers neither the thing it's on nor that thing in the
-// round beside it: to its right, its left, over it or under it, the first with room. A note by its pin, the one you're
-// writing by what it's on, or by where you clicked, a change by its outline. A flow's question sits over its last frame.
-// In the app, a note sits by its pin there (pinned). Where nothing marks the spot, it stays where it opened; where its
-// thing is still to be drawn, it waits for it, unseen, and once it's stood beside it, it stays there while it's gone.
-// Playing, it fades with everything drawn over the recording, keeping where it stood from its pin: what it's on can grow
-// and shrink with the page, and the card comes back where it went, though it goes along as the view moves. Dragged, it stays where you put it. Opened by you, it closes with its ×, or as you do something else (onAway): a click
-// anywhere else, here or in the app. Moving a recording's view around isn't a click.
+// round beside it, nor, where it can, what changed: to its right, its left, over it or under it, the first with room. A
+// note by its pin, the one you're writing by what it's on, or by where you clicked, a change by its outline. A flow's
+// question sits over its last frame. In the app, a note sits by its pin there (pinned). Where nothing marks the spot, it
+// stays where it opened; where its thing is still to be drawn, it waits for it, unseen, and once it's stood beside it, it
+// stays there while it's gone. It's placed as it opens, and as the recordings' layout changes (Compare on or off, the
+// window resized); otherwise it keeps where it stood from its pin, going along as the view moves, however what it's on
+// grows and shrinks with the page. Playing, it fades with everything drawn over the recording. Dragged, it stays where
+// you put it. Opened by you, it closes with its ×, or as you do something else (onAway): a click anywhere else, here or
+// in the app. Moving a recording's view around isn't a click.
 
 import { useEffect, useLayoutEffect, useRef, type PointerEvent as Press, type ReactNode } from "react";
 
@@ -23,13 +25,15 @@ const GAP = 28;
 const DRAG = 4;
 // Opened from the timeline, playing comes up to the moment before what it's on is drawn: the card waits this long for it.
 const WAIT = 1500;
+// The recordings have settled once they've held still this long.
+const SETTLED = 120;
 
 // Taken over, a card about the recording rests with what drives it (resting, while the app is on its way or shown): it
 // answers nothing, steps back with the row under the recording once you're in the app, and is there as it was when
 // you're back.
 export function Beside({ id, over, still, resting, pinned, onAway, children }: { id?: string; over?: boolean; still?: boolean; resting?: "waiting" | "shown"; pinned?: () => Spot | undefined; onAway?: () => void; children?: ReactNode }) {
   const card = useRef<HTMLElement>(null);
-  const opened = useRef<{ id?: string; at: Spot; since: number; side?: Side; put?: Spot; was?: Spot; last?: Spot; fromPin?: Spot }>(undefined);
+  const opened = useRef<{ id?: string; at: Spot; since: number; side?: Side; put?: Spot; was?: Spot; last?: Spot; fromPin?: Spot; layout?: string; seen?: { layout: string; since: number } }>(undefined);
   // While you point at it, it holds still: what you point at inside it may be drawn somewhere else, and it's not to
   // move from under you.
   const pointing = useRef(false);
@@ -57,7 +61,8 @@ export function Beside({ id, over, still, resting, pinned, onAway, children }: {
       removeEventListener("message", inApp);
     };
   }, []);
-  // The spot moves as the view glides and the card grows, so it's placed again every frame while it's open.
+  // Its pin, or what it's on where it has none, can move with the view any frame, and the recordings' layout change, so
+  // it's followed every frame while it's open.
   useLayoutEffect(() => {
     if (!children) return void (opened.current = undefined);
     const place = () => {
@@ -66,10 +71,23 @@ export function Beside({ id, over, still, resting, pinned, onAway, children }: {
       const w = box.offsetWidth;
       const h = box.offsetHeight;
       const first = opened.current && opened.current.id === id ? opened.current : (opened.current = { id, at: { ...clicked }, since: performance.now() });
-      const to = (x: number, y: number) => {
-        if (pointing.current && first.last && !first.put) [x, y] = [first.last.x, first.last.y];
+      const recordings = [...document.querySelectorAll("[data-frame]:not([hidden], [data-over])")].map((frame) => {
+        const { left, top, width, height } = frame.getBoundingClientRect();
+        return [left, top, width, height].map(Math.round).join(",");
+      });
+      // What it's placed in: the window, and where the recordings are in it.
+      const layout = `${innerWidth}x${innerHeight} ${recordings.join(" ")}`;
+      const placed = first.layout === layout;
+      // While the recordings move, it holds still where it stood; once they've settled, it's placed again, gliding there.
+      if (first.seen?.layout !== layout) first.seen = { layout, since: performance.now() };
+      const moving = performance.now() - first.seen.since < SETTLED;
+      const to = (x: number, y: number, glide = false) => {
+        if (pointing.current && first.last && !first.put && placed) [x, y] = [first.last.x, first.last.y];
         first.last = { x, y };
+        const was = box.style.transform;
         box.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
+        if (glide && was && was !== box.style.transform && !matchMedia("(prefers-reduced-motion: reduce)").matches)
+          box.animate([{ transform: was }, { transform: box.style.transform }], { duration: 300, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
       };
       // A flow's question sits over its last frame, clear of the bar. Only the round you're watching is where it sits:
       // not one held over it or beside it, or one you've been to and left.
@@ -90,9 +108,15 @@ export function Beside({ id, over, still, resting, pinned, onAway, children }: {
       const at = fromApp ?? first.at;
       const spot = found ? drawn! : new DOMRect(at.x, at.y, 0, 0);
       const pin = id ? document.querySelector<HTMLElement>(`${shown} [data-pin="${CSS.escape(id)}"]`)?.getBoundingClientRect() : undefined;
-      const kept = still && pin?.width && first.fromPin && { x: pin.left + first.fromPin.x, y: pin.top + first.fromPin.y };
-      if (kept && kept.x >= EDGE && kept.x + w <= innerWidth - EDGE && kept.y >= EDGE && kept.y + h <= innerHeight - EDGE) return to(kept.x, kept.y);
       const corner = pin?.width ? pin : spot;
+      const fits = ({ x, y }: Spot) => x >= EDGE && x + w <= innerWidth - EDGE && y >= EDGE && y + h <= innerHeight - EDGE;
+      // In the layout it was placed in, it keeps where it stood from its pin.
+      const kept = first.fromPin && { x: corner.left + first.fromPin.x, y: corner.top + first.fromPin.y };
+      if (moving && first.last) return to(clamp(first.last.x, EDGE, innerWidth - w - EDGE), clamp(first.last.y, EDGE, innerHeight - h - EDGE));
+      if (kept && placed && fits(kept)) {
+        if (found) first.was = kept;
+        return to(kept.x, kept.y);
+      }
       // Under it or over it, the card ends at the pin's right, so the line runs straight to the pin.
       const across = clamp(corner.right - w, EDGE, innerWidth - w - EDGE);
       const level = clamp(spot.top - 24, EDGE, innerHeight - h - EDGE);
@@ -102,17 +126,20 @@ export function Beside({ id, over, still, resting, pinned, onAway, children }: {
         under: { x: across, y: spot.bottom + 20 },
         over: { x: across, y: Math.min(spot.top, corner.top) - 16 - h },
       };
-      // What it shouldn't cover: what it's on, in every round on screen.
-      const things = id ? [...document.querySelectorAll<HTMLElement>(`[data-frame]:not([hidden], [data-over]) [data-mark-id="${CSS.escape(id)}"]`)].map((thing) => thing.getBoundingClientRect()).filter((thing) => thing.width) : [];
-      const fits = ({ x, y }: Spot) => x >= EDGE && x + w <= innerWidth - EDGE && y >= EDGE && y + h <= innerHeight - EDGE;
-      const clear = ({ x, y }: Spot) => !things.some((thing) => x < thing.right && x + w > thing.left && y < thing.bottom && y + h > thing.top);
-      // It keeps its side while that still works, so it never hops as the card grows or the view glides.
-      const good = (side: Side) => fits(places[side]) && clear(places[side]);
-      const side = first.side && good(first.side) ? first.side : (SIDES.find(good) ?? SIDES.find((side) => fits(places[side])));
-      first.side = side;
+      // What it shouldn't cover: what it's on, in every round on screen, and where it can, what changed.
+      const drawnAs = (marks: string) => [...document.querySelectorAll<HTMLElement>(`[data-frame]:not([hidden], [data-over]) ${marks}`)].map((thing) => thing.getBoundingClientRect()).filter((thing) => thing.width);
+      const its = id ? drawnAs(`[data-mark-id="${CSS.escape(id)}"]`) : [];
+      const clearOf = (things: DOMRect[]) => (side: Side) => {
+        const { x, y } = places[side];
+        return fits(places[side]) && !things.some((thing) => x < thing.right && x + w > thing.left && y < thing.bottom && y + h > thing.top);
+      };
+      // It goes back to the side it opened on where that works, so Compare on and off again leaves it where it was.
+      const sides = first.side ? [first.side, ...SIDES] : SIDES;
+      const side = sides.find(clearOf([...its, ...drawnAs(`[data-kind="change"]`)])) ?? sides.find(clearOf(its)) ?? sides.find(clearOf([]));
+      if (found || fromApp) first.side ??= side;
       if (side && found) first.was = places[side];
-      if (side && found && pin?.width) first.fromPin = { x: places[side].x - pin.left, y: places[side].y - pin.top };
-      if (side) return to(places[side].x, places[side].y);
+      if (side && (found || fromApp)) Object.assign(first, { layout, fromPin: { x: places[side].x - corner.left, y: places[side].y - corner.top } });
+      if (side) return to(places[side].x, places[side].y, !!kept);
       to(spot.right + GAP + w <= innerWidth - EDGE ? spot.right + GAP : Math.max(EDGE, spot.left - GAP - w), level);
     };
     place();
