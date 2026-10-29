@@ -166,7 +166,13 @@ export function Stage(props: Props) {
     const width = room.clientWidth;
     const height = onPhone() ? onPhoneNeeds(width, flow, moment.at) : room.clientHeight;
     room.style.height = onPhone() ? `${height}px` : "";
-    const across = width > 700;
+    // Side by side, or one above the other where that shows each recording larger.
+    const shape = flow ? sizeOf(round, flow) : { width: 1280, height: 800 };
+    const area = (room: Size) => {
+      const shown = fit({ width: room.width, height: room.height - CAPTION }, shape);
+      return shown.width * shown.height;
+    };
+    const across = !earlier || area({ width: (width - 20) / 2, height }) >= area({ width, height: (height - 12) / 2 });
     const half = across ? (width - 20) / 2 : width;
     const tall = across ? height : (height - 12) / 2;
     const panes = new Map(
@@ -399,15 +405,29 @@ export function Stage(props: Props) {
     if (zoomed && !matchMedia("(prefers-reduced-motion: reduce)").matches) glide.current = { started: performance.now(), from: new Map(painted.current) };
   }
 
-  // Choosing another view, what's on screen comes in softly; the earlier round laid over the recording, unseen until
-  // it's held, stays unseen.
+  // Going side by side, the frame splits: the recording moves into its half, and the earlier round grows out of where it
+  // was; going back, it grows into the whole again. The words over them come in softly; the earlier round laid over the
+  // recording, unseen until it's held, stays unseen.
   const side = !!earlier;
   const wasSide = useRef(side);
+  const beforeSplit = useRef<Map<number, DOMRect>>(undefined);
+  if (wasSide.current !== side && !beforeSplit.current)
+    beforeSplit.current = new Map([...frames.current].filter(([, frame]) => !frame.hidden).map(([number, frame]) => [number, frame.getBoundingClientRect()]));
   useLayoutEffect(() => {
     if (wasSide.current === side) return;
     wasSide.current = side;
-    for (const element of stage.current?.querySelectorAll(":scope > :not([hidden], [data-over])") ?? [])
-      if (getComputedStyle(element).opacity !== "0") element.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 250, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
+    const before = beforeSplit.current ?? new Map<number, DOMRect>();
+    beforeSplit.current = undefined;
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    for (const element of stage.current?.querySelectorAll<HTMLElement>(":scope > :not([hidden], [data-over])") ?? []) {
+      const number = element.dataset.frame === undefined ? undefined : Number(element.dataset.frame);
+      const from = number === undefined ? undefined : (before.get(number) ?? before.get(round.number));
+      const to = element.getBoundingClientRect();
+      if (from && to.width && to.height && !still) {
+        const move = `translate(${from.left - to.left}px,${from.top - to.top}px) scale(${from.width / to.width},${from.height / to.height})`;
+        element.animate([{ transformOrigin: "0 0", transform: move }, { transformOrigin: "0 0", transform: "none" }], { duration: GLIDE, easing: "cubic-bezier(0.22, 0.8, 0.24, 1)" });
+      } else if (getComputedStyle(element).opacity !== "0") element.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 250, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
+    }
   }, [side]);
 
   // At actual size, the wheel and a drag move the view around the page.
