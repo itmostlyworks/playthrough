@@ -134,7 +134,7 @@ export function watchedIn(round: Round, id: string): { flow: string; at: number;
   const until = flow.steps[index + 1]?.at ?? flow.length;
   const before = Math.min(reply!.on?.at ?? until, until);
   const moving = step.actions?.findLast((action) => action <= before) ?? step.at;
-  return { flow: flow.name, at: Math.max(0, moving - BREATH), until };
+  return { flow: flow.name, at: Math.max(0, Math.round((moving - BREATH) * 100) / 100), until };
 }
 
 // A place on one round, found on another.
