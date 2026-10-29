@@ -985,8 +985,14 @@ export function Stage(props: Props) {
           )}
         </div>
       )}
+      {/* Taken over, it rests with the rest of what drives the recording, and steps back with it in the app. */}
       {!earlier && toAll && (
-        <div ref={allFlows} className="absolute top-0 z-20 flex h-[26px] items-baseline px-0.5 pt-0.5 pb-1.5 text-xs">
+        <div
+          ref={allFlows}
+          inert={!!props.live?.shown}
+          className="absolute top-0 z-20 flex h-[26px] items-baseline px-0.5 pt-0.5 pb-1.5 text-xs"
+          style={{ opacity: inPortal ? 0.32 : undefined, transition: `opacity 520ms ${PORTAL}` }}
+        >
           {toAll}
         </div>
       )}
