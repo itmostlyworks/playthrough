@@ -1,6 +1,6 @@
 // Where you are in a round: a flow, and a moment in its recording, in seconds from its start. Each flow opens with its
 // title card, part of its time like everything else: for the CARD seconds before its recording starts, its name is up
-// over its first frame. The times people see are within a flow, from its recording's start.
+// over the page its first step left. The times people see are within a flow, from its recording's start.
 
 import type { Flow } from "@mostlyworks/vantage-review";
 
@@ -11,7 +11,7 @@ export const CARD = 1.2;
 export const MORPH = 0.3;
 // Going to a flow lands where its name is up and the frame has its own shape.
 export const FLOW_IN = -CARD + MORPH;
-// A review opens as a video does before you press play: the first flow's name over its softened first frame.
+// A review opens as a video does before you press play: the first flow's name over its first step's page, softened.
 export const POSTER = -CARD + 0.5;
 
 export const clamp = (value: number, low = 0, high = 1) => Math.max(low, Math.min(high, value));

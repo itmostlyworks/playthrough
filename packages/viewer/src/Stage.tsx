@@ -259,7 +259,9 @@ export function Stage(props: Props) {
       const shift = `translate(${(-view.x * view.k).toFixed(2)}px,${(-view.y * view.k).toFixed(2)}px)`;
       if (replay) {
         replay.host.style.transform = `${shift} scale(${view.k.toFixed(5)})`;
-        replay.show(at, playing, speed);
+        // While its name is up, the flow shows the page its picture is of, as its first step left it, so what grew into
+        // the frame stays there: its first frame is often still a blank page.
+        replay.show(at < 0 ? (latest.current.read(shown.number, its.name)?.[0]?.at ?? at) : at, playing, speed);
         if (stopped && wasPlaying.current) replay.rest();
       }
       Object.assign(part.marks.style, { transform: shift, width: `${page.width * view.k}px`, height: `${page.height * view.k}px` });
@@ -929,9 +931,10 @@ export function Stage(props: Props) {
               <span data-words />
             </span>
           </div>
-          {/* Between flows, the flow's name over its own first frame, softened under a veil in the recorded app's background,
-              in the app's ink and face: it belongs to the recording, so it looks the same in both themes. The agent's line
-              about the flow is under it, under the agent's name, in Vantage's face: those are the agent's words. */}
+          {/* Between flows, the flow's name over the page its first step left, softened under a veil in the recorded
+              app's background, in the app's ink and face: it belongs to the recording, so it looks the same in both
+              themes. The agent's line about the flow is under it, under the agent's name, in Vantage's face: those are
+              the agent's words. */}
           <div
             data-card
             className="pointer-events-none absolute inset-0 z-9 grid place-items-center rounded-lg bg-[rgba(247,247,245,calc(var(--k,0)*.45))] p-4 text-center font-recorded text-[20px] leading-[1.2] font-medium tracking-[-0.01em] text-[#222222] opacity-0 in-data-absent:bg-surface in-data-absent:font-ui in-data-absent:text-[13px] in-data-absent:leading-normal in-data-absent:font-normal in-data-absent:tracking-normal in-data-absent:text-faint"

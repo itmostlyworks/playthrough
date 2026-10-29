@@ -33,8 +33,8 @@ type Open = { note: string } | { change: string } | { writing: string };
 // A click noted in the app: what it's on there, what was done there before it, and where, in the app's page.
 type NotedInApp = { element?: Thing; point?: Point; did: Did[]; x: number; y: number };
 
-// Leaving every flow at once for one, the recording waits on its first frame until the pictures have landed, and this
-// long after: one thing moves at a time.
+// Leaving every flow at once for one, the recording waits under its name until the pictures have landed, and this long
+// after: one thing moves at a time.
 const SETTLE = 400;
 // Playing, the bar comes back while the pointer moves over the recording, and fades again this long after it stops.
 const STIRRED = 1500;
