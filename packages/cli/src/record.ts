@@ -56,6 +56,9 @@ export async function record(repo: Repo, id: string) {
   console.log(`\nRecorded round ${number}: ${list(flows.map((flow) => `${quote(flow.name)} (${Math.round(flow.length)}s)`))}.`);
   const since = comparisons.find((comparison) => comparison.since === number - 1);
   if (since) console.log(`\n${changed(since.changes.length, number - 1)}`);
+  // Compared at rest, an answer that moves shows as no change at all: its note can play the step it's seen in instead.
+  if (since && !since.changes.length && replies.some((reply) => reply.on && !reply.on.app && !reply.watch))
+    console.log(`Nothing at rest shows an answer that moves, like an animation: if yours does, add "watch": "<the title of the step it's seen in>" to its reply in ${file}, and the note plays that step.`);
   if (walked.length) console.log(`\n${walked.map(saidOf).join("\n")}`);
   if (left.length) console.log(`\nStill to do, in ${file}:\n${left.map((problem) => `  ${problem}`).join("\n")}`);
   if (since?.changes.some((change) => !saved?.accounts[change.id]))
@@ -66,6 +69,7 @@ export async function record(repo: Repo, id: string) {
   }
   if (by === unnamed) console.log(`\nVantage can't tell which agent you are. Write your name in ${file} as “by”, and each of your answers shows it.`);
   console.log(left.length ? `\nThen hand it over: vantage wait ${id}` : `\nHand it over when it's ready: vantage wait ${id}`);
+  console.log("It waits for the person's notes, which can take hours: run it in the background, so you're told when it ends.");
 }
 
 // Each answer shows where its note's thing is on this round's recording, found by Vantage from the last round it was

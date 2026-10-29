@@ -19,13 +19,14 @@ THE LOOP
 4. vantage record <review> records the round and compares it with every round before it. In the round's round.json, say
    why each change since the round before is there, under "accounts" by its id: { "line": "<why, in your words>" },
    { "note": "<the note it was made for>" }, or { "notReal": "<why nothing really changed>" }.
-5. vantage wait <review> hands the round over and waits. When notes come, it prints each with a picture of what it's on,
-   or for one made in the app, what the person did there. Change the app and record the next round, then answer each
-   note in its round.json, under "replies". Where your answer is something that moves, such as an animation, add
-   "watch": "<the title of the step it's seen in>", and the note plays that step. For one made in the app, record walks the person's steps again on the new
-   version and puts your answer where they lead, saying whether they still get there: answer it in words, not with a
-   new flow, and check your fix with vantage walk <review> while you work. Where their steps stop short, fix that, or
-   say in your answer why they changed.
+5. vantage wait <review> hands the round over and waits for the notes, which can take hours: run it in the background,
+   so you're told when it ends. When they come, it prints each with a picture of what it's on, or for one made in the
+   app, what the person did there. Change the app and record the next round, then answer each note in its round.json,
+   under "replies". Where your answer is something that moves, such as an animation, add
+   "watch": "<the title of the step it's seen in>", and the note plays that step. For one made in the app, record walks
+   the person's steps again on the new version and puts your answer where they lead, saying whether they still get
+   there: answer it in words, not with a new flow, and check your fix with vantage walk <review> while you work. Where
+   their steps stop short, fix that, or say in your answer why they changed.
 
 The person can only judge what the flows show, so keep them true to how a person uses the app.
 
@@ -34,6 +35,11 @@ THE APP
 vantage/app.json says how to start the app, and is committed so every review uses it:
 
   { "start": "npm run dev", "url": "http://localhost:3000" }
+
+Each round, and Before, is recorded on whatever serves that url, and Vantage starts the app itself only when nothing
+does: leave a server you didn't start running. Recording a flow on Before later, when it's new or Before cut it short,
+is different: Vantage puts the app as it was in place and starts it itself, so the url has to be free. If it isn't,
+Vantage says what to do.
 
 FLOWS
 

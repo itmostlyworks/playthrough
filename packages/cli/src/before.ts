@@ -64,7 +64,10 @@ async function onBefore(repo: Repo, id: string, flows: string[], doing: string, 
   // Left running, the agent's own server would go on serving its work, not the app as it was.
   const { url } = await repo.app();
   if (await serving(url))
-    throw new Refused([`${unrecorded}: ${doing}, and Vantage starts the app as it was itself, on ${url}. Something is serving there already: stop it, then try again.`]);
+    throw new Refused([
+      `${unrecorded}: ${doing}, and Vantage starts the app as it was itself, on ${url}. Something is serving there already.`,
+      "If you started it, stop it and try again. If you didn't, leave it running. Don't work around this by folding a flow into another or leaving it out: tell whoever gave you the task what this says.",
+    ]);
 
   console.log(`\n${doing}. Your work is set aside with git stash meanwhile.`);
   const later = flows;
