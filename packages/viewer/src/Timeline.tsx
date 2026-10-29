@@ -246,7 +246,8 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
   // Pointed at here, a note says its first words; lit from the list, where its words already are, it only grows.
   const dot = dots.find((dot) => dot.id === named);
   const mark = marks.find((mark) => mark.id === named);
-  const tip = dot ?? mark;
+  // Playing is watching: what a mark says waits until it stops.
+  const tip = now.playing ? undefined : (dot ?? mark);
   const ghost = !scrubbing && pointing !== undefined && !tip;
   const pointedFork = pointing?.fork ? lines.find((line) => line.name === pointing.fork) : undefined;
   const pointed = pointing === undefined ? undefined : pc(pointedFork ? forkShare(pointedFork, pointing.at) : share(flow, pointing.at));

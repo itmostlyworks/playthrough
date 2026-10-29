@@ -3,8 +3,8 @@
 // writing by what it's on, or by where you clicked, a change by its outline. A flow's question sits over its last frame.
 // In the app, a note sits by its pin there (pinned). Where nothing marks the spot, it stays where it opened; where its
 // thing is still to be drawn, it waits for it, unseen, and once it's stood beside it, it stays there while it's gone.
-// Playing, it keeps where it stood from its pin, as the outlines fade: what it's on can grow and shrink with the page, and
-// the card isn't to move with it, though it goes along as the view moves. Dragged, it stays where you put it. Opened by you, it closes with its ×, or as you do something else (onAway): a click
+// Playing, it fades with everything drawn over the recording, keeping where it stood from its pin: what it's on can grow
+// and shrink with the page, and the card comes back where it went, though it goes along as the view moves. Dragged, it stays where you put it. Opened by you, it closes with its ×, or as you do something else (onAway): a click
 // anywhere else, here or in the app. Moving a recording's view around isn't a click.
 
 import { useEffect, useLayoutEffect, useRef, type PointerEvent as Press, type ReactNode } from "react";
@@ -154,7 +154,7 @@ export function Beside({ id, over, still, pinned, onAway, children }: { id?: str
       onPointerDown={drag}
       onPointerEnter={() => (pointing.current = true)}
       onPointerLeave={() => (pointing.current = false)}
-      className="fixed top-0 left-0 z-30 w-[330px] rounded-xl bg-ground py-1.5 shadow-[0_0_0_1px_rgba(20,24,34,0.08),0_10px_30px_rgba(20,24,34,0.16)]"
+      className={`fixed top-0 left-0 z-30 w-[330px] rounded-xl bg-ground py-1.5 shadow-[0_0_0_1px_rgba(20,24,34,0.08),0_10px_30px_rgba(20,24,34,0.16)] transition-opacity duration-250 ease-calm ${still ? "pointer-events-none opacity-0" : ""}`}
     >
       <div data-map className={`grid grid-cols-[minmax(0,1fr)] [--ahead:color-mix(in_srgb,var(--faint)_45%,var(--ground))] [--rail:var(--soft)] ${onAway ? "[&>*>button:first-child]:pr-9" : ""}`}>
         {children}

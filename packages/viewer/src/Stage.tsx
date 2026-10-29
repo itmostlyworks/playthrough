@@ -303,8 +303,8 @@ export function Stage(props: Props) {
   };
 
   // Each mark goes where its thing is on the page now, and shows while its moment is and it's on the recorded screen,
-  // covering only the part of it that is; a change, only while you're stopped. Outlines are for still frames: playing,
-  // they fade, and only the pins go along with the recording. On the round you're watching, a note
+  // covering only the part of it that is; a change, only while you're stopped. Playing is watching: every mark fades, pin
+  // and all, and comes back where its thing is once it stops. On the round you're watching, a note
   // whose thing has been off the page for a moment of the recording is gone: playing past a page redrawing, it doesn't
   // flicker. Moved out of the screen's view, it's still there.
   const place = (layer: HTMLElement, replay: Replay | undefined, page: Size, view: View, frame: Size, at: number, playing: boolean, watched: boolean) => {
@@ -1022,7 +1022,7 @@ function Drawn({ mark, onMark }: { mark: Mark; onMark: (id: string) => void }) {
       data-box={"box" in on ? `${on.box.x} ${on.box.y} ${on.box.width} ${on.box.height}` : undefined}
       {...shows}
       hidden
-      className={`pointer-events-none absolute rounded-[4px] outline-offset-4 transition-[outline-color] duration-250 ease-calm data-playing:outline-transparent ${look}`}
+      className={`pointer-events-none absolute rounded-[4px] outline-offset-4 transition-opacity duration-250 ease-calm data-playing:opacity-0 ${look}`}
       style={mark.ink ? ({ "--c": mark.ink } as CSSProperties) : undefined}
     >
       {badge}
