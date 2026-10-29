@@ -42,7 +42,7 @@ type Props = {
   compare?: Comparing;
   // Made in the app on an earlier round, it's checked by trying it: taken over where you were, in Compare's place, or
   // without onTakeOver, said plainly that this round's recording doesn't go there.
-  whereYouWere?: { round: number; live?: "waiting" | "shown"; onTakeOver?: () => void; stopped?: boolean };
+  whereYouWere?: { round: number; live?: "waiting" | "shown"; onTakeOver?: () => void; stopped?: string };
   // Not quite, being written.
   asking: boolean;
   // What it's on isn't on screen: it greys and asks nothing.
@@ -281,10 +281,11 @@ function Card(props: Props) {
 
   return (
     <div className="grid gap-2.5 pr-3.5 pl-[44px]">
+      {/* Walked again, your steps stopped short: what couldn't be done, over the screen where they stopped. */}
+      {whereYouWere?.stopped && <p className="leading-normal text-fg">{whereYouWere.stopped}</p>}
       <div className={`grid gap-2.5 transition-opacity duration-250 ease-calm ${props.away && !readOnly ? "opacity-45" : ""}`}>{words}</div>
       {compare && !asking && !editing && !props.away && <Compare {...compare} />}
       {/* In the app, you're already there. */}
-      {whereYouWere?.stopped && !asking && !editing && !props.away && <p className="text-xs leading-[18px] text-soft">Your steps stop here now.</p>}
       {whereYouWere && whereYouWere.live !== "shown" && !asking && !editing && !props.away &&
         (whereYouWere.onTakeOver ? (
           <TakeOverHere waiting={whereYouWere.live === "waiting"} onTakeOver={whereYouWere.onTakeOver} />

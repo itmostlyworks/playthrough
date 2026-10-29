@@ -43,7 +43,9 @@ export async function walkForks(repo: Repo, review: Review, round: number, flows
     }
     const recording = `walks/${fork}.json`;
     const start = run.events[0]!.timestamp;
-    const length = Math.round(run.events.at(-1)!.timestamp - start) / 1000;
+    // Stopped short, the fork ends where the steps did, the answer at its tip, not where the trying gave up: just past
+    // it, so playing stops at the answer and then comes back down.
+    const length = run.stopped ? Math.round(((run.done.at(-1) ?? run.from) + 0.08) * 1000) / 1000 : Math.round(run.events.at(-1)!.timestamp - start) / 1000;
     await repo.reviews.saveFile(review.id, round, recording, Buffer.from(JSON.stringify(run.events)));
     await repo.reviews.saveFile(review.id, round, `readings/${recording}`, Buffer.from(JSON.stringify(run.readings)));
     await repo.reviews.saveFile(review.id, round, `assets/${recording}`, Buffer.from(JSON.stringify(run.assets)));
@@ -72,7 +74,8 @@ async function keepPicture(repo: Repo, id: string, round: number, name: string, 
 export function saidOf(walked: WalkedNote): string {
   const fork = `the steps note ${walked.note} was made after, on ${quote(walked.flow)}`;
   if (walked.reached) return `Walked ${fork} again: they get to the note.${walked.picture ? ` As it is now: ${walked.picture}` : ""}`;
-  if (walked.on) return `Walked ${fork} again: they stop at ${quote(walked.stopped ?? "")}, which they can't do now. The answer shows where they stopped.`;
+  if (walked.on)
+    return `Walked ${fork} again: they stop at ${quote(walked.stopped ?? "")}, which they can't do now, and the person sees that there. Fix what it's on, or say in your answer to note ${walked.note} why their steps changed.`;
   return `Couldn't walk ${fork} again: ${walked.stopped}.`;
 }
 

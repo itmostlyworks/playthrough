@@ -419,7 +419,14 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   // doesn't go that far, it's on the whole flow.
   // Walked again for this round, it's on the walk, where your steps got to; one whose steps stop short of it says so.
   const walkedTo = (note: Shown) => (note.on?.app && note.written !== round.number ? round.replies.find((reply) => reply.note === note.id && reply.on?.app)?.on : undefined);
-  const stopsShort = new Set(noted.filter((note) => (walkedTo(note)?.app?.did.length ?? Infinity) < (note.on?.app?.did.length ?? 0)).map((note) => note.id));
+  // Where they stop short, the step of yours that couldn't be done, in words.
+  const stopsShort = new Map(
+    noted.flatMap((note) => {
+      const done = walkedTo(note)?.app?.did.length ?? Infinity;
+      const step = note.on?.app?.did[done];
+      return step ? [[note.id, couldntDo(step)] as const] : [];
+    }),
+  );
   const whereYouWere = new Map(
     noted.flatMap((note) => (note.on?.app && note.written !== round.number && !walkedTo(note) ? [[note.id, { ...takenOverIn(review, note.on, note.written, round, read), did: note.on.app.did }] as const] : [])),
   );
@@ -859,10 +866,10 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     // as it is now; in the app, a Looks good stays where you said it, as there's nothing to play on to.
     const was = whereYouWere.get(note.id);
     const takeable = round === latest && !readOnly;
-    // Walked again, it's checked by watching, as any answer is; where your steps stop short of it, by carrying on
-    // from there, as T on the fork does.
+    // Walked again, it's checked by watching, as any answer is; where your steps stop short of it, the card says what
+    // couldn't be done, and offers nothing to do about it: there's nowhere to carry on to (T still takes it over).
     const tryHere = stopsShort.has(note.id)
-      ? { round: round.number, stopped: true, live: liveNow, ...(takeable && { onTakeOver: takeOver }) }
+      ? { round: round.number, stopped: stopsShort.get(note.id) }
       : was && (was.at === undefined || takeable) ? { round: round.number, live: trying.current === note.id ? liveNow : undefined, ...(was.at !== undefined && { onTakeOver: () => tryWhereYouWere(note) }) } : undefined;
     return (
       <NoteRow
@@ -1424,6 +1431,14 @@ function forksIn(notes: Note[]): Fork[] {
   const keep = (fork: Fork) => void ((longest.get(fork.name)?.length ?? 0) < fork.length && longest.set(fork.name, fork));
   for (const { on } of notes) if (on?.app) keep({ name: forkName(on.app.recording), session: sessionOf(on.app.recording), ...on.app });
   return [...longest.values()];
+}
+
+// A step of yours a walk couldn't do, as you'd say it.
+function couldntDo({ does, what }: Did): string {
+  const named = what ? `“${what}”` : "What you did next";
+  if (does === "fill" || does === "type") return `${named} isn’t there to type into any more.`;
+  if (does === "selectOption") return `${named} isn’t there to choose from any more.`;
+  return `${named} isn’t there to click any more.`;
 }
 
 // The forks walked again for a round, from where its answers to notes made in the app were placed.

@@ -23,7 +23,8 @@ THE LOOP
    or for one made in the app, what the person did there. Change the app and record the next round, then answer each
    note in its round.json, under "replies". For one made in the app, record walks the person's steps again on the new
    version and puts your answer where they lead, saying whether they still get there: answer it in words, not with a
-   new flow, and check your fix with vantage walk <review> while you work.
+   new flow, and check your fix with vantage walk <review> while you work. Where their steps stop short, fix that, or
+   say in your answer why they changed.
 
 The person can only judge what the flows show, so keep them true to how a person uses the app.
 
