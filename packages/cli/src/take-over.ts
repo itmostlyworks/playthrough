@@ -464,16 +464,20 @@ const SAYS = `<script>(() => {
     return true;
   };
   // Once it's yours, what you do is recorded, as a flow is, from the page as it was handed over: a note you make here
-  // is on your own recording. Each page records itself, from its own first frame.
+  // is on your own recording. Each page records itself, from its own first frame, or made ready unseen, from when you
+  // take it over, where your recording starts.
   let recorded = [];
   const send = () => recorded.length && (parent.postMessage({ vantage: "recorded", events: recorded }, "*"), (recorded = []));
   const record = () =>
+    !recording &&
+    !!sessionStorage.getItem("vantage:yours") &&
     window.rrwebRecord?.record({
       emit: (event) => recorded.push(event) === 1 && setTimeout(send, 100),
       sampling: { mousemove: 20, scroll: 16, input: "all" },
       maskAllInputs: false,
       inlineStylesheet: true,
     }) && ((recording = true), readNow());
+  addEventListener("message", ({ source, data }) => source === parent && data?.vantage === "yours" && record());
   const settle = async () => {
     await rested();
     if (scroll) scrollTo(scroll.x, scroll.y);
