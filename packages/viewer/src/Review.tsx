@@ -1251,7 +1251,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
           const chosen = openNote?.id === note.id;
           return on ? [{ id: note.id, kind: "note", on, pin: { number: note.number, fill: fill(note) }, ink: ink(note), chosen, shows: chosen ? undefined : span(note) }] : [];
         }),
-        ...(writing?.on?.flow === watching && writing.on.element?.node !== undefined && !grown.has(writing.id) ? [{ id: writing.id, kind: "writing" as const, on: { node: writing.on.element.node }, chosen: true }] : []),
+        ...(writing?.on && playedOn(writing.on) === inPlay && writing.on.element?.node !== undefined && !grown.has(writing.id) ? [{ id: writing.id, kind: "writing" as const, on: { node: writing.on.element.node }, chosen: true }] : []),
         ...changed.map((on, i): Mark => ({ id: outlined!.id, kind: "change", on, pin: i === 0 ? "diamond" : undefined, dot: grownInk(outlined!), chosen: outlined === chosen || outlined === grownOpen })),
         ...answerMarks((changed) => changed.on),
       ],
