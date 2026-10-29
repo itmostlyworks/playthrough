@@ -656,7 +656,8 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     let last: number;
     if (!map?.offsetParent) {
       const frame = document.querySelector<HTMLElement>(`[data-frame="${round.number}"]`);
-      last = frame ? grow(flight.taking, frame) : 0;
+      // Only the picture of the flow that plays grows into the frame.
+      last = frame ? grow(flight.taking.filter((taken) => taken.flow === playhead.flow.name), frame) : 0;
     } else {
       for (const animation of map.getAnimations({ subtree: true })) if (animation.id === "glide") animation.finish();
       last = land(flight.taking, map, map.getBoundingClientRect());
@@ -957,11 +958,12 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
         return acting.take();
       }
       if (writingHere(event) || event.metaKey || event.ctrlKey || event.altKey || event.defaultPrevented) return;
-      // Over every flow, Space plays from the start and Enter takes the step; a tile is chosen as a button is.
+      // Over every flow, Space plays what the frame shows, the flow you point at or the one the step goes to, and Enter
+      // takes the step; a row is chosen as a button is.
       if (onGrid) {
         if (event.key === " ") {
           event.preventDefault();
-          leave(playhead.flow.name, true);
+          leave(gridRoom.current?.querySelector<HTMLElement>("[data-picture]")?.dataset.picture ?? playhead.flow.name, true);
         } else if (event.key === "Enter" && !(event.target as Element).closest?.("button") && gridStep?.kind === "go" && !gridStep.final) {
           event.preventDefault();
           gridStep.take();
