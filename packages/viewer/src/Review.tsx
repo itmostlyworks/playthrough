@@ -500,17 +500,18 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
         ? diamonds.find((diamond) => diamond.id === onNow)
         : diamonds.find((diamond) => diamond.id === answerShown && diamond.flow === watching);
 
-  // Opened, a row in the column plays its moment, from its start each time, and its time plays it again: a click on the
-  // rest of its header opens it or closes it, and never plays or pauses anything else.
+  // Opened, a row in the column goes to its moment, or plays it when it's a stretch, and its time goes there again: a
+  // click on the rest of its header opens it or closes it, and never plays or pauses anything else.
   const running = useRef<string>(undefined);
   const play = (id: string, from: Moment, until: number) => {
     running.current = id;
     playhead.run(from, until);
   };
-  // A change is played from a beat before it, to where it is; new steps, through them.
+  // A change is a difference from an earlier round, seen on one frame: it opens there, still. New steps play through.
   const choose = (diamond: Diamond) => {
     setOpen({ change: diamond.id });
-    play(diamond.id, { flow: diamond.flow, at: Math.max(0, diamond.at - (diamond.until === undefined ? 0.8 : 0.3)) }, diamond.until ?? diamond.at);
+    if (diamond.until === undefined) go(diamond.flow, diamond.at);
+    else play(diamond.id, { flow: diamond.flow, at: diamond.at }, diamond.until);
   };
   // A flow's heading plays and pauses it: from its start, unless you're partway through it.
   const playFlow = (chosen: Flow) => {
@@ -863,7 +864,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     const diamond = diamonds.find((diamond) => diamond.changes.includes(changed));
     if (!diamond) return;
     setAnswerShown(diamond.id);
-    play(diamond.id, { flow: diamond.flow, at: Math.max(0, diamond.at - 0.8) }, diamond.at);
+    go(diamond.flow, diamond.at);
   };
   const row = (note: Shown, grownHere?: boolean) => {
     const isOpen = !!open && "note" in open && open.note === note.id;
