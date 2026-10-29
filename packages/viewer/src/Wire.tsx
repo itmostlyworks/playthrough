@@ -3,7 +3,8 @@
 
 import { useEffect, useLayoutEffect, useRef } from "react";
 
-export function Wire({ id, colour, hidden }: { id?: string; colour: string; hidden: boolean }) {
+// Playing, it fades with the outlines, and comes back where the pin is once it stops.
+export function Wire({ id, colour, hidden, faded }: { id?: string; colour: string; hidden: boolean; faded: boolean }) {
   const path = useRef<SVGPathElement>(null);
   const paint = () => {
     const line = path.current;
@@ -49,7 +50,7 @@ export function Wire({ id, colour, hidden }: { id?: string; colour: string; hidd
     return () => cancelAnimationFrame(frame);
   });
   return (
-    <svg className="pointer-events-none fixed inset-0 z-20 size-full phone:hidden" aria-hidden>
+    <svg className={`pointer-events-none fixed inset-0 z-20 size-full transition-opacity duration-250 ease-calm phone:hidden ${faded ? "opacity-0" : ""}`} aria-hidden>
       <path ref={path} fill="none" stroke={colour} strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   );

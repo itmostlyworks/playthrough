@@ -303,7 +303,8 @@ export function Stage(props: Props) {
   };
 
   // Each mark goes where its thing is on the page now, and shows while its moment is and it's on the recorded screen,
-  // covering only the part of it that is; a change, only while you're stopped. On the round you're watching, a note
+  // covering only the part of it that is; a change, only while you're stopped. Outlines are for still frames: playing,
+  // they fade, and only the pins go along with the recording. On the round you're watching, a note
   // whose thing has been off the page for a moment of the recording is gone: playing past a page redrawing, it doesn't
   // flicker. Moved out of the screen's view, it's still there.
   const place = (layer: HTMLElement, replay: Replay | undefined, page: Size, view: View, frame: Size, at: number, playing: boolean, watched: boolean) => {
@@ -319,6 +320,7 @@ export function Stage(props: Props) {
       const shown = (node === undefined && !spot) || (right - left >= 1 && bottom - top >= 1);
       const now = from === undefined || (at >= Number(from) - 0.05 && at <= Number(until ?? from) + SHOWN_FOR);
       mark.hidden = !shown || !now || (paused !== undefined && playing);
+      mark.toggleAttribute("data-playing", playing);
       if (watched && node !== undefined && mark.dataset.kind === "note") {
         if (box) seen.current.set(markId!, at);
         else if (!playing || Math.abs(at - (seen.current.get(markId!) ?? -Infinity)) > 0.3) gone.push(markId!);
@@ -1020,7 +1022,7 @@ function Drawn({ mark, onMark }: { mark: Mark; onMark: (id: string) => void }) {
       data-box={"box" in on ? `${on.box.x} ${on.box.y} ${on.box.width} ${on.box.height}` : undefined}
       {...shows}
       hidden
-      className={`pointer-events-none absolute rounded-[4px] outline-offset-4 ${look}`}
+      className={`pointer-events-none absolute rounded-[4px] outline-offset-4 transition-[outline-color] duration-250 ease-calm data-playing:outline-transparent ${look}`}
       style={mark.ink ? ({ "--c": mark.ink } as CSSProperties) : undefined}
     >
       {badge}

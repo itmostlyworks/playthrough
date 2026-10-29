@@ -3,7 +3,8 @@
 // writing by what it's on, or by where you clicked, a change by its outline. A flow's question sits over its last frame.
 // In the app, a note sits by its pin there (pinned). Where nothing marks the spot, it stays where it opened; where its
 // thing is still to be drawn, it waits for it, unseen, and once it's stood beside it, it stays there while it's gone.
-// Dragged, it stays where you put it. Opened by you, it closes with its ×, or as you do something else (onAway): a click
+// Playing, it keeps where it stood from its pin, as the outlines fade: what it's on can grow and shrink with the page, and
+// the card isn't to move with it, though it goes along as the view moves. Dragged, it stays where you put it. Opened by you, it closes with its ×, or as you do something else (onAway): a click
 // anywhere else, here or in the app. Moving a recording's view around isn't a click.
 
 import { useEffect, useLayoutEffect, useRef, type PointerEvent as Press, type ReactNode } from "react";
@@ -23,9 +24,9 @@ const DRAG = 4;
 // Opened from the timeline, playing comes up to the moment before what it's on is drawn: the card waits this long for it.
 const WAIT = 1500;
 
-export function Beside({ id, over, pinned, onAway, children }: { id?: string; over?: boolean; pinned?: () => Spot | undefined; onAway?: () => void; children?: ReactNode }) {
+export function Beside({ id, over, still, pinned, onAway, children }: { id?: string; over?: boolean; still?: boolean; pinned?: () => Spot | undefined; onAway?: () => void; children?: ReactNode }) {
   const card = useRef<HTMLElement>(null);
-  const opened = useRef<{ id?: string; at: Spot; since: number; side?: Side; put?: Spot; was?: Spot; last?: Spot }>(undefined);
+  const opened = useRef<{ id?: string; at: Spot; since: number; side?: Side; put?: Spot; was?: Spot; last?: Spot; fromPin?: Spot }>(undefined);
   // While you point at it, it holds still: what you point at inside it may be drawn somewhere else, and it's not to
   // move from under you.
   const pointing = useRef(false);
@@ -86,6 +87,8 @@ export function Beside({ id, over, pinned, onAway, children }: { id?: string; ov
       const at = fromApp ?? first.at;
       const spot = found ? drawn! : new DOMRect(at.x, at.y, 0, 0);
       const pin = id ? document.querySelector<HTMLElement>(`${shown} [data-pin="${CSS.escape(id)}"]`)?.getBoundingClientRect() : undefined;
+      const kept = still && pin?.width && first.fromPin && { x: pin.left + first.fromPin.x, y: pin.top + first.fromPin.y };
+      if (kept && kept.x >= EDGE && kept.x + w <= innerWidth - EDGE && kept.y >= EDGE && kept.y + h <= innerHeight - EDGE) return to(kept.x, kept.y);
       const corner = pin?.width ? pin : spot;
       // Under it or over it, the card ends at the pin's right, so the line runs straight to the pin.
       const across = clamp(corner.right - w, EDGE, innerWidth - w - EDGE);
@@ -105,6 +108,7 @@ export function Beside({ id, over, pinned, onAway, children }: { id?: string; ov
       const side = first.side && good(first.side) ? first.side : (SIDES.find(good) ?? SIDES.find((side) => fits(places[side])));
       first.side = side;
       if (side && found) first.was = places[side];
+      if (side && found && pin?.width) first.fromPin = { x: places[side].x - pin.left, y: places[side].y - pin.top };
       if (side) return to(places[side].x, places[side].y);
       to(spot.right + GAP + w <= innerWidth - EDGE ? spot.right + GAP : Math.max(EDGE, spot.left - GAP - w), level);
     };
