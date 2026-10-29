@@ -137,6 +137,9 @@ async function start(repo: Repo, id: string, to: To, files: string[], written: n
   };
   one.ran = runAlongside(page, { request, baseURL: app.url, started, makeSetup, arrived }, body, orders).catch((error) => ({ stopped: { why: firstLine(String(error?.message ?? error)) } }));
   void one.ran.finally(() => ((one.over = true), close()));
+  // One whose browser or page has gone is over too, waiting or not, and the next take over runs another.
+  context.on("close", one.stop);
+  page.on("crash", one.stop);
   return one;
 }
 
