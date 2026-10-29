@@ -1,9 +1,10 @@
 // What's open sits beside its spot on the recording, where it covers neither the thing it's on nor that thing in the
 // round beside it: to its right, its left, over it or under it, the first with room. A note by its pin, the one you're
 // writing by what it's on, or by where you clicked, a change by its outline. A flow's question sits over its last frame.
-// In the app, a note sits by its pin there (pinned). Where nothing marks the spot, it stays where it opened. Dragged, it
-// stays where you put it. Opened by you, it closes with its ×, or as you do something else (onAway): a click anywhere
-// else, here or in the app. Moving a recording's view around isn't a click.
+// In the app, a note sits by its pin there (pinned). Where nothing marks the spot, it stays where it opened; where its
+// thing is still to be drawn, it waits for it, unseen, and once it's stood beside it, it stays there while it's gone.
+// Dragged, it stays where you put it. Opened by you, it closes with its ×, or as you do something else (onAway): a click
+// anywhere else, here or in the app. Moving a recording's view around isn't a click.
 
 import { useEffect, useLayoutEffect, useRef, type PointerEvent as Press, type ReactNode } from "react";
 
@@ -19,10 +20,12 @@ const EDGE = 16;
 const GAP = 28;
 // A press that moves this far is a drag, not a click.
 const DRAG = 4;
+// Opened from the timeline, playing comes up to the moment before what it's on is drawn: the card waits this long for it.
+const WAIT = 1500;
 
 export function Beside({ id, over, pinned, onAway, children }: { id?: string; over?: boolean; pinned?: () => Spot | undefined; onAway?: () => void; children?: ReactNode }) {
   const card = useRef<HTMLElement>(null);
-  const opened = useRef<{ id?: string; at: Spot; side?: Side; put?: Spot }>(undefined);
+  const opened = useRef<{ id?: string; at: Spot; since: number; side?: Side; put?: Spot; was?: Spot }>(undefined);
   const away = useRef(onAway);
   away.current = onAway;
   useEffect(() => {
@@ -61,12 +64,20 @@ export function Beside({ id, over, pinned, onAway, children }: { id?: string; ov
       const shown = "[data-frame][data-watched]";
       const frame = over && document.querySelector<HTMLElement>(shown)?.getBoundingClientRect();
       if (frame) return to(frame.left + frame.width / 2 - w / 2, frame.bottom - h - 44);
-      const first = opened.current && opened.current.id === id ? opened.current : (opened.current = { id, at: { ...clicked } });
+      const first = opened.current && opened.current.id === id ? opened.current : (opened.current = { id, at: { ...clicked }, since: performance.now() });
       if (first.put) return to(clamp(first.put.x, EDGE, innerWidth - w - EDGE), clamp(first.put.y, EDGE, innerHeight - h - EDGE));
       const outline = !id ? null : document.querySelector<HTMLElement>(`${shown} [data-pin="${CSS.escape(id)}"], ${shown} [data-mark-id="${CSS.escape(id)}"]`);
       const drawn = outline?.getBoundingClientRect();
-      const at = pinned?.() ?? first.at;
-      const spot = drawn?.width || drawn?.height ? drawn : new DOMRect(at.x, at.y, 0, 0);
+      const found = !!(drawn?.width || drawn?.height);
+      const fromApp = pinned?.();
+      // What it's on is on this round but not drawn yet, or not any more: the card waits unseen for it, or stays where it
+      // last stood beside it, rather than standing where it was opened from.
+      const waiting = !found && !fromApp && !!outline && !first.was && performance.now() - first.since < WAIT;
+      box.style.visibility = waiting ? "hidden" : "";
+      if (waiting) return;
+      if (!found && !fromApp && first.was) return to(first.was.x, first.was.y);
+      const at = fromApp ?? first.at;
+      const spot = found ? drawn! : new DOMRect(at.x, at.y, 0, 0);
       const pin = id ? document.querySelector<HTMLElement>(`${shown} [data-pin="${CSS.escape(id)}"]`)?.getBoundingClientRect() : undefined;
       const corner = pin?.width ? pin : spot;
       // Under it or over it, the card ends at the pin's right, so the line runs straight to the pin.
@@ -86,6 +97,7 @@ export function Beside({ id, over, pinned, onAway, children }: { id?: string; ov
       const good = (side: Side) => fits(places[side]) && clear(places[side]);
       const side = first.side && good(first.side) ? first.side : (SIDES.find(good) ?? SIDES.find((side) => fits(places[side])));
       first.side = side;
+      if (side && found) first.was = places[side];
       if (side) return to(places[side].x, places[side].y);
       to(spot.right + GAP + w <= innerWidth - EDGE ? spot.right + GAP : Math.max(EDGE, spot.left - GAP - w), level);
     };

@@ -172,6 +172,12 @@ describe("What changed at a moment", () => {
     assert.deepEqual(await said(link(""), link(`<small style="display: block">Reconciled 1 month ago</small>`)), ["“Reconciled 1 month ago” is new"]);
   });
 
+  test("a control named by everything inside it is the same control, and what changed inside it is what's told", async () => {
+    // Kan's list is one button you drag, called by its name, its count and every card's title.
+    const list = (count: string) => `<div role="button" tabindex="0"><div><span>Done</span> ${count}</div><button style="display: block">BS-4 Set up the domain</button><button style="display: block">BS-5 Choose the fonts</button></div>`;
+    assert.deepEqual(await said(list(""), list(`<span>2</span>`)), ["“2” is new"]);
+  });
+
   test("a page scrolled further hasn't moved what's on it", async () => {
     const page = `<h1>Invoices</h1><p style="margin-top: 1500px">INV-1043</p>`;
     assert.deepEqual(changesAt(await reading(page), await reading(page, 600)).map((change) => change.words), []);

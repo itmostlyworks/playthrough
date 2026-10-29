@@ -125,8 +125,12 @@ export function differences(then: Reading, now: Reading): { differences: Differe
       continue;
     }
     // A control that only gained or lost words in something inside it is the same control: those words are what changed,
-    // read on their own (Actual's account links took a line under their names).
-    a = b.role !== "text" ? take((a) => a.role === b.role && (gained(now, b, a.name) || gained(then, a, b.name))) : undefined;
+    // read on their own (Actual's account links took a line under their names). So is one named by everything inside
+    // it, where it was: Kan's whole list is one button you drag, called by its name, its count and every card's title.
+    a =
+      b.role !== "text"
+        ? take((a) => a.role === b.role && (gained(now, b, a.name) || gained(then, a, b.name) || (namedByInside(then, a) && namedByInside(now, b) && overlap(a, b) > 0.5)))
+        : undefined;
     if (a) {
       was.set(b, a);
       if (!sameLook(a, b)) found.push({ what: "looks different", then: a, now: b });
@@ -206,6 +210,9 @@ function gained(reading: Reading, control: Thing, was: string): boolean {
   const more = control.name.slice(was.length + 1);
   return reading.things.some((thing) => parentOf(reading, thing) === control && thing.words === more);
 }
-const mostlyWhereItWas = (a: Thing, b: Thing) => HOLDS.test(b.role) && overlap(a, b) > 0.5;
+// Named by a control inside it: what it's called is what it holds, not a label of its own.
+const namedByInside = (reading: Reading, thing: Thing) =>
+  !!thing.name && reading.things.some((inside) => parentOf(reading, inside) === thing && inside.role !== "text" && !!inside.name && thing.name.includes(inside.name));
+const mostlyWhereItWas =(a: Thing, b: Thing) => HOLDS.test(b.role) && overlap(a, b) > 0.5;
 const holdsTheSameWords = (a: Thing, b: Thing) => /^(box|menu)$/.test(b.role) && !!a.wordsInside && bag(a) === bag(b);
 const bag = (thing: Thing) => (thing.wordsInside ?? "").split(" ").sort().join(" ");

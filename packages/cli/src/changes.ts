@@ -448,9 +448,11 @@ function alikeWords(alike: Told[]): string {
     const them = symbolOnly(first.thing) ? together(all) : `${together(all, (thing) => thing.name)} ${plural(WORD[first.thing.role]!)}`;
     return sentence(`${them} ${verb}${along}`);
   }
-  // Called differently only by their data, they're called by what they share: “$…” looks different, in 5 places.
+  // Called differently only by their data, they're called by what they share: “$…” looks different, in 5 places. Things
+  // that are only their data, a count, share nothing to say, and are called by the first: “2” is new, in 3 places.
   const name = called(first.thing);
-  const shared = new Set(alike.map((told) => called(told.thing))).size > 1 && first.words.startsWith(name) ? dataLeftOut(name) + first.words.slice(name.length) : first.words;
+  const bare = dataLeftOut(name);
+  const shared = new Set(alike.map((told) => called(told.thing))).size > 1 && first.words.startsWith(name) && /[^“”…\s]/.test(bare) ? bare + first.words.slice(name.length) : first.words;
   return sentence(`${shared}${along}, in ${alike.length} places`);
 }
 
