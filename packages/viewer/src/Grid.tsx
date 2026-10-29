@@ -27,6 +27,7 @@ type Props = {
 
 export function Grid(props: Props) {
   const { review, round, up, step } = props;
+  // The flow you point at stays in the frame until you leave the list and the frame both, so you can go across to it.
   const [pointed, setPointed] = useState<string>();
   const toCheck = round.flows.filter((flow) => props.needs(flow.name)).length;
   const shown = round.flows.find((flow) => flow.name === pointed) ?? round.flows.find((flow) => flow.name === (step?.kind === "go" ? step.flow : undefined)) ?? round.flows[0]!;
@@ -47,7 +48,7 @@ export function Grid(props: Props) {
 
   return (
     <div ref={props.room} inert={!up} className={`absolute inset-0 z-20 flex bg-ground transition-[opacity,visibility] duration-240 ease-calm ${up ? "visible opacity-100" : "invisible opacity-0"}`}>
-      <div className="m-auto grid w-full max-w-[1240px] grid-cols-[320px_minmax(0,1fr)] gap-10 px-8 py-6 phone:grid-cols-1 phone:gap-5 phone:px-0">
+      <div className="m-auto grid w-full max-w-[1240px] grid-cols-[320px_minmax(0,1fr)] gap-10 px-8 py-6 phone:grid-cols-1 phone:gap-5 phone:px-0" onPointerLeave={() => setPointed(undefined)}>
         <div className="flex max-h-[calc(100dvh-140px)] min-h-0 flex-col phone:max-h-none">
           <div className="px-2.5">
             <h2 className="line-clamp-4 text-[15px] leading-[21px] font-semibold">{review.title}</h2>
@@ -56,7 +57,7 @@ export function Grid(props: Props) {
               {left}
             </p>
           </div>
-          <div className="-mx-1 mt-5 min-h-0 overflow-y-auto px-1" onPointerLeave={() => setPointed(undefined)}>
+          <div className="-mx-1 mt-5 min-h-0 overflow-y-auto px-1">
             {round.flows.map(row)}
           </div>
         </div>
