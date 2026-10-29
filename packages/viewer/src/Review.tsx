@@ -107,9 +107,9 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const [on, setOn] = useState(round.number);
   const toNote = useRef<Shown>(undefined);
   const [listing, setListing] = useState(false);
-  // Every flow at once: where you arrive on the latest round when it has more than one, and come back to. A round
-  // that's new to you starts there too.
-  const many = round === latest && round.flows.length > 1;
+  // Every flow at once: where you arrive on a round with more than one flow, and come back to. A round that's new to you
+  // starts there too. One that arrives while you're on another leaves you where you are.
+  const many = round.flows.length > 1;
   const [grid, setGrid] = useState(many);
   const onGrid = grid && many;
   const been = useRef([round.number]);
@@ -127,7 +127,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   useEffect(() => () => playhead.destroy(), [playhead]);
   const onRoundNow = useRef(round.number);
   useLayoutEffect(() => {
-    if (onRoundNow.current === round.number) return playhead.watch(played.flows, playhead.now.moment);
+    if (onRoundNow.current === round.number) return playhead.keep(played.flows);
     onRoundNow.current = round.number;
     const from = playhead.flow;
     const to = played.flows.find((flow) => flow.name === from.name);
@@ -151,8 +151,8 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   });
 
   // Taking over: the moment the playhead rests on, on the latest round, is made ready after a beat of stillness and
-  // loaded unseen, so Take over turns the frame into the app at once. Playing again, or another round, lays the
-  // recording back over it.
+  // loaded unseen, so Take over turns the frame into the app at once. Playing again, or going to another round, lays the
+  // recording back over it; a round arriving doesn't.
   const [live, setLive] = useState<Live>();
   // Not on a fork: taking one over carries it on from its end.
   const resting = useNow(playhead, ({ moment, playing }) => {
@@ -185,7 +185,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     setLive((now) => now && { ...now, shown: false, at });
     window.focus();
   };
-  if (live?.shown && (playingNow || round !== latest)) setLive({ ...live, shown: false });
+  if (live?.shown && (playingNow || on !== round.number)) setLive({ ...live, shown: false });
   // Letting go, what you did is kept only as far as you said something about it: you land at your last note on the
   // fork, or with nothing said, back where you took the flow over, with nothing left behind.
   const letGo = (at?: { x: number; y: number }) => {
@@ -338,7 +338,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     const kept = `${session.id}-${++session.kept}.json`;
     // It ends now, not at the last thing the page did: still time is time you spent there too.
     const now = { type: 5, data: { tag: "now", payload: {} }, timestamp: session.events.at(-1)!.timestamp + Date.now() - (session.heard ?? Date.now()) };
-    const length = await keepBranch(review.id, latest.number, session.from, [...session.events, now], kept);
+    const length = await keepBranch(review.id, round.number, session.from, [...session.events, now], kept);
     if (!length) return undefined;
     const recording = `branches/${kept}`;
     const longer = (note: Note) => (note.on?.app && sessionOf(note.on.app.recording) === session.id ? { ...note, on: { ...note.on, app: { ...note.on.app, recording, length } } } : note);
@@ -860,7 +860,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const asks = !!openNote && !readOnly && openNote.toJudge && !draft.verdicts.some((verdict) => verdict.note === openNote.id) && openNote.on?.flow === watching;
   const compareNow = (openNote && answered(openNote) && openNote.on?.flow === watching) || changeOpen?.flow === watching ? comparingIt : undefined;
   const cKey = useRef<{ down: number; holding: number }>(undefined);
-  const before = round === latest && round.number > first;
+  const before = round.number > first;
   const comparedRound = howItWas && before ? review.rounds.find((kept) => kept.number === first) : compareNow ? review.rounds.find((kept) => kept.number === compared) : undefined;
 
   // Sending carries everything you've said on the round at once; what you haven't saved stays. Accepting sends what's
@@ -933,20 +933,22 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const step = footStep();
 
   // Over every flow, the foot's step from the top: to the first flow that needs you, from its start, as Start checking,
-  // or Carry on checking once you've begun; else what the foot would offer, sending and accepting where you are.
+  // or Carry on checking once you've begun; else what the foot would offer, sending and accepting where you are. A round
+  // that arrived while you were here is offered as the foot offers it.
   const begun = watched.length > 0 || said(draft) > 0 || draft.unsaved.length > 0;
   const gridStep = ((): Step | undefined => {
     if (review.accepted || acceptedHere || readOnly) return undefined;
-    const step = onward(-1);
-    if (step.kind === "agent") return step;
-    if (step.kind !== "go") return undefined;
-    if (step.flow) return { ...step, words: begun ? "Carry on checking" : "Start checking", what: undefined, take: () => leave(step.flow, true) };
-    if (step.send || step.final) return step;
+    if (round !== latest) return step;
+    const next = onward(-1);
+    if (next.kind === "agent") return next;
+    if (next.kind !== "go") return undefined;
+    if (next.flow) return { ...next, words: begun ? "Carry on checking" : "Start checking", what: undefined, take: () => leave(next.flow, true) };
+    if (next.send || next.final) return next;
     return {
-      ...step,
+      ...next,
       take: () => {
         leave(undefined, false);
-        step.take();
+        next.take();
       },
     };
   })();
@@ -1027,12 +1029,12 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
       } else if (event.key === "Escape" && live?.shown) {
         letGo();
       } else if (event.key === "Escape") {
-        // Escape goes back a step you can see: from a note or a change to the column, looking back to now, and from a
-        // flow to every flow.
+        // Escape goes back a step you can see: from a note or a change to the column, from a flow to every flow, and
+        // looking back to now.
         if (listing) setListing(false);
         else if (open) setOpen(undefined);
-        else if (round !== latest) toRound(latest.number);
         else if (many) toGrid();
+        else if (round !== latest) toRound(latest.number);
       }
     };
     const up = (event: KeyboardEvent) => {

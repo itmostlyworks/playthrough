@@ -3,7 +3,7 @@
 // the flow you point at as it opens, its name over its first picture. Each row says the flow's length and, in words, where it stands. Choosing one plays it, its picture
 // growing into the frame. Under the frame, the one step to take.
 
-import { useState, type RefObject } from "react";
+import { useRef, useState, type RefObject } from "react";
 import { time, type Flow, type Review, type Round } from "@mostlyworks/vantage-review";
 import { picture } from "./api.ts";
 import { TickMark } from "./Column.tsx";
@@ -28,9 +28,13 @@ type Props = {
 export function Grid(props: Props) {
   const { review, round, up, step } = props;
   // The flow you point at stays in the frame until you leave the list and the frame both, so you can go across to it.
+  // Otherwise it's the flow the step goes to, or the one it last went to: a step that goes to no flow, such as a round
+  // arriving, changes nothing in the frame.
   const [pointed, setPointed] = useState<string>();
+  const stepped = useRef<string>(undefined);
+  if (step?.kind === "go" && step.flow) stepped.current = step.flow;
   const toCheck = round.flows.filter((flow) => props.needs(flow.name)).length;
-  const shown = round.flows.find((flow) => flow.name === pointed) ?? round.flows.find((flow) => flow.name === (step?.kind === "go" ? step.flow : undefined)) ?? round.flows[0]!;
+  const shown = round.flows.find((flow) => flow.name === pointed) ?? round.flows.find((flow) => flow.name === stepped.current) ?? round.flows[0]!;
 
   const row = (flow: Flow) => (
     <Row key={flow.name} review={review} round={round} flow={flow} standing={props.standing(flow.name)} on={flow === shown} onPoint={setPointed} onFlow={props.onFlow} />

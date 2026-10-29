@@ -79,6 +79,12 @@ export class Playhead {
     this.go(moment);
   }
 
+  // The same round's flows again, as the review comes back changed, with a fork kept longer or a round arriving: where
+  // you are, and whether it plays, stay as they are.
+  keep(flows: Flow[]) {
+    this.flows = flows;
+  }
+
   // A moment of a flow played on its own: from where it starts to where it ends, then stopped there.
   run(from: Moment, until: number) {
     this.pause();
