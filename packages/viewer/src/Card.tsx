@@ -57,13 +57,14 @@ export const play = (
 // Compare: this moment as it was, over the recording. In an answer's card it's a row of its own above the question,
 // quieter than the answers, its mark a circle half full, now and then. Pressed and let go, it stays on until it's
 // pressed again; held, it's on while it's held, as C is. On the action bar, it's one of the bar's own (`bar`).
-export function Compare({ on, onPress, onRelease, bar }: Comparing & { bar?: string }) {
+export function Compare({ on, off, onPress, onRelease, bar }: Comparing & { bar?: string }) {
   return (
     <button
-      className={bar ?? `flex h-[30px] flex-none items-center gap-2 rounded-md px-2.5 text-xs font-medium text-fg shadow-[inset_0_0_0_1px_var(--line)] transition-[background-color,box-shadow] duration-150 ease-calm select-none hover:shadow-[inset_0_0_0_1px_var(--faint)] aria-pressed:bg-hover`}
+      className={bar ?? `flex h-[30px] flex-none items-center gap-2 rounded-md px-2.5 text-xs font-medium text-fg shadow-[inset_0_0_0_1px_var(--line)] transition-[background-color,box-shadow,color] duration-150 ease-calm select-none enabled:hover:shadow-[inset_0_0_0_1px_var(--faint)] disabled:cursor-default disabled:text-faint aria-pressed:bg-hover`}
+      disabled={off}
       aria-pressed={on}
       aria-keyshortcuts="C"
-      onPointerDown={(event) => event.button === 0 && (event.preventDefault(), pressedUntilLetGo(onPress, onRelease))}
+      onPointerDown={(event) => !off && event.button === 0 && (event.preventDefault(), pressedUntilLetGo(onPress, onRelease))}
       onContextMenu={(event) => event.preventDefault()}
       onKeyDown={(event) => event.key === "Enter" && (onPress(), onRelease())}
     >

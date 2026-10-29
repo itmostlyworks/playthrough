@@ -973,7 +973,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     : comparedRound;
   // Compare is there only where the round it compares with has what you're watching: a fork you made on this round, or
   // a flow new in it, has nothing to show beside it.
-  const comparingIt: Comparing | undefined = heldOver?.flows.some((flow) => flow.name === inPlay) ? { on: peek || look === "side", onPress: pressCompare, onRelease: releaseCompare } : undefined;
+  const comparingIt: Comparing | undefined = heldOver?.flows.some((flow) => flow.name === inPlay) ? { on: peek || look === "side", off: !!live?.shown, onPress: pressCompare, onRelease: releaseCompare } : undefined;
   // Side by side, the round it compares with is on the left, or above.
   const comparing = look === "side" && !!heldOver;
   const earlier = comparing ? heldOver : undefined;
