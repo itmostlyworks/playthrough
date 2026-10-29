@@ -4,7 +4,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { list, time, type Turn, type Verdict } from "@mostlyworks/vantage-review";
-import { Answer, Compare, mac, play, Said, tick, Time } from "./Card.tsx";
+import { Answer, Compare, mac, play, Said, TakeOverHere, tick, Time } from "./Card.tsx";
 import type { Changed } from "./changes.ts";
 import { fades, useFade } from "./fade.ts";
 import { ink, type Shown } from "./notes.ts";
@@ -39,6 +39,9 @@ type Props = {
   // What the agent changed for it, in its flow.
   answers: Changed[];
   compare?: Comparing;
+  // Made in the app on an earlier round, it's checked by trying it: taken over where you were, in Compare's place, or
+  // without onTakeOver, said plainly that this round's recording doesn't go there.
+  whereYouWere?: { round: number; live?: "waiting" | "shown"; onTakeOver?: () => void };
   // Not quite, being written.
   asking: boolean;
   // What it's on isn't on screen: it greys and asks nothing.
@@ -139,7 +142,7 @@ function exchanges(turns: Turn[]): Turn[][] {
 }
 
 function Card(props: Props) {
-  const { note, you, readOnly, compare, asking } = props;
+  const { note, you, readOnly, compare, whereYouWere, asking } = props;
   const draftNote = note.unsent && note.turns.length === 1;
   const judged = note.unsent && !draftNote ? note.turns.at(-1) : undefined;
   // Someone's Looks good, sent, settles the latest answer for everyone, under their name; anyone can still send it back,
@@ -279,6 +282,13 @@ function Card(props: Props) {
     <div className="grid gap-2.5 pr-3.5 pl-[44px]">
       <div className={`grid gap-2.5 transition-opacity duration-250 ease-calm ${props.away && !readOnly ? "opacity-45" : ""}`}>{words}</div>
       {compare && !asking && !editing && !props.away && <Compare {...compare} />}
+      {/* In the app, you're already there. */}
+      {whereYouWere && whereYouWere.live !== "shown" && !asking && !editing && !props.away &&
+        (whereYouWere.onTakeOver ? (
+          <TakeOverHere waiting={whereYouWere.live === "waiting"} onTakeOver={whereYouWere.onTakeOver} />
+        ) : (
+          <p className="text-xs leading-[18px] text-soft">Where you took this flow over isn’t in round {whereYouWere.round}’s recording.</p>
+        ))}
       {question && <p className="mt-1.5 text-xs leading-[18px] text-soft">{question}</p>}
       {answers && <div className="flex flex-wrap gap-1.5">{answers}</div>}
     </div>

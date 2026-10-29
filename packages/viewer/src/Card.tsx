@@ -91,6 +91,33 @@ export function Compare({ held, beside, onHold, onBeside }: { held: boolean; bes
 // Held this long, Compare is a look; let go sooner, it's a click.
 export const HOLD = 160;
 
+// Take over where you were: on the answer to a note made in the app, in Compare's place, as such a note is checked by
+// trying it, the way it was found. While the app is made ready, it says so, as Take over on the bar does.
+export function TakeOverHere({ waiting, onTakeOver }: { waiting: boolean; onTakeOver: () => void }) {
+  return (
+    <button
+      className="flex h-[30px] flex-none items-center gap-2 rounded-md px-2.5 text-xs font-medium text-fg shadow-[inset_0_0_0_1px_var(--line)] transition-[background-color,box-shadow] duration-150 ease-calm select-none hover:shadow-[inset_0_0_0_1px_var(--faint)] aria-pressed:bg-hover"
+      aria-pressed={waiting}
+      aria-keyshortcuts="T"
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={onTakeOver}
+    >
+      <ForkMark className="h-2 w-2.5 flex-none" />
+      <span className="min-w-0 flex-1 truncate text-left">{waiting ? "Taking over…" : "Take over where you were"}</span>
+      <Key className="text-soft">T</Key>
+    </button>
+  );
+}
+
+// What was made in the app: a fork's own curve, as it leaves the line.
+export function ForkMark({ className, label }: { className: string; label?: string }) {
+  return (
+    <svg viewBox="0 0 10 8" className={className} fill="none" stroke="var(--amber)" strokeWidth="1.5" aria-label={label} aria-hidden={!label}>
+      <path d="M0 7 C 2.5 7, 2.5 1, 5 1 L 10 1" />
+    </svg>
+  );
+}
+
 // A row's time plays its moment, as the time on a comment on a video does: quiet at rest, and a pill with the play mark
 // when you point at it. Closed, the whole row opens and plays, so pointing at the row lights it; open, the row closes,
 // and only the time itself plays its moment again.

@@ -2,6 +2,7 @@
 // where you act. The view changes only when you change it: a new round says it's in, and waits for you.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { elementOf } from "@mostlyworks/vantage-page";
 import { inStep, lastLooked, newId, readyToAccept, time, waitingForTheAgent, type Did, type Element as Thing, type Flow, type Note, type Point, type Place, type Review, type Round, type Send, type Verdict } from "@mostlyworks/vantage-review";
 import { accept, keepBranch, recording, send, useReview, useYou } from "./api.ts";
 import { Bar } from "./Bar.tsx";
@@ -24,7 +25,7 @@ import { Playhead, useNow, type Forked } from "./playhead.ts";
 import { recorded } from "./replay.ts";
 import { roundName } from "./Rounds.tsx";
 import { Stage, type Bare, type Mark, type Placed, type Shown as Size } from "./Stage.tsx";
-import { placeFrom, placeName as nameOf, placeOn, useReadings } from "./things.ts";
+import { placeFrom, placeName as nameOf, placeOn, useReadings, type Read } from "./things.ts";
 import { Wire } from "./Wire.tsx";
 
 // What's open in the column: a note, a change you chose, or a new note being written, by its id.
@@ -186,18 +187,25 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     window.focus();
   };
   if (live?.shown && (playingNow || on !== round.number)) setLive({ ...live, shown: false });
+  // The note whose answer you're trying in the app, taken over where you made it.
+  const trying = useRef<string>(undefined);
   // Letting go, what you did is kept only as far as you said something about it: you land at your last note on the
   // fork, or with nothing said, back where you took the flow over, with nothing left behind.
   const letGo = (at?: { x: number; y: number }) => {
     const kept = live?.shown && yours.current.address === live.address && forkList.find((fork) => fork.session === yours.current.id);
     if (kept) playhead.go({ flow: kept.name, at: kept.length });
+    trying.current = undefined;
     backToRecording(at);
   };
   const letGoNow = useRef(letGo);
   letGoNow.current = letGo;
   // On a fork, taking over carries it on from its end: the flow taken over where you took it, your steps done again.
+  // With the answer to a note made in the app open, it's taken over where you made the note, as Take over where you
+  // were in its card does.
   const takeOver = () => {
     if (live?.shown) return letGo();
+    if (openNote && whereYouWere.get(openNote.id)?.at !== undefined && openNote.on?.flow === watching) return tryWhereYouWere(openNote);
+    trying.current = undefined;
     const base = onFork && round.flows.find((flow) => flow.name === onFork.from.flow);
     if (onFork && base) {
       starting.current = { from: onFork.from, carry: yours.current.id === onFork.session ? yours.current : undefined };
@@ -205,6 +213,18 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     }
     starting.current = { from: { flow: playhead.flow.name, at: Math.round(Math.max(0, playhead.now.moment.at) * 100) / 100 } };
     takeOverAt(playhead.flow, playhead.now.moment.at);
+  };
+  // A note made in the app on an earlier round is checked the way it was found, by trying it: this round's flow taken
+  // over where you took it over then, what you did there done again, and in the app the note's pin on what it's on, its
+  // card beside it.
+  const tryWhereYouWere = (note: Shown) => {
+    const was = whereYouWere.get(note.id);
+    const flow = round.flows.find((flow) => flow.name === note.on?.flow);
+    if (!flow || was?.at === undefined || round !== latest) return;
+    trying.current = note.id;
+    setOpen({ note: note.id });
+    starting.current = { from: { flow: flow.name, at: was.at } };
+    takeOverAt(flow, was.at, was.did);
   };
   const takeOverAt = (on: Flow, at: number, did?: Did[]) => {
     const paused = pausedAt(on, at);
@@ -356,6 +376,8 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   };
   // In the app, Note goes there too: the app rings what's under the pointer and keeps the click it notes.
   const inApp = !!live?.shown && !!live.settled && !!live.address;
+  // Taken over: waiting while the moment is made ready, or the app showing in the frame.
+  const liveNow: "waiting" | "shown" | undefined = live?.shown ? (inApp ? "shown" : "waiting") : undefined;
   useEffect(() => {
     document.querySelector<HTMLIFrameElement>("[data-live] iframe")?.contentWindow?.postMessage({ vantage: "noting", on: noting && inApp }, "*");
   }, [noting, inApp]);
@@ -402,8 +424,17 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const readOn = [round.number, ...(earlier ? [earlier.number] : []), ...(compared === undefined ? [] : [compared]), ...noted.map((note) => note.written)];
   const read = useReadings(review, review.rounds.filter((kept) => readOn.includes(kept.number)).map((kept) => (kept.number === round.number ? played : kept)));
   // Each note sits where its thing is on this round: its moment here, on what it's on here, once that's found. One on
-  // something this round doesn't have is lost here.
-  const notes = noted.map((note) => (note.on && !note.on.app ? { ...note, on: placeOn(review, note.id, note.on, note.written, round, read) ?? note.on } : note));
+  // something this round doesn't have is lost here. One made in the app on an earlier round sits where you took its
+  // flow over, which this round's recording shows, as nothing recorded what you did after; where this round's flow
+  // doesn't go that far, it's on the whole flow.
+  const whereYouWere = new Map(
+    noted.flatMap((note) => (note.on?.app && note.written !== round.number ? [[note.id, { ...takenOverIn(review, note.on, note.written, round, read), did: note.on.app.did }] as const] : [])),
+  );
+  const notes = noted.map((note) => {
+    const was = whereYouWere.get(note.id);
+    if (was) return { ...note, on: { flow: note.on!.app!.from.flow, ...(was.at !== undefined && { at: was.at, ...(was.element && { element: was.element }) }) } };
+    return note.on && !note.on.app ? { ...note, on: placeOn(review, note.id, note.on, note.written, round, read) ?? note.on } : note;
+  });
   const lost = noted.filter((note, i) => note.on?.element && !note.on.app && notes[i]!.on !== note.on && !notes[i]!.on?.element).map((note) => note.id);
   // The notes whose things have left the page you're watching.
   const [gone, setGone] = useState<string[]>([]);
@@ -424,7 +455,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   if (asked && (where !== "end" || watching !== asked)) setAsked(undefined);
   const question = !open && flow && where === "end" && standing?.get(flow.name)?.asks && (asked === flow.name || standing.get(flow.name)?.is === "is it good") ? flow.name : undefined;
   // What you said about the whole flow sits over its last frame, with its question; one of them open, it opens there.
-  const general = flow && where === "end" ? noted.filter((note) => note.on?.flow === flow.name && note.on.at === undefined) : [];
+  const general = flow && where === "end" ? notes.filter((note) => note.on?.flow === flow.name && note.on.at === undefined) : [];
   const generalOpen = !!open && "note" in open && general.some((note) => note.id === open.note);
   const overEnd = (!open || generalOpen) && (!!question || general.length > 0);
   // The flow that just turned good, its tick travelling to the meter.
@@ -541,6 +572,11 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     document
       .querySelector<HTMLIFrameElement>("[data-live] iframe")
       ?.contentWindow?.postMessage({ vantage: "pin", id, number: notes.find((note) => note.id === id)?.number ?? notes.length + 1, css: on.element?.css, point: on.point }, "*");
+  // Taken over where you were, once your steps are done again and the app shows, the note you're trying is pinned there.
+  useEffect(() => {
+    const note = inApp ? noted.find((note) => note.id === trying.current) : undefined;
+    if (note?.on) pinInApp(note.id, note.on);
+  }, [inApp]);
   useEffect(() => {
     if (draft.unsaved.some((note) => !note.words.trim() && note.id !== writingId))
       change((draft) => ({ ...draft, unsaved: draft.unsaved.filter((note) => note.words.trim() || note.id === writingId) }));
@@ -596,10 +632,15 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
       };
     });
   // A flow's Looks good is a checkbox: pressed again before it's sent, it's taken back. Its question stays where you
-  // answered it, and its tick travels to the meter.
+  // answered it, and its tick travels to the meter. It settles only answers you've seen: one you haven't is shown first.
+  const unseen = (name: string) => notes.filter((note) => note.on?.flow === name && note.state === "needs you" && !note.unsent && !met.includes(note.id));
   const lookingGood = (name: string) => {
     if (draft.looksGood.includes(name)) return change((draft) => takeBack(draft, name, notes));
     if (standing?.get(name)?.is === "good") return;
+    // One at a moment plays to it; one on the whole flow is already here, over the flow's end.
+    const notSeen = unseen(name)[0];
+    if (notSeen?.on?.at !== undefined) return pick(notSeen);
+    if (notSeen) return (setOpen({ note: notSeen.id }), setMet((met) => [...met, notSeen.id]));
     change((draft) => lookGood(draft, name, notes));
     setAsked(name);
     setLanded({ flow: name, at: performance.now() });
@@ -807,6 +848,10 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     const away =
       (!!note.on && round.flows.some((flow) => flow.name === note.on!.flow) && note.on.flow !== watching) ||
       ((gone.includes(note.id) || lost.includes(note.id)) && !(where === "playing" && running.current === note.id));
+    // Made in the app on an earlier round, it's tried where you were rather than compared, on the round that's the app
+    // as it is now; in the app, a Looks good stays where you said it, as there's nothing to play on to.
+    const was = whereYouWere.get(note.id);
+    const tryHere = was && (was.at === undefined || (round === latest && !readOnly)) ? { round: round.number, live: trying.current === note.id ? liveNow : undefined, ...(was.at !== undefined && { onTakeOver: () => tryWhereYouWere(note) }) } : undefined;
     return (
       <NoteRow
         key={note.id}
@@ -817,7 +862,8 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
         open={isOpen}
         fresh={fresh === note.id}
         answers={answersTo(diamonds, note.id)}
-        compare={isOpen && (answered(note) || grownHere) ? comparingIt : undefined}
+        compare={isOpen && !was && (answered(note) || grownHere) ? comparingIt : undefined}
+        whereYouWere={tryHere}
         asking={asking === note.id}
         away={away}
         grown={grownHere}
@@ -827,7 +873,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
         onJudge={(verdict) => judge(note, verdict)}
         onEdit={(words) => editNote(note.id, words)}
         onAnswer={toAnswer}
-        onPlayOn={playOn}
+        onPlayOn={inApp && trying.current === note.id ? () => {} : playOn}
         onShow={() => show(note)}
       />
     );
@@ -858,7 +904,9 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   // a change. C compares, held for a look and tapped for side by side, as the pointer does on Compare.
   const openNote = open && "note" in open ? notes.find((note) => note.id === open.note) : undefined;
   const asks = !!openNote && !readOnly && openNote.toJudge && !draft.verdicts.some((verdict) => verdict.note === openNote.id) && openNote.on?.flow === watching;
-  const compareNow = (openNote && answered(openNote) && openNote.on?.flow === watching) || changeOpen?.flow === watching ? comparingIt : undefined;
+  const compareNow = (openNote && answered(openNote) && !whereYouWere.has(openNote.id) && openNote.on?.flow === watching) || changeOpen?.flow === watching ? comparingIt : undefined;
+  // In the app where you were, with the note you're trying open: it stays by its pin there while you try it.
+  const tryingHere = inApp && !!openNote && trying.current === openNote.id;
   const cKey = useRef<{ down: number; holding: number }>(undefined);
   const before = round.number > first;
   const comparedRound = howItWas && before ? review.rounds.find((kept) => kept.number === first) : compareNow ? review.rounds.find((kept) => kept.number === compared) : undefined;
@@ -1121,6 +1169,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     lit: lit,
     standing: (name) => standing?.get(name),
     saidGood: draft.looksGood,
+    unseen: unseen,
     asked: question,
     landed: landed,
     note: row,
@@ -1144,7 +1193,8 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   };
   return (
     <Page title={review.title}>
-      <Wire id={grownOpen?.id ?? openNote?.id ?? chosen?.id} colour={openNote ? ink(openNote) : grownOpen ? "var(--amber)" : "var(--soft)"} hidden={!!bare || peek} />
+      {/* In the app, the recording's pins are under it: a card there sits by the app's own pin, with nothing drawn to it. */}
+      <Wire id={grownOpen?.id ?? openNote?.id ?? chosen?.id} colour={openNote ? ink(openNote) : grownOpen ? "var(--amber)" : "var(--soft)"} hidden={!!bare || peek || inApp} />
       <main className="relative grid min-h-0 grid-cols-[minmax(0,1fr)] phone:flex phone:flex-col">
         <section inert={onGrid} className={`grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto] pb-4 phone:flex-none phone:grid-rows-[auto_auto] phone:pr-0 phone:pb-3 ${onGrid ? "invisible" : ""}`}>
           <div className="relative grid min-h-0 grid-rows-[minmax(0,1fr)] pb-6">
@@ -1189,7 +1239,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
           />
           <div className="absolute bottom-6 left-1/2 z-20 -translate-x-1/2 translate-y-1/2">
             <Bar
-              live={live?.shown ? (live.address && live.settled ? "shown" : "waiting") : undefined}
+              live={liveNow}
               latest={round === latest}
               before={before}
               howItWas={howItWas}
@@ -1205,7 +1255,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
               notes={notes
                 .filter((note) => note.on?.flow === watching && note.on.at !== undefined && note.turns[0]?.words)
                 .sort((a, b) => a.on!.at! - b.on!.at!)
-                .map((note) => ({ id: note.id, ink: ink(note), words: note.turns[0]!.words, at: time(note.on!.at!), app: !!note.on!.app }))}
+                .map((note) => ({ id: note.id, ink: ink(note), words: note.turns[0]!.words, at: time(note.on!.at!), app: !!note.on!.app || whereYouWere.has(note.id) }))}
               whole={notes.filter((note) => note.on?.flow === watching && note.on.at === undefined && note.turns[0]?.words).length}
               listed={listed}
               onList={(listed) => (setListed(listed), listed || setLitNote(undefined))}
@@ -1234,7 +1284,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
             forks={forksHere}
             lit={litNote}
             growing={inApp ? growing : undefined}
-            live={live?.shown ? (live.address && live.settled ? "shown" : "waiting") : undefined}
+            live={liveNow}
             onTakeOver={takeOver}
             ref={controls}
             playhead={playhead}
@@ -1290,9 +1340,9 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
 
         <Beside
           id={openNote?.id ?? writingId ?? chosen?.id}
-          over={!writingId && !chosen && overEnd}
-          pinned={openNote?.on?.app && inApp ? () => appPins.current.get(openNote.id) : undefined}
-          onAway={openNote || chosen ? () => setOpen(undefined) : undefined}
+          over={!writingId && !chosen && (overEnd || (!!openNote && whereYouWere.has(openNote.id) && !openNote.on?.element && !tryingHere))}
+          pinned={openNote && inApp && (openNote.on?.app || tryingHere) ? () => appPins.current.get(openNote.id) : undefined}
+          onAway={(openNote && !tryingHere) || chosen ? () => setOpen(undefined) : undefined}
         >
           {listed || onGrid ? undefined : openNote && !generalOpen ? row(openNote) : (pending.find((kept) => "open" in kept && kept.open)?.row ?? (chosen || overEnd ? <Chosen {...map} /> : undefined))}
         </Beside>
@@ -1394,5 +1444,24 @@ function forked(round: Round, forks: Fork[]): Round {
         fork: flow.name,
       }));
   return { ...round, flows: round.flows.flatMap((flow) => [flow, ...off(flow)]) };
+}
+
+// Where a note made in the app was taken over, on another round's recording of its flow: in the step you were in, by its
+// title, as far into it as you were, kept in step as every moment is across rounds; and what the note is on, if the
+// page there has it. Nowhere when that round's flow doesn't take the step that far.
+function takenOverIn(review: Review, on: Place, written: number, round: Round, read: Read): { at?: number; element?: Thing } {
+  const from = on.app!.from;
+  const then = review.rounds.find((kept) => kept.number === written)?.flows.find((flow) => flow.name === from.flow);
+  const now = round.flows.find((flow) => flow.name === from.flow);
+  const paused = then && pausedAt(then, from.at);
+  const step = paused && now?.steps.find((step) => step.title === paused.step);
+  if (!then || !now || !paused || !step || (step.actions?.length ?? 0) < (paused.actions ?? 0)) return {};
+  const kept = inStep(from.at, then, now);
+  const at = Math.round((samePaused(pausedAt(now, kept), paused) ? kept : (paused.actions ? step.actions![paused.actions - 1]! : (step.actions?.at(-1) ?? step.at)) + 0.05) * 100) / 100;
+  // The page as the last step before the moment left it.
+  const readings = read(round.number, now.name) ?? [];
+  const page = readings.findLast((reading) => reading.at <= at + 0.05) ?? readings[0];
+  const thing = on.element && page?.things.find((thing) => thing.role === on.element!.role && thing.name === on.element!.name);
+  return { at, ...(thing && { element: elementOf(thing, on.element!.name) }) };
 }
 

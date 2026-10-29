@@ -3,7 +3,7 @@
 // there, and going back.
 
 import { useEffect, useRef } from "react";
-import { Key } from "./Card.tsx";
+import { ForkMark, Key } from "./Card.tsx";
 
 // A note on this flow, as the list says it: its dot in its colour, its words, and its moment, made in the app or not.
 export type Said = { id: string; ink: string; words: string; at: string; app: boolean };
@@ -69,12 +69,7 @@ export function Bar(props: Props) {
                 <span className="size-1.5 rounded-full" style={{ background: said.ink }} />
                 <span className="truncate text-[13px] leading-[18px] text-fg">{said.words}</span>
                 <span className="flex items-center gap-1 text-[11.5px] text-faint tabular-nums">
-                  {/* Made in the app: the fork's own curve, as it leaves the line. */}
-                  {said.app && (
-                    <svg viewBox="0 0 10 8" className="h-2 w-2.5" fill="none" stroke="var(--amber)" strokeWidth="1.5" aria-label="In the app">
-                      <path d="M0 7 C 2.5 7, 2.5 1, 5 1 L 10 1" />
-                    </svg>
-                  )}
+                  {said.app && <ForkMark className="h-2 w-2.5" label="In the app" />}
                   {said.at}
                 </span>
               </button>

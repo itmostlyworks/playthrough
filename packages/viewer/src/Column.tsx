@@ -33,6 +33,8 @@ export type Props = {
   standing: (flow: string) => Standing | undefined;
   // The flows you've said look good and haven't sent: their tick takes it back, as a checkbox does.
   saidGood: string[];
+  // The answers in a flow you haven't seen: its Looks good never settles them, and its question shows them first.
+  unseen: (flow: string) => Shown[];
   // The flow asking whether it's good, at its end, and the one just ticked.
   asked?: string;
   landed?: Landed;
@@ -300,6 +302,8 @@ function Question({ flow, standing, just, onStage, ...props }: Omit<Props, "stan
   const sent = good && !props.saidGood.includes(flow.name);
   const buttons = useRef<HTMLDivElement>(null);
   const held = useHold(flow.name, buttons);
+  // An answer you haven't seen is shown before the flow can look good, rather than settled with it unread.
+  const unseen = good ? 0 : props.unseen(flow.name).length;
   return (
     <div
       data-key={`end:${flow.name}`}
@@ -324,11 +328,15 @@ function Question({ flow, standing, just, onStage, ...props }: Omit<Props, "stan
           Watch again
         </button>
         Is this flow good?
-        {standing.count > 0 && !good && <span className="block text-xs leading-4 text-faint">{standing.count} {standing.count === 1 ? "note" : "notes"} not answered</span>}
+        {unseen > 0 ? (
+          <span className="block text-xs leading-4 text-faint">{unseen} {unseen === 1 ? "answer" : "answers"} you haven’t seen</span>
+        ) : (
+          standing.count > 0 && !good && <span className="block text-xs leading-4 text-faint">{standing.count} {standing.count === 1 ? "note" : "notes"} not answered</span>
+        )}
       </p>
       <div ref={buttons} className={`flex gap-1.5 transition-opacity duration-150 ease-calm ${held ? "pointer-events-none opacity-45" : ""}`}>
         <Answer keys={good ? undefined : "↵"} tone="good" pressed={good} disabled={sent} onClick={() => props.onGood(flow.name)}>
-          {tick}Looks good
+          {unseen > 0 ? "Show it" : <>{tick}Looks good</>}
         </Answer>
         <Answer keys="X" tone="back" onClick={() => props.onNotQuite(flow.name)}>
           Not quite
