@@ -44,8 +44,13 @@ export async function runTo(repo: Repo, id: string, to: To): Promise<Handed> {
     }
     throw new Refused([`${quote(to.flow)} didn't get to ${where}.`]);
   } finally {
-    // The next one starts there while the person looks, in case they play on.
-    void follow(repo, id, { flow: to.flow, step: to.step, actions: to.actions }).catch(() => {});
+    // The next one starts there while the person looks, in case they play on; not if they have already, into another
+    // flow, whose run it would stop.
+    const there = { flow: to.flow, step: to.step, actions: to.actions };
+    void inTurn(repo, id, async () => {
+      const now = following.get(key(repo, id));
+      if (!now || now.over || now.flow === to.flow) order(await followingFor(repo, id, there), there);
+    }).catch(() => {});
   }
 }
 
