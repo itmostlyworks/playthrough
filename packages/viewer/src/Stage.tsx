@@ -51,8 +51,9 @@ type Props = {
   playhead: Playhead;
   round: Round;
   earlier?: Round;
-  // After the earlier side's name, why it's that round.
-  why?: string;
+  // After each side's round, what it is, where its name alone doesn't say: on a fork walked again, what you did, and
+  // your steps done again.
+  about?: { earlier: string; now: string };
   // Watching one round, the round Compare or How it was goes back to waits unseen over it, and shows while either is
   // held.
   then?: Round;
@@ -922,7 +923,12 @@ export function Stage(props: Props) {
           >
             {shown === earlier && toAll}
             <b className="flex-none font-medium text-soft">{roundName(shown.number)}</b>
-            {shown === earlier && props.why && <span className="truncate">{props.why}</span>}
+            {props.about && (
+              <span className="truncate">
+                <span className="mr-1.5 -ml-0.5">·</span>
+                {shown === earlier ? props.about.earlier : props.about.now}
+              </span>
+            )}
             {shown === round && props.bare === "kept" && bareOff("-mt-px ml-auto flex-none self-start")}
           </div>
         ))}
@@ -939,7 +945,12 @@ export function Stage(props: Props) {
       {then && (
         <div className={`pointer-events-none absolute top-0 left-0 flex h-[26px] items-baseline justify-center gap-2 px-0.5 pt-0.5 pb-1.5 text-xs text-faint transition-opacity duration-160 ease-calm ${props.peeking ? "opacity-100" : "opacity-0"}`} ref={(element) => void (element ? captions.current.set(then.number, element) : captions.current.delete(then.number))}>
           <b className="flex-none font-medium text-soft">{roundName(then.number)}</b>
-          {props.why && <span className="truncate">{props.why}</span>}
+          {props.about && (
+            <span className="truncate">
+              <span className="mr-1.5 -ml-0.5">·</span>
+              {props.about.earlier}
+            </span>
+          )}
         </div>
       )}
       {!earlier && toAll && (

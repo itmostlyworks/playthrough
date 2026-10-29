@@ -385,7 +385,6 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   }, [noting, inApp]);
   const playingOn = useNow(playhead, (now) => now.playing);
   useEffect(() => void (playingOn && setNoting(false)), [playingOn]);
-  const comparingIt: Comparing | undefined = compared === undefined ? undefined : { on: peek || look === "side", onPress: pressCompare, onRelease: releaseCompare };
   const working = review.accepted ? undefined : review.taken.find((taken) => taken.round > latest.number)?.at;
 
   // Left and Right step to the next moment the page changes, or a second where nothing does; with Shift, a tenth.
@@ -924,7 +923,6 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   // a change. C compares, held for a look and tapped for side by side, as the pointer does on Compare.
   const openNote = open && "note" in open ? notes.find((note) => note.id === open.note) : undefined;
   const asks = !!openNote && !readOnly && openNote.toJudge && !draft.verdicts.some((verdict) => verdict.note === openNote.id) && openNote.on?.flow === watching;
-  const compareNow = (openNote && answered(openNote) && !whereYouWere.has(openNote.id) && openNote.on?.flow === watching) || changeOpen?.flow === watching ? comparingIt : undefined;
   // In the app where you were, with the note you're trying open: it stays by its pin there while you try it.
   const tryingHere = inApp && !!openNote && trying.current === openNote.id;
   const comparedRound = compared === undefined ? undefined : review.rounds.find((kept) => kept.number === compared);
@@ -959,6 +957,9 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
         },
       ])
     : comparedRound;
+  // Compare is there only where the round it compares with has what you're watching: a fork you made on this round, or
+  // a flow new in it, has nothing to show beside it.
+  const comparingIt: Comparing | undefined = heldOver?.flows.some((flow) => flow.name === inPlay) ? { on: peek || look === "side", onPress: pressCompare, onRelease: releaseCompare } : undefined;
   // Side by side, the round it compares with is on the left, or above.
   const comparing = look === "side" && !!heldOver;
   const earlier = comparing ? heldOver : undefined;
@@ -1252,6 +1253,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
             playhead={playhead}
             round={played}
             earlier={earlier}
+            about={walkHere && source ? { earlier: "what you did", now: "your steps again" } : undefined}
             then={!comparing && (peeking || !playingNow) ? heldOver : undefined}
             peeking={peeking}
             zoomed={zoomed}
