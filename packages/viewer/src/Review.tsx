@@ -720,13 +720,19 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   // you were reading is let go, unless you're writing it.
   const gridRoom = useRef<HTMLDivElement>(null);
   const aside = useRef<HTMLElement>(null);
-  // In the app, the column steps back, so the frame is all there is; it comes forward as the portal closes.
+  // Taking over is doing: from Take over until you're back, what drives the recording rests, the column and the row under
+  // the recording, as there's nothing there for it to act on. They still say where you are. In the app they step back
+  // too, so the frame is all there is, and come forward as the portal closes.
+  const doing = !!live?.shown;
+  const underneath = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const column = aside.current;
-    if (!column) return;
-    column.style.transition = "opacity 520ms cubic-bezier(0.22, 0.8, 0.24, 1)";
-    column.style.opacity = inApp ? "0.32" : "";
-  }, [inApp]);
+    for (const part of [aside.current, underneath.current]) {
+      if (!part) continue;
+      part.inert = doing;
+      part.style.transition = "opacity 520ms cubic-bezier(0.22, 0.8, 0.24, 1)";
+      part.style.opacity = inApp ? "0.32" : "";
+    }
+  }, [inApp, doing]);
   const controls = useRef<HTMLDivElement>(null);
   const flying = useRef<{ taking: Taking; to: "column" | "grid"; playing?: boolean }>(undefined);
   const settling = useRef<number>(undefined);
@@ -1108,12 +1114,14 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   useEffect(() => {
     const writingHere = (event: KeyboardEvent) => event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement;
     const down = (event: KeyboardEvent) => {
-      // What can't be undone takes Ctrl+Enter, never a plain Enter in passing.
-      if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !writingHere(event) && acting?.kind === "go" && acting.final) {
+      // What can't be undone takes Ctrl+Enter, never a plain Enter in passing, and never while the app is yours.
+      if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !writingHere(event) && !live?.shown && acting?.kind === "go" && acting.final) {
         event.preventDefault();
         return acting.take();
       }
       if (writingHere(event) || event.metaKey || event.ctrlKey || event.altKey || event.defaultPrevented) return;
+      // Taking over, the keys that drive the recording rest with it: only noting and going back answer.
+      if (live?.shown && !/^(n|t|escape)$/i.test(event.key)) return;
       // Over every flow, Space plays what the frame shows, the flow you point at or the one the step goes to, and Enter
       // takes the step; a row is chosen as a button is.
       if (onGrid) {
@@ -1367,6 +1375,8 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
                 setListed(false);
                 setLitNote(undefined);
                 const note = notes.find((note) => note.id === id);
+                // From the app, a note goes back to the recording, at it.
+                if (live?.shown) letGo();
                 if (note) pick(note);
               }}
             />
@@ -1380,7 +1390,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
               </button>
             </div>
           )}
-          <div className="flex items-end gap-5 phone:flex-col phone:items-stretch phone:gap-0">
+          <div ref={underneath} className="flex items-end gap-5 phone:flex-col phone:items-stretch phone:gap-0">
           <div className="min-w-0 flex-1">
           <Controls
             stage
