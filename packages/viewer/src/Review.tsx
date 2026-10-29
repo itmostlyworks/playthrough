@@ -22,7 +22,7 @@ import { along, CARD, clamp, FLOW_IN, momentAt, POSTER, type Moment } from "./mo
 import { asIfSent, fill, goodTo, ink, lookGood, notesOn, nothing, said, seen, sendOf, settledBefore, standings, takeBack, type Shown } from "./notes.ts";
 import { NoteRow, number as numberLook, opened, pointed, SettledCount, SettledList, Writing, type Comparing } from "./Notes.tsx";
 import { Playhead, useNow, type Forked } from "./playhead.ts";
-import { recorded } from "./replay.ts";
+import { changesIn, recorded } from "./replay.ts";
 import { roundName } from "./Rounds.tsx";
 import { Stage, type Bare, type Mark, type Placed, type Shown as Size } from "./Stage.tsx";
 import { placeFrom, placeName as nameOf, placeOn, useReadings, watchedIn, type Read } from "./things.ts";
@@ -417,13 +417,15 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const working = review.accepted ? undefined : review.taken.find((taken) => taken.round > latest.number)?.at;
 
   // Left and Right step to the next moment the page changes, or a second where nothing does; with Shift, a tenth.
-  const [changes, setChanges] = useState<{ flow: string; at: number[]; clicks: number[]; acted: [number, number][] }>();
+  const [changes, setChanges] = useState<{ flow: string; at: number[]; clicks: number[]; acted: [number, number][]; moved: Map<string, number[]> }>();
   useEffect(() => {
     if (!flow) return;
     let current = true;
     recording(review.id, round.number, flow.recording).then((events) => {
       const { changes, clicks, acted } = recorded(events);
-      if (current) setChanges({ flow: flow.name, at: changes, clicks, acted });
+      // When what each answer that moves is on changed: watching it starts at what set it moving.
+      const moved = new Map(round.replies.flatMap((reply) => (reply.watch && reply.on?.flow === flow.name && reply.on.element?.node !== undefined ? [[reply.note, changesIn(events, reply.on.element.node)] as const] : [])));
+      if (current) setChanges({ flow: flow.name, at: changes, clicks, acted, moved });
     });
     return () => void (current = false);
   }, [review.id, round.number, flow]);
@@ -547,9 +549,11 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     setMet((met) => (met.includes(note.id) ? met : [...met, note.id]));
     if (note.on) go(playedOn(note.on), note.on.at);
   };
+  // Where an answer that moves is watched, once the recording says when what it's on changed.
+  const watchedOf = (note: Shown) => watchedIn(round, note.id, changes?.flow === flow?.name ? changes?.moved.get(note.id) : undefined);
   // The time a note covers on the timeline is the time it plays: its moment, its stretch, or the step it's watched in.
   const span = (note: Shown) => {
-    const watched = watchedIn(round, note.id);
+    const watched = watchedOf(note);
     return watched && note.on && playedOn(note.on) === watched.flow ? { at: watched.at, until: watched.until } : { at: note.on?.at ?? 0, until: note.on?.until };
   };
   // Chosen, a note opens on the frame it was written on, still: that frame is what it's about. One on a stretch plays the
@@ -558,7 +562,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const pick = (note: Shown) => {
     const on = note.on;
     const its = on && played.flows.find((flow) => flow.name === playedOn(on));
-    const watched = watchedIn(round, note.id);
+    const watched = watchedOf(note);
     if (watched && its?.name === watched.flow) {
       setOpen({ note: note.id });
       setMet((met) => (met.includes(note.id) ? met : [...met, note.id]));

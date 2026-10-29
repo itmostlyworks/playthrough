@@ -48,6 +48,31 @@ export function recorded(events: Events): Recorded {
   return shown;
 }
 
+// The moments one part of the page changes, by its node in the recording: it, or anything in it. What moved somewhere
+// else on the page, such as a menu opening over it, isn't its change.
+type Serialized = { id: number; childNodes?: Serialized[] };
+export function changesIn(events: Events, node: number): number[] {
+  const start = events[0]?.timestamp ?? 0;
+  const inside = new Set<number>();
+  // Moved in or out, a node is put down again where it now is.
+  const put = (added: Serialized, within: boolean) => {
+    const here = within || added.id === node;
+    if (here) inside.add(added.id);
+    else inside.delete(added.id);
+    for (const child of added.childNodes ?? []) put(child, here);
+  };
+  const changes: number[] = [];
+  for (const event of events) {
+    if (event.type === EventType.FullSnapshot) put(event.data.node, false);
+    if (event.type !== EventType.IncrementalSnapshot || event.data.source !== IncrementalSource.Mutation) continue;
+    const { adds, removes, texts, attributes } = event.data;
+    for (const added of adds) put(added.node, inside.has(added.parentId));
+    const touched = [...adds.map((added) => added.parentId), ...removes.map((removed) => removed.parentId), ...texts.map((text) => text.id), ...attributes.map((changed) => changed.id)];
+    if (touched.some((id) => inside.has(id))) changes.push((event.timestamp - start) / 1000);
+  }
+  return changes;
+}
+
 // The hand leaves the app at its edge, or where the pointer is gone a while and comes back by an edge. It's away from
 // where it rushed or wandered to that edge, to where it's come in from it again, so neither the dash out nor the dash
 // back is drawn.
