@@ -24,14 +24,17 @@ const DRAG = 4;
 // Opened from the timeline, playing comes up to the moment before what it's on is drawn: the card waits this long for it.
 const WAIT = 1500;
 
-export function Beside({ id, over, still, pinned, onAway, children }: { id?: string; over?: boolean; still?: boolean; pinned?: () => Spot | undefined; onAway?: () => void; children?: ReactNode }) {
+// Taken over, a card about the recording rests with what drives it (resting, while the app is on its way or shown): it
+// answers nothing, steps back with the row under the recording once you're in the app, and is there as it was when
+// you're back.
+export function Beside({ id, over, still, resting, pinned, onAway, children }: { id?: string; over?: boolean; still?: boolean; resting?: "waiting" | "shown"; pinned?: () => Spot | undefined; onAway?: () => void; children?: ReactNode }) {
   const card = useRef<HTMLElement>(null);
   const opened = useRef<{ id?: string; at: Spot; since: number; side?: Side; put?: Spot; was?: Spot; last?: Spot; fromPin?: Spot }>(undefined);
   // While you point at it, it holds still: what you point at inside it may be drawn somewhere else, and it's not to
   // move from under you.
   const pointing = useRef(false);
   const away = useRef(onAway);
-  away.current = onAway;
+  away.current = resting ? undefined : onAway;
   useEffect(() => {
     const down = (event: PointerEvent) => {
       if (card.current?.contains(event.target as Node)) return;
@@ -151,10 +154,11 @@ export function Beside({ id, over, still, pinned, onAway, children }: { id?: str
   return (
     <aside
       ref={card}
+      inert={!!resting}
       onPointerDown={drag}
       onPointerEnter={() => (pointing.current = true)}
       onPointerLeave={() => (pointing.current = false)}
-      className={`fixed top-0 left-0 z-30 w-[330px] rounded-xl bg-ground py-1.5 shadow-[0_0_0_1px_rgba(20,24,34,0.08),0_10px_30px_rgba(20,24,34,0.16)] transition-opacity duration-250 ease-calm ${still ? "pointer-events-none opacity-0" : ""}`}
+      className={`fixed top-0 left-0 z-30 w-[330px] rounded-xl bg-ground py-1.5 shadow-[0_0_0_1px_rgba(20,24,34,0.08),0_10px_30px_rgba(20,24,34,0.16)] [transition:opacity_250ms_var(--ease-calm),filter_520ms_cubic-bezier(0.22,0.8,0.24,1)] ${still ? "pointer-events-none opacity-0" : ""} ${resting === "shown" ? "[filter:opacity(0.32)]" : ""}`}
     >
       <div data-map className={`grid grid-cols-[minmax(0,1fr)] [--ahead:color-mix(in_srgb,var(--faint)_45%,var(--ground))] [--rail:var(--soft)] ${onAway ? "[&>*>button:first-child]:pr-9" : ""}`}>
         {children}

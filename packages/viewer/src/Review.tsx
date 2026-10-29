@@ -1459,6 +1459,9 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
         <Beside
           id={openNote?.id ?? writingId ?? chosen?.id}
           still={playingNow}
+          // Taking over is doing: a card about the recording rests with it; one about the app answers there, a note made in
+          // the app or the one you're trying.
+          resting={(writing ? writing.on?.app : openNote && (openNote.on?.app || trying.current === openNote.id)) ? undefined : liveNow}
           over={!writingId && !chosen && (overEnd || (!!openNote && whereYouWere.has(openNote.id) && !openNote.on?.element && !tryingHere))}
           pinned={openNote && inApp && (openNote.on?.app || tryingHere) ? () => appPins.current.get(openNote.id) : undefined}
           onAway={(openNote && !tryingHere) || chosen ? () => setOpen(undefined) : undefined}
