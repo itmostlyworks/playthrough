@@ -527,8 +527,8 @@ export function Stage(props: Props) {
   };
   const aimingAt = (target: EventTarget | null) => {
     const frame = target instanceof Element ? target.closest<HTMLElement>("[data-frame]") : null;
-    const { playhead, onPlace, writing, round } = latest.current;
-    return !!frame && Number(frame.dataset.frame) === round.number && !frame.hasAttribute("data-absent") && !playhead.now.playing && !!onPlace && !writing && !(target as Element).closest("[data-pin]");
+    const { playhead, onPlace, writing, round, live } = latest.current;
+    return !!frame && Number(frame.dataset.frame) === round.number && !frame.hasAttribute("data-absent") && !playhead.now.playing && !!onPlace && !writing && !live?.shown && !(target as Element).closest("[data-pin]");
   };
   // The portal into the app opens from where you last pointed, held within the frame: on the recording, or from the
   // frame's edge nearest Take over; it closes on where the pointer was in the app, or the same way.
@@ -775,9 +775,10 @@ export function Stage(props: Props) {
     addEventListener("pointercancel", up);
   };
 
-  // A click pauses and plays, as a video's does; noting, it notes what it would note, or else the spot itself.
+  // A click pauses and plays, as a video's does; noting, it notes what it would note, or else the spot itself. From Take
+  // over until you're back, the recording rests: a click on it does nothing, while the app is still on its way too.
   const click = (event: MouseEvent<HTMLDivElement>, number: number) => {
-    if (dragged.current || number !== round.number) return;
+    if (dragged.current || number !== round.number || props.live?.shown) return;
     if (props.playhead.now.playing) return props.playhead.pause();
     if (!props.onPlace) return void (!props.writing && props.playhead.play());
     const pick = pickFor(event);
@@ -788,7 +789,7 @@ export function Stage(props: Props) {
     if (point) props.onPlace?.({ point });
   };
 
-  const aiming = !playing && !!props.onPlace && !props.writing;
+  const aiming = !playing && !!props.onPlace && !props.writing && !props.live?.shown;
   // Played or paused by hand, the recording says so where you're looking: what just happened, in its middle, growing a
   // little as it fades, as a video's does. Not when it stops by itself.
   const sign = useRef<HTMLDivElement>(null);
@@ -898,7 +899,7 @@ export function Stage(props: Props) {
           )}
           <div data-app className="absolute inset-0 overflow-hidden">
             <div data-stack className="absolute inset-0" />
-            <div data-marks className={`absolute top-0 left-0 z-3 ${hideable} group-data-bare/stage:[&_*]:pointer-events-none`}>
+            <div data-marks inert={!!props.live?.shown} className={`absolute top-0 left-0 z-3 ${hideable} group-data-bare/stage:[&_*]:pointer-events-none`}>
               {(props.marks.get(number) ?? []).map((mark, i) => (
                 <Drawn key={`${mark.id}:${i}`} mark={mark} onMark={props.onMark} />
               ))}
