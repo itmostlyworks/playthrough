@@ -698,7 +698,7 @@ export function Stage(props: Props) {
       const number = document.createElement("span");
       number.className = "inline-block";
       number.textContent = String((shown = left));
-      words.replaceChildren("Taking over in ", number);
+      words.replaceChildren("Taking over in ", number, "…");
       if (still) return;
       if (from) tag.animate([{ width: `${from}px` }, { width: `${tag.getBoundingClientRect().width}px` }], { duration: 380, easing: PORTAL });
       number.animate([{ opacity: 0, transform: "translateY(3px)" }, { opacity: 1, transform: "none" }], { duration: 280, easing: PORTAL });
