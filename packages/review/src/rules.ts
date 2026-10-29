@@ -172,6 +172,9 @@ export function problemsWithComparison(review: Review, comparison: Comparison): 
 
 // A round is handed over once its file is in the right shape, every note it took is answered, it's compared with every
 // round before it, and the agent has said why each change new since the round before is there.
+// The most a flow's line can say.
+const LINE = 140;
+
 export function problemsFinishing(review: Review, number: number): string[] {
   if (review.accepted) return ["This review is accepted, so nothing more can be recorded."];
   const round = review.rounds.find((round) => round.number === number);
@@ -190,6 +193,11 @@ export function problemsFinishing(review: Review, number: number): string[] {
     else if (reply?.on && note?.on && reply.on.flow !== note.on.flow)
       problems.push(`${at}: the reply to note ${id} is on “${reply.on.flow}”, but the note is on “${note.on.flow}”. A reply goes in its note's flow.`);
   }
+
+  // A flow's line is read in the moment before it plays, on its title card: a sentence, not a paragraph.
+  for (const flow of round.flows)
+    if (flow.line && flow.line.length > LINE)
+      problems.push(`${at}: the line on “${flow.name}” is ${flow.line.length} characters. Say it in a sentence of up to ${LINE}: what it starts from, or the choice it shows.`);
 
   // Compared at all, a round is compared with every round before it, so what's new to anyone, wherever they last
   // looked, is known.

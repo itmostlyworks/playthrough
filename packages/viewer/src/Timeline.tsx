@@ -362,17 +362,7 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
         {marks.map((shown) => {
           const pointed = { onPointerEnter: () => setNamed(shown.id), onPointerLeave: () => setNamed(undefined), onClick: () => !swallow.current && onMark(shown.id) };
           const left = percent(flow, shown.at);
-          if (shown.until !== undefined)
-            return (
-              <button
-                key={shown.id}
-                data-mark
-                aria-label={`${shown.name}, ${time(shown.at)} to ${time(shown.until)}`}
-                className={`absolute top-[13px] z-0 h-2.5 rounded-[5px] bg-[color-mix(in_srgb,var(--fg)_16%,transparent)] transition-[background-color,box-shadow] duration-150 ease-calm hover:bg-[color-mix(in_srgb,var(--fg)_26%,transparent)] ${shown.lit ? "shadow-[inset_0_0_0_1.5px_var(--fg)]" : ""} ${moving}`}
-                style={{ left, width: `calc(${percent(flow, shown.until)} - ${left})` }}
-                {...pointed}
-              />
-            );
+          // A change over a stretch, new steps, is a diamond where it starts, as any change is: it's one thing to look at.
           // Hollow ahead of the playhead and filled once passed, as a dot fills; ringed while it's the one you're on.
           const look = at < shown.at - 0.02
             ? shown.lit
@@ -428,10 +418,14 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
           className={`pointer-events-none absolute z-4 transition-opacity duration-120 ease-calm ${pointedFork ? "-top-[3px] bottom-[21px] -ml-px w-0.5 rounded-[1px] bg-amber" : "top-1.5 bottom-1.5 -ml-[1.5px] w-[3px] rounded-[1.5px] bg-fg"} ${ghost ? (pointedFork ? "opacity-60" : "opacity-30") : "opacity-0"}`}
           style={{ left: pointed, translate: `0 ${-rise(pointedFork)}px` }}
         />
-        <span aria-hidden className={`${label} z-300 text-fg ${tip ? "translate-y-0 opacity-100" : "translate-y-[2px] opacity-0"}`} style={{ marginBottom: rise(dot?.fork ? lines.find((line) => line.name === dot.fork) : undefined), left: tip ? (dot ? (dot.fork && dot.fork === grown?.name ? underWay(grown) : pc(dotShare(dot))) : percent(flow, tip.until === undefined ? tip.at : (tip.at + tip.until) / 2)) : undefined }}>
+        <span aria-hidden className={`${label} z-300 text-fg ${tip ? "translate-y-0 opacity-100" : "translate-y-[2px] opacity-0"}`} style={{ marginBottom: rise(dot?.fork ? lines.find((line) => line.name === dot.fork) : undefined), left: tip ? (dot ? (dot.fork && dot.fork === grown?.name ? underWay(grown) : pc(dotShare(dot))) : percent(flow, tip.at)) : undefined }}>
           {dot && <span className="block max-w-[220px] truncate">{dot.words}</span>}
-          {mark?.note && <b className="mr-[5px] font-semibold text-amber-ink">{mark.note.number}</b>}
-          {mark?.name}
+          {mark && (
+            <span className="block max-w-[320px] truncate">
+              {mark.note && <b className="mr-[5px] font-semibold text-amber-ink">{mark.note.number}</b>}
+              {mark.name}
+            </span>
+          )}
         </span>
         <span
           aria-hidden

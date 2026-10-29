@@ -211,7 +211,7 @@ function gained(reading: Reading, control: Thing, was: string): boolean {
   return reading.things.some((thing) => parentOf(reading, thing) === control && thing.words === more);
 }
 // Named by a control inside it: what it's called is what it holds, not a label of its own.
-const namedByInside = (reading: Reading, thing: Thing) =>
+export const namedByInside = (reading: Reading, thing: Thing) =>
   !!thing.name && reading.things.some((inside) => parentOf(reading, inside) === thing && inside.role !== "text" && !!inside.name && thing.name.includes(inside.name));
 const mostlyWhereItWas =(a: Thing, b: Thing) => HOLDS.test(b.role) && overlap(a, b) > 0.5;
 const holdsTheSameWords = (a: Thing, b: Thing) => /^(box|menu)$/.test(b.role) && !!a.wordsInside && bag(a) === bag(b);

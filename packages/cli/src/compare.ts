@@ -118,7 +118,8 @@ function newSteps(flow: Flow, pairs: Map<number, number>): Sighting[] {
     const until = flow.steps[last + 1]?.at ?? flow.length;
     return {
       id: idOf(`steps in ${flow.name}: ${titles.join(" · ")}`, "new steps"),
-      words: `New steps: ${list(titles.map(quote))}`,
+      // Named as far as a line can: past two, by the first and how many.
+      words: titles.length > 2 ? `${titles.length} new steps, from ${quote(titles[0]!)}` : `New steps: ${list(titles.map(quote))}`,
       place: { flow: flow.name, at, ...(until > at && { until }) },
     };
   });
