@@ -98,10 +98,10 @@ const recorded = base.extend<{ setup: Record<string, any>; recorder: void }>({
   timezoneId: "UTC",
   setup: async ({ page, request, baseURL }, use, testInfo) => {
     // Waiting in the background, with its browser open, it's told which flow to follow, and how far. It goes at the
-    // playhead's pace, so it has no time limit of its own.
-    if (run?.orders && !run.to!.flow) {
+    // playhead's pace, so none of its flows has a time limit of its own, the one it follows least of all.
+    if (run?.orders) {
       testInfo.setTimeout(0);
-      Object.assign(run.to!, await ordered(run.orders));
+      if (!run.to!.flow) Object.assign(run.to!, await ordered(run.orders));
     }
     // Recording flows added later on Before, the others aren't run, nor is anything made for them.
     if (run?.only && !run.only.includes(testInfo.title)) testInfo.skip();
