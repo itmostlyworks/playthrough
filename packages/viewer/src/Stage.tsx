@@ -832,6 +832,7 @@ export function Stage(props: Props) {
           key={number}
           ref={(element) => void (element ? frames.current.set(number, element) : frames.current.delete(number))}
           data-frame={number}
+          data-watched={number === round.number || undefined}
           className={`absolute touch-none overflow-hidden rounded-lg bg-paper shadow-frame transition-opacity duration-160 ease-calm data-flying:invisible data-over:pointer-events-none data-over:z-10 ${number === round.number && aiming ? (hover === undefined ? "cursor-none" : "cursor-pointer") : ""}`}
           onPointerDown={(event) => press(event, number)}
           onPointerMove={(event) => aimAt(event, number)}

@@ -37,9 +37,9 @@ export function Beside({ id, over, pinned, onAway, children }: { id?: string; ov
     const place = () => {
       const box = card.current;
       if (!box) return;
-      // A flow's question sits over its last frame, clear of the bar. A round held over the recording, or one you've
-      // been to and left, isn't where it sits.
-      const shown = "[data-frame]:not([hidden], [data-over])";
+      // A flow's question sits over its last frame, clear of the bar. Only the round you're watching is where it sits:
+      // not one held over it or beside it, or one you've been to and left.
+      const shown = "[data-frame][data-watched]";
       const frame = over && document.querySelector<HTMLElement>(shown)?.getBoundingClientRect();
       if (frame) {
         box.style.transform = `translate(${(frame.left + frame.width / 2 - box.offsetWidth / 2).toFixed(1)}px,${(frame.bottom - box.offsetHeight - 44).toFixed(1)}px)`;

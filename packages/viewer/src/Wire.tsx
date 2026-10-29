@@ -9,7 +9,8 @@ export function Wire({ id, colour, hidden }: { id?: string; colour: string; hidd
     const line = path.current;
     if (!line) return;
     const mark = id && document.querySelector<HTMLElement>("aside [data-open] [data-mark]");
-    const pin = id && document.querySelector<HTMLElement>(`[data-pin="${CSS.escape(id)}"]`);
+    // The pin on the round you're watching, not the one beside it.
+    const pin = id && document.querySelector<HTMLElement>(`[data-frame][data-watched] [data-pin="${CSS.escape(id)}"]`);
     const map = mark && mark.closest<HTMLElement>("[data-map]");
     const from = mark && mark.getBoundingClientRect();
     const to = pin && pin.getBoundingClientRect();
@@ -18,10 +19,13 @@ export function Wire({ id, colour, hidden }: { id?: string; colour: string; hidd
     const shown = pin && pin.closest<HTMLElement>("[data-frame]")?.getBoundingClientRect();
     const inside = (box: DOMRect, at: number[]) => at[0]! >= box.left && at[0]! <= box.right && at[1]! >= box.top && at[1]! <= box.bottom;
     if (hidden || !from || !to || !room || !shown || !to.width || from.top < room.top || from.bottom > room.bottom) return line.setAttribute("d", "");
-    const start = [from.left - 1, from.top + from.height / 2];
-    const end = [to.right + 1, to.top + to.height / 2];
+    // From the card's edge nearer the pin: its left, or its right where it sits to the pin's left, with no room past it.
+    const card = map.getBoundingClientRect();
+    const leftOf = card.right <= to.left;
+    const start = [leftOf ? card.right + 1 : from.left - 1, from.top + from.height / 2];
+    const end = [leftOf ? to.left - 1 : to.right + 1, to.top + to.height / 2];
     if (!inside(shown, [to.left + to.width / 2, end[1]!])) return line.setAttribute("d", "");
-    const reach = Math.max(40, (start[0]! - end[0]!) * 0.5);
+    const reach = Math.max(40, Math.abs(start[0]! - end[0]!) * 0.5) * (leftOf ? -1 : 1);
     line.setAttribute("d", `M${start[0]},${start[1]} C${start[0]! - reach},${start[1]} ${end[0]! + reach},${end[1]} ${end[0]},${end[1]}`);
   };
   // Both ends move: the view glides, the column scrolls, a card opens. While something is open, it's drawn every frame.
