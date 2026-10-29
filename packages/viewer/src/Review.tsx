@@ -499,13 +499,19 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     play(note.id, { flow: its.name, at: Math.max(0, on.at - 0.8) }, Math.min(its.length, on.until ?? on.at));
   };
 
+  // The agent's line about a flow is on its title card: the first time you come to the flow, playing waits there, the
+  // card up, until you play on. Once its recording has started, it's read.
+  const [readLines, setReadLines] = useState<string[]>([]);
+  const pastCard = useNow(playhead, (now) => (now.moment.at >= 0 ? now.moment.flow : undefined));
+  if (pastCard && !readLines.includes(pastCard)) setReadLines([...readLines, pastCard]);
   // Playing stops at each answer that waits for you, the first time it gets there, and opens it as a click on it would.
   useEffect(() =>
-    playhead.stopAt(
-      playingNotes.flatMap((note) =>
+    playhead.stopAt([
+      ...round.flows.filter((flow) => flow.line && !readLines.includes(flow.name)).map((flow) => ({ flow: flow.name, at: POSTER, reached: () => {} })),
+      ...playingNotes.flatMap((note) =>
         note.on && note.state === "needs you" && !note.unsent && !met.includes(note.id) ? [{ flow: playedOn(note.on), at: note.on.at ?? 0, reached: () => show(note) }] : [],
       ),
-    ),
+    ]),
   );
   // A new note starts unsaved, where it will sit. With words in it, it's never thrown away by going elsewhere: it stays in
   // its row, not saved, until you save it or Cancel takes it back. With none, it goes.

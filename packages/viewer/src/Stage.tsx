@@ -221,6 +221,7 @@ export function Stage(props: Props) {
       // A round that never recorded this flow says so plainly, rather than freezing on something unrelated.
       if (!its) {
         part.name.textContent = `Not in ${roundName(shown.number)}`;
+        part.line.hidden = true;
         part.card.style.opacity = "1";
         part.card.style.setProperty("--n", "1");
         part.app.style.filter = "";
@@ -258,6 +259,11 @@ export function Stage(props: Props) {
       if (app) Object.assign(app.style, liveAt(view, page));
       place(part.marks, replay, page, view, box, at, playing, shown === round);
       part.name.textContent = its.name;
+      // Under it, on the round you're watching, what the agent says the flow starts from or the choice it shows.
+      const line = shown === round ? (its.line ?? "") : "";
+      const [by, words] = part.line.children as unknown as [HTMLElement, HTMLElement];
+      part.line.hidden = !line;
+      if (words.textContent !== line) [by.textContent, words.textContent] = [shown.by, line];
       part.card.style.opacity = card ? "1" : "0";
       part.card.style.setProperty("--k", (card?.soft ?? 0).toFixed(3));
       part.card.style.setProperty("--n", (card?.name ?? 0).toFixed(3));
@@ -869,12 +875,19 @@ export function Stage(props: Props) {
             </span>
           </div>
           {/* Between flows, the flow's name over its own first frame, softened under a veil in the recorded app's background,
-              in the app's ink and face: it belongs to the recording, so it looks the same in both themes. */}
+              in the app's ink and face: it belongs to the recording, so it looks the same in both themes. The agent's line
+              about the flow is under it, under the agent's name, in Vantage's face: those are the agent's words. */}
           <div
             data-card
             className="pointer-events-none absolute inset-0 z-9 grid place-items-center rounded-lg bg-[rgba(247,247,245,calc(var(--k,0)*.45))] p-4 text-center font-recorded text-[20px] leading-[1.2] font-medium tracking-[-0.01em] text-[#222222] opacity-0 in-data-absent:bg-surface in-data-absent:font-ui in-data-absent:text-[13px] in-data-absent:leading-normal in-data-absent:font-normal in-data-absent:tracking-normal in-data-absent:text-faint"
           >
-            <span data-name className="opacity-[var(--n,0)]" />
+            <span className="grid max-w-[min(30rem,100%)] justify-items-center gap-4 opacity-[var(--n,0)]">
+              <span data-name />
+              <span data-line hidden className="grid gap-1 font-ui text-[15px] leading-[1.45] font-normal tracking-normal text-[#3b3e46]">
+                <span className="text-xs leading-4 text-[#8a8e97]" />
+                <span className="line-clamp-4" />
+              </span>
+            </span>
           </div>
         </div>
       ))}
@@ -1032,12 +1045,12 @@ const liveAt = (view: View, page: Size) => ({
   transform: `translate(${(-view.x * view.k).toFixed(2)}px,${(-view.y * view.k).toFixed(2)}px) scale(${view.k.toFixed(5)})`,
 });
 
-type Parts = { app: HTMLElement; stack: HTMLElement; marks: HTMLElement; ring: HTMLElement; cursor: HTMLElement; card: HTMLElement; name: HTMLElement };
+type Parts = { app: HTMLElement; stack: HTMLElement; marks: HTMLElement; ring: HTMLElement; cursor: HTMLElement; card: HTMLElement; name: HTMLElement; line: HTMLElement };
 const known = new WeakMap<HTMLElement, Parts>();
 function parts(frame: HTMLElement): Parts {
   if (!known.has(frame)) {
     const part = (name: string) => frame.querySelector<HTMLElement>(`[data-${name}]`)!;
-    known.set(frame, { app: part("app"), stack: part("stack"), marks: part("marks"), ring: part("ring"), cursor: part("cursor"), card: part("card"), name: part("name") });
+    known.set(frame, { app: part("app"), stack: part("stack"), marks: part("marks"), ring: part("ring"), cursor: part("cursor"), card: part("card"), name: part("name"), line: part("line") });
   }
   return known.get(frame)!;
 }
