@@ -54,3 +54,19 @@ function withClicks([mine, theirs]: [number[], number[]], clicks: { from: number
   }
   return [ours, others];
 }
+
+// Where a flow is taken over, as the recording was at a moment: after as many of a step's actions as it had done, or at
+// the step's end, as the page rests between them. The same place on every round that takes that step that far.
+export type Paused = { step: string; actions?: number };
+
+export function pausedAt(flow: Flow, at: number): Paused | undefined {
+  const step = flow.steps.findLast((step) => step.at <= at + 0.05) ?? flow.steps[0];
+  if (!step) return undefined;
+  const actions = step.actions ?? [];
+  const done = actions.filter((action) => action <= at).length;
+  if (done === actions.length) return { step: step.title };
+  if (done) return { step: step.title, actions: done };
+  // Before its first action, the page is as the step before left it; the first step's, after it.
+  const before = flow.steps[flow.steps.indexOf(step) - 1];
+  return before ? { step: before.title } : { step: step.title, actions: 1 };
+}

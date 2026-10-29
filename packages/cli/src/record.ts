@@ -11,6 +11,7 @@ import { compareWithEarlier } from "./compare.ts";
 import { failedAt, runFlows } from "./flows.ts";
 import type { Repo } from "./repo.ts";
 import { readingsOn } from "./reporter.ts";
+import { saidOf, walkForks, type WalkedNote } from "./walk.ts";
 
 export async function record(repo: Repo, id: string) {
   const review = await repo.reviews.get(id);
@@ -39,7 +40,8 @@ export async function record(repo: Repo, id: string) {
     .filter((note) => !written.some((reply) => reply.note === note))
     .map((note) => ({ note, words: "" }));
   const by = agent(saved?.by);
-  const replies = await Promise.all([...written, ...waiting].map((reply) => placed(repo, review, number, flows, reply)));
+  const walked = await walkForks(repo, review, number, flows);
+  const replies = await Promise.all([...written, ...waiting].map((reply) => placed(repo, review, number, flows, reply, walked)));
   // Compared before the round is kept, so it's never there to hand over without them.
   console.log(`\nComparing round ${number} with each round before it…`);
   const comparisons = await compareWithEarlier(repo.reviews, id, number, flows);
@@ -54,6 +56,7 @@ export async function record(repo: Repo, id: string) {
   console.log(`\nRecorded round ${number}: ${list(flows.map((flow) => `${quote(flow.name)} (${Math.round(flow.length)}s)`))}.`);
   const since = comparisons.find((comparison) => comparison.since === number - 1);
   if (since) console.log(`\n${changed(since.changes.length, number - 1)}`);
+  if (walked.length) console.log(`\n${walked.map(saidOf).join("\n")}`);
   if (left.length) console.log(`\nStill to do, in ${file}:\n${left.map((problem) => `  ${problem}`).join("\n")}`);
   if (since?.changes.some((change) => !saved?.accounts[change.id]))
     console.log(`\nSay why each change is there in “accounts”, by its id: { "line": "<why, in your words>" }, { "note": "<the note it was made for>" }, or { "notReal": "<why nothing really changed>" }.`);
@@ -66,11 +69,13 @@ export async function record(repo: Repo, id: string) {
 }
 
 // Each answer shows where its note's thing is on this round's recording, found by Vantage from the last round it was
-// seen on, never said by the agent: the next try lands right beside what was noted. One made in the app is on what was
-// there, not on a recording, so its answer isn't placed on one.
-async function placed(repo: Repo, review: Review, number: number, flows: Flow[], reply: Reply): Promise<Reply> {
+// seen on, never said by the agent: the next try lands right beside what was noted. One made in the app is placed on its
+// fork as it was walked again, where the person's steps got to.
+async function placed(repo: Repo, review: Review, number: number, flows: Flow[], reply: Reply, walked: WalkedNote[]): Promise<Reply> {
   const answer: Reply = { note: reply.note, words: reply.words };
   const seen = lastSeen(review, reply.note, number);
+  const walk = seen?.on.app && walked.find((one) => one.note === reply.note)?.on;
+  if (walk) return { ...answer, on: walk };
   const flow = seen && flows.find((flow) => flow.name === seen.on.flow);
   const then = seen && review.rounds.find((round) => round.number === seen.round)?.flows.find((kept) => kept.name === seen.on.flow);
   if (!seen || seen.on.app || !flow || !then) return answer;

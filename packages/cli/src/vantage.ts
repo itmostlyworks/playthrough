@@ -11,6 +11,7 @@ import { repo } from "./repo.ts";
 import { start } from "./start.ts";
 import { takeOver } from "./take-over.ts";
 import { wait } from "./wait.ts";
+import { walk } from "./walk.ts";
 
 // Everything an agent needs to know, read once: bare, the command says it.
 const HELP = readFileSync(new URL("../INSTRUCTIONS.md", import.meta.url), "utf8").trimEnd();
@@ -32,6 +33,9 @@ try {
     } else if (command === "wait") {
       if (!review) throw needs("vantage wait <review>");
       await wait(repo(), review);
+    } else if (command === "walk") {
+      if (!review) throw needs("vantage walk <review>");
+      await walk(repo(), review);
     } else if (command === "open") await open(repo(), review);
     else if (command === "take-over") {
       if (!review) throw needs(`vantage take-over <review> "<flow>" ["<step>"]`);

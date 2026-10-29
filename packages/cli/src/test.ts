@@ -10,7 +10,8 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Reading } from "@mostlyworks/vantage-page";
 import { keepAssets } from "./assets.ts";
-import { BEAT, HANDED, type Action, type Handed, type Run, type To } from "./flows.ts";
+import type { Did } from "@mostlyworks/vantage-review";
+import { BEAT, HANDED, WALKED, type Action, type Handed, type Run, type To, type Walk, type Walked } from "./flows.ts";
 import { readPage, unhovered } from "./read.ts";
 import { repo } from "./repo.ts";
 import { ACTIONS, ASSETS, HOLD, PERSON, PICTURE, READINGS, RECORDING, seconds } from "./reporter.ts";
@@ -64,8 +65,9 @@ const SAVING = 100; // taking over, how soon an action that saves or goes to ano
 let pointer: { page: Page; x: number; y: number } | undefined;
 
 // The flow underway: what waits for its page to rest, what was read at the end of each step so far, with its picture,
-// and when each action was done.
-type Underway = { page: Page; events: { timestamp: number }[]; rest: () => Promise<void>; depth: number; readings: Omit<Reading, "picture">[]; pictures: Buffer[]; actions: number[] };
+// and when each action was done; the step it's in, and how many of that step's actions are done; and walking a fork
+// again, once the fork's steps have begun, how far they got.
+type Underway = { page: Page; events: { timestamp: number }[]; rest: () => Promise<void>; depth: number; readings: Omit<Reading, "picture">[]; pictures: Buffer[]; actions: number[]; step?: string; inStep: number; walked?: Walked };
 let underway: Underway | undefined;
 
 // What every flow of the app starts from, made by vantage/setup.ts before each flow, if the app has one: its default
@@ -103,8 +105,10 @@ const recorded = base.extend<{ setup: Record<string, any>; recorder: void }>({
     }
     // Recording flows added later on Before, the others aren't run, nor is anything made for them.
     if (run?.only && !run.only.includes(testInfo.title)) testInfo.skip();
-    // Taken over, only that flow runs, unrecorded, on the recordings' clock, which the person carries on with.
+    // Taken over, only that flow runs, unrecorded, on the recordings' clock, which the person carries on with. Walking a
+    // fork again, only the flow it's off, recorded.
     if (run?.to && testInfo.title !== run.to.flow) testInfo.skip();
+    if (run?.walk && testInfo.title !== run.walk.flow) testInfo.skip();
     if (run) {
       // rrweb goes in first, to take the page's own clock before it's set.
       if (!run.to) await page.addInitScript({ content: recorder(run.recorder) });
@@ -131,7 +135,8 @@ const recorded = base.extend<{ setup: Record<string, any>; recorder: void }>({
       const rest = await watchRest(page);
       pace(page);
       pointer = { page, x: 640, y: 640 };
-      underway = { page, events, rest, depth: 0, readings: [], pictures: [], actions: [] };
+      underway = { page, events, rest, depth: 0, readings: [], pictures: [], actions: [], inStep: 0 };
+      const flow = underway;
       const { readings, pictures, actions } = underway;
       await page.mouse.move(pointer.x, pointer.y);
       try {
@@ -139,6 +144,15 @@ const recorded = base.extend<{ setup: Record<string, any>; recorder: void }>({
       } finally {
         pointer = undefined;
         underway = undefined;
+      }
+      // A fork walked again is kept as far as its steps got, with when each was done; one whose flow never got to where
+      // it was taken over leaves nothing.
+      if (run.walk) {
+        if (!flow.walked) return;
+        await page.waitForTimeout(HOLD);
+        await page.evaluate(() => (window as any).rrwebRecord.record.addCustomEvent("end", {}));
+        await page.waitForTimeout(100);
+        return writeFileSync(join(run.folder, WALKED), JSON.stringify({ ...flow.walked, events, readings, assets: await assets() }));
       }
       const ended = testInfo.status === testInfo.expectedStatus;
       if (!ended && !run.before) return;
@@ -263,6 +277,7 @@ const step = Object.assign(async (title: string, body: (info: unknown) => unknow
   return playwrightStep(
     title,
     async (info) => {
+      Object.assign(flow, { step: title, inStep: 0 });
       flow.depth++;
       let done: unknown;
       try {
@@ -277,6 +292,7 @@ const step = Object.assign(async (title: string, body: (info: unknown) => unknow
         flow.readings.push({ step: title, at, screen, things });
         flow.pictures.push(await flow.page.screenshot({ animations: "disabled", caret: "hide" }));
       });
+      if (run?.walk?.step === title && run.walk.actions === undefined && !flow.walked) await walkOn(flow, run.walk);
       return done;
     },
     options,
@@ -335,6 +351,12 @@ async function acted(does: string, target: () => Promise<string | undefined>, ac
   }
   const result = await act();
   underway?.actions.push(Date.now());
+  // Walking a fork again, it leaves the flow where the person did, after as many of the step's actions.
+  const walk = run?.walk;
+  if (walk && underway?.depth && !underway.walked && walk.step === underway.step && walk.actions === ++underway.inStep) {
+    await underway.page.waitForTimeout(BEAT);
+    await walkOn(underway, walk);
+  }
   if (handing) {
     // Done again where the person takes over, it needn't wait for the page to be still here: only to see whether it
     // saved something or went to another page, which shows at once. The next action's page is waited for as it's taken.
@@ -345,6 +367,60 @@ async function acted(does: string, target: () => Promise<string | undefined>, ac
     await reached(handing, handing.step, ++handing.actions);
   }
   return result;
+}
+
+// The person's steps done again where they took the flow over, recorded as the flow is, the pointer gliding to each: as
+// far as they get, and then the flow goes no further. After each, the page is read, and what their notes are on is
+// looked for, with a picture of it for the agent.
+async function walkOn(flow: Underway, walk: Walk) {
+  await flow.rest();
+  const since = () => seconds(Date.now() - (flow.events[0]?.timestamp ?? Date.now()));
+  const walked: Walked = (flow.walked = { from: since(), done: [], found: [] });
+  const look = async () => {
+    for (const [i, { after, css }] of walk.look.entries()) {
+      if (after !== walked.done.length) continue;
+      walked.found[i] = css
+        ? await flow.page.evaluate((css) => {
+            const on = document.querySelector(css);
+            const node = on ? (window as any).rrwebRecord.record.mirror.getId(on) : -1;
+            return node > 0 ? node : null;
+          }, css).catch(() => null)
+        : null;
+      writeFileSync(join(run!.folder, `look-${i}.png`), await flow.page.screenshot({ animations: "disabled", caret: "hide" }));
+    }
+  };
+  await look();
+  for (const did of walk.did) {
+    try {
+      await doAgain(flow.page, did);
+    } catch {
+      walked.stopped = did.what || did.on;
+      break;
+    }
+    await flow.rest();
+    walked.done.push(since());
+    await unhovered(flow.page, async () => {
+      const { screen, things } = await readPage(flow.page);
+      flow.readings.push({ step: "In the app", at: since(), screen, things });
+    });
+    await look();
+  }
+  base.info().skip(true, "Walked as far as the person's steps go");
+}
+
+// One of a person's steps, done again as the flow does its own: on what's at its path, by the paced actions.
+async function doAgain(page: Page, { does, on, with: given }: Did) {
+  const target = page.locator(on).first();
+  const quickly = { timeout: 3000 };
+  if (does === "fill") await target.fill(String(given ?? ""), quickly);
+  else if (does === "type") await target.pressSequentially(String(given ?? ""), quickly);
+  else if (does === "press") await target.press(String(given ?? "Enter"), quickly);
+  else if (does === "selectOption") await target.selectOption(given as string | string[], quickly);
+  else if (does === "dblclick") await target.dblclick(quickly);
+  else if (does === "hover") await target.hover(quickly);
+  else if (does === "check" || does === "uncheck") await target[does](quickly);
+  // A person's click went where they pointed, whatever was over it, as a click outside an open menu closes it.
+  else await target.click({ timeout: 1000 }).catch(() => target.click({ ...quickly, force: true }));
 }
 
 // A target out of view is scrolled to first, smoothly, the way a person scrolls. Left to Playwright, the page jumped there

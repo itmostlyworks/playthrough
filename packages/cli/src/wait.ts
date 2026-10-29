@@ -58,6 +58,8 @@ export async function wait(repo: Repo, id: string) {
       const picture = pictures.get(note);
       console.log(`\n  ${note}  ${where(notes.get(note)?.note.on)}${picture ? `\n    As they saw it: ${picture}` : ""}\n${turns.join("\n")}`);
     }
+    if (asking.some((note) => notes.get(note)?.note.on?.app))
+      console.log(`\nWhat they did in the app is walked again on the new version when you record the round, and record says whether it still gets to their note. vantage walk ${id} does that while you work.`);
     const first = pictures.size ? "Look at what each note is on, change" : "Change";
     console.log(`\n${first} the app, then record round ${round}: vantage record ${id}`);
     return console.log(`New to this review? Run vantage alone for how Vantage works. Its flows are in ${repo.show(repo.flows(id))}.`);

@@ -17,7 +17,16 @@ import type { App, Repo } from "./repo.ts";
 // round has already, so a flow added to it is named apart from them. And when the review started, which every round's
 // clock starts from. Or where a person takes a flow over, which a run in the background is told, and told again, in
 // `orders`.
-export type Run = { flows: string; only?: string[]; folder: string; app: App; root: string; recorder: string; before: boolean; taken: string[]; started: string; to?: To; orders?: string };
+export type Run = { flows: string; only?: string[]; folder: string; app: App; root: string; recorder: string; before: boolean; taken: string[]; started: string; to?: To; orders?: string; walk?: Walk };
+
+// A person's fork walked again on the app as it is now: the flow recorded to where they took it over (a step, and how
+// far into it), what they did there done again after it, and after so many of their steps, what each of their notes is
+// on looked for, by its path.
+export type Walk = { flow: string; step: string; actions?: number; did: Did[]; look: { after: number; css?: string }[] };
+// How far it got, in seconds of its recording: when their steps began, when each was done, and what each note is on, by
+// its node in the recording; and the step it couldn't do, by its words.
+export type Walked = { from: number; done: number[]; found: (number | null)[]; stopped?: string };
+export const WALKED = "walked.json";
 
 // Where a person takes a flow over: the end of one of its steps, or of the whole flow, or within a step, after as many of
 // its actions. Followed, it's as far as the run may go, and the playhead rests there once it's to be handed over.
@@ -225,6 +234,29 @@ async function runOnce(run: Omit<Run, "folder">): Promise<Ran> {
     return { recorded: await Promise.all(recorded.map(withFiles)), failed };
   } finally {
     await rm(folder, { recursive: true });
+  }
+}
+
+// A person's fork walked again on the app as it is now (test.ts): its recording, what was read after each of their
+// steps, the fonts and pictures it loaded, a picture for each note looked for, and how far it got. Nothing when the flow
+// never got to where they took it over.
+export type WalkedRun = Walked & { events: { timestamp: number }[]; readings: unknown[]; assets: Record<string, string>; files: { name: string; bytes: Buffer }[]; pictures: (Buffer | undefined)[] };
+
+export async function walkFork(repo: Repo, id: string, walk: Walk): Promise<WalkedRun | undefined> {
+  const app = await repo.app();
+  const { started } = await repo.reviews.get(id);
+  const recorder = join(dirname(createRequire(import.meta.url).resolve("@rrweb/record")), "record.umd.min.cjs");
+  const folder = await mkdtemp(join(tmpdir(), "vantage-"));
+  try {
+    await playwright({ flows: repo.flows(id), folder, app, root: repo.root, recorder, before: false, taken: [], started, walk });
+    const text = await readFile(join(folder, WALKED), "utf8").catch(() => undefined);
+    if (!text) return undefined;
+    const walked = JSON.parse(text);
+    const files = await Promise.all([...new Set(Object.values(walked.assets as Record<string, string>))].map(async (name) => ({ name, bytes: await readFile(join(folder, name)) })));
+    const pictures = await Promise.all(walk.look.map((_, i) => readFile(join(folder, `look-${i}.png`)).catch(() => undefined)));
+    return { ...walked, files, pictures };
+  } finally {
+    await rm(folder, { recursive: true, force: true });
   }
 }
 

@@ -5,6 +5,7 @@ command then says what's next.
   vantage start <review>             once its flows are written, record Before: the app as it is
   vantage record <review>            record the round being worked on, every flow, the way a person would use it
   vantage wait <review>              hand the round over, then wait for the notes to answer
+  vantage walk <review>              walk the person's steps in the app again, on the app as it is now
   vantage open [<review>]            open the viewer on this machine
 
 THE LOOP
@@ -20,8 +21,9 @@ THE LOOP
    { "note": "<the note it was made for>" }, or { "notReal": "<why nothing really changed>" }.
 5. vantage wait <review> hands the round over and waits. When notes come, it prints each with a picture of what it's on,
    or for one made in the app, what the person did there. Change the app and record the next round, then answer each
-   note in its round.json, under "replies". Answer one made in the app in words, saying what you changed and where it
-   shows, not with a new flow: Vantage puts the answer where the person took the flow over, and they try it from there.
+   note in its round.json, under "replies". For one made in the app, record walks the person's steps again on the new
+   version and puts your answer where they lead, saying whether they still get there: answer it in words, not with a
+   new flow, and check your fix with vantage walk <review> while you work.
 
 The person can only judge what the flows show, so keep them true to how a person uses the app.
 

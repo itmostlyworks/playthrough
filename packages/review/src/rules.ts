@@ -109,7 +109,8 @@ export function problemsWithRound(review: Review, round: Round): string[] {
   problems.push(...duplicates(round.replies.map((reply) => reply.note), (id) => `${at} has two replies to note ${id}. Say it all in one.`));
   for (const reply of round.replies) {
     if (!notes.has(reply.note)) problems.push(`${at} replies to note ${reply.note}, which doesn't exist.`);
-    if (reply.on) problems.push(...problemsWithPlace(reply.on, round.flows, `${at}: the reply to note ${reply.note}`));
+    // One on a person's fork, walked again, is on that fork's recording, which branches off a flow of the round.
+    if (reply.on) problems.push(...problemsWithPlace(reply.on.app ? { flow: reply.on.app.from.flow } : reply.on, round.flows, `${at}: the reply to note ${reply.note}`));
   }
   return problems;
 }
