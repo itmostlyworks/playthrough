@@ -23,6 +23,34 @@ import {
 export type Draft = { notes: Note[]; verdicts: Verdict[]; looksGood: string[]; withTheFlow: string[]; unsaved: Note[] };
 export const nothing: Draft = { notes: [], verdicts: [], looksGood: [], withTheFlow: [], unsaved: [] };
 
+// What you haven't sent is the review's, each draft under the round it's about, as a send is: a newer round arriving
+// leaves it where it is, and shows it as it shows what you sent.
+export type Unsent = Record<number, Draft>;
+
+// What you haven't sent about a round and the ones before it, as one.
+export function upTo(unsent: Unsent, round: number): Draft {
+  const drafts = Object.entries(unsent).filter(([about]) => Number(about) <= round).map(([, draft]) => draft);
+  return {
+    notes: drafts.flatMap((draft) => draft.notes),
+    verdicts: drafts.flatMap((draft) => draft.verdicts),
+    looksGood: drafts.flatMap((draft) => draft.looksGood),
+    withTheFlow: drafts.flatMap((draft) => draft.withTheFlow),
+    unsaved: drafts.flatMap((draft) => draft.unsaved),
+  };
+}
+
+// Each draft changed alike, or only the one about a round.
+export const everyDraft = (unsent: Unsent, change: (draft: Draft) => Draft): Unsent =>
+  Object.fromEntries(Object.entries(unsent).map(([about, draft]) => [about, change(draft)]));
+export const draftOn = (unsent: Unsent, round: number, change: (draft: Draft) => Draft): Unsent => ({ ...unsent, [round]: change(unsent[round] ?? nothing) });
+
+// The flows you've watched, each on the round you watched it. One a newer round shows as it was, you've watched there too.
+export type Watched = { flow: string; round: number };
+export function watchedOn(review: Review, round: number, watched: Watched[]): string[] {
+  const on = watched.filter((seen) => seen.round === round || (seen.round < round && unchangedSince(review, seen.round, round).includes(seen.flow)));
+  return [...new Set(on.map((seen) => seen.flow))];
+}
+
 // What a send carries of the draft.
 export const sendOf = ({ notes, verdicts, looksGood }: Draft) => ({ notes, verdicts, looksGood });
 export const said = (draft: Draft) => draft.notes.length + draft.verdicts.length + draft.looksGood.length;
@@ -40,8 +68,8 @@ export function sendingFlow(draft: Draft, flow: string, notes: Shown[]): { sendi
 }
 
 // The flows a newer round shows as they were: nothing found changed in them since, or only what the agent says isn't
-// real. You watched them, and what you said of them holds, there too.
-export function unchangedSince(review: Review, since: number, round: number): string[] {
+// real.
+function unchangedSince(review: Review, since: number, round: number): string[] {
   const flows = review.rounds.find((kept) => kept.number === round)?.flows ?? [];
   const comparison = review.comparisons.find((kept) => kept.round === round && kept.since === since);
   if (!comparison) return [];
@@ -66,10 +94,12 @@ function asOf(review: Review, round: number): Review {
   return { ...review, rounds: review.rounds.filter((kept) => kept.number <= round), sends: review.sends.filter((send) => send.round <= round) };
 }
 
-// What you haven't sent, as the last send on its round.
-export function asIfSent(review: Review, round: number, you: string, draft: Draft): Review {
-  if (!said(draft)) return review;
-  return { ...review, sends: [...review.sends, { id: "unsent", round, by: you, sent: new Date().toISOString(), ...sendOf(draft) }] };
+// What you haven't sent, each draft as the last send on its round.
+export function asIfSent(review: Review, you: string, unsent: Unsent): Review {
+  const drafts = Object.entries(unsent).filter(([, draft]) => said(draft));
+  if (!drafts.length) return review;
+  const sent = new Date().toISOString();
+  return { ...review, sends: [...review.sends, ...drafts.map(([round, draft]) => ({ id: `unsent ${round}`, round: Number(round), by: you, sent, ...sendOf(draft) }))] };
 }
 
 // Numbered in the order they were started, across the whole review.
@@ -79,18 +109,18 @@ function numbers(review: Review): Map<string, number> {
 }
 
 // The notes on a round: those started on it, those with something said on it, and any not settled yet.
-// The draft counts only on the round it was written on.
-export function notesOn(review: Review, round: number, you: string, draft: Draft = nothing): Shown[] {
-  return everyNote(review, round, you, draft).filter(([, on]) => on).map(([note]) => note);
+export function notesOn(review: Review, round: number, you: string, unsent: Unsent = {}): Shown[] {
+  return everyNote(review, round, you, unsent).filter(([, on]) => on).map(([note]) => note);
 }
 
 // The notes settled on the rounds before it, nothing said about them since.
 export function settledBefore(review: Review, round: number, you: string): Shown[] {
-  return everyNote(review, round, you, nothing).filter(([, on]) => !on).map(([note]) => note);
+  return everyNote(review, round, you, {}).filter(([, on]) => !on).map(([note]) => note);
 }
 
-function everyNote(review: Review, round: number, you: string, draft: Draft): [Shown, boolean][] {
-  const then = asIfSent(asOf(review, round), round, you, draft);
+function everyNote(review: Review, round: number, you: string, unsent: Unsent): [Shown, boolean][] {
+  const then = asOf(asIfSent(review, you, unsent), round);
+  const draft = upTo(unsent, round);
   const numbered = numbers(then);
   const people = new Set([you, ...then.sends.map((send) => send.by)]);
   const waiting = new Map([...people].map((person) => [person, waitingForYou(then, round, person)]));
@@ -126,9 +156,10 @@ export type Standing = {
   asks: boolean;
 };
 
-export function standings(review: Review, round: number, you: string, draft: Draft, watched: string[]): Map<string, Standing> {
-  const then = asIfSent(asOf(review, round), round, you, draft);
-  const notes = notesOn(review, round, you, draft);
+export function standings(review: Review, round: number, you: string, unsent: Unsent, watched: string[]): Map<string, Standing> {
+  const then = asOf(asIfSent(review, you, unsent), round);
+  const notes = notesOn(review, round, you, unsent);
+  const draft = upTo(unsent, round);
   const flows = review.rounds.find((kept) => kept.number === round)?.flows ?? [];
   return new Map(
     flows.map(({ name }): [string, Standing] => {
