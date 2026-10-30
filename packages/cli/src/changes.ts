@@ -24,14 +24,10 @@ const TABLES = /^(table|grid|treegrid|listbox)$/;
 const REFLOWS = /^(dialog|alertdialog|status|alert|menu|box)$/;
 const MANY = 3; // things moved by the same amount that make a layout shift
 const MOST_INSIDE = 5; // changes inside one thing told one by one; past this, they're counted
-// What happened to each, counted: “6 things reworded, 2 new”.
-const COUNTED: Record<string, string> = {
-  new: "new", gone: "gone", "looks different": "look different", resized: "changed size", reworded: "reworded",
-  moved: "moved", became: "changed", swapped: "in a new order", reordered: "in a new order",
-};
 
-// Each rule in turn. What only follows from another comes out first; then each change left is told, with what came with it.
-export function changesAt(then: Reading, now: Reading): Found[] {
+// Each rule in turn. What only follows from another comes out first; then each change left is told, with what came with it,
+// but for what changes by itself, which isn't a change at all, nor counted in one.
+export function changesAt(then: Reading, now: Reading, unsteady = new Set<string>()): Found[] {
   const moment = new Moment(then, now);
   const { follows, carried } = followingHolders(moment);
   const own = moment.differences.filter((difference) => !follows.has(difference));
@@ -49,7 +45,7 @@ export function changesAt(then: Reading, now: Reading): Found[] {
     ...causesOfShifts(moment, shifts, widened, others, caused, along),
   ];
   for (const difference of others) if (!caused.has(difference)) told.push(tell(moment, difference, along.get(difference)));
-  return said(told, moment);
+  return said(told, moment, unsteady);
 }
 
 // The two readings of a moment: which thing now is which thing then, and what happened to each one that changed.
@@ -387,12 +383,12 @@ function sizeWords(moment: Moment, pair: Pair): string {
 
 // Each change in full: alike things changed alike told once, what changed inside one thing counted when there's a lot,
 // and each with its id and where it is.
-function said(told: Told[], moment: Moment): Found[] {
+function said(told: Told[], moment: Moment, unsteady: Set<string>): Found[] {
   const { now, was, isNow } = moment;
   const id = (told: Told) => idOf(identity(told.in, told.thing), told.what);
   // Top to bottom, as the page reads.
   const byId = groupBy(
-    [...told].sort((p, q) => p.thing.page.y - q.thing.page.y || p.thing.page.x - q.thing.page.x),
+    told.filter((one) => !unsteady.has(id(one))).sort((p, q) => p.thing.page.y - q.thing.page.y || p.thing.page.x - q.thing.page.x),
     id,
   );
 
@@ -409,20 +405,12 @@ function said(told: Told[], moment: Moment): Found[] {
       for (const alike of all) found.push({ id: id(alike[0]!), words: alikeWords(alike), ...placeOf(alike[0]!, now), ...alikeOf(alike, now) });
       continue;
     }
-    const kinds = groupBy(
-      all.flatMap((alike) => alike),
-      (told) => COUNTED[told.what] ?? "changed",
-    );
+    // Counted, not listed: Compare shows what they are better than their names can.
+    const count = all.flat().length;
     const words =
       TABLES.test(holder.role) && all.flat().every((told) => told.what === "resized" || told.what === "moved")
         ? `Columns in ${the(holder)} changed width`
-        : `${called(holder)} changed inside: ${[...kinds]
-            .sort((p, q) => q[1].length - p[1].length)
-            .map(([kind, its], i) => {
-              const names = [...new Set(its.map((told) => called(told.thing)))];
-              return i ? `${its.length} ${kind}` : `${its.length} ${things(its.length)} ${kind} (${names.slice(0, 2).join(", ")}${names.length > 2 ? ", …" : ""})`;
-            })
-            .join(", ")}`;
+        : `${called(holder)}: ${count} ${things(count)} changed inside`;
     const changed: Told = { what: "changed inside", thing: holder, in: now, words };
     found.push({ id: id(changed), words: sentence(words), ...placeOf(changed, now) });
   }

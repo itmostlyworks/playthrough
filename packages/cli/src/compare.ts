@@ -18,8 +18,8 @@ export async function compareWithEarlier(reviews: Reviews, id: string, number: n
   const review = await reviews.get(id);
   const earlier = review.rounds.filter((round) => round.number < number);
   if (!earlier.length) return [];
-  const unsteady = new Map<string, string[]>();
-  for (const flow of [...earlier.flatMap((round) => round.flows), ...flows]) unsteady.set(flow.name, [...(unsteady.get(flow.name) ?? []), ...(flow.unsteady ?? [])]);
+  // What changes by itself in one flow, like a time the server stamps, changes by itself in every flow it's seen in.
+  const unsteady = new Set([...earlier.flatMap((round) => round.flows), ...flows].flatMap((flow) => flow.unsteady ?? []));
   const browser = await chromium.launch();
   try {
     const page = await browser.newPage();
@@ -33,7 +33,7 @@ export async function compareWithEarlier(reviews: Reviews, id: string, number: n
 }
 
 // The same flows recorded twice on the same app: whatever differs between the two changes by itself, like a time the
-// server stamps, so it's left out of every comparison of the flow from then on.
+// server stamps, so it's left out of every comparison from then on, in every flow.
 export async function changesByThemselves(first: Recorded, second: Recorded): Promise<Change[]> {
   const browser = await chromium.launch();
   try {
@@ -53,10 +53,10 @@ function kept(reviews: Reviews, id: string, number: number, flows: Flow[]): Reco
   return { number, flows, readings: async (flow) => JSON.parse((await file(readingsOf(flow))).toString()), picture: file };
 }
 
-export async function compare(page: Page, earlier: Recorded, round: Recorded, unsteady = new Map<string, string[]>()): Promise<Comparison> {
+export async function compare(page: Page, earlier: Recorded, round: Recorded, unsteady = new Set<string>()): Promise<Comparison> {
   const changes = new Map<string, Change>();
   const see = ({ id, words, place }: Sighting) => {
-    if (unsteady.get(place.flow)?.includes(id)) return;
+    if (unsteady.has(id)) return;
     const change = changes.get(id);
     if (!change) changes.set(id, { id, words, seen: [place] });
     else if (!change.seen.some((seen) => seen.flow === place.flow)) change.seen.push(place);
@@ -64,7 +64,7 @@ export async function compare(page: Page, earlier: Recorded, round: Recorded, un
   for (const flow of round.flows) {
     // A flow the earlier round didn't have has nothing to be compared with there: it's new to whoever looked then.
     const before = earlier.flows.find((kept) => kept.name === flow.name);
-    if (before) for (const sighting of await compareFlow(page, earlier, before, round, flow)) see(sighting);
+    if (before) for (const sighting of await compareFlow(page, earlier, before, round, flow, unsteady)) see(sighting);
   }
   // A flow the agent took away is a change too: what it showed isn't shown any more.
   for (const gone of earlier.flows.filter((flow) => !round.flows.some((kept) => kept.name === flow.name)))
@@ -75,7 +75,7 @@ export async function compare(page: Page, earlier: Recorded, round: Recorded, un
 // A change where it's seen in one flow.
 type Sighting = { id: string; words: string; place: Place };
 
-async function compareFlow(page: Page, earlier: Recorded, before: Flow, round: Recorded, flow: Flow): Promise<Sighting[]> {
+async function compareFlow(page: Page, earlier: Recorded, before: Flow, round: Recorded, flow: Flow, unsteady: Set<string>): Promise<Sighting[]> {
   const pairs = pairSteps(before.steps, flow.steps);
   const sightings: Sighting[] = [...newSteps(flow, pairs), ...goneSteps(before, flow, pairs)];
 
@@ -86,7 +86,7 @@ async function compareFlow(page: Page, earlier: Recorded, before: Flow, round: R
     const was = step === undefined ? undefined : then.find((kept) => kept.step === before.steps[step]!.title);
     if (!was) continue;
     const pictures = { then: await earlier.picture(was.picture), now: await round.picture(reading.picture) };
-    for (const found of [...changesAt(was, reading), ...(await picturesAt(page, was, reading, pictures))]) {
+    for (const found of [...changesAt(was, reading, unsteady), ...(await picturesAt(page, was, reading, pictures))]) {
       const on = found.element ? { element: found.element, ...(found.alike && { alike: found.alike }) } : found.box ? { box: found.box } : {};
       sightings.push({ id: found.id, words: found.words, place: { flow: flow.name, at: reading.at, ...on } });
     }

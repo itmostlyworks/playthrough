@@ -92,7 +92,7 @@ export const Flow = z.strictObject({
   unsteady: z
     .array(text("needs the ids of the changes it makes by itself"))
     .optional()
-    .describe("Changes found between two recordings of the same app, like a time the server stamps: left out of every comparison of the flow"),
+    .describe("Changes found between two recordings of the same app, like a time the server stamps: left out of every comparison, in every flow"),
 });
 
 // Something different on screen between two rounds, found by Vantage and said in its fixed words.

@@ -179,6 +179,18 @@ export function differences(then: Reading, now: Reading): { differences: Differe
     if (JSON.stringify(looked) !== JSON.stringify(looks)) found.push({ what: "looks different", then: a, now: own });
   }
 
+  // Something new is new as a whole: what's in it was never anything outside it, however alike. Kan's new comment, “Maja ·
+  // in about 23 hours”, isn't the name and the dot of another line moved into it.
+  const newHolders = new Set(found.flatMap((difference) => (difference.what === "new" && HOLDS.test(difference.now.role) ? [difference.now] : [])));
+  const inNew = (thing: Thing): boolean => [holderOf(now, thing), parentOf(now, thing)].some((around) => around && (newHolders.has(around) || inNew(around)));
+  for (const [b, a] of [...was]) {
+    if (!inNew(b)) continue;
+    was.delete(b);
+    const i = found.findIndex((difference) => "now" in difference && difference.now === b);
+    if (i >= 0) found.splice(i, 1);
+    found.push({ what: "new", now: b }, { what: "gone", then: a });
+  }
+
   // What's inside something new is part of it, and what's inside something gone went with it. What's marked inside
   // reworded words, the amount in “Total for 2026 $56,145.00”, is part of their rewording.
   const fresh = new Set(found.flatMap((difference) => (difference.what === "new" ? [difference.now] : [])));
@@ -194,7 +206,41 @@ export function differences(then: Reading, now: Reading): { differences: Differe
     const parent = parentOf(reading, thing);
     return !(thing.role === "text" && parent && reworded.has(parent));
   });
-  return { differences: told, was };
+  return { differences: asLines(told, then, now), was };
+}
+
+// Words that came or went together on one line, in the same thing, are that line come or gone, not its pieces: “Maja
+// updated the title · in about 11 hours” is gone, not the name, the words, the dot and the time, each.
+function asLines(told: Difference[], then: Reading, now: Reading): Difference[] {
+  const lines = new Map<Thing, Thing[]>(); // each line's first piece, and every piece of it
+  const pieces = new Set<Thing>();
+  for (const what of ["new", "gone"] as const) {
+    const here = new Map<Thing, Thing[]>();
+    for (const difference of told) {
+      if (difference.what !== what) continue;
+      const thing = difference.what === "new" ? difference.now : difference.then;
+      if (thing.role !== "text") continue;
+      const first = [...here.keys()].find((line) => line.parent === thing.parent && near(line.page.y, thing.page.y));
+      if (first) here.get(first)!.push(thing);
+      else here.set(thing, [thing]);
+      pieces.add(thing);
+    }
+    for (const [first, all] of here) lines.set(first, all);
+  }
+  return told.flatMap((difference): Difference[] => {
+    if (difference.what !== "new" && difference.what !== "gone") return [difference];
+    const thing = difference.what === "new" ? difference.now : difference.then;
+    const all = lines.get(thing);
+    if (!all) return pieces.has(thing) ? [] : [difference];
+    if (all.length === 1) return [difference];
+    const reading = difference.what === "new" ? now : then;
+    const ordered = all.sort((p, q) => reading.things.indexOf(p) - reading.things.indexOf(q));
+    const words = ordered.map((piece) => piece.words).join(" ");
+    const x = Math.min(...ordered.map((piece) => piece.page.x));
+    const right = Math.max(...ordered.map((piece) => piece.page.x + piece.box.width));
+    const line: Thing = { ...ordered[0]!, name: words, words, box: { ...ordered[0]!.box, x: ordered[0]!.box.x + x - ordered[0]!.page.x, width: right - x }, page: { ...ordered[0]!.page, x } };
+    return [difference.what === "new" ? { what: "new", now: line } : { what: "gone", then: line }];
+  });
 }
 
 // The same thing, kept: how it looks, how big it is, and where it is on the page, in that order of what a person notices.

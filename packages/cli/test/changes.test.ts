@@ -137,12 +137,12 @@ describe("What changed at a moment", () => {
     ]);
   });
 
-  test("past five changes inside one thing, they're one change to it, counted", async () => {
+  test("past five changes inside one thing, they're one change to it, counted and not listed", async () => {
     const changed = await said(
       `<div class="panel">${rows(["Alder Dental", "Harbor & Finch", "Juniper Health", "Kettle Works", "Moss Logistics", "Pale Harbour"])}</div>`,
       `<div class="panel">${rows(["Alder Dental", "Harbor & Finch", "Juniper Health", "Kettle Works", "Moss Logistics", "Pale Harbour"].map((name) => `${name} (paid)`))}</div>`,
     );
-    assert.deepEqual(changed, ["Table changed inside: 6 things reworded (“Alder Dental (paid)”, “Harbor & Finch (paid)”, …)"]);
+    assert.deepEqual(changed, ["Table: 6 things changed inside"]);
   });
 
   test("words gone where a control with their name is new are that control now", async () => {
@@ -165,6 +165,15 @@ describe("What changed at a moment", () => {
     const page = (inside: string, outside: string) => `<aside aria-label="Kettle Works" class="panel"><p>3 invoices</p>${inside}</aside>${outside}`;
     const bar = `<p>2 selected</p>`;
     assert.deepEqual(await said(page("", bar), page(bar, "")), ["“2 selected” moved into the “Kettle Works” area"]);
+  });
+
+  test("something new is new as a whole, never what was outside it moved in, and a line gone is one thing gone (Kan's comment)", async () => {
+    const line = (inside: string) => `<p>${inside}</p>`;
+    const comment = `<div class="panel"><span>M</span> <span>Maja</span> <span>·</span> <span>just now</span><p>Can we use the one from the studio shoot?</p></div>`;
+    assert.deepEqual(await said(line(`<span>Maja</span> <span>updated the title</span> <span>·</span> <span>just now</span>`), comment), [
+      "“Maja · just now Can we use the one from the studio shoot?” area is new",
+      "“Maja updated the title · just now” is gone",
+    ]);
   });
 
   test("a control that gained words inside it is the same control, and the words are what's new", async () => {

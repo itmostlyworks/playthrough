@@ -144,7 +144,7 @@ export async function runFlows(
     const unsteady = byThemselves.filter((change) => change.seen.some((place) => place.flow === flow.name));
     if (!unsteady.length) continue;
     flow.unsteady = unsteady.map((change) => change.id);
-    console.log(`\nIn ${quote(flow.name)}, this changes by itself, so it's left out of every comparison of the flow:\n${unsteady.map((change) => `  ${change.words}`).join("\n")}\nIf it can be made the same each time, in vantage/setup.ts, do that and record again: a real change to it won't be seen.`);
+    console.log(`\nIn ${quote(flow.name)}, this changes by itself, so it's left out of every comparison, in every flow:\n${unsteady.map((change) => `  ${change.words}`).join("\n")}\nIf it can be made the same each time, in vantage/setup.ts, do that and record again: a real change to it won't be seen.`);
   }
   return once;
 }

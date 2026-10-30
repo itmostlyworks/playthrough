@@ -106,5 +106,5 @@ return their name as person ({ person: "Ana", ... }): it's the name on the point
 clock: fix them through the app's own test hook if it has one.
 
 Each new flow is recorded twice. What changes by itself between the two, like a time the server stamps, is left out of
-every comparison of that flow, and Vantage says what it is: steady it in vantage/setup.ts if you can, because a real
+every comparison, in every flow, and Vantage says what it is: steady it in vantage/setup.ts if you can, because a real
 change to it won't be seen.
