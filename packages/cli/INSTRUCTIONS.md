@@ -67,8 +67,8 @@ flows that failed first, and stops there if one fails again, without waiting for
 WHAT EVERY FLOW STARTS FROM
 
 A flow has to start from the same place every round, or the comparison finds changes nobody made. Vantage starts every
-flow at noon on the day the review started, in English and UTC, with the page's random numbers from a fixed seed. The
-rest is the app's: who's signed in, the data a flow needs, the outside services it calls. Make that in vantage/setup.ts,
+flow on the day the review started, at the time of day it's recorded, in English and UTC, with the page's random numbers
+from a fixed seed, so a flow can count on the day but not on the time. The rest is the app's: who's signed in, the data a flow needs, the outside services it calls. Make that in vantage/setup.ts,
 written once for the app and committed, so every review uses it. Its default export runs before each flow, given the
 page, Playwright's request and the app's address as baseURL, and what it returns is the flow's setup:
 

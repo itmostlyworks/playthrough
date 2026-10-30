@@ -83,10 +83,13 @@ export async function setupIn(file: string, written?: number): Promise<MakeSetup
 }
 let makeSetup: Promise<MakeSetup | undefined> | undefined;
 
-// Every round starts at the same moment, noon on the day the review started, with the page's random numbers from the same
-// seed, so what the page works out from them reads the same each time. The clock runs on from there, as a person's does:
-// page.clock.setFixedTime would stop it, and whatever the page times by it.
-const DAY = (started: string) => new Date(`${started.slice(0, 10)}T12:00:00Z`);
+// Every round runs on the day the review started, at the time of day it's recorded, with the page's random numbers from
+// the same seed, so what the page works out from the day reads the same each time. The app's server keeps the real time,
+// which nothing here sets, and on the real time of day what it stamps reads as it would: a card the setup made was made
+// “less than a minute ago”, in every round that day. On a later day, the server's times are that many days ahead. The
+// clock runs on from there, as a person's does: page.clock.setFixedTime would stop it, and whatever the page times by it.
+const DAY = 24 * 60 * 60 * 1000;
+export const onReviewDay = (started: string, now = Date.now()) => new Date(now - (Math.floor(now / DAY) - Math.floor(Date.parse(started) / DAY)) * DAY);
 const seeded = `(() => {
   let seed = 20251026;
   Math.random = () => {
@@ -109,7 +112,7 @@ const recorded = base.extend<{ setup: Record<string, any>; recorder: void }>({
     if (run) {
       // rrweb goes in first, to take the page's own clock before it's set.
       await page.addInitScript({ content: recorder(run.recorder) });
-      await page.clock.setSystemTime(DAY(run.started));
+      await page.clock.setSystemTime(onReviewDay(run.started));
       await page.addInitScript({ content: seeded });
     }
     makeSetup ??= setupIn(repo(run?.root).setup);
@@ -211,7 +214,7 @@ export async function runAlongside(
   body: Body,
   orders: Orders,
 ): Promise<{ handed?: Handed; stopped?: Pick<Failed, "at" | "why"> }> {
-  await page.clock.setSystemTime(DAY(started));
+  await page.clock.setSystemTime(onReviewDay(started));
   await page.addInitScript({ content: seeded });
   const flow: Taking = { page, depth: 0, rest: await watchRest(page), actions: 0, again: [], wrote: false, passed: [], orders, began: Date.now(), waited: 0, arrived };
   page.on("request", (request) => void (["GET", "HEAD", "OPTIONS"].includes(request.method()) || (flow.wrote = true)));
