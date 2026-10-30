@@ -1110,11 +1110,12 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
 
   // Over every flow, the step from the top: to the first flow that needs you, from its start, as Start checking, or
   // Carry on checking once you've begun; else accepting. A round that arrived while you were here is the
-  // round's own to offer, under the work's name.
+  // round's own to offer, under the work's name; looking back, it's the way back to now, as at a flow's end.
   const begun = watched.length > 0 || said(draft) > 0 || draft.unsaved.length > 0;
   const gridStep = ((): Step | undefined => {
-    if (review.accepted || acceptedHere || readOnly) return undefined;
+    if (review.accepted || acceptedHere) return undefined;
     if (!current) return arrived ? undefined : step;
+    if (readOnly) return undefined;
     const next = onward(-1);
     if (next.kind === "agent") return next;
     if (next.kind !== "go") return undefined;
