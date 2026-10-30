@@ -31,20 +31,26 @@ export async function wait(repo: Repo, id: string) {
   }
 
   for (;;) {
-    review = await reviews.wait(id, (review) => !!review.accepted || review.sends.some((send) => !review.taken.some((taken) => taken.send === send.id)));
-    if (review.accepted) return console.log(`\n${review.accepted.by} accepted the work. The review is done.`);
-    const taken = await reviews.take(id);
-    review = await reviews.get(id);
-    const round = roundInProgress(review);
-    const asking = notesToAnswer(review, round);
-    for (const send of taken) {
-      const good = [
-        ...send.looksGood.map(quote),
-        ...send.verdicts.filter((verdict) => verdict.verdict === "looks good").map((verdict) => `your answer to note ${verdict.note}`),
-      ];
-      if (good.length) console.log(`\n${send.by} says ${list(good)} ${good.length > 1 ? "look" : "looks"} good.`);
+    let round = roundInProgress(review);
+    let asking = review.accepted ? [] : notesToAnswer(review, round);
+    // Notes an earlier wait took, for a round not recorded yet, are answered first: waiting for another send would wait
+    // on what's already here.
+    if (!asking.length) {
+      review = await reviews.wait(id, (review) => !!review.accepted || review.sends.some((send) => !review.taken.some((taken) => taken.send === send.id)));
+      if (review.accepted) return console.log(`\n${review.accepted.by} accepted the work. The review is done.`);
+      const taken = await reviews.take(id);
+      review = await reviews.get(id);
+      round = roundInProgress(review);
+      asking = notesToAnswer(review, round);
+      for (const send of taken) {
+        const good = [
+          ...send.looksGood.map(quote),
+          ...send.verdicts.filter((verdict) => verdict.verdict === "looks good").map((verdict) => `your answer to note ${verdict.note}`),
+        ];
+        if (good.length) console.log(`\n${send.by} says ${list(good)} ${good.length > 1 ? "look" : "looks"} good.`);
+      }
+      if (!asking.length) continue;
     }
-    if (!asking.length) continue;
 
     const notes = allNotes(review);
     const you = agent();
