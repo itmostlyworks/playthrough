@@ -20,7 +20,7 @@ import type { Step } from "./Step.tsx";
 import { Grid } from "./Grid.tsx";
 import { follow, pausedAt, readyAt, readyIn, samePaused, takenOver, type Live, type Paused } from "./live.ts";
 import { along, CARD, clamp, FLOW_IN, momentAt, POSTER, type Moment } from "./moments.ts";
-import { asIfSent, fill, ink, lookGood, notesOn, nothing, said, seen, sendOf, settledBefore, standings, takeBack, type Shown } from "./notes.ts";
+import { asIfSent, fill, ink, lookGood, notesOn, nothing, said, seen, sendingFlow, sendOf, settledBefore, standings, takeBack, unchangedSince, type Shown } from "./notes.ts";
 import { NoteRow, number as numberLook, Writing, type Comparing } from "./Notes.tsx";
 import { Playhead, useNow, type Forked } from "./playhead.ts";
 import { changesIn, recorded } from "./replay.ts";
@@ -86,8 +86,9 @@ type OnRoundProps = { review: Review; round: Round; latest: Round; arrived: bool
 
 function OnRound({ review: kept, round, latest, arrived, you, flow: inAddress, onRound }: OnRoundProps) {
   // What you've just sent shows as sent until the review comes back with it.
-  const [posted, setPosted] = useState<Send>();
-  const review = posted && !kept.sends.some((send) => send.id === posted.id) ? { ...kept, sends: [...kept.sends, posted] } : kept;
+  const [posted, setPosted] = useState<Send[]>([]);
+  const notBack = posted.filter((sent) => !kept.sends.some((send) => send.id === sent.id));
+  const review = notBack.length ? { ...kept, sends: [...kept.sends, ...notBack] } : kept;
   const [draft, change] = useDraft(review.id, round.number);
   // A note made in the app before forks were part of their flow named a flow of its own.
   useEffect(() => {
@@ -485,11 +486,14 @@ function OnRound({ review: kept, round, latest, arrived, you, flow: inAddress, o
   // A flow that still needs you: not good, and not only waiting on what you've said for the agent.
   const needs = (name: string) => !["good", "to send", "with the agent", undefined].includes(standing?.get(name)?.is);
 
-  // A flow asks whether it's good at its end, once you've watched it, and stays where you answered it; it goes once you
-  // move on.
+  // Every flow ends with one step: whether it's good, once you've watched it; or, with something of yours in it, sending
+  // it, so the agent starts on it while you watch the rest; or, sent, what's next. It stays where you answered it, and
+  // goes once you move on.
   const [asked, setAsked] = useState<string>();
   if (asked && (where !== "end" || watching !== asked)) setAsked(undefined);
-  const question = !open && flow && where === "end" && standing?.get(flow.name)?.asks && (asked === flow.name || standing.get(flow.name)?.is === "is it good") ? flow.name : undefined;
+  const ending = flow && standing?.get(flow.name);
+  const ends = !!ending && (["is it good", "to send", "with the agent"].includes(ending.is) || (asked === flow?.name && ending.asks));
+  const question = !open && flow && where === "end" && ends ? flow.name : undefined;
   // What you said about the whole flow sits over its last frame, with its question; one of them open, it opens there.
   const general = flow && where === "end" ? notes.filter((note) => note.on?.flow === flow.name && note.on.at === undefined) : [];
   const generalOpen = !!open && "note" in open && general.some((note) => note.id === open.note);
@@ -695,10 +699,16 @@ function OnRound({ review: kept, round, latest, arrived, you, flow: inAddress, o
     if (notSeen?.on?.at !== undefined) return pick(notSeen);
     if (notSeen) return (setOpen({ note: notSeen.id }), setMet((met) => [...met, notSeen.id]));
     change((draft) => lookGood(draft, name, notes));
+    onwardFrom(name);
+  };
+  const sendingIt = async (name: string) => {
+    if (await sendNow(name)) onwardFrom(name);
+  };
+  // Once its tick has landed, on to the next flow that needs you, or with none left, home to every flow, where the round
+  // is sent or accepted.
+  const onwardFrom = (name: string) => {
     setAsked(name);
     setLanded({ flow: name, at: performance.now() });
-    // Once its tick has landed, on to the next flow that needs you, or with none left, home to every flow, where the
-    // round is sent or accepted.
     const at = round.flows.findIndex((flow) => flow.name === name);
     const next = [...round.flows.slice(at + 1), ...round.flows.slice(0, at)].find((flow) => needs(flow.name));
     setTimeout(() => (next ? watchFrom(next.name) : toGrid()), 900);
@@ -957,21 +967,22 @@ function OnRound({ review: kept, round, latest, arrived, you, flow: inAddress, o
     };
   }, [looping]);
 
-  // Sending carries everything you've said on the round at once; what you haven't saved stays. Accepting sends what's
-  // left first.
+  // A flow's end sends what you said in it; Send, once every flow is through, carries what's left on the round. What you
+  // haven't saved stays. Accepting sends what's left first.
   const [trouble, setTrouble] = useState<string[]>([]);
   const [acceptedHere, setAcceptedHere] = useState(false);
   const sending = useRef(false);
-  const sendNow = async () => {
-    if (!said(draft) || sending.current) return false;
+  const sendNow = async (flow?: string) => {
+    const part = flow ? sendingFlow(draft, flow, notes).sending : draft;
+    if (!said(part) || sending.current) return false;
     sending.current = true;
-    const sends: Send = { id: newId(), round: round.number, by: you, sent: new Date().toISOString(), ...sendOf(draft) };
+    const sends: Send = { id: newId(), round: round.number, by: you, sent: new Date().toISOString(), ...sendOf(part) };
     const problems = await send(review.id, sends);
     sending.current = false;
     setTrouble(problems);
     if (problems.length) return false;
-    setPosted(sends);
-    change((draft) => ({ ...nothing, unsaved: draft.unsaved }));
+    setPosted((posted) => [...posted, sends]);
+    change((draft) => (flow ? sendingFlow(draft, flow, notes).left : { ...nothing, unsaved: draft.unsaved }));
     return true;
   };
   const acceptNow = async () => {
@@ -996,9 +1007,9 @@ function OnRound({ review: kept, round, latest, arrived, you, flow: inAddress, o
     if (next) return { kind: "go", words: "Next", what: next.name, flow: next.name, take: () => watchFrom(next.name) };
     if (general && "turns" in general) return { kind: "go", words: "Next to check", what: general.turns[0]?.words, take: () => pick(general) };
     if (general) return { kind: "go", words: "Finish your note", what: placeName(general.on), take: () => setOpen({ writing: general.id }) };
-    if (asksTheAgent) return { kind: "go", words: "Send", what: `${asksTheAgent} ${asksTheAgent === 1 ? "note" : "notes"} to the agent`, take: sendNow, send: true };
+    if (asksTheAgent) return { kind: "go", words: "Send", what: `${asksTheAgent} ${asksTheAgent === 1 ? "note" : "notes"} to the agent`, take: () => sendNow(), send: true };
     if (readyToAccept(asIfSent(review, round.number, you, draft), you)) return { kind: "go", words: "All good", what: "Accept the work", take: acceptNow, final: true };
-    if (said(draft)) return { kind: "go", words: "Send", what: "what you said", take: sendNow, send: true };
+    if (said(draft)) return { kind: "go", words: "Send", what: "what you said", take: () => sendNow(), send: true };
     if (waitingForTheAgent(review).length)
       return working
         ? { kind: "agent", words: "The agent is working", what: `since ${new Date(working).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`, busy: true }
@@ -1014,7 +1025,7 @@ function OnRound({ review: kept, round, latest, arrived, you, flow: inAddress, o
     if (!flow) return onward(-1);
     if (where === "playing") return { kind: "say", words: "Playing", what: flow.name };
     if (where !== "end") return { kind: "go", words: where === "start" ? "Play" : "Play on", what: flow.name, take: () => playhead.play() };
-    if (question) return standing?.get(question)?.is === "good" ? onward(round.flows.indexOf(flow)) : { kind: "say", words: "End of", what: flow.name };
+    if (question) return ending?.is === "good" || ending?.is === "with the agent" ? onward(round.flows.indexOf(flow)) : { kind: "say", words: "End of", what: flow.name };
     if (needs(flow.name)) {
       const started = draft.unsaved.find((note) => note.on?.flow === flow.name);
       if (started) return { kind: "go", words: "Finish your note", what: placeName(started.on), take: () => setOpen({ writing: started.id }) };
@@ -1093,7 +1104,10 @@ function OnRound({ review: kept, round, latest, arrived, you, flow: inAddress, o
         } else if (openNote || chosen) {
           event.preventDefault();
           playOn();
-        } else if (question && standing?.get(question)?.is !== "good") {
+        } else if (question && ending?.is === "to send") {
+          event.preventDefault();
+          void sendingIt(question);
+        } else if (question && ending?.is !== "good" && ending?.is !== "with the agent") {
           event.preventDefault();
           lookingGood(question);
         } else if (!open && step.kind === "go" && !step.final) {
@@ -1224,6 +1238,8 @@ function OnRound({ review: kept, round, latest, arrived, you, flow: inAddress, o
     onNote: pick,
     onGood: lookingGood,
     onNotQuite: (name) => write({ flow: name }),
+    onSend: (name) => void sendingIt(name),
+    onward: onward(flow ? round.flows.indexOf(flow) : -1),
     onAgain: (flow) => watchFrom(flow.name),
   };
   return (

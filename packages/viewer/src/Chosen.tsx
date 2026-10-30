@@ -1,12 +1,14 @@
 // What's chosen on the stage opens beside the recording: a change, its card the agent's why, your note on it and
-// Compare; and at a flow's end, over its last frame, what you said about the whole of it and whether it's good. And the
-// order Up and Down go through a flow's notes and changes in.
+// Compare; and at a flow's end, over its last frame, what you said about the whole of it and the flow's one step: whether
+// it's good, or, with something of yours in it, sending that to the agent. And the order Up and Down go through a flow's
+// notes and changes in.
 
 import { Fragment, useRef, type CSSProperties, type ReactNode } from "react";
 import type { Flow, Round } from "@mostlyworks/vantage-review";
 import { Answer, Compare, play, Said, tick, Time, useHold } from "./Card.tsx";
 import { when, type Changed, type Diamond } from "./changes.ts";
 import { ink, type Shown, type Standing } from "./notes.ts";
+import type { Step } from "./Step.tsx";
 import { opened, type Comparing } from "./Notes.tsx";
 import { useNow, type Playhead } from "./playhead.ts";
 
@@ -40,6 +42,9 @@ export type Props = {
   onNote: (note: Shown) => void;
   onGood: (flow: string) => void;
   onNotQuite: (flow: string) => void;
+  onSend: (flow: string) => void;
+  // What comes after a flow that's with the agent: the next flow that needs you, or what the agent is doing.
+  onward: Step;
   onAgain: (flow: Flow) => void;
 };
 
@@ -84,8 +89,10 @@ export function Chosen(props: Props) {
 }
 
 // A flow's question, at its end: whether it's good, what Looks good would settle that you haven't answered, and a way
-// to watch it again first. The flow is the one you're watching, so the question doesn't name it.
+// to watch it again first. With something of yours in it, the question is sending it; sent, it's with the agent, and
+// what's next is the step. The flow is the one you're watching, so the question doesn't name it.
 function Question({ flow, standing, just, ...props }: Omit<Props, "standing"> & { flow: Flow; standing: Standing; just: boolean }) {
+  if (standing.is === "to send" || standing.is === "with the agent") return <Sending {...props} flow={flow} standing={standing} just={just} />;
   const good = standing.is === "good";
   const sent = good && !props.saidGood.includes(flow.name);
   const buttons = useRef<HTMLDivElement>(null);
@@ -124,6 +131,53 @@ function Question({ flow, standing, just, ...props }: Omit<Props, "standing"> & 
           Not quite
         </Answer>
       </div>
+    </div>
+  );
+}
+
+// What you said in a flow goes at its end, so the agent starts on it while you watch the rest. Sent, its mark turns the
+// agent's slate, and the step is what's next.
+function Sending({ flow, standing, just, ...props }: Omit<Props, "standing"> & { flow: Flow; standing: Standing; just: boolean }) {
+  const sent = standing.is === "with the agent";
+  const { onward } = props;
+  return (
+    <div className="relative py-2 pr-3 pl-[44px]">
+      <span
+        className={`absolute top-2 left-[18px] z-1 grid size-[18px] place-items-center rounded-full transition-[background-color,box-shadow] duration-250 ease-calm ${sent ? "bg-slate text-ground" : "bg-[color-mix(in_srgb,var(--amber)_22%,var(--ground))] shadow-[inset_0_0_0_1.5px_var(--amber)]"} ${just ? "animate-pop" : ""}`}
+        aria-hidden
+      >
+        {sent && <TickMark className={`size-[11px] ${just ? "animate-tick" : ""}`} />}
+      </span>
+      <p className="mb-2 text-[13px] leading-[18px] text-soft">
+        <button className="float-right ml-2 inline-flex items-center gap-1 text-xs leading-[18px] text-faint transition-colors duration-150 ease-calm hover:text-fg" onMouseDown={keepKeys} onClick={() => props.onAgain(flow)}>
+          <svg viewBox="0 0 20 20" className="size-3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M4 10a6 6 0 1 0 1.8-4.3" />
+            <path d="M4 3.5v3h3" />
+          </svg>
+          Watch again
+        </button>
+        {sent ? "With the agent" : `${standing.count} ${standing.count === 1 ? "note" : "notes"} for the agent`}
+        {sent && (onward.kind === "agent" || onward.kind === "say") && <span className="block text-xs leading-4 text-faint">{onward.what ? `${onward.words} ${onward.what}` : onward.words}</span>}
+      </p>
+      {!sent ? (
+        <div className="flex gap-1.5">
+          <Answer keys="↵" onClick={() => props.onSend(flow.name)}>
+            Send
+          </Answer>
+        </div>
+      ) : (
+        onward.kind === "go" &&
+        !just && (
+          <div className="flex gap-1.5">
+            <Answer keys="↵" onClick={onward.take}>
+              <span className="truncate">
+                {onward.words}
+                {onward.what && <span className="font-normal text-soft"> · {onward.what}</span>}
+              </span>
+            </Answer>
+          </div>
+        )
+      )}
     </div>
   );
 }

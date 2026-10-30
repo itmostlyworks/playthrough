@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { memory, newId, Reviews, type Flow, type Review, type Round, type Send } from "@mostlyworks/vantage-review";
-import { fill, lookGood, nothing, notesOn, settledBefore, standings, takeBack } from "../src/notes.ts";
+import { fill, lookGood, nothing, notesOn, sendingFlow, settledBefore, standings, takeBack, unchangedSince } from "../src/notes.ts";
 
 const flow = (name: string): Flow => ({ name, length: 6, steps: [{ title: "Open the invoices", at: 0 }], recording: `${name.toLowerCase().replace(/\W+/g, "-")}.json` });
 const round = (number: number, parts: Partial<Round> = {}): Round => ({
@@ -138,4 +138,21 @@ test("a flow that looked good to you and changed since asks again", async () => 
   assert.equal(standings(changed, 2, "Ben", nothing, []).get("Export them")?.is, "looked good");
   assert.equal(standings(changed, 2, "Ben", nothing, ["Export them"]).get("Export them")?.is, "is it good");
   assert.equal(standings({ ...changed, accepted: { by: "Ana", at: "2026-10-25T12:00:00Z" } }, 2, "Ben", nothing, []).get("Export them")?.is, "good", "accepted, every flow is");
+});
+
+test("a flow's end sends what you said in it, with your Looks goods riding along, and leaves the rest for the flows to come", async () => {
+  const review = await twoPeople();
+  const here = { id: newId(), on: { flow: "Export them", at: 1 }, words: "Name the file by the quarter" };
+  const there = { id: newId(), on: { flow: "See what's overdue", at: 2 }, words: "Sort by how late" };
+  const draft = { ...nothing, notes: [here, there], looksGood: ["See what's overdue"] };
+  const { sending, left } = sendingFlow(draft, "Export them", notesOn(review, 2, "Ana", draft));
+  assert.deepEqual([sending.notes, sending.looksGood], [[here], ["See what's overdue"]]);
+  assert.deepEqual([left.notes, left.looksGood], [[there], []]);
+});
+
+test("a flow a newer round shows as it was keeps what you said of it", async () => {
+  const review = await twoPeople();
+  const change = (flow: string) => ({ id: newId(), words: "Export is new", seen: [{ flow, at: 1 }] });
+  assert.deepEqual(unchangedSince({ ...review, comparisons: [{ round: 2, since: 1, changes: [change("Export them")] }] }, 1, 2), ["See what's overdue"]);
+  assert.deepEqual(unchangedSince(review, 1, 2), [], "not compared, nothing is known to be the same");
 });

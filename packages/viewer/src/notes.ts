@@ -3,6 +3,7 @@
 // Numbers are the viewer's to give; a note's id is only for the agent.
 
 import {
+  accountOf,
   allNotes,
   conversation,
   goodForYou,
@@ -25,6 +26,28 @@ export const nothing: Draft = { notes: [], verdicts: [], looksGood: [], withTheF
 // What a send carries of the draft.
 export const sendOf = ({ notes, verdicts, looksGood }: Draft) => ({ notes, verdicts, looksGood });
 export const said = (draft: Draft) => draft.notes.length + draft.verdicts.length + draft.looksGood.length;
+
+// A flow's notes are sent at its end, so the agent starts on them while you watch the rest: what you wrote in it and
+// said of the answers in it, with every Looks good you haven't sent and the answers they settle riding along. The rest
+// stays for the flows you haven't finished.
+export function sendingFlow(draft: Draft, flow: string, notes: Shown[]): { sending: Draft; left: Draft } {
+  const inIt = new Set([...notes.filter((note) => note.on?.flow === flow).map((note) => note.id), ...draft.withTheFlow]);
+  const its = (note: Note) => note.on?.flow === flow;
+  return {
+    sending: { ...nothing, notes: draft.notes.filter(its), verdicts: draft.verdicts.filter((verdict) => inIt.has(verdict.note)), looksGood: draft.looksGood },
+    left: { ...draft, notes: draft.notes.filter((note) => !its(note)), verdicts: draft.verdicts.filter((verdict) => !inIt.has(verdict.note)), looksGood: [], withTheFlow: [] },
+  };
+}
+
+// The flows a newer round shows as they were: nothing found changed in them since, or only what the agent says isn't
+// real. You watched them, and what you said of them holds, there too.
+export function unchangedSince(review: Review, since: number, round: number): string[] {
+  const flows = review.rounds.find((kept) => kept.number === round)?.flows ?? [];
+  const comparison = review.comparisons.find((kept) => kept.round === round && kept.since === since);
+  if (!comparison) return [];
+  const real = comparison.changes.filter((change) => !("notReal" in (accountOf(review, round, change.id) ?? {})));
+  return flows.filter((flow) => !real.some((change) => change.seen.some((seen) => seen.flow === flow.name))).map((flow) => flow.name);
+}
 
 // Amber waits for you, slate for the agent or for someone else, green is settled.
 export type State = "needs you" | "with the agent" | "with someone else" | "settled";
