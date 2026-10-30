@@ -611,7 +611,10 @@ export function Stage(props: Props) {
       Object.assign(hand.style, { transform: tip(at), opacity: "1", zIndex: "11" });
       tag.hidden = false;
       if (still) return void (real(true), say(tag, words, "You", true, false));
+      // Waited for, it says it's taking over until the pointer has come to yours: the app is there, so a count still
+      // going is done.
       if (!waited) say(tag, words, person ?? "You are in control", !person, false);
+      else if (words.textContent !== "Taking over…") say(tag, words, "Taking over…", false);
       // It goes from where the recording had it to your hand, and the portal opens from where they meet.
       const handing = theirs && mine && Math.hypot(mine.x - theirs.x, mine.y - theirs.y) > 4 ? HANDING : 0;
       // Moved along with your hand as it comes, so it keeps up when you move.
@@ -684,9 +687,10 @@ export function Stage(props: Props) {
     tag.hidden = !person;
   }, [waiting]);
   // Known how long it will be, and more than a moment, the pointer counts down to it a second at a time, only the number
-  // changing; if it isn't there when the count is done, it says it's taking over until it is.
+  // changing; if it isn't there when the count is done, it says it's taking over until it is. It stops as the portal
+  // opens, before a last tick could put a number back over the app.
   const due = waiting ? props.live?.due : undefined;
-  useEffect(() => {
+  useLayoutEffect(() => {
     const tag = frames.current.get(round.number)?.querySelector<HTMLElement>("[data-cursor] [data-tag]");
     const words = tag?.querySelector<HTMLElement>("[data-words]");
     if (!due || !tag || !words || due - Date.now() < COUNTED) return;
