@@ -1,6 +1,7 @@
 // Every control in one row under the recordings: play, the time and the timeline, the speed, the size, the rounds, how
 // to look at them, on their own or side by side, and taking the flow over to carry on by hand. Nothing in it appears, disappears or changes width as you move.
 
+import type { ComponentProps } from "react";
 import type { Round } from "@mostlyworks/vantage-review";
 import { useNow, type Playhead } from "./playhead.ts";
 import { Rounds } from "./Rounds.tsx";
@@ -38,7 +39,7 @@ type Props = {
   // A note pointed at elsewhere, lit on the line.
   lit?: string;
   // What the flow's end asks, under the line's end.
-  end?: { asks: "Looks good?" | "Looks good" | "Send"; go: () => void };
+  end?: ComponentProps<typeof Timeline>["end"];
 };
 
 export function Controls(props: Props) {

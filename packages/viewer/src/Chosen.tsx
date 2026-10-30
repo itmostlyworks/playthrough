@@ -101,13 +101,7 @@ function Question({ flow, standing, just, ...props }: Omit<Props, "standing"> & 
   const unseen = good ? 0 : props.unseen(flow.name).length;
   return (
     <div className="relative py-2 pr-3 pl-[44px]">
-      <span
-        data-tick={flow.name}
-        className={`absolute top-2 left-[18px] z-1 grid size-[18px] place-items-center rounded-full transition-[background-color,box-shadow] duration-250 ease-calm ${good ? "bg-green text-ground shadow-[inset_0_0_0_1.5px_color-mix(in_srgb,var(--green)_70%,var(--fg))]" : "bg-[color-mix(in_srgb,var(--amber)_22%,var(--ground))] shadow-[inset_0_0_0_1.5px_var(--amber)]"} ${just ? "animate-pop" : ""}`}
-        aria-hidden
-      >
-        {good && <TickMark className={`size-[11px] ${just ? "animate-tick" : ""}`} />}
-      </span>
+      <EndMark end={good ? "good" : "asks"} just={just} className="absolute top-2 left-[18px] z-1 size-[18px]" />
       <p className="mb-2 text-[13px] leading-[18px] text-soft">
         <button className="float-right ml-2 inline-flex items-center gap-1 text-xs leading-[18px] text-faint transition-colors duration-150 ease-calm hover:text-fg" onMouseDown={keepKeys} onClick={() => props.onAgain(flow)}>
           <svg viewBox="0 0 20 20" className="size-3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -162,12 +156,7 @@ function Sending({ flow, standing, just, ...props }: Omit<Props, "standing"> & {
   const { onward } = props;
   return (
     <div className="relative py-2 pr-3 pl-[44px]">
-      <span
-        className={`absolute top-2 left-[18px] z-1 grid size-[18px] place-items-center rounded-full transition-[background-color,box-shadow] duration-250 ease-calm ${sent ? "bg-slate text-ground" : "bg-[color-mix(in_srgb,var(--amber)_22%,var(--ground))] shadow-[inset_0_0_0_1.5px_var(--amber)]"} ${just ? "animate-pop" : ""}`}
-        aria-hidden
-      >
-        {sent && <TickMark className={`size-[11px] ${just ? "animate-tick" : ""}`} />}
-      </span>
+      <EndMark end={sent ? "with the agent" : "to send"} just={just} className="absolute top-2 left-[18px] z-1 size-[18px]" />
       <p className="mb-2 text-[13px] leading-[18px] text-soft">
         <button className="float-right ml-2 inline-flex items-center gap-1 text-xs leading-[18px] text-faint transition-colors duration-150 ease-calm hover:text-fg" onMouseDown={keepKeys} onClick={() => props.onAgain(flow)}>
           <svg viewBox="0 0 20 20" className="size-3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -274,6 +263,33 @@ function Why({ diamond, notes, onNote, onPoint }: Props & { diamond: Diamond }) 
       <div className="mt-[3px] ml-[19px] border-l-2 border-line pl-2.5 text-[12.5px] [&_p]:text-[12.5px]">{says(block[0]!)}</div>
     </div>
   ));
+}
+
+// A flow's end, drawn alike wherever it is, in its question over the last frame and capping the timeline: amber while it
+// asks you, with ↑ when what it asks is sending what you said in it; green and ticked once it looks good, the agent's
+// slate and ticked once what you said is with the agent. Ahead of the playhead on the timeline it's pale, as a note's dot
+// is. Answered, it pops in both at once. Square, as a round mark is a note.
+export type End = "asks" | "to send" | "good" | "with the agent";
+
+export function EndMark({ end, ahead, just, className }: { end: End; ahead?: boolean; just: boolean; className: string }) {
+  const look =
+    end === "good"
+      ? "bg-green text-ground shadow-[inset_0_0_0_1.5px_color-mix(in_srgb,var(--green)_70%,var(--fg))]"
+      : end === "with the agent"
+        ? "bg-slate text-ground"
+        : ahead
+          ? "bg-ground text-amber-ink shadow-[inset_0_0_0_1.5px_color-mix(in_srgb,var(--amber)_50%,var(--ground))]"
+          : "bg-[color-mix(in_srgb,var(--amber)_22%,var(--ground))] text-amber-ink shadow-[inset_0_0_0_1.5px_var(--amber)]";
+  return (
+    <span aria-hidden className={`grid place-items-center rounded-[28%] transition-[background-color,box-shadow,color,scale] duration-250 ease-calm ${look} ${just ? "animate-pop" : ""} ${className}`}>
+      {(end === "good" || end === "with the agent") && <TickMark className={`size-[62%] ${just ? "animate-tick" : ""}`} />}
+      {end === "to send" && (
+        <svg viewBox="0 0 12 12" className="size-[62%]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M6 9.6V2.8M3.2 5.5 6 2.7l2.8 2.8" />
+        </svg>
+      )}
+    </span>
+  );
 }
 
 export function TickMark({ className, style }: { className: string; style?: CSSProperties }) {

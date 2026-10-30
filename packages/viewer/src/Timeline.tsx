@@ -4,13 +4,12 @@
 // click lands. Nothing here changes width as it plays. Where you took the flow over and carried on by hand, a fork
 // leaves the line there and runs above it as long as you were there, faint until pointed at or played: then it answers
 // as the line does, and it plays like the rest of the line. Forks that would overlap rise in lanes, one over another.
-// It ends in a cap for what the flow's end asks of you, so you know where playing leads: an empty box for whether it
-// looks good, ticked green once you've said it does, or ↑ for sending what you said in it; hollow ahead of the playhead
-// and filled once there, as a diamond is. Pointed at, it says so; pressed, it goes there.
+// It ends in the flow's end, the mark its question has, so you know where playing leads and how it stands: pointed at,
+// it says so; pressed, it goes there, its question up.
 
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { time, type Flow } from "@mostlyworks/vantage-review";
-import { TickMark } from "./Chosen.tsx";
+import { EndMark, type End } from "./Chosen.tsx";
 import { CARD, clamp } from "./moments.ts";
 import { useNow, type Forked, type Playhead } from "./playhead.ts";
 
@@ -36,7 +35,7 @@ type Props = {
   // A note pointed at elsewhere: its dot grows.
   lit?: string;
   // What the flow's end asks, and going there.
-  end?: { asks: "Looks good?" | "Looks good" | "Send"; go: () => void };
+  end?: { end: End; words: string; just: boolean; go: () => void };
 };
 
 const DOT = 14;
@@ -380,24 +379,13 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
         {end && (
           <button
             data-mark
-            aria-label={end.asks}
+            aria-label={end.words}
             className="group/end absolute top-[11px] left-[calc(100%+4px)] z-3 grid size-3.5 place-items-center"
             onPointerEnter={() => setNamed(END)}
             onPointerLeave={() => setNamed(undefined)}
             onClick={() => !swallow.current && end.go()}
           >
-            <i
-              className={`grid size-3.5 place-items-center rounded-[4px] transition-[scale,background-color,color] duration-150 ease-calm group-hover/end:scale-115 ${
-                end.asks === "Looks good" ? "bg-green text-ground" : atEnd ? "bg-fg text-ground" : "bg-ground text-soft shadow-[inset_0_0_0_1.5px_currentColor] group-hover/end:text-fg"
-              }`}
-            >
-              {end.asks === "Looks good" && <TickMark className="size-2.5" />}
-              {end.asks === "Send" && (
-                <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="size-2.5" aria-hidden>
-                  <path d="M5 8.2V2M2.4 4.5 5 1.9l2.6 2.6" />
-                </svg>
-              )}
-            </i>
+            <EndMark end={end.end} ahead={!atEnd} just={end.just} className="size-3.5 group-hover/end:scale-115" />
           </button>
         )}
         {marks.map((shown) => {
@@ -461,7 +449,7 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
         />
         <span aria-hidden className={`${label} z-300 text-fg ${tip ? "translate-y-0 opacity-100" : "translate-y-[2px] opacity-0"}`} style={{ marginBottom: rise(dot?.fork ? lines.find((line) => line.name === dot.fork) : undefined), left: dot ? (dot.fork && dot.fork === grown?.name ? underWay(grown) : pc(dotShare(dot))) : mark ? percent(flow, mark.at) : ends ? "calc(100% + 11px)" : undefined }}>
           {dot && <span className="block max-w-[220px] truncate">{dot.words}</span>}
-          {ends && <span className="block">{ends.asks}</span>}
+          {ends && <span className="block">{ends.words}</span>}
           {mark && (
             <span className="block max-w-[320px] truncate">
               {mark.note && <b className="mr-[5px] font-semibold text-amber-ink">{mark.note.number}</b>}

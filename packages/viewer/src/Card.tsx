@@ -25,7 +25,7 @@ export function Answer(props: { children: ReactNode; keys?: string; pressed?: bo
   const look = pressed ? (tone === "good" ? "bg-green/12 text-green" : "bg-slate/14 text-slate") : "bg-hover text-fg hover:bg-line";
   return (
     <button
-      className={`inline-flex h-[30px] flex-[1_1_auto] items-center justify-center rounded-md font-medium whitespace-nowrap transition-colors duration-150 ease-calm ${keys ? "pr-[7px] before:flex-[1_0_10px] before:content-[''] after:order-1 after:flex-[1_0_10px] after:content-['']" : "px-2.5"} ${look}`}
+      className={`inline-flex h-[30px] min-w-0 flex-[1_1_auto] items-center justify-center rounded-md font-medium whitespace-nowrap transition-colors duration-150 ease-calm ${keys ? "pr-[7px] before:flex-[1_0_10px] before:content-[''] after:order-1 after:flex-[1_0_10px] after:content-['']" : "px-2.5"} ${look}`}
       aria-pressed={pressed}
       disabled={props.disabled}
       aria-keyshortcuts={keys === "↵" ? "Enter" : keys}

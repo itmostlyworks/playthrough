@@ -11,7 +11,7 @@ import { Bar } from "./Bar.tsx";
 import { Beside, clickedAt } from "./Beside.tsx";
 import { HOLD } from "./Card.tsx";
 import { answersTo, diamondAt, diamondsOn, grownFrom, type Changed, type Diamond } from "./changes.ts";
-import { Chosen, rowsIn, settles, type Landed, type Props as ChosenProps } from "./Chosen.tsx";
+import { Chosen, justLanded, rowsIn, settles, type End, type Landed, type Props as ChosenProps } from "./Chosen.tsx";
 import { Controls, type Look } from "./Controls.tsx";
 import type { ForkLine } from "./Timeline.tsx";
 import { useUnsent, useWatched } from "./draft.ts";
@@ -509,15 +509,20 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   // goes once you move on.
   const [asked, setAsked] = useState<string>();
   if (asked && (where !== "end" || watching !== asked)) setAsked(undefined);
+  // The flow just answered, its mark popping at its end, in its question and on the timeline at once.
+  const [landed, setLanded] = useState<Landed>();
   const ending = flow && standing?.get(flow.name);
-  const ends = !!ending && (["is it good", "to send", "with the agent"].includes(ending.is) || (asked === flow?.name && ending.asks));
+  const ends = !!ending && ending.is !== "not saved" && (["is it good", "to send", "with the agent"].includes(ending.is) || asked === flow?.name);
   const question = !open && flow && where === "end" && ends ? flow.name : undefined;
-  // The timeline ends in what the flow's end asks, whether it looks good, or sending; it goes straight there, its
-  // question up, and going there is watching it: you chose what to skip.
+  // The timeline ends in the flow's end, as it stands; pressed, it goes straight there, its question up, and going there
+  // is watching it: you chose what to skip. A note you haven't saved is finished first.
+  const end: End | undefined = !ending || ending.is === "not saved" ? undefined : ending.is === "good" || ending.is === "with the agent" || ending.is === "to send" ? ending.is : "asks";
   const endAsks =
-    flow && !readOnly && ending && (ending.is === "to send" || ending.asks)
+    flow && !readOnly && end
       ? {
-          asks: ending.is === "to send" ? ("Send" as const) : ending.is === "good" ? ("Looks good" as const) : ("Looks good?" as const),
+          end,
+          words: { asks: "Looks good?", "to send": "Send", good: "Looks good", "with the agent": "With the agent" }[end],
+          just: justLanded(landed, flow.name),
           go: () => {
             playhead.pause();
             playhead.go({ flow: flow.name, at: flow.length });
@@ -540,9 +545,6 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   const general = flow && where === "end" ? notes.filter((note) => note.on?.flow === flow.name && note.on.at === undefined) : [];
   const generalOpen = !!open && "note" in open && general.some((note) => note.id === open.note);
   const overEnd = (!open || generalOpen) && (!!question || general.length > 0);
-  // The flow that just turned good, its tick travelling to the meter.
-  const [landed, setLanded] = useState<Landed>();
-
   const go = (name: string, at = FLOW_IN) => {
     playhead.pause();
     playhead.go({ flow: name, at });
