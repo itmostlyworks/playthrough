@@ -59,8 +59,8 @@ Each flow is a Playwright test in .vantage/<review>/flows/, with a step for each
     });
   });
 
-Act on the page as a person would, by role and label. Vantage glides the pointer, waits for the page to rest after each
-step, and reads what's on it there.
+Act on the page as a person would, by role and label. Vantage glides the pointer, types what you fill in a key at a time,
+waits for the page to rest after each step, and reads what's on it there.
 
 While the reviewer watches, Vantage runs the flow on the app in the background, so taking it over is quick: every pause
 runs it again. If a flow's steps do something outside the app that running it again would do again, such as sending an

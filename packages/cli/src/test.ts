@@ -62,6 +62,8 @@ if (window.top === window) window.rrwebRecord.record({
 // Playwright acts instantly, and a recording made at that speed can't be watched.
 const FRAME = 16; // a move each frame while gliding or scrolling
 const REST = 140; // the pointer rests on its target before acting
+const KEY = 60; // words are typed a key at a time, this far apart
+const TYPED = 1500; // and a long text no slower than this, all told
 const SAVING = 100; // taking over, how soon an action that saves or goes to another page shows it
 
 let pointer: { page: Page; x: number; y: number } | undefined;
@@ -392,7 +394,17 @@ function pace(page: Page) {
     const original = prototype[action];
     prototype[action] = async function (this: Locator, ...args: unknown[]) {
       if (pointer) await approach(this, pointer);
-      const result = await acted(action, () => pathTo(this), () => original.apply(this, args), args[0]);
+      // Filled in on a recording, words are typed as a person types them, where they're typed: a date or a number is
+      // set as it is, as typing it can come out otherwise.
+      const [text, options] = args as [unknown, { timeout?: number } | undefined];
+      const typed = pointer && action === "fill" && typeof text === "string" && text && (await typedInto(this)) ? text : undefined;
+      const act = typed
+        ? async () => {
+            await original.call(this, "", options);
+            await this.pressSequentially(typed, { ...options, delay: Math.min(KEY, TYPED / typed.length) });
+          }
+        : () => original.apply(this, args);
+      const result = await acted(action, () => pathTo(this), act, args[0]);
       if (pointer) await pointer.page.waitForTimeout(BEAT);
       return result;
     };
@@ -501,6 +513,12 @@ async function doAgain(page: Page, { does, on, with: given }: Did) {
 
 // A target out of view is scrolled to first, smoothly, the way a person scrolls. Left to Playwright, the page jumped there
 // at the moment of the click, and the pointer glided towards a spot below the window first.
+// Somewhere a person types words: a text box, a text area, an editor.
+const typedInto = (target: Locator) =>
+  target
+    .evaluate((on) => (on as HTMLElement).isContentEditable || on instanceof HTMLTextAreaElement || (on instanceof HTMLInputElement && ["text", "search", "email", "url", "tel", "password"].includes(on.type)))
+    .catch(() => false);
+
 async function approach(target: Locator, at: { page: Page; x: number; y: number }) {
   const scroll = await target
     .evaluate((element) => {
