@@ -6,7 +6,7 @@
 // as the line does, and it plays like the rest of the line. Forks that would overlap rise in lanes, one over another.
 // It ends in a cap for what the flow's end asks of you, so you know where playing leads: an empty box for whether it
 // looks good, ticked green once you've said it does, or ↑ for sending what you said in it; hollow ahead of the playhead
-// and filled once there, as a diamond is. Pointed at, it says so; pressed, it plays the last step out to there.
+// and filled once there, as a diamond is. Pointed at, it says so; pressed, it goes there.
 
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { time, type Flow } from "@mostlyworks/vantage-review";
