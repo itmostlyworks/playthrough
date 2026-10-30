@@ -15,8 +15,8 @@ import type { App, Repo } from "./repo.ts";
 // What the run needs to know, passed to Playwright whole: where the flows are and which of them to run, the folder the
 // recordings go to, the app, rrweb's recorder, which goes into every page, whether it's Before, and the recordings the
 // round has already, so a flow added to it is named apart from them. And when the review started, which every round's
-// clock starts from.
-export type Run = { flows: string; only?: string[]; folder: string; app: App; root: string; recorder: string; before: boolean; taken: string[]; started: string; walk?: Walk };
+// clock starts from, and where Playwright writes what it keeps of a failed flow, when it's for the agent to see.
+export type Run = { flows: string; only?: string[]; folder: string; results?: string; app: App; root: string; recorder: string; before: boolean; taken: string[]; started: string; walk?: Walk };
 
 // A person's fork walked again on the app as it is now: the flow recorded to where they took it over (a step, and how
 // far into it), what they did there done again after it, and after so many of their steps, what each of their notes is
@@ -76,9 +76,11 @@ the account it opens, is made in vantage/setup.ts${setupMissing ? ", which this 
 }
 
 // Runs every flow of the review on the app, the way a person would use it, for a round: each flow with its files, its
-// recording and what was read at the end of each step, and each flow that failed with the step it failed at. On Before,
-// round 0, a flow that stops is recorded as far as it went. Flows added later are run on Before by themselves. A flow
-// recorded for the first time is recorded twice, and what changes by itself between the two is unsteady.
+// recording and what was read at the end of each step, and each flow that failed with the step it failed at, the page
+// it failed on kept for the agent. On Before, round 0, a flow that stops is recorded as far as it went. Flows added later
+// are run on Before by themselves. A flow recorded for the first time is recorded twice, and what changes by itself
+// between the two is unsteady. A round runs the flows that failed last time first, and one failing again stops it there,
+// rather than costing the whole run.
 export async function runFlows(
   repo: Repo,
   id: string,
@@ -92,7 +94,20 @@ export async function runFlows(
   const app = await repo.app();
   const { started } = await repo.reviews.get(id);
   const recorder = join(dirname(createRequire(import.meta.url).resolve("@rrweb/record")), "record.umd.min.cjs");
-  const run = (only?: string[]) => runOnce({ flows, only, app, root: repo.root, recorder, before: round === 0, taken: later?.taken ?? [], started });
+  const run = (only?: string[], results?: string) => runOnce({ flows, only, results, app, root: repo.root, recorder, before: round === 0, taken: later?.taken ?? [], started });
+
+  const last = round > 0 ? await failedLastTime(repo, id) : [];
+  if (last.length) {
+    console.log(`Running ${list(last.map(quote))} first: ${last.length > 1 ? "they" : "it"} failed last time…`);
+    const { failed } = await run(last, repo.failed(id));
+    await keepFailed(repo, id, round, failed);
+    const [one] = failed;
+    if (failed.length > 1)
+      throw new Refused([`These flows failed again, so the other flows weren't run:`, ...failed.map(failedAt), `Fix them and record again. ${whereItStopped(repo, id, failed)}`]);
+    if (one)
+      throw new Refused([`${quote(one.flow)} failed again${one.at ? `, at the step ${quote(one.at)}` : ""}, so the other flows weren't run.`, `Fix it and record again. ${whereItStopped(repo, id, failed)}`]);
+    console.log(`\n${last.length > 1 ? "They pass" : "It passes"} now, so every flow is recorded.\n`);
+  }
 
   console.log(
     later
@@ -101,12 +116,17 @@ export async function runFlows(
         ? `Recording Before: each flow of ${id} on the app as it is…`
         : `Recording round ${round} of ${id}…`,
   );
-  const once = await run(later?.flows);
+  const once = await run(later?.flows, repo.failed(id));
+  await keepFailed(repo, id, round, once.failed);
   const again = once.recorded.filter(({ flow }) => first(flow.name));
-  if (!again.length) return once;
+  // A round with a flow that failed isn't recorded, so there's nothing to record twice.
+  if (!again.length || (round > 0 && once.failed.length)) return once;
 
   console.log(`\nRecording ${list(again.map(({ flow }) => quote(flow.name)))} again, to see what changes by itself…`);
-  const twice = await run(again.map(({ flow }) => flow.name));
+  // Playwright empties the folder it writes a failed flow's page to, so with one that failed, as on Before, every flow
+  // runs again, and what's kept of each, and pointed to as Playwright says it, is from the second run.
+  const twice = await run(once.failed.length ? later?.flows : again.map(({ flow }) => flow.name), repo.failed(id));
+  await keepFailed(repo, id, round, twice.failed);
   const unlike = again.filter(({ flow }) => {
     const failed = (ran: typeof once) => ran.failed.find((failure) => failure.flow === flow.name)?.at;
     return !twice.recorded.some((kept) => kept.flow.name === flow.name) || failed(once) !== failed(twice);
@@ -115,7 +135,7 @@ export async function runFlows(
     throw new Refused([
       `${list(unlike.map(({ flow }) => quote(flow.name)))} didn't go the same way twice on the same app, so ${unlike.length > 1 ? "they don't" : "it doesn't"} start from the same place each time. Make what every flow starts from in vantage/setup.ts, the same each time, and run this again.`,
     ]);
-  const byThemselves = await changesByThemselves(inMemory(round, again), inMemory(round, twice.recorded));
+  const byThemselves = await changesByThemselves(inMemory(round, again), inMemory(round, twice.recorded.filter(({ flow }) => first(flow.name))));
   for (const { flow } of again) {
     const unsteady = byThemselves.filter((change) => change.seen.some((place) => place.flow === flow.name));
     if (!unsteady.length) continue;
@@ -124,6 +144,29 @@ export async function runFlows(
   }
   return once;
 }
+
+// A run with a flow that failed keeps what Playwright wrote of the page it failed on, and one with none lets it go. A
+// round's are named there too, to run first next time; on Before, a flow stopping is how far the app went, not a mistake.
+export async function keepFailed(repo: Repo, id: string, round: number, failed: Failed[]) {
+  const folder = repo.failed(id);
+  if (!failed.length) return rm(folder, { recursive: true, force: true });
+  // Playwright makes a folder for every flow, and notes its own run beside them: only what it wrote of a failed one stays.
+  for (const entry of await readdir(folder).catch(() => [])) {
+    const path = join(folder, entry);
+    if (entry === ".last-run.json" || !(await readdir(path)).length) await rm(path, { recursive: true });
+  }
+  if (round === 0) return;
+  await mkdir(folder, { recursive: true });
+  await writeFile(join(folder, FAILED), JSON.stringify(failed.map(({ flow }) => flow)));
+}
+
+export const failedLastTime = (repo: Repo, id: string): Promise<string[]> =>
+  readFile(join(repo.failed(id), FAILED), "utf8").then(JSON.parse, () => []);
+const FAILED = "flows.json";
+
+// The last line of a refusal over flows that failed: where to see what they stopped on.
+export const whereItStopped = (repo: Repo, id: string, failed: Failed[]) =>
+  `What the page held where ${failed.length > 1 ? "each" : "it"} stopped is in ${repo.show(repo.failed(id))}/.`;
 
 // A run as it came, read from its files rather than from what's kept.
 function inMemory(number: number, recorded: Ran["recorded"]): Compared {

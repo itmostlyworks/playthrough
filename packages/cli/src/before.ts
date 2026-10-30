@@ -6,11 +6,11 @@
 // working copy, as a dev server does, so for that minute it serves the app as it was.
 
 import { execFileSync } from "node:child_process";
-import { copyFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { constants, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { list, quote, Refused, type Flow } from "@mostlyworks/vantage-review";
-import { failedAt, runFlows } from "./flows.ts";
+import { failedAt, runFlows, whereItStopped } from "./flows.ts";
 import type { Failed } from "./reporter.ts";
 import type { Repo } from "./repo.ts";
 
@@ -94,7 +94,7 @@ async function onBefore(repo: Repo, id: string, flows: string[], doing: string, 
   }
   refuseIfBroken(ran.failed, unrecorded, again);
   await repo.reviews.addToBefore(id, { flows: ran.recorded.map(({ flow }) => flow), cantStart: cantStart(ran.recorded, ran.failed), files: ran.recorded.flatMap(({ files }) => files) });
-  for (const line of howFar(ran.recorded, ran.failed, "the app as it was", id)) console.log(line);
+  for (const line of howFar(repo, id, ran.recorded, ran.failed, "the app as it was")) console.log(line);
 }
 
 // A flow the browser stopped, not the app, says nothing about how far the app goes, so nothing of the run is kept, and
@@ -111,14 +111,17 @@ export const cantStart = (recorded: { flow: Flow }[], failed: Failed[]) =>
 
 // How far Before goes with each flow that didn't run to its end on the app as it is, or was.
 // Playwright's reason is said with it: the flow's own mistake reads the same as something the app can't do yet.
-export function howFar(recorded: { flow: Flow }[], failed: Failed[], app: string, id: string): string[] {
+export function howFar(repo: Repo, id: string, recorded: { flow: Flow }[], failed: Failed[], app: string): string[] {
   const lines = failed.map(({ flow, at, why }) => {
     const because = why ? `, where Playwright says “${why}”` : "";
     return !recorded.some((kept) => kept.flow.name === flow)
       ? `${quote(flow)} can't start on ${app}${because}, so it has no Before.`
       : `${quote(flow)} ${at ? `stops at ${quote(at)}${because}` : "stops after its last step"}, so its Before goes as far as that.`;
   });
-  if (lines.length) lines.push(`If that's the app as it was, that's Before. If it's the flow's own mistake, fix the flow and run vantage start ${id} again: it tries the flows Before cut short again.`);
+  // An app as it was that didn't start left no page to see.
+  const where = existsSync(repo.failed(id)) ? ` ${whereItStopped(repo, id, failed)}` : "";
+  if (lines.length)
+    lines.push(`If that's the app as it was, that's Before. If it's the flow's own mistake, fix the flow and run vantage start ${id} again: it tries the flows Before cut short again.${where}`);
   return lines;
 }
 

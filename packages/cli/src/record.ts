@@ -8,7 +8,7 @@ import { lastSeen, list, notesToAnswer, problemsFinishing, quote, Refused, round
 import { agent, unnamed } from "./agent.ts";
 import { recordOnBefore } from "./before.ts";
 import { compareWithEarlier } from "./compare.ts";
-import { failedAt, runFlows } from "./flows.ts";
+import { failedAt, runFlows, whereItStopped } from "./flows.ts";
 import type { Repo } from "./repo.ts";
 import { readingsOn } from "./reporter.ts";
 import { saidOf, walkForks, type WalkedNote } from "./walk.ts";
@@ -25,7 +25,7 @@ export async function record(repo: Repo, id: string) {
     throw new Refused([
       `Round ${number} wasn't recorded, because ${failed.length > 1 ? "these flows" : "a flow"} failed:`,
       ...failed.map(failedAt),
-      `Fix ${failed.length > 1 ? "them" : "it"} and record again.`,
+      `Fix ${failed.length > 1 ? "them" : "it"} and record again, which runs ${failed.length > 1 ? "them" : "it"} first. ${whereItStopped(repo, id, failed)}`,
     ]);
   await recordOnBefore(repo, id, number, recorded.map(({ flow }) => flow.name));
 

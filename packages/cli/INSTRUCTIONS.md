@@ -60,6 +60,10 @@ Each flow is a Playwright test in .vantage/<review>/flows/, with a step for each
 Act on the page as a person would, by role and label. Vantage glides the pointer, waits for the page to rest after each
 step, and reads what's on it there.
 
+A flow that fails stops the round: record names it and the step it failed at, and keeps what the page held there, with
+a picture, in .vantage/<review>/failed/. Before keeps the page each flow stops on there too. Recording again runs the
+flows that failed first, and stops there if one fails again, without waiting for the rest.
+
 WHAT EVERY FLOW STARTS FROM
 
 A flow has to start from the same place every round, or the comparison finds changes nobody made. Vantage starts every

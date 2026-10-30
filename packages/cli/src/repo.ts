@@ -16,6 +16,8 @@ export function repo(root = process.cwd()) {
     root,
     reviews: new Reviews(folder(reviews)),
     flows: (review: string) => join(reviews, review, "flows"),
+    // What Playwright wrote of the page each flow failed on, the last time any did, for the agent to look at.
+    failed: (review: string) => join(reviews, review, "failed"),
     round: (review: string, round: number) => join(reviews, review, "rounds", String(round), "round.json"),
     setAside: join(reviews, "set-aside.json"),
     // What every flow of the app starts from, committed beside app.json.
