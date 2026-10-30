@@ -32,7 +32,7 @@ const SETTLED = 120;
 // Taken over, a card about the recording rests with what drives it (resting, while the app is on its way or shown): it
 // answers nothing, goes once you're in the app, where it would cover what you're doing, and is there as it was when
 // you're back.
-// Standing (the flow's end as a place), the card over the last frame stands in its middle, wider.
+// Standing (the flow's end, a place as its start is), the card over the last frame stands in its middle, wider.
 export function Beside({ id, over, standing, still, resting, pinned, onAway, children }: { id?: string; over?: boolean; standing?: boolean; still?: boolean; resting?: "waiting" | "shown"; pinned?: () => Spot | undefined; onAway?: () => void; children?: ReactNode }) {
   const card = useRef<HTMLElement>(null);
   const opened = useRef<{ id?: string; at: Spot; since: number; side?: Side; put?: Spot; was?: Spot; last?: Spot; fromPin?: Spot; layout?: string; seen?: { layout: string; since: number }; gone?: boolean; shown?: boolean }>(undefined);

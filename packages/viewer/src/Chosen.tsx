@@ -46,6 +46,8 @@ export type Props = {
   // What comes after a flow that's with the agent: the next flow that needs you, or what the agent is doing.
   onward: Step;
   onAgain: (flow: Flow) => void;
+  // A note on the whole flow being written, in the flow's card after the others.
+  writing?: ReactNode;
 };
 
 // A flow that just turned good, and when: its tick pops, in its question and the meter at once.
@@ -77,12 +79,13 @@ export function Chosen(props: Props) {
   const standing = flow && props.standing(flow.name);
   const general = flow ? props.notes.filter((note) => note.on?.flow === flow.name && note.on.at === undefined) : [];
   const asking = !!flow && !!standing && props.asked === flow.name;
-  if (!flow || (!asking && !general.length)) return null;
+  if (!flow || (!asking && !general.length && !props.writing)) return null;
   return (
     <>
       {general.map((note) => (
         <Fragment key={note.id}>{props.note(note)}</Fragment>
       ))}
+      {props.writing}
       {asking && <Question {...props} flow={flow} standing={standing!} just={justLanded(props.landed, flow.name)} />}
     </>
   );

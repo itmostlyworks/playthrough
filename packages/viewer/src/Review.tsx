@@ -30,10 +30,6 @@ import { placeFrom, placeName as nameOf, placeOn, useReadings, watchedIn, type R
 import { Wire } from "./Wire.tsx";
 
 // What's open beside the recording: a note, a change you chose, or a new note being written, by its id.
-// Trying two ways for a flow's own card: over its last frame, or, with ?end=place in the address, standing in the middle
-// of that frame, softened, as its name does at its start.
-const endAsPlace = new URLSearchParams(location.search).get("end") === "place";
-
 // What's open: a note, a change, a note being written, or a flow's own card, at its end.
 type Open = { note: string } | { change: string } | { writing: string } | { end: string };
 // A click noted in the app: what it's on there, what was done there before it, and where, in the app's page.
@@ -170,7 +166,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   // flow at once.
   useEffect(() => {
     const address = `/${encodeURIComponent(review.id)}${onGrid || !watching ? "" : `/${slug(watching)}`}`;
-    if (location.pathname !== address) history.replaceState(null, "", address + location.search);
+    if (location.pathname !== address) history.replaceState(null, "", address);
   }, [review.id, onGrid, watching]);
   // Where the playhead is, as the step needs it: playing, at a flow's start, partway, or at its end. A fork's end
   // isn't the flow's.
@@ -522,8 +518,12 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   const generalOpen = !!open && "note" in open && general.some((note) => note.id === open.note);
   const asksAtEnd = !!ending && ["is it good", "to send", "with the agent"].includes(ending.is);
   const question = flow && where === "end" && ending && ending.is !== "not saved" && (endOpen || generalOpen || (!open && asksAtEnd)) ? flow.name : undefined;
-  const overEnd = (!open || generalOpen || endOpen) && (!!question || general.length > 0);
-  const standingThere = endAsPlace && overEnd && !playingNow;
+  // A note on the whole flow being written is written there, in the flow's card.
+  const writingWhole = !!open && "writing" in open && where === "end" && draft.unsaved.some((note) => note.id === open.writing && note.on?.flow === watching && note.on.at === undefined);
+  const overEnd = writingWhole || ((!open || generalOpen || endOpen) && (!!question || general.length > 0));
+  // The end is a place, as the start is: while the flow's card is there, it stands in the middle of the last frame,
+  // softened under the veil the flow's name has at its start.
+  const standingThere = overEnd && !playingNow;
   const end: End | undefined = !ending ? undefined : ending.is === "good" || ending.is === "with the agent" || ending.is === "to send" ? ending.is : "asks";
   const endAsks =
     flow && !readOnly && end
@@ -1457,11 +1457,11 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
           // Taking over is doing: a card about the recording rests with it; one about the app answers there, a note made in
           // the app or the one you're trying.
           resting={(writing ? writing.on?.app : openNote && (openNote.on?.app || trying.current === openNote.id)) ? undefined : liveNow}
-          over={!writingId && !chosen && (overEnd || (!!openNote && whereYouWere.has(openNote.id) && !openNote.on?.element && !tryingHere))}
+          over={(!writingId || writingWhole) && !chosen && (overEnd || (!!openNote && whereYouWere.has(openNote.id) && !openNote.on?.element && !tryingHere))}
           pinned={openNote && inApp && (openNote.on?.app || tryingHere) ? () => appPins.current.get(openNote.id) : undefined}
           onAway={(openNote && !tryingHere) || chosen ? () => setOpen(undefined) : undefined}
         >
-          {listed || onGrid ? undefined : openNote && !generalOpen ? row(openNote) : writing ? writingCard(writing) : chosen || overEnd ? <Chosen {...chosenProps} /> : undefined}
+          {listed || onGrid ? undefined : openNote && !generalOpen ? row(openNote) : writing && !writingWhole ? writingCard(writing) : chosen || overEnd ? <Chosen {...chosenProps} writing={writingWhole && writing ? writingCard(writing) : undefined} /> : undefined}
         </Beside>
         {many && (
           <Grid
