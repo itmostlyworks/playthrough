@@ -168,7 +168,7 @@ function asIfDirect(request: IncomingMessage, target: URL) {
 // nothing changing for a moment), so the frame turns into it with nothing on screen changing. It tells the viewer where
 // the pointer is, and whether it's over words you can type into: the viewer draws the recording's pointer coming to
 // yours, hiding the app's own until they meet, and then only your name, beside the app's own. And as every key there
-// goes to the app, Escape goes back to the viewer instead.
+// goes to the app, Escape goes back to the viewer too, when the app does nothing with it.
 // rrweb's recorder, as every flow has it, for what you do here to be recorded.
 const recorder = join(dirname(createRequire(import.meta.url).resolve("@rrweb/record")), "record.umd.min.cjs");
 let RECORDER: string | undefined;
@@ -280,11 +280,18 @@ const SAYS = `<script>(() => {
   // A click here is a click elsewhere, to what the viewer has open.
   addEventListener("pointerdown", (e) => e.isTrusted && parent.postMessage({ vantage: "down" }, "*"), true);
   document.addEventListener("pointerleave", () => parent.postMessage({ vantage: "pointer", x, y, inside: false }, "*"));
-  // Caught before the app's own listeners, as this runs before its scripts: the app never sees it, so leaving doesn't
-  // also close what was open there, and coming back finds it as it was.
-  const leave = (e) => { if (e.key !== "Escape") return; e.preventDefault(); e.stopImmediatePropagation(); if (e.type === "keydown") parent.postMessage({ vantage: "escape", x, y }, "*"); };
+  // Escape is the app's first, as N is while you type: if the app does something with it, closing a menu, a list or a
+  // dialog, or moving the caret, that's all it does. If the app lets it be, it goes back to the viewer, and coming back
+  // finds the app as it was.
+  const popups = () => [...document.querySelectorAll('[aria-haspopup][aria-expanded="true"], [aria-modal="true"], [role=menu], [role=listbox], [role=dialog], dialog[open]')].filter((element) => element.checkVisibility()).length;
+  const leave = (e) => {
+    if (e.key !== "Escape" || e.type !== "keydown" || e.repeat) return;
+    const [open, focused] = [popups(), document.activeElement];
+    setTimeout(() => {
+      if (!e.defaultPrevented && popups() >= open && document.activeElement === focused) parent.postMessage({ vantage: "escape", x, y }, "*");
+    }, 150);
+  };
   addEventListener("keydown", leave, true);
-  addEventListener("keyup", leave, true);
   // What a thing is called, and the path back to it, so a note says what it's on, and taking your branch over does what you did again.
   // Something you can press or type into, or else the nearest thing with words of its own: inside a dialog, what's in
   // it, not the dialog. Something you press that holds others isn't one control but what holds them, as on a recording:
