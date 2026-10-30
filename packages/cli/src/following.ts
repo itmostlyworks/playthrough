@@ -27,13 +27,13 @@ export async function runTo(repo: Repo, id: string, to: To): Promise<Handed> {
         return one;
       });
       try {
-        const since = Date.now();
+        const passed = one.passed.length;
         order(one, resting);
         const { handed, stopped } = await one.ran;
         if (handed) {
           // How long handing over takes once it's there, for a run that got there after it was asked: not one that was
           // there already, waiting, nor one doing what the person did there again first.
-          if (one.last.when > since && !to.did?.length) timesOf(repo, id, one).handing.set(momentOf(to.step, to.actions), Date.now() - one.last.when);
+          if (one.passed.length > passed && !to.did?.length) timesOf(repo, id, one).handing.set(momentOf(to.step, to.actions), Date.now() - one.last.when);
           return handed;
         }
         if (stopped) throw new Refused([`${quote(to.flow)} didn't get to ${where}: ${stoppedAt(stopped)}`]);
@@ -83,8 +83,9 @@ export const readyIn = (repo: Repo, id: string, to: To) =>
   });
 
 // A run of one flow, told how far it may go, and how far it has got: the moments it has passed, how long it had worked
-// at the last, when, and whether it was told where it rests. One that's over, or for flows or a setup that have changed
-// since, or for another flow, is stopped, and a new one takes its place. One asked for is kept apart while it gets there.
+// at the last, when it set off from there, and whether it was told where it rests. One that's over, or for flows or a
+// setup that have changed since, or for another flow, is stopped, and a new one takes its place. One asked for is kept
+// apart while it gets there.
 type Following = { flow: string; written: number; orders: Orders; ran: ReturnType<Alongside["runAlongside"]>; stop: () => void; over?: boolean; passed: string[]; last: { worked: number; when: number; rests?: boolean } };
 const following = new Map<string, Following>();
 const asked = new Map<string, Following>();
@@ -149,8 +150,8 @@ async function start(repo: Repo, id: string, to: To, files: string[], written: n
 }
 
 function order({ orders, last }: Following, to: To) {
-  // A run waiting has done nothing since its last moment: from there, it goes as it's told now.
-  if (orders.moved) last.rests = to.rests;
+  // A run waiting has done nothing since its last moment: it sets off from there now, as it's told now.
+  if (orders.moved) Object.assign(last, { when: Date.now(), rests: to.rests });
   orders.to = to;
   orders.moved?.();
 }
