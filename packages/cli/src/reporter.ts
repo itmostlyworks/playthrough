@@ -5,12 +5,13 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Reporter, TestCase, TestResult, TestStep } from "@playwright/test/reporter";
-import type { Reading } from "@mostlyworks/vantage-page";
+import type { Glimpse, Reading } from "@mostlyworks/vantage-page";
 import type { Flow, Reviews } from "@mostlyworks/vantage-review";
 import { assetsOf, type Assets } from "./assets.ts";
 
 export const RECORDING = "vantage recording";
 export const READINGS = "vantage readings";
+export const GLIMPSES = "vantage glimpses";
 export const PICTURE = "vantage picture";
 export const ASSETS = "vantage assets";
 export const PERSON = "vantage person";
@@ -25,6 +26,8 @@ export async function readingsOn(reviews: Reviews, review: string, round: number
   return bytes ? JSON.parse(Buffer.from(bytes).toString()) : [];
 }
 const picturesOf = (flow: Flow) => `readings/${flow.recording.replace(/\.json$/, "")}`;
+// And what was glimpsed after each action, beside them.
+const glimpsesOf = (flow: Flow) => `${picturesOf(flow)}.glimpses.json`;
 
 // Why, in Playwright's words: the first line of what it says.
 export const firstLine = (said: string) => said.replace(/\x1b\[[0-9;]*m/g, "").split("\n")[0]?.trim();
@@ -52,6 +55,7 @@ export default class Flows implements Reporter {
     const recording = result.attachments.find((attachment) => attachment.name === RECORDING)?.body;
     const read = {
       readings: JSON.parse(result.attachments.find((attachment) => attachment.name === READINGS)?.body?.toString() ?? "[]"),
+      glimpses: JSON.parse(result.attachments.find((attachment) => attachment.name === GLIMPSES)?.body?.toString() ?? "[]"),
       pictures: result.attachments.filter((attachment) => attachment.name === PICTURE).map((attachment) => attachment.body!),
       assets: JSON.parse(result.attachments.find((attachment) => attachment.name === ASSETS)?.body?.toString() ?? "{}"),
       actions: JSON.parse(result.attachments.find((attachment) => attachment.name === ACTIONS)?.body?.toString() ?? "[]"),
@@ -79,7 +83,7 @@ export default class Flows implements Reporter {
 
   // A flow cut short ends where it stopped, held as long as any flow's end, with the same last event (rrweb's custom
   // events are type 5). The step it stopped at left nothing to read.
-  #flow(name: string, recording: Buffer, read: { readings: Omit<Reading, "picture">[]; pictures: Buffer[]; assets: Assets; actions: number[] }, steps: TestStep[], until?: number): Recorded {
+  #flow(name: string, recording: Buffer, read: { readings: Omit<Reading, "picture">[]; glimpses: Glimpse[]; pictures: Buffer[]; assets: Assets; actions: number[] }, steps: TestStep[], until?: number): Recorded {
     let events: Event[] = JSON.parse(recording.toString());
     if (until !== undefined) events = [...events.filter((event) => event.timestamp < until), { type: 5, data: { tag: "end", payload: {} }, timestamp: until + HOLD }];
     const start = events[0]!.timestamp;
@@ -100,10 +104,12 @@ export default class Flows implements Reporter {
     const readings: Reading[] = read.readings.map((reading, i) => ({ ...reading, picture: `${picturesOf(flow)}/${i + 1}.png` }));
 
     // The assets are in the folder already, kept as the page loaded them.
-    const files = [flow.recording, readingsOf(flow), ...readings.map((reading) => reading.picture), assetsOf(flow.recording), ...new Set(Object.values(read.assets))];
+    const glimpses = read.glimpses.filter((glimpse) => glimpse.at <= length);
+    const files = [flow.recording, readingsOf(flow), glimpsesOf(flow), ...readings.map((reading) => reading.picture), assetsOf(flow.recording), ...new Set(Object.values(read.assets))];
     for (const folder of [picturesOf(flow), "assets"]) mkdirSync(join(this.#folder, folder), { recursive: true });
     writeFileSync(join(this.#folder, flow.recording), JSON.stringify(events));
     writeFileSync(join(this.#folder, readingsOf(flow)), JSON.stringify(readings));
+    writeFileSync(join(this.#folder, glimpsesOf(flow)), JSON.stringify(glimpses));
     writeFileSync(join(this.#folder, assetsOf(flow.recording)), JSON.stringify(read.assets));
     read.pictures.forEach((picture, i) => writeFileSync(join(this.#folder, readings[i]!.picture), picture));
     return { flow, files };

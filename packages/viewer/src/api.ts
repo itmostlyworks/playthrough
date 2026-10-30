@@ -2,7 +2,7 @@
 // and what a person sends.
 
 import { useEffect, useState } from "react";
-import type { Reading } from "@mostlyworks/vantage-page";
+import type { Glimpse, Reading } from "@mostlyworks/vantage-page";
 import type { Review, Send } from "@mostlyworks/vantage-review";
 import type { Events } from "./replay.ts";
 
@@ -71,6 +71,8 @@ export function fromKept(events: string, kept: Record<string, string>, files: st
 // What was on the page at each step of a flow, read as it was recorded, and its picture then.
 const readingsName = (recording: string) => `readings/${recording.replace(/\.json$/, "")}`;
 export const readings = (review: string, round: number, recording: string) => file<Reading[]>(review, round, `${readingsName(recording)}.json`).catch((): Reading[] => []);
+// None for a round recorded before Vantage glimpsed the page after each action.
+export const glimpses = (review: string, round: number, recording: string) => file<Glimpse[]>(review, round, `${readingsName(recording)}.glimpses.json`).catch((): Glimpse[] => []);
 export const picture = (review: string, round: number, recording: string, reading: number) => `/api/reviews/${review}/rounds/${round}/files/${readingsName(recording)}/${reading + 1}.png`;
 
 // What's wrong in plain words, or nothing once it's kept.

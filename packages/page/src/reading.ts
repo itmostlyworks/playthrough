@@ -19,3 +19,6 @@ export type Thing = {
 
 // The page the step left. Its moment is in seconds from the recording's start, like a step's.
 export type Reading = { step: string; at: number; screen: { width: number; height: number }; picture: string; things: Thing[] };
+// The page just after an action, read on the way through a step for what a note can be on, as a menu or a dialog that's
+// gone by the step's end: its step's reading, without the picture.
+export type Glimpse = Omit<Reading, "picture">;

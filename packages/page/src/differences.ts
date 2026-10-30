@@ -17,7 +17,7 @@ export const near = (a: number, b: number, by = NEAR) => Math.abs(a - b) <= by;
 export const HOLDS = /^(dialog|alertdialog|status|alert|group|radiogroup|table|grid|treegrid|listbox|menu|box)$/;
 
 export const holderOf = (reading: Reading, thing: Thing) => (thing.holder === undefined ? undefined : reading.things[thing.holder]);
-export const parentOf = (reading: Reading, thing: Thing) => (thing.parent === undefined ? undefined : reading.things[thing.parent]);
+export const parentOf = (reading: Pick<Reading, "things">, thing: Thing) => (thing.parent === undefined ? undefined : reading.things[thing.parent]);
 
 // The words with the data in them left out, and the small words that only linked it: “Total for Q3 2026 $27,785.00” is
 // “Total”, and “12 invoices from Q3 2026” is “invoices”.
@@ -213,7 +213,7 @@ function gained(reading: Reading, control: Thing, was: string): boolean {
 // A control that holds other controls, a field or a button, isn't one control but what holds them: a real button never
 // holds another. Kan's list is one you drag, its name field, its + and its cards inside it, called by all their words.
 const CONTROL = /^(button|link|textbox|searchbox|combobox|checkbox|radio|switch|slider|tab|menuitem|option)$/;
-export const holdsControls = (reading: Reading, thing: Thing) => reading.things.some((inside) => parentOf(reading, inside) === thing && CONTROL.test(inside.role));
+export const holdsControls = (reading: Pick<Reading, "things">, thing: Thing) => reading.things.some((inside) => parentOf(reading, inside) === thing && CONTROL.test(inside.role));
 const mostlyWhereItWas =(a: Thing, b: Thing) => HOLDS.test(b.role) && overlap(a, b) > 0.5;
 const holdsTheSameWords = (a: Thing, b: Thing) => /^(box|menu)$/.test(b.role) && !!a.wordsInside && bag(a) === bag(b);
 const bag = (thing: Thing) => (thing.wordsInside ?? "").split(" ").sort().join(" ");

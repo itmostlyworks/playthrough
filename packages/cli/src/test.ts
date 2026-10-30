@@ -9,13 +9,13 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import type { Reading } from "@mostlyworks/vantage-page";
+import type { Glimpse, Reading } from "@mostlyworks/vantage-page";
 import { keepAssets } from "./assets.ts";
 import type { Did } from "@mostlyworks/vantage-review";
 import { ALONGSIDE, BEAT, REACHES_OUTSIDE, WALKED, type Action, type Handed, type Run, type To, type Walk, type Walked } from "./flows.ts";
 import { readPage, unhovered } from "./read.ts";
 import { repo } from "./repo.ts";
-import { ACTIONS, ASSETS, firstLine, HOLD, PERSON, PICTURE, READINGS, RECORDING, seconds, type Failed } from "./reporter.ts";
+import { ACTIONS, ASSETS, firstLine, GLIMPSES, HOLD, PERSON, PICTURE, READINGS, RECORDING, seconds, type Failed } from "./reporter.ts";
 import { watchRest } from "./rest.ts";
 import { make, setupIn, type Made, type Setup } from "./setup.ts";
 
@@ -71,7 +71,7 @@ let pointer: { page: Page; x: number; y: number } | undefined;
 // The flow underway: what waits for its page to rest, what was read at the end of each step so far, with its picture,
 // and when each action was done; the step it's in, and how many of that step's actions are done; and walking a fork
 // again, once the fork's steps have begun, how far they got.
-type Underway = { page: Page; events: { timestamp: number }[]; rest: () => Promise<void>; depth: number; readings: Omit<Reading, "picture">[]; pictures: Buffer[]; actions: number[]; step?: string; inStep: number; walked?: Walked };
+type Underway = { page: Page; events: { timestamp: number }[]; rest: () => Promise<void>; depth: number; readings: Omit<Reading, "picture">[]; glimpses: Glimpse[]; pictures: Buffer[]; actions: number[]; step?: string; inStep: number; walked?: Walked };
 let underway: Underway | undefined;
 
 // What every flow starts from (setup.ts), loaded once a run.
@@ -126,9 +126,9 @@ const recorded = base.extend<{ setup: Record<string, any>; recorder: void }>({
       const rest = await watchRest(page);
       pace(page);
       pointer = { page, x: 640, y: 640 };
-      underway = { page, events, rest, depth: 0, readings: [], pictures: [], actions: [], inStep: 0 };
+      underway = { page, events, rest, depth: 0, readings: [], glimpses: [], pictures: [], actions: [], inStep: 0 };
       const flow = underway;
-      const { readings, pictures, actions } = underway;
+      const { readings, glimpses, pictures, actions } = underway;
       await page.mouse.move(pointer.x, pointer.y);
       try {
         await use();
@@ -155,6 +155,7 @@ const recorded = base.extend<{ setup: Record<string, any>; recorder: void }>({
       }
       await testInfo.attach(RECORDING, { body: JSON.stringify(events), contentType: "application/json" });
       await testInfo.attach(READINGS, { body: JSON.stringify(readings), contentType: "application/json" });
+      await testInfo.attach(GLIMPSES, { body: JSON.stringify(glimpses), contentType: "application/json" });
       await testInfo.attach(ASSETS, { body: JSON.stringify(await assets()), contentType: "application/json" });
       await testInfo.attach(ACTIONS, { body: JSON.stringify(actions), contentType: "application/json" });
       if (typeof setup.person === "string" && setup.person.trim()) await testInfo.attach(PERSON, { body: setup.person.trim(), contentType: "text/plain" });
@@ -406,6 +407,7 @@ function pace(page: Page) {
         : () => original.apply(this, args);
       const result = await acted(action, () => pathTo(this), act, args[0]);
       if (pointer) await pointer.page.waitForTimeout(BEAT);
+      await glimpse();
       return result;
     };
   }
@@ -513,6 +515,17 @@ async function doAgain(page: Page, { does, on, with: given }: Did) {
 
 // A target out of view is scrolled to first, smoothly, the way a person scrolls. Left to Playwright, the page jumped there
 // at the moment of the click, and the pointer glided towards a spot below the window first.
+// Recorded, the page is read just after each action as well, for what a note can be on: a menu or a dialog can come
+// and go inside a step, gone by its end, where the page is read for the comparison. It takes a few hundredths of a
+// second, after the beat; a page on its way to another address has nothing to read.
+async function glimpse() {
+  const flow = underway;
+  if (!pointer || !flow || run?.walk) return;
+  const at = seconds(Date.now() - (flow.events[0]?.timestamp ?? Date.now()));
+  const read = await readPage(flow.page).catch(() => undefined);
+  if (read) flow.glimpses.push({ step: flow.step ?? "", at, ...read });
+}
+
 // Somewhere a person types words: a text box, a text area, an editor.
 const typedInto = (target: Locator) =>
   target

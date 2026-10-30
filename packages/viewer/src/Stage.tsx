@@ -506,7 +506,7 @@ export function Stage(props: Props) {
     const { moment } = playhead.now;
     const flow = round.flows.find((flow) => flow.name === moment.flow);
     const replay = flow && replays.current.get(key(round, flow));
-    const things = flow && read(round.number, flow.name);
+    const things = flow && read(round.number, flow.name, true);
     const at = onPage(event, round.number);
     if (!(replay instanceof Replay) || !things || !at || moment.at < 0) return undefined;
     return { replay, things, at: moment.at, outwards: replay.outwards(at[0], at[1]), here: `${round.number}/${moment.flow}/${moment.at}` };
