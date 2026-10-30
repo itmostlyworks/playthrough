@@ -34,7 +34,7 @@ const SETTLED = 120;
 // you're back.
 export function Beside({ id, over, still, resting, pinned, onAway, children }: { id?: string; over?: boolean; still?: boolean; resting?: "waiting" | "shown"; pinned?: () => Spot | undefined; onAway?: () => void; children?: ReactNode }) {
   const card = useRef<HTMLElement>(null);
-  const opened = useRef<{ id?: string; at: Spot; since: number; side?: Side; put?: Spot; was?: Spot; last?: Spot; fromPin?: Spot; layout?: string; seen?: { layout: string; since: number }; gone?: boolean }>(undefined);
+  const opened = useRef<{ id?: string; at: Spot; since: number; side?: Side; put?: Spot; was?: Spot; last?: Spot; fromPin?: Spot; layout?: string; seen?: { layout: string; since: number }; gone?: boolean; shown?: boolean }>(undefined);
   // While you point at it, it holds still: what you point at inside it may be drawn somewhere else, and it's not to
   // move from under you.
   const pointing = useRef(false);
@@ -89,10 +89,14 @@ export function Beside({ id, over, still, resting, pinned, onAway, children }: {
         if (pointing.current && first.last && !first.put && placed) [x, y] = [first.last.x, first.last.y];
         first.last = { x, y };
         box.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
-        if (!first.gone) return;
+        if (first.shown && !first.gone) return;
+        // It comes into view where it stands, a little grown into place: as it opens, and back from being gone.
+        const opening = !first.shown;
+        first.shown = true;
         first.gone = false;
         box.style.visibility = "";
-        if (!matchMedia("(prefers-reduced-motion: reduce)").matches) box.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 160, easing: "ease-out" });
+        if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+        box.animate(opening ? [{ opacity: 0, scale: 0.96 }, { opacity: 1, scale: 1 }] : [{ opacity: 0 }, { opacity: 1 }], { duration: opening ? 180 : 160, easing: "cubic-bezier(0.2, 0, 0, 1)" });
       };
       // A flow's question sits over its last frame, clear of the bar. Only the round you're watching is where it sits:
       // not one held over it or beside it, or one you've been to and left.
