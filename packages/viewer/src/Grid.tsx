@@ -6,7 +6,7 @@
 import { useRef, useState, type RefObject } from "react";
 import { time, type Flow, type Review, type Round } from "@mostlyworks/vantage-review";
 import { picture } from "./api.ts";
-import { TickMark } from "./Chosen.tsx";
+import { EndMark, endOf } from "./Chosen.tsx";
 import { Agent, Go, says, type Step } from "./Step.tsx";
 import type { Standing } from "./notes.ts";
 import { Picture, useStill } from "./Picture.tsx";
@@ -88,9 +88,9 @@ export function Grid(props: Props) {
   );
 }
 
-// A flow in the list, a thing of its own: its picture, its name and length, and under them, in words, where it stands:
-// what asks something of you in amber, what's the agent's in its slate, what looks good in green, and not watched yet
-// quietly, as everything starts.
+// A flow in the list, a thing of its own: its picture, its name and length, and under them where it stands, as its square
+// at its end says it, and in words: what asks something of you in amber, what's the agent's in its slate, what looks
+// good in green, and not watched yet quietly, its square pale, as everything starts.
 function Row({ review, round, flow, standing, on, onPoint, onFlow }: { review: Review; round: Round; flow: Flow; standing?: Standing; on: boolean; onPoint: (flow: string) => void; onFlow: (flow: string) => void }) {
   return (
     <button
@@ -107,7 +107,7 @@ function Row({ review, round, flow, standing, on, onPoint, onFlow }: { review: R
       <span className="grid min-w-0">
         <span className="truncate text-[13px] leading-[18px] text-fg">{flow.name}</span>
         <span className="mt-0.5 flex min-w-0 items-center gap-1 text-xs leading-4">
-          {standing?.is === "good" && <TickMark className="size-2.5 flex-none text-green" />}
+          {standing && <EndMark end={endOf(standing)} ahead={standing.is === "to watch"} just={false} className="size-3 flex-none" />}
           {standing && <span className={`truncate ${INK[standing.is]}`}>{says(standing)}</span>}
         </span>
       </span>
@@ -123,7 +123,7 @@ const INK: Record<Standing["is"], string> = {
   "not saved": "text-amber-ink",
   "needs you": "text-amber-ink",
   "is it good": "text-amber-ink",
-  "to send": "text-slate",
+  "to send": "text-amber-ink",
   "with the agent": "text-slate",
 };
 

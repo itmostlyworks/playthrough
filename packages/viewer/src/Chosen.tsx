@@ -78,7 +78,7 @@ export function Chosen(props: Props) {
   // Over the flow's last frame: what you said about the whole of it, then whether it's good, if that's still asked.
   const standing = flow && props.standing(flow.name);
   const general = flow ? props.notes.filter((note) => note.on?.flow === flow.name && note.on.at === undefined) : [];
-  const asking = !!flow && !!standing && props.asked === flow.name;
+  const asking = !!flow && props.asked === flow.name;
   if (!flow || (!asking && !general.length && !props.writing)) return null;
   return (
     <>
@@ -86,7 +86,16 @@ export function Chosen(props: Props) {
         <Fragment key={note.id}>{props.note(note)}</Fragment>
       ))}
       {props.writing}
-      {asking && <Question {...props} flow={flow} standing={standing!} just={justLanded(props.landed, flow.name)} />}
+      {asking &&
+        (standing ? (
+          <Question {...props} flow={flow} standing={standing} just={justLanded(props.landed, flow.name)} />
+        ) : (
+          props.onward.kind === "go" && (
+            <div className="px-3 py-2">
+              <Onward step={props.onward} />
+            </div>
+          )
+        ))}
     </>
   );
 }
@@ -272,6 +281,7 @@ function Why({ diamond, notes, onNote, onPoint }: Props & { diamond: Diamond }) 
 // slate and ticked once what you said is with the agent. Ahead of the playhead on the timeline it's pale, as a note's dot
 // is. Answered, it pops in both at once. Square, as a round mark is a note.
 export type End = "asks" | "to send" | "good" | "with the agent";
+export const endOf = (standing: Standing): End => (standing.is === "good" || standing.is === "with the agent" || standing.is === "to send" ? standing.is : "asks");
 
 export function EndMark({ end, ahead, just, className }: { end: End; ahead?: boolean; just: boolean; className: string }) {
   const look =

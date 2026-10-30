@@ -9,7 +9,7 @@ import type { Standing } from "./notes.ts";
 // Otherwise it only says where things stand: what's playing, where the flow's question is, what the agent is doing, or
 // that it's done.
 export type Step =
-  | { kind: "go"; words: string; what?: string; take: () => void; flow?: string; send?: boolean; final?: boolean }
+  | { kind: "go"; words: string; what?: string; take: () => void; flow?: string; final?: boolean }
   | { kind: "say"; words: string; what?: string }
   | { kind: "agent"; words: string; what?: string; busy: boolean }
   | { kind: "done"; words: string; just: boolean };
