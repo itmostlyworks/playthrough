@@ -304,14 +304,16 @@ const SAYS = `<script>(() => {
   addEventListener("pointerdown", (e) => e.isTrusted && parent.postMessage({ vantage: "down" }, "*"), true);
   document.addEventListener("pointerleave", () => parent.postMessage({ vantage: "pointer", x, y, inside: false }, "*"));
   // Escape is the app's first, as N is while you type: if the app does something with it, closing a menu, a list or a
-  // dialog, or moving the caret, that's all it does. If the app lets it be, it goes back to the viewer, and coming back
-  // finds the app as it was.
+  // dialog, or moving focus, that's all it does. Then it leaves the field you're typing in, whatever the app made of it,
+  // and only once you're in none does it go back to the viewer: coming back finds the app as it was.
   const popups = () => [...document.querySelectorAll('[aria-haspopup][aria-expanded="true"], [aria-modal="true"], [role=menu], [role=listbox], [role=dialog], dialog[open]')].filter((element) => element.checkVisibility()).length;
   const leave = (e) => {
     if (e.key !== "Escape" || e.type !== "keydown" || e.repeat) return;
     const [open, focused] = [popups(), document.activeElement];
     setTimeout(() => {
-      if (!e.defaultPrevented && popups() >= open && document.activeElement === focused) parent.postMessage({ vantage: "escape", x, y }, "*");
+      if (popups() < open || document.activeElement !== focused) return;
+      if (typing(focused)) return focused.blur();
+      if (!e.defaultPrevented) parent.postMessage({ vantage: "escape", x, y }, "*");
     }, 150);
   };
   addEventListener("keydown", leave, true);
