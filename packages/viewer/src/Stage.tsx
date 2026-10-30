@@ -75,6 +75,8 @@ type Props = {
   onGone: (ids: string[]) => void;
   // The way back to every flow at once, on the latest round with more than one.
   onAllFlows?: () => void;
+  // What the line over the frame says, on the latest round nothing: the round looked back at, or the next one in.
+  over?: { words: string; take?: () => void };
   // Taken over, the app itself at that moment, in the round's frame exactly where its recording is.
   live?: Live;
 };
@@ -142,7 +144,7 @@ export function Stage(props: Props) {
   };
 
   // On a phone the recordings take the height they need at the screen's width, up to a little over half the screen, and
-  // the controls and the foot follow under them with no room between. Side by side at actual size, they fill it.
+  // the controls follow under them with no room between. Side by side at actual size, they fill it.
   const onPhoneNeeds = (width: number, flow: Flow | undefined, at: number): number => {
     const { round, earlier, zoomed } = latest.current;
     const most = Math.max(160, Math.round(innerHeight * 0.58));
@@ -973,14 +975,21 @@ export function Stage(props: Props) {
             {shown === round && props.bare === "kept" && bareOff("-mt-px ml-auto flex-none self-start")}
           </div>
         ))}
-      {/* The line over the frame says what you're looking at, in its middle, clear of All flows at its start: the round
-          you're watching, or the round Compare shows over it. Marks hidden, kept, sits there in its place. */}
+      {/* The line over the frame says what you're looking at, in its middle, clear of All flows at its start: a round
+          looked back at, or the next round in, or the round Compare shows over it. Marks hidden, kept, sits there in its
+          place. */}
       {!earlier && props.bare !== "kept" && (
         <div
           ref={(element) => void (element ? captions.current.set(round.number, element) : captions.current.delete(round.number))}
           className={`pointer-events-none absolute top-0 left-0 flex h-[26px] items-baseline justify-center px-0.5 pt-0.5 pb-1.5 text-xs transition-opacity duration-160 ease-calm ${then && props.peeking ? "opacity-0" : "opacity-100"}`}
         >
-          <b className="flex-none font-medium text-soft">{roundName(round.number)}</b>
+          {props.over?.take ? (
+            <button className="pointer-events-auto flex-none font-medium text-fg before:mr-1.5 before:mb-px before:inline-block before:size-1.5 before:rounded-full before:bg-amber before:align-middle before:content-[''] hover:underline" onClick={props.over.take}>
+              {props.over.words}
+            </button>
+          ) : (
+            props.over && <b className="flex-none font-medium text-soft">{props.over.words}</b>
+          )}
         </div>
       )}
       {then && (

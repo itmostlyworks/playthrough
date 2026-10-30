@@ -1,6 +1,7 @@
 // A review on one page: the recording is where you look, with what you can do to its moment on a bar across its bottom
-// edge and what's open beside its spot; the timeline under it is the map of what's been said, and the foot is where you
-// act. The view changes only when you change it: a new round says it's in, and waits for you.
+// edge and what's open beside its spot; the timeline under it is the map of what's been said. The round is the page with
+// every flow: where you arrive, go back through rounds, and send and accept. The view changes only when you change it: a
+// new round says it's in, and waits for you.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { elementOf } from "@mostlyworks/vantage-page";
@@ -15,7 +16,7 @@ import { Controls, type Look } from "./Controls.tsx";
 import type { ForkLine } from "./Timeline.tsx";
 import { useDraft, useWatched } from "./draft.ts";
 import { grow, takeOff, type Taking } from "./flight.ts";
-import { Foot, type Step } from "./Foot.tsx";
+import type { Step } from "./Step.tsx";
 import { Grid } from "./Grid.tsx";
 import { follow, pausedAt, readyAt, readyIn, samePaused, takenOver, type Live, type Paused } from "./live.ts";
 import { along, CARD, clamp, FLOW_IN, momentAt, POSTER, type Moment } from "./moments.ts";
@@ -110,16 +111,17 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const [met, setMet] = useState<string[]>([]);
   // Looking at another round starts with nothing open.
   const [on, setOn] = useState(round.number);
-  // Every flow at once: where you arrive on a round with more than one flow, and come back to. A round that's new to you
-  // starts there too. One that arrives while you're on another leaves you where you are.
-  const many = round.flows.length > 1;
+  // Every flow at once: where you arrive on a round, even one with a single flow, and come back to, where the round is
+  // sent and accepted. A round that's new to you starts there too, and going through rounds there stays there. One that
+  // arrives while you're on another leaves you where you are.
+  const many = round.flows.length > 0;
   const [grid, setGrid] = useState(many);
   const onGrid = grid && many;
   const been = useRef([round.number]);
   if (on !== round.number) {
     setOn(round.number);
     setOpen(undefined);
-    setGrid(many && !been.current.includes(round.number));
+    setGrid(grid || (many && !been.current.includes(round.number)));
     been.current.push(round.number);
   }
 
@@ -141,7 +143,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const onFork = forkList.find((fork) => fork.name === inPlay);
   const watching = onFork?.from.flow ?? inPlay;
   const flow = round.flows.find((flow) => flow.name === watching) ?? round.flows[0];
-  // Where the playhead is, as the foot's step needs it: playing, at a flow's start, partway, or at its end. A fork's end
+  // Where the playhead is, as the step needs it: playing, at a flow's start, partway, or at its end. A fork's end
   // isn't the flow's.
   const where = useNow(playhead, ({ moment, playing }) => {
     const length = playhead.flows.find((flow) => flow.name === moment.flow)?.length ?? 0;
@@ -697,6 +699,11 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     change((draft) => lookGood(draft, name, notes));
     setAsked(name);
     setLanded({ flow: name, at: performance.now() });
+    // Once its tick has landed, on to the next flow that needs you, or with none left, home to every flow, where the
+    // round is sent or accepted.
+    const at = round.flows.findIndex((flow) => flow.name === name);
+    const next = [...round.flows.slice(at + 1), ...round.flows.slice(0, at)].find((flow) => needs(flow.name));
+    setTimeout(() => (next ? watchFrom(next.name) : toGrid()), 900);
   };
   // Watching a flow is from its start.
   const watchFrom = (name: string) => {
@@ -955,7 +962,6 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   // Sending carries everything you've said on the round at once; what you haven't saved stays. Accepting sends what's
   // left first.
   const [trouble, setTrouble] = useState<string[]>([]);
-  const [sent, setSent] = useState<number>();
   const [acceptedHere, setAcceptedHere] = useState(false);
   const sending = useRef(false);
   const sendNow = async () => {
@@ -968,7 +974,6 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     if (problems.length) return false;
     setPosted(sends);
     change((draft) => ({ ...nothing, unsaved: draft.unsaved }));
-    setSent(performance.now());
     return true;
   };
   const acceptNow = async () => {
@@ -981,7 +986,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     if (many) setTimeout(toGrid, 900);
   };
 
-  // The foot's one step, from where the playhead is: play on through the flow you're in; at its end, its question, or
+  // The one step, from where the playhead is, which Enter takes: play on through the flow you're in; at its end, its question, or
   // finishing a note you started there, or watching it from the start; then on to what needs you next. With nothing left
   // that needs you, Send what asks the agent something; else Accept, which sends what's left with it; else what the
   // agent is doing.
@@ -1002,7 +1007,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
         : { kind: "agent", words: "Sent, waiting for the agent", busy: false };
     return { kind: "say", words: "All good" };
   };
-  const footStep = (): Step => {
+  const stepHere = (): Step => {
     if (review.accepted || acceptedHere)
       return { kind: "done", words: !review.accepted || review.accepted.by === you ? "Accepted" : `Accepted by ${review.accepted.by}`, just: acceptedHere };
     if (round !== latest && arrived) return { kind: "go", words: `${roundName(latest.number)} is in`, what: "See it", take: () => toRound(latest.number) };
@@ -1019,15 +1024,15 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     }
     return onward(round.flows.indexOf(flow));
   };
-  const step = footStep();
+  const step = stepHere();
 
-  // Over every flow, the foot's step from the top: to the first flow that needs you, from its start, as Start checking,
-  // or Carry on checking once you've begun; else what the foot would offer, sending and accepting where you are. A round
-  // that arrived while you were here is offered as the foot offers it.
+  // Over every flow, the step from the top: to the first flow that needs you, from its start, as Start checking, or
+  // Carry on checking once you've begun; else sending and accepting. A round that arrived while you were here is the
+  // round's own to offer, under the work's name.
   const begun = watched.length > 0 || said(draft) > 0 || draft.unsaved.length > 0;
   const gridStep = ((): Step | undefined => {
     if (review.accepted || acceptedHere || readOnly) return undefined;
-    if (round !== latest) return step;
+    if (round !== latest) return arrived ? undefined : step;
     const next = onward(-1);
     if (next.kind === "agent") return next;
     if (next.kind !== "go") return undefined;
@@ -1042,9 +1047,9 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     };
   })();
   const acting = onGrid ? gridStep : step;
-  // Accepted, how it got there: after how many rounds, with how many notes settled.
+  // Accepted, beside the round it was accepted on, with how many notes settled on the way.
   const settledNotes = [...settled, ...notes].filter((note) => note.state === "settled").length;
-  const acceptedAfter = `Accepted after ${latest.number} ${latest.number === 1 ? "round" : "rounds"}${settledNotes ? ` · ${settledNotes} ${settledNotes === 1 ? "note" : "notes"} settled` : ""}`;
+  const acceptedAfter = `Accepted${settledNotes ? ` · ${settledNotes} ${settledNotes === 1 ? "note" : "notes"} settled` : ""}`;
 
   useEffect(() => {
     const writingHere = (event: KeyboardEvent) => event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement;
@@ -1267,6 +1272,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
             read={read}
             onGone={setGone}
             onAllFlows={many ? () => toGrid() : undefined}
+            over={round === latest ? undefined : arrived ? { words: `${roundName(latest.number)} is in`, take: () => toRound(latest.number) } : { words: roundName(round.number) }}
             live={live}
           />
           <div
@@ -1354,20 +1360,6 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
             onLook={chooseLook}
           />
           </div>
-          <div className="w-[300px] flex-none phone:w-auto">
-            <Foot
-              step={step}
-              quiet={!!open}
-              notes={asksTheAgent}
-              onSend={!readOnly && asksTheAgent ? sendNow : undefined}
-              sent={sent}
-              trouble={trouble}
-              pieces={judging && standing ? round.flows.flatMap((flow) => (standing.has(flow.name) ? [{ flow: flow.name, standing: standing.get(flow.name)!, here: flow.name === watching }] : [])) : undefined}
-              landed={landed}
-              busy={!!working}
-              onFlow={watchFrom}
-            />
-          </div>
           </div>
         </section>
 
@@ -1393,7 +1385,11 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
             needs={needs}
             accepted={review.accepted || acceptedHere ? acceptedAfter : undefined}
             step={gridStep}
+            trouble={trouble}
             onFlow={(name) => leave(name, true)}
+            arrived={arrived ? latest : undefined}
+            working={working}
+            onRound={toRound}
           />
         )}
       </main>

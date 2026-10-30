@@ -7,10 +7,10 @@ import { useRef, useState, type RefObject } from "react";
 import { time, type Flow, type Review, type Round } from "@mostlyworks/vantage-review";
 import { picture } from "./api.ts";
 import { TickMark } from "./Chosen.tsx";
-import { Agent, Go, says, type Step } from "./Foot.tsx";
+import { Agent, Go, says, type Step } from "./Step.tsx";
 import type { Standing } from "./notes.ts";
 import { Picture, useStill } from "./Picture.tsx";
-import { roundName } from "./Rounds.tsx";
+import { Rounds } from "./Rounds.tsx";
 
 type Props = {
   room: RefObject<HTMLDivElement | null>;
@@ -22,7 +22,14 @@ type Props = {
   // Accepted, how it got there, in fixed words.
   accepted?: string;
   step?: Step;
+  // Why sending or accepting didn't go through.
+  trouble: string[];
   onFlow: (flow: string) => void;
+  // The rounds, under the work's name: going back through them flips every picture at once, and once you've sent, the
+  // next round coming, and in.
+  arrived?: Round;
+  working?: string;
+  onRound: (round: number) => void;
 };
 
 export function Grid(props: Props) {
@@ -56,10 +63,10 @@ export function Grid(props: Props) {
         <div className="flex max-h-[calc(100dvh-140px)] min-h-0 flex-col phone:max-h-none">
           <div className="px-2.5">
             <h2 className="line-clamp-4 text-[15px] leading-[21px] font-semibold">{review.title}</h2>
-            <p className="mt-1 text-[13px] leading-5 text-soft">
-              {props.accepted ?? roundName(round.number)}
-              {left}
-            </p>
+            <div className="mt-1 -ml-2.5 flex items-center gap-1 text-[13px] leading-5 text-soft">
+              <Rounds quiet rounds={review.rounds} watching={round.number} arrived={props.arrived} working={props.working} onRound={props.onRound} onEarlier={() => {}} />
+              <span className="min-w-0 truncate">{props.accepted ? <span className="text-green">· {props.accepted}</span> : left}</span>
+            </div>
           </div>
           <div className="-mx-1 mt-5 min-h-0 overflow-y-auto px-1">
             {round.flows.map(row)}
@@ -70,7 +77,8 @@ export function Grid(props: Props) {
           <div className="mt-3 flex min-h-8 items-start justify-end gap-2">
             <div className="w-[300px] max-w-full">
               {step?.kind === "go" && <Go step={step} className="w-full gap-3" />}
-              {step?.kind === "agent" && <Agent step={step} className="justify-end" />}
+              {step?.kind === "agent" && !props.working && <Agent step={step} className="justify-end" />}
+              {props.trouble.length > 0 && <p className="mt-2 text-xs leading-[18px] text-amber-ink">{props.trouble.join(" ")}</p>}
             </div>
           </div>
         </div>

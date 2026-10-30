@@ -19,6 +19,8 @@ type Props = {
   arrived?: Round;
   // Since when the agent has been working on what was sent.
   working?: string;
+  // Said in a line of words, as under the work's name: plain until you point at it, as wide as what it says.
+  quiet?: boolean;
   onRound: (round: number) => void;
   onEarlier: (round: number) => void;
 };
@@ -57,7 +59,7 @@ export function Rounds(props: Props) {
   };
   const saying: Part[] =
     say === "arrived" ? [{ text: roundName(props.arrived!.number), key: "word", word: true }, { text: " is in", key: "end", soft: true }]
-    : say === "working" ? [{ text: "Working", key: "word", word: true }]
+    : say === "working" ? [{ text: roundName(last + 1), key: "word", word: true }, { text: " coming", key: "end", soft: true }]
     : parts(watching, earlier);
   const order = say === "arrived" ? 1e6 : say === "working" ? 1e6 - 1 : watching * 1000 + (comparing ? earlier + 1 : 0);
   const was = useRef(order);
@@ -69,7 +71,7 @@ export function Rounds(props: Props) {
   // One width, the widest it can say in this review, so nothing in the row moves as it changes.
   const measured = useRef("");
   useLayoutEffect(() => {
-    if (measured.current === `${first}-${last}`) return;
+    if (props.quiet || measured.current === `${first}-${last}`) return;
     measured.current = `${first}-${last}`;
     label.current!.style.minWidth = `${widest(label.current!, rounds, parts)}px`;
   });
@@ -313,13 +315,13 @@ export function Rounds(props: Props) {
   const side = open ? (left ? "left" : "right") : undefined;
 
   return (
-    <nav ref={nav} data-open={side} aria-label="Rounds" className="group/rounds relative flex h-[calc(1.5em+10px)] items-center gap-3 rounded-lg bg-hover px-0.5">
+    <nav ref={nav} data-open={side} aria-label="Rounds" className={`group/rounds relative flex h-[calc(1.5em+10px)] items-center gap-3 rounded-lg ${props.quiet ? "" : "bg-hover px-0.5"}`}>
       <button
         ref={label}
         aria-expanded={open}
         aria-label={say === "arrived" ? "The agent's next round is in" : say === "working" ? `The agent started at ${clock(props.working!)}` : "Rounds"}
         data-say={say}
-        className={`relative z-6 touch-pan-y rounded-md px-2.5 py-[3px] text-center whitespace-nowrap text-fg tabular-nums transition-colors duration-150 ease-calm hover:bg-surface hover:shadow-[0_0_0_1px_var(--line)] aria-expanded:bg-surface aria-expanded:shadow-[0_0_0_1px_var(--line)] ${say === "round" && many ? "cursor-ew-resize" : ""} data-[say=arrived]:before:mr-1.5 data-[say=arrived]:before:mb-px data-[say=arrived]:before:inline-block data-[say=arrived]:before:size-1.5 data-[say=arrived]:before:rounded-full data-[say=arrived]:before:bg-amber data-[say=arrived]:before:align-middle data-[say=working]:before:mt-[calc(.5lh-3px)] data-[say=working]:before:mr-1.5 data-[say=working]:before:inline-block data-[say=working]:before:size-1.5 data-[say=working]:before:animate-breathe data-[say=working]:before:rounded-full data-[say=working]:before:bg-slate data-[say=working]:before:align-top`}
+        className={`relative z-6 touch-pan-y rounded-md px-2.5 py-[3px] text-center whitespace-nowrap tabular-nums transition-colors duration-150 ease-calm ${props.quiet ? "text-fg hover:bg-hover aria-expanded:bg-surface aria-expanded:shadow-[0_0_0_1px_var(--line)]" : "text-fg hover:bg-surface hover:shadow-[0_0_0_1px_var(--line)] aria-expanded:bg-surface aria-expanded:shadow-[0_0_0_1px_var(--line)]"} ${say === "round" && many ? "cursor-ew-resize" : ""} data-[say=arrived]:before:mr-1.5 data-[say=arrived]:before:mb-px data-[say=arrived]:before:inline-block data-[say=arrived]:before:size-1.5 data-[say=arrived]:before:rounded-full data-[say=arrived]:before:bg-amber data-[say=arrived]:before:align-middle data-[say=working]:before:mt-[calc(.5lh-3px)] data-[say=working]:before:mr-1.5 data-[say=working]:before:inline-block data-[say=working]:before:size-1.5 data-[say=working]:before:animate-breathe data-[say=working]:before:rounded-full data-[say=working]:before:bg-slate data-[say=working]:before:align-top`}
         onPointerDown={pressLabel}
         onClick={clickLabel}
         onKeyDown={step}
@@ -390,8 +392,8 @@ function widest(label: HTMLElement, rounds: Round[], parts: (round: number, then
   context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
   const width = (said: string) => context.measureText(said).width;
   const text = (said: Part[]) => said.map((part) => part.text).join("");
-  let most = width("Working") + 12;
   const last = rounds.at(-1)?.number ?? 0;
+  let most = width(`${roundName(last + 1)} coming`) + 12;
   most = Math.max(most, width(`${roundName(last + 1)} is in`) + 12);
   for (const round of rounds) {
     most = Math.max(most, width(text(parts(round.number))));

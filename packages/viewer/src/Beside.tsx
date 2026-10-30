@@ -44,7 +44,7 @@ export function Beside({ id, over, still, resting, pinned, onAway, children }: {
       if (card.current?.contains(event.target as Node)) return;
       clickedAt(event.clientX, event.clientY);
       if (!card.current) return;
-      // A mark or a pin opens what it's for when it's let go: closing first, on the press, the card and the foot under
+      // A mark or a pin opens what it's for when it's let go: closing first, on the press, the card and what was under
       // it went and came back each time you pressed what was already open.
       if ((event.target as Element).closest?.("[data-mark], [data-pin]")) return;
       // On a recording, it's a click only if it's let go where it was pressed: a drag there moves the view.
