@@ -16,12 +16,13 @@ const waitingForNotes = { says: /Waiting for notes on overdue…/ };
 
 describe("The command line, as an agent uses it, round after round", { timeout: 300_000 }, () => {
   test("start begins a review and asks for its flows from the task, before anything changes", async () => {
-    const { said, code } = await app.run(["start", "overdue", "Show", "only", "the", "overdue", "invoices"]);
+    const { said, code } = await app.run(["start", "overdue", "Show only overdue invoices", "Can the invoices list show just the overdue ones?"]);
     assert.equal(code, 0);
     assert.match(said, /Write its flows before you change anything\. They show what was asked, so write them from the task, not from the code/);
     assert.match(said, /Each flow is a Playwright test in \.vantage\/overdue\/flows/);
     assert.match(said, /Then run vantage start overdue again\. It records Before/);
-    assert.equal((await app.reviews.get("overdue")).title, "Show only the overdue invoices");
+    const review = await app.reviews.get("overdue");
+    assert.deepEqual([review.title, review.asked], ["Show only overdue invoices", "Can the invoices list show just the overdue ones?"]);
   });
 
   test("record says what it needs before recording anything: flows, then how to start the app", async () => {

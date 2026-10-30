@@ -62,8 +62,9 @@ export function Grid(props: Props) {
       <div className="m-auto grid w-full max-w-[1240px] grid-cols-[320px_minmax(0,1fr)] gap-10 px-8 py-6 phone:grid-cols-1 phone:gap-5 phone:px-0" onPointerLeave={() => setPointed(undefined)}>
         <div className="flex max-h-[calc(100dvh-140px)] min-h-0 flex-col phone:max-h-none">
           <div className="px-2.5">
-            <h2 className="line-clamp-4 text-[15px] leading-[21px] font-semibold">{review.title}</h2>
-            <div className="mt-1 -ml-2.5 flex items-center gap-1 text-[13px] leading-5 text-soft">
+            <h2 className="line-clamp-2 text-[15px] leading-[21px] font-semibold">{review.title}</h2>
+            {review.asked && <p className="mt-1 line-clamp-6 text-[13px] leading-5 text-soft">{review.asked}</p>}
+            <div className={`${review.asked ? "mt-2" : "mt-1"} -ml-2.5 flex items-center gap-1 text-[13px] leading-5 text-soft`}>
               <Rounds quiet rounds={review.rounds} watching={round.number} arrived={props.arrived} working={props.working} onRound={props.onRound} onEarlier={() => {}} />
               <span className="min-w-0 truncate">{props.accepted ? <span className="text-green">· {props.accepted}</span> : left}</span>
             </div>

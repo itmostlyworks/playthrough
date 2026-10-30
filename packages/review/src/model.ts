@@ -182,7 +182,8 @@ export const Accepted = z.strictObject({ by: z.string(), at: z.iso.datetime() })
 
 export const Review = z.strictObject({
   id: z.string(),
-  title: z.string().describe("What was asked, in the person's words"),
+  title: z.string().describe("A few words for the change, as a pull request's title"),
+  asked: z.string().optional().describe("What was asked, in the person's words"),
   started: z.iso.datetime(),
   rounds: z.array(Round),
   comparisons: z.array(Comparison),

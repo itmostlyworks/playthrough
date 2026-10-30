@@ -1,5 +1,6 @@
-// Starts a review: what was asked, in the person's words, and the flows that will show it, written before anything changes
-// so they show the task as the person put it. Run again once they're written, it records Before: the app as it is.
+// Starts a review: a title for the change, as a pull request has, what was asked, in the person's words, and the flows
+// that will show it, written before anything changes so they show the task as the person put it. Run again once they're
+// written, it records Before: the app as it is.
 
 import { list, quote, Refused } from "@mostlyworks/vantage-review";
 import { agent } from "./agent.ts";
@@ -7,10 +8,13 @@ import { cantStart, howFar, keepBefore, refuseIfBroken, tryBeforeAgain } from ".
 import { howToWriteFlows, makeFlowsFolder, runFlows } from "./flows.ts";
 import type { Repo } from "./repo.ts";
 
-export async function start(repo: Repo, id: string, title?: string) {
+export async function start(repo: Repo, id: string, title?: string, asked?: string) {
   if (!(await repo.reviews.list()).includes(id)) {
-    if (!title) throw new Refused([`There's no review called “${id}” yet. Start it with what was asked, in the person's words: vantage start ${id} "<title>"`]);
-    await repo.reviews.start(id, title);
+    if (!title || !asked)
+      throw new Refused([
+        `There's no review called “${id}” yet. Start it with a few words for the change, as a pull request's title, and what was asked, in the person's words: vantage start ${id} "<title>" "<what was asked>"`,
+      ]);
+    await repo.reviews.start(id, title, asked);
     await repo.keepOutOfGit();
     await makeFlowsFolder(repo, id);
     return console.log(`Started ${id}: “${title}”.

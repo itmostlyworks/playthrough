@@ -38,7 +38,7 @@ test("Look at the invoices", async ({ page, setup }) => {
 
 describe("The command line, as an agent uses it, from a steady start", { timeout: 300_000 }, () => {
   test("each flow starts on the day the review started, from what vantage/setup.ts makes, and is recorded twice to find what changes by itself", async () => {
-    await app.run(["start", "overdue", "Show only the overdue invoices"]);
+    await app.run(["start", "overdue", "Show only overdue invoices", "Can the invoices list show just the overdue ones?"]);
     await mkdir(join(app.repo, "vantage"));
     await writeFile(join(app.repo, "vantage/app.json"), JSON.stringify(app.app));
     await writeFile(join(app.repo, "vantage/setup.ts"), `export default async function ({ page }) {\n  return { word: "Ana" };\n}\n`);

@@ -59,7 +59,7 @@ export class Reviews {
 
   async get(id: string): Promise<Review> {
     if (problemsWithId(id).length) throw new Refused(problemsWithId(id));
-    const about = await this.#readJson<{ id: string; title: string; started: string }>(`${id}/review.json`);
+    const about = await this.#readJson<{ id: string; title: string; asked?: string; started: string }>(`${id}/review.json`);
     if (!about) throw new Refused([`There's no review called “${id}”.`]);
 
     const numbers = (await this.storage.list(`${id}/rounds`)).map(Number).filter(Number.isInteger).sort((a, b) => a - b);
@@ -77,6 +77,7 @@ export class Reviews {
     return {
       id,
       title: about.title,
+      ...(about.asked && { asked: about.asked }),
       started: about.started,
       rounds: rounds.filter((round) => round !== undefined),
       comparisons: comparisons.flat().filter((comparison) => comparison !== undefined).sort((a, b) => a.round - b.round || a.since - b.since),
@@ -88,12 +89,12 @@ export class Reviews {
 
   // The agent
 
-  async start(id: string, title: string): Promise<Review> {
+  async start(id: string, title: string, asked?: string): Promise<Review> {
     return this.#one(id, async () => {
-      const problems = problemsStarting(id, title);
+      const problems = problemsStarting(id, title, asked);
       if (problems.length) throw new Refused(problems);
       if (await this.storage.read(`${id}/review.json`)) throw new Refused([`There's already a review called “${id}”.`]);
-      await this.#writeJson(`${id}/review.json`, { format: 1, id, title, started: now() });
+      await this.#writeJson(`${id}/review.json`, { format: 1, id, title, ...(asked && { asked }), started: now() });
       return this.get(id);
     });
   }

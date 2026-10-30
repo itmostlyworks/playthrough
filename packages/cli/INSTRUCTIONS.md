@@ -1,7 +1,8 @@
 Vantage: a person reviews your work on a web app by watching recordings of it, round after round. Read this once; each
 command then says what's next.
 
-  vantage start <review> "<title>"   start a review of what was asked, in the person's words
+  vantage start <review> "<title>" "<what was asked>"
+                                     start a review: a title for the change, and what was asked, in the person's words
   vantage start <review>             once its flows are written, record Before: the app as it is
   vantage record <review>            record the round being worked on, every flow, the way a person would use it
   vantage wait <review>              hand the round over, then wait for the notes to answer
@@ -10,7 +11,8 @@ command then says what's next.
 
 THE LOOP
 
-1. Start a review with what was asked, in the person's words. Before you change anything, write its flows: one for each
+1. Start a review with a title, a few words for the change as you'd title its pull request, and what was asked, word for
+   word: it's what the person judges each round against. Before you change anything, write its flows: one for each
    thing a person does that the task touches. They show the task as the person put it, so write them from the task, not
    from the code: if you can start a fresh subagent, give it the task and what the screens look like, never the code.
 2. Run vantage start <review> again. It records Before: each flow on the app as it is, as far as the app can take it.

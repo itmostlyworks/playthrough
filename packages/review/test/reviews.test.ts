@@ -80,10 +80,12 @@ for (const [kept, storage] of storages) {
       return { reviews, asked };
     }
 
-    test("a review starts with its title and nothing recorded", async () => {
+    test("a review starts with its title, what was asked, and nothing recorded", async () => {
       const reviews = new Reviews(await storage());
-      const review = await reviews.start("invoice-export", "Export a quarter's invoices as a CSV");
-      assert.equal(review.title, "Export a quarter's invoices as a CSV");
+      const asked = "Can I get last quarter's invoices out as a spreadsheet?";
+      const review = await reviews.start("invoice-export", "Export a quarter's invoices as a CSV", asked);
+      assert.deepEqual([review.title, review.asked], ["Export a quarter's invoices as a CSV", asked]);
+      assert.equal((await reviews.get("invoice-export")).asked, asked);
       assert.deepEqual([review.rounds, review.sends, review.taken], [[], [], []]);
       assert.deepEqual(await reviews.list(), ["invoice-export"]);
     });

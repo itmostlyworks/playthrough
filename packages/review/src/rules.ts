@@ -85,9 +85,10 @@ export function problemsWithId(id: string): string[] {
     : [`A review's id is lowercase words joined by dashes, like “export-a-quarter”, not “${id}”.`];
 }
 
-export function problemsStarting(id: string, title: string): string[] {
+export function problemsStarting(id: string, title: string, asked?: string): string[] {
   const problems = problemsWithId(id);
-  if (!isText(title)) problems.push("A review needs a title: what was asked, in the person's words.");
+  if (!isText(title)) problems.push("A review needs a title: a few words for the change, as a pull request's title.");
+  if (asked !== undefined && !isText(asked)) problems.push("What was asked is the person's words, as they put it.");
   return problems;
 }
 

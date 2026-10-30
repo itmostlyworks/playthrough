@@ -23,7 +23,7 @@ const work = async () => ({
 
 describe("The command line, as an agent uses it, on Before", { timeout: 300_000 }, () => {
   test("Before keeps what it was recorded from as a commit, with what wasn't committed yet, and the reviews stay out of git", async () => {
-    await app.run(["start", "overdue", "Show only the overdue invoices"]);
+    await app.run(["start", "overdue", "Show only overdue invoices", "Can the invoices list show just the overdue ones?"]);
     await writeFile(join(app.flows, "overdue.ts"), seeOverdue);
     await mkdir(join(app.repo, "vantage"));
     await writeFile(join(app.repo, "vantage/app.json"), JSON.stringify(app.app));

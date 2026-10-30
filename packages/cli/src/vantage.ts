@@ -27,8 +27,8 @@ try {
     // A command stopped while flows recorded on Before left the agent's work set aside: it's put back before anything else.
     await putBack(repo());
     if (command === "start") {
-      if (!review) throw needs(`vantage start <review> "<title>"`);
-      await start(repo(), review, words.join(" ") || undefined);
+      if (!review) throw needs(`vantage start <review> "<title>" "<what was asked>"`);
+      await start(repo(), review, words[0], words[1]);
     } else if (command === "record") {
       if (!review) throw needs("vantage record <review>");
       await record(repo(), review);
