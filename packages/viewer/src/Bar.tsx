@@ -85,7 +85,7 @@ export function Bar(props: Props) {
       <div
         role="toolbar"
         aria-label="This moment"
-        className={`flex gap-0.5 rounded-xl bg-surface p-1 text-[13px] select-none [&_kbd]:text-[color-mix(in_srgb,var(--faint)_55%,var(--soft))] ${inApp ? "shadow-[0_0_0_1.5px_rgba(236,178,72,0.95),0_6px_20px_rgba(20,24,34,0.12)]" : "shadow-[0_0_0_1px_rgba(20,24,34,0.08),0_6px_20px_rgba(20,24,34,0.12)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08),0_6px_20px_rgba(0,0,0,0.3)]"}`}
+        className={`flex gap-0.5 rounded-xl bg-surface p-1 text-[13px] select-none [&_kbd]:text-[color-mix(in_srgb,var(--faint)_55%,var(--soft))] ${inApp ? "shadow-[0_0_0_1.5px_rgba(236,178,72,0.95),0_6px_20px_rgba(20,24,34,0.12)]" : "shadow-[0_0_0_1px_rgba(20,24,34,0.08),0_6px_20px_rgba(20,24,34,0.12)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.14),0_6px_20px_rgba(0,0,0,0.3)]"}`}
       >
         <button className={item} disabled={!props.onNote} aria-pressed={props.noting} onClick={props.onNote}>
           Note <Key>N</Key>
