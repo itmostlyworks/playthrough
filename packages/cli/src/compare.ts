@@ -7,11 +7,12 @@ import { chromium, type Page } from "@playwright/test";
 import { list, quote, Refused, type Change, type Comparison, type Flow, type Place, type Reviews, type Step } from "@mostlyworks/vantage-review";
 import { changesAt, idOf } from "./changes.ts";
 import { picturesAt } from "./pictures.ts";
-import type { Reading } from "@mostlyworks/vantage-page";
-import { readingsOf } from "./reporter.ts";
+import type { Glimpse, Reading } from "@mostlyworks/vantage-page";
+import { glimpsesOf, readingsOf } from "./reporter.ts";
 
-// A round as recorded: its flows, and what was read at the end of each of their steps, with its picture.
-export type Recorded = { number: number; flows: Flow[]; readings: (flow: Flow) => Promise<Reading[]>; picture: (name: string) => Promise<Buffer> };
+// A round as recorded: its flows, what was read at the end of each of their steps, with its picture, and what was glimpsed
+// after each action, in a round recorded since Vantage glimpsed.
+export type Recorded = { number: number; flows: Flow[]; readings: (flow: Flow) => Promise<Reading[]>; glimpses?: (flow: Flow) => Promise<Glimpse[]>; picture: (name: string) => Promise<Buffer> };
 
 // The round being worked on, compared with each round before it, from what's kept of each.
 export async function compareWithEarlier(reviews: Reviews, id: string, number: number, flows: Flow[]): Promise<Comparison[]> {
@@ -50,7 +51,11 @@ function kept(reviews: Reviews, id: string, number: number, flows: Flow[]): Reco
       throw new Refused([`${number === 0 ? "Before" : `Round ${number}`} has no ${name}, so it can't be compared: it was recorded before Vantage read each step. Start the review again.`]);
     return Buffer.from(bytes);
   };
-  return { number, flows, readings: async (flow) => JSON.parse((await file(readingsOf(flow))).toString()), picture: file };
+  const glimpses = async (flow: Flow) => {
+    const bytes = await reviews.file(id, number, glimpsesOf(flow));
+    return bytes ? JSON.parse(Buffer.from(bytes).toString()) : [];
+  };
+  return { number, flows, readings: async (flow) => JSON.parse((await file(readingsOf(flow))).toString()), glimpses, picture: file };
 }
 
 export async function compare(page: Page, earlier: Recorded, round: Recorded, unsteady = new Set<string>()): Promise<Comparison> {
@@ -79,19 +84,27 @@ async function compareFlow(page: Page, earlier: Recorded, before: Flow, round: R
   const pairs = pairSteps(before.steps, flow.steps);
   const sightings: Sighting[] = [...newSteps(flow, pairs), ...goneSteps(before, flow, pairs)];
 
-  // Each step both take: the page it left, against the earlier one's.
+  // Each step both take: the page it left, against the earlier one's, and what each round glimpsed in it and just after.
   const then = await earlier.readings(before);
+  const glimpsed = { then: (await earlier.glimpses?.(before)) ?? [], now: (await round.glimpses?.(flow)) ?? [] };
   for (const reading of await round.readings(flow)) {
     const step = pairs.get(flow.steps.findIndex((step) => step.title === reading.step));
     const was = step === undefined ? undefined : then.find((kept) => kept.step === before.steps[step]!.title);
     if (!was) continue;
     const pictures = { then: await earlier.picture(was.picture), now: await round.picture(reading.picture) };
-    for (const found of [...changesAt(was, reading, unsteady), ...(await picturesAt(page, was, reading, pictures))]) {
+    const shown = { then: around(glimpsed.then, before, was.step), now: around(glimpsed.now, flow, reading.step) };
+    for (const found of [...changesAt(was, reading, unsteady, shown), ...(await picturesAt(page, was, reading, pictures))]) {
       const on = found.element ? { element: found.element, ...(found.alike && { alike: found.alike }) } : found.box ? { box: found.box } : {};
       sightings.push({ id: found.id, words: found.words, place: { flow: flow.name, at: reading.at, ...on } });
     }
   }
   return sightings.sort((a, b) => (a.place.at ?? 0) - (b.place.at ?? 0));
+}
+
+// What was glimpsed in a step and just after it, where a message its actions announced may land.
+function around(glimpses: Glimpse[], flow: Flow, step: string): Glimpse[] {
+  const next = flow.steps[flow.steps.findIndex((kept) => kept.title === step) + 1]?.title;
+  return [...glimpses.filter((glimpse) => glimpse.step === step), ...glimpses.filter((glimpse) => glimpse.step === next).slice(0, 1)];
 }
 
 // Each step of the newer flow with the earlier flow's step of the same title, in order: the first of that title after the

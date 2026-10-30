@@ -16,7 +16,7 @@ export const near = (a: number, b: number, by = NEAR) => Math.abs(a - b) <= by;
 // What holds what changes inside it: a dialog, a message, a choice, a table, a list, a menu, or a panel.
 export const HOLDS = /^(dialog|alertdialog|status|alert|group|radiogroup|table|grid|treegrid|listbox|menu|box)$/;
 
-export const holderOf = (reading: Reading, thing: Thing) => (thing.holder === undefined ? undefined : reading.things[thing.holder]);
+export const holderOf = (reading: Pick<Reading, "things">, thing: Thing) => (thing.holder === undefined ? undefined : reading.things[thing.holder]);
 export const parentOf = (reading: Pick<Reading, "things">, thing: Thing) => (thing.parent === undefined ? undefined : reading.things[thing.parent]);
 
 // The words with the data in them left out, and the small words that only linked it: “Total for Q3 2026 $27,785.00” is
@@ -34,8 +34,9 @@ export function bare(words: string): string {
 
 // What a thing is, whatever it shows: what it is, its name with the data in it left out, and what holds it, said the same
 // way. The Export dialog saying “12 invoices from Q3 2026” in one flow and “25 invoices from 2026” in another is one dialog.
-export function identity(reading: Reading, thing: Thing, up = 1): string {
-  const holder = up > 0 ? holderOf(reading, thing) : undefined;
+// A message the page announces is the same one whatever page it pops up over.
+export function identity(reading: Pick<Reading, "things">, thing: Thing, up = 1): string {
+  const holder = up > 0 && !thing.live ? holderOf(reading, thing) : undefined;
   return `${thing.role}:${bare(thing.name)}${holder ? ` in ${identity(reading, holder, up - 1)}` : ""}`;
 }
 

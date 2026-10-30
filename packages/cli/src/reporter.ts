@@ -27,7 +27,7 @@ export async function readingsOn(reviews: Reviews, review: string, round: number
 }
 const picturesOf = (flow: Flow) => `readings/${flow.recording.replace(/\.json$/, "")}`;
 // And what was glimpsed after each action, beside them.
-const glimpsesOf = (flow: Flow) => `${picturesOf(flow)}.glimpses.json`;
+export const glimpsesOf = (flow: Flow) => `${picturesOf(flow)}.glimpses.json`;
 
 // Why, in Playwright's words: the first line of what it says.
 export const firstLine = (said: string) => said.replace(/\x1b\[[0-9;]*m/g, "").split("\n")[0]?.trim();

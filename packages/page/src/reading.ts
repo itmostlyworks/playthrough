@@ -14,6 +14,7 @@ export type Thing = {
   parent?: number; // the nearest thing it's in that's read at all
   column?: string; // the heading over it, in a table the page marks as one
   labelled?: true; // a panel with a label of its own, which names it, drawn or not
+  live?: true; // in a message the page announces and takes away by itself, a toast: aria-live, or a status or an alert
   node?: number; // its element in the recording
 };
 

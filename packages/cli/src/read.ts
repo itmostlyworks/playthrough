@@ -216,6 +216,7 @@ export function read() {
           ...(parent !== undefined && { parent }),
           ...(column && { column }),
           ...(known?.role === "box" && labelOf(child) && { labelled: true }),
+          ...(child.closest('[aria-live]:not([aria-live="off"]), [role="status"], [role="alert"], [role="log"]') && { live: true }),
           ...(node !== undefined && node >= 0 && { node }),
         });
         if (known && HOLDERS.test(known.role)) inside = things.length - 1;

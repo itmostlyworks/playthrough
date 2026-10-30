@@ -5,7 +5,7 @@
 // so the same change seen in another flow, at another moment or against another round is the same one.
 
 import { createHash } from "node:crypto";
-import { a, called, dataLeftOut, differences, HOLDS, holderOf, identity, lookWords, near, NEAR, parentOf, plural, rewordedWords, sentence, symbolOnly, the, things, together, wayOf, word, WORD, type Difference, type Reading, type Thing } from "@mostlyworks/vantage-page";
+import { a, called, dataLeftOut, differences, HOLDS, holderOf, identity, lookWords, near, NEAR, parentOf, plural, rewordedWords, sentence, symbolOnly, the, things, together, wayOf, word, WORD, type Difference, type Glimpse, type Reading, type Thing } from "@mostlyworks/vantage-page";
 import type { Box, Element } from "@mostlyworks/vantage-review";
 
 // A change at one moment: what it's on is an element of the newer round, or for something gone, where it was.
@@ -27,8 +27,8 @@ const MOST_INSIDE = 5; // changes inside one table or list told one by one; past
 
 // Each rule in turn. What only follows from another comes out first; then each change left is told, with what came with it,
 // but for what changes by itself, which isn't a change at all, nor counted in one.
-export function changesAt(then: Reading, now: Reading, unsteady = new Set<string>()): Found[] {
-  const moment = new Moment(then, now);
+export function changesAt(then: Reading, now: Reading, unsteady = new Set<string>(), shown: Shown = { then: [], now: [] }): Found[] {
+  const moment = new Moment(then, now, shown);
   const { follows, carried } = followingHolders(moment);
   const own = moment.differences.filter((difference) => !follows.has(difference));
   const others = own.filter((difference) => !isMove(difference));
@@ -48,6 +48,9 @@ export function changesAt(then: Reading, now: Reading, unsteady = new Set<string
   return said(told, moment, unsteady);
 }
 
+// What each round glimpsed in the step and just after it.
+type Shown = { then: Glimpse[]; now: Glimpse[] };
+
 // The two readings of a moment: which thing now is which thing then, and what happened to each one that changed.
 class Moment {
   readonly then: Reading;
@@ -57,11 +60,22 @@ class Moment {
   readonly isNow: Map<Thing, Thing>; // each thing then, as it is now
   shifts: { x: number; y: number }[] = []; // how far each layout shift moved what's in it, once they're found
 
-  constructor(then: Reading, now: Reading) {
+  constructor(then: Reading, now: Reading, shown: Shown) {
     const { differences: found, was } = differences(then, now);
     this.then = then;
     this.now = now;
-    this.differences = found;
+    // A message the page announces and takes away by itself, a toast, is judged by whether the step showed it, not by
+    // whether it's still up when the step is read: gone then, or new now, when that round glimpsed it in the step or just
+    // after, it was only read at another moment of its life. Kan's “Added to favorites” stays as long as the page keeps
+    // redrawing, so a slower run reads the step once it's faded. A dialog isn't a message: one that now closes is gone.
+    const ids = (things: { reading: Pick<Reading, "things">; thing: Thing }[]) => new Set(things.map(({ reading, thing }) => identity(reading, thing)));
+    const all = (readings: Pick<Reading, "things">[]) => readings.flatMap((reading) => reading.things.map((thing) => ({ reading, thing })));
+    const glimpsed = { then: ids(all(shown.then)), now: ids(all(shown.now)) };
+    const messages = ids(all([then, now, ...shown.then, ...shown.now]).filter(({ thing }) => thing.live));
+    const passing = (reading: Reading, thing: Thing, other: Set<string>) => messages.has(identity(reading, thing)) && other.has(identity(reading, thing));
+    this.differences = found.filter((difference) =>
+      difference.what === "gone" ? !passing(then, difference.then, glimpsed.now) : difference.what === "new" ? !passing(now, difference.now, glimpsed.then) : true,
+    );
     this.was = was;
     this.isNow = new Map([...was].map(([b, a]) => [a, b]));
   }

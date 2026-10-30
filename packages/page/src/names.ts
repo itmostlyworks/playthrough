@@ -9,7 +9,7 @@ export const WORD: Record<string, string> = {
   tab: "tab", menu: "menu", menuitem: "menu item", img: "image", group: "choice", radiogroup: "choice",
 };
 // What a thing is called by: what it is, its name, and what it says itself.
-export type Named = Pick<Thing, "role" | "name" | "words" | "wordsInside">;
+export type Named = Pick<Thing, "role" | "name" | "words" | "wordsInside" | "live">;
 
 export const word = (thing: Named) => WORD[thing.role] ?? thing.role;
 
@@ -20,7 +20,7 @@ const cut = (words: string, most = 60) => (words.length > most ? words.slice(0, 
 
 export function called(thing: Named): string {
   if (thing.role === "status" || thing.role === "alert") return "Message";
-  if (thing.role === "box") return `“${cut(areaName(thing))}” area`;
+  if (thing.role === "box") return `“${cut(areaName(thing))}” ${thing.live ? "message" : "area"}`;
   if (thing.role === "text") return `“${cut(thing.words)}”`;
   // What Vantage has no word for, such as a list item noted in the app, is called by its words, as a text is.
   if (!WORD[thing.role] && thing.name) return `“${cut(thing.name)}”`;

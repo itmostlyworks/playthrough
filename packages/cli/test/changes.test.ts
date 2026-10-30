@@ -181,6 +181,19 @@ describe("What changed at a moment", () => {
     ]);
   });
 
+  test("a message the page announces is judged by whether the step showed it, not by whether it's still up when it's read (Kan's toast)", async () => {
+    const page = (toast: string) => `<h1>Boards</h1>${toast}`;
+    const toast = (live: string) => `<div ${live} class="panel" style="position: fixed; right: 16px; bottom: 16px"><p>Added to favorites</p></div>`;
+    const announced = toast(`aria-live="assertive"`);
+    const glimpse = async (html: string) => { const { picture: _, ...glimpse } = await reading(html); return glimpse; };
+    const shownNow = { then: [], now: [await glimpse(page(announced))] };
+    assert.deepEqual((changesAt(await reading(page(announced)), await reading(page("")), undefined, shownNow)).map((change) => change.words), []);
+    assert.deepEqual((changesAt(await reading(page(announced)), await reading(page("")))).map((change) => change.words), ["“Added to favorites” message is gone"]);
+    // A panel that isn't a message, like a dialog that now closes, is gone however briefly it was there.
+    const panel = toast("");
+    assert.deepEqual((changesAt(await reading(page(panel)), await reading(page("")), undefined, { then: [], now: [await glimpse(page(panel))] })).map((change) => change.words), ["“Added to favorites” area is gone"]);
+  });
+
   test("a control that gained words inside it is the same control, and the words are what's new", async () => {
     const link = (more: string) => `<a href="/hsbc">HSBC <span>7,810.00</span>${more}</a>`;
     assert.deepEqual(await said(link(""), link(`<small style="display: block">Reconciled 1 month ago</small>`)), ["“Reconciled 1 month ago” is new"]);

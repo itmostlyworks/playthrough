@@ -9,7 +9,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { list, quote, Refused, type Did, type Flow } from "@mostlyworks/vantage-review";
 import { changesByThemselves, type Recorded as Compared } from "./compare.ts";
-import { readingsOf, type Failed, type Recorded } from "./reporter.ts";
+import { glimpsesOf, readingsOf, type Failed, type Recorded } from "./reporter.ts";
 import { repo, type App, type Repo } from "./repo.ts";
 import { giveBackLeft, setupIn } from "./setup.ts";
 
@@ -17,7 +17,7 @@ import { giveBackLeft, setupIn } from "./setup.ts";
 // recordings go to, the app, rrweb's recorder, which goes into every page, whether it's Before, and the recordings the
 // round has already, so a flow added to it is named apart from them. And when the review started, which every round's
 // clock starts from, and where Playwright writes what it keeps of a failed flow, when it's for the agent to see.
-export type Run = { flows: string; only?: string[]; folder: string; results?: string; app: App; root: string; recorder: string; before: boolean; taken: string[]; started: string; walk?: Walk };
+export type Run = { flows: string; only?: string[]; longest?: string[]; folder: string; results?: string; app: App; root: string; recorder: string; before: boolean; taken: string[]; started: string; walk?: Walk };
 
 // A person's fork walked again on the app as it is now: the flow recorded to where they took it over (a step, and how
 // far into it), what they did there done again after it, and after so many of their steps, what each of their notes is
@@ -96,9 +96,11 @@ export async function runFlows(
     throw new Refused([`${id} has no flows yet. ${howToWriteFlows(repo, id)}`]);
   await makeFlowsFolder(repo, id);
   const app = await repo.app();
-  const { started } = await repo.reviews.get(id);
+  const { started, rounds } = await repo.reviews.get(id);
   const recorder = join(dirname(createRequire(import.meta.url).resolve("@rrweb/record")), "record.umd.min.cjs");
-  const run = (only?: string[], results?: string) => runOnce({ flows, only, results, app, root: repo.root, recorder, before: round === 0, taken: later?.taken ?? [], started });
+  // The flows as long as they were last round, longest first, so the round ends close to when its longest flow does.
+  const longest = (rounds.filter((kept) => kept.number < round).at(-1)?.flows ?? []).toSorted((a, b) => b.length - a.length).map((flow) => flow.name);
+  const run = (only?: string[], results?: string) => runOnce({ flows, only, longest, results, app, root: repo.root, recorder, before: round === 0, taken: later?.taken ?? [], started });
 
   const last = round > 0 ? await failedLastTime(repo, id) : [];
   if (last.length) {
@@ -176,7 +178,11 @@ export const whereItStopped = (repo: Repo, id: string, failed: Failed[]) =>
 function inMemory(number: number, recorded: Ran["recorded"]): Compared {
   const flows = recorded.map(({ flow }) => flow);
   const file = (name: string) => recorded.flatMap(({ files }) => files).find((file) => file.name === name)!.bytes;
-  return { number, flows, readings: async (flow) => JSON.parse(file(readingsOf(flow)).toString()), picture: async (name) => file(name) };
+  const glimpses = async (flow: Flow) => {
+    const bytes = recorded.flatMap(({ files }) => files).find((file) => file.name === glimpsesOf(flow))?.bytes;
+    return bytes ? JSON.parse(bytes.toString()) : [];
+  };
+  return { number, flows, readings: async (flow) => JSON.parse(file(readingsOf(flow)).toString()), glimpses, picture: async (name) => file(name) };
 }
 
 type Ran = { recorded: { flow: Flow; files: { name: string; bytes: Buffer }[] }[]; failed: Failed[] };
