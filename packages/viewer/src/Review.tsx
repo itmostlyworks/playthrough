@@ -286,7 +286,8 @@ function OnRound({ review: kept, round, latest, arrived, you, flow: inAddress, o
     return () => removeEventListener("message", told);
   }, []);
 
-  // A flow is watched once it's played to its end from no later than its middle, going up a fork and back on the way.
+  // A flow is watched once it's played to its end, from wherever you started it, going up a fork and back on the way: a
+  // click near its end that plays it out is enough, as you know what you're skipping.
   const seeing = useRef(see);
   seeing.current = see;
   useEffect(() => {
@@ -300,7 +301,7 @@ function OnRound({ review: kept, round, latest, arrived, you, flow: inAddress, o
       if (playing && !from) from = moment;
       if (from && moment.at >= length - 0.06 && !(playhead.flow as Forked).fork) {
         const name = moment.flow;
-        if (from.at <= length / 2) seeing.current((flows) => (flows.includes(name) ? flows : [...flows, name]));
+        seeing.current((flows) => (flows.includes(name) ? flows : [...flows, name]));
         from = undefined;
       }
       last = moment;
