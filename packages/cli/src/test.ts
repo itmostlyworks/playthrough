@@ -12,7 +12,7 @@ import { pathToFileURL } from "node:url";
 import type { Reading } from "@mostlyworks/vantage-page";
 import { keepAssets } from "./assets.ts";
 import type { Did } from "@mostlyworks/vantage-review";
-import { ALONGSIDE, BEAT, WALKED, type Action, type Handed, type Run, type To, type Walk, type Walked } from "./flows.ts";
+import { ALONGSIDE, BEAT, REACHES_OUTSIDE, WALKED, type Action, type Handed, type Run, type To, type Walk, type Walked } from "./flows.ts";
 import { readPage, unhovered } from "./read.ts";
 import { repo } from "./repo.ts";
 import { ACTIONS, ASSETS, firstLine, HOLD, PERSON, PICTURE, READINGS, RECORDING, seconds, type Failed } from "./reporter.ts";
@@ -170,10 +170,13 @@ export type Orders = { to: To; stopped?: boolean; moved?: () => void };
 export type Body = (given: { page: Page; context: BrowserContext; request: APIRequestContext; baseURL: string; setup: Record<string, any> }) => Promise<unknown>;
 
 // Loaded in Vantage, each flow is kept by its name instead of run. A file at a time, as test() can't tell whose it is.
-let collecting: Map<string, Body> | undefined;
+// With what it does outside the app, if its file says so (REACHES_OUTSIDE): an email sent, a card charged, a paid API
+// called. Such a flow is run only when it's taken over, never ahead of the playhead, where every pause would do it again.
+export type Kept = { body: Body; outside?: string };
+let collecting: Map<string, Kept> | undefined;
 let loading = Promise.resolve();
-export function flowsIn(files: string[], written: number): Promise<Map<string, Body>> {
-  const flows = new Map<string, Body>();
+export function flowsIn(files: string[], written: number): Promise<Map<string, Kept>> {
+  const flows = new Map<string, Kept>();
   const loaded = loading.then(async () => {
     collecting = flows;
     try {
@@ -365,7 +368,12 @@ function withSteps<T extends typeof recorded>(test: T): T {
 }
 // Loaded in Vantage, which says so first (following.ts), test() keeps each flow by its name instead. It's settled once,
 // as the file loads: wrapped, Playwright's test() would take the wrapper for where each test is written.
-const keeping: object = Object.assign((title: string, ...rest: unknown[]) => void collecting?.set(title, rest.at(-1) as Body), {
+type Annotation = { type: string; description?: string };
+const outsideIn = (details: unknown) => {
+  const said = [(details as { annotation?: Annotation | Annotation[] } | undefined)?.annotation ?? []].flat().find((annotation) => annotation.type === REACHES_OUTSIDE);
+  return said && (said.description?.trim() || "it reaches outside the app");
+};
+const keeping: object = Object.assign((title: string, ...rest: unknown[]) => void collecting?.set(title, { body: rest.at(-1) as Body, outside: rest.length > 1 ? outsideIn(rest[0]) : undefined }), {
   step,
   extend: () => keeping,
 });

@@ -44,6 +44,9 @@ export type Action = { does: string; on: string; with?: string | boolean | strin
 export type Cookie = { name: string; value: string; path: string; expires: number; httpOnly: boolean };
 // Set in Vantage before it loads what flows import, so test() there keeps each flow to take over (following.ts).
 export const ALONGSIDE = Symbol.for("vantage: flows taken over here");
+// What a flow's file says, as a Playwright annotation, when its steps do something outside the app that running it again
+// would do again: test("Invite Sam", { annotation: { type: "reaches outside", description: "sends Sam an email" } }, …).
+export const REACHES_OUTSIDE = "reaches outside";
 // A flow pauses this long after each action, so its result can be seen: the pace every recording is watched at.
 export const BEAT = 650;
 

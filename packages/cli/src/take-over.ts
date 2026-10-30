@@ -12,11 +12,11 @@ import { constants, networkInterfaces } from "node:os";
 import { dirname, join } from "node:path";
 import { list, quote, Refused, type Did } from "@mostlyworks/vantage-review";
 import type { Handed } from "./flows.ts";
-import { follow, runTo } from "./following.ts";
+import { follow, reachesOutside, runTo } from "./following.ts";
 import { listen } from "./open.ts";
 import { read } from "./read.ts";
 import { repo, type App, type Repo } from "./repo.ts";
-import { giveBackOwn, setupIn } from "./setup.ts";
+import { giveBackOwn, setupIn, type Made } from "./setup.ts";
 
 // Clear of the viewer's, which takes the next free one from 5790 when several are open.
 const PORT = 5830;
@@ -28,7 +28,7 @@ export async function takeOver(repo: Repo, id: string, flowName?: string, stepNa
     throw new Refused([`Take over which flow? vantage take-over ${id} "<flow>" ["<step>"]\nIts flows: ${list(round.flows.map((flow) => quote(flow.name)))}.`]);
   }
   console.log(`Running ${quote(flowName)} to ${stepName ? `the end of ${quote(stepName)}` : "its end"}, on the app as it is now…`);
-  const { port, moment, seconds } = await getReady(repo, id, flowName, stepName);
+  const { port, moment, seconds } = await getReady(repo, id, flowName, { step: stepName });
   const here = `http://localhost:${port}/take-over/${moment}`;
   const away = addresses().map((address) => `http://${address}:${port}/take-over/${moment}`);
   console.log(`
@@ -40,23 +40,41 @@ Each address hands over the same copy, and the app is passed on through Vantage 
 // of its own, /take-over/<moment>, so several can wait at once. In the viewer, the moment the playhead rests on is made
 // ready while you look, and Take over turns the frame into the app there.
 // With what a person did there, as a note in the app keeps it, it's done again after them, to take over where they were,
-// and kept on by whatever they do next.
-export async function getReady(repo: Repo, id: string, flowName: string, stepName?: string, actions?: number, did?: Did[]): Promise<{ port: number; moment: string; seconds: string }> {
+// and kept on by whatever they do next. Made ready ahead, as the playhead rests, before anyone has asked: not for a flow
+// that reaches outside the app, which each time would do that again.
+export async function getReady(
+  repo: Repo,
+  id: string,
+  flowName: string,
+  { step: stepName, actions, did, ahead }: { step?: string; actions?: number; did?: Did[]; ahead?: boolean } = {},
+): Promise<{ port: number; moment: string; seconds: string }> {
   const round = await recorded(repo, id);
   const flow = round.flows.find((flow) => flow.name === flowName);
   if (!flow) throw new Refused([`${id} has no flow called ${quote(flowName)}. Its flows: ${list(round.flows.map((flow) => quote(flow.name)))}.`]);
   if (stepName && !flow.steps.some((step) => step.title === stepName))
     throw new Refused([`${quote(flow.name)} has no step called ${quote(stepName)}. Its steps: ${list(flow.steps.map((step) => quote(step.title)))}.`]);
 
+  const outside = ahead && (await reachesOutside(repo, id, flow.name));
+  if (outside) throw new Refused([`${quote(flow.name)} reaches outside the app (${outside}), so it's run only when it's taken over.`]);
+
   const app = await repo.app();
   await keepRunning(app, repo.root);
   const began = Date.now();
-  const handed = await runTo(repo, id, { flow: flow.name, ...(stepName && { step: stepName, ...(actions && { actions }) }), ...(did?.length && { did }) });
-  passing ??= { moments: new Map(), port: passOn(app, (moment) => passing!.moments.get(moment)) };
-  const moment = String(passing.moments.size + 1);
+  const { handed, made } = await runTo(repo, id, { flow: flow.name, ...(stepName && { step: stepName, ...(actions && { actions }) }), ...(did?.length && { did }) });
+  passing ??= { moments: new Map(), port: passOn(app, (moment) => passing!.moments.get(moment)), numbered: 0 };
+  const moment = String(++passing.numbered);
   passing.moments.set(moment, did?.length ? { ...handed, did } : handed);
+  // One app made ready for each review at a time: the one before, taken over or only made ready, is given back, and its
+  // address goes with it, so pausing again and again leaves one, not one for each pause.
+  const before = ready.get(`${repo.root}\n${id}`);
+  ready.set(`${repo.root}\n${id}`, { moment, made });
+  if (before) {
+    passing.moments.delete(before.moment);
+    void before.made?.giveBack();
+  }
   return { port: await passing.port, moment, seconds: ((Date.now() - began) / 1000).toFixed(1) };
 }
+const ready = new Map<string, { moment: string; made?: Made }>();
 
 // While the latest round plays, its flow is run alongside, as far as the playhead has gone, so the moment it comes to
 // rest on is quick to make ready.
@@ -66,7 +84,7 @@ export async function keepUp(repo: Repo, id: string, flow: string, step?: string
 }
 
 // One way through to the app for as long as Vantage runs, handing over each moment made ready, by its number.
-let passing: { moments: Map<string, Handed>; port: Promise<number> } | undefined;
+let passing: { moments: Map<string, Handed>; port: Promise<number>; numbered: number } | undefined;
 
 async function recorded(repo: Repo, id: string) {
   const review = await repo.reviews.get(id);

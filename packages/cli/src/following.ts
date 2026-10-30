@@ -11,12 +11,13 @@ import { ALONGSIDE, isFlow, type Handed, type To } from "./flows.ts";
 import { firstLine } from "./reporter.ts";
 import type { Repo } from "./repo.ts";
 import { giveBackLeft, setupIn, type Made, type Setup } from "./setup.ts";
-import type { Body, Orders } from "./test.ts";
+import type { Kept, Orders } from "./test.ts";
 
 // Runs one flow to where a person takes it over, on the app as it is now: quickly and unrecorded, from what every flow
 // starts from, so they carry on from a fresh copy of the moment rather than a picture of it. The run that has followed
 // the playhead there is there already; one that went past it, the playhead having gone back, is run again.
-export async function runTo(repo: Repo, id: string, to: To): Promise<Handed> {
+// With what the run made for it (setup.ts), which is the app the person has, theirs to give back.
+export async function runTo(repo: Repo, id: string, to: To): Promise<{ handed: Handed; made?: Made }> {
   const where = !to.step ? "its end" : to.actions ? `action ${to.actions} of ${quote(to.step)}` : `the end of ${quote(to.step)}`;
   const resting = { ...to, rests: true };
   try {
@@ -30,12 +31,12 @@ export async function runTo(repo: Repo, id: string, to: To): Promise<Handed> {
       try {
         const passed = one.passed.length;
         order(one, resting);
-        const { handed, stopped } = await one.ran;
+        const { handed, stopped, made } = await one.ran;
         if (handed) {
           // How long handing over takes once it's there, for a run that got there after it was asked: not one that was
           // there already, waiting, nor one doing what the person did there again first.
           if (one.passed.length > passed && !to.did?.length) timesOf(repo, id, one).handing.set(momentOf(to.step, to.actions), Date.now() - one.last.when);
-          return handed;
+          return { handed, made };
         }
         if (stopped) throw new Refused([`${quote(to.flow)} didn't get to ${where}: ${stoppedAt(stopped)}`]);
       } finally {
@@ -46,9 +47,10 @@ export async function runTo(repo: Repo, id: string, to: To): Promise<Handed> {
     throw new Refused([`${quote(to.flow)} didn't get to ${where}.`]);
   } finally {
     // The next one starts there while the person looks, in case they play on; not if they have already, into another
-    // flow, whose run it would stop.
+    // flow, whose run it would stop, nor for a flow that reaches outside the app.
     const there = { flow: to.flow, step: to.step, actions: to.actions };
     void inTurn(repo, id, async () => {
+      if (await reachesOutside(repo, id, to.flow)) return;
       const now = following.get(key(repo, id));
       if (!now || now.over || now.flow === to.flow) order(await followingFor(repo, id, there), there);
     }).catch(() => {});
@@ -57,7 +59,17 @@ export async function runTo(repo: Repo, id: string, to: To): Promise<Handed> {
 
 // While the latest round plays, a run of the flow keeps up with the playhead, as far as it has gone and no further, so
 // the moment it comes to rest on is there already.
-export const follow = (repo: Repo, id: string, to: To) => inTurn(repo, id, async () => order(await followingFor(repo, id, to), to));
+// Not a flow that reaches outside the app: each run would do that again.
+export const follow = (repo: Repo, id: string, to: To) =>
+  inTurn(repo, id, async () => {
+    if (!(await reachesOutside(repo, id, to.flow))) order(await followingFor(repo, id, to), to);
+  });
+
+// What the flow does outside the app, as its file says now, if it says so.
+export async function reachesOutside(repo: Repo, id: string, flow: string) {
+  const { files, written } = await writtenOf(repo, id);
+  return (await loadedOf(repo, id, files, written)).flows.get(flow)?.outside;
+}
 
 // How long until a moment asked for is ready, in milliseconds: what the runs taken over before took from each of its
 // moments to the next, from where this one has got to that one, as it will go, and to hand it over there. Nothing until
@@ -120,7 +132,7 @@ async function start(repo: Repo, id: string, to: To, files: string[], written: n
   const { started } = await repo.reviews.get(id);
   const { runAlongside } = await alongside();
   const { flows, setup } = await loadedOf(repo, id, files, written);
-  const body = flows.get(to.flow);
+  const body = flows.get(to.flow)?.body;
   if (!body) throw new Refused([`${id} has no flow called ${quote(to.flow)} any more. Its flows: ${list([...flows.keys()].map(quote))}.`]);
   // As every flow is recorded: in one language and time zone, at 1280×800, where an action that can't happen fails in
   // seconds. A page may take as long as it takes to load, as the playhead may take to get there.
@@ -183,7 +195,7 @@ async function writtenOf(repo: Repo, id: string) {
   return { files, written };
 }
 
-const loaded = new Map<string, { written: number; flows: Promise<{ flows: Map<string, Body>; setup: Setup }> }>();
+const loaded = new Map<string, { written: number; flows: Promise<{ flows: Map<string, Kept>; setup: Setup }> }>();
 function loadedOf(repo: Repo, id: string, files: string[], written: number) {
   const kept = loaded.get(key(repo, id));
   if (kept?.written === written) return kept.flows;

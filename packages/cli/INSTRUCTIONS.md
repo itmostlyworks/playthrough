@@ -60,6 +60,12 @@ Each flow is a Playwright test in .vantage/<review>/flows/, with a step for each
 Act on the page as a person would, by role and label. Vantage glides the pointer, waits for the page to rest after each
 step, and reads what's on it there.
 
+While the reviewer watches, Vantage runs the flow on the app in the background, so taking it over is quick: every pause
+runs it again. If a flow's steps do something outside the app that running it again would do again, such as sending an
+email, charging a card, calling a paid API or posting where others see it, say so, and it's run only when taken over:
+
+  test("Invite Sam", { annotation: { type: "reaches outside", description: "sends Sam an email" } }, async ({ page }) => {
+
 A flow that fails stops the round: record names it and the step it failed at, and keeps what the page held there, with
 a picture, in .vantage/<review>/failed/. Before keeps the page each flow stops on there too. Recording again runs the
 flows that failed first, and stops there if one fails again, without waiting for the rest.
