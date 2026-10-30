@@ -512,8 +512,8 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   const ending = flow && standing?.get(flow.name);
   const ends = !!ending && (["is it good", "to send", "with the agent"].includes(ending.is) || (asked === flow?.name && ending.asks));
   const question = !open && flow && where === "end" && ends ? flow.name : undefined;
-  // The timeline ends in what the flow's end asks, whether it looks good, or sending; it goes straight there, and going
-  // there is watching it: you chose what to skip.
+  // The timeline ends in what the flow's end asks, whether it looks good, or sending; it goes straight there, its
+  // question up, and going there is watching it: you chose what to skip.
   const endAsks =
     flow && !readOnly && ending && (ending.is === "to send" || ending.asks)
       ? {
@@ -522,6 +522,8 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
             playhead.pause();
             playhead.go({ flow: flow.name, at: flow.length });
             sawFlow(flow.name);
+            setOpen(undefined);
+            setAsked(flow.name);
           },
         }
       : undefined;
@@ -741,19 +743,23 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     if (notSeen?.on?.at !== undefined) return pick(notSeen);
     if (notSeen) return (setOpen({ note: notSeen.id }), setMet((met) => [...met, notSeen.id]));
     changeHere((draft) => lookGood(draft, name, notes));
-    onwardFrom(name);
+    tickLands(name);
   };
   const sendingIt = async (name: string) => {
-    if (await sendNow(name)) onwardFrom(name);
+    if (await sendNow(name)) tickLands(name);
   };
-  // Once its tick has landed, on to the next flow that needs you, or with none left, home to every flow, where the round
-  // is sent or accepted.
-  const onwardFrom = (name: string) => {
+  // Answered, the flow stays where you are, its tick landing in its question, and what's next is offered there: you go
+  // on when you choose.
+  const tickLands = (name: string) => {
     setAsked(name);
     setLanded({ flow: name, at: performance.now() });
-    const at = round.flows.findIndex((flow) => flow.name === name);
-    const next = [...round.flows.slice(at + 1), ...round.flows.slice(0, at)].find((flow) => needs(flow.name));
-    setTimeout(() => (next ? watchFrom(next.name) : toGrid()), 900);
+  };
+  // Going on to the next flow, it waits on its opening, its name over its first page, so you know where you are before
+  // it plays.
+  const toOpening = (name: string) => {
+    setOpen(undefined);
+    playhead.pause();
+    playhead.go({ flow: name, at: POSTER });
   };
   // Watching a flow is from its start.
   const watchFrom = (name: string) => {
@@ -1053,7 +1059,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     const below = round.flows.slice(from + 1).find((flow) => needs(flow.name));
     const general = draft.unsaved.find((note) => !note.on) ?? inGeneral.find((note) => note.state === "needs you");
     const next = below ?? (general ? undefined : round.flows.slice(0, Math.max(0, from)).find((flow) => needs(flow.name)));
-    if (next) return { kind: "go", words: "Next", what: next.name, flow: next.name, take: () => watchFrom(next.name) };
+    if (next) return { kind: "go", words: "Next", what: next.name, flow: next.name, take: () => toOpening(next.name) };
     if (general && "turns" in general) return { kind: "go", words: "Next to check", what: general.turns[0]?.words, take: () => pick(general) };
     if (general) return { kind: "go", words: "Finish your note", what: placeName(general.on), take: () => setOpen({ writing: general.id }) };
     if (asksTheAgent) return { kind: "go", words: "Send", what: `${asksTheAgent} ${asksTheAgent === 1 ? "note" : "notes"} to the agent`, take: () => sendNow(), send: true };

@@ -131,6 +131,26 @@ function Question({ flow, standing, just, ...props }: Omit<Props, "standing"> & 
           Not quite
         </Answer>
       </div>
+      {good && props.onward.kind === "go" && (
+        <div className="mt-1.5">
+          <Onward step={props.onward} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Answered, what's next is offered under the answer, and taken when you choose.
+function Onward({ step }: { step: Props["onward"] }) {
+  if (step.kind !== "go") return null;
+  return (
+    <div className="flex gap-1.5">
+      <Answer keys="↵" onClick={step.take}>
+        <span className="truncate">
+          {step.words}
+          {step.what && <span className="font-normal text-soft"> · {step.what}</span>}
+        </span>
+      </Answer>
     </div>
   );
 }
@@ -166,17 +186,7 @@ function Sending({ flow, standing, just, ...props }: Omit<Props, "standing"> & {
           </Answer>
         </div>
       ) : (
-        onward.kind === "go" &&
-        !just && (
-          <div className="flex gap-1.5">
-            <Answer keys="↵" onClick={onward.take}>
-              <span className="truncate">
-                {onward.words}
-                {onward.what && <span className="font-normal text-soft"> · {onward.what}</span>}
-              </span>
-            </Answer>
-          </div>
-        )
+        <Onward step={onward} />
       )}
     </div>
   );
