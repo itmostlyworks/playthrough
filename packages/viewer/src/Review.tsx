@@ -114,7 +114,7 @@ function OnRound({ review: kept, round, latest, arrived, you, flow: inAddress, o
   // starts there too, and going through rounds there stays there. One that arrives while you're on another leaves you
   // where you are.
   const many = round.flows.length > 0;
-  const [arrivedIn] = useState(() => round.flows.find((flow) => flow.name === inAddress)?.name);
+  const [arrivedIn] = useState(() => round.flows.find((flow) => slug(flow.name) === inAddress)?.name);
   const [grid, setGrid] = useState(many && !arrivedIn);
   const onGrid = grid && many;
   const been = useRef([round.number]);
@@ -143,9 +143,10 @@ function OnRound({ review: kept, round, latest, arrived, you, flow: inAddress, o
   const onFork = forkList.find((fork) => fork.name === inPlay);
   const watching = onFork?.from.flow ?? inPlay;
   const flow = round.flows.find((flow) => flow.name === watching) ?? round.flows[0];
-  // The address says the flow you're in, and only the review on every flow at once.
+  // The address says the flow you're in, as words joined by dashes, as a review's id is, and only the review on every
+  // flow at once.
   useEffect(() => {
-    const address = `/${encodeURIComponent(review.id)}${onGrid || !watching ? "" : `/${encodeURIComponent(watching)}`}`;
+    const address = `/${encodeURIComponent(review.id)}${onGrid || !watching ? "" : `/${slug(watching)}`}`;
     if (location.pathname !== address) history.replaceState(null, "", address);
   }, [review.id, onGrid, watching]);
   // Where the playhead is, as the step needs it: playing, at a flow's start, partway, or at its end. A fork's end
@@ -1473,3 +1474,10 @@ function takenOverIn(review: Review, on: Place, written: number, round: Round, r
   return { at, ...(thing && { element: elementOf(thing, on.element!.name) }) };
 }
 
+const slug = (name: string) =>
+  name
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
