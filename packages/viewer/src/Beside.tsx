@@ -136,9 +136,12 @@ export function Beside({ id, over, still, resting, pinned, onAway, children }: {
         const { x, y } = places[side];
         return fits(places[side]) && !things.some((thing) => x < thing.right && x + w > thing.left && y < thing.bottom && y + h > thing.top);
       };
+      // Side by side, it stays on its own round where it can, never across the divide over the other.
+      const others = [...document.querySelectorAll<HTMLElement>("[data-frame]:not([hidden], [data-over], [data-watched])")].map((other) => other.getBoundingClientRect());
       // It goes back to the side it opened on where that works, so Compare on and off again leaves it where it was.
       const sides = first.side ? [first.side, ...SIDES] : SIDES;
-      const side = sides.find(clearOf([...its, ...drawnAs(`[data-kind="change"]`)])) ?? sides.find(clearOf(its)) ?? sides.find(clearOf([]));
+      const side =
+        sides.find(clearOf([...its, ...others, ...drawnAs(`[data-kind="change"]`)])) ?? sides.find(clearOf([...its, ...others])) ?? sides.find(clearOf(its)) ?? sides.find(clearOf([]));
       if (found || fromApp) first.side ??= side;
       if (side && found) first.was = places[side];
       if (side && (found || fromApp)) Object.assign(first, { layout, fromPin: { x: places[side].x - corner.left, y: places[side].y - corner.top } });
