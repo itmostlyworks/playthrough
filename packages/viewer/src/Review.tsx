@@ -507,8 +507,8 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
 
   // The flow as a whole is a mark like a note's or a change's: its square, capping the timeline, and its card, at its
   // end, with what you said about the whole of it, then whether it's good, or sending, or that it's with the agent. It
-  // opens wherever it's chosen (its square, the last row of the list, Up and Down), and by itself when the flow plays to
-  // its end and asks something; it closes when you leave the end.
+  // opens wherever it's chosen (its square, the last row of the list, Up and Down), and by itself whenever you reach the
+  // end, as the flow's name always stands at its start; it closes when you leave the end.
   const endOpen = !!open && "end" in open && open.end === watching;
   if (open && "end" in open && (where !== "end" || watching !== open.end)) setOpen(undefined);
   // The flow just answered, its mark popping at its end, in its card and on the timeline at once.
@@ -516,8 +516,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   const ending = flow && standing?.get(flow.name);
   const general = flow && where === "end" ? notes.filter((note) => note.on?.flow === flow.name && note.on.at === undefined) : [];
   const generalOpen = !!open && "note" in open && general.some((note) => note.id === open.note);
-  const asksAtEnd = !!ending && ["is it good", "to send", "with the agent"].includes(ending.is);
-  const question = flow && where === "end" && ending && ending.is !== "not saved" && (endOpen || generalOpen || (!open && asksAtEnd)) ? flow.name : undefined;
+  const question = flow && where === "end" && ending && ending.is !== "not saved" && (endOpen || generalOpen || !open) ? flow.name : undefined;
   // A note on the whole flow being written is written there, in the flow's card.
   const writingWhole = !!open && "writing" in open && where === "end" && draft.unsaved.some((note) => note.id === open.writing && note.on?.flow === watching && note.on.at === undefined);
   const overEnd = writingWhole || ((!open || generalOpen || endOpen) && (!!question || general.length > 0));
