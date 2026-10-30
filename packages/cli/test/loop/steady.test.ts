@@ -47,7 +47,7 @@ describe("The command line, as an agent uses it, from a steady start", { timeout
     const { said, code } = await app.run(["start", "overdue"]);
     assert.equal(code, 0, said);
     assert.match(said, /Recording “Look at the invoices” again, to see what changes by itself…/);
-    assert.match(said, /In “Look at the invoices”, this changes by itself, so it's left out of every comparison of the flow:\n  .*Open for/);
+    assert.match(said, /In “Look at the invoices”, this changes by itself, so it's left out of every comparison, in every flow:\n  .*Open for/);
     assert.doesNotMatch(said, /changes by itself[^]*(Today is|Drawn|Set up for)/, "the day and the random number are the same both times");
 
     const [flow] = (await app.round(0)).flows;

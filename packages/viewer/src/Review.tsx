@@ -580,12 +580,6 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     setOpen({ change: diamond.id });
     go(diamond.flow, diamond.at);
   };
-  // A flow plays from its start, unless you're partway through it.
-  const playFlow = (chosen: Flow) => {
-    const { moment } = playhead.now;
-    if (moment.flow !== chosen.name || moment.at >= chosen.length - 0.06) playhead.go({ flow: chosen.name, at: FLOW_IN });
-    playhead.play();
-  };
   const show = (note: Shown) => {
     setOpen({ note: note.id });
     setMet((met) => (met.includes(note.id) ? met : [...met, note.id]));
