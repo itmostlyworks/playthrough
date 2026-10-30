@@ -157,8 +157,9 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   // loaded unseen, so Take over turns the frame into the app at once. Playing again, or going to another round, lays the
   // recording back over it; a round arriving doesn't.
   const [live, setLive] = useState<Live>();
-  // How long the app took to load and settle in the frame the last time, from when its address came: on top of how long
-  // the moment takes to be made ready, part of how long taking over takes.
+  // How quickly the app has loaded and settled in the frame, from when its address came: on top of how long the moment
+  // takes to be made ready, part of how long taking over takes. The quickest so far, as one slow load, a page the app
+  // builds for the first time, isn't every load.
   const loading = useRef<{ since?: number; took?: number }>({});
   useEffect(() => void (live?.address && !live.settled && (loading.current.since = Date.now())), [live?.address]);
   // Not on a fork: taking one over carries it on from its end.
@@ -273,7 +274,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
       const waiting = document.querySelector<HTMLIFrameElement>("[data-live] iframe")?.contentWindow;
       if (data?.vantage === "settled" && source === waiting) {
         // Once for each moment: it says so again on every page it loads while it's yours.
-        if (loading.current.since) loading.current = { took: Date.now() - loading.current.since };
+        if (loading.current.since) loading.current = { took: Math.min(Date.now() - loading.current.since, loading.current.took ?? Infinity) };
         setLive((now) => now && { ...now, settled: true });
       }
       if (data?.vantage === "recorded" && source === waiting) recordedInApp.current(data.events);
