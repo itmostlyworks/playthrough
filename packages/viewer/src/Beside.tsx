@@ -100,9 +100,17 @@ export function Beside({ id, over, still, resting, pinned, onAway, children }: {
       const frame = over && document.querySelector<HTMLElement>(shown)?.getBoundingClientRect();
       if (frame) return to(frame.left + frame.width / 2 - w / 2, frame.bottom - h - 44);
       if (first.put) return to(clamp(first.put.x, EDGE, innerWidth - w - EDGE), clamp(first.put.y, EDGE, innerHeight - h - EDGE));
-      const outline = !id ? null : document.querySelector<HTMLElement>(`${shown} [data-pin="${CSS.escape(id)}"], ${shown} [data-mark-id="${CSS.escape(id)}"]`);
-      const drawn = outline?.getBoundingClientRect();
-      const found = !!(drawn?.width || drawn?.height);
+      // Its outline where that's drawn, else its pin: a note on something seen only partway through a step, in a dialog
+      // gone by the step's end, has a pin and no outline.
+      const sized = (thing: Element | null) => {
+        const box = thing?.getBoundingClientRect();
+        return box && (box.width || box.height) ? box : undefined;
+      };
+      const marked = !id ? null : document.querySelector<HTMLElement>(`${shown} [data-mark-id="${CSS.escape(id)}"]`);
+      const itsPin = !id ? null : document.querySelector<HTMLElement>(`${shown} [data-pin="${CSS.escape(id)}"]`);
+      const outline = marked ?? itsPin;
+      const drawn = sized(marked) ?? sized(itsPin);
+      const found = !!drawn;
       const fromApp = pinned?.();
       // What it's on is on this round but not drawn yet, or not any more: the card waits unseen for it, or stays where it
       // last stood beside it, rather than standing where it was opened from.
