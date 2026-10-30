@@ -41,8 +41,10 @@ export type Props = {
   onGood: (flow: string) => void;
   onNotQuite: (flow: string) => void;
   onSend: (flow: string) => void;
-  // What comes after a flow that's with the agent: the next flow that needs you, or what the agent is doing.
+  // What comes after a flow that's answered: the next flow that needs you, or back to every flow; and with nothing left
+  // to do, what it's waiting on.
   onward: Step;
+  waiting?: string;
   onAgain: (flow: Flow) => void;
   // A note on the whole flow being written, in the flow's card after the others.
   writing?: ReactNode;
@@ -125,7 +127,7 @@ function Question({ flow, standing, just, ...props }: Omit<Props, "standing"> & 
           Not quite
         </Answer>
       </div>
-      {good && props.onward.kind === "go" && (
+      {good && (
         <div className="mt-1.5">
           <Onward step={props.onward} />
         </div>
@@ -166,7 +168,7 @@ function Sending({ flow, standing, just, ...props }: Omit<Props, "standing"> & {
           Watch again
         </button>
         {sent ? "With the agent" : `${standing.count} ${standing.count === 1 ? "note" : "notes"} for the agent`}
-        {sent && (onward.kind === "agent" || onward.kind === "say") && <span className="block text-xs leading-4 text-faint">{onward.what ? `${onward.words} ${onward.what}` : onward.words}</span>}
+        {sent && props.waiting && <span className="block text-xs leading-4 text-faint">{props.waiting}</span>}
       </p>
       {!sent ? (
         <div className="flex gap-1.5">

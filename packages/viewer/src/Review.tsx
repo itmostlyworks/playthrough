@@ -797,6 +797,14 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     setGrid(false);
     if (name) go(name);
   };
+  // A flow's end always offers a step: what's next, or with nothing left to do here, back to every flow, where the
+  // round stands.
+  const onwardFromEnd = (from: number): Step => {
+    const next = onward(from);
+    return next.kind === "go" ? next : { kind: "go", words: "All flows", take: toGrid };
+  };
+  // What a step that isn't one to take says, in a line: what the agent is doing, or that it's all good.
+  const waitingOn = (step: Step) => (step.kind === "go" ? undefined : "what" in step && step.what ? `${step.words} ${step.what}` : step.words);
   const toGrid = () => {
     playhead.pause();
     playhead.go({ flow: round.flows[0]!.name, at: POSTER });
@@ -1094,7 +1102,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     if (!flow) return onward(-1);
     if (where === "playing") return { kind: "say", words: "Playing", what: flow.name };
     if (where !== "end") return { kind: "go", words: where === "start" ? "Play" : "Play on", what: flow.name, take: () => playhead.play() };
-    if (question) return ending?.is === "good" || ending?.is === "with the agent" ? onward(round.flows.indexOf(flow)) : { kind: "say", words: "End of", what: flow.name };
+    if (question) return ending?.is === "good" || ending?.is === "with the agent" ? onwardFromEnd(round.flows.indexOf(flow)) : { kind: "say", words: "End of", what: flow.name };
     if (needs(flow.name)) {
       const started = draft.unsaved.find((note) => note.on?.flow === flow.name);
       if (started) return { kind: "go", words: "Finish your note", what: placeName(started.on), take: () => setOpen({ writing: started.id }) };
@@ -1179,7 +1187,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
         } else if (question && ending?.is !== "good" && ending?.is !== "with the agent") {
           event.preventDefault();
           lookingGood(question);
-        } else if (!open && step.kind === "go" && !step.final) {
+        } else if ((!open || endOpen) && step.kind === "go" && !step.final) {
           event.preventDefault();
           step.take();
         }
@@ -1307,7 +1315,8 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     onGood: lookingGood,
     onNotQuite: (name) => write({ flow: name }),
     onSend: (name) => void sendingIt(name),
-    onward: onward(flow ? round.flows.indexOf(flow) : -1),
+    onward: onwardFromEnd(flow ? round.flows.indexOf(flow) : -1),
+    waiting: waitingOn(onward(flow ? round.flows.indexOf(flow) : -1)),
     onAgain: (flow) => watchFrom(flow.name),
   };
   return (
