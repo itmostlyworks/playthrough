@@ -38,6 +38,8 @@ type NotedInApp = { element?: Thing; point?: Point; did: Did[]; x: number; y: nu
 const SETTLE = 400;
 // Playing, the bar comes back while the pointer moves over the recording, and fades again this long after it stops.
 const STIRRED = 1500;
+// A card is at its mark while the playhead is this near it, in seconds: a moment kept to the hundredth lands a frame off.
+const NEAR = 0.05;
 
 export function ReviewPage({ id }: { id: string }) {
   const kept = useReview(id);
@@ -875,6 +877,14 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const asks = !!openNote && !readOnly && openNote.toJudge && !draft.verdicts.some((verdict) => verdict.note === openNote.id) && openNote.on?.flow === watching;
   // In the app where you were, with the note you're trying open: it stays by its pin there while you try it.
   const tryingHere = inApp && !!openNote && trying.current === openNote.id;
+  // A card is about its mark's moment, a dot's or a diamond's, or a bar's stretch: once the playhead has left it, played
+  // on or dragged along the timeline, it closes, and doesn't come back when playing stops. One on a whole flow, or made
+  // in the app, has no mark there, and stays.
+  const mark = openNote?.on?.at !== undefined && !openNote.on.app ? { flow: openNote.on.flow, ...span(openNote) } : chosen && { flow: chosen.flow, at: chosen.at, until: undefined };
+  const leftMark = useNow(playhead, ({ moment }) => !!mark && !live?.shown && (moment.flow !== mark.flow || moment.at < mark.at - NEAR || moment.at > (mark.until ?? mark.at) + NEAR));
+  useEffect(() => {
+    if (leftMark) setOpen(undefined);
+  }, [leftMark]);
   const comparedRound = compared === undefined ? undefined : review.rounds.find((kept) => kept.number === compared);
   // Motion is compared moving: on an open bar, Compare held is side by side too, while you hold it.
   const repeats = openNote && movingOf(openNote);
