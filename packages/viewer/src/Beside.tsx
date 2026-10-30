@@ -4,8 +4,9 @@
 // question sits over its last frame. In the app, a note sits by its pin there (pinned). Where nothing marks the spot, it
 // stays where it opened; where its thing is still to be drawn, it waits for it, unseen, and once it's stood beside it, it
 // stays there while it's gone. It's placed as it opens, and as the recordings' layout changes (Compare on or off, the
-// window resized); otherwise it keeps where it stood from its pin, going along as the view moves, however what it's on
-// grows and shrinks with the page. Playing, it fades with everything drawn over the recording. Dragged, it stays where
+// window resized), when it's gone until they've settled and comes back where it goes in the new one, rather than
+// showing somewhere on the way; otherwise it keeps where it stood from its pin, going along as the view moves, however
+// what it's on grows and shrinks with the page. Playing, it fades with everything drawn over the recording. Dragged, it stays where
 // you put it. Opened by you, it closes with its ×, or as you do something else (onAway): a click anywhere else, here or
 // in the app. Moving a recording's view around isn't a click.
 
@@ -33,7 +34,7 @@ const SETTLED = 120;
 // you're back.
 export function Beside({ id, over, still, resting, pinned, onAway, children }: { id?: string; over?: boolean; still?: boolean; resting?: "waiting" | "shown"; pinned?: () => Spot | undefined; onAway?: () => void; children?: ReactNode }) {
   const card = useRef<HTMLElement>(null);
-  const opened = useRef<{ id?: string; at: Spot; since: number; side?: Side; put?: Spot; was?: Spot; last?: Spot; fromPin?: Spot; layout?: string; seen?: { layout: string; since: number } }>(undefined);
+  const opened = useRef<{ id?: string; at: Spot; since: number; side?: Side; put?: Spot; was?: Spot; last?: Spot; fromPin?: Spot; layout?: string; seen?: { layout: string; since: number }; gone?: boolean }>(undefined);
   // While you point at it, it holds still: what you point at inside it may be drawn somewhere else, and it's not to
   // move from under you.
   const pointing = useRef(false);
@@ -81,16 +82,17 @@ export function Beside({ id, over, still, resting, pinned, onAway, children }: {
       // What it's placed in: the window, and where the recordings are in it.
       const layout = `${innerWidth}x${innerHeight} ${recordings.join(" ")}`;
       const placed = first.layout === layout;
-      // While the recordings move, it holds still where it stood; once they've settled, it's placed again, gliding there.
+      // Placed already, it's gone while the recordings move, and placed again once they've settled.
       if (first.seen?.layout !== layout) first.seen = { layout, since: performance.now() };
       const moving = performance.now() - first.seen.since < SETTLED;
-      const to = (x: number, y: number, glide = false) => {
+      const to = (x: number, y: number) => {
         if (pointing.current && first.last && !first.put && placed) [x, y] = [first.last.x, first.last.y];
         first.last = { x, y };
-        const was = box.style.transform;
         box.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
-        if (glide && was && was !== box.style.transform && !matchMedia("(prefers-reduced-motion: reduce)").matches)
-          box.animate([{ transform: was }, { transform: box.style.transform }], { duration: 300, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
+        if (!first.gone) return;
+        first.gone = false;
+        box.style.visibility = "";
+        if (!matchMedia("(prefers-reduced-motion: reduce)").matches) box.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 160, easing: "ease-out" });
       };
       // A flow's question sits over its last frame, clear of the bar. Only the round you're watching is where it sits:
       // not one held over it or beside it, or one you've been to and left.
@@ -105,8 +107,9 @@ export function Beside({ id, over, still, resting, pinned, onAway, children }: {
       // What it's on is on this round but not drawn yet, or not any more: the card waits unseen for it, or stays where it
       // last stood beside it, rather than standing where it was opened from.
       const waiting = !found && !fromApp && !!outline && !first.was && performance.now() - first.since < WAIT;
-      box.style.visibility = waiting ? "hidden" : "";
-      if (waiting) return;
+      if (!waiting && first.layout && !placed && moving) first.gone = true;
+      box.style.visibility = waiting || first.gone ? "hidden" : "";
+      if (waiting || (first.gone && moving)) return;
       if (!found && !fromApp && first.was) return to(first.was.x, first.was.y);
       const at = fromApp ?? first.at;
       const spot = found ? drawn! : new DOMRect(at.x, at.y, 0, 0);
@@ -145,7 +148,7 @@ export function Beside({ id, over, still, resting, pinned, onAway, children }: {
       if (found || fromApp) first.side ??= side;
       if (side && found) first.was = places[side];
       if (side && (found || fromApp)) Object.assign(first, { layout, fromPin: { x: places[side].x - corner.left, y: places[side].y - corner.top } });
-      if (side) return to(places[side].x, places[side].y, !!kept);
+      if (side) return to(places[side].x, places[side].y);
       to(spot.right + GAP + w <= innerWidth - EDGE ? spot.right + GAP : Math.max(EDGE, spot.left - GAP - w), level);
     };
     place();

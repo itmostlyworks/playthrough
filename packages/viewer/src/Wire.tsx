@@ -12,6 +12,9 @@ export function Wire({ id, colour, hidden, faded }: { id?: string; colour: strin
     const mark = id && document.querySelector<HTMLElement>("aside [data-open] [data-mark]");
     // The pin on the round you're watching, not the one beside it.
     const pin = id && document.querySelector<HTMLElement>(`[data-frame][data-watched] [data-pin="${CSS.escape(id)}"]`);
+    // While the card is gone, so is the line, and it comes back with it.
+    const aside = mark && mark.closest<HTMLElement>("aside");
+    if (aside) line.style.opacity = aside.style.visibility === "hidden" ? "0" : getComputedStyle(aside).opacity;
     const card = mark && mark.closest<HTMLElement>("[data-card]")?.getBoundingClientRect();
     const from = mark && mark.getBoundingClientRect();
     const to = pin && pin.getBoundingClientRect();
