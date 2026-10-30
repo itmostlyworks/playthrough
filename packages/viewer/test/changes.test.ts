@@ -1,4 +1,4 @@
-// What changed, as the timeline and the column draw it: a diamond for each moment, a band for new steps, and the one
+// What changed, as the timeline and a change's card draw it: a diamond for each moment, a band for new steps, and the one
 // you're on as the playhead passes.
 
 import assert from "node:assert/strict";

@@ -1,5 +1,5 @@
 // Under the recording: play, the time, and the line, which is the flow you're in end to end with its name under it,
-// a dot for each note on it, a diamond where something new to you changed and a band over new steps. The line answers
+// a dot for each note on it and a diamond where something new to you changed, new steps too. The line answers
 // the pointer: under it the line thickens, the playhead grows, and a ghost of the playhead with its time says where a
 // click lands. Nothing here changes width as it plays. Where you took the flow over and carried on by hand, a fork
 // leaves the line there and runs above it as long as you were there, faint until pointed at or played: then it answers
@@ -14,9 +14,9 @@ import { useNow, type Forked, type Playhead } from "./playhead.ts";
 export type Dot = { id: string; at: number; until?: number; ink: string; number: number; words: string; fork?: string };
 // A fork off the flow: the moment it leaves at, and how long it runs.
 export type ForkLine = { name: string; at: number; length: number };
-// What changed, under the notes: a diamond at its moment, or a band over new steps, named as its row is. One the agent
-// made for a note carries the note's dot on its corner, its number before its name. Lit, it's ringed: the change you're
-// on, or what changed for the note you've opened.
+// What changed, under the notes: a diamond at its moment, or where new steps start, named as its card names it. One
+// the agent made for a note carries the note's dot on its corner, its number before its name. Lit, it's ringed: the
+// change you're on, or what changed for the note you've opened.
 export type Mark = { id: string; at: number; until?: number; name: string; note?: { number: number; ink: string }; lit: boolean };
 
 type Props = {

@@ -163,7 +163,7 @@ function Meter({ pieces, landed, busy, onFlow }: Props & { pieces: Piece[] }) {
   useLayoutEffect(() => {
     if (!landed || performance.now() - landed.at > 150) return;
     const name = CSS.escape(landed.flow);
-    const from = document.querySelector(`[data-map] [data-end] [data-tick="${name}"]`) ?? document.querySelector(`[data-map] [data-tick="${name}"]`);
+    const from = document.querySelector(`[data-tick="${name}"]`);
     const to = meter.current?.querySelector<HTMLElement>(`[data-piece="${name}"]`);
     if (from && to) fly(from, to);
   }, [landed]);
@@ -231,7 +231,7 @@ export const says = (standing: Standing) => {
   }[standing.is];
 };
 
-// The flow's green tick lifts off where it is, arcs down over the column and flattens into its piece.
+// The flow's green tick lifts off where it is, arcs down to the foot and flattens into its piece.
 function fly(from: Element, to: HTMLElement) {
   const a = from.getBoundingClientRect();
   const b = to.getBoundingClientRect();

@@ -1,7 +1,7 @@
-// What's new to you on a round, as the timeline and the column show it: a diamond at each moment something changed in
-// a flow, several changes at one moment being one diamond, and steps a flow takes that it couldn't before as one band
-// over the stretch they take. A change the agent made for a note in the same flow is that note's answer, told with the
-// note rather than in a row of its own; made for a note in another flow, it's a change like any other, which says so.
+// What's new to you on a round, as the timeline and a change's card show it: a diamond at each moment something
+// changed in a flow, several changes at one moment being one diamond, and steps a flow takes that it couldn't before as
+// one, over the stretch they take. A change the agent made for a note in the same flow is that note's answer, told with
+// the note rather than on its own; made for a note in another flow, it's a change like any other, which says so.
 
 import { allNotes, newToYou, time, type Change, type Place, type Review } from "@mostlyworks/vantage-review";
 import type { Moment } from "./moments.ts";

@@ -1,10 +1,10 @@
-// What the viewer shows each person of the same review: whose call each note is, who each flow looks good to, and what
-// you haven't sent yet, as if it were.
+// What the viewer shows each person of the same review: whose call each note is, whether each flow looks good to them,
+// and what you haven't sent yet, as if it were.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { memory, newId, Reviews, type Flow, type Review, type Round, type Send } from "@mostlyworks/vantage-review";
-import { fill, goodTo, lookGood, nothing, notesOn, settledBefore, standings, takeBack } from "../src/notes.ts";
+import { fill, lookGood, nothing, notesOn, settledBefore, standings, takeBack } from "../src/notes.ts";
 
 const flow = (name: string): Flow => ({ name, length: 6, steps: [{ title: "Open the invoices", at: 0 }], recording: `${name.toLowerCase().replace(/\W+/g, "-")}.json` });
 const round = (number: number, parts: Partial<Round> = {}): Round => ({
@@ -76,9 +76,10 @@ test("a Not quite after someone's Looks good sends the note back for everyone", 
 
 test("each person's Looks good is their own, and a note of theirs in the flow takes it back", async () => {
   const review = await twoPeople();
-  assert.deepEqual(goodTo(review, 1, "See what's overdue"), ["Ana", "Ben"]);
-  assert.deepEqual(goodTo(review, 1, "Export them"), ["Ben"]);
-  assert.deepEqual(goodTo(review, 2, "Export them"), ["Ben"]);
+  const goodTo = (round: number, flow: string) => ["Ana", "Ben"].filter((person) => standings(review, round, person, nothing, []).get(flow)?.is === "good");
+  assert.deepEqual(goodTo(1, "See what's overdue"), ["Ana", "Ben"]);
+  assert.deepEqual(goodTo(1, "Export them"), ["Ben"]);
+  assert.deepEqual(goodTo(2, "Export them"), ["Ben"]);
 });
 
 test("what you haven't sent shows as if it were sent", async () => {

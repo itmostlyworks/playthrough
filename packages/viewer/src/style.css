@@ -65,8 +65,6 @@
   --animate-glow: glow 1.2s ease-out;
   --animate-breathe: breathe 2.4s ease-in-out infinite;
   --animate-arrive: arrive 0.24s var(--ease-calm) both;
-  --animate-rise: rise 0.24s var(--ease-calm);
-  --animate-verd: verd 0.25s var(--ease-calm) both;
   --animate-pop: pop 0.5s var(--ease-calm) both;
   --animate-tick: tick 0.35s 0.1s var(--ease-calm) both;
   --animate-fill: fill 0.45s var(--ease-calm) both;
@@ -86,12 +84,6 @@
   @keyframes arrive {
     from { opacity: 0; }
   }
-  @keyframes rise {
-    from { opacity: 0; translate: 18px 0; }
-  }
-  @keyframes verd {
-    from { opacity: 0; translate: 0 4px; }
-  }
   /* A box ticked: it swells and settles as the green comes in, and the tick grows in after it. */
   @keyframes pop {
     0% { scale: 1; background-color: transparent; box-shadow: inset 0 0 0 1.5px var(--amber); }
@@ -108,25 +100,6 @@
   @keyframes busy {
     0%, 55%, 100% { background-color: var(--slate); }
     25% { background-color: color-mix(in srgb, var(--slate) 30%, var(--line)); }
-  }
-}
-
-/* A number on the line down the column sits in a ring of the line, its own 1.5px, 1.5px out: pale ahead, and drawn round
-   both its sides together as the playhead passes (--a, from 0 to 180deg). Where ink meets pale it's feathered a little,
-   and it's cut to a drawn circle, so its edge is smooth at every screen scale. */
-@utility line-ring {
-  &::after {
-    content: "";
-    position: absolute;
-    inset: -3px;
-    pointer-events: none;
-    --f: min(2.5deg, var(--a, 0deg), calc(180deg - var(--a, 0deg)));
-    background: conic-gradient(
-      var(--rail) 0 calc(var(--a, 0deg) - var(--f)),
-      var(--ahead) calc(var(--a, 0deg) + var(--f)) calc(360deg - var(--a, 0deg) - var(--f)),
-      var(--rail) calc(360deg - var(--a, 0deg) + var(--f))
-    );
-    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='11.25' fill='none' stroke='%23000' stroke-width='1.5'/%3E%3C/svg%3E") 0 0 / 100% 100%;
   }
 }
 

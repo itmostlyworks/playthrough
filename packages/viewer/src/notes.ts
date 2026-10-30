@@ -1,5 +1,5 @@
 // What the viewer shows of a review on a round, for you: each note with its number, its conversation and who it waits
-// for, and who says each flow looks good. What you haven't sent counts as if it were sent, so it shows at once.
+// for, and where each flow stands for you. What you haven't sent counts as if it were sent, so it shows at once.
 // Numbers are the viewer's to give; a note's id is only for the agent.
 
 import {
@@ -92,12 +92,6 @@ function everyNote(review: Review, round: number, you: string, draft: Draft): [S
   return every.sort(([a], [b]) => a.number - b.number);
 }
 
-// Everyone a flow is good for on a round, as they've sent it.
-export function goodTo(review: Review, round: number, flow: string): string[] {
-  const then = asOf(review, round);
-  return [...new Set(then.sends.map((send) => send.by))].filter((person) => goodForYou(then, round, person, flow));
-}
-
 // Where a flow stands for you, what you haven't sent counting as sent. It's good, as every flow is once the work is
 // accepted, when nothing more is asked; or a note you started in it isn't
 // saved; or what you said in it is yours to send, or with the agent, so it asks nothing more this round; or it asks
@@ -155,7 +149,7 @@ export function takeBack(draft: Draft, flow: string, notes: Shown[]): Draft {
 }
 
 // What colour a note's marks are: amber while it needs you, which includes what you haven't sent. The pin, its dot on
-// the timeline and its number in the column are always the same colour.
+// the timeline and its number in its card are always the same colour.
 function tone(note: Shown): "amber" | "slate" | "green" {
   if (note.state === "settled") return "green";
   return note.unsent || note.state === "needs you" ? "amber" : "slate";

@@ -1,5 +1,5 @@
-// What a row holds once it's opened in the column, its card: what was said, the way to compare, the question, and the
-// answers to it. A key that answers is drawn on its button, faint and outlined, at the button's right edge.
+// What a note's or a change's card holds, opened beside the recording: what was said, the way to compare, the question,
+// and the answers to it. A key that answers is drawn on its button, faint and outlined, at the button's right edge.
 
 import { useLayoutEffect, useState, type ReactNode, type RefObject } from "react";
 import type { Comparing } from "./Notes.tsx";

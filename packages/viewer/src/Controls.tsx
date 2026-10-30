@@ -1,7 +1,6 @@
 // Every control in one row under the recordings: play, the time and the timeline, the speed, the size, the rounds, how
 // to look at them, on their own or side by side, and taking the flow over to carry on by hand. Nothing in it appears, disappears or changes width as you move.
 
-import type { RefObject } from "react";
 import type { Round } from "@mostlyworks/vantage-review";
 import { useNow, type Playhead } from "./playhead.ts";
 import { Rounds } from "./Rounds.tsx";
@@ -14,7 +13,6 @@ type Props = {
   // Taken over: waiting while the moment is made ready, or the app showing in the frame.
   live?: "waiting" | "shown";
   onTakeOver: () => void;
-  ref?: RefObject<HTMLDivElement | null>;
   playhead: Playhead;
   dots: Dot[];
   onDot: (id: string) => void;
@@ -56,7 +54,7 @@ export function Controls(props: Props) {
   const coveredForward = "transition-opacity duration-200 ease-calm group-has-[[data-open=right]]/controls:pointer-events-none group-has-[[data-open=right]]/controls:opacity-0";
 
   return (
-    <div ref={props.ref} className="group/controls flex min-w-0 flex-wrap items-center gap-3 pt-[18px] select-none">
+    <div className="group/controls flex min-w-0 flex-wrap items-center gap-3 pt-[18px] select-none">
       <Timeline playhead={props.playhead} dots={props.dots} onDot={props.onDot} marks={props.marks} onMark={props.onMark} live={props.live === "shown"} forks={props.forks} growing={props.growing} lit={props.lit} />
       <button
         data-speed

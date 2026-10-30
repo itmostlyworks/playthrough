@@ -142,7 +142,7 @@ export function Stage(props: Props) {
   };
 
   // On a phone the recordings take the height they need at the screen's width, up to a little over half the screen, and
-  // the controls and the column follow under them with no room between. Side by side at actual size, they fill it.
+  // the controls and the foot follow under them with no room between. Side by side at actual size, they fill it.
   const onPhoneNeeds = (width: number, flow: Flow | undefined, at: number): number => {
     const { round, earlier, zoomed } = latest.current;
     const most = Math.max(160, Math.round(innerHeight * 0.58));
@@ -340,7 +340,7 @@ export function Stage(props: Props) {
     }
   };
 
-  // A pin sits just outside its outline's top right corner like a badge, the line from the column coming to it short and
+  // A pin sits just outside its outline's top right corner like a badge, the line from its card coming to it short and
   // never crossing what it's on; at its bottom right where the top is out of view, and pulled in where the right or the
   // bottom is, so it's never cut off by the frame.
   const pinAt = (pin: HTMLElement, box: { left: number; top: number; right: number; bottom: number }, view: View, frame: Size) => {
