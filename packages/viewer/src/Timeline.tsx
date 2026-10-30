@@ -89,6 +89,13 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
     const start = share(flow, fork.at);
     return { start, end: Math.min(1, Math.max(share(flow, until(fork)), start + SHORTEST)) };
   };
+  // Under way, a fork reaches out past its foot, as far as the line has room: at a flow's end, where there isn't room
+  // for its curve, its foot steps back, so it never runs off the line.
+  const underWayOf = (fork: ForkLine) => {
+    const room = (1 - share(flow, fork.at)) * wide;
+    const length = clamp(room, CURVE + OPEN_END, UNDER_WAY);
+    return { length, back: Math.max(0, length - room) };
+  };
   const forkShare = (fork: ForkLine, at: number) => {
     const { start, end } = reach(fork);
     const to = until(fork);
@@ -129,7 +136,7 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
   const spans = lines
     .map((fork, made) => {
       const { start, end } = reach(fork);
-      return { fork, made, from: start * wide, to: (fork === grown ? start * wide + UNDER_WAY : end * wide) + ROOM };
+      return { fork, made, from: start * wide, to: (fork === grown ? start * wide + underWayOf(fork).length - underWayOf(fork).back : end * wide) + ROOM };
     })
     .sort((a, b) => a.from - b.from || b.to - a.to || a.made - b.made);
   let together: { from: number; step: number } | undefined;
@@ -234,7 +241,7 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
   const at = now.moment.at;
   // In the app, the playhead rests at the end of the fork you're making.
   const riding = grown ?? onFork;
-  const underWay = (fork: ForkLine) => `calc(${pc(share(flow, fork.at))} + ${UNDER_WAY - OPEN_END}px)`;
+  const underWay = (fork: ForkLine) => `calc(${pc(share(flow, fork.at))} + ${underWayOf(fork).length - underWayOf(fork).back - OPEN_END}px)`;
   const head = grown ? underWay(grown) : pc(onFork ? forkShare(onFork, at) : share(flow, at));
   const filled = riding ? percent(flow, riding.at) : head;
   // The line under the pointer, or being dragged along, thickens, and so does the playhead on it: "" for the flow's.
@@ -326,7 +333,7 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
               key={fork.name}
               data-fork={fork.name}
               className="absolute h-2 transition-[width] duration-500 ease-calm"
-              style={{ top: 1 - up, left: `calc(${pc(start)} + ${step}px)`, width: going ? `${UNDER_WAY}px` : `calc(${pc(end - start)} - ${step}px)` }}
+              style={{ top: 1 - up, left: `calc(${pc(start)} + ${step - (going ? underWayOf(fork).back : 0)}px)`, width: going ? `${underWayOf(fork).length}px` : `calc(${pc(end - start)} - ${step}px)` }}
             >
               {/* Pressed nearer it than the line under it, it's the fork: halfway down to the flow's line, or to the next lane. */}
               <span aria-hidden className="absolute inset-x-0 -top-1" style={{ bottom: up ? 0 : -2 }} />
