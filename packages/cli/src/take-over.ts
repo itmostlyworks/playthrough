@@ -15,7 +15,8 @@ import type { Handed } from "./flows.ts";
 import { follow, runTo } from "./following.ts";
 import { listen } from "./open.ts";
 import { read } from "./read.ts";
-import type { App, Repo } from "./repo.ts";
+import { repo, type App, type Repo } from "./repo.ts";
+import { giveBackOwn, setupIn } from "./setup.ts";
 
 // Clear of the viewer's, which takes the next free one from 5790 when several are open.
 const PORT = 5830;
@@ -83,7 +84,11 @@ async function keepRunning(app: App, root: string) {
   // kept ready and the app. Told, they go with it.
   if (!ending) {
     ending = true;
-    for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) process.once(signal, () => process.exit(128 + constants.signals[signal]));
+    // What its runs made is given back first, for as long as ten seconds: what isn't, the next command gives back.
+    const { setup, borrowed } = repo(root);
+    const giveBack = () => setupIn(setup).then((setup) => giveBackOwn(setup, borrowed));
+    const end = (signal: NodeJS.Signals) => void Promise.race([giveBack(), new Promise((wait) => setTimeout(wait, 10_000))]).finally(() => process.exit(128 + constants.signals[signal]));
+    for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) process.once(signal, end);
   }
   if (await answers(app.url)) return;
   console.log(`Starting the app: ${app.start}`);

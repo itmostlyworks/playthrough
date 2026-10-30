@@ -10,7 +10,8 @@ import { fileURLToPath } from "node:url";
 import { list, quote, Refused, type Did, type Flow } from "@mostlyworks/vantage-review";
 import { changesByThemselves, type Recorded as Compared } from "./compare.ts";
 import { readingsOf, type Failed, type Recorded } from "./reporter.ts";
-import type { App, Repo } from "./repo.ts";
+import { repo, type App, type Repo } from "./repo.ts";
+import { giveBackLeft, setupIn } from "./setup.ts";
 
 // What the run needs to know, passed to Playwright whole: where the flows are and which of them to run, the folder the
 // recordings go to, the app, rrweb's recorder, which goes into every page, whether it's Before, and the recordings the
@@ -216,7 +217,10 @@ export async function walkFork(repo: Repo, id: string, walk: Walk): Promise<Walk
 
 // A flow that failed, at the step it failed at, as a line of a refusal.
 export const failedAt = ({ flow, at }: Failed) => `  ${quote(flow)}${at ? `, at the step ${quote(at)}` : ""}`;
-function playwright(run: Run): Promise<boolean> {
+async function playwright(run: Run): Promise<boolean> {
+  // What an earlier command made and didn't give back, it gives back first.
+  const { setup, borrowed } = repo(run.root);
+  await giveBackLeft(await setupIn(setup), borrowed);
   const cli = createRequire(import.meta.url).resolve("@playwright/test/cli");
   const config = fileURLToPath(new URL("./playwright.config.ts", import.meta.url));
   return new Promise((resolve, reject) => {

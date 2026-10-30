@@ -6,7 +6,7 @@
 
 import { test as base, expect as playwrightExpect, type APIRequestContext, type BrowserContext, type Locator, type Page } from "@playwright/test";
 import { AsyncLocalStorage } from "node:async_hooks";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Reading } from "@mostlyworks/vantage-page";
@@ -17,6 +17,7 @@ import { readPage, unhovered } from "./read.ts";
 import { repo } from "./repo.ts";
 import { ACTIONS, ASSETS, firstLine, HOLD, PERSON, PICTURE, READINGS, RECORDING, seconds, type Failed } from "./reporter.ts";
 import { watchRest } from "./rest.ts";
+import { make, setupIn, type Made, type Setup } from "./setup.ts";
 
 // Everything it needs comes with the run (flows.ts), so it never has to find anything for itself.
 const run: Run | undefined = process.env.VANTAGE_RUN ? JSON.parse(process.env.VANTAGE_RUN) : undefined;
@@ -71,17 +72,8 @@ let pointer: { page: Page; x: number; y: number } | undefined;
 type Underway = { page: Page; events: { timestamp: number }[]; rest: () => Promise<void>; depth: number; readings: Omit<Reading, "picture">[]; pictures: Buffer[]; actions: number[]; step?: string; inStep: number; walked?: Walked };
 let underway: Underway | undefined;
 
-// What every flow of the app starts from, made by vantage/setup.ts before each flow, if the app has one: its default
-// export is given the page and Playwright's request, and what it returns is each flow's “setup”. Loaded again in Vantage
-// once it's written again, by when.
-export type MakeSetup = (given: { page: Page; request: APIRequestContext; baseURL?: string }) => unknown;
-export async function setupIn(file: string, written?: number): Promise<MakeSetup | undefined> {
-  if (!existsSync(file)) return undefined;
-  // In an app whose package.json doesn't say it's a module, Playwright loads the file as CommonJS, its export one level down.
-  const module: { default?: MakeSetup | { default?: MakeSetup } } = await import(`${pathToFileURL(file).href}${written ? `?${written}` : ""}`);
-  return typeof module.default === "function" ? module.default : module.default?.default;
-}
-let makeSetup: Promise<MakeSetup | undefined> | undefined;
+// What every flow starts from (setup.ts), loaded once a run.
+let appSetup: Promise<Setup> | undefined;
 
 // Every round runs on the day the review started, at the time of day it's recorded, with the page's random numbers from
 // the same seed, so what the page works out from the day reads the same each time. The app's server keeps the real time,
@@ -115,8 +107,11 @@ const recorded = base.extend<{ setup: Record<string, any>; recorder: void }>({
       await page.clock.setSystemTime(onReviewDay(run.started));
       await page.addInitScript({ content: seeded });
     }
-    makeSetup ??= setupIn(repo(run?.root).setup);
-    await use(((await (await makeSetup)?.({ page, request, baseURL })) ?? {}) as Record<string, any>);
+    const where = repo(run?.root);
+    appSetup ??= setupIn(where.setup);
+    const made = await make(await appSetup, where.borrowed, { page, request, baseURL: baseURL! });
+    await use(made.setup);
+    await made.giveBack();
   },
   recorder: [
     // Once what the flow starts from is made, so making it isn't in the recording.
@@ -210,24 +205,25 @@ class Stopped extends Error {}
 
 export async function runAlongside(
   page: Page,
-  { request, baseURL, started, makeSetup, arrived }: { request: APIRequestContext; baseURL: string; started: string; makeSetup?: MakeSetup; arrived?: Arrived },
+  { request, baseURL, started, setup: appSetup, borrowed, arrived }: { request: APIRequestContext; baseURL: string; started: string; setup: Setup; borrowed: string; arrived?: Arrived },
   body: Body,
   orders: Orders,
-): Promise<{ handed?: Handed; stopped?: Pick<Failed, "at" | "why"> }> {
+): Promise<{ handed?: Handed; stopped?: Pick<Failed, "at" | "why">; made?: Made }> {
   await page.clock.setSystemTime(onReviewDay(started));
   await page.addInitScript({ content: seeded });
   const flow: Taking = { page, depth: 0, rest: await watchRest(page), actions: 0, again: [], wrote: false, passed: [], orders, began: Date.now(), waited: 0, arrived };
   page.on("request", (request) => void (["GET", "HEAD", "OPTIONS"].includes(request.method()) || (flow.wrote = true)));
   pace(page);
   return taking.run(flow, async () => {
+    let made: Made | undefined;
     try {
-      const setup = ((await makeSetup?.({ page, request, baseURL })) ?? {}) as Record<string, any>;
-      await body({ page, context: page.context(), request, baseURL, setup });
+      made = await make(appSetup, borrowed, { page, request, baseURL });
+      await body({ page, context: page.context(), request, baseURL, setup: made.setup });
       await reached(flow);
-      return { handed: flow.handed };
+      return { handed: flow.handed, made };
     } catch (error) {
-      if (error instanceof Stopped || orders.stopped) return { handed: flow.handed };
-      return { stopped: { at: flow.step, why: firstLine(String((error as Error)?.message ?? error)) } };
+      if (error instanceof Stopped || orders.stopped) return { handed: flow.handed, made };
+      return { stopped: { at: flow.step, why: firstLine(String((error as Error)?.message ?? error)) }, made };
     }
   });
 }

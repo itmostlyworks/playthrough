@@ -1,0 +1,82 @@
+// What every flow of the app starts from, made by vantage/setup.ts before each flow, if the app has one: its default
+// export is given the page and Playwright's request, and what it returns is each flow's “setup”. Each run makes its own,
+// so no two start from what another left, and gives it back once it's over: setup's `after`, if it has one, is given
+// what was made, and takes it away, so the app, shared or not, isn't left with a world for every run.
+
+import { request as requests, type APIRequestContext, type Page } from "@playwright/test";
+import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
+import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+import { firstLine } from "./reporter.ts";
+
+type Make = (given: { page: Page; request: APIRequestContext; baseURL?: string }) => unknown;
+// Given a request of its own, not the run's, so it's the same whether it's the run's end or a later command's: what
+// setup returned is all it knows of what was made.
+type After = (given: { request: APIRequestContext; baseURL: string; setup: Record<string, any> }) => unknown;
+export type Setup = { make?: Make; after?: After };
+
+// Loaded again in Vantage once it's written again, by when.
+export async function setupIn(file: string, written?: number): Promise<Setup> {
+  if (!existsSync(file)) return {};
+  // In an app whose package.json doesn't say it's a module, Playwright loads the file as CommonJS, its exports one level down.
+  const module: { default?: Make | { default?: Make; after?: After }; after?: After } = await import(`${pathToFileURL(file).href}${written ? `?${written}` : ""}`);
+  const inner = typeof module.default === "object" ? module.default : undefined;
+  return { make: typeof module.default === "function" ? module.default : inner?.default, after: module.after ?? inner?.after };
+}
+
+// Made for one run, and written down in .vantage/borrowed/ until it's given back, by the process it's made for, named
+// in the file's name. Should that process end first, stopped or crashed, the next command gives it back.
+export type Made = { setup: Record<string, any>; giveBack: () => Promise<void> };
+export async function make({ make, after }: Setup, borrowed: string, given: Parameters<Make>[0] & { baseURL: string }): Promise<Made> {
+  const setup = ((await make?.(given)) ?? {}) as Record<string, any>;
+  if (!after) return { setup, giveBack: async () => {} };
+  await mkdir(borrowed, { recursive: true });
+  const file = join(borrowed, `${process.pid}-${randomUUID()}.json`);
+  await writeFile(file, JSON.stringify({ baseURL: given.baseURL, setup }));
+  return { setup, giveBack: () => giveBack(after, file, given.baseURL, setup) };
+}
+
+// What a process that has ended made and didn't give back. Each is first taken as this process's own, by its name, so
+// two commands at once never both give one back; one that can't be given back now is tried again once this one ends.
+export const giveBackLeft = (setup: Setup, borrowed: string) => giveBackOf(setup, borrowed, (pid) => !alive(pid));
+// Everything this process made, as it ends: the app handed over, and the runs still going.
+export const giveBackOwn = (setup: Setup, borrowed: string) => giveBackOf(setup, borrowed, (pid) => pid === process.pid);
+
+async function giveBackOf({ after }: Setup, borrowed: string, whose: (pid: number) => boolean) {
+  if (!after) return;
+  const left = (await readdir(borrowed).catch(() => [])).filter((name) => whose(Number(name.split("-")[0])));
+  for (const name of left) {
+    const file = join(borrowed, `${process.pid}-${name.slice(name.indexOf("-") + 1)}`);
+    if (!(await rename(join(borrowed, name), file).then(() => true, () => false))) continue;
+    const { baseURL, setup } = JSON.parse(await readFile(file, "utf8"));
+    await giveBack(after, file, baseURL, setup);
+  }
+}
+
+// Once each: a run that ends as Vantage does would otherwise be given back twice.
+const giving = new Set<string>();
+async function giveBack(after: After, file: string, baseURL: string, setup: Record<string, any>) {
+  if (giving.has(file) || !existsSync(file)) return;
+  giving.add(file);
+  const request = await requests.newContext({ baseURL });
+  try {
+    await after({ request, baseURL, setup });
+    await rm(file, { force: true });
+  } catch (error) {
+    console.log(`vantage/setup.ts's after couldn't give back what a run made: ${firstLine(String((error as Error)?.message ?? error))}. It's tried again by the next command.`);
+  } finally {
+    giving.delete(file);
+    await request.dispose();
+  }
+}
+
+function alive(pid: number) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
+}

@@ -10,7 +10,8 @@ import { list, quote, Refused } from "@mostlyworks/vantage-review";
 import { ALONGSIDE, isFlow, type Handed, type To } from "./flows.ts";
 import { firstLine } from "./reporter.ts";
 import type { Repo } from "./repo.ts";
-import type { Body, MakeSetup, Orders } from "./test.ts";
+import { giveBackLeft, setupIn, type Made, type Setup } from "./setup.ts";
+import type { Body, Orders } from "./test.ts";
 
 // Runs one flow to where a person takes it over, on the app as it is now: quickly and unrecorded, from what every flow
 // starts from, so they carry on from a fresh copy of the moment rather than a picture of it. The run that has followed
@@ -118,7 +119,7 @@ async function start(repo: Repo, id: string, to: To, files: string[], written: n
   const app = await repo.app();
   const { started } = await repo.reviews.get(id);
   const { runAlongside } = await alongside();
-  const { flows, makeSetup } = await loadedOf(repo, id, files, written);
+  const { flows, setup } = await loadedOf(repo, id, files, written);
   const body = flows.get(to.flow);
   if (!body) throw new Refused([`${id} has no flow called ${quote(to.flow)} any more. Its flows: ${list([...flows.keys()].map(quote))}.`]);
   // As every flow is recorded: in one language and time zone, at 1280×800, where an action that can't happen fails in
@@ -141,8 +142,10 @@ async function start(repo: Repo, id: string, to: To, files: string[], written: n
     if (one.passed.length > times.moments.length) times.moments = [...one.passed];
     one.last = { worked, when: Date.now(), rests: to.rests };
   };
-  one.ran = runAlongside(page, { request, baseURL: app.url, started, makeSetup, arrived }, body, orders).catch((error) => ({ stopped: { why: firstLine(String(error?.message ?? error)) } }));
+  one.ran = runAlongside(page, { request, baseURL: app.url, started, setup, borrowed: repo.borrowed, arrived }, body, orders).catch((error) => ({ stopped: { why: firstLine(String(error?.message ?? error)) } }));
   void one.ran.finally(() => ((one.over = true), close()));
+  // Handed over, what it made is the app the person has, for as long as Vantage runs, and given back as it ends.
+  void one.ran.then(({ handed, made }: { handed?: Handed; made?: Made }) => (handed ? undefined : made?.giveBack()));
   // One whose browser or page has gone is over too, waiting or not, and the next take over runs another.
   context.on("close", one.stop);
   page.on("crash", one.stop);
@@ -164,7 +167,8 @@ const alongside = () => (loading ??= (((globalThis as Record<symbol, unknown>)[A
 // One browser for every run, opened the first time one starts, and again if it closes.
 let opened: Promise<Browser> | undefined;
 function browser(): Promise<Browser> {
-  opened ??= chromium.launch().then(
+  // Ctrl+C is Vantage's to answer, not Playwright's, which would end it before what the runs made is given back.
+  opened ??= chromium.launch({ handleSIGINT: false, handleSIGTERM: false, handleSIGHUP: false }).then(
     (browser) => (browser.on("disconnected", () => (opened = undefined)), browser),
     (error) => ((opened = undefined), Promise.reject(error)),
   );
@@ -179,12 +183,17 @@ async function writtenOf(repo: Repo, id: string) {
   return { files, written };
 }
 
-const loaded = new Map<string, { written: number; flows: Promise<{ flows: Map<string, Body>; makeSetup?: MakeSetup }> }>();
+const loaded = new Map<string, { written: number; flows: Promise<{ flows: Map<string, Body>; setup: Setup }> }>();
 function loadedOf(repo: Repo, id: string, files: string[], written: number) {
   const kept = loaded.get(key(repo, id));
   if (kept?.written === written) return kept.flows;
-  const flows = alongside().then(({ flowsIn, setupIn }) => Promise.all([flowsIn(files, written), setupIn(repo.setup, written)])).then(
-    ([flows, makeSetup]) => ({ flows, makeSetup }),
+  const flows = alongside().then(({ flowsIn }) => Promise.all([flowsIn(files, written), setupIn(repo.setup, written)])).then(
+    ([flows, setup]) => {
+      // What a Vantage that has ended left, given back the first time this one runs a flow.
+      if (!sweptFor.has(repo.root)) void giveBackLeft(setup, repo.borrowed);
+      sweptFor.add(repo.root);
+      return { flows, setup };
+    },
     (error) => {
       loaded.delete(key(repo, id));
       throw new Refused([`The flows of ${id} couldn't be loaded: ${firstLine(String(error?.message ?? error))}`]);
@@ -193,6 +202,8 @@ function loadedOf(repo: Repo, id: string, files: string[], written: number) {
   loaded.set(key(repo, id), { written, flows });
   return flows;
 }
+
+const sweptFor = new Set<string>();
 
 // Where a flow taken over stopped, and why, in Playwright's words: read in the viewer too, where there's no terminal
 // above it to point to.

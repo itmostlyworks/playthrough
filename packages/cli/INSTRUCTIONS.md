@@ -81,6 +81,16 @@ page, Playwright's request and the app's address as baseURL, and what it returns
     return { account: account.id };
   }
 
+  export async function after({ request, setup }: { request: APIRequestContext; baseURL: string; setup: Record<string, any> }) {
+    await request.delete(`/api/test/accounts/${setup.account}`);
+  }
+
+Each run makes its own, so give it back: after, if setup.ts exports it, runs once the run is over (a flow recorded, the
+app taken over and let go), given a request of its own and what the default export returned, so return what's needed to
+find and remove it, and sign in again there if removing it needs that. What a run made and didn't give back, because
+Vantage was stopped, the next command gives back. What can't be taken back, like an email sent, avoid instead: test
+keys, a mail catcher.
+
 Use what the project has (a test account, seed data, a reset hook), make data through the app's API or database rather
 than on screen, and stub what you can't control at the network. Sign in with page.request, not request: it shares the
 page's cookies, so the page is signed in, and so is a person who takes the flow over. If the flow acts as someone,
