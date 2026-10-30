@@ -29,7 +29,7 @@ const WAIT = 1500;
 const SETTLED = 120;
 
 // Taken over, a card about the recording rests with what drives it (resting, while the app is on its way or shown): it
-// answers nothing, steps back with the row under the recording once you're in the app, and is there as it was when
+// answers nothing, goes once you're in the app, where it would cover what you're doing, and is there as it was when
 // you're back.
 export function Beside({ id, over, still, resting, pinned, onAway, children }: { id?: string; over?: boolean; still?: boolean; resting?: "waiting" | "shown"; pinned?: () => Spot | undefined; onAway?: () => void; children?: ReactNode }) {
   const card = useRef<HTMLElement>(null);
@@ -185,7 +185,7 @@ export function Beside({ id, over, still, resting, pinned, onAway, children }: {
       onPointerDown={drag}
       onPointerEnter={() => (pointing.current = true)}
       onPointerLeave={() => (pointing.current = false)}
-      className={`fixed top-0 left-0 z-30 w-[330px] rounded-xl bg-ground py-1.5 shadow-[0_0_0_1px_rgba(20,24,34,0.08),0_10px_30px_rgba(20,24,34,0.16)] [transition:opacity_250ms_var(--ease-calm),filter_520ms_cubic-bezier(0.22,0.8,0.24,1)] ${still ? "pointer-events-none opacity-0" : ""} ${resting === "shown" ? "[filter:opacity(0.32)]" : ""}`}
+      className={`fixed top-0 left-0 z-30 w-[330px] rounded-xl bg-ground py-1.5 shadow-[0_0_0_1px_rgba(20,24,34,0.08),0_10px_30px_rgba(20,24,34,0.16)] transition-opacity duration-250 ease-calm ${still || resting === "shown" ? "pointer-events-none opacity-0" : ""}`}
     >
       <div data-card className={`grid grid-cols-[minmax(0,1fr)] ${onAway ? "[&>*>button:first-child]:pr-9" : ""}`}>
         {children}
