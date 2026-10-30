@@ -12,7 +12,7 @@ let browser: Browser;
 before(async () => void (browser = await chromium.launch()));
 after(() => browser.close());
 
-// A page served from nowhere, its answers as slow as asked.
+// A page served from nowhere, its answers as slow as asked, watched and on a set clock as a flow's page is.
 async function open(html: string, answers: Record<string, { after: number; body: string }> = {}): Promise<{ page: Page; rest: () => Promise<void> }> {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   await page.route("http://page.test/**", async (route) => {
@@ -22,6 +22,7 @@ async function open(html: string, answers: Record<string, { after: number; body:
     await route.fulfill({ contentType: path === "/" ? "text/html; charset=utf-8" : "text/plain", body: path === "/" ? html : (answer?.body ?? "") });
   });
   const rest = await watchRest(page);
+  await page.clock.setSystemTime(new Date("2026-10-27T12:00:00Z"));
   await page.goto("http://page.test/");
   return { page, rest };
 }
@@ -47,6 +48,18 @@ describe("A step ends once the page is at rest", { timeout: 30_000 }, () => {
     await rest();
     const dialog = find((await readPage(page)).things, "dialog", "Export");
     assert.equal(dialog.box.y, 8);
+  });
+
+  test("a page busy working isn't still: what it asks for once it's done is waited for (Kan's boards, on a loaded machine)", async () => {
+    const { page, rest } = await open(`<p id="boards">Loading</p><script>
+      setTimeout(() => {
+        const until = performance.now() + 600;
+        while (performance.now() < until);
+        setTimeout(() => fetch("/boards").then((answer) => answer.text()).then((words) => (boards.textContent = words)));
+      }, 100);
+    </script>`, { "/boards": { after: 200, body: "Website launch" } });
+    await rest();
+    find((await readPage(page)).things, "text", "Website launch");
   });
 
   test("a page that never rests is read as it is, after a few seconds", async () => {

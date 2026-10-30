@@ -94,11 +94,13 @@ const seeded = `(() => {
   };
 })();`;
 
-const recorded = base.extend<{ setup: Record<string, any>; recorder: void }>({
+const recorded = base.extend<{ rest: () => Promise<void>; setup: Record<string, any>; recorder: void }>({
   // In one language and time zone wherever it's recorded.
   locale: "en-US",
   timezoneId: "UTC",
-  setup: async ({ page, request, baseURL }, use, testInfo) => {
+  // What waits for the page to come to rest, watching it from before setup sets its clock (rest.ts).
+  rest: async ({ page }, use) => use(run ? await watchRest(page) : async () => {}),
+  setup: async ({ page, request, baseURL, rest: _ }, use, testInfo) => {
     // Recording flows added later on Before, the others aren't run, nor is anything made for them. Walking a fork again,
     // only the flow it's off.
     if (run?.only && !run.only.includes(testInfo.title)) testInfo.skip();
@@ -117,13 +119,12 @@ const recorded = base.extend<{ setup: Record<string, any>; recorder: void }>({
   },
   recorder: [
     // Once what the flow starts from is made, so making it isn't in the recording.
-    async ({ page, setup }, use, testInfo) => {
+    async ({ page, setup, rest }, use, testInfo) => {
       if (!run) return use();
       testInfo.setTimeout(testInfo.timeout * 3);
       const events: { timestamp: number }[] = [];
       await page.exposeFunction("__vantage", (event: { timestamp: number }) => void events.push(event));
       const assets = keepAssets(page, run.folder);
-      const rest = await watchRest(page);
       pace(page);
       pointer = { page, x: 640, y: 640 };
       underway = { page, events, rest, depth: 0, readings: [], glimpses: [], pictures: [], actions: [], inStep: 0 };
@@ -215,9 +216,10 @@ export async function runAlongside(
   body: Body,
   orders: Orders,
 ): Promise<{ handed?: Handed; stopped?: Pick<Failed, "at" | "why">; made?: Made }> {
+  const rest = await watchRest(page);
   await page.clock.setSystemTime(onReviewDay(started));
   await page.addInitScript({ content: seeded });
-  const flow: Taking = { page, depth: 0, rest: await watchRest(page), actions: 0, again: [], wrote: false, passed: [], orders, began: Date.now(), waited: 0, arrived };
+  const flow: Taking = { page, depth: 0, rest, actions: 0, again: [], wrote: false, passed: [], orders, began: Date.now(), waited: 0, arrived };
   page.on("request", (request) => void (["GET", "HEAD", "OPTIONS"].includes(request.method()) || (flow.wrote = true)));
   pace(page);
   return taking.run(flow, async () => {
