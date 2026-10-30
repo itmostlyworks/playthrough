@@ -732,7 +732,8 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   const lookingGood = (name: string) => {
     const good = standing?.get(name)?.is === "good";
     if (good && draft.looksGood.includes(name)) return change((draft) => takeBack(draft, name, notes));
-    if (good) return;
+    if (good) return changeHere((draft) => ({ ...draft, takenBack: [...draft.takenBack, name] }));
+    if (draft.takenBack.includes(name)) return change((draft) => ({ ...draft, takenBack: draft.takenBack.filter((flow) => flow !== name) }));
     // One at a moment plays to it; one on the whole flow is already here, over the flow's end.
     const notSeen = unseen(name)[0];
     if (notSeen?.on?.at !== undefined) return pick(notSeen);
@@ -1292,7 +1293,6 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     diamonds: diamonds,
     chosen: chosen?.id,
     standing: (name) => standing?.get(name),
-    saidGood: draft.looksGood,
     unseen: unseen,
     asked: question,
     landed: landed,

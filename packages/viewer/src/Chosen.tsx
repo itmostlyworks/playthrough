@@ -22,8 +22,6 @@ export type Props = {
   compare?: Comparing;
   // Where each flow stands for you, on the round you judge; looking back, nothing.
   standing: (flow: string) => Standing | undefined;
-  // The flows you've said look good and haven't sent: their Looks good takes it back, as a checkbox does.
-  saidGood: string[];
   // The answers in a flow you haven't seen: its Looks good never settles them, and its question shows them first.
   unseen: (flow: string) => Shown[];
   // The flow asking whether it's good, at its end, and the one just ticked.
@@ -97,7 +95,6 @@ export function Chosen(props: Props) {
 function Question({ flow, standing, just, ...props }: Omit<Props, "standing"> & { flow: Flow; standing: Standing; just: boolean }) {
   if (standing.is === "to send" || standing.is === "with the agent") return <Sending {...props} flow={flow} standing={standing} just={just} />;
   const good = standing.is === "good";
-  const sent = good && !props.saidGood.includes(flow.name);
   const buttons = useRef<HTMLDivElement>(null);
   const held = useHold(flow.name, buttons);
   // An answer you haven't seen is shown before the flow can look good, rather than settled with it unread.
@@ -121,7 +118,7 @@ function Question({ flow, standing, just, ...props }: Omit<Props, "standing"> & 
         )}
       </p>
       <div ref={buttons} className={`flex gap-1.5 transition-opacity duration-150 ease-calm ${held ? "pointer-events-none opacity-45" : ""}`}>
-        <Answer keys={good ? undefined : "↵"} tone="good" pressed={good} disabled={sent} onClick={() => props.onGood(flow.name)}>
+        <Answer keys={good ? undefined : "↵"} tone="good" pressed={good} onClick={() => props.onGood(flow.name)}>
           {unseen > 0 ? "Show it" : <>{tick}Looks good</>}
         </Answer>
         <Answer keys="X" tone="back" onClick={() => props.onNotQuite(flow.name)}>

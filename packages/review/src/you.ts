@@ -6,7 +6,7 @@ import type { Change, Place, Review } from "./model.ts";
 import { accountOf, allNotes, conversation, problemsAccepting, waitingForTheAgent, type Turn } from "./rules.ts";
 
 // The last round before `before` you said something about a flow on: a note in it, a verdict on an answer in it, or
-// Looks good on it. Once you have, you've seen what's in it. Nothing for a flow you haven't.
+// Looks good on it, or taking that back. Once you have, you've seen what's in it. Nothing for a flow you haven't.
 export function lastLooked(review: Review, you: string, flow: string, before = Infinity): number | undefined {
   const notes = allNotes(review);
   const rounds = review.sends
@@ -14,6 +14,7 @@ export function lastLooked(review: Review, you: string, flow: string, before = I
     .filter(
       (send) =>
         send.looksGood.includes(flow) ||
+        !!send.takenBack?.includes(flow) ||
         send.notes.some((note) => note.on?.flow === flow) ||
         send.verdicts.some((verdict) => notes.get(verdict.note)?.note.on?.flow === flow),
     )
@@ -78,9 +79,10 @@ export function waitingForYou(review: Review, round: number, you: string): strin
 // A flow is good for you once you've said it looks good, while nothing new to you is told in it on the rounds since and
 // none of your notes in it waits, for you or for the agent.
 export function goodForYou(review: Review, round: number, you: string, flow: string): boolean {
-  const said = review.sends.filter((send) => send.by === you && send.round <= round && send.looksGood.includes(flow)).map((send) => send.round);
-  if (!said.length) return false;
-  for (let later = Math.max(...said) + 1; later <= round; later++)
+  // Your last word on it holds: Looks good, or taking that back.
+  const last = review.sends.findLast((send) => send.by === you && send.round <= round && (send.looksGood.includes(flow) || send.takenBack?.includes(flow)));
+  if (!last?.looksGood.includes(flow)) return false;
+  for (let later = last.round + 1; later <= round; later++)
     if (newToYou(review, later, you).some((shown) => shown.on.flow === flow)) return false;
 
   const notes = allNotes(review);

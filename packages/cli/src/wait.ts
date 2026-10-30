@@ -48,6 +48,8 @@ export async function wait(repo: Repo, id: string) {
           ...send.verdicts.filter((verdict) => verdict.verdict === "looks good").map((verdict) => `your answer to note ${verdict.note}`),
         ];
         if (good.length) console.log(`\n${send.by} says ${list(good)} ${good.length > 1 ? "look" : "looks"} good.`);
+        const back = (send.takenBack ?? []).map(quote);
+        if (back.length) console.log(`\n${send.by} takes back Looks good on ${list(back)}: ${back.length > 1 ? "they ask" : "it asks"} again.`);
       }
       if (!asking.length) continue;
     }

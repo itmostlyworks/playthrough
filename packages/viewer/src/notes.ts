@@ -18,10 +18,11 @@ import {
   type Verdict,
 } from "@mostlyworks/vantage-review";
 
-// What you've written on a round and not sent yet: what a send will carry, the answers that came with their flow's Looks
-// good, and the notes you started and haven't saved, which never go.
-export type Draft = { notes: Note[]; verdicts: Verdict[]; looksGood: string[]; withTheFlow: string[]; unsaved: Note[] };
-export const nothing: Draft = { notes: [], verdicts: [], looksGood: [], withTheFlow: [], unsaved: [] };
+// What you've written on a round and not sent yet: what a send will carry, with the Looks goods you've sent and taken
+// back since, the answers that came with their flow's Looks good, and the notes you started and haven't saved, which
+// never go.
+export type Draft = { notes: Note[]; verdicts: Verdict[]; looksGood: string[]; takenBack: string[]; withTheFlow: string[]; unsaved: Note[] };
+export const nothing: Draft = { notes: [], verdicts: [], looksGood: [], takenBack: [], withTheFlow: [], unsaved: [] };
 
 // What you haven't sent is the review's, each draft under the round it's about, as a send is: a newer round arriving
 // leaves it where it is, and shows it as it shows what you sent.
@@ -34,6 +35,7 @@ export function upTo(unsent: Unsent, round: number): Draft {
     notes: drafts.flatMap((draft) => draft.notes),
     verdicts: drafts.flatMap((draft) => draft.verdicts),
     looksGood: drafts.flatMap((draft) => draft.looksGood),
+    takenBack: drafts.flatMap((draft) => draft.takenBack),
     withTheFlow: drafts.flatMap((draft) => draft.withTheFlow),
     unsaved: drafts.flatMap((draft) => draft.unsaved),
   };
@@ -52,18 +54,18 @@ export function watchedOn(review: Review, round: number, watched: Watched[]): st
 }
 
 // What a send carries of the draft.
-export const sendOf = ({ notes, verdicts, looksGood }: Draft) => ({ notes, verdicts, looksGood });
-export const said = (draft: Draft) => draft.notes.length + draft.verdicts.length + draft.looksGood.length;
+export const sendOf = ({ notes, verdicts, looksGood, takenBack }: Draft) => ({ notes, verdicts, looksGood, ...(takenBack.length && { takenBack }) });
+export const said = (draft: Draft) => draft.notes.length + draft.verdicts.length + draft.looksGood.length + draft.takenBack.length;
 
 // A flow's notes are sent at its end, so the agent starts on them while you watch the rest: what you wrote in it and
-// said of the answers in it, with every Looks good you haven't sent and the answers they settle riding along. The rest
+// said of the answers in it, with every Looks good you haven't sent, or taken back, and the answers they settle riding along. The rest
 // stays for the flows you haven't finished.
 export function sendingFlow(draft: Draft, flow: string, notes: Shown[]): { sending: Draft; left: Draft } {
   const inIt = new Set([...notes.filter((note) => note.on?.flow === flow).map((note) => note.id), ...draft.withTheFlow]);
   const its = (note: Note) => note.on?.flow === flow;
   return {
-    sending: { ...nothing, notes: draft.notes.filter(its), verdicts: draft.verdicts.filter((verdict) => inIt.has(verdict.note)), looksGood: draft.looksGood },
-    left: { ...draft, notes: draft.notes.filter((note) => !its(note)), verdicts: draft.verdicts.filter((verdict) => !inIt.has(verdict.note)), looksGood: [], withTheFlow: [] },
+    sending: { ...nothing, notes: draft.notes.filter(its), verdicts: draft.verdicts.filter((verdict) => inIt.has(verdict.note)), looksGood: draft.looksGood, takenBack: draft.takenBack },
+    left: { ...draft, notes: draft.notes.filter((note) => !its(note)), verdicts: draft.verdicts.filter((verdict) => !inIt.has(verdict.note)), looksGood: [], takenBack: [], withTheFlow: [] },
   };
 }
 
@@ -181,7 +183,7 @@ export function standings(review: Review, round: number, you: string, unsent: Un
 }
 
 // Your Looks good on a flow settles the answers in it you haven't judged, as a Looks good to each. Taking it back takes
-// those back with it, and nothing you said yourself.
+// those back with it, and nothing you said yourself. One you've sent is taken back by saying so, in the next send.
 export function lookGood(draft: Draft, flow: string, notes: Shown[]): Draft {
   const riding = notes.filter((note) => note.on?.flow === flow && note.state === "needs you").map((note) => note.id);
   return {

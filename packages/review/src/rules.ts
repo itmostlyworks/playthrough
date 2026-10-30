@@ -247,7 +247,8 @@ export function problemsWithSend(review: Review, send: Send): string[] {
   if (shape.length) return shape;
   if (review.accepted) return ["This review is accepted, so nothing more can be sent."];
   if (review.sends.some((other) => other.id === send.id)) return [`Something else was already sent as ${send.id}. Send this with a new id.`];
-  if (!send.notes.length && !send.verdicts.length && !send.looksGood.length) return ["There's nothing in this send."];
+  const takenBack = send.takenBack ?? [];
+  if (!send.notes.length && !send.verdicts.length && !send.looksGood.length && !takenBack.length) return ["There's nothing in this send."];
 
   const round = review.rounds.find((round) => round.number === send.round);
   if (send.round === 0) return ["Round 0 is Before: notes go on the rounds after it."];
@@ -270,7 +271,9 @@ export function problemsWithSend(review: Review, send: Send): string[] {
   }
 
   problems.push(...duplicates(send.looksGood, (flow) => `This send says “${flow}” looks good twice.`));
-  for (const flow of send.looksGood.filter((flow) => !round.flows.some((recorded) => recorded.name === flow)))
+  problems.push(...duplicates(takenBack, (flow) => `This send takes back Looks good on “${flow}” twice.`));
+  for (const flow of send.looksGood.filter((flow) => takenBack.includes(flow))) problems.push(`This send says “${flow}” looks good and takes that back: say one.`);
+  for (const flow of [...send.looksGood, ...takenBack].filter((flow) => !round.flows.some((recorded) => recorded.name === flow)))
     problems.push(`Round ${send.round} has no flow called “${flow}”.`);
   return problems;
 }

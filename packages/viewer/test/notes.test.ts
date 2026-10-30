@@ -131,6 +131,19 @@ test("a flow with something of yours for the agent asks nothing more this round"
   assert.equal(standings(review, 2, "Ana", { 2: unsaved }, []).get("Export them")?.is, "not saved");
 });
 
+test("a Looks good you've sent can be taken back, and the flow asks again; taken back, it's yours to say again", async () => {
+  const review = await twoPeople();
+  assert.equal(standings(review, 2, "Ben", {}, []).get("Export them")?.is, "good");
+  const back = { 2: { ...nothing, takenBack: ["Export them"] } };
+  assert.equal(standings(review, 2, "Ben", back, ["Export them"]).get("Export them")?.is, "is it good");
+  const reviews = new Reviews(memory());
+  await twoPeople(reviews);
+  await reviews.send("export", send("Ben", 2, { takenBack: ["Export them"] }));
+  const sent = await reviews.get("export");
+  assert.equal(standings(sent, 2, "Ben", {}, ["Export them"]).get("Export them")?.is, "is it good");
+  assert.equal(standings(sent, 2, "Ben", { 2: lookGood(nothing, "Export them", []) }, []).get("Export them")?.is, "good");
+});
+
 test("a flow that looked good to you and changed since asks again", async () => {
   const review = await twoPeople();
   assert.equal(standings(review, 2, "Ben", {}, []).get("Export them")?.is, "good");

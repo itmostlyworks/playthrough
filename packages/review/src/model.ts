@@ -172,6 +172,7 @@ export const Send = z.strictObject({
   notes: z.array(Note).describe("New ones"),
   verdicts: z.array(Verdict),
   looksGood: z.array(text("needs the flow's name")).describe("Flows that look good as a whole; one that isn't quite right gets a note"),
+  takenBack: z.array(text("needs the flow's name")).optional().describe("Flows whose Looks good, said before, is taken back: they ask again"),
 });
 
 // The agent took a send, and answers it in this round.
