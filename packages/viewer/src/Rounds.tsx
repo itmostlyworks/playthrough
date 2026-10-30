@@ -118,9 +118,10 @@ export function Rounds(props: Props) {
     paintLine();
   });
 
+  // With one round, there's no line of rounds to paint.
   const paintLine = () => {
     const line = track.current;
-    if (!line) return;
+    if (!line || !many) return;
     if (!Object.keys(x.current).length) layout();
     for (const dot of line.querySelectorAll<HTMLElement>("[data-dot]")) {
       const round = Number(dot.dataset.dot);
