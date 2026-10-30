@@ -23,7 +23,7 @@ type Move = Difference & { what: "moved" };
 const TABLES = /^(table|grid|treegrid|listbox)$/;
 const REFLOWS = /^(dialog|alertdialog|status|alert|menu|box)$/;
 const MANY = 3; // things moved by the same amount that make a layout shift
-const MOST_INSIDE = 5; // changes inside one thing told one by one; past this, they're counted
+const MOST_INSIDE = 5; // changes inside one table or list told one by one; past this, they're counted
 
 // Each rule in turn. What only follows from another comes out first; then each change left is told, with what came with it,
 // but for what changes by itself, which isn't a change at all, nor counted in one.
@@ -381,7 +381,7 @@ function sizeWords(moment: Moment, pair: Pair): string {
   return [sizes.length ? `is ${sizes.join(" and ")}` : "", went].filter(Boolean).join(", and ");
 }
 
-// Each change in full: alike things changed alike told once, what changed inside one thing counted when there's a lot,
+// Each change in full: alike things changed alike told once, what changed inside one table or list counted when there's a lot,
 // and each with its id and where it is.
 function said(told: Told[], moment: Moment, unsteady: Set<string>): Found[] {
   const { now, was, isNow } = moment;
@@ -392,12 +392,13 @@ function said(told: Told[], moment: Moment, unsteady: Set<string>): Found[] {
     id,
   );
 
-  // What changed inside one table, list, dialog or panel is told change by change, up to five; past that it's one change to
-  // it, counted: a table that now shows other invoices.
+  // What changed inside one table or list is told change by change, up to five; past that it's one change to it, counted:
+  // a table that now shows other invoices. A dialog or a panel holds things judged on their own, so each is told: Kan's
+  // open card, its field shorter, its comment new and its error gone, isn't one change.
   const inside = groupBy([...byId.values()], ([told]) => {
     const holder = holderOf(told!.in, told!.thing);
     const holderNow = holder && (told!.in === now ? holder : isNow.get(holder));
-    return holderNow && was.has(holderNow) ? holderNow : undefined;
+    return holderNow && TABLES.test(holderNow.role) && was.has(holderNow) ? holderNow : undefined;
   });
   const found: Found[] = [];
   for (const [holder, all] of inside) {
@@ -408,7 +409,7 @@ function said(told: Told[], moment: Moment, unsteady: Set<string>): Found[] {
     // Counted, not listed: Compare shows what they are better than their names can.
     const count = all.flat().length;
     const words =
-      TABLES.test(holder.role) && all.flat().every((told) => told.what === "resized" || told.what === "moved")
+      all.flat().every((told) => told.what === "resized" || told.what === "moved")
         ? `Columns in ${the(holder)} changed width`
         : `${called(holder)}: ${count} ${things(count)} changed inside`;
     const changed: Told = { what: "changed inside", thing: holder, in: now, words };

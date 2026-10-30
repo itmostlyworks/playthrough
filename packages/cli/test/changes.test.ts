@@ -137,12 +137,17 @@ describe("What changed at a moment", () => {
     ]);
   });
 
-  test("past five changes inside one thing, they're one change to it, counted and not listed", async () => {
+  test("past five changes inside one table or list, they're one change to it, counted and not listed", async () => {
     const changed = await said(
       `<div class="panel">${rows(["Alder Dental", "Harbor & Finch", "Juniper Health", "Kettle Works", "Moss Logistics", "Pale Harbour"])}</div>`,
       `<div class="panel">${rows(["Alder Dental", "Harbor & Finch", "Juniper Health", "Kettle Works", "Moss Logistics", "Pale Harbour"].map((name) => `${name} (paid)`))}</div>`,
     );
     assert.deepEqual(changed, ["Table: 6 things changed inside"]);
+  });
+
+  test("in a dialog or a panel, each change is told on its own, however many", async () => {
+    const changed = await said(dialog(["Name", "Email", "Phone", "City", "Notes", "Team"].map((label) => `<p>${label}</p>`).join("")), dialog(["Name", "Email", "Phone", "City", "Notes", "Team"].map((label) => `<p>${label}:</p>`).join("")));
+    assert.equal(changed.length, 6);
   });
 
   test("words gone where a control with their name is new are that control now", async () => {
