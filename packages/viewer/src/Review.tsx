@@ -40,14 +40,14 @@ const SETTLE = 400;
 // A card is at its mark while the playhead is this near it, in seconds: a moment kept to the hundredth lands a frame off.
 const NEAR = 0.05;
 
-export function ReviewPage({ id }: { id: string }) {
+export function ReviewPage({ id, flow }: { id: string; flow?: string }) {
   const kept = useReview(id);
   const you = useYou();
   const title = Array.isArray(kept) ? undefined : kept?.title;
   useEffect(() => void (document.title = title ? `${title} · Vantage` : "Vantage"), [title]);
   if (Array.isArray(kept)) return <Page><p className="m-auto text-soft">{kept[0]}</p></Page>;
   if (!kept || !you) return <Page />;
-  return <Reviewing review={seen(kept)} you={you} />;
+  return <Reviewing review={seen(kept)} you={you} flow={flow} />;
 }
 
 export function Page({ title, children }: { title?: string; children?: ReactNode }) {
@@ -65,7 +65,7 @@ export function Page({ title, children }: { title?: string; children?: ReactNode
 
 // A round that arrives while you're on another one says it's in; it's yours to go to. Going to the newest round, you've
 // seen it's there, and the older ones are for looking back.
-function Reviewing({ review, you }: { review: Review; you: string }) {
+function Reviewing({ review, you, flow }: { review: Review; you: string; flow?: string }) {
   const latest = review.rounds.at(-1);
   const [viewing, setViewing] = useState(latest?.number);
   const [newest, setNewest] = useState(latest?.number);
@@ -79,12 +79,12 @@ function Reviewing({ review, you }: { review: Review; you: string }) {
     setViewing(number);
     if (number === latest.number) setNewest(number);
   };
-  return <OnRound review={review} round={round} latest={latest} arrived={latest.number !== newest} you={you} onRound={choose} />;
+  return <OnRound review={review} round={round} latest={latest} arrived={latest.number !== newest} you={you} flow={flow} onRound={choose} />;
 }
 
-type OnRoundProps = { review: Review; round: Round; latest: Round; arrived: boolean; you: string; onRound: (round: number) => void };
+type OnRoundProps = { review: Review; round: Round; latest: Round; arrived: boolean; you: string; flow?: string; onRound: (round: number) => void };
 
-function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRoundProps) {
+function OnRound({ review: kept, round, latest, arrived, you, flow: inAddress, onRound }: OnRoundProps) {
   // What you've just sent shows as sent until the review comes back with it.
   const [posted, setPosted] = useState<Send>();
   const review = posted && !kept.sends.some((send) => send.id === posted.id) ? { ...kept, sends: [...kept.sends, posted] } : kept;
@@ -110,10 +110,12 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   // Looking at another round starts with nothing open.
   const [on, setOn] = useState(round.number);
   // Every flow at once: where you arrive on a round, even one with a single flow, and come back to, where the round is
-  // sent and accepted. A round that's new to you starts there too, and going through rounds there stays there. One that
-  // arrives while you're on another leaves you where you are.
+  // sent and accepted, unless the address names a flow of the round: there, you're in it. A round that's new to you
+  // starts there too, and going through rounds there stays there. One that arrives while you're on another leaves you
+  // where you are.
   const many = round.flows.length > 0;
-  const [grid, setGrid] = useState(many);
+  const [arrivedIn] = useState(() => round.flows.find((flow) => flow.name === inAddress)?.name);
+  const [grid, setGrid] = useState(many && !arrivedIn);
   const onGrid = grid && many;
   const been = useRef([round.number]);
   if (on !== round.number) {
@@ -125,7 +127,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
 
   // You arrive at the start, as on a video before you press play. Going to another round keeps your place: the same flow
   // at the matching moment, or its start if that round never recorded the flow.
-  const [playhead] = useState(() => new Playhead(played.flows, { flow: round.flows[0]?.name ?? "", at: POSTER }));
+  const [playhead] = useState(() => new Playhead(played.flows, { flow: arrivedIn ?? round.flows[0]?.name ?? "", at: POSTER }));
   useEffect(() => () => playhead.destroy(), [playhead]);
   const onRoundNow = useRef(round.number);
   useLayoutEffect(() => {
@@ -141,6 +143,11 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const onFork = forkList.find((fork) => fork.name === inPlay);
   const watching = onFork?.from.flow ?? inPlay;
   const flow = round.flows.find((flow) => flow.name === watching) ?? round.flows[0];
+  // The address says the flow you're in, and only the review on every flow at once.
+  useEffect(() => {
+    const address = `/${encodeURIComponent(review.id)}${onGrid || !watching ? "" : `/${encodeURIComponent(watching)}`}`;
+    if (location.pathname !== address) history.replaceState(null, "", address);
+  }, [review.id, onGrid, watching]);
   // Where the playhead is, as the step needs it: playing, at a flow's start, partway, or at its end. A fork's end
   // isn't the flow's.
   const where = useNow(playhead, ({ moment, playing }) => {

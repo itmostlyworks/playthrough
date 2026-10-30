@@ -25,5 +25,6 @@ function Reviews() {
   );
 }
 
-const id = decodeURIComponent(location.pathname.slice(1));
-createRoot(document.getElementById("root")!).render(id ? <ReviewPage id={id} /> : <Reviews />);
+// A review's address, and the flow you're in, so coming back to it, or reloading, finds you there.
+const [id, flow] = location.pathname.slice(1).split("/").map(decodeURIComponent);
+createRoot(document.getElementById("root")!).render(id ? <ReviewPage id={id} flow={flow} /> : <Reviews />);
