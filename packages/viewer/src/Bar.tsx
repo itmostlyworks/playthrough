@@ -15,7 +15,8 @@ type Props = {
   // How it was, where there's a round before this one to compare it with.
   compare?: Comparing;
   noting: boolean;
-  onNote: () => void;
+  // None where no note can be made: an accepted review, or a round gone by.
+  onNote?: () => void;
   onTakeOver: () => void;
   onBack: () => void;
   flow: string;
@@ -86,7 +87,7 @@ export function Bar(props: Props) {
         aria-label="This moment"
         className={`flex gap-0.5 rounded-xl bg-surface p-1 text-[13px] select-none ${inApp ? "shadow-[0_0_0_1.5px_rgba(236,178,72,0.95),0_6px_20px_rgba(20,24,34,0.12)]" : "shadow-[0_0_0_1px_rgba(20,24,34,0.08),0_6px_20px_rgba(20,24,34,0.12)]"}`}
       >
-        <button className={item} aria-pressed={props.noting} onClick={props.onNote}>
+        <button className={item} disabled={!props.onNote} aria-pressed={props.noting} onClick={props.onNote}>
           Note <Key>N</Key>
         </button>
         {!inApp && props.compare && <Compare {...props.compare} bar={item} />}

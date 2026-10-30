@@ -280,7 +280,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
         if (notingNow.current) setNoting(false);
         else letGoNow.current({ x: data.x, y: data.y });
       }
-      if (data?.vantage === "note") setNoting((now) => !now);
+      if (data?.vantage === "note") noteNow.current();
       if (data?.vantage === "noted") notedInApp.current(data);
     };
     addEventListener("message", told);
@@ -363,6 +363,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const [noting, setNoting] = useState(false);
   const notingNow = useRef(noting);
   notingNow.current = noting;
+  const noteNow = useRef(() => {});
   const notedInApp = useRef<(noted: NotedInApp) => void>(() => {});
   // While you're in the app, what you do there is recorded, from when it was handed to you: a fork off the flow, on the
   // timeline as soon as you're there. Carried on from a fork, it goes on from where that one ended.
@@ -608,6 +609,14 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     setOpen({ writing: id });
   };
   const writingId = open && "writing" in open ? open.writing : undefined;
+  // Note, by its key, the bar or the app, turns on only where a note can be made: never on an accepted review or a round
+  // gone by, where it lit up and the click went nowhere.
+  const pressNote = () => {
+    if (readOnly) return;
+    playhead.pause();
+    setNoting(!noting);
+  };
+  noteNow.current = pressNote;
   // Noted in the app: a new note on what you clicked there, by it, keeping what you did there since taking over.
   notedInApp.current = async ({ element, point, did, x, y }) => {
     setNoting(false);
@@ -1096,10 +1105,9 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
         else if (question) write({ flow: question });
       } else if (event.key.toLowerCase() === "c" && !event.repeat && comparingIt && !live?.shown) {
         pressCompare();
-      } else if (event.key.toLowerCase() === "n" && !event.repeat && !readOnly) {
+      } else if (event.key.toLowerCase() === "n" && !event.repeat) {
         event.preventDefault();
-        playhead.pause();
-        setNoting(!noting);
+        pressNote();
       } else if (event.key === "Escape" && noting) {
         setNoting(false);
       } else if (event.key.toLowerCase() === "t" && !event.repeat) {
@@ -1271,10 +1279,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
               latest={round === latest}
               compare={liveNow === "shown" ? undefined : comparingIt}
               noting={noting}
-              onNote={() => {
-                playhead.pause();
-                setNoting(!noting);
-              }}
+              onNote={readOnly ? undefined : pressNote}
               onTakeOver={takeOver}
               onBack={() => letGo()}
               flow={watching ?? ""}
