@@ -32,7 +32,8 @@ const SETTLED = 120;
 // Taken over, a card about the recording rests with what drives it (resting, while the app is on its way or shown): it
 // answers nothing, goes once you're in the app, where it would cover what you're doing, and is there as it was when
 // you're back.
-export function Beside({ id, over, still, resting, pinned, onAway, children }: { id?: string; over?: boolean; still?: boolean; resting?: "waiting" | "shown"; pinned?: () => Spot | undefined; onAway?: () => void; children?: ReactNode }) {
+// Standing (the flow's end as a place), the card over the last frame stands in its middle, wider.
+export function Beside({ id, over, standing, still, resting, pinned, onAway, children }: { id?: string; over?: boolean; standing?: boolean; still?: boolean; resting?: "waiting" | "shown"; pinned?: () => Spot | undefined; onAway?: () => void; children?: ReactNode }) {
   const card = useRef<HTMLElement>(null);
   const opened = useRef<{ id?: string; at: Spot; since: number; side?: Side; put?: Spot; was?: Spot; last?: Spot; fromPin?: Spot; layout?: string; seen?: { layout: string; since: number }; gone?: boolean; shown?: boolean }>(undefined);
   // While you point at it, it holds still: what you point at inside it may be drawn somewhere else, and it's not to
@@ -103,7 +104,7 @@ export function Beside({ id, over, still, resting, pinned, onAway, children }: {
       // not one held over it or beside it, or one you've been to and left.
       const shown = "[data-frame][data-watched]";
       const frame = over && document.querySelector<HTMLElement>(shown)?.getBoundingClientRect();
-      if (frame) return to(frame.left + frame.width / 2 - w / 2, frame.bottom - h - 44);
+      if (frame) return to(frame.left + frame.width / 2 - w / 2, standing ? frame.top + frame.height / 2 - h / 2 : frame.bottom - h - 44);
       if (first.put) return to(clamp(first.put.x, EDGE, innerWidth - w - EDGE), clamp(first.put.y, EDGE, innerHeight - h - EDGE));
       // Its outline where that's drawn, else its pin: a note on something seen only partway through a step, in a dialog
       // gone by the step's end, has a pin and no outline.
@@ -207,7 +208,7 @@ export function Beside({ id, over, still, resting, pinned, onAway, children }: {
       onPointerDown={drag}
       onPointerEnter={() => (pointing.current = true)}
       onPointerLeave={() => (pointing.current = false)}
-      className={`fixed top-0 left-0 z-30 w-[330px] rounded-xl bg-ground py-1.5 shadow-[0_0_0_1px_rgba(20,24,34,0.08),0_10px_30px_rgba(20,24,34,0.16)] transition-opacity duration-250 ease-calm ${still || resting === "shown" ? "pointer-events-none opacity-0" : ""}`}
+      className={`fixed top-0 left-0 z-30 ${standing ? "w-[400px]" : "w-[330px]"} rounded-xl bg-ground py-1.5 shadow-[0_0_0_1px_rgba(20,24,34,0.08),0_10px_30px_rgba(20,24,34,0.16)] transition-opacity duration-250 ease-calm ${still || resting === "shown" ? "pointer-events-none opacity-0" : ""}`}
     >
       <div data-card className={`grid grid-cols-[minmax(0,1fr)] ${onAway ? "[&>*>button:first-child]:pr-9" : ""}`}>
         {children}

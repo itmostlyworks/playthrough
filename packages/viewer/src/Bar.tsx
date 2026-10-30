@@ -4,6 +4,7 @@
 
 import { useEffect, useRef } from "react";
 import { Compare, ForkMark, Key } from "./Card.tsx";
+import { EndMark, type End } from "./Chosen.tsx";
 import type { Comparing } from "./Notes.tsx";
 
 // A note on this flow, as the list says it: its dot in its colour, its words, and its moment, made in the app or not.
@@ -21,8 +22,9 @@ type Props = {
   onBack: () => void;
   flow: string;
   notes: Said[];
-  // How many notes are on the whole flow: they're over its end, not in the list.
-  whole: number;
+  // The flow as a whole, last: its square, how many notes are on the whole of it, and what its end says.
+  whole?: { end: End; notes: number; words: string };
+  onWhole: () => void;
   listed: boolean;
   onList: (listed: boolean) => void;
   onSaid: (id: string) => void;
@@ -45,7 +47,8 @@ export function Bar(props: Props) {
     addEventListener("keydown", escape);
     return () => (removeEventListener("pointerdown", away, true), removeEventListener("keydown", escape));
   }, [listed, onList]);
-  const count = props.notes.length;
+  const count = props.notes.length + (props.whole?.notes ?? 0);
+  const row = "grid w-full grid-cols-[12px_minmax(0,1fr)_auto] items-center gap-x-2.5 rounded-lg px-2.5 py-[7px] text-left transition-colors duration-150 ease-calm hover:bg-hover focus-visible:bg-hover";
   return (
     <div ref={here} className="relative">
       <div
@@ -55,30 +58,36 @@ export function Bar(props: Props) {
         className={`absolute right-0 bottom-full mb-2 w-[340px] max-w-[calc(100vw-32px)] rounded-xl bg-surface p-1.5 shadow-[0_0_0_1px_rgba(20,24,34,0.08),0_10px_32px_rgba(20,24,34,0.16)] transition-[opacity,translate] duration-150 ease-calm ${listed ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-1 opacity-0"}`}
       >
         <div className="max-h-[min(55vh,420px)] overflow-y-auto">
-          {count ? (
-            props.notes.map((said) => (
+          {props.notes.map((said) => (
               <button
                 key={said.id}
                 tabIndex={listed ? 0 : -1}
-                className="grid w-full grid-cols-[6px_minmax(0,1fr)_auto] items-center gap-x-2.5 rounded-lg px-2.5 py-[7px] text-left transition-colors duration-150 ease-calm hover:bg-hover focus-visible:bg-hover"
+                className={row}
                 onPointerEnter={() => props.onLight(said.id)}
                 onPointerLeave={() => props.onLight(undefined)}
                 onFocus={() => props.onLight(said.id)}
                 onBlur={() => props.onLight(undefined)}
                 onClick={() => props.onSaid(said.id)}
               >
-                <span className="size-1.5 rounded-full" style={{ background: said.ink }} />
+                <span className="size-1.5 justify-self-center rounded-full" style={{ background: said.ink }} />
                 <span className="truncate text-[13px] leading-[18px] text-fg">{said.words}</span>
                 <span className="flex items-center gap-1 text-[11.5px] text-faint tabular-nums">
                   {said.app && <ForkMark className="h-2 w-2.5" label="In the app" />}
                   {said.at}
                 </span>
               </button>
-            ))
+            ))}
+          {props.whole ? (
+            <button tabIndex={listed ? 0 : -1} className={row} onClick={props.onWhole}>
+              <EndMark end={props.whole.end} just={false} className="size-3" />
+              <span className="truncate text-[13px] leading-[18px] text-fg">
+                The whole flow
+                {props.whole.notes > 0 && <span className="text-soft"> · {props.whole.notes} {props.whole.notes === 1 ? "note" : "notes"}</span>}
+              </span>
+              <span className="text-[11.5px] text-faint">{props.whole.words}</span>
+            </button>
           ) : (
-            <p className="px-2.5 py-[7px] text-[13px] text-soft">
-              {props.whole ? `${props.whole} ${props.whole === 1 ? "note" : "notes"} on the whole flow, at its end.` : "No notes on this flow yet."}
-            </p>
+            !count && <p className="px-2.5 py-[7px] text-[13px] text-soft">No notes on this flow yet.</p>
           )}
         </div>
       </div>

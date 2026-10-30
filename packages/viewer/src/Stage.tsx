@@ -79,6 +79,9 @@ type Props = {
   over?: { words: string; take?: () => void };
   // Taken over, the app itself at that moment, in the round's frame exactly where its recording is.
   live?: Live;
+  // The flow's end standing as a place: its last frame softens under the veil its name has at the start, while its card
+  // stands there.
+  ending?: boolean;
 };
 
 type Painted = View & Size & { page: Size };
@@ -161,6 +164,11 @@ export function Stage(props: Props) {
 
   const paint = () => {
     const { playhead, round, earlier, zoomed, peeking } = latest.current;
+    const towards = ended.current;
+    const done = clamp((performance.now() - towards.since) / 240);
+    const endSoft = towards.from + (towards.to - towards.from) * ease(done);
+    towards.now = endSoft;
+    if (done < 1) requestAnimationFrame(paint);
     const then = earlier ? undefined : latest.current.then;
     const room = stage.current;
     if (!room) return;
@@ -241,7 +249,8 @@ export function Stage(props: Props) {
 
       const page = sizeOf(shown, its);
       // Until its recording is here, the flow's name stands on its own.
-      const card = replay ? titleCard(at) : { soft: 1, name: 1 };
+      const opening = replay ? titleCard(at) : { soft: 1, name: 1 };
+      const card = shown === round && endSoft > 0.002 ? { soft: Math.max(opening?.soft ?? 0, endSoft), name: opening?.name ?? 0 } : opening;
       let view: View;
       if (!zoomed || fitted(box, page).fit >= 0.995) view = fitted(box, page);
       else if (lead) view = around(box, page, centreOf(lead.view, lead.box), lead.view.k);
@@ -377,6 +386,13 @@ export function Stage(props: Props) {
 
   useLayoutEffect(paint);
   useEffect(() => props.playhead.subscribe(paint), [props.playhead]);
+  const ended = useRef({ from: 0, to: 0, since: 0, now: 0 });
+  useEffect(() => {
+    const to = props.ending ? 1 : 0;
+    if (ended.current.to === to) return;
+    ended.current = { from: ended.current.now, to, since: performance.now(), now: ended.current.now };
+    paint();
+  }, [props.ending]);
   useEffect(() => {
     const observer = new ResizeObserver(() => paint());
     if (stage.current) observer.observe(stage.current);

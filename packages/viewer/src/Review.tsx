@@ -11,7 +11,7 @@ import { Bar } from "./Bar.tsx";
 import { Beside, clickedAt } from "./Beside.tsx";
 import { HOLD } from "./Card.tsx";
 import { answersTo, diamondAt, diamondsOn, grownFrom, type Changed, type Diamond } from "./changes.ts";
-import { Chosen, justLanded, rowsIn, settles, type End, type Landed, type Props as ChosenProps } from "./Chosen.tsx";
+import { Chosen, justLanded, rowsIn, settles, type End, type Landed, type Props as ChosenProps, type Row } from "./Chosen.tsx";
 import { Controls, type Look } from "./Controls.tsx";
 import type { ForkLine } from "./Timeline.tsx";
 import { useUnsent, useWatched } from "./draft.ts";
@@ -30,7 +30,12 @@ import { placeFrom, placeName as nameOf, placeOn, useReadings, watchedIn, type R
 import { Wire } from "./Wire.tsx";
 
 // What's open beside the recording: a note, a change you chose, or a new note being written, by its id.
-type Open = { note: string } | { change: string } | { writing: string };
+// Trying two ways for a flow's own card: over its last frame, or, with ?end=place in the address, standing in the middle
+// of that frame, softened, as its name does at its start.
+const endAsPlace = new URLSearchParams(location.search).get("end") === "place";
+
+// What's open: a note, a change, a note being written, or a flow's own card, at its end.
+type Open = { note: string } | { change: string } | { writing: string } | { end: string };
 // A click noted in the app: what it's on there, what was done there before it, and where, in the app's page.
 type NotedInApp = { element?: Thing; point?: Point; did: Did[]; x: number; y: number };
 
@@ -165,7 +170,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   // flow at once.
   useEffect(() => {
     const address = `/${encodeURIComponent(review.id)}${onGrid || !watching ? "" : `/${slug(watching)}`}`;
-    if (location.pathname !== address) history.replaceState(null, "", address);
+    if (location.pathname !== address) history.replaceState(null, "", address + location.search);
   }, [review.id, onGrid, watching]);
   // Where the playhead is, as the step needs it: playing, at a flow's start, partway, or at its end. A fork's end
   // isn't the flow's.
@@ -504,32 +509,29 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   // A flow that still needs you: not good, and not only waiting on what you've said for the agent.
   const needs = (name: string) => !["good", "to send", "with the agent", undefined].includes(standing?.get(name)?.is);
 
-  // Every flow ends with one step: whether it's good, once you've watched it; or, with something of yours in it, sending
-  // it, so the agent starts on it while you watch the rest; or, sent, what's next. It stays where you answered it, and
-  // goes once you move on.
-  const [asked, setAsked] = useState<string>();
-  if (asked && (where !== "end" || watching !== asked)) setAsked(undefined);
-  // The flow just answered, its mark popping at its end, in its question and on the timeline at once.
+  // The flow as a whole is a mark like a note's or a change's: its square, capping the timeline, and its card, at its
+  // end, with what you said about the whole of it, then whether it's good, or sending, or that it's with the agent. It
+  // opens wherever it's chosen (its square, the last row of the list, Up and Down), and by itself when the flow plays to
+  // its end and asks something; it closes when you leave the end.
+  const endOpen = !!open && "end" in open && open.end === watching;
+  if (open && "end" in open && (where !== "end" || watching !== open.end)) setOpen(undefined);
+  // The flow just answered, its mark popping at its end, in its card and on the timeline at once.
   const [landed, setLanded] = useState<Landed>();
   const ending = flow && standing?.get(flow.name);
-  const ends = !!ending && ending.is !== "not saved" && (["is it good", "to send", "with the agent"].includes(ending.is) || asked === flow?.name);
-  const question = !open && flow && where === "end" && ends ? flow.name : undefined;
-  // The timeline ends in the flow's end, as it stands; pressed, it goes straight there, its question up, and going there
-  // is watching it: you chose what to skip. A note you haven't saved is finished first.
-  const end: End | undefined = !ending || ending.is === "not saved" ? undefined : ending.is === "good" || ending.is === "with the agent" || ending.is === "to send" ? ending.is : "asks";
+  const general = flow && where === "end" ? notes.filter((note) => note.on?.flow === flow.name && note.on.at === undefined) : [];
+  const generalOpen = !!open && "note" in open && general.some((note) => note.id === open.note);
+  const asksAtEnd = !!ending && ["is it good", "to send", "with the agent"].includes(ending.is);
+  const question = flow && where === "end" && ending && ending.is !== "not saved" && (endOpen || generalOpen || (!open && asksAtEnd)) ? flow.name : undefined;
+  const overEnd = (!open || generalOpen || endOpen) && (!!question || general.length > 0);
+  const standingThere = endAsPlace && overEnd && !playingNow;
+  const end: End | undefined = !ending ? undefined : ending.is === "good" || ending.is === "with the agent" || ending.is === "to send" ? ending.is : "asks";
   const endAsks =
     flow && !readOnly && end
       ? {
           end,
-          words: { asks: "Looks good?", "to send": "Send", good: "Looks good", "with the agent": "With the agent" }[end],
+          words: ending?.is === "not saved" ? "Finish your note" : { asks: "Looks good?", "to send": "Send", good: "Looks good", "with the agent": "With the agent" }[end],
           just: justLanded(landed, flow.name),
-          go: () => {
-            playhead.pause();
-            playhead.go({ flow: flow.name, at: flow.length });
-            sawFlow(flow.name);
-            setOpen(undefined);
-            setAsked(flow.name);
-          },
+          go: () => openEnd(flow.name),
         }
       : undefined;
   // A newer round is followed once you go to another flow, or to every flow: never under the flow you're watching.
@@ -541,10 +543,6 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     following.current = true;
     onRound(newer.number);
   });
-  // What you said about the whole flow sits over its last frame, with its question; one of them open, it opens there.
-  const general = flow && where === "end" ? notes.filter((note) => note.on?.flow === flow.name && note.on.at === undefined) : [];
-  const generalOpen = !!open && "note" in open && general.some((note) => note.id === open.note);
-  const overEnd = (!open || generalOpen) && (!!question || general.length > 0);
   const go = (name: string, at = FLOW_IN) => {
     playhead.pause();
     playhead.go({ flow: name, at });
@@ -562,7 +560,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
       return diamond ? [[note.id, diamond] as const] : [];
     }),
   );
-  const grownOpen = open && !("change" in open) ? grown.get("note" in open ? open.note : open.writing) : undefined;
+  const grownOpen = open && ("note" in open || "writing" in open) ? grown.get("note" in open ? open.note : open.writing) : undefined;
   // The change whose card is open, chosen or with your note on it open: one card, the change, the agent, you, Compare,
   // which compares as the change does.
   const changeOpen = chosen ?? grownOpen;
@@ -597,7 +595,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   const show = (note: Shown) => {
     setOpen({ note: note.id });
     setMet((met) => (met.includes(note.id) ? met : [...met, note.id]));
-    if (note.on) go(playedOn(note.on), note.on.at);
+    if (note.on) go(playedOn(note.on), note.on.at ?? played.flows.find((flow) => flow.name === playedOn(note.on!))?.length);
   };
   // Where an answer that moves is watched, in the flow its note is on, once the recording says when what it's on changed.
   const movingOf = (note: Shown) => {
@@ -608,18 +606,13 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   // (or that it's on).
   const span = (note: Shown) => movingOf(note) ?? { at: note.on?.at ?? 0, until: note.on?.until };
   // Chosen, from its dot, its pin or the bar's list alike, a note opens on the frame it was written on, still: that frame
-  // is what it's about. A bar plays exactly what it covers, then its card asks. One on a whole flow plays the flow, going
-  // on if it's already playing.
+  // is what it's about. A bar plays exactly what it covers, then its card asks. One on a whole flow opens in the flow's
+  // own card, at its end.
   const pick = (note: Shown) => {
     const on = note.on;
     const its = on && played.flows.find((flow) => flow.name === playedOn(on));
     const { at, until } = span(note);
-    if (!its || until === undefined) {
-      show(note);
-      const { moment, playing } = playhead.now;
-      if (its && on?.at === undefined && !(playing && moment.flow === its.name)) playFlow(its);
-      return;
-    }
+    if (!its || until === undefined) return show(note);
     setOpen({ note: note.id });
     setMet((met) => (met.includes(note.id) ? met : [...met, note.id]));
     play(note.id, { flow: its.name, at }, Math.min(its.length, until));
@@ -750,11 +743,22 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   const sendingIt = async (name: string) => {
     if (await sendNow(name)) tickLands(name);
   };
-  // Answered, the flow stays where you are, its tick landing in its question, and what's next is offered there: you go
-  // on when you choose.
+  // Answered, the flow stays where you are, its tick landing in its card, and what's next is offered there: you go on
+  // when you choose.
   const tickLands = (name: string) => {
-    setAsked(name);
+    setOpen({ end: name });
     setLanded({ flow: name, at: performance.now() });
+  };
+  // The flow's card is at its end, and going there is watching it: you chose what to skip. A note in it you haven't
+  // saved is finished first, where it is.
+  const openEnd = (name: string) => {
+    const its = played.flows.find((flow) => flow.name === name);
+    if (!its) return;
+    const started = draft.unsaved.find((note) => note.on?.flow === name);
+    go(name, started?.on?.at ?? its.length);
+    if (started) return setOpen({ writing: started.id });
+    sawFlow(name);
+    setOpen({ end: name });
   };
   // Going on to the next flow, it waits on its opening, its name over its first page, so you know where you are before
   // it plays.
@@ -815,19 +819,27 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     }, last + SETTLE);
   });
 
-  // Up and Down go through the flows and, in each, its notes and changes by their time, the recording going with them.
-  const order = [
-    ...round.flows.flatMap((flow) => [{ flow }, ...rowsIn(flow.name, notes, diamonds, settles(standing?.get(flow.name), flow.name === watching))]),
+  // Up and Down go through the flows and, in each, its notes and changes by their time, then the flow's own card, the
+  // recording going with them.
+  const order: (Row | { flow: Flow } | { end: string })[] = [
+    ...round.flows.flatMap((flow): (Row | { flow: Flow } | { end: string })[] => [{ flow }, ...rowsIn(flow.name, notes, diamonds, settles(standing?.get(flow.name), flow.name === watching)), ...(readOnly ? [] : [{ end: flow.name }])]),
     ...inGeneral.map((note) => ({ note, at: Infinity })),
   ];
   const through = (direction: 1 | -1) => {
     const here = order.findIndex((row) =>
-      "note" in row ? open && "note" in open && open.note === row.note.id : "diamond" in row ? chosen === row.diamond : !open && row.flow.name === watching,
+      "note" in row
+        ? open && "note" in open && open.note === row.note.id
+        : "diamond" in row
+          ? chosen === row.diamond
+          : "end" in row
+            ? row.end === watching && (endOpen || (!open && !!question))
+            : !open && !question && row.flow.name === watching,
     );
     const next = order[here < 0 ? 0 : clamp(here + direction, 0, order.length - 1)];
     if (!next || (here >= 0 && order[here] === next)) return;
     if ("note" in next) pick(next.note);
     else if ("diamond" in next) choose(next.diamond);
+    else if ("end" in next) openEnd(next.end);
     else {
       setOpen(undefined);
       go(next.flow.name);
@@ -1307,6 +1319,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
         <section inert={onGrid} className={`grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto] pb-4 phone:flex-none phone:grid-rows-[auto_auto] phone:pr-0 phone:pb-3 ${onGrid ? "invisible" : ""}`}>
           <div className="relative grid min-h-0 grid-rows-[minmax(0,1fr)] pb-6">
           <Stage
+            ending={standingThere}
             review={review}
             playhead={playhead}
             round={played}
@@ -1361,7 +1374,12 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
                 .filter((note) => note.on?.flow === watching && note.on.at !== undefined && note.turns[0]?.words)
                 .sort((a, b) => a.on!.at! - b.on!.at!)
                 .map((note) => ({ id: note.id, ink: ink(note), words: note.turns[0]!.words, at: time(note.on!.at!), app: !!note.on!.app || whereYouWere.has(note.id) }))}
-              whole={notes.filter((note) => note.on?.flow === watching && note.on.at === undefined && note.turns[0]?.words).length}
+              whole={endAsks && { end: endAsks.end, words: endAsks.words, notes: notes.filter((note) => note.on?.flow === watching && note.on.at === undefined && note.turns[0]?.words).length }}
+              onWhole={() => {
+                setListed(false);
+                if (live?.shown) letGo();
+                endAsks?.go();
+              }}
               listed={listed}
               onList={(listed) => (setListed(listed), listed || setLitNote(undefined))}
               onLight={setLitNote}
@@ -1434,6 +1452,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
 
         <Beside
           id={openNote?.id ?? writingId ?? chosen?.id}
+          standing={standingThere}
           still={playingNow}
           // Taking over is doing: a card about the recording rests with it; one about the app answers there, a note made in
           // the app or the one you're trying.
