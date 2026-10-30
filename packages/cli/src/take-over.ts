@@ -426,10 +426,12 @@ const SAYS = `<script>(() => {
     while (!still() && performance.now() - since < 8000) await wait(80);
   };
   // Partway through a step, the actions that only changed what was on the page are done again here, as the flow did them.
+  // Each waits for what it acts on while the page is changing, as it does after the one before; on a still page, what
+  // isn't there isn't coming, as a menu that was open only on the flow's page.
   const find = async (path) => {
     for (const until = performance.now() + 3000; performance.now() < until; await wait(80)) {
       const found = document.querySelector(path);
-      if (found) return found;
+      if (found || still()) return found;
     }
   };
   const press = (element, ...types) => {
@@ -462,6 +464,7 @@ const SAYS = `<script>(() => {
     else if (does === "hover") press(element, "pointerover", "pointerenter", "mouseover", "pointermove", "mousemove");
     else if (does === "selectOption") (element.value = [given].flat()[0], changed(element));
     else if (element.checked !== (does === "check" || (does === "setChecked" && given))) click(element);
+    stir();
     return true;
   };
   // Once it's yours, what you do is recorded, as a flow is, from the page as it was handed over: a note you make here
