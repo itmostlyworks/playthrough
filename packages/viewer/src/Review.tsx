@@ -37,8 +37,6 @@ type NotedInApp = { element?: Thing; point?: Point; did: Did[]; x: number; y: nu
 // Leaving every flow at once for one, the recording waits under its name until the pictures have landed, and this long
 // after: one thing moves at a time.
 const SETTLE = 400;
-// Playing, the bar comes back while the pointer moves over the recording, and fades again this long after it stops.
-const STIRRED = 1500;
 // A card is at its mark while the playhead is this near it, in seconds: a moment kept to the hundredth lands a frame off.
 const NEAR = 0.05;
 
@@ -188,15 +186,6 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     follow(review.id, flow, paused);
   }, [passing, review.id]);
   const playingNow = useNow(playhead, (now) => now.playing);
-  // Playing is watching: the bar over the recording fades as a video's controls do, and comes back while the pointer moves
-  // over it, or rests on the bar.
-  const [stirred, setStirred] = useState(false);
-  const settle = useRef<number>(undefined);
-  const stir = (lasting = STIRRED) => {
-    setStirred(true);
-    clearTimeout(settle.current);
-    if (lasting !== Infinity) settle.current = window.setTimeout(() => setStirred(false), lasting);
-  };
   const backToRecording = (at?: { x: number; y: number }) => {
     setLive((now) => now && { ...now, shown: false, at });
     window.focus();
@@ -1234,7 +1223,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
       <Wire id={grownOpen?.id ?? openNote?.id ?? chosen?.id} colour={openNote ? ink(openNote) : grownOpen ? "var(--amber)" : "var(--soft)"} hidden={!!bare || peeking || inApp} faded={playingNow} />
       <main className="relative grid min-h-0 grid-cols-[minmax(0,1fr)] phone:flex phone:flex-col">
         <section inert={onGrid} className={`grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto] pb-4 phone:flex-none phone:grid-rows-[auto_auto] phone:pr-0 phone:pb-3 ${onGrid ? "invisible" : ""}`}>
-          <div className="relative grid min-h-0 grid-rows-[minmax(0,1fr)] pb-6" onPointerMove={() => playingNow && stir()}>
+          <div className="relative grid min-h-0 grid-rows-[minmax(0,1fr)] pb-6">
           <Stage
             review={review}
             playhead={playhead}
@@ -1275,11 +1264,8 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
             over={round === latest ? undefined : arrived ? { words: `${roundName(latest.number)} is in`, take: () => toRound(latest.number) } : { words: roundName(round.number) }}
             live={live}
           />
-          <div
-            className={`absolute bottom-6 left-1/2 z-20 -translate-x-1/2 translate-y-1/2 transition-opacity duration-250 ease-calm ${playingNow && !stirred ? "pointer-events-none opacity-0" : ""}`}
-            onPointerEnter={() => stir(Infinity)}
-            onPointerLeave={() => stir()}
-          >
+          {/* Playing, the bar stays: what you can do is there while you watch, as it is paused. */}
+          <div className="absolute bottom-6 left-1/2 z-20 -translate-x-1/2 translate-y-1/2">
             <Bar
               live={liveNow}
               latest={round === latest}
