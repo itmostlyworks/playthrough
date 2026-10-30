@@ -512,6 +512,18 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   const ending = flow && standing?.get(flow.name);
   const ends = !!ending && (["is it good", "to send", "with the agent"].includes(ending.is) || (asked === flow?.name && ending.asks));
   const question = !open && flow && where === "end" && ends ? flow.name : undefined;
+  // The timeline ends in what the flow's end asks, whether it looks good, or sending; it plays the last step out to
+  // there, which is watching it, as a click near the end that plays it out is.
+  const endAsks =
+    flow && !readOnly && ending && (ending.is === "to send" || ending.asks)
+      ? {
+          asks: ending.is === "to send" ? ("Send" as const) : ending.is === "good" ? ("Looks good" as const) : ("Looks good?" as const),
+          go: () => {
+            playhead.go({ flow: flow.name, at: flow.steps.at(-1)?.at ?? FLOW_IN });
+            playhead.play();
+          },
+        }
+      : undefined;
   // A newer round is followed once you go to another flow, or to every flow: never under the flow you're watching.
   const followFrom = useRef<{ round: number; flow: string }>(undefined);
   useEffect(() => {
@@ -1367,6 +1379,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
           <div className="min-w-0 flex-1">
           <Controls
             stage
+            end={endAsks}
             forks={forksHere}
             lit={litNote}
             growing={inApp ? growing : undefined}

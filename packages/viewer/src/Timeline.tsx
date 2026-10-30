@@ -4,9 +4,13 @@
 // click lands. Nothing here changes width as it plays. Where you took the flow over and carried on by hand, a fork
 // leaves the line there and runs above it as long as you were there, faint until pointed at or played: then it answers
 // as the line does, and it plays like the rest of the line. Forks that would overlap rise in lanes, one over another.
+// It ends in a cap for what the flow's end asks of you, so you know where playing leads: an empty box for whether it
+// looks good, ticked green once you've said it does, or ↑ for sending what you said in it; hollow ahead of the playhead
+// and filled once there, as a diamond is. Pointed at, it says so; pressed, it plays the last step out to there.
 
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { time, type Flow } from "@mostlyworks/vantage-review";
+import { TickMark } from "./Chosen.tsx";
 import { CARD, clamp } from "./moments.ts";
 import { useNow, type Forked, type Playhead } from "./playhead.ts";
 
@@ -31,9 +35,13 @@ type Props = {
   growing?: ForkLine;
   // A note pointed at elsewhere: its dot grows.
   lit?: string;
+  // What the flow's end asks, and going there.
+  end?: { asks: "Looks good?" | "Looks good" | "Send"; go: () => void };
 };
 
 const DOT = 14;
+// What's pointed at when it's the end's cap.
+const END = "end";
 // While you're in the app, the fork is this long, its open end breathing as what's under way does everywhere; let go,
 // it runs on to its own end.
 const UNDER_WAY = 64;
@@ -53,7 +61,7 @@ const TIE = 6;
 // A fork that runs on less than this past its last note ends at it, so no crumb of line trails the dot.
 const CRUMB = 8;
 
-export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [], growing, lit }: Props) {
+export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [], growing, lit, end }: Props) {
   const now = useNow(playhead);
   const flows = playhead.flows;
   // On a fork, the line is still its flow's.
@@ -253,8 +261,10 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
   // Pointed at here, a note says its first words; lit from the list, where its words already are, it only grows.
   const dot = dots.find((dot) => dot.id === named);
   const mark = marks.find((mark) => mark.id === named);
+  const ends = named === END ? end : undefined;
+  const atEnd = !onFork && at >= flow.length - 0.06;
   // Playing is watching: what a mark says waits until it stops.
-  const tip = now.playing ? undefined : (dot ?? mark);
+  const tip = now.playing ? undefined : (dot ?? mark ?? ends);
   const ghost = !scrubbing && pointing !== undefined && !tip;
   const pointedFork = pointing?.fork ? lines.find((line) => line.name === pointing.fork) : undefined;
   const pointed = pointing === undefined ? undefined : pc(pointedFork ? forkShare(pointedFork, pointing.at) : share(flow, pointing.at));
@@ -295,7 +305,7 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
         aria-valuemax={flow.length}
         aria-valuenow={Math.max(0, at)}
         data-scrubbing={scrubbing ? "" : undefined}
-        className="group/line relative h-9 min-w-30 flex-[1_1_160px] cursor-pointer touch-none select-none"
+        className="group/line relative mr-5 h-9 min-w-30 flex-[1_1_160px] cursor-pointer touch-none select-none"
         onPointerDown={press}
         // Pressing it with the pointer leaves the keys where they were, so Space afterwards doesn't ring the whole line.
         onMouseDown={(event) => event.preventDefault()}
@@ -367,6 +377,29 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
               {other.name}
             </span>
           ))}
+        {end && (
+          <button
+            data-mark
+            aria-label={end.asks}
+            className="group/end absolute top-[11px] left-[calc(100%+4px)] z-3 grid size-3.5 place-items-center"
+            onPointerEnter={() => setNamed(END)}
+            onPointerLeave={() => setNamed(undefined)}
+            onClick={() => !swallow.current && end.go()}
+          >
+            <i
+              className={`grid size-3.5 place-items-center rounded-[4px] transition-[scale,background-color,color] duration-150 ease-calm group-hover/end:scale-115 ${
+                end.asks === "Looks good" ? "bg-green text-ground" : atEnd ? "bg-fg text-ground" : "bg-ground text-soft shadow-[inset_0_0_0_1.5px_currentColor] group-hover/end:text-fg"
+              }`}
+            >
+              {end.asks === "Looks good" && <TickMark className="size-2.5" />}
+              {end.asks === "Send" && (
+                <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="size-2.5" aria-hidden>
+                  <path d="M5 8.2V2M2.4 4.5 5 1.9l2.6 2.6" />
+                </svg>
+              )}
+            </i>
+          </button>
+        )}
         {marks.map((shown) => {
           const pointed = { onPointerEnter: () => setNamed(shown.id), onPointerLeave: () => setNamed(undefined), onClick: () => !swallow.current && onMark(shown.id) };
           const left = percent(flow, shown.at);
@@ -426,8 +459,9 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
           className={`pointer-events-none absolute z-4 transition-opacity duration-120 ease-calm ${pointedFork ? "-top-[3px] bottom-[21px] -ml-px w-0.5 rounded-[1px] bg-amber" : "top-1.5 bottom-1.5 -ml-[1.5px] w-[3px] rounded-[1.5px] bg-fg"} ${ghost ? (pointedFork ? "opacity-60" : "opacity-30") : "opacity-0"}`}
           style={{ left: pointed, translate: `0 ${-rise(pointedFork)}px` }}
         />
-        <span aria-hidden className={`${label} z-300 text-fg ${tip ? "translate-y-0 opacity-100" : "translate-y-[2px] opacity-0"}`} style={{ marginBottom: rise(dot?.fork ? lines.find((line) => line.name === dot.fork) : undefined), left: tip ? (dot ? (dot.fork && dot.fork === grown?.name ? underWay(grown) : pc(dotShare(dot))) : percent(flow, tip.at)) : undefined }}>
+        <span aria-hidden className={`${label} z-300 text-fg ${tip ? "translate-y-0 opacity-100" : "translate-y-[2px] opacity-0"}`} style={{ marginBottom: rise(dot?.fork ? lines.find((line) => line.name === dot.fork) : undefined), left: dot ? (dot.fork && dot.fork === grown?.name ? underWay(grown) : pc(dotShare(dot))) : mark ? percent(flow, mark.at) : ends ? "calc(100% + 11px)" : undefined }}>
           {dot && <span className="block max-w-[220px] truncate">{dot.words}</span>}
+          {ends && <span className="block">{ends.asks}</span>}
           {mark && (
             <span className="block max-w-[320px] truncate">
               {mark.note && <b className="mr-[5px] font-semibold text-amber-ink">{mark.note.number}</b>}

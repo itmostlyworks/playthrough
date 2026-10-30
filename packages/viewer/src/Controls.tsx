@@ -37,6 +37,8 @@ type Props = {
   growing?: ForkLine;
   // A note pointed at elsewhere, lit on the line.
   lit?: string;
+  // What the flow's end asks, under the line's end.
+  end?: { asks: "Looks good?" | "Looks good" | "Send"; go: () => void };
 };
 
 export function Controls(props: Props) {
@@ -55,7 +57,7 @@ export function Controls(props: Props) {
 
   return (
     <div className="group/controls flex min-w-0 flex-wrap items-center gap-3 pt-[18px] select-none">
-      <Timeline playhead={props.playhead} dots={props.dots} onDot={props.onDot} marks={props.marks} onMark={props.onMark} live={props.live === "shown"} forks={props.forks} growing={props.growing} lit={props.lit} />
+      <Timeline playhead={props.playhead} dots={props.dots} onDot={props.onDot} marks={props.marks} onMark={props.onMark} live={props.live === "shown"} forks={props.forks} growing={props.growing} lit={props.lit} end={props.end} />
       <button
         data-speed
         className={`${quiet} ${coveredBack} text-center hover:bg-hover hover:text-fg ${speed < 1 ? "text-amber-ink" : ""}`}
