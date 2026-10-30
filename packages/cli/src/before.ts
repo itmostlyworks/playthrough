@@ -87,7 +87,7 @@ async function onBefore(repo: Repo, id: string, flows: string[], doing: string, 
     const { url } = await repo.app();
     const shared = await serving(url);
     console.log(`\n${doing}. Your work is set aside with git stash meanwhile${shared ? `, and what serves ${url} serves the app as it was` : ""}.`);
-    ran = await asItWas(repo, unrecorded, before.commit, async () => {
+    ran = await asItWas(repo, unrecorded, before.commit, shared, async () => {
       if (shared) await caughtUp(url);
       return run();
     });
@@ -123,16 +123,17 @@ export function howFar(recorded: { flow: Flow }[], failed: Failed[], app: string
 }
 
 // Where the agent's work is while the working copy holds the app as it was: the branch or commit to come back to, the
-// stash it's set aside in, by its message, and the command that set it aside.
-type SetAside = { back: string; stash: string; by: number };
+// stash it's set aside in, by its message, the command that set it aside, and whether a server of the agent's was
+// already serving the app, following the working copy.
+type SetAside = { back: string; stash: string; by: number; shared?: boolean };
 const SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP"] as const;
 
 // The working copy holds the app as it was while `run` runs, then the agent's work again. Where the work is goes in
 // .vantage/ first, so if Vantage is stopped halfway the next command puts it back; stopped by a signal, it puts it back
 // itself before it ends.
-async function asItWas<T>(repo: Repo, unrecorded: string, commit: string, run: () => Promise<T>): Promise<T> {
+async function asItWas<T>(repo: Repo, unrecorded: string, commit: string, shared: boolean, run: () => Promise<T>): Promise<T> {
   await repo.keepOutOfGit();
-  const aside: SetAside = { back: here(repo), stash: `Vantage: your work, set aside while flows record on Before, ${new Date().toISOString()}`, by: process.pid };
+  const aside: SetAside = { back: here(repo), stash: `Vantage: your work, set aside while flows record on Before, ${new Date().toISOString()}`, by: process.pid, ...(shared && { shared }) };
   writeFileSync(repo.setAside, JSON.stringify(aside));
   // Listened for until the work is back, so a second signal can't end it halfway.
   let stopping = false;
@@ -164,7 +165,8 @@ async function asItWas<T>(repo: Repo, unrecorded: string, commit: string, run: (
 }
 
 // A command that finds the work still set aside, by one that was stopped halfway, puts it back before anything else.
-// Stopped hard, it can leave the app as it was serving, which the next round mustn't be recorded on.
+// Stopped hard, it can leave the app as it was serving, if Vantage started it, which the next round mustn't be recorded
+// on; a server of the agent's follows the work back.
 export async function putBack(repo: Repo) {
   const aside: SetAside | undefined = attempt(() => JSON.parse(readFileSync(repo.setAside, "utf8")));
   if (!aside || running(aside.by)) return;
@@ -174,7 +176,7 @@ export async function putBack(repo: Repo) {
   if (!toDo) return;
   const back = `Vantage was stopped while your work was set aside for a flow to record on Before. It's back now, on ${aside.back}.`;
   const url = (await repo.app().catch(() => undefined))?.url;
-  if (url && (await serving(url))) throw new Refused([back, `Something is still serving ${url}, most likely the app as it was, left running: stop it, then run this again.`]);
+  if (url && !aside.shared && (await serving(url))) throw new Refused([back, `Something is still serving ${url}, most likely the app as it was, left running: stop it, then run this again.`]);
   console.log(`${back}\n`);
 }
 
