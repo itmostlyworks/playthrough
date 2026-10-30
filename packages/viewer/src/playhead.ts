@@ -24,8 +24,9 @@ export class Playhead {
   #stops: Stop[] = [];
   // The stops already stopped at, at the moment it last stopped: playing on from there stops for each other one there.
   #stoppedFor?: { flow: string; at: number; ids: string[] };
-  // Where a moment you asked to see ends, and playing stops by itself.
+  // Where a moment you asked to see ends, and playing stops by itself, or starts it over when it's on repeat.
   #until?: number;
+  #again?: number;
   #listeners = new Set<() => void>();
 
   constructor(flows: Flow[], moment: Moment) {
@@ -52,7 +53,7 @@ export class Playhead {
   }
 
   pause() {
-    this.#until = undefined;
+    this.#until = this.#again = undefined;
     if (!this.now.playing) return;
     cancelAnimationFrame(this.#frame);
     this.#set({ playing: false });
@@ -65,12 +66,12 @@ export class Playhead {
 
   // Seeking while playing keeps playing.
   seek(at: number) {
-    this.#until = undefined;
+    this.#until = this.#again = undefined;
     this.#set({ moment: { flow: this.flow.name, at: clamp(at, -CARD, this.flow.length) } });
   }
 
   go(moment: Moment) {
-    this.#until = undefined;
+    this.#until = this.#again = undefined;
     const flow = this.flows.find((flow) => flow.name === moment.flow);
     if (flow) this.#set({ moment: { flow: flow.name, at: clamp(moment.at, -CARD, flow.length) } });
   }
@@ -94,6 +95,12 @@ export class Playhead {
     this.go(from);
     this.#until = until;
     this.play();
+  }
+
+  // The same, again and again, until it's paused or you go elsewhere.
+  repeat(from: Moment, until: number) {
+    this.run(from, until);
+    this.#again = from.at;
   }
 
   slower() {
@@ -142,6 +149,7 @@ export class Playhead {
       return stop.reached();
     }
     if (this.#until !== undefined && at >= this.#until) {
+      if (this.#again !== undefined) return this.#set({ moment: { flow: flow.name, at: this.#again } });
       cancelAnimationFrame(this.#frame);
       const until = this.#until;
       this.#until = undefined;

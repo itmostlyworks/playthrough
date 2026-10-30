@@ -336,12 +336,17 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   const looked = flow ? lastLooked(review, you, flow.name, round.number) : undefined;
   // Compare is this moment as it was: on the round an open answer's note asked about, or else the round you last looked
   // at this flow on, or Before. Held, it's a still look in place while you hold it; pressed and let go, the two go side
-  // by side, playing together, until it's pressed again, or Escape.
+  // by side, playing together, until it's pressed again, or Escape. On a bar, an answer that moves, held or pressed, the
+  // two play its stretch side by side on repeat.
   const compared = round.number > first ? (askedFrom ?? looked ?? first) : undefined;
   const [peek, setPeek] = useState(false);
   const pressed = useRef<number>(undefined);
   const pressCompare = () => {
-    if (pressed.current === undefined) pressed.current = window.setTimeout(() => setPeek(true), HOLD);
+    if (pressed.current === undefined)
+      pressed.current = window.setTimeout(() => {
+        setPeek(true);
+        if (repeats) setSideFit(false);
+      }, HOLD);
   };
   const releaseCompare = () => {
     if (pressed.current === undefined) return;
@@ -518,18 +523,19 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   // changed for the open note is the note's, drawn with it.
   const outlined = changeOpen?.flow === watching ? changeOpen : !open ? diamonds.find((diamond) => diamond.id === onNow) : undefined;
 
-  // Opened, a note or a change goes to its moment, or plays it when it's a stretch; in a change's card its time goes there
-  // again, and a click on the rest of its header closes it, never playing or pausing anything else.
+  // Every mark covers what it shows. Opened, a dot or a diamond goes still to its moment; a bar plays what it covers. In a
+  // change's card its time goes there again, and a click on the rest of its header closes it, never playing or pausing
+  // anything else.
   const running = useRef<string>(undefined);
   const play = (id: string, from: Moment, until: number) => {
     running.current = id;
     playhead.run(from, until);
   };
-  // A change is a difference from an earlier round, seen on one frame: it opens there, still. New steps play through.
+  // A change is a difference from an earlier round, seen on one frame: it opens there, still. New steps open on the
+  // first step the flow didn't take before; Play goes on through them.
   const choose = (diamond: Diamond) => {
     setOpen({ change: diamond.id });
-    if (diamond.until === undefined) go(diamond.flow, diamond.at);
-    else play(diamond.id, { flow: diamond.flow, at: diamond.at }, diamond.until);
+    go(diamond.flow, diamond.at);
   };
   // A flow plays from its start, unless you're partway through it.
   const playFlow = (chosen: Flow) => {
@@ -542,26 +548,22 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     setMet((met) => (met.includes(note.id) ? met : [...met, note.id]));
     if (note.on) go(playedOn(note.on), note.on.at);
   };
-  // Where an answer that moves is watched, once the recording says when what it's on changed.
-  const watchedOf = (note: Shown) => watchedIn(round, note.id, changes?.flow === flow?.name ? changes?.moved.get(note.id) : undefined);
-  // The time a note covers on the timeline is the time it plays: its moment, its stretch, or the step it's watched in.
-  const span = (note: Shown) => {
-    const watched = watchedOf(note);
-    return watched && note.on && playedOn(note.on) === watched.flow ? { at: watched.at, until: watched.until } : { at: note.on?.at ?? 0, until: note.on?.until };
+  // Where an answer that moves is watched, in the flow its note is on, once the recording says when what it's on changed.
+  const movingOf = (note: Shown) => {
+    const watched = watchedIn(round, note.id, changes?.flow === flow?.name ? changes?.moved.get(note.id) : undefined);
+    return watched && note.on && playedOn(note.on) === watched.flow ? watched : undefined;
   };
-  // Chosen, a note opens on the frame it was written on, still: that frame is what it's about. One on a stretch plays the
-  // stretch, to the frame it was written on (its end): past it, the page may have moved its thing away. One whose answer
-  // moves plays the step it's watched in. One on a whole flow plays the flow, going on if it's already playing.
+  // The time a note covers on the timeline is the time it plays: a dot its moment, a bar the stretch its answer moves in
+  // (or that it's on).
+  const span = (note: Shown) => movingOf(note) ?? { at: note.on?.at ?? 0, until: note.on?.until };
+  // Chosen, from its dot, its pin or the bar's list alike, a note opens on the frame it was written on, still: that frame
+  // is what it's about. A bar plays exactly what it covers, then its card asks. One on a whole flow plays the flow, going
+  // on if it's already playing.
   const pick = (note: Shown) => {
     const on = note.on;
     const its = on && played.flows.find((flow) => flow.name === playedOn(on));
-    const watched = watchedOf(note);
-    if (watched && its?.name === watched.flow) {
-      setOpen({ note: note.id });
-      setMet((met) => (met.includes(note.id) ? met : [...met, note.id]));
-      return play(note.id, { flow: watched.flow, at: watched.at }, watched.until);
-    }
-    if (!on || !its || on.at === undefined || on.until === undefined) {
+    const { at, until } = span(note);
+    if (!its || until === undefined) {
       show(note);
       const { moment, playing } = playhead.now;
       if (its && on?.at === undefined && !(playing && moment.flow === its.name)) playFlow(its);
@@ -569,7 +571,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     }
     setOpen({ note: note.id });
     setMet((met) => (met.includes(note.id) ? met : [...met, note.id]));
-    play(note.id, { flow: its.name, at: on.at }, Math.min(its.length, on.until));
+    play(note.id, { flow: its.name, at }, Math.min(its.length, until));
   };
 
   // The agent's line about a flow is on its title card: the first time you come to the flow, playing waits there, the
@@ -591,7 +593,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
       ...walkedForks.filter(waitsOn).map((fork) => ({ id: fork.name, flow: fork.from.flow, at: fork.from.at, reached: onto(fork.name, fork.from.at) })),
       ...round.flows.filter((flow) => flow.line && !readLines.includes(flow.name)).map((flow) => ({ id: `card:${flow.name}`, flow: flow.name, at: POSTER, reached: () => {} })),
       ...playingNotes.flatMap((note) =>
-        note.on && note.state === "needs you" && !note.unsent && !met.includes(note.id) ? [{ id: note.id, flow: playedOn(note.on), at: span(note).at, reached: () => (watchedIn(round, note.id) ? pick(note) : show(note)) }] : [],
+        note.on && note.state === "needs you" && !note.unsent && !met.includes(note.id) ? [{ id: note.id, flow: playedOn(note.on), at: span(note).at, reached: () => pick(note) }] : [],
       ),
     ]),
   );
@@ -780,8 +782,8 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
       />
     </div>
   );
-  // What isn't right about a change is a note on what it's on, at its moment, or over new steps: one note, opened again
-  // once it's there.
+  // What isn't right about a change is a note on what it's on, at its moment, or on the first of new steps: one note,
+  // opened again once it's there.
   const noteOn = (diamond: Diamond) => {
     const already = [...grown].find(([, on]) => on === diamond)?.[0];
     const note = notes.find((note) => note.id === already);
@@ -789,7 +791,7 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     if (already) return setOpen({ writing: already });
     const on = diamond.changes.find((changed) => !changed.answers)?.on;
     go(diamond.flow, diamond.at);
-    write({ flow: diamond.flow, at: diamond.at, ...(diamond.until !== undefined ? { until: diamond.until } : on?.element ? { element: on.element } : on?.box && { box: on.box }) });
+    write({ flow: diamond.flow, at: diamond.at, ...(diamond.until === undefined && (on?.element ? { element: on.element } : on?.box && { box: on.box })) });
   };
   // Playing on from an open card lets it go, as moving on from it does. At the flow's end there's nothing left to play,
   // and the flow asks whether it's good before the next one starts.
@@ -874,14 +876,17 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
   // In the app where you were, with the note you're trying open: it stays by its pin there while you try it.
   const tryingHere = inApp && !!openNote && trying.current === openNote.id;
   const comparedRound = compared === undefined ? undefined : review.rounds.find((kept) => kept.number === compared);
+  // Motion is compared moving: on an open bar, Compare held is side by side too, while you hold it.
+  const repeats = openNote && movingOf(openNote);
+  const side = look === "side" || (peek && !!repeats);
   // A fork walked again is compared with the fork it was walked from, at its notes: the fork whose note is open, or
   // the one you're watching, open note or not. Side by side, it stays beside it once you've left it, until you go back
   // to one.
   const walkHere =
     (openNote && walkedTo(openNote) ? walkedForks.find((fork) => fork.notes?.some((note) => note.id === openNote.id)) : undefined) ??
     (onFork?.walked ? onFork : undefined) ??
-    (look === "side" ? walkedForks.find((fork) => fork.name === besideFork.current) : undefined);
-  besideFork.current = look === "side" ? walkHere?.name : undefined;
+    (side ? walkedForks.find((fork) => fork.name === besideFork.current) : undefined);
+  besideFork.current = side ? walkHere?.name : undefined;
   const walkedFrom = (walkHere?.notes ?? []).flatMap(({ id }) => {
     const on = noted.find((note) => note.id === id)?.on;
     return on?.app && on.at !== undefined ? [{ id, at: on.at, app: on.app }] : [];
@@ -907,14 +912,26 @@ function OnRound({ review: kept, round, latest, arrived, you, onRound }: OnRound
     : comparedRound;
   // Compare is there only where the round it compares with has what you're watching: a fork you made on this round, or
   // a flow new in it, has nothing to show beside it.
-  const comparingIt: Comparing | undefined = heldOver?.flows.some((flow) => flow.name === inPlay) ? { on: peek || look === "side", off: !!live?.shown, onPress: pressCompare, onRelease: releaseCompare } : undefined;
+  const comparingIt: Comparing | undefined = heldOver?.flows.some((flow) => flow.name === inPlay) ? { on: peek || side, off: !!live?.shown, onPress: pressCompare, onRelease: releaseCompare } : undefined;
   // Side by side, the round it compares with is on the left, or above.
-  const comparing = look === "side" && !!heldOver;
+  const comparing = side && !!heldOver;
   const earlier = comparing ? heldOver : undefined;
   const zoomed = comparing ? !sideFit : actual;
   // Holding Compare or How it was, that round shows over the recording, in place.
   // It waits unseen over the recording while it's paused, so Compare shows it at once; playing, only while it's on.
-  const peeking = peek && !!comparedRound;
+  const peeking = peek && !repeats && !!comparedRound;
+  // Side by side on a bar, both rounds play its stretch again and again; let go or pressed again, it rests at the
+  // stretch's end, where its card asks.
+  const looping = comparing && repeats ? `${openNote!.id} ${repeats.flow} ${repeats.at} ${repeats.until}` : undefined;
+  useEffect(() => {
+    if (!looping || !repeats) return;
+    running.current = openNote!.id;
+    playhead.repeat({ flow: repeats.flow, at: repeats.at }, repeats.until);
+    return () => {
+      playhead.pause();
+      playhead.go({ flow: repeats.flow, at: repeats.until });
+    };
+  }, [looping]);
 
   // Sending carries everything you've said on the round at once; what you haven't saved stays. Accepting sends what's
   // left first.

@@ -47,8 +47,8 @@ function nameOf(changes: Change[]): string {
 // What the agent changed for a note, in the note's own flow.
 export const answersTo = (diamonds: Diamond[], note: string): Changed[] => diamonds.flatMap((diamond) => diamond.changes.filter((changed) => changed.answers && changed.note === note));
 
-// Your note on what changed, at its moment, on what it's on, or over the same new steps: it grows out of the change's
-// row, so the change and what you said about it are one row, one card and one mark.
+// Your note on what changed, at its moment, on what it's on, or on the first of new steps, on nothing in particular: it
+// grows out of the change's row, so the change and what you said about it are one row, one card and one mark.
 export function grownFrom(diamonds: Diamond[], on: Place | undefined): Diamond | undefined {
   if (on?.at === undefined) return undefined;
   const near = (a: number, b?: number) => b !== undefined && Math.abs(a - b) < TOGETHER;
@@ -58,7 +58,7 @@ export function grownFrom(diamonds: Diamond[], on: Place | undefined): Diamond |
       diamond.flow === on.flow &&
       near(diamond.at, on.at) &&
       (diamond.until !== undefined
-        ? near(diamond.until, on.until)
+        ? !on.element && !on.box && !on.point
         : diamond.changes.some(({ on: there }) => (there.element?.node !== undefined && there.element.node === on.element?.node) || (!!there.box && JSON.stringify(there.box) === JSON.stringify(on.box)))),
   );
 }

@@ -1,10 +1,10 @@
-// What changed, as the timeline and a change's card draw it: a diamond for each moment, a band for new steps, and the one
-// you're on as the playhead passes.
+// What changed, as the timeline and a change's card draw it: a diamond for each moment, new steps one where they start,
+// and the one you're on as the playhead passes.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Change, Flow, Review, Round } from "@mostlyworks/vantage-review";
-import { answersTo, diamondAt, diamondsOn } from "../src/changes.ts";
+import { answersTo, diamondAt, diamondsOn, grownFrom } from "../src/changes.ts";
 
 const flow = (name: string): Flow => ({ name, length: 6, steps: [{ title: "Open the expenses", at: 0 }], recording: `${name.toLowerCase().replace(/\W+/g, "-")}.json` });
 const round = (number: number): Round => ({ number, by: "Claude Code", flows: [flow("See who owes whom"), flow("Search the expenses")], replies: [], accounts: {}, finished: "2026-10-25T09:00:00Z" });
@@ -30,7 +30,7 @@ test("changes at one moment of a flow are one diamond, named by the first and ho
   assert.deepEqual(diamonds[0]!.changes.map(({ change }) => change.id), ["swap", "words"]);
 });
 
-test("new steps are a band over the stretch they take, never folded into a diamond at its start", () => {
+test("new steps are a diamond of their own where they start, never folded into another change there", () => {
   const diamonds = diamondsOn(review([change("steps", "New steps: “Clear the search”", "Search the expenses", 2, 4.6), change("green", "“$…” looks different", "Search the expenses", 2)]), 1, "Ana");
   assert.deepEqual(
     diamonds.map(({ id, at, until }) => ({ id, at, until })),
@@ -39,6 +39,13 @@ test("new steps are a band over the stretch they take, never folded into a diamo
       { id: "green", at: 2, until: undefined },
     ],
   );
+});
+
+test("a note on new steps sits on the first of them, on nothing in particular, and grows out of their diamond", () => {
+  const diamonds = diamondsOn(review([change("steps", "New steps: “Clear the search”", "Search the expenses", 2, 4.6)]), 1, "Ana");
+  assert.equal(grownFrom(diamonds, { flow: "Search the expenses", at: 2 })?.id, "steps");
+  assert.equal(grownFrom(diamonds, { flow: "Search the expenses", at: 2, element: { role: "button", name: "Clear" } }), undefined, "one on a thing there is about that thing");
+  assert.equal(grownFrom(diamonds, { flow: "Search the expenses", at: 3 }), undefined, "one later in them is a moment of its own");
 });
 
 test("the change you're on lasts from its moment until the next click, a moment and a half at most, and else it's the new steps you're in", () => {
