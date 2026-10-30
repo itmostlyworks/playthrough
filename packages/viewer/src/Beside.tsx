@@ -88,7 +88,8 @@ export function Beside({ id, over, still, resting, pinned, onAway, children }: {
       const to = (x: number, y: number) => {
         if (pointing.current && first.last && !first.put && placed) [x, y] = [first.last.x, first.last.y];
         first.last = { x, y };
-        box.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
+        // Moved by translate, not transform, so growing into place grows around the card itself.
+        box.style.translate = `${x.toFixed(1)}px ${y.toFixed(1)}px`;
         if (first.shown && !first.gone) return;
         // It comes into view where it stands, a little grown into place: as it opens, and back from being gone.
         const opening = !first.shown;
