@@ -10,7 +10,7 @@ import { Bar } from "./Bar.tsx";
 import { Beside, clickedAt } from "./Beside.tsx";
 import { HOLD } from "./Card.tsx";
 import { answersTo, diamondAt, diamondsOn, grownFrom, type Changed, type Diamond } from "./changes.ts";
-import { Chosen, rowsIn, settles, type Landed, type Props as ChosenProps } from "./Column.tsx";
+import { Chosen, rowsIn, settles, type Landed, type Props as ChosenProps } from "./Chosen.tsx";
 import { Controls, type Look } from "./Controls.tsx";
 import type { ForkLine } from "./Timeline.tsx";
 import { useDraft, useWatched } from "./draft.ts";

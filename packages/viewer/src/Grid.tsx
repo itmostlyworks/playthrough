@@ -6,7 +6,7 @@
 import { useRef, useState, type RefObject } from "react";
 import { time, type Flow, type Review, type Round } from "@mostlyworks/vantage-review";
 import { picture } from "./api.ts";
-import { TickMark } from "./Column.tsx";
+import { TickMark } from "./Chosen.tsx";
 import { Agent, Go, says, type Step } from "./Foot.tsx";
 import type { Standing } from "./notes.ts";
 import { Picture, useStill } from "./Picture.tsx";

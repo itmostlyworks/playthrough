@@ -2,7 +2,7 @@
 // something to send. Under it the meter, a piece for each flow, green from the left as each looks good to you.
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { justLanded, type Landed } from "./Column.tsx";
+import { justLanded, type Landed } from "./Chosen.tsx";
 import { Key, mac, useHold } from "./Card.tsx";
 import type { Standing } from "./notes.ts";
 
