@@ -2,7 +2,8 @@
 // yet, so a flow the agent adds later can be recorded on it too. That happens in the agent's own working copy, the one
 // copy known to run: its env files, installed packages and local data stay as they are, since git leaves what it ignores
 // alone. The agent's work is set aside with git stash meanwhile, and put back after, even when recording fails or
-// Vantage is stopped.
+// Vantage is stopped. It's recorded on whatever serves the app, as every round is: a server already running follows the
+// working copy, as a dev server does, so for that minute it serves the app as it was.
 
 import { execFileSync } from "node:child_process";
 import { copyFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -17,20 +18,28 @@ import type { Repo } from "./repo.ts";
 // the agent staged stays as it was. A ref keeps the commit, so git never cleans it away. Outside git, there's none.
 export function keepBefore(repo: Repo, id: string): string | undefined {
   if (!attempt(() => git(repo, ["rev-parse", "--is-inside-work-tree"]))) return undefined;
+  try {
+    const tree = treeNow(repo);
+    const head = attempt(() => git(repo, ["rev-parse", "--verify", "--quiet", "HEAD"]));
+    const commit = git(repo, ["commit-tree", "--no-gpg-sign", ...(head ? ["-p", head] : []), "-m", `Before, of the review ${id}: the app as it was, with what wasn't committed`, tree], { ...process.env, ...VANTAGE });
+    git(repo, ["update-ref", `refs/vantage/${id}/before`, commit]);
+    return commit;
+  } catch (error) {
+    throw new Refused(["Before can't be kept as a commit, because git says:", `  ${said(error)}`, "Fix that and run this again."]);
+  }
+}
+
+// What the working copy holds, committed or not, as a git tree, through an index of its own so what the agent staged
+// stays as it was.
+function treeNow(repo: Repo): string {
   const folder = mkdtempSync(join(tmpdir(), "vantage-"));
   try {
     const index = join(folder, "index");
     // Starting from the agent's index, git only reads the files that changed.
     attempt(() => copyFileSync(resolve(repo.root, git(repo, ["rev-parse", "--git-path", "index"])), index));
-    const env = { ...process.env, GIT_INDEX_FILE: index, ...VANTAGE };
+    const env = { ...process.env, GIT_INDEX_FILE: index };
     git(repo, ["add", "--all", ":/"], env);
-    const tree = git(repo, ["write-tree"], env);
-    const head = attempt(() => git(repo, ["rev-parse", "--verify", "--quiet", "HEAD"]));
-    const commit = git(repo, ["commit-tree", "--no-gpg-sign", ...(head ? ["-p", head] : []), "-m", `Before, of the review ${id}: the app as it was, with what wasn't committed`, tree], env);
-    git(repo, ["update-ref", `refs/vantage/${id}/before`, commit]);
-    return commit;
-  } catch (error) {
-    throw new Refused(["Before can't be kept as a commit, because git says:", `  ${said(error)}`, "Fix that and run this again."]);
+    return git(repo, ["write-tree"], env);
   } finally {
     rmSync(folder, { recursive: true });
   }
@@ -61,24 +70,28 @@ async function onBefore(repo: Repo, id: string, flows: string[], doing: string, 
   const before = (await repo.reviews.get(id)).rounds.find((round) => round.number === 0)!;
   const named = list(flows.map(quote));
   if (!before.commit) return console.log(`\n${named} ${flows.length > 1 ? "have" : "has"} no Before: Before wasn't kept as a commit, so the app as it was can't be put back.`);
-  // Left running, the agent's own server would go on serving its work, not the app as it was.
-  const { url } = await repo.app();
-  if (await serving(url))
-    throw new Refused([
-      `${unrecorded}: ${doing}, and Vantage starts the app as it was itself, on ${url}. Something is serving there already.`,
-      "If you started it, stop it and try again. If you didn't, leave it running. Don't work around this by folding a flow into another or leaving it out: tell whoever gave you the task what this says.",
-    ]);
-
-  console.log(`\n${doing}. Your work is set aside with git stash meanwhile.`);
   const later = flows;
   const taken = before.flows.map((flow) => flow.recording);
   // An app as it was that doesn't start, for the reason Playwright gives, can't start any of them.
-  const ran = await asItWas(repo, unrecorded, before.commit, () =>
+  const run = () =>
     runFlows(repo, id, 0, { later: { flows: later, taken }, first: () => true }).catch((error) => {
       if (error instanceof Refused) return { recorded: [], failed: later.map((flow) => ({ flow })) };
       throw error;
-    }),
-  );
+    });
+  let ran: Awaited<ReturnType<typeof run>>;
+  // Nothing changed outside .vantage/ since Before, the app as it is is the app as it was, and nothing needs setting aside.
+  if (treeNow(repo) === git(repo, ["rev-parse", `${before.commit}^{tree}`])) {
+    console.log(`\n${doing}, on the app as it is: nothing has changed since Before.`);
+    ran = await run();
+  } else {
+    const { url } = await repo.app();
+    const shared = await serving(url);
+    console.log(`\n${doing}. Your work is set aside with git stash meanwhile${shared ? `, and what serves ${url} serves the app as it was` : ""}.`);
+    ran = await asItWas(repo, unrecorded, before.commit, async () => {
+      if (shared) await caughtUp(url);
+      return run();
+    });
+  }
   refuseIfBroken(ran.failed, unrecorded, again);
   await repo.reviews.addToBefore(id, { flows: ran.recorded.map(({ flow }) => flow), cantStart: cantStart(ran.recorded, ran.failed), files: ran.recorded.flatMap(({ files }) => files) });
   for (const line of howFar(ran.recorded, ran.failed, "the app as it was", id)) console.log(line);
@@ -202,6 +215,13 @@ const serving = (url: string) =>
     (response) => (response.body?.cancel(), true),
     () => false,
   );
+
+// A server following the working copy has seen it change once it's had a moment to notice, and answered once more: a dev
+// server builds what was asked for again before it answers.
+async function caughtUp(url: string) {
+  await new Promise((done) => setTimeout(done, 1000));
+  await fetch(url, { signal: AbortSignal.timeout(60_000) }).then((response) => response.body?.cancel(), () => {});
+}
 
 function running(pid: number): boolean {
   try {

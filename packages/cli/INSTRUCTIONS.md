@@ -38,8 +38,8 @@ vantage/app.json says how to start the app, and is committed so every review use
 
 Each round, and Before, is recorded on whatever serves that url, and Vantage starts the app itself only when nothing
 does: leave a server you didn't start running. Recording a flow on Before later, when it's new or Before cut it short,
-is different: Vantage puts the app as it was in place and starts it itself, so the url has to be free. If it isn't,
-Vantage says what to do.
+puts the app as it was in your working copy for a minute, unless nothing has changed since Before, and records there
+too: a server already running should follow the working copy, as a dev server does.
 
 FLOWS
 
