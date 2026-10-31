@@ -61,6 +61,9 @@ type Props = {
   onJudge: (verdict: Verdict | undefined) => void;
   onEdit: (words: string | undefined) => void;
   onPoint: (change?: string) => void;
+  // On the whole flow, each change made for it, at its moment, and going there.
+  seen?: (changed: Changed) => number | undefined;
+  onVisit?: (changed: Changed) => void;
   onPlayOn: () => void;
   onShow: () => void;
 };
@@ -103,9 +106,32 @@ export function NoteRow(props: Props) {
 }
 
 // What the agent changed for a note, each under a small hollow diamond, as the timeline draws a change: a line each in a
-// closed note, whole in a card. Pointing at one outlines just it, as in a change's card.
-function Listed({ answers, className, lines, onPoint }: { answers: Changed[]; className: string; lines?: boolean; onPoint?: (change?: string) => void }) {
+// closed note, whole in a card. Pointing at one outlines just it, as in a change's card. On the whole flow, they happened
+// along it, not at its end where they're listed: each says when, as a note's line does, and goes there.
+function Listed({ answers, className, lines, onPoint, seen, onVisit }: { answers: Changed[]; className: string; lines?: boolean; onPoint?: (change?: string) => void; seen?: (changed: Changed) => number | undefined; onVisit?: (changed: Changed) => void }) {
   const shown = answers.length > LISTED ? answers.slice(0, LISTED - 1) : answers;
+  const diamond = <i className="size-1.5 flex-none translate-y-[-1px] rotate-45 shadow-[inset_0_0_0_1.5px_var(--soft)]" aria-hidden />;
+  if (onVisit)
+    return (
+      <span className={`grid gap-px ${className}`}>
+        {shown.map((changed) => {
+          const at = seen?.(changed);
+          return (
+            <button
+              key={changed.change.id}
+              className="group/row -mx-1.5 grid grid-cols-[6px_minmax(0,1fr)_auto] items-baseline gap-x-2 rounded-md px-1.5 py-px text-left text-fg transition-colors duration-150 ease-calm hover:bg-hover"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => onVisit(changed)}
+            >
+              {diamond}
+              <span className="min-w-0">{changed.change.words}</span>
+              {at !== undefined && <Time className="text-faint">{time(at)}</Time>}
+            </button>
+          );
+        })}
+        {shown.length < answers.length && <span className="pl-[15px]">{answers.length - shown.length} more changes</span>}
+      </span>
+    );
   return (
     <span className={`grid gap-px ${className}`}>
       {shown.map(({ change }) => (
@@ -200,7 +226,7 @@ function Card(props: Props) {
                 {turn.words}
               </Said>
             )}
-            {i === lastAgent && props.answers.length > 0 && <Listed answers={props.answers} className="-mt-0.5 leading-normal" onPoint={props.whole ? undefined : props.onPoint} />}
+            {i === lastAgent && props.answers.length > 0 && <Listed answers={props.answers} className="-mt-0.5 leading-normal" onPoint={props.whole ? undefined : props.onPoint} seen={props.seen} onVisit={props.onVisit} />}
           </div>
         ))}
         {note.state === "with someone else" && !readOnly && <p className="text-xs leading-[18px] text-slate">Waiting for {list(note.waitingFor)}</p>}

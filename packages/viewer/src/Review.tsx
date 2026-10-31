@@ -561,9 +561,24 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   // Pointing at one of several changes, in a change's card or a note's answer, draws only that one.
   const [pointedChange, setPointedChange] = useState<string>();
   useEffect(() => setPointedChange(undefined), [changeOpen?.id]);
+  // A change made for a note on the whole flow happened along it, not at its end: gone to from the end, the playhead stops
+  // on it, outlined in the note's colour and lit on the timeline, until you play on, which brings you back to the end.
+  const [visiting, setVisiting] = useState<{ note: string; diamond: string }>();
+  const visited = visiting && diamonds.find((diamond) => diamond.id === visiting.diamond);
+  const leftVisit = useNow(playhead, ({ moment }) => !!visited && (moment.flow !== visited.flow || Math.abs(moment.at - visited.at) > NEAR));
+  useEffect(() => {
+    if (leftVisit) setVisiting(undefined);
+  }, [leftVisit]);
+  const visit = (note: Shown, changed: Changed) => {
+    const diamond = diamonds.find((diamond) => diamond.changes.includes(changed));
+    if (!diamond) return;
+    setOpen(undefined);
+    go(diamond.flow, diamond.at);
+    setVisiting({ note: note.id, diamond: diamond.id });
+  };
   // Paused on a change, with nothing else open, it's outlined where it is on the page; chosen, more firmly. What the agent
-  // changed for the open note is the note's, drawn with it.
-  const outlined = changeOpen?.flow === watching ? changeOpen : !open ? diamonds.find((diamond) => diamond.id === onNow) : undefined;
+  // changed for the open note is the note's, drawn with it, as is one gone to from a flow's end.
+  const outlined = changeOpen?.flow === watching ? changeOpen : !open && !visited ? diamonds.find((diamond) => diamond.id === onNow) : undefined;
 
   // Every mark covers what it shows. Opened, a dot or a diamond goes still to its moment; a bar plays what it covers. In a
   // change's card its time goes there again, and a click on the rest of its header closes it, never playing or pausing
@@ -920,6 +935,8 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
         onJudge={(verdict) => judge(note, verdict)}
         onEdit={(words) => editNote(note.id, words)}
         onPoint={setPointedChange}
+        seen={(changed) => diamonds.find((diamond) => diamond.changes.includes(changed))?.at}
+        onVisit={note.on?.at === undefined ? (changed) => visit(note, changed) : undefined}
         onPlayOn={inApp && trying.current === note.id ? () => {} : playOn}
         onShow={() => show(note)}
       />
@@ -1240,13 +1257,21 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     return pointed.length ? pointed : changes;
   };
   // The open note's answer, outlined in every place in the note's colour, on the round you're watching and the one beside it.
-  // One on the whole flow is over the flow's softened end, where nothing is outlined.
-  const answerMarks = (on: (changed: Changed) => Place | undefined): Mark[] =>
-    openNote && openNote.on?.at !== undefined
-      ? pointedIn(answersTo(diamonds, openNote.id).filter((changed) => changed.on.flow === watching)).flatMap((changed) =>
-          marksOn(on(changed)).map((at): Mark => ({ id: changed.change.id, kind: "change", on: at, ink: ink(openNote), answers: openNote.id, pointed: changed.change.id === pointedChange, chosen: false })),
+  // One on the whole flow is outlined where you've gone to it from the flow's end, as what you chose.
+  const visitedNote = visited && notes.find((note) => note.id === visiting?.note);
+  const answerMarks = (on: (changed: Changed) => Place | undefined): Mark[] => {
+    const [note, changes] =
+      openNote && openNote.on?.at !== undefined
+        ? [openNote, pointedIn(answersTo(diamonds, openNote.id).filter((changed) => changed.on.flow === watching))]
+        : visitedNote && visited.flow === watching
+          ? [visitedNote, answersTo(diamonds, visitedNote.id).filter((changed) => visited.changes.includes(changed))]
+          : [undefined, []];
+    return note
+      ? changes.flatMap((changed) =>
+          marksOn(on(changed)).map((at): Mark => ({ id: changed.change.id, kind: "change", on: at, ink: ink(note), answers: note.id, pointed: changed.change.id === pointedChange, chosen: note === visitedNote })),
         )
       : [];
+  };
   const drawn = (diamond: Diamond) => pointedIn(diamond.changes);
   // New steps aren't on one thing: they're outlined on what they click or type into, as the recording shows it.
   const actedOn = (diamond: Diamond): Mark["on"][] =>
@@ -1416,13 +1441,13 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
             }}
             // What was changed for a note is in the note's answer, not marked again: its dot is the one mark for both.
             marks={diamonds
-              .filter((diamond) => diamond.flow === watching && diamond.row)
+              .filter((diamond) => diamond.flow === watching && (diamond.row || diamond === visited))
               .map((diamond) => {
-                const answered = notes.find((note) => grown.get(note.id) === diamond);
+                const answered = diamond === visited ? visitedNote : notes.find((note) => grown.get(note.id) === diamond);
                 return {
                   ...diamond,
                   note: answered && { number: answered.number, ink: ink(answered) },
-                  lit: diamond.id === lit || (!!answered && answered === openNote),
+                  lit: diamond.id === lit || (!!answered && (answered === openNote || diamond === visited)),
                 };
               })}
             onMark={(id) => {
