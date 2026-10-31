@@ -129,17 +129,20 @@ export function Beside({ id, over, standing, still, resting, pinned, onAway, chi
       const spot = found ? drawn! : new DOMRect(at.x, at.y, 0, 0);
       const pin = id ? document.querySelector<HTMLElement>(`${shown} [data-pin="${CSS.escape(id)}"]`)?.getBoundingClientRect() : undefined;
       const corner = pin?.width ? pin : spot;
-      const fits = ({ x, y }: Spot) => x >= EDGE && x + w <= innerWidth - EDGE && y >= EDGE && y + h <= innerHeight - EDGE;
+      // It stays above the action bar, as a flow's question does: the bar, and the timeline under it, are never covered.
+      const bar = document.querySelector("[data-bar]")?.getBoundingClientRect();
+      const floor = bar?.height ? bar.top - EDGE : innerHeight - EDGE;
+      const fits = ({ x, y }: Spot) => x >= EDGE && x + w <= innerWidth - EDGE && y >= EDGE && y + h <= floor;
       // In the layout it was placed in, it keeps where it stood from its pin.
       const kept = first.fromPin && { x: corner.left + first.fromPin.x, y: corner.top + first.fromPin.y };
-      if (moving && first.last) return to(clamp(first.last.x, EDGE, innerWidth - w - EDGE), clamp(first.last.y, EDGE, innerHeight - h - EDGE));
+      if (moving && first.last) return to(clamp(first.last.x, EDGE, innerWidth - w - EDGE), clamp(first.last.y, EDGE, floor - h));
       if (kept && placed && fits(kept)) {
         if (found) first.was = kept;
         return to(kept.x, kept.y);
       }
       // Under it or over it, the card ends at the pin's right, so the line runs straight to the pin.
       const across = clamp(corner.right - w, EDGE, innerWidth - w - EDGE);
-      const level = clamp(spot.top - 24, EDGE, innerHeight - h - EDGE);
+      const level = clamp(spot.top - 24, EDGE, floor - h);
       const places: Record<Side, Spot> = {
         right: { x: spot.right + GAP, y: level },
         left: { x: spot.left - GAP - w, y: level },
