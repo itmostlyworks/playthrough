@@ -9,6 +9,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { list, quote, Refused, type Did, type Flow } from "@playthrough/review";
 import { changesByThemselves, type Recorded as Compared } from "./compare.ts";
+import { keepRunning } from "./app.ts";
 import { glimpsesOf, readingsOf, type Failed, type Recorded } from "./reporter.ts";
 import { repo, type App, type Repo } from "./repo.ts";
 import { giveBackLeft, setupIn } from "./setup.ts";
@@ -235,15 +236,16 @@ export async function walkFork(repo: Repo, id: string, walk: Walk): Promise<Walk
 // A flow that failed, at the step it failed at, as a line of a refusal.
 export const failedAt = ({ flow, at }: Failed) => `  ${quote(flow)}${at ? `, at the step ${quote(at)}` : ""}`;
 async function playwright(run: Run): Promise<boolean> {
-  // What an earlier command made and didn't give back, it gives back first.
-  const { setup, borrowed } = repo(run.root);
-  await giveBackLeft(await setupIn(setup), borrowed);
   // Flows import playthrough/test from the app, so it has to be one of the app's packages.
   try {
     createRequire(join(run.root, "package.json")).resolve("playthrough/test");
   } catch {
     throw new Refused(["Playthrough isn't installed in this app, so its flows can't import playthrough/test. Install it as a dev dependency (npm install --save-dev playthrough), then run this again."]);
   }
+  await keepRunning(run.app, run.root);
+  // What an earlier command made and didn't give back, it gives back first, now the app is there to take it.
+  const { setup, borrowed } = repo(run.root);
+  await giveBackLeft(await setupIn(setup), borrowed);
   const cli = createRequire(import.meta.url).resolve("@playwright/test/cli");
   const config = fileURLToPath(new URL("./playwright.config.ts", import.meta.url));
   return new Promise((resolve, reject) => {

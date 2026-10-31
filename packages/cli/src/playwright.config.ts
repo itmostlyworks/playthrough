@@ -1,5 +1,5 @@
 // How `playthrough record` runs a review's flows: a quarter as many at once as the machine has cores, in Chromium at
-// 1280×800, against the app playthrough/app.json starts, or the one already running there.
+// 1280×800, against the app Playthrough keeps running (app.ts).
 
 import { defineConfig } from "@playwright/test";
 import { fileURLToPath } from "node:url";
@@ -20,7 +20,6 @@ export default defineConfig({
   // An action that can't happen fails in seconds rather than at the test's end: recording Before, a flow that shows
   // what's new stops at the first thing the app as it is doesn't have.
   use: { baseURL: run.app.url, viewport: { width: 1280, height: 800 }, actionTimeout: 10_000, screenshot: "only-on-failure" },
-  webServer: { command: run.app.start, url: run.app.url, cwd: run.root, reuseExistingServer: true },
   // Playwright starts flows in the order of their projects: one for each flow not yet timed, which may be long, then one
   // for each flow by its last length, longest first.
   ...(run.longest?.length && {

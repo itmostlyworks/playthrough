@@ -3,13 +3,15 @@
 // copy known to run: its env files, installed packages and local data stay as they are, since git leaves what it ignores
 // alone. The agent's work is set aside with git stash meanwhile, and put back after, even when recording fails or
 // Playthrough is stopped. It's recorded on whatever serves the app, as every round is: a server already running follows the
-// working copy, as a dev server does, so for that minute it serves the app as it was.
+// working copy, as a dev server does, so for that minute it serves the app as it was, and one Playthrough started is
+// started again on it.
 
 import { execFileSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { constants, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { list, quote, Refused, type Flow } from "@playthrough/review";
+import { stopApp } from "./app.ts";
 import { failedAt, runFlows, whereItStopped } from "./flows.ts";
 import type { Failed } from "./reporter.ts";
 import type { Repo } from "./repo.ts";
@@ -85,11 +87,18 @@ async function onBefore(repo: Repo, id: string, flows: string[], doing: string, 
     ran = await run();
   } else {
     const { url } = await repo.app();
+    // The app Playthrough started serves the work as it was when it started: it's started again on the app as it was,
+    // and stopped before the work comes back.
+    await stopApp(url);
     const shared = await serving(url);
     console.log(`\n${doing}. Your work is set aside with git stash meanwhile${shared ? `, and what serves ${url} serves the app as it was` : ""}.`);
     ran = await asItWas(repo, unrecorded, before.commit, shared, async () => {
       if (shared) await caughtUp(url);
-      return run();
+      try {
+        return await run();
+      } finally {
+        await stopApp(url);
+      }
     });
   }
   refuseIfBroken(ran.failed, unrecorded, again);

@@ -10,6 +10,7 @@ import { list, quote } from "@playthrough/review";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { registerHooks } from "node:module";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { firstLine } from "./reporter.ts";
@@ -26,9 +27,11 @@ export type Setup = { make?: Make; after?: After; signIn?: SignIn; people?: Peop
 // Loaded again in Playthrough once it's written again, by when.
 export async function setupIn(file: string, written?: number): Promise<Setup> {
   if (!existsSync(file)) return {};
+  const href = pathToFileURL(file).href;
+  asModule(href);
   // In an app whose package.json doesn't say it's a module, Playwright loads the file as CommonJS, its exports one level down.
   type Module = { default?: Make; after?: After; signIn?: SignIn; people?: People };
-  const module: Omit<Module, "default"> & { default?: Make | Module } = await import(`${pathToFileURL(file).href}${written ? `?${written}` : ""}`);
+  const module: Omit<Module, "default"> & { default?: Make | Module } = await import(`${href}${written ? `?${written}` : ""}`);
   const inner = typeof module.default === "object" ? module.default : undefined;
   return {
     make: typeof module.default === "function" ? module.default : inner?.default,
@@ -36,6 +39,14 @@ export async function setupIn(file: string, written?: number): Promise<Setup> {
     signIn: module.signIn ?? inner?.signIn,
     people: module.people ?? inner?.people,
   };
+}
+
+// A setup is a module whatever the app's package.json says, as flows are: written with import and export, as they're
+// shown, one in an app that says it's CommonJS would otherwise fail to load.
+const setups = new Set<string>();
+function asModule(href: string) {
+  if (!setups.size) registerHooks({ load: (url, context, next) => next(url, setups.has(url.split("?")[0]!) ? { ...context, format: "module-typescript" } : context) });
+  setups.add(href);
 }
 
 // Who a flow that names no one is done as: the first the app names.
