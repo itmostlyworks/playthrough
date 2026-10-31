@@ -115,8 +115,8 @@ export function Stage(props: Props) {
   // When each note's thing was last on the page, and which were gone as last told.
   const seen = useRef(new Map<string, number>());
   const told = useRef("");
-  // The open note's answers found on its thing, on the round you're watching.
-  const oneThing = useRef(new Set<string>());
+  // The open note's answers found on its thing, on the round you're watching, and how far each reaches past it.
+  const oneThing = useRef(new Map<string, Edges>());
   // At actual size, the chosen thing shows whole, at the size it first showed at.
   const focus = useRef<{ id: string; k?: number }>(undefined);
   const playing = useNow(props.playhead, (now) => now.playing);
@@ -357,14 +357,19 @@ export function Stage(props: Props) {
     // A change made for the open note on its thing, or on what holds it, is that one thing, outlined once: by the note,
     // as it always is, on every round and whether the answer's open or not. The change isn't drawn, but stays where it
     // is, so its card keeps clear of it, and is drawn while you point at it. Found so on the round you're watching, it's
-    // so on the round beside it too.
+    // so on the round beside it too, around the note's thing there as it is here: where the thing was, if it moved.
     if (watched) oneThing.current.clear();
     for (const [mark, box] of outlined) {
       if (mark.dataset.answers === undefined) continue;
       const note = [...outlined].find(([other]) => other.dataset.kind === "note" && other.dataset.markId === mark.dataset.answers)?.[1];
-      const one = watched ? !!note && (holds(box, note) || holds(note, box)) : oneThing.current.has(mark.dataset.markId!);
+      const around = oneThing.current.get(mark.dataset.markId!);
+      const one = watched ? !!note && (holds(box, note) || holds(note, box)) : !!around;
+      if (watched && one) oneThing.current.set(mark.dataset.markId!, { left: box.left - note!.left, top: box.top - note!.top, right: box.right - note!.right, bottom: box.bottom - note!.bottom });
+      if (!watched && around) {
+        if (note) outlined.set(mark, { left: note.left + around.left, top: note.top + around.top, right: note.right + around.right, bottom: note.bottom + around.bottom });
+        else mark.hidden = true;
+      }
       mark.toggleAttribute("data-one", one && mark.dataset.pointed === undefined);
-      if (watched && one) oneThing.current.add(mark.dataset.markId!);
     }
     for (const [mark, { left, top, right, bottom }] of outlined) {
       Object.assign(mark.style, { left: share(left / page.width), top: share(top / page.height), width: share((right - left) / page.width), height: share((bottom - top) / page.height) });
