@@ -19,7 +19,7 @@ export async function start(repo: Repo, id: string, title?: string, asked?: stri
     await makeFlowsFolder(repo, id);
     return console.log(`Started ${id}: “${title}”.
 
-Write its flows before you change anything. They show what was asked, so write them from the task, not from the code: if you can start a fresh subagent, give it the task and what the screens look like, never the code, and use the flows it writes.
+Write its flows before you change anything. They show what was asked, so write them from the task, not from the code.
 
 ${howToWriteFlows(repo, id)}
 

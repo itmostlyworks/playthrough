@@ -14,7 +14,7 @@ THE LOOP
 1. Start a review with a title, a few words for the change as you'd title its pull request, and what was asked, word for
    word: it's what the person judges each round against. Before you change anything, write its flows: one for each
    thing a person does that the task touches. They show the task as the person put it, so write them from the task, not
-   from the code: if you can start a fresh subagent, give it the task and what the screens look like, never the code.
+   from the code.
 2. Run playthrough start <review> again. It records Before: each flow on the app as it is, as far as the app can take it.
 3. Change the app. Keep each flow's name, and each step's while it does the same job: they're matched across rounds by
    name. Once the work is done, add a flow for each choice you made that the person can see and didn't ask for.
