@@ -70,6 +70,7 @@ export async function record(repo: Repo, id: string) {
   if (by === unnamed) console.log(`\nPlaythrough can't tell which agent you are. Write your name in ${file} as “by”, and each of your answers shows it.`);
   console.log(left.length ? `\nThen hand it over: playthrough wait ${id}` : `\nHand it over when it's ready: playthrough wait ${id}`);
   console.log("It waits for the person's notes, which can take hours: run it in the background, so you're told when it ends.");
+  console.log(`Once it's handed over, tell the person it's theirs to review: npx playthrough open ${id} opens it.`);
 }
 
 // Each answer shows where its note's thing is on this round's recording, found by Playthrough from the last round it was

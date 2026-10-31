@@ -69,7 +69,7 @@ export function howToWriteFlows(repo: Repo, id: string): string {
     : setupMissing
       ? ", which this app doesn't have yet: run playthrough alone for how."
       : ".";
-  return `Each flow is a Playwright test in ${repo.show(repo.flows(id))}, one for each thing a person does, with a step for each part of it:
+  return `Each flow is a Playwright test in a .ts file in ${repo.show(repo.flows(id))}, one for each thing a person does, with a step for each part of it:
 
   import { test, expect } from "playthrough/test";
 

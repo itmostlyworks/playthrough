@@ -40,12 +40,14 @@ playthrough/app.json says how to start the app, and is committed so every review
 
 Each round, and Before, is recorded on whatever serves that url, and Playthrough starts the app itself only when nothing
 does: leave a server you didn't start running. Recording a flow on Before later, when it's new or Before cut it short,
-puts the app as it was in your working copy for a minute, unless nothing has changed since Before, and records there
-too: a server already running should follow the working copy, as a dev server does.
+sets your work aside with git stash for a minute, unless nothing has changed since Before, puts the app as it was in its
+place to record there too, and puts your work back after, even when Playthrough is stopped. A server already running
+should follow the working copy, as a dev server does.
 
 FLOWS
 
-Each flow is a Playwright test in .playthrough/<review>/flows/, with a step for each part of it. The test's name is the flow's:
+Each flow is a Playwright test in a .ts file in .playthrough/<review>/flows/, with a step for each part of it. The test's
+name is the flow's:
 
   import { test, expect } from "playthrough/test";
 

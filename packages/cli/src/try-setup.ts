@@ -80,9 +80,9 @@ Tell the person now, in a few lines, how flows get into their app, and for each 
 type Tried = { who: string; did: string; took: number; at: string; picture: string; givenBack: boolean };
 
 async function tryAs(repo: Repo, browser: Browser, setup: Setup, baseURL: string, person?: string): Promise<Tried> {
-  const who = person ? person.charAt(0).toUpperCase() + person.slice(1) : "A flow";
+  const who = person ? person.charAt(0).toUpperCase() + person.slice(1) : "Every flow";
   const did = setup.make && person && setup.signIn ? "made and signed in" : setup.make ? "made" : person && setup.signIn ? "signed in" : "nothing made";
-  const tried: Tried = { who, did, took: 0, at: "", picture: join(repo.tried, `${(person ?? "a flow").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "person"}.png`), givenBack: true };
+  const tried: Tried = { who, did, took: 0, at: "", picture: join(repo.tried, `${(person ?? "every flow").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "person"}.png`), givenBack: true };
   for (const time of ["first", "second"] as const) {
     const context = await browser.newContext({ baseURL, locale: "en-US", timezoneId: "UTC", viewport: { width: 1280, height: 800 } });
     const page = await context.newPage();
