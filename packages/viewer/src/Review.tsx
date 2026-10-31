@@ -509,12 +509,11 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   const [landed, setLanded] = useState<Landed>();
   const ending = flow && standing?.get(flow.name);
   const general = flow && where === "end" ? notes.filter((note) => note.on?.flow === flow.name && note.on.at === undefined) : [];
-  const generalOpen = !!open && "note" in open && general.some((note) => note.id === open.note);
   // Looking back, the end is still a place: what was said about the whole flow then, and the way back to now.
-  const question = flow && where === "end" && (ending ? ending.is !== "not saved" : readOnly) && (endOpen || generalOpen || !open) ? flow.name : undefined;
+  const question = flow && where === "end" && (ending ? ending.is !== "not saved" : readOnly) && (endOpen || !open) ? flow.name : undefined;
   // A note on the whole flow being written is written there, in the flow's card.
   const writingWhole = !!open && "writing" in open && where === "end" && draft.unsaved.some((note) => note.id === open.writing && note.on?.flow === watching && note.on.at === undefined);
-  const overEnd = writingWhole || ((!open || generalOpen || endOpen) && (!!question || general.length > 0));
+  const overEnd = writingWhole || ((!open || endOpen) && (!!question || general.length > 0));
   // The end is a place, as the start is: while the flow's card is there, it stands in the middle of the last frame,
   // softened under the veil the flow's name has at its start.
   const standingThere = overEnd && !playingNow;
@@ -580,8 +579,9 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     setOpen({ change: diamond.id });
     go(diamond.flow, diamond.at);
   };
+  // One on the whole flow is laid out at its end, so that's where it opens.
   const show = (note: Shown) => {
-    setOpen({ note: note.id });
+    setOpen(note.on && note.on.at === undefined ? { end: note.on.flow } : { note: note.id });
     setMet((met) => (met.includes(note.id) ? met : [...met, note.id]));
     if (note.on) go(playedOn(note.on), note.on.at ?? played.flows.find((flow) => flow.name === playedOn(note.on!))?.length);
   };
@@ -690,7 +690,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
       notes: draft.unsaved.some((kept) => kept.id === note.id) ? [...draft.notes, { id: note.id, ...(note.on && { on: note.on }), words }] : draft.notes,
       unsaved: draft.unsaved.filter((kept) => kept.id !== note.id),
     }));
-    setOpen({ note: note.id });
+    setOpen(note.on && note.on.at === undefined ? { end: note.on.flow } : { note: note.id });
     glow(note.id);
     if (note.on?.app && inApp) pinInApp(note.id, note.on);
   };
@@ -715,18 +715,17 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     });
   // A flow's Looks good is a checkbox: pressed again before it's sent, it's taken back. Its question stays where you
   // answered it, and its tick travels to the meter. It settles only answers you've seen: one you haven't is shown first.
-  // One said of an earlier round that a newer round changed is past: the flow asks again, and this one is new.
-  const unseen = (name: string) => notes.filter((note) => note.on?.flow === name && note.state === "needs you" && !note.unsent && !met.includes(note.id));
+  // One said of an earlier round that a newer round changed is past: the flow asks again, and this one is new. One on
+  // the whole flow is seen where the question is asked, laid out over its end.
+  const unseen = (name: string) => notes.filter((note) => note.on?.flow === name && note.on.at !== undefined && note.state === "needs you" && !note.unsent && !met.includes(note.id));
   // Said, it's sent, with the answers it settles and what you said of the answers in the flow: a flow's end is where
   // what you said in it goes. Pressed again, taking it back is sent too.
   const lookingGood = async (name: string) => {
     const good = standing?.get(name)?.is === "good";
     if (good && draft.looksGood.includes(name)) return change((draft) => takeBack(draft, name, notes));
     if (good) return void sendNow(name, (draft) => ({ ...draft, takenBack: [...draft.takenBack, name] }));
-    // One at a moment plays to it; one on the whole flow is already here, over the flow's end.
     const notSeen = unseen(name)[0];
-    if (notSeen?.on?.at !== undefined) return pick(notSeen);
-    if (notSeen) return (setOpen({ note: notSeen.id }), setMet((met) => [...met, notSeen.id]));
+    if (notSeen) return pick(notSeen);
     if (await sendNow(name, (draft) => lookGood(draft, name, notes))) tickLands(name);
   };
   const sendingIt = async (name: string) => {
@@ -914,6 +913,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
         asking={asking === note.id}
         away={away}
         grown={grownHere}
+        whole={note.on?.at === undefined}
         onOpen={() => pick(note)}
         onClose={() => setOpen(undefined)}
         onAsking={(on) => setAsking(on ? note.id : undefined)}
@@ -950,7 +950,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   // The open card answers Enter and X, as its buttons say: Looks good and Not quite on an answer not yet judged, Play on and a note on
   // a change. C compares, held for a look and tapped for side by side, as the pointer does on Compare.
   const openNote = open && "note" in open ? notes.find((note) => note.id === open.note) : undefined;
-  const asks = !!openNote && !readOnly && openNote.toJudge && !draft.verdicts.some((verdict) => verdict.note === openNote.id) && openNote.on?.flow === watching;
+  const asks = !!openNote && !readOnly && openNote.on?.at !== undefined && openNote.toJudge && !draft.verdicts.some((verdict) => verdict.note === openNote.id) && openNote.on?.flow === watching;
   // In the app where you were, with the note you're trying open: it stays by its pin there while you try it.
   const tryingHere = inApp && !!openNote && trying.current === openNote.id;
   // A card is about its mark's moment, a dot's or a diamond's, or a bar's stretch: once the playhead has left it, played
@@ -1240,8 +1240,9 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     return pointed.length ? pointed : changes;
   };
   // The open note's answer, outlined in every place in the note's colour, on the round you're watching and the one beside it.
+  // One on the whole flow is over the flow's softened end, where nothing is outlined.
   const answerMarks = (on: (changed: Changed) => Place | undefined): Mark[] =>
-    openNote
+    openNote && openNote.on?.at !== undefined
       ? pointedIn(answersTo(diamonds, openNote.id).filter((changed) => changed.on.flow === watching)).flatMap((changed) =>
           marksOn(on(changed)).map((at): Mark => ({ id: changed.change.id, kind: "change", on: at, ink: ink(openNote), answers: openNote.id, pointed: changed.change.id === pointedChange, chosen: false })),
         )
@@ -1456,7 +1457,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
           pinned={openNote && inApp && (openNote.on?.app || tryingHere) ? () => appPins.current.get(openNote.id) : undefined}
           onAway={(openNote && !tryingHere) || chosen ? () => setOpen(undefined) : undefined}
         >
-          {listed || onGrid ? undefined : openNote && !generalOpen ? row(openNote) : writing && !writingWhole ? writingCard(writing) : chosen || overEnd ? <Chosen {...chosenProps} writing={writingWhole && writing ? writingCard(writing) : undefined} /> : undefined}
+          {listed || onGrid ? undefined : openNote ? row(openNote) : writing && !writingWhole ? writingCard(writing) : chosen || overEnd ? <Chosen {...chosenProps} writing={writingWhole && writing ? writingCard(writing) : undefined} /> : undefined}
         </Beside>
         {many && (
           <Grid

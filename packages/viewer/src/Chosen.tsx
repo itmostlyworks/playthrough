@@ -80,15 +80,22 @@ export function Chosen(props: Props) {
   const general = flow ? props.notes.filter((note) => note.on?.flow === flow.name && note.on.at === undefined) : [];
   const asking = !!flow && props.asked === flow.name;
   if (!flow || (!asking && !general.length && !props.writing)) return null;
+  // Each conversation on its own, and the question under them all, as it answers them all.
+  const apart = "mx-4 my-1.5 border-t border-line";
+  const laidOut = general.filter((note) => note.state === "needs you" && !note.unsent).length;
   return (
     <>
-      {general.map((note) => (
-        <Fragment key={note.id}>{props.note(note)}</Fragment>
+      {general.map((note, i) => (
+        <Fragment key={note.id}>
+          {i > 0 && <hr className={apart} />}
+          {props.note(note)}
+        </Fragment>
       ))}
       {props.writing}
+      {asking && (general.length > 0 || !!props.writing) && <hr className={apart} />}
       {asking &&
         (standing ? (
-          <Question {...props} flow={flow} standing={standing} just={justLanded(props.landed, flow.name)} />
+          <Question {...props} flow={flow} standing={standing} laidOut={laidOut} just={justLanded(props.landed, flow.name)} />
         ) : (
           props.onward.kind === "go" && (
             <div className="px-3 py-2">
@@ -101,15 +108,17 @@ export function Chosen(props: Props) {
 }
 
 // A flow's question, at its end: whether it's good, what Looks good would settle that you haven't answered, and a way
-// to watch it again first. With something of yours in it, the question is sending it; sent, it's with the agent, and
+// to watch it again first. Looks good settles the notes on the whole flow over it too, and Not quite is another. With something of yours in it, the question is sending it; sent, it's with the agent, and
 // what's next is the step. The flow is the one you're watching, so the question doesn't name it.
-function Question({ flow, standing, just, ...props }: Omit<Props, "standing"> & { flow: Flow; standing: Standing; just: boolean }) {
+function Question({ flow, standing, laidOut, just, ...props }: Omit<Props, "standing"> & { flow: Flow; standing: Standing; laidOut: number; just: boolean }) {
   if (standing.is === "to send" || standing.is === "with the agent") return <Sending {...props} flow={flow} standing={standing} just={just} />;
   const good = standing.is === "good";
   const buttons = useRef<HTMLDivElement>(null);
   const held = useHold(flow.name, buttons);
   // An answer you haven't seen is shown before the flow can look good, rather than settled with it unread.
   const unseen = good ? 0 : props.unseen(flow.name).length;
+  // Those laid out over it are in plain view; the rest were played past.
+  const elsewhere = standing.count - laidOut;
   return (
     <div className="relative py-2 pr-3 pl-[44px]">
       <EndMark end={good ? "good" : "asks"} just={just} className="absolute top-2 left-[18px] z-1 size-[18px]" />
@@ -127,7 +136,7 @@ function Question({ flow, standing, just, ...props }: Omit<Props, "standing"> & 
         ) : good ? (
           props.waiting && <span className="block text-xs leading-4 text-faint">{props.waiting}</span>
         ) : (
-          standing.count > 0 && <span className="block text-xs leading-4 text-faint">{standing.count} {standing.count === 1 ? "note" : "notes"} not answered</span>
+          elsewhere > 0 && <span className="block text-xs leading-4 text-faint">{elsewhere} {elsewhere === 1 ? "note" : "notes"} not answered</span>
         )}
       </p>
       <div ref={buttons} className={`flex gap-1.5 transition-opacity duration-150 ease-calm ${held ? "pointer-events-none opacity-45" : ""}`}>

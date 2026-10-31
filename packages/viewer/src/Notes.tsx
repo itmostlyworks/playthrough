@@ -52,6 +52,9 @@ type Props = {
   away: boolean;
   // Grown out of a change: your words under its name, in the change's card.
   grown?: boolean;
+  // On the whole flow, at its end: the conversation laid out, with no question of its own, as the flow's question
+  // answers it.
+  whole?: boolean;
   onOpen: () => void;
   onClose: () => void;
   onAsking: (asking: boolean) => void;
@@ -72,8 +75,9 @@ export function NoteRow(props: Props) {
         {note.turns[0]?.words}
       </button>
     );
-  // Opened, it's beside its pin, which says its number and where it is: the card is the conversation alone.
-  if (open)
+  // Opened, it's beside its pin, which says its number and where it is: the card is the conversation alone. On the
+  // whole flow, it's always the conversation.
+  if (open || props.whole)
     return (
       <div data-open="">
         <Card {...props} />
@@ -92,22 +96,22 @@ export function NoteRow(props: Props) {
         </span>
         <span className="truncate">{note.turns[0]?.words}</span>
         {at === undefined ? <span className="w-[78px]" /> : <Time className={here ? "text-[color-mix(in_srgb,var(--c)_80%,var(--fg))]" : "text-faint"}>{time(at)}</Time>}
-        {answers.length > 0 && <Listed answers={answers} className="col-start-2 col-end-4 mt-[3px] text-[12.5px] leading-[18px] text-soft" />}
+        {answers.length > 0 && <Listed answers={answers} lines className="col-start-2 col-end-4 mt-[3px] text-[12.5px] leading-[18px] text-soft" />}
       </button>
     </div>
   );
 }
 
-// What the agent changed for a note, each under a small hollow diamond, as the timeline draws a change. Pointing at one
-// outlines just it, as in a change's card.
-function Listed({ answers, className, onPoint }: { answers: Changed[]; className: string; onPoint?: (change?: string) => void }) {
+// What the agent changed for a note, each under a small hollow diamond, as the timeline draws a change: a line each in a
+// closed note, whole in a card. Pointing at one outlines just it, as in a change's card.
+function Listed({ answers, className, lines, onPoint }: { answers: Changed[]; className: string; lines?: boolean; onPoint?: (change?: string) => void }) {
   const shown = answers.length > LISTED ? answers.slice(0, LISTED - 1) : answers;
   return (
     <span className={`grid gap-px ${className}`}>
       {shown.map(({ change }) => (
         <span key={change.id} className="group/name flex min-w-0 items-baseline gap-2" onPointerEnter={onPoint && (() => onPoint(change.id))} onPointerLeave={onPoint && (() => onPoint(undefined))}>
-          <i className="size-1.5 flex-none translate-y-[-1px] rotate-45 shadow-[inset_0_0_0_1.5px_var(--soft)] transition-colors duration-150 ease-calm group-hover/name:bg-soft" aria-hidden />
-          <span className={onPoint ? "min-w-0 text-fg" : "truncate"}>{change.words}</span>
+          <i className={`size-1.5 flex-none translate-y-[-1px] rotate-45 shadow-[inset_0_0_0_1.5px_var(--soft)] transition-colors duration-150 ease-calm ${onPoint ? "group-hover/name:bg-soft" : ""}`} aria-hidden />
+          <span className={lines ? "truncate" : "min-w-0 text-fg"}>{change.words}</span>
         </span>
       ))}
       {shown.length < answers.length && <span className="pl-[15px]">{answers.length - shown.length} more changes</span>}
@@ -143,7 +147,7 @@ function Card(props: Props) {
   const shown = earlier ? groups.flat() : (groups.at(-1) ?? []);
   const folded = groups.length - 1;
   const name = (turn: Turn) => (turn.agent || turn.by !== you ? turn.by : "You");
-  const comparing = compare && !asking && !editing && !props.away && <Compare {...compare} bar={quietly} />;
+  const comparing = compare && !props.whole && !asking && !editing && !props.away && <Compare {...compare} bar={quietly} />;
   const lastAgent = shown.findLastIndex((turn) => turn.agent);
   const verdict = (turn: Turn) => turn.verdict && <span className={turn.verdict === "looks good" ? "text-green" : "text-slate"}> · {turn.verdict === "looks good" ? "Looks good" : "Not quite"}</span>;
   const edits = (onEdit: () => void, onRemove?: () => void) => (
@@ -196,7 +200,7 @@ function Card(props: Props) {
                 {turn.words}
               </Said>
             )}
-            {i === lastAgent && props.answers.length > 0 && <Listed answers={props.answers} className="-mt-0.5 leading-normal" onPoint={props.onPoint} />}
+            {i === lastAgent && props.answers.length > 0 && <Listed answers={props.answers} className="-mt-0.5 leading-normal" onPoint={props.whole ? undefined : props.onPoint} />}
           </div>
         ))}
         {note.state === "with someone else" && !readOnly && <p className="text-xs leading-[18px] text-slate">Waiting for {list(note.waitingFor)}</p>}
@@ -215,7 +219,8 @@ function Card(props: Props) {
   );
   let question: ReactNode;
   let answers: ReactNode;
-  if (readOnly) [question, answers] = [note.state === "settled" ? "Settled" : "", undefined];
+  if (props.whole) [question, answers] = ["", undefined];
+  else if (readOnly) [question, answers] = [note.state === "settled" ? "Settled" : "", undefined];
   else if (asking && !props.away)
     answers = (
       <Writing

@@ -173,7 +173,10 @@ export function standings(review: Review, round: number, you: string, unsent: Un
       if (review.accepted) return stands("good", 0, false);
       if (goodForYou(then, round, you, name)) return stands("good");
       if (draft.unsaved.some((note) => note.on?.flow === name)) return stands("not saved", 1, false);
-      if (toSend || sent) return waiting ? stands("needs you", waiting, false) : toSend ? stands("to send", toSend, false) : stands("with the agent", 0, false);
+      // An answer on the whole flow is answered by the flow's own Looks good: saying Not quite to the flow instead leaves it
+      // as it was, and it doesn't hold up sending.
+      const held = on.filter((note) => note.state === "needs you" && note.on?.at !== undefined).length;
+      if (toSend || sent) return held ? stands("needs you", held, false) : toSend ? stands("to send", toSend, false) : stands("with the agent", 0, false);
       if (watched.includes(name)) return stands("is it good", waiting);
       if (waiting) return stands("needs you", waiting);
       if (then.sends.some((send) => send.by === you && send.looksGood.includes(name))) return stands("looked good");
