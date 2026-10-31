@@ -1,6 +1,6 @@
-# Vantage core
+# Playthrough core
 
-**The code is Vantage too.** It should feel like the tool: delightful, elegant, plain, and useful because its foundational pieces are right.
+**The code is Playthrough too.** It should feel like the tool: delightful, elegant, plain, and useful because its foundational pieces are right.
 
 - **Plain words.** Name things for what they are, in the words a reviewer uses: review, round, flow, note, send. No codes, abbreviations or internal names. A name that needs a comment is the wrong name.
 - **One word, one meaning.** The same word for the same thing in the types, the files, the commands and the docs.
@@ -9,5 +9,5 @@
 - **One place for each job.** Each rule lives in one place, and everything that needs it calls it.
 - **Small and quiet.** No runtime dependencies without a strong reason. Short files that read from top to bottom. Comments say why, never what.
 - **Errors say what to do next,** naming the thing: "Round 3: the change 'Export moved' answers note 7, which doesn't exist."
-- **Tests read as promises.** Someone should be able to read the test names and know what Vantage guarantees.
+- **Tests read as promises.** Someone should be able to read the test names and know what Playthrough guarantees.
 - **Polish is the product here too.** Inconsistent names, dead code and a half-finished idea are the code's version of a 2px mismatch.
