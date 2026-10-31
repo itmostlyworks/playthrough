@@ -18,6 +18,7 @@ export const ASSETS = "playthrough assets";
 export const PERSON = "playthrough person";
 export const HANDS = "playthrough hands";
 export const ACTIONS = "playthrough actions";
+export const WROTE = "playthrough wrote";
 export const HOLD = 1500; // the end of a flow holds, so its last state can be seen
 
 // A flow's readings go beside the round's recordings, under the same name, each picture in a folder of its own.
@@ -43,7 +44,8 @@ export function firstLine(said: string) {
 export type Failed ={ flow: string; at?: string; why?: string; broken?: true };
 // What Playwright says when the browser stops a flow, not the app: the page crashed or closed, or the app stopped answering.
 const BROKEN = /Page crashed|Target crashed|Target page, context or browser has been closed|net::ERR_CONNECTION_REFUSED/;
-export type Recorded = { flow: Flow; files: string[] };
+// And the first request it sent the app that changes what it holds, as its method and path.
+export type Recorded = { flow: Flow; files: string[]; wrote?: string };
 // The flow handed on to someone else, on this machine's clock.
 export type Hand = { at: number; person: string };
 type Event = { timestamp: number; [field: string]: unknown };
@@ -74,10 +76,12 @@ export default class Flows implements Reporter {
     };
     const steps = result.steps.filter((step) => step.category === "test.step");
     const person = result.attachments.find((attachment) => attachment.name === PERSON)?.body?.toString();
+    const wrote = result.attachments.find((attachment) => attachment.name === WROTE)?.body?.toString();
     // Who it's done as, if its file or the app's setup said; a step done by them again, handed back, says nothing.
     const as = (made: Recorded) => {
       if (person) made.flow.person = person;
       for (const step of made.flow.steps) if (step.person === made.flow.person) delete step.person;
+      if (wrote) made.wrote = wrote;
       return made;
     };
     const went = (how: string) => console.log(`  ${quote(test.title)}: ${how}`);

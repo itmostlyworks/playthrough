@@ -2,11 +2,13 @@
 // that will show it, written before anything changes so they show the task as the person put it. Run again once they're
 // written, it records Before: the app as it is.
 
+import { existsSync } from "node:fs";
 import { list, quote, Refused } from "@playthrough/review";
 import { agent } from "./agent.ts";
 import { cantStart, howFar, keepBefore, recordBeforeAgain, refuseIfBroken, tryBeforeAgain } from "./before.ts";
 import { howToWriteFlows, makeFlowsFolder, runFlows } from "./flows.ts";
 import type { Repo } from "./repo.ts";
+import { setupIn } from "./setup.ts";
 import { trySetup } from "./try-setup.ts";
 
 export async function start(repo: Repo, id: string, title?: string, asked?: string) {
@@ -56,6 +58,12 @@ Then run playthrough start ${id} again. It records Before: each flow on the app 
   console.log(`\nRecorded Before: ${list(flows.map((flow) => quote(flow.name)))}.`);
   for (const line of howFar(repo, id, recorded, failed, "the app as it is")) console.log(line);
   if (!commit) console.log(`This folder isn't in git, so Before isn't kept as a commit, and a flow added later can't be recorded on it.`);
+  // What a run leaves in the app, said once it's seen: a flow saving something, with nothing to give it back.
+  const wrote = recorded.find((kept) => kept.wrote);
+  const { after } = await setupIn(repo.setup);
+  if (wrote && !after)
+    console.log(`
+${quote(wrote.flow.name)} sends the app ${wrote.wrote}, which changes what it holds, and ${existsSync(repo.setup) ? "playthrough/setup.ts has no after, so what each flow makes stays in the app" : "there's no playthrough/setup.ts, so each flow starts on what the ones before it left, and what they make stays in the app"}: one for each flow recorded, two for a new one. Tell the person, with the step that would fix it; run playthrough alone for how setup.ts makes what each flow starts from, and gives it back.`);
   console.log(`
 Now change the app. Keep each flow's name, and each step's while it does the same job: they're matched across rounds by name. Once the work is done, add a flow for each choice you made that the person can see and didn't ask for. Then record round 1: playthrough record ${id}`);
 }

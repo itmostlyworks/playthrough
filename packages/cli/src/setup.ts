@@ -50,6 +50,25 @@ function asModule(href: string) {
   setups.add(href);
 }
 
+// A request that changes what the app holds: anything but reading it.
+export const changes = (method: string) => !["GET", "HEAD", "OPTIONS"].includes(method.toUpperCase());
+
+// Setup's request, telling each time it sends one that changes what the app holds.
+export function watching(request: APIRequestContext, changed: () => void): APIRequestContext {
+  return new Proxy(request, {
+    get(target, name) {
+      const value = Reflect.get(target, name);
+      if (typeof value !== "function") return value;
+      return (...args: unknown[]) => {
+        const [to, options] = args as [string | { method: () => string }, { method?: string } | undefined];
+        const method = name === "fetch" ? (options?.method ?? (typeof to === "string" ? "GET" : to.method())) : String(name);
+        if (["post", "put", "patch", "delete", "fetch"].includes(String(name)) && changes(method)) changed();
+        return value.apply(target, args);
+      };
+    },
+  });
+}
+
 // Who a flow that names no one is done as: the first the app names.
 export const firstOf = ({ people }: Setup) => Object.keys(people ?? {})[0];
 

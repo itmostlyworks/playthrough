@@ -6,7 +6,7 @@ import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, test } from "node:test";
-import { giveBackLeft, make, type Setup } from "../src/setup.ts";
+import { giveBackLeft, make, watching, type Setup } from "../src/setup.ts";
 
 let borrowed = "";
 let given: Record<string, any>[] = [];
@@ -59,5 +59,24 @@ describe("What setup makes for a run", () => {
     await writeFile(join(borrowed, `${ended}-a.json`), JSON.stringify({ baseURL, setup: { board: "Left" } }));
     await giveBackLeft({ ...app, after: () => Promise.reject(new Error("The app isn't answering")) }, borrowed);
     assert.deepEqual(await left(), [`${process.pid}-a.json`], "this command's now, tried again once it ends");
+  });
+});
+
+describe("What setup sends the app", () => {
+  // Playwright's request as setup uses it, answering everything.
+  const request = { get: async () => "read", post: async () => "made", delete: async () => "taken", fetch: async () => "fetched", storageState: async () => ({}) } as never;
+
+  test("tells each request that changes what the app holds, and none that only reads it", async () => {
+    let changed = 0;
+    const watched = watching(request, () => changed++) as unknown as Record<string, (...args: unknown[]) => Promise<string>>;
+    assert.equal(await watched.get!("/boards"), "read", "and answers as the request does");
+    await watched.fetch!("/boards");
+    await watched.fetch!("/boards", { method: "HEAD" });
+    await watched.storageState!();
+    assert.equal(changed, 0);
+    await watched.post!("/boards", { data: { name: "Website launch" } });
+    await watched.delete!("/boards/1");
+    await watched.fetch!("/boards", { method: "put" });
+    assert.equal(changed, 3);
   });
 });

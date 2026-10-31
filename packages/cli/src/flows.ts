@@ -215,7 +215,7 @@ function inMemory(number: number, recorded: Ran["recorded"]): Compared {
   return { number, flows, readings: async (flow) => JSON.parse(file(readingsOf(flow)).toString()), glimpses, picture: async (name) => file(name) };
 }
 
-type Ran = { recorded: { flow: Flow; files: { name: string; bytes: Buffer }[] }[]; failed: Failed[] };
+type Ran = { recorded: { flow: Flow; files: { name: string; bytes: Buffer }[]; wrote?: string }[]; failed: Failed[] };
 
 async function runOnce(run: Omit<Run, "folder">): Promise<Ran> {
   const folder = await mkdtemp(join(tmpdir(), "playthrough-"));
@@ -224,7 +224,7 @@ async function runOnce(run: Omit<Run, "folder">): Promise<Ran> {
     const text = await readFile(join(folder, "flows.json"), "utf8").catch(() => undefined);
     const { recorded, failed }: { recorded: Recorded[]; failed: Failed[] } = text ? JSON.parse(text) : { recorded: [], failed: [] };
     if (!ran && !failed.length) throw new Refused(["\nThe flows didn't run, for the reason Playwright gives above. Fix that and run this again."]);
-    const withFiles = ({ flow, files }: Recorded) => Promise.all(files.map(async (name) => ({ name, bytes: await readFile(join(folder, name)) }))).then((files) => ({ flow, files }));
+    const withFiles = ({ flow, files, wrote }: Recorded) => Promise.all(files.map(async (name) => ({ name, bytes: await readFile(join(folder, name)) }))).then((files) => ({ flow, files, ...(wrote && { wrote }) }));
     return { recorded: await Promise.all(recorded.map(withFiles)), failed };
   } finally {
     await rm(folder, { recursive: true });

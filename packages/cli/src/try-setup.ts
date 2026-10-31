@@ -14,7 +14,7 @@ import { quote, Refused } from "@playthrough/review";
 import { keepRunning } from "./app.ts";
 import { firstLine } from "./reporter.ts";
 import type { Repo } from "./repo.ts";
-import { giveBackLeft, make, setupIn, type Made, type Setup } from "./setup.ts";
+import { changes, giveBackLeft, make, setupIn, watching, type Made, type Setup } from "./setup.ts";
 
 // Longer than this before a flow's first step, and the person feels it.
 const SLOW = 2000;
@@ -55,9 +55,11 @@ export async function trySetup(repo: Repo, again: string) {
   console.log(`\n${line("The app", startedIn === undefined ? `running already at ${app.url}` : `started with ${quote(app.start)}, answering at ${app.url} in ${seconds(startedIn)}`)}`);
   for (const { who, did, took, at, picture } of tried) console.log(line(who, `${did}${did === "nothing made" ? "" : ` in ${seconds(took)}`}, then at ${at}: ${repo.show(picture)}`));
 
+  // What a run leaves behind is said only where setup was seen to make something: a setup that only opens a page, or one
+  // the app needs none of, as one that keeps everything in the browser, leaves nothing. What flows leave without one,
+  // recording Before says, as it sees them send it (start.ts).
   const missing: string[] = [];
-  if (!setup.make && !setup.signIn) missing.push("There's no playthrough/setup.ts, so each flow starts on whatever the app holds, as the flow before it left it, signed in as nobody.");
-  else if (!setup.after)
+  if (!setup.after && tried.some(({ made }) => made))
     missing.push("playthrough/setup.ts has no after, so what each run makes stays in the app: one for each flow recorded, two for a new one, and one each time the person pauses a recording, as it's made ready to take over.");
   else if (tried.some(({ givenBack }) => !givenBack)) missing.push("playthrough/setup.ts's after couldn't give back what it made, for the reason above.");
   const slowest = Math.max(...tried.map(({ took }) => took));
@@ -76,13 +78,14 @@ Tell the person now, in a few lines, how flows get into their app, and for each 
 }
 
 // One of the app's people, or anyone where it names nobody: what was made for them, how long it took, where their page
-// was then, as the second run left it, and whether what was made was given back each time.
-type Tried = { who: string; did: string; took: number; at: string; picture: string; givenBack: boolean };
+// was then, as the second run left it, whether setup made anything for them, sending the app what changes it or
+// returning what it made, and whether what was made was given back each time.
+type Tried = { who: string; did: string; took: number; at: string; picture: string; made: boolean; givenBack: boolean };
 
 async function tryAs(repo: Repo, browser: Browser, setup: Setup, baseURL: string, person?: string): Promise<Tried> {
   const who = person ? person.charAt(0).toUpperCase() + person.slice(1) : "Every flow";
   const did = setup.make && person && setup.signIn ? "made and signed in" : setup.make ? "made" : person && setup.signIn ? "signed in" : "nothing made";
-  const tried: Tried = { who, did, took: 0, at: "", picture: join(repo.tried, `${(person ?? "every flow").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "person"}.png`), givenBack: true };
+  const tried: Tried = { who, did, took: 0, at: "", picture: join(repo.tried, `${(person ?? "every flow").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "person"}.png`), made: false, givenBack: true };
   for (const time of ["first", "second"] as const) {
     const context = await browser.newContext({ baseURL, locale: "en-US", timezoneId: "UTC", viewport: { width: 1280, height: 800 } });
     const page = await context.newPage();
@@ -90,8 +93,12 @@ async function tryAs(repo: Repo, browser: Browser, setup: Setup, baseURL: string
     let made: Made | undefined;
     try {
       const began = Date.now();
+      const sent = (sent: { method: () => string }) => void (changes(sent.method()) && (tried.made = true));
+      page.on("request", sent);
       try {
-        made = await make(setup, repo.borrowed, { page, request, baseURL, person });
+        made = await make(setup, repo.borrowed, { page, request: watching(request, () => (tried.made = true)), baseURL, person });
+        page.off("request", sent);
+        if (Object.keys(made.setup).length) tried.made = true;
         if (person) await setup.signIn?.({ page, person, setup: made.setup });
       } catch (error) {
         const why = firstLine(String((error as Error)?.message ?? error));

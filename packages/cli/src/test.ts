@@ -15,9 +15,9 @@ import type { Did } from "@playthrough/review";
 import { ALONGSIDE, BEAT, REACHES_OUTSIDE, WALKED, type Action, type Handed, type Run, type To, type Walk, type Walked } from "./flows.ts";
 import { readPage, unhovered } from "./read.ts";
 import { repo } from "./repo.ts";
-import { ACTIONS, ASSETS, firstLine, GLIMPSES, HANDS, HOLD, PERSON, PICTURE, READINGS, RECORDING, seconds, type Failed, type Hand } from "./reporter.ts";
+import { ACTIONS, ASSETS, firstLine, GLIMPSES, HANDS, HOLD, PERSON, PICTURE, READINGS, RECORDING, seconds, WROTE, type Failed, type Hand } from "./reporter.ts";
 import { watchRest } from "./rest.ts";
-import { firstOf, make, personIn, setupIn, type Made, type Setup } from "./setup.ts";
+import { changes, firstOf, make, personIn, setupIn, type Made, type Setup } from "./setup.ts";
 
 // The screens besides the laptop every flow is on unless it says otherwise: a phone, tapped, and a tablet. A flow takes
 // one with test.use, and so does someone it's handed to.
@@ -78,9 +78,9 @@ let pointer: { page: Page; x: number; y: number; handed?: boolean } | undefined;
 
 // The flow underway: the page it's on now, what waits for that page to rest, what was read at the end of each step so
 // far, with its picture, and when each action was done; the step it's in, and how many of that step's actions are done;
-// whoever it's been handed to, and the assets each page loaded; and walking a fork again, once the fork's steps have
-// begun, how far they got.
-type Underway = { page: Page; events: { timestamp: number }[]; rest: () => Promise<void>; depth: number; readings: Omit<Reading, "picture">[]; glimpses: Glimpse[]; pictures: Buffer[]; actions: number[]; step?: string; inStep: number; hands: Hand[]; assets: (() => Promise<Assets>)[]; walked?: Walked };
+// whoever it's been handed to, and the assets each page loaded; the first request it sent that changes what the app holds;
+// and walking a fork again, once the fork's steps have begun, how far they got.
+type Underway = { page: Page; events: { timestamp: number }[]; rest: () => Promise<void>; depth: number; readings: Omit<Reading, "picture">[]; glimpses: Glimpse[]; pictures: Buffer[]; actions: number[]; step?: string; inStep: number; hands: Hand[]; assets: (() => Promise<Assets>)[]; wrote?: string; walked?: Walked };
 let underway: Underway | undefined;
 
 // What every flow starts from (setup.ts), loaded once a run.
@@ -196,6 +196,7 @@ const recorded = base.extend<{ person: string | undefined; rest: () => Promise<v
       const who = person ?? (typeof setup.person === "string" ? setup.person.trim() : undefined);
       if (who) await testInfo.attach(PERSON, { body: who, contentType: "text/plain" });
       if (flow.hands.length) await testInfo.attach(HANDS, { body: JSON.stringify(flow.hands), contentType: "application/json" });
+      if (flow.wrote) await testInfo.attach(WROTE, { body: flow.wrote, contentType: "text/plain" });
       for (const picture of pictures) await testInfo.attach(PICTURE, { body: picture, contentType: "image/png" });
     },
     { auto: true },
@@ -203,8 +204,14 @@ const recorded = base.extend<{ person: string | undefined; rest: () => Promise<v
 });
 
 // A page recorded, readied before anything loads in it: rrweb first, to take the page's own clock before it's set, then
-// the review's day and the seeded random numbers.
+// the review's day and the seeded random numbers. And from when the flow starts, what it sends the app, on any port of its
+// host, that changes what it holds, as Before says what a run leaves in the app without a setup to give it back.
 async function readied(page: Page, run: Run) {
+  const host = new URL(run.app.url).hostname;
+  page.on("request", (sent) => {
+    const flow = underway;
+    if (flow && !flow.wrote && changes(sent.method()) && new URL(sent.url()).hostname === host) flow.wrote = `${sent.method()} ${new URL(sent.url()).pathname}`;
+  });
   await page.addInitScript({ content: recorder(run.recorder) });
   await page.clock.setSystemTime(onReviewDay(run.started));
   await page.addInitScript({ content: seeded });
