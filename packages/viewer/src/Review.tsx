@@ -559,7 +559,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   // which compares as the change does.
   const changeOpen = chosen ?? grownOpen;
   const lit = chosen?.id ?? onNow;
-  // Pointing at one of several changes in a change's card draws only that one.
+  // Pointing at one of several changes, in a change's card or a note's answer, draws only that one.
   const [pointedChange, setPointedChange] = useState<string>();
   useEffect(() => setPointedChange(undefined), [changeOpen?.id]);
   // Paused on a change, with nothing else open, it's outlined where it is on the page; chosen, more firmly. What the agent
@@ -883,11 +883,6 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     if (where !== "end") playhead.play();
   };
   // What the agent changed for a note is gone to as its diamond is, the note staying open.
-  const toAnswer = (changed: Changed) => {
-    const diamond = diamonds.find((diamond) => diamond.changes.includes(changed));
-    if (!diamond) return;
-    go(diamond.flow, diamond.at);
-  };
   const row = (note: Shown, grownHere?: boolean) => {
     const isOpen = !!open && "note" in open && open.note === note.id;
     // A note's card is away once you've gone on into another flow, or what it's on has left the page: it asks nothing
@@ -924,7 +919,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
         onAsking={(on) => setAsking(on ? note.id : undefined)}
         onJudge={(verdict) => judge(note, verdict)}
         onEdit={(words) => editNote(note.id, words)}
-        onAnswer={toAnswer}
+        onPoint={setPointedChange}
         onPlayOn={inApp && trying.current === note.id ? () => {} : playOn}
         onShow={() => show(note)}
       />
@@ -1240,17 +1235,16 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     on?.element?.node !== undefined ? { node: on.element.node } : on?.point ? { point: on.point } : on?.box ? { box: on.box } : undefined;
   // A change in each place it's seen: things changed alike are one change, in several places.
   const marksOn = (on: Place | undefined): Mark["on"][] => [markOn(on), ...(on?.alike ?? []).map((element) => element.node !== undefined && { node: element.node })].filter((mark) => !!mark);
+  const pointedIn = (changes: Changed[]) => {
+    const pointed = changes.filter((changed) => changed.change.id === pointedChange);
+    return pointed.length ? pointed : changes;
+  };
   // The open note's answer, outlined in every place in the note's colour, on the round you're watching and the one beside it.
   const answerMarks = (on: (changed: Changed) => Place | undefined): Mark[] =>
     openNote
-      ? answersTo(diamonds, openNote.id)
-          .filter((changed) => changed.on.flow === watching)
-          .flatMap((changed) => marksOn(on(changed)).map((at): Mark => ({ id: changed.change.id, kind: "change", on: at, ink: ink(openNote), answers: openNote.id, chosen: false })))
+      ? pointedIn(answersTo(diamonds, openNote.id).filter((changed) => changed.on.flow === watching)).flatMap((changed) => marksOn(on(changed)).map((at): Mark => ({ id: changed.change.id, kind: "change", on: at, ink: ink(openNote), answers: openNote.id, chosen: false })))
       : [];
-  const drawn = (diamond: Diamond) => {
-    const pointed = diamond.changes.filter((changed) => changed.change.id === pointedChange);
-    return pointed.length ? pointed : diamond.changes;
-  };
+  const drawn = (diamond: Diamond) => pointedIn(diamond.changes);
   // New steps aren't on one thing: they're outlined on what they click or type into, as the recording shows it.
   const actedOn = (diamond: Diamond): Mark["on"][] =>
     diamond.until === undefined || changes?.flow !== diamond.flow

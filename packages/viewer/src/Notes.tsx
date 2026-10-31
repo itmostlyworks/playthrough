@@ -57,7 +57,7 @@ type Props = {
   onAsking: (asking: boolean) => void;
   onJudge: (verdict: Verdict | undefined) => void;
   onEdit: (words: string | undefined) => void;
-  onAnswer: (changed: Changed) => void;
+  onPoint: (change?: string) => void;
   onPlayOn: () => void;
   onShow: () => void;
 };
@@ -98,30 +98,18 @@ export function NoteRow(props: Props) {
   );
 }
 
-// What the agent changed for a note, each under a small hollow diamond, as the timeline draws a change.
-function Listed({ answers, className, onAnswer }: { answers: Changed[]; className: string; onAnswer?: (changed: Changed) => void }) {
+// What the agent changed for a note, each under a small hollow diamond, as the timeline draws a change. Pointing at one
+// outlines just it, as in a change's card.
+function Listed({ answers, className, onPoint }: { answers: Changed[]; className: string; onPoint?: (change?: string) => void }) {
   const shown = answers.length > LISTED ? answers.slice(0, LISTED - 1) : answers;
-  const diamond = <i className="size-1.5 flex-none translate-y-[-1px] rotate-45 shadow-[inset_0_0_0_1.5px_var(--soft)]" aria-hidden />;
   return (
     <span className={`grid gap-px ${className}`}>
-      {shown.map((changed) =>
-        onAnswer ? (
-          <button
-            key={changed.change.id}
-            className="-ml-1 flex items-baseline gap-[9px] rounded px-1 py-px text-left text-fg transition-colors duration-150 ease-calm hover:bg-line"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => onAnswer(changed)}
-          >
-            {diamond}
-            <span className="min-w-0">{changed.change.words}</span>
-          </button>
-        ) : (
-          <span key={changed.change.id} className="flex min-w-0 items-baseline gap-2">
-            {diamond}
-            <span className="truncate">{changed.change.words}</span>
-          </span>
-        ),
-      )}
+      {shown.map(({ change }) => (
+        <span key={change.id} className="group/name flex min-w-0 items-baseline gap-2" onPointerEnter={onPoint && (() => onPoint(change.id))} onPointerLeave={onPoint && (() => onPoint(undefined))}>
+          <i className="size-1.5 flex-none translate-y-[-1px] rotate-45 shadow-[inset_0_0_0_1.5px_var(--soft)] transition-colors duration-150 ease-calm group-hover/name:bg-soft" aria-hidden />
+          <span className={onPoint ? "min-w-0 text-fg" : "truncate"}>{change.words}</span>
+        </span>
+      ))}
       {shown.length < answers.length && <span className="pl-[15px]">{answers.length - shown.length} more changes</span>}
     </span>
   );
@@ -208,7 +196,7 @@ function Card(props: Props) {
                 {turn.words}
               </Said>
             )}
-            {i === lastAgent && props.answers.length > 0 && <Listed answers={props.answers} className="-mt-0.5 leading-normal" onAnswer={props.onAnswer} />}
+            {i === lastAgent && props.answers.length > 0 && <Listed answers={props.answers} className="-mt-0.5 leading-normal" onPoint={props.onPoint} />}
           </div>
         ))}
         {note.state === "with someone else" && !readOnly && <p className="text-xs leading-[18px] text-slate">Waiting for {list(note.waitingFor)}</p>}

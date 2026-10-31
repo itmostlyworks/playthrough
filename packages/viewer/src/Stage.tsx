@@ -352,19 +352,16 @@ export function Stage(props: Props) {
       }
       if (box && !mark.hidden) outlined.set(mark, { left, top, right, bottom });
     }
-    // A change made for the open note on its thing, or on what holds it, is that one thing: one outline, the note's,
-    // around the larger of the two, which its card keeps clear of. Found so on the round you're watching, it's that
-    // thing on the round beside it too, where the note's outline is wherever the thing was.
+    // A change made for the open note on its thing, or on what holds it, is that one thing, outlined once: by the note,
+    // as it always is, on every round and whether the answer's open or not. The change isn't drawn, but stays where it
+    // is, so its card keeps clear of it. Found so on the round you're watching, it's so on the round beside it too.
     if (watched) oneThing.current.clear();
     for (const [mark, box] of outlined) {
-      const note = [...outlined.keys()].find((other) => other.dataset.kind === "note" && other.dataset.markId === mark.dataset.answers);
-      const its = note && outlined.get(note);
-      const one = watched ? !!its && (holds(box, its) || holds(its, box)) : oneThing.current.has(mark.dataset.markId!);
-      if (!one) continue;
-      mark.hidden = true;
-      outlined.delete(mark);
-      if (watched) oneThing.current.add(mark.dataset.markId!);
-      if (watched && holds(box, its!)) outlined.set(note!, box);
+      if (mark.dataset.answers === undefined) continue;
+      const note = [...outlined].find(([other]) => other.dataset.kind === "note" && other.dataset.markId === mark.dataset.answers)?.[1];
+      const one = watched ? !!note && (holds(box, note) || holds(note, box)) : oneThing.current.has(mark.dataset.markId!);
+      mark.toggleAttribute("data-one", one);
+      if (watched && one) oneThing.current.add(mark.dataset.markId!);
     }
     for (const [mark, { left, top, right, bottom }] of outlined) {
       Object.assign(mark.style, { left: share(left / page.width), top: share(top / page.height), width: share((right - left) / page.width), height: share((bottom - top) / page.height) });
@@ -1129,7 +1126,7 @@ function Drawn({ mark, onMark }: { mark: Mark; onMark: (id: string) => void }) {
       data-box={"box" in on ? `${on.box.x} ${on.box.y} ${on.box.width} ${on.box.height}` : undefined}
       {...shows}
       hidden
-      className={`pointer-events-none absolute rounded-[4px] outline-offset-4 transition-opacity duration-250 ease-calm data-playing:opacity-0 ${look}`}
+      className={`pointer-events-none absolute rounded-[4px] outline-offset-4 transition-opacity duration-250 ease-calm data-playing:opacity-0 ${look} data-one:outline-transparent`}
       style={mark.ink ? ({ "--c": mark.ink } as CSSProperties) : undefined}
     >
       {badge}
