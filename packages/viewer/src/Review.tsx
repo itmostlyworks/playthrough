@@ -510,7 +510,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   const ending = flow && standing?.get(flow.name);
   const general = flow && where === "end" ? notes.filter((note) => note.on?.flow === flow.name && note.on.at === undefined) : [];
   // Looking back, the end is still a place: what was said about the whole flow then, and the way back to now.
-  const question = flow && where === "end" && (ending ? ending.is !== "not saved" : readOnly) && (endOpen || !open) ? flow.name : undefined;
+  const question = flow && where === "end" && (!!ending || readOnly) && (endOpen || !open) ? flow.name : undefined;
   // A note on the whole flow being written is written there, in the flow's card.
   const writingWhole = !!open && "writing" in open && where === "end" && draft.unsaved.some((note) => note.id === open.writing && note.on?.flow === watching && note.on.at === undefined);
   const overEnd = writingWhole || ((!open || endOpen) && (!!question || general.length > 0));
@@ -1120,12 +1120,11 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     if (!flow) return onward(-1);
     if (where === "playing") return { kind: "say", words: "Playing", what: flow.name };
     if (where !== "end") return { kind: "go", words: where === "start" ? "Play" : "Play on", what: flow.name, take: () => playhead.play() };
+    // A note you started here and didn't save, as one a reload kept, is finished before the flow can be judged.
+    const started = draft.unsaved.find((note) => note.on?.flow === flow.name);
+    if (started && needs(flow.name)) return { kind: "go", words: "Finish your note", what: placeName(started.on), take: () => setOpen({ writing: started.id }) };
     if (question) return ending?.is === "good" || ending?.is === "with the agent" ? onwardFromEnd(round.flows.indexOf(flow)) : { kind: "say", words: "End of", what: flow.name };
-    if (needs(flow.name)) {
-      const started = draft.unsaved.find((note) => note.on?.flow === flow.name);
-      if (started) return { kind: "go", words: "Finish your note", what: placeName(started.on), take: () => setOpen({ writing: started.id }) };
-      return { kind: "go", words: "Watch it", what: "from the start", take: () => watchFrom(flow.name) };
-    }
+    if (needs(flow.name)) return { kind: "go", words: "Watch it", what: "from the start", take: () => watchFrom(flow.name) };
     return onward(round.flows.indexOf(flow));
   };
   const step = stepHere();
@@ -1344,7 +1343,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     onGood: lookingGood,
     onNotQuite: (name) => write({ flow: name }),
     onSend: (name) => void sendingIt(name),
-    onward: ending ? onwardFromEnd(flow ? round.flows.indexOf(flow) : -1) : step,
+    onward: ending && ending.is !== "not saved" ? onwardFromEnd(flow ? round.flows.indexOf(flow) : -1) : step,
     waiting: waitingOn(onward(flow ? round.flows.indexOf(flow) : -1)),
     onAgain: (flow) => watchFrom(flow.name),
   };

@@ -112,6 +112,7 @@ export function Chosen(props: Props) {
 // what's next is the step. The flow is the one you're watching, so the question doesn't name it.
 function Question({ flow, standing, laidOut, just, ...props }: Omit<Props, "standing"> & { flow: Flow; standing: Standing; laidOut: number; just: boolean }) {
   if (standing.is === "to send" || standing.is === "with the agent") return <Sending {...props} flow={flow} standing={standing} just={just} />;
+  if (standing.is === "not saved") return <NotSaved {...props} flow={flow} just={just} />;
   const good = standing.is === "good";
   const buttons = useRef<HTMLDivElement>(null);
   const held = useHold(flow.name, buttons);
@@ -123,13 +124,7 @@ function Question({ flow, standing, laidOut, just, ...props }: Omit<Props, "stan
     <div className={asks}>
       <EndMark end={good ? "good" : "asks"} just={just} className={asksMark} />
       <p className="mb-3 text-[13px] leading-[18px] text-soft">
-        <button className="float-right ml-2 inline-flex items-center gap-1 text-xs leading-[18px] text-faint transition-colors duration-150 ease-calm hover:text-fg" onMouseDown={keepKeys} onClick={() => props.onAgain(flow)}>
-          <svg viewBox="0 0 20 20" className="size-3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <path d="M4 10a6 6 0 1 0 1.8-4.3" />
-            <path d="M4 3.5v3h3" />
-          </svg>
-          Watch again
-        </button>
+        <WatchAgain onClick={() => props.onAgain(flow)} />
         Is this flow good?
         {unseen > 0 ? (
           <span className="block text-xs leading-4 text-faint">{unseen} {unseen === 1 ? "answer" : "answers"} you haven’t seen</span>
@@ -180,13 +175,7 @@ function Sending({ flow, standing, just, ...props }: Omit<Props, "standing"> & {
     <div className={asks}>
       <EndMark end={sent ? "with the agent" : "to send"} just={just} className={asksMark} />
       <p className="mb-3 text-[13px] leading-[18px] text-soft">
-        <button className="float-right ml-2 inline-flex items-center gap-1 text-xs leading-[18px] text-faint transition-colors duration-150 ease-calm hover:text-fg" onMouseDown={keepKeys} onClick={() => props.onAgain(flow)}>
-          <svg viewBox="0 0 20 20" className="size-3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <path d="M4 10a6 6 0 1 0 1.8-4.3" />
-            <path d="M4 3.5v3h3" />
-          </svg>
-          Watch again
-        </button>
+        <WatchAgain onClick={() => props.onAgain(flow)} />
         {sent ? "With the agent" : `${standing.count} ${standing.count === 1 ? "note" : "notes"} for the agent`}
         {sent && props.waiting && <span className="block text-xs leading-4 text-faint">{props.waiting}</span>}
       </p>
@@ -200,6 +189,34 @@ function Sending({ flow, standing, just, ...props }: Omit<Props, "standing"> & {
         <Onward step={onward} />
       )}
     </div>
+  );
+}
+
+// A note you started in the flow and didn't save, as one a reload kept, is what its end asks about first: finished, the
+// flow can be judged.
+function NotSaved({ flow, just, ...props }: Omit<Props, "standing"> & { flow: Flow; just: boolean }) {
+  return (
+    <div className={asks}>
+      <EndMark end="asks" just={just} className={asksMark} />
+      <p className="mb-3 text-[13px] leading-[18px] text-soft">
+        <WatchAgain onClick={() => props.onAgain(flow)} />
+        Your note isn’t saved
+      </p>
+      <Onward step={props.onward} />
+    </div>
+  );
+}
+
+// Back to the flow's start, from its end, to watch it before answering.
+function WatchAgain({ onClick }: { onClick: () => void }) {
+  return (
+    <button className="float-right ml-2 inline-flex items-center gap-1 text-xs leading-[18px] text-faint transition-colors duration-150 ease-calm hover:text-fg" onMouseDown={keepKeys} onClick={onClick}>
+      <svg viewBox="0 0 20 20" className="size-3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M4 10a6 6 0 1 0 1.8-4.3" />
+        <path d="M4 3.5v3h3" />
+      </svg>
+      Watch again
+    </button>
   );
 }
 
