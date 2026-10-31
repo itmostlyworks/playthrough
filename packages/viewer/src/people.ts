@@ -3,7 +3,7 @@
 
 import type { Flow, Review } from "@mostlyworks/vantage-review";
 
-export const handsOf = (flow: Flow): string[] => [...new Set([flow.person, ...flow.steps.map((step) => step.person)].filter((person): person is string => !!person))];
+const handsOf =(flow: Flow): string[] => [...new Set([flow.person, ...flow.steps.map((step) => step.person)].filter((person): person is string => !!person))];
 
 // Whoever has it at a moment: the person it was last handed to by then, from the moment their page first shows (one of
 // `loads`), as until then it's still the other's on screen.

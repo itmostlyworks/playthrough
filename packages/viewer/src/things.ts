@@ -39,7 +39,7 @@ export function useReadings(review: Review, rounds: Round[]): Read {
 
 // A node is one element for as long as it's on the page, so it's read as it was at the step nearest the moment.
 const byNode = new WeakMap<Glimpse[], Map<number, { at: number; thing: Thing }[]>>();
-export function thingAt(read: Glimpse[], node: number, at: number): Thing | undefined {
+function thingAt(read: Glimpse[], node: number, at: number): Thing | undefined {
   let index = byNode.get(read);
   if (!index) {
     index = new Map();
@@ -118,7 +118,7 @@ export function placeName(on: Place | undefined, read: Read, round: number): str
   return near ? `Near ${called(near)}` : "This moment";
 }
 
-export const calledBy = (element: Element, seen: Glimpse[] | undefined, at: number) =>
+const calledBy =(element: Element, seen: Glimpse[] | undefined, at: number) =>
   called((element.node !== undefined && seen && thingAt(seen, element.node, at)) || { ...element, words: element.name });
 
 // Where a note is on a round: where it was written, on its own thing; where the agent answered it, where Vantage placed

@@ -290,7 +290,7 @@ export function problemsAccepting(review: Review, by: string): string[] {
 }
 
 // What's wrong with something's shape: its name, then what it needs, as in “Round 2: flow 3 needs a name.”
-export function problemsWithShape(schema: z.ZodType, value: unknown, subject: string): string[] {
+function problemsWithShape(schema: z.ZodType, value: unknown, subject: string): string[] {
   const result = schema.safeParse(value, { error: plainly });
   if (result.success) return [];
   return result.error.issues.map((issue) => `${whose(subject, issue.path, value)} ${issue.message}.`);

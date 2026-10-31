@@ -31,7 +31,7 @@ export function placeIn(place: Place, from: Recorded, to: Recorded): Place {
 }
 
 // The same thing on another round: where it shows nearest its moment, then the same step there.
-export function foundIn(from: Reading[], element: Element, at: number, to: Reading[]): Shown | undefined {
+function foundIn(from: Reading[], element: Element, at: number, to: Reading[]): Shown | undefined {
   const shown = shownAt(from, element, at);
   return shown && sameIn(shown, from, to);
 }
@@ -52,7 +52,7 @@ export function shownAt(readings: Reading[], element: Element, at: number): Show
 
 // Its step on the other round is the step of the same title, the same one of them where a title comes again; on it, the
 // thing paired with it as the comparison pairs them. Nothing where that round didn't take the step, or the thing is gone.
-export function sameIn({ reading, thing }: Shown, from: Reading[], to: Reading[]): Shown | undefined {
+function sameIn({ reading, thing }: Shown, from: Reading[], to: Reading[]): Shown | undefined {
   const nth = from.filter((kept) => kept.step === reading.step).indexOf(reading);
   const there = to.filter((kept) => kept.step === reading.step)[nth];
   if (!there) return undefined;

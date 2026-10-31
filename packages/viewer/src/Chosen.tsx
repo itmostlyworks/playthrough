@@ -319,7 +319,7 @@ export function EndMark({ end, ahead, just, className }: { end: End; ahead?: boo
   );
 }
 
-export function TickMark({ className, style }: { className: string; style?: CSSProperties }) {
+function TickMark({ className, style }: { className: string; style?: CSSProperties }) {
   return (
     <svg viewBox="0 0 12 12" className={className} style={style} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M2.8 6.2l2.2 2.2 4.2-4.6" />
