@@ -4,9 +4,9 @@
 import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { createRequire } from "node:module";
 import { userInfo } from "node:os";
-import { dirname, extname, join, normalize, sep } from "node:path";
+import { extname, join, normalize, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { Reading } from "@playthrough/page";
 import { Refused, type Did, type Send } from "@playthrough/review";
 import { BEAT } from "./flows.ts";
@@ -35,7 +35,7 @@ const TYPES: Record<string, string> = {
 
 export async function open(repo: Repo, id?: string) {
   if (id) await repo.reviews.get(id);
-  const page = join(dirname(createRequire(import.meta.url).resolve("@playthrough/viewer/package.json")), "dist");
+  const page = fileURLToPath(new URL("../viewer", import.meta.url));
   if (!(await readFile(join(page, "index.html")).catch(() => undefined)))
     throw new Refused(["The viewer isn't built yet. Build it from core with npm run build."]);
   const you = whoYouAre(repo.root);

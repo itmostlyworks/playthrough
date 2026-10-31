@@ -14,17 +14,14 @@ Playthrough records your coding agent's change the way a person would use it, be
 
 ## Try it
 
-Playthrough needs Node 24 or later. It isn't on npm yet, so for now it runs from this repo:
+Playthrough needs Node 24 or later. In your app's repo:
 
 ```bash
-git clone https://github.com/itmostlyworks/playthrough
-cd playthrough
-npm install
+npm install --save-dev playthrough
 npx playwright install chromium
-npm run build
 ```
 
-`example/` is a small invoices app to try it on. From there, ask your agent:
+Then ask your agent for a change, and to show it to you:
 
 > Show only the overdue invoices. Use Playthrough to show me the change: run `npx playthrough` and follow what it says.
 
@@ -34,11 +31,13 @@ The agent starts a review, records it, and hands it to you with `playthrough wai
 npx playthrough open
 ```
 
-## On your own app
-
-Run your agent in your app's repo, with the same request, pointing at Playthrough as `node <this repo>/packages/cli/src/playthrough.ts`. The first time, the agent writes `playthrough/app.json`, which says how to start your app, and `playthrough/setup.ts` if flows need something first: a signed-in user, an account with data in it, or the people who use the app. Both are committed with your app, so every review after uses them.
+The first time, the agent writes `playthrough/app.json`, which says how to start your app, and `playthrough/setup.ts` if flows need something first: a signed-in user, an account with data in it, or the people who use the app. Both are committed with your app, so every review after uses them.
 
 Reviews are kept in `.playthrough/` in your app's repo, recordings and all. Nothing is uploaded anywhere.
+
+## On the example
+
+`example/` in this repo is a small invoices app to try it on before your own. Clone the repo, run `npm install`, `npx playwright install chromium` and `npm run build`, and ask your agent for the same change from `example/`.
 
 ## In the viewer
 

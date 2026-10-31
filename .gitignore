@@ -1,3 +1,5 @@
 node_modules/
 .playthrough/
 dist/
+packages/cli/viewer/
+packages/cli/release/

@@ -230,6 +230,12 @@ async function playwright(run: Run): Promise<boolean> {
   // What an earlier command made and didn't give back, it gives back first.
   const { setup, borrowed } = repo(run.root);
   await giveBackLeft(await setupIn(setup), borrowed);
+  // Flows import playthrough/test from the app, so it has to be one of the app's packages.
+  try {
+    createRequire(join(run.root, "package.json")).resolve("playthrough/test");
+  } catch {
+    throw new Refused(["Playthrough isn't installed in this app, so its flows can't import playthrough/test. Install it as a dev dependency (npm install --save-dev playthrough), then run this again."]);
+  }
   const cli = createRequire(import.meta.url).resolve("@playwright/test/cli");
   const config = fileURLToPath(new URL("./playwright.config.ts", import.meta.url));
   return new Promise((resolve, reject) => {

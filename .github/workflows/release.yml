@@ -1,0 +1,63 @@
+# Releases Playthrough to npm. In the repo's Actions tab: Release, Run workflow, and the version, as 0.1.1. It sets the
+# version, checks, tests and builds the package, publishes it, then commits the version to main with its tag and a
+# release on GitHub. npm knows this workflow as a trusted publisher of playthrough, so no token is kept anywhere.
+
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: The version, as 0.1.1
+        required: true
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency: release
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ inputs.version }}
+    steps:
+      - name: Check the version
+        run: '[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || { echo "::error::Give the version as three numbers, as 0.1.1."; exit 1; }'
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      # Trusted publishing needs npm 11.5.1 or later.
+      - run: npm install --global npm@11.6.2
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Set the version
+        run: npm version "$VERSION" --workspace playthrough --no-git-tag-version --allow-same-version
+      - run: npm run check
+      - run: npm run quick
+      - run: npm run build
+      - name: Try it installed in an app
+        run: |
+          npm pack ./packages/cli/release --pack-destination "$RUNNER_TEMP"
+          mkdir "$RUNNER_TEMP/app" && cd "$RUNNER_TEMP/app"
+          npm init -y > /dev/null
+          npm install --save-dev "$RUNNER_TEMP/playthrough-$VERSION.tgz"
+          npx playthrough > /dev/null
+          node --input-type=module -e 'await import("playthrough/test")'
+      - name: Publish
+        run: npm publish ./packages/cli/release
+      - name: Tag it on main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git diff --quiet || git commit -am "Playthrough $VERSION"
+          git tag "v$VERSION"
+          git push origin HEAD:main "v$VERSION"
+      - name: Release it on GitHub
+        run: gh release create "v$VERSION" --generate-notes --title "Playthrough $VERSION"
+        env:
+          GH_TOKEN: ${{ github.token }}
