@@ -130,19 +130,19 @@ async function followingFor(repo: Repo, id: string, to: To, fresh = false): Prom
 async function start(repo: Repo, id: string, to: To, files: string[], written: number): Promise<Following> {
   const app = await repo.app();
   const { started } = await repo.reviews.get(id);
-  const { runAlongside } = await alongside();
+  const { runAlongside, pageFor } = await alongside();
   const { flows, setup } = await loadedOf(repo, id, files, written);
-  const body = flows.get(to.flow)?.body;
-  if (!body) throw new Refused([`${id} has no flow called ${quote(to.flow)} any more. Its flows: ${list([...flows.keys()].map(quote))}.`]);
-  // As every flow is recorded: in one language and time zone, at 1280×800, where an action that can't happen fails in
-  // seconds. A page may take as long as it takes to load, as the playhead may take to get there.
-  const context = await (await browser()).newContext({ baseURL: app.url, viewport: { width: 1280, height: 800 }, locale: "en-US", timezoneId: "UTC" });
+  const kept = flows.get(to.flow);
+  if (!kept) throw new Refused([`${id} has no flow called ${quote(to.flow)} any more. Its flows: ${list([...flows.keys()].map(quote))}.`]);
+  // As the flow is recorded: in the window its file asks for with test.use, like a phone's screen and touch, where an
+  // action that can't happen fails in seconds. A page may take as long as it takes to load, as the playhead may take to
+  // get there. What else the file says with test.use, Playwright leaves aside.
+  const { context, page } = await pageFor(await browser(), app.url, kept.use);
   context.setDefaultTimeout(10_000);
   context.setDefaultNavigationTimeout(0);
   const request = await requests.newContext({ baseURL: app.url });
   const close = () => void Promise.all([context.close(), request.dispose()]).catch(() => {});
   const orders: Orders = { to };
-  const page = await context.newPage();
   const one = { flow: to.flow, written, orders, stop: () => ((orders.stopped = true), orders.moved?.(), close()), passed: [] as string[], last: { worked: 0, when: Date.now(), rests: to.rests } } as Following;
   const times = timesOf(repo, id, one);
   const arrived = (step: string | undefined, actions: number | undefined, worked: number) => {
@@ -154,7 +154,7 @@ async function start(repo: Repo, id: string, to: To, files: string[], written: n
     if (one.passed.length > times.moments.length) times.moments = [...one.passed];
     one.last = { worked, when: Date.now(), rests: to.rests };
   };
-  one.ran = runAlongside(page, { request, baseURL: app.url, started, setup, borrowed: repo.borrowed, arrived }, body, orders).catch((error) => ({ stopped: { why: firstLine(String(error?.message ?? error)) } }));
+  one.ran = runAlongside(page, { request, baseURL: app.url, started, setup, borrowed: repo.borrowed, arrived, person: kept.use.person }, kept.body, orders).catch((error) => ({ stopped: { why: firstLine(String(error?.message ?? error)) } }));
   void one.ran.finally(() => ((one.over = true), close()));
   // Handed over, what it made is the app the person has, for as long as Vantage runs, and given back as it ends.
   void one.ran.then(({ handed, made }: { handed?: Handed; made?: Made }) => (handed ? undefined : made?.giveBack()));
@@ -199,16 +199,22 @@ const loaded = new Map<string, { written: number; flows: Promise<{ flows: Map<st
 function loadedOf(repo: Repo, id: string, files: string[], written: number) {
   const kept = loaded.get(key(repo, id));
   if (kept?.written === written) return kept.flows;
-  const flows = alongside().then(({ flowsIn }) => Promise.all([flowsIn(files, written), setupIn(repo.setup, written)])).then(
-    ([flows, setup]) => {
+  // A file that doesn't load is named, in Node's words: one that Playwright loads may not load here, where test() keeps
+  // less than Playwright's does.
+  const load = <T>(file: string, by: (file: string, written: number) => Promise<T>) =>
+    by(file, written).catch((error) => {
+      throw new Refused([`${repo.show(file)} couldn't be loaded, because Node says “${firstLine(String(error?.message ?? error))}”, so no flow of ${id} can be taken over. Fix it, then take the flow over again.`]);
+    });
+  const flows = alongside().then(({ flowsIn }) => Promise.all([Promise.all(files.map((file) => load(file, flowsIn))), load(repo.setup, setupIn)])).then(
+    ([each, setup]) => {
       // What a Vantage that has ended left, given back the first time this one runs a flow.
       if (!sweptFor.has(repo.root)) void giveBackLeft(setup, repo.borrowed);
       sweptFor.add(repo.root);
-      return { flows, setup };
+      return { flows: new Map(each.flatMap((flows) => [...flows])), setup };
     },
     (error) => {
       loaded.delete(key(repo, id));
-      throw new Refused([`The flows of ${id} couldn't be loaded: ${firstLine(String(error?.message ?? error))}`]);
+      throw error;
     },
   );
   loaded.set(key(repo, id), { written, flows });

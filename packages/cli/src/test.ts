@@ -210,7 +210,7 @@ async function readied(page: Page, run: Run) {
 }
 
 // A window of its own, in one language and time zone as every flow is, on the laptop unless it's on another screen.
-async function pageFor(browser: Browser, baseURL: string, screen: Screen) {
+export async function pageFor(browser: Browser, baseURL: string, screen: Screen) {
   const context = await browser.newContext({ baseURL, locale: "en-US", timezoneId: "UTC", viewport: LAPTOP, ...screen });
   return { context, page: await context.newPage() };
 }
@@ -238,17 +238,22 @@ export type Body = (given: { page: Page; context: BrowserContext; request: APIRe
 // Loaded in Vantage, each flow is kept by its name instead of run. A file at a time, as test() can't tell whose it is.
 // With what it does outside the app, if its file says so (REACHES_OUTSIDE): an email sent, a card charged, a paid API
 // called. Such a flow is run only when it's taken over, never ahead of the playhead, where every pause would do it again.
-export type Kept = { body: Body; outside?: string };
+// And everything its file says with test.use: the window it's recorded in, like a phone's screen and touch, and who it's
+// done as.
+export type Kept = { body: Body; outside?: string; use: BrowserContextOptions & { person?: string } };
 let collecting: Map<string, Kept> | undefined;
+// The file being loaded, and each describe() in it around the flows being kept now: what it says with test.use, and
+// what its annotation says the flows in it do outside the app.
+let around: { use: Kept["use"]; outside?: string }[] = [];
 let loading = Promise.resolve();
-export function flowsIn(files: string[], written: number): Promise<Map<string, Kept>> {
+export function flowsIn(file: string, written: number): Promise<Map<string, Kept>> {
   const flows = new Map<string, Kept>();
   const loaded = loading.then(async () => {
-    collecting = flows;
+    [collecting, around] = [flows, [{ use: {} }]];
     try {
-      for (const file of files) await import(`${pathToFileURL(file).href}?${written}`);
+      await import(`${pathToFileURL(file).href}?${written}`);
     } finally {
-      collecting = undefined;
+      [collecting, around] = [undefined, []];
     }
     return flows;
   });
@@ -463,10 +468,35 @@ const outsideIn = (details: unknown) => {
   const said = [(details as { annotation?: Annotation | Annotation[] } | undefined)?.annotation ?? []].flat().find((annotation) => annotation.type === REACHES_OUTSIDE);
   return said && (said.description?.trim() || "it reaches outside the app");
 };
-const keeping: object = Object.assign((title: string, ...rest: unknown[]) => void collecting?.set(title, { body: rest.at(-1) as Body, outside: rest.length > 1 ? outsideIn(rest[0]) : undefined }), {
-  step,
-  extend: () => keeping,
-});
+// As in Playwright, what a file or a describe() in it says with test.use holds for every flow in it, wherever it's said
+// there, and so does what its annotation says the flows do outside the app; what's said nearer a flow goes over what's
+// said further out.
+const keeping: object = Object.assign(
+  (title: string, ...rest: unknown[]) => {
+    const scopes = [...around];
+    collecting?.set(title, {
+      body: rest.at(-1) as Body,
+      outside: (rest.length > 1 ? outsideIn(rest[0]) : undefined) ?? scopes.findLast((scope) => scope.outside)?.outside,
+      // Once the file has loaded, so what's said after the flow holds too.
+      get use() {
+        return Object.assign({}, ...scopes.map((scope) => scope.use));
+      },
+    });
+  },
+  {
+    step,
+    use: (options: Kept["use"]) => void Object.assign(around.at(-1)?.use ?? {}, options),
+    describe: (...given: unknown[]) => {
+      around.push({ use: {}, outside: given.length > 2 ? outsideIn(given[1]) : undefined });
+      try {
+        (given.at(-1) as () => void)();
+      } finally {
+        around.pop();
+      }
+    },
+    extend: () => keeping,
+  },
+);
 export const test = (globalThis as Record<symbol, unknown>)[ALONGSIDE] ? (keeping as unknown as typeof recorded) : withSteps(recorded);
 
 // Every action on an element glides there first and pauses after, and once it's done is a place to take the flow over.
