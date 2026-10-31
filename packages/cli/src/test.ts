@@ -4,20 +4,27 @@
 // comparison compares. Run as plain tests, it does nothing. Each recording and its readings go to the reporter, which makes
 // them a flow (reporter.ts). Taken over, a flow runs in Vantage itself instead (following.ts), on the same pace and steps.
 
-import { test as base, expect as playwrightExpect, type APIRequestContext, type BrowserContext, type Locator, type Page } from "@playwright/test";
+import { test as base, expect as playwrightExpect, type APIRequestContext, type Browser, type BrowserContext, type BrowserContextOptions, type Locator, type Page } from "@playwright/test";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Glimpse, Reading } from "@mostlyworks/vantage-page";
-import { keepAssets } from "./assets.ts";
+import { keepAssets, type Assets } from "./assets.ts";
 import type { Did } from "@mostlyworks/vantage-review";
 import { ALONGSIDE, BEAT, REACHES_OUTSIDE, WALKED, type Action, type Handed, type Run, type To, type Walk, type Walked } from "./flows.ts";
 import { readPage, unhovered } from "./read.ts";
 import { repo } from "./repo.ts";
-import { ACTIONS, ASSETS, firstLine, GLIMPSES, HOLD, PERSON, PICTURE, READINGS, RECORDING, seconds, type Failed } from "./reporter.ts";
+import { ACTIONS, ASSETS, firstLine, GLIMPSES, HANDS, HOLD, PERSON, PICTURE, READINGS, RECORDING, seconds, type Failed, type Hand } from "./reporter.ts";
 import { watchRest } from "./rest.ts";
-import { make, setupIn, type Made, type Setup } from "./setup.ts";
+import { firstOf, make, personIn, setupIn, type Made, type Setup } from "./setup.ts";
+
+// The screens besides the laptop every flow is on unless it says otherwise: a phone, tapped, and a tablet. A flow takes
+// one with test.use, and so does someone it's handed to.
+export type Screen = Pick<BrowserContextOptions, "viewport" | "isMobile" | "hasTouch" | "timezoneId" | "colorScheme">;
+export const phone: Screen = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
+export const tablet: Screen = { viewport: { width: 820, height: 1180 }, isMobile: true, hasTouch: true };
+const LAPTOP = { width: 1280, height: 800 };
 
 // Everything it needs comes with the run (flows.ts), so it never has to find anything for itself.
 const run: Run | undefined = process.env.VANTAGE_RUN ? JSON.parse(process.env.VANTAGE_RUN) : undefined;
@@ -68,14 +75,16 @@ const SAVING = 100; // taking over, how soon an action that saves or goes to ano
 
 let pointer: { page: Page; x: number; y: number } | undefined;
 
-// The flow underway: what waits for its page to rest, what was read at the end of each step so far, with its picture,
-// and when each action was done; the step it's in, and how many of that step's actions are done; and walking a fork
-// again, once the fork's steps have begun, how far they got.
-type Underway = { page: Page; events: { timestamp: number }[]; rest: () => Promise<void>; depth: number; readings: Omit<Reading, "picture">[]; glimpses: Glimpse[]; pictures: Buffer[]; actions: number[]; step?: string; inStep: number; walked?: Walked };
+// The flow underway: the page it's on now, what waits for that page to rest, what was read at the end of each step so
+// far, with its picture, and when each action was done; the step it's in, and how many of that step's actions are done;
+// whoever it's been handed to, and the assets each page loaded; and walking a fork again, once the fork's steps have
+// begun, how far they got.
+type Underway = { page: Page; events: { timestamp: number }[]; rest: () => Promise<void>; depth: number; readings: Omit<Reading, "picture">[]; glimpses: Glimpse[]; pictures: Buffer[]; actions: number[]; step?: string; inStep: number; hands: Hand[]; assets: (() => Promise<Assets>)[]; walked?: Walked };
 let underway: Underway | undefined;
 
 // What every flow starts from (setup.ts), loaded once a run.
 let appSetup: Promise<Setup> | undefined;
+const setupOf = () => (appSetup ??= setupIn(repo(run?.root).setup));
 
 // Every round runs on the day the review started, at the time of day it's recorded, with the page's random numbers from
 // the same seed, so what the page works out from the day reads the same each time. The app's server keeps the real time,
@@ -94,42 +103,62 @@ const seeded = `(() => {
   };
 })();`;
 
-const recorded = base.extend<{ rest: () => Promise<void>; setup: Record<string, any>; recorder: void }>({
+// Someone else carries the flow on, on a page of their own in the same world, on their screen.
+export type HandTo = (person: string, screen?: Screen) => Promise<Page>;
+
+const recorded = base.extend<{ person: string | undefined; rest: () => Promise<void>; setup: Record<string, any>; handTo: HandTo; recorder: void }>({
   // In one language and time zone wherever it's recorded.
   locale: "en-US",
   timezoneId: "UTC",
+  // Who the flow is done as: one of the app's people (setup.ts), named by its file with test.use, or else the first.
+  person: [async ({}, use) => use(firstOf(await setupOf())), { option: true }],
   // What waits for the page to come to rest, watching it from before setup sets its clock (rest.ts).
   rest: async ({ page }, use) => use(run ? await watchRest(page) : async () => {}),
-  setup: async ({ page, request, baseURL, rest: _ }, use, testInfo) => {
+  setup: async ({ page, request, baseURL, person, rest: _ }, use, testInfo) => {
     // Recording flows added later on Before, the others aren't run, nor is anything made for them. Walking a fork again,
     // only the flow it's off.
     if (run?.only && !run.only.includes(testInfo.title)) testInfo.skip();
     if (run?.walk && testInfo.title !== run.walk.flow) testInfo.skip();
-    if (run) {
-      // rrweb goes in first, to take the page's own clock before it's set.
-      await page.addInitScript({ content: recorder(run.recorder) });
-      await page.clock.setSystemTime(onReviewDay(run.started));
-      await page.addInitScript({ content: seeded });
-    }
-    const where = repo(run?.root);
-    appSetup ??= setupIn(where.setup);
-    const made = await make(await appSetup, where.borrowed, { page, request, baseURL: baseURL! });
+    const app = await setupOf();
+    if (person) personIn(app, person);
+    if (run) await readied(page, run);
+    const made = await make(app, repo(run?.root).borrowed, { page, request, baseURL: baseURL!, person });
+    if (person) await app.signIn?.({ page, person, setup: made.setup });
     await use(made.setup);
     await made.giveBack();
   },
+  // Handed on, someone else is signed in by the app's setup on a page of their own, and recorded, the flow carries on
+  // there: its own page says no more.
+  handTo: async ({ browser, baseURL, setup }, use) => {
+    const opened: BrowserContext[] = [];
+    await use(async (person, screen = {}) => {
+      const app = await setupOf();
+      personIn(app, person);
+      const { page, context } = await pageFor(browser, baseURL!, screen);
+      opened.push(context);
+      const flow = underway;
+      const rest = run && flow && (await watchRest(page));
+      if (run && flow) await readied(page, run);
+      await app.signIn?.({ page, person, setup });
+      if (run && flow && rest) await carryOn(flow, page, rest, person, run);
+      return page;
+    });
+    for (const context of opened) await context.close();
+  },
   recorder: [
-    // Once what the flow starts from is made, so making it isn't in the recording.
-    async ({ page, setup, rest }, use, testInfo) => {
+    // Once what the flow starts from is made, so making it isn't in the recording; and kept until the pages it was
+    // handed to are done with, as it ends on the last of them.
+    async ({ page, setup, rest, person, handTo: _ }, use, testInfo) => {
       if (!run) return use();
       testInfo.setTimeout(testInfo.timeout * 3);
-      const events: { timestamp: number }[] = [];
-      await page.exposeFunction("__vantage", (event: { timestamp: number }) => void events.push(event));
-      const assets = keepAssets(page, run.folder);
+      const flow: Underway = { page, events: [], rest, depth: 0, readings: [], glimpses: [], pictures: [], actions: [], inStep: 0, hands: [], assets: [] };
+      // Only the page the flow is on is recorded: handed on, it carries on on the other's.
+      await page.exposeFunction("__vantage", (event: { timestamp: number }) => void (flow.page === page && flow.events.push(event)));
+      flow.assets.push(keepAssets(page, run.folder));
       pace(page);
       pointer = { page, x: 640, y: 640 };
-      underway = { page, events, rest, depth: 0, readings: [], glimpses: [], pictures: [], actions: [], inStep: 0 };
-      const flow = underway;
-      const { readings, glimpses, pictures, actions } = underway;
+      underway = flow;
+      const { events, readings, glimpses, pictures, actions } = flow;
       await page.mouse.move(pointer.x, pointer.y);
       try {
         await use();
@@ -137,41 +166,74 @@ const recorded = base.extend<{ rest: () => Promise<void>; setup: Record<string, 
         pointer = undefined;
         underway = undefined;
       }
+      // It ends on the page it's on: its own, or the last one it was handed to.
+      const last = flow.page;
+      const assets = async () => Object.assign({}, ...(await Promise.all(flow.assets.map((kept) => kept()))));
       // A fork walked again is kept as far as its steps got, with when each was done; one whose flow never got to where
       // it was taken over leaves nothing.
       if (run.walk) {
         if (!flow.walked) return;
-        await page.waitForTimeout(HOLD);
-        await page.evaluate(() => (window as any).rrwebRecord.record.addCustomEvent("end", {}));
-        await page.waitForTimeout(100);
+        await last.waitForTimeout(HOLD);
+        await last.evaluate(() => (window as any).rrwebRecord.record.addCustomEvent("end", {}));
+        await last.waitForTimeout(100);
         return writeFileSync(join(run.folder, WALKED), JSON.stringify({ ...flow.walked, events, readings, assets: await assets() }));
       }
       const ended = testInfo.status === testInfo.expectedStatus;
       if (!ended && !run.before) return;
       if (ended) {
-        await page.waitForTimeout(HOLD);
+        await last.waitForTimeout(HOLD);
         // Nothing changes while the end holds, so a last event makes the recording long enough to include it.
-        await page.evaluate(() => (window as any).rrwebRecord.record.addCustomEvent("end", {}));
-        await page.waitForTimeout(100);
+        await last.evaluate(() => (window as any).rrwebRecord.record.addCustomEvent("end", {}));
+        await last.waitForTimeout(100);
       }
       await testInfo.attach(RECORDING, { body: JSON.stringify(events), contentType: "application/json" });
       await testInfo.attach(READINGS, { body: JSON.stringify(readings), contentType: "application/json" });
       await testInfo.attach(GLIMPSES, { body: JSON.stringify(glimpses), contentType: "application/json" });
       await testInfo.attach(ASSETS, { body: JSON.stringify(await assets()), contentType: "application/json" });
       await testInfo.attach(ACTIONS, { body: JSON.stringify(actions), contentType: "application/json" });
-      if (typeof setup.person === "string" && setup.person.trim()) await testInfo.attach(PERSON, { body: setup.person.trim(), contentType: "text/plain" });
+      // Who it's done as: who its file names, or else who the app's setup says.
+      const who = person ?? (typeof setup.person === "string" ? setup.person.trim() : undefined);
+      if (who) await testInfo.attach(PERSON, { body: who, contentType: "text/plain" });
+      if (flow.hands.length) await testInfo.attach(HANDS, { body: JSON.stringify(flow.hands), contentType: "application/json" });
       for (const picture of pictures) await testInfo.attach(PICTURE, { body: picture, contentType: "image/png" });
     },
     { auto: true },
   ],
 });
 
+// A page recorded, readied before anything loads in it: rrweb first, to take the page's own clock before it's set, then
+// the review's day and the seeded random numbers.
+async function readied(page: Page, run: Run) {
+  await page.addInitScript({ content: recorder(run.recorder) });
+  await page.clock.setSystemTime(onReviewDay(run.started));
+  await page.addInitScript({ content: seeded });
+}
+
+// A window of its own, in one language and time zone as every flow is, on the laptop unless it's on another screen.
+async function pageFor(browser: Browser, baseURL: string, screen: Screen) {
+  const context = await browser.newContext({ baseURL, locale: "en-US", timezoneId: "UTC", viewport: LAPTOP, ...screen });
+  return { context, page: await context.newPage() };
+}
+
+// The flow, handed on: from here, its page is the one it was handed to, read at each step's end and paced as its own was,
+// and the recording carries on there. A page signing in already loaded is taken whole now, as it was before the
+// recording heard it; otherwise the recording carries on with the first page it loads.
+async function carryOn(flow: Underway, page: Page, rest: () => Promise<void>, person: string, run: Run) {
+  await page.exposeFunction("__vantage", (event: { timestamp: number }) => void (flow.page === page && flow.events.push(event)));
+  flow.assets.push(keepAssets(page, run.folder));
+  flow.hands.push({ at: Date.now(), person });
+  Object.assign(flow, { page, rest });
+  const size = page.viewportSize() ?? LAPTOP;
+  pointer = { page, x: size.width / 2, y: size.height * 0.8 };
+  if (page.url() !== "about:blank") await page.evaluate(() => (window as any).rrwebRecord?.record.takeFullSnapshot());
+}
+
 // Taken over, a flow runs in Vantage (following.ts), unrecorded, on the recordings' clock, which the person carries on
 // with. It's told how far the playhead has gone, and told again each time it moves; once the playhead rests where the
 // flow is, to hand its page over; and to stop, once it's no longer wanted.
 export type Orders = { to: To; stopped?: boolean; moved?: () => void };
 // A flow, as its file gives it to test(): with the page, what Playwright gives every test besides, and the setup.
-export type Body = (given: { page: Page; context: BrowserContext; request: APIRequestContext; baseURL: string; setup: Record<string, any> }) => Promise<unknown>;
+export type Body = (given: { page: Page; context: BrowserContext; request: APIRequestContext; baseURL: string; setup: Record<string, any>; handTo: HandTo }) => Promise<unknown>;
 
 // Loaded in Vantage, each flow is kept by its name instead of run. A file at a time, as test() can't tell whose it is.
 // With what it does outside the app, if its file says so (REACHES_OUTSIDE): an email sent, a card charged, a paid API
@@ -212,26 +274,49 @@ class Stopped extends Error {}
 
 export async function runAlongside(
   page: Page,
-  { request, baseURL, started, setup: appSetup, borrowed, arrived }: { request: APIRequestContext; baseURL: string; started: string; setup: Setup; borrowed: string; arrived?: Arrived },
+  { request, baseURL, started, setup: appSetup, borrowed, arrived, person }: { request: APIRequestContext; baseURL: string; started: string; setup: Setup; borrowed: string; arrived?: Arrived; person?: string },
   body: Body,
   orders: Orders,
 ): Promise<{ handed?: Handed; stopped?: Pick<Failed, "at" | "why">; made?: Made }> {
-  const rest = await watchRest(page);
-  await page.clock.setSystemTime(onReviewDay(started));
-  await page.addInitScript({ content: seeded });
-  const flow: Taking = { page, depth: 0, rest, actions: 0, again: [], wrote: false, passed: [], orders, began: Date.now(), waited: 0, arrived };
-  page.on("request", (request) => void (["GET", "HEAD", "OPTIONS"].includes(request.method()) || (flow.wrote = true)));
+  // Each page the run goes on, readied as the flow's was when it was recorded, and what it writes noted.
+  const readied = async (page: Page) => {
+    const rest = await watchRest(page);
+    await page.clock.setSystemTime(onReviewDay(started));
+    await page.addInitScript({ content: seeded });
+    page.on("request", (request) => void (["GET", "HEAD", "OPTIONS"].includes(request.method()) || (flow.wrote = true)));
+    return rest;
+  };
+  const flow: Taking = { page, depth: 0, rest: async () => {}, actions: 0, again: [], wrote: false, passed: [], orders, began: Date.now(), waited: 0, arrived };
+  flow.rest = await readied(page);
   pace(page);
+  // Handed on, the run carries on on the other's page, as the recording does: where the playhead rests there, it's that
+  // page that's handed over.
+  const opened: BrowserContext[] = [];
   return taking.run(flow, async () => {
     let made: Made | undefined;
+    const handTo: HandTo = async (person, screen = {}) => {
+      personIn(appSetup, person);
+      const next = await pageFor(page.context().browser()!, baseURL, screen);
+      opened.push(next.context);
+      const rest = await readied(next.page);
+      await appSetup.signIn?.({ page: next.page, person, setup: made?.setup ?? {} });
+      Object.assign(flow, { page: next.page, rest });
+      return next.page;
+    };
     try {
-      made = await make(appSetup, borrowed, { page, request, baseURL });
-      await body({ page, context: page.context(), request, baseURL, setup: made.setup });
+      // Who the flow is done as, as when it was recorded: who its file names, or else the first the app names.
+      const who = person ?? firstOf(appSetup);
+      if (who) personIn(appSetup, who);
+      made = await make(appSetup, borrowed, { page, request, baseURL, person: who });
+      if (who) await appSetup.signIn?.({ page, person: who, setup: made.setup });
+      await body({ page, context: page.context(), request, baseURL, setup: made.setup, handTo });
       await reached(flow);
       return { handed: flow.handed, made };
     } catch (error) {
       if (error instanceof Stopped || orders.stopped) return { handed: flow.handed, made };
       return { stopped: { at: flow.step, why: firstLine(String((error as Error)?.message ?? error)) }, made };
+    } finally {
+      for (const context of opened) await context.close().catch(() => {});
     }
   });
 }

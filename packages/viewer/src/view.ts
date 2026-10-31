@@ -39,7 +39,7 @@ export function ahead(replay: Replay, at: number, length: number): Point {
     sum = [sum[0] + point[0], sum[1] + point[1]];
     count++;
   }
-  return count ? [sum[0] / count, sum[1] / count] : [replay.width / 2, 0];
+  return count ? [sum[0] / count, sum[1] / count] : [replay.shapeAt(at).width / 2, 0];
 }
 
 // A held view moved by the pointer or the wheel, kept so the page never leaves the frame.

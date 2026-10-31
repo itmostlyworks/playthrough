@@ -99,12 +99,39 @@ find and remove it, and sign in again there if removing it needs that. What a ru
 Vantage was stopped, the next command gives back. What can't be taken back, like an email sent, avoid instead: test
 keys, a mail catcher.
 
-Use what the project has (a test account, seed data, a reset hook), make data through the app's API or database rather
-than on screen, and stub what you can't control at the network. Sign in with page.request, not request: it shares the
-page's cookies, so the page is signed in, and so is a person who takes the flow over. If the flow acts as someone,
-return their name as person ({ person: "Ana", ... }): it's the name on the pointer the reviewer watches. Dates the server works out don't follow the page's
-clock: fix them through the app's own test hook if it has one.
+Use what the project has (a test account, seed data, a reset hook, its own test fixtures, imported rather than copied),
+make data through the app's API or database rather than on screen, and stub what you can't control at the network. Sign
+in with page.request, not request: it shares the page's cookies, so the page is signed in, and so is a person who takes
+the flow over. Dates the server works out don't follow the page's clock: fix them through the app's own test hook if it
+has one.
 
 Each new flow is recorded twice. What changes by itself between the two, like a time the server stamps, is left out of
 every comparison, in every flow, and Vantage says what it is: steady it in vantage/setup.ts if you can, because a real
 change to it won't be seen.
+
+WHO DOES A FLOW
+
+Every flow is done by someone the app knows: their name is on the pointer the reviewer watches, and taking the flow
+over, the reviewer is them. Once the app has more than one kind of person, name them in vantage/setup.ts, the way the
+team talks about them, each with a line in the team's words for you to read; the first does every flow that names no
+one. Add one the first time a change needs them, never all at once:
+
+  export const people = {
+    "the owner": "Runs the studio: sends the invoices. On a laptop.",
+    "a customer": "Pays from the link in a reminder, on their phone.",
+  };
+
+Setup's default export is told who the flow is done as (person), and makes the world they all share; signIn, if setup
+exports it, signs a page in as one of them: ({ page, person, setup }) => …. Keep what the screen shows of each the same
+every run, as every review shares them. A flow names who it's done as, the person the task is about, at the top of its
+file, with their screen when it isn't a laptop's (phone and tablet come from @mostlyworks/vantage/test):
+
+  test.use({ person: "a customer", ...phone });
+
+Another person earns a flow only when they'd see something different, and it's named for the difference: "A member
+can't delete a board". When the task passes from one person to another, hand the flow on rather than making what the
+first did through the API: the person it's handed to carries on, on their own page in the same world, and the recording
+carries on there, so what lands on their page is what the first person really did.
+
+  const customer = await handTo("a customer", phone);
+  await test.step("Open the link in the reminder", () => customer.goto(link));

@@ -7,6 +7,7 @@ import { useRef, useState, type RefObject } from "react";
 import { time, type Flow, type Review, type Round } from "@mostlyworks/vantage-review";
 import { picture } from "./api.ts";
 import { EndMark, endOf } from "./Chosen.tsx";
+import { asWho, manyIn } from "./people.ts";
 import { Agent, Go, says, type Step } from "./Step.tsx";
 import type { Standing } from "./notes.ts";
 import { Picture, useStill } from "./Picture.tsx";
@@ -105,7 +106,10 @@ function Row({ review, round, flow, standing, on, onPoint, onFlow }: { review: R
         <Picture shot={useStill(review, round, flow)} />
       </span>
       <span className="grid min-w-0">
-        <span className="truncate text-[13px] leading-[18px] text-fg">{flow.name}</span>
+        <span className="line-clamp-2 text-[13px] leading-[18px] text-fg">
+          {flow.name}
+          {manyIn(review) && <span className="text-soft"> {asWho(flow)}</span>}
+        </span>
         <span className="mt-0.5 flex min-w-0 items-center gap-1 text-xs leading-4">
           {standing && <EndMark end={endOf(standing)} ahead={standing.is === "to watch"} just={false} className="size-3 flex-none" />}
           {standing && <span className={`truncate ${INK[standing.is]}`}>{says(standing)}</span>}
@@ -139,8 +143,9 @@ function Opening({ review, round, flow, onFlow }: { review: Review; round: Round
       onClick={() => onFlow(flow.name)}
     >
       <Picture key={flow.name} shot={{ src: picture(review.id, round.number, flow.recording, 0) }} />
-      <span className="absolute inset-0 grid place-items-center bg-[rgba(247,247,245,.45)] p-4 text-center font-recorded text-[20px] leading-[1.2] font-medium tracking-[-0.01em] text-[#222222]">
+      <span className="absolute inset-0 grid place-content-center justify-items-center gap-1.5 bg-[rgba(247,247,245,.45)] p-4 text-center font-recorded text-[20px] leading-[1.2] font-medium tracking-[-0.01em] text-[#222222]">
         {flow.name}
+        {manyIn(review) && asWho(flow) && <span className="font-ui text-[14px] leading-[1.4] font-normal tracking-normal text-[#6c707a]">{asWho(flow)}</span>}
       </span>
     </button>
   );

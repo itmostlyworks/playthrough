@@ -75,6 +75,9 @@ export const Step = z.strictObject({
     .array(seconds("needs the moment each of its actions was done, in seconds"))
     .optional()
     .describe("When each of its actions was done: between them the page rests, and a person can take the flow over there"),
+  person: text("needs the name of who does it, or no person")
+    .optional()
+    .describe("Who does it, once the flow has changed hands: someone other than who the flow is done as"),
 });
 
 export const Flow = z.strictObject({
@@ -88,7 +91,7 @@ export const Flow = z.strictObject({
     .describe("On Before, the step the flow couldn't take there: it's kept as far as that, and tried again by vantage start"),
   person: text("needs the name of who it acts as, or no person")
     .optional()
-    .describe("Who the flow acts as, from the app's setup: the name on the recorded pointer, handed to you when you take over"),
+    .describe("Who the flow is done as, as its file or the app's setup names them: the name on the recorded pointer, handed to you when you take over"),
   unsteady: z
     .array(text("needs the ids of the changes it makes by itself"))
     .optional()

@@ -8,17 +8,19 @@ import { EventType, IncrementalSource, MouseInteractions, Replayer, type eventWi
 export type Events = eventWithTime[];
 export type Rect = { left: number; top: number; width: number; height: number };
 
+// The screen a recording is on from a moment: a flow handed to someone else carries on on their screen, a phone's
+// tapped, with no pointer between taps, so none is drawn.
+export type Shape = { from: number; width: number; height: number; touch: boolean };
+
 // What a recording shows besides its page.
 export type Recorded = {
-  width: number;
-  height: number;
-  // Where the pointer was, as [seconds, x, y], and when it clicked. A flow on a phone is tapped: there's no pointer
-  // between taps, so none is drawn.
+  // Its screens in order, the first from its start.
+  shapes: Shape[];
+  // Where the pointer was, as [seconds, x, y], and when it clicked.
   pointer: [number, number, number][];
   // When the hand was out of the app: in a recording you made by taking a flow over, going to Vantage's own controls.
   away: [number, number][];
   clicks: number[];
-  touch: boolean;
   // The moments its page changes: a click, something on the page changing, typing or a scroll.
   changes: number[];
   // What was clicked or typed into, as [seconds, node].
@@ -28,25 +30,35 @@ export type Recorded = {
 export function recorded(events: Events): Recorded {
   const start = events[0]?.timestamp ?? 0;
   const seconds = (timestamp: number) => (timestamp - start) / 1000;
-  const size = events.find((event) => event.type === EventType.Meta)?.data as { width?: number; height?: number } | undefined;
-  const shown: Recorded = { width: size?.width ?? 1280, height: size?.height ?? 800, pointer: [], away: [], clicks: [], touch: false, changes: [], acted: [] };
+  const shown: Recorded = { shapes: [], pointer: [], away: [], clicks: [], changes: [], acted: [] };
   for (const event of events) {
+    // A page loading says its size; one of another size is someone else's screen.
+    if (event.type === EventType.Meta) {
+      const { width, height } = event.data;
+      const last = shown.shapes.at(-1);
+      if (!last || last.width !== width || last.height !== height) shown.shapes.push({ from: last ? seconds(event.timestamp) : 0, width, height, touch: false });
+    }
     if (event.type !== EventType.IncrementalSnapshot) continue;
     const data = event.data;
     if (data.source === IncrementalSource.MouseMove) for (const position of data.positions) shown.pointer.push([seconds(event.timestamp + position.timeOffset), position.x, position.y]);
     else if (data.source === IncrementalSource.MouseInteraction && data.x !== undefined && data.y !== undefined) {
       shown.pointer.push([seconds(event.timestamp), data.x, data.y]);
       if (data.type === MouseInteractions.Click) shown.clicks.push(seconds(event.timestamp));
-      if (data.type === MouseInteractions.TouchStart) shown.touch = true;
+      const shape = shown.shapes.at(-1);
+      if (data.type === MouseInteractions.TouchStart && shape) shape.touch = true;
       if (data.type === MouseInteractions.Click) shown.acted.push([seconds(event.timestamp), data.id]);
     } else if (data.source === IncrementalSource.Input) shown.acted.push([seconds(event.timestamp), data.id]);
     const changes = [IncrementalSource.Mutation, IncrementalSource.Scroll, IncrementalSource.Input].includes(data.source);
     if (changes || (data.source === IncrementalSource.MouseInteraction && data.type === MouseInteractions.Click)) shown.changes.push(seconds(event.timestamp) + 0.01);
   }
+  if (!shown.shapes.length) shown.shapes.push({ from: 0, width: 1280, height: 800, touch: false });
   shown.pointer.sort((a, b) => a[0] - b[0]);
   shown.away = awayFrom(shown);
   return shown;
 }
+
+// The screen it's on at a moment.
+export const shapeOf = (shapes: Shape[], at: number): Shape => shapes.findLast((shape) => shape.from <= at) ?? shapes[0]!;
 
 // The moments one part of the page changes, by its node in the recording: it, or anything in it. What moved somewhere
 // else on the page, such as a menu opening over it, isn't its change.
@@ -80,16 +92,21 @@ const EDGE = 2;
 const NEAR = 24;
 const GONE = 0.4;
 const RUSH = 1500;
-function awayFrom({ pointer, width, height }: Recorded): [number, number][] {
-  const off = (x: number, y: number) => Math.min(x, y, width - 1 - x, height - 1 - y);
+function awayFrom({ pointer, shapes }: Recorded): [number, number][] {
+  // How far from the edge of the screen it's on then.
+  const off = (i: number) => {
+    const [at, x, y] = pointer[i]!;
+    const { width, height } = shapeOf(shapes, at);
+    return Math.min(x, y, width - 1 - x, height - 1 - y);
+  };
   const fast = (i: number) => {
     const [a, b] = [pointer[i]!, pointer[i + 1]!];
     return Math.hypot(b[1] - a[1], b[2] - a[2]) / Math.max(0.016, b[0] - a[0]) > RUSH;
   };
-  const near = (i: number) => off(pointer[i]![1], pointer[i]![2]) <= NEAR;
+  const near = (i: number) => off(i) <= NEAR;
   const spans: [number, number][] = [];
   for (let i = 0; i < pointer.length; i++) {
-    const out = off(pointer[i]![1], pointer[i]![2]) <= EDGE;
+    const out = off(i) <= EDGE;
     const gone = i + 1 < pointer.length && pointer[i + 1]![0] - pointer[i]![0] > GONE && near(i + 1);
     if (!out && !gone) continue;
     let from = i;
@@ -107,13 +124,13 @@ function awayFrom({ pointer, width, height }: Recorded): [number, number][] {
 
 export class Replay {
   readonly host = document.createElement("div");
-  readonly width: number;
-  readonly height: number;
+  readonly shapes: Shape[];
   readonly pointer: Recorded["pointer"];
   readonly away: Recorded["away"];
   readonly clicks: number[];
-  readonly touch: boolean;
   #replayer: Replayer;
+  // The screen the page is shown on now, which rrweb changes with it as someone else's page loads.
+  #shape: Shape;
   // The page is first drawn a few milliseconds in. Moved to before that, rrweb draws nothing and keeps whatever it
   // showed, so a flow's first frame would show its end.
   #drawn: number;
@@ -136,10 +153,11 @@ export class Replay {
       const removes = event.data.removes;
       Object.defineProperty(event.data, "removes", { get: () => removes, set() {}, enumerable: true, configurable: true });
     }
-    ({ width: this.width, height: this.height, pointer: this.pointer, away: this.away, clicks: this.clicks, touch: this.touch } = recorded(events));
+    ({ shapes: this.shapes, pointer: this.pointer, away: this.away, clicks: this.clicks } = recorded(events));
     this.#drawn = Math.max(0, (events.find((event) => event.type === EventType.FullSnapshot)?.timestamp ?? start) - start + 1);
     this.host.className = "absolute top-0 left-0 origin-top-left [&_.replayer-mouse]:hidden [&_iframe]:pointer-events-none [&_iframe]:block [&_iframe]:border-0";
-    Object.assign(this.host.style, { width: `${this.width}px`, height: `${this.height}px` });
+    this.#shape = this.shapes[0]!;
+    Object.assign(this.host.style, { width: `${this.#shape.width}px`, height: `${this.#shape.height}px` });
     into.append(this.host);
     this.#replayer = new Replayer(events, { root: this.host, mouseTail: false, triggerFocus: false, pauseAnimation: false, showWarning: false });
     this.#replayer.pause(this.#drawn);
@@ -155,6 +173,11 @@ export class Replay {
       this.#replayer.pause(ms);
       this.#at = ms;
       if (jumped) this.#settle();
+      const shape = this.shapeAt(ms / 1000);
+      if (shape !== this.#shape) {
+        this.#shape = shape;
+        Object.assign(this.host.style, { width: `${shape.width}px`, height: `${shape.height}px` });
+      }
     }
     // A page rebuilt for a jump can start its transitions a frame late, and a dialog centred by its transform slid in
     // from the side: for its first 0.15s after a jump, its motion is over, playing too.
@@ -185,6 +208,10 @@ export class Replay {
   rest() {
     this.#settle();
     for (const animation of this.#animations()) finish(animation);
+  }
+
+  shapeAt(at: number): Shape {
+    return shapeOf(this.shapes, at);
   }
 
   pointerAt(at: number): [number, number] | undefined {

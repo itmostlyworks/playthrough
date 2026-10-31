@@ -15,6 +15,7 @@ export const GLIMPSES = "vantage glimpses";
 export const PICTURE = "vantage picture";
 export const ASSETS = "vantage assets";
 export const PERSON = "vantage person";
+export const HANDS = "vantage hands";
 export const ACTIONS = "vantage actions";
 export const HOLD = 1500; // the end of a flow holds, so its last state can be seen
 
@@ -35,6 +36,8 @@ export type Failed ={ flow: string; at?: string; why?: string; broken?: true };
 // What Playwright says when the browser stops a flow, not the app: the page crashed or closed, or the app stopped answering.
 const BROKEN = /Page crashed|Target crashed|Target page, context or browser has been closed|net::ERR_CONNECTION_REFUSED/;
 export type Recorded = { flow: Flow; files: string[] };
+// The flow handed on to someone else, on this machine's clock.
+export type Hand = { at: number; person: string };
 type Event = { timestamp: number; [field: string]: unknown };
 
 export default class Flows implements Reporter {
@@ -59,11 +62,16 @@ export default class Flows implements Reporter {
       pictures: result.attachments.filter((attachment) => attachment.name === PICTURE).map((attachment) => attachment.body!),
       assets: JSON.parse(result.attachments.find((attachment) => attachment.name === ASSETS)?.body?.toString() ?? "{}"),
       actions: JSON.parse(result.attachments.find((attachment) => attachment.name === ACTIONS)?.body?.toString() ?? "[]"),
+      hands: JSON.parse(result.attachments.find((attachment) => attachment.name === HANDS)?.body?.toString() ?? "[]"),
     };
     const steps = result.steps.filter((step) => step.category === "test.step");
     const person = result.attachments.find((attachment) => attachment.name === PERSON)?.body?.toString();
-    // Who it acts as, if the app's setup said.
-    const as = (made: Recorded) => (person && (made.flow.person = person), made);
+    // Who it's done as, if its file or the app's setup said; a step done by them again, handed back, says nothing.
+    const as = (made: Recorded) => {
+      if (person) made.flow.person = person;
+      for (const step of made.flow.steps) if (step.person === made.flow.person) delete step.person;
+      return made;
+    };
     if (result.status === "passed") return void (recording && this.#ran.push({ ...where, recorded: as(this.#flow(test.title, recording, read, steps)) }));
 
     // It stopped at the step it couldn't do, or after the last one when it failed between them. On Before, it's kept as
@@ -83,7 +91,7 @@ export default class Flows implements Reporter {
 
   // A flow cut short ends where it stopped, held as long as any flow's end, with the same last event (rrweb's custom
   // events are type 5). The step it stopped at left nothing to read.
-  #flow(name: string, recording: Buffer, read: { readings: Omit<Reading, "picture">[]; glimpses: Glimpse[]; pictures: Buffer[]; assets: Assets; actions: number[] }, steps: TestStep[], until?: number): Recorded {
+  #flow(name: string, recording: Buffer, read: { readings: Omit<Reading, "picture">[]; glimpses: Glimpse[]; pictures: Buffer[]; assets: Assets; actions: number[]; hands: Hand[] }, steps: TestStep[], until?: number): Recorded {
     let events: Event[] = JSON.parse(recording.toString());
     if (until !== undefined) events = [...events.filter((event) => event.timestamp < until), { type: 5, data: { tag: "end", payload: {} }, timestamp: until + HOLD }];
     const start = events[0]!.timestamp;
@@ -97,7 +105,9 @@ export default class Flows implements Reporter {
       length,
       steps: steps.map((step, i) => {
         const actions = actionsIn(step, steps[i + 1]);
-        return { title: step.title, at: Math.min(length, seconds(step.startTime.getTime() - start)), ...(actions.length && { actions }) };
+        // Whoever the flow was last handed to before the step began does it.
+        const person = read.hands.filter((hand) => hand.at <= step.startTime.getTime()).at(-1)?.person;
+        return { title: step.title, at: Math.min(length, seconds(step.startTime.getTime() - start)), ...(actions.length && { actions }), ...(person && { person }) };
       }),
       recording: this.#fileFor(name),
     };

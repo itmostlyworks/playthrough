@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import type { Flow, Review, Round } from "@mostlyworks/vantage-review";
 import { picture, recording } from "./api.ts";
 import { clamp } from "./moments.ts";
-import { recorded } from "./replay.ts";
+import { recorded, shapeOf } from "./replay.ts";
 
 // A part of the page, as shares of it.
 export type Frame = { x: number; y: number; width: number; height: number };
@@ -41,8 +41,9 @@ export function useStill(review: Review, round: Round, flow: Flow): Shot {
     const last = flow.steps.at(-1);
     if (flow.steps.length > 1 && last)
       recording(review.id, round.number, flow.recording).then((events) => {
-        const { width, height, clicks, pointer } = recorded(events);
+        const { shapes, clicks, pointer } = recorded(events);
         const click = clicks.find((click) => click >= last.at);
+        const { width, height } = shapeOf(shapes, click ?? last.at);
         const point = click === undefined ? undefined : pointer.findLast(([moment]) => moment <= click + 0.01)?.slice(1);
         if (current && point && Math.abs(width / height - 1.6) < 0.05)
           setClose({ src, frame: { x: clamp(point[0]! / width - 0.2, 0, 0.6), y: clamp(point[1]! / height - 0.2, 0, 0.6), width: 0.4, height: 0.4 } });

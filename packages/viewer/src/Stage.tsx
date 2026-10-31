@@ -14,7 +14,8 @@ import { recording } from "./api.ts";
 import { CARD, clamp, ease, MORPH, titleCard } from "./moments.ts";
 import { onPhone } from "./phone.ts";
 import { useNow, type Forked, type Playhead } from "./playhead.ts";
-import { recorded, Replay } from "./replay.ts";
+import { asWho, manyIn, personAt } from "./people.ts";
+import { recorded, Replay, shapeOf, type Shape } from "./replay.ts";
 import type { Live } from "./live.ts";
 import { roundName } from "./Rounds.tsx";
 import { holdersOf, pickAt, type Read } from "./things.ts";
@@ -100,7 +101,7 @@ export function Stage(props: Props) {
   const captions = useRef(new Map<number, HTMLDivElement>());
   const allFlows = useRef<HTMLDivElement>(null);
   const replays = useRef(new Map<string, Replay | "loading">());
-  const sizes = useRef(new Map<string, Size>());
+  const sizes = useRef(new Map<string, Shape[]>());
   const held = useRef<Held>(undefined);
   const painted = useRef(new Map<number, Painted>());
   const glide = useRef<{ started: number; from: Map<number, Painted> }>(undefined);
@@ -127,10 +128,12 @@ export function Stage(props: Props) {
   if (onScreen.some((shown) => !visited.includes(shown.number))) setVisited([...new Set([...visited, ...onScreen.map((shown) => shown.number)])].sort((a, b) => a - b));
 
   const key = (round: Round, flow: Flow) => `${round.number}/${flow.name}`;
-  const sizeOf = (round: Round, flow: Flow): Size => {
+  const shapesOf = (round: Round, flow: Flow): Shape[] => {
     const replay = replays.current.get(key(round, flow));
-    return replay instanceof Replay ? replay : (sizes.current.get(key(round, flow)) ?? { width: 1280, height: 800 });
+    return replay instanceof Replay ? replay.shapes : (sizes.current.get(key(round, flow)) ?? [LAPTOP]);
   };
+  // Its screen at a moment: a flow handed to someone else carries on on theirs.
+  const sizeOf = (round: Round, flow: Flow, at = 0): Size => shapeOf(shapesOf(round, flow), at);
 
   // A replay is built the first time its flow shows.
   const replayOf = (round: Round, flow: Flow): Replay | undefined => {
@@ -144,9 +147,17 @@ export function Stage(props: Props) {
     return undefined;
   };
 
-  // A flow recorded in another shape takes its own as its title card comes up.
+  // A flow recorded in another shape takes its own as its title card comes up, and a flow handed to someone on another
+  // screen takes theirs as their page comes, as from one flow to the next.
   const shapeAt = (round: Round, flow: Flow, at: number): Size => {
-    const own = sizeOf(round, flow);
+    const own = sizeOf(round, flow, at);
+    const shapes = shapesOf(round, flow);
+    const handed = shapes.findLast((shape) => shape.from > 0 && shape.from <= at);
+    if (handed && at - handed.from < MORPH) {
+      const was = shapeOf(shapes, handed.from - 0.001);
+      const u = ease(clamp((at - handed.from) / MORPH));
+      return { width: was.width + (own.width - was.width) * u, height: was.height + (own.height - was.height) * u };
+    }
     const before = round.flows[round.flows.indexOf(flow) - 1];
     const u = ease(clamp((at + CARD) / MORPH));
     if (!before || u >= 1) return own;
@@ -186,7 +197,7 @@ export function Stage(props: Props) {
     const height = onPhone() ? onPhoneNeeds(width, flow, moment.at) : room.clientHeight;
     room.style.height = onPhone() ? `${height}px` : "";
     // Side by side, or one above the other where that shows each recording larger.
-    const shape = flow ? sizeOf(round, flow) : { width: 1280, height: 800 };
+    const shape = flow ? shapeAt(round, flow, moment.at) : LAPTOP;
     const area = (room: Size) => {
       const shown = fit({ width: room.width, height: room.height - CAPTION }, shape);
       return shown.width * shown.height;
@@ -256,7 +267,7 @@ export function Stage(props: Props) {
         continue;
       }
 
-      const page = sizeOf(shown, its);
+      const page = sizeOf(shown, its, at);
       // Until its recording is here, the flow's name stands on its own.
       const opening = replay ? titleCard(at) : { soft: 1, name: 1 };
       const card = shown === round && endSoft > 0.002 ? { soft: Math.max(opening?.soft ?? 0, endSoft), name: opening?.name ?? 0 } : opening;
@@ -292,8 +303,12 @@ export function Stage(props: Props) {
       const app = frame.querySelector<HTMLElement>("[data-live] iframe");
       if (app) Object.assign(app.style, liveAt(view, page));
       place(part.marks, replay, page, view, box, at, playing, shown === round);
-      // A fork is called by the flow it leaves, as everywhere you see it.
+      // A fork is called by the flow it leaves, as everywhere you see it, and the flow by who does it, once there's more
+      // than one person to tell apart.
       part.name.textContent = (its as Forked).fork ?? its.name;
+      const who = manyIn(latest.current.review) && !(its as Forked).fork ? asWho(its) : "";
+      if (part.as.textContent !== who) part.as.textContent = who;
+      part.as.hidden = !who;
       // Under it, on the round you're watching, what the agent says the flow starts from or the choice it shows.
       const line = shown === round ? (its.line ?? "") : "";
       const [by, words] = part.line.children as unknown as [HTMLElement, HTMLElement];
@@ -305,17 +320,18 @@ export function Stage(props: Props) {
       part.app.style.filter = card && card.soft > 0.002 ? `blur(${(card.soft * 6).toFixed(2)}px)` : "";
 
       // The pointer belongs to the flow: it stays out of the title, and appears as the frame comes into focus.
-      const pointer = replay && !replay.touch ? replay.pointerAt(at) : undefined;
+      const pointer = replay && !replay.shapeAt(at).touch ? replay.pointerAt(at) : undefined;
       const drawn: [number, number] | undefined = pointer && [(pointer[0] - view.x) * view.k, (pointer[1] - view.y) * view.k];
       // Taken over, the pointer is yours, and follows your hand in the app rather than the recording.
       const yours = shown === round && open.current;
       if (!yours) part.cursor.style.opacity = drawn ? String(1 - (card?.soft ?? 0)) : "0";
       if (drawn && !yours) part.cursor.style.transform = `translate(${drawn[0] - 3}px,${drawn[1] - 2}px)`;
-      // Whose hand it is: the person the flow acts as, from the app's setup.
+      // Whose hand it is: who the flow is done as, or whoever it's been handed to by now.
       const tag = part.cursor.querySelector<HTMLElement>("[data-tag]")!;
       if (!yours && !taking.current) {
-        tag.querySelector("[data-words]")!.textContent = its.person ?? "";
-        tag.hidden = !its.person;
+        const person = personAt(its, at);
+        tag.querySelector("[data-words]")!.textContent = person ?? "";
+        tag.hidden = !person;
         delete tag.dataset.mine;
       }
       const click = replay && drawn && !card ? replay.clicks.find((click) => at >= click && at < click + 0.5) : undefined;
@@ -447,10 +463,9 @@ export function Stage(props: Props) {
     for (const shown of onScreen)
       for (const flow of shown.flows)
         if (!sizes.current.has(key(shown, flow))) {
-          sizes.current.set(key(shown, flow), { width: 1280, height: 800 });
+          sizes.current.set(key(shown, flow), [LAPTOP]);
           recording(review.id, shown.number, flow.recording).then((events) => {
-            const { width, height } = recorded(events);
-            sizes.current.set(key(shown, flow), { width, height });
+            sizes.current.set(key(shown, flow), recorded(events).shapes);
             paint();
           });
         }
@@ -583,7 +598,7 @@ export function Stage(props: Props) {
     const here = under(event);
     const pick = here && pickAt(here.outwards, here.things, here.at);
     if (!here || !pick) return;
-    const holders = holdersOf(here.outwards, here.things, here.at, pick, (node) => here.replay.boxOf(node), here.replay);
+    const holders = holdersOf(here.outwards, here.things, here.at, pick, (node) => here.replay.boxOf(node), here.replay.shapeAt(here.at));
     const wide = widen.current;
     const from = wide && wide.here === here.here ? holders.indexOf(wide.pick) + 1 : 0;
     const to = clamp(from + step, 0, holders.length);
@@ -635,7 +650,7 @@ export function Stage(props: Props) {
     for (const part of [app, sheen, ring, edge, hand, tag, words]) part.getAnimations().forEach((animation) => animation.cancel());
     const box = frame.getBoundingClientRect();
     const view = painted.current.get(round.number);
-    const person = props.playhead.flow.person;
+    const person = personAt(props.playhead.flow, props.playhead.now.moment.at);
     const tip = (point: { x: number; y: number }) => `translate(${(point.x - 3).toFixed(1)}px,${(point.y - 2).toFixed(1)}px)`;
     const tipOf = (element: HTMLElement) => {
       const drawn = element.getBoundingClientRect();
@@ -670,7 +685,7 @@ export function Stage(props: Props) {
       yourHand.current = at;
       Object.assign(hand.style, { transform: tip(at), opacity: "1", zIndex: "11" });
       tag.hidden = false;
-      if (still) return void (real(true), say(tag, words, "You", true, false));
+      if (still) return void (real(true), say(tag, words, person ? `You, as ${person}` : "You", true, false));
       // Waited for, it says it's taking over until the pointer has come to yours: the app is there, so a count still
       // going is done.
       if (!waited) say(tag, words, person ?? "You are in control", !person, false);
@@ -683,7 +698,7 @@ export function Stage(props: Props) {
       handingOver(() => real(true), handing);
       const handed = handing + (person || waited ? 240 : 0);
       if (person || waited) handingOver(() => say(tag, words, "You are in control"), handed);
-      handingOver(() => say(tag, words, "You"), handed + 1700);
+      handingOver(() => say(tag, words, person ? `You, as ${person}` : "You"), handed + 1700);
       const after = { delay: handing, easing: PORTAL, fill: "backwards" as const };
       app.animate([{ clipPath: circle(0) }, { clipPath: circle(reach) }], { ...after, duration: OPENING });
       sheen.animate([{ opacity: 1 }, { opacity: 0 }], { ...after, duration: OPENING + 240 });
@@ -732,7 +747,7 @@ export function Stage(props: Props) {
     const words = tag?.querySelector<HTMLElement>("[data-words]");
     if (!edge || !tag || !words || waiting === taking.current) return;
     taking.current = waiting;
-    const person = props.playhead.flow.person;
+    const person = personAt(props.playhead.flow, props.playhead.now.moment.at);
     if (waiting) {
       tag.hidden = false;
       say(tag, words, "Taking over…", false);
@@ -1006,7 +1021,10 @@ export function Stage(props: Props) {
             className="pointer-events-none absolute inset-0 z-9 grid place-items-center rounded-lg bg-[rgba(247,247,245,calc(var(--k,0)*.45))] p-4 text-center font-recorded text-[20px] leading-[1.2] font-medium tracking-[-0.01em] text-[#222222] opacity-0 in-data-absent:bg-surface in-data-absent:font-ui in-data-absent:text-[13px] in-data-absent:leading-normal in-data-absent:font-normal in-data-absent:tracking-normal in-data-absent:text-faint"
           >
             <span className="grid max-w-[min(30rem,100%)] justify-items-center gap-4 opacity-[var(--n,0)]">
-              <span data-name />
+              <span className="grid justify-items-center gap-1.5">
+                <span data-name />
+                <span data-as hidden className="font-ui text-[14px] leading-[1.4] font-normal tracking-normal text-[#6c707a]" />
+              </span>
               <span data-line hidden className="grid gap-1 font-ui text-[15px] leading-[1.45] font-normal tracking-normal text-[#3b3e46]">
                 <span className="text-xs leading-4 text-[#8a8e97]" />
                 <span className="line-clamp-4" />
@@ -1208,12 +1226,15 @@ const liveAt = (view: View, page: Size) => ({
   transform: `translate(${(-view.x * view.k).toFixed(2)}px,${(-view.y * view.k).toFixed(2)}px) scale(${view.k.toFixed(5)})`,
 });
 
-type Parts = { app: HTMLElement; stack: HTMLElement; marks: HTMLElement; ring: HTMLElement; cursor: HTMLElement; card: HTMLElement; name: HTMLElement; line: HTMLElement };
+// A recording's screen until it says otherwise.
+const LAPTOP: Shape = { from: 0, width: 1280, height: 800, touch: false };
+
+type Parts = { app: HTMLElement; stack: HTMLElement; marks: HTMLElement; ring: HTMLElement; cursor: HTMLElement; card: HTMLElement; name: HTMLElement; as: HTMLElement; line: HTMLElement };
 const known = new WeakMap<HTMLElement, Parts>();
 function parts(frame: HTMLElement): Parts {
   if (!known.has(frame)) {
     const part = (name: string) => frame.querySelector<HTMLElement>(`[data-${name}]`)!;
-    known.set(frame, { app: part("app"), stack: part("stack"), marks: part("marks"), ring: part("ring"), cursor: part("cursor"), card: part("card"), name: part("name"), line: part("line") });
+    known.set(frame, { app: part("app"), stack: part("stack"), marks: part("marks"), ring: part("ring"), cursor: part("cursor"), card: part("card"), name: part("name"), as: part("as"), line: part("line") });
   }
   return known.get(frame)!;
 }
