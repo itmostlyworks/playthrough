@@ -1242,7 +1242,9 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   // The open note's answer, outlined in every place in the note's colour, on the round you're watching and the one beside it.
   const answerMarks = (on: (changed: Changed) => Place | undefined): Mark[] =>
     openNote
-      ? pointedIn(answersTo(diamonds, openNote.id).filter((changed) => changed.on.flow === watching)).flatMap((changed) => marksOn(on(changed)).map((at): Mark => ({ id: changed.change.id, kind: "change", on: at, ink: ink(openNote), answers: openNote.id, chosen: false })))
+      ? pointedIn(answersTo(diamonds, openNote.id).filter((changed) => changed.on.flow === watching)).flatMap((changed) =>
+          marksOn(on(changed)).map((at): Mark => ({ id: changed.change.id, kind: "change", on: at, ink: ink(openNote), answers: openNote.id, pointed: changed.change.id === pointedChange, chosen: false })),
+        )
       : [];
   const drawn = (diamond: Diamond) => pointedIn(diamond.changes);
   // New steps aren't on one thing: they're outlined on what they click or type into, as the recording shows it.

@@ -31,8 +31,10 @@ export type Mark = {
   pin?: { number: number; fill: string } | "diamond";
   // A note's colour, and a change's made for it; on a change's diamond, the colour of the note grown out of it.
   ink?: string;
-  // On a change made for the open note, that note: on its thing, or around it, the two are one outline.
+  // On a change made for the open note, that note: on its thing, or around it, the two are one outline, the note's,
+  // until you point at the change in its card.
   answers?: string;
+  pointed?: boolean;
   dot?: string;
   chosen: boolean;
   // A note shows from its moment, or through its stretch; a change only while you're stopped on it.
@@ -354,13 +356,14 @@ export function Stage(props: Props) {
     }
     // A change made for the open note on its thing, or on what holds it, is that one thing, outlined once: by the note,
     // as it always is, on every round and whether the answer's open or not. The change isn't drawn, but stays where it
-    // is, so its card keeps clear of it. Found so on the round you're watching, it's so on the round beside it too.
+    // is, so its card keeps clear of it, and is drawn while you point at it. Found so on the round you're watching, it's
+    // so on the round beside it too.
     if (watched) oneThing.current.clear();
     for (const [mark, box] of outlined) {
       if (mark.dataset.answers === undefined) continue;
       const note = [...outlined].find(([other]) => other.dataset.kind === "note" && other.dataset.markId === mark.dataset.answers)?.[1];
       const one = watched ? !!note && (holds(box, note) || holds(note, box)) : oneThing.current.has(mark.dataset.markId!);
-      mark.toggleAttribute("data-one", one);
+      mark.toggleAttribute("data-one", one && mark.dataset.pointed === undefined);
       if (watched && one) oneThing.current.add(mark.dataset.markId!);
     }
     for (const [mark, { left, top, right, bottom }] of outlined) {
@@ -1109,7 +1112,7 @@ function Drawn({ mark, onMark }: { mark: Mark; onMark: (id: string) => void }) {
       ? "outline-[1.5px] outline-dashed outline-amber"
       : mark.kind === "change"
         ? mark.ink
-          ? "outline-1 outline-(--c) outline-solid"
+          ? `${mark.pointed ? "outline-[1.5px]" : "outline-1"} outline-(--c) outline-solid`
           : chosen
           ? "outline-[1.5px] outline-[#2b2e35] outline-solid"
           : "outline-1 outline-[rgba(43,46,53,0.4)] outline-solid"
@@ -1122,6 +1125,7 @@ function Drawn({ mark, onMark }: { mark: Mark; onMark: (id: string) => void }) {
       data-kind={mark.kind}
       data-paused={mark.kind === "change" ? "" : undefined}
       data-answers={mark.answers}
+      data-pointed={mark.pointed ? "" : undefined}
       data-node={"node" in on ? on.node : undefined}
       data-box={"box" in on ? `${on.box.x} ${on.box.y} ${on.box.width} ${on.box.height}` : undefined}
       {...shows}
