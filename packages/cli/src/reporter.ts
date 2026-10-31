@@ -30,8 +30,12 @@ const picturesOf = (flow: Flow) => `readings/${flow.recording.replace(/\.json$/,
 // And what was glimpsed after each action, beside them.
 export const glimpsesOf = (flow: Flow) => `${picturesOf(flow)}.glimpses.json`;
 
-// Why, in Playwright's words: the first line of what it says.
-export const firstLine = (said: string) => said.replace(/\x1b\[[0-9;]*m/g, "").split("\n")[0]?.trim();
+// Why, in Playwright's words: the first line of what it says, as much of it as can be read, which an error's text an app
+// sends back, stack and all, may not be.
+export function firstLine(said: string) {
+  const line = said.replace(/\x1b\[[0-9;]*m/g, "").split("\n")[0]?.trim() ?? "";
+  return line.length > 300 ? `${line.slice(0, 300)}…` : line;
+}
 export type Failed ={ flow: string; at?: string; why?: string; broken?: true };
 // What Playwright says when the browser stops a flow, not the app: the page crashed or closed, or the app stopped answering.
 const BROKEN = /Page crashed|Target crashed|Target page, context or browser has been closed|net::ERR_CONNECTION_REFUSED/;

@@ -90,14 +90,15 @@ page, Playwright's request and the app's address as baseURL, and what it returns
   }
 
   export async function after({ request, setup }: { request: APIRequestContext; baseURL: string; setup: Record<string, any> }) {
-    await request.delete(`/api/test/accounts/${setup.account}`);
+    const removed = await request.delete(`/api/test/accounts/${setup.account}`);
+    if (!removed.ok()) throw new Error(`Removing the account failed: ${removed.status()}`);
   }
 
 Each run makes its own, so give it back: after, if setup.ts exports it, runs once the run is over (a flow recorded, the
 app taken over and let go), given a request of its own and what the default export returned, so return what's needed to
-find and remove it, and sign in again there if removing it needs that. What a run made and didn't give back, because
-Playthrough was stopped, the next command gives back. What can't be taken back, like an email sent, avoid instead: test
-keys, a mail catcher.
+find and remove it, and sign in again there if removing it needs that. Check what each request answers, so one that
+fails says so rather than leaving it behind. What a run made and didn't give back, because Playthrough was stopped, the
+next command gives back. What can't be taken back, like an email sent, avoid instead: test keys, a mail catcher.
 
 Use what the project has (a test account, seed data, a reset hook, its own test fixtures, imported rather than copied),
 make data through the app's API or database rather than on screen, and stub what you can't control at the network. Sign
@@ -105,11 +106,12 @@ in with page.request, not request: it shares the page's cookies, so the page is 
 the flow over. Dates the server works out don't follow the page's clock: fix them through the app's own test hook if it
 has one.
 
-The first time flows run in an app, and whenever app.json or setup.ts changes, Playthrough tries them first: it starts
-the app, makes what a flow starts from for each of the app's people twice, giving it back each time, and says what it
-found, with a picture of where each starts. It's the person's app, so tell them how flows get into it and what's
-missing, and ask before you change it for Playthrough's sake, as with a route only for tests, or when only they have
-what's needed, like a test account. The review carries on meanwhile.
+The first time flows run in an app, and whenever app.json or setup.ts changes, Playthrough tries them first, and records
+nothing yet: it starts the app, makes what a flow starts from for each of the app's people twice, giving it back each
+time, and says what it found, with a picture of where each starts. Look at the pictures, fix what they show, and run the
+command again. It's the person's app, so tell them how flows get into it and what's missing, and ask before you change
+it for Playthrough's sake, as with a route only for tests, or when only they have what's needed, like a test account;
+the review doesn't wait for their answer.
 
 Each new flow is recorded twice. What changes by itself between the two, like a time the server stamps, is left out of
 every comparison, in every flow, and Playthrough says what it is: steady it in playthrough/setup.ts if you can, because a real

@@ -2,7 +2,6 @@
 // that will show it, written before anything changes so they show the task as the person put it. Run again once they're
 // written, it records Before: the app as it is.
 
-import { existsSync } from "node:fs";
 import { list, quote, Refused } from "@playthrough/review";
 import { agent } from "./agent.ts";
 import { cantStart, howFar, keepBefore, refuseIfBroken, tryBeforeAgain } from "./before.ts";
@@ -23,9 +22,7 @@ export async function start(repo: Repo, id: string, title?: string, asked?: stri
 Write its flows before you change anything. They show what was asked, so write them from the task, not from the code: if you can start a fresh subagent, give it the task and what the screens look like, never the code, and use the flows it writes.
 
 ${howToWriteFlows(repo, id)}
-${existsSync(repo.appFile) ? "" : `
-This app isn't set up for Playthrough yet: say how to start it in playthrough/app.json, and make what every flow starts from in playthrough/setup.ts, run playthrough alone for how. Playthrough tries them before it records anything, and says what to tell the person.
-`}
+
 Then run playthrough start ${id} again. It records Before: each flow on the app as it is, as far as the app can take it. If the app is new, there's no Before: go straight to the work.`);
   }
 

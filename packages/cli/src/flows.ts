@@ -63,6 +63,11 @@ export const isFlow = (name: string) => /\.[cm]?[jt]s$/.test(name);
 
 export function howToWriteFlows(repo: Repo, id: string): string {
   const setupMissing = !existsSync(repo.setup);
+  const missing = !existsSync(repo.appFile)
+    ? `, and how to start the app in playthrough/app.json. This app has ${setupMissing ? "neither" : "no app.json"} yet: run playthrough alone for how. Playthrough tries them before it records anything.`
+    : setupMissing
+      ? ", which this app doesn't have yet: run playthrough alone for how."
+      : ".";
   return `Each flow is a Playwright test in ${repo.show(repo.flows(id))}, one for each thing a person does, with a step for each part of it:
 
   import { test, expect } from "playthrough/test";
@@ -77,7 +82,7 @@ export function howToWriteFlows(repo: Repo, id: string): string {
   });
 
 The test's name is the flow's, and steps are matched across rounds by their names. What every flow starts from, like
-the account it opens, is made in playthrough/setup.ts${setupMissing ? ", which this app doesn't have yet" : ""}: run playthrough alone for how.`;
+the account it opens, is made in playthrough/setup.ts${missing}`;
 }
 
 // Runs every flow of the review on the app, the way a person would use it, for a round: each flow with its files, its
@@ -98,7 +103,7 @@ export async function runFlows(
   await makeFlowsFolder(repo, id);
   const app = await repo.app();
   // A flow recorded on Before later runs on the setup as it was then.
-  if (!later) await trySetup(repo);
+  if (!later) await trySetup(repo, round === 0 ? `playthrough start ${id}` : `playthrough record ${id}`);
   const { started, rounds } = await repo.reviews.get(id);
   const recorder = join(dirname(createRequire(import.meta.url).resolve("@rrweb/record")), "record.umd.min.cjs");
   // The flows as long as they were last round, longest first, so the round ends close to when its longest flow does.

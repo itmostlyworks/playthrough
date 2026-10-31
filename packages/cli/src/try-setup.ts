@@ -1,8 +1,9 @@
 // The first time flows run in an app, and whenever playthrough/app.json or playthrough/setup.ts changes, the setup is
 // tried by itself: the app started, and what a flow starts from made, signed in as each of the app's people and given
 // back, twice, as every run will. An app that won't start, or a setup that works once and not again, says so here, in a
-// line, rather than as every flow failing. What it found is for the person too, whose app it is: what a run leaves
-// behind, and how long each flow waits for it, with a picture of where each of their people starts.
+// line, rather than as every flow failing. Nothing's recorded until the agent has seen where each of the app's people
+// starts, in a picture, and run the command again. What it found is for the person too, whose app it is: what a run
+// leaves behind, and how long each flow waits for it.
 
 import { chromium, request as requests, type Browser } from "@playwright/test";
 import { createHash } from "node:crypto";
@@ -17,7 +18,8 @@ import { giveBackLeft, make, setupIn, type Made, type Setup } from "./setup.ts";
 // Longer than this before a flow's first step, and the person feels it.
 const SLOW = 2000;
 
-export async function trySetup(repo: Repo) {
+// Again, the command to run once the agent has looked.
+export async function trySetup(repo: Repo, again: string) {
   const app = await repo.app();
   const written = await writtenNow(repo);
   const last = join(repo.tried, "tried.json");
@@ -60,10 +62,10 @@ Look at ${tried.length > 1 ? "each picture: it's where their flows start" : "the
     console.log(`
 ${missing.map((said) => `- ${said}`).join("\n")}
 
-Tell the person now, in a few lines, how flows get into their app, and for each of these, what it costs them and the step that would fix it: something the app has already, or something only they can give, like a test account. Ask before you change their app for it, as with a route only for tests, and carry on with the review meanwhile, on the setup as it is.`);
-  else console.log(`\nTell the person in a line or two how flows get into their app, and carry on.`);
-  console.log("");
+Tell the person now, in a few lines, how flows get into their app, and for each of these, what it costs them and the step that would fix it: something the app has already, or something only they can give, like a test account. Ask before you change their app for it, as with a route only for tests, and don't wait for their answer.`);
+  else console.log(`\nTell the person in a line or two how flows get into their app.`);
   await writeFile(last, JSON.stringify({ written }));
+  throw new Refused([`\nNothing's recorded yet. Once ${tried.length > 1 ? "each picture shows" : "the picture shows"} where a flow should start, run ${again} again.`]);
 }
 
 // One of the app's people, or anyone where it names nobody: what was made for them, how long it took, where their page
