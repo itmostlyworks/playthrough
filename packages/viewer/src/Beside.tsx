@@ -68,8 +68,14 @@ export function Beside({ id, over, standing, still, resting, pinned, onAway, chi
   }, []);
   // Its pin, or what it's on where it has none, can move with the view any frame, and the recordings' layout change, so
   // it's followed every frame while it's open.
+  const left = useRef<{ card: HTMLElement; in: ParentNode }>(undefined);
   useLayoutEffect(() => {
-    if (!children) return void (opened.current = undefined);
+    if (!children) {
+      leave(left.current);
+      left.current = undefined;
+      return void (opened.current = undefined);
+    }
+    if (card.current?.parentNode) left.current = { card: card.current, in: card.current.parentNode };
     const place = () => {
       const box = card.current;
       if (!box) return;
@@ -230,6 +236,19 @@ export function Beside({ id, over, standing, still, resting, pinned, onAway, chi
       )}
     </aside>
   );
+}
+
+// Closed, it goes as it came, settling back a little as it fades where it stood, rather than vanishing: what React has
+// taken away is put back untouched, answering nothing, for as long as that takes.
+function leave(was?: { card: HTMLElement; in: ParentNode }) {
+  if (!was || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const { card } = was;
+  card.inert = true;
+  card.setAttribute("aria-hidden", "true");
+  was.in.append(card);
+  const opacity = Number(getComputedStyle(card).opacity);
+  if (card.style.visibility === "hidden" || !opacity) return card.remove();
+  card.animate([{ opacity, scale: 1 }, { opacity: 0, scale: 0.97 }], { duration: 140, easing: "cubic-bezier(0.4, 0, 1, 1)", fill: "forwards" }).onfinish = () => card.remove();
 }
 
 const clamp = (value: number, low: number, high: number) => Math.min(Math.max(value, low), Math.max(low, high));

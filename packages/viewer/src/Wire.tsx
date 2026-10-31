@@ -9,7 +9,14 @@ export function Wire({ id, colour, hidden, faded }: { id?: string; colour: strin
   const paint = () => {
     const line = path.current;
     if (!line) return;
-    const mark = id && document.querySelector<HTMLElement>("aside [data-open] [data-mark]");
+    // Its card closed, it fades with it.
+    const fading = line.getAnimations()[0];
+    if (!id && !hidden && line.getAttribute("d") && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      if (!fading) line.animate([{}, { opacity: 0 }], { duration: 140, easing: "cubic-bezier(0.4, 0, 1, 1)", fill: "forwards" }).onfinish = () => line.setAttribute("d", "");
+      return;
+    }
+    fading?.cancel();
+    const mark = id && document.querySelector<HTMLElement>("aside:not([aria-hidden]) [data-open] [data-mark]");
     // The pin on the round you're watching, not the one beside it.
     const pin = id && document.querySelector<HTMLElement>(`[data-frame][data-watched] [data-pin="${CSS.escape(id)}"]`);
     // While the card is gone, so is the line, and it comes back with it.

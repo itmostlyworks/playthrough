@@ -10,14 +10,15 @@ export type Part = { text: string; key: string; soft?: boolean; word?: boolean }
 const shown = new WeakMap<HTMLElement, { parts: Part[]; html: string }>();
 const curve = "cubic-bezier(0.2, 0.8, 0.2, 1)";
 
-export function roll(label: HTMLElement, parts: Part[], direction: 1 | -1) {
+// With no direction, it's said again where nothing was done to change it, and simply shows.
+export function roll(label: HTMLElement, parts: Part[], direction: 1 | -1 | 0) {
   const old = shown.get(label);
   const same = (a: Part[], b: Part[]) => a.map((part) => `${part.key}:${part.text}`).join("|") === b.map((part) => `${part.key}:${part.text}`).join("|");
   // Saying the same again leaves it alone, so a redraw never cuts a roll short.
   if (old && same(old.parts, parts)) return;
   const html = parts.flatMap((part) => cells(part).map((c) => cell(c, part.soft))).join("");
   shown.set(label, { parts, html });
-  if (!old || matchMedia("(prefers-reduced-motion: reduce)").matches) return void (label.innerHTML = html);
+  if (!old || !direction || matchMedia("(prefers-reduced-motion: reduce)").matches) return void (label.innerHTML = html);
   const turn = { duration: 240, easing: curve, fill: "both" } as const;
 
   if (old.parts.map((part) => part.key).join() !== parts.map((part) => part.key).join()) {

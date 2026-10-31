@@ -1,8 +1,9 @@
 // Every control in one row under the recordings: play, the time and the timeline, the speed, the size, the rounds, how
 // to look at them, on their own or side by side, and taking the flow over to carry on by hand. Nothing in it appears, disappears or changes width as you move.
 
-import type { ComponentProps } from "react";
+import { useLayoutEffect, useRef, type ComponentProps } from "react";
 import type { Round } from "@playthrough/review";
+import { roll } from "./odometer.ts";
 import { useNow, type Playhead } from "./playhead.ts";
 import { Rounds } from "./Rounds.tsx";
 import type { Shown } from "./Stage.tsx";
@@ -65,14 +66,14 @@ export function Controls(props: Props) {
         aria-label={`Speed ${say(speed)}`}
         onClick={() => props.playhead.slower()}
       >
-        {say(speed)}
+        <Rolled text={say(speed)} order={speed} by={speed} />
       </button>
       <button
         className={`${quiet} ${coveredBack} -ml-1.5 min-w-[46px] text-left ${fits ? "cursor-default opacity-55" : `hover:bg-hover hover:text-fg ${actual ? "text-fg" : ""}`}`}
         aria-label={fits ? "Shown at actual size" : actual ? "Fit the recording to the frame" : "Show the recording at actual size"}
         onClick={() => !fits && props.onSize()}
       >
-        {percent}
+        <Rolled text={percent} order={parseInt(percent)} by={actual} />
       </button>
       {!props.stage && (
       <>
@@ -142,6 +143,18 @@ export function Controls(props: Props) {
       )}
     </div>
   );
+}
+
+// Changed by you, a label rolls over as the round's does, forward as it grows; changed otherwise, as the window is
+// resized, it simply shows.
+function Rolled({ text, order, by }: { text: string; order: number; by: unknown }) {
+  const label = useRef<HTMLSpanElement>(null);
+  const was = useRef({ order, by });
+  useLayoutEffect(() => {
+    roll(label.current!, [{ text, key: "text" }], by === was.current.by ? 0 : order < was.current.order ? -1 : 1);
+    was.current = { order, by };
+  });
+  return <span ref={label} aria-hidden />;
 }
 
 const say = (speed: number) => (speed === 1 ? "1×" : speed === 0.5 ? "½×" : "¼×");

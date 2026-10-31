@@ -1065,11 +1065,11 @@ export function Stage(props: Props) {
           className={`pointer-events-none absolute top-0 left-0 flex h-[26px] items-baseline justify-center px-0.5 pt-0.5 pb-1.5 text-xs transition-opacity duration-160 ease-calm ${then && props.peeking ? "opacity-0" : "opacity-100"}`}
         >
           {props.over?.take ? (
-            <button className="pointer-events-auto flex-none font-medium text-fg before:mr-1.5 before:mb-px before:inline-block before:size-1.5 before:rounded-full before:bg-amber before:align-middle before:content-[''] hover:underline" onClick={props.over.take}>
+            <button className="pointer-events-auto flex-none animate-arrive font-medium text-fg before:mr-1.5 before:mb-px before:inline-block before:size-1.5 before:rounded-full before:bg-amber before:align-middle before:content-[''] hover:underline" onClick={props.over.take}>
               {props.over.words}
             </button>
           ) : (
-            props.over && <b className="flex-none font-medium text-soft">{props.over.words}</b>
+            props.over && <b className="flex-none animate-arrive font-medium text-soft">{props.over.words}</b>
           )}
         </div>
       )}
@@ -1158,7 +1158,7 @@ function Drawn({ mark, onMark }: { mark: Mark; onMark: (id: string) => void }) {
       data-box={"box" in on ? `${on.box.x} ${on.box.y} ${on.box.width} ${on.box.height}` : undefined}
       {...shows}
       hidden
-      className={`pointer-events-none absolute rounded-[4px] outline-offset-4 transition-opacity duration-250 ease-calm data-playing:opacity-0 ${look} data-one:outline-transparent`}
+      className={`pointer-events-none absolute rounded-[4px] outline-offset-4 [transition:opacity_250ms_var(--ease-calm),outline-color_150ms_var(--ease-calm),outline-width_150ms_var(--ease-calm)] data-playing:opacity-0 ${look} data-one:outline-transparent`}
       style={mark.ink ? ({ "--c": mark.ink } as CSSProperties) : undefined}
     >
       {badge}
@@ -1173,7 +1173,7 @@ function Spots({ placing, aim }: { placing?: Point; aim?: Point }) {
       {placing && <span className={`${pinFace} absolute -translate-x-1/2 -translate-y-1/2 animate-drop bg-amber`} style={{ left: share(placing.x), top: share(placing.y) }} />}
       {aim && (
         <span
-          className="pointer-events-none absolute size-[18px] -translate-x-1/2 -translate-y-1/2 rounded-full border-[1.5px] border-amber/70"
+          className="pointer-events-none absolute size-[18px] -translate-x-1/2 -translate-y-1/2 animate-arrive rounded-full border-[1.5px] border-amber/70"
           style={{ left: share(aim.x), top: share(aim.y) }}
         />
       )}

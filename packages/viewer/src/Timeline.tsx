@@ -7,7 +7,7 @@
 // It ends in the flow's end, the mark its question has, so you know where playing leads and how it stands: pointed at,
 // it says so; pressed, it goes there, its question up.
 
-import { useEffect, useRef, useState, type PointerEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent } from "react";
 import { time, type Flow } from "@playthrough/review";
 import { EndMark, type End } from "./Chosen.tsx";
 import { CARD, clamp } from "./moments.ts";
@@ -74,6 +74,26 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
   const [scrubbing, setScrubbing] = useState(false);
   const [held, setHeld] = useState<string>();
   const [named, setNamed] = useState<string>();
+
+  // A note just saved drops onto the line as its pin dropped onto the recording; one that was there already is just there.
+  const known = useRef<Set<string>>(undefined);
+  useLayoutEffect(() => {
+    const fresh = known.current && dots.filter((dot) => !known.current!.has(dot.id));
+    known.current = new Set(dots.map((dot) => dot.id));
+    if (!fresh?.length || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    for (const dot of fresh) {
+      const drawn = line.current?.querySelector(`[data-dot="${CSS.escape(dot.id)}"]`);
+      (drawn?.querySelector("span") ?? drawn)?.animate([{ scale: 0.3, opacity: 0 }, { scale: 1.6, opacity: 1, offset: 0.6 }, { scale: 1 }], { duration: 360, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
+    }
+  });
+  const toggled = useRef<SVGSVGElement>(null);
+  const wasPlaying = useRef(now.playing);
+  // Play and pause turn into each other where you pressed.
+  useLayoutEffect(() => {
+    if (wasPlaying.current === now.playing) return;
+    wasPlaying.current = now.playing;
+    if (!matchMedia("(prefers-reduced-motion: reduce)").matches) toggled.current?.animate([{ opacity: 0, scale: 0.5 }, { opacity: 1, scale: 1 }], { duration: 180, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
+  });
 
   // Where a moment of a flow sits: the line is the flow you're in, and the others' marks wait at its ends, out of sight.
   const share = (on: Flow, at: number) => {
@@ -275,7 +295,7 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
         aria-label={now.playing ? "Pause" : "Play"}
         onClick={() => playhead.toggle()}
       >
-        <svg viewBox="0 0 20 20" fill="currentColor" className="size-3.5" aria-hidden>
+        <svg ref={toggled} viewBox="0 0 20 20" fill="currentColor" className="size-3.5" aria-hidden>
           {now.playing ? (
             <>
               <rect x="5.5" y="4.5" width="3" height="11" rx="1" />
@@ -417,6 +437,7 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
             <button
               key={shown.id}
               data-mark
+              data-dot={shown.id}
               data-at={shown.at}
               aria-label={`Note ${shown.number} at ${time(shown.at)}`}
               className={`group/dot absolute z-4 grid place-items-center ${shown.until === undefined ? `${shown.fork ? "" : "top-[11px]"} size-3.5 -translate-x-1/2` : "top-[15px] -ml-[3px] box-content h-1.5 rounded-[3px] px-[3px] shadow-[0_0_0_2px_var(--ground)] transition-[top,height,border-radius] duration-150 ease-calm hover:top-3.5 hover:h-2 hover:rounded-[4px]"} ${moving}`}

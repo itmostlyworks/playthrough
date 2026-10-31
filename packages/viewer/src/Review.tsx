@@ -1416,7 +1416,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
           </div>
           </div>
           {live?.problems && (
-            <div role="alert" className="fixed right-4 bottom-4 z-30 max-w-[28rem] rounded-lg bg-surface px-3 py-2 text-sm whitespace-pre-wrap shadow-tip">
+            <div role="alert" className="fixed right-4 bottom-4 z-30 max-w-[28rem] animate-arrive rounded-lg bg-surface px-3 py-2 text-sm whitespace-pre-wrap shadow-tip">
               {live.problems.join("\n")}
               <button className="ml-3 text-soft hover:text-fg" onClick={() => setLive(undefined)}>
                 Close
