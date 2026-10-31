@@ -4,7 +4,7 @@
 // is there. Recording again keeps whatever the agent already wrote in the round.
 
 import { placeIn } from "@playthrough/page";
-import { lastSeen, list, notesToAnswer, problemsFinishing, quote, Refused, roundInProgress, type Flow, type Reply, type Review } from "@playthrough/review";
+import { lastSeen, list, LONGEST_LINE, notesToAnswer, problemsFinishing, quote, Refused, roundInProgress, type Flow, type Reply, type Review } from "@playthrough/review";
 import { agent, unnamed } from "./agent.ts";
 import { recordOnBefore } from "./before.ts";
 import { compareWithEarlier } from "./compare.ts";
@@ -48,7 +48,7 @@ export async function record(repo: Repo, id: string) {
   await repo.reviews.saveRound(id, { number, by, flows, replies, accounts: saved?.accounts ?? {} });
   for (const comparison of comparisons) await repo.reviews.saveComparison(id, comparison);
 
-  // A flow that's new to the reviewer can say at its start what it starts from, or the choice it shows.
+  // A flow that's new to the person can say at its start what it starts from, or the choice it shows.
   const previous = review.rounds.findLast((round) => round.number > 0 && round.number < number);
   const unsaid = flows.filter((flow) => !flow.line && !previous?.flows.some((kept) => kept.name === flow.name));
   const file = repo.show(repo.round(id, number));
@@ -65,7 +65,7 @@ export async function record(repo: Repo, id: string) {
     console.log(`\nSay why each change is there in “accounts”, by its id: { "line": "<why, in your words>" }, { "note": "<the note it was made for>" }, or { "notReal": "<why nothing really changed>" }.`);
   if (unsaid.length) {
     const [are, each] = unsaid.length > 1 ? ["are", "each"] : ["is", "it"];
-    console.log(`\n${list(unsaid.map((flow) => quote(flow.name)))} ${are} new to the reviewer. In ${file}, ${each} can have a line at its start, as “line” in its flow under “flows”: what it starts from, or the choice it shows, in a sentence.`);
+    console.log(`\n${list(unsaid.map((flow) => quote(flow.name)))} ${are} new to the person. In ${file}, ${each} can have a line at its start, as “line” in its flow under “flows”: what it starts from, or the choice it shows, in a sentence of up to ${LONGEST_LINE} characters.`);
   }
   if (by === unnamed) console.log(`\nPlaythrough can't tell which agent you are. Write your name in ${file} as “by”, and each of your answers shows it.`);
   console.log(left.length ? `\nThen hand it over: playthrough wait ${id}` : `\nHand it over when it's ready: playthrough wait ${id}`);

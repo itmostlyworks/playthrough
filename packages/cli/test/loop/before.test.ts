@@ -27,6 +27,8 @@ describe("The command line, as an agent uses it, on Before", { timeout: 300_000 
     await writeFile(join(app.flows, "overdue.ts"), seeOverdue);
     await mkdir(join(app.repo, "playthrough"));
     await writeFile(join(app.repo, "playthrough/app.json"), JSON.stringify(app.app));
+    // The first time flows run in the app, its setup is tried by itself, and nothing's recorded yet.
+    assert.match((await app.run(["start", "overdue"])).said, /Nothing's recorded yet\./);
     const { said, code } = await app.run(["start", "overdue"]);
     assert.equal(code, 0, said);
 

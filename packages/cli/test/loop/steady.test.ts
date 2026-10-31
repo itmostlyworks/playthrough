@@ -44,6 +44,8 @@ describe("The command line, as an agent uses it, from a steady start", { timeout
     await writeFile(join(app.repo, "playthrough/setup.ts"), `export default async function ({ page }) {\n  return { word: "Ana" };\n}\n`);
     await writeFile(join(app.repo, "app/dot.png"), DOT);
     await writeFile(join(app.flows, "look.ts"), shows);
+    // The first time flows run in the app, its setup is tried by itself, and nothing's recorded yet.
+    assert.match((await app.run(["start", "overdue"])).said, /Nothing's recorded yet\./);
     const { said, code } = await app.run(["start", "overdue"]);
     assert.equal(code, 0, said);
     assert.match(said, /Recording “Look at the invoices” again, to see what changes by itself…/);

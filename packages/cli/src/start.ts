@@ -51,5 +51,5 @@ Then run playthrough start ${id} again. It records Before: each flow on the app 
   for (const line of howFar(repo, id, recorded, failed, "the app as it is")) console.log(line);
   if (!commit) console.log(`This folder isn't in git, so Before isn't kept as a commit, and a flow added later can't be recorded on it.`);
   console.log(`
-Now change the app. Keep each flow's name, and each step's while it does the same job: they're matched across rounds by name. Once the work is done, add a flow for each choice you made that the reviewer can see and didn't ask for. Then record round 1: playthrough record ${id}`);
+Now change the app. Keep each flow's name, and each step's while it does the same job: they're matched across rounds by name. Once the work is done, add a flow for each choice you made that the person can see and didn't ask for. Then record round 1: playthrough record ${id}`);
 }

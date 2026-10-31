@@ -36,15 +36,21 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
     assert.match(said, /Say how to start the app in playthrough\/app\.json/);
   });
 
-  test("run again, start records Before: each flow on the app as it is, as far as the app can take it", async () => {
+  test("run again, start tries the app's setup by itself first and records nothing; once more, it records Before: each flow on the app as it is, as far as the app can take it", async () => {
     await mkdir(join(app.repo, "playthrough"));
     await writeFile(join(app.repo, "playthrough/app.json"), JSON.stringify(app.app));
     await writeFile(join(app.flows, "paid.ts"), seePaid);
     await writeFile(join(app.flows, "export.ts"), exportThem);
     let { said, code } = await app.run(["start", "overdue"]);
+    assert.equal(code, 1);
+    assert.match(said, /Trying the app's setup by itself first, twice, as every flow will start…/);
+    assert.match(said, /Nothing's recorded yet\. Once the picture shows where a flow should start, run playthrough start overdue again\./);
+    assert.deepEqual((await app.reviews.get("overdue")).rounds, []);
+
+    ({ said, code } = await app.run(["start", "overdue"]));
     assert.equal(code, 0, said);
     assert.match(said, /Recorded Before: “Export the overdue ones”, “See what's overdue” and “See what's paid”\.\n“Export the overdue ones” stops at “Export them”, where Playwright says “[^”\n]+”, so its Before goes as far as that\./);
-    assert.match(said, /add a flow for each choice you made that the reviewer can see and didn't ask for\. Then record round 1: playthrough record overdue/);
+    assert.match(said, /add a flow for each choice you made that the person can see and didn't ask for\. Then record round 1: playthrough record overdue/);
 
     const before = await app.round(0);
     assert.deepEqual(before.flows.map((flow) => flow.name), ["Export the overdue ones", "See what's overdue", "See what's paid"]);
@@ -81,7 +87,7 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
     const { said, code } = await app.run(["record", "overdue"]);
     assert.equal(code, 0, said);
     assert.match(said, /Recorded round 1: “Export the overdue ones” \(\d+s\), “See what's overdue” \(\d+s\) and “See what's paid” \(\d+s\)/);
-    assert.match(said, /are new to the reviewer\. In \.playthrough\/overdue\/rounds\/1\/round\.json, each can have a line at its start, as “line” in its flow under “flows”: what it starts from, or the choice it shows, in a sentence\./);
+    assert.match(said, /are new to the person\. In \.playthrough\/overdue\/rounds\/1\/round\.json, each can have a line at its start, as “line” in its flow under “flows”: what it starts from, or the choice it shows, in a sentence of up to 140 characters\./);
 
     const recorded = await app.round(1);
     const steps: Record<string, string> = { "Export the overdue ones": "Export them", "See what's overdue": "Show only the overdue ones", "See what's paid": "Show only the paid ones" };
@@ -158,13 +164,11 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
     ({ said } = await app.run(["record", "overdue"]));
     assert.match(said, /Hand it over when it's ready/);
     assert.equal((await app.round(2)).replies[0]?.words, "It's darker now.");
-
-    ({ said } = await app.run(["wait", "overdue"], waitingForNotes));
-    assert.match(said, /Round 2 is ready for review\.\nWaiting for notes on overdue…/);
   });
 
-  test("a Not quite from anyone sends the answer back, and wait says whose each verdict is", async () => {
+  test("handed over, a round's answers wait for what's said of them, a Not quite from anyone sends one back, and wait says whose each verdict is", async () => {
     const waiting = app.run(["wait", "overdue"]);
+    await app.reviews.wait("overdue", (review) => !!review.rounds.find((round) => round.number === 2)?.finished);
     const [note] = (await app.round(2)).replies.map((reply) => reply.note);
     const verdict = (by: string, verdict: "looks good" | "not quite", words?: string) =>
       app.reviews.send("overdue", { id: newId(), round: 2, by, sent: new Date().toISOString(), notes: [], verdicts: [{ note: note!, verdict, words }], looksGood: [] });
@@ -173,7 +177,7 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
 
     const { said, code } = await waiting;
     assert.equal(code, 0);
-    assert.match(said, new RegExp(`Ana says your answer to note ${note} looks good\\.`));
+    assert.match(said, new RegExp(`Round 2 is ready for review\\.\\nWaiting for notes on overdue…\\n\\nAna says your answer to note ${note} looks good\\.`));
     assert.match(said, /Ana: The badge is hard to read\.\n    You, in round 2: It's darker now\.\n    Ana, looks good\n    Ben, not quite: Still hard to read on a phone\./);
     assert.match(said, /record round 3: playthrough record overdue/);
 
