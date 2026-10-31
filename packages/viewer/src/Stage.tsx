@@ -31,12 +31,16 @@ export type Mark = {
   pin?: { number: number; fill: string } | "diamond";
   // A note's colour, and a change's made for it; on a change's diamond, the colour of the note grown out of it.
   ink?: string;
+  // On a change made for the open note, that note: on its thing, or around it, the two are one outline.
+  answers?: string;
   dot?: string;
   chosen: boolean;
   // A note shows from its moment, or through its stretch; a change only while you're stopped on it.
   shows?: { at: number; until?: number };
 };
-export type Placed = { element: NonNullable<Place["element"]> } | { point: Point };
+type Edges = { left: number; top: number; right: number; bottom: number };
+const holds = (a: Edges, b: Edges) => a.left <= b.left + 1 && a.top <= b.top + 1 && a.right >= b.right - 1 && a.bottom >= b.bottom - 1;
+export type Placed ={ element: NonNullable<Place["element"]> } | { point: Point };
 export type Shown = { fit: number; k: number };
 // Held while H is down, kept after H twice.
 export type Bare = "held" | "kept";
@@ -109,6 +113,8 @@ export function Stage(props: Props) {
   // When each note's thing was last on the page, and which were gone as last told.
   const seen = useRef(new Map<string, number>());
   const told = useRef("");
+  // The open note's answers found on its thing, on the round you're watching.
+  const oneThing = useRef(new Set<string>());
   // At actual size, the chosen thing shows whole, at the size it first showed at.
   const focus = useRef<{ id: string; k?: number }>(undefined);
   const playing = useNow(props.playhead, (now) => now.playing);
@@ -215,8 +221,9 @@ export function Stage(props: Props) {
     if (!flow) return;
 
     const gliding = glide.current && performance.now() - glide.current.started < GLIDE ? glide.current : undefined;
-    let lead: { view: View; box: Size } | undefined;
-    // The round you're watching first: side by side, or held over it, the other shows the same part of the page as it.
+    let lead: { view: View; box: Size; chosen?: [number, number] } | undefined;
+    // The round you're watching first: side by side, or held over it, the other shows the same part of the page as it,
+    // or of what's chosen.
     for (const shown of earlier ? [round, earlier] : then ? [round, then] : [round]) {
       const frame = frames.current.get(shown.number);
       const pane = panes.get(shown.number)!;
@@ -253,14 +260,18 @@ export function Stage(props: Props) {
       const card = shown === round && endSoft > 0.002 ? { soft: Math.max(opening?.soft ?? 0, endSoft), name: opening?.name ?? 0 } : opening;
       let view: View;
       if (!zoomed || fitted(box, page).fit >= 0.995) view = fitted(box, page);
-      else if (lead) view = around(box, page, centreOf(lead.view, lead.box), lead.view.k);
-      else {
+      else if (lead) {
+        // What's chosen sits in the same place in both, so where it moved between rounds, this one follows it there.
+        const [x, y] = centreOf(lead.view, lead.box);
+        const [from, to] = [lead.chosen, replay && chosenOn(shown.number, replay, page)?.centre];
+        view = around(box, page, from && to ? [x + to[0] - from[0], y + to[1] - from[1]] : [x, y], lead.view.k);
+      } else {
         const hold = held.current?.flow === flow.name ? held.current : undefined;
-        const chosen = hold || !replay ? undefined : focusOn(replay, box);
+        const chosen = hold || !replay ? undefined : focusOn(replay, page, box);
         view = around(box, page, hold?.centre ?? chosen?.centre ?? (replay ? ahead(replay, at, its.length) : [page.width / 2, 0]), hold?.k ?? chosen?.k ?? 1);
       }
       if (shown === round) {
-        lead = { view, box };
+        lead = { view, box, chosen: replay && chosenOn(round.number, replay, page)?.centre };
         report({ fit: view.fit, k: view.k });
       }
       const from = gliding?.from.get(shown.number);
@@ -322,6 +333,7 @@ export function Stage(props: Props) {
   // flicker. Moved out of the screen's view, it's still there.
   const place = (layer: HTMLElement, replay: Replay | undefined, page: Size, view: View, frame: Size, at: number, playing: boolean, watched: boolean) => {
     const gone: string[] = [];
+    const outlined = new Map<HTMLElement, Edges>();
     for (const mark of layer.querySelectorAll<HTMLElement>("[data-mark-id]")) {
       const { node, from, until, paused, markId } = mark.dataset;
       const spot = mark.dataset.box?.split(" ").map(Number);
@@ -338,7 +350,23 @@ export function Stage(props: Props) {
         if (box) seen.current.set(markId!, at);
         else if (!playing || Math.abs(at - (seen.current.get(markId!) ?? -Infinity)) > 0.3) gone.push(markId!);
       }
-      if (!box || mark.hidden) continue;
+      if (box && !mark.hidden) outlined.set(mark, { left, top, right, bottom });
+    }
+    // A change made for the open note on its thing, or on what holds it, is that one thing: one outline, the note's,
+    // around the larger of the two, which its card keeps clear of. Found so on the round you're watching, it's that
+    // thing on the round beside it too, where the note's outline is wherever the thing was.
+    if (watched) oneThing.current.clear();
+    for (const [mark, box] of outlined) {
+      const note = [...outlined.keys()].find((other) => other.dataset.kind === "note" && other.dataset.markId === mark.dataset.answers);
+      const its = note && outlined.get(note);
+      const one = watched ? !!its && (holds(box, its) || holds(its, box)) : oneThing.current.has(mark.dataset.markId!);
+      if (!one) continue;
+      mark.hidden = true;
+      outlined.delete(mark);
+      if (watched) oneThing.current.add(mark.dataset.markId!);
+      if (watched && holds(box, its!)) outlined.set(note!, box);
+    }
+    for (const [mark, { left, top, right, bottom }] of outlined) {
       Object.assign(mark.style, { left: share(left / page.width), top: share(top / page.height), width: share((right - left) / page.width), height: share((bottom - top) / page.height) });
       const pin = mark.querySelector<HTMLElement>("[data-pin]");
       if (pin) pinAt(pin, { left, top, right, bottom }, view, frame);
@@ -354,7 +382,7 @@ export function Stage(props: Props) {
   // A pin sits just outside its outline's top right corner like a badge, the line from its card coming to it short and
   // never crossing what it's on; at its bottom right where the top is out of view, and pulled in where the right or the
   // bottom is, so it's never cut off by the frame.
-  const pinAt = (pin: HTMLElement, box: { left: number; top: number; right: number; bottom: number }, view: View, frame: Size) => {
+  const pinAt = (pin: HTMLElement, box: Edges, view: View, frame: Size) => {
     const out = 14;
     const right = Math.min(out, frame.width - (box.right - view.x) * view.k - 11);
     const above = (box.top - view.y) * view.k - out >= 11;
@@ -364,17 +392,26 @@ export function Stage(props: Props) {
 
   // At actual size, the chosen note or change on the round you're watching shows whole, at 100% where it fits, else
   // zoomed out just enough, at the size it first showed at, so stepping through it holds the zoom.
-  const focusOn = (replay: Replay, frame: Size): { centre: [number, number]; k: number } | undefined => {
-    const chosen = (latest.current.marks.get(latest.current.round.number) ?? []).filter((mark) => mark.chosen && mark.kind !== "writing" && "node" in mark.on);
-    const boxes = chosen.flatMap((mark) => replay.boxOf((mark.on as { node: number }).node) ?? []);
+  const focusOn = (replay: Replay, page: Size, frame: Size): { centre: [number, number]; k: number } | undefined => {
+    const chosen = chosenOn(latest.current.round.number, replay, page);
+    if (!chosen) return undefined;
+    const kept = focus.current?.id === chosen.id ? focus.current : (focus.current = { id: chosen.id });
+    kept.k ??= Math.min(1, frame.width / (chosen.width + 48), frame.height / (chosen.height + 48));
+    return { centre: chosen.centre, k: kept.k };
+  };
+
+  // Where what's chosen is on a round's page, all of it: a note's thing, a change in every place it's seen.
+  const chosenOn = (round: number, replay: Replay, page: Size) => {
+    const chosen = (latest.current.marks.get(round) ?? []).filter((mark) => mark.chosen && mark.kind !== "writing");
+    const boxes = chosen.flatMap(({ on }) =>
+      "node" in on ? (replay.boxOf(on.node) ?? []) : "box" in on ? [{ left: on.box.x * page.width, top: on.box.y * page.height, width: on.box.width * page.width, height: on.box.height * page.height }] : [],
+    );
     if (!boxes.length) return undefined;
     const left = Math.min(...boxes.map((box) => box.left));
     const top = Math.min(...boxes.map((box) => box.top));
     const width = Math.max(...boxes.map((box) => box.left + box.width)) - left;
     const height = Math.max(...boxes.map((box) => box.top + box.height)) - top;
-    const kept = focus.current?.id === chosen[0]!.id ? focus.current : (focus.current = { id: chosen[0]!.id });
-    kept.k ??= Math.min(1, frame.width / (width + 48), frame.height / (height + 48));
-    return { centre: [left + width / 2, top + height / 2], k: kept.k };
+    return { id: chosen[0]!.id, width, height, centre: [left + width / 2, top + height / 2] as [number, number] };
   };
 
   // What the size control says: how large the recording you're watching shows, and where it's going while it glides.
@@ -1087,6 +1124,7 @@ function Drawn({ mark, onMark }: { mark: Mark; onMark: (id: string) => void }) {
       data-mark-id={mark.id}
       data-kind={mark.kind}
       data-paused={mark.kind === "change" ? "" : undefined}
+      data-answers={mark.answers}
       data-node={"node" in on ? on.node : undefined}
       data-box={"box" in on ? `${on.box.x} ${on.box.y} ${on.box.width} ${on.box.height}` : undefined}
       {...shows}

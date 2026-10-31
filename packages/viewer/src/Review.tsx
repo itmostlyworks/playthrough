@@ -1245,7 +1245,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     openNote
       ? answersTo(diamonds, openNote.id)
           .filter((changed) => changed.on.flow === watching)
-          .flatMap((changed) => marksOn(on(changed)).map((at): Mark => ({ id: changed.change.id, kind: "change", on: at, ink: ink(openNote), chosen: false })))
+          .flatMap((changed) => marksOn(on(changed)).map((at): Mark => ({ id: changed.change.id, kind: "change", on: at, ink: ink(openNote), answers: openNote.id, chosen: false })))
       : [];
   const drawn = (diamond: Diamond) => {
     const pointed = diamond.changes.filter((changed) => changed.change.id === pointedChange);
