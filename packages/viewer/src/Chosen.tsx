@@ -124,8 +124,10 @@ function Question({ flow, standing, just, ...props }: Omit<Props, "standing"> & 
         Is this flow good?
         {unseen > 0 ? (
           <span className="block text-xs leading-4 text-faint">{unseen} {unseen === 1 ? "answer" : "answers"} you haven’t seen</span>
+        ) : good ? (
+          props.waiting && <span className="block text-xs leading-4 text-faint">{props.waiting}</span>
         ) : (
-          standing.count > 0 && !good && <span className="block text-xs leading-4 text-faint">{standing.count} {standing.count === 1 ? "note" : "notes"} not answered</span>
+          standing.count > 0 && <span className="block text-xs leading-4 text-faint">{standing.count} {standing.count === 1 ? "note" : "notes"} not answered</span>
         )}
       </p>
       <div ref={buttons} className={`flex gap-1.5 transition-opacity duration-150 ease-calm ${held ? "pointer-events-none opacity-45" : ""}`}>
