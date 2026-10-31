@@ -266,16 +266,20 @@ export function flowsIn(file: string, written: number): Promise<Map<string, Kept
 
 // The flow being taken over, how deep in its steps it is, as only its own steps are places to take it over, and the
 // step it's in, with how many of its actions are done.
-// Taken over partway through a step, what's only in the page's memory, like an open form, wouldn't survive loading it in
-// the person's browser. So it's handed over as it was before the actions that only changed what's on it (`from`), and
-// they're done again there. One that wrote something, or went to another address, isn't: it starts again after it.
+// What's only in the page's memory, like a search typed or a form opened, wouldn't survive loading it in the person's
+// browser. So it's handed over as it was before the actions that only changed what's on it (`from`), however many steps
+// back, and they're done again there. One that wrote something, or went to another address, isn't, nor anything before
+// it: a fresh load of the page has those already. `address` is where the last of them left the page.
 // The steps it has finished say how far it has got, against how far the playhead has. Several run at once, one for each
 // review open, each in its own window, and each knows its own by what it was called from. And how long it has worked,
 // not counting waiting for the playhead, which it says as it gets to each place to take it over: on the same app, the
 // same each time to within a few percent. While it waits, it can be told to go on (`moved`).
-type Taking = { page: Page; depth: number; rest: () => Promise<void>; step?: string; actions: number; from?: Handed; again: Action[]; wrote: boolean; passed: string[]; orders: Orders; handed?: Handed; began: number; waited: number; arrived?: Arrived };
+type Taking = { page: Page; depth: number; rest: () => Promise<void>; step?: string; actions: number; from?: Handed; again: Action[]; address?: string; wrote: boolean; passed: string[]; orders: Orders; handed?: Handed; began: number; waited: number; arrived?: Arrived };
 export type Arrived = (step: string | undefined, actions: number | undefined, worked: number) => void;
 const taking = new AsyncLocalStorage<Taking>();
+
+// What's kept to do again holds while the page is still where the last of it left it, and nothing has been saved since.
+const holds = (flow: Taking) => !flow.wrote && flow.page.url() === flow.address;
 
 // The playhead went back before it, it's been handed over, or it's no longer wanted: the flow goes no further.
 class Stopped extends Error {}
@@ -308,7 +312,7 @@ export async function runAlongside(
       opened.push(next.context);
       const rest = await readied(next.page);
       await appSetup.signIn?.({ page: next.page, person, setup: made?.setup ?? {} });
-      Object.assign(flow, { page: next.page, rest });
+      Object.assign(flow, { page: next.page, rest, from: undefined, again: [] });
       return next.page;
     };
     try {
@@ -391,7 +395,7 @@ async function handOver(flow: Taking, did?: Did[]) {
     flow.handed = await kept(page, rest);
     return;
   }
-  flow.handed = from && again.length ? { ...from, again } : await kept(page, rest);
+  flow.handed = from && again.length && holds(flow) ? { ...from, again } : await kept(page, rest);
 }
 
 // Where an element is on its page, the same on a copy made the same way.
@@ -415,7 +419,7 @@ const step = Object.assign(async (title: string, body: (info: unknown) => unknow
   const taken = taking.getStore();
   if (taken) {
     const own = !taken.depth;
-    if (own) Object.assign(taken, { step: title, actions: 0, from: undefined, again: [] });
+    if (own) Object.assign(taken, { step: title, actions: 0 });
     taken.depth++;
     let done: unknown;
     try {
@@ -424,8 +428,6 @@ const step = Object.assign(async (title: string, body: (info: unknown) => unknow
       taken.depth--;
     }
     if (own) {
-      // At its end, the page is handed over as it is.
-      Object.assign(taken, { from: undefined, again: [] });
       await reached(taken, title);
       taken.passed.push(title);
     }
@@ -551,16 +553,14 @@ function pace(page: Page) {
   }
 }
 
-// An action is done, and when, and taken over partway through the step it's in, kept to be done again in the person's
-// browser if it only changed what's on the page; the flow is handed over once it's done as many as the recording had.
+// An action is done, and when, and kept to be done again in the person's browser if it only changed what's on the page;
+// the flow is handed over once it's done as many as the recording had.
 async function acted(does: string, target: (page: Page) => Promise<string | undefined>, act: () => Promise<unknown>, given: unknown) {
   const taken = taking.getStore();
-  const handing = taken?.depth ? taken : undefined;
-  // Told to rest at a later step, or at the flow's end, it won't be handed over in this one, so nothing here need be
-  // kept to do again, nor waited for: it goes straight on.
-  const keeping = handing && !(handing.orders.to.rests && handing.orders.to.step !== handing.step) ? handing : undefined;
+  const keeping = taken?.depth ? taken : undefined;
   let on: string | undefined, address: string | undefined;
   if (keeping) {
+    if (!holds(keeping)) Object.assign(keeping, { from: undefined, again: [] });
     keeping.from ??= await kept(keeping.page, keeping.rest);
     keeping.wrote = false;
     [on, address] = [await target(keeping.page), keeping.page.url()];
@@ -578,10 +578,10 @@ async function acted(does: string, target: (page: Page) => Promise<string | unde
     // saved something or went to another page, which shows at once. The next action's page is waited for as it's taken.
     await keeping.page.waitForTimeout(SAVING);
     const plain = typeof given === "string" || typeof given === "boolean" || (Array.isArray(given) && given.every((one) => typeof one === "string"));
-    if (on && !keeping.wrote && keeping.page.url() === address) keeping.again.push({ does, on, ...(plain && { with: given }) });
+    if (on && !keeping.wrote && keeping.page.url() === address) Object.assign(keeping, { address }).again.push({ does, on, ...(plain && { with: given }) });
     else Object.assign(keeping, { from: undefined, again: [] });
   }
-  if (handing) await reached(handing, handing.step, ++handing.actions);
+  if (keeping) await reached(keeping, keeping.step, ++keeping.actions);
   return result;
 }
 
