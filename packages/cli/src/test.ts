@@ -72,8 +72,9 @@ const REST = 140; // the pointer rests on its target before acting
 const KEY = 60; // words are typed a key at a time, this far apart
 const TYPED = 1500; // and a long text no slower than this, all told
 const SAVING = 100; // taking over, how soon an action that saves or goes to another page shows it
+const HANDING = 1200; // handed on, the page left holds this long, and the new hand rests this long before acting
 
-let pointer: { page: Page; x: number; y: number } | undefined;
+let pointer: { page: Page; x: number; y: number; handed?: boolean } | undefined;
 
 // The flow underway: the page it's on now, what waits for that page to rest, what was read at the end of each step so
 // far, with its picture, and when each action was done; the step it's in, and how many of that step's actions are done;
@@ -219,12 +220,14 @@ export async function pageFor(browser: Browser, baseURL: string, screen: Screen)
 // and the recording carries on there. A page signing in already loaded is taken whole now, as it was before the
 // recording heard it; otherwise the recording carries on with the first page it loads.
 async function carryOn(flow: Underway, page: Page, rest: () => Promise<void>, person: string, run: Run) {
+  // So you see what the one handing it on left it at, before the frame becomes the other's.
+  await flow.page.waitForTimeout(HANDING);
   await page.exposeFunction("__vantage", (event: { timestamp: number }) => void (flow.page === page && flow.events.push(event)));
   flow.assets.push(keepAssets(page, run.folder));
   flow.hands.push({ at: Date.now(), person });
   Object.assign(flow, { page, rest });
   const size = page.viewportSize() ?? LAPTOP;
-  pointer = { page, x: size.width / 2, y: size.height * 0.8 };
+  pointer = { page, x: size.width / 2, y: size.height * 0.8, handed: true };
   if (page.url() !== "about:blank") await page.evaluate(() => (window as any).rrwebRecord?.record.takeFullSnapshot());
 }
 
@@ -511,6 +514,12 @@ function pace(page: Page) {
   for (const action of actions) {
     const original = prototype[action];
     prototype[action] = async function (this: Locator, ...args: unknown[]) {
+      // Handed on, the new hand shows on its page and rests there a moment before it does anything.
+      if (pointer?.handed) {
+        pointer.handed = false;
+        await pointer.page.mouse.move(pointer.x, pointer.y);
+        await pointer.page.waitForTimeout(HANDING);
+      }
       if (pointer) await approach(this, pointer);
       // Filled in on a recording, words are typed as a person types them, where they're typed: a date or a number is
       // set as it is, as typing it can come out otherwise.

@@ -218,14 +218,9 @@ export class Replay {
     return shapeOf(this.shapes, at);
   }
 
-  // Where a phone was last tapped, on the screen it's on now: nothing before its first tap there.
-  tappedAt(at: number): [number, number] | undefined {
-    const since = this.shapeAt(at).from;
-    const tap = this.pointer.findLast(([moment]) => moment <= at && moment >= since);
-    return tap && [tap[1], tap[2]];
-  }
-
-  pointerAt(at: number): [number, number] | undefined {
+  // Where the pointer is at a moment, as it moved since `since` at the earliest: until it first moves after that, where
+  // it first is.
+  pointerAt(at: number, since = 0): [number, number] | undefined {
     const pointer = this.pointer;
     if (!pointer.length || at < 0 || this.away.some(([from, to]) => at >= from && at <= to)) return undefined;
     let low = 0;
@@ -236,6 +231,7 @@ export class Replay {
       else high = middle - 1;
     }
     const [a, b] = [pointer[low]!, pointer[low + 1]];
+    if (a[0] < since) return b && [b[1], b[2]];
     if (!b || at <= a[0] || b[0] - a[0] > 0.25) return [a[1], a[2]];
     const u = (at - a[0]) / (b[0] - a[0]);
     return [a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u];

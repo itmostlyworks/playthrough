@@ -320,11 +320,11 @@ export function Stage(props: Props) {
       part.app.style.filter = card && card.soft > 0.002 ? `blur(${(card.soft * 6).toFixed(2)}px)` : "";
 
       // The pointer belongs to the flow: it stays out of the title, and appears as the frame comes into focus. A phone is
-      // tapped, with no pointer between taps, so there only whose hand it is shows, where it last tapped.
-      const tapped = replay && replay.shapeAt(at).touch ? replay.tappedAt(at) : undefined;
-      const pointer = replay && !replay.shapeAt(at).touch ? replay.pointerAt(at) : tapped;
+      // touched, so there it's a fingertip, and one only from when that screen shows: a hand handed the flow starts afresh.
+      const screen = replay?.shapeAt(at);
+      const pointer = replay?.pointerAt(at, screen?.touch ? screen.from : 0);
       const drawn: [number, number] | undefined = pointer && [(pointer[0] - view.x) * view.k, (pointer[1] - view.y) * view.k];
-      part.cursor.toggleAttribute("data-tapped", !!tapped);
+      part.cursor.toggleAttribute("data-touch", !!screen?.touch);
       // Taken over, the pointer is yours, and follows your hand in the app rather than the recording.
       const yours = shown === round && open.current;
       if (!yours) part.cursor.style.opacity = drawn ? String(1 - (card?.soft ?? 0)) : "0";
@@ -1001,7 +1001,7 @@ export function Stage(props: Props) {
           />
           <div
             data-cursor
-            className="pointer-events-none absolute top-0 left-0 z-8 size-5 opacity-0 transition-[filter] duration-180 ease-calm will-change-transform [&[data-tapped]>svg]:invisible [&[data-yours]>svg]:invisible [filter:drop-shadow(0_1px_1px_rgba(0,0,0,.3))] group-data-bare/stage:[filter:drop-shadow(0_1px_1px_rgba(0,0,0,.3))_opacity(0)]"
+            className="pointer-events-none absolute top-0 left-0 z-8 size-5 opacity-0 transition-[filter] duration-180 ease-calm will-change-transform [&:not([data-touch])>[data-finger]]:hidden [&[data-touch]>svg]:invisible [&[data-touch]:not([data-yours])>[data-tag]]:top-[19px] [&[data-touch]:not([data-yours])>[data-tag]]:left-[16px] [&[data-yours]>[data-finger]]:invisible [&[data-yours]>svg]:invisible [filter:drop-shadow(0_1px_1px_rgba(0,0,0,.3))] group-data-bare/stage:[filter:drop-shadow(0_1px_1px_rgba(0,0,0,.3))_opacity(0)]"
           >
             <svg data-arrow viewBox="0 0 20 20" width="20" height="20" aria-hidden>
               <path d="M3 2l13 7.5-5.6 1.3L7.6 16z" fill="#FFFFFF" stroke="#1E2330" strokeWidth="1.3" strokeLinejoin="round" />
@@ -1011,6 +1011,8 @@ export function Stage(props: Props) {
               <path d="M7 3.5h6M10 3.5v13M7 16.5h6" fill="none" stroke="#FFFFFF" strokeWidth="3.2" strokeLinecap="round" />
               <path d="M7 3.5h6M10 3.5v13M7 16.5h6" fill="none" stroke="#1E2330" strokeWidth="1.4" strokeLinecap="round" />
             </svg>
+            {/* On a phone, a fingertip, its middle where the arrow's tip is. */}
+            <span data-finger className="absolute -top-3 -left-[11px] size-7 rounded-full border-[1.5px] border-[rgba(30,35,48,0.6)] bg-[rgba(255,255,255,0.5)]" />
             <span data-tag hidden className={`${TAG} transition-[background-color,color] duration-300 ease-calm data-mine:bg-[#EDB654] data-mine:text-[#3B2A07]`}>
               <span data-words />
             </span>
