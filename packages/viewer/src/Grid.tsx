@@ -26,6 +26,8 @@ type Props = {
   // Why sending or accepting didn't go through.
   trouble: string[];
   onFlow: (flow: string) => void;
+  // The flow you came back from, which the frame shows until you point at another: its picture is where it went home.
+  back?: string;
   // The rounds, under the work's name: going back through them flips every picture at once, and once you've sent, the
   // next round coming, and in.
   arrived?: Round;
@@ -36,13 +38,13 @@ type Props = {
 export function Grid(props: Props) {
   const { review, round, up, step } = props;
   // The flow you point at stays in the frame until you leave the list and the frame both, so you can go across to it.
-  // Otherwise it's the flow the step goes to, or the one it last went to: a step that goes to no flow, such as a round
-  // arriving, changes nothing in the frame.
+  // Otherwise it's the flow you came back from, or the flow the step goes to, or the one it last went to: a step that
+  // goes to no flow, such as a round arriving, changes nothing in the frame.
   const [pointed, setPointed] = useState<string>();
   const stepped = useRef<string>(undefined);
   if (step?.kind === "go" && step.flow) stepped.current = step.flow;
   const toCheck = round.flows.filter((flow) => props.needs(flow.name)).length;
-  const shown = round.flows.find((flow) => flow.name === pointed) ?? round.flows.find((flow) => flow.name === stepped.current) ?? round.flows[0]!;
+  const shown = round.flows.find((flow) => flow.name === (pointed ?? props.back)) ?? round.flows.find((flow) => flow.name === stepped.current) ?? round.flows[0]!;
 
   const row = (flow: Flow) => (
     <Row key={flow.name} review={review} round={round} flow={flow} standing={props.standing(flow.name)} on={flow === shown} onPoint={setPointed} onFlow={props.onFlow} />

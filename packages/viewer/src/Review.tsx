@@ -6,7 +6,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { elementOf } from "@playthrough/page";
 import { inStep, lastLooked, newId, readyToAccept, time, waitingForTheAgent, type Did, type Element as Thing, type Flow, type Note, type Point, type Place, type Review, type Round, type Send, type Verdict } from "@playthrough/review";
-import { accept, keepBranch, recording, send, useReview, useYou } from "./api.ts";
+import { accept, keepBranch, picture, recording, send, useReview, useYou } from "./api.ts";
 import { Bar } from "./Bar.tsx";
 import { Beside, clickedAt } from "./Beside.tsx";
 import { HOLD } from "./Card.tsx";
@@ -15,7 +15,7 @@ import { Chosen, endOf, justLanded, rowsIn, settles, type Landed, type Props as 
 import { Controls, type Look } from "./Controls.tsx";
 import type { ForkLine } from "./Timeline.tsx";
 import { useUnsent, useWatched } from "./draft.ts";
-import { grow, takeOff, type Taking } from "./flight.ts";
+import { grow, shrink, takeOff, type Taking } from "./flight.ts";
 import type { Step } from "./Step.tsx";
 import { Grid } from "./Grid.tsx";
 import { follow, pausedAt, readyAt, readyIn, samePaused, takenOver, type Live, type Paused } from "./live.ts";
@@ -776,7 +776,8 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   };
 
   // Leaving every flow at once for a flow, its picture grows into the frame, and the flow plays once it's there. Coming
-  // back, it waits at its start, and what you were reading is let go, unless you're writing it.
+  // back, the frame shrinks home into it, showing the flow you left, which waits at its start, and what you were reading
+  // is let go, unless you're writing it.
   const gridRoom = useRef<HTMLDivElement>(null);
   // Taking over is doing: from Take over until you're back, what drives the recording rests, the row under the recording
   // with it, as there's nothing there for it to act on. It still says where you are. In the app it steps back too, so
@@ -806,12 +807,27 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   };
   // What a step that isn't one to take says, in a line: what the agent is doing, or that it's all good.
   const waitingOn = (step: Step) => (step.kind === "go" ? undefined : "what" in step && step.what ? `${step.words} ${step.what}` : step.words);
+  const [back, setBack] = useState<string>();
+  const homing = useRef<{ frame: HTMLElement; box: DOMRect; showing?: string }>(undefined);
   const toGrid = () => {
+    const flow = playhead.flow;
+    const frame = document.querySelector<HTMLElement>("[data-frame][data-watched]");
+    const forked = (flow as Forked).fork;
+    // What the frame shows, as near as a picture has it: the page as the step it's on left it.
+    const step = Math.max(0, flow.steps.findLastIndex((step) => step.at <= playhead.now.moment.at));
+    if (frame) homing.current = { frame, box: frame.getBoundingClientRect(), showing: forked ? undefined : picture(review.id, round.number, flow.recording, step) };
+    setBack(forked ?? flow.name);
     playhead.pause();
     playhead.go({ flow: round.flows[0]!.name, at: POSTER });
     if (open && !("writing" in open)) setOpen(undefined);
     setGrid(true);
   };
+  useLayoutEffect(() => {
+    const going = homing.current;
+    homing.current = undefined;
+    const home = back && gridRoom.current?.querySelector<HTMLElement>(`[data-picture="${CSS.escape(back)}"]`);
+    if (going && home && onGrid) shrink(going.frame, going.box, going.showing, home);
+  });
   useLayoutEffect(() => {
     const flight = flying.current;
     flying.current = undefined;
@@ -1496,6 +1512,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
             step={gridStep}
             trouble={trouble}
             onFlow={(name) => leave(name, true)}
+            back={back}
             arrived={arrived ? latest : undefined}
             working={working}
             onRound={toRound}

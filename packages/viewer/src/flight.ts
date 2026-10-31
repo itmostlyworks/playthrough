@@ -1,5 +1,5 @@
 // Going from every flow at once to one, the flow's picture grows from where it was into the frame the flow plays in: a
-// picture is in one place at a time, so you see where it went.
+// picture is in one place at a time, so you see where it went. Going back, the frame shrinks home into it.
 //
 // A picture is marked by data-picture, its flow's name; data-flying hides it while its copy is in the air.
 
@@ -31,6 +31,26 @@ export function grow(taking: Taking, frame: HTMLElement): number {
     flier.remove();
   };
   return FLIGHT.duration;
+}
+
+// Back to every flow, the frame goes home into the picture it grew from: from what it showed, as the step it was on
+// left the page, turning into that picture over the second half of the way.
+export function shrink(frame: HTMLElement, box: DOMRect, showing: string | undefined, home: HTMLElement) {
+  const there = home.getBoundingClientRect();
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches || !box.width || !there.width) return;
+  const copy = copyOf(home);
+  const flier = lift(home, box, copy);
+  frame.toggleAttribute("data-flying", true);
+  if (showing) {
+    const was = Object.assign(document.createElement("img"), { src: showing, alt: "", className: "absolute inset-0 size-full object-contain" });
+    flier.prepend(was);
+    copy.animate([{ opacity: 0 }, { opacity: 0, offset: 0.5 }, { opacity: 1 }], FLIGHT.duration);
+  }
+  const landed = { left: `${there.left}px`, top: `${there.top}px`, width: `${there.width}px`, height: `${there.height}px`, borderRadius: getComputedStyle(home).borderRadius };
+  flier.animate([{}, landed], { duration: FLIGHT.duration, easing: FLIGHT.easing, fill: "forwards" }).onfinish = () => {
+    for (const picture of [home, frame]) picture.removeAttribute("data-flying");
+    flier.remove();
+  };
 }
 
 // A picture's copy, in the air where the picture is, which hides while it's away.

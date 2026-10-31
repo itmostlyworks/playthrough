@@ -68,6 +68,32 @@ export function Beside({ id, over, standing, still, resting, pinned, onAway, chi
   }, []);
   // Its pin, or what it's on where it has none, can move with the view any frame, and the recordings' layout change, so
   // it's followed every frame while it's open.
+  // What it says changing its length, as Edit, Not quite or earlier answers do, it grows or shrinks to it rather than
+  // jumping, the line to its pin going with it; a card opening for something else is just there.
+  const open = !!children;
+  useEffect(() => {
+    const box = card.current;
+    const inside = box?.firstElementChild;
+    if (!box || !inside) return;
+    let was = { id: opened.current?.id, height: inside.getBoundingClientRect().height };
+    const watching = new ResizeObserver(() => {
+      const height = inside.getBoundingClientRect().height;
+      const going = box.getAnimations().filter((growing) => growing.id === "length");
+      const from = going.length ? box.getBoundingClientRect().height : undefined;
+      going.forEach((growing) => growing.cancel());
+      const same = was.id === opened.current?.id;
+      const before = was.height;
+      was = { id: opened.current?.id, height };
+      if (!same || Math.abs(height - before) < 2 || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      const { paddingTop, paddingBottom } = getComputedStyle(box);
+      const around = parseFloat(paddingTop) + parseFloat(paddingBottom);
+      box.style.overflow = "hidden";
+      const growing = box.animate([{ height: `${from ?? before + around}px` }, { height: `${height + around}px` }], { id: "length", duration: 220, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
+      growing.onfinish = () => (box.style.overflow = "");
+    });
+    watching.observe(inside);
+    return () => watching.disconnect();
+  }, [open]);
   const left = useRef<{ card: HTMLElement; in: ParentNode }>(undefined);
   useLayoutEffect(() => {
     if (!children) {
