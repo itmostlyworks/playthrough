@@ -98,7 +98,7 @@ export function Chosen(props: Props) {
           <Question {...props} flow={flow} standing={standing} laidOut={laidOut} just={justLanded(props.landed, flow.name)} />
         ) : (
           props.onward.kind === "go" && (
-            <div className="px-3 py-2">
+            <div className="p-4">
               <Onward step={props.onward} />
             </div>
           )
@@ -120,9 +120,9 @@ function Question({ flow, standing, laidOut, just, ...props }: Omit<Props, "stan
   // Those laid out over it are in plain view; the rest were played past.
   const elsewhere = standing.count - laidOut;
   return (
-    <div className="relative py-2 pr-3 pl-[44px]">
-      <EndMark end={good ? "good" : "asks"} just={just} className="absolute top-2 left-[18px] z-1 size-[18px]" />
-      <p className="mb-2 text-[13px] leading-[18px] text-soft">
+    <div className={asks}>
+      <EndMark end={good ? "good" : "asks"} just={just} className={asksMark} />
+      <p className="mb-3 text-[13px] leading-[18px] text-soft">
         <button className="float-right ml-2 inline-flex items-center gap-1 text-xs leading-[18px] text-faint transition-colors duration-150 ease-calm hover:text-fg" onMouseDown={keepKeys} onClick={() => props.onAgain(flow)}>
           <svg viewBox="0 0 20 20" className="size-3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="M4 10a6 6 0 1 0 1.8-4.3" />
@@ -148,7 +148,7 @@ function Question({ flow, standing, laidOut, just, ...props }: Omit<Props, "stan
         </Answer>
       </div>
       {good && (
-        <div className="mt-1.5">
+        <div className="mt-2">
           <Onward step={props.onward} />
         </div>
       )}
@@ -177,9 +177,9 @@ function Sending({ flow, standing, just, ...props }: Omit<Props, "standing"> & {
   const sent = standing.is === "with the agent";
   const { onward } = props;
   return (
-    <div className="relative py-2 pr-3 pl-[44px]">
-      <EndMark end={sent ? "with the agent" : "to send"} just={just} className="absolute top-2 left-[18px] z-1 size-[18px]" />
-      <p className="mb-2 text-[13px] leading-[18px] text-soft">
+    <div className={asks}>
+      <EndMark end={sent ? "with the agent" : "to send"} just={just} className={asksMark} />
+      <p className="mb-3 text-[13px] leading-[18px] text-soft">
         <button className="float-right ml-2 inline-flex items-center gap-1 text-xs leading-[18px] text-faint transition-colors duration-150 ease-calm hover:text-fg" onMouseDown={keepKeys} onClick={() => props.onAgain(flow)}>
           <svg viewBox="0 0 20 20" className="size-3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="M4 10a6 6 0 1 0 1.8-4.3" />
@@ -202,6 +202,10 @@ function Sending({ flow, standing, just, ...props }: Omit<Props, "standing"> & {
     </div>
   );
 }
+
+// What a flow's end asks, with room around it: its mark in line with the conversations over it.
+const asks = "relative py-4 pr-4 pl-[42px]";
+const asksMark = "absolute top-4 left-4 z-1 size-[18px]";
 
 // Clicking in a card leaves the keys where they were, so Up and Down afterwards don't ring what you clicked as if you'd
 // tabbed to it.

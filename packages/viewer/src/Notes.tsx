@@ -297,7 +297,7 @@ function Card(props: Props) {
 
   return (
     // Its first line keeps clear of the card's ×, as a draft's Edit and Remove do.
-    <div className="grid gap-2.5 px-4 py-2 [&>p:first-child]:pr-5">
+    <div className={`grid gap-2.5 px-4 ${props.whole ? "py-3" : "py-2"} [&>p:first-child]:pr-5`}>
       {/* Walked again, your steps stopped short: what couldn't be done, over the screen where they stopped. */}
       {whereYouWere?.stopped && <p className="leading-normal text-fg">{whereYouWere.stopped}</p>}
       <div className={`grid gap-2.5 transition-opacity duration-250 ease-calm ${props.away && !readOnly ? "opacity-45" : ""}`}>{words}</div>
