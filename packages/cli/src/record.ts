@@ -11,7 +11,6 @@ import { compareWithEarlier } from "./compare.ts";
 import { failedAt, runFlows, whereItStopped } from "./flows.ts";
 import type { Repo } from "./repo.ts";
 import { readingsOn } from "./reporter.ts";
-import { trySetup } from "./try-setup.ts";
 import { saidOf, walkForks, type WalkedNote } from "./walk.ts";
 
 export async function record(repo: Repo, id: string) {
@@ -21,11 +20,8 @@ export async function record(repo: Repo, id: string) {
   // A flow new since the last round is recorded twice on Before, when there's a Before to put back; otherwise here.
   const onBefore = !!review.rounds.find((round) => round.number === 0)?.commit;
   const first = (flow: string) => !onBefore && !review.rounds.some((round) => round.number !== number && round.flows.some((kept) => kept.name === flow));
-  // Until round 1 is handed over, Before follows a setup changed since it was recorded, once it's been tried.
-  if (number === 1) {
-    await trySetup(repo, `playthrough record ${id}`);
-    await recordBeforeAgain(repo, id, "Record again.");
-  }
+  // Until round 1 is handed over, Before follows a setup changed since it was recorded.
+  if (number === 1) await recordBeforeAgain(repo, id, `playthrough record ${id}`, "Record again.");
   const { recorded, failed } = await runFlows(repo, id, number, { first });
   if (failed.length)
     throw new Refused([

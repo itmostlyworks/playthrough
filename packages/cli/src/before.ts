@@ -15,6 +15,7 @@ import { stopApp } from "./app.ts";
 import { failedAt, runFlows, whereItStopped } from "./flows.ts";
 import type { Failed } from "./reporter.ts";
 import type { Repo } from "./repo.ts";
+import { trySetup } from "./try-setup.ts";
 
 // Keeps what the working copy holds as a commit, with whatever isn't committed yet, through an index of its own so what
 // the agent staged stays as it was. A ref keeps the commit, so git never cleans it away. Outside git, there's none.
@@ -87,11 +88,13 @@ export async function tryBeforeAgain(repo: Repo, id: string, flows: string[]) {
 
 // Until round 1 is handed over, nothing has been compared with Before, so Before follows what every flow starts from:
 // once playthrough/ has changed since Before was recorded, each flow Before has is recorded on it again, in place of what
-// it had, as start does, and record before round 1. Says whether it was.
-export async function recordBeforeAgain(repo: Repo, id: string, again: string): Promise<boolean> {
+// it had, as start does, and record before round 1, once the setup's been tried. Says whether it was. Command is the one
+// to run again once the agent has looked at what the setup was tried on, and again, once something's fixed.
+export async function recordBeforeAgain(repo: Repo, id: string, command: string, again: string): Promise<boolean> {
   const review = await repo.reviews.get(id);
   const before = review.rounds.find((round) => round.number === 0);
   if (!before?.commit || review.rounds.some((round) => round.number > 0 && round.finished) || !changedSince(repo, before.commit, ["playthrough"])) return false;
+  await trySetup(repo, command);
   const flows = [...before.flows.map((flow) => flow.name), ...(before.cantStart ?? [])];
   await onBefore(repo, id, flows, `playthrough/ has changed since Before was recorded, so Before is recorded again on it, in place of what it has`, "Before wasn't recorded again", again, true);
   return true;

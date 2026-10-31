@@ -9,7 +9,6 @@ import { cantStart, howFar, keepBefore, recordBeforeAgain, refuseIfBroken, tryBe
 import { howToWriteFlows, makeFlowsFolder, runFlows } from "./flows.ts";
 import type { Repo } from "./repo.ts";
 import { setupIn } from "./setup.ts";
-import { trySetup } from "./try-setup.ts";
 
 export async function start(repo: Repo, id: string, title?: string, asked?: string) {
   if (!(await repo.reviews.list()).includes(id)) {
@@ -34,11 +33,7 @@ Then run playthrough start ${id} again. It records Before: each flow on the app 
     throw new Refused([`There's already a review called “${id}”, of “${review.title}”. Give this one another name, or record that one's Before: playthrough start ${id}`]);
   const last = review.rounds.at(-1);
   const before = review.rounds.find((round) => round.number === 0);
-  // A setup changed since Before was recorded is tried first, then Before is recorded on it.
-  if (last?.number === 0) {
-    await trySetup(repo, `playthrough start ${id}`);
-    if (await recordBeforeAgain(repo, id, "Run this again.")) return;
-  }
+  if (last?.number === 0 && (await recordBeforeAgain(repo, id, `playthrough start ${id}`, "Run this again."))) return;
   const short = before ? [...before.flows.filter((flow) => flow.stopped).map((flow) => flow.name), ...(before.cantStart ?? [])] : [];
   if (before && short.length) return tryBeforeAgain(repo, id, short);
   if (last?.number === 0) throw new Refused([`Before is recorded already. Change the app, then record round 1: playthrough record ${id}`]);
