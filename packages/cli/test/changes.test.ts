@@ -83,6 +83,23 @@ describe("What changed at a moment", () => {
     assert.deepEqual(await said(header(exportThem, create), header(create, exportThem)), ["Create expense and Export have swapped places"]);
   });
 
+  test("two rows of a list that traded places have swapped, called by their words (the todo app's rows, in a new order)", async () => {
+    const row = (name: string) => `<li><label><input type="checkbox"> ${name}</label> <button aria-label="Delete ${name}">×</button></li>`;
+    const list = (names: string[]) => `<h1>Todos</h1><ul>${names.map(row).join("")}</ul>`;
+    assert.deepEqual(await said(list(["Buy milk", "Walk the dog", "Call Sam"]), list(["Walk the dog", "Buy milk", "Call Sam"])), ["“Walk the dog” and “Buy milk” have swapped places"]);
+  });
+
+  test("a control whose words changed, wider and moved for it, is that control reworded, not one gone and one new (the todo app's Clear completed)", async () => {
+    const footer = (button: string) => `<footer style="display: flex; gap: 8px; width: 400px"><p style="flex: 1; margin: 0">4 left</p><button>${button}</button></footer>`;
+    assert.deepEqual(await said(footer("Clear completed"), footer("Clear 2 completed")), ["Clear completed button now says “Clear 2 completed”"]);
+    assert.deepEqual(await said(`<button>Save</button>`, `<button>Save changes</button>`), ["Save button now says “Save changes”"]);
+  });
+
+  test("words whose box is only narrower or wider, with nothing to show it, aren't a change: the same words look the same (“4 left”, beside a button that grew)", async () => {
+    assert.deepEqual(await said(`<p style="width: 300px">4 left</p>`, `<p style="width: 200px">4 left</p>`), []);
+    assert.deepEqual(await said(`<p style="width: 300px; background: #eee">4 left</p>`, `<p style="width: 200px; background: #eee">4 left</p>`), ["“4 left” is narrower"]);
+  });
+
   test("a layout shift belongs to what caused it, above the things it moved", async () => {
     const page = (banner: string) => `<h1>Invoices</h1>${banner}<p>INV-1043</p><p>INV-1050</p><p>INV-1057</p>`;
     assert.deepEqual(await said(page(""), page(`<div class="panel"><p>Payment failed</p></div>`)), ["“Payment failed” area is new, and moved 3 things down"]);

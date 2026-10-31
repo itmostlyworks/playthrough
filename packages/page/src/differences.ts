@@ -141,8 +141,9 @@ export function differences(then: Reading, now: Reading): { differences: Differe
       b.role !== "text"
         ? // The same kind of thing with the same name, or in the same place; a table, dialog or panel mostly where the old
           // one was; or a panel or menu holding the same words, wherever it went (a menu that opens higher, its items in
-          // another order).
-          take((a) => a.role === b.role && (a.name === b.name || samePlace(a, b) || mostlyWhereItWas(a, b) || holdsTheSameWords(a, b)))
+          // another order). A control called the same but for its data, or mostly where it was, is that control
+          // reworded: “Clear 2 completed”, a little wider, is the “Clear completed” button, not one gone and one new.
+          take((a) => a.role === b.role && (a.name === b.name || samePlace(a, b) || mostlyWhereItWas(a, b) || holdsTheSameWords(a, b) || (CONTROL.test(b.role) && ((!!bare(b.name) && bare(a.name) === bare(b.name)) || overlap(a, b) > 0.5))))
         : // Words in the same place; or one of as many words gone as new in the same thing; or the same words with other
           // data in them, in the same thing (“Total $56,145.00” is now “Total for 2026 $56,145.00”).
           (take((a) => a.role === "text" && samePlace(a, b)) ??
@@ -247,8 +248,18 @@ function asLines(told: Difference[], then: Reading, now: Reading): Difference[] 
 // The same thing, kept: how it looks, how big it is, and where it is on the page, in that order of what a person notices.
 function compared(a: Thing, b: Thing): Difference | undefined {
   if (!sameLook(a, b)) return { what: "looks different", then: a, now: b };
+  if (unseenBox(a, b)) return undefined;
   if (!near(a.box.width, b.box.width) || !near(a.box.height, b.box.height)) return { what: "resized", then: a, now: b };
   if (!near(a.page.x, b.page.x) || !near(a.page.y, b.page.y)) return { what: "moved", then: a, now: b };
+}
+
+// Words alone, with no background or border to show their box, are seen by their words: the same words in a box only
+// narrower or wider, on as many lines, still starting or ending where they did, look the same (“4 left”, beside a button
+// that grew). Words that did move on the screen, the pictures find.
+function unseenBox(a: Thing, b: Thing): boolean {
+  const boxless = (thing: Thing) => /^(transparent|rgba\(0, 0, 0, 0\))$/.test(thing.look.background) && thing.look.border === "none";
+  const edges = near(a.page.x, b.page.x) || near(a.page.x + a.box.width, b.page.x + b.box.width);
+  return a.role === "text" && a.words === b.words && boxless(a) && boxless(b) && near(a.box.height, b.box.height) && near(a.page.y, b.page.y) && edges;
 }
 
 // Whether a control is called what another was, with more words after, all of them in something of its own inside it.

@@ -295,10 +295,26 @@ function causesOfShifts(moment: Moment, shifts: Shift[], widened: Widened[], oth
     .filter((shift) => !passed.has(shift))
     .map((shift) => {
       const first = firstOf(shift.moves);
-      const more = shift.moves.length > 1 ? `, with ${shift.moves.length - 1} more ${things(shift.moves.length - 1)} around it` : "";
       const pushed = movedPast.get(shift);
+      // Two alike, each moved where the other was, have swapped places: two rows, called by their words, or else by what
+      // each starts with.
+      const other = pushed && unexplained.find((one) => passed.has(one) && one.moves.some((move) => pushed.things.includes(move.now)));
+      if (other && alikeInSize(shift, other)) {
+        const calledBy = (shift: Shift) => shift.moves.find((move) => move.now.role === "text")?.now ?? firstOf(shift.moves).now;
+        const both = [calledBy(shift), calledBy(other)].sort((p, q) => p.page.y - q.page.y || p.page.x - q.page.x);
+        return { what: "swapped", thing: both[0]!, in: moment.now, words: `${together(both)} have swapped places` };
+      }
+      const more = shift.moves.length > 1 ? `, with ${shift.moves.length - 1} more ${things(shift.moves.length - 1)} around it` : "";
       return { what: "moved", thing: first.now, in: moment.now, words: `${called(first.now)} ${movedWords(moment, first)}${more}`, ...(pushed && { pushed }) };
     });
+}
+
+// Two shifts as many things strong, as far each way, moved past each other as two rows do: a panel moved past a whole
+// list, many things against few, isn't a swap.
+function alikeInSize(one: Shift, other: Shift): boolean {
+  const [few, many] = [one.moves.length, other.moves.length].sort((p, q) => p - q) as [number, number];
+  const [less, more] = [Math.hypot(one.by.x, one.by.y), Math.hypot(other.by.x, other.by.y)].sort((p, q) => p - q) as [number, number];
+  return few * 2 >= many && less * 2 >= more;
 }
 
 const firstOf = (moves: Move[]) => [...moves].sort((p, q) => p.now.page.y - q.now.page.y || p.now.page.x - q.now.page.x)[0]!;
