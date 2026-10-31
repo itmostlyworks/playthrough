@@ -148,7 +148,9 @@ export async function runFlows(
   });
   if (unlike.length)
     throw new Refused([
-      `${list(unlike.map(({ flow }) => quote(flow.name)))} didn't go the same way twice on the same app, so ${unlike.length > 1 ? "they don't" : "it doesn't"} start from the same place each time. Make what every flow starts from in playthrough/setup.ts, the same each time, and run this again.`,
+      `${list(unlike.map(({ flow }) => quote(flow.name)))} didn't go the same way twice on the same app:`,
+      ...unlike.map(({ flow }) => `  ${quote(flow.name)}: the first time, ${went(once, flow.name)}; the second, ${went(twice, flow.name)}.`),
+      `So ${unlike.length > 1 ? "they don't" : "it doesn't"} start from the same place each time. Flows run several at once on the one app, so what one makes, another can meet: make what every flow starts from in playthrough/setup.ts, the same each time and new for each run, and run this again.`,
     ]);
   const byThemselves = await changesByThemselves(inMemory(round, again), inMemory(round, twice.recorded.filter(({ flow }) => first(flow.name))));
   for (const { flow } of again) {
@@ -158,6 +160,14 @@ export async function runFlows(
     console.log(`\nIn ${quote(flow.name)}, this changes by itself, so it's left out of every comparison, in every flow:\n${unsteady.map((change) => `  ${change.words}`).join("\n")}\nIf it can be made the same each time, in playthrough/setup.ts, do that and record again: a real change to it won't be seen.`);
   }
   return once;
+}
+
+// How a flow went in one run: to its end, or where it stopped, in Playwright's words.
+function went(ran: Ran, name: string): string {
+  const failure = ran.failed.find((failed) => failed.flow === name);
+  if (!failure) return "it went to its end";
+  const because = failure.why ? `, where Playwright says “${failure.why}”` : "";
+  return failure.at ? `it stopped at ${quote(failure.at)}${because}` : `it stopped before its first step${because}`;
 }
 
 // A run with a flow that failed keeps what Playwright wrote of the page it failed on, and one with none lets it go. A

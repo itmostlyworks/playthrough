@@ -8,6 +8,7 @@
 import { chromium, request as requests, type Browser } from "@playwright/test";
 import { createHash } from "node:crypto";
 import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { join } from "node:path";
 import { quote, Refused } from "@playthrough/review";
 import { keepRunning } from "./app.ts";
@@ -26,18 +27,24 @@ export async function trySetup(repo: Repo, again: string) {
   if ((await readFile(last, "utf8").then((text) => JSON.parse(text).written, () => undefined)) === written) return;
 
   console.log("Trying the app's setup by itself first, twice, as every flow will start…");
-  const startedIn = await keepRunning(app, repo.root);
-  const setup = await setupIn(repo.setup, (await stat(repo.setup).catch(() => undefined))?.mtimeMs);
-  await giveBackLeft(setup, repo.borrowed);
-  await rm(repo.tried, { recursive: true, force: true });
-  await mkdir(repo.tried, { recursive: true });
+  // The browser first: without it, there's no starting the app for.
   const browser = await chromium.launch().catch((error) => {
-    if (/Executable doesn't exist/.test(String(error?.message))) throw new Refused(["Playwright has no Chromium to run the flows in yet. Install it (npx playwright install chromium), then run this again."]);
+    // Named by its version: an app with a Playwright of its own would install that one's Chromium.
+    const { version } = createRequire(import.meta.url)("@playwright/test/package.json");
+    if (/Executable doesn't exist/.test(String(error?.message)))
+      throw new Refused([`Playwright has no Chromium to run the flows in yet. Install the one Playthrough's Playwright runs (npx playwright@${version} install chromium), then run this again.`]);
     throw error;
   });
-  const people = Object.keys(setup.people ?? {});
+  let startedIn: number | undefined;
+  let setup: Setup;
   const tried: Tried[] = [];
   try {
+    startedIn = await keepRunning(app, repo.root);
+    setup = await setupIn(repo.setup, (await stat(repo.setup).catch(() => undefined))?.mtimeMs);
+    await giveBackLeft(setup, repo.borrowed);
+    await rm(repo.tried, { recursive: true, force: true });
+    await mkdir(repo.tried, { recursive: true });
+    const people = Object.keys(setup.people ?? {});
     for (const person of people.length ? people : [undefined]) tried.push(await tryAs(repo, browser, setup, app.url, person));
   } finally {
     await browser.close();

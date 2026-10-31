@@ -94,11 +94,12 @@ page, Playwright's request and the app's address as baseURL, and what it returns
     if (!removed.ok()) throw new Error(`Removing the account failed: ${removed.status()}`);
   }
 
-Each run makes its own, so give it back: after, if setup.ts exports it, runs once the run is over (a flow recorded, the
-app taken over and let go), given a request of its own and what the default export returned, so return what's needed to
-find and remove it, and sign in again there if removing it needs that. Check what each request answers, so one that
-fails says so rather than leaving it behind. What a run made and didn't give back, because Playthrough was stopped, the
-next command gives back. What can't be taken back, like an email sent, avoid instead: test keys, a mail catcher.
+Flows run several at once on the one app, so each run makes its own, with a name or an email of its own. Give it back:
+after, if setup.ts exports it, runs once the run is over (a flow recorded, the app taken over and let go), given a
+request of its own and what the default export returned, so return what's needed to find and remove it, and sign in
+again there if removing it needs that. Check what each request answers, so one that fails says so rather than leaving it
+behind. What a run made and didn't give back, because Playthrough was stopped, the next command gives back. What can't
+be taken back, like an email sent, avoid instead: test keys, a mail catcher.
 
 Use what the project has (a test account, seed data, a reset hook, its own test fixtures, imported rather than copied),
 make data through the app's API or database rather than on screen, and stub what you can't control at the network. Sign
