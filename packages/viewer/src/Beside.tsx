@@ -211,7 +211,7 @@ export function Beside({ id, over, standing, still, resting, pinned, onAway, chi
       onPointerDown={drag}
       onPointerEnter={() => (pointing.current = true)}
       onPointerLeave={() => (pointing.current = false)}
-      className={`fixed top-0 left-0 z-30 ${standing ? "w-[400px]" : "w-[330px]"} rounded-xl bg-ground py-1.5 shadow-[0_0_0_1px_rgba(20,24,34,0.08),0_10px_30px_rgba(20,24,34,0.16)] transition-opacity duration-250 ease-calm ${still || resting === "shown" ? "pointer-events-none opacity-0" : ""}`}
+      className={`fixed top-0 left-0 z-30 ${standing ? "w-[400px]" : "w-[330px]"} rounded-xl bg-ground py-1.5 shadow-float transition-opacity duration-250 ease-calm ${still || resting === "shown" ? "pointer-events-none opacity-0" : ""}`}
     >
       <div data-card className={`grid grid-cols-[minmax(0,1fr)] ${onAway ? "[&>*>button:first-child]:pr-9" : ""}`}>
         {children}

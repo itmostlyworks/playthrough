@@ -55,7 +55,7 @@ export function Bar(props: Props) {
         role="dialog"
         aria-label={`Notes on ${props.flow}`}
         aria-hidden={!listed}
-        className={`absolute right-0 bottom-full mb-2 w-[340px] max-w-[calc(100vw-32px)] rounded-xl bg-surface p-1.5 shadow-[0_0_0_1px_rgba(20,24,34,0.08),0_10px_32px_rgba(20,24,34,0.16)] transition-[opacity,translate] duration-150 ease-calm ${listed ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-1 opacity-0"}`}
+        className={`absolute right-0 bottom-full mb-2 w-[340px] max-w-[calc(100vw-32px)] rounded-xl bg-surface p-1.5 shadow-float transition-[opacity,translate] duration-150 ease-calm ${listed ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-1 opacity-0"}`}
       >
         <div className="max-h-[min(55vh,420px)] overflow-y-auto">
           {props.notes.map((said) => (
@@ -95,7 +95,7 @@ export function Bar(props: Props) {
         role="toolbar"
         aria-label="This moment"
         data-bar=""
-        className={`flex gap-0.5 rounded-xl bg-surface p-1 text-[13px] select-none [&_kbd]:text-[color-mix(in_srgb,var(--faint)_55%,var(--soft))] ${inApp ? "shadow-[0_0_0_1.5px_rgba(236,178,72,0.95),0_6px_20px_rgba(20,24,34,0.12)]" : "shadow-[0_0_0_1px_rgba(20,24,34,0.08),0_6px_20px_rgba(20,24,34,0.12)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.14),0_6px_20px_rgba(0,0,0,0.3)]"}`}
+        className={`flex gap-0.5 rounded-xl bg-surface p-1 text-[13px] select-none [&_kbd]:text-[color-mix(in_srgb,var(--faint)_55%,var(--soft))] ${inApp ? "shadow-[0_0_0_1.5px_rgba(236,178,72,0.95),0_6px_20px_rgba(20,24,34,0.12)]" : "shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]"}`}
       >
         <button className={item} disabled={!props.onNote} aria-pressed={props.noting} onClick={props.onNote}>
           Note <Key>N</Key>

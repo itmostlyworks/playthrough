@@ -17,6 +17,9 @@
   --amber-ink: #8a5f12;
   --green: #3c8a62;
   --slate: #6e7f9c;
+  /* What floats over the recording, the bar and the cards, is edged so it never blends into the page it's over. */
+  --edge: rgba(20, 24, 34, 0.08);
+  --drop: rgba(20, 24, 34, 0.16);
   color-scheme: light;
 }
 
@@ -33,6 +36,8 @@
     --amber-ink: #e9c27a;
     --green: #78c59c;
     --slate: #9baac4;
+    --edge: rgba(255, 255, 255, 0.14);
+    --drop: rgba(0, 0, 0, 0.3);
     color-scheme: dark;
   }
 }
@@ -60,6 +65,7 @@
   --shadow-frame: 0 0 0 1px rgba(20, 24, 34, 0.07), 0 1px 3px rgba(20, 24, 34, 0.05);
   --shadow-pin: 0 0 0 2px #ffffff, 0 1px 3px rgba(0, 0, 0, 0.2);
   --shadow-tip: 0 0 0 1px var(--line), 0 2px 6px rgba(20, 24, 34, 0.08);
+  --shadow-float: 0 0 0 1px var(--edge), 0 10px 30px var(--drop);
 
   --animate-drop: drop 0.3s var(--ease-calm) both;
   --animate-glow: glow 1.2s ease-out;
