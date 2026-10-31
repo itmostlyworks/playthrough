@@ -16,6 +16,8 @@ export type Shape = { from: number; width: number; height: number; touch: boolea
 export type Recorded = {
   // Its screens in order, the first from its start.
   shapes: Shape[];
+  // When each page it shows first appears.
+  loads: number[];
   // Where the pointer was, as [seconds, x, y], and when it clicked.
   pointer: [number, number, number][];
   // When the hand was out of the app: in a recording you made by taking a flow over, going to Vantage's own controls.
@@ -30,10 +32,11 @@ export type Recorded = {
 export function recorded(events: Events): Recorded {
   const start = events[0]?.timestamp ?? 0;
   const seconds = (timestamp: number) => (timestamp - start) / 1000;
-  const shown: Recorded = { shapes: [], pointer: [], away: [], clicks: [], changes: [], acted: [] };
+  const shown: Recorded = { shapes: [], loads: [], pointer: [], away: [], clicks: [], changes: [], acted: [] };
   for (const event of events) {
     // A page loading says its size; one of another size is someone else's screen.
     if (event.type === EventType.Meta) {
+      shown.loads.push(seconds(event.timestamp));
       const { width, height } = event.data;
       const last = shown.shapes.at(-1);
       if (!last || last.width !== width || last.height !== height) shown.shapes.push({ from: last ? seconds(event.timestamp) : 0, width, height, touch: false });
@@ -125,6 +128,7 @@ function awayFrom({ pointer, shapes }: Recorded): [number, number][] {
 export class Replay {
   readonly host = document.createElement("div");
   readonly shapes: Shape[];
+  readonly loads: number[];
   readonly pointer: Recorded["pointer"];
   readonly away: Recorded["away"];
   readonly clicks: number[];
@@ -153,7 +157,7 @@ export class Replay {
       const removes = event.data.removes;
       Object.defineProperty(event.data, "removes", { get: () => removes, set() {}, enumerable: true, configurable: true });
     }
-    ({ shapes: this.shapes, pointer: this.pointer, away: this.away, clicks: this.clicks } = recorded(events));
+    ({ shapes: this.shapes, loads: this.loads, pointer: this.pointer, away: this.away, clicks: this.clicks } = recorded(events));
     this.#drawn = Math.max(0, (events.find((event) => event.type === EventType.FullSnapshot)?.timestamp ?? start) - start + 1);
     this.host.className = "absolute top-0 left-0 origin-top-left [&_.replayer-mouse]:hidden [&_iframe]:pointer-events-none [&_iframe]:block [&_iframe]:border-0";
     this.#shape = this.shapes[0]!;
@@ -212,6 +216,13 @@ export class Replay {
 
   shapeAt(at: number): Shape {
     return shapeOf(this.shapes, at);
+  }
+
+  // Where a phone was last tapped, on the screen it's on now: nothing before its first tap there.
+  tappedAt(at: number): [number, number] | undefined {
+    const since = this.shapeAt(at).from;
+    const tap = this.pointer.findLast(([moment]) => moment <= at && moment >= since);
+    return tap && [tap[1], tap[2]];
   }
 
   pointerAt(at: number): [number, number] | undefined {
