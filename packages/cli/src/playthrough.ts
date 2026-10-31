@@ -4,6 +4,7 @@
 // The command line: the commands an agent runs to have a person review its work, and take-over, for a person to carry on
 // from a moment of a flow by hand. When one stops, it says why and what to do.
 
+import "./node.ts";
 import { readFileSync } from "node:fs";
 import { Refused } from "@playthrough/review";
 import { putBack } from "./before.ts";

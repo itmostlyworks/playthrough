@@ -10,7 +10,8 @@ import { list, quote } from "@playthrough/review";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { registerHooks } from "node:module";
+// The whole module, as an older Node has no registerHooks to import: it says it needs Node 24 instead (node.ts).
+import * as modules from "node:module";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { firstLine } from "./reporter.ts";
@@ -45,7 +46,7 @@ export async function setupIn(file: string, written?: number): Promise<Setup> {
 // shown, one in an app that says it's CommonJS would otherwise fail to load.
 const setups = new Set<string>();
 function asModule(href: string) {
-  if (!setups.size) registerHooks({ load: (url, context, next) => next(url, setups.has(url.split("?")[0]!) ? { ...context, format: "module-typescript" } : context) });
+  if (!setups.size) modules.registerHooks({ load: (url, context, next) => next(url, setups.has(url.split("?")[0]!) ? { ...context, format: "module-typescript" } : context) });
   setups.add(href);
 }
 
