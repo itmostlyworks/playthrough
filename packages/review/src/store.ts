@@ -221,6 +221,13 @@ export class Reviews {
     return this.storage.read(`${id}/rounds/${round}/files/${name}`);
   }
 
+  // The names at the top of a round's files: its recordings, and those of flows it kept in place of them.
+  async files(id: string, round: number): Promise<string[]> {
+    const problems = problemsWithId(id);
+    if (problems.length || !Number.isInteger(round)) throw new Refused(problems.length ? problems : [`There's no round ${round}.`]);
+    return this.storage.list(`${id}/rounds/${round}/files`);
+  }
+
   // Resolves with the review once it's the way `until` wants it: notes to take, a round finished, accepted.
   async wait(id: string, until: (review: Review) => boolean, signal?: AbortSignal): Promise<Review> {
     signal?.throwIfAborted();

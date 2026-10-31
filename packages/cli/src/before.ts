@@ -73,7 +73,8 @@ async function onBefore(repo: Repo, id: string, flows: string[], doing: string, 
   const named = list(flows.map(quote));
   if (!before.commit) return console.log(`\n${named} ${flows.length > 1 ? "have" : "has"} no Before: Before wasn't kept as a commit, so the app as it was can't be put back.`);
   const later = flows;
-  const taken = before.flows.map((flow) => flow.recording);
+  // Named apart from every recording Before holds, one a flow tried again no longer uses among them.
+  const taken = await repo.reviews.files(id, 0);
   // An app as it was that doesn't start, for the reason Playwright gives, can't start any of them.
   const run = () =>
     runFlows(repo, id, 0, { later: { flows: later, taken }, first: () => true }).catch((error) => {
