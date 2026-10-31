@@ -44,8 +44,9 @@ each other's: add "oneAtATime": true, and each flow waits for the one before it.
 Each round, and Before, is recorded on whatever serves that url, and Playthrough starts the app itself only when nothing
 does: leave a server you didn't start running. Recording a flow on Before later, when it's new or Before cut it short,
 sets your work aside with git stash for a minute, unless nothing has changed since Before, puts the app as it was in its
-place to record there too, and puts your work back after, even when Playthrough is stopped. A server already running
-should follow the working copy, as a dev server does.
+place to record there too, with playthrough/ as it is now, and puts your work back after, even when Playthrough is
+stopped. A server already running should follow the working copy, as a dev server does. Until round 1 is handed over,
+changing playthrough/ records Before again on it, so what you fix there holds for Before too.
 
 FLOWS
 

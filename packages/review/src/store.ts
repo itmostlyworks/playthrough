@@ -158,8 +158,9 @@ export class Reviews {
   }
 
   // Before gains a flow added later, recorded on the app as it was, with its files, or the word that it can't start
-  // there. What Before has already never changes.
-  async addToBefore(id: string, added: { flows: Flow[]; cantStart: string[]; files: { name: string; bytes: Uint8Array }[] }): Promise<void> {
+  // there; a flow it has, recorded again, is in place of what it had; and the commit it's now recorded on, if that's
+  // changed.
+  async addToBefore(id: string, added: { flows: Flow[]; cantStart: string[]; files: { name: string; bytes: Uint8Array }[]; commit?: string }): Promise<void> {
     return this.#one(id, async () => {
       const review = await this.get(id);
       const problems = problemsAddingToBefore(review, added.flows, added.cantStart);
@@ -173,7 +174,7 @@ export class Reviews {
       if (problems.length) throw new Refused(problems);
       const before = review.rounds.find((round) => round.number === 0)!;
       for (const { name, bytes } of added.files) await this.storage.write(`${id}/rounds/0/files/${name}`, bytes);
-      await this.#writeJson(`${id}/rounds/0/round.json`, withInBefore(before, added.flows, added.cantStart));
+      await this.#writeJson(`${id}/rounds/0/round.json`, { ...withInBefore(before, added.flows, added.cantStart), ...(added.commit && { commit: added.commit }) });
     });
   }
 

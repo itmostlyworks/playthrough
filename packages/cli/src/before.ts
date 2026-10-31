@@ -4,10 +4,10 @@
 // alone. The agent's work is set aside with git stash meanwhile, and put back after, even when recording fails or
 // Playthrough is stopped. It's recorded on whatever serves the app, as every round is: a server already running follows the
 // working copy, as a dev server does, so for that minute it serves the app as it was, and one Playthrough started is
-// started again on it.
+// started again on it. There, playthrough/ is as it is now: it goes with the flows, not with the work.
 
 import { execFileSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { constants, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { list, quote, Refused, type Flow } from "@playthrough/review";
@@ -21,31 +21,48 @@ import type { Repo } from "./repo.ts";
 export function keepBefore(repo: Repo, id: string): string | undefined {
   if (!attempt(() => git(repo, ["rev-parse", "--is-inside-work-tree"]))) return undefined;
   try {
-    const tree = treeNow(repo);
     const head = attempt(() => git(repo, ["rev-parse", "--verify", "--quiet", "HEAD"]));
-    const commit = git(repo, ["commit-tree", "--no-gpg-sign", ...(head ? ["-p", head] : []), "-m", `Before, of the review ${id}: the app as it was, with what wasn't committed`, tree], { ...process.env, ...PLAYTHROUGH });
-    git(repo, ["update-ref", `refs/playthrough/${id}/before`, commit]);
-    return commit;
+    return keep(repo, id, treeNow(repo), head ? [head] : []);
   } catch (error) {
     throw new Refused(["Before can't be kept as a commit, because git says:", `  ${said(error)}`, "Fix that and run this again."]);
   }
 }
 
+// Before's commit again, with playthrough/ as the working copy holds it now, once Before is recorded again on it.
+const keptWithOursNow = (repo: Repo, id: string, commit: string) =>
+  keep(repo, id, treeNow(repo, { commit, paths: ["playthrough"] }), git(repo, ["rev-list", "--parents", "--max-count=1", commit]).split(" ").slice(1));
+
+function keep(repo: Repo, id: string, tree: string, parents: string[]): string {
+  const commit = git(repo, ["commit-tree", "--no-gpg-sign", ...parents.flatMap((parent) => ["-p", parent]), "-m", `Before, of the review ${id}: the app as it was, with what wasn't committed`, tree], { ...process.env, ...PLAYTHROUGH });
+  git(repo, ["update-ref", `refs/playthrough/${id}/before`, commit]);
+  return commit;
+}
+
 // What the working copy holds, committed or not, as a git tree, through an index of its own so what the agent staged
-// stays as it was.
-function treeNow(repo: Repo): string {
+// stays as it was; or onto a commit, what it holds in some of its folders.
+function treeNow(repo: Repo, onto?: { commit: string; paths: string[] }): string {
   const folder = mkdtempSync(join(tmpdir(), "playthrough-"));
   try {
     const index = join(folder, "index");
-    // Starting from the agent's index, git only reads the files that changed.
-    attempt(() => copyFileSync(resolve(repo.root, git(repo, ["rev-parse", "--git-path", "index"])), index));
     const env = { ...process.env, GIT_INDEX_FILE: index };
-    git(repo, ["add", "--all", ":/"], env);
+    if (onto) {
+      git(repo, ["read-tree", onto.commit], env);
+      git(repo, ["rm", "-r", "--cached", "--quiet", "--ignore-unmatch", "--", ...onto.paths], env);
+      git(repo, ["add", "--all", "--", ...onto.paths], env);
+    } else {
+      // Starting from the agent's index, git only reads the files that changed.
+      attempt(() => copyFileSync(resolve(repo.root, git(repo, ["rev-parse", "--git-path", "index"])), index));
+      git(repo, ["add", "--all", ":/"], env);
+    }
     return git(repo, ["write-tree"], env);
   } finally {
     rmSync(folder, { recursive: true });
   }
 }
+
+// Whether what the working copy holds there, committed or not, differs from the commit.
+const changedSince = (repo: Repo, commit: string, paths: string[]) =>
+  attempt(() => git(repo, ["diff", "--quiet", `${commit}^{tree}`, treeNow(repo), "--", ...paths])) === undefined;
 
 // The commit is Playthrough's, whoever's git this is.
 const PLAYTHROUGH = { GIT_AUTHOR_NAME: "Playthrough", GIT_AUTHOR_EMAIL: "playthrough@localhost", GIT_COMMITTER_NAME: "Playthrough", GIT_COMMITTER_EMAIL: "playthrough@localhost" };
@@ -68,7 +85,21 @@ export async function tryBeforeAgain(repo: Repo, id: string, flows: string[]) {
   await onBefore(repo, id, flows, `Before cut ${list(flows.map(quote))} short, so ${they} ${flows.length > 1 ? "are" : "is"} tried on it again, in place of what it has of ${them}`, "Before wasn't recorded again", "Run this again.");
 }
 
-async function onBefore(repo: Repo, id: string, flows: string[], doing: string, unrecorded: string, again: string) {
+// Until round 1 is handed over, nothing has been compared with Before, so Before follows what every flow starts from:
+// once playthrough/ has changed since Before was recorded, each flow Before has is recorded on it again, in place of what
+// it had, as start does, and record before round 1. Says whether it was.
+export async function recordBeforeAgain(repo: Repo, id: string, again: string): Promise<boolean> {
+  const review = await repo.reviews.get(id);
+  const before = review.rounds.find((round) => round.number === 0);
+  if (!before?.commit || review.rounds.some((round) => round.number > 0 && round.finished) || !changedSince(repo, before.commit, ["playthrough"])) return false;
+  const flows = [...before.flows.map((flow) => flow.name), ...(before.cantStart ?? [])];
+  await onBefore(repo, id, flows, `playthrough/ has changed since Before was recorded, so Before is recorded again on it, in place of what it has`, "Before wasn't recorded again", again, true);
+  return true;
+}
+
+// Recorded on what playthrough/ holds now, Before's commit is kept with it too, if it's Before as a whole, so it's known
+// to be what Before was recorded on.
+async function onBefore(repo: Repo, id: string, flows: string[], doing: string, unrecorded: string, again: string, whole = false) {
   const before = (await repo.reviews.get(id)).rounds.find((round) => round.number === 0)!;
   const named = list(flows.map(quote));
   if (!before.commit) return console.log(`\n${named} ${flows.length > 1 ? "have" : "has"} no Before: Before wasn't kept as a commit, so the app as it was can't be put back.`);
@@ -82,8 +113,9 @@ async function onBefore(repo: Repo, id: string, flows: string[], doing: string, 
       throw error;
     });
   let ran: Awaited<ReturnType<typeof run>>;
-  // Nothing changed outside .playthrough/ since Before, the app as it is is the app as it was, and nothing needs setting aside.
-  if (treeNow(repo) === git(repo, ["rev-parse", `${before.commit}^{tree}`])) {
+  // Nothing changed since Before but playthrough/, which is how flows get into the app and goes with them, the app as it
+  // is is the app as it was, and nothing needs setting aside.
+  if (!changedSince(repo, before.commit, [":/", ":(exclude)playthrough"])) {
     console.log(`\n${doing}, on the app as it is: nothing has changed since Before.`);
     ran = await run();
   } else {
@@ -103,7 +135,8 @@ async function onBefore(repo: Repo, id: string, flows: string[], doing: string, 
     });
   }
   refuseIfBroken(ran.failed, unrecorded, again);
-  await repo.reviews.addToBefore(id, { flows: ran.recorded.map(({ flow }) => flow), cantStart: cantStart(ran.recorded, ran.failed), files: ran.recorded.flatMap(({ files }) => files) });
+  const commit = whole ? keptWithOursNow(repo, id, before.commit) : undefined;
+  await repo.reviews.addToBefore(id, { flows: ran.recorded.map(({ flow }) => flow), cantStart: cantStart(ran.recorded, ran.failed), files: ran.recorded.flatMap(({ files }) => files), ...(commit && { commit }) });
   for (const line of howFar(repo, id, ran.recorded, ran.failed, "the app as it was")) console.log(line);
 }
 
@@ -158,6 +191,11 @@ async function asItWas<T>(repo: Repo, unrecorded: string, commit: string, shared
     process.exit(128 + constants.signals[signal]);
   };
   for (const signal of SIGNALS) process.on(signal, stopped);
+  // The app as it was gets flows in as the app does now: playthrough/ goes with the flows, not with the work, so a setup
+  // fixed since Before is the one Before is recorded on.
+  const ours = join(repo.root, "playthrough");
+  const today = existsSync(ours) ? mkdtempSync(join(tmpdir(), "playthrough-")) : undefined;
+  if (today) cpSync(ours, today, { recursive: true });
   let moved = false;
   try {
     try {
@@ -168,8 +206,13 @@ async function asItWas<T>(repo: Repo, unrecorded: string, commit: string, shared
     } catch (error) {
       throw new Refused([`${unrecorded}: git couldn't put the app as it was in place, because it says:`, `  ${said(error)}`, "Fix that, then try again."]);
     }
+    if (today) {
+      rmSync(ours, { recursive: true, force: true });
+      cpSync(today, ours, { recursive: true });
+    }
     return await run();
   } finally {
+    if (today) rmSync(today, { recursive: true, force: true });
     for (const signal of SIGNALS) process.off(signal, stopped);
     // What the app as it was wrote into files git keeps goes: the agent's own changes are in the stash.
     const problem = putWorkBack(repo, aside, true);
@@ -198,7 +241,12 @@ export async function putBack(repo: Repo) {
 // whatever the app as it was changed in the files git keeps is let go. Says what git said, if it couldn't.
 function putWorkBack(repo: Repo, aside: SetAside, force: boolean): string | undefined {
   try {
-    if (here(repo) !== aside.back) git(repo, ["checkout", "--quiet", ...(force ? ["--force"] : []), aside.back]);
+    if (here(repo) !== aside.back) {
+      // playthrough/ as the app as it was had it, so nothing of what it was given in its place is in the work's way.
+      attempt(() => git(repo, ["checkout", "--quiet", "HEAD", "--", "playthrough"]));
+      git(repo, ["clean", "--force", "-d", "--quiet", "--", "playthrough"]);
+      git(repo, ["checkout", "--quiet", ...(force ? ["--force"] : []), aside.back]);
+    }
     const stash = stashOf(repo, aside);
     if (stash) git(repo, ["stash", "pop", "--index", "--quiet", stash]);
     rmSync(repo.setAside, { force: true });

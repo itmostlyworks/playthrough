@@ -107,7 +107,7 @@ export async function runFlows(
     throw new Refused([`${id} has no flows yet. ${howToWriteFlows(repo, id)}`]);
   await makeFlowsFolder(repo, id);
   const app = await repo.app();
-  // A flow recorded on Before later runs on the setup as it was then.
+  // A flow recorded on Before later runs on the setup the command has tried already.
   if (!later) await trySetup(repo, round === 0 ? `playthrough start ${id}` : `playthrough record ${id}`);
   const { started, rounds } = await repo.reviews.get(id);
   const recorder = join(dirname(createRequire(import.meta.url).resolve("@rrweb/record")), "record.umd.min.cjs");
