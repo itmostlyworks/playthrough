@@ -1202,7 +1202,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
         } else if (question && ending?.is === "to send") {
           event.preventDefault();
           void sendingIt(question);
-        } else if (question && ending?.is !== "good" && ending?.is !== "with the agent") {
+        } else if (question && ending?.is !== "good" && ending?.is !== "with the agent" && ending?.is !== "not saved") {
           event.preventDefault();
           lookingGood(question);
         } else if ((!open || endOpen) && step.kind === "go" && !step.final) {
@@ -1214,7 +1214,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
         event.preventDefault();
         if (asks) setAsking(openNote.id);
         else if (chosen && !readOnly) noteOn(chosen);
-        else if (question) write({ flow: question });
+        else if (question && ending?.is !== "not saved") write({ flow: question });
       } else if (event.key.toLowerCase() === "c" && !event.repeat && comparingIt && !live?.shown) {
         pressCompare();
       } else if (event.key.toLowerCase() === "n" && !event.repeat) {
