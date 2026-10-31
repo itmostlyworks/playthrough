@@ -4,7 +4,7 @@
 // comparison compares. Run as plain tests, it does nothing. Each recording and its readings go to the reporter, which makes
 // them a flow (reporter.ts). Taken over, a flow runs in Playthrough itself instead (following.ts), on the same pace and steps.
 
-import { test as base, expect as playwrightExpect, type APIRequestContext, type Browser, type BrowserContext, type BrowserContextOptions, type Locator, type Page } from "@playwright/test";
+import { test as base, expect as playwrightExpect, type APIRequestContext, type Browser, type BrowserContext, type BrowserContextOptions, type Dialog, type Locator, type Page } from "@playwright/test";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -79,8 +79,9 @@ let pointer: { page: Page; x: number; y: number; handed?: boolean } | undefined;
 // The flow underway: the page it's on now, what waits for that page to rest, what was read at the end of each step so
 // far, with its picture, and when each action was done; the step it's in, and how many of that step's actions are done;
 // whoever it's been handed to, and the assets each page loaded; the first request it sent that changes what the app holds;
-// and walking a fork again, once the fork's steps have begun, how far they got.
-type Underway = { page: Page; events: { timestamp: number }[]; rest: () => Promise<void>; depth: number; readings: Omit<Reading, "picture">[]; glimpses: Glimpse[]; pictures: Buffer[]; actions: number[]; step?: string; inStep: number; hands: Hand[]; assets: (() => Promise<Assets>)[]; wrote?: string; walked?: Walked };
+// the browser's own dialog shown during the action being done, until it's answered; and walking a fork again, once the
+// fork's steps have begun, how far they got.
+type Underway = { page: Page; events: { timestamp: number }[]; rest: () => Promise<void>; depth: number; readings: Omit<Reading, "picture">[]; glimpses: Glimpse[]; pictures: Buffer[]; actions: number[]; step?: string; inStep: number; hands: Hand[]; assets: (() => Promise<Assets>)[]; wrote?: string; dialog?: Promise<void>; walked?: Walked };
 let underway: Underway | undefined;
 
 // What every flow starts from (setup.ts), loaded once a run.
@@ -157,9 +158,13 @@ const recorded = base.extend<{ person: string | undefined; rest: () => Promise<v
       await page.exposeFunction("__playthrough", (event: { timestamp: number }) => void (flow.page === page && flow.events.push(event)));
       flow.assets.push(keepAssets(page, run.folder));
       pace(page);
+      dialogsOn(page, flow);
       pointer = { page, x: 640, y: 640 };
       underway = flow;
       const { events, readings, glimpses, pictures, actions } = flow;
+      // A page setup left loaded, where the flow starts, is taken whole now, as rrweb took it before anything heard it;
+      // otherwise the recording starts with the first page the flow loads. Taken then, it played blank until the next.
+      if (page.url() !== "about:blank") await page.evaluate(() => (window as any).rrwebRecord?.record.takeFullSnapshot());
       await page.mouse.move(pointer.x, pointer.y);
       try {
         await use();
@@ -231,11 +236,57 @@ async function carryOn(flow: Underway, page: Page, rest: () => Promise<void>, pe
   await flow.page.waitForTimeout(HANDING);
   await page.exposeFunction("__playthrough", (event: { timestamp: number }) => void (flow.page === page && flow.events.push(event)));
   flow.assets.push(keepAssets(page, run.folder));
+  dialogsOn(page, flow);
   flow.hands.push({ at: Date.now(), person });
   Object.assign(flow, { page, rest });
   const size = page.viewportSize() ?? LAPTOP;
   pointer = { page, x: size.width / 2, y: size.height * 0.8, handed: true };
   if (page.url() !== "about:blank") await page.evaluate(() => (window as any).rrwebRecord?.record.takeFullSnapshot());
+}
+
+// The browser's own dialogs, an alert, a confirm or a prompt, aren't in the page, so rrweb never sees them: each is kept
+// in the recording as a moment of its own, with what it says, and held long enough to read before it's answered, as the
+// flow answers it, or else as Playwright would, which is No. The viewer draws it there (replay.ts). One about leaving the
+// page is answered as Playwright does, Yes, and not kept.
+const holding = new WeakMap<Dialog, { flow: Underway; page: Page; read: Promise<void>; answered: () => void }>();
+const answered = new WeakSet<object>();
+function dialogsOn(page: Page, flow: Underway) {
+  const listening = (to: object) => (to as { listenerCount: (event: string) => number }).listenerCount("dialog");
+  page.on("dialog", (dialog) => {
+    // The flow answers it if it listens for it, on its page or the page's window.
+    const theirs = listening(page) > 1 || listening(page.context()) > 0;
+    if (dialog.type() === "beforeunload") return void (theirs || dialog.accept().catch(() => {}));
+    answers(dialog);
+    const said = { type: dialog.type(), message: dialog.message(), ...(dialog.type() === "prompt" && { value: dialog.defaultValue() }) };
+    if (flow.page === page) flow.events.push({ type: 5, data: { tag: "dialog", payload: said }, timestamp: Date.now() } as { timestamp: number });
+    let answered = () => {};
+    flow.dialog = new Promise((done) => (answered = done));
+    holding.set(dialog, { flow, page, read: new Promise((read) => setTimeout(read, Math.min(4000, 1200 + 40 * dialog.message().length))), answered });
+    if (!theirs) dialog.dismiss().catch(() => {});
+  });
+}
+// Answered, once it's been read, as what was said: Yes or No, and what was typed into a prompt.
+function answers(dialog: Dialog) {
+  const prototype = Object.getPrototypeOf(dialog);
+  if (answered.has(prototype)) return;
+  answered.add(prototype);
+  for (const [name, yes] of [["accept", true], ["dismiss", false]] as const) {
+    const original = prototype[name];
+    prototype[name] = async function (this: Dialog, value?: string) {
+      const held = holding.get(this);
+      holding.delete(this);
+      if (held) {
+        await held.read;
+        const answer = { yes, ...(yes && this.type() === "prompt" && { value: value ?? "" }) };
+        if (held.flow.page === held.page) held.flow.events.push({ type: 5, data: { tag: "dialog answered", payload: answer }, timestamp: Date.now() } as { timestamp: number });
+      }
+      try {
+        return await original.call(this, value);
+      } finally {
+        held?.answered();
+      }
+    };
+  }
 }
 
 // Taken over, a flow runs in Playthrough (following.ts), unrecorded, on the recordings' clock, which the person carries on
@@ -576,7 +627,14 @@ async function acted(does: string, target: (page: Page) => Promise<string | unde
     keeping.wrote = false;
     [on, address] = [await target(keeping.page), keeping.page.url()];
   }
-  const result = await act();
+  // A dialog the browser shows holds the action up until it's answered, read first, which can be longer than it waits:
+  // the action went through, as the dialog it opened shows, and goes on once it's answered.
+  if (underway) underway.dialog = undefined;
+  const result = await act().catch(async (error) => {
+    const dialog = underway?.dialog;
+    if (!dialog) throw error;
+    await dialog;
+  });
   underway?.actions.push(Date.now());
   // Walking a fork again, it leaves the flow where the person did, after as many of the step's actions.
   const walk = run?.walk;

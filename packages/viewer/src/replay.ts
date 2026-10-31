@@ -27,16 +27,30 @@ export type Recorded = {
   changes: number[];
   // What was clicked or typed into, as [seconds, node].
   acted: [number, number][];
+  // The browser's own dialogs, which aren't in the page.
+  dialogs: Dialog[];
 };
+
+// A dialog the browser showed, an alert, a confirm or a prompt, from when it showed until it was answered: what it
+// says, under where it came from, what a prompt held, and how it was answered.
+export type Dialog = { from: number; until: number; type: string; host: string; message: string; value?: string; yes?: boolean };
 
 export function recorded(events: Events): Recorded {
   const start = events[0]?.timestamp ?? 0;
   const seconds = (timestamp: number) => (timestamp - start) / 1000;
-  const shown: Recorded = { shapes: [], loads: [], pointer: [], away: [], clicks: [], changes: [], acted: [] };
+  const shown: Recorded = { shapes: [], loads: [], pointer: [], away: [], clicks: [], changes: [], acted: [], dialogs: [] };
+  let host = "";
   for (const event of events) {
+    if (event.type === EventType.Custom) {
+      const { tag, payload } = event.data as { tag: string; payload: { type: string; message: string; value?: string; yes?: boolean } };
+      if (tag === "dialog") shown.dialogs.push({ from: seconds(event.timestamp), until: Infinity, host, ...payload });
+      const open = shown.dialogs.at(-1);
+      if (tag === "dialog answered" && open?.until === Infinity) Object.assign(open, { until: seconds(event.timestamp), yes: payload.yes, ...(payload.value !== undefined && { value: payload.value }) });
+    }
     // A page loading says its size; one of another size is someone else's screen.
     if (event.type === EventType.Meta) {
       shown.loads.push(seconds(event.timestamp));
+      host = URL.parse(event.data.href)?.host ?? host;
       const { width, height } = event.data;
       const last = shown.shapes.at(-1);
       if (!last || last.width !== width || last.height !== height) shown.shapes.push({ from: last ? seconds(event.timestamp) : 0, width, height, touch: false });
@@ -132,6 +146,7 @@ export class Replay {
   readonly pointer: Recorded["pointer"];
   readonly away: Recorded["away"];
   readonly clicks: number[];
+  readonly dialogs: Dialog[];
   #replayer: Replayer;
   // The screen the page is shown on now, which rrweb changes with it as someone else's page loads.
   #shape: Shape;
@@ -157,7 +172,7 @@ export class Replay {
       const removes = event.data.removes;
       Object.defineProperty(event.data, "removes", { get: () => removes, set() {}, enumerable: true, configurable: true });
     }
-    ({ shapes: this.shapes, loads: this.loads, pointer: this.pointer, away: this.away, clicks: this.clicks } = recorded(events));
+    ({ shapes: this.shapes, loads: this.loads, pointer: this.pointer, away: this.away, clicks: this.clicks, dialogs: this.dialogs } = recorded(events));
     this.#drawn = Math.max(0, (events.find((event) => event.type === EventType.FullSnapshot)?.timestamp ?? start) - start + 1);
     this.host.className = "absolute top-0 left-0 origin-top-left [&_.replayer-mouse]:hidden [&_iframe]:pointer-events-none [&_iframe]:block [&_iframe]:border-0";
     this.#shape = this.shapes[0]!;

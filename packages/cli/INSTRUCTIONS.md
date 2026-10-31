@@ -66,7 +66,11 @@ name is the flow's:
   });
 
 Act on the page as a person would, by role and label. Playthrough glides the pointer, types what you fill in a key at a time,
-waits for the page to rest after each step, and reads what's on it there.
+waits for the page to rest after each step, and reads what's on it there. A dialog the browser shows itself, an alert, a
+confirm or a prompt, is recorded too, held long enough to read, and the person sees it as the browser drew it. Unless the
+flow answers it, it's answered No, as Playwright does: say Yes before the click that opens it,
+
+  page.once("dialog", (dialog) => dialog.accept());
 
 While the reviewer watches, Playthrough runs the flow on the app in the background, so taking it over is quick: every pause
 runs it again. If a flow's steps do something outside the app that running it again would do again, such as sending an

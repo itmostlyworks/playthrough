@@ -264,6 +264,7 @@ export function Stage(props: Props) {
         part.card.style.setProperty("--n", "1");
         part.app.style.filter = "";
         part.cursor.style.opacity = part.ring.style.opacity = "0";
+        part.dialog.hidden = true;
         continue;
       }
 
@@ -342,6 +343,27 @@ export function Stage(props: Props) {
         const u = (at - click) / 0.5;
         Object.assign(part.ring.style, { opacity: String(1 - u), transform: `translate(${drawn[0]}px,${drawn[1]}px) scale(${0.4 + u * 1.1})` });
       } else part.ring.style.opacity = "0";
+
+      // The browser's own dialog, while it's up, where the browser puts it: at the top of the window, over the page. Its
+      // answer is pressed a moment before it goes.
+      const dialog = replay && (card?.soft ?? 0) < 0.5 ? replay.dialogs.find((shown) => at >= shown.from && at < shown.until) : undefined;
+      part.dialog.hidden = !dialog;
+      if (dialog) {
+        const width = Math.min(DIALOG, page.width - 16);
+        Object.assign(part.dialog.style, { width: `${width}px`, transform: `translate(${(((page.width - width) / 2 - view.x) * view.k).toFixed(2)}px,${((8 - view.y) * view.k).toFixed(2)}px) scale(${view.k.toFixed(5)})` });
+        const [where, says, typed, no, yes] = ["where", "says", "typed", "no", "yes"].map((name) => part.dialog.querySelector<HTMLElement>(`[data-${name}]`)!) as [HTMLElement, HTMLElement, HTMLElement, HTMLElement, HTMLElement];
+        if (part.dialog.dataset.from !== String(dialog.from)) {
+          part.dialog.dataset.from = String(dialog.from);
+          where.textContent = `${dialog.host || "This page"} says`;
+          says.textContent = dialog.message;
+          typed.textContent = dialog.value ?? "";
+          typed.hidden = dialog.type !== "prompt";
+          no.hidden = dialog.type === "alert";
+        }
+        const answering = dialog.yes !== undefined && at > dialog.until - 0.25;
+        yes.toggleAttribute("data-pressed", answering && (dialog.yes || dialog.type === "alert"));
+        no.toggleAttribute("data-pressed", answering && !dialog.yes && dialog.type !== "alert");
+      }
     }
     wasPlaying.current = playing;
     if (gliding && !playing) requestAnimationFrame(paint);
@@ -999,6 +1021,25 @@ export function Stage(props: Props) {
             data-ring
             className={`pointer-events-none absolute top-0 left-0 z-7 -mt-[17px] -ml-[17px] size-[34px] rounded-full border-[1.5px] border-[rgba(40,44,54,0.5)] bg-[rgba(40,44,54,0.06)] opacity-0 ${hideable}`}
           />
+          {/* The browser's own dialog the flow met, an alert, a confirm or a prompt: not in the page, so drawn here as
+              the browser drew it, under the pointer. It belongs to the recording, so it looks the same in both themes. */}
+          <div
+            data-dialog
+            hidden
+            className={`pointer-events-none absolute top-0 left-0 z-7 origin-top-left rounded-xl bg-white px-6 pt-5 pb-4 font-[system-ui,sans-serif] text-[13px] leading-[18px] text-[#1f1f1f] shadow-[0_1px_3px_rgba(0,0,0,.2),0_6px_24px_rgba(0,0,0,.24)] ${hideable}`}
+          >
+            <p data-where className="mb-2.5 text-[15px] leading-5 font-medium" />
+            <p data-says className="mb-4 break-words whitespace-pre-wrap" />
+            <p data-typed className="mb-4 h-8 truncate rounded-md border border-[#747775] px-2.5 leading-[30px]" />
+            <p className="flex justify-end gap-2 text-[13px] leading-8 font-medium">
+              <span data-no className="rounded-full border border-[#747775] px-4 text-[#0b57d0] data-pressed:bg-[#e8eef8]">
+                Cancel
+              </span>
+              <span data-yes className="rounded-full bg-[#0b57d0] px-4 text-white data-pressed:bg-[#0842a0]">
+                OK
+              </span>
+            </p>
+          </div>
           <div
             data-cursor
             className="pointer-events-none absolute top-0 left-0 z-8 size-5 opacity-0 transition-[filter] duration-180 ease-calm will-change-transform [&:not([data-touch])>[data-finger]]:hidden [&[data-touch]>svg]:invisible [&[data-touch]:not([data-yours])>[data-tag]]:top-[19px] [&[data-touch]:not([data-yours])>[data-tag]]:left-[16px] [&[data-yours]>[data-finger]]:invisible [&[data-yours]>svg]:invisible [filter:drop-shadow(0_1px_1px_rgba(0,0,0,.3))] group-data-bare/stage:[filter:drop-shadow(0_1px_1px_rgba(0,0,0,.3))_opacity(0)]"
@@ -1234,12 +1275,15 @@ const liveAt = (view: View, page: Size) => ({
 // A recording's screen until it says otherwise.
 const LAPTOP: Shape = { from: 0, width: 1280, height: 800, touch: false };
 
-type Parts = { app: HTMLElement; stack: HTMLElement; marks: HTMLElement; ring: HTMLElement; cursor: HTMLElement; card: HTMLElement; name: HTMLElement; as: HTMLElement; line: HTMLElement };
+// The browser's own dialog is this wide, as Chrome draws one.
+const DIALOG = 448;
+
+type Parts = { app: HTMLElement; stack: HTMLElement; marks: HTMLElement; ring: HTMLElement; dialog: HTMLElement; cursor: HTMLElement; card: HTMLElement; name: HTMLElement; as: HTMLElement; line: HTMLElement };
 const known = new WeakMap<HTMLElement, Parts>();
 function parts(frame: HTMLElement): Parts {
   if (!known.has(frame)) {
     const part = (name: string) => frame.querySelector<HTMLElement>(`[data-${name}]`)!;
-    known.set(frame, { app: part("app"), stack: part("stack"), marks: part("marks"), ring: part("ring"), cursor: part("cursor"), card: part("card"), name: part("name"), as: part("as"), line: part("line") });
+    known.set(frame, { app: part("app"), stack: part("stack"), marks: part("marks"), ring: part("ring"), dialog: part("dialog"), cursor: part("cursor"), card: part("card"), name: part("name"), as: part("as"), line: part("line") });
   }
   return known.get(frame)!;
 }
