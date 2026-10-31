@@ -2,6 +2,7 @@
   "name": "@playthrough/viewer",
   "private": true,
   "type": "module",
+  "license": "Apache-2.0",
   "exports": {
     "./package.json": "./package.json"
   },

@@ -2,6 +2,7 @@
   "name": "playthrough-core",
   "private": true,
   "type": "module",
+  "license": "Apache-2.0",
   "workspaces": ["packages/*"],
   "engines": { "node": ">=24" },
   "scripts": {

@@ -2,6 +2,7 @@
   "name": "@playthrough/review",
   "private": true,
   "type": "module",
+  "license": "Apache-2.0",
   "exports": {
     ".": "./src/index.ts",
     "./folder": "./src/folder.ts"

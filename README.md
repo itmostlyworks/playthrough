@@ -61,3 +61,7 @@ At the end of each flow, say whether it looks good. Send, and the agent starts o
 - [What the agent reads](packages/cli/INSTRUCTIONS.md): everything `playthrough` tells an agent, printed when it runs bare.
 - Flows are [Playwright](https://playwright.dev) tests, so an agent already knows how to write them.
 - Claude Code, Codex, Cursor and Gemini CLI are recognised by their shell. Any other agent gives its name.
+
+## Licence
+
+[Apache 2.0](LICENSE). Copyright 2026 Ludwig Bäcklund.

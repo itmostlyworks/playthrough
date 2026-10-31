@@ -2,6 +2,7 @@
   "name": "playthrough",
   "private": true,
   "type": "module",
+  "license": "Apache-2.0",
   "bin": {
     "playthrough": "./src/playthrough.ts"
   },
