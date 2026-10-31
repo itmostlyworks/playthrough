@@ -38,7 +38,7 @@ jobs:
       - name: Set the version
         run: npm version "$VERSION" --workspace playthrough --no-git-tag-version --allow-same-version
       - run: npm run check
-      - run: npm run quick
+      - run: npm test
       - run: npm run build
       - name: Try it installed in an app
         run: |

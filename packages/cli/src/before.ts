@@ -161,7 +161,8 @@ async function asItWas<T>(repo: Repo, unrecorded: string, commit: string, shared
   let moved = false;
   try {
     try {
-      git(repo, ["stash", "push", "--include-untracked", "--message", aside.stash]);
+      // As Playthrough, as the commit Before is kept in: a git that knows no one can still set the work aside.
+      git(repo, ["stash", "push", "--include-untracked", "--message", aside.stash], { ...process.env, ...PLAYTHROUGH });
       git(repo, ["checkout", "--quiet", "--detach", commit]);
       moved = true;
     } catch (error) {
