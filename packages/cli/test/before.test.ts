@@ -120,11 +120,11 @@ describe("How far Before goes with a flow", () => {
     return ran;
   }
 
-  test("it goes as far as the app as it was can take it, marked where it stopped, with Playwright's reason", async () => {
-    const { recorded, failed } = await ended("TimeoutError: locator.click: Timeout 10000ms exceeded.\nCall log: …");
+  test("it goes as far as the app as it was can take it, marked where it stopped, with Playwright's reason and what it waited for", async () => {
+    const { recorded, failed } = await ended("TimeoutError: locator.waitFor: Timeout 3000ms exceeded.\nCall log:\n  - waiting for getByRole('button', { name: 'Search' }) to be attached\n");
     assert.deepEqual(recorded[0]?.flow.steps.map((step) => step.title), ["Open the expenses"]);
     assert.equal(recorded[0]?.flow.stopped, "Search for the cabin");
-    assert.deepEqual(failed, [{ flow: "Search the expenses", at: "Search for the cabin", why: "TimeoutError: locator.click: Timeout 10000ms exceeded." }]);
+    assert.deepEqual(failed, [{ flow: "Search the expenses", at: "Search for the cabin", why: "TimeoutError: locator.waitFor: Timeout 3000ms exceeded, waiting for getByRole('button', { name: 'Search' }) to be attached" }]);
   });
 
   test("a flow the browser stopped, not the app, says nothing about the app: nothing of the run is kept, and running again tries again", async () => {
@@ -132,7 +132,7 @@ describe("How far Before goes with a flow", () => {
     assert.deepEqual([recorded, failed], [[], [{ flow: "Search the expenses", at: "Search for the cabin", why: "Error: page.goto: Page crashed", broken: true }]]);
     assert.throws(
       () => refuseIfBroken(failed, "Before wasn't recorded", "Run this again."),
-      /Before wasn't recorded, because the browser stopped a flow, not the app:\n  “Search the expenses”, at the step “Search for the cabin”\nPlaywright says why above\. Run this again\.$/,
+      /Before wasn't recorded, because the browser stopped a flow, not the app:\n  “Search the expenses”, at the step “Search for the cabin”, where Playwright says “Error: page\.goto: Page crashed”\nRun this again\.$/,
     );
   });
 });

@@ -112,7 +112,7 @@ async function onBefore(repo: Repo, id: string, flows: string[], doing: string, 
 export function refuseIfBroken(failed: Failed[], unrecorded: string, again: string) {
   const broken = failed.filter((failure) => failure.broken);
   if (broken.length)
-    throw new Refused([`${unrecorded}, because the browser stopped ${broken.length > 1 ? "these flows" : "a flow"}, not the app:`, ...broken.map(failedAt), `Playwright says why above. ${again}`]);
+    throw new Refused([`\n${unrecorded}, because the browser stopped ${broken.length > 1 ? "these flows" : "a flow"}, not the app:`, ...broken.map(failedAt), again]);
 }
 
 // The flows Before has nothing of: they didn't take a step.

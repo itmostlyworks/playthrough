@@ -23,7 +23,7 @@ export async function record(repo: Repo, id: string) {
   const { recorded, failed } = await runFlows(repo, id, number, { first });
   if (failed.length)
     throw new Refused([
-      `Round ${number} wasn't recorded, because ${failed.length > 1 ? "these flows" : "a flow"} failed:`,
+      `\nRound ${number} wasn't recorded, because ${failed.length > 1 ? "these flows" : "a flow"} failed:`,
       ...failed.map(failedAt),
       `Fix ${failed.length > 1 ? "them" : "it"} and record again, which runs ${failed.length > 1 ? "them" : "it"} first. ${whereItStopped(repo, id, failed)}`,
     ]);

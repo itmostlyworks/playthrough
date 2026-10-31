@@ -18,8 +18,9 @@ import { trySetup } from "./try-setup.ts";
 // What the run needs to know, passed to Playwright whole: where the flows are and which of them to run, the folder the
 // recordings go to, the app, rrweb's recorder, which goes into every page, whether it's Before, and the recordings the
 // round has already, so a flow added to it is named apart from them. And when the review started, which every round's
-// clock starts from, and where Playwright writes what it keeps of a failed flow, when it's for the agent to see.
-export type Run = { flows: string; only?: string[]; longest?: string[]; folder: string; results?: string; app: App; root: string; recorder: string; before: boolean; taken: string[]; started: string; walk?: Walk };
+// clock starts from, where Playwright writes what it keeps of a failed flow, when it's for the agent to see, and recorded
+// again, the step each flow stopped at the first time, by the flow's name.
+export type Run = { flows: string; only?: string[]; longest?: string[]; folder: string; results?: string; app: App; root: string; recorder: string; before: boolean; taken: string[]; started: string; walk?: Walk; stops?: Record<string, string> };
 
 // A person's fork walked again on the app as it is now: the flow recorded to where they took it over (a step, and how
 // far into it), what they did there done again after it, and after so many of their steps, what each of their notes is
@@ -51,6 +52,9 @@ export const ALONGSIDE = Symbol.for("playthrough: flows taken over here");
 export const REACHES_OUTSIDE = "reaches outside";
 // A flow pauses this long after each action, so its result can be seen: the pace every recording is watched at.
 export const BEAT = 650;
+// How long an action waits for what it acts on. On Before, a flow that shows what's new stops at the first thing the app
+// as it is doesn't have, so that's given up on in seconds, rather than waited for as a slow page is.
+export const waitsFor = ({ before }: Pick<Run, "before">) => (before ? 3000 : 10_000);
 
 // Flows are modules whatever the app's own package.json says, so they load the same way in every repo.
 export async function makeFlowsFolder(repo: Repo, id: string) {
@@ -109,7 +113,7 @@ export async function runFlows(
   const recorder = join(dirname(createRequire(import.meta.url).resolve("@rrweb/record")), "record.umd.min.cjs");
   // The flows as long as they were last round, longest first, so the round ends close to when its longest flow does.
   const longest = (rounds.filter((kept) => kept.number < round).at(-1)?.flows ?? []).toSorted((a, b) => b.length - a.length).map((flow) => flow.name);
-  const run = (only?: string[], results?: string) => runOnce({ flows, only, longest, results, app, root: repo.root, recorder, before: round === 0, taken: later?.taken ?? [], started });
+  const run = (only?: string[], results?: string, stops?: Run["stops"]) => runOnce({ flows, only, longest, results, app, root: repo.root, recorder, before: round === 0, taken: later?.taken ?? [], started, stops });
 
   const last = round > 0 ? await failedLastTime(repo, id) : [];
   if (last.length) {
@@ -118,9 +122,9 @@ export async function runFlows(
     await keepFailed(repo, id, round, failed);
     const [one] = failed;
     if (failed.length > 1)
-      throw new Refused([`These flows failed again, so the other flows weren't run:`, ...failed.map(failedAt), `Fix them and record again. ${whereItStopped(repo, id, failed)}`]);
+      throw new Refused([`\nThese flows failed again, so the other flows weren't run:`, ...failed.map(failedAt), `Fix them and record again. ${whereItStopped(repo, id, failed)}`]);
     if (one)
-      throw new Refused([`${quote(one.flow)} failed again${one.at ? `, at the step ${quote(one.at)}` : ""}, so the other flows weren't run.`, `Fix it and record again. ${whereItStopped(repo, id, failed)}`]);
+      throw new Refused([`\n${quote(one.flow)} failed again${one.at ? `, at the step ${quote(one.at)}` : ""}, so the other flows weren't run.`, `Fix it and record again. ${whereItStopped(repo, id, failed)}`]);
     console.log(`\n${last.length > 1 ? "They pass" : "It passes"} now, so every flow is recorded.\n`);
   }
 
@@ -138,19 +142,26 @@ export async function runFlows(
   if (!again.length || (round > 0 && once.failed.length)) return once;
 
   console.log(`\nRecording ${list(again.map(({ flow }) => quote(flow.name)))} again, to see what changes by itself…`);
-  // Playwright empties the folder it writes a failed flow's page to, so with one that failed, as on Before, every flow
-  // runs again, and what's kept of each, and pointed to as Playwright says it, is from the second run.
-  const twice = await run(once.failed.length ? later?.flows : again.map(({ flow }) => flow.name), repo.failed(id));
-  await keepFailed(repo, id, round, twice.failed);
+  // A flow that stopped the first time, as on Before, stops there again at once, rather than waiting as long again: what
+  // it recorded up to there is what's compared. Playwright empties the folder it writes a failed flow's page to, so then
+  // the second run's pages aren't kept, and the first run's stay.
+  const stops = Object.fromEntries(once.failed.flatMap(({ flow, at }) => (at ? [[flow, at]] : [])));
+  const results = once.failed.length ? undefined : repo.failed(id);
+  const twice = await run(again.map(({ flow }) => flow.name), results, stops);
+  if (results) await keepFailed(repo, id, round, twice.failed);
   const unlike = again.filter(({ flow }) => {
     const failed = (ran: typeof once) => ran.failed.find((failure) => failure.flow === flow.name)?.at;
     return !twice.recorded.some((kept) => kept.flow.name === flow.name) || failed(once) !== failed(twice);
   });
   if (unlike.length)
     throw new Refused([
-      `${list(unlike.map(({ flow }) => quote(flow.name)))} didn't go the same way twice on the same app:`,
+      `\n${list(unlike.map(({ flow }) => quote(flow.name)))} didn't go the same way twice on the same app:`,
       ...unlike.map(({ flow }) => `  ${quote(flow.name)}: the first time, ${went(once, flow.name)}; the second, ${went(twice, flow.name)}.`),
-      `So ${unlike.length > 1 ? "they don't" : "it doesn't"} start from the same place each time. Flows run several at once on the one app, so what one makes, another can meet: make what every flow starts from in playthrough/setup.ts, the same each time and new for each run, and run this again.`,
+      `So ${unlike.length > 1 ? "they don't" : "it doesn't"} start from the same place each time. ${
+        app.oneAtATime
+          ? "Make what every flow starts from in playthrough/setup.ts, the same each time and new for each run, and run this again."
+          : `Flows run several at once on the one app, so what one makes, another can meet: make what every flow starts from in playthrough/setup.ts, the same each time and new for each run. Where a page shows what every run made, as a blog's index lists every post, say "oneAtATime": true in playthrough/app.json instead. Then run this again.`
+      }`,
     ]);
   const byThemselves = await changesByThemselves(inMemory(round, again), inMemory(round, twice.recorded.filter(({ flow }) => first(flow.name))));
   for (const { flow } of again) {
@@ -212,7 +223,7 @@ async function runOnce(run: Omit<Run, "folder">): Promise<Ran> {
     const ran = await playwright({ ...run, folder });
     const text = await readFile(join(folder, "flows.json"), "utf8").catch(() => undefined);
     const { recorded, failed }: { recorded: Recorded[]; failed: Failed[] } = text ? JSON.parse(text) : { recorded: [], failed: [] };
-    if (!ran && !failed.length) throw new Refused(["The flows didn't run, for the reason Playwright gives above. Fix that and run this again."]);
+    if (!ran && !failed.length) throw new Refused(["\nThe flows didn't run, for the reason Playwright gives above. Fix that and run this again."]);
     const withFiles = ({ flow, files }: Recorded) => Promise.all(files.map(async (name) => ({ name, bytes: await readFile(join(folder, name)) }))).then((files) => ({ flow, files }));
     return { recorded: await Promise.all(recorded.map(withFiles)), failed };
   } finally {
@@ -243,8 +254,8 @@ export async function walkFork(repo: Repo, id: string, walk: Walk): Promise<Walk
   }
 }
 
-// A flow that failed, at the step it failed at, as a line of a refusal.
-export const failedAt = ({ flow, at }: Failed) => `  ${quote(flow)}${at ? `, at the step ${quote(at)}` : ""}`;
+// A flow that failed, at the step it failed at, and why, as a line of a refusal.
+export const failedAt = ({ flow, at, why }: Failed) => `  ${quote(flow)}${at ? `, at the step ${quote(at)}` : ""}${why ? `, where Playwright says “${why}”` : ""}`;
 async function playwright(run: Run): Promise<boolean> {
   // Flows import playthrough/test from the app, so it has to be one of the app's packages.
   try {

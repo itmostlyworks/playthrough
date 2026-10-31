@@ -38,6 +38,9 @@ playthrough/app.json says how to start the app, and is committed so every review
 
   { "start": "npm run dev", "url": "http://localhost:3000" }
 
+Flows run several at once on it. Where a page shows what every run made, as a blog's index lists every post, they'd see
+each other's: add "oneAtATime": true, and each flow waits for the one before it.
+
 Each round, and Before, is recorded on whatever serves that url, and Playthrough starts the app itself only when nothing
 does: leave a server you didn't start running. Recording a flow on Before later, when it's new or Before cut it short,
 sets your work aside with git stash for a minute, unless nothing has changed since Before, puts the app as it was in its

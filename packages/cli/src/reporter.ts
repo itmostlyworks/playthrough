@@ -1,12 +1,13 @@
 // Turns each recorded test into a flow: its name, where each step starts in the recording, and how long it is, with what
 // was read at the end of each step; and names each one that failed and the step it failed at. It runs inside Playwright,
-// so it only writes them down, in the folder the run gave it.
+// so it writes them down, in the folder the run gave it, and says how each went as it ends, in a line of its own: Playwright's
+// list ticked a flow whose checks Before let go by, and printed a stack for one that stopped where it should.
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { Reporter, TestCase, TestResult, TestStep } from "@playwright/test/reporter";
+import type { Reporter, TestCase, TestError, TestResult, TestStep } from "@playwright/test/reporter";
 import type { Glimpse, Reading } from "@playthrough/page";
-import type { Flow, Reviews } from "@playthrough/review";
+import { quote, type Flow, type Reviews } from "@playthrough/review";
 import { assetsOf, type Assets } from "./assets.ts";
 
 export const RECORDING = "playthrough recording";
@@ -30,10 +31,13 @@ const picturesOf = (flow: Flow) => `readings/${flow.recording.replace(/\.json$/,
 // And what was glimpsed after each action, beside them.
 export const glimpsesOf = (flow: Flow) => `${picturesOf(flow)}.glimpses.json`;
 
-// Why, in Playwright's words: the first line of what it says, as much of it as can be read, which an error's text an app
-// sends back, stack and all, may not be.
+// Why, in Playwright's words: the first line of what it says, and for a wait that ran out, what it was waiting for, from
+// the lines under it; as much of it as can be read, which an error's text an app sends back, stack and all, may not be.
 export function firstLine(said: string) {
-  const line = said.replace(/\x1b\[[0-9;]*m/g, "").split("\n")[0]?.trim() ?? "";
+  const lines = said.replace(/\x1b\[[0-9;]*m/g, "").split("\n");
+  let line = lines[0]?.trim() ?? "";
+  const waited = /Timeout \d+ms exceeded/.test(line) && lines.map((under) => under.match(/^\s*- (waiting for .+)$/)?.[1]).find(Boolean);
+  if (waited) line = `${line.replace(/\.$/, "")}, ${waited}`;
   return line.length > 300 ? `${line.slice(0, 300)}…` : line;
 }
 export type Failed ={ flow: string; at?: string; why?: string; broken?: true };
@@ -76,7 +80,13 @@ export default class Flows implements Reporter {
       for (const step of made.flow.steps) if (step.person === made.flow.person) delete step.person;
       return made;
     };
-    if (result.status === "passed") return void (recording && this.#ran.push({ ...where, recorded: as(this.#flow(test.title, recording, read, steps)) }));
+    const went = (how: string) => console.log(`  ${quote(test.title)}: ${how}`);
+    if (result.status === "passed") {
+      if (!recording) return;
+      const recorded = as(this.#flow(test.title, recording, read, steps));
+      this.#ran.push({ ...where, recorded });
+      return went(`to its end, ${Math.round(recorded.flow.length)}s`);
+    }
 
     // It stopped at the step it couldn't do, or after the last one when it failed between them. On Before, it's kept as
     // far as that: what the app as it was could do. Stopped by the browser, it says nothing about the app, so it failed.
@@ -86,11 +96,20 @@ export default class Flows implements Reporter {
     const broken = BROKEN.test(said);
     const why = firstLine(said);
     const failed: Failed = { flow: test.title, ...(stop?.error && { at: stop.title }), ...(why && { why }), ...(broken && { broken }) };
-    if (!this.#before || broken || !recording || !stop || !kept.length) return void this.#ran.push({ ...where, failed });
+    if (!this.#before || broken || !recording || !stop || !kept.length) {
+      this.#ran.push({ ...where, failed });
+      return went(broken ? "the browser stopped it" : this.#before ? "can't start" : failed.at ? `failed at ${quote(failed.at)}` : "failed before its first step");
+    }
     const until = stop.startTime.getTime() + (stop.error ? 0 : stop.duration);
     const recorded = as(this.#flow(test.title, recording, read, kept, until));
     if (stop.error) recorded.flow.stopped = stop.title;
     this.#ran.push({ ...where, failed, recorded });
+    went(stop.error ? `stops at ${quote(stop.title)}` : "stops after its last step");
+  }
+
+  // What stops the run itself, like a flow's file that doesn't load, as Playwright says it.
+  onError(error: TestError) {
+    console.log(`\n${error.message ?? error.value}`);
   }
 
   // A flow cut short ends where it stopped, held as long as any flow's end, with the same last event (rrweb's custom
@@ -135,7 +154,7 @@ export default class Flows implements Reporter {
   }
 
   printsToStdio() {
-    return false;
+    return true;
   }
 
   // Named after the flow, so the files read as what they are.

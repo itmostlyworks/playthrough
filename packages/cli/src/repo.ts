@@ -7,7 +7,9 @@ import { join, relative } from "node:path";
 import { Refused, Reviews } from "@playthrough/review";
 import { folder } from "@playthrough/review/folder";
 
-export type App = { start: string; url: string };
+// And whether its flows run one at a time: on an app with a page that shows what every run made, as a blog's index lists
+// every post, flows run side by side would see each other's.
+export type App = { start: string; url: string; oneAtATime?: boolean };
 export type Repo = ReturnType<typeof repo>;
 
 export function repo(root = process.cwd()) {
@@ -49,7 +51,8 @@ export function repo(root = process.cwd()) {
         throw new Refused([`playthrough/app.json isn't JSON: ${(error as Error).message}. ${how}`]);
       }
       if (!isText(app.start) || !isText(app.url)) throw new Refused([`playthrough/app.json needs both “start” and “url”. ${how}`]);
-      return { start: app.start, url: app.url };
+      if (app.oneAtATime !== undefined && typeof app.oneAtATime !== "boolean") throw new Refused([`playthrough/app.json's “oneAtATime” is true or false: true runs each flow by itself.`]);
+      return { start: app.start, url: app.url, ...(app.oneAtATime && { oneAtATime: true }) };
     },
   };
 }

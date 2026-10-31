@@ -438,6 +438,8 @@ const step = Object.assign(async (title: string, body: (info: unknown) => unknow
   return playwrightStep(
     title,
     async (info) => {
+      // Recorded again, a flow stops where it stopped the first time, without waiting there as long again.
+      if (run?.stops?.[base.info().title] === title) throw new Error("It stopped here the first time it was recorded.");
       Object.assign(flow, { step: title, inStep: 0 });
       flow.depth++;
       let done: unknown;
@@ -522,7 +524,9 @@ function pace(page: Page) {
         await pointer.page.mouse.move(pointer.x, pointer.y);
         await pointer.page.waitForTimeout(HANDING);
       }
-      if (pointer) await approach(this, pointer);
+      // As long as the flow said to wait, where it said.
+      const timeout = args.findLast((arg): arg is { timeout: number } => !!arg && typeof arg === "object" && typeof (arg as { timeout?: unknown }).timeout === "number")?.timeout;
+      if (pointer) await approach(this, pointer, timeout);
       // Filled in on a recording, words are typed as a person types them, where they're typed: a date or a number is
       // set as it is, as typing it can come out otherwise.
       const [text, options] = args as [unknown, { timeout?: number } | undefined];
@@ -658,7 +662,10 @@ const typedInto = (target: Locator) =>
     .evaluate((on) => (on as HTMLElement).isContentEditable || on instanceof HTMLTextAreaElement || (on instanceof HTMLInputElement && ["text", "search", "email", "url", "tel", "password"].includes(on.type)))
     .catch(() => false);
 
-async function approach(target: Locator, at: { page: Page; x: number; y: number }) {
+async function approach(target: Locator, at: { page: Page; x: number; y: number }, timeout?: number) {
+  // What it acts on is waited for here, as long as the action waits (flows.ts), and one that never comes fails here, in
+  // Playwright's words: waited for again by the action, it took twice as long to give up on.
+  await target.waitFor({ state: "attached", timeout });
   const scroll = await target
     .evaluate((element) => {
       const box = element.getBoundingClientRect();
@@ -666,8 +673,7 @@ async function approach(target: Locator, at: { page: Page; x: number; y: number 
       const most = document.documentElement.scrollHeight - innerHeight;
       return { from: scrollY, to: Math.max(0, Math.min(most, scrollY + box.top + box.height / 2 - innerHeight / 2)) };
     }, undefined, { timeout: 5000 })
-    .catch(() => "missing" as const);
-  if (scroll === "missing") return; // the action itself waits for it, and says why it can't
+    .catch(() => undefined);
   if (scroll && Math.abs(scroll.to - scroll.from) >= 1) {
     const moves = Math.max(10, Math.min(36, Math.round(Math.abs(scroll.to - scroll.from) / 25)));
     for (let i = 1; i <= moves; i++) {

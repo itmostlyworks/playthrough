@@ -78,7 +78,7 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
     await writeFile(join(app.flows, "overdue.ts"), seeOverdue.replace("toHaveCount(3)", "toHaveCount(30, { timeout: 1000 })"));
     const { said, code } = await app.run(["record", "overdue"]);
     assert.equal(code, 1);
-    assert.match(said, /Round 1 wasn't recorded, because a flow failed:\n  “See what's overdue”, at the step “Show only the overdue ones”\nFix it and record again, which runs it first\./);
+    assert.match(said, /Round 1 wasn't recorded, because a flow failed:\n  “See what's overdue”, at the step “Show only the overdue ones”, where Playwright says “[^\n]+”\nFix it and record again, which runs it first\./);
     assert.deepEqual((await app.reviews.get("overdue")).rounds.map((round) => round.number), [0]);
   });
 
