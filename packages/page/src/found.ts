@@ -2,7 +2,7 @@
 // nothing in another; what links them is the page each step left, read on both rounds and paired as the comparison pairs
 // it: the same step, by its title, and on it the thing that's the same thing.
 
-import { inStep, type Element, type Flow, type Place } from "@mostlyworks/vantage-review";
+import { inStep, type Element, type Flow, type Place } from "@playthrough/review";
 import { differences } from "./differences.ts";
 import type { Reading, Thing } from "./reading.ts";
 

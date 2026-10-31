@@ -1,24 +1,24 @@
-# Vantage
+# Playthrough
 
 The agent says it's done. You decide if it's good.
 
-Vantage records your coding agent's change the way a person would use it, before and after, so you can watch it instead of setting it up by hand. Point at what's wrong, right on the recording, and the next round answers it there. Take over any moment and carry on in the real app. It runs on your machine, with any coding agent that has a shell.
+Playthrough records your coding agent's change the way a person would use it, before and after, so you can watch it instead of setting it up by hand. Point at what's wrong, right on the recording, and the next round answers it there. Take over any moment and carry on in the real app. It runs on your machine, with any coding agent that has a shell.
 
 ## How a review goes
 
-1. You ask your agent for a change, and to show it to you with Vantage.
-2. Before it touches the code, the agent writes a flow for each thing a person does that the change touches, and Vantage records them on the app as it is: Before.
-3. The agent makes the change, and Vantage records every flow again. It finds what changed itself, including what the agent didn't mention, and the agent says why each change is there.
+1. You ask your agent for a change, and to show it to you with Playthrough.
+2. Before it touches the code, the agent writes a flow for each thing a person does that the change touches, and Playthrough records them on the app as it is: Before.
+3. The agent makes the change, and Playthrough records every flow again. It finds what changed itself, including what the agent didn't mention, and the agent says why each change is there.
 4. You watch. Leave a note on what's wrong, where it's wrong; compare with Before; take over and try it yourself. Then send.
 5. The agent answers each note in the next round, on the spot the note is on. You check its answers, and accept once every flow looks good.
 
 ## Try it
 
-Vantage needs Node 24 or later. It isn't on npm yet, so for now it runs from this repo:
+Playthrough needs Node 24 or later. It isn't on npm yet, so for now it runs from this repo:
 
 ```bash
-git clone https://github.com/itmostlyworks/vantage
-cd vantage
+git clone https://github.com/itmostlyworks/playthrough
+cd playthrough
 npm install
 npx playwright install chromium
 npm run build
@@ -26,19 +26,19 @@ npm run build
 
 `example/` is a small invoices app to try it on. From there, ask your agent:
 
-> Show only the overdue invoices. Use Vantage to show me the change: run `npx vantage` and follow what it says.
+> Show only the overdue invoices. Use Playthrough to show me the change: run `npx playthrough` and follow what it says.
 
-The agent starts a review, records it, and hands it to you with `vantage wait`. Open it:
+The agent starts a review, records it, and hands it to you with `playthrough wait`. Open it:
 
 ```bash
-npx vantage open
+npx playthrough open
 ```
 
 ## On your own app
 
-Run your agent in your app's repo, with the same request, pointing at Vantage as `node <this repo>/packages/cli/src/vantage.ts`. The first time, the agent writes `vantage/app.json`, which says how to start your app, and `vantage/setup.ts` if flows need something first: a signed-in user, an account with data in it, or the people who use the app. Both are committed with your app, so every review after uses them.
+Run your agent in your app's repo, with the same request, pointing at Playthrough as `node <this repo>/packages/cli/src/playthrough.ts`. The first time, the agent writes `playthrough/app.json`, which says how to start your app, and `playthrough/setup.ts` if flows need something first: a signed-in user, an account with data in it, or the people who use the app. Both are committed with your app, so every review after uses them.
 
-Reviews are kept in `.vantage/` in your app's repo, recordings and all. Nothing is uploaded anywhere.
+Reviews are kept in `.playthrough/` in your app's repo, recordings and all. Nothing is uploaded anywhere.
 
 ## In the viewer
 
@@ -57,7 +57,7 @@ At the end of each flow, say whether it looks good. Send, and the agent starts o
 
 ## More
 
-- [How Vantage works](docs/how-it-works.md): everything it does, in detail.
-- [What the agent reads](packages/cli/INSTRUCTIONS.md): everything `vantage` tells an agent, printed when it runs bare.
+- [How Playthrough works](docs/how-it-works.md): everything it does, in detail.
+- [What the agent reads](packages/cli/INSTRUCTIONS.md): everything `playthrough` tells an agent, printed when it runs bare.
 - Flows are [Playwright](https://playwright.dev) tests, so an agent already knows how to write them.
 - Claude Code, Codex, Cursor and Gemini CLI are recognised by their shell. Any other agent gives its name.

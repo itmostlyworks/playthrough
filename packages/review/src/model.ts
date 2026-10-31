@@ -1,5 +1,5 @@
 // What a review is. A review is one piece of work an agent does, round after round, until a person accepts it.
-// The agent records rounds, answers notes and says why each change is there; Vantage compares each round with the ones
+// The agent records rounds, answers notes and says why each change is there; Playthrough compares each round with the ones
 // before it; people send notes and verdicts. Each thing here has one writer, and once written, only a round still being
 // worked on ever changes, and Before, which gains each flow added later.
 //
@@ -88,7 +88,7 @@ export const Flow = z.strictObject({
   line: text("needs words in its line, or no line").optional().describe("The agent's, at the flow's start: what it starts from, or the choice it shows"),
   stopped: text("needs the step it stopped at")
     .optional()
-    .describe("On Before, the step the flow couldn't take there: it's kept as far as that, and tried again by vantage start"),
+    .describe("On Before, the step the flow couldn't take there: it's kept as far as that, and tried again by playthrough start"),
   person: text("needs the name of who it acts as, or no person")
     .optional()
     .describe("Who the flow is done as, as its file or the app's setup names them: the name on the recorded pointer, handed to you when you take over"),
@@ -98,7 +98,7 @@ export const Flow = z.strictObject({
     .describe("Changes found between two recordings of the same app, like a time the server stamps: left out of every comparison, in every flow"),
 });
 
-// Something different on screen between two rounds, found by Vantage and said in its fixed words.
+// Something different on screen between two rounds, found by Playthrough and said in its fixed words.
 export const Change = z.strictObject({
   id: text("needs an id").describe("Its thing and its kind of change, so it keeps its id in every round while it's the same change"),
   words: text("needs its words").describe("What changed, for the agent: “Download CSV and Cancel have swapped places”"),

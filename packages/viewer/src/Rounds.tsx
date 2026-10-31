@@ -6,7 +6,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
 import { flushSync } from "react-dom";
-import type { Round } from "@mostlyworks/vantage-review";
+import type { Round } from "@playthrough/review";
 import { clamp } from "./moments.ts";
 import { roll, type Part } from "./odometer.ts";
 

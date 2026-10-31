@@ -2,7 +2,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { Flow } from "@mostlyworks/vantage-review";
+import type { Flow } from "@playthrough/review";
 import { along, CARD, momentAt, titleCard } from "../src/moments.ts";
 
 const flow = (length: number, steps: [string, number][]): Flow => ({ name: "Settle up", length, steps: steps.map(([title, at]) => ({ title, at })), recording: "settle-up.json" });

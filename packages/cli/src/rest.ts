@@ -31,7 +31,7 @@ function watch() {
       still += Math.min(now() - last, 50);
       last = now();
     }
-    (window as any).__vantageStill = still;
+    (window as any).__playthroughStill = still;
     nextFrame(drawn);
   };
   nextFrame(drawn);
@@ -59,4 +59,4 @@ export async function watchRest(page: Page): Promise<() => Promise<void>> {
 }
 
 const stillFor = (page: Page): Promise<number> =>
-  page.evaluate(() => (window as any).__vantageStill ?? 0).catch(() => 0); // the page is on its way to another
+  page.evaluate(() => (window as any).__playthroughStill ?? 0).catch(() => 0); // the page is on its way to another

@@ -58,7 +58,7 @@ export function Beside({ id, over, standing, still, resting, pinned, onAway, chi
       addEventListener("pointerup", up, true);
     };
     // The app keeps its clicks to itself, and says so.
-    const inApp = ({ data }: MessageEvent) => data?.vantage === "down" && card.current && away.current?.();
+    const inApp = ({ data }: MessageEvent) => data?.playthrough === "down" && card.current && away.current?.();
     addEventListener("pointerdown", down, true);
     addEventListener("message", inApp);
     return () => {

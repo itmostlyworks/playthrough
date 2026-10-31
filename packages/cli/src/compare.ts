@@ -4,14 +4,14 @@
 // several flows, or at several steps, is one change, seen in each flow where it first shows there.
 
 import { chromium, type Page } from "@playwright/test";
-import { list, quote, Refused, type Change, type Comparison, type Flow, type Place, type Reviews, type Step } from "@mostlyworks/vantage-review";
+import { list, quote, Refused, type Change, type Comparison, type Flow, type Place, type Reviews, type Step } from "@playthrough/review";
 import { changesAt, idOf } from "./changes.ts";
 import { picturesAt } from "./pictures.ts";
-import type { Glimpse, Reading } from "@mostlyworks/vantage-page";
+import type { Glimpse, Reading } from "@playthrough/page";
 import { glimpsesOf, readingsOf } from "./reporter.ts";
 
 // A round as recorded: its flows, what was read at the end of each of their steps, with its picture, and what was glimpsed
-// after each action, in a round recorded since Vantage glimpsed.
+// after each action, in a round recorded since Playthrough glimpsed.
 export type Recorded = { number: number; flows: Flow[]; readings: (flow: Flow) => Promise<Reading[]>; glimpses?: (flow: Flow) => Promise<Glimpse[]>; picture: (name: string) => Promise<Buffer> };
 
 // The round being worked on, compared with each round before it, from what's kept of each.
@@ -48,7 +48,7 @@ function kept(reviews: Reviews, id: string, number: number, flows: Flow[]): Reco
   const file = async (name: string) => {
     const bytes = await reviews.file(id, number, name);
     if (!bytes)
-      throw new Refused([`${number === 0 ? "Before" : `Round ${number}`} has no ${name}, so it can't be compared: it was recorded before Vantage read each step. Start the review again.`]);
+      throw new Refused([`${number === 0 ? "Before" : `Round ${number}`} has no ${name}, so it can't be compared: it was recorded before Playthrough read each step. Start the review again.`]);
     return Buffer.from(bytes);
   };
   const glimpses = async (flow: Flow) => {

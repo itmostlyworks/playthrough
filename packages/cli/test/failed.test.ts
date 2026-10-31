@@ -16,7 +16,7 @@ const was = process.cwd();
 
 // What Playwright leaves after a run: the page a flow failed on, an empty folder for one that passed, and its own notes.
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), "vantage-failed-"));
+  root = await mkdtemp(join(tmpdir(), "playthrough-failed-"));
   process.chdir(root);
   app = repo(root);
   await mkdir(join(app.failed("list-counts"), "filter-copy"), { recursive: true });
@@ -53,7 +53,7 @@ describe("A flow that fails", () => {
   });
 
   test("the refusal ends with where to look, as a person in the app's folder would type it", () => {
-    assert.equal(whereItStopped(app, "list-counts", [copy]), "What the page held where it stopped is in .vantage/list-counts/failed/.");
-    assert.equal(whereItStopped(app, "list-counts", [copy, { flow: "Count the cards" }]), "What the page held where each stopped is in .vantage/list-counts/failed/.");
+    assert.equal(whereItStopped(app, "list-counts", [copy]), "What the page held where it stopped is in .playthrough/list-counts/failed/.");
+    assert.equal(whereItStopped(app, "list-counts", [copy, { flow: "Count the cards" }]), "What the page held where each stopped is in .playthrough/list-counts/failed/.");
   });
 });

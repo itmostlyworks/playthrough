@@ -4,7 +4,7 @@
 // beside what it's on, as an open one is.
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { list, time, type Turn, type Verdict } from "@mostlyworks/vantage-review";
+import { list, time, type Turn, type Verdict } from "@playthrough/review";
 import { Answer, Compare, mac, play, Said, TakeOverHere, tick, Time } from "./Card.tsx";
 import type { Changed } from "./changes.ts";
 import { ink, type Shown } from "./notes.ts";

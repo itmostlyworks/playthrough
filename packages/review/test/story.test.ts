@@ -1,5 +1,5 @@
 // A review told from start to finish, with two people reviewing it: what each of them is shown, what asks them again,
-// and what goes back to the agent. The changes are written by hand, as Vantage's comparison would find them.
+// and what goes back to the agent. The changes are written by hand, as Playthrough's comparison would find them.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";

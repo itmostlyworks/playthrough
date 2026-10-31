@@ -2,14 +2,14 @@
 // yet, so a flow the agent adds later can be recorded on it too. That happens in the agent's own working copy, the one
 // copy known to run: its env files, installed packages and local data stay as they are, since git leaves what it ignores
 // alone. The agent's work is set aside with git stash meanwhile, and put back after, even when recording fails or
-// Vantage is stopped. It's recorded on whatever serves the app, as every round is: a server already running follows the
+// Playthrough is stopped. It's recorded on whatever serves the app, as every round is: a server already running follows the
 // working copy, as a dev server does, so for that minute it serves the app as it was.
 
 import { execFileSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { constants, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { list, quote, Refused, type Flow } from "@mostlyworks/vantage-review";
+import { list, quote, Refused, type Flow } from "@playthrough/review";
 import { failedAt, runFlows, whereItStopped } from "./flows.ts";
 import type { Failed } from "./reporter.ts";
 import type { Repo } from "./repo.ts";
@@ -21,8 +21,8 @@ export function keepBefore(repo: Repo, id: string): string | undefined {
   try {
     const tree = treeNow(repo);
     const head = attempt(() => git(repo, ["rev-parse", "--verify", "--quiet", "HEAD"]));
-    const commit = git(repo, ["commit-tree", "--no-gpg-sign", ...(head ? ["-p", head] : []), "-m", `Before, of the review ${id}: the app as it was, with what wasn't committed`, tree], { ...process.env, ...VANTAGE });
-    git(repo, ["update-ref", `refs/vantage/${id}/before`, commit]);
+    const commit = git(repo, ["commit-tree", "--no-gpg-sign", ...(head ? ["-p", head] : []), "-m", `Before, of the review ${id}: the app as it was, with what wasn't committed`, tree], { ...process.env, ...PLAYTHROUGH });
+    git(repo, ["update-ref", `refs/playthrough/${id}/before`, commit]);
     return commit;
   } catch (error) {
     throw new Refused(["Before can't be kept as a commit, because git says:", `  ${said(error)}`, "Fix that and run this again."]);
@@ -32,7 +32,7 @@ export function keepBefore(repo: Repo, id: string): string | undefined {
 // What the working copy holds, committed or not, as a git tree, through an index of its own so what the agent staged
 // stays as it was.
 function treeNow(repo: Repo): string {
-  const folder = mkdtempSync(join(tmpdir(), "vantage-"));
+  const folder = mkdtempSync(join(tmpdir(), "playthrough-"));
   try {
     const index = join(folder, "index");
     // Starting from the agent's index, git only reads the files that changed.
@@ -45,8 +45,8 @@ function treeNow(repo: Repo): string {
   }
 }
 
-// The commit is Vantage's, whoever's git this is.
-const VANTAGE = { GIT_AUTHOR_NAME: "Vantage", GIT_AUTHOR_EMAIL: "vantage@localhost", GIT_COMMITTER_NAME: "Vantage", GIT_COMMITTER_EMAIL: "vantage@localhost" };
+// The commit is Playthrough's, whoever's git this is.
+const PLAYTHROUGH = { GIT_AUTHOR_NAME: "Playthrough", GIT_AUTHOR_EMAIL: "playthrough@localhost", GIT_COMMITTER_NAME: "Playthrough", GIT_COMMITTER_EMAIL: "playthrough@localhost" };
 
 // Each flow Before hasn't been tried on is recorded on it too, as far as the app as it was can take it, so every flow is
 // compared with how the app was. Where the app as it was can't start one, Before says so, and it isn't tried again.
@@ -59,7 +59,7 @@ export async function recordOnBefore(repo: Repo, id: string, number: number, flo
   await onBefore(repo, id, later, `${list(later.map(quote))} ${are} new, so ${they} recorded on Before too`, `Round ${number} wasn't recorded`, "Record again.");
 }
 
-// The flows Before cut short or couldn't start, tried on it again, as vantage start does once Before is recorded: a flow
+// The flows Before cut short or couldn't start, tried on it again, as playthrough start does once Before is recorded: a flow
 // that stopped for its own mistake, not the app's, goes as far as the app as it was can take it once it's fixed.
 export async function tryBeforeAgain(repo: Repo, id: string, flows: string[]) {
   const [them, they] = flows.length > 1 ? ["them", "they"] : ["it", "it"];
@@ -79,7 +79,7 @@ async function onBefore(repo: Repo, id: string, flows: string[], doing: string, 
       throw error;
     });
   let ran: Awaited<ReturnType<typeof run>>;
-  // Nothing changed outside .vantage/ since Before, the app as it is is the app as it was, and nothing needs setting aside.
+  // Nothing changed outside .playthrough/ since Before, the app as it is is the app as it was, and nothing needs setting aside.
   if (treeNow(repo) === git(repo, ["rev-parse", `${before.commit}^{tree}`])) {
     console.log(`\n${doing}, on the app as it is: nothing has changed since Before.`);
     ran = await run();
@@ -121,7 +121,7 @@ export function howFar(repo: Repo, id: string, recorded: { flow: Flow }[], faile
   // An app as it was that didn't start left no page to see.
   const where = existsSync(repo.failed(id)) ? ` ${whereItStopped(repo, id, failed)}` : "";
   if (lines.length)
-    lines.push(`If that's the app as it was, that's Before. If it's the flow's own mistake, fix the flow and run vantage start ${id} again: it tries the flows Before cut short again.${where}`);
+    lines.push(`If that's the app as it was, that's Before. If it's the flow's own mistake, fix the flow and run playthrough start ${id} again: it tries the flows Before cut short again.${where}`);
   return lines;
 }
 
@@ -132,11 +132,11 @@ type SetAside = { back: string; stash: string; by: number; shared?: boolean };
 const SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP"] as const;
 
 // The working copy holds the app as it was while `run` runs, then the agent's work again. Where the work is goes in
-// .vantage/ first, so if Vantage is stopped halfway the next command puts it back; stopped by a signal, it puts it back
+// .playthrough/ first, so if Playthrough is stopped halfway the next command puts it back; stopped by a signal, it puts it back
 // itself before it ends.
 async function asItWas<T>(repo: Repo, unrecorded: string, commit: string, shared: boolean, run: () => Promise<T>): Promise<T> {
   await repo.keepOutOfGit();
-  const aside: SetAside = { back: here(repo), stash: `Vantage: your work, set aside while flows record on Before, ${new Date().toISOString()}`, by: process.pid, ...(shared && { shared }) };
+  const aside: SetAside = { back: here(repo), stash: `Playthrough: your work, set aside while flows record on Before, ${new Date().toISOString()}`, by: process.pid, ...(shared && { shared }) };
   writeFileSync(repo.setAside, JSON.stringify(aside));
   // Listened for until the work is back, so a second signal can't end it halfway.
   let stopping = false;
@@ -168,7 +168,7 @@ async function asItWas<T>(repo: Repo, unrecorded: string, commit: string, shared
 }
 
 // A command that finds the work still set aside, by one that was stopped halfway, puts it back before anything else.
-// Stopped hard, it can leave the app as it was serving, if Vantage started it, which the next round mustn't be recorded
+// Stopped hard, it can leave the app as it was serving, if Playthrough started it, which the next round mustn't be recorded
 // on; a server of the agent's follows the work back.
 export async function putBack(repo: Repo) {
   const aside: SetAside | undefined = attempt(() => JSON.parse(readFileSync(repo.setAside, "utf8")));
@@ -177,7 +177,7 @@ export async function putBack(repo: Repo) {
   const problem = putWorkBack(repo, aside, false);
   if (problem) throw stillAside(repo, aside, problem);
   if (!toDo) return;
-  const back = `Vantage was stopped while your work was set aside for a flow to record on Before. It's back now, on ${aside.back}.`;
+  const back = `Playthrough was stopped while your work was set aside for a flow to record on Before. It's back now, on ${aside.back}.`;
   const url = (await repo.app().catch(() => undefined))?.url;
   if (url && !aside.shared && (await serving(url))) throw new Refused([back, `Something is still serving ${url}, most likely the app as it was, left running: stop it, then run this again.`]);
   console.log(`${back}\n`);
@@ -201,7 +201,7 @@ function stillAside(repo: Repo, aside: SetAside, problem: string): Refused {
   return new Refused([
     "Your work is still set aside, from recording a flow on Before, and git couldn't put it back by itself, because it says:",
     `  ${problem}`,
-    `Put it back with git checkout ${aside.back}${stash ? `, then git stash pop --index ${stash}` : ""}. Vantage carries on once it's back.`,
+    `Put it back with git checkout ${aside.back}${stash ? `, then git stash pop --index ${stash}` : ""}. Playthrough carries on once it's back.`,
   ]);
 }
 

@@ -1,4 +1,4 @@
-// What Vantage calls things, and what happened to them, in its fixed words: “Export button”, “Total for Q3 $27,785.00”, the
+// What Playthrough calls things, and what happened to them, in its fixed words: “Export button”, “Total for Q3 $27,785.00”, the
 // “Who owes whom” area. Never the agent's words: the same thing is called the same way in every change.
 
 import type { Thing } from "./reading.ts";
@@ -22,7 +22,7 @@ export function called(thing: Named): string {
   if (thing.role === "status" || thing.role === "alert") return "Message";
   if (thing.role === "box") return `“${cut(areaName(thing))}” ${thing.live ? "message" : "area"}`;
   if (thing.role === "text") return `“${cut(thing.words)}”`;
-  // What Vantage has no word for, such as a list item noted in the app, is called by its words, as a text is.
+  // What Playthrough has no word for, such as a list item noted in the app, is called by its words, as a text is.
   if (!WORD[thing.role] && thing.name) return `“${cut(thing.name)}”`;
   if (thing.role === "menuitem" && thing.name) return `“${cut(thing.name)}” in the menu`;
   if (symbolOnly(thing)) return thing.name;

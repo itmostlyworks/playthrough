@@ -5,23 +5,23 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Reporter, TestCase, TestResult, TestStep } from "@playwright/test/reporter";
-import type { Glimpse, Reading } from "@mostlyworks/vantage-page";
-import type { Flow, Reviews } from "@mostlyworks/vantage-review";
+import type { Glimpse, Reading } from "@playthrough/page";
+import type { Flow, Reviews } from "@playthrough/review";
 import { assetsOf, type Assets } from "./assets.ts";
 
-export const RECORDING = "vantage recording";
-export const READINGS = "vantage readings";
-export const GLIMPSES = "vantage glimpses";
-export const PICTURE = "vantage picture";
-export const ASSETS = "vantage assets";
-export const PERSON = "vantage person";
-export const HANDS = "vantage hands";
-export const ACTIONS = "vantage actions";
+export const RECORDING = "playthrough recording";
+export const READINGS = "playthrough readings";
+export const GLIMPSES = "playthrough glimpses";
+export const PICTURE = "playthrough picture";
+export const ASSETS = "playthrough assets";
+export const PERSON = "playthrough person";
+export const HANDS = "playthrough hands";
+export const ACTIONS = "playthrough actions";
 export const HOLD = 1500; // the end of a flow holds, so its last state can be seen
 
 // A flow's readings go beside the round's recordings, under the same name, each picture in a folder of its own.
 export const readingsOf = (flow: Flow) => `readings/${flow.recording}`;
-// As kept: none for a flow recorded before Vantage read each step.
+// As kept: none for a flow recorded before Playthrough read each step.
 export async function readingsOn(reviews: Reviews, review: string, round: number, flow: Flow): Promise<Reading[]> {
   const bytes = await reviews.file(review, round, readingsOf(flow));
   return bytes ? JSON.parse(Buffer.from(bytes).toString()) : [];

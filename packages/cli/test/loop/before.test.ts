@@ -25,15 +25,15 @@ describe("The command line, as an agent uses it, on Before", { timeout: 300_000 
   test("Before keeps what it was recorded from as a commit, with what wasn't committed yet, and the reviews stay out of git", async () => {
     await app.run(["start", "overdue", "Show only overdue invoices", "Can the invoices list show just the overdue ones?"]);
     await writeFile(join(app.flows, "overdue.ts"), seeOverdue);
-    await mkdir(join(app.repo, "vantage"));
-    await writeFile(join(app.repo, "vantage/app.json"), JSON.stringify(app.app));
+    await mkdir(join(app.repo, "playthrough"));
+    await writeFile(join(app.repo, "playthrough/app.json"), JSON.stringify(app.app));
     const { said, code } = await app.run(["start", "overdue"]);
     assert.equal(code, 0, said);
 
     const { commit } = await app.round(0);
-    assert.equal(app.git("rev-parse", "refs/vantage/overdue/before"), commit);
-    assert.match(app.git("show", `${commit}:vantage/app.json`), /node serve\.ts/, "vantage/app.json isn't committed yet, and it's in it");
-    assert.equal(app.git("status", "--porcelain"), "?? vantage/");
+    assert.equal(app.git("rev-parse", "refs/playthrough/overdue/before"), commit);
+    assert.match(app.git("show", `${commit}:playthrough/app.json`), /node serve\.ts/, "playthrough/app.json isn't committed yet, and it's in it");
+    assert.equal(app.git("status", "--porcelain"), "?? playthrough/");
   });
 
   test("a flow added later is recorded on Before too, as far as the app as it was can take it, and the agent's work is put back", async () => {
@@ -52,7 +52,7 @@ describe("The command line, as an agent uses it, on Before", { timeout: 300_000 
     );
     assert.match(
       said,
-      /Your work is back\.\n“Export the paid ones” stops at “Export them”, where Playwright says “[^”\n]+”, so its Before goes as far as that\.\n“Open the export” can't start on the app as it was, where Playwright says “[^”\n]+”, so it has no Before\.\nIf that's the app as it was, that's Before\. If it's the flow's own mistake, fix the flow and run vantage start \S+ again/,
+      /Your work is back\.\n“Export the paid ones” stops at “Export them”, where Playwright says “[^”\n]+”, so its Before goes as far as that\.\n“Open the export” can't start on the app as it was, where Playwright says “[^”\n]+”, so it has no Before\.\nIf that's the app as it was, that's Before\. If it's the flow's own mistake, fix the flow and run playthrough start \S+ again/,
     );
     assert.deepEqual(await work(), was);
     assert.equal(await readFile(join(app.repo, "notes.txt"), "utf8"), "What's left to do");
@@ -68,7 +68,7 @@ describe("The command line, as an agent uses it, on Before", { timeout: 300_000 
     assert.ok(seenIn(/^Export button is new/)?.includes("Export the paid ones"));
   });
 
-  test("stopped while a flow records on Before, Vantage puts the agent's work back before it ends", async () => {
+  test("stopped while a flow records on Before, Playthrough puts the agent's work back before it ends", async () => {
     const was = await work();
     await writeFile(join(app.flows, "look.ts"), lookThrough);
     const { said } = await app.run(["record", "overdue"], { says: /on Before, the app as it was…/, signal: "SIGTERM" });

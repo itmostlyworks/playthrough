@@ -3,8 +3,8 @@
 // and says what's left before it can be handed over: an answer to each note, and why each change since the round before
 // is there. Recording again keeps whatever the agent already wrote in the round.
 
-import { placeIn } from "@mostlyworks/vantage-page";
-import { lastSeen, list, notesToAnswer, problemsFinishing, quote, Refused, roundInProgress, type Flow, type Reply, type Review } from "@mostlyworks/vantage-review";
+import { placeIn } from "@playthrough/page";
+import { lastSeen, list, notesToAnswer, problemsFinishing, quote, Refused, roundInProgress, type Flow, type Reply, type Review } from "@playthrough/review";
 import { agent, unnamed } from "./agent.ts";
 import { recordOnBefore } from "./before.ts";
 import { compareWithEarlier } from "./compare.ts";
@@ -67,12 +67,12 @@ export async function record(repo: Repo, id: string) {
     const [are, each] = unsaid.length > 1 ? ["are", "each"] : ["is", "it"];
     console.log(`\n${list(unsaid.map((flow) => quote(flow.name)))} ${are} new to the reviewer. In ${file}, ${each} can have a line at its start, as “line” in its flow under “flows”: what it starts from, or the choice it shows, in a sentence.`);
   }
-  if (by === unnamed) console.log(`\nVantage can't tell which agent you are. Write your name in ${file} as “by”, and each of your answers shows it.`);
-  console.log(left.length ? `\nThen hand it over: vantage wait ${id}` : `\nHand it over when it's ready: vantage wait ${id}`);
+  if (by === unnamed) console.log(`\nPlaythrough can't tell which agent you are. Write your name in ${file} as “by”, and each of your answers shows it.`);
+  console.log(left.length ? `\nThen hand it over: playthrough wait ${id}` : `\nHand it over when it's ready: playthrough wait ${id}`);
   console.log("It waits for the person's notes, which can take hours: run it in the background, so you're told when it ends.");
 }
 
-// Each answer shows where its note's thing is on this round's recording, found by Vantage from the last round it was
+// Each answer shows where its note's thing is on this round's recording, found by Playthrough from the last round it was
 // seen on, never said by the agent: the next try lands right beside what was noted. One made in the app is placed on its
 // fork as it was walked again, where the person's steps got to.
 async function placed(repo: Repo, review: Review, number: number, flows: Flow[], reply: Reply, walked: WalkedNote[]): Promise<Reply> {

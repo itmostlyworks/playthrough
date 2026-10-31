@@ -11,7 +11,7 @@ function Reviews() {
   return (
     <Page>
       <ul className="mx-auto w-full max-w-xl self-start pt-10">
-        {reviews.length === 0 && <li className="text-soft">There are no reviews here yet. An agent starts one with vantage start.</li>}
+        {reviews.length === 0 && <li className="text-soft">There are no reviews here yet. An agent starts one with playthrough start.</li>}
         {reviews.map((review) => (
           <li key={review.id}>
             <a href={`/${review.id}`} className="flex items-baseline gap-4 rounded-lg px-3 py-2.5 transition-colors duration-150 ease-calm hover:bg-hover">

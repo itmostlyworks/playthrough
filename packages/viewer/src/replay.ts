@@ -1,7 +1,7 @@
 // One flow's recording, replayed by rrweb in a page of its own and moved to the moment the playhead says: forward a
 // little at a time, or rebuilt from its first frame to go back. The page's own motion follows the playback speed, holds
 // where you pause, and is already over where you jump to. Its pointer and clicks are read from the recording's own
-// events, for Vantage to draw over it.
+// events, for Playthrough to draw over it.
 
 import { EventType, IncrementalSource, MouseInteractions, Replayer, type eventWithTime } from "rrweb";
 
@@ -20,7 +20,7 @@ export type Recorded = {
   loads: number[];
   // Where the pointer was, as [seconds, x, y], and when it clicked.
   pointer: [number, number, number][];
-  // When the hand was out of the app: in a recording you made by taking a flow over, going to Vantage's own controls.
+  // When the hand was out of the app: in a recording you made by taking a flow over, going to Playthrough's own controls.
   away: [number, number][];
   clicks: number[];
   // The moments its page changes: a click, something on the page changing, typing or a scroll.

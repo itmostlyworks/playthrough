@@ -1,4 +1,4 @@
-// What every flow of the app starts from, made by vantage/setup.ts before each flow, if the app has one: its default
+// What every flow of the app starts from, made by playthrough/setup.ts before each flow, if the app has one: its default
 // export is given the page, Playwright's request and who the flow is done as, and what it returns is each flow's
 // “setup”. Each run makes its own, so no two start from what another left, and gives it back once it's over: setup's
 // `after`, if it has one, is given what was made, and takes it away, so the app, shared or not, isn't left with a world
@@ -6,7 +6,7 @@
 // flow's own and any it's handed to on the way.
 
 import { request as requests, type APIRequestContext, type Page } from "@playwright/test";
-import { list, quote } from "@mostlyworks/vantage-review";
+import { list, quote } from "@playthrough/review";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
@@ -23,7 +23,7 @@ type SignIn = (given: { page: Page; person: string; setup: Record<string, any> }
 export type People = Record<string, string>;
 export type Setup = { make?: Make; after?: After; signIn?: SignIn; people?: People };
 
-// Loaded again in Vantage once it's written again, by when.
+// Loaded again in Playthrough once it's written again, by when.
 export async function setupIn(file: string, written?: number): Promise<Setup> {
   if (!existsSync(file)) return {};
   // In an app whose package.json doesn't say it's a module, Playwright loads the file as CommonJS, its exports one level down.
@@ -44,10 +44,10 @@ export const firstOf = ({ people }: Setup) => Object.keys(people ?? {})[0];
 // Someone the app names, or anyone at all where it names nobody; one it doesn't name stops the flow before anything is made.
 export function personIn({ people }: Setup, person: string) {
   if (people && !(person in people))
-    throw new Error(`vantage/setup.ts names no one called ${quote(person)}. Its people: ${list(Object.keys(people).map(quote))}. Add them there, or do the flow as one of them.`);
+    throw new Error(`playthrough/setup.ts names no one called ${quote(person)}. Its people: ${list(Object.keys(people).map(quote))}. Add them there, or do the flow as one of them.`);
 }
 
-// Made for one run, and written down in .vantage/borrowed/ until it's given back, by the process it's made for, named
+// Made for one run, and written down in .playthrough/borrowed/ until it's given back, by the process it's made for, named
 // in the file's name. Should that process end first, stopped or crashed, the next command gives it back.
 export type Made = { setup: Record<string, any>; giveBack: () => Promise<void> };
 export async function make({ make, after }: Setup, borrowed: string, given: Parameters<Make>[0] & { baseURL: string }): Promise<Made> {
@@ -76,7 +76,7 @@ async function giveBackOf({ after }: Setup, borrowed: string, whose: (pid: numbe
   }
 }
 
-// Once each: a run that ends as Vantage does would otherwise be given back twice.
+// Once each: a run that ends as Playthrough does would otherwise be given back twice.
 const giving = new Set<string>();
 async function giveBack(after: After, file: string, baseURL: string, setup: Record<string, any>) {
   if (giving.has(file) || !existsSync(file)) return;
@@ -86,7 +86,7 @@ async function giveBack(after: After, file: string, baseURL: string, setup: Reco
     await after({ request, baseURL, setup });
     await rm(file, { force: true });
   } catch (error) {
-    console.log(`vantage/setup.ts's after couldn't give back what a run made: ${firstLine(String((error as Error)?.message ?? error))}. It's tried again by the next command.`);
+    console.log(`playthrough/setup.ts's after couldn't give back what a run made: ${firstLine(String((error as Error)?.message ?? error))}. It's tried again by the next command.`);
   } finally {
     giving.delete(file);
     await request.dispose();

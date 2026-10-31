@@ -1,5 +1,5 @@
 {
-  "name": "vantage",
+  "name": "playthrough-core",
   "private": true,
   "type": "module",
   "workspaces": ["packages/*"],
@@ -8,7 +8,7 @@
     "test": "node --test \"packages/*/test/*.test.ts\" \"packages/*/test/loop/*.test.ts\"",
     "quick": "node --test \"packages/*/test/*.test.ts\"",
     "check": "tsc",
-    "build": "npm run build --workspace @mostlyworks/vantage-viewer"
+    "build": "npm run build --workspace @playthrough/viewer"
   },
   "devDependencies": {
     "@types/node": "24.19.1",

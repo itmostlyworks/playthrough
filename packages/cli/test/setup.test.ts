@@ -16,7 +16,7 @@ const baseURL = "http://localhost:3010";
 const ended = 2 ** 22 + 1;
 
 beforeEach(async () => {
-  borrowed = join(await mkdtemp(join(tmpdir(), "vantage-setup-")), "borrowed");
+  borrowed = join(await mkdtemp(join(tmpdir(), "playthrough-setup-")), "borrowed");
   given = [];
 });
 afterEach(() => rm(borrowed, { recursive: true, force: true }));

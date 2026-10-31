@@ -1,4 +1,4 @@
-// Serves the example app on http://localhost:4400, as vantage/app.json says.
+// Serves the example app on http://localhost:4400, as playthrough/app.json says.
 
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";

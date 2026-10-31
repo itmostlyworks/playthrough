@@ -3,7 +3,7 @@
 // each with a picture of what it's on, or for one made in the app, what was done there. The agent reading them may be a
 // fresh one, so they say which review they're for and where the rest is.
 
-import { allNotes, conversation, list, notesToAnswer, quote, Refused, roundInProgress, time, type Did, type Place } from "@mostlyworks/vantage-review";
+import { allNotes, conversation, list, notesToAnswer, quote, Refused, roundInProgress, time, type Did, type Place } from "@playthrough/review";
 import { agent } from "./agent.ts";
 import { pictureNotes } from "./noted.ts";
 import type { Repo } from "./repo.ts";
@@ -13,7 +13,7 @@ export async function wait(repo: Repo, id: string) {
   let review = await reviews.get(id);
   const last = review.rounds.at(-1);
   if (!review.accepted) {
-    if (!last || last.number === 0) throw new Refused([`There's nothing to hand over yet. Record round 1 first: vantage record ${id}`]);
+    if (!last || last.number === 0) throw new Refused([`There's nothing to hand over yet. Record round 1 first: playthrough record ${id}`]);
     if (!last.finished) {
       try {
         await reviews.finish(id, last.number);
@@ -22,7 +22,7 @@ export async function wait(repo: Repo, id: string) {
         throw new Refused([
           `Round ${last.number} isn't ready to hand over yet:`,
           ...error.problems.map((problem) => `  ${problem}`),
-          `${error.problems.length > 1 ? "Fix these" : "Fix it"} in ${repo.show(repo.round(id, last.number))}, then hand it over again: vantage wait ${id}`,
+          `${error.problems.length > 1 ? "Fix these" : "Fix it"} in ${repo.show(repo.round(id, last.number))}, then hand it over again: playthrough wait ${id}`,
         ]);
       }
       console.log(`Round ${last.number} is ready for review.`);
@@ -67,10 +67,10 @@ export async function wait(repo: Repo, id: string) {
       console.log(`\n  ${note}  ${where(notes.get(note)?.note.on)}${picture ? `\n    As they saw it: ${picture}` : ""}\n${turns.join("\n")}`);
     }
     if (asking.some((note) => notes.get(note)?.note.on?.app))
-      console.log(`\nWhat they did in the app is walked again on the new version when you record the round, and record says whether it still gets to their note. vantage walk ${id} does that while you work.`);
+      console.log(`\nWhat they did in the app is walked again on the new version when you record the round, and record says whether it still gets to their note. playthrough walk ${id} does that while you work.`);
     const first = pictures.size ? "Look at what each note is on, change" : "Change";
-    console.log(`\n${first} the app, then record round ${round}: vantage record ${id}`);
-    return console.log(`New to this review? Run vantage alone for how Vantage works. Its flows are in ${repo.show(repo.flows(id))}.`);
+    console.log(`\n${first} the app, then record round ${round}: playthrough record ${id}`);
+    return console.log(`New to this review? Run playthrough alone for how Playthrough works. Its flows are in ${repo.show(repo.flows(id))}.`);
   }
 }
 

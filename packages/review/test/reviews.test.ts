@@ -13,7 +13,7 @@ after(() => Promise.all(folders.map((path) => rm(path, { recursive: true }))));
 
 const storages: [string, () => Promise<Storage>][] = [
   ["in memory", async () => memory()],
-  ["in a folder", async () => folder(folders[folders.push(await mkdtemp(join(tmpdir(), "vantage-"))) - 1] ?? "")],
+  ["in a folder", async () => folder(folders[folders.push(await mkdtemp(join(tmpdir(), "playthrough-"))) - 1] ?? "")],
 ];
 
 const flow = (name: string, length = 6): Flow => ({

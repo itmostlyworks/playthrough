@@ -2,8 +2,8 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { Reading, Thing } from "@mostlyworks/vantage-page";
-import type { Flow, Review, Round } from "@mostlyworks/vantage-review";
+import type { Reading, Thing } from "@playthrough/page";
+import type { Flow, Review, Round } from "@playthrough/review";
 import { holdersOf, nearTo, pickAt, placeName, placeOn, watchedIn } from "../src/things.ts";
 
 const look = { color: "rgb(9, 9, 11)", background: "rgba(0, 0, 0, 0)", size: "16px", weight: "400", border: "none" };
@@ -55,13 +55,13 @@ test("a note on empty space is named by the nearest thing within 80px of it, onl
   assert.equal(placeName({ flow: "Search" }, read, 2), "The whole flow");
 });
 
-test("a thing Vantage has no word for, such as a list item or a column's heading noted in the app, is called by its words", () => {
+test("a thing Playthrough has no word for, such as a list item or a column's heading noted in the app, is called by its words", () => {
   const read = () => [page];
   assert.equal(placeName({ flow: "Search", at: 1, element: { role: "listitem", name: "Plan the review stage" } }, read, 2), "“Plan the review stage”");
   assert.equal(placeName({ flow: "Search", at: 1, element: { role: "columnheader", name: "Due" } }, read, 2), "“Due”");
 });
 
-test("a note sits on its own thing where it was written, where Vantage placed the answer, and found on any other round", () => {
+test("a note sits on its own thing where it was written, where Playthrough placed the answer, and found on any other round", () => {
   const flow: Flow = { name: "Search", length: 4, steps: [{ title: "Open the expenses", at: 0 }], recording: "search.json" };
   const round = (number: number, replies: Round["replies"] = []): Round => ({ number, by: "Claude Code", flows: [flow], replies, accounts: {} });
   const on = { flow: "Search", at: 1, element: { role: "text", name: "$600.00", node: 13 } };

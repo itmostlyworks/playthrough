@@ -13,7 +13,7 @@ import { ALONGSIDE } from "../src/flows.ts";
 let folder = "";
 let windows: Record<string, unknown> = {};
 before(async () => {
-  folder = await mkdtemp(join(tmpdir(), "vantage-window-"));
+  folder = await mkdtemp(join(tmpdir(), "playthrough-window-"));
   const test = pathToFileURL(join(import.meta.dirname, "../src/test.ts")).href;
   await writeFile(
     join(folder, "pay.spec.ts"),

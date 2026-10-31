@@ -2,7 +2,7 @@
 // so the same picture drawn at any size shows the same part of it, and one can grow into the other.
 
 import { useEffect, useState } from "react";
-import type { Flow, Review, Round } from "@mostlyworks/vantage-review";
+import type { Flow, Review, Round } from "@playthrough/review";
 import { picture, recording } from "./api.ts";
 import { clamp } from "./moments.ts";
 import { recorded, shapeOf } from "./replay.ts";

@@ -1,9 +1,9 @@
-// The viewer's side of `vantage open`: the review as it's kept, arriving again whenever it changes, its recordings,
+// The viewer's side of `playthrough open`: the review as it's kept, arriving again whenever it changes, its recordings,
 // and what a person sends.
 
 import { useEffect, useState } from "react";
-import type { Glimpse, Reading } from "@mostlyworks/vantage-page";
-import type { Review, Send } from "@mostlyworks/vantage-review";
+import type { Glimpse, Reading } from "@playthrough/page";
+import type { Review, Send } from "@playthrough/review";
 import type { Events } from "./replay.ts";
 
 export type Listed = { id: string; title: string; rounds: number; accepted: boolean };
@@ -71,7 +71,7 @@ export function fromKept(events: string, kept: Record<string, string>, files: st
 // What was on the page at each step of a flow, read as it was recorded, and its picture then.
 const readingsName = (recording: string) => `readings/${recording.replace(/\.json$/, "")}`;
 export const readings = (review: string, round: number, recording: string) => file<Reading[]>(review, round, `${readingsName(recording)}.json`).catch((): Reading[] => []);
-// None for a round recorded before Vantage glimpsed the page after each action.
+// None for a round recorded before Playthrough glimpsed the page after each action.
 export const glimpses = (review: string, round: number, recording: string) => file<Glimpse[]>(review, round, `${readingsName(recording)}.glimpses.json`).catch((): Glimpse[] => []);
 export const picture = (review: string, round: number, recording: string, reading: number) => `/api/reviews/${review}/rounds/${round}/files/${readingsName(recording)}/${reading + 1}.png`;
 
@@ -95,7 +95,7 @@ async function post(path: string, body: unknown): Promise<string[]> {
     const answer = await fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
     return answer.ok ? [] : ((await answer.json()).problems ?? [`It wasn't kept (${answer.status}).`]);
   } catch {
-    return ["Vantage isn't running here any more. Start it again with vantage open, then try again."];
+    return ["Playthrough isn't running here any more. Start it again with playthrough open, then try again."];
   }
 }
 

@@ -4,7 +4,7 @@
 // notes and changes in.
 
 import { Fragment, useRef, type CSSProperties, type ReactNode } from "react";
-import type { Flow, Round } from "@mostlyworks/vantage-review";
+import type { Flow, Round } from "@playthrough/review";
 import { Answer, Compare, play, Said, tick, Time, useHold } from "./Card.tsx";
 import { when, type Changed, type Diamond } from "./changes.ts";
 import { ink, type Shown, type Standing } from "./notes.ts";

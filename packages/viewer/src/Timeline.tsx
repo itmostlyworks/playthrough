@@ -8,7 +8,7 @@
 // it says so; pressed, it goes there, its question up.
 
 import { useEffect, useRef, useState, type PointerEvent } from "react";
-import { time, type Flow } from "@mostlyworks/vantage-review";
+import { time, type Flow } from "@playthrough/review";
 import { EndMark, type End } from "./Chosen.tsx";
 import { CARD, clamp } from "./moments.ts";
 import { useNow, type Forked, type Playhead } from "./playhead.ts";

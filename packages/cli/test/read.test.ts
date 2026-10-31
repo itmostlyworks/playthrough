@@ -1,10 +1,10 @@
-// What Vantage reads of a page once it's at rest: the moment it waits for, and what it takes in there. Each page is small
+// What Playthrough reads of a page once it's at rest: the moment it waits for, and what it takes in there. Each page is small
 // and made for its promise, in Chromium.
 
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
 import { chromium, type Browser, type Page } from "@playwright/test";
-import type { Thing } from "@mostlyworks/vantage-page";
+import type { Thing } from "@playthrough/page";
 import { readPage, unhovered } from "../src/read.ts";
 import { watchRest } from "../src/rest.ts";
 

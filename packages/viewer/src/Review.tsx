@@ -4,8 +4,8 @@
 // new round says it's in, and waits for you.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { elementOf } from "@mostlyworks/vantage-page";
-import { inStep, lastLooked, newId, readyToAccept, time, waitingForTheAgent, type Did, type Element as Thing, type Flow, type Note, type Point, type Place, type Review, type Round, type Send, type Verdict } from "@mostlyworks/vantage-review";
+import { elementOf } from "@playthrough/page";
+import { inStep, lastLooked, newId, readyToAccept, time, waitingForTheAgent, type Did, type Element as Thing, type Flow, type Note, type Point, type Place, type Review, type Round, type Send, type Verdict } from "@playthrough/review";
 import { accept, keepBranch, recording, send, useReview, useYou } from "./api.ts";
 import { Bar } from "./Bar.tsx";
 import { Beside, clickedAt } from "./Beside.tsx";
@@ -45,7 +45,7 @@ export function ReviewPage({ id, flow }: { id: string; flow?: string }) {
   const kept = useReview(id);
   const you = useYou();
   const title = Array.isArray(kept) ? undefined : kept?.title;
-  useEffect(() => void (document.title = title ? `${title} · Vantage` : "Vantage"), [title]);
+  useEffect(() => void (document.title = title ? `${title} · Playthrough` : "Playthrough"), [title]);
   if (Array.isArray(kept)) return <Page><p className="m-auto text-soft">{kept[0]}</p></Page>;
   if (!kept || !you) return <Page />;
   return <Reviewing review={seen(kept)} you={you} flow={flow} />;
@@ -55,7 +55,7 @@ export function Page({ title, children }: { title?: string; children?: ReactNode
   return (
     <div className="grid h-dvh grid-rows-[auto_minmax(0,1fr)] overflow-hidden px-5 phone:px-4">
       <header className="flex min-h-[46px] min-w-0 items-center gap-2 py-2.5 text-soft">
-        <a href="/" className="font-semibold text-fg">Vantage</a>
+        <a href="/" className="font-semibold text-fg">Playthrough</a>
         {title && <span className="text-faint">/</span>}
         {title && <span className="truncate">{title}</span>}
       </header>
@@ -286,20 +286,20 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     const told = ({ data, source }: MessageEvent) => {
       // Only from the moment that's waiting: one just left can still be settling.
       const waiting = document.querySelector<HTMLIFrameElement>("[data-live] iframe")?.contentWindow;
-      if (data?.vantage === "settled" && source === waiting) {
+      if (data?.playthrough === "settled" && source === waiting) {
         // Once for each moment: it says so again on every page it loads while it's yours.
         if (loading.current.since) loading.current = { took: Math.min(Date.now() - loading.current.since, loading.current.took ?? Infinity) };
         setLive((now) => now && { ...now, settled: true });
       }
-      if (data?.vantage === "recorded" && source === waiting) recordedInApp.current(data.events);
-      if (data?.vantage === "did" && source === waiting) yours.current.did = data.did;
-      if (data?.vantage === "pinned") pinnedInApp(data.at);
-      if (data?.vantage === "escape") {
+      if (data?.playthrough === "recorded" && source === waiting) recordedInApp.current(data.events);
+      if (data?.playthrough === "did" && source === waiting) yours.current.did = data.did;
+      if (data?.playthrough === "pinned") pinnedInApp(data.at);
+      if (data?.playthrough === "escape") {
         if (notingNow.current) setNoting(false);
         else letGoNow.current({ x: data.x, y: data.y });
       }
-      if (data?.vantage === "note") noteNow.current();
-      if (data?.vantage === "noted") notedInApp.current(data);
+      if (data?.playthrough === "note") noteNow.current();
+      if (data?.playthrough === "noted") notedInApp.current(data);
     };
     addEventListener("message", told);
     return () => removeEventListener("message", told);
@@ -427,7 +427,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   // Taken over: waiting while the moment is made ready, or the app showing in the frame.
   const liveNow: "waiting" | "shown" | undefined = live?.shown ? (inApp ? "shown" : "waiting") : undefined;
   useEffect(() => {
-    document.querySelector<HTMLIFrameElement>("[data-live] iframe")?.contentWindow?.postMessage({ vantage: "noting", on: noting && inApp }, "*");
+    document.querySelector<HTMLIFrameElement>("[data-live] iframe")?.contentWindow?.postMessage({ playthrough: "noting", on: noting && inApp }, "*");
   }, [noting, inApp]);
   const playingOn = useNow(playhead, (now) => now.playing);
   useEffect(() => void (playingOn && setNoting(false)), [playingOn]);
@@ -679,7 +679,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   const pinInApp = (id: string, on: Place) =>
     document
       .querySelector<HTMLIFrameElement>("[data-live] iframe")
-      ?.contentWindow?.postMessage({ vantage: "pin", id, number: notes.find((note) => note.id === id)?.number ?? notes.length + 1, css: on.element?.css, point: on.point }, "*");
+      ?.contentWindow?.postMessage({ playthrough: "pin", id, number: notes.find((note) => note.id === id)?.number ?? notes.length + 1, css: on.element?.css, point: on.point }, "*");
   // Taken over where you were, once your steps are done again and the app shows, the note made in the app that's open, or
   // that you're trying, is pinned there, on what it's on.
   useEffect(() => {

@@ -1,4 +1,4 @@
-// A flow whose steps do something outside the app, an email sent or a card charged, says so in its file, and Vantage runs
+// A flow whose steps do something outside the app, an email sent or a card charged, says so in its file, and Playthrough runs
 // it only when it's taken over: ahead of the playhead, each pause would do it again.
 
 import assert from "node:assert/strict";
@@ -11,7 +11,7 @@ import { ALONGSIDE } from "../src/flows.ts";
 
 let folder = "";
 before(async () => {
-  folder = await mkdtemp(join(tmpdir(), "vantage-outside-"));
+  folder = await mkdtemp(join(tmpdir(), "playthrough-outside-"));
   const test = pathToFileURL(join(import.meta.dirname, "../src/test.ts")).href;
   await writeFile(
     join(folder, "team.spec.ts"),

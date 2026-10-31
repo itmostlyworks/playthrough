@@ -1,11 +1,11 @@
 #!/usr/bin/env -S node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
-// An app's vantage/setup.ts is loaded here to take flows over, and Node would say each time that an app not written as
+// An app's playthrough/setup.ts is loaded here to take flows over, and Node would say each time that an app not written as
 // modules has one: nothing anyone need act on.
 // The command line: the commands an agent runs to have a person review its work, and take-over, for a person to carry on
 // from a moment of a flow by hand. When one stops, it says why and what to do.
 
 import { readFileSync } from "node:fs";
-import { Refused } from "@mostlyworks/vantage-review";
+import { Refused } from "@playthrough/review";
 import { putBack } from "./before.ts";
 import { open } from "./open.ts";
 import { record } from "./record.ts";
@@ -27,23 +27,23 @@ try {
     // A command stopped while flows recorded on Before left the agent's work set aside: it's put back before anything else.
     await putBack(repo());
     if (command === "start") {
-      if (!review) throw needs(`vantage start <review> "<title>" "<what was asked>"`);
+      if (!review) throw needs(`playthrough start <review> "<title>" "<what was asked>"`);
       await start(repo(), review, words[0], words[1]);
     } else if (command === "record") {
-      if (!review) throw needs("vantage record <review>");
+      if (!review) throw needs("playthrough record <review>");
       await record(repo(), review);
     } else if (command === "wait") {
-      if (!review) throw needs("vantage wait <review>");
+      if (!review) throw needs("playthrough wait <review>");
       await wait(repo(), review);
     } else if (command === "walk") {
-      if (!review) throw needs("vantage walk <review>");
+      if (!review) throw needs("playthrough walk <review>");
       await walk(repo(), review);
     } else if (command === "open") await open(repo(), review);
     else if (command === "take-over") {
-      if (!review) throw needs(`vantage take-over <review> "<flow>" ["<step>"]`);
+      if (!review) throw needs(`playthrough take-over <review> "<flow>" ["<step>"]`);
       await takeOver(repo(), review, words[0], words[1]);
     }
-    else throw new Refused([`There's no command “${command}”. Run vantage alone for what each one does.`]);
+    else throw new Refused([`There's no command “${command}”. Run playthrough alone for what each one does.`]);
   }
 } catch (error) {
   if (!(error instanceof Refused)) throw error;

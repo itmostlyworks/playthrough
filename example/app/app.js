@@ -1,4 +1,4 @@
-// A small invoices page for trying Vantage on: a table, and buttons that show some of it.
+// A small invoices page for trying Playthrough on: a table, and buttons that show some of it.
 
 const invoices = [
   { number: "INV-1041", customer: "Harbor & Finch", due: "2026-07-14", amount: 1840, status: "paid" },

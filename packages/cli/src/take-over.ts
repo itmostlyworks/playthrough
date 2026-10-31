@@ -1,6 +1,6 @@
 // Takes a flow over: runs it to the end of a step on the app as it is now, then hands the page as it was there to a
 // person, in their own browser or on their phone, to carry on from. It's the real app under their hands, a fresh copy
-// of the moment made the way every flow starts, not a picture of it. Vantage passes everything on to the app, and at
+// of the moment made the way every flow starts, not a picture of it. Playthrough passes everything on to the app, and at
 // /take-over gives the browser what the flow's page had: its address, its cookies, and what the app kept in the browser.
 
 import { spawn, type ChildProcess } from "node:child_process";
@@ -10,7 +10,7 @@ import { createServer, request as ask, type IncomingMessage, type ServerResponse
 import { connect } from "node:net";
 import { constants, networkInterfaces } from "node:os";
 import { dirname, join } from "node:path";
-import { list, quote, Refused, type Did } from "@mostlyworks/vantage-review";
+import { list, quote, Refused, type Did } from "@playthrough/review";
 import type { Handed } from "./flows.ts";
 import { follow, reachesOutside, runTo } from "./following.ts";
 import { listen } from "./open.ts";
@@ -25,7 +25,7 @@ const PORT = 5830;
 export async function takeOver(repo: Repo, id: string, flowName?: string, stepName?: string) {
   if (!flowName) {
     const round = await recorded(repo, id);
-    throw new Refused([`Take over which flow? vantage take-over ${id} "<flow>" ["<step>"]\nIts flows: ${list(round.flows.map((flow) => quote(flow.name)))}.`]);
+    throw new Refused([`Take over which flow? playthrough take-over ${id} "<flow>" ["<step>"]\nIts flows: ${list(round.flows.map((flow) => quote(flow.name)))}.`]);
   }
   console.log(`Running ${quote(flowName)} to ${stepName ? `the end of ${quote(stepName)}` : "its end"}, on the app as it is now…`);
   const { port, moment, seconds } = await getReady(repo, id, flowName, { step: stepName });
@@ -33,7 +33,7 @@ export async function takeOver(repo: Repo, id: string, flowName?: string, stepNa
   const away = addresses().map((address) => `http://${address}:${port}/take-over/${moment}`);
   console.log(`
 Ready in ${seconds}s. Carry on from there in your browser: ${here}${away.length ? `\nOr on your phone, on the same network: ${list(away)}` : ""}
-Each address hands over the same copy, and the app is passed on through Vantage while this runs. Ctrl+C ends it.`);
+Each address hands over the same copy, and the app is passed on through Playthrough while this runs. Ctrl+C ends it.`);
 }
 
 // Runs the flow to where it's taken over and passes the app on, then says where: each moment made ready has an address
@@ -83,17 +83,17 @@ export async function keepUp(repo: Repo, id: string, flow: string, step?: string
   await follow(repo, id, { flow, ...(step && { step, ...(actions && { actions }) }) });
 }
 
-// One way through to the app for as long as Vantage runs, handing over each moment made ready, by its number.
+// One way through to the app for as long as Playthrough runs, handing over each moment made ready, by its number.
 let passing: { moments: Map<string, Handed>; port: Promise<number>; numbered: number } | undefined;
 
 async function recorded(repo: Repo, id: string) {
   const review = await repo.reviews.get(id);
   const round = review.rounds.findLast((round) => round.number > 0) ?? review.rounds.at(-1);
-  if (!round) throw new Refused([`${id} has nothing recorded yet, so there's nothing to take over. Record it first: vantage record ${id}`]);
+  if (!round) throw new Refused([`${id} has nothing recorded yet, so there's nothing to take over. Record it first: playthrough record ${id}`]);
   return round;
 }
 
-// The app, as vantage/app.json starts it, kept running for as long as Vantage runs, or the one already running:
+// The app, as playthrough/app.json starts it, kept running for as long as Playthrough runs, or the one already running:
 // Playwright would stop one it started itself as soon as the flow was done.
 let started: ChildProcess | undefined;
 let ending = false;
@@ -111,7 +111,7 @@ async function keepRunning(app: App, root: string) {
   if (await answers(app.url)) return;
   console.log(`Starting the app: ${app.start}`);
   started = spawn(app.start, { cwd: root, shell: true, stdio: "ignore", detached: true });
-  // The app goes when Vantage does, with everything its command started.
+  // The app goes when Playthrough does, with everything its command started.
   const stop = () => {
     try {
       process.kill(-started!.pid!);
@@ -123,7 +123,7 @@ async function keepRunning(app: App, root: string) {
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
   stop();
-  throw new Refused([`The app didn't answer at ${app.url} within three minutes of ${quote(app.start)}. Check that vantage/app.json starts it there.`]);
+  throw new Refused([`The app didn't answer at ${app.url} within three minutes of ${quote(app.start)}. Check that playthrough/app.json starts it there.`]);
 }
 
 const answers = (url: string) =>
@@ -138,7 +138,7 @@ const answers = (url: string) =>
 function passOn(app: App, handed: (moment: string) => Handed | undefined): Promise<number> {
   const target = new URL(app.url);
   const server = createServer((request, response) => {
-    const [first, moment] = new URL(request.url ?? "/", "http://vantage").pathname.split("/").filter(Boolean);
+    const [first, moment] = new URL(request.url ?? "/", "http://playthrough").pathname.split("/").filter(Boolean);
     if (first === "take-over") return handOver(handed(moment ?? ""), response);
     // A page is asked for whole, so a word can be added to it: the app is told not to squeeze it.
     const page = /text\/html/.test(request.headers.accept ?? "");
@@ -199,7 +199,7 @@ let RECORDER: string | undefined;
 const SAYS = `<script>(() => {
   if (window.parent === window) return;
   // On the recordings' clock, so what the page says about time reads as it did there.
-  const ahead = Number(sessionStorage.getItem("vantage:clock")) || 0;
+  const ahead = Number(sessionStorage.getItem("playthrough:clock")) || 0;
   if (ahead) {
     const Real = Date;
     function Shifted(...given) {
@@ -212,7 +212,7 @@ const SAYS = `<script>(() => {
   }
   // In the browser the flow was recorded in, whatever yours says: light or dark, still or moving, in its languages. A
   // page asks in its scripts and its styles, and each asking is answered before the app hears it.
-  const browser = JSON.parse(sessionStorage.getItem("vantage:browser") || "null");
+  const browser = JSON.parse(sessionStorage.getItem("playthrough:browser") || "null");
   if (browser) {
     const recorded = { "prefers-color-scheme": browser.dark ? "dark" : "light", "prefers-reduced-motion": browser.still ? "reduce" : "no-preference" };
     const as = (query) =>
@@ -285,24 +285,24 @@ const SAYS = `<script>(() => {
   const sending = XMLHttpRequest.prototype.send;
   XMLHttpRequest.prototype.send = function (...args) { asked++; stir(); this.addEventListener("loadend", () => { asked--; stir(); }); return sending.apply(this, args); };
   new MutationObserver(stir).observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
-  const scroll = JSON.parse(sessionStorage.getItem("vantage:scroll") || "null");
-  sessionStorage.removeItem("vantage:scroll");
+  const scroll = JSON.parse(sessionStorage.getItem("playthrough:scroll") || "null");
+  sessionStorage.removeItem("playthrough:scroll");
   const hidden = document.createElement("style");
   hidden.textContent = "html, html * { cursor: none !important; }";
   document.documentElement.appendChild(hidden);
   // Yours across the pages you go to, until you leave.
-  const yours = (mine) => { hidden.disabled = mine; if (mine) sessionStorage.setItem("vantage:yours", "1"); else sessionStorage.removeItem("vantage:yours"); };
-  yours(!!sessionStorage.getItem("vantage:yours"));
-  addEventListener("message", ({ source, data }) => { if (source === parent && data?.vantage === "yours") yours(data.yours); });
+  const yours = (mine) => { hidden.disabled = mine; if (mine) sessionStorage.setItem("playthrough:yours", "1"); else sessionStorage.removeItem("playthrough:yours"); };
+  yours(!!sessionStorage.getItem("playthrough:yours"));
+  addEventListener("message", ({ source, data }) => { if (source === parent && data?.playthrough === "yours") yours(data.yours); });
   const typing = (target) => !!target?.closest?.('input:not([type=button]):not([type=submit]):not([type=checkbox]):not([type=radio]):not([type=range]), textarea, [contenteditable=""], [contenteditable=true]');
   // Every move, as it comes: held for a frame, the name trailed the pointer like a smoothed one. Not the earlier raw
   // updates: in a scaled frame, Chrome gives them the page's position rather than the app's.
   let x = innerWidth / 2, y = innerHeight / 2;
-  const moved = (e) => { x = e.clientX; y = e.clientY; parent.postMessage({ vantage: "pointer", x, y, inside: true, text: typing(e.target) }, "*"); };
+  const moved = (e) => { x = e.clientX; y = e.clientY; parent.postMessage({ playthrough: "pointer", x, y, inside: true, text: typing(e.target) }, "*"); };
   addEventListener("pointermove", moved, true);
   // A click here is a click elsewhere, to what the viewer has open.
-  addEventListener("pointerdown", (e) => e.isTrusted && parent.postMessage({ vantage: "down" }, "*"), true);
-  document.addEventListener("pointerleave", () => parent.postMessage({ vantage: "pointer", x, y, inside: false }, "*"));
+  addEventListener("pointerdown", (e) => e.isTrusted && parent.postMessage({ playthrough: "down" }, "*"), true);
+  document.addEventListener("pointerleave", () => parent.postMessage({ playthrough: "pointer", x, y, inside: false }, "*"));
   // Escape is the app's first, as N is while you type: if the app does something with it, closing a menu, a list or a
   // dialog, or moving focus, that's all it does. Then it leaves the field you're typing in, whatever the app made of it,
   // and only once you're in none does it go back to the viewer: coming back finds the app as it was.
@@ -313,7 +313,7 @@ const SAYS = `<script>(() => {
     setTimeout(() => {
       if (popups() < open || document.activeElement !== focused) return;
       if (typing(focused)) return focused.blur();
-      if (!e.defaultPrevented) parent.postMessage({ vantage: "escape", x, y }, "*");
+      if (!e.defaultPrevented) parent.postMessage({ playthrough: "escape", x, y }, "*");
     }, 150);
   };
   addEventListener("keydown", leave, true);
@@ -344,13 +344,13 @@ const SAYS = `<script>(() => {
   };
   // What you do here is kept, across the pages you go to, for a note to keep. Only what you did: what's done again for
   // you isn't trusted by the browser, so it isn't kept.
-  const did = JSON.parse(sessionStorage.getItem("vantage:did") || "[]");
+  const did = JSON.parse(sessionStorage.getItem("playthrough:did") || "[]");
   const keep = (done) => {
     const last = did.at(-1);
     if (done.does === "fill" && last?.does === "fill" && last.on === done.on) did.pop();
     did.push(done);
-    sessionStorage.setItem("vantage:did", JSON.stringify(did));
-    parent.postMessage({ vantage: "did", did }, "*");
+    sessionStorage.setItem("playthrough:did", JSON.stringify(did));
+    parent.postMessage({ playthrough: "did", did }, "*");
     readSoon();
   };
   // What's on the page, read as a flow's page is after each step, once what you did has settled: a note on your
@@ -375,8 +375,8 @@ const SAYS = `<script>(() => {
   }, true);
   // With Note on, the next thing you click is noted, and the app never sees the click. N turns it on, unless you're typing.
   let noting = false, swallowing = false;
-  // Vantage's own marks, out of the recording's sight, as the app never drew them.
-  const holder = document.createElement("vantage-marks");
+  // Playthrough's own marks, out of the recording's sight, as the app never drew them.
+  const holder = document.createElement("playthrough-marks");
   const marks = holder.attachShadow({ mode: "closed" });
   document.documentElement.appendChild(holder);
   const ring = document.createElement("div");
@@ -388,7 +388,7 @@ const SAYS = `<script>(() => {
     Object.assign(ring.style, { display: "block", left: box.left - 3 + "px", top: box.top - 3 + "px", width: box.width + 6 + "px", height: box.height + 6 + "px" });
   };
   addEventListener("message", ({ source, data }) => {
-    if (source !== parent || data?.vantage !== "noting") return;
+    if (source !== parent || data?.playthrough !== "noting") return;
     noting = data.on;
     ringed(document.elementFromPoint(x, y));
   });
@@ -403,7 +403,7 @@ const SAYS = `<script>(() => {
       readNow();
       send();
       const node = window.rrwebRecord?.record?.mirror?.getId(on);
-      parent.postMessage({ vantage: "noted", ...(name ? { element: { role: role(on), name, css: path(on), ...(node > 0 && { node }) } } : { point: { x: e.clientX / innerWidth, y: e.clientY / innerHeight } }), did, x: e.clientX, y: e.clientY }, "*");
+      parent.postMessage({ playthrough: "noted", ...(name ? { element: { role: role(on), name, css: path(on), ...(node > 0 && { node }) } } : { point: { x: e.clientX / innerWidth, y: e.clientY / innerHeight } }), did, x: e.clientX, y: e.clientY }, "*");
       noting = false;
       swallowing = true;
       ringed();
@@ -414,7 +414,7 @@ const SAYS = `<script>(() => {
   // A note's pin, on what it's on, and where it is, for its card to sit by.
   const pins = new Map();
   addEventListener("message", ({ source, data }) => {
-    if (source !== parent || data?.vantage !== "pin") return;
+    if (source !== parent || data?.playthrough !== "pin") return;
     const pin = pins.get(data.id) ?? document.createElement("div");
     pin.textContent = data.number;
     pin.style.cssText = "position:fixed;z-index:2147483646;pointer-events:none;display:none;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;background:#e0a33a;color:#fff;font:600 11px/18px system-ui,sans-serif;text-align:center;box-shadow:0 0 0 2px #fff";
@@ -437,19 +437,19 @@ const SAYS = `<script>(() => {
       at[id] = spot;
     }
     const now = JSON.stringify(at);
-    if (now !== told) parent.postMessage({ vantage: "pinned", at: (told = now, at) }, "*");
+    if (now !== told) parent.postMessage({ playthrough: "pinned", at: (told = now, at) }, "*");
     requestAnimationFrame(place);
   });
   const note = (e) => {
     if (e.key.toLowerCase() !== "n" || e.ctrlKey || e.metaKey || e.altKey || typing(e.target)) return;
     e.preventDefault();
     e.stopImmediatePropagation();
-    if (e.type === "keydown" && !e.repeat) parent.postMessage({ vantage: "note" }, "*");
+    if (e.type === "keydown" && !e.repeat) parent.postMessage({ playthrough: "note" }, "*");
   };
   addEventListener("keydown", note, true);
   addEventListener("keyup", note, true);
-  const again = JSON.parse(sessionStorage.getItem("vantage:again") || "[]");
-  sessionStorage.removeItem("vantage:again");
+  const again = JSON.parse(sessionStorage.getItem("playthrough:again") || "[]");
+  sessionStorage.removeItem("playthrough:again");
   const wait = (ms) => new Promise((done) => setTimeout(done, ms));
   const still = () => document.readyState === "complete" && !asked && performance.now() - stirred > 300 && [...document.images].every((image) => image.complete);
   const rested = async () => {
@@ -503,31 +503,31 @@ const SAYS = `<script>(() => {
   // is on your own recording. Each page records itself, from its own first frame, or made ready unseen, from when you
   // take it over, where your recording starts.
   let recorded = [];
-  const send = () => recorded.length && (parent.postMessage({ vantage: "recorded", events: recorded }, "*"), (recorded = []));
+  const send = () => recorded.length && (parent.postMessage({ playthrough: "recorded", events: recorded }, "*"), (recorded = []));
   const record = () =>
     !recording &&
-    !!sessionStorage.getItem("vantage:yours") &&
+    !!sessionStorage.getItem("playthrough:yours") &&
     window.rrwebRecord?.record({
       emit: (event) => recorded.push(event) === 1 && setTimeout(send, 100),
       sampling: { mousemove: 20, scroll: 16, input: "all" },
       maskAllInputs: false,
       inlineStylesheet: true,
     }) && ((recording = true), readNow());
-  addEventListener("message", ({ source, data }) => source === parent && data?.vantage === "yours" && record());
+  addEventListener("message", ({ source, data }) => source === parent && data?.playthrough === "yours" && record());
   const settle = async () => {
     await rested();
     if (scroll) scrollTo(scroll.x, scroll.y);
     // Each waits only for what it acts on to be there; the page rests once they're all done.
     // What's left is kept as each is done, so a click that goes to another page carries on there.
     for (const [i, action] of again.entries()) {
-      sessionStorage.setItem("vantage:again", JSON.stringify(again.slice(i + 1)));
+      sessionStorage.setItem("playthrough:again", JSON.stringify(again.slice(i + 1)));
       if (!(await doAgain(action))) break;
     }
-    sessionStorage.removeItem("vantage:again");
+    sessionStorage.removeItem("playthrough:again");
     if (again.length) (stir(), await rested());
     // Once it's drawn, or soon anyway, as a browser may not draw a frame it thinks is hidden.
     let said = false;
-    const say = () => said || ((said = true), parent.postMessage({ vantage: "settled" }, "*"));
+    const say = () => said || ((said = true), parent.postMessage({ playthrough: "settled" }, "*"));
     requestAnimationFrame(() => requestAnimationFrame(say));
     setTimeout(say, 250);
     record();
@@ -535,7 +535,7 @@ const SAYS = `<script>(() => {
   addEventListener("load", () => setTimeout(settle, 50));
 })();</script>`;
 
-// Whatever the app says about its own address is said about Vantage's, so the browser stays here, and the app may show
+// Whatever the app says about its own address is said about Playthrough's, so the browser stays here, and the app may show
 // in the viewer's frame.
 function fromTheApp(answer: IncomingMessage, target: URL) {
   const headers = { ...answer.headers };
@@ -553,7 +553,7 @@ function fromTheApp(answer: IncomingMessage, target: URL) {
 function handOver(handed: Handed | undefined, response: ServerResponse) {
   if (!handed) {
     response.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
-    return void response.end("There's no moment ready at this address. Take it over again from the viewer, or with vantage take-over.");
+    return void response.end("There's no moment ready at this address. Take it over again from the viewer, or with playthrough take-over.");
   }
   const { url, cookies, local, session, scroll, clock, browser, did = [] } = handed;
   // What the person did there was done before it was handed over: it's kept for what they do next to carry on from.
@@ -570,12 +570,12 @@ function handOver(handed: Handed | undefined, response: ServerResponse) {
 const { local, session, scroll, clock, browser, again, did, to } = ${keep};
 for (const [key, value] of Object.entries(local)) localStorage.setItem(key, value);
 for (const [key, value] of Object.entries(session)) sessionStorage.setItem(key, value);
-sessionStorage.setItem("vantage:scroll", JSON.stringify(scroll));
-sessionStorage.setItem("vantage:clock", String(clock));
-sessionStorage.setItem("vantage:browser", JSON.stringify(browser));
-sessionStorage.removeItem("vantage:yours");
-if (again.length) sessionStorage.setItem("vantage:again", JSON.stringify(again));
-sessionStorage.setItem("vantage:did", JSON.stringify(did));
+sessionStorage.setItem("playthrough:scroll", JSON.stringify(scroll));
+sessionStorage.setItem("playthrough:clock", String(clock));
+sessionStorage.setItem("playthrough:browser", JSON.stringify(browser));
+sessionStorage.removeItem("playthrough:yours");
+if (again.length) sessionStorage.setItem("playthrough:again", JSON.stringify(again));
+sessionStorage.setItem("playthrough:did", JSON.stringify(did));
 location.replace(to);
 </script>`);
 }
@@ -583,7 +583,7 @@ location.replace(to);
 function notAnswering(response: ServerResponse, app: App) {
   if (response.headersSent) return response.end();
   response.writeHead(502, { "content-type": "text/plain; charset=utf-8" });
-  response.end(`The app isn't answering at ${app.url}. Start it as vantage/app.json says (${app.start}), then reload.`);
+  response.end(`The app isn't answering at ${app.url}. Start it as playthrough/app.json says (${app.start}), then reload.`);
 }
 
 // This machine's addresses on its networks, for a phone on the same one.

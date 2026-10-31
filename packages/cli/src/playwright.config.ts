@@ -1,12 +1,12 @@
-// How `vantage record` runs a review's flows: a quarter as many at once as the machine has cores, in Chromium at
-// 1280×800, against the app vantage/app.json starts, or the one already running there.
+// How `playthrough record` runs a review's flows: a quarter as many at once as the machine has cores, in Chromium at
+// 1280×800, against the app playthrough/app.json starts, or the one already running there.
 
 import { defineConfig } from "@playwright/test";
 import { fileURLToPath } from "node:url";
 import { availableParallelism } from "node:os";
 import type { Run } from "./flows.ts";
 
-const run: Run = JSON.parse(process.env.VANTAGE_RUN ?? "null");
+const run: Run = JSON.parse(process.env.PLAYTHROUGH_RUN ?? "null");
 
 export default defineConfig({
   testDir: run.flows,

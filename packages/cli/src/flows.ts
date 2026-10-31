@@ -7,7 +7,7 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { list, quote, Refused, type Did, type Flow } from "@mostlyworks/vantage-review";
+import { list, quote, Refused, type Did, type Flow } from "@playthrough/review";
 import { changesByThemselves, type Recorded as Compared } from "./compare.ts";
 import { glimpsesOf, readingsOf, type Failed, type Recorded } from "./reporter.ts";
 import { repo, type App, type Repo } from "./repo.ts";
@@ -42,8 +42,8 @@ export type Browser = { dark: boolean; still: boolean; languages: string[] };
 // An action of the flow's, done again in the person's browser: what it did, on the element at that path, with what.
 export type Action = { does: string; on: string; with?: string | boolean | string[] };
 export type Cookie = { name: string; value: string; path: string; expires: number; httpOnly: boolean };
-// Set in Vantage before it loads what flows import, so test() there keeps each flow to take over (following.ts).
-export const ALONGSIDE = Symbol.for("vantage: flows taken over here");
+// Set in Playthrough before it loads what flows import, so test() there keeps each flow to take over (following.ts).
+export const ALONGSIDE = Symbol.for("playthrough: flows taken over here");
 // What a flow's file says, as a Playwright annotation, when its steps do something outside the app that running it again
 // would do again: test("Invite Sam", { annotation: { type: "reaches outside", description: "sends Sam an email" } }, …).
 export const REACHES_OUTSIDE = "reaches outside";
@@ -64,7 +64,7 @@ export function howToWriteFlows(repo: Repo, id: string): string {
   const setupMissing = !existsSync(repo.setup);
   return `Each flow is a Playwright test in ${repo.show(repo.flows(id))}, one for each thing a person does, with a step for each part of it:
 
-  import { test, expect } from "@mostlyworks/vantage/test";
+  import { test, expect } from "playthrough/test";
 
   test("Export a quarter", async ({ page, setup }) => {
     await test.step("Open the invoices", async () => {
@@ -76,7 +76,7 @@ export function howToWriteFlows(repo: Repo, id: string): string {
   });
 
 The test's name is the flow's, and steps are matched across rounds by their names. What every flow starts from, like
-the account it opens, is made in vantage/setup.ts${setupMissing ? ", which this app doesn't have yet" : ""}: run vantage alone for how.`;
+the account it opens, is made in playthrough/setup.ts${setupMissing ? ", which this app doesn't have yet" : ""}: run playthrough alone for how.`;
 }
 
 // Runs every flow of the review on the app, the way a person would use it, for a round: each flow with its files, its
@@ -139,14 +139,14 @@ export async function runFlows(
   });
   if (unlike.length)
     throw new Refused([
-      `${list(unlike.map(({ flow }) => quote(flow.name)))} didn't go the same way twice on the same app, so ${unlike.length > 1 ? "they don't" : "it doesn't"} start from the same place each time. Make what every flow starts from in vantage/setup.ts, the same each time, and run this again.`,
+      `${list(unlike.map(({ flow }) => quote(flow.name)))} didn't go the same way twice on the same app, so ${unlike.length > 1 ? "they don't" : "it doesn't"} start from the same place each time. Make what every flow starts from in playthrough/setup.ts, the same each time, and run this again.`,
     ]);
   const byThemselves = await changesByThemselves(inMemory(round, again), inMemory(round, twice.recorded.filter(({ flow }) => first(flow.name))));
   for (const { flow } of again) {
     const unsteady = byThemselves.filter((change) => change.seen.some((place) => place.flow === flow.name));
     if (!unsteady.length) continue;
     flow.unsteady = unsteady.map((change) => change.id);
-    console.log(`\nIn ${quote(flow.name)}, this changes by itself, so it's left out of every comparison, in every flow:\n${unsteady.map((change) => `  ${change.words}`).join("\n")}\nIf it can be made the same each time, in vantage/setup.ts, do that and record again: a real change to it won't be seen.`);
+    console.log(`\nIn ${quote(flow.name)}, this changes by itself, so it's left out of every comparison, in every flow:\n${unsteady.map((change) => `  ${change.words}`).join("\n")}\nIf it can be made the same each time, in playthrough/setup.ts, do that and record again: a real change to it won't be seen.`);
   }
   return once;
 }
@@ -188,7 +188,7 @@ function inMemory(number: number, recorded: Ran["recorded"]): Compared {
 type Ran = { recorded: { flow: Flow; files: { name: string; bytes: Buffer }[] }[]; failed: Failed[] };
 
 async function runOnce(run: Omit<Run, "folder">): Promise<Ran> {
-  const folder = await mkdtemp(join(tmpdir(), "vantage-"));
+  const folder = await mkdtemp(join(tmpdir(), "playthrough-"));
   try {
     const ran = await playwright({ ...run, folder });
     const text = await readFile(join(folder, "flows.json"), "utf8").catch(() => undefined);
@@ -210,7 +210,7 @@ export async function walkFork(repo: Repo, id: string, walk: Walk): Promise<Walk
   const app = await repo.app();
   const { started } = await repo.reviews.get(id);
   const recorder = join(dirname(createRequire(import.meta.url).resolve("@rrweb/record")), "record.umd.min.cjs");
-  const folder = await mkdtemp(join(tmpdir(), "vantage-"));
+  const folder = await mkdtemp(join(tmpdir(), "playthrough-"));
   try {
     await playwright({ flows: repo.flows(id), folder, app, root: repo.root, recorder, before: false, taken: [], started, walk });
     const text = await readFile(join(folder, WALKED), "utf8").catch(() => undefined);
@@ -236,9 +236,9 @@ async function playwright(run: Run): Promise<boolean> {
     const child = spawn(process.execPath, [cli, "test", "--config", config], {
       cwd: run.root,
       stdio: "inherit",
-      env: { ...process.env, VANTAGE_RUN: JSON.stringify(run) },
+      env: { ...process.env, PLAYTHROUGH_RUN: JSON.stringify(run) },
     });
-    // It goes when Vantage does.
+    // It goes when Playthrough does.
     const stop = () => child.kill();
     process.once("exit", stop);
     child.on("error", reject);

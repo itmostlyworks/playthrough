@@ -1,10 +1,10 @@
 // What a click on the recording notes, and where a note is on every round. The page each step left was read as the
-// comparison reads it, so a click notes what a person would call the thing under it, named as Vantage names every
+// comparison reads it, so a click notes what a person would call the thing under it, named as Playthrough names every
 // change, and a note sits on its thing in every round, found the way the agent's answer to it was placed.
 
 import { useEffect, useState } from "react";
-import { called, holdsControls, placeIn, type Glimpse, type Reading, type Thing } from "@mostlyworks/vantage-page";
-import type { Element, Place, Point, Review, Round } from "@mostlyworks/vantage-review";
+import { called, holdsControls, placeIn, type Glimpse, type Reading, type Thing } from "@playthrough/page";
+import type { Element, Place, Point, Review, Round } from "@playthrough/review";
 import { glimpses, readings } from "./api.ts";
 import type { Rect } from "./replay.ts";
 
@@ -107,7 +107,7 @@ export function nearTo(read: Glimpse[], at: number, point: Point): Thing | undef
     .sort((a, b) => gap(a) - gap(b) || area(a) - area(b))[0];
 }
 
-// What a note says it's on, as Vantage calls things: “Settle up button”, “$600.00”, the “Who owes whom” area; a spot,
+// What a note says it's on, as Playthrough calls things: “Settle up button”, “$600.00”, the “Who owes whom” area; a spot,
 // by what's near it.
 export function placeName(on: Place | undefined, read: Read, round: number): string {
   if (!on) return "New note";
@@ -118,10 +118,10 @@ export function placeName(on: Place | undefined, read: Read, round: number): str
   return near ? `Near ${called(near)}` : "This moment";
 }
 
-const calledBy =(element: Element, seen: Glimpse[] | undefined, at: number) =>
+const calledBy = (element: Element, seen: Glimpse[] | undefined, at: number) =>
   called((element.node !== undefined && seen && thingAt(seen, element.node, at)) || { ...element, words: element.name });
 
-// Where a note is on a round: where it was written, on its own thing; where the agent answered it, where Vantage placed
+// Where a note is on a round: where it was written, on its own thing; where the agent answered it, where Playthrough placed
 // the answer; on any other round, found from the readings, once they're here. Nothing where that round has no flow of
 // its name.
 export function placeOn(review: Review, id: string, on: Place, written: number, round: Round, read: Read): Place | undefined {

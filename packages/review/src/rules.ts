@@ -19,7 +19,7 @@ export function allNotes(review: Review): Map<string, { note: Note; round: numbe
   return notes;
 }
 
-// Where a note was last seen before a round: on the latest round before it where Vantage placed an answer to it, else
+// Where a note was last seen before a round: on the latest round before it where Playthrough placed an answer to it, else
 // where it was written. A round's answers are placed on the thing as it's found on that round's recording.
 export function lastSeen(review: Review, id: string, before: number): { round: number; on: Place } | undefined {
   const started = allNotes(review).get(id);
@@ -159,7 +159,7 @@ function problemsWithFlows(round: Round, at: string): string[] {
   return problems;
 }
 
-// Vantage compares the round being worked on with each round before it, and can compare again until it's finished.
+// Playthrough compares the round being worked on with each round before it, and can compare again until it's finished.
 export function problemsWithComparison(review: Review, comparison: Comparison): string[] {
   const shape = problemsWithShape(Comparison, comparison, "This comparison");
   if (shape.length) return shape;

@@ -1,12 +1,12 @@
 // Taking a flow over, ready before it's asked for. While the latest round plays, a run of its flow keeps up with the
 // playhead, as far as it has gone and no further, so the moment it comes to rest on is there already. The flows run here,
-// in Vantage, each in a window of its own, with its own cookies and storage, in one browser kept open while Vantage runs:
+// in Playthrough, each in a window of its own, with its own cookies and storage, in one browser kept open while Playthrough runs:
 // a window opens in a moment, where a run of its own took a second and half a gigabyte.
 
 import { chromium, request as requests, type Browser } from "@playwright/test";
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { list, quote, Refused } from "@mostlyworks/vantage-review";
+import { list, quote, Refused } from "@playthrough/review";
 import { ALONGSIDE, isFlow, type Handed, type To } from "./flows.ts";
 import { firstLine } from "./reporter.ts";
 import type { Repo } from "./repo.ts";
@@ -156,7 +156,7 @@ async function start(repo: Repo, id: string, to: To, files: string[], written: n
   };
   one.ran = runAlongside(page, { request, baseURL: app.url, started, setup, borrowed: repo.borrowed, arrived, person: kept.use.person }, kept.body, orders).catch((error) => ({ stopped: { why: firstLine(String(error?.message ?? error)) } }));
   void one.ran.finally(() => ((one.over = true), close()));
-  // Handed over, what it made is the app the person has, for as long as Vantage runs, and given back as it ends.
+  // Handed over, what it made is the app the person has, for as long as Playthrough runs, and given back as it ends.
   void one.ran.then(({ handed, made }: { handed?: Handed; made?: Made }) => (handed ? undefined : made?.giveBack()));
   // One whose browser or page has gone is over too, waiting or not, and the next take over runs another.
   context.on("close", one.stop);
@@ -171,7 +171,7 @@ function order({ orders, last }: Following, to: To) {
   orders.moved?.();
 }
 
-// What every flow imports, loaded here once Vantage has said it's taking flows over, not running them as tests.
+// What every flow imports, loaded here once Playthrough has said it's taking flows over, not running them as tests.
 type Alongside = typeof import("./test.ts");
 let loading: Promise<Alongside> | undefined;
 const alongside = () => (loading ??= (((globalThis as Record<symbol, unknown>)[ALONGSIDE] = true), import("./test.ts")));
@@ -179,7 +179,7 @@ const alongside = () => (loading ??= (((globalThis as Record<symbol, unknown>)[A
 // One browser for every run, opened the first time one starts, and again if it closes.
 let opened: Promise<Browser> | undefined;
 function browser(): Promise<Browser> {
-  // Ctrl+C is Vantage's to answer, not Playwright's, which would end it before what the runs made is given back.
+  // Ctrl+C is Playthrough's to answer, not Playwright's, which would end it before what the runs made is given back.
   opened ??= chromium.launch({ handleSIGINT: false, handleSIGTERM: false, handleSIGHUP: false }).then(
     (browser) => (browser.on("disconnected", () => (opened = undefined)), browser),
     (error) => ((opened = undefined), Promise.reject(error)),
@@ -207,7 +207,7 @@ function loadedOf(repo: Repo, id: string, files: string[], written: number) {
     });
   const flows = alongside().then(({ flowsIn }) => Promise.all([Promise.all(files.map((file) => load(file, flowsIn))), load(repo.setup, setupIn)])).then(
     ([each, setup]) => {
-      // What a Vantage that has ended left, given back the first time this one runs a flow.
+      // What a Playthrough that has ended left, given back the first time this one runs a flow.
       if (!sweptFor.has(repo.root)) void giveBackLeft(setup, repo.borrowed);
       sweptFor.add(repo.root);
       return { flows: new Map(each.flatMap((flows) => [...flows])), setup };

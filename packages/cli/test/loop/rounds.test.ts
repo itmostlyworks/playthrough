@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { mkdir, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, describe, test } from "node:test";
-import { newId } from "@mostlyworks/vantage-review";
+import { newId } from "@playthrough/review";
 import { addExport, example, exportThem, seeOverdue, seePaid, type Example } from "./example.ts";
 
 let app: Example;
@@ -19,8 +19,8 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
     const { said, code } = await app.run(["start", "overdue", "Show only overdue invoices", "Can the invoices list show just the overdue ones?"]);
     assert.equal(code, 0);
     assert.match(said, /Write its flows before you change anything\. They show what was asked, so write them from the task, not from the code/);
-    assert.match(said, /Each flow is a Playwright test in \.vantage\/overdue\/flows/);
-    assert.match(said, /Then run vantage start overdue again\. It records Before/);
+    assert.match(said, /Each flow is a Playwright test in \.playthrough\/overdue\/flows/);
+    assert.match(said, /Then run playthrough start overdue again\. It records Before/);
     const review = await app.reviews.get("overdue");
     assert.deepEqual([review.title, review.asked], ["Show only overdue invoices", "Can the invoices list show just the overdue ones?"]);
   });
@@ -33,18 +33,18 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
     await writeFile(join(app.flows, "overdue.ts"), seeOverdue);
     ({ said, code } = await app.run(["record", "overdue"]));
     assert.equal(code, 1);
-    assert.match(said, /Say how to start the app in vantage\/app\.json/);
+    assert.match(said, /Say how to start the app in playthrough\/app\.json/);
   });
 
   test("run again, start records Before: each flow on the app as it is, as far as the app can take it", async () => {
-    await mkdir(join(app.repo, "vantage"));
-    await writeFile(join(app.repo, "vantage/app.json"), JSON.stringify(app.app));
+    await mkdir(join(app.repo, "playthrough"));
+    await writeFile(join(app.repo, "playthrough/app.json"), JSON.stringify(app.app));
     await writeFile(join(app.flows, "paid.ts"), seePaid);
     await writeFile(join(app.flows, "export.ts"), exportThem);
     let { said, code } = await app.run(["start", "overdue"]);
     assert.equal(code, 0, said);
     assert.match(said, /Recorded Before: “Export the overdue ones”, “See what's overdue” and “See what's paid”\.\n“Export the overdue ones” stops at “Export them”, where Playwright says “[^”\n]+”, so its Before goes as far as that\./);
-    assert.match(said, /add a flow for each choice you made that the reviewer can see and didn't ask for\. Then record round 1: vantage record overdue/);
+    assert.match(said, /add a flow for each choice you made that the reviewer can see and didn't ask for\. Then record round 1: playthrough record overdue/);
 
     const before = await app.round(0);
     assert.deepEqual(before.flows.map((flow) => flow.name), ["Export the overdue ones", "See what's overdue", "See what's paid"]);
@@ -81,7 +81,7 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
     const { said, code } = await app.run(["record", "overdue"]);
     assert.equal(code, 0, said);
     assert.match(said, /Recorded round 1: “Export the overdue ones” \(\d+s\), “See what's overdue” \(\d+s\) and “See what's paid” \(\d+s\)/);
-    assert.match(said, /are new to the reviewer\. In \.vantage\/overdue\/rounds\/1\/round\.json, each can have a line at its start, as “line” in its flow under “flows”: what it starts from, or the choice it shows, in a sentence\./);
+    assert.match(said, /are new to the reviewer\. In \.playthrough\/overdue\/rounds\/1\/round\.json, each can have a line at its start, as “line” in its flow under “flows”: what it starts from, or the choice it shows, in a sentence\./);
 
     const recorded = await app.round(1);
     const steps: Record<string, string> = { "Export the overdue ones": "Export them", "See what's overdue": "Show only the overdue ones", "See what's paid": "Show only the paid ones" };
@@ -90,7 +90,7 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
       assert.deepEqual(flow.steps.map((step) => step.title), ["Open the invoices", steps[flow.name]]);
       assert.ok(flow.length > 1.5, "it holds its end long enough to be seen");
       assert.ok((flow.steps[1]?.at ?? 0) >= (flow.steps[0]?.at ?? 0));
-      assert.ok((await stat(join(app.repo, `.vantage/overdue/rounds/1/files/${flow.recording}`))).size > 1000);
+      assert.ok((await stat(join(app.repo, `.playthrough/overdue/rounds/1/files/${flow.recording}`))).size > 1000);
     }
     assert.deepEqual(recorded.flows.map((flow) => flow.recording), ["export-the-overdue-ones.json", "see-whats-overdue.json", "see-whats-paid.json"]);
   });
@@ -133,8 +133,8 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
     const { said, code } = await waiting;
     assert.equal(code, 0);
     assert.match(said, /Ana says “See what's paid” looks good\./);
-    assert.match(said, new RegExp(`${note.id}  on “See what's overdue” at \\d:\\d\\d, the button “Overdue”\\n    As they saw it: \\.vantage/overdue/rounds/2/files/notes/${note.id}\\.png\\n    Ana: The badge is hard to read\\.`));
-    assert.match(said, /Look at what each note is on, change the app, then record round 2: vantage record overdue/);
+    assert.match(said, new RegExp(`${note.id}  on “See what's overdue” at \\d:\\d\\d, the button “Overdue”\\n    As they saw it: \\.playthrough/overdue/rounds/2/files/notes/${note.id}\\.png\\n    Ana: The badge is hard to read\\.`));
+    assert.match(said, /Look at what each note is on, change the app, then record round 2: playthrough record overdue/);
     assert.equal((await app.file(2, `notes/${note.id}.png`)).subarray(1, 4).toString(), "PNG", "the page as they saw it, what the note is on outlined");
   });
 
@@ -175,7 +175,7 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
     assert.equal(code, 0);
     assert.match(said, new RegExp(`Ana says your answer to note ${note} looks good\\.`));
     assert.match(said, /Ana: The badge is hard to read\.\n    You, in round 2: It's darker now\.\n    Ana, looks good\n    Ben, not quite: Still hard to read on a phone\./);
-    assert.match(said, /record round 3: vantage record overdue/);
+    assert.match(said, /record round 3: playthrough record overdue/);
 
     await app.run(["record", "overdue"]);
     await app.saveRound({ ...(await app.round(3)), replies: [{ note: note!, words: "It's bolder on small screens." }] });

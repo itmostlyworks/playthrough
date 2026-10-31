@@ -1,15 +1,15 @@
 // The recordings: the round you're watching, or side by side with the round it's compared with, each at the playhead's
 // moment in its own recording of the flow. Each takes its flow's recorded shape, as large as fits and never larger than
 // it was recorded; at actual size it's a window onto the page that follows the pointer, or stays where you move it.
-// Nothing Vantage draws covers what's recorded except the marks on it, and H hides those. Paused, what a click would note
+// Nothing Playthrough draws covers what's recorded except the marks on it, and H hides those. Paused, what a click would note
 // is outlined, and Alt and the wheel widen it to what holds it.
 //
 // Every round once shown keeps its frame and its replays, in the same place in the page, so going back to a flow or a
 // round shows it at once: a recording moved elsewhere in the page would have to be built again.
 
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
-import { elementOf, type Thing } from "@mostlyworks/vantage-page";
-import { inStep, type Box, type Flow, type Place, type Point, type Review, type Round } from "@mostlyworks/vantage-review";
+import { elementOf, type Thing } from "@playthrough/page";
+import { inStep, type Box, type Flow, type Place, type Point, type Review, type Round } from "@playthrough/review";
 import { recording } from "./api.ts";
 import { CARD, clamp, ease, MORPH, titleCard } from "./moments.ts";
 import { onPhone } from "./phone.ts";
@@ -21,7 +21,7 @@ import { roundName } from "./Rounds.tsx";
 import { holdersOf, pickAt, type Read } from "./things.ts";
 import { ahead, around, between, centreOf, fitted, GLIDE, moved, type Held, type Size, type View } from "./view.ts";
 
-// What Vantage draws on a round's recording, each on its thing, by its node in that round's recording, or on a spot or
+// What Playthrough draws on a round's recording, each on its thing, by its node in that round's recording, or on a spot or
 // a part of the screen: a note's pin and the outline of what it's on, in its colour; a change's diamond and outline in
 // the recording's own dark ink; the note being written. Without a pin, it's what's chosen on a side where it has none,
 // outlined so both sides point at the same thing.
@@ -677,7 +677,7 @@ export function Stage(props: Props) {
     const real = (mine: boolean) => {
       frame.style.cursor = mine ? "default" : "";
       hand.toggleAttribute("data-yours", mine);
-      app.querySelector("iframe")?.contentWindow?.postMessage({ vantage: "yours", yours: mine }, "*");
+      app.querySelector("iframe")?.contentWindow?.postMessage({ playthrough: "yours", yours: mine }, "*");
     };
 
     if (inPortal) {
@@ -818,7 +818,7 @@ export function Stage(props: Props) {
   // to yours, it's drawn here too, the app's own hidden, and over words you can type into it's the text cursor.
   useEffect(() => {
     const told = ({ data }: MessageEvent) => {
-      if (data?.vantage !== "pointer" || !open.current) return;
+      if (data?.playthrough !== "pointer" || !open.current) return;
       const view = painted.current.get(latest.current.round.number);
       if (view) handTo({ x: (data.x - view.x) * view.k, y: (data.y - view.y) * view.k }, data.inside, !!data.text);
     };
@@ -1019,7 +1019,7 @@ export function Stage(props: Props) {
           </div>
           {/* Between flows, the flow's name over the page its first step left, softened under a veil in the recorded
               app's background, in the app's ink and face: it belongs to the recording, so it looks the same in both
-              themes. The agent's line about the flow is under it, under the agent's name, in Vantage's face: those are
+              themes. The agent's line about the flow is under it, under the agent's name, in Playthrough's face: those are
               the agent's words. */}
           <div
             data-card
@@ -1100,7 +1100,7 @@ export function Stage(props: Props) {
   );
 }
 
-// What H fades: everything Vantage draws on the recording.
+// What H fades: everything Playthrough draws on the recording.
 const hideable = "transition-[filter] duration-180 ease-calm group-data-bare/stage:[filter:opacity(0)]";
 
 // A mark on its thing: an outline around it, never on it, clear of everything it draws, with its pin just outside the

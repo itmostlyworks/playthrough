@@ -4,8 +4,8 @@
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
 import { chromium, type Browser, type Page } from "@playwright/test";
-import type { Reading } from "@mostlyworks/vantage-page";
-import type { Flow } from "@mostlyworks/vantage-review";
+import type { Reading } from "@playthrough/page";
+import type { Flow } from "@playthrough/review";
 import { compare, type Recorded } from "../src/compare.ts";
 import { readPage } from "../src/read.ts";
 

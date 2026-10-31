@@ -6,18 +6,18 @@ import { cp, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Reading } from "@mostlyworks/vantage-page";
-import { Reviews, type Comparison, type Flow, type Round } from "@mostlyworks/vantage-review";
-import { folder } from "@mostlyworks/vantage-review/folder";
+import type { Reading } from "@playthrough/page";
+import { Reviews, type Comparison, type Flow, type Round } from "@playthrough/review";
+import { folder } from "@playthrough/review/folder";
 
 const core = fileURLToPath(new URL("../../../..", import.meta.url));
-const vantage = join(core, "packages/cli/src/vantage.ts");
+const playthrough = join(core, "packages/cli/src/playthrough.ts");
 
 export type Example = Awaited<ReturnType<typeof example>>;
 
 // On a port that isn't the example's own, which may be running.
 export async function example(port: number) {
-  const repo = await mkdtemp(join(tmpdir(), "vantage-repo-"));
+  const repo = await mkdtemp(join(tmpdir(), "playthrough-repo-"));
   await cp(join(core, "example/app"), join(repo, "app"), { recursive: true });
   await writeFile(join(repo, "serve.ts"), (await readFile(join(core, "example/serve.ts"), "utf8")).replaceAll("4400", String(port)));
   await symlink(join(core, "node_modules"), join(repo, "node_modules"));
@@ -32,13 +32,13 @@ export async function example(port: number) {
   git("add", "--all");
   git("commit", "--quiet", "--message", "The example app");
 
-  const review = (path = "") => join(repo, ".vantage/overdue", path);
+  const review = (path = "") => join(repo, ".playthrough/overdue", path);
   const file = (n: number, name: string) => readFile(review(`rounds/${n}/files/${name}`));
   return {
     repo,
     git,
     app: { start: "node serve.ts", url: `http://localhost:${port}` },
-    reviews: new Reviews(folder(join(repo, ".vantage"))),
+    reviews: new Reviews(folder(join(repo, ".playthrough"))),
     flows: review("flows"),
     round: async (n: number): Promise<Round> => JSON.parse(await readFile(review(`rounds/${n}/round.json`), "utf8")),
     saveRound: (round: Round) => writeFile(review(`rounds/${round.number}/round.json`), JSON.stringify(round)),
@@ -49,7 +49,7 @@ export async function example(port: number) {
     // something, with a signal of its own, or by default.
     run: (args: string[], stopWhen?: { says: RegExp; signal?: NodeJS.Signals }): Promise<{ said: string; code: number | null }> =>
       new Promise((resolve) => {
-        const child = spawn(process.execPath, [vantage, ...args], { cwd: repo });
+        const child = spawn(process.execPath, [playthrough, ...args], { cwd: repo });
         let said = "";
         let stopped = false;
         const heard = (chunk: Buffer) => {
@@ -65,7 +65,7 @@ export async function example(port: number) {
   };
 }
 
-const flow = (name: string, steps: string) => `import { test, expect } from "@mostlyworks/vantage/test";
+const flow = (name: string, steps: string) => `import { test, expect } from "playthrough/test";
 
 test(${JSON.stringify(name)}, async ({ page }) => {
 ${steps}

@@ -4,7 +4,7 @@
 // growing into the frame. Under the frame, the one step to take.
 
 import { useRef, useState, type RefObject } from "react";
-import { time, type Flow, type Review, type Round } from "@mostlyworks/vantage-review";
+import { time, type Flow, type Review, type Round } from "@playthrough/review";
 import { picture } from "./api.ts";
 import { EndMark, endOf } from "./Chosen.tsx";
 import { asWho, manyIn } from "./people.ts";

@@ -1,9 +1,9 @@
 {
-  "name": "@mostlyworks/vantage",
+  "name": "playthrough",
   "private": true,
   "type": "module",
   "bin": {
-    "vantage": "./src/vantage.ts"
+    "playthrough": "./src/playthrough.ts"
   },
   "exports": {
     "./test": "./src/test.ts"
@@ -11,8 +11,8 @@
   "dependencies": {
     "@playwright/test": "1.64.1",
     "@rrweb/record": "2.1.7",
-    "@mostlyworks/vantage-page": "*",
-    "@mostlyworks/vantage-review": "*",
-    "@mostlyworks/vantage-viewer": "*"
+    "@playthrough/page": "*",
+    "@playthrough/review": "*",
+    "@playthrough/viewer": "*"
   }
 }

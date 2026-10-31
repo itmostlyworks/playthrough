@@ -38,7 +38,7 @@ export class Refused extends Error {
 //   <review>/review.json                 the agent, when it starts
 //   <review>/rounds/<n>/round.json       the agent, until the round is finished; Before, as it gains a flow added later
 //   <review>/rounds/<n>/files/<name>     the agent: recordings, pictures
-//   <review>/rounds/<n>/since/<k>.json   Vantage: round n compared with round k, while n is being worked on
+//   <review>/rounds/<n>/since/<k>.json   Playthrough: round n compared with round k, while n is being worked on
 //   <review>/sends/<id>.json             whoever sent it
 //   <review>/taken.json                  the agent
 //   <review>/accepted.json               whoever accepted
@@ -51,7 +51,7 @@ export class Reviews {
   }
 
   async list(): Promise<string[]> {
-    // Only what's named like a review is one: Vantage keeps a few files of its own beside them.
+    // Only what's named like a review is one: Playthrough keeps a few files of its own beside them.
     const ids = (await this.storage.list("")).filter((id) => !problemsWithId(id).length);
     const started = await Promise.all(ids.map(async (id) => (await this.storage.read(`${id}/review.json`)) !== undefined));
     return ids.filter((_, i) => started[i]).sort();
@@ -177,9 +177,9 @@ export class Reviews {
     });
   }
 
-  // Vantage
+  // Playthrough
 
-  // What Vantage found comparing the round being worked on with one before it. Comparing them again replaces it.
+  // What Playthrough found comparing the round being worked on with one before it. Comparing them again replaces it.
   async saveComparison(id: string, comparison: Comparison): Promise<void> {
     return this.#one(id, async () => {
       const problems = problemsWithComparison(await this.get(id), comparison);

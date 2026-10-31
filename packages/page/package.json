@@ -1,11 +1,11 @@
 {
-  "name": "@mostlyworks/vantage-page",
+  "name": "@playthrough/page",
   "private": true,
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@mostlyworks/vantage-review": "*"
+    "@playthrough/review": "*"
   }
 }

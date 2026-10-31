@@ -1,5 +1,5 @@
-// The viewer is one page, built into dist/ for `vantage open` to serve. While working on it, `npm run dev` serves it
-// with instant reloads and passes the reviews through from a `vantage open` running beside it.
+// The viewer is one page, built into dist/ for `playthrough open` to serve. While working on it, `npm run dev` serves it
+// with instant reloads and passes the reviews through from a `playthrough open` running beside it.
 
 import tailwind from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";

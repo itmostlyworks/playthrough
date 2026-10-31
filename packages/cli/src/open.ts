@@ -1,4 +1,4 @@
-// Opens the viewer on this machine: its page, and the reviews in .vantage/ for it to read and send to. Each review the
+// Opens the viewer on this machine: its page, and the reviews in .playthrough/ for it to read and send to. Each review the
 // viewer shows streams to it as it's kept, so a new round or a send from elsewhere arrives without asking.
 
 import { execFileSync } from "node:child_process";
@@ -7,8 +7,8 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { createRequire } from "node:module";
 import { userInfo } from "node:os";
 import { dirname, extname, join, normalize, sep } from "node:path";
-import type { Reading } from "@mostlyworks/vantage-page";
-import { Refused, type Did, type Send } from "@mostlyworks/vantage-review";
+import type { Reading } from "@playthrough/page";
+import { Refused, type Did, type Send } from "@playthrough/review";
 import { BEAT } from "./flows.ts";
 import type { Repo } from "./repo.ts";
 import { readyIn } from "./following.ts";
@@ -35,7 +35,7 @@ const TYPES: Record<string, string> = {
 
 export async function open(repo: Repo, id?: string) {
   if (id) await repo.reviews.get(id);
-  const page = join(dirname(createRequire(import.meta.url).resolve("@mostlyworks/vantage-viewer/package.json")), "dist");
+  const page = join(dirname(createRequire(import.meta.url).resolve("@playthrough/viewer/package.json")), "dist");
   if (!(await readFile(join(page, "index.html")).catch(() => undefined)))
     throw new Refused(["The viewer isn't built yet. Build it from core with npm run build."]);
   const you = whoYouAre(repo.root);
@@ -48,7 +48,7 @@ export async function open(repo: Repo, id?: string) {
     });
   });
   const port = await listen(server, PORT);
-  console.log(`Vantage is open at http://localhost:${port}/${id ?? ""}`);
+  console.log(`Playthrough is open at http://localhost:${port}/${id ?? ""}`);
 }
 
 async function answer(repo: Repo, page: string, you: string, request: IncomingMessage, response: ServerResponse) {
@@ -109,7 +109,7 @@ async function live(repo: Repo, id: string, request: IncomingMessage, response: 
 }
 
 // A moment of a flow made ready to take over: the viewer asks while the playhead rests on it, and shows the app there,
-// through Vantage, at the port and moment this answers with.
+// through Playthrough, at the port and moment this answers with.
 async function takeOver(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
   const { flow, step, actions, did, ahead } = await body<{ flow: string; step?: string; actions?: number; did?: Did[]; ahead?: boolean }>(request);
   const { port, moment } = await getReady(repo, id, flow, { step, actions, did, ahead });

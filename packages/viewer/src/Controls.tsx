@@ -2,7 +2,7 @@
 // to look at them, on their own or side by side, and taking the flow over to carry on by hand. Nothing in it appears, disappears or changes width as you move.
 
 import type { ComponentProps } from "react";
-import type { Round } from "@mostlyworks/vantage-review";
+import type { Round } from "@playthrough/review";
 import { useNow, type Playhead } from "./playhead.ts";
 import { Rounds } from "./Rounds.tsx";
 import type { Shown } from "./Stage.tsx";

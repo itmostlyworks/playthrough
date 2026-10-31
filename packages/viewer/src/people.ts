@@ -1,9 +1,9 @@
 // Who does a flow: the person it's done as, then each it's handed to, in order. Once a review has more than one person
 // in it, every flow says who, by its name: “as a patient, then Dr. Lee”. One done by everyone alike says nothing.
 
-import type { Flow, Review } from "@mostlyworks/vantage-review";
+import type { Flow, Review } from "@playthrough/review";
 
-const handsOf =(flow: Flow): string[] => [...new Set([flow.person, ...flow.steps.map((step) => step.person)].filter((person): person is string => !!person))];
+const handsOf = (flow: Flow): string[] => [...new Set([flow.person, ...flow.steps.map((step) => step.person)].filter((person): person is string => !!person))];
 
 // Whoever has it at a moment: the person it was last handed to by then, from the moment their page first shows (one of
 // `loads`), as until then it's still the other's on screen.

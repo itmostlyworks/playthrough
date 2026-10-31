@@ -1,11 +1,11 @@
-// A fork is a question, not a flow: where a person took a flow over in the app and said something there, Vantage keeps
+// A fork is a question, not a flow: where a person took a flow over in the app and said something there, Playthrough keeps
 // their steps and walks them again on every new version, until they say it's fixed. Walked, each fork with a note still
 // open is recorded on the round being worked on, the flow to where they took it over and then their steps, and each open
 // note's answer is placed where it was on that recording, on what it's on if the page has it; where their steps don't
 // get there any more, where they stopped. A note settled as fixed isn't walked again.
 
 import { dirname, join } from "node:path";
-import { allNotes, list, notesToAnswer, pausedAt, quote, Refused, roundInProgress, type Flow, type Place, type Review } from "@mostlyworks/vantage-review";
+import { allNotes, list, notesToAnswer, pausedAt, quote, Refused, roundInProgress, type Flow, type Place, type Review } from "@playthrough/review";
 import { walkFork } from "./flows.ts";
 import type { Repo } from "./repo.ts";
 

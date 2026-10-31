@@ -6,7 +6,7 @@ import { nothing, said, type Unsent, type Watched } from "./notes.ts";
 
 export function useUnsent(review: string) {
   return useKept<Unsent>(
-    `vantage:${review}:unsent`,
+    `playthrough:${review}:unsent`,
     (kept) => Object.fromEntries(Object.entries(kept ?? {}).map(([round, draft]) => [round, { ...nothing, ...(draft as object) }])),
     (unsent) => Object.values(unsent).every((draft) => !said(draft) && !draft.unsaved.length),
     () => Object.fromEntries(movedFrom(review, "").map(({ round, kept }) => [round, kept])) as Unsent,
@@ -15,7 +15,7 @@ export function useUnsent(review: string) {
 
 export function useWatched(review: string) {
   return useKept<Watched[]>(
-    `vantage:${review}:watched`,
+    `playthrough:${review}:watched`,
     (kept) => (Array.isArray(kept) ? kept : []),
     (watched) => !watched.length,
     () => movedFrom(review, ":watched").flatMap(({ round, kept }) => (Array.isArray(kept) ? kept.map((flow: string) => ({ flow, round })) : [])),
@@ -24,7 +24,7 @@ export function useWatched(review: string) {
 
 // Kept before what you haven't sent was the review's, under a key for each round: taken from there, once.
 function movedFrom(review: string, end: string): { round: number; kept: unknown }[] {
-  const pattern = new RegExp(`^vantage:${review.replace(/[^\w-]/g, "\\$&")}:(\\d+)${end}$`);
+  const pattern = new RegExp(`^playthrough:${review.replace(/[^\w-]/g, "\\$&")}:(\\d+)${end}$`);
   try {
     return Object.keys(localStorage).flatMap((key) => {
       const round = pattern.exec(key)?.[1];

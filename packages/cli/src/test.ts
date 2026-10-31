@@ -1,17 +1,17 @@
-// What every flow imports in place of "@playwright/test". While `vantage record` runs, it records each flow the way a person
+// What every flow imports in place of "@playwright/test". While `playthrough record` runs, it records each flow the way a person
 // would watch it: rrweb in every page, the pointer gliding to what it acts on, and a beat after each action so its result can
 // be seen. Each step ends once the page is at rest, and the page it left is read there, with a picture of it: what the
 // comparison compares. Run as plain tests, it does nothing. Each recording and its readings go to the reporter, which makes
-// them a flow (reporter.ts). Taken over, a flow runs in Vantage itself instead (following.ts), on the same pace and steps.
+// them a flow (reporter.ts). Taken over, a flow runs in Playthrough itself instead (following.ts), on the same pace and steps.
 
 import { test as base, expect as playwrightExpect, type APIRequestContext, type Browser, type BrowserContext, type BrowserContextOptions, type Locator, type Page } from "@playwright/test";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import type { Glimpse, Reading } from "@mostlyworks/vantage-page";
+import type { Glimpse, Reading } from "@playthrough/page";
 import { keepAssets, type Assets } from "./assets.ts";
-import type { Did } from "@mostlyworks/vantage-review";
+import type { Did } from "@playthrough/review";
 import { ALONGSIDE, BEAT, REACHES_OUTSIDE, WALKED, type Action, type Handed, type Run, type To, type Walk, type Walked } from "./flows.ts";
 import { readPage, unhovered } from "./read.ts";
 import { repo } from "./repo.ts";
@@ -27,7 +27,7 @@ export const tablet: Screen = { viewport: { width: 820, height: 1180 }, isMobile
 const LAPTOP = { width: 1280, height: 800 };
 
 // Everything it needs comes with the run (flows.ts), so it never has to find anything for itself.
-const run: Run | undefined = process.env.VANTAGE_RUN ? JSON.parse(process.env.VANTAGE_RUN) : undefined;
+const run: Run | undefined = process.env.PLAYTHROUGH_RUN ? JSON.parse(process.env.PLAYTHROUGH_RUN) : undefined;
 
 // On Before, what a flow expects is the finished work, which the app as it is may not show. So each expectation waits a
 // moment for it, as for a step's result, and the flow goes on either way: it stops only where the app as it is can't
@@ -58,7 +58,7 @@ ${readFileSync(rrweb, "utf8")}
 })(Date, setTimeout, clearTimeout, requestAnimationFrame, cancelAnimationFrame);
 if (window.top === window) window.rrwebRecord.record({
   // Nothing is kept until the flow itself starts, after whatever the app's setup did on the page.
-  emit: (event) => window.__vantage?.(event),
+  emit: (event) => window.__playthrough?.(event),
   // every input, not just the last: with "last", rrweb only hears a field change when it loses focus,
   // so words typed into a search box that kept focus never reached the recording
   sampling: { mousemove: 20, scroll: 16, input: "all" },
@@ -154,7 +154,7 @@ const recorded = base.extend<{ person: string | undefined; rest: () => Promise<v
       testInfo.setTimeout(testInfo.timeout * 3);
       const flow: Underway = { page, events: [], rest, depth: 0, readings: [], glimpses: [], pictures: [], actions: [], inStep: 0, hands: [], assets: [] };
       // Only the page the flow is on is recorded: handed on, it carries on on the other's.
-      await page.exposeFunction("__vantage", (event: { timestamp: number }) => void (flow.page === page && flow.events.push(event)));
+      await page.exposeFunction("__playthrough", (event: { timestamp: number }) => void (flow.page === page && flow.events.push(event)));
       flow.assets.push(keepAssets(page, run.folder));
       pace(page);
       pointer = { page, x: 640, y: 640 };
@@ -222,7 +222,7 @@ export async function pageFor(browser: Browser, baseURL: string, screen: Screen)
 async function carryOn(flow: Underway, page: Page, rest: () => Promise<void>, person: string, run: Run) {
   // So you see what the one handing it on left it at, before the frame becomes the other's.
   await flow.page.waitForTimeout(HANDING);
-  await page.exposeFunction("__vantage", (event: { timestamp: number }) => void (flow.page === page && flow.events.push(event)));
+  await page.exposeFunction("__playthrough", (event: { timestamp: number }) => void (flow.page === page && flow.events.push(event)));
   flow.assets.push(keepAssets(page, run.folder));
   flow.hands.push({ at: Date.now(), person });
   Object.assign(flow, { page, rest });
@@ -231,14 +231,14 @@ async function carryOn(flow: Underway, page: Page, rest: () => Promise<void>, pe
   if (page.url() !== "about:blank") await page.evaluate(() => (window as any).rrwebRecord?.record.takeFullSnapshot());
 }
 
-// Taken over, a flow runs in Vantage (following.ts), unrecorded, on the recordings' clock, which the person carries on
+// Taken over, a flow runs in Playthrough (following.ts), unrecorded, on the recordings' clock, which the person carries on
 // with. It's told how far the playhead has gone, and told again each time it moves; once the playhead rests where the
 // flow is, to hand its page over; and to stop, once it's no longer wanted.
 export type Orders = { to: To; stopped?: boolean; moved?: () => void };
 // A flow, as its file gives it to test(): with the page, what Playwright gives every test besides, and the setup.
 export type Body = (given: { page: Page; context: BrowserContext; request: APIRequestContext; baseURL: string; setup: Record<string, any>; handTo: HandTo }) => Promise<unknown>;
 
-// Loaded in Vantage, each flow is kept by its name instead of run. A file at a time, as test() can't tell whose it is.
+// Loaded in Playthrough, each flow is kept by its name instead of run. A file at a time, as test() can't tell whose it is.
 // With what it does outside the app, if its file says so (REACHES_OUTSIDE): an email sent, a card charged, a paid API
 // called. Such a flow is run only when it's taken over, never ahead of the playhead, where every pause would do it again.
 // And everything its file says with test.use: the window it's recorded in, like a phone's screen and touch, and who it's
@@ -464,7 +464,7 @@ function withSteps<T extends typeof recorded>(test: T): T {
   const extend = test.extend;
   return Object.assign(test, { step, extend: (...args: Parameters<typeof extend>) => withSteps(extend.apply(test, args)) });
 }
-// Loaded in Vantage, which says so first (following.ts), test() keeps each flow by its name instead. It's settled once,
+// Loaded in Playthrough, which says so first (following.ts), test() keeps each flow by its name instead. It's settled once,
 // as the file loads: wrapped, Playwright's test() would take the wrapper for where each test is written.
 type Annotation = { type: string; description?: string };
 const outsideIn = (details: unknown) => {

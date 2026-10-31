@@ -1,12 +1,12 @@
 // What changed at one moment of a flow between two rounds, as the changes a person would name. What only follows from
 // another is told with it: what moved or grew with what holds it, and what was pushed along by something new, gone or
 // resized above or beside it. Things that swapped places, rows in a new order, and alike things changed alike are one
-// change each. Each is said in Vantage's fixed words, never the agent's, and its id is the thing and what happened to it,
+// change each. Each is said in Playthrough's fixed words, never the agent's, and its id is the thing and what happened to it,
 // so the same change seen in another flow, at another moment or against another round is the same one.
 
 import { createHash } from "node:crypto";
-import { a, called, dataLeftOut, differences, HOLDS, holderOf, identity, lookWords, near, NEAR, parentOf, plural, rewordedWords, sentence, symbolOnly, the, things, together, wayOf, word, WORD, type Difference, type Glimpse, type Reading, type Thing } from "@mostlyworks/vantage-page";
-import type { Box, Element } from "@mostlyworks/vantage-review";
+import { a, called, dataLeftOut, differences, HOLDS, holderOf, identity, lookWords, near, NEAR, parentOf, plural, rewordedWords, sentence, symbolOnly, the, things, together, wayOf, word, WORD, type Difference, type Glimpse, type Reading, type Thing } from "@playthrough/page";
+import type { Box, Element } from "@playthrough/review";
 
 // A change at one moment: what it's on is an element of the newer round, or for something gone, where it was.
 export type Found = { id: string; words: string; element?: Element; alike?: Element[]; box?: Box };

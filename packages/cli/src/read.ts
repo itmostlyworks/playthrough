@@ -3,7 +3,7 @@
 // everything it can tell apart.
 
 import type { Page } from "@playwright/test";
-import type { Reading, Thing } from "@mostlyworks/vantage-page";
+import type { Reading, Thing } from "@playthrough/page";
 
 export function readPage(page: Page): Promise<{ screen: Reading["screen"]; things: Thing[] }> {
   return page.evaluate(read);
@@ -22,13 +22,13 @@ export async function unhovered<T>(page: Page, look: () => Promise<T>): Promise<
 }
 
 function hovering(on: boolean) {
-  const kept = window as unknown as { __vantageHover?: [CSSStyleRule, string][] };
+  const kept = window as unknown as { __playthroughHover?: [CSSStyleRule, string][] };
   if (on) {
-    for (const [rule, selector] of kept.__vantageHover ?? []) rule.selectorText = selector;
-    kept.__vantageHover = [];
+    for (const [rule, selector] of kept.__playthroughHover ?? []) rule.selectorText = selector;
+    kept.__playthroughHover = [];
     return;
   }
-  const set: [CSSStyleRule, string][] = (kept.__vantageHover = []);
+  const set: [CSSStyleRule, string][] = (kept.__playthroughHover = []);
   const visit = (rules: CSSRuleList) => {
     for (const rule of rules) {
       // Nothing matches :not(*), so it reads as nothing hovered, and :not(:hover) as everything not.
