@@ -105,6 +105,12 @@ in with page.request, not request: it shares the page's cookies, so the page is 
 the flow over. Dates the server works out don't follow the page's clock: fix them through the app's own test hook if it
 has one.
 
+The first time flows run in an app, and whenever app.json or setup.ts changes, Playthrough tries them first: it starts
+the app, makes what a flow starts from for each of the app's people twice, giving it back each time, and says what it
+found, with a picture of where each starts. It's the person's app, so tell them how flows get into it and what's
+missing, and ask before you change it for Playthrough's sake, as with a route only for tests, or when only they have
+what's needed, like a test account. The review carries on meanwhile.
+
 Each new flow is recorded twice. What changes by itself between the two, like a time the server stamps, is left out of
 every comparison, in every flow, and Playthrough says what it is: steady it in playthrough/setup.ts if you can, because a real
 change to it won't be seen.

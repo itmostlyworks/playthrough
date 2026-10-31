@@ -49,10 +49,11 @@ export function personIn({ people }: Setup, person: string) {
 
 // Made for one run, and written down in .playthrough/borrowed/ until it's given back, by the process it's made for, named
 // in the file's name. Should that process end first, stopped or crashed, the next command gives it back.
-export type Made = { setup: Record<string, any>; giveBack: () => Promise<void> };
+// Giving it back says whether it was.
+export type Made = { setup: Record<string, any>; giveBack: () => Promise<boolean> };
 export async function make({ make, after }: Setup, borrowed: string, given: Parameters<Make>[0] & { baseURL: string }): Promise<Made> {
   const setup = ((await make?.(given)) ?? {}) as Record<string, any>;
-  if (!after) return { setup, giveBack: async () => {} };
+  if (!after) return { setup, giveBack: async () => false };
   await mkdir(borrowed, { recursive: true });
   const file = join(borrowed, `${process.pid}-${randomUUID()}.json`);
   await writeFile(file, JSON.stringify({ baseURL: given.baseURL, setup }));
@@ -79,14 +80,16 @@ async function giveBackOf({ after }: Setup, borrowed: string, whose: (pid: numbe
 // Once each: a run that ends as Playthrough does would otherwise be given back twice.
 const giving = new Set<string>();
 async function giveBack(after: After, file: string, baseURL: string, setup: Record<string, any>) {
-  if (giving.has(file) || !existsSync(file)) return;
+  if (giving.has(file) || !existsSync(file)) return true;
   giving.add(file);
   const request = await requests.newContext({ baseURL });
   try {
     await after({ request, baseURL, setup });
     await rm(file, { force: true });
+    return true;
   } catch (error) {
     console.log(`playthrough/setup.ts's after couldn't give back what a run made: ${firstLine(String((error as Error)?.message ?? error))}. It's tried again by the next command.`);
+    return false;
   } finally {
     giving.delete(file);
     await request.dispose();

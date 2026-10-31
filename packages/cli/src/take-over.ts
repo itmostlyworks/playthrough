@@ -3,20 +3,20 @@
 // of the moment made the way every flow starts, not a picture of it. Playthrough passes everything on to the app, and at
 // /take-over gives the browser what the flow's page had: its address, its cookies, and what the app kept in the browser.
 
-import { spawn, type ChildProcess } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { createServer, request as ask, type IncomingMessage, type ServerResponse } from "node:http";
 import { connect } from "node:net";
-import { constants, networkInterfaces } from "node:os";
+import { networkInterfaces } from "node:os";
 import { dirname, join } from "node:path";
 import { list, quote, Refused, type Did } from "@playthrough/review";
+import { keepRunning } from "./app.ts";
 import type { Handed } from "./flows.ts";
 import { follow, reachesOutside, runTo } from "./following.ts";
 import { listen } from "./open.ts";
 import { read } from "./read.ts";
-import { repo, type App, type Repo } from "./repo.ts";
-import { giveBackOwn, setupIn, type Made } from "./setup.ts";
+import type { App, Repo } from "./repo.ts";
+import type { Made } from "./setup.ts";
 
 // Clear of the viewer's, which takes the next free one from 5790 when several are open.
 const PORT = 5830;
@@ -92,45 +92,6 @@ async function recorded(repo: Repo, id: string) {
   if (!round) throw new Refused([`${id} has nothing recorded yet, so there's nothing to take over. Record it first: playthrough record ${id}`]);
   return round;
 }
-
-// The app, as playthrough/app.json starts it, kept running for as long as Playthrough runs, or the one already running:
-// Playwright would stop one it started itself as soon as the flow was done.
-let started: ChildProcess | undefined;
-let ending = false;
-async function keepRunning(app: App, root: string) {
-  // Stopped by a signal, Node ends without saying it's exiting, and what it started here runs on, orphaned: the flows
-  // kept ready and the app. Told, they go with it.
-  if (!ending) {
-    ending = true;
-    // What its runs made is given back first, for as long as ten seconds: what isn't, the next command gives back.
-    const { setup, borrowed } = repo(root);
-    const giveBack = () => setupIn(setup).then((setup) => giveBackOwn(setup, borrowed));
-    const end = (signal: NodeJS.Signals) => void Promise.race([giveBack(), new Promise((wait) => setTimeout(wait, 10_000))]).finally(() => process.exit(128 + constants.signals[signal]));
-    for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) process.once(signal, end);
-  }
-  if (await answers(app.url)) return;
-  console.log(`Starting the app: ${app.start}`);
-  started = spawn(app.start, { cwd: root, shell: true, stdio: "ignore", detached: true });
-  // The app goes when Playthrough does, with everything its command started.
-  const stop = () => {
-    try {
-      process.kill(-started!.pid!);
-    } catch {}
-  };
-  process.once("exit", stop);
-  for (let waited = 0; waited < 180; waited++) {
-    if (await answers(app.url)) return;
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-  }
-  stop();
-  throw new Refused([`The app didn't answer at ${app.url} within three minutes of ${quote(app.start)}. Check that playthrough/app.json starts it there.`]);
-}
-
-const answers = (url: string) =>
-  fetch(url, { signal: AbortSignal.timeout(2000) }).then(
-    () => true,
-    () => false,
-  );
 
 // Everything that isn't /take-over goes to the app as it is, answers and live connections both, as if the browser
 // were talking to it directly, so the app sees nothing unusual: its own address, and its own address as where a

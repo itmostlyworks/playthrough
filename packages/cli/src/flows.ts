@@ -12,6 +12,7 @@ import { changesByThemselves, type Recorded as Compared } from "./compare.ts";
 import { glimpsesOf, readingsOf, type Failed, type Recorded } from "./reporter.ts";
 import { repo, type App, type Repo } from "./repo.ts";
 import { giveBackLeft, setupIn } from "./setup.ts";
+import { trySetup } from "./try-setup.ts";
 
 // What the run needs to know, passed to Playwright whole: where the flows are and which of them to run, the folder the
 // recordings go to, the app, rrweb's recorder, which goes into every page, whether it's Before, and the recordings the
@@ -96,6 +97,8 @@ export async function runFlows(
     throw new Refused([`${id} has no flows yet. ${howToWriteFlows(repo, id)}`]);
   await makeFlowsFolder(repo, id);
   const app = await repo.app();
+  // A flow recorded on Before later runs on the setup as it was then.
+  if (!later) await trySetup(repo);
   const { started, rounds } = await repo.reviews.get(id);
   const recorder = join(dirname(createRequire(import.meta.url).resolve("@rrweb/record")), "record.umd.min.cjs");
   // The flows as long as they were last round, longest first, so the round ends close to when its longest flow does.

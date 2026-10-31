@@ -12,6 +12,7 @@ export type Repo = ReturnType<typeof repo>;
 
 export function repo(root = process.cwd()) {
   const reviews = join(root, ".playthrough");
+  const appFile = join(root, "playthrough", "app.json");
   return {
     root,
     reviews: new Reviews(folder(reviews)),
@@ -20,10 +21,14 @@ export function repo(root = process.cwd()) {
     failed: (review: string) => join(reviews, review, "failed"),
     round: (review: string, round: number) => join(reviews, review, "rounds", String(round), "round.json"),
     setAside: join(reviews, "set-aside.json"),
+    // How to start the app, committed.
+    appFile,
     // What every flow of the app starts from, committed beside app.json.
     setup: join(root, "playthrough", "setup.ts"),
     // What setup made for each run, until its after gives it back.
     borrowed: join(reviews, "borrowed"),
+    // The app's setup as it was last tried, and where each of its people started there.
+    tried: join(reviews, "tried"),
     // As a person at this folder would type it.
     show: (path: string) => relative(process.cwd(), path) || ".",
 
@@ -34,9 +39,8 @@ export function repo(root = process.cwd()) {
     },
 
     async app(): Promise<App> {
-      const file = join(root, "playthrough", "app.json");
       const how = `Say how to start the app in playthrough/app.json: { "start": "<the command that serves it>", "url": "<where it's served>" }.`;
-      const text = await readFile(file, "utf8").catch(() => undefined);
+      const text = await readFile(appFile, "utf8").catch(() => undefined);
       if (text === undefined) throw new Refused([`Playthrough needs to start the app to record it. ${how}`]);
       let app: Partial<App>;
       try {
