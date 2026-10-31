@@ -1140,17 +1140,6 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   const settledNotes = [...settled, ...notes].filter((note) => note.state === "settled").length;
   const acceptedAfter = `Accepted${settledNotes ? ` · ${settledNotes} ${settledNotes === 1 ? "note" : "notes"} settled` : ""}`;
 
-  // A recording is never yours to type in: a dialog it opens as a modal takes focus into its page, and your keys with it,
-  // so they're taken back. Only the app, once it's yours, keeps them.
-  useEffect(() => {
-    const back = () => {
-      const taken = document.activeElement;
-      if (taken instanceof HTMLIFrameElement && !taken.closest("[data-live]")) setTimeout(() => window.focus());
-    };
-    addEventListener("blur", back);
-    return () => removeEventListener("blur", back);
-  }, []);
-
   useEffect(() => {
     const writingHere = (event: KeyboardEvent) => event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement;
     const down = (event: KeyboardEvent) => {

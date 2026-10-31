@@ -164,6 +164,7 @@ export class Replay {
     Object.assign(this.host.style, { width: `${this.#shape.width}px`, height: `${this.#shape.height}px` });
     into.append(this.host);
     this.#replayer = new Replayer(events, { root: this.host, mouseTail: false, triggerFocus: false, pauseAnimation: false, showWarning: false });
+    this.#keepKeys();
     this.#replayer.pause(this.#drawn);
   }
 
@@ -262,6 +263,19 @@ export class Replay {
   destroy() {
     this.#replayer.destroy();
     this.host.remove();
+  }
+
+  // A recording is never yours to type in: a dialog it opens as a modal would take focus into its page, and your keys
+  // with it, so it opens with nothing in it to focus. Its page keeps what's defined on it each time it's rebuilt, never
+  // what listens to it.
+  #keepKeys() {
+    const dialog = (this.#replayer.iframe.contentWindow as (Window & typeof globalThis) | null)?.HTMLDialogElement.prototype;
+    if (!dialog) return;
+    const showModal = dialog.showModal;
+    dialog.showModal = function (this: HTMLDialogElement) {
+      this.inert = true;
+      showModal.call(this);
+    };
   }
 
   // For 0.4s after a jump, each frame finishes the page's motion, while the recording is still within 0.15s of where it
