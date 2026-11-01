@@ -200,7 +200,7 @@ export function problemsFinishing(review: Review, number: number): string[] {
   for (const id of notesToAnswer(review, number)) {
     const reply = round.replies.find((reply) => reply.note === id);
     const note = notes.get(id)?.note;
-    if (!isText(reply?.words)) problems.push(`${at} needs an answer to note ${id}${note ? `, “${cut(note.words)}”` : ""}.`);
+    if (!isText(reply?.words)) problems.push(`${at} needs an answer to note ${id}${note ? `, “${cut(note.words)}”` : ""}: its reply's “words”, under “replies”.`);
     else if (reply?.on && note?.on && reply.on.flow !== note.on.flow)
       problems.push(`${at}: the reply to note ${id} is on “${reply.on.flow}”, but the note is on “${note.on.flow}”. A reply goes in its note's flow.`);
   }
