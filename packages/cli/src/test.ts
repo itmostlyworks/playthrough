@@ -603,6 +603,22 @@ function pace(page: Page) {
       return result;
     };
   }
+  // The wheel scrolls a little each frame, as a person's does: left to Playwright, a page that's read jumped a screen at
+  // each step of its recording.
+  const mouse = Object.getPrototypeOf(page.mouse);
+  const wheel = mouse.wheel;
+  mouse.wheel = async function (this: Page["mouse"], deltaX: number, deltaY: number) {
+    if (!pointer) return wheel.call(this, deltaX, deltaY);
+    const moves = Math.max(10, Math.min(36, Math.round(Math.hypot(deltaX, deltaY) / 25)));
+    let done = 0;
+    for (let i = 1; i <= moves; i++) {
+      await wheel.call(this, deltaX * (ease(i / moves) - done), deltaY * (ease(i / moves) - done));
+      done = ease(i / moves);
+      await pointer.page.waitForTimeout(FRAME);
+    }
+    await pointer.page.waitForTimeout(BEAT);
+    await glimpse();
+  };
   // Typing and pressing keys are actions too, on whatever has the focus, on the page taken over.
   const keyboard = Object.getPrototypeOf(page.keyboard);
   const focused = async (page: Page) => {

@@ -82,7 +82,7 @@ step, and keeps the page it failed on in .playthrough/<review>/failed/.
 Steps go where a person goes, by what the app had before your work too, never to what you changed: the app as it was
 doesn't have it, so Before stops short there and your change reads as new steps. Playthrough finds what changed, and
 shows each change when the recording first has it on the screen. A page people read, like a landing page or docs, is a
-flow of reading it, top to bottom: a step for each screen, scrolled as a person scrolls (page.mouse.wheel(0, 600)), as
+flow of reading it, top to bottom: a step for each screen, scrolled with page.mouse.wheel(0, 600), which Playthrough scrolls as a person does, as
 many as the longer page needs.
 
 While the person watches, Playthrough runs the flow again in the background, so taking it over is quick. If its steps do
