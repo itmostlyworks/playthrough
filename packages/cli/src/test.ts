@@ -12,10 +12,10 @@ import { pathToFileURL } from "node:url";
 import type { Glimpse, Reading } from "@playthrough/page";
 import { keepAssets, type Assets } from "./assets.ts";
 import type { Did } from "@playthrough/review";
-import { ALONGSIDE, BEAT, REACHES_OUTSIDE, WALKED, type Action, type Handed, type Run, type To, type Walk, type Walked } from "./flows.ts";
+import { ALONGSIDE, BEAT, REACHES_OUTSIDE, WALKED, type Action, type DoneOn, type Handed, type On, type Run, type To, type Walk, type Walked } from "./flows.ts";
 import { readPage, unhovered } from "./read.ts";
 import { repo } from "./repo.ts";
-import { ACTIONS, ASSETS, firstLine, GLIMPSES, HANDS, HOLD, pathOf, PERSON, PICTURE, READINGS, RECORDING, seconds, STOPPED_ON, UNMET, WROTE, type Failed, type Hand } from "./reporter.ts";
+import { ACTIONS, ASSETS, DONE_ON, firstLine, GLIMPSES, HANDS, HOLD, PERSON, PICTURE, READINGS, RECORDING, seconds, WROTE, type Failed, type Hand } from "./reporter.ts";
 import { watchRest } from "./rest.ts";
 import { changes, firstOf, make, personIn, setupIn, type Made, type Setup } from "./setup.ts";
 
@@ -29,9 +29,9 @@ const LAPTOP = { width: 1280, height: 800 };
 // Everything it needs comes with the run (flows.ts), so it never has to find anything for itself.
 const run: Run | undefined = process.env.PLAYTHROUGH_RUN ? JSON.parse(process.env.PLAYTHROUGH_RUN) : undefined;
 
-// On Before, what a flow expects is the finished work, which the app as it is may not show. So each expectation waits a
-// moment for it, as for a step's result, and the flow goes on either way: it stops only where the app as it is can't
-// do something, and it's recorded as far as that. How many weren't so is said with it.
+// On Before, what a flow expects is the finished work, which the app as it was may not show. So each expectation waits a
+// moment for it, as for a step's result, and the flow goes on either way: it stops only where the app as it was can't
+// do something, and it's recorded as far as that.
 export const expect = run?.before ? onlyWaits(playwrightExpect.configure({ timeout: 1000 })) : playwrightExpect;
 
 function onlyWaits(expect: typeof playwrightExpect): typeof playwrightExpect {
@@ -43,7 +43,7 @@ function onlyWaits(expect: typeof playwrightExpect): typeof playwrightExpect {
         if (typeof check !== "function") return check;
         return (...args: unknown[]) => {
           try {
-            return Promise.resolve(check.apply(target, args)).catch(() => underway && (underway.unmet = (underway.unmet ?? 0) + 1));
+            return Promise.resolve(check.apply(target, args)).catch(() => {});
           } catch {}
         };
       },
@@ -79,9 +79,9 @@ let pointer: { page: Page; x: number; y: number; handed?: boolean } | undefined;
 // The flow underway: the page it's on now, what waits for that page to rest, what was read at the end of each step so
 // far, with its picture, and when each action was done; the step it's in, and how many of that step's actions are done;
 // whoever it's been handed to, and the assets each page loaded; the first request it sent that changes what the app holds;
-// the browser's own dialog shown during the action being done, until it's answered; on Before, how many things it
-// expects weren't so; and walking a fork again, once the fork's steps have begun, how far they got.
-type Underway = { page: Page; events: { timestamp: number }[]; rest: () => Promise<void>; depth: number; readings: Omit<Reading, "picture">[]; glimpses: Glimpse[]; pictures: Buffer[]; actions: number[]; step?: string; inStep: number; hands: Hand[]; assets: (() => Promise<Assets>)[]; wrote?: string; dialog?: Promise<void>; unmet?: number; walked?: Walked };
+// the browser's own dialog shown during the action being done, until it's answered; what each action was done on, by
+// its step; and walking a fork again, once the fork's steps have begun, how far they got.
+type Underway = { page: Page; events: { timestamp: number }[]; rest: () => Promise<void>; depth: number; readings: Omit<Reading, "picture">[]; glimpses: Glimpse[]; pictures: Buffer[]; actions: number[]; step?: string; inStep: number; hands: Hand[]; assets: (() => Promise<Assets>)[]; wrote?: string; dialog?: Promise<void>; doneOn: DoneOn; walked?: Walked };
 let underway: Underway | undefined;
 
 // What every flow starts from (setup.ts), loaded once a run.
@@ -154,7 +154,7 @@ const recorded = base.extend<{ person: string | undefined; rest: () => Promise<v
     async ({ page, setup, rest, person, handTo: _ }, use, testInfo) => {
       if (!run) return use();
       testInfo.setTimeout(testInfo.timeout * 3);
-      const flow: Underway = { page, events: [], rest, depth: 0, readings: [], glimpses: [], pictures: [], actions: [], inStep: 0, hands: [], assets: [] };
+      const flow: Underway = { page, events: [], rest, depth: 0, readings: [], glimpses: [], pictures: [], actions: [], inStep: 0, hands: [], assets: [], doneOn: {} };
       // Only the page the flow is on is recorded: handed on, it carries on on the other's.
       await page.exposeFunction("__playthrough", (event: { timestamp: number }) => void (flow.page === page && flow.events.push(event)));
       flow.assets.push(keepAssets(page, run.folder));
@@ -203,10 +203,7 @@ const recorded = base.extend<{ person: string | undefined; rest: () => Promise<v
       if (who) await testInfo.attach(PERSON, { body: who, contentType: "text/plain" });
       if (flow.hands.length) await testInfo.attach(HANDS, { body: JSON.stringify(flow.hands), contentType: "application/json" });
       if (flow.wrote) await testInfo.attach(WROTE, { body: flow.wrote, contentType: "text/plain" });
-      if (flow.unmet) await testInfo.attach(UNMET, { body: String(flow.unmet), contentType: "text/plain" });
-      // Stopped on Before, the page it's on: a flow that clicked the wrong thing on its way, and stopped on a card's page
-      // rather than the board, reads the same as one the app doesn't have the next step's thing for yet, but for this.
-      if (!ended && last.url() !== "about:blank") await testInfo.attach(STOPPED_ON, { body: pathOf(last.url()), contentType: "text/plain" });
+      await testInfo.attach(DONE_ON, { body: JSON.stringify(flow.doneOn), contentType: "application/json" });
       for (const picture of pictures) await testInfo.attach(PICTURE, { body: picture, contentType: "image/png" });
     },
     { auto: true },
@@ -502,8 +499,6 @@ const step = Object.assign(async (title: string, body: (info: unknown) => unknow
   return playwrightStep(
     title,
     async (info) => {
-      // Recorded again, a flow stops where it stopped the first time, without waiting there as long again.
-      if (run?.stops?.[base.info().title] === title) throw new Error("It stopped here the first time it was recorded.");
       Object.assign(flow, { step: title, inStep: 0 });
       flow.depth++;
       let done: unknown;
@@ -591,6 +586,7 @@ function pace(page: Page) {
       // As long as the flow said to wait, where it said.
       const timeout = args.findLast((arg): arg is { timeout: number } => !!arg && typeof arg === "object" && typeof (arg as { timeout?: unknown }).timeout === "number")?.timeout;
       if (pointer) await approach(this, pointer, timeout).catch((error) => Promise.reject(asAction(error, action)));
+      if (underway?.depth) await follow(underway, this);
       // Filled in on a recording, words are typed as a person types them, where they're typed: a date or a number is
       // set as it is, as typing it can come out otherwise.
       const [text, options] = args as [unknown, { timeout?: number } | undefined];
@@ -658,6 +654,37 @@ async function acted(does: string, target: (page: Page) => Promise<string | unde
   }
   if (keeping) await reached(keeping, keeping.step, ++keeping.actions);
   return result;
+}
+
+// What each action is done on is noted by its step. On Before, an action the round did on something else stops the flow
+// there: a flow is written for the work, and in the app as it was, what it looks for can find another thing, as a card
+// for a list's menu. What it did there isn't how the app was, and nobody should have to tell the two apart.
+async function follow(flow: Underway, target: Locator) {
+  const on = await doneOn(target);
+  const done = (flow.doneOn[flow.step ?? ""] ??= []);
+  const inRound = run?.before && run.doneInRound?.[base.info().title]?.[flow.step ?? ""]?.[done.length];
+  done.push(on ?? null);
+  if (on && inRound && !alike(on, inRound)) throw new Error(`The app as it was has ${on.role} “${on.name}” here, where the round has ${inRound.role} “${inRound.name}”.`);
+}
+
+// What an action is done on, as a person points at it: its role and name, as getByRole finds it, without the state it's
+// in; words with no role of their own, by their words. Nothing, for something with neither.
+const doneOn = (target: Locator): Promise<On | undefined> =>
+  target.ariaSnapshot({ timeout: 1000 }).then(
+    (snapshot) => {
+      const [, role, name, words] = snapshot.match(/^- ([\w-]+)(?: "((?:[^"\\]|\\.)*)")?[^:\n]*(?::\s*(.*))?/) ?? [];
+      return role ? { role, name: name ?? (role === "text" ? (words ?? "") : "") } : undefined;
+    },
+    () => undefined,
+  );
+
+// The same thing, in the app as it was and with the work: the same role, and most of the shorter name's words in the
+// other's, as a card the work gave a badge is still that card.
+function alike(one: On, other: On): boolean {
+  if (one.role !== other.role) return false;
+  const words = (name: string) => name.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  const [few, many] = [words(one.name), words(other.name)].sort((a, b) => a.length - b.length);
+  return !few!.length || few!.filter((word) => many!.includes(word)).length * 2 >= few!.length;
 }
 
 // The person's steps done again where they took the flow over, recorded as the flow is, the pointer gliding to each: as

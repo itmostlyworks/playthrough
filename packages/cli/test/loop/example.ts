@@ -125,6 +125,16 @@ export const openExport = flow(
     await page.getByRole("button", { name: "Export" }).click({ timeout: 1000 });
   });`,
 );
+// Written for the work, where the header's last button is Export: in the app as it was, it's another one.
+export const exportFromHeader = flow(
+  "Export from the header",
+  `  await test.step("Open the invoices", async () => {
+    await page.goto("/");
+  });
+  await test.step("Export them", async () => {
+    await page.locator("header button").last().click();
+  });`,
+);
 export const lookThrough = flow(
   "Look through the invoices",
   `  await test.step("Open the invoices", async () => {

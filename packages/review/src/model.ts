@@ -88,7 +88,7 @@ export const Flow = z.strictObject({
   line: text("needs words in its line, or no line").optional().describe("The agent's, at the flow's start: what it starts from, or the choice it shows"),
   stopped: text("needs the step it stopped at")
     .optional()
-    .describe("On Before, the step the flow couldn't take there: it's kept as far as that, and tried again by playthrough start"),
+    .describe("On Before, the step the flow couldn't take there, or that the app as it was had something else for: it's kept as far as that"),
   person: text("needs the name of who it acts as, or no person")
     .optional()
     .describe("Who the flow is done as, as its file or the app's setup names them: the name on the recorded pointer, handed to you when you take over"),

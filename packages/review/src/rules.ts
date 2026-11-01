@@ -132,8 +132,8 @@ function problemsWatching(reply: Reply, round: Round, at: string): string[] {
   return [`${at}: the reply to note ${reply.note} watches ${quote(reply.watch!)}, which isn't a step of ${quote(flow.name)}. Name one of its steps: ${list(flow.steps.map((step) => quote(step.title)))}.`];
 }
 
-// Before, once recorded, only gains: a flow added later, recorded on the app as it was, or the word that the app as it
-// was can't start it.
+// Before gains each flow as its round is recorded: the flow recorded on the app as it was, or the word that the app as
+// it was can't start it.
 export function problemsAddingToBefore(review: Review, flows: Flow[], cantStart: string[]): string[] {
   if (review.accepted) return ["This review is accepted, so nothing more can be recorded."];
   const before = review.rounds.find((round) => round.number === 0);
@@ -202,7 +202,8 @@ export function problemsFinishing(review: Review, number: number): string[] {
   const at = `Round ${number}`;
   const shape = problemsWithShape(Round, round, at);
   if (shape.length) return shape;
-  if (!round.flows.length) return [`${at} has no flows yet. Record them first.`];
+  // Before gains its flows as their rounds are recorded, so it's kept with none.
+  if (number > 0 && !round.flows.length) return [`${at} has no flows yet. Record them first.`];
 
   const problems: string[] = [];
   const notes = allNotes(review);

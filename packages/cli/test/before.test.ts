@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, test } from "node:test";
 import { Refused } from "@playthrough/review";
 import type { TestCase, TestResult } from "@playwright/test/reporter";
-import { keepBefore, keptWithOursNow, putBack, refuseIfBroken } from "../src/before.ts";
+import { keepBefore, putBack, refuseIfBroken } from "../src/before.ts";
 import { repo, type Repo } from "../src/repo.ts";
 import Flows, { READINGS, RECORDING, type Failed, type Recorded } from "../src/reporter.ts";
 
@@ -53,21 +53,11 @@ describe("Before kept as a commit", () => {
     assert.deepEqual(state(), was);
   });
 
-  test("kept again with playthrough/ as it is now, even where it isn't committed and has changed since", async () => {
-    await mkdir(join(root, "playthrough"));
-    await writeFile(join(root, "playthrough/setup.ts"), "first");
-    const commit = keepBefore(app, "overdue")!;
-    await writeFile(join(root, "playthrough/setup.ts"), "fixed");
-    const was = state();
-    const again = keptWithOursNow(app, "overdue", commit);
-    assert.equal(git("show", `${again}:playthrough/setup.ts`), "fixed");
-    assert.equal(git("show", `${again}:app.txt`), "changed since", "the rest is the app as it was");
-    assert.equal(git("rev-parse", `${again}^`), git("rev-parse", `${commit}^`));
-    assert.deepEqual(state(), was);
-  });
-
-  test("outside git there's none", async () => {
+  test("outside git there's none, nor in a repo with no commits yet, where git can't set the work aside to put it back", async () => {
     const elsewhere = await mkdtemp(join(tmpdir(), "playthrough-"));
+    assert.equal(keepBefore(repo(elsewhere), "overdue"), undefined);
+    execFileSync("git", ["init", "--quiet"], { cwd: elsewhere });
+    await writeFile(join(elsewhere, "app.txt"), "new");
     assert.equal(keepBefore(repo(elsewhere), "overdue"), undefined);
     await rm(elsewhere, { recursive: true });
   });

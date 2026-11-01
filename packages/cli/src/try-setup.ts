@@ -58,10 +58,10 @@ export async function trySetup(repo: Repo, again: string) {
 
   // What a run leaves behind is said only where setup was seen to make something: a setup that only opens a page, or one
   // the app needs none of, as one that keeps everything in the browser, leaves nothing. What flows leave without one,
-  // recording Before says, as it sees them send it (start.ts).
+  // round 1 says, as it sees them send it (record.ts).
   const missing: string[] = [];
   if (!setup.after && tried.some(({ made }) => made))
-    missing.push("playthrough/setup.ts has no after, so what each run makes stays in the app: one for each flow recorded, two for a new one, and one each time the person pauses a recording, as it's made ready to take over.");
+    missing.push("playthrough/setup.ts has no after, so what each run makes stays in the app: one for each flow recorded, three for a new one, and one each time the person pauses a recording, as it's made ready to take over.");
   const slowest = Math.max(...tried.map(({ took }) => took));
   if (slowest > SLOW) missing.push(`Setup took ${seconds(slowest)}: each flow waits that long before its first step, and so does each moment taken over.`);
 
@@ -133,7 +133,7 @@ async function tryAs(repo: Repo, browser: Browser, setup: Setup, baseURL: string
 const seconds = (ms: number) => (ms < 100 ? "under 0.1 s" : `${(ms / 1000).toFixed(1)} s`);
 
 // What's tried: how the app starts and what every flow starts from, as they're written now.
-async function writtenNow(repo: Repo) {
+export async function writtenNow(repo: Repo) {
   const text = (path: string) => readFile(path, "utf8").catch(() => "");
   return createHash("sha256")
     .update(await text(repo.appFile))

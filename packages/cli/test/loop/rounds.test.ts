@@ -20,7 +20,7 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
     assert.equal(code, 0);
     assert.match(said, /Write its flows before you change anything\. They show what was asked, so write them from the task, not from the code/);
     assert.match(said, /Each flow is a Playwright test in a \.ts file in \.playthrough\/overdue\/flows/);
-    assert.match(said, /Then run playthrough start overdue again\. It records Before/);
+    assert.match(said, /Then run playthrough start overdue again\. It tries the app's setup, and keeps the app as it is as Before/);
     const review = await app.reviews.get("overdue");
     assert.deepEqual([review.title, review.asked], ["Show only overdue invoices", "Can the invoices list show just the overdue ones?"]);
   });
@@ -36,7 +36,7 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
     assert.match(said, /Say how to start the app in playthrough\/app\.json/);
   });
 
-  test("run again, start tries the app's setup by itself first and records nothing; once more, it records Before: each flow on the app as it is, as far as the app can take it", async () => {
+  test("run again, start tries the app's setup by itself first and records nothing; once more, it keeps the app as it is as Before, and still records nothing", async () => {
     await mkdir(join(app.repo, "playthrough"));
     await writeFile(join(app.repo, "playthrough/app.json"), JSON.stringify(app.app));
     await writeFile(join(app.flows, "paid.ts"), seePaid);
@@ -49,33 +49,16 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
 
     ({ said, code } = await app.run(["start", "overdue"]));
     assert.equal(code, 0, said);
-    assert.match(said, /Recorded Before: “Export the overdue ones”, “See what's overdue” and “See what's paid”\.\n“Export the overdue ones” stops at “Export them”, on \/, where Playwright says “[^”\n]+”, so its Before goes as far as that\./);
+    assert.match(said, /Kept Before: the app as it is now\. Each flow is recorded on it with round 1, as far as the app as it was takes it, for the person to compare with\./);
     assert.match(said, /add a flow for each choice you made that the person can see and didn't ask for\. Then record round 1: playthrough record overdue/);
-
+    assert.doesNotMatch(said, /Recording/, "the flows are written for the work: nothing's recorded yet");
     const before = await app.round(0);
-    assert.deepEqual(before.flows.map((flow) => flow.name), ["Export the overdue ones", "See what's overdue", "See what's paid"]);
-    assert.ok(before.finished, "nothing is reviewed on it, so it's done once it's recorded");
+    assert.deepEqual(before.flows, []);
+    assert.ok(before.commit && before.finished, "nothing is reviewed on it, so it's done once it's kept");
 
-    // What it expects of the finished work only waits on Before; where it can't act, it stops, and holds there.
-    const [cut] = before.flows;
-    assert.deepEqual(cut?.steps.map((step) => step.title), ["Open the invoices"]);
-    const events: { type: number; data: { tag?: string } }[] = JSON.parse((await app.file(0, cut!.recording)).toString());
-    assert.equal(events.at(-1)?.data.tag, "end");
-    assert.ok(cut!.length > 1.5 && cut!.length < 6, `it ends where it stopped, not where it gave up: ${cut!.length}s`);
-    // The step it stopped at left nothing to read.
-    assert.deepEqual((await app.readings(0, cut!)).map((reading) => reading.step), ["Open the invoices"]);
-
-    // Run again, Before stays as it is; once a flow's file changes, the flow fixed perhaps, it records that flow again.
     ({ said, code } = await app.run(["start", "overdue"]));
     assert.equal(code, 1);
-    assert.match(said, /Before is recorded already\./);
-    await writeFile(join(app.flows, "export.ts"), `// It stops where the app has no Export yet.\n${exportThem}`);
-    ({ said, code } = await app.run(["start", "overdue"]));
-    assert.equal(code, 0, said);
-    assert.match(said, /“Export the overdue ones” has changed since it last ran on Before, so it's recorded on it again, in place of what it has of it, on the app as it is: nothing has changed since Before\./);
-    assert.doesNotMatch(said, /See what's overdue/, "the flows that haven't changed aren't run again");
-    assert.match(said, /“Export the overdue ones” stops at “Export them”, on \/, where Playwright says/);
-    assert.deepEqual((await app.round(0)).flows.map((flow) => [flow.name, flow.stopped]), [["Export the overdue ones", "Export them"], ["See what's overdue", undefined], ["See what's paid", undefined]]);
+    assert.match(said, /Before is kept already\. Change the app, then record round 1: playthrough record overdue/);
   });
 
   test("a flow that fails records nothing, and names itself", async () => {
@@ -104,6 +87,20 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
       assert.ok((await stat(join(app.repo, `.playthrough/overdue/rounds/1/files/${flow.recording}`))).size > 1000);
     }
     assert.deepEqual(recorded.flows.map((flow) => flow.recording), ["export-the-overdue-ones.json", "see-whats-overdue.json", "see-whats-paid.json"]);
+  });
+
+  test("record keeps each flow on Before too, as far as the app as it was takes it, with the agent's work put back", async () => {
+    const before = await app.round(0);
+    assert.deepEqual(before.flows.map((flow) => [flow.name, flow.stopped]), [["Export the overdue ones", "Export them"], ["See what's overdue", undefined], ["See what's paid", undefined]]);
+    // What it expects of the finished work only waits on Before; where it can't act, it stops, and holds there.
+    const [cut] = before.flows;
+    assert.deepEqual(cut?.steps.map((step) => step.title), ["Open the invoices"]);
+    const events: { type: number; data: { tag?: string } }[] = JSON.parse((await app.file(0, cut!.recording)).toString());
+    assert.equal(events.at(-1)?.data.tag, "end");
+    assert.ok(cut!.length > 1.5 && cut!.length < 6, `it ends where it stopped, not where it gave up: ${cut!.length}s`);
+    // The step it stopped at left nothing to read.
+    assert.deepEqual((await app.readings(0, cut!)).map((reading) => reading.step), ["Open the invoices"]);
+    assert.match(app.git("status", "--porcelain"), /M app\/index\.html/, "the work is back");
   });
 
   test("each step is read where it ended, once the page was at rest, with a picture of the page it left", async () => {

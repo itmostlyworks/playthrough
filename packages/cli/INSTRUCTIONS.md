@@ -3,7 +3,7 @@ to its end; each command then says what's next.
 
   playthrough start <review> "<title>" "<what was asked>"
                                      start a review: a title for the change, and what was asked, in the person's words
-  playthrough start <review>             once its flows are written, record Before: the app as it is
+  playthrough start <review>             once its flows are written, try the setup and keep Before: the app as it is
   playthrough record <review>            record the round being worked on, every flow, the way a person would use it
   playthrough wait <review>              hand the round over, then wait for the notes to answer
   playthrough walk <review>              walk the person's steps in the app again, on the app as it is now
@@ -14,11 +14,12 @@ THE LOOP
 1. Start a review with a title, as you'd title its pull request, and what was asked, word for word: it's what the person
    judges each round against. Before you change anything, write its flows, one for each thing a person does that the
    task touches, from the task, not from the code.
-2. Run playthrough start <review> again. It records Before: each flow on the app as it is, as far as it can go. There,
-   what a flow expects of the finished work only waits a moment; the flow stops only at a step the app can't do yet.
+2. Run playthrough start <review> again. It tries the app's setup, then keeps the app as it is as Before, for the person
+   to compare each round with. Nothing's recorded yet: the flows are written for the work.
 3. Change the app. Keep each flow's name, and each step's while it does the same job: they're matched across rounds by
    name. Once the work is done, add a flow for each choice you made that the person can see and didn't ask for.
-4. playthrough record <review> records the round and compares it with every round before it. In the round's round.json,
+4. playthrough record <review> records the round, and each flow new to the review on Before too, doing what the round
+   does as far as the app as it was can, then compares the round with every round before it. In the round's round.json,
    say why each change since the round before is there, under "accounts" by its id: { "line": "<why, in your words>" },
    { "note": "<the id of the note it was made for>" }, or { "notReal": "<why nothing really changed>" }.
 5. playthrough wait <review> hands the round over and waits for the notes, which can take hours: run it in the
@@ -39,10 +40,9 @@ playthrough/app.json says how to start the app, and is committed so every review
 
 Flows run several at once. Where a page shows what every run made, as a blog's index lists every post, add
 "oneAtATime": true. Every round is recorded on whatever serves that url, and Playthrough starts the app only when nothing
-does: leave a server you didn't start running, and let it follow the working copy, as a dev server does. A flow recorded
-on Before later sets your work aside with git stash for a minute, puts the app as it was in its place, with playthrough/
-as it is now, and puts your work back after, even when Playthrough is stopped. Until round 1 is handed over, Before
-follows what you fix: a flow whose file changes is recorded on it again, and so is every flow once playthrough/ changes.
+does: leave a server you didn't start running, and let it follow the working copy, as a dev server does. Recording on
+Before sets your work aside with git stash for a minute, puts the app as it was in its place, with playthrough/ as it is
+now, and puts your work back after, even when Playthrough is stopped.
 
 FLOWS
 
@@ -64,7 +64,7 @@ name is the flow's:
 Act on the page as a person would, by role and label. Playthrough glides the pointer, types a key at a time, and reads
 the page once it rests after each step. A dialog the browser shows is recorded, and answered No unless the flow says Yes
 first: page.once("dialog", (dialog) => dialog.accept()). A flow that fails stops the round: record names it and the
-step, and keeps the page it failed on in .playthrough/<review>/failed/, as Before does where each flow stops.
+step, and keeps the page it failed on in .playthrough/<review>/failed/.
 
 While the person watches, Playthrough runs the flow again in the background, so taking it over is quick. If its steps do
 something outside the app that mustn't happen again, like sending an email, say so, and it runs only when taken over:

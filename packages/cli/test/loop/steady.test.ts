@@ -47,14 +47,15 @@ describe("The command line, as an agent uses it, from a steady start", { timeout
     await writeFile(join(app.flows, "look.ts"), shows);
     // The first time flows run in the app, its setup is tried by itself, and nothing's recorded yet.
     assert.match((await app.run(["start", "overdue"])).said, /Nothing's recorded yet\./);
-    const { said, code } = await app.run(["start", "overdue"]);
+    assert.equal((await app.run(["start", "overdue"])).code, 0);
+    const { said, code } = await app.run(["record", "overdue"]);
     assert.equal(code, 0, said);
     assert.match(said, /Recording “Look at the invoices” again, to see what changes by itself…/);
     assert.match(said, /In “Look at the invoices”, this changes by itself, so it's left out of every comparison, in every flow:\n  .*Open for/);
     assert.doesNotMatch(said, /changes by itself[^]*(Today is|Drawn|Set up for)/, "the day and the random number are the same both times");
 
-    const [flow] = (await app.round(0)).flows;
-    const [reading] = await app.readings(0, flow!);
+    const [flow] = (await app.round(1)).flows;
+    const [reading] = await app.readings(1, flow!);
     const words = reading!.things.map((thing) => thing.name).join(" | ");
     const started = (await app.reviews.get("overdue")).started.slice(0, 10);
     assert.match(words, new RegExp(`Today is ${started}`));
@@ -64,17 +65,19 @@ describe("The command line, as an agent uses it, from a steady start", { timeout
   });
 
   test("a recording keeps the images it shows, so it plays the same with the app gone", async () => {
-    const [flow] = (await app.round(0)).flows;
-    const kept: Record<string, string> = JSON.parse((await app.file(0, `assets/${flow!.recording}`)).toString());
+    const [flow] = (await app.round(1)).flows;
+    const kept: Record<string, string> = JSON.parse((await app.file(1, `assets/${flow!.recording}`)).toString());
     const dot = kept[`${app.app.url}/dot.png`];
     assert.ok(dot, `the image is kept: ${JSON.stringify(kept)}`);
-    assert.deepEqual(await app.file(0, dot), DOT);
+    assert.deepEqual(await app.file(1, dot), DOT);
   });
 
-  test("what changes by itself isn't a change in any round after", async () => {
+  test("what changes by itself isn't a change, on Before or in any round after, and once its round is handed over, a flow is recorded once", async () => {
+    assert.deepEqual((await app.compared(1, 0)).changes, []);
+    await app.reviews.finish("overdue", 1);
     const { said, code } = await app.run(["record", "overdue"]);
     assert.equal(code, 0, said);
-    assert.match(said, /Nothing changed since Before\./);
-    assert.doesNotMatch(said, /again, to see what changes by itself/, "a flow is recorded twice only the first time");
+    assert.match(said, /Nothing changed since round 1\./);
+    assert.doesNotMatch(said, /again, to see what changes by itself/);
   });
 });

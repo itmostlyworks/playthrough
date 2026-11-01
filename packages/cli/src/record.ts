@@ -1,38 +1,34 @@
-// Records the round being worked on: runs every flow like a person would, keeps each recording, records a flow that's new
-// since Before on Before too, places each note's answer on its thing there, compares the round with each round before it,
+// Records the round being worked on: runs every flow like a person would, keeps each recording, records the flows new to
+// the review on Before too, places each note's answer on its thing there, compares the round with each round before it,
 // and says what's left before it can be handed over: an answer to each note, and why each change since the round before
 // is there. Recording again keeps whatever the agent already wrote in the round.
 
+import { existsSync } from "node:fs";
 import { placeIn } from "@playthrough/page";
 import { inOrderJoined, lastSeen, list, LONGEST_LINE, notesToAnswer, problemsFinishing, quote, Refused, roundInProgress, type Flow, type Reply, type Review } from "@playthrough/review";
 import { agent, unnamed } from "./agent.ts";
-import { changedOnBefore, recordBeforeAgain, recordOnBefore, tryBeforeAgain } from "./before.ts";
+import { handedOver, recordOnBefore } from "./before.ts";
 import { compareWithEarlier } from "./compare.ts";
 import { called, failedAt, runFlows, whereItStopped } from "./flows.ts";
 import type { Repo } from "./repo.ts";
 import { readingsOn } from "./reporter.ts";
+import { setupIn } from "./setup.ts";
 import { saidOf, walkForks, type WalkedNote } from "./walk.ts";
 
 export async function record(repo: Repo, id: string) {
   const review = await repo.reviews.get(id);
   if (review.accepted) throw new Refused(["This review is accepted, so nothing more can be recorded."]);
   const number = review.rounds.length ? roundInProgress(review) : 1;
-  // A flow new since the last round is recorded twice on Before, when there's a Before to put back; otherwise here.
-  const onBefore = !!review.rounds.find((round) => round.number === 0)?.commit;
-  const first = (flow: string) => !onBefore && !review.rounds.some((round) => round.number !== number && round.flows.some((kept) => kept.name === flow));
-  // Until round 1 is handed over, Before follows a setup, or a flow, changed since it was recorded.
-  if (number === 1 && !(await recordBeforeAgain(repo, id, `playthrough record ${id}`, "Record again."))) {
-    const again = await changedOnBefore(repo, review);
-    if (again.length) await tryBeforeAgain(repo, id, again, "Record again.");
-  }
-  const { recorded, failed } = await runFlows(repo, id, number, { first });
+  // Until its round is handed over, a flow new to the review is recorded twice, to see what changes by itself.
+  const ran = await runFlows(repo, id, number, { first: (flow) => !handedOver(review, flow) });
+  const { recorded, failed } = ran;
   if (failed.length)
     throw new Refused([
       `\nRound ${number} wasn't recorded, because ${failed.length > 1 ? "these flows" : "a flow"} failed:`,
       ...failed.map(failedAt),
       `Fix ${failed.length > 1 ? "them" : "it"} and record again, which runs ${failed.length > 1 ? "them" : "it"} first. ${whereItStopped(repo, id, failed)}`,
     ]);
-  await recordOnBefore(repo, id, number, recorded.map(({ flow }) => flow.name));
+  await recordOnBefore(repo, id, number, ran);
 
   const saved = review.rounds.find((round) => round.number === number);
   // In the order they joined the review, as Before keeps them, rather than their files': one new here comes last.
@@ -74,6 +70,11 @@ export async function record(repo: Repo, id: string) {
   // How to say why is said the first time the review is recorded; after that, what's still to do says what's missing.
   if (number === 1 && !saved && since?.changes.length)
     console.log(`\nSay why each change is there in “accounts”, by its id: { "line": "<why, in your words>" }, { "note": "<the id of the note it was made for>" }, or { "notReal": "<why nothing really changed>" }.`);
+  // What a run leaves in the app, said once, as it's first seen: a flow saving something, with nothing to give it back.
+  const wrote = number === 1 && !saved && recorded.find((kept) => kept.wrote);
+  if (wrote && !(await setupIn(repo.setup)).after)
+    console.log(`
+${quote(wrote.flow.name)} sends the app ${wrote.wrote}, which changes what it holds, and ${existsSync(repo.setup) ? "playthrough/setup.ts has no after, so what each flow makes stays in the app" : "there's no playthrough/setup.ts, so each flow starts on what the ones before it left, and what they make stays in the app"}: one for each flow recorded, three for a new one. Tell the person, with the step that would fix it; run playthrough alone for how setup.ts makes what each flow starts from, and gives it back.`);
   if (unsaid.length) {
     const [are, each] = unsaid.length > 1 ? ["are", "each"] : ["is", "it"];
     console.log(`\n${list(unsaid.map((flow) => quote(flow.name)))} ${are} new to the person. In ${file}, ${each} can have a line at its start, as “line” in its flow under “flows”: what it starts from, or the choice it shows, in a sentence of up to ${LONGEST_LINE} characters.`);

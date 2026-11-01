@@ -10,6 +10,7 @@ import type { Reporter, TestCase, TestError, TestResult, TestStep } from "@playw
 import type { Glimpse, Reading } from "@playthrough/page";
 import { quote, type Flow, type Reviews } from "@playthrough/review";
 import { assetsOf, type Assets } from "./assets.ts";
+import type { DoneOn } from "./flows.ts";
 
 export const RECORDING = "playthrough recording";
 export const READINGS = "playthrough readings";
@@ -20,9 +21,7 @@ export const PERSON = "playthrough person";
 export const HANDS = "playthrough hands";
 export const ACTIONS = "playthrough actions";
 export const WROTE = "playthrough wrote";
-// On Before, how many things the flow expects weren't so, and the page a flow that stopped is on.
-export const UNMET = "playthrough unmet";
-export const STOPPED_ON = "playthrough stopped on";
+export const DONE_ON = "playthrough done on";
 export const HOLD = 1500; // the end of a flow holds, so its last state can be seen
 
 // A flow's readings go beside the round's recordings, under the same name, each picture in a folder of its own.
@@ -48,17 +47,12 @@ export function firstLine(said: string) {
   if (found.length) line = `${line} ${found.slice(0, 2).join(", ")}${found.length > 2 ? ", …" : ""}`;
   return line.length > 300 ? `${line.slice(0, 300)}…` : line;
 }
-export type Failed = { flow: string; at?: string; why?: string; broken?: true; on?: string };
-// A page by its path, which is what tells one of an app's pages from another.
-export const pathOf = (address: string) => {
-  const { pathname, search } = new URL(address);
-  return pathname + search;
-};
-export const onPage = (on?: string) => (on ? `, on ${on}` : "");
+export type Failed = { flow: string; at?: string; why?: string; broken?: true };
 // What Playwright says when the browser stops a flow, not the app: the page crashed or closed, or the app stopped answering.
 const BROKEN = /Page crashed|Target crashed|Target page, context or browser has been closed|net::ERR_CONNECTION_REFUSED/;
-// And the first request it sent the app that changes what it holds, as its method and path.
-export type Recorded = { flow: Flow; files: string[]; wrote?: string };
+// And the first request it sent the app that changes what it holds, as its method and path, and what each of its actions
+// was done on, for Before to follow.
+export type Recorded = { flow: Flow; files: string[]; wrote?: string; doneOn?: DoneOn };
 // The flow handed on to someone else, on this machine's clock.
 export type Hand = { at: number; person: string };
 // The file a flow is written in, in the review's flows folder, and a hash of what it said as the flow ran: Before runs a
@@ -102,21 +96,21 @@ export default class Flows implements Reporter {
     const steps = result.steps.filter((step) => step.category === "test.step");
     const person = result.attachments.find((attachment) => attachment.name === PERSON)?.body?.toString();
     const wrote = result.attachments.find((attachment) => attachment.name === WROTE)?.body?.toString();
+    const doneOn = result.attachments.find((attachment) => attachment.name === DONE_ON)?.body?.toString();
     // Who it's done as, if its file or the app's setup said; a step done by them again, handed back, says nothing.
     const as = (made: Recorded) => {
       if (person) made.flow.person = person;
       for (const step of made.flow.steps) if (step.person === made.flow.person) delete step.person;
       if (wrote) made.wrote = wrote;
+      if (doneOn) made.doneOn = JSON.parse(doneOn);
       return made;
     };
-    const unmet = Number(result.attachments.find((attachment) => attachment.name === UNMET)?.body?.toString() ?? 0);
-    const yet = unmet ? `, though ${unmet > 1 ? `${unmet} things it expects aren't` : "1 thing it expects isn't"} so yet` : "";
     const went = (how: string) => console.log(`  ${quote(test.title)}: ${how}`);
     if (result.status === "passed") {
       if (!recording) return;
       const recorded = as(this.#flow(test.title, recording, read, steps));
       this.#ran.push({ ...where, recorded });
-      return went(`to its end, ${Math.round(recorded.flow.length)}s${yet}`);
+      return went(`to its end, ${Math.round(recorded.flow.length)}s`);
     }
 
     // It stopped at the step it couldn't do, or after the last one when it failed between them. On Before, it's kept as
@@ -126,8 +120,7 @@ export default class Flows implements Reporter {
     const said = (stop?.error ?? result.error)?.message ?? "";
     const broken = BROKEN.test(said);
     const why = firstLine(said);
-    const on = result.attachments.find((attachment) => attachment.name === STOPPED_ON)?.body?.toString();
-    const failed: Failed = { flow: test.title, ...(stop?.error && { at: stop.title }), ...(why && { why }), ...(broken && { broken }), ...(stop?.error && on && { on }) };
+    const failed: Failed = { flow: test.title, ...(stop?.error && { at: stop.title }), ...(why && { why }), ...(broken && { broken }) };
     if (!this.#before || broken || !recording || !stop || !kept.length) {
       this.#ran.push({ ...where, failed });
       return went(broken ? "the browser stopped it" : this.#before ? "can't start" : failed.at ? `failed at ${quote(failed.at)}` : "failed before its first step");
@@ -136,7 +129,7 @@ export default class Flows implements Reporter {
     const recorded = as(this.#flow(test.title, recording, read, kept, until));
     if (stop.error) recorded.flow.stopped = stop.title;
     this.#ran.push({ ...where, failed, recorded });
-    went(`${stop.error ? `stops at ${quote(stop.title)}${onPage(failed.on)}` : "stops after its last step"}${yet}`);
+    went(stop.error ? `stops at ${quote(stop.title)}` : "stops after its last step");
   }
 
   // What stops the run itself, like a flow's file that doesn't load, as Playwright says it.

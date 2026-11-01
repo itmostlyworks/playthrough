@@ -7,8 +7,8 @@ Playthrough records your coding agent's change the way a person would use it, be
 ## How a review goes
 
 1. You ask your agent for a change, and to show it to you with Playthrough.
-2. Before it touches the code, the agent writes a flow for each thing a person does that the change touches, and Playthrough records them on the app as it is: Before.
-3. The agent makes the change, and Playthrough records every flow again. It finds what changed itself, including what the agent didn't mention, and the agent says why each change is there.
+2. Before it touches the code, the agent writes a flow for each thing a person does that the change touches, and Playthrough keeps the app as it is: Before.
+3. The agent makes the change, and Playthrough records every flow, on the app as it is now and on Before, as far as the app went before. It finds what changed itself, including what the agent didn't mention, and the agent says why each change is there.
 4. You watch. Leave a note on what's wrong, where it's wrong; compare with Before; take over and try it yourself. Then send.
 5. The agent answers each note in the next round, on the spot the note is on. You check its answers, and accept once every flow looks good.
 

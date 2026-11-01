@@ -34,20 +34,14 @@ const copy = { flow: "Filter the board to the Copy cards", at: "Clear the filter
 
 describe("A flow that fails", () => {
   test("in a round, the page it stopped on is kept, and it's run first next time", async () => {
-    await keepFailed(app, "list-counts", 2, [copy]);
+    await keepFailed(app, "list-counts", [copy]);
     assert.deepEqual(await left(), ["filter-copy", "flows.json"], "and nothing of the flows that passed");
     assert.deepEqual(await failedLastTime(app, "list-counts"), [copy.flow]);
   });
 
-  test("on Before, the page it stopped on is kept, but it isn't run first: stopping there is how far the app went", async () => {
-    await keepFailed(app, "list-counts", 0, [copy]);
-    assert.deepEqual(await left(), ["filter-copy"]);
-    assert.deepEqual(await failedLastTime(app, "list-counts"), []);
-  });
-
   test("once a run has none failed, what was kept goes", async () => {
-    await keepFailed(app, "list-counts", 2, [copy]);
-    await keepFailed(app, "list-counts", 3, []);
+    await keepFailed(app, "list-counts", [copy]);
+    await keepFailed(app, "list-counts", []);
     assert.equal(existsSync(app.failed("list-counts")), false);
     assert.deepEqual(await failedLastTime(app, "list-counts"), []);
   });
