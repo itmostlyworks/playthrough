@@ -4,6 +4,8 @@ The agent says it's done. You decide if it's good.
 
 Playthrough records your coding agent's change the way a person would use it, before and after, so you can watch it instead of setting it up by hand. Point at what's wrong, right on the recording, and the next round answers it there. Take over any moment and carry on in the real app. It runs on your machine, with any coding agent that has a shell.
 
+To see a review before you install anything, play the one at [playthrough.sh](https://playthrough.sh).
+
 ## Try it
 
 Ask your agent for a change in your app, as you would anyway, and add:
