@@ -63,7 +63,12 @@ export async function getReady(
   await keepRunning(app, repo.root);
   const began = Date.now();
   const { handed, made } = await runTo(repo, id, { flow: flow.name, ...(stepName && { step: stepName, ...(actions && { actions }) }), ...(did?.length && { did }) });
-  passing ??= { moments: new Map(), port: passOn(app, (moment) => passing!.moments.get(moment), network) };
+  // One way through for each copy of the app, as each answers at an address of its own.
+  if (!passings.has(app.url)) {
+    const moments = new Map<string, Handed>();
+    passings.set(app.url, { moments, port: passOn(app, (moment) => moments.get(moment), network) });
+  }
+  const passing = passings.get(app.url)!;
   // Not counted, as on a network a moment's address is the way in to the app: it can't be guessed.
   const moment = randomBytes(12).toString("base64url");
   passing.moments.set(moment, did?.length ? { ...handed, did } : handed);
@@ -88,7 +93,7 @@ export async function keepUp(repo: Repo, id: string, flow: string, step?: string
 }
 
 // One way through to the app for as long as Playthrough runs, handing over each moment made ready, by its address.
-let passing: { moments: Map<string, Handed>; port: Promise<number> } | undefined;
+const passings = new Map<string, { moments: Map<string, Handed>; port: Promise<number> }>();
 
 async function recorded(repo: Repo, id: string) {
   const review = await repo.reviews.get(id);

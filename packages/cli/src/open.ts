@@ -1,5 +1,6 @@
-// Opens the viewer on this machine: its page, and the reviews in .playthrough/ for it to read and send to. Each review the
-// viewer shows streams to it as it's kept, so a new round or a send from elsewhere arrives without asking.
+// Opens the viewer on this machine: its page, and the reviews in .playthrough/ for it to read and send to, in every copy
+// of the app, as git's worktrees are, so one viewer from anywhere in the repo has them all. Each review the viewer shows
+// streams to it as it's kept, so a new round or a send from elsewhere arrives without asking.
 
 import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
@@ -10,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import type { Reading } from "@playthrough/page";
 import { Refused, type Did, type Send } from "@playthrough/review";
 import { BEAT } from "./flows.ts";
-import type { Repo } from "./repo.ts";
+import { copies, repo as copyAt, type Repo } from "./repo.ts";
 import { readyIn } from "./following.ts";
 import { getReady, keepUp } from "./take-over.ts";
 import { video, type Filmed } from "./video.ts";
@@ -34,15 +35,19 @@ const TYPES: Record<string, string> = {
   ".otf": "font/otf",
 };
 
-export async function open(repo: Repo, id?: string) {
-  if (id) await repo.reviews.get(id);
+export async function open(here: Repo, id?: string) {
+  const app = everyCopy(here);
+  if (id) await (await app.holding(id)).reviews.get(id);
+  // One for each app: open already, from this copy or another, it's that one.
+  const already = await openAlready(app.folder);
+  if (already) return console.log(`Playthrough is already open at http://localhost:${already}/${id ?? ""}`);
   const page = fileURLToPath(new URL("../viewer", import.meta.url));
   if (!(await readFile(join(page, "index.html")).catch(() => undefined)))
     throw new Refused(["The viewer isn't built yet. Build it from core with npm run build."]);
-  const you = whoYouAre(repo.root);
+  const you = whoYouAre(here.root);
 
   const server = createServer((request, response) => {
-    answer(repo, page, you, request, response).catch((error) => {
+    answer(app, page, you, request, response).catch((error) => {
       if (response.headersSent) return response.end();
       const problems = error instanceof Refused ? error.problems : [String(error?.message ?? error)];
       json(response, error instanceof Refused ? 400 : 500, { problems });
@@ -52,23 +57,54 @@ export async function open(repo: Repo, id?: string) {
   console.log(`Playthrough is open at http://localhost:${port}/${id ?? ""}`);
 }
 
-async function answer(repo: Repo, page: string, you: string, request: IncomingMessage, response: ServerResponse) {
+// The app in every copy of it, and where each review is kept: an agent working in a worktree keeps its own there.
+function everyCopy(here: Repo) {
+  const all = () => copies(here.root).map((root) => (root === here.root ? here : copyAt(root)));
+  const found = new Map<string, Repo>();
+  return {
+    all,
+    // The same from every copy: the main one's folder, as git lists it first.
+    folder: all()[0]?.root ?? here.root,
+    // Found once, a review stays where it was found; one in no copy is this one's to say isn't there.
+    async holding(id: string): Promise<Repo> {
+      if (!found.has(id)) for (const copy of all()) if ((await copy.reviews.list()).includes(id) && !found.has(id)) found.set(id, copy);
+      return found.get(id) ?? here;
+    },
+  };
+}
+
+// The port of the viewer already open for this app, if one is: each says which app's it is.
+async function openAlready(folder: string): Promise<number | undefined> {
+  const ports = Array.from({ length: 21 }, (_, i) => PORT + i);
+  const asked = (port: number) =>
+    fetch(`http://127.0.0.1:${port}/api/app`, { signal: AbortSignal.timeout(1000) })
+      .then((answer) => answer.json())
+      .then((said: { folder?: string }) => (said.folder === folder ? port : undefined), () => undefined);
+  return (await Promise.all(ports.map(asked))).find((port) => port !== undefined);
+}
+
+async function answer(app: ReturnType<typeof everyCopy>, page: string, you: string, request: IncomingMessage, response: ServerResponse) {
   const stranger = fromElsewhere(request);
   if (stranger) return json(response, 403, { problems: [stranger] });
-  const reviews = repo.reviews;
   const path = decodeURIComponent(new URL(request.url ?? "/", "http://localhost").pathname);
   const [api, collection, id, ...rest] = path.split("/").filter(Boolean);
   if (api !== "api") return serve(page, path, response);
 
   if (request.method === "GET" && collection === "you") return json(response, 200, { name: you });
+  if (request.method === "GET" && collection === "app") return json(response, 200, { folder: app.folder });
   if (collection !== "reviews") return json(response, 404, { problems: [`There's nothing at ${path}.`] });
 
   if (request.method === "GET" && !id) {
-    // One that can't be read says why when it's opened, and leaves the rest to be listed.
-    const all = (await Promise.all((await reviews.list()).map((id) => reviews.get(id).catch(() => undefined)))).filter((review) => review !== undefined);
+    // One that can't be read says why when it's opened, and leaves the rest to be listed; a name in two copies is the
+    // first's, as its address opens.
+    const read = async (copy: Repo) => Promise.all((await copy.reviews.list()).map((id) => copy.reviews.get(id).catch(() => undefined)));
+    const every = (await Promise.all(app.all().map(read))).flat();
+    const all = every.filter((review, i) => review && every.findIndex((first) => first?.id === review.id) === i).map((review) => review!);
     return json(response, 200, all.map(({ id, title, rounds, accepted }) => ({ id, title, rounds: rounds.filter((round) => round.finished && round.number > 0).length, accepted: !!accepted })));
   }
   if (!id) return json(response, 404, { problems: [`There's nothing at ${path}.`] });
+  const repo = await app.holding(id);
+  const reviews = repo.reviews;
 
   if (request.method === "GET" && rest[0] === "live") return live(repo, id, request, response);
   if (request.method === "GET" && rest[0] === "rounds" && rest[2] === "files" && rest[3]) {

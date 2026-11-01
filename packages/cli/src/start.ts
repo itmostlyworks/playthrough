@@ -7,13 +7,16 @@ import { Refused } from "@playthrough/review";
 import { agent } from "./agent.ts";
 import { keepBefore } from "./before.ts";
 import { flowsOf, howToWriteFlows, makeFlowsFolder } from "./flows.ts";
-import type { Repo } from "./repo.ts";
+import { copies, repo as copyAt, type Repo } from "./repo.ts";
 import { trySetup } from "./try-setup.ts";
 
 export async function start(repo: Repo, id: string, title?: string, asked?: string) {
   if (!(await repo.reviews.list()).includes(id)) {
     // Beside the reviews in .playthrough/, Playthrough keeps folders of its own, which it empties as it likes.
     if ([repo.tried, repo.borrowed].some((own) => basename(own) === id)) throw new Refused([`“${id}” is the name of a folder Playthrough keeps for itself. Give the review another name.`]);
+    // The person finds every copy's reviews in one place, by name.
+    for (const other of copies(repo.root).filter((root) => root !== repo.root))
+      if ((await copyAt(other).reviews.list()).includes(id)) throw new Refused([`There's a review called “${id}” in another worktree, at ${other}. Give this one another name.`]);
     if (!title || !asked)
       throw new Refused([
         `There's no review called “${id}” yet. Start it with a few words for the change, as a pull request's title, and what was asked, in the person's words: playthrough start ${id} "<title>" "<what was asked>"`,

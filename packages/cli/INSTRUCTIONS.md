@@ -38,15 +38,24 @@ THE APP
 The first time, add playthrough to the app's devDependencies with the app's own package manager, and run
 npx playwright install chromium: flows import from it, and record in that browser.
 
-playthrough/app.json says how to start the app, and is committed so every review uses it:
+playthrough/app.json says how to start the app, and is committed so every review uses it. Where the command can be
+given a port, say {port} in both, and Playthrough starts this copy of the app on a port of its own each time it records
+or the person takes a flow over, beside the person's own and any other worktree's:
+
+  { "start": "npm run dev -- --port {port}", "url": "http://localhost:{port}" }
+
+Where it can't, as when another part of the app expects it at one address, give the address it always has:
 
   { "start": "npm run dev", "url": "http://localhost:3000" }
 
+There, every round is recorded on whatever serves that url, and Playthrough starts the app only when nothing does: leave
+a server you didn't start running, and let it follow the working copy, as a dev server does. In a worktree, what serves
+it could be another copy, so Playthrough needs the address free, and says so. An app of several servers, one calling
+another at its address, takes the address it always has, or a copy on a port of its own would call the person's.
+
 Flows run several at once. Where a page shows what every run made, as a blog's index lists every post, add
-"oneAtATime": true. Every round is recorded on whatever serves that url, and Playthrough starts the app only when nothing
-does: leave a server you didn't start running, and let it follow the working copy, as a dev server does. Recording on
-Before sets your work aside with git stash for a minute, puts the app as it was in its place, with playthrough/ as it is
-now, and puts your work back after, even when Playthrough is stopped.
+"oneAtATime": true. Recording on Before sets your work aside with git stash for a minute, puts the app as it was in its
+place, with playthrough/ as it is now, and puts your work back after, even when Playthrough is stopped.
 
 FLOWS
 
