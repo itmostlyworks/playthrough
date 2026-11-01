@@ -6,8 +6,6 @@ import type { Glimpse, Reading } from "@playthrough/page";
 import type { Review, Send } from "@playthrough/review";
 import type { Events } from "./replay.ts";
 
-export type Listed = { id: string; title: string; rounds: number; accepted: boolean };
-
 // undefined while it's on its way; a refusal's words when there's no such review.
 export function useReview(id: string): Review | string[] | undefined {
   const [review, setReview] = useState<Review | string[]>();
@@ -28,9 +26,14 @@ export function useReview(id: string): Review | string[] | undefined {
   return review;
 }
 
-export function useReviews(): Listed[] | undefined {
-  const [reviews, setReviews] = useState<Listed[]>();
-  useEffect(() => void get<Listed[]>("/api/reviews").then(setReviews), []);
+// Every review of the app, from every copy of it, and the app's name, as its folder is called.
+export function useReviews(): { app: string; reviews: Review[] } | undefined {
+  const [reviews, setReviews] = useState<{ app: string; reviews: Review[] }>();
+  useEffect(() => {
+    Promise.all([get<{ folder: string }>("/api/app"), get<Review[]>("/api/reviews")]).then(([{ folder }, reviews]) =>
+      setReviews({ app: folder.split(/[\\/]/).at(-1) ?? folder, reviews }),
+    );
+  }, []);
   return reviews;
 }
 

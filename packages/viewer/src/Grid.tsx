@@ -3,7 +3,7 @@
 // the flow you point at as it opens, its name over its first picture. Each row says the flow's length and, in words, where it stands. Choosing one plays it, its picture
 // growing into the frame. Under the frame, the one step to take.
 
-import { useRef, useState, type RefObject } from "react";
+import { useRef, useState, type ReactNode, type RefObject } from "react";
 import { time, type Flow, type Review, type Round } from "@playthrough/review";
 import { picture } from "./api.ts";
 import { EndMark, endOf } from "./Chosen.tsx";
@@ -53,9 +53,7 @@ export function Grid(props: Props) {
   const left = review.accepted ? null : toCheck ? (
     <>
       {" "}
-      <span className="ml-1.5 whitespace-nowrap text-fg before:mr-[5px] before:mb-px before:ml-px before:inline-block before:size-1.5 before:rounded-full before:bg-amber before:align-middle before:content-['']">
-        {toCheck} {toCheck === 1 ? "flow" : "flows"} to check
-      </span>
+      <ToCheck count={toCheck} className="ml-1.5" />
     </>
   ) : round.flows.every((flow) => props.standing(flow.name)?.is === "good") ? (
     " · All good"
@@ -63,8 +61,8 @@ export function Grid(props: Props) {
 
   return (
     <div ref={props.room} inert={!up} className={`absolute inset-0 z-20 flex overflow-y-auto bg-ground transition-[opacity,visibility] duration-240 ease-calm ${up ? "visible opacity-100" : "invisible opacity-0"}`}>
-      <div className="m-auto grid w-full max-w-[1240px] grid-cols-[320px_minmax(0,1fr)] gap-10 px-8 py-6 phone:grid-cols-1 phone:gap-5 phone:px-0" onPointerLeave={() => setPointed(undefined)}>
-        <div className="flex max-h-[calc(100dvh-140px)] min-h-0 flex-col phone:max-h-none">
+      <div className={SPREAD} onPointerLeave={() => setPointed(undefined)}>
+        <div className={LIST}>
           <div className="px-2.5">
             <h2 className="line-clamp-2 text-[15px] leading-[21px] font-semibold">{review.title}</h2>
             {review.asked && <p className="mt-1 line-clamp-6 text-[13px] leading-5 text-soft">{review.asked}</p>}
@@ -92,6 +90,25 @@ export function Grid(props: Props) {
   );
 }
 
+// The list and the frame beside it, as the list of every review lays them out too, so the frame is where it was when
+// one opens.
+export const SPREAD = "m-auto grid w-full max-w-[1240px] grid-cols-[320px_minmax(0,1fr)] gap-10 px-8 py-6 phone:grid-cols-1 phone:gap-5 phone:px-0";
+export const LIST = "flex max-h-[calc(100dvh-140px)] min-h-0 flex-col phone:max-h-none";
+export const FRAME = "relative aspect-[1.6] w-full max-w-[calc((100dvh-200px)*1.6)] self-center overflow-hidden rounded-lg bg-paper shadow-frame";
+
+// How many flows wait for you, after the round's name, a dot of amber before it.
+export function ToCheck({ count, className = "" }: { count: number; className?: string }) {
+  return (
+    <span className={`${className} whitespace-nowrap text-fg before:mr-[5px] before:mb-px before:ml-px before:inline-block before:size-1.5 before:rounded-full before:bg-amber before:align-middle before:content-['']`}>
+      {count} {count === 1 ? "flow" : "flows"} to check
+    </span>
+  );
+}
+
+// A row of a list beside the frame, and its picture, for the list of every review too.
+export const ROW = "group/row grid w-full grid-cols-[64px_minmax(0,1fr)_auto] items-center gap-x-3 rounded-lg p-2 text-left transition-colors duration-150 ease-calm hover:bg-hover data-on:bg-hover";
+export const THUMB = "relative block aspect-[1.6] overflow-hidden rounded-[5px] bg-paper shadow-frame";
+
 // A flow in the list, a thing of its own: its picture, its name and length, and under them where it stands, as its square
 // at its end says it, and in words: what asks something of you in amber, what's the agent's in its slate, what looks
 // good in green, and not watched yet quietly, its square pale, as everything starts.
@@ -99,13 +116,13 @@ function Row({ review, round, flow, standing, on, onPoint, onFlow }: { review: R
   return (
     <button
       data-on={on ? "" : undefined}
-      className="group/row grid w-full grid-cols-[64px_minmax(0,1fr)_auto] items-center gap-x-3 rounded-lg p-2 text-left transition-colors duration-150 ease-calm hover:bg-hover data-on:bg-hover"
+      className={ROW}
       aria-label={`Play ${flow.name}${standing ? `. ${says(standing)}` : ""}`}
       onPointerEnter={() => onPoint(flow.name)}
       onFocus={() => onPoint(flow.name)}
       onClick={() => onFlow(flow.name)}
     >
-      <span className="relative block aspect-[1.6] overflow-hidden rounded-[5px] bg-paper shadow-frame">
+      <span className={THUMB}>
         <Picture shot={useStill(review, round, flow)} />
       </span>
       <span className="grid min-w-0">
@@ -141,17 +158,24 @@ function Opening({ review, round, flow, onFlow }: { review: Review; round: Round
   return (
     <button
       data-picture={flow.name}
-      className="relative aspect-[1.6] w-full max-w-[calc((100dvh-200px)*1.6)] self-center overflow-hidden rounded-lg bg-paper shadow-frame data-flying:invisible"
+      className={`${FRAME} data-flying:invisible`}
       aria-label={`Play ${flow.name}`}
       onClick={() => onFlow(flow.name)}
     >
       <Picture key={flow.name} shot={{ src: picture(review.id, round.number, flow.recording, 0) }} />
-      <span className="absolute inset-0 grid place-content-center bg-[rgba(247,247,245,.45)] p-4 text-center font-recorded text-[20px] leading-[1.2] font-medium tracking-[-0.01em] text-[#222222]">
-        <span className={`grid justify-items-center gap-1.5 ${HALO}`}>
-          {flow.name}
-          {manyIn(review) && asWho(flow) && <span className="font-ui text-[14px] leading-[1.4] font-normal tracking-normal text-[#6c707a]">{asWho(flow)}</span>}
-        </span>
-      </span>
+      <Veiled>
+        {flow.name}
+        {manyIn(review) && asWho(flow) && <span className="font-ui text-[14px] leading-[1.4] font-normal tracking-normal text-[#6c707a]">{asWho(flow)}</span>}
+      </Veiled>
     </button>
+  );
+}
+
+// Words over a picture in the frame, as a flow's name stands over it as it opens.
+export function Veiled({ children }: { children: ReactNode }) {
+  return (
+    <span className="absolute inset-0 grid place-content-center bg-[rgba(247,247,245,.45)] p-4 text-center font-recorded text-[20px] leading-[1.2] font-medium tracking-[-0.01em] text-[#222222]">
+      <span className={`grid justify-items-center gap-1.5 ${HALO}`}>{children}</span>
+    </span>
   );
 }

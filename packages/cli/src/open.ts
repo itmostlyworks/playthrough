@@ -99,8 +99,8 @@ async function answer(app: ReturnType<typeof everyCopy>, page: string, you: stri
     // first's, as its address opens.
     const read = async (copy: Repo) => Promise.all((await copy.reviews.list()).map((id) => copy.reviews.get(id).catch(() => undefined)));
     const every = (await Promise.all(app.all().map(read))).flat();
-    const all = every.filter((review, i) => review && every.findIndex((first) => first?.id === review.id) === i).map((review) => review!);
-    return json(response, 200, all.map(({ id, title, rounds, accepted }) => ({ id, title, rounds: rounds.filter((round) => round.finished && round.number > 0).length, accepted: !!accepted })));
+    // Whole, as the viewer works out where each stands for you from what's kept in your browser, as a review's page does.
+    return json(response, 200, every.filter((review, i) => review && every.findIndex((first) => first?.id === review.id) === i));
   }
   if (!id) return json(response, 404, { problems: [`There's nothing at ${path}.`] });
   const repo = await app.holding(id);

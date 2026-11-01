@@ -5,7 +5,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { elementOf } from "@playthrough/page";
-import { inStep, lastLooked, newId, notesToAnswer, readyToAccept, time, waitingForTheAgent, type Did, type Element as Thing, type Flow, type Note, type Point, type Place, type Review, type Round, type Send, type Verdict } from "@playthrough/review";
+import { inStep, lastLooked, newId, readyToAccept, time, waitingForTheAgent, type Did, type Element as Thing, type Flow, type Note, type Point, type Place, type Review, type Round, type Send, type Verdict } from "@playthrough/review";
 import { accept, keepBranch, picture, recording, send, useReview, useYou } from "./api.ts";
 import { Bar } from "./Bar.tsx";
 import { Beside, clickedAt } from "./Beside.tsx";
@@ -21,7 +21,7 @@ import type { Step } from "./Step.tsx";
 import { Grid } from "./Grid.tsx";
 import { follow, pausedAt, readyAt, readyIn, samePaused, takenOver, type Live, type Paused } from "./live.ts";
 import { along, CARD, clamp, FLOW_IN, momentAt, POSTER, type Moment } from "./moments.ts";
-import { asIfSent, draftOn, everyDraft, fill, ink, lookGood, notesOn, nothing, said, seen, sendingFlow, sendOf, settledBefore, standings, takeBack, upTo, watchedOn, type Draft, type Shown } from "./notes.ts";
+import { asIfSent, draftOn, everyDraft, fill, ink, lookGood, needsYou, notesOn, nothing, said, seen, sendingFlow, sendOf, settledBefore, standings, takeBack, upTo, watchedOn, workingSince, type Draft, type Shown } from "./notes.ts";
 import { NoteRow, number as numberLook, Writing, type Comparing } from "./Notes.tsx";
 import { Playhead, useNow, type Forked } from "./playhead.ts";
 import { changesIn, recorded } from "./replay.ts";
@@ -440,10 +440,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   }, [noting, inApp]);
   const playingOn = useNow(playhead, (now) => now.playing);
   useEffect(() => void (playingOn && setNoting(false)), [playingOn]);
-  // The agent is working only on what asks it something: a send that only says things look good asks for no next round.
-  const working = review.accepted
-    ? undefined
-    : review.taken.find((taken) => taken.round > latest.number && notesToAnswer(review, taken.round).length > 0)?.at;
+  const working = workingSince(review, latest);
 
   // Left and Right step to the next moment the page changes, or a second where nothing does; with Shift, a tenth.
   const [changes, setChanges] = useState<{ flow: string; at: number[]; clicks: number[]; acted: [number, number][]; moved: Map<string, number[]> }>();
@@ -508,8 +505,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   // Where each flow stands for you on the round you judge, and, once the work is accepted, on the last.
   const judging = !readOnly || (!!review.accepted && round === latest);
   const standing = useMemo(() => (judging ? standings(review, round.number, you, unsent, watched) : undefined), [judging, review, round.number, you, unsent, seenFlows]);
-  // A flow that still needs you: not good, and not only waiting on what you've said for the agent.
-  const needs = (name: string) => !["good", "with the agent", undefined].includes(standing?.get(name)?.is);
+  const needs = (name: string) => needsYou(standing?.get(name));
 
   // The flow as a whole is a mark like a note's or a change's: its square, capping the timeline, and its card, at its
   // end, with what you said about the whole of it, then whether it's good, or sending, or that it's with the agent. It

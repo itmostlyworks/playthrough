@@ -7,6 +7,7 @@ import {
   allNotes,
   conversation,
   goodForYou,
+  notesToAnswer,
   toJudge,
   waitingForTheAgent,
   waitingForYou,
@@ -14,6 +15,7 @@ import {
   type Note,
   type Place,
   type Review,
+  type Round,
   type Turn,
   type Verdict,
 } from "@playthrough/review";
@@ -184,6 +186,14 @@ export function standings(review: Review, round: number, you: string, unsent: Un
     }),
   );
 }
+
+// A flow that still needs you: not good, and not only waiting on what you've said for the agent.
+export const needsYou = (standing: Standing | undefined) => !!standing && standing.is !== "good" && standing.is !== "with the agent";
+
+// Since when the agent has been working on what was sent, for the round after the latest: only on what asks it
+// something, as a send that only says things look good asks for no next round.
+export const workingSince = (review: Review, latest: Round) =>
+  review.accepted ? undefined : review.taken.find((taken) => taken.round > latest.number && notesToAnswer(review, taken.round).length > 0)?.at;
 
 // Your Looks good on a flow settles the answers in it you haven't judged, as a Looks good to each. Taking it back takes
 // those back with it, and nothing you said yourself. One you've sent is taken back by saying so, in the next send.

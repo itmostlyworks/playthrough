@@ -4,23 +4,27 @@
 import { useState } from "react";
 import { nothing, said, type Unsent, type Watched } from "./notes.ts";
 
-export function useUnsent(review: string) {
-  return useKept<Unsent>(
-    `playthrough:${review}:unsent`,
-    (kept) => Object.fromEntries(Object.entries(kept ?? {}).map(([round, draft]) => [round, { ...nothing, ...(draft as object) }])),
-    (unsent) => Object.values(unsent).every((draft) => !said(draft) && !draft.unsaved.length),
-    () => Object.fromEntries(movedFrom(review, "").map(({ round, kept }) => [round, kept])) as Unsent,
-  );
-}
+type Kept<T> = { key: string; shape: (kept: unknown) => T; empty: (value: T) => boolean; moved: () => T };
 
-export function useWatched(review: string) {
-  return useKept<Watched[]>(
-    `playthrough:${review}:watched`,
-    (kept) => (Array.isArray(kept) ? kept : []),
-    (watched) => !watched.length,
-    () => movedFrom(review, ":watched").flatMap(({ round, kept }) => (Array.isArray(kept) ? kept.map((flow: string) => ({ flow, round })) : [])),
-  );
-}
+const unsent = (review: string): Kept<Unsent> => ({
+  key: `playthrough:${review}:unsent`,
+  shape: (kept) => Object.fromEntries(Object.entries(kept ?? {}).map(([round, draft]) => [round, { ...nothing, ...(draft as object) }])),
+  empty: (unsent) => Object.values(unsent).every((draft) => !said(draft) && !draft.unsaved.length),
+  moved: () => Object.fromEntries(movedFrom(review, "").map(({ round, kept }) => [round, kept])) as Unsent,
+});
+
+const watched = (review: string): Kept<Watched[]> => ({
+  key: `playthrough:${review}:watched`,
+  shape: (kept) => (Array.isArray(kept) ? kept : []),
+  empty: (watched) => !watched.length,
+  moved: () => movedFrom(review, ":watched").flatMap(({ round, kept }) => (Array.isArray(kept) ? kept.map((flow: string) => ({ flow, round })) : [])),
+});
+
+export const useUnsent = (review: string) => useKept(unsent(review));
+export const useWatched = (review: string) => useKept(watched(review));
+// As they are now, for every review at once.
+export const unsentOn = (review: string) => read(unsent(review));
+export const watchedOf = (review: string) => read(watched(review));
 
 // Kept before what you haven't sent was the review's, under a key for each round: taken from there, once.
 function movedFrom(review: string, end: string): { round: number; kept: unknown }[] {
@@ -46,21 +50,22 @@ function stored(key: string): unknown {
   }
 }
 
-function useKept<T>(key: string, shape: (kept: unknown) => T, empty: (value: T) => boolean, moved: () => T): [T, (change: (value: T) => T) => void] {
-  const read = (key: string) => {
-    if (stored(key) === null) keep(key, moved(), empty);
-    return shape(stored(key));
-  };
-  const [kept, setKept] = useState(() => ({ key, value: read(key) }));
-  if (kept.key !== key) setKept({ key, value: read(key) });
+function read<T>({ key, shape, empty, moved }: Kept<T>): T {
+  if (stored(key) === null) keep(key, moved(), empty);
+  return shape(stored(key));
+}
+
+function useKept<T>(it: Kept<T>): [T, (change: (value: T) => T) => void] {
+  const [kept, setKept] = useState(() => ({ key: it.key, value: read(it) }));
+  if (kept.key !== it.key) setKept({ key: it.key, value: read(it) });
 
   const change = (change: (value: T) => T) =>
     setKept((kept) => {
       const value = change(kept.value);
-      keep(kept.key, value, empty);
+      keep(kept.key, value, it.empty);
       return { key: kept.key, value };
     });
-  return [kept.key === key ? kept.value : read(key), change];
+  return [kept.key === it.key ? kept.value : read(it), change];
 }
 
 function keep<T>(key: string, value: T, empty: (value: T) => boolean) {
