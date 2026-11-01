@@ -117,8 +117,10 @@ async function film(page: Page, { page: putting, size }: { page: Page; size: Siz
 }
 
 // In the page that encodes, each run there on its own: the frames go in one at a time, the last one drawn again where
-// nothing new was.
-type Encoding = { encoder: VideoEncoder; canvas: OffscreenCanvas; crop: { x: number; y: number; width: number; height: number }; fps: number; i: number; avcC?: string; frames: { data: string; key: boolean }[] };
+// nothing new was. Each picture goes in as HD video's own colours, BT.709 in the range a TV shows, which is what every
+// player takes a video to be: left to the browser, a page's colours go in at full range, and a player that takes them
+// as a TV's clips the lightest greys to white and the darkest to black.
+type Encoding = { encoder: VideoEncoder; canvas: OffscreenCanvas; crop: { x: number; y: number; width: number; height: number }; fps: number; i: number; picture: Uint8Array; avcC?: string; frames: { data: string; key: boolean }[] };
 
 async function start({ width, height, fps, crop }: Size & { fps: number; crop: Encoding["crop"] }) {
   const base64 = (bytes: Uint8Array) => btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join(""));
@@ -137,6 +139,7 @@ async function start({ width, height, fps, crop }: Size & { fps: number; crop: E
     crop,
     fps,
     i: 0,
+    picture: new Uint8Array((width * height * 3) / 2),
     frames: [],
   };
   (window as unknown as { encoding: Encoding }).encoding = state;
@@ -150,14 +153,40 @@ async function start({ width, height, fps, crop }: Size & { fps: number; crop: E
 
 async function add({ jpeg, key }: { jpeg?: string; key: boolean }) {
   const state = (window as unknown as { encoding: Encoding }).encoding;
+  const { width, height } = state.canvas;
   if (jpeg) {
     const picture = await createImageBitmap(await (await fetch(`data:image/jpeg;base64,${jpeg}`)).blob());
-    const draw = state.canvas.getContext("2d")!;
+    const draw = state.canvas.getContext("2d", { willReadFrequently: true })!;
     draw.imageSmoothingQuality = "high";
-    draw.drawImage(picture, state.crop.x, state.crop.y, state.crop.width, state.crop.height, 0, 0, state.canvas.width, state.canvas.height);
+    draw.drawImage(picture, state.crop.x, state.crop.y, state.crop.width, state.crop.height, 0, 0, width, height);
     picture.close();
+    // Brightness for each dot, and colour for each square of four, in sixty-fifths of a thousand: BT.709's weights,
+    // brightness from 16 to 235 and colour from 16 to 240 around 128.
+    const rgba = draw.getImageData(0, 0, width, height).data;
+    const [brightness, blue, red] = [state.picture.subarray(0, width * height), state.picture.subarray(width * height, (width * height * 5) / 4), state.picture.subarray((width * height * 5) / 4)];
+    for (let y = 0; y < height; y += 2)
+      for (let x = 0; x < width; x += 2) {
+        let [r, g, b] = [0, 0, 0];
+        for (const at of [y * width + x, y * width + x + 1, (y + 1) * width + x, (y + 1) * width + x + 1]) {
+          const [dotR, dotG, dotB] = [rgba[at * 4]!, rgba[at * 4 + 1]!, rgba[at * 4 + 2]!];
+          brightness[at] = 16 + ((11966 * dotR + 40254 * dotG + 4064 * dotB + 32768) >> 16);
+          r += dotR;
+          g += dotG;
+          b += dotB;
+        }
+        const square = (y / 2) * (width / 2) + x / 2;
+        blue[square] = 128 + ((-6596 * r - 22189 * g + 28785 * b + 131072) >> 18);
+        red[square] = 128 + ((28785 * r - 26145 * g - 2640 * b + 131072) >> 18);
+      }
   }
-  const frame = new VideoFrame(state.canvas, { timestamp: (state.i * 1_000_000) / state.fps, duration: 1_000_000 / state.fps });
+  const frame = new VideoFrame(state.picture, {
+    format: "I420",
+    codedWidth: width,
+    codedHeight: height,
+    timestamp: (state.i * 1_000_000) / state.fps,
+    duration: 1_000_000 / state.fps,
+    colorSpace: { primaries: "bt709", transfer: "bt709", matrix: "bt709", fullRange: false },
+  });
   state.encoder.encode(frame, { keyFrame: key });
   frame.close();
   state.i++;
