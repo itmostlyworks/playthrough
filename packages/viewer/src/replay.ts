@@ -286,11 +286,25 @@ export class Replay {
   }
 
   // Where one of the page's elements is now, in the page's own pixels, by its node in the recording; nothing while it
-  // isn't on the page. With words, where those words in it are, where they're found in it; else the whole of it.
-  boxOf(node: number, words?: string): Rect | undefined {
+  // isn't on the page.
+  boxOf(node: number): Rect | undefined {
     const element = this.#replayer.getMirror().getNode(node) as Element | null;
-    const box = (words && element && wordsIn(element, words)?.getBoundingClientRect()) || element?.getBoundingClientRect?.();
-    return box && (box.width || box.height) ? { left: box.left, top: box.top, width: box.width, height: box.height } : undefined;
+    return rectOf(element?.getBoundingClientRect?.());
+  }
+
+  // Where to outline one of the page's elements: around what's seen of it. One that draws nothing of its own, no
+  // background, border or shadow, is what's in it: a heading is its words, not the page's width it's laid out across,
+  // which outlined the whole width and had Compare frame the whole page. With words, just those words in it, where
+  // they're found.
+  markOf(node: number, words?: string): Rect | undefined {
+    const element = this.#replayer.getMirror().getNode(node) as Element | null;
+    if (!element?.getBoundingClientRect) return undefined;
+    const found = words ? wordsIn(element, words) : undefined;
+    if (found) return rectOf(found.getBoundingClientRect());
+    if (drawsItself(element)) return rectOf(element.getBoundingClientRect());
+    const inside = element.ownerDocument.createRange();
+    inside.selectNodeContents(element);
+    return rectOf(inside.getBoundingClientRect()) ?? rectOf(element.getBoundingClientRect());
   }
 
   // What's at a point of the page, in its own pixels, and everything holding it, by their nodes in the recording, from it
@@ -397,4 +411,14 @@ function wordsIn(element: Element, words: string): Range | undefined {
   range.setStart(first, from);
   range.setEnd(last, to + 1);
   return range;
+}
+
+const rectOf = (box: DOMRect | undefined): Rect | undefined => (box && (box.width || box.height) ? { left: box.left, top: box.top, width: box.width, height: box.height } : undefined);
+
+// Whether an element is seen as a shape of its own, as a card, a field or a button is, and not only by what's in it.
+function drawsItself(element: Element): boolean {
+  if (!element.firstChild || element.matches("img, svg, video, canvas, iframe, input, textarea, select, button")) return true;
+  const look = getComputedStyle(element);
+  const seen = (colour: string) => !/^(transparent|rgba\(.*,\s*0\))$/.test(colour);
+  return seen(look.backgroundColor) || look.backgroundImage !== "none" || look.boxShadow !== "none" || ["Top", "Right", "Bottom", "Left"].some((side) => parseFloat(look.getPropertyValue(`border-${side.toLowerCase()}-width`)) > 0 && seen(look.getPropertyValue(`border-${side.toLowerCase()}-color`)));
 }

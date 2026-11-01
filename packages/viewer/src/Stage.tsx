@@ -402,7 +402,7 @@ export function Stage(props: Props) {
     for (const mark of layer.querySelectorAll<HTMLElement>("[data-mark-id]")) {
       const { node, from, until, paused, markId, words } = mark.dataset;
       const spot = mark.dataset.box?.split(" ").map(Number);
-      const box = node !== undefined ? replay?.boxOf(Number(node), words) : spot && { left: spot[0]! * page.width, top: spot[1]! * page.height, width: spot[2]! * page.width, height: spot[3]! * page.height };
+      const box = node !== undefined ? replay?.markOf(Number(node), words) : spot && { left: spot[0]! * page.width, top: spot[1]! * page.height, width: spot[2]! * page.width, height: spot[3]! * page.height };
       const left = Math.max(0, box?.left ?? 0);
       const top = Math.max(0, box?.top ?? 0);
       const right = Math.min(page.width, (box?.left ?? 0) + (box?.width ?? 0));
@@ -433,6 +433,13 @@ export function Stage(props: Props) {
         else mark.hidden = true;
       }
       mark.toggleAttribute("data-one", one && mark.dataset.pointed === undefined);
+    }
+    // A change inside another, as a line in a paragraph that's new, is one box in another, which reads as clutter: at rest
+    // only the outer one is drawn, the inner one by its pin, and drawn while you're on it.
+    for (const [mark, box] of outlined) {
+      if (mark.dataset.kind !== "change") continue;
+      const within = [...outlined].some(([other, around]) => other !== mark && other.dataset.kind === "change" && other.dataset.markId !== mark.dataset.markId && holds(around, box) && !holds(box, around));
+      mark.toggleAttribute("data-within", within && mark.dataset.chosen === undefined && mark.dataset.pointed === undefined);
     }
     for (const [mark, { left, top, right, bottom }] of outlined) {
       Object.assign(mark.style, { left: share(left / page.width), top: share(top / page.height), width: share((right - left) / page.width), height: share((bottom - top) / page.height) });
@@ -472,7 +479,7 @@ export function Stage(props: Props) {
   const chosenOn = (round: number, replay: Replay, page: Size) => {
     const chosen = (latest.current.marks.get(round) ?? []).filter((mark) => mark.chosen && mark.kind !== "writing");
     const boxes = chosen.flatMap(({ on }) =>
-      "node" in on ? (replay.boxOf(on.node) ?? []) : "box" in on ? [{ left: on.box.x * page.width, top: on.box.y * page.height, width: on.box.width * page.width, height: on.box.height * page.height }] : [],
+      "node" in on ? (replay.markOf(on.node) ?? []) : "box" in on ? [{ left: on.box.x * page.width, top: on.box.y * page.height, width: on.box.width * page.width, height: on.box.height * page.height }] : [],
     );
     if (!boxes.length) return undefined;
     const left = Math.min(...boxes.map((box) => box.left));
@@ -1180,7 +1187,7 @@ function Drawn({ mark, onMark, onPointAt }: { mark: Mark; onMark: (id: string) =
     pin === "diamond" ? (
       <button data-pin={mark.id} aria-label="Why it changed" className="pointer-events-auto absolute grid size-[18px] cursor-pointer place-items-center" onClick={choose} onPointerEnter={(event) => event.pointerType === "mouse" && onPointAt?.(mark.id)} onPointerLeave={(event) => event.pointerType === "mouse" && onPointAt?.()}>
         {/* Still under the pointer: chosen, it fills with the mark's ink. */}
-        <i className={`size-[8px] rotate-45 shadow-[inset_0_0_0_1.5px_rgb(var(--mark,30_33_40)),0_0_0_2px_rgb(var(--mark-ground,255_255_255)/.9)] transition-colors duration-200 ease-calm ${chosen ? "bg-[rgb(var(--mark,30_33_40))]" : "bg-[rgb(var(--mark-ground,255_255_255))]"}`} />
+        <i className={`size-[8px] rotate-45 shadow-[inset_0_0_0_1.5px_rgb(var(--mark,30_33_40)),0_0_0_2px_rgb(var(--mark-ground,255_255_255)/.9)] transition-colors duration-200 ease-calm ${chosen || mark.pointed ? "bg-[rgb(var(--mark,30_33_40))]" : "bg-[rgb(var(--mark-ground,255_255_255))]"}`} />
         {mark.dot && <b className="absolute top-px left-[11px] size-1.5 rounded-full shadow-[0_0_0_1.5px_#fff]" style={{ background: mark.dot }} />}
       </button>
     ) : (
@@ -1206,7 +1213,7 @@ function Drawn({ mark, onMark, onPointAt }: { mark: Mark; onMark: (id: string) =
       : mark.kind === "change"
         ? mark.ink
           ? `${mark.pointed ? "outline-[1.5px]" : "outline-1"} outline-(--c) outline-solid`
-          : chosen
+          : chosen || mark.pointed
           ? "outline-1 outline-[rgb(var(--mark,30_33_40)/.8)] outline-solid"
           : "outline-1 outline-[rgb(var(--mark,30_33_40)/.3)] outline-solid"
         : chosen
@@ -1219,12 +1226,13 @@ function Drawn({ mark, onMark, onPointAt }: { mark: Mark; onMark: (id: string) =
       data-paused={mark.kind === "change" ? "" : undefined}
       data-answers={mark.answers}
       data-pointed={mark.pointed ? "" : undefined}
+      data-chosen={chosen ? "" : undefined}
       data-node={"node" in on ? on.node : undefined}
       data-words={mark.words}
       data-box={"box" in on ? `${on.box.x} ${on.box.y} ${on.box.width} ${on.box.height}` : undefined}
       {...shows}
       hidden
-      className={`pointer-events-none absolute ${mark.words ? "rounded-[3px] outline-offset-2" : "rounded-[4px] outline-offset-4"} [transition:opacity_250ms_var(--ease-calm),outline-color_200ms_var(--ease-calm),outline-width_150ms_var(--ease-calm)] data-playing:opacity-0 ${look} data-one:outline-transparent`}
+      className={`pointer-events-none absolute ${mark.words ? "rounded-[3px] outline-offset-2" : "rounded-[4px] outline-offset-4"} [transition:opacity_250ms_var(--ease-calm),outline-color_200ms_var(--ease-calm),outline-width_150ms_var(--ease-calm)] data-playing:opacity-0 ${look} data-one:outline-transparent data-within:outline-transparent`}
       style={mark.ink ? ({ "--c": mark.ink } as CSSProperties) : undefined}
     >
       {badge}

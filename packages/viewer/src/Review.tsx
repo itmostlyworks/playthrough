@@ -32,8 +32,9 @@ import { Wire } from "./Wire.tsx";
 
 // What's open beside the recording: a note, a change you chose, or a new note being written, by its id.
 // What's open: a note, a change, a note being written, or a flow's own card, at its end.
-// A change's moment is open with `change`; with `one`, the change whose why is open beside its mark.
-type Open = { note: string } | { change: string; one?: string } | { writing: string } | { end: string };
+// A change's moment is open with `change`; with `one`, the change whose why is open beside its mark, `kept` once its
+// pin is pressed rather than pointed at.
+type Open = { note: string } | { change: string; one?: string; kept?: boolean } | { writing: string } | { end: string };
 // A click noted in the app: what it's on there, what was done there before it, and where, in the app's page.
 type NotedInApp = { element?: Thing; point?: Point; did: Did[]; x: number; y: number };
 
@@ -556,17 +557,18 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   const onNow = useNow(playhead, (now) => diamondAt(diamonds, now.moment, clicks)?.id);
   const chosen = open && "change" in open ? diamonds.find((diamond) => diamond.id === open.change) : undefined;
   const oneOpen = chosen && open && "change" in open ? open.one : undefined;
+  const keptOne = oneOpen && open && "change" in open && open.kept ? oneOpen : undefined;
   // A change's why opens as you point at its pin, and goes a moment after you've left both the pin and its card, unless
-  // you pressed the pin, which keeps it.
-  const whyKept = useRef(false);
+  // you pressed the pin, which keeps it. Pointed at, a change is only drawn stronger: it never moves the view, which
+  // carried the pin out from under the pointer, closed the card, and brought both back, again and again. Pressed, it's
+  // chosen, and brought into view as anything chosen is.
   const leaving = useRef<ReturnType<typeof setTimeout>>(undefined);
   const whyOf = (id?: string) => {
     clearTimeout(leaving.current);
     const diamond = id && diamonds.find((diamond) => diamond.changes.some(({ change }) => change.id === id));
     if (diamond) {
-      if (oneOpen !== id) whyKept.current = false;
-      setOpen({ change: diamond.id, one: id });
-    } else if (!whyKept.current) leaving.current = setTimeout(() => setOpen((open) => (open && "change" in open ? { change: open.change } : open)), 250);
+      if (keptOne !== id) setOpen({ change: diamond.id, one: id });
+    } else if (!keptOne) leaving.current = setTimeout(() => setOpen((open) => (open && "change" in open && !open.kept ? { change: open.change } : open)), 250);
   };
   // Your notes on what changed, each grown out of its change; and the change whose note is open or being written.
   const grown = new Map(
@@ -1379,7 +1381,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
           return on ? [{ id: note.id, kind: "note", on, pin: { number: note.number, fill: fill(note) }, ink: ink(note), chosen, shows: chosen ? undefined : span(note) }] : [];
         }),
         ...(writing?.on && playedOn(writing.on) === inPlay && writing.on.element?.node !== undefined && !grown.has(writing.id) ? [{ id: writing.id, kind: "writing" as const, on: { node: writing.on.element.node }, chosen: true }] : []),
-        ...changed.map(({ id, on, words, pinned, line }): Mark => ({ id, kind: "change", on, words, pin: pinned ? "diamond" : undefined, dot: grownInk(outlined!), chosen: (!!oneOpen && (id === oneOpen || (!!line && line === oneLine))) || outlined === grownOpen })),
+        ...changed.map(({ id, on, words, pinned, line }): Mark => ({ id, kind: "change", on, words, pin: pinned ? "diamond" : undefined, dot: grownInk(outlined!), pointed: !keptOne && !!oneOpen && (id === oneOpen || (!!line && line === oneLine)), chosen: (!!keptOne && (id === keptOne || (!!line && line === oneLine))) || outlined === grownOpen })),
         ...answerMarks((changed) => changed.on),
       ],
     ],
@@ -1390,7 +1392,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     const there = own?.on && markOn(placeOn(review, own.id, own.on, own.written, other, read));
     marks.set(other.number, [
       ...(there ? [{ id: own.id, kind: "note" as const, on: there, ink: ink(own), chosen: true }] : []),
-      ...(chosen?.flow === watching ? drawn(chosen).flatMap((changed) => marksOn(placeFrom(review, changed.on, round.number, other, read)).map((on): Mark => ({ id: changed.change.id, kind: "change", on, chosen: !oneOpen || changed.change.id === oneOpen }))) : []),
+      ...(chosen?.flow === watching ? drawn(chosen).flatMap((changed) => marksOn(placeFrom(review, changed.on, round.number, other, read)).map((on): Mark => ({ id: changed.change.id, kind: "change", on, chosen: !keptOne || changed.change.id === keptOne }))) : []),
       ...answerMarks((changed) => placeFrom(review, changed.on, round.number, other, read)),
     ]);
   }
@@ -1463,9 +1465,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
               const diamond = diamonds.find((diamond) => diamond.changes.some(({ change }) => change.id === id));
               if (note) pick(note);
               else if (diamond) {
-                const close = whyKept.current && oneOpen === id;
-                whyKept.current = !close;
-                setOpen(close ? { change: diamond.id } : { change: diamond.id, one: id });
+                setOpen(keptOne === id ? { change: diamond.id } : { change: diamond.id, one: id, kept: true });
               }
             }}
             read={read}
