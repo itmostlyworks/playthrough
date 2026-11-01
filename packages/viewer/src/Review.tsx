@@ -6,7 +6,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { elementOf } from "@playthrough/page";
 import { inStep, lastLooked, newId, notesToAnswer, readyToAccept, time, waitingForTheAgent, type Did, type Element as Thing, type Flow, type Note, type Point, type Place, type Review, type Round, type Send, type Verdict } from "@playthrough/review";
-import { accept, keepBranch, picture, recording, send, useReview, useYou } from "./api.ts";
+import { accept, keepBranch, picture, recording, saveVideo, send, useReview, useYou } from "./api.ts";
 import { Bar } from "./Bar.tsx";
 import { Beside, clickedAt } from "./Beside.tsx";
 import { HOLD } from "./Card.tsx";
@@ -1041,6 +1041,18 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   const comparing = side && !!heldOver;
   const earlier = comparing ? heldOver : undefined;
   const zoomed = comparing ? !sideFit : actual;
+  // The flow as a video, as it's shown: alone, or beside the round Compare shows.
+  const [making, setMaking] = useState(false);
+  const saveAsVideo = () => {
+    if (making || !flow) return;
+    setMaking(true);
+    const name = `${flow.name} · ${earlier ? `${roundName(earlier.number)} and ${roundName(round.number)}` : roundName(round.number)}`;
+    const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+    void saveVideo(review.id, { round: round.number, flow: flow.name, beside: earlier?.number, dark }, name).then((problems) => {
+      setMaking(false);
+      if (problems.length) console.warn(problems.join(" "));
+    });
+  };
   // Holding Compare or How it was, that round shows over the recording, in place.
   // It waits unseen over the recording while it's paused, so Compare shows it at once; playing, only while it's on.
   const peeking = peek && !repeats && !!comparedRound;
@@ -1252,6 +1264,9 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
       } else if (event.key.toLowerCase() === "t" && !event.repeat) {
         event.preventDefault();
         takeOver();
+      } else if (event.key.toLowerCase() === "v" && !event.repeat && !live?.shown) {
+        event.preventDefault();
+        saveAsVideo();
       } else if (event.key === "Escape" && live?.shown) {
         letGo();
       } else if (event.key === "Escape" && (peek || comparing)) {
@@ -1434,6 +1449,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
               onNote={readOnly ? undefined : pressNote}
               onTakeOver={takeOver}
               onBack={() => letGo()}
+              video={{ making, onSave: saveAsVideo }}
               flow={watching ?? ""}
               notes={notes
                 .filter((note) => note.on?.flow === watching && note.on.at !== undefined && note.turns[0]?.words)

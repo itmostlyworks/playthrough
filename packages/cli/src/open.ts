@@ -13,6 +13,7 @@ import { BEAT } from "./flows.ts";
 import type { Repo } from "./repo.ts";
 import { readyIn } from "./following.ts";
 import { getReady, keepUp } from "./take-over.ts";
+import { video, type Filmed } from "./video.ts";
 
 const PORT = 5790;
 const TYPES: Record<string, string> = {
@@ -79,6 +80,7 @@ async function answer(repo: Repo, page: string, you: string, request: IncomingMe
     response.writeHead(200, { "content-type": TYPES[extname(path)] ?? "application/octet-stream", "cache-control": "max-age=31536000, immutable" });
     return response.end(bytes);
   }
+  if (request.method === "POST" && rest[0] === "video") return saveVideo(repo, id, request, response);
   if (request.method === "POST" && rest[0] === "take-over") return takeOver(repo, id, request, response);
   if (request.method === "POST" && rest[0] === "follow") return followAlong(repo, id, request, response);
   if (request.method === "POST" && rest[0] === "ready-in") return readyInFor(repo, id, request, response);
@@ -155,6 +157,23 @@ function paced(events: Event[]): Event[] {
   });
 }
 const readingOf = (event: Event) => (event.type === 5 && event.data?.tag === "reading" ? event.data.payload : undefined);
+
+// A flow as a video, alone or beside the round Compare shows, at the size of the largest screen it's recorded on.
+async function saveVideo(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
+  const filmed = await body<Filmed>(request);
+  const rounds = (await repo.reviews.get(id)).rounds.filter((round) => round.number === filmed.round || round.number === filmed.beside);
+  const screens: { width: number; height: number }[] = [];
+  for (const round of rounds) {
+    const flow = round.flows.find((flow) => flow.name === filmed.flow);
+    const kept = flow && (await repo.reviews.file(id, round.number, flow.recording));
+    if (kept) for (const event of JSON.parse(Buffer.from(kept).toString("utf8")) as { type: number; data: { width?: number; height?: number } }[]) if (event.type === 4) screens.push(event.data as { width: number; height: number });
+  }
+  if (!screens.length) return json(response, 404, { problems: [`Round ${filmed.round} of ${id} has no recording of “${filmed.flow}”.`] });
+  const shape = { width: Math.max(...screens.map((screen) => screen.width)), height: Math.max(...screens.map((screen) => screen.height)) };
+  const bytes = await video(request.socket.localPort!, id, filmed, shape);
+  response.writeHead(200, { "content-type": "video/mp4", "cache-control": "no-store" });
+  response.end(bytes);
+}
 
 // How long until a moment asked for is ready, for the viewer to count down to, if it can be known.
 async function readyInFor(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {

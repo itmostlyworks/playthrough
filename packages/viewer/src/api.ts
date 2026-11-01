@@ -97,6 +97,23 @@ export async function accept(review: string, by: string): Promise<string[]> {
   return post(`/api/reviews/${review}/accept`, { by });
 }
 
+// A flow as a video, alone or beside the round Compare shows, saved where your browser saves files; what's wrong in
+// plain words, or nothing once it's saved.
+export async function saveVideo(review: string, filmed: { round: number; flow: string; beside?: number; dark: boolean }, name: string): Promise<string[]> {
+  try {
+    const answer = await fetch(`/api/reviews/${review}/video`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(filmed) });
+    if (!answer.ok) return (await answer.json()).problems ?? [`It wasn't made (${answer.status}).`];
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(await answer.blob());
+    link.download = `${name}.mp4`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    return [];
+  } catch {
+    return ["Playthrough isn't running here any more. Start it again with playthrough open, then try again."];
+  }
+}
+
 async function get<T>(path: string): Promise<T> {
   const answer = await fetch(path);
   if (!answer.ok) throw new Error(`${path}: ${answer.status}`);

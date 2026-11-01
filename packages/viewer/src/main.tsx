@@ -3,6 +3,7 @@
 import { createRoot } from "react-dom/client";
 import { useReviews } from "./api.ts";
 import { Page, ReviewPage } from "./Review.tsx";
+import { Video, type Filmed } from "./Video.tsx";
 import "./style.css";
 
 function Reviews() {
@@ -25,6 +26,8 @@ function Reviews() {
   );
 }
 
-// A review's address, and the flow you're in, so coming back to it, or reloading, finds you there.
+// A review's address, and the flow you're in, so coming back to it, or reloading, finds you there. Filmed, a flow as a
+// video.
 const [id, flow] = location.pathname.slice(1).split("/").map(decodeURIComponent);
-createRoot(document.getElementById("root")!).render(id ? <ReviewPage id={id} flow={flow} /> : <Reviews />);
+const filmed = new URLSearchParams(location.search).get("video");
+createRoot(document.getElementById("root")!).render(id && filmed ? <Video id={id} filmed={JSON.parse(filmed) as Filmed} /> : id ? <ReviewPage id={id} flow={flow} /> : <Reviews />);
