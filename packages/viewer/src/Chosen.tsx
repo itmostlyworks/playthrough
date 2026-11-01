@@ -20,6 +20,8 @@ export type Props = {
   chosen?: string;
   // Of the changes at that moment, the one whose why is open.
   one?: string;
+  // The pointer coming into a change's card, or leaving it.
+  onWhy: (inside: boolean) => void;
   // Where each flow stands for you, on the round you judge; looking back, nothing.
   standing: (flow: string) => Standing | undefined;
   // The answers in a flow you haven't seen: its Looks good never settles them, and its question shows them first.
@@ -236,7 +238,7 @@ function ChangeCard(props: Props & { diamond: Diamond; yours: Shown[] }) {
   const changed = diamond.changes.find(({ change }) => change.id === props.one);
   const note = changed?.note && notes.find((note) => note.id === changed.note);
   return (
-    <div data-open="" className={`relative ${opened}`}>
+    <div data-open="" className={`relative ${opened}`} onPointerEnter={() => props.onWhy(true)} onPointerLeave={() => props.onWhy(false)}>
       <button className="grid w-full grid-cols-[18px_minmax(0,1fr)] gap-2 py-1.5 pr-2.5 pl-[18px] text-left" onMouseDown={keepKeys} onClick={(event) => ((event.target as Element).closest("[data-time]") ? props.onDiamond(diamond) : props.onClose())} aria-expanded>
         <span data-mark className="relative z-1 mt-px grid size-[18px] place-items-center">
           <i className="size-2 rotate-45 bg-ground shadow-[inset_0_0_0_1.5px_var(--fg),0_0_0_2.5px_var(--ground)]" />

@@ -27,6 +27,8 @@ export type Recorded = {
   changes: number[];
   // What was clicked or typed into, as [seconds, node].
   acted: [number, number][];
+  // Where the page, or a part of it, was scrolled to, as [seconds, node, x, y].
+  scrolls: [number, number, number, number][];
   // The browser's own dialogs, which aren't in the page.
   dialogs: Dialog[];
 };
@@ -38,7 +40,7 @@ export type Dialog = { from: number; until: number; type: string; host: string; 
 export function recorded(events: Events): Recorded {
   const start = events[0]?.timestamp ?? 0;
   const seconds = (timestamp: number) => (timestamp - start) / 1000;
-  const shown: Recorded = { shapes: [], loads: [], pointer: [], away: [], clicks: [], changes: [], acted: [], dialogs: [] };
+  const shown: Recorded = { shapes: [], loads: [], pointer: [], away: [], clicks: [], changes: [], acted: [], scrolls: [], dialogs: [] };
   let host = "";
   for (const event of events) {
     if (event.type === EventType.Custom) {
@@ -65,6 +67,7 @@ export function recorded(events: Events): Recorded {
       if (data.type === MouseInteractions.TouchStart && shape) shape.touch = true;
       if (data.type === MouseInteractions.Click) shown.acted.push([seconds(event.timestamp), data.id]);
     } else if (data.source === IncrementalSource.Input) shown.acted.push([seconds(event.timestamp), data.id]);
+    else if (data.source === IncrementalSource.Scroll) shown.scrolls.push([seconds(event.timestamp), data.id, data.x, data.y]);
     const changes = [IncrementalSource.Mutation, IncrementalSource.Scroll, IncrementalSource.Input].includes(data.source);
     if (changes || (data.source === IncrementalSource.MouseInteraction && data.type === MouseInteractions.Click)) shown.changes.push(seconds(event.timestamp) + 0.01);
   }
@@ -154,6 +157,7 @@ export class Replay {
   // showed, so a flow's first frame would show its end.
   #drawn: number;
   #at = -1;
+  #scrolls: Recorded["scrolls"];
   #jumpedTo = -Infinity;
   #seen = new WeakSet<Animation>();
   // When each element's animations started, by name, in the recording's time. Played a little at a time, rrweb takes
@@ -172,7 +176,7 @@ export class Replay {
       const removes = event.data.removes;
       Object.defineProperty(event.data, "removes", { get: () => removes, set() {}, enumerable: true, configurable: true });
     }
-    ({ shapes: this.shapes, loads: this.loads, pointer: this.pointer, away: this.away, clicks: this.clicks, dialogs: this.dialogs } = recorded(events));
+    ({ shapes: this.shapes, loads: this.loads, pointer: this.pointer, away: this.away, clicks: this.clicks, dialogs: this.dialogs, scrolls: this.#scrolls } = recorded(events));
     this.#drawn = Math.max(0, (events.find((event) => event.type === EventType.FullSnapshot)?.timestamp ?? start) - start + 1);
     this.host.className = "absolute top-0 left-0 origin-top-left [&_.replayer-mouse]:hidden [&_iframe]:pointer-events-none [&_iframe]:block [&_iframe]:border-0";
     this.#shape = this.shapes[0]!;
@@ -195,6 +199,7 @@ export class Replay {
       this.#replayer.pause(ms);
       this.#at = ms;
       if (jumped) this.#settle();
+      this.#scrollBetween(ms / 1000);
       const shape = this.shapeAt(ms / 1000);
       if (shape !== this.#shape) {
         this.#shape = shape;
@@ -234,6 +239,20 @@ export class Replay {
 
   shapeAt(at: number): Shape {
     return shapeOf(this.shapes, at);
+  }
+
+  // A scroll is kept every few hundredths of a second, and shown only at those, it stepped down the page at half the
+  // screen's rate: between two close together, the page is where it was on its way from one to the other.
+  #scrollBetween(at: number) {
+    const after = this.#scrolls.findIndex(([when]) => when > at);
+    const [a, b] = [this.#scrolls[after - 1], this.#scrolls[after]];
+    if (after < 1 || !a || !b || a[1] !== b[1] || b[0] - a[0] > 0.25 || this.loads.some((load) => load > a[0] && load <= b[0])) return;
+    const u = (at - a[0]) / (b[0] - a[0]);
+    const to: ScrollToOptions = { left: a[2] + (b[2] - a[2]) * u, top: a[3] + (b[3] - a[3]) * u, behavior: "instant" };
+    const node = this.#replayer.getMirror().getNode(a[1]);
+    const page = this.#replayer.iframe.contentDocument;
+    if (node === page || node?.nodeType === Node.DOCUMENT_NODE) this.#replayer.iframe.contentWindow?.scrollTo(to);
+    else (node as Element | null)?.scrollTo?.(to);
   }
 
   // Where the pointer is at a moment, as it moved since `since` at the earliest: until it first moves after that, where

@@ -556,6 +556,18 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   const onNow = useNow(playhead, (now) => diamondAt(diamonds, now.moment, clicks)?.id);
   const chosen = open && "change" in open ? diamonds.find((diamond) => diamond.id === open.change) : undefined;
   const oneOpen = chosen && open && "change" in open ? open.one : undefined;
+  // A change's why opens as you point at its pin, and goes a moment after you've left both the pin and its card, unless
+  // you pressed the pin, which keeps it.
+  const whyKept = useRef(false);
+  const leaving = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const whyOf = (id?: string) => {
+    clearTimeout(leaving.current);
+    const diamond = id && diamonds.find((diamond) => diamond.changes.some(({ change }) => change.id === id));
+    if (diamond) {
+      if (oneOpen !== id) whyKept.current = false;
+      setOpen({ change: diamond.id, one: id });
+    } else if (!whyKept.current) leaving.current = setTimeout(() => setOpen((open) => (open && "change" in open ? { change: open.change } : open)), 250);
+  };
   // Your notes on what changed, each grown out of its change; and the change whose note is open or being written.
   const grown = new Map(
     [...notes.filter((note) => note.yours), ...draft.unsaved].flatMap((note) => {
@@ -1006,7 +1018,10 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   // on or dragged along the timeline, it closes, and doesn't come back when playing stops. One on a whole flow, or made
   // in the app, has no mark there, and stays.
   const mark = openNote?.on?.at !== undefined && !openNote.on.app ? { flow: openNote.on.flow, ...span(openNote) } : chosen && { flow: chosen.flow, at: chosen.at, until: undefined };
-  const leftMark = useNow(playhead, ({ moment }) => !!mark && !live?.shown && (moment.flow !== mark.flow || moment.at < mark.at - NEAR || moment.at > (mark.until ?? mark.at) + NEAR));
+  // A change's card stays as long as its marks do: just past its moment too, until the next click, as they're drawn.
+  const leftMark = useNow(playhead, ({ moment }) =>
+    !!mark && !live?.shown && (chosen && !openNote ? diamondAt(diamonds, moment, clicks)?.id !== chosen.id : moment.flow !== mark.flow || moment.at < mark.at - NEAR || moment.at > (mark.until ?? mark.at) + NEAR),
+  );
   useEffect(() => {
     if (leftMark) setOpen(undefined);
   }, [leftMark]);
@@ -1388,6 +1403,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     diamonds: diamonds,
     chosen: chosen?.id,
     one: oneOpen,
+    onWhy: (inside: boolean) => (inside ? clearTimeout(leaving.current) : whyOf()),
     standing: (name) => standing?.get(name),
     unseen: unseen,
     asked: question,
@@ -1443,13 +1459,18 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
             }
             onMark={(id) => {
               const note = notes.find((note) => note.id === id);
-              // A change's pin opens its why, beside it; pressed again, it closes.
+              // Pressed, a change's pin keeps its why open, until it's pressed again.
               const diamond = diamonds.find((diamond) => diamond.changes.some(({ change }) => change.id === id));
               if (note) pick(note);
-              else if (diamond) setOpen(oneOpen === id ? { change: diamond.id } : { change: diamond.id, one: id });
+              else if (diamond) {
+                const close = whyKept.current && oneOpen === id;
+                whyKept.current = !close;
+                setOpen(close ? { change: diamond.id } : { change: diamond.id, one: id });
+              }
             }}
             read={read}
             onGone={setGone}
+            onPointAt={whyOf}
             onAllFlows={many ? () => toGrid() : undefined}
             over={arrived ? { words: `${roundName(latest.number)} is in`, take: () => toRound(latest.number) } : current ? undefined : { words: roundName(round.number) }}
             live={live}

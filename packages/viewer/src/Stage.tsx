@@ -78,6 +78,8 @@ type Props = {
   writing: boolean;
   onPlace?: (on: Placed) => void;
   onMark: (id: string) => void;
+  // Pointing at a change's pin, or away from it.
+  onPointAt?: (id?: string) => void;
   // What each round's pages were read as, to name what a click would note.
   read: Read;
   // The notes whose things aren't on the page now, on the round you're watching.
@@ -1024,7 +1026,7 @@ export function Stage(props: Props) {
             <div data-stack className="absolute inset-0" />
             <div data-marks inert={!!props.live?.shown} className={`absolute top-0 left-0 z-3 ${hideable} group-data-bare/stage:[&_*]:pointer-events-none`}>
               {(props.marks.get(number) ?? []).map((mark, i) => (
-                <Drawn key={`${mark.id}:${i}`} mark={mark} onMark={props.onMark} />
+                <Drawn key={`${mark.id}:${i}`} mark={mark} onMark={props.onMark} onPointAt={props.onPointAt} />
               ))}
               {number === round.number && aiming && hover !== undefined && (
                 <div data-mark-id="hover" data-node={hover} hidden className="pointer-events-none absolute rounded-[4px] outline-1 outline-offset-4 outline-[rgba(217,162,58,0.55)] outline-solid" />
@@ -1161,7 +1163,7 @@ const hideable = "transition-[filter] duration-180 ease-calm group-data-bare/sta
 
 // A mark on its thing: an outline around it, never on it, clear of everything it draws, with its pin just outside the
 // corner like a badge; on a spot, its pin right there.
-function Drawn({ mark, onMark }: { mark: Mark; onMark: (id: string) => void }) {
+function Drawn({ mark, onMark, onPointAt }: { mark: Mark; onMark: (id: string) => void; onPointAt?: (id?: string) => void }) {
   const { on, pin, chosen } = mark;
   const shows = mark.shows && { "data-from": mark.shows.at, "data-until": mark.shows.until };
   const choose = (event: MouseEvent) => {
@@ -1170,7 +1172,7 @@ function Drawn({ mark, onMark }: { mark: Mark; onMark: (id: string) => void }) {
   };
   const badge =
     pin === "diamond" ? (
-      <button data-pin={mark.id} aria-label="What changed here" className={`absolute grid size-[18px] place-items-center ${pressable}`} onClick={choose}>
+      <button data-pin={mark.id} aria-label="Why it changed" className={`absolute grid size-[18px] place-items-center ${pressable}`} onClick={choose} onPointerEnter={(event) => event.pointerType === "mouse" && onPointAt?.(mark.id)} onPointerLeave={(event) => event.pointerType === "mouse" && onPointAt?.()}>
         <i className="size-[9px] rotate-45 bg-[#2b2e35] shadow-pin" />
         {mark.dot && <b className="absolute top-px left-[11px] size-1.5 rounded-full shadow-[0_0_0_1.5px_#fff]" style={{ background: mark.dot }} />}
       </button>
