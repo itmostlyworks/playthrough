@@ -28,3 +28,10 @@ test("what wasn't kept, like a link, stays as it was", () => {
   assert.equal(fromKept(events, kept, files), events);
   assert.equal(fromKept(events, {}, files), events);
 });
+
+test("an SVG it drew asks for light or dark as the recording's browser was, not the viewer's: the site's logo, recorded light, in a dark viewer", () => {
+  const logo = { "http://localhost:3000/logo.svg": "assets/5e6f.svg" };
+  const page = (dark: boolean) => JSON.stringify([{ type: 5, data: { tag: "browser", payload: { dark, still: false } } }, { attributes: { src: "http://localhost:3000/logo.svg" } }]);
+  assert.equal(JSON.parse(fromKept(page(false), logo, files))[1].attributes.src, `${files}assets/5e6f.svg?as=light,moving`);
+  assert.equal(JSON.parse(fromKept(page(true), logo, files))[1].attributes.src, `${files}assets/5e6f.svg?as=dark,moving`);
+});

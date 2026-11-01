@@ -3,6 +3,7 @@
 // where you pause, and is already over where you jump to. Its pointer and clicks are read from the recording's own
 // events, for Playthrough to draw over it.
 
+import { answerAs, type Answered } from "@playthrough/page";
 import { EventType, IncrementalSource, MouseInteractions, Replayer, type eventWithTime } from "rrweb";
 
 export type Events = eventWithTime[];
@@ -31,6 +32,9 @@ export type Recorded = {
   scrolls: [number, number, number, number][];
   // The browser's own dialogs, which aren't in the page.
   dialogs: Dialog[];
+  // Whether the browser it was recorded in was dark, and asked for no motion; light and moving, in a recording that
+  // doesn't say, as Playwright's browser is.
+  browser: Answered;
 };
 
 // A dialog the browser showed, an alert, a confirm or a prompt, from when it showed until it was answered: what it
@@ -40,12 +44,14 @@ export type Dialog = { from: number; until: number; type: string; host: string; 
 export function recorded(events: Events): Recorded {
   const start = events[0]?.timestamp ?? 0;
   const seconds = (timestamp: number) => (timestamp - start) / 1000;
-  const shown: Recorded = { shapes: [], loads: [], pointer: [], away: [], clicks: [], changes: [], acted: [], scrolls: [], dialogs: [] };
+  const shown: Recorded = { shapes: [], loads: [], pointer: [], away: [], clicks: [], changes: [], acted: [], scrolls: [], dialogs: [], browser: { dark: false, still: false } };
+  let said = false;
   let host = "";
   for (const event of events) {
     if (event.type === EventType.Custom) {
       const { tag, payload } = event.data as { tag: string; payload: { type: string; message: string; value?: string; yes?: boolean } };
       if (tag === "dialog") shown.dialogs.push({ from: seconds(event.timestamp), until: Infinity, host, ...payload });
+      if (tag === "browser" && !said) [shown.browser, said] = [{ dark: !!(payload as unknown as Answered).dark, still: !!(payload as unknown as Answered).still }, true];
       const open = shown.dialogs.at(-1);
       if (tag === "dialog answered" && open?.until === Infinity) Object.assign(open, { until: seconds(event.timestamp), yes: payload.yes, ...(payload.value !== undefined && { value: payload.value }) });
     }
@@ -176,7 +182,8 @@ export class Replay {
       const removes = event.data.removes;
       Object.defineProperty(event.data, "removes", { get: () => removes, set() {}, enumerable: true, configurable: true });
     }
-    ({ shapes: this.shapes, loads: this.loads, pointer: this.pointer, away: this.away, clicks: this.clicks, dialogs: this.dialogs, scrolls: this.#scrolls } = recorded(events));
+    const shows = recorded(events);
+    ({ shapes: this.shapes, loads: this.loads, pointer: this.pointer, away: this.away, clicks: this.clicks, dialogs: this.dialogs, scrolls: this.#scrolls } = shows);
     this.#drawn = Math.max(0, (events.find((event) => event.type === EventType.FullSnapshot)?.timestamp ?? start) - start + 1);
     this.host.className = "absolute top-0 left-0 origin-top-left [&_.replayer-mouse]:hidden [&_iframe]:pointer-events-none [&_iframe]:block [&_iframe]:border-0";
     this.#shape = this.shapes[0]!;
@@ -185,6 +192,10 @@ export class Replay {
     // Jumping, rrweb builds the page in a copy of its own first, and the page's own scroll never reached it: played on
     // from a stop, the page sat at its first scroll for a moment, then jumped down. Built in place, it's where it was.
     this.#replayer = new Replayer(events, { root: this.host, mouseTail: false, triggerFocus: false, pauseAnimation: false, showWarning: false, useVirtualDom: false });
+    // Light or dark, still or moving, as it was recorded, as the app taken over is: the page's own styles asked the
+    // viewer's browser, and a site recorded light played dark in a dark viewer.
+    const page = this.#replayer.iframe.contentWindow as (Window & typeof globalThis) | null;
+    if (page) answerAs(page, shows.browser);
     this.#keepKeys();
     this.#replayer.pause(this.#drawn);
   }

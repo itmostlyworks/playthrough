@@ -2,6 +2,7 @@
 // of the app, as git's worktrees are, so one viewer from anywhere in the repo has them all. Each review the viewer shows
 // streams to it as it's kept, so a new round or a send from elsewhere arrives without asking.
 
+import { asRecorded } from "@playthrough/page";
 import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
@@ -114,6 +115,9 @@ async function answer(app: ReturnType<typeof everyCopy>, page: string, you: stri
     const bytes = branch ? await reviews.branch(id, `${branch[1] ?? ""}${branch[2]}`) : await reviews.file(id, Number(rest[1]), name);
     if (!bytes) return json(response, 404, { problems: [`Round ${rest[1]} of ${id} has no file called “${rest.slice(3).join("/")}”.`] });
     response.writeHead(200, { "content-type": TYPES[extname(path)] ?? "application/octet-stream", "cache-control": "max-age=31536000, immutable" });
+    // An SVG asks for light or dark itself: asked for as recorded (?as=dark,still), it's answered that way.
+    const as = new URL(request.url ?? "/", "http://localhost").searchParams.get("as");
+    if (as !== null && extname(path) === ".svg") return response.end(asRecorded(Buffer.from(bytes).toString("utf8"), { dark: as.includes("dark"), still: as.includes("still") }));
     return response.end(bytes);
   }
   if (request.method === "POST" && rest[0] === "video") return saveVideo(repo, id, request, response);

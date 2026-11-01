@@ -73,15 +73,19 @@ export function recording(review: string, round: number, name: string): Promise<
   });
 }
 
+// An SVG drawn as an image asks the viewer's browser for light or dark, whatever the page around it is answered: it's
+// asked for as the recording's browser was, as the page is (scheme.ts).
 export function fromKept(events: string, kept: Record<string, string>, files: string): string {
   if (!Object.keys(kept).length) return events;
+  const said = events.match(/"tag":"browser","payload":\{"dark":(true|false),"still":(true|false)\}/);
+  const as = [said?.[1] === "true" ? "dark" : "light", said?.[2] === "true" ? "still" : "moving"].join(",");
   const recorded = (address: string) => address.trim().split(/\s+/)[0]!;
   return events
     .replace(/"srcset":"([^"]*)"/g, (whole, offered: string) => {
       const shown = offered.split(/,\s+/).map(recorded).find((address) => address in kept);
       return shown ? `"srcset":"${shown}"` : whole;
     })
-    .replace(/https?:\/\/[^\s"'()\\]+/g, (address) => (address in kept ? files + kept[address] : address));
+    .replace(/https?:\/\/[^\s"'()\\]+/g, (address) => (address in kept ? files + kept[address] + (/\.svg$/.test(kept[address]!) ? `?as=${as}` : "") : address));
 }
 
 // What was on the page at each step of a flow, read as it was recorded, and its picture then.

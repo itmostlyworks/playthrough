@@ -56,15 +56,20 @@ function onlyWaits(expect: typeof playwrightExpect): typeof playwrightExpect {
 const recorder = (rrweb: string) => `;((Date, setTimeout, clearTimeout, requestAnimationFrame, cancelAnimationFrame) => {
 ${readFileSync(rrweb, "utf8")}
 })(Date, setTimeout, clearTimeout, requestAnimationFrame, cancelAnimationFrame);
-if (window.top === window) window.rrwebRecord.record({
-  // Nothing is kept until the flow itself starts, after whatever the app's setup did on the page.
-  emit: (event) => window.__playthrough?.(event),
-  // every input, not just the last: with "last", rrweb only hears a field change when it loses focus,
-  // so words typed into a search box that kept focus never reached the recording
-  sampling: { mousemove: 20, scroll: 16, input: "all" },
-  maskAllInputs: false,
-  inlineStylesheet: true,
-});`;
+// With each page taken whole, whether its browser was light or dark, still or moving, for it to be played back as it
+// was: said once rrweb has the page, as said at its very start it went before anything was listening.
+const said = () => window.rrwebRecord.record.addCustomEvent("browser", { dark: matchMedia("(prefers-color-scheme: dark)").matches, still: matchMedia("(prefers-reduced-motion: reduce)").matches });
+if (window.top === window) {
+  window.rrwebRecord.record({
+    // Nothing is kept until the flow itself starts, after whatever the app's setup did on the page.
+    emit: (event) => (window.__playthrough?.(event), event.type === 2 && setTimeout(said)),
+    // every input, not just the last: with "last", rrweb only hears a field change when it loses focus,
+    // so words typed into a search box that kept focus never reached the recording
+    sampling: { mousemove: 20, scroll: 16, input: "all" },
+    maskAllInputs: false,
+    inlineStylesheet: true,
+  });
+}`;
 
 // Playwright acts instantly, and a recording made at that speed can't be watched.
 const FRAME = 16; // a move each frame while gliding or scrolling

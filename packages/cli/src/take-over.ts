@@ -8,6 +8,7 @@ import { readFileSync } from "node:fs";
 import { createServer, request as ask, type IncomingMessage, type ServerResponse } from "node:http";
 import { connect } from "node:net";
 import { networkInterfaces } from "node:os";
+import { answerAs, asRecorded } from "@playthrough/page";
 import { list, quote, Refused, type Did } from "@playthrough/review";
 import { keepRunning } from "./app.ts";
 import { refuseWhileAside } from "./before.ts";
@@ -200,52 +201,11 @@ const SAYS = `<script>(() => {
     Object.assign(Shifted, { now: () => Real.now() + ahead, parse: Real.parse, UTC: Real.UTC });
     window.Date = Shifted;
   }
-  // In the browser the flow was recorded in, whatever yours says: light or dark, still or moving, in its languages. A
-  // page asks in its scripts and its styles, and each asking is answered before the app hears it.
+  // In the browser the flow was recorded in, whatever yours says: light or dark, still or moving, in its languages.
   const browser = JSON.parse(sessionStorage.getItem("playthrough:browser") || "null");
   if (browser) {
-    const recorded = { "prefers-color-scheme": browser.dark ? "dark" : "light", "prefers-reduced-motion": browser.still ? "reduce" : "no-preference" };
-    const as = (query) =>
-      String(query).replace(/\\(\\s*(prefers-color-scheme|prefers-reduced-motion)\\s*(?::\\s*([a-z-]+)\\s*)?\\)/gi, (_, feature, value) => {
-        feature = feature.toLowerCase();
-        const holds = value ? value.toLowerCase() === recorded[feature] : feature === "prefers-color-scheme" || browser.still;
-        return holds ? "(min-width: 0px)" : "(max-width: 0px)";
-      });
-    const matching = window.matchMedia;
-    window.matchMedia = (query) => matching.call(window, as(query));
-    for (const name of ["insertRule", "replace", "replaceSync"]) {
-      const real = CSSStyleSheet.prototype[name];
-      if (real) CSSStyleSheet.prototype[name] = function (text, ...rest) { return real.call(this, as(text), ...rest); };
-    }
-    // light-dark(), system colours, form controls and scrollbars follow the page's colour-scheme, not a media query.
-    const scheme = browser.dark ? "dark" : "light";
-    const inScheme = (value) => (/\\blight\\b/.test(value) && /\\bdark\\b/.test(value) ? scheme : value);
-    const rewrite = (rules) => {
-      for (const rule of rules) {
-        if (rule.media && as(rule.media.mediaText) !== rule.media.mediaText) rule.media.mediaText = as(rule.media.mediaText);
-        if (rule.style?.colorScheme && inScheme(rule.style.colorScheme) !== rule.style.colorScheme) rule.style.colorScheme = inScheme(rule.style.colorScheme);
-        if (rule.styleSheet) restyle(rule.styleSheet);
-        if (rule.cssRules) rewrite(rule.cssRules);
-      }
-    };
-    const restyle = (sheet) => { try { rewrite(sheet.cssRules); } catch {} };
-    const restyleAll = () => {
-      for (const sheet of document.styleSheets) restyle(sheet);
-      for (const sheet of document.adoptedStyleSheets ?? []) restyle(sheet);
-      for (const element of document.querySelectorAll("[media]")) {
-        const media = element.getAttribute("media");
-        if (as(media) !== media) element.setAttribute("media", as(media));
-      }
-      for (const meta of document.querySelectorAll('meta[name="color-scheme"]')) {
-        const content = meta.getAttribute("content") ?? "";
-        if (inScheme(content) !== content) meta.setAttribute("content", inScheme(content));
-      }
-    };
-    const styling = (node) => /^(style|link|source|meta)$/i.test(node?.nodeName);
-    const bringsStyle = (node) => styling(node) || !!node.querySelector?.("style, link, source, meta");
-    new MutationObserver((changes) => changes.some((change) => styling(change.target) || styling(change.target.parentNode) || [...change.addedNodes].some(bringsStyle)) && restyleAll())
-      .observe(document, { subtree: true, childList: true, characterData: true, attributeFilter: ["media", "content"] });
-    document.addEventListener("load", (event) => styling(event.target) && restyleAll(), true);
+    ${asRecorded.toString()}
+    (${answerAs.toString()})(window, browser);
     const languages = browser.languages;
     Object.defineProperty(navigator, "language", { get: () => languages[0] });
     Object.defineProperty(navigator, "languages", { get: () => languages });
@@ -505,7 +465,9 @@ const SAYS = `<script>(() => {
       sampling: { mousemove: 20, scroll: 16, input: "all" },
       maskAllInputs: false,
       inlineStylesheet: true,
-    }) && ((recording = true), readNow());
+    }) && ((recording = true), said(), readNow());
+  // Light or dark, still or moving, as the flow was recorded, for your recording to be played back as it was too.
+  const said = () => window.rrwebRecord.record.addCustomEvent("browser", { dark: matchMedia("(prefers-color-scheme: dark)").matches, still: matchMedia("(prefers-reduced-motion: reduce)").matches });
   addEventListener("message", ({ source, data }) => source === parent && data?.playthrough === "yours" && record());
   const settle = async () => {
     await rested();
