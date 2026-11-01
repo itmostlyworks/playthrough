@@ -391,6 +391,12 @@ export function Stage(props: Props) {
   // whose thing has been off the page for a moment of the recording is gone: playing past a page redrawing, it doesn't
   // flicker. Moved out of the screen's view, it's still there.
   const place = (layer: HTMLElement, replay: Replay | undefined, page: Size, view: View, frame: Size, at: number, playing: boolean, watched: boolean) => {
+    // What changed is drawn in the page's own ink: light over a dark page, dark over a light one.
+    const ground = replay?.ground();
+    if (ground) {
+      layer.style.setProperty("--mark", 0.2126 * ground[0] + 0.7152 * ground[1] + 0.0722 * ground[2] < 128 ? "236 238 242" : "30 33 40");
+      layer.style.setProperty("--mark-ground", ground.join(" "));
+    }
     const gone: string[] = [];
     const outlined = new Map<HTMLElement, Edges>();
     for (const mark of layer.querySelectorAll<HTMLElement>("[data-mark-id]")) {
@@ -1172,8 +1178,9 @@ function Drawn({ mark, onMark, onPointAt }: { mark: Mark; onMark: (id: string) =
   };
   const badge =
     pin === "diamond" ? (
-      <button data-pin={mark.id} aria-label="Why it changed" className={`absolute grid size-[18px] place-items-center ${pressable}`} onClick={choose} onPointerEnter={(event) => event.pointerType === "mouse" && onPointAt?.(mark.id)} onPointerLeave={(event) => event.pointerType === "mouse" && onPointAt?.()}>
-        <i className="size-[9px] rotate-45 bg-[#2b2e35] shadow-pin" />
+      <button data-pin={mark.id} aria-label="Why it changed" className="pointer-events-auto absolute grid size-[18px] cursor-pointer place-items-center" onClick={choose} onPointerEnter={(event) => event.pointerType === "mouse" && onPointAt?.(mark.id)} onPointerLeave={(event) => event.pointerType === "mouse" && onPointAt?.()}>
+        {/* Still under the pointer: chosen, it fills with the mark's ink. */}
+        <i className={`size-[8px] rotate-45 shadow-[inset_0_0_0_1.5px_rgb(var(--mark,30_33_40)),0_0_0_2px_rgb(var(--mark-ground,255_255_255)/.9)] transition-colors duration-200 ease-calm ${chosen ? "bg-[rgb(var(--mark,30_33_40))]" : "bg-[rgb(var(--mark-ground,255_255_255))]"}`} />
         {mark.dot && <b className="absolute top-px left-[11px] size-1.5 rounded-full shadow-[0_0_0_1.5px_#fff]" style={{ background: mark.dot }} />}
       </button>
     ) : (
@@ -1200,8 +1207,8 @@ function Drawn({ mark, onMark, onPointAt }: { mark: Mark; onMark: (id: string) =
         ? mark.ink
           ? `${mark.pointed ? "outline-[1.5px]" : "outline-1"} outline-(--c) outline-solid`
           : chosen
-          ? "outline-[1.5px] outline-[#2b2e35] outline-solid [filter:drop-shadow(0_0_1px_rgba(255,255,255,0.9))]"
-          : "outline-1 outline-[rgba(43,46,53,0.4)] outline-solid [filter:drop-shadow(0_0_1px_rgba(255,255,255,0.9))]"
+          ? "outline-1 outline-[rgb(var(--mark,30_33_40)/.8)] outline-solid"
+          : "outline-1 outline-[rgb(var(--mark,30_33_40)/.3)] outline-solid"
         : chosen
           ? "outline-[1.5px] outline-(--c) outline-solid"
           : "outline-1 outline-[color-mix(in_srgb,var(--c)_50%,transparent)] outline-solid";
@@ -1217,7 +1224,7 @@ function Drawn({ mark, onMark, onPointAt }: { mark: Mark; onMark: (id: string) =
       data-box={"box" in on ? `${on.box.x} ${on.box.y} ${on.box.width} ${on.box.height}` : undefined}
       {...shows}
       hidden
-      className={`pointer-events-none absolute rounded-[4px] outline-offset-4 [transition:opacity_250ms_var(--ease-calm),outline-color_150ms_var(--ease-calm),outline-width_150ms_var(--ease-calm)] data-playing:opacity-0 ${look} data-one:outline-transparent`}
+      className={`pointer-events-none absolute ${mark.words ? "rounded-[3px] outline-offset-2" : "rounded-[4px] outline-offset-4"} [transition:opacity_250ms_var(--ease-calm),outline-color_200ms_var(--ease-calm),outline-width_150ms_var(--ease-calm)] data-playing:opacity-0 ${look} data-one:outline-transparent`}
       style={mark.ink ? ({ "--c": mark.ink } as CSSProperties) : undefined}
     >
       {badge}
