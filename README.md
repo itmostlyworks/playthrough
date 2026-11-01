@@ -14,9 +14,9 @@ Playthrough records your coding agent's change the way a person would use it, be
 
 ## Try it
 
-Ask your agent for a change in your app, and add one line:
+Ask your agent for a change in your app, as you would anyway, and add:
 
-> Show only the overdue invoices. Show me this change with `npx playthrough`.
+> Show me this change with `npx playthrough`.
 
 The agent does the rest. The first time, it adds Playthrough to your app and writes down how to start it and sign in, to commit with your app. Each time, it records the change and hands it to you. Open it:
 
@@ -28,7 +28,7 @@ Reviews stay in `.playthrough/` in your app's repo, recordings and all; nothing 
 
 ## On the example
 
-`example/` in this repo is a small invoices app to try it on before your own. Clone the repo, run `npm install`, `npx playwright install chromium` and `npm run build`, and ask your agent for the same change from `example/`.
+`example/` in this repo is a small invoices app to try it on before your own. Clone the repo, run `npm install`, `npx playwright install chromium` and `npm run build`, and from `example/`, ask your agent to show only the overdue invoices, and to show you the change with `npx playthrough`.
 
 ## In the viewer
 
