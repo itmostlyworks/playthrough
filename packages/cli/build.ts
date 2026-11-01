@@ -52,9 +52,13 @@ for (const file of readdirSync(types, { recursive: true, encoding: "utf8" }).fil
 cpSync(join(cli, "viewer"), join(release, "viewer"), { recursive: true });
 cpSync(join(cli, "INSTRUCTIONS.md"), join(release, "INSTRUCTIONS.md"));
 cpSync(join(packages, "../LICENSE"), join(release, "LICENSE"));
-// On npm, the README's links lead to the repo.
+// On npm, the README's links lead to the repo, and of a picture GitHub shows in its own light or dark theme, only the
+// light one stays: npm has no themes, so it would show both.
 const repository = own.repository.url.replace(/^git\+/, "").replace(/\.git$/, "");
-const readme = readFileSync(join(packages, "../README.md"), "utf8").replace(/\]\((?!https?:|#)([^)]+)\)/g, `](${repository}/blob/main/$1)`);
+const readme = readFileSync(join(packages, "../README.md"), "utf8")
+  .replace(/\]\((?!https?:|#)([^)]+)\)/g, `](${repository}/blob/main/$1)`)
+  .replace(/<a href="[^"]*#gh-dark-mode-only">.*?<\/a>/g, "")
+  .replaceAll("#gh-light-mode-only", "");
 writeFileSync(join(release, "README.md"), readme);
 
 const { private: _, devDependencies: __, scripts: ___, ...published } = own;
