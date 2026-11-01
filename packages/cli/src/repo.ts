@@ -2,8 +2,9 @@
 // and how to start the app in playthrough/app.json, which is committed so every review uses it. While a flow added later
 // records on Before, where the agent's work is set aside is written down in .playthrough/ too.
 
+import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join, relative } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { Refused, Reviews } from "@playthrough/review";
 import { folder } from "@playthrough/review/folder";
 
@@ -12,7 +13,7 @@ import { folder } from "@playthrough/review/folder";
 export type App = { start: string; url: string; oneAtATime?: boolean };
 export type Repo = ReturnType<typeof repo>;
 
-export function repo(root = process.cwd()) {
+export function repo(root = home(process.cwd())) {
   const reviews = join(root, ".playthrough");
   const appFile = join(root, "playthrough", "app.json");
   return {
@@ -55,6 +56,15 @@ export function repo(root = process.cwd()) {
       return { start: app.start, url: app.url, ...(app.oneAtATime && { oneAtATime: true }) };
     },
   };
+}
+
+// The app's folder: the nearest one up from here that Playthrough is in, as far as the top of the git repo, so a command
+// run from inside the app finds its reviews. Where it isn't yet, it's here.
+function home(here: string): string {
+  for (let folder = here; ; folder = dirname(folder)) {
+    if (existsSync(join(folder, ".playthrough")) || existsSync(join(folder, "playthrough", "app.json"))) return folder;
+    if (existsSync(join(folder, ".git")) || dirname(folder) === folder) return here;
+  }
 }
 
 const isText = (value: unknown): value is string => typeof value === "string" && value.trim() !== "";

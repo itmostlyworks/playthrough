@@ -4,6 +4,7 @@
 // here, it goes when Playthrough does, whatever stops it.
 
 import { spawn, type ChildProcess } from "node:child_process";
+import type { Socket } from "node:net";
 import { constants } from "node:os";
 import { quote, Refused } from "@playthrough/review";
 import { repo, type App } from "./repo.ts";
@@ -29,18 +30,29 @@ export async function keepRunning(app: App, root: string): Promise<number | unde
   if (await answers(app.url)) return;
   console.log(`Starting the app: ${app.start}`);
   const began = Date.now();
-  started = spawn(app.start, { cwd: root, shell: true, stdio: "ignore", detached: true });
+  started = spawn(app.start, { cwd: root, shell: true, stdio: ["ignore", "pipe", "pipe"], detached: true });
+  // What it last said, for when it doesn't answer, without a stack trace's frames, which would hide its error.
+  const said: string[] = [];
+  for (const output of [started.stdout!, started.stderr!]) {
+    output.on("data", (chunk: Buffer) => {
+      said.push(...chunk.toString().split("\n").filter((line) => line.trim() && !/^\s+at /.test(line)));
+      said.splice(0, said.length - 10);
+    });
+    // Nor does what it says keep Playthrough running.
+    (output as Socket).unref();
+  }
   // Nor does it keep Playthrough running once its work is done.
   started.unref();
   let ended = false;
   started.once("exit", () => (ended = true));
+  const saying = () => (said.length ? ["It said, last:", ...said.map((line) => `  ${line}`)] : []);
   while (Date.now() - began < 180_000) {
     if (await answers(app.url)) return Date.now() - began;
-    if (ended) throw new Refused([`${quote(app.start)} ended before the app answered at ${app.url}. Run it yourself to see why, and check that playthrough/app.json starts the app there.`]);
+    if (ended) throw new Refused([`${quote(app.start)} ended before the app answered at ${app.url}.`, ...saying(), "Check that playthrough/app.json starts the app there."]);
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
   stop();
-  throw new Refused([`The app didn't answer at ${app.url} within three minutes of ${quote(app.start)}. Check that playthrough/app.json starts it there.`]);
+  throw new Refused([`The app didn't answer at ${app.url} within three minutes of ${quote(app.start)}.`, ...saying(), "Check that playthrough/app.json starts it there."]);
 }
 
 // The app Playthrough started, stopped, so the next run starts it again on the working copy as it is then; one that was

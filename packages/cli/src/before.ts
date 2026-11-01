@@ -22,7 +22,7 @@ import { trySetup } from "./try-setup.ts";
 export function keepBefore(repo: Repo, id: string): string | undefined {
   if (!attempt(() => git(repo, ["rev-parse", "--is-inside-work-tree"]))) return undefined;
   try {
-    const head = attempt(() => git(repo, ["rev-parse", "--verify", "--quiet", "HEAD"]));
+    const head = headOf(repo);
     return keep(repo, id, treeNow(repo), head ? [head] : []);
   } catch (error) {
     throw new Refused(["Before can't be kept as a commit, because git says:", `  ${said(error)}`, "Fix that and run this again."]);
@@ -75,15 +75,17 @@ export async function recordOnBefore(repo: Repo, id: string, number: number, flo
   if (!before) return;
   const later = flows.filter((name) => !before.flows.some((flow) => flow.name === name) && !before.cantStart?.includes(name));
   if (!later.length) return;
-  const [are, they] = later.length > 1 ? ["are", "they're"] : ["is", "it's"];
-  await onBefore(repo, id, later, `${list(later.map(quote))} ${are} new, so ${they} recorded on Before too`, `Round ${number} wasn't recorded`, "Record again.");
+  const [are, they, have] = later.length > 1 ? ["are", "they're", "have"] : ["is", "it's", "has"];
+  const named = list(later.map(quote));
+  await onBefore(repo, id, later, `${named} ${are} new, so ${they} recorded on Before too`, `Round ${number} wasn't recorded`, "Record again.", (why) => `${named} ${have} no Before: ${why}.`);
 }
 
 // The flows Before cut short or couldn't start, tried on it again, as playthrough start does once Before is recorded: a flow
 // that stopped for its own mistake, not the app's, goes as far as the app as it was can take it once it's fixed.
 export async function tryBeforeAgain(repo: Repo, id: string, flows: string[]) {
   const [them, they] = flows.length > 1 ? ["them", "they"] : ["it", "it"];
-  await onBefore(repo, id, flows, `Before cut ${list(flows.map(quote))} short, so ${they} ${flows.length > 1 ? "are" : "is"} tried on it again, in place of what it has of ${them}`, "Before wasn't recorded again", "Run this again.");
+  const named = list(flows.map(quote));
+  await onBefore(repo, id, flows, `Before cut ${named} short, so ${they} ${flows.length > 1 ? "are" : "is"} tried on it again, in place of what it has of ${them}`, "Before wasn't recorded again", "Run this again.", (why) => `Before can't try ${named} again: ${why}.`);
 }
 
 // Until round 1 is handed over, nothing has been compared with Before, so Before follows what every flow starts from:
@@ -96,16 +98,22 @@ export async function recordBeforeAgain(repo: Repo, id: string, command: string,
   if (!before?.commit || review.rounds.some((round) => round.number > 0 && round.finished) || !changedSince(repo, before.commit, ["playthrough"])) return false;
   await trySetup(repo, command);
   const flows = [...before.flows.map((flow) => flow.name), ...(before.cantStart ?? [])];
-  await onBefore(repo, id, flows, `playthrough/ has changed since Before was recorded, so Before is recorded again on it, in place of what it has`, "Before wasn't recorded again", again, true);
-  return true;
+  return onBefore(repo, id, flows, `playthrough/ has changed since Before was recorded, so Before is recorded again on it, in place of what it has`, "Before wasn't recorded again", again, (why) => `Before stays as it was recorded, on playthrough/ as it was then: ${why}.`, true);
 }
 
 // Recorded on what playthrough/ holds now, Before's commit is kept with it too, if it's Before as a whole, so it's known
-// to be what Before was recorded on.
-async function onBefore(repo: Repo, id: string, flows: string[], doing: string, unrecorded: string, again: string, whole = false) {
+// to be what Before was recorded on. Where the app as it was can't be put back, cant says what that means, and nothing's
+// recorded. Says whether it was.
+async function onBefore(repo: Repo, id: string, flows: string[], doing: string, unrecorded: string, again: string, cant: (why: string) => string, whole = false): Promise<boolean> {
   const before = (await repo.reviews.get(id)).rounds.find((round) => round.number === 0)!;
-  const named = list(flows.map(quote));
-  if (!before.commit) return console.log(`\n${named} ${flows.length > 1 ? "have" : "has"} no Before: Before wasn't kept as a commit, so the app as it was can't be put back.`);
+  // Nothing changed since Before but playthrough/, which is how flows get into the app and goes with them, the app as it
+  // is is the app as it was, and nothing needs setting aside.
+  const unchanged = !!before.commit && !changedSince(repo, before.commit, [":/", ":(exclude)playthrough"]);
+  const why = !before.commit ? "Before wasn't kept as a commit, so the app as it was can't be put back" : !unchanged && !headOf(repo) ? UNBORN : undefined;
+  if (why) {
+    console.log(`\n${cant(why)}`);
+    return false;
+  }
   const later = flows;
   // Named apart from every recording Before holds, one a flow tried again no longer uses among them.
   const taken = await repo.reviews.files(id, 0);
@@ -116,9 +124,7 @@ async function onBefore(repo: Repo, id: string, flows: string[], doing: string, 
       throw error;
     });
   let ran: Awaited<ReturnType<typeof run>>;
-  // Nothing changed since Before but playthrough/, which is how flows get into the app and goes with them, the app as it
-  // is is the app as it was, and nothing needs setting aside.
-  if (!changedSince(repo, before.commit, [":/", ":(exclude)playthrough"])) {
+  if (unchanged) {
     console.log(`\n${doing}, on the app as it is: nothing has changed since Before.`);
     ran = await run();
   } else {
@@ -128,7 +134,7 @@ async function onBefore(repo: Repo, id: string, flows: string[], doing: string, 
     await stopApp(url);
     const shared = await serving(url);
     console.log(`\n${doing}. Your work is set aside with git stash meanwhile${shared ? `, and what serves ${url} serves the app as it was` : ""}.`);
-    ran = await asItWas(repo, unrecorded, before.commit, shared, async () => {
+    ran = await asItWas(repo, unrecorded, before.commit!, shared, async () => {
       if (shared) await caughtUp(url);
       try {
         return await run();
@@ -138,9 +144,10 @@ async function onBefore(repo: Repo, id: string, flows: string[], doing: string, 
     });
   }
   refuseIfBroken(ran.failed, unrecorded, again);
-  const commit = whole ? keptWithOursNow(repo, id, before.commit) : undefined;
+  const commit = whole ? keptWithOursNow(repo, id, before.commit!) : undefined;
   await repo.reviews.addToBefore(id, { flows: ran.recorded.map(({ flow }) => flow), cantStart: cantStart(ran.recorded, ran.failed), files: ran.recorded.flatMap(({ files }) => files), ...(commit && { commit }) });
   for (const line of howFar(repo, id, ran.recorded, ran.failed, "the app as it was")) console.log(line);
+  return true;
 }
 
 // A flow the browser stopped, not the app, says nothing about how far the app goes, so nothing of the run is kept, and
@@ -266,6 +273,10 @@ function stillAside(repo: Repo, aside: SetAside, problem: string): Refused {
     `Put it back with git checkout ${aside.back}${stash ? `, then git stash pop --index ${stash}` : ""}. Playthrough carries on once it's back.`,
   ]);
 }
+
+// The commit the working copy is on, if the repo has one yet. Before it does, git can't stash.
+const headOf = (repo: Repo) => attempt(() => git(repo, ["rev-parse", "--verify", "--quiet", "HEAD"]));
+const UNBORN = "this repo has no commits yet, and git can set your work aside to put the app as it was back only once it has one";
 
 // The branch the working copy is on, or the commit if it's on none.
 const here = (repo: Repo) => attempt(() => git(repo, ["symbolic-ref", "--quiet", "--short", "HEAD"])) ?? git(repo, ["rev-parse", "HEAD"]);
