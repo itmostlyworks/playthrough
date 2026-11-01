@@ -16,6 +16,7 @@ import {
   roundInProgress,
   withInBefore,
 } from "./rules.ts";
+import { list, quote } from "./words.ts";
 
 export interface Storage {
   read(path: string): Promise<Uint8Array | undefined>;
@@ -60,7 +61,10 @@ export class Reviews {
   async get(id: string): Promise<Review> {
     if (problemsWithId(id).length) throw new Refused(problemsWithId(id));
     const about = await this.#readJson<{ id: string; title: string; asked?: string; started: string }>(`${id}/review.json`);
-    if (!about) throw new Refused([`There's no review called “${id}”.`]);
+    if (!about) {
+      const others = await this.list();
+      throw new Refused([`There's no review called “${id}”.${others.length ? ` The reviews here: ${list(others.map(quote))}.` : ""}`]);
+    }
 
     const numbers = (await this.storage.list(`${id}/rounds`)).map(Number).filter(Number.isInteger).sort((a, b) => a - b);
     const rounds = await Promise.all(numbers.map((n) => this.#readJson<Round>(`${id}/rounds/${n}/round.json`)));
@@ -270,7 +274,13 @@ export class Reviews {
 
   async #readJson<T>(path: string): Promise<T | undefined> {
     const bytes = await this.storage.read(path);
-    return bytes && JSON.parse(new TextDecoder().decode(bytes));
+    if (!bytes) return undefined;
+    try {
+      return JSON.parse(new TextDecoder().decode(bytes));
+    } catch (error) {
+      // Kept whole, so changed by hand: the agent writes its answers into round.json.
+      throw new Refused([`The review's file ${path} isn't JSON: ${(error as Error).message}. Put it right, then run this again.`]);
+    }
   }
 
   #writeJson(path: string, value: unknown): Promise<void> {

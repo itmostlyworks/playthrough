@@ -21,7 +21,6 @@ const HELP = readFileSync(new URL("../INSTRUCTIONS.md", import.meta.url), "utf8"
 
 const given = process.argv.slice(2);
 const [command, review, ...words] = given;
-const needs = (usage: string) => new Refused([`That needs more: ${usage}`]);
 // How many words each command takes after the review's name: anything more is refused rather than ignored, so a stray
 // word never starts something that wasn't meant.
 const takes = {
@@ -37,28 +36,19 @@ const limit = Object.hasOwn(takes, command ?? "") ? takes[command as keyof typeo
 try {
   // Asked for help anywhere, as by reflex after a command, it's the help, never the command.
   if (!command || command === "help" || given.some((word) => ["--help", "-h"].includes(word))) console.log(HELP);
-  else if (limit && words.length > limit[0]) throw new Refused([`That's more than it takes: ${limit[1]}`]);
+  else if (!limit) throw new Refused([`There's no command “${command}”. Run playthrough alone for what each one does.`]);
+  else if (words.length > limit[0]) throw new Refused([`That's more than it takes: ${limit[1]}`]);
+  // Every command but open is about one review.
+  else if (!review && command !== "open") throw new Refused([`That needs more: ${limit[1]}`]);
   else {
     // A command stopped while flows recorded on Before left the agent's work set aside: it's put back before anything else.
     await putBack(repo());
-    if (command === "start") {
-      if (!review) throw needs(takes.start[1]);
-      await start(repo(), review, words[0], words[1]);
-    } else if (command === "record") {
-      if (!review) throw needs(takes.record[1]);
-      await record(repo(), review);
-    } else if (command === "wait") {
-      if (!review) throw needs(takes.wait[1]);
-      await wait(repo(), review);
-    } else if (command === "walk") {
-      if (!review) throw needs(takes.walk[1]);
-      await walk(repo(), review);
-    } else if (command === "open") await open(repo(), review);
-    else if (command === "take-over") {
-      if (!review) throw needs(takes["take-over"][1]);
-      await takeOver(repo(), review, words[0], words[1]);
-    }
-    else throw new Refused([`There's no command “${command}”. Run playthrough alone for what each one does.`]);
+    if (command === "open") await open(repo(), review);
+    else if (command === "start") await start(repo(), review!, words[0], words[1]);
+    else if (command === "record") await record(repo(), review!);
+    else if (command === "wait") await wait(repo(), review!);
+    else if (command === "walk") await walk(repo(), review!);
+    else if (command === "take-over") await takeOver(repo(), review!, words[0], words[1]);
   }
 } catch (error) {
   if (!(error instanceof Refused)) throw error;

@@ -64,7 +64,7 @@ export async function recordOnBefore(repo: Repo, id: string, number: number, { r
   const review = await repo.reviews.get(id);
   const before = review.rounds.find((round) => round.number === 0);
   if (!before) return;
-  const ran: Record<string, string> = await readFile(repo.ranOnBefore(id), "utf8").then(JSON.parse, () => ({}));
+  const ran: Record<string, string> = await readFile(repo.ranOnBefore(id), "utf8").then(JSON.parse).catch(() => ({}));
   // What its Before follows: the flow's file as it ran, what every flow starts from, and what the round did.
   const setup = await writtenNow(repo);
   const follows = Object.fromEntries(recorded.map(({ flow, doneOn }) => [flow.name, createHash("sha256").update(JSON.stringify([written[flow.name]?.hash, setup, doneOn ?? {}])).digest("hex")]));
@@ -248,8 +248,10 @@ function running(pid: number): boolean {
   }
 }
 
+// Without the repo's hooks: Playthrough's checkouts and stashes aren't anyone's work, and a hook that fails, or installs
+// packages on every checkout, would stop Before or slow it, for nothing.
 function git(repo: Repo, args: string[], env?: NodeJS.ProcessEnv): string {
-  return execFileSync("git", args, { cwd: repo.root, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+  return execFileSync("git", ["-c", "core.hooksPath=/dev/null", ...args], { cwd: repo.root, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
 }
 
 // What git said, in its own words: the first line it wrote.

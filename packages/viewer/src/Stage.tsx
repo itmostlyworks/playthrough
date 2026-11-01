@@ -127,7 +127,8 @@ export function Stage(props: Props) {
   const onScreen = earlier ? [earlier, round] : then ? [then, round] : [round];
   if (onScreen.some((shown) => !visited.includes(shown.number))) setVisited([...new Set([...visited, ...onScreen.map((shown) => shown.number)])].sort((a, b) => a - b));
 
-  const key = (round: Round, flow: Flow) => `${round.number}/${flow.name}`;
+  // By its recording too: a fork kept longer, for another note made in the app, is the same fork on a longer recording.
+  const key = (round: Round, flow: Flow) => `${round.number}/${flow.name}/${flow.recording}`;
   const shapesOf = (round: Round, flow: Flow): Shape[] => {
     const replay = replays.current.get(key(round, flow));
     return replay instanceof Replay ? replay.shapes : (sizes.current.get(key(round, flow)) ?? [LAPTOP]);
@@ -140,10 +141,14 @@ export function Stage(props: Props) {
     const kept = replays.current.get(key(round, flow));
     if (kept) return kept instanceof Replay ? kept : undefined;
     replays.current.set(key(round, flow), "loading");
-    recording(latest.current.review.id, round.number, flow.recording).then((events) => {
-      replays.current.set(key(round, flow), new Replay(events, parts(frames.current.get(round.number)!).stack));
-      paint();
-    });
+    recording(latest.current.review.id, round.number, flow.recording).then(
+      (events) => {
+        replays.current.set(key(round, flow), new Replay(events, parts(frames.current.get(round.number)!).stack));
+        paint();
+      },
+      // asked for again the next time it shows
+      () => replays.current.delete(key(round, flow)),
+    );
     return undefined;
   };
 

@@ -2,6 +2,7 @@
 // that will show it, written before anything changes so they show the task as the person put it. Run again once they're
 // written, it tries the app's setup and keeps Before: the app as it is, which each flow is recorded on with its round.
 
+import { basename } from "node:path";
 import { Refused } from "@playthrough/review";
 import { agent } from "./agent.ts";
 import { keepBefore } from "./before.ts";
@@ -11,6 +12,8 @@ import { trySetup } from "./try-setup.ts";
 
 export async function start(repo: Repo, id: string, title?: string, asked?: string) {
   if (!(await repo.reviews.list()).includes(id)) {
+    // Beside the reviews in .playthrough/, Playthrough keeps folders of its own, which it empties as it likes.
+    if ([repo.tried, repo.borrowed].some((own) => basename(own) === id)) throw new Refused([`“${id}” is the name of a folder Playthrough keeps for itself. Give the review another name.`]);
     if (!title || !asked)
       throw new Refused([
         `There's no review called “${id}” yet. Start it with a few words for the change, as a pull request's title, and what was asked, in the person's words: playthrough start ${id} "<title>" "<what was asked>"`,

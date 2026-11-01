@@ -63,7 +63,8 @@ async function answer(repo: Repo, page: string, you: string, request: IncomingMe
   if (collection !== "reviews") return json(response, 404, { problems: [`There's nothing at ${path}.`] });
 
   if (request.method === "GET" && !id) {
-    const all = await Promise.all((await reviews.list()).map((id) => reviews.get(id)));
+    // One that can't be read says why when it's opened, and leaves the rest to be listed.
+    const all = (await Promise.all((await reviews.list()).map((id) => reviews.get(id).catch(() => undefined)))).filter((review) => review !== undefined);
     return json(response, 200, all.map(({ id, title, rounds, accepted }) => ({ id, title, rounds: rounds.filter((round) => round.finished && round.number > 0).length, accepted: !!accepted })));
   }
   if (!id) return json(response, 404, { problems: [`There's nothing at ${path}.`] });

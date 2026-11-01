@@ -30,7 +30,8 @@ export async function record(repo: Repo, id: string) {
     ]);
   await recordOnBefore(repo, id, number, ran);
 
-  const saved = review.rounds.find((round) => round.number === number);
+  // As it is now, not as it was before recording: the agent may have written answers into it meanwhile.
+  const saved = (await repo.reviews.get(id)).rounds.find((round) => round.number === number);
   // In the order they joined the review, as Before keeps them, rather than their files': one new here comes last.
   const joined = inOrderJoined(review);
   const place = (name: string) => (joined.includes(name) ? joined.indexOf(name) : joined.length);

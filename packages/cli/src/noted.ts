@@ -3,7 +3,7 @@
 // means is never a guess. A picture that can't be made never holds up the notes.
 
 import { dirname, join } from "node:path";
-import { chromium } from "@playwright/test";
+import { chromium, type Browser } from "@playwright/test";
 import { shownAt } from "@playthrough/page";
 import { allNotes, lastSeen, type Review } from "@playthrough/review";
 import type { Repo } from "./repo.ts";
@@ -14,26 +14,33 @@ type Area = { x: number; y: number; width: number; height: number };
 // Kept in the round that answers them, as the files a person would open: each note's id names its picture.
 export async function pictureNotes(repo: Repo, review: Review, round: number, notes: string[]): Promise<Map<string, string>> {
   const shown = new Map<string, string>();
-  const browser = await chromium.launch();
+  // Opened for the first note there's a picture of, if it opens at all.
+  let browser: Browser | undefined;
   try {
     for (const id of notes) {
       // One in the app is on what was there, not on the recording.
       if (allNotes(review).get(id)?.note.on?.app) continue;
       const found = await whereSeen(repo, review, id, round).catch(() => undefined);
-      if (!found) continue;
+      const picture = found && (await repo.reviews.file(review.id, found.round, found.picture));
+      if (!found || !picture) continue;
+      browser ??= await chromium.launch();
       const page = await browser.newPage({ viewport: { width: found.width, height: found.height } });
-      const picture = Buffer.from((await repo.reviews.file(review.id, found.round, found.picture))!).toString("base64");
-      await page.setContent(drawn(picture, found));
-      await page.locator("img").evaluate((image: HTMLImageElement) => image.decode());
-      const name = `notes/${id}.png`;
-      await repo.reviews.saveFile(review.id, round, name, await page.screenshot());
-      await page.close();
-      shown.set(id, repo.show(join(dirname(repo.round(review.id, round)), "files", name)));
+      try {
+        await page.setContent(drawn(Buffer.from(picture).toString("base64"), found));
+        await page.locator("img").evaluate((image: HTMLImageElement) => image.decode());
+        const name = `notes/${id}.png`;
+        await repo.reviews.saveFile(review.id, round, name, await page.screenshot());
+        shown.set(id, repo.show(join(dirname(repo.round(review.id, round)), "files", name)));
+      } catch {
+        // this one goes without, and the rest are still pictured
+      } finally {
+        await page.close();
+      }
     }
   } catch {
     // whatever was pictured is kept, and the rest go without
   } finally {
-    await browser.close();
+    await browser?.close();
   }
   return shown;
 }

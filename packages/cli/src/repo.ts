@@ -53,7 +53,10 @@ export function repo(root = home(process.cwd())) {
       } catch (error) {
         throw new Refused([`playthrough/app.json isn't JSON: ${(error as Error).message}. ${how}`]);
       }
-      if (!isText(app.start) || !isText(app.url)) throw new Refused([`playthrough/app.json needs both “start” and “url”. ${how}`]);
+      if (!app || typeof app !== "object" || !isText(app.start) || !isText(app.url)) throw new Refused([`playthrough/app.json needs both “start” and “url”. ${how}`]);
+      // Otherwise it's started, and waited for, for three minutes, at an address nothing can answer at.
+      if (!/^https?:$/.test(URL.parse(app.url)?.protocol ?? ""))
+        throw new Refused([`playthrough/app.json's “url” is a whole address, as a browser takes it, like http://localhost:3000, not “${app.url}”.`]);
       if (app.oneAtATime !== undefined && typeof app.oneAtATime !== "boolean") throw new Refused([`playthrough/app.json's “oneAtATime” is true or false: true runs each flow by itself.`]);
       return { start: app.start, url: app.url, ...(app.oneAtATime && { oneAtATime: true }) };
     },

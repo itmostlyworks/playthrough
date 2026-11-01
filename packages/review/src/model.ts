@@ -9,6 +9,8 @@
 import { z } from "zod";
 
 const text = (error: string) => z.string({ error }).refine((value) => value.trim() !== "", { error });
+// A send's id names the file it's kept in, and a note's the pictures of it: words a file can be called.
+const id = (error: string) => z.string({ error }).regex(/^[\w-]+$/, { error });
 const seconds = (error: string) => z.number({ error }).min(0, { error });
 const share = (error: string) => z.number({ error }).min(0, { error }).max(1, { error });
 export const fileName = (error: string) =>
@@ -142,7 +144,7 @@ export const Reply = z.strictObject({
 // A note is a conversation about one thing. A person starts it in a send; then the agent's replies and people's verdicts
 // take turns on it until it looks good.
 export const Note = z.strictObject({
-  id: text("needs an id"),
+  id: id("needs an id of letters, digits and dashes"),
   on: Place.optional().describe("Without it, about the work in general"),
   words: text("needs words"),
 });
@@ -172,7 +174,7 @@ export const Verdict = z
 
 // What one person sent about one round, at once. Once sent, it never changes.
 export const Send = z.strictObject({
-  id: text("needs an id").describe("Chosen by the sender, so sending twice sends once"),
+  id: id("needs an id of letters, digits and dashes").describe("Chosen by the sender, so sending twice sends once"),
   round: z.number().int().min(0),
   by: text("needs to say who sent it"),
   sent: z.iso.datetime({ error: "needs to say when it was sent, as an ISO date" }),

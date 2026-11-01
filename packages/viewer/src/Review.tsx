@@ -403,12 +403,12 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   };
   // Kept as a recording, what you did plays as the flow up to where you took it over, then you. What you said earlier on
   // the same fork goes on with the longer one.
-  const keepFork = async (session: Session): Promise<Fork | undefined> => {
+  const keepFork = async (session: Session): Promise<Fork | string[]> => {
     const kept = `${session.id}-${++session.kept}.json`;
     // It ends now, not at the last thing the page did: still time is time you spent there too.
     const now = { type: 5, data: { tag: "now", payload: {} }, timestamp: session.events.at(-1)!.timestamp + Date.now() - (session.heard ?? Date.now()) };
     const length = await keepBranch(review.id, round.number, session.from, [...session.events, now], kept);
-    if (!length) return undefined;
+    if (typeof length !== "number") return length;
     const recording = `branches/${kept}`;
     const longer = (note: Note) => (note.on?.app && sessionOf(note.on.app.recording) === session.id ? { ...note, on: { ...note.on, app: { ...note.on.app, recording, length } } } : note);
     change((draft) => ({ ...draft, notes: draft.notes.map(longer), unsaved: draft.unsaved.map(longer) }));
@@ -675,7 +675,8 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     if (!live || readOnly || session.address !== live.address || !session.events.length) return;
     session.did = did;
     const fork = await keepFork(session);
-    if (!fork) return;
+    // Not kept, there's nothing for a note to be on: it says why, as a send that wasn't kept does.
+    if (Array.isArray(fork)) return void setTrouble(fork);
     const app = { from: fork.from, did, recording: fork.recording, length: fork.length };
     write({ flow: fork.from.flow, at: Math.floor(fork.length * 100) / 100, ...(element ? { element } : point && { point }), app });
   };
@@ -1458,10 +1459,17 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
             />
           </div>
           </div>
-          {live?.problems && (
+          {/* What went wrong taking a flow over, sending or noting: on the page with every flow, a send says it there instead. */}
+          {(live?.problems || (!onGrid && trouble.length > 0)) && (
             <div role="alert" className="fixed right-4 bottom-4 z-30 max-w-[28rem] animate-arrive rounded-lg bg-surface px-3 py-2 text-sm whitespace-pre-wrap shadow-tip [overflow-wrap:anywhere]">
-              {live.problems.join("\n")}
-              <button className="ml-3 text-soft hover:text-fg" onClick={() => setLive(undefined)}>
+              {[...(live?.problems ?? []), ...(onGrid ? [] : trouble)].join("\n")}
+              <button
+                className="ml-3 text-soft hover:text-fg"
+                onClick={() => {
+                  if (live?.problems) setLive(undefined);
+                  setTrouble([]);
+                }}
+              >
                 Close
               </button>
             </div>

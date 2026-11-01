@@ -5,14 +5,12 @@
 
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { createRequire } from "node:module";
 import { createServer, request as ask, type IncomingMessage, type ServerResponse } from "node:http";
 import { connect } from "node:net";
 import { networkInterfaces } from "node:os";
-import { dirname, join } from "node:path";
 import { list, quote, Refused, type Did } from "@playthrough/review";
 import { keepRunning } from "./app.ts";
-import type { Handed } from "./flows.ts";
+import { recorder, type Handed } from "./flows.ts";
 import { follow, reachesOutside, runTo } from "./following.ts";
 import { listen, thisMachine } from "./open.ts";
 import { read } from "./read.ts";
@@ -178,7 +176,6 @@ function asIfDirect(request: IncomingMessage, target: URL) {
 // yours, hiding the app's own until they meet, and then only your name, beside the app's own. And as every key there
 // goes to the app, Escape goes back to the viewer too, when the app does nothing with it.
 // rrweb's recorder, as every flow has it, for what you do here to be recorded.
-const recorder = join(dirname(createRequire(import.meta.url).resolve("@rrweb/record")), "record.umd.min.cjs");
 let RECORDER: string | undefined;
 
 const SAYS = `<script>(() => {

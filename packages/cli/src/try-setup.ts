@@ -24,7 +24,7 @@ export async function trySetup(repo: Repo, again: string) {
   const app = await repo.app();
   const written = await writtenNow(repo);
   const last = join(repo.tried, "tried.json");
-  if ((await readFile(last, "utf8").then((text) => JSON.parse(text).written, () => undefined)) === written) return;
+  if ((await readFile(last, "utf8").then((text) => JSON.parse(text).written).catch(() => undefined)) === written) return;
 
   console.log("Trying the app's setup by itself first, twice, as every flow will start…");
   // The browser first: without it, there's no starting the app for.

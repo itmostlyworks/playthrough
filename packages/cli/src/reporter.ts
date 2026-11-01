@@ -58,7 +58,7 @@ export type Hand = { at: number; person: string };
 // The file a flow is written in, in the review's flows folder, and a hash of what it said as the flow ran: Before runs a
 // flow again once its file has changed.
 export type Written = { file: string; hash: string };
-export const hashOf = (file: string) => {
+const hashOf = (file: string) => {
   try {
     return createHash("sha256").update(readFileSync(file)).digest("hex");
   } catch {

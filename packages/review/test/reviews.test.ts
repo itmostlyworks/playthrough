@@ -98,6 +98,12 @@ for (const [kept, storage] of storages) {
       await assert.rejects(reviews.start("invoice-export", "Another"), refused(/already a review called/));
     });
 
+    test("asked for a review that isn't there, it says which are", async () => {
+      const reviews = new Reviews(await storage());
+      await reviews.start("invoice-export", "A title");
+      await assert.rejects(reviews.get("invoice-exports"), refused(/^There's no review called “invoice-exports”\. The reviews here: “invoice-export”\.$/));
+    });
+
     test("the first round is Before, or round 1 when the app is new", async () => {
       const reviews = new Reviews(await storage());
       await reviews.start("invoice-export", "A title");
@@ -364,6 +370,19 @@ for (const [kept, storage] of storages) {
         ]);
         return true;
       });
+    });
+
+    test("a round edited by hand into something that isn't JSON is named, with what to do", async () => {
+      const reviews = await recorded();
+      await reviews.saveRound("invoice-export", round(2));
+      await reviews.storage.write("invoice-export/rounds/2/round.json", new TextEncoder().encode(`{ "number": 2 "by": "Claude Code" }`));
+      await assert.rejects(reviews.get("invoice-export"), refused(/^The review's file invoice-export\/rounds\/2\/round\.json isn't JSON: .+\. Put it right, then run this again\.$/));
+    });
+
+    test("a send's id and a note's are words a file can be called, as they name the files they're kept in", async () => {
+      const reviews = await recorded();
+      await assert.rejects(reviews.send("invoice-export", send(1, { id: "../../playthrough/app", notes: [note("Hm")] })), refused(/needs an id of letters, digits and dashes/));
+      await assert.rejects(reviews.send("invoice-export", send(1, { notes: [{ ...note("Hm"), id: "a/b" }] })), refused(/needs an id of letters, digits and dashes/));
     });
 
     test("sending the same send twice keeps it once, and a different send can't reuse its id", async () => {

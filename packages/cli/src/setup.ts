@@ -112,8 +112,10 @@ async function giveBackOf({ after }: Setup, borrowed: string, whose: (pid: numbe
   for (const name of left) {
     const file = join(borrowed, `${process.pid}-${name.slice(name.indexOf("-") + 1)}`);
     if (!(await rename(join(borrowed, name), file).then(() => true, () => false))) continue;
-    const { baseURL, setup } = JSON.parse(await readFile(file, "utf8"));
-    await giveBack(after, file, baseURL, setup);
+    const given = await readFile(file, "utf8").then(JSON.parse).catch(() => undefined);
+    // Cut off as it was written, by a command stopped then, it says nothing that could be given back.
+    if (!given) await rm(file, { force: true });
+    else await giveBack(after, file, given.baseURL, given.setup);
   }
 }
 

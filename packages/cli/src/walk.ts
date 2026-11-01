@@ -89,12 +89,14 @@ export async function walk(repo: Repo, id: string) {
   const flows = saved?.flows ?? review.rounds.findLast((round) => round.number > 0)?.flows ?? [];
   const walked = await walkForks(repo, review, number, flows);
   if (!walked.length) return console.log(`Nothing to walk: round ${number} answers no note made in the app.`);
-  if (saved) {
-    const placed = (reply: (typeof saved.replies)[number]) => {
+  // As it is now, not as it was before walking: the agent may have written answers into it meanwhile.
+  const now = saved && (await repo.reviews.get(id)).rounds.find((round) => round.number === number);
+  if (now) {
+    const placed = (reply: (typeof now.replies)[number]) => {
       const on = walked.find((one) => one.note === reply.note)?.on;
       return on ? { ...reply, on } : reply;
     };
-    await repo.reviews.saveRound(id, { ...saved, replies: saved.replies.map(placed) });
+    await repo.reviews.saveRound(id, { ...now, replies: now.replies.map(placed) });
   }
   console.log(`\n${walked.map(saidOf).join("\n")}`);
 }

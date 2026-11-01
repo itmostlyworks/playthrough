@@ -1,5 +1,6 @@
 // Reviews kept in a folder on this machine, one folder per review.
 
+import { randomUUID } from "node:crypto";
 import { watch as watchFiles } from "node:fs";
 import { mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -20,7 +21,7 @@ export function folder(root: string): Storage {
     },
     async write(path, bytes) {
       const file = join(root, path);
-      const unfinished = `${file}.${process.pid}.${Date.now()}.writing`;
+      const unfinished = `${file}.${randomUUID()}.writing`;
       await mkdir(dirname(file), { recursive: true });
       await writeFile(unfinished, bytes);
       await rename(unfinished, file);

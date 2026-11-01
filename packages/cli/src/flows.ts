@@ -16,6 +16,9 @@ import { repo, type App, type Repo } from "./repo.ts";
 import { giveBackLeft, setupIn } from "./setup.ts";
 import { trySetup } from "./try-setup.ts";
 
+// rrweb's recorder, which goes into every page a flow opens, and every page of the app taken over.
+export const recorder = join(dirname(createRequire(import.meta.url).resolve("@rrweb/record")), "record.umd.min.cjs");
+
 // What the run needs to know, passed to Playwright whole: where the flows are and which of them to run, the folder the
 // recordings go to, the app, rrweb's recorder, which goes into every page, whether it's Before, and the recordings the
 // round has already, so a flow added to it is named apart from them. And when the review started, which every round's
@@ -124,7 +127,6 @@ export async function runFlows(
   // Before runs on the setup the round has tried already.
   if (!before) await trySetup(repo, `playthrough record ${id}`);
   const { started, rounds } = await repo.reviews.get(id);
-  const recorder = join(dirname(createRequire(import.meta.url).resolve("@rrweb/record")), "record.umd.min.cjs");
   // The flows as long as they were last round, longest first, so the round ends close to when its longest flow does.
   const longest = (rounds.filter((kept) => kept.number < round).at(-1)?.flows ?? []).toSorted((a, b) => b.length - a.length).map((flow) => flow.name);
   const run = (only?: string[], results?: string) =>
@@ -211,7 +213,7 @@ export async function keepFailed(repo: Repo, id: string, failed: Failed[]) {
 }
 
 export const failedLastTime = (repo: Repo, id: string): Promise<string[]> =>
-  readFile(join(repo.failed(id), FAILED), "utf8").then(JSON.parse, () => []);
+  readFile(join(repo.failed(id), FAILED), "utf8").then(JSON.parse).catch(() => []);
 const FAILED = "flows.json";
 
 // The last line of a refusal over flows that failed: where to see what they stopped on.
@@ -254,7 +256,6 @@ export type WalkedRun = Walked & { events: { timestamp: number }[]; readings: un
 export async function walkFork(repo: Repo, id: string, walk: Walk): Promise<WalkedRun | undefined> {
   const app = await repo.app();
   const { started } = await repo.reviews.get(id);
-  const recorder = join(dirname(createRequire(import.meta.url).resolve("@rrweb/record")), "record.umd.min.cjs");
   const folder = await mkdtemp(join(tmpdir(), "playthrough-"));
   try {
     await playwright({ flows: repo.flows(id), folder, app, root: repo.root, recorder, before: false, taken: [], started, walk });
