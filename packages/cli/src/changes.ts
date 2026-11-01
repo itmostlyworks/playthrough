@@ -14,7 +14,7 @@ import type { Box, Element } from "@playthrough/review";
 // ids of the changes it stands for, each by itself, so what changes by itself is left out as itself, never as all it's
 // told with.
 // Off the screen, it's what the page has but the recording doesn't show at this moment.
-export type Found = { id: string; words: string; element?: Element; alike?: Element[]; box?: Box; pieces: string[]; reworded?: string; offScreen?: true; top?: number };
+export type Found = { id: string; words: string; element?: Element; alike?: Element[]; box?: Box; pieces: string[]; reworded?: string; gone?: true; offScreen?: true; top?: number };
 
 // What happened to a thing, before it's said in full: what it's on, in which of the two readings, and what came with it;
 // what it's known by, where the thing alone doesn't say, and the changes it stands for, by their ids.
@@ -504,7 +504,7 @@ function said(told: Told[], moment: Moment, unsteady: Set<string>): Found[] {
   const found: Found[] = [];
   for (const [holder, all] of inside) {
     if (!holder || all.length <= MOST_INSIDE) {
-      for (const alike of all) found.push({ id: id(alike[0]!), words: alikeWords(alike), ...placeOf(alike[0]!, now), ...alikeOf(alike, now), pieces: alike.flatMap(piecesOf), ...(alike[0]!.reworded && { reworded: alike[0]!.reworded }), ...offScreen(alike), top: topOf(alike[0]!, now) });
+      for (const alike of all) found.push({ id: id(alike[0]!), words: alikeWords(alike), ...placeOf(alike[0]!, now), ...alikeOf(alike, now), pieces: alike.flatMap(piecesOf), ...(alike[0]!.reworded && { reworded: alike[0]!.reworded }), ...(alike[0]!.in !== now && { gone: true as const }), ...offScreen(alike), top: topOf(alike[0]!, now) });
       continue;
     }
     // Counted, not listed: Compare shows what they are better than their names can.

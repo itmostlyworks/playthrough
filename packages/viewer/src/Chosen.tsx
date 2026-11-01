@@ -1,15 +1,14 @@
-// What's chosen on the stage opens beside the recording: a change, its card the agent's why, your note on it and
-// Compare; and at a flow's end, over its last frame, what you said about the whole of it and the flow's one step: whether
+// What's chosen on the stage opens beside the recording: a change, its card the agent's why and your note on it; and at a flow's end, over its last frame, what you said about the whole of it and the flow's one step: whether
 // it's good, or, with something of yours in it, sending that to the agent. And the order Up and Down go through a flow's
 // notes and changes in.
 
 import { Fragment, useRef, type CSSProperties, type ReactNode } from "react";
 import type { Flow, Round } from "@playthrough/review";
-import { Answer, Compare, mac, play, Said, tick, Time, useHold } from "./Card.tsx";
-import { when, type Changed, type Diamond } from "./changes.ts";
+import { Answer, mac, tick, Time, useHold } from "./Card.tsx";
+import { when, type Diamond } from "./changes.ts";
 import { ink, type Shown, type Standing } from "./notes.ts";
 import type { Step } from "./Step.tsx";
-import { opened, type Comparing } from "./Notes.tsx";
+import { opened } from "./Notes.tsx";
 import { useNow, type Playhead } from "./playhead.ts";
 
 export type Props = {
@@ -19,7 +18,8 @@ export type Props = {
   diamonds: Diamond[];
   // The change you've chosen.
   chosen?: string;
-  compare?: Comparing;
+  // Of the changes at that moment, the one whose why is open.
+  one?: string;
   // Where each flow stands for you, on the round you judge; looking back, nothing.
   standing: (flow: string) => Standing | undefined;
   // The answers in a flow you haven't seen: its Looks good never settles them, and its question shows them first.
@@ -33,12 +33,7 @@ export type Props = {
   grown: Map<string, string>;
   onDiamond: (diamond: Diamond) => void;
   onClose: () => void;
-  // Pointing at one of several changes in a change's card, by its id, or away again.
-  onPoint: (change?: string) => void;
-  // The change pointed at in its card, marked alone.
-  pointed?: string;
-  onPlayOn: () => void;
-  onNoteOn: (diamond: Diamond) => void;
+  onNoteOn: (diamond: Diamond, one?: string) => void;
   onNote: (note: Shown) => void;
   onGood: (flow: string) => void;
   onNotQuite: (flow: string) => void;
@@ -76,7 +71,7 @@ export function Chosen(props: Props) {
   const watching = useNow(props.playhead, (now) => now.moment.flow);
   const flow = props.round.flows.find((flow) => flow.name === watching);
   const diamond = props.diamonds.find((diamond) => diamond.id === props.chosen);
-  if (diamond) return <ChangeCard {...props} diamond={diamond} yours={props.notes.filter((note) => props.grown.get(note.id) === diamond.id)} />;
+  if (diamond && props.one) return <ChangeCard {...props} diamond={diamond} yours={props.notes.filter((note) => props.grown.get(note.id) === diamond.id)} />;
   // Over the flow's last frame: what you said about the whole of it, then whether it's good, if that's still asked.
   const standing = flow && props.standing(flow.name);
   const general = flow ? props.notes.filter((note) => note.on?.flow === flow.name && note.on.at === undefined) : [];
@@ -231,12 +226,15 @@ const asksMark = "absolute top-4 left-4 z-1 size-[18px]";
 // tabbed to it.
 const keepKeys = (event: { preventDefault: () => void }) => event.preventDefault();
 
-// A change's card: its diamond, who says why, and its time, which goes to it again, and under them the agent's why.
-// What changed isn't put in words: the recording marks it, and Compare shows what it was. Your note on it grows out of
-// it: your words under its name, the note's colour a dot on its diamond. Then Compare, and Play on, with Note on this
-// while you've said nothing about it.
+// A change's card, opened from its pin, beside it: its diamond, who says why, and its time, which goes to it again, and
+// under them why it's there, in the agent's words, or the note it was made for. What changed isn't put in words: the
+// recording marks it, and Compare, on the bar, shows what it was. One seen only in the pictures, which the agent wasn't
+// asked about, has nothing said. Your note on it grows out of it: your words under its name, the note's colour a dot on
+// its diamond; else Note on this.
 function ChangeCard(props: Props & { diamond: Diamond; yours: Shown[] }) {
-  const { diamond, yours } = props;
+  const { diamond, yours, notes, onNote } = props;
+  const changed = diamond.changes.find(({ change }) => change.id === props.one);
+  const note = changed?.note && notes.find((note) => note.id === changed.note);
   return (
     <div data-open="" className={`relative ${opened}`}>
       <button className="grid w-full grid-cols-[18px_minmax(0,1fr)] gap-2 py-1.5 pr-2.5 pl-[18px] text-left" onMouseDown={keepKeys} onClick={(event) => ((event.target as Element).closest("[data-time]") ? props.onDiamond(diamond) : props.onClose())} aria-expanded>
@@ -244,63 +242,30 @@ function ChangeCard(props: Props & { diamond: Diamond; yours: Shown[] }) {
           <i className="size-2 rotate-45 bg-ground shadow-[inset_0_0_0_1.5px_var(--fg),0_0_0_2.5px_var(--ground)]" />
           {yours[0] && <b className="absolute top-[calc(50%-8px)] left-[calc(50%+2px)] size-1.5 rounded-full shadow-[0_0_0_1.5px_var(--ground)]" style={{ background: ink(yours[0]) }} />}
         </span>
-        <span className="-mr-[7px] block min-w-0 pr-[7px]">
-          <span className="block text-[11.5px] leading-5 text-faint">
-            <Time open className="float-right ml-2">{when(diamond)}</Time>
-            <span>{diamond.changes.find((changed) => changed.line)?.by ?? "Changed here"}</span>
-          </span>
+        <span className="block text-[11.5px] leading-5 text-faint">
+          <Time open className="float-right ml-2">{when(diamond)}</Time>
+          <span>{note ? `For your note ${note.number}` : changed?.line ? changed.by : "Changed here"}</span>
         </span>
       </button>
-      {/* Pointed at, a line stays the one marked until the pointer reaches another or leaves them all: crossing the gap
-          between two, the marks held still rather than jumping to every change and back. */}
-      <div className="grid gap-2.5 pr-3.5 pl-[44px]" onPointerLeave={() => props.onPoint(undefined)}>
-        <Why {...props} />
-      </div>
-      {yours.map((note) => props.note(note, true))}
-      {props.compare && (
-        <div className="mt-2.5 grid pr-3.5 pl-[44px]">
-          <Compare {...props.compare} />
-        </div>
-      )}
-      <div className="mt-4 flex flex-wrap gap-1.5 pr-3.5 pl-[44px]">
-        <Answer keys="↵" onClick={props.onPlayOn}>
-          {play}Play on
-        </Answer>
-        {!yours.length && (
-          <Answer keys="X" onClick={() => props.onNoteOn(diamond)}>
-            Note on this
-          </Answer>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// Why each change is there, in the agent's words, or the note it was made for. Several at one moment are each a line
-// under a small hollow diamond, so they can be counted, and pointing at one marks just what it's about; changes one line
-// explains are that one line. One the agent wasn't asked about, seen only in the pictures, is marked and not said.
-function Why({ diamond, notes, onNote, onPoint, pointed }: Props & { diamond: Diamond }) {
-  const own = diamond.changes.filter((changed) => !changed.answers && (changed.line || changed.note));
-  const says = (changed: Changed) => {
-    const note = changed.note && notes.find((note) => note.id === changed.note);
-    if (note)
-      return (
-        <Said who={`For your note ${note.number}`}>
-          <button className="-mx-[3px] rounded px-[3px] text-left transition-colors duration-150 ease-calm hover:bg-line" onClick={() => onNote(note)}>
+      <div className="grid pr-3.5 pl-[44px]">
+        {note ? (
+          <button className="-mx-[3px] rounded px-[3px] text-left leading-normal text-fg transition-colors duration-150 ease-calm hover:bg-line" onClick={() => onNote(note)}>
             {note.turns[0]?.words}
           </button>
-        </Said>
-      );
-    return <p className="leading-normal whitespace-pre-wrap text-fg">{changed.line}</p>;
-  };
-  if (own.length === 1) return says(own[0]!);
-  const lines = own.filter((changed, i) => !changed.line || own.findIndex((other) => other.line === changed.line) === i);
-  return lines.map((changed) => (
-    <div key={changed.change.id} className="flex items-start gap-[9px]" onPointerEnter={() => onPoint(changed.change.id)}>
-      <i className={`mx-0.5 mt-[7px] size-[7px] flex-none rotate-45 shadow-[inset_0_0_0_1.5px_var(--soft)] transition-colors duration-150 ease-calm ${pointed === changed.change.id ? "bg-soft" : ""}`} aria-hidden />
-      <div className="min-w-0 flex-1">{says(changed)}</div>
+        ) : (
+          changed?.line && <p className="leading-normal whitespace-pre-wrap text-fg">{changed.line}</p>
+        )}
+      </div>
+      {yours.map((note) => props.note(note, true))}
+      {!yours.length && (
+        <div className="mt-3 flex flex-wrap gap-1.5 pr-3.5 pl-[44px]">
+          <Answer keys="X" onClick={() => props.onNoteOn(diamond, props.one)}>
+            Note on this
+          </Answer>
+        </div>
+      )}
     </div>
-  ));
+  );
 }
 
 // A flow's end, drawn alike wherever it is, in its question over the last frame and capping the timeline: amber while it

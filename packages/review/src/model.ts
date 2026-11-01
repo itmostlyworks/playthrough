@@ -107,6 +107,7 @@ export const Change = z.strictObject({
   reworded: text("needs the words that read differently")
     .optional()
     .describe("For words reworded, the words that read differently now, which the viewer marks where they are: “on their own”"),
+  gone: z.literal(true).optional().describe("Not on the newer round: where it was, on the round before, is where it's seen, with Compare"),
   seen: z
     .array(Place, { error: "needs where it's seen, a list" })
     .min(1, { error: "needs where it's seen: each flow, at its moment there" })
