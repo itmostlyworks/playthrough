@@ -13,7 +13,8 @@ import type { Box, Element } from "@playthrough/review";
 // A change at one moment: what it's on is an element of the newer round, or for something gone, where it was. And the
 // ids of the changes it stands for, each by itself, so what changes by itself is left out as itself, never as all it's
 // told with.
-export type Found = { id: string; words: string; element?: Element; alike?: Element[]; box?: Box; pieces: string[] };
+// Off the screen, it's what the page has but the recording doesn't show at this moment.
+export type Found = { id: string; words: string; element?: Element; alike?: Element[]; box?: Box; pieces: string[]; offScreen?: true };
 
 // What happened to a thing, before it's said in full: what it's on, in which of the two readings, and what came with it;
 // what it's known by, where the thing alone doesn't say, and the changes it stands for, by their ids.
@@ -503,7 +504,7 @@ function said(told: Told[], moment: Moment, unsteady: Set<string>): Found[] {
   const found: Found[] = [];
   for (const [holder, all] of inside) {
     if (!holder || all.length <= MOST_INSIDE) {
-      for (const alike of all) found.push({ id: id(alike[0]!), words: alikeWords(alike), ...placeOf(alike[0]!, now), ...alikeOf(alike, now), pieces: alike.flatMap(piecesOf) });
+      for (const alike of all) found.push({ id: id(alike[0]!), words: alikeWords(alike), ...placeOf(alike[0]!, now), ...alikeOf(alike, now), pieces: alike.flatMap(piecesOf), ...offScreen(alike) });
       continue;
     }
     // Counted, not listed: Compare shows what they are better than their names can.
@@ -513,10 +514,14 @@ function said(told: Told[], moment: Moment, unsteady: Set<string>): Found[] {
         ? `Columns in ${the(holder)} changed width`
         : `${called(holder)}: ${count} ${things(count)} changed inside`;
     const changed: Told = { what: "changed inside", thing: holder, in: now, words };
-    found.push({ id: id(changed), words: sentence(words), ...placeOf(changed, now), pieces: all.flat().flatMap(piecesOf) });
+    found.push({ id: id(changed), words: sentence(words), ...placeOf(changed, now), pieces: all.flat().flatMap(piecesOf), ...offScreen(all.flat()) });
   }
   return found;
 }
+
+// Whether none of what it's on is on the screen at this moment: on a long page, the page has it before the recording
+// shows it.
+const offScreen = (told: Told[]): { offScreen?: true } => (told.some((one) => onScreen(one.thing.box, one.in.screen)) ? {} : { offScreen: true });
 
 // What a thing in an item is, whichever item it's in: its place there, its column and which of the things of its kind in
 // it, in which kind of item of which list, for words reworded, how they changed, and for a move, which way. Never its

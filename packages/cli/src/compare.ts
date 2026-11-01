@@ -102,7 +102,7 @@ async function comparing(page: Page, earlier: Recorded, round: Recorded, unstead
 }
 
 // A change where it's seen in one flow, what it stands for, and whether only the pictures show it there.
-type Sighting = { id: string; words: string; place: Place; of?: string[]; pictureOnly?: true };
+type Sighting = { id: string; words: string; place: Place; of?: string[]; pictureOnly?: true; offScreen?: true };
 
 async function compareFlow(page: Page, earlier: Recorded, before: Flow, round: Recorded, flow: Flow, unsteady: Set<string>): Promise<Sighting[]> {
   const pairs = pairSteps(before.steps, flow.steps);
@@ -120,10 +120,13 @@ async function compareFlow(page: Page, earlier: Recorded, before: Flow, round: R
     const pictured = await picturesAt(page, was, reading, pictures);
     for (const found of [...changesAt(was, reading, unsteady, shown), ...pictured]) {
       const on = found.element ? { element: found.element, ...(found.alike && { alike: found.alike }) } : found.box ? { box: found.box } : {};
-      sightings.push({ id: found.id, words: found.words, place: { flow: flow.name, at: reading.at, ...on }, of: found.pieces, ...(pictured.includes(found) && { pictureOnly: true as const }) });
+      sightings.push({ id: found.id, words: found.words, place: { flow: flow.name, at: reading.at, ...on }, of: found.pieces, ...(pictured.includes(found) && { pictureOnly: true as const }), ...(found.offScreen && { offScreen: true as const }) });
     }
   }
-  return sightings.sort((a, b) => (a.place.at ?? 0) - (b.place.at ?? 0));
+  // A change is seen where the person watching meets it: the first moment it's on the screen, not the first the page has
+  // it, so a page that's read top to bottom shows its changes a screen at a time. One the flow never brings into view
+  // keeps the first moment it's there.
+  return sightings.sort((a, b) => Number(!!a.offScreen) - Number(!!b.offScreen) || (a.place.at ?? 0) - (b.place.at ?? 0));
 }
 
 // What was glimpsed in a step and just after it, where a message its actions announced may land.

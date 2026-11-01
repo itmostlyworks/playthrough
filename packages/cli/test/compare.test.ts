@@ -96,6 +96,24 @@ describe("A round compared with one before it", { timeout: 60_000 }, () => {
     );
   });
 
+  test("a change is seen where the recording first has it on the screen, not where the page first has it; one never on the screen keeps its first moment", async () => {
+    const page = (end: string, lower: boolean) => `<h1>Playthrough</h1>${end}<div style="height: 1400px"></div><h2>Try it</h2>${lower ? "<p>Any flow downloads as a video.</p>" : ""}`;
+    const read = (end: string, lower: boolean) => [
+      ["Read what it is", `${page(end, lower)}<script>scrollTo(0, 0)</script>`],
+      ["Read how to try it", `${page(end, lower)}<script>scrollTo(0, document.body.scrollHeight)</script>`],
+    ] as [string, string][];
+    const then = await round(0, { "Read the page": read("<p>Open source.</p>", false), "Glance at the top": read("<p>Open source.</p>", false).slice(0, 1) });
+    const now = await round(1, { "Read the page": read("<p>Open source, on your machine.</p>", true), "Glance at the top": read("<p>Open source, on your machine.</p>", true).slice(0, 1) });
+    const { changes } = await compare(comparing, then, now);
+    assert.deepEqual(
+      changes.map((change) => [change.words, change.seen.map((seen) => [seen.flow, seen.at])]),
+      [
+        ["“Open source.” now says “Open source, on your machine.”", [["Read the page", 0.9], ["Glance at the top", 0.9]]],
+        ["“Any flow downloads as a video.” is new", [["Read the page", 1.9], ["Glance at the top", 0.9]]],
+      ],
+    );
+  });
+
   test("a change only the pictures show, with nothing read there changed, says so: it's the person's to look at, and one Playthrough can name is the agent's to say why of", async () => {
     const shape = (colour: string) => `<div style="width: 300px; height: 120px; background: ${colour}"></div>`;
     const then = await round(0, { "Look at the chart": [["Open the chart", `${shape("#c33")}${invoices}`]] });
