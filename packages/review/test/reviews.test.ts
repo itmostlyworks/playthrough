@@ -150,7 +150,7 @@ for (const [kept, storage] of storages) {
       await add([flow("Export a quarter")], [], []);
       await add([flow("Open the export")], [], []);
       const again = (await reviews.get("invoice-export")).rounds[0];
-      assert.deepEqual([again?.flows.map((flow) => flow.name), again?.cantStart], [["Cancel halfway", "Export a year", "Export a quarter", "Open the export"], []]);
+      assert.deepEqual([again?.flows.map((flow) => flow.name), again?.cantStart], [["Export a quarter", "Cancel halfway", "Export a year", "Open the export"], []]);
       const other = [{ name: "export-a-year.json", bytes: new TextEncoder().encode("[{}]") }];
       await assert.rejects(add([flow("Export a month")], [], other), refused(/Before has a file called “export-a-year\.json” already, with something else in it/));
       // A file kept by what's in it, like a font two flows load, comes again the same.

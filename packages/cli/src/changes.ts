@@ -1,18 +1,23 @@
 // What changed at one moment of a flow between two rounds, as the changes a person would name. What only follows from
 // another is told with it: what moved or grew with what holds it, and what was pushed along by something new, gone or
 // resized above or beside it. Things that swapped places, rows in a new order, and alike things changed alike are one
-// change each. Each is said in Playthrough's fixed words, never the agent's, and its id is the thing and what happened to it,
-// so the same change seen in another flow, at another moment or against another round is the same one.
+// change each. A person reads a row, a list's item or a card as one thing: one new or gone is one change, and so are the
+// words one says now; the same change in each of them is one change, in as many places. Each is said in Playthrough's
+// fixed words, never the agent's, and its id is the thing and what happened to it, so the same change seen in another
+// flow, at another moment or against another round is the same one.
 
 import { createHash } from "node:crypto";
-import { a, called, dataLeftOut, differences, HOLDS, holderOf, identity, lookWords, near, NEAR, parentOf, plural, rewordedWords, sentence, symbolOnly, the, things, together, wayOf, word, WORD, type Difference, type Glimpse, type Reading, type Thing } from "@playthrough/page";
+import { a, bare, called, dataLeftOut, differences, HOLDS, holderOf, identity, lookWords, near, NEAR, parentOf, plural, rewordedWords, sentence, symbolOnly, the, things, together, wayOf, word, WORD, type Difference, type Glimpse, type Item, type Reading, type Thing } from "@playthrough/page";
 import type { Box, Element } from "@playthrough/review";
 
-// A change at one moment: what it's on is an element of the newer round, or for something gone, where it was.
-export type Found = { id: string; words: string; element?: Element; alike?: Element[]; box?: Box };
+// A change at one moment: what it's on is an element of the newer round, or for something gone, where it was. And the
+// ids of the changes it stands for, each by itself, so what changes by itself is left out as itself, never as all it's
+// told with.
+export type Found = { id: string; words: string; element?: Element; alike?: Element[]; box?: Box; pieces: string[] };
 
-// What happened to a thing, before it's said in full: what it's on, in which of the two readings, and what came with it.
-type Told = { what: string; thing: Thing; in: Reading; words: string } & With;
+// What happened to a thing, before it's said in full: what it's on, in which of the two readings, and what came with it;
+// what it's known by, where the thing alone doesn't say, and the changes it stands for, by their ids.
+type Told = { what: string; thing: Thing; in: Reading; words: string; key?: string; pieces?: string[] } & With;
 // What came with a change: what it pushed along, what it made wider or narrower, and how many more changed alike with it.
 type With = { pushed?: Along; sized?: Along; alike?: number };
 type Along = { things: Thing[]; way: string };
@@ -304,8 +309,11 @@ function causesOfShifts(moment: Moment, shifts: Shift[], widened: Widened[], oth
         const both = [calledBy(shift), calledBy(other)].sort((p, q) => p.page.y - q.page.y || p.page.x - q.page.x);
         return { what: "swapped", thing: both[0]!, in: moment.now, words: `${together(both)} have swapped places` };
       }
-      const more = shift.moves.length > 1 ? `, with ${shift.moves.length - 1} more ${things(shift.moves.length - 1)} around it` : "";
-      return { what: "moved", thing: first.now, in: moment.now, words: `${called(first.now)} ${movedWords(moment, first)}${more}`, ...(pushed && { pushed }) };
+      // Alike things, each in an item of its own, moved as one: “57%”, “29%” and “14%” moved left.
+      const alike = shift.moves.every((move) => move.now.item !== undefined && move.now.role === first.now.role) && new Set(shift.moves.map((move) => move.now.item)).size === shift.moves.length;
+      const them = alike ? together([...shift.moves].sort((p, q) => p.now.page.y - q.now.page.y || p.now.page.x - q.now.page.x).map((move) => move.now)) : called(first.now);
+      const more = shift.moves.length > 1 && !alike ? `, with ${shift.moves.length - 1} more ${things(shift.moves.length - 1)} around it` : "";
+      return { what: "moved", thing: first.now, in: moment.now, words: `${them} ${movedWords(moment, first)}${more}`, ...(pushed && { pushed }) };
     });
 }
 
@@ -411,14 +419,16 @@ function sizeWords(moment: Moment, pair: Pair): string {
   return [sizes.length ? `is ${sizes.join(" and ")}` : "", went].filter(Boolean).join(", and ");
 }
 
-// Each change in full: alike things changed alike told once, what changed inside one table or list counted when there's a lot,
-// and each with its id and where it is.
+// Each change in full: what changes by itself left out, each item's told as one, alike things changed alike told once,
+// what changed inside one table or list counted when there's a lot, and each with its id and where it is.
 function said(told: Told[], moment: Moment, unsteady: Set<string>): Found[] {
   const { now, was, isNow } = moment;
-  const id = (told: Told) => idOf(identity(told.in, told.thing), told.what);
+  const id = (told: Told) => idOf(told.key ?? identityOf(told.in, told.thing), told.what);
+  const piecesOf = (told: Told) => told.pieces ?? [id(told)];
   // Top to bottom, as the page reads.
+  const steady = told.filter((one) => !unsteady.has(id(one)));
   const byId = groupBy(
-    told.filter((one) => !unsteady.has(id(one))).sort((p, q) => p.thing.page.y - q.thing.page.y || p.thing.page.x - q.thing.page.x),
+    asItems(steady, moment, id).sort((p, q) => p.thing.page.y - q.thing.page.y || p.thing.page.x - q.thing.page.x),
     id,
   );
 
@@ -433,7 +443,7 @@ function said(told: Told[], moment: Moment, unsteady: Set<string>): Found[] {
   const found: Found[] = [];
   for (const [holder, all] of inside) {
     if (!holder || all.length <= MOST_INSIDE) {
-      for (const alike of all) found.push({ id: id(alike[0]!), words: alikeWords(alike), ...placeOf(alike[0]!, now), ...alikeOf(alike, now) });
+      for (const alike of all) found.push({ id: id(alike[0]!), words: alikeWords(alike), ...placeOf(alike[0]!, now), ...alikeOf(alike, now), pieces: alike.flatMap(piecesOf) });
       continue;
     }
     // Counted, not listed: Compare shows what they are better than their names can.
@@ -443,9 +453,112 @@ function said(told: Told[], moment: Moment, unsteady: Set<string>): Found[] {
         ? `Columns in ${the(holder)} changed width`
         : `${called(holder)}: ${count} ${things(count)} changed inside`;
     const changed: Told = { what: "changed inside", thing: holder, in: now, words };
-    found.push({ id: id(changed), words: sentence(words), ...placeOf(changed, now) });
+    found.push({ id: id(changed), words: sentence(words), ...placeOf(changed, now), pieces: all.flat().flatMap(piecesOf) });
   }
   return found;
+}
+
+// What a thing in an item is, whichever item it's in: what it is, under its column, in which kind of item of which list,
+// so the same change in every row is one change. Anything else is what it is (differences.ts).
+function identityOf(reading: Reading, thing: Thing): string {
+  const item = thing.item === undefined ? undefined : reading.items?.[thing.item];
+  if (!item) return identity(reading, thing);
+  return `${thing.role}:${bare(thing.name)}${thing.column ? ` under ${thing.column}` : ""} in a ${item.role} of ${listOf(reading, item)}`;
+}
+const listOf = (reading: Reading, item: Item) => (item.holder === undefined ? "the page" : identity(reading, reading.things[item.holder]!, 0));
+
+// Items, rows or a list's items, paired across the two readings: by what's the same in both inside them, most first;
+// then, in lists side by side, those left in order, when there are as many of each. Words only in the same place say
+// nothing of which item is which.
+function pairItems({ then, now, was }: Moment): Map<number, number> {
+  const [before, after] = [then.items ?? [], now.items ?? []];
+  const pairs = new Map<number, number>(); // each item then, and the one it is now
+  const taken = new Set<number>();
+  const votes = new Map<string, number>();
+  for (const [b, a] of was) if (a.item !== undefined && b.item !== undefined && a.name === b.name && a.words === b.words) votes.set(`${a.item} ${b.item}`, (votes.get(`${a.item} ${b.item}`) ?? 0) + 1);
+  for (const [pair] of [...votes].sort((p, q) => q[1] - p[1])) {
+    const [a, b] = pair.split(" ").map(Number) as [number, number];
+    if (pairs.has(a) || taken.has(b)) continue;
+    pairs.set(a, b);
+    taken.add(b);
+  }
+  const lists = new Map<number, number>();
+  for (const [a, b] of pairs) if (!lists.has(before[a]!.list)) lists.set(before[a]!.list, after[b]!.list);
+  const left = (items: Item[], used: Set<number>) => [...new Set(items.map((item) => item.list))].filter((list) => !used.has(list));
+  const listsNow = left(after, new Set(lists.values()));
+  left(before, new Set(lists.keys())).forEach((list, i) => listsNow[i] !== undefined && lists.set(list, listsNow[i]!));
+  for (const [listThen, listNow] of lists) {
+    const a = before.flatMap((item, i) => (item.list === listThen && !pairs.has(i) ? [i] : []));
+    const b = after.flatMap((item, i) => (item.list === listNow && !taken.has(i) ? [i] : []));
+    if (a.length === b.length) a.forEach((i, k) => (pairs.set(i, b[k]!), taken.add(b[k]!)));
+  }
+  return pairs;
+}
+
+// What came, went or was reworded in one item is one change to it: the item new or gone, or the words it says now, where
+// more than one piece of them changed. How something in it looks, or where it is, is told on its own.
+function asItems(told: Told[], moment: Moment, id: (told: Told) => string): Told[] {
+  const { then, now } = moment;
+  const items = pairItems(moment);
+  const was = new Map([...items].map(([a, b]) => [b, a]));
+  const itemOf = (one: Told) => {
+    if (one.thing.item === undefined || !/^(new|gone|reworded|became)$/.test(one.what)) return undefined;
+    if (one.in === now) return `now ${one.thing.item}`;
+    const paired = items.get(one.thing.item);
+    return paired === undefined ? `then ${one.thing.item}` : `now ${paired}`;
+  };
+  const out: Told[] = [];
+  for (const [key, all] of groupBy(told, itemOf)) {
+    if (!key || all.length < 2) {
+      out.push(...all);
+      continue;
+    }
+    const [side, at] = key.split(" ") as [string, string];
+    const [reading, index] = [side === "then" ? then : now, Number(at)];
+    const item = reading.items![index]!;
+    const thing = asThing(reading, item, index);
+    const pieces = all.flatMap((one) => one.pieces ?? [id(one)]);
+    const along = all.find((one) => one.pushed || one.sized);
+    const whole = { thing, in: reading, pieces, ...(along?.pushed && { pushed: along.pushed }), ...(along?.sized && { sized: along.sized }) };
+    // A whole item new or gone, alike with any other in its list.
+    if (side === "then" || (!was.has(index) && all.every((one) => one.what === "new"))) {
+      const what = side === "then" ? "gone" : "new";
+      out.push({ ...whole, what, words: `${called(thing)} is ${what}`, key: `${item.role} of ${listOf(reading, item)}` });
+      continue;
+    }
+    const before = was.has(index) ? then.items![was.get(index)!] : undefined;
+    const words = all.filter((one) => one.thing.role === "text");
+    if (!before || before.words === item.words || words.length < 2) {
+      out.push(...all);
+      continue;
+    }
+    const reworded = rewordedWords(asThing(then, before, was.get(index)!, "text"), asThing(now, item, index, "text"));
+    out.push(
+      { ...whole, what: "reworded", words: reworded, pieces: words.flatMap((one) => one.pieces ?? [id(one)]), key: `${item.role} of ${listOf(now, item)}: ${shapeOf(before.words, item.words)}` },
+      ...all.filter((one) => one.thing.role !== "text"),
+    );
+  }
+  return out;
+}
+
+// An item as a thing, to be called and placed: by its words, past an avatar's initial (“M Maya” is “Maya”) and an icon's
+// symbol (a ⋯ button).
+function asThing(reading: Reading, item: Item, index: number, role: string = item.role): Thing {
+  const name = item.words.replace(/^(\p{Lu})\s+(?=\1)/u, "").split(" ").filter((word) => /[\p{L}\p{N}]/u.test(word)).join(" ");
+  const look = { color: "", background: "", size: "", weight: "", border: "" };
+  return { role, name: name.slice(0, 120), words: role === "text" ? item.words : name, box: item.box, page: item.page, look, item: index, ...(item.holder !== undefined && { holder: item.holder }), ...(item.node !== undefined && { node: item.node }) };
+}
+
+// How an item's words changed, whichever item it is: the part that differs, its data as “…”. “Apples -- 12 votes” to
+// “Apples 57% 12 votes” and “Red -- 5 votes” to “Red 50% 5 votes” are both “-- → …%”.
+function shapeOf(then: string, now: string): string {
+  const [a, b] = [then.split(" "), now.split(" ")];
+  let start = 0;
+  while (start < a.length && start < b.length && a[start] === b[start]) start++;
+  let end = 0;
+  while (end < a.length - start && end < b.length - start && a.at(-1 - end) === b.at(-1 - end)) end++;
+  const part = (words: string[]) => dataLeftOut(words.slice(start, words.length - end).join(" "));
+  return `${part(a)} → ${part(b)}`;
 }
 
 // Alike things changed alike, said once: “Delete button looks different: border, in 30 places”, or by their names when
@@ -467,6 +580,8 @@ function alikeWords(alike: Told[]): string {
     const them = symbolOnly(first.thing) ? together(all) : `${together(all, (thing) => thing.name)} ${plural(WORD[first.thing.role]!)}`;
     return sentence(`${them} ${verb}${along}`);
   }
+  // Things called by their words, new or gone: “96”, “2”, “2” and 18 more are new.
+  if (names.length > 1 && /^(new|gone)$/.test(first.what) && !WORD[first.thing.role]) return sentence(`${together(alike.map((told) => told.thing))} are ${first.what}${along}`);
   // Called differently only by their data, they're called by what they share: “$…” looks different, in 5 places. Things
   // that are only their data, a count, share nothing to say, and are called by the first: “2” is new, in 3 places.
   const name = called(first.thing);

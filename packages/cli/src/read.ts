@@ -3,9 +3,9 @@
 // everything it can tell apart.
 
 import type { Page } from "@playwright/test";
-import type { Reading, Thing } from "@playthrough/page";
+import type { Item, Reading, Thing } from "@playthrough/page";
 
-export function readPage(page: Page): Promise<{ screen: Reading["screen"]; things: Thing[] }> {
+export function readPage(page: Page): Promise<{ screen: Reading["screen"]; things: Thing[]; items: Item[] }> {
   return page.evaluate(read);
 }
 
@@ -180,12 +180,42 @@ export function read() {
     return headings.length ? headings : undefined;
   }
 
+  // One of many alike: what the page says is a row or a list's item, or one of several side by side with the same tag and
+  // class, as Actual's payees are panels in a column. It's kept once something in it is read.
+  const ITEMS = "li, tr, [role=listitem], [role=row]";
+  const alikeBeside = (element: Element) =>
+    typeof element.className === "string" && !!element.className && [...(element.parentElement?.children ?? [])].some((other) => other !== element && other.tagName === element.tagName && other.className === element.className);
+  type InItem = { element: Element; holder?: number; index?: number };
+  const lists = new Map<Element, number>();
+  const items: any[] = [];
+  const itemOf = (inItem: InItem | undefined) => {
+    if (!inItem) return undefined;
+    if (inItem.index === undefined) {
+      const { element } = inItem;
+      const box = element.getBoundingClientRect();
+      const list = lists.get(element.parentElement!) ?? lists.set(element.parentElement!, lists.size).get(element.parentElement!)!;
+      const node = mirror?.getId(element);
+      items.push({
+        role: element.matches("tr, [role=row]") ? "row" : "listitem",
+        words: cut(allWords(element), 300),
+        box: { x: Math.round(box.left), y: Math.round(box.top), width: Math.round(box.width), height: Math.round(box.height) },
+        page: { x: Math.round(box.left + scrollX), y: Math.round(box.top + scrollY) },
+        list,
+        ...(inItem.holder !== undefined && { holder: inItem.holder }),
+        ...(node !== undefined && node >= 0 && { node }),
+      });
+      inItem.index = items.length - 1;
+    }
+    return inItem.index;
+  };
+
   const things: any[] = [];
-  function walk(element: Element, holder: number | undefined, parent: number | undefined, headings: Heading[] | undefined) {
+  function walk(element: Element, holder: number | undefined, parent: number | undefined, headings: Heading[] | undefined, inItem: InItem | undefined) {
     for (const child of element.children) {
       const looks = style(child);
       if (looks.display === "none" || looks.visibility === "hidden" || Number(looks.opacity) === 0) continue;
       const box = child.getBoundingClientRect();
+      const item: InItem | undefined = child.matches(ITEMS) || alikeBeside(child) ? { element: child, ...(holder !== undefined && { holder }) } : inItem;
       const table = child.matches(TABLES);
       const under = table ? headingsOf(child) : headings;
       const own = plain([...child.childNodes].filter((node) => node.nodeType === Node.TEXT_NODE).map((node) => node.textContent).join(" "));
@@ -204,6 +234,7 @@ export function read() {
         const node = mirror?.getId(child);
         const words = cut(own ? ownWords(child) : "", 300);
         const wordsInside = known && /^(box|menu)$/.test(known.role) ? cut(allWords(child), 300) : undefined;
+        const ofItem = itemOf(item);
         things.push({
           role: known?.role ?? "text",
           name: known?.name ?? cut(words, 120),
@@ -218,13 +249,14 @@ export function read() {
           ...(known?.role === "box" && labelOf(child) && { labelled: true }),
           ...(child.closest('[aria-live]:not([aria-live="off"]), [role="status"], [role="alert"], [role="log"]') && { live: true }),
           ...(node !== undefined && node >= 0 && { node }),
+          ...(ofItem !== undefined && { item: ofItem }),
         });
         if (known && HOLDERS.test(known.role)) inside = things.length - 1;
         readParent = things.length - 1;
       }
-      walk(child, inside, readParent, under);
+      walk(child, inside, readParent, under, item);
     }
   }
-  walk(document.body, undefined, undefined, undefined);
-  return { screen: { width: innerWidth, height: innerHeight }, things };
+  walk(document.body, undefined, undefined, undefined, undefined);
+  return { screen: { width: innerWidth, height: innerHeight }, things, items: items as Item[] };
 }

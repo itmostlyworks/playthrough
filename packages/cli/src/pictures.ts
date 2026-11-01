@@ -36,7 +36,7 @@ export async function picturesAt(page: Page, then: Reading, now: Reading, pictur
   }
   return [...told].map(([id, { words, patch }]) => {
     const box = onScreen(patch, now.screen);
-    return { id, words: sentence(words), ...(box && { box }) };
+    return { id, words: sentence(words), ...(box && { box }), pieces: [id] };
   });
 }
 

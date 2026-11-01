@@ -162,6 +162,38 @@ describe("What changed at a moment", () => {
     assert.deepEqual(changed, ["Table: 6 things changed inside"]);
   });
 
+  test("an item whose words changed in more than one piece says what it says now, and the same change in each item is one change (the polls app's shares)", async () => {
+    const votes = [["Apples", 12, 57], ["Bananas", 6, 29], ["Cherries", 3, 14]] as const;
+    const then = `<h1>Favourite fruit?</h1><ul>${votes.map(([name, count]) => `<li>${name} -- ${count} votes</li>`).join("")}</ul><a href="/vote">Vote again?</a>`;
+    const share = ([name, count, share]: (typeof votes)[number]) =>
+      `<li><div style="display: flex; justify-content: space-between"><span>${name}</span><span>${share}%</span></div><div style="background: #36c; height: 8px; width: ${share}%"></div><small>${count} votes</small></li>`;
+    const now = `<h1>Favourite fruit?</h1><ul style="width: 512px">${votes.map(share).join("")}</ul><a href="/vote">Vote again?</a>`;
+    const found = await changes(then, now);
+    assert.deepEqual(found.map((change) => change.words), ["“Apples -- 12 votes” now says “Apples 57% 12 votes”, in 3 places", "Vote again? link moved down"]);
+    assert.deepEqual([found[0]!.element?.role, found[0]!.alike?.length], ["listitem", 2], "it's on the first item, and the others are changed alike");
+  });
+
+  test("the same change in each of a list's alike rows is one change, its things named together (Actual's transaction counts)", async () => {
+    const payees = ["Deposit", "Dominion Power", "Extra Watery", "Fast Internet", "Home Depot", "Kroger"];
+    const row = (name: string, count?: number) => `<div class="payee panel" style="display: flex; width: 760px"><span>${name}</span>${count === undefined ? "" : `<span style="margin-left: auto">${count}</span>`}</div>`;
+    const then = `<div class="panel">${payees.map((name) => row(name)).join("")}</div>`;
+    const now = `<div class="panel">${payees.map((name, i) => row(name, [96, 2, 2, 0, 2, 189][i])).join("")}</div>`;
+    assert.deepEqual(await said(then, now), ["“96”, “2”, “2” and 3 more are new"]);
+  });
+
+  test("a row gone is one change, called by its words past the avatar's initial; and what changes by itself in a row is left out as itself, so a real change beside it is seen (Kan's members, each with an email of their own each run)", async () => {
+    const member = (name: string, run: string, role: string) => `<tr><td><span class="panel">${name[0]}</span> ${name}</td><td>${name.toLowerCase()}-${run}@kan-test.local</td><td>${role}</td></tr>`;
+    const members = (...rows: string[]) => `<h2>Members</h2><table><tr><th>User</th><th>Email</th><th>Role</th></tr>${rows.join("")}</table>`;
+    const before = await reading(members(member("Sam", "mvx2tlwpr561", "Admin"), member("Maya", "mvx2tlwpr561", "Member"), member("Maya", "mvx2tlwpr561", "Member")));
+    const again = await reading(members(member("Sam", "mvx2q8aaz9k1", "Admin"), member("Maya", "mvx2q8aaz9k1", "Member"), member("Maya", "mvx2q8aaz9k1", "Member")));
+    const unsteady = new Set(changesAt(before, again).flatMap((change) => change.pieces));
+    const now = await reading(members(member("Sam", "mvx2v2nyte2u", "Owner"), member("Maya", "mvx2v2nyte2u", "Member")));
+    assert.deepEqual(
+      changesAt(before, now, unsteady).map((change) => change.words),
+      ["“Admin” now says “Owner”", "“Maya maya-mvx2tlwpr561@kan-test.local Member” is gone"],
+    );
+  });
+
   test("in a dialog or a panel, each change is told on its own, however many", async () => {
     const changed = await said(dialog(["Name", "Email", "Phone", "City", "Notes", "Team"].map((label) => `<p>${label}</p>`).join("")), dialog(["Name", "Email", "Phone", "City", "Notes", "Team"].map((label) => `<p>${label}:</p>`).join("")));
     assert.equal(changed.length, 6);

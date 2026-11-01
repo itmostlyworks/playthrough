@@ -27,7 +27,8 @@ export type Shown = { change: Change; on: Place; since: number };
 
 // What's new to you on a round: each change that's different from the last round you looked at any flow it's in, or
 // from Before when you've looked at none of them. It's told in the flow of the note it was made for, or else the first
-// flow that shows it. What the agent says isn't real is never told.
+// flow that shows it, in the order the flows joined the review, so the task's flows come before those the agent added
+// for its own choices, whatever their files are called. What the agent says isn't real is never told.
 export function newToYou(review: Review, round: number, you: string): Shown[] {
   const recorded = review.rounds.find((kept) => kept.number === round);
   const first = review.rounds[0]?.number;
@@ -35,6 +36,7 @@ export function newToYou(review: Review, round: number, you: string): Shown[] {
   const comparisons = review.comparisons.filter((comparison) => comparison.round === round);
   const notes = allNotes(review);
   const order = recorded.flows.map((flow) => flow.name);
+  const joined = [...new Set(review.rounds.flatMap((kept) => [...kept.flows.map((flow) => flow.name), ...(kept.cantStart ?? [])]))];
 
   const found = comparisons.flatMap((comparison) => comparison.changes);
   const shown: Shown[] = [];
@@ -48,7 +50,7 @@ export function newToYou(review: Review, round: number, you: string): Shown[] {
     if (!change) continue; // the same as when you last looked
 
     const noted = account && "note" in account ? notes.get(account.note)?.note.on?.flow : undefined;
-    const flow = [noted, ...order].find((name) => change.seen.some((seen) => seen.flow === name)) ?? change.seen[0]!.flow;
+    const flow = [noted, ...joined].find((name) => change.seen.some((seen) => seen.flow === name)) ?? change.seen[0]!.flow;
     const on = change.seen.filter((seen) => seen.flow === flow).sort((a, b) => (a.at ?? 0) - (b.at ?? 0))[0]!;
     shown.push({ change, on, since });
   }

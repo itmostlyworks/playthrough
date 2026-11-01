@@ -16,10 +16,23 @@ export type Thing = {
   labelled?: true; // a panel with a label of its own, which names it, drawn or not
   live?: true; // in a message the page announces and takes away by itself, a toast: aria-live, or a status or an alert
   node?: number; // its element in the recording
+  item?: number; // the item it's in, a row or one of a list's, by its place in the reading's items
+};
+
+// One of many alike that a person reads as one: a table's row, a list's item, a card among cards. What changes in it is
+// told as a change to it, and the same change in each of them is one change.
+export type Item = {
+  role: "row" | "listitem";
+  words: string; // every word in it
+  box: Thing["box"];
+  page: Thing["page"];
+  list: number; // the items side by side with it share this
+  holder?: number; // the nearest thing it's in that has a role or is a panel
+  node?: number;
 };
 
 // The page the step left. Its moment is in seconds from the recording's start, like a step's.
-export type Reading = { step: string; at: number; screen: { width: number; height: number }; picture: string; things: Thing[] };
+export type Reading = { step: string; at: number; screen: { width: number; height: number }; picture: string; things: Thing[]; items?: Item[] };
 // The page just after an action, read on the way through a step for what a note can be on, as a menu or a dialog that's
 // gone by the step's end: its step's reading, without the picture.
 export type Glimpse = Omit<Reading, "picture">;

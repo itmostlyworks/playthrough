@@ -34,11 +34,13 @@ export async function compareWithEarlier(reviews: Reviews, id: string, number: n
 }
 
 // The same flows recorded twice on the same app: whatever differs between the two changes by itself, like a time the
-// server stamps, so it's left out of every comparison from then on, in every flow.
-export async function changesByThemselves(first: Recorded, second: Recorded): Promise<Change[]> {
+// server stamps, so it's left out of every comparison from then on, in every flow: each change as the ids of what it
+// stands for, so the email that changes in a row of the members table is left out, and not the table.
+export async function changesByThemselves(first: Recorded, second: Recorded): Promise<(Change & { pieces: string[] })[]> {
   const browser = await chromium.launch();
   try {
-    return (await compare(await browser.newPage(), first, second)).changes;
+    const { changes, pieces } = await comparing(await browser.newPage(), first, second);
+    return changes.map((change) => ({ ...change, pieces: [...pieces.get(change.id)!] }));
   } finally {
     await browser.close();
   }
@@ -59,10 +61,18 @@ function kept(reviews: Reviews, id: string, number: number, flows: Flow[]): Reco
 }
 
 export async function compare(page: Page, earlier: Recorded, round: Recorded, unsteady = new Set<string>()): Promise<Comparison> {
+  const { pieces: _, ...comparison } = await comparing(page, earlier, round, unsteady);
+  return comparison;
+}
+
+// And what each change stands for, by its id.
+async function comparing(page: Page, earlier: Recorded, round: Recorded, unsteady = new Set<string>()): Promise<Comparison & { pieces: Map<string, Set<string>> }> {
   const changes = new Map<string, Change>();
-  const see = ({ id, words, place }: Sighting) => {
+  const pieces = new Map<string, Set<string>>();
+  const see = ({ id, words, place, of = [id] }: Sighting) => {
     if (unsteady.has(id)) return;
     const change = changes.get(id);
+    for (const piece of of) (pieces.get(id) ?? pieces.set(id, new Set()).get(id)!).add(piece);
     if (!change) changes.set(id, { id, words, seen: [place] });
     else if (!change.seen.some((seen) => seen.flow === place.flow)) change.seen.push(place);
   };
@@ -74,11 +84,11 @@ export async function compare(page: Page, earlier: Recorded, round: Recorded, un
   // A flow the agent took away is a change too: what it showed isn't shown any more.
   for (const gone of earlier.flows.filter((flow) => !round.flows.some((kept) => kept.name === flow.name)))
     see({ id: idOf(`flow:${gone.name}`, "gone"), words: `${quote(gone.name)} isn't a flow any more`, place: { flow: gone.name } });
-  return { round: round.number, since: earlier.number, changes: [...changes.values()] };
+  return { round: round.number, since: earlier.number, changes: [...changes.values()], pieces };
 }
 
-// A change where it's seen in one flow.
-type Sighting = { id: string; words: string; place: Place };
+// A change where it's seen in one flow, and what it stands for.
+type Sighting = { id: string; words: string; place: Place; of?: string[] };
 
 async function compareFlow(page: Page, earlier: Recorded, before: Flow, round: Recorded, flow: Flow, unsteady: Set<string>): Promise<Sighting[]> {
   const pairs = pairSteps(before.steps, flow.steps);
@@ -95,7 +105,7 @@ async function compareFlow(page: Page, earlier: Recorded, before: Flow, round: R
     const shown = { then: around(glimpsed.then, before, was.step), now: around(glimpsed.now, flow, reading.step) };
     for (const found of [...changesAt(was, reading, unsteady, shown), ...(await picturesAt(page, was, reading, pictures))]) {
       const on = found.element ? { element: found.element, ...(found.alike && { alike: found.alike }) } : found.box ? { box: found.box } : {};
-      sightings.push({ id: found.id, words: found.words, place: { flow: flow.name, at: reading.at, ...on } });
+      sightings.push({ id: found.id, words: found.words, place: { flow: flow.name, at: reading.at, ...on }, of: found.pieces });
     }
   }
   return sightings.sort((a, b) => (a.place.at ?? 0) - (b.place.at ?? 0));

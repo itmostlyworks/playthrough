@@ -153,3 +153,18 @@ test("what the agent says isn't real is never shown to anyone", async () => {
   await reviews.finish("invoice-export", 1);
   assert.deepEqual(told(await reviews.get("invoice-export"), 1, "Ana"), ["dialog in Export a quarter"]);
 });
+
+test("a change seen in several flows is told in the one that joined the review first, whatever the order of their files", async () => {
+  const reviews = new Reviews(memory());
+  const id = "transaction-counts";
+  await reviews.start(id, "Show how many transactions each payee has");
+  // The task's flows, recorded on Before; the agent's own choice added after the work, its file named so it comes first.
+  const [see, choice] = [flow("See the counts"), flow("Put the payees back")];
+  await reviews.saveRound(id, round(0, { flows: [see] }));
+  await reviews.finish(id, 0);
+  const column: Change = { id: "column", words: "“96”, “2”, “2” and 18 more are new", seen: seenIn(["Put the payees back", 1], ["See the counts", 1]) };
+  await reviews.saveRound(id, round(1, { flows: [choice, see], accounts: { column: { line: "A count for each payee." } } }));
+  await reviews.saveComparison(id, { round: 1, since: 0, changes: [column] });
+  await reviews.finish(id, 1);
+  assert.deepEqual(told(await reviews.get(id), 1, "Ana"), ["column in See the counts"]);
+});

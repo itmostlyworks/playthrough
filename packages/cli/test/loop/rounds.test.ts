@@ -75,7 +75,7 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
     assert.match(said, /“Export the overdue ones” has changed since it last ran on Before, so it's recorded on it again, in place of what it has of it, on the app as it is: nothing has changed since Before\./);
     assert.doesNotMatch(said, /See what's overdue/, "the flows that haven't changed aren't run again");
     assert.match(said, /“Export the overdue ones” stops at “Export them”, where Playwright says/);
-    assert.deepEqual((await app.round(0)).flows.map((flow) => [flow.name, flow.stopped]), [["See what's overdue", undefined], ["See what's paid", undefined], ["Export the overdue ones", "Export them"]]);
+    assert.deepEqual((await app.round(0)).flows.map((flow) => [flow.name, flow.stopped]), [["Export the overdue ones", "Export them"], ["See what's overdue", undefined], ["See what's paid", undefined]]);
   });
 
   test("a flow that fails records nothing, and names itself", async () => {

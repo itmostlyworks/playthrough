@@ -141,9 +141,11 @@ export function problemsAddingToBefore(review: Review, flows: Flow[], cantStart:
 // One that's gone since, tried again, goes from Before too.
 export function withInBefore(before: Round, flows: Flow[], cantStart: string[], gone: string[] = []): Round {
   const names = new Set([...flows.map((flow) => flow.name), ...cantStart, ...gone]);
+  // One recorded again keeps its place, so the flows stay in the order they joined the review.
+  const again = new Map(flows.map((flow) => [flow.name, flow]));
   return {
     ...before,
-    flows: [...before.flows.filter((flow) => !names.has(flow.name)), ...flows],
+    flows: [...before.flows.flatMap((flow) => (again.has(flow.name) ? [again.get(flow.name)!] : names.has(flow.name) ? [] : [flow])), ...flows.filter((flow) => !before.flows.some((kept) => kept.name === flow.name))],
     cantStart: [...(before.cantStart ?? []).filter((name) => !names.has(name)), ...cantStart],
   };
 }

@@ -512,8 +512,8 @@ const step = Object.assign(async (title: string, body: (info: unknown) => unknow
       await flow.rest();
       const at = seconds(Date.now() - (flow.events[0]?.timestamp ?? Date.now()));
       await unhovered(flow.page, async () => {
-        const { screen, things } = await readPage(flow.page);
-        flow.readings.push({ step: title, at, screen, things });
+        const { screen, things, items } = await readPage(flow.page);
+        flow.readings.push({ step: title, at, screen, things, items });
         flow.pictures.push(await flow.page.screenshot({ animations: "disabled", caret: "hide" }));
       });
       if (run?.walk?.step === title && run.walk.actions === undefined && !flow.walked) await walkOn(flow, run.walk);
@@ -688,8 +688,8 @@ async function walkOn(flow: Underway, walk: Walk) {
     await flow.rest();
     walked.done.push(since());
     await unhovered(flow.page, async () => {
-      const { screen, things } = await readPage(flow.page);
-      flow.readings.push({ step: "In the app", at: since(), screen, things });
+      const { screen, things, items } = await readPage(flow.page);
+      flow.readings.push({ step: "In the app", at: since(), screen, things, items });
     });
     await look();
   }
