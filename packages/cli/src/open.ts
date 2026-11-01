@@ -206,9 +206,15 @@ async function saveVideo(repo: Repo, id: string, request: IncomingMessage, respo
   }
   if (!screens.length) return json(response, 404, { problems: [`Round ${filmed.round} of ${id} has no recording of “${filmed.flow}”.`] });
   const shape = { width: Math.max(...screens.map((screen) => screen.width)), height: Math.max(...screens.map((screen) => screen.height)) };
-  const bytes = await video(request.socket.localPort!, id, filmed, shape);
-  response.writeHead(200, { "content-type": "video/mp4", "cache-control": "no-store" });
-  response.end(bytes);
+  // A line at a time while it's made: how long it has left, then the video, or what went wrong.
+  response.writeHead(200, { "content-type": "application/x-ndjson", "cache-control": "no-store" });
+  const say = (line: { left: number } | { video: string } | { problems: string[] }) => response.write(`${JSON.stringify(line)}\n`);
+  try {
+    say({ video: Buffer.from(await video(request.socket.localPort!, id, filmed, shape, (left) => say({ left: Math.round(left * 10) / 10 }))).toString("base64") });
+  } catch (error) {
+    say({ problems: [`The video couldn't be made: ${(error as Error).message.split("\n")[0]}`] });
+  }
+  response.end();
 }
 
 // How long until a moment asked for is ready, for the viewer to count down to, if it can be known.

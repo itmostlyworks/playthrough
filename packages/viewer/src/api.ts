@@ -97,18 +97,32 @@ export async function accept(review: string, by: string): Promise<string[]> {
   return post(`/api/reviews/${review}/accept`, { by });
 }
 
-// A flow as a video, alone or beside the round Compare shows, downloaded by your browser; what's wrong in
-// plain words, or nothing once it's downloaded.
-export async function downloadVideo(review: string, filmed: { round: number; flow: string; beside?: number; dark: boolean }, name: string): Promise<string[]> {
+// A flow as a video, alone or beside the round Compare shows, downloaded by your browser, telling the seconds it has
+// left as it's made; what's wrong in plain words, or nothing once it's downloaded.
+export async function downloadVideo(review: string, filmed: { round: number; flow: string; beside?: number; dark: boolean }, name: string, onLeft: (seconds: number) => void): Promise<string[]> {
   try {
     const answer = await fetch(`/api/reviews/${review}/video`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(filmed) });
-    if (!answer.ok) return (await answer.json()).problems ?? [`It wasn't made (${answer.status}).`];
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(await answer.blob());
-    link.download = `${name}.mp4`;
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
-    return [];
+    if (!answer.ok || !answer.body) return (await answer.json()).problems ?? [`It wasn't made (${answer.status}).`];
+    let said = "";
+    for await (const part of answer.body.pipeThrough(new TextDecoderStream())) {
+      said += part;
+      const lines = said.split("\n");
+      said = lines.pop()!;
+      for (const line of lines) {
+        const told: { left?: number; video?: string; problems?: string[] } = JSON.parse(line);
+        if (told.left !== undefined) onLeft(told.left);
+        if (told.problems) return told.problems;
+        if (told.video) {
+          const link = document.createElement("a");
+          link.href = URL.createObjectURL(await (await fetch(`data:video/mp4;base64,${told.video}`)).blob());
+          link.download = `${name}.mp4`;
+          link.click();
+          setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+          return [];
+        }
+      }
+    }
+    return ["The video stopped before it was made. Try again."];
   } catch {
     return ["Playthrough isn't running here any more. Start it again with playthrough open, then try again."];
   }

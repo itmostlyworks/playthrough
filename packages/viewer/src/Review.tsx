@@ -6,13 +6,14 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { elementOf } from "@playthrough/page";
 import { inStep, lastLooked, newId, notesToAnswer, readyToAccept, time, waitingForTheAgent, type Did, type Element as Thing, type Flow, type Note, type Point, type Place, type Review, type Round, type Send, type Verdict } from "@playthrough/review";
-import { accept, downloadVideo, keepBranch, picture, recording, send, useReview, useYou } from "./api.ts";
+import { accept, keepBranch, picture, recording, send, useReview, useYou } from "./api.ts";
 import { Bar } from "./Bar.tsx";
 import { Beside, clickedAt } from "./Beside.tsx";
 import { HOLD } from "./Card.tsx";
 import { answersTo, diamondAt, diamondsOn, grownFrom, type Changed, type Diamond } from "./changes.ts";
 import { Chosen, endOf, justLanded, rowsIn, settles, type Landed, type Props as ChosenProps, type Row } from "./Chosen.tsx";
 import { Controls, type Look } from "./Controls.tsx";
+import { DownloadVideo, type Asked } from "./DownloadVideo.tsx";
 import type { ForkLine } from "./Timeline.tsx";
 import { useUnsent, useWatched } from "./draft.ts";
 import { grow, shrink, takeOff, type Taking } from "./flight.ts";
@@ -64,29 +65,6 @@ export function Page({ title, actions, children }: { title?: string; actions?: R
       </header>
       {children}
     </div>
-  );
-}
-
-// The flow you're in, as it's shown, as a video your browser downloads: there in a flow, gone on every flow at once, and
-// resting while the app is yours. Making it takes a while, and says so in the same room.
-function DownloadVideo({ making, shown, resting, onDownload }: { making: boolean; shown: boolean; resting: boolean; onDownload: () => void }) {
-  return (
-    <button
-      className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 whitespace-nowrap text-soft transition-[background-color,color,opacity] duration-150 ease-calm enabled:hover:bg-hover enabled:hover:text-fg disabled:cursor-default aria-busy:text-fg ${shown ? "" : "invisible opacity-0"} ${resting ? "opacity-32" : ""}`}
-      disabled={!shown || resting}
-      aria-busy={making}
-      title="The flow as it's shown, as an MP4 (V)"
-      onClick={onDownload}
-    >
-      <svg viewBox="0 0 16 16" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-        <path d="M8 2.5v7.5M4.75 7l3.25 3.25L11.25 7M3 13h10" />
-      </svg>
-      {/* Both words take the same room, so nothing moves while it's made. */}
-      <span className="grid">
-        <span className={`col-start-1 row-start-1 ${making ? "invisible" : ""}`}>Download video</span>
-        <span className={`col-start-1 row-start-1 ${making ? "" : "invisible"}`}>Making video…</span>
-      </span>
-    </button>
   );
 }
 
@@ -1074,17 +1052,15 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   const earlier = comparing ? heldOver : undefined;
   const zoomed = comparing ? !sideFit : actual;
   // The flow as a video, as it's shown: alone, or beside the round Compare shows.
-  const [making, setMaking] = useState(false);
-  const download = () => {
-    if (making || !flow || onGrid) return;
-    setMaking(true);
-    const name = `${flow.name} · ${earlier ? `${roundName(earlier.number)} and ${roundName(round.number)}` : roundName(round.number)}`;
-    const dark = matchMedia("(prefers-color-scheme: dark)").matches;
-    void downloadVideo(review.id, { round: round.number, flow: flow.name, beside: earlier?.number, dark }, name).then((problems) => {
-      setMaking(false);
-      if (problems.length) console.warn(problems.join(" "));
-    });
-  };
+  const downloader = useRef<{ start: () => void }>(null);
+  const toDownload = (): Asked | undefined =>
+    flow && !onGrid
+      ? {
+          review: review.id,
+          filmed: { round: round.number, flow: flow.name, beside: earlier?.number, dark: matchMedia("(prefers-color-scheme: dark)").matches },
+          name: `${flow.name} · ${earlier ? `${roundName(earlier.number)} and ${roundName(round.number)}` : roundName(round.number)}`,
+        }
+      : undefined;
   // Holding Compare or How it was, that round shows over the recording, in place.
   // It waits unseen over the recording while it's paused, so Compare shows it at once; playing, only while it's on.
   const peeking = peek && !repeats && !!comparedRound;
@@ -1298,7 +1274,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
         takeOver();
       } else if (event.key.toLowerCase() === "v" && !event.repeat && !live?.shown) {
         event.preventDefault();
-        download();
+        downloader.current?.start();
       } else if (event.key === "Escape" && live?.shown) {
         letGo();
       } else if (event.key === "Escape" && (peek || comparing)) {
@@ -1424,7 +1400,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     onAgain: (flow) => watchFrom(flow.name),
   };
   return (
-    <Page title={review.title} actions={<DownloadVideo making={making} shown={!onGrid && !!flow} resting={inApp} onDownload={download} />}>
+    <Page title={review.title} actions={<DownloadVideo ref={downloader} asked={toDownload} shown={!onGrid && !!flow} resting={inApp} />}>
       {/* In the app, the recording's pins are under it: a card there sits by the app's own pin, with nothing drawn to it. */}
       <Wire id={grownOpen?.id ?? openNote?.id ?? chosen?.id} colour={openNote ? ink(openNote) : grownOpen ? "var(--amber)" : "var(--soft)"} hidden={!!bare || peeking || inApp} faded={playingNow} />
       <main className="relative grid min-h-0 grid-cols-[minmax(0,1fr)] phone:flex phone:flex-col">

@@ -1,22 +1,22 @@
 // A flow as a video: what Playthrough films when you save one. Only the recording, or it beside the round Compare shows,
 // as the viewer plays it: opening on the flow's name, and closing on its last frame softened, with Playthrough's mark
-// where the name was. The command films it, at a speed it chooses, through what this page offers it.
+// where the name was. The command films it as it plays, through what this page offers it.
 
 import { useEffect, useRef, useState } from "react";
 import type { Flow, Review, Round } from "@playthrough/review";
 import { useReview } from "./api.ts";
 import { HALO, Stage } from "./Stage.tsx";
 import { POSTER } from "./moments.ts";
-import { Playhead, type Speed } from "./playhead.ts";
+import { Playhead } from "./playhead.ts";
 import { useReadings } from "./things.ts";
 
 // Drawn `larger` times its size, as Chromium films a page only at the size of its screen.
-export type Filmed = { round: number; flow: string; beside?: number; speed: Speed; larger: number };
+export type Filmed = { round: number; flow: string; beside?: number; larger: number };
 
 declare global {
   interface Window {
-    // Played once everything on it has arrived; done once its mark has stood a while.
-    video?: { play: () => Promise<void> };
+    // Played once everything on it has arrived; done once its mark has stood a while, `length` seconds of video later.
+    video?: { length: number; play: () => Promise<void> };
   }
 }
 
@@ -32,22 +32,20 @@ export function Video({ id, filmed }: { id: string; filmed: Filmed }) {
   const round = review.rounds.find((round) => round.number === filmed.round);
   const flow = round?.flows.find((flow) => flow.name === filmed.flow);
   const beside = review.rounds.find((round) => round.number === filmed.beside);
-  return round && flow ? <Filming review={review} round={round} flow={flow} beside={beside} speed={filmed.speed} larger={filmed.larger} /> : null;
+  return round && flow ? <Filming review={review} round={round} flow={flow} beside={beside} larger={filmed.larger} /> : null;
 }
 
-function Filming({ review, round, flow, beside, speed, larger }: { review: Review; round: Round; flow: Flow; beside?: Round; speed: Speed; larger: number }) {
+function Filming({ review, round, flow, beside, larger }: { review: Review; round: Round; flow: Flow; beside?: Round; larger: number }) {
   const read = useReadings(review, beside ? [beside, round] : [round]);
   const [playhead] = useState(() => new Playhead([flow], { flow: flow.name, at: POSTER }));
   // Where the mark stands at the end: over the round's own frame, side by side too, where its name stood.
   const [ending, setEnding] = useState<Pick<CSSStyleDeclaration, "left" | "top" | "width" | "height">>();
   const over = useRef<HTMLDivElement>(null);
-  // Real time, from the video's: filmed slower, everything takes longer.
-  const real = (seconds: number) => (seconds * 1000) / speed;
 
   useEffect(() => {
-    while (playhead.now.speed !== speed) playhead.slower();
-    const wait = (seconds: number) => new Promise((done) => setTimeout(done, real(seconds)));
+    const wait = (seconds: number) => new Promise((done) => setTimeout(done, seconds * 1000));
     window.video = {
+      length: NAME - POSTER + flow.length + LAST + MARK,
       play: async () => {
         await wait(NAME);
         playhead.play();
@@ -60,7 +58,7 @@ function Filming({ review, round, flow, beside, speed, larger }: { review: Revie
           const { left, top, width, height } = frame.style;
           const veil = document.createElement("div");
           veil.className = "absolute rounded-lg bg-[rgba(247,247,245,.45)] opacity-0 backdrop-blur-[6px] transition-opacity ease-calm";
-          Object.assign(veil.style, { left, top, width, height, transitionDuration: `${real(0.5)}ms` });
+          Object.assign(veil.style, { left, top, width, height, transitionDuration: "500ms" });
           over.current!.prepend(veil);
           void veil.offsetWidth;
           veil.style.opacity = "1";
@@ -69,7 +67,7 @@ function Filming({ review, round, flow, beside, speed, larger }: { review: Revie
         await wait(MARK);
       },
     };
-  }, [playhead, speed]);
+  }, [playhead]);
 
   return (
     <div className="relative grid origin-top-left grid-rows-[minmax(0,1fr)] bg-ground p-8" style={{ width: `${100 / larger}vw`, height: `${100 / larger}vh`, transform: `scale(${larger})` }}>
@@ -89,7 +87,7 @@ function Filming({ review, round, flow, beside, speed, larger }: { review: Revie
         onGone={() => {}}
       />
       <div ref={over} className="pointer-events-none absolute inset-8 z-30">
-        <div className={`absolute grid place-items-center transition-opacity ease-calm ${ending ? "opacity-100" : "opacity-0"}`} style={{ ...ending, transitionDuration: `${real(0.5)}ms`, transitionDelay: `${real(0.15)}ms` }}>
+        <div className={`absolute grid place-items-center transition-opacity ease-calm ${ending ? "opacity-100" : "opacity-0"}`} style={{ ...ending, transitionDuration: "500ms", transitionDelay: "150ms" }}>
           <span className={`grid justify-items-center gap-3 ${HALO}`}>
             <Mark />
             <span className="font-ui text-[17px] font-medium tracking-[-0.01em] text-[#222222]">playthrough.sh</span>

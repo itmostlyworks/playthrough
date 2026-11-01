@@ -1,5 +1,6 @@
 // A flow saved as a video. The viewer plays it in a browser of its own, alone or beside the round Compare shows, and
-// what it shows is filmed as it plays, then made into an MP4 by that browser's own H.264: nothing more to install.
+// what it shows is filmed as it plays and made into an MP4 as it's filmed, by that browser's own H.264: nothing more to
+// install.
 
 import { chromium, type Page } from "@playwright/test";
 import { mp4 } from "./mp4.ts";
@@ -7,8 +8,6 @@ import { mp4 } from "./mp4.ts";
 export type Filmed = { round: number; flow: string; beside?: number; dark: boolean };
 type Size = { width: number; height: number };
 
-// Filmed at half speed, every moment is caught however busy the page is, and played back at full.
-const SPEED = 0.5;
 // As smooth as a screen shows it.
 const FPS = 60;
 // As wide as most places that show a video play it.
@@ -18,24 +17,31 @@ const ROOM = 32;
 const CAPTION = 26;
 const GAP = 20;
 
-// Chromium films a page at the size of its screen, never its pixels, so the page draws itself this much larger.
-const LARGER = 2;
+// No taller than a phone's video is.
+const TALLEST = 1920;
+// Chromium films a page at the size of its screen, never its pixels, so the page draws itself at the size the video is,
+// never more than twice its own. Drawn no larger than that, it keeps up with every frame as it plays.
+const LARGEST = 2;
+// About how long a frame takes to go into the video here, for what's waiting to go in.
+const PER_FRAME = 0.009;
 
-export async function video(port: number, id: string, filmed: Filmed, shape: Size): Promise<Uint8Array> {
+// As it's made, it says how many seconds it has left, as best it knows by then.
+export async function video(port: number, id: string, filmed: Filmed, shape: Size, onLeft: (seconds: number) => void): Promise<Uint8Array> {
   const beside = filmed.beside !== undefined;
-  const viewport = { width: LARGER * ((beside ? 2 * shape.width + GAP : shape.width) + 2 * ROOM), height: LARGER * (shape.height + CAPTION + 2 * ROOM) };
+  const room = { width: (beside ? 2 * shape.width + GAP : shape.width) + 2 * ROOM, height: shape.height + CAPTION + 2 * ROOM };
+  const larger = Math.min(WIDEST / room.width, TALLEST / (room.height - (beside ? 0 : CAPTION)), LARGEST);
+  const viewport = { width: Math.round(larger * room.width), height: Math.round(larger * room.height) };
   const browser = await chromium.launch();
   try {
     const context = await browser.newContext({ viewport, colorScheme: filmed.dark ? "dark" : "light" });
     const page = await context.newPage();
     const { dark, ...shown } = filmed;
-    await page.goto(`http://localhost:${port}/${encodeURIComponent(id)}?video=${encodeURIComponent(JSON.stringify({ ...shown, speed: SPEED, larger: LARGER }))}`);
+    await page.goto(`http://localhost:${port}/${encodeURIComponent(id)}?video=${encodeURIComponent(JSON.stringify({ ...shown, larger }))}`);
     await page.waitForFunction((frames) => !!window.video && document.querySelectorAll("[data-frame]:not([hidden]) iframe").length >= frames, beside ? 2 : 1);
     await page.evaluate(() => document.fonts.ready);
     await page.waitForTimeout(600);
-    const crop = await page.evaluate(around, { room: LARGER * ROOM, caption: beside ? LARGER * CAPTION : 0 });
-    const filmedFrames = await film(page, viewport);
-    return await encode(await browser.newPage(), filmedFrames, crop);
+    const crop = await page.evaluate(around, { room: larger * ROOM, caption: beside ? larger * CAPTION : 0 });
+    return await film(page, await encoder(await browser.newPage(), crop), onLeft);
   } finally {
     await browser.close();
   }
@@ -51,44 +57,63 @@ function around({ room, caption }: { room: number; caption: number }) {
   return { x: left, y: top, width: right - left, height: bottom - top };
 }
 
-// The page as it plays, frame by frame as the browser draws it, each at the moment it was drawn, in the video's seconds.
-type Frame = { at: number; jpeg: string };
-async function film(page: Page, viewport: Size): Promise<Frame[]> {
-  const browser = await page.context().newCDPSession(page);
-  const frames: Frame[] = [];
-  let start = 0;
-  browser.on("Page.screencastFrame", ({ data, metadata, sessionId }) => {
-    frames.push({ at: (metadata.timestamp ?? Date.now() / 1000) - start, jpeg: data });
-    void browser.send("Page.screencastFrameAck", { sessionId }).catch(() => {});
-  });
-  await browser.send("Page.startScreencast", { format: "jpeg", quality: 92, maxWidth: viewport.width, maxHeight: viewport.height });
-  start = Date.now() / 1000;
-  await page.evaluate(() => window.video!.play());
-  const end = Date.now() / 1000 - start;
-  await browser.send("Page.stopScreencast");
-  // What was drawn before it started playing is its first frame.
-  return [...frames.map((frame) => ({ ...frame, at: Math.max(0, frame.at) * SPEED })), { at: end * SPEED, jpeg: frames.at(-1)!.jpeg }];
-}
-
-// At a steady frame rate, each frame what was last drawn by then, cut to what's filmed and made no wider than a video's
-// usually shown.
-async function encode(page: Page, frames: Frame[], crop: { x: number; y: number; width: number; height: number }): Promise<Uint8Array> {
+// The page that puts the video together, cut to what's filmed and no wider than a video's usually shown.
+type Crop = { x: number; y: number; width: number; height: number };
+async function encoder(page: Page, crop: Crop): Promise<{ page: Page; size: Size }> {
   const k = Math.min(1, WIDEST / crop.width);
   const even = (value: number) => 2 * Math.round(value / 2);
   const size = { width: even(crop.width * k), height: even(crop.height * k) };
   await page.route("https://video.playthrough/", (route) => route.fulfill({ contentType: "text/html", body: "" }));
   await page.goto("https://video.playthrough/");
   await page.evaluate(start, { ...size, fps: FPS, crop });
-  const count = Math.ceil(frames.at(-1)!.at * FPS);
-  let shown: Frame | undefined;
-  for (let i = 0; i < count; i++) {
-    const frame = frames.findLast((frame) => frame.at <= i / FPS) ?? frames[0]!;
-    await page.evaluate(add, { jpeg: frame === shown ? undefined : frame.jpeg, key: i % (2 * FPS) === 0 });
-    shown = frame;
+  return { page, size };
+}
+
+// The page as it plays, put together as it's filmed: each frame of the video is what the browser last drew by its
+// moment, so what stays still is drawn again. How long it has left is the playing still to go, and the frames waiting
+// to go in.
+async function film(page: Page, { page: putting, size }: { page: Page; size: Size }, onLeft: (seconds: number) => void): Promise<Uint8Array> {
+  const length = await page.evaluate(() => window.video!.length);
+  const browser = await page.context().newCDPSession(page);
+  let start = Infinity;
+  let drawn: string | undefined;
+  let last: string | undefined;
+  let made = 0;
+  let done = 0;
+  let going = Promise.resolve();
+  // Every frame of the video up to this moment, in its seconds.
+  const upTo = (at: number) => {
+    for (; made / FPS <= at; made++) {
+      const [jpeg, key] = [drawn === last ? undefined : drawn, made % (2 * FPS) === 0];
+      last = drawn;
+      going = going.then(() => putting.evaluate(add, { jpeg, key })).then(() => void done++);
+    }
+  };
+  let firstDrawn = () => {};
+  browser.on("Page.screencastFrame", ({ data, metadata, sessionId }) => {
+    upTo((metadata.timestamp ?? Date.now() / 1000) - start);
+    drawn = data;
+    firstDrawn();
+    void browser.send("Page.screencastFrameAck", { sessionId }).catch(() => {});
+  });
+  // What's drawn before it plays is its first frame.
+  await new Promise<void>((drew) => {
+    firstDrawn = drew;
+    void browser.send("Page.startScreencast", { format: "jpeg", quality: 92, maxWidth: page.viewportSize()!.width, maxHeight: page.viewportSize()!.height });
+  });
+  start = Date.now() / 1000;
+  const telling = setInterval(() => onLeft(Math.max(0, start + length - Date.now() / 1000) + (made - done) * PER_FRAME), 250);
+  try {
+    await page.evaluate(() => window.video!.play());
+    upTo(Date.now() / 1000 - start);
+    await browser.send("Page.stopScreencast");
+    await going;
+  } finally {
+    clearInterval(telling);
   }
-  const done = await page.evaluate(finish);
+  const finished = await putting.evaluate(finish);
   const bytes = (base64: string) => new Uint8Array(Buffer.from(base64, "base64"));
-  return mp4({ ...size, fps: FPS, avcC: bytes(done.avcC), frames: done.frames.map((frame) => ({ data: bytes(frame.data), key: frame.key })) });
+  return mp4({ ...size, fps: FPS, avcC: bytes(finished.avcC), frames: finished.frames.map((frame) => ({ data: bytes(frame.data), key: frame.key })) });
 }
 
 // In the page that encodes, each run there on its own: the frames go in one at a time, the last one drawn again where
