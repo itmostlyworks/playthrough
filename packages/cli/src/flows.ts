@@ -9,6 +9,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { list, quote, Refused, type Did, type Flow } from "@playthrough/review";
 import { changesByThemselves, type Recorded as Compared } from "./compare.ts";
+import { HERE } from "./pictures.ts";
 import { keepRunning } from "./app.ts";
 import { glimpsesOf, readingsOf, type Failed, type Recorded, type Written } from "./reporter.ts";
 import { repo, type App, type Repo } from "./repo.ts";
@@ -173,7 +174,13 @@ export async function runFlows(
     const unsteady = byThemselves.filter((change) => change.seen.some((place) => place.flow === flow.name));
     if (!unsteady.length) continue;
     flow.unsteady = [...new Set(unsteady.flatMap((change) => change.pieces))];
-    console.log(`\nIn ${quote(flow.name)}, this changes by itself, so it's left out of every comparison, in every flow:\n${unsteady.map((change) => `  ${change.words}`).join("\n")}\nIf it can be made the same each time, in playthrough/setup.ts, do that and record again: a real change to it won't be seen.`);
+    // A part of a picture known only by where it is is left out only here (compare.ts).
+    const here = unsteady.filter((change) => change.pieces.every((piece) => piece.startsWith(HERE)));
+    const everywhere = unsteady.filter((change) => !here.includes(change));
+    const listed = (changes: typeof unsteady) => changes.map((change) => `  ${change.words}`).join("\n");
+    if (everywhere.length) console.log(`\nIn ${quote(flow.name)}, this changes by itself, so it's left out of every comparison, in every flow:\n${listed(everywhere)}`);
+    if (here.length) console.log(`\nIn ${quote(flow.name)}, this part of a picture changes by itself, so it's left out of this flow's comparisons, where it's known only by its place:\n${listed(here)}`);
+    console.log("If it can be made the same each time, in playthrough/setup.ts, do that and record again: a real change to it won't be seen.");
   }
   return once;
 }
