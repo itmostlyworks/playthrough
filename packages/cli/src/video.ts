@@ -9,7 +9,8 @@ type Size = { width: number; height: number };
 
 // Filmed at half speed, every moment is caught however busy the page is, and played back at full.
 const SPEED = 0.5;
-const FPS = 30;
+// As smooth as a screen shows it.
+const FPS = 60;
 // As wide as most places that show a video play it.
 const WIDEST = 1920;
 // As the viewer lays the recordings out: room around them, the line over each, and the gap between two.
