@@ -138,8 +138,9 @@ export function problemsAddingToBefore(review: Review, flows: Flow[], cantStart:
 }
 
 // Before with these flows in it, in place of what it had of them: a flow tried again replaces how far it went before.
-export function withInBefore(before: Round, flows: Flow[], cantStart: string[]): Round {
-  const names = new Set([...flows.map((flow) => flow.name), ...cantStart]);
+// One that's gone since, tried again, goes from Before too.
+export function withInBefore(before: Round, flows: Flow[], cantStart: string[], gone: string[] = []): Round {
+  const names = new Set([...flows.map((flow) => flow.name), ...cantStart, ...gone]);
   return {
     ...before,
     flows: [...before.flows.filter((flow) => !names.has(flow.name)), ...flows],

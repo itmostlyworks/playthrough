@@ -6,7 +6,7 @@ import { existsSync } from "node:fs";
 import { list, quote, Refused } from "@playthrough/review";
 import { agent } from "./agent.ts";
 import { cantStart, howFar, keepBefore, recordBeforeAgain, refuseIfBroken, tryBeforeAgain } from "./before.ts";
-import { howToWriteFlows, makeFlowsFolder, runFlows } from "./flows.ts";
+import { called, howToWriteFlows, makeFlowsFolder, runFlows } from "./flows.ts";
 import type { Repo } from "./repo.ts";
 import { setupIn } from "./setup.ts";
 
@@ -50,7 +50,7 @@ Then run playthrough start ${id} again. It records Before: each flow on the app 
   const flows = recorded.map(({ flow }) => flow);
   await repo.reviews.saveRound(id, { number: 0, by: agent(), flows, replies: [], accounts: {}, cantStart: cantStart(recorded, failed), ...(commit && { commit }) });
   await repo.reviews.finish(id, 0);
-  console.log(`\nRecorded Before: ${list(flows.map((flow) => quote(flow.name)))}.`);
+  console.log(`\nRecorded Before: ${called(flows.map((flow) => flow.name))}.`);
   for (const line of howFar(repo, id, recorded, failed, "the app as it is")) console.log(line);
   if (!commit) console.log(`This folder isn't in git, so Before isn't kept as a commit, and a flow added later can't be recorded on it.`);
   // What a run leaves in the app, said once it's seen: a flow saving something, with nothing to give it back.

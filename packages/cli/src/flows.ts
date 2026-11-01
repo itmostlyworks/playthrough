@@ -64,6 +64,9 @@ export async function makeFlowsFolder(repo: Repo, id: string) {
   });
 }
 
+// Flows named in a sentence: by name while they're few, and past three, how many, as each has a line of its own by it.
+export const called = (names: string[]) => (names.length > 3 ? `${names.length} flows` : list(names.map(quote)));
+
 export const isFlow = (name: string) => /\.[cm]?[jt]s$/.test(name);
 
 export function howToWriteFlows(repo: Repo, id: string): string {
@@ -117,7 +120,7 @@ export async function runFlows(
 
   const last = round > 0 ? await failedLastTime(repo, id) : [];
   if (last.length) {
-    console.log(`Running ${list(last.map(quote))} first: ${last.length > 1 ? "they" : "it"} failed last time…`);
+    console.log(`Running ${called(last)} first: ${last.length > 1 ? "they" : "it"} failed last time…`);
     const { failed } = await run(last, repo.failed(id));
     await keepFailed(repo, id, round, failed);
     const [one] = failed;
@@ -130,7 +133,7 @@ export async function runFlows(
 
   console.log(
     later
-      ? `Recording ${list(later.flows.map(quote))} on Before, the app as it was…`
+      ? `Recording ${called(later.flows)} on Before, the app as it was…`
       : round === 0
         ? `Recording Before: each flow of ${id} on the app as it is…`
         : `Recording round ${round} of ${id}…`,
@@ -141,7 +144,7 @@ export async function runFlows(
   // A round with a flow that failed isn't recorded, so there's nothing to record twice.
   if (!again.length || (round > 0 && once.failed.length)) return once;
 
-  console.log(`\nRecording ${list(again.map(({ flow }) => quote(flow.name)))} again, to see what changes by itself…`);
+  console.log(`\nRecording ${called(again.map(({ flow }) => flow.name))} again, to see what changes by itself…`);
   // A flow that stopped the first time, as on Before, stops there again at once, rather than waiting as long again: what
   // it recorded up to there is what's compared. Playwright empties the folder it writes a failed flow's page to, so then
   // the second run's pages aren't kept, and the first run's stay.

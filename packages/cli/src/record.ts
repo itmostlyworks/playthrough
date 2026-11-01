@@ -8,7 +8,7 @@ import { lastSeen, list, LONGEST_LINE, notesToAnswer, problemsFinishing, quote, 
 import { agent, unnamed } from "./agent.ts";
 import { recordBeforeAgain, recordOnBefore } from "./before.ts";
 import { compareWithEarlier } from "./compare.ts";
-import { failedAt, runFlows, whereItStopped } from "./flows.ts";
+import { called, failedAt, runFlows, whereItStopped } from "./flows.ts";
 import type { Repo } from "./repo.ts";
 import { readingsOn } from "./reporter.ts";
 import { saidOf, walkForks, type WalkedNote } from "./walk.ts";
@@ -55,7 +55,7 @@ export async function record(repo: Repo, id: string) {
   const unsaid = flows.filter((flow) => !flow.line && !previous?.flows.some((kept) => kept.name === flow.name));
   const file = repo.show(repo.round(id, number));
   const left = problemsFinishing(await repo.reviews.get(id), number);
-  console.log(`\nRecorded round ${number}: ${list(flows.map((flow) => `${quote(flow.name)} (${Math.round(flow.length)}s)`))}.`);
+  console.log(`\nRecorded round ${number}: ${flows.length > 3 ? called(flows.map((flow) => flow.name)) : list(flows.map((flow) => `${quote(flow.name)} (${Math.round(flow.length)}s)`))}.`);
   const since = comparisons.find((comparison) => comparison.since === number - 1);
   if (since) console.log(`\n${changed(since.changes.length, number - 1)}`);
   // Compared at rest, an answer that moves shows as no change at all: its note can play the step it's seen in instead.

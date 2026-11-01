@@ -12,7 +12,7 @@ import { constants, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { list, quote, Refused, type Flow } from "@playthrough/review";
 import { serves, stopApp } from "./app.ts";
-import { failedAt, runFlows, whereItStopped } from "./flows.ts";
+import { called, failedAt, runFlows, whereItStopped } from "./flows.ts";
 import type { Failed } from "./reporter.ts";
 import type { Repo } from "./repo.ts";
 import { trySetup } from "./try-setup.ts";
@@ -77,7 +77,7 @@ export async function recordOnBefore(repo: Repo, id: string, number: number, flo
   const later = flows.filter((name) => !before.flows.some((flow) => flow.name === name) && !before.cantStart?.includes(name));
   if (!later.length) return;
   const [are, they, have] = later.length > 1 ? ["are", "they're", "have"] : ["is", "it's", "has"];
-  const named = list(later.map(quote));
+  const named = called(later);
   await onBefore(repo, id, later, `${named} ${are} new, so ${they} recorded on Before too`, `Round ${number} wasn't recorded`, "Record again.", (why) => `${named} ${have} no Before: ${why}.`);
 }
 
@@ -85,7 +85,7 @@ export async function recordOnBefore(repo: Repo, id: string, number: number, flo
 // that stopped for its own mistake, not the app's, goes as far as the app as it was can take it once it's fixed.
 export async function tryBeforeAgain(repo: Repo, id: string, flows: string[]) {
   const [them, they] = flows.length > 1 ? ["them", "they"] : ["it", "it"];
-  const named = list(flows.map(quote));
+  const named = called(flows);
   await onBefore(repo, id, flows, `Before cut ${named} short, so ${they} ${flows.length > 1 ? "are" : "is"} tried on it again, in place of what it has of ${them}`, "Before wasn't recorded again", "Run this again.", (why) => `Before can't try ${named} again: ${why}.`);
 }
 
@@ -146,7 +146,10 @@ async function onBefore(repo: Repo, id: string, flows: string[], doing: string, 
   }
   refuseIfBroken(ran.failed, unrecorded, again);
   const commit = whole ? keptWithOursNow(repo, id, before.commit!) : undefined;
-  await repo.reviews.addToBefore(id, { flows: ran.recorded.map(({ flow }) => flow), cantStart: cantStart(ran.recorded, ran.failed), files: ran.recorded.flatMap(({ files }) => files), ...(commit && { commit }) });
+  // A flow that neither ran nor failed isn't one any more: Before lets it go, rather than trying it again every time.
+  const gone = later.filter((name) => !ran.recorded.some(({ flow }) => flow.name === name) && !ran.failed.some(({ flow }) => flow === name));
+  await repo.reviews.addToBefore(id, { flows: ran.recorded.map(({ flow }) => flow), cantStart: cantStart(ran.recorded, ran.failed), files: ran.recorded.flatMap(({ files }) => files), ...(commit && { commit }), gone });
+  if (gone.length) console.log(`\n${gone.length > 3 ? `${gone.length} of them` : list(gone.map(quote))} ${gone.length > 1 ? "aren't flows" : "isn't a flow"} any more, so Before lets ${gone.length > 1 ? "them" : "it"} go.`);
   for (const line of howFar(repo, id, ran.recorded, ran.failed, "the app as it was")) console.log(line);
   return true;
 }
