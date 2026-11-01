@@ -150,7 +150,11 @@ export function differences(then: Reading, now: Reading): { differences: Differe
           (holderOf(now, b) && goneWords.get(holderKey(now, b)) === newWords.get(holderKey(now, b))
             ? take((a) => a.role === "text" && holderKey(then, a) === holderKey(now, b))
             : undefined) ??
-          take((a) => a.role === "text" && holderKey(then, a) === holderKey(now, b) && !!bare(b.words) && bare(a.words) === bare(b.words)));
+          take((a) => a.role === "text" && holderKey(then, a) === holderKey(now, b) && !!bare(b.words) && bare(a.words) === bare(b.words)) ??
+          // Or words that kept most of what they said, in order, with some added or taken away: the close's paragraph
+          // with a line about the video added, moved down the page by a section above it, is that paragraph reworded,
+          // and what reads differently is the line, not a paragraph gone and another new.
+          take((a) => a.role === "text" && kept(a.words, b.words)));
     if (!a) {
       found.push({ what: "new", now: b });
       continue;
@@ -272,6 +276,17 @@ function gained(reading: Reading, control: Thing, was: string): boolean {
 // holds another. Kan's list is one you drag, its name field, its + and its cards inside it, called by all their words.
 const CONTROL = /^(button|link|textbox|searchbox|combobox|checkbox|radio|switch|slider|tab|menuitem|option)$/;
 export const holdsControls = (reading: Pick<Reading, "things">, thing: Thing) => reading.things.some((inside) => parentOf(reading, inside) === thing && CONTROL.test(inside.role));
+// Whether newer words keep most of what older ones said: their start and end, as they were, are at least two thirds of
+// the older words, which are a sentence or more. A paragraph rewritten keeps too little of itself to be the same one.
+function kept(a: string, b: string): boolean {
+  if (a.length < 24 || a === b) return false;
+  let start = 0;
+  while (start < a.length && start < b.length && a[start] === b[start]) start++;
+  let end = 0;
+  while (end < a.length - start && end < b.length - start && a.at(-1 - end) === b.at(-1 - end)) end++;
+  return (start + end) / a.length >= 2 / 3;
+}
+
 const mostlyWhereItWas =(a: Thing, b: Thing) => HOLDS.test(b.role) && overlap(a, b) > 0.5;
 const holdsTheSameWords = (a: Thing, b: Thing) => /^(box|menu)$/.test(b.role) && !!a.wordsInside && bag(a) === bag(b);
 const bag = (thing: Thing) => (thing.wordsInside ?? "").split(" ").sort().join(" ");

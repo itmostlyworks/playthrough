@@ -49,7 +49,7 @@ export function changesAt(then: Reading, now: Reading, unsteady = new Set<string
   const told = [
     ...items.reordered,
     ...reordered,
-    ...swappedOrMoved(moment, loose),
+    ...swappedOrMoved(moment, madeRoom(loose, others, caused, along)),
     ...causesOfShifts(moment, shifts, widened, others, caused, along),
   ];
   for (const difference of others) if (!caused.has(difference)) told.push(tell(moment, difference, along.get(difference)));
@@ -264,6 +264,20 @@ function layoutShifts(moves: Move[], carried: Map<Difference, number>): { shifts
   }
   const counted = (moves: Move[]) => moves.reduce((count, move) => count + 1 + (carried.get(move) ?? 0), 0);
   return { shifts: all.filter((shift) => counted(shift.moves) >= MANY), loose: all.filter((shift) => counted(shift.moves) < MANY).flatMap((shift) => shift.moves) };
+}
+
+// One thing moved straight up or down on its own, by something above it that took room or gave it, is part of that
+// change, as many moved alike are: the close's heading, pushed down by a new section, isn't a change of its own, and on
+// the newer round its outline showed nothing. Two that went opposite ways may have swapped, and stay.
+function madeRoom(loose: Move[], others: Difference[], caused: Set<Difference>, along: Map<Difference, With>): Move[] {
+  const candidates = others.filter((difference) => !caused.has(difference));
+  return loose.filter((move) => {
+    const by = movedBy(move);
+    if (!near(by.x, 0) || loose.some((other) => Math.sign(movedBy(other).y) === -Math.sign(by.y))) return true;
+    const cause = causeOf(spanOf([move.now]), { vertical: true, by: by.y, moving: true }, candidates);
+    if (cause) addAlong(along, cause, "pushed", [move.now], wayOf(0, by.y));
+    return !cause;
+  });
 }
 
 // Two things that crossed each other in what holds them, moving opposite ways, have swapped places; each move is taken

@@ -176,6 +176,27 @@ describe("What changed at a moment", () => {
     assert.deepEqual(changed, ["“Alder Dental” now says “Alder Dental (paid)”, in 6 places"]);
   });
 
+  test("words that kept most of what they said, with a sentence added, are those words reworded, marked by what reads differently, wherever they moved; and what only moved down for something new above it is part of that (the site's close)", async () => {
+    const close = (more: string) => `<h2>Try it on your agent's next change.</h2><p>Open source, on your machine, with any web app. <span style="display: block">It records with Playwright.</span>${more}</p><button>Copy</button>`;
+    const then = `<h1>Playthrough</h1>${close("")}`;
+    const now = `<h1>Playthrough</h1><section style="height: 600px"><h2>Everything your agents built, ready to watch.</h2></section>${close('<span style="display: block">Any flow downloads as a video.</span>')}`;
+    const found = await changes(then, now);
+    assert.deepEqual(
+      found.map((change) => [change.words, change.reworded]),
+      [
+        ["Everything your agents built, ready to watch. heading is new, and moved the Try it on your agent's next change. heading down", undefined],
+        ["“…with Playwright.” now says “…with Playwright. Any flow downloads as a video.”, and moved the Copy button down", "Any flow downloads as a video."],
+      ],
+    );
+  });
+
+  test("a paragraph rewritten, keeping too little of what it said, is one gone and another new", async () => {
+    const then = `<h1>Playthrough</h1><p>Open source, on your machine, with any web app and any agent.</p>`;
+    const now = `<h1>Playthrough</h1><section style="height: 300px"></section><p>Free for teams of three, with every review kept in your repository.</p>`;
+    const found = await changes(then, now);
+    assert.deepEqual(found.map((change) => change.words), ["“Open source, on your machine, with any web app and any agen…” is gone", "“Free for teams of three, with every review kept in your rep…” is new"]);
+  });
+
   test("an item whose words changed in more than one piece says what it says now, and the same change in each item is one change (the polls app's shares)", async () => {
     const votes = [["Apples", 12, 57], ["Bananas", 6, 29], ["Cherries", 3, 14]] as const;
     const then = `<h1>Favourite fruit?</h1><ul>${votes.map(([name, count]) => `<li>${name} -- ${count} votes</li>`).join("")}</ul><a href="/vote">Vote again?</a>`;
@@ -183,7 +204,8 @@ describe("What changed at a moment", () => {
       `<li><div style="display: flex; justify-content: space-between"><span>${name}</span><span>${share}%</span></div><div style="background: #36c; height: 8px; width: ${share}%"></div><small>${count} votes</small></li>`;
     const now = `<h1>Favourite fruit?</h1><ul style="width: 512px">${votes.map(share).join("")}</ul><a href="/vote">Vote again?</a>`;
     const found = await changes(then, now);
-    assert.deepEqual(found.map((change) => change.words), ["“Apples -- 12 votes” now says “Apples 57% 12 votes”, in 3 places", "Vote again? link moved down"]);
+    // Vote again? moved down only as the items above it grew: that belongs to them.
+    assert.deepEqual(found.map((change) => change.words), ["“Apples -- 12 votes” now says “Apples 57% 12 votes”, in 3 places"]);
     assert.deepEqual([found[0]!.element?.role, found[0]!.alike?.length], ["listitem", 2], "it's on the first item, and the others are changed alike");
   });
 
