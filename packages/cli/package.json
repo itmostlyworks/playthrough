@@ -1,7 +1,22 @@
 {
   "name": "playthrough",
   "version": "0.4.1",
-  "description": "Review an AI agent's work on a web app by watching recordings of it.",
+  "description": "Review what your coding agent built in your web app by watching recordings of it.",
+  "keywords": [
+    "coding-agent",
+    "claude-code",
+    "cursor",
+    "codex",
+    "ai-agents",
+    "code-review",
+    "ui-review",
+    "playwright",
+    "recording",
+    "human-in-the-loop",
+    "developer-tools",
+    "web-app"
+  ],
+  "homepage": "https://playthrough.sh",
   "private": true,
   "type": "module",
   "license": "Apache-2.0",
