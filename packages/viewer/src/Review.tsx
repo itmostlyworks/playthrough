@@ -1167,9 +1167,19 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   const settledNotes = [...settled, ...notes].filter((note) => note.state === "settled").length;
   const acceptedAfter = `Accepted${settledNotes ? ` · ${settledNotes} ${settledNotes === 1 ? "note" : "notes"} settled` : ""}`;
 
+  // The button you last clicked, keeping focus: Enter on it is the step's, as Space is, until Tab takes you elsewhere.
+  const clicked = useRef<Element | null>(null);
   useEffect(() => {
     const writingHere = (event: KeyboardEvent) => event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement;
+    // Enter presses a button you came to by keyboard; one you just clicked, like play, keeps no hold on it, so at a flow's
+    // end it's still Looks good.
+    const pressing = (event: KeyboardEvent, buttons: string) => {
+      const button = (event.target as Element).closest?.(buttons);
+      return !!button && button !== clicked.current;
+    };
+    const pointed = (event: PointerEvent) => (clicked.current = (event.target as Element).closest?.("button, [role=button], [role=slider]") ?? null);
     const down = (event: KeyboardEvent) => {
+      if (event.key === "Tab") clicked.current = null;
       // What can't be undone takes Ctrl+Enter, never a plain Enter in passing, and never while the app is yours.
       if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !writingHere(event) && !live?.shown && acting?.kind === "go" && acting.final) {
         event.preventDefault();
@@ -1184,7 +1194,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
         if (event.key === " ") {
           event.preventDefault();
           leave(gridRoom.current?.querySelector<HTMLElement>("[data-picture]")?.dataset.picture ?? playhead.flow.name, true);
-        } else if (event.key === "Enter" && !(event.target as Element).closest?.("button") && gridStep?.kind === "go" && !gridStep.final) {
+        } else if (event.key === "Enter" && !pressing(event, "button") && gridStep?.kind === "go" && !gridStep.final) {
           event.preventDefault();
           gridStep.take();
         }
@@ -1203,7 +1213,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
         through(event.key === "ArrowDown" ? 1 : -1);
       } else if (event.key.toLowerCase() === "h") {
         if (!event.repeat) bareKey(true);
-      } else if (event.key === "Enter" && !(event.target as Element).closest?.("button, [role=button], [role=slider]")) {
+      } else if (event.key === "Enter" && !pressing(event, "button, [role=button], [role=slider]")) {
         if (asks) {
           event.preventDefault();
           judge(openNote, { note: openNote.id, verdict: "looks good" });
@@ -1259,7 +1269,9 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     addEventListener("keydown", down);
     addEventListener("keyup", up);
     addEventListener("blur", away);
+    addEventListener("pointerdown", pointed, true);
     return () => {
+      removeEventListener("pointerdown", pointed, true);
       removeEventListener("keydown", down);
       removeEventListener("keyup", up);
       removeEventListener("blur", away);
