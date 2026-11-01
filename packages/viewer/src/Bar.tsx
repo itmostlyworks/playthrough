@@ -20,8 +20,6 @@ type Props = {
   onNote?: () => void;
   onTakeOver: () => void;
   onBack: () => void;
-  // The flow as a video, as it's shown: alone, or beside the round Compare shows. Making it takes a while.
-  video: { making: boolean; onSave: () => void };
   flow: string;
   notes: Said[];
   // The flow as a whole, last: its square, how many notes are on the whole of it, and what its end says.
@@ -110,11 +108,6 @@ export function Bar(props: Props) {
         ) : (
           <button className={item} disabled={!props.latest} aria-pressed={props.live === "waiting"} onClick={props.onTakeOver}>
             {props.live === "waiting" ? "Taking over…" : "Take over"} <Key>T</Key>
-          </button>
-        )}
-        {!inApp && (
-          <button className={item} aria-pressed={props.video.making} onClick={props.video.onSave}>
-            {props.video.making ? "Making video…" : "Save as video"} <Key>V</Key>
           </button>
         )}
         <span className="my-1.5 w-px bg-line" />

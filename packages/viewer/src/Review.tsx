@@ -6,7 +6,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { elementOf } from "@playthrough/page";
 import { inStep, lastLooked, newId, notesToAnswer, readyToAccept, time, waitingForTheAgent, type Did, type Element as Thing, type Flow, type Note, type Point, type Place, type Review, type Round, type Send, type Verdict } from "@playthrough/review";
-import { accept, keepBranch, picture, recording, saveVideo, send, useReview, useYou } from "./api.ts";
+import { accept, downloadVideo, keepBranch, picture, recording, send, useReview, useYou } from "./api.ts";
 import { Bar } from "./Bar.tsx";
 import { Beside, clickedAt } from "./Beside.tsx";
 import { HOLD } from "./Card.tsx";
@@ -51,16 +51,42 @@ export function ReviewPage({ id, flow }: { id: string; flow?: string }) {
   return <Reviewing review={seen(kept)} you={you} flow={flow} />;
 }
 
-export function Page({ title, children }: { title?: string; children?: ReactNode }) {
+// What's done with the review as a whole sits at the right of the line its title is on.
+export function Page({ title, actions, children }: { title?: string; actions?: ReactNode; children?: ReactNode }) {
   return (
     <div className="grid h-dvh grid-rows-[auto_minmax(0,1fr)] overflow-hidden px-5 phone:px-4">
       <header className="flex min-h-[46px] min-w-0 items-center gap-2 py-2.5 text-soft">
         <a href="/" className="font-semibold text-fg">Playthrough</a>
         {title && <span className="text-faint">/</span>}
         {title && <span className="truncate">{title}</span>}
+        {/* Its words end on the page's edge, as the name at the start begins on it. */}
+        {actions && <div className="-my-1.5 -mr-2.5 ml-auto flex flex-none items-center">{actions}</div>}
       </header>
       {children}
     </div>
+  );
+}
+
+// The flow you're in, as it's shown, as a video your browser downloads: there in a flow, gone on every flow at once, and
+// resting while the app is yours. Making it takes a while, and says so in the same room.
+function DownloadVideo({ making, shown, resting, onDownload }: { making: boolean; shown: boolean; resting: boolean; onDownload: () => void }) {
+  return (
+    <button
+      className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 whitespace-nowrap text-soft transition-[background-color,color,opacity] duration-150 ease-calm enabled:hover:bg-hover enabled:hover:text-fg disabled:cursor-default aria-busy:text-fg ${shown ? "" : "invisible opacity-0"} ${resting ? "opacity-32" : ""}`}
+      disabled={!shown || resting}
+      aria-busy={making}
+      title="The flow as it's shown, as an MP4 (V)"
+      onClick={onDownload}
+    >
+      <svg viewBox="0 0 16 16" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M8 2.5v7.5M4.75 7l3.25 3.25L11.25 7M3 13h10" />
+      </svg>
+      {/* Both words take the same room, so nothing moves while it's made. */}
+      <span className="grid">
+        <span className={`col-start-1 row-start-1 ${making ? "invisible" : ""}`}>Download video</span>
+        <span className={`col-start-1 row-start-1 ${making ? "" : "invisible"}`}>Making video…</span>
+      </span>
+    </button>
   );
 }
 
@@ -1049,12 +1075,12 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   const zoomed = comparing ? !sideFit : actual;
   // The flow as a video, as it's shown: alone, or beside the round Compare shows.
   const [making, setMaking] = useState(false);
-  const saveAsVideo = () => {
-    if (making || !flow) return;
+  const download = () => {
+    if (making || !flow || onGrid) return;
     setMaking(true);
     const name = `${flow.name} · ${earlier ? `${roundName(earlier.number)} and ${roundName(round.number)}` : roundName(round.number)}`;
     const dark = matchMedia("(prefers-color-scheme: dark)").matches;
-    void saveVideo(review.id, { round: round.number, flow: flow.name, beside: earlier?.number, dark }, name).then((problems) => {
+    void downloadVideo(review.id, { round: round.number, flow: flow.name, beside: earlier?.number, dark }, name).then((problems) => {
       setMaking(false);
       if (problems.length) console.warn(problems.join(" "));
     });
@@ -1272,7 +1298,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
         takeOver();
       } else if (event.key.toLowerCase() === "v" && !event.repeat && !live?.shown) {
         event.preventDefault();
-        saveAsVideo();
+        download();
       } else if (event.key === "Escape" && live?.shown) {
         letGo();
       } else if (event.key === "Escape" && (peek || comparing)) {
@@ -1398,7 +1424,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     onAgain: (flow) => watchFrom(flow.name),
   };
   return (
-    <Page title={review.title}>
+    <Page title={review.title} actions={<DownloadVideo making={making} shown={!onGrid && !!flow} resting={inApp} onDownload={download} />}>
       {/* In the app, the recording's pins are under it: a card there sits by the app's own pin, with nothing drawn to it. */}
       <Wire id={grownOpen?.id ?? openNote?.id ?? chosen?.id} colour={openNote ? ink(openNote) : grownOpen ? "var(--amber)" : "var(--soft)"} hidden={!!bare || peeking || inApp} faded={playingNow} />
       <main className="relative grid min-h-0 grid-cols-[minmax(0,1fr)] phone:flex phone:flex-col">
@@ -1455,7 +1481,6 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
               onNote={readOnly ? undefined : pressNote}
               onTakeOver={takeOver}
               onBack={() => letGo()}
-              video={{ making, onSave: saveAsVideo }}
               flow={watching ?? ""}
               notes={notes
                 .filter((note) => note.on?.flow === watching && note.on.at !== undefined && note.turns[0]?.words)

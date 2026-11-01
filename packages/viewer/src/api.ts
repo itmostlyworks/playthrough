@@ -97,9 +97,9 @@ export async function accept(review: string, by: string): Promise<string[]> {
   return post(`/api/reviews/${review}/accept`, { by });
 }
 
-// A flow as a video, alone or beside the round Compare shows, saved where your browser saves files; what's wrong in
-// plain words, or nothing once it's saved.
-export async function saveVideo(review: string, filmed: { round: number; flow: string; beside?: number; dark: boolean }, name: string): Promise<string[]> {
+// A flow as a video, alone or beside the round Compare shows, downloaded by your browser; what's wrong in
+// plain words, or nothing once it's downloaded.
+export async function downloadVideo(review: string, filmed: { round: number; flow: string; beside?: number; dark: boolean }, name: string): Promise<string[]> {
   try {
     const answer = await fetch(`/api/reviews/${review}/video`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(filmed) });
     if (!answer.ok) return (await answer.json()).problems ?? [`It wasn't made (${answer.status}).`];
