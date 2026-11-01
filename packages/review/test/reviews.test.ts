@@ -182,6 +182,15 @@ for (const [kept, storage] of storages) {
       await reviews.finish("invoice-export", 2);
     });
 
+    test("a change only the pictures show asks nothing of the agent: it's the person's to look at", async () => {
+      const reviews = await recorded();
+      await reviews.saveRound("invoice-export", round(2));
+      const badge = { ...change("c3", "Robin Park looks different"), pictureOnly: true as const };
+      await reviews.saveComparison("invoice-export", { round: 2, since: 0, changes: [badge] });
+      await reviews.saveComparison("invoice-export", { round: 2, since: 1, changes: [badge] });
+      await reviews.finish("invoice-export", 2);
+    });
+
     test("a round compared at all is compared with every round before it before it's handed over", async () => {
       const reviews = await recorded();
       await reviews.saveRound("invoice-export", round(2));

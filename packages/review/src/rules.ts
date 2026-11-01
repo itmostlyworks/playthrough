@@ -191,9 +191,12 @@ export function problemsWithComparison(review: Review, comparison: Comparison): 
 }
 
 // A round is handed over once its file is in the right shape, every note it took is answered, it's compared with every
-// round before it, and the agent has said why each change new since the round before is there.
+// round before it, and the agent has said why each change new since the round before that Playthrough can name is there.
 // The most a flow's line can say.
 export const LONGEST_LINE = 140;
+
+// The changes the agent says why of: those Playthrough can name. One only the pictures show is the person's to look at.
+export const toAccountFor = (comparison?: Comparison) => (comparison?.changes ?? []).filter((change) => !change.pictureOnly);
 
 export function problemsFinishing(review: Review, number: number): string[] {
   if (review.accepted) return ["This review is accepted, so nothing more can be recorded."];
@@ -227,7 +230,7 @@ export function problemsFinishing(review: Review, number: number): string[] {
     for (const earlier of review.rounds.filter((earlier) => earlier.number < number && !comparisons.some((comparison) => comparison.since === earlier.number)))
       problems.push(`${at} isn't compared with ${roundName(earlier.number)} yet, so it can't be handed over. Record it again.`);
   const changes = new Map(comparisons.flatMap((comparison) => comparison.changes.map((change) => [change.id, change])));
-  for (const change of comparisons.find((comparison) => comparison.since === number - 1)?.changes ?? [])
+  for (const change of toAccountFor(comparisons.find((comparison) => comparison.since === number - 1)))
     if (!round.accounts[change.id])
       problems.push(`${at}: say why ${change.id} is there (${change.words}${where(change)}): its line, the id of the note it was made for, or why nothing really changed.`);
   for (const [id, account] of Object.entries(round.accounts)) {

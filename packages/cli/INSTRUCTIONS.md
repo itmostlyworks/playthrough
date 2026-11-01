@@ -21,7 +21,8 @@ THE LOOP
 4. playthrough record <review> records the round, and each flow new to the review on Before too, doing what the round
    does as far as the app as it was can, then compares the round with every round before it. In the round's round.json,
    say why each change since the round before is there, under "accounts" by its id: { "line": "<why, in your words>" },
-   { "note": "<the id of the note it was made for>" }, or { "notReal": "<why nothing really changed>" }.
+   { "note": "<the id of the note it was made for>" }, or { "notReal": "<why nothing really changed>" }. What only the
+   pictures show is the person's to look at, and asks nothing of you, unless you made it for a note: then say so.
 5. playthrough wait <review> hands the round over and waits for the notes, which can take hours: run it in the
    background, so you're told when it ends. Each note comes with a picture of what it's on, or what the person did in
    the app. Change the app, record the next round, and answer each note in its round.json, under "replies", in its

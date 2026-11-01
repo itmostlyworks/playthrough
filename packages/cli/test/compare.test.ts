@@ -96,6 +96,14 @@ describe("A round compared with one before it", { timeout: 60_000 }, () => {
     );
   });
 
+  test("a change only the pictures show, with nothing read there changed, says so: it's the person's to look at, and one Playthrough can name is the agent's to say why of", async () => {
+    const shape = (colour: string) => `<div style="width: 300px; height: 120px; background: ${colour}"></div>`;
+    const then = await round(0, { "Look at the chart": [["Open the chart", `${shape("#c33")}${invoices}`]] });
+    const now = await round(1, { "Look at the chart": [["Open the chart", `${shape("#33c")}${withExport}`]] });
+    const { changes } = await compare(comparing, then, now);
+    assert.deepEqual(changes.map((change) => [change.words, !!change.pictureOnly]).sort(), [["Export button is new", false], ["Something near the Invoices heading looks different", true]]);
+  });
+
   test("what changes by itself is left out in every flow, but a part of a picture known only by where it is only in its own: elsewhere the same place is another thing (Kan's invite page)", async () => {
     const shape = (colour: string) => `<h1>Invoices</h1><div style="width: 300px; height: 120px; background: ${colour}"></div>`;
     const first = await round(0, { "Look at the chart": [["Open the chart", shape("#c33")]] });

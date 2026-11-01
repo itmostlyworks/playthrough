@@ -106,6 +106,10 @@ export const Change = z.strictObject({
     .array(Place, { error: "needs where it's seen, a list" })
     .min(1, { error: "needs where it's seen: each flow, at its moment there" })
     .describe("Each flow it's seen in, at its moment there; a flow that's gone, with no moment"),
+  pictureOnly: z
+    .literal(true)
+    .optional()
+    .describe("Seen only in the pictures, with nothing read there changed: shown to the person, who can see what it is, and not put to the agent, who can't see more of it than Playthrough did"),
 });
 
 // A round compared with one before it. Against Before it's the work so far; against the round before, what the agent

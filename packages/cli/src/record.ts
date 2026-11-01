@@ -5,7 +5,7 @@
 
 import { existsSync } from "node:fs";
 import { placeIn } from "@playthrough/page";
-import { inOrderJoined, lastSeen, list, LONGEST_LINE, notesToAnswer, problemsFinishing, quote, Refused, roundInProgress, type Flow, type Reply, type Review } from "@playthrough/review";
+import { inOrderJoined, lastSeen, list, LONGEST_LINE, notesToAnswer, problemsFinishing, quote, Refused, roundInProgress, toAccountFor, type Flow, type Reply, type Review } from "@playthrough/review";
 import { agent, unnamed } from "./agent.ts";
 import { handedOver, recordOnBefore } from "./before.ts";
 import { compareWithEarlier } from "./compare.ts";
@@ -61,14 +61,21 @@ export async function record(repo: Repo, id: string) {
   const left = problemsFinishing(await repo.reviews.get(id), number);
   console.log(`\nRecorded round ${number}: ${flows.length > 3 ? called(flows.map((flow) => flow.name)) : list(flows.map((flow) => `${quote(flow.name)} (${Math.round(flow.length)}s)`))}.`);
   const since = comparisons.find((comparison) => comparison.since === number - 1);
-  if (since) console.log(`\n${changed(since.changes.length, number - 1)}`);
+  const named = toAccountFor(since);
+  if (since) console.log(`\n${changed(named.length, number - 1)}`);
+  // What only the pictures show is for the person's eyes: said, so the work's look isn't a surprise, and asking nothing.
+  const pictured = since?.changes.filter((change) => change.pictureOnly) ?? [];
+  if (pictured.length) {
+    const [parts, look, them, need] = pictured.length > 1 ? [`${pictured.length} parts of the page`, "look", "them", "they need"] : ["One part of the page", "looks", "it", "it needs"];
+    console.log(`${parts} only ${look} different in the pictures, with nothing read there changed${pictured.length > 3 ? "" : `: ${list(pictured.map((change) => quote(change.words)))}`}. The person sees ${them} on the recording, and ${need} nothing from you, unless it's what you changed for a note: then say so in “accounts”, and it shows in your answer.`);
+  }
   // Compared at rest, an answer that moves shows as no change at all: its note can play the step it's seen in instead.
   if (since && !since.changes.length && replies.some((reply) => reply.on && !reply.on.app && !reply.watch))
     console.log(`Nothing at rest shows an answer that moves, like an animation: if yours does, add "watch": "<the title of the step it's seen in>" to its reply in ${file}, and the note plays that step.`);
   if (walked.length) console.log(`\n${walked.map(saidOf).join("\n")}`);
   if (left.length) console.log(`\nStill to do, in ${file}:\n${left.map((problem) => `  ${problem}`).join("\n")}`);
   // How to say why is said the first time the review is recorded; after that, what's still to do says what's missing.
-  if (number === 1 && !saved && since?.changes.length)
+  if (number === 1 && !saved && named.length)
     console.log(`\nSay why each change is there in “accounts”, by its id: { "line": "<why, in your words>" }, { "note": "<the id of the note it was made for>" }, or { "notReal": "<why nothing really changed>" }.`);
   // What a run leaves in the app, said once, as it's first seen: a flow saving something, with nothing to give it back.
   const wrote = number === 1 && !saved && recorded.find((kept) => kept.wrote);
