@@ -2,11 +2,11 @@
 
 The agent says it's done. You decide if it's good.
 
-<a href="https://playthrough.sh#gh-light-mode-only"><img src="https://raw.githubusercontent.com/itmostlyworks/playthrough/main/docs/viewer-light.png" alt="The viewer: the agent's recording of Send a reminder, paused on your note and the agent's answer, asking whether it fixes it, with Note, Compare and Take over on the bar"></a><a href="https://playthrough.sh#gh-dark-mode-only"><img src="https://raw.githubusercontent.com/itmostlyworks/playthrough/main/docs/viewer-dark.png" alt="The viewer: the agent's recording of Send a reminder, paused on your note and the agent's answer, asking whether it fixes it, with Note, Compare and Take over on the bar"></a>
-
 Playthrough records your coding agent's change the way a person would use it, before and after, so you can watch it instead of setting it up by hand. Point at what's wrong, right on the recording, and the next round answers it there. Take over any moment and carry on in the real app. It runs on your machine, with any coding agent that has a shell.
 
 To see a review before you install anything, play the one at [playthrough.sh](https://playthrough.sh).
+
+<a href="https://playthrough.sh#gh-light-mode-only"><img src="https://raw.githubusercontent.com/itmostlyworks/playthrough/main/docs/viewer-light.png" alt="The viewer: the agent's recording of Send a reminder, paused on your note and the agent's answer, asking whether it fixes it, with Note, Compare and Take over on the bar"></a><a href="https://playthrough.sh#gh-dark-mode-only"><img src="https://raw.githubusercontent.com/itmostlyworks/playthrough/main/docs/viewer-dark.png" alt="The viewer: the agent's recording of Send a reminder, paused on your note and the agent's answer, asking whether it fixes it, with Note, Compare and Take over on the bar"></a>
 
 ## Try it
 
