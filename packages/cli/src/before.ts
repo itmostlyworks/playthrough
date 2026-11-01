@@ -12,7 +12,7 @@ import { execFileSync } from "node:child_process";
 import { copyFileSync, cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { constants, tmpdir } from "node:os";
+import { constants, tmpdir, uptime } from "node:os";
 import { join, resolve } from "node:path";
 import { Refused, type Flow, type Review } from "@playthrough/review";
 import { serves, stopApp } from "./app.ts";
@@ -125,17 +125,18 @@ const cantStart = (recorded: { flow: Flow }[], failed: Failed[]) =>
   failed.map(({ flow }) => flow).filter((flow) => !recorded.some((kept) => kept.flow.name === flow));
 
 // Where the agent's work is while the working copy holds the app as it was: the branch or commit to come back to, the
-// stash it's set aside in, by its message, the command that set it aside, and whether a server of the agent's was
-// already serving the app, following the working copy.
-type SetAside = { back: string; stash: string; by: number; shared?: boolean };
+// stash it's set aside in, by its message, the command that set it aside, on which start of the machine, and whether a
+// server of the agent's was already serving the app, following the working copy.
+type SetAside = { back: string; stash: string; by: number; boot?: string | number; shared?: boolean };
 const SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP"] as const;
 
 // The working copy holds the app as it was while `run` runs, then the agent's work again. Where the work is goes in
 // .playthrough/ first, so if Playthrough is stopped halfway the next command puts it back; stopped by a signal, it puts it back
 // itself before it ends.
 async function asItWas<T>(repo: Repo, unrecorded: string, commit: string, shared: boolean, run: () => Promise<T>): Promise<T> {
+  refuseWhileAside(repo);
   await repo.keepOutOfGit();
-  const aside: SetAside = { back: here(repo), stash: `Playthrough: your work, set aside while flows record on Before, ${new Date().toISOString()}`, by: process.pid, ...(shared && { shared }) };
+  const aside: SetAside = { back: here(repo), stash: `Playthrough: your work, set aside while flows record on Before, ${new Date().toISOString()}`, by: process.pid, boot: boot(), ...(shared && { shared }) };
   writeFileSync(repo.setAside, JSON.stringify(aside));
   // Listened for until the work is back, so a second signal can't end it halfway.
   let stopping = false;
@@ -181,8 +182,8 @@ async function asItWas<T>(repo: Repo, unrecorded: string, commit: string, shared
 // Stopped hard, it can leave the app as it was serving, if Playthrough started it, which the next round mustn't be recorded
 // on; a server of the agent's follows the work back.
 export async function putBack(repo: Repo) {
-  const aside: SetAside | undefined = attempt(() => JSON.parse(readFileSync(repo.setAside, "utf8")));
-  if (!aside || running(aside.by)) return;
+  const aside = setAside(repo);
+  if (!aside || stillAt(aside)) return;
   const toDo = here(repo) !== aside.back || !!stashOf(repo, aside);
   const problem = putWorkBack(repo, aside, false);
   if (problem) throw stillAside(repo, aside, problem);
@@ -191,6 +192,33 @@ export async function putBack(repo: Repo) {
   const url = (await repo.app().catch(() => undefined))?.url;
   if (url && !aside.shared && (await serves(url))) throw new Refused([back, `Something is still serving ${url}, most likely the app as it was, left running: stop it, then run this again.`]);
   console.log(`${back}\n`);
+}
+
+// While another command has the work set aside, the working copy is the app as it was: nothing else may run the app on
+// it, or keep it as the work, until that command puts the work back.
+export function refuseWhileAside(repo: Repo) {
+  const aside = setAside(repo);
+  if (aside && aside.by !== process.pid && stillAt(aside))
+    throw new Refused([
+      `Another playthrough command (process ${aside.by}) is recording flows on Before just now, so the app as it was is in your work's place until it's done, in a minute or so. Try again then.`,
+    ]);
+}
+
+const setAside = (repo: Repo): SetAside | undefined => attempt(() => JSON.parse(readFileSync(repo.setAside, "utf8")));
+
+// The command that set the work aside is still at it: its process is running, and is the same one, not another that
+// has its number since the machine started again.
+const stillAt = (aside: SetAside) => sameBoot(aside.boot) && running(aside.by);
+
+// Which start of the machine this is. Linux names each one; elsewhere it's when it started, which a clock set since moves
+// by no more than a few minutes.
+function boot(): string | number {
+  return attempt(() => readFileSync("/proc/sys/kernel/random/boot_id", "utf8").trim()) || Date.now() / 1000 - uptime();
+}
+// One set aside before Playthrough noted the start is taken to be this one's, as it always was.
+function sameBoot(then: string | number | undefined, now = boot()): boolean {
+  if (typeof then === "number" && typeof now === "number") return Math.abs(then - now) < 300;
+  return then === undefined || then === now;
 }
 
 // Back on its branch or commit, then what was set aside, each only if it's still to do, so it's right to run again. Forced,

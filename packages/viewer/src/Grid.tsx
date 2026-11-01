@@ -69,7 +69,7 @@ export function Grid(props: Props) {
             <h2 className="line-clamp-2 text-[15px] leading-[21px] font-semibold">{review.title}</h2>
             {review.asked && <p className="mt-1 line-clamp-6 text-[13px] leading-5 text-soft">{review.asked}</p>}
             <div className={`${review.asked ? "mt-2" : "mt-1"} -ml-2.5 flex items-center gap-1 text-[13px] leading-5 text-soft`}>
-              <Rounds quiet rounds={review.rounds} watching={round.number} arrived={props.arrived} working={props.working} onRound={props.onRound} onEarlier={() => {}} />
+              <Rounds quiet rounds={review.rounds} watching={round.number} arrived={props.arrived} working={props.working} onRound={props.onRound} />
               <span className="min-w-0 truncate">{props.accepted ? <span className="text-green">· {props.accepted}</span> : left}</span>
             </div>
           </div>

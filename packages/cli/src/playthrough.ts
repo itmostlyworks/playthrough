@@ -7,7 +7,7 @@
 import "./node.ts";
 import { readFileSync } from "node:fs";
 import { Refused } from "@playthrough/review";
-import { putBack } from "./before.ts";
+import { putBack, refuseWhileAside } from "./before.ts";
 import { open } from "./open.ts";
 import { record } from "./record.ts";
 import { repo } from "./repo.ts";
@@ -43,6 +43,8 @@ try {
   else {
     // A command stopped while flows recorded on Before left the agent's work set aside: it's put back before anything else.
     await putBack(repo());
+    // Each of the others runs the app or keeps it, which can't wait while another has the app as it was in place.
+    if (command !== "open" && command !== "wait") refuseWhileAside(repo());
     if (command === "open") await open(repo(), review);
     else if (command === "start") await start(repo(), review!, words[0], words[1]);
     else if (command === "record") await record(repo(), review!);

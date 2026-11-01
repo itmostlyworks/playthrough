@@ -29,7 +29,6 @@ type Props = {
   arrived?: Round;
   working?: string;
   onRound: (round: number) => void;
-  onEarlier: (round: number) => void;
   look: Look;
   onLook: (look: Look) => void;
   // With the action bar on the stage, the row keeps only what's about time.
@@ -85,7 +84,6 @@ export function Controls(props: Props) {
         arrived={props.arrived}
         working={props.working}
         onRound={props.onRound}
-        onEarlier={props.onEarlier}
       />
       <div data-views role="group" aria-label="Compare" className={`flex gap-0.5 rounded-lg bg-hover p-0.5 ${coveredForward}`}>
         {(["one", "side"] as const).map((look) => {

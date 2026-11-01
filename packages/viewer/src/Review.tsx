@@ -120,6 +120,10 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   // The note whose Not quite is being written.
   const [asking, setAsking] = useState<string>();
   if (asking && !(open && "note" in open && open.note === asking)) setAsking(undefined);
+  // What was being written in a note's Not quite or Edit when its card closed, by the note.
+  const [unfinished, setUnfinished] = useState<Record<string, string>>({});
+  const keepUnfinished = (id: string, words: string | undefined) =>
+    setUnfinished(({ [id]: _, ...others }) => (words === undefined ? others : { ...others, [id]: words }));
   const [fresh, setFresh] = useState<string>();
   const [met, setMet] = useState<string[]>([]);
   // Looking at another round starts with nothing open.
@@ -947,12 +951,14 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
         compare={isOpen && !was && !stopsShort.has(note.id) && (answered(note) || grownHere) ? comparingIt : undefined}
         whereYouWere={tryHere}
         asking={asking === note.id}
+        unfinished={unfinished[note.id]}
         away={away}
         grown={grownHere}
         whole={note.on?.at === undefined}
         onOpen={() => pick(note)}
         onClose={() => setOpen(undefined)}
         onAsking={(on) => setAsking(on ? note.id : undefined)}
+        onUnfinished={(words) => keepUnfinished(note.id, words)}
         onJudge={(verdict) => judge(note, verdict)}
         onEdit={(words) => editNote(note.id, words)}
         onPoint={setPointedChange}
@@ -1530,7 +1536,6 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
             arrived={arrived ? latest : undefined}
             working={working}
             onRound={toRound}
-            onEarlier={() => {}}
             look={look}
             onLook={chooseLook}
           />

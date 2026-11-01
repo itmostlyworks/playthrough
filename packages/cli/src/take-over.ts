@@ -10,6 +10,7 @@ import { connect } from "node:net";
 import { networkInterfaces } from "node:os";
 import { list, quote, Refused, type Did } from "@playthrough/review";
 import { keepRunning } from "./app.ts";
+import { refuseWhileAside } from "./before.ts";
 import { recorder, type Handed } from "./flows.ts";
 import { follow, reachesOutside, runTo } from "./following.ts";
 import { listen, thisMachine } from "./open.ts";
@@ -58,6 +59,7 @@ export async function getReady(
   if (outside) throw new Refused([`${quote(flow.name)} reaches outside the app (${outside}), so it's run only when it's taken over.`]);
 
   const app = await repo.app();
+  refuseWhileAside(repo);
   await keepRunning(app, repo.root);
   const began = Date.now();
   const { handed, made } = await runTo(repo, id, { flow: flow.name, ...(stepName && { step: stepName, ...(actions && { actions }) }), ...(did?.length && { did }) });
@@ -80,6 +82,7 @@ const ready = new Map<string, { moment: string; made?: Made }>();
 // While the latest round plays, its flow is run alongside, as far as the playhead has gone, so the moment it comes to
 // rest on is quick to make ready.
 export async function keepUp(repo: Repo, id: string, flow: string, step?: string, actions?: number) {
+  refuseWhileAside(repo);
   await keepRunning(await repo.app(), repo.root);
   await follow(repo, id, { flow, ...(step && { step, ...(actions && { actions }) }) });
 }

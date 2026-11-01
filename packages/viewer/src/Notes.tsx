@@ -48,6 +48,8 @@ type Props = {
   whereYouWere?: { round: number; live?: "waiting" | "shown"; onTakeOver?: () => void; stopped?: string };
   // Not quite, being written.
   asking: boolean;
+  // What was being written in Not quite or Edit when the card closed, until it's saved or cancelled.
+  unfinished?: string;
   // What it's on isn't on screen: it greys and asks nothing.
   away: boolean;
   // Grown out of a change: your words under its name, in the change's card.
@@ -58,6 +60,7 @@ type Props = {
   onOpen: () => void;
   onClose: () => void;
   onAsking: (asking: boolean) => void;
+  onUnfinished: (words: string | undefined) => void;
   onJudge: (verdict: Verdict | undefined) => void;
   onEdit: (words: string | undefined) => void;
   onPoint: (change?: string) => void;
@@ -158,15 +161,19 @@ function exchanges(turns: Turn[]): Turn[][] {
 }
 
 function Card(props: Props) {
-  const { note, you, readOnly, compare, whereYouWere, asking } = props;
+  const { note, you, readOnly, compare, whereYouWere } = props;
   const draftNote = note.unsent && note.turns.length === 1;
   const judged = note.unsent && !draftNote ? note.turns.at(-1) : undefined;
+  // What you write in Not quite or Edit is kept as a new note's words are: closing the card leaves it, opening it again
+  // finds it there, and Save or Cancel ends it. The words as they were aren't anything to keep.
+  const keep = (was: string) => (words: string) => props.onUnfinished(words.trim() && words !== was ? words : undefined);
+  const asking = props.asking || (!readOnly && !draftNote && props.unfinished !== undefined);
   // Someone's Looks good, sent, settles the latest answer for everyone, under their name; anyone can still send it back,
   // as a resolved thread is reopened.
   const answeredOn = note.turns.findLast((turn) => turn.agent)?.round;
   const settled = !judged && note.state === "settled" && answeredOn !== undefined && note.turns.findLast((turn) => turn.verdict && turn.round >= answeredOn)?.verdict === "looks good";
   const setAsking = props.onAsking;
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(draftNote && props.unfinished !== undefined);
   const [earlier, setEarlier] = useState(false);
   const said = judged ? note.turns.slice(0, -1) : note.turns;
   const groups = exchanges(said);
@@ -193,11 +200,19 @@ function Card(props: Props) {
   if (draftNote && (editing || !note.turns[0]?.words) && !readOnly)
     words = (
       <Writing
-        words={note.turns[0]?.words ?? ""}
+        words={props.unfinished ?? note.turns[0]?.words ?? ""}
         placeholder="What do you think?"
         question="Your note"
-        onSave={(words) => (props.onEdit(words), setEditing(false))}
-        onCancel={() => setEditing(false)}
+        onWords={keep(note.turns[0]?.words ?? "")}
+        onSave={(words) => {
+          props.onUnfinished(undefined);
+          props.onEdit(words);
+          setEditing(false);
+        }}
+        onCancel={() => {
+          props.onUnfinished(undefined);
+          setEditing(false);
+        }}
       />
     );
   else
@@ -250,15 +265,20 @@ function Card(props: Props) {
   else if (asking && !props.away)
     answers = (
       <Writing
-        words={judged?.verdict === "not quite" ? judged.words : ""}
+        words={props.unfinished ?? (judged?.verdict === "not quite" ? judged.words : "")}
         placeholder="What’s still not right?"
         question={<span className="text-slate">Not quite</span>}
         tone="back"
+        onWords={keep(judged?.verdict === "not quite" ? (judged.words ?? "") : "")}
         onSave={(words) => {
+          props.onUnfinished(undefined);
           props.onJudge({ note: note.id, verdict: "not quite", words });
           setAsking(false);
         }}
-        onCancel={() => setAsking(false)}
+        onCancel={() => {
+          props.onUnfinished(undefined);
+          setAsking(false);
+        }}
       />
     );
   else if ((note.toJudge || judged || settled) && !props.away)
@@ -321,7 +341,8 @@ function Card(props: Props) {
 }
 
 // Writing a note, or what's still not right: the box, what it is, and its two ways out. Escape never throws words away:
-// it closes an empty box, and steps out of one with words in it. A new note keeps its words as you write (onWords).
+// it closes an empty box, and steps out of one with words in it. What's written is kept as you write (onWords), and as
+// the box closes, until Save or Cancel ends it.
 export function Writing(props: {
   words: string;
   placeholder: string;
@@ -333,17 +354,24 @@ export function Writing(props: {
 }) {
   const [words, setWords] = useState(props.words);
   const box = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => box.current?.focus(), []);
+  // At the end of what's there: where you left off.
+  useEffect(() => {
+    box.current?.focus();
+    box.current?.setSelectionRange(box.current.value.length, box.current.value.length);
+  }, []);
   const keep = useRef(props.onWords);
   keep.current = props.onWords;
   const latest = useRef(words);
   latest.current = words;
+  const ended = useRef(false);
   useEffect(() => {
-    const later = setTimeout(() => keep.current?.(words), 300);
+    const later = setTimeout(() => ended.current || keep.current?.(words), 300);
     return () => clearTimeout(later);
   }, [words]);
-  useEffect(() => () => keep.current?.(latest.current), []);
-  const save = () => words.trim() && props.onSave(words.trim());
+  useEffect(() => () => void (ended.current || keep.current?.(latest.current)), []);
+  const end = (how: () => void) => ((ended.current = true), how());
+  const save = () => words.trim() && end(() => props.onSave(words.trim()));
+  const cancel = () => end(props.onCancel);
   return (
     <>
       <textarea
@@ -359,13 +387,13 @@ export function Writing(props: {
           if (event.key === "Escape") {
             keep.current?.(words);
             if (words.trim()) event.currentTarget.blur();
-            else props.onCancel();
+            else cancel();
           }
         }}
       />
       {props.question && <p className="mt-1.5 text-xs leading-[18px] text-soft">{props.question}</p>}
       <div className="flex flex-wrap gap-1.5">
-        <Answer onClick={props.onCancel}>Cancel</Answer>
+        <Answer onClick={cancel}>Cancel</Answer>
         <button
           className="inline-flex h-[30px] flex-[1_1_auto] items-center justify-center rounded-[7px] bg-fg pr-[7px] font-medium text-ground transition-opacity duration-150 ease-calm before:flex-[1_0_10px] after:order-1 after:flex-[1_0_10px] hover:opacity-88 disabled:bg-transparent disabled:text-faint disabled:shadow-[inset_0_0_0_1px_var(--line)]"
           disabled={!words.trim()}

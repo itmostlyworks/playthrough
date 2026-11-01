@@ -25,7 +25,6 @@ type Props = {
   // Said in a line of words, as under the work's name: plain until you point at it, as wide as what it says.
   quiet?: boolean;
   onRound: (round: number) => void;
-  onEarlier: (round: number) => void;
 };
 
 export const roundName = (round: number) => (round === 0 ? "Before" : `Round ${round}`);
@@ -227,21 +226,16 @@ export function Rounds(props: Props) {
     setPointed(undefined);
   };
 
-  // Pressing on the line goes to that round, and dragging flips through them. While comparing, taking hold nearer the
-  // hollow handle moves what you compare with.
+  // Pressing on the line goes to that round, and dragging flips through them.
   const pressLine = (event: PointerEvent) => {
     if (!many || event.button !== 0) return;
-    const round = roundAt(event.clientX);
-    const then = earlier ?? watching - 1;
-    const back = comparing && Math.abs((x.current[round] ?? 0) - (x.current[then] ?? 0)) < Math.abs((x.current[round] ?? 0) - (x.current[watching] ?? 0));
     const go = (clientX: number) => {
       const round = roundAt(clientX);
-      if (back) latest.current.onEarlier(round);
-      else if (round !== latest.current.watching) latest.current.onRound(round);
+      if (round !== latest.current.watching) latest.current.onRound(round);
     };
     go(event.clientX);
     drag(event, go, () => {
-      if (!back && latest.current.watching === last) {
+      if (latest.current.watching === last) {
         setOpen(false);
         setPointed(undefined);
       }

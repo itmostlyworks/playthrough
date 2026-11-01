@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, test } from "node:test";
 import { Refused } from "@playthrough/review";
 import type { TestCase, TestResult } from "@playwright/test/reporter";
-import { keepBefore, putBack, refuseIfBroken } from "../src/before.ts";
+import { keepBefore, putBack, refuseIfBroken, refuseWhileAside } from "../src/before.ts";
 import { repo, type Repo } from "../src/repo.ts";
 import Flows, { READINGS, RECORDING, type Failed, type Recorded } from "../src/reporter.ts";
 
@@ -87,6 +87,20 @@ describe("The agent's work, set aside while a flow records on Before", () => {
     assert.deepEqual([await file("app.txt"), await file("new.txt"), await file("secret.env")], ["changed again", "newer", "KEY=1"]);
     await putBack(app);
     assert.deepEqual(state(), was, "once it's back, there's nothing more to do");
+  });
+
+  test("while the command that set it aside is still at it, nothing else runs the app or keeps it as the work, until the machine starts again", async () => {
+    const was = await stoppedHalfway();
+    const aside = JSON.parse(await file(".playthrough/set-aside.json"));
+    await writeFile(app.setAside, JSON.stringify({ ...aside, by: process.ppid }));
+    await putBack(app);
+    assert.equal(git("rev-parse", "--abbrev-ref", "HEAD"), "HEAD", "it's left on Before, to the command that set it aside");
+    assert.throws(() => refuseWhileAside(app), /Another playthrough command \(process \d+\) is recording flows on Before just now/);
+    // The same number after the machine started again is another process's: the work is put back.
+    await writeFile(app.setAside, JSON.stringify({ ...aside, by: process.ppid, boot: "an earlier start" }));
+    assert.doesNotThrow(() => refuseWhileAside(app));
+    await putBack(app);
+    assert.deepEqual(state(), was);
   });
 
   test("where git can't put it back by itself, it says the two commands that do", async () => {
