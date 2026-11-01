@@ -12,6 +12,7 @@ import { Agent, Go, says, type Step } from "./Step.tsx";
 import type { Standing } from "./notes.ts";
 import { Picture, useStill } from "./Picture.tsx";
 import { Rounds } from "./Rounds.tsx";
+import { HALO } from "./Stage.tsx";
 
 type Props = {
   room: RefObject<HTMLDivElement | null>;
@@ -134,7 +135,7 @@ const INK: Record<Standing["is"], string> = {
 };
 
 // The frame, as the flow opens in it: its name over its first picture, softened under a veil in the recorded app's
-// background and in its ink and face, as the stage draws it between flows. It's the picture that grows into the frame
+// background and in its ink and face, a glow of it behind the words, as the stage draws it between flows. It's the picture that grows into the frame
 // the flow plays in.
 function Opening({ review, round, flow, onFlow }: { review: Review; round: Round; flow: Flow; onFlow: (flow: string) => void }) {
   return (
@@ -145,9 +146,11 @@ function Opening({ review, round, flow, onFlow }: { review: Review; round: Round
       onClick={() => onFlow(flow.name)}
     >
       <Picture key={flow.name} shot={{ src: picture(review.id, round.number, flow.recording, 0) }} />
-      <span className="absolute inset-0 grid place-content-center justify-items-center gap-1.5 bg-[rgba(247,247,245,.45)] p-4 text-center font-recorded text-[20px] leading-[1.2] font-medium tracking-[-0.01em] text-[#222222]">
-        {flow.name}
-        {manyIn(review) && asWho(flow) && <span className="font-ui text-[14px] leading-[1.4] font-normal tracking-normal text-[#6c707a]">{asWho(flow)}</span>}
+      <span className="absolute inset-0 grid place-content-center bg-[rgba(247,247,245,.45)] p-4 text-center font-recorded text-[20px] leading-[1.2] font-medium tracking-[-0.01em] text-[#222222]">
+        <span className={`grid justify-items-center gap-1.5 ${HALO}`}>
+          {flow.name}
+          {manyIn(review) && asWho(flow) && <span className="font-ui text-[14px] leading-[1.4] font-normal tracking-normal text-[#6c707a]">{asWho(flow)}</span>}
+        </span>
       </span>
     </button>
   );

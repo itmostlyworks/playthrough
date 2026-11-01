@@ -333,10 +333,11 @@ export function Stage(props: Props) {
       // Whose hand it is: who the flow is done as, or whoever it's been handed to by now.
       const tag = part.cursor.querySelector<HTMLElement>("[data-tag]")!;
       if (!yours && !taking.current) {
-        const person = personAt(its, at, replay?.loads);
-        tag.querySelector("[data-words]")!.textContent = person ?? "";
+        const person = personAt(its, at, replay?.loads) ?? "";
+        const words = tag.querySelector<HTMLElement>("[data-words]")!;
+        // Handed on as it plays, the name changes as it does when you take over, so the hand-off is seen; scrubbed, at once.
+        if (words.textContent !== person) say(tag, words, person, false, playing && !!words.textContent && !!person && !tag.hidden);
         tag.hidden = !person;
-        delete tag.dataset.mine;
       }
       const click = replay && drawn && !card ? replay.clicks.find((click) => at >= click && at < click + 0.5) : undefined;
       if (click !== undefined && drawn) {
@@ -1066,7 +1067,7 @@ export function Stage(props: Props) {
             data-card
             className="pointer-events-none absolute inset-0 z-9 grid place-items-center rounded-lg bg-[rgba(247,247,245,calc(var(--k,0)*.45))] p-4 text-center font-recorded text-[20px] leading-[1.2] font-medium tracking-[-0.01em] text-[#222222] opacity-0 in-data-absent:bg-surface in-data-absent:font-ui in-data-absent:text-[13px] in-data-absent:leading-normal in-data-absent:font-normal in-data-absent:tracking-normal in-data-absent:text-faint"
           >
-            <span className="grid max-w-[min(30rem,100%)] justify-items-center gap-4 opacity-[var(--n,0)]">
+            <span className={`grid max-w-[min(30rem,100%)] justify-items-center gap-4 opacity-[var(--n,0)] ${HALO} in-data-absent:before:hidden`}>
               <span className="grid justify-items-center gap-1.5">
                 <span data-name />
                 <span data-as hidden className="font-ui text-[14px] leading-[1.4] font-normal tracking-normal text-[#6c707a]" />
@@ -1250,6 +1251,10 @@ function say(tag: HTMLElement, words: HTMLElement, said: string, mine = true, ge
   tag.animate([{ width: `${from}px` }, { width: `${to}px` }], { duration: 380, easing: PORTAL });
   words.animate([{ opacity: 0, transform: "translateY(3px)" }, { opacity: 1, transform: "none" }], { delay: 90, duration: 280, easing: PORTAL, fill: "backwards" });
 }
+
+// Behind a flow's name over its picture, a glow of white, deepest under the words and gone at its edges: over a light page
+// it's not seen, and over whatever the page has there, the name reads (Kan's own centred “Join workspace”).
+export const HALO = "relative isolate before:pointer-events-none before:absolute before:-inset-x-20 before:-inset-y-12 before:-z-1 before:bg-[radial-gradient(closest-side,rgba(255,255,255,.92)_40%,rgba(255,255,255,0))] before:content-['']";
 
 // The name on a pointer, just below and right of its tip.
 const TAG = "absolute top-[17px] left-[13px] overflow-hidden rounded-full bg-[#2B2E35] px-[7px] font-ui text-[11px] leading-[17px] whitespace-nowrap text-white tabular-nums shadow-[0_1px_3px_rgba(0,0,0,0.25)]";
