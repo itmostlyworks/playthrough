@@ -194,10 +194,10 @@ export const cantStart = (recorded: { flow: Flow }[], failed: Failed[]) =>
 // Playwright's reason is said with it: the flow's own mistake reads the same as something the app can't do yet.
 export function howFar(repo: Repo, id: string, recorded: { flow: Flow }[], failed: Failed[], app: string): string[] {
   const lines = failed.map(({ flow, at, why, on }) => {
-    const because = `${onPage(on)}${why ? `, where Playwright says “${why}”` : ""}`;
+    const because = why ? `, where Playwright says “${why}”` : "";
     return !recorded.some((kept) => kept.flow.name === flow)
       ? `${quote(flow)} can't start on ${app}${because}, so it has no Before.`
-      : `${quote(flow)} ${at ? `stops at ${quote(at)}${because}` : "stops after its last step"}, so its Before goes as far as that.`;
+      : `${quote(flow)} ${at ? `stops at ${quote(at)}${onPage(on)}${because}` : "stops after its last step"}, so its Before goes as far as that.`;
   });
   // An app as it was that didn't start left no page to see.
   const where = existsSync(repo.failed(id)) ? ` ${whereItStopped(repo, id, failed)}` : "";

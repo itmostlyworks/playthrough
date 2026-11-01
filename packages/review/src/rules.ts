@@ -228,7 +228,7 @@ export function problemsFinishing(review: Review, number: number): string[] {
   const changes = new Map(comparisons.flatMap((comparison) => comparison.changes.map((change) => [change.id, change])));
   for (const change of comparisons.find((comparison) => comparison.since === number - 1)?.changes ?? [])
     if (!round.accounts[change.id])
-      problems.push(`${at}: say why ${change.id} is there (${change.words}${where(change)}): its line, the note it was made for, or why nothing really changed.`);
+      problems.push(`${at}: say why ${change.id} is there (${change.words}${where(change)}): its line, the id of the note it was made for, or why nothing really changed.`);
   for (const [id, account] of Object.entries(round.accounts)) {
     const change = changes.get(id);
     if (!change) problems.push(`${at} says something about the change ${id}, which isn't one of this round's changes.`);

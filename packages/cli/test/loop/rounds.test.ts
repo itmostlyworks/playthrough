@@ -49,7 +49,7 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
 
     ({ said, code } = await app.run(["start", "overdue"]));
     assert.equal(code, 0, said);
-    assert.match(said, /Recorded Before: “Export the overdue ones”, “See what's overdue” and “See what's paid”\.\n“Export the overdue ones” stops at “Export them”, where Playwright says “[^”\n]+”, so its Before goes as far as that\./);
+    assert.match(said, /Recorded Before: “Export the overdue ones”, “See what's overdue” and “See what's paid”\.\n“Export the overdue ones” stops at “Export them”, on \/, where Playwright says “[^”\n]+”, so its Before goes as far as that\./);
     assert.match(said, /add a flow for each choice you made that the person can see and didn't ask for\. Then record round 1: playthrough record overdue/);
 
     const before = await app.round(0);
@@ -74,7 +74,7 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
     assert.equal(code, 0, said);
     assert.match(said, /“Export the overdue ones” has changed since it last ran on Before, so it's recorded on it again, in place of what it has of it, on the app as it is: nothing has changed since Before\./);
     assert.doesNotMatch(said, /See what's overdue/, "the flows that haven't changed aren't run again");
-    assert.match(said, /“Export the overdue ones” stops at “Export them”, where Playwright says/);
+    assert.match(said, /“Export the overdue ones” stops at “Export them”, on \/, where Playwright says/);
     assert.deepEqual((await app.round(0)).flows.map((flow) => [flow.name, flow.stopped]), [["Export the overdue ones", "Export them"], ["See what's overdue", undefined], ["See what's paid", undefined]]);
   });
 
