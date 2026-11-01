@@ -121,14 +121,16 @@ export async function runFlows(
   const last = round > 0 ? await failedLastTime(repo, id) : [];
   if (last.length) {
     console.log(`Running ${called(last)} first: ${last.length > 1 ? "they" : "it"} failed last time…`);
-    const { failed } = await run(last, repo.failed(id));
+    const { recorded, failed } = await run(last, repo.failed(id));
     await keepFailed(repo, id, round, failed);
     const [one] = failed;
     if (failed.length > 1)
       throw new Refused([`\nThese flows failed again, so the other flows weren't run:`, ...failed.map(failedAt), `Fix them and record again. ${whereItStopped(repo, id, failed)}`]);
     if (one)
       throw new Refused([`\n${quote(one.flow)} failed again${one.at ? `, at the step ${quote(one.at)}` : ""}, so the other flows weren't run.`, `Fix it and record again. ${whereItStopped(repo, id, failed)}`]);
-    console.log(`\n${last.length > 1 ? "They pass" : "It passes"} now, so every flow is recorded.\n`);
+    // One whose file is gone since neither passes nor fails: it isn't a flow any more.
+    const gone = !recorded.length;
+    console.log(`\n${last.length > 1 ? (gone ? "They aren't flows any more" : "They pass now") : gone ? "It isn't a flow any more" : "It passes now"}, so every flow is recorded.\n`);
   }
 
   console.log(
