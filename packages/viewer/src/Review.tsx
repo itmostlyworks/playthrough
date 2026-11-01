@@ -5,7 +5,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { elementOf } from "@playthrough/page";
-import { inStep, lastLooked, newId, readyToAccept, time, waitingForTheAgent, type Did, type Element as Thing, type Flow, type Note, type Point, type Place, type Review, type Round, type Send, type Verdict } from "@playthrough/review";
+import { inStep, lastLooked, newId, notesToAnswer, readyToAccept, time, waitingForTheAgent, type Did, type Element as Thing, type Flow, type Note, type Point, type Place, type Review, type Round, type Send, type Verdict } from "@playthrough/review";
 import { accept, keepBranch, picture, recording, send, useReview, useYou } from "./api.ts";
 import { Bar } from "./Bar.tsx";
 import { Beside, clickedAt } from "./Beside.tsx";
@@ -24,7 +24,7 @@ import { asIfSent, draftOn, everyDraft, fill, ink, lookGood, notesOn, nothing, s
 import { NoteRow, number as numberLook, Writing, type Comparing } from "./Notes.tsx";
 import { Playhead, useNow, type Forked } from "./playhead.ts";
 import { changesIn, recorded } from "./replay.ts";
-import { roundName } from "./Rounds.tsx";
+import { clock, roundName } from "./Rounds.tsx";
 import { Stage, type Bare, type Mark, type Placed, type Shown as Size } from "./Stage.tsx";
 import { placeFrom, placeName as nameOf, placeOn, useReadings, watchedIn, type Read } from "./things.ts";
 import { Wire } from "./Wire.tsx";
@@ -432,7 +432,10 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   }, [noting, inApp]);
   const playingOn = useNow(playhead, (now) => now.playing);
   useEffect(() => void (playingOn && setNoting(false)), [playingOn]);
-  const working = review.accepted ? undefined : review.taken.find((taken) => taken.round > latest.number)?.at;
+  // The agent is working only on what asks it something: a send that only says things look good asks for no next round.
+  const working = review.accepted
+    ? undefined
+    : review.taken.find((taken) => taken.round > latest.number && notesToAnswer(review, taken.round).length > 0)?.at;
 
   // Left and Right step to the next moment the page changes, or a second where nothing does; with Shift, a tenth.
   const [changes, setChanges] = useState<{ flow: string; at: number[]; clicks: number[]; acted: [number, number][]; moved: Map<string, number[]> }>();
@@ -1109,7 +1112,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     if (readyToAccept(asIfSent(review, you, unsent), you)) return { kind: "go", words: "All good", what: "Accept the work", take: acceptNow, final: true };
     if (waitingForTheAgent(review).length)
       return working
-        ? { kind: "agent", words: "The agent is working", what: `since ${new Date(working).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`, busy: true }
+        ? { kind: "agent", words: "The agent is working", what: `started at ${clock(working)}`, busy: true }
         : { kind: "agent", words: "Sent, waiting for the agent", busy: false };
     return { kind: "say", words: "All good" };
   };

@@ -10,6 +10,9 @@ import type { Round } from "@playthrough/review";
 import { clamp } from "./moments.ts";
 import { roll, type Part } from "./odometer.ts";
 
+// A time of day as everything in the viewer says it, 19:08.
+export const clock = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+
 type Props = {
   rounds: Round[];
   watching: number;
@@ -309,7 +312,6 @@ export function Rounds(props: Props) {
     const at = new Date(round.finished ?? 0);
     return `${at.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}, ${at.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`;
   };
-  const clock = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
   const named = pointed === undefined ? undefined : rounds.find((round) => round.number === pointed);
   const tipLook = "pointer-events-none absolute bottom-[calc(100%+3px)] z-7 max-w-[380px] -translate-x-1/2 truncate rounded-[5px] bg-surface px-[7px] py-px text-[11px] leading-[14px] whitespace-nowrap text-soft shadow-tip transition-[opacity,translate] duration-150 ease-calm";
   const hidden = "translate-y-[2px] opacity-0";

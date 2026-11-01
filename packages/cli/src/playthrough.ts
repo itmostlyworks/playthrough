@@ -19,29 +19,43 @@ import { walk } from "./walk.ts";
 // Everything an agent needs to know, read once: bare, the command says it.
 const HELP = readFileSync(new URL("../INSTRUCTIONS.md", import.meta.url), "utf8").trimEnd();
 
-const [command, review, ...words] = process.argv.slice(2);
+const given = process.argv.slice(2);
+const [command, review, ...words] = given;
 const needs = (usage: string) => new Refused([`That needs more: ${usage}`]);
+// How many words each command takes after the review's name: anything more is refused rather than ignored, so a stray
+// word never starts something that wasn't meant.
+const takes = {
+  start: [2, `playthrough start <review> "<title>" "<what was asked>"`],
+  record: [0, "playthrough record <review>"],
+  wait: [0, "playthrough wait <review>"],
+  walk: [0, "playthrough walk <review>"],
+  open: [0, "playthrough open [<review>]"],
+  "take-over": [2, `playthrough take-over <review> "<flow>" ["<step>"]`],
+} satisfies Record<string, [number, string]>;
+const limit = Object.hasOwn(takes, command ?? "") ? takes[command as keyof typeof takes] : undefined;
 
 try {
-  if (!command || ["help", "--help", "-h"].includes(command)) console.log(HELP);
+  // Asked for help anywhere, as by reflex after a command, it's the help, never the command.
+  if (!command || command === "help" || given.some((word) => ["--help", "-h"].includes(word))) console.log(HELP);
+  else if (limit && words.length > limit[0]) throw new Refused([`That's more than it takes: ${limit[1]}`]);
   else {
     // A command stopped while flows recorded on Before left the agent's work set aside: it's put back before anything else.
     await putBack(repo());
     if (command === "start") {
-      if (!review) throw needs(`playthrough start <review> "<title>" "<what was asked>"`);
+      if (!review) throw needs(takes.start[1]);
       await start(repo(), review, words[0], words[1]);
     } else if (command === "record") {
-      if (!review) throw needs("playthrough record <review>");
+      if (!review) throw needs(takes.record[1]);
       await record(repo(), review);
     } else if (command === "wait") {
-      if (!review) throw needs("playthrough wait <review>");
+      if (!review) throw needs(takes.wait[1]);
       await wait(repo(), review);
     } else if (command === "walk") {
-      if (!review) throw needs("playthrough walk <review>");
+      if (!review) throw needs(takes.walk[1]);
       await walk(repo(), review);
     } else if (command === "open") await open(repo(), review);
     else if (command === "take-over") {
-      if (!review) throw needs(`playthrough take-over <review> "<flow>" ["<step>"]`);
+      if (!review) throw needs(takes["take-over"][1]);
       await takeOver(repo(), review, words[0], words[1]);
     }
     else throw new Refused([`There's no command “${command}”. Run playthrough alone for what each one does.`]);

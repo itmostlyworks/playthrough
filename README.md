@@ -28,7 +28,7 @@ Reviews stay in `.playthrough/` in your app's repo, recordings and all; nothing 
 
 ## On the example
 
-`example/` in this repo is a small invoices app to try it on before your own. Clone the repo, run `npm install`, `npx playwright install chromium` and `npm run build`, and from `example/`, ask your agent to show only the overdue invoices, and to show you the change with `npx playthrough`.
+`example/` in this repo is a small invoices app to try it on before your own. Clone the repo, run `npm install`, `npx playwright install chromium` and `npm run build`, and from `example/`, ask your agent to show how much is overdue in total under the Invoices heading, and to show you the change with `npx playthrough`.
 
 ## In the viewer
 

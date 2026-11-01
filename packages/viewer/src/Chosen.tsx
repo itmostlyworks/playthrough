@@ -5,7 +5,7 @@
 
 import { Fragment, useRef, type CSSProperties, type ReactNode } from "react";
 import type { Flow, Round } from "@playthrough/review";
-import { Answer, Compare, play, Said, tick, Time, useHold } from "./Card.tsx";
+import { Answer, Compare, mac, play, Said, tick, Time, useHold } from "./Card.tsx";
 import { when, type Changed, type Diamond } from "./changes.ts";
 import { ink, type Shown, type Standing } from "./notes.ts";
 import type { Step } from "./Step.tsx";
@@ -151,12 +151,13 @@ function Question({ flow, standing, laidOut, just, ...props }: Omit<Props, "stan
   );
 }
 
-// Answered, what's next is offered under the answer, and taken when you choose.
+// Answered, what's next is offered under the answer, and taken when you choose: by Enter, or, for what can't be undone, as
+// Accept, by Ctrl or ⌘ with it, as the step says.
 function Onward({ step }: { step: Props["onward"] }) {
   if (step.kind !== "go") return null;
   return (
     <div className="flex gap-1.5">
-      <Answer keys="↵" onClick={step.take}>
+      <Answer keys={step.final ? (mac ? "⌘↵" : "Ctrl ↵") : "↵"} onClick={step.take}>
         <span className="truncate">
           {step.words}
           {step.what && <span className="font-normal text-soft"> · {step.what}</span>}
