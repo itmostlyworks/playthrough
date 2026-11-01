@@ -30,7 +30,7 @@ export function keepBefore(repo: Repo, id: string): string | undefined {
 }
 
 // Before's commit again, with playthrough/ as the working copy holds it now, once Before is recorded again on it.
-const keptWithOursNow = (repo: Repo, id: string, commit: string) =>
+export const keptWithOursNow = (repo: Repo, id: string, commit: string) =>
   keep(repo, id, treeNow(repo, { commit, paths: ["playthrough"] }), git(repo, ["rev-list", "--parents", "--max-count=1", commit]).split(" ").slice(1));
 
 function keep(repo: Repo, id: string, tree: string, parents: string[]): string {
@@ -48,7 +48,8 @@ function treeNow(repo: Repo, onto?: { commit: string; paths: string[] }): string
     const env = { ...process.env, GIT_INDEX_FILE: index };
     if (onto) {
       git(repo, ["read-tree", onto.commit], env);
-      git(repo, ["rm", "-r", "--cached", "--quiet", "--ignore-unmatch", "--", ...onto.paths], env);
+      // Forced: an index of Playthrough's own owes nothing to HEAD, and git would refuse a file in it that matches neither.
+      git(repo, ["rm", "-r", "--cached", "--force", "--quiet", "--ignore-unmatch", "--", ...onto.paths], env);
       git(repo, ["add", "--all", "--", ...onto.paths], env);
     } else {
       // Starting from the agent's index, git only reads the files that changed.
