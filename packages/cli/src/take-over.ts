@@ -284,6 +284,9 @@ const SAYS = `<script>(() => {
   const yours = (mine) => { hidden.disabled = mine; if (mine) sessionStorage.setItem("playthrough:yours", "1"); else sessionStorage.removeItem("playthrough:yours"); };
   yours(!!sessionStorage.getItem("playthrough:yours"));
   addEventListener("message", ({ source, data }) => { if (source === parent && data?.playthrough === "yours") yours(data.yours); });
+  // Taken over, the page is scrolled where the recording was at that moment: made ready at a step's end, it was where
+  // the step left it, a screen or more from a moment partway through a page being read.
+  addEventListener("message", ({ source, data }) => { if (source === parent && data?.playthrough === "scroll") scrollTo({ left: data.x, top: data.y, behavior: "instant" }); });
   const typing = (target) => !!target?.closest?.('input:not([type=button]):not([type=submit]):not([type=checkbox]):not([type=radio]):not([type=range]), textarea, [contenteditable=""], [contenteditable=true]');
   // Every move, as it comes: held for a frame, the name trailed the pointer like a smoothed one. Not the earlier raw
   // updates: in a scaled frame, Chrome gives them the page's position rather than the app's.

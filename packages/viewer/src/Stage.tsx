@@ -732,6 +732,8 @@ export function Stage(props: Props) {
     };
 
     if (inPortal) {
+      const scrolled = replayOf(round, props.playhead.flow)?.scrolled();
+      if (scrolled) app.querySelector("iframe")?.contentWindow?.postMessage({ playthrough: "scroll", ...scrolled }, "*");
       Object.assign(app.style, { opacity: "1", pointerEvents: "auto" });
       app.querySelector("iframe")?.focus();
       edge.style.opacity = "1";

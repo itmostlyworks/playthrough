@@ -274,6 +274,12 @@ export class Replay {
     return [a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u];
   }
 
+  // How far the page is scrolled now, in its own pixels.
+  scrolled(): { x: number; y: number } {
+    const page = this.#replayer.iframe.contentWindow;
+    return { x: page?.scrollX ?? 0, y: page?.scrollY ?? 0 };
+  }
+
   // The page's own background, as red, green and blue, where the page or its body paints one: what a veil over it is
   // made of. Nothing where neither does.
   ground(): [number, number, number] | undefined {
