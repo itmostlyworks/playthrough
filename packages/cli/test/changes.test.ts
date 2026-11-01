@@ -154,12 +154,19 @@ describe("What changed at a moment", () => {
     ]);
   });
 
-  test("past five changes inside one table or list, they're one change to it, counted and not listed", async () => {
+  test("past five different changes inside one table or list, they're one change to it, counted and not listed", async () => {
+    const customers = ["Alder Dental", "Harbor & Finch", "Juniper Health", "Kettle Works", "Moss Logistics", "Pale Harbour"];
     const changed = await said(
-      `<div class="panel">${rows(["Alder Dental", "Harbor & Finch", "Juniper Health", "Kettle Works", "Moss Logistics", "Pale Harbour"])}</div>`,
-      `<div class="panel">${rows(["Alder Dental", "Harbor & Finch", "Juniper Health", "Kettle Works", "Moss Logistics", "Pale Harbour"].map((name) => `${name} (paid)`))}</div>`,
+      `<div class="panel">${rows(customers)}</div>`,
+      `<div class="panel">${rows(customers.map((name, i) => `${name} ${["Group", "LLP", "Co", "Ltd", "AB", "Inc"][i]}`))}</div>`,
     );
     assert.deepEqual(changed, ["Table: 6 things changed inside"]);
+  });
+
+  test("the same rewording in each row is one change, whatever each row says, as a thing in an item is known by its place there and never by its words (each customer marked paid)", async () => {
+    const customers = ["Alder Dental", "Harbor & Finch", "Juniper Health", "Kettle Works", "Moss Logistics", "Pale Harbour"];
+    const changed = await said(`<div class="panel">${rows(customers)}</div>`, `<div class="panel">${rows(customers.map((name) => `${name} (paid)`))}</div>`);
+    assert.deepEqual(changed, ["“Alder Dental” now says “Alder Dental (paid)”, in 6 places"]);
   });
 
   test("an item whose words changed in more than one piece says what it says now, and the same change in each item is one change (the polls app's shares)", async () => {

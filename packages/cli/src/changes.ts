@@ -7,7 +7,7 @@
 // flow, at another moment or against another round is the same one.
 
 import { createHash } from "node:crypto";
-import { a, bare, called, dataLeftOut, differences, HOLDS, holderOf, identity, lookWords, near, NEAR, parentOf, plural, rewordedWords, sentence, symbolOnly, the, things, together, wayOf, word, WORD, type Difference, type Glimpse, type Item, type Reading, type Thing } from "@playthrough/page";
+import { a, called, dataLeftOut, differences, HOLDS, holderOf, identity, lookWords, near, NEAR, parentOf, plural, rewordedWords, sentence, symbolOnly, the, things, together, wayOf, word, WORD, type Difference, type Glimpse, type Item, type Reading, type Thing } from "@playthrough/page";
 import type { Box, Element } from "@playthrough/review";
 
 // A change at one moment: what it's on is an element of the newer round, or for something gone, where it was. And the
@@ -423,7 +423,7 @@ function sizeWords(moment: Moment, pair: Pair): string {
 // what changed inside one table or list counted when there's a lot, and each with its id and where it is.
 function said(told: Told[], moment: Moment, unsteady: Set<string>): Found[] {
   const { now, was, isNow } = moment;
-  const id = (told: Told) => idOf(told.key ?? identityOf(told.in, told.thing), told.what);
+  const id = (told: Told) => idOf(told.key ?? identityOf(told, moment), told.what);
   const piecesOf = (told: Told) => told.pieces ?? [id(told)];
   // Top to bottom, as the page reads.
   const steady = told.filter((one) => !unsteady.has(id(one)));
@@ -458,12 +458,17 @@ function said(told: Told[], moment: Moment, unsteady: Set<string>): Found[] {
   return found;
 }
 
-// What a thing in an item is, whichever item it's in: what it is, under its column, in which kind of item of which list,
-// so the same change in every row is one change. Anything else is what it is (differences.ts).
-function identityOf(reading: Reading, thing: Thing): string {
+// What a thing in an item is, whichever item it's in: its place there, its column and which of the things of its kind in
+// it, in which kind of item of which list, and for words reworded, how they changed. Never its words, which in an item
+// are its data, so the same change in every row is one change: “(paid)” after each customer's name. Anything else is
+// what it is (differences.ts).
+function identityOf({ in: reading, thing, what }: Told, moment: Moment): string {
   const item = thing.item === undefined ? undefined : reading.items?.[thing.item];
   if (!item) return identity(reading, thing);
-  return `${thing.role}:${bare(thing.name)}${thing.column ? ` under ${thing.column}` : ""} in a ${item.role} of ${listOf(reading, item)}`;
+  const kind = reading.things.filter((other) => other.item === thing.item && other.role === thing.role && other.column === thing.column);
+  const place = `${thing.role} ${kind.indexOf(thing) + 1}${thing.column ? ` under ${thing.column}` : ""}`;
+  const was = what === "reworded" && moment.was.get(thing);
+  return `${place} in a ${item.role} of ${listOf(reading, item)}${was ? `: ${shapeOf(was.words, thing.words)}` : ""}`;
 }
 const listOf = (reading: Reading, item: Item) => (item.holder === undefined ? "the page" : identity(reading, reading.things[item.holder]!, 0));
 
@@ -516,7 +521,7 @@ function asItems(told: Told[], moment: Moment, id: (told: Told) => string): Told
     const [side, at] = key.split(" ") as [string, string];
     const [reading, index] = [side === "then" ? then : now, Number(at)];
     const item = reading.items![index]!;
-    const thing = asThing(reading, item, index);
+    const thing = asThing(item, index);
     const pieces = all.flatMap((one) => one.pieces ?? [id(one)]);
     const along = all.find((one) => one.pushed || one.sized);
     const whole = { thing, in: reading, pieces, ...(along?.pushed && { pushed: along.pushed }), ...(along?.sized && { sized: along.sized }) };
@@ -532,7 +537,7 @@ function asItems(told: Told[], moment: Moment, id: (told: Told) => string): Told
       out.push(...all);
       continue;
     }
-    const reworded = rewordedWords(asThing(then, before, was.get(index)!, "text"), asThing(now, item, index, "text"));
+    const reworded = rewordedWords(asThing(before, was.get(index)!, "text"), asThing(item, index, "text"));
     out.push(
       { ...whole, what: "reworded", words: reworded, pieces: words.flatMap((one) => one.pieces ?? [id(one)]), key: `${item.role} of ${listOf(now, item)}: ${shapeOf(before.words, item.words)}` },
       ...all.filter((one) => one.thing.role !== "text"),
@@ -543,21 +548,22 @@ function asItems(told: Told[], moment: Moment, id: (told: Told) => string): Told
 
 // An item as a thing, to be called and placed: by its words, past an avatar's initial (“M Maya” is “Maya”) and an icon's
 // symbol (a ⋯ button).
-function asThing(reading: Reading, item: Item, index: number, role: string = item.role): Thing {
+function asThing(item: Item, index: number, role: string = item.role): Thing {
   const name = item.words.replace(/^(\p{Lu})\s+(?=\1)/u, "").split(" ").filter((word) => /[\p{L}\p{N}]/u.test(word)).join(" ");
   const look = { color: "", background: "", size: "", weight: "", border: "" };
   return { role, name: name.slice(0, 120), words: role === "text" ? item.words : name, box: item.box, page: item.page, look, item: index, ...(item.holder !== undefined && { holder: item.holder }), ...(item.node !== undefined && { node: item.node }) };
 }
 
-// How an item's words changed, whichever item it is: the part that differs, its data as “…”. “Apples -- 12 votes” to
-// “Apples 57% 12 votes” and “Red -- 5 votes” to “Red 50% 5 votes” are both “-- → …%”.
+// How words changed, whichever item they're in: the part that differs, each word with a number in it as “…”, as it's
+// data. “Apples -- 12 votes” to “Apples 57% 12 votes” and “Red -- 5 votes” to “Red 50% 5 votes” are both “-- → …”, and
+// an email made new each run is “… → …” every run.
 function shapeOf(then: string, now: string): string {
   const [a, b] = [then.split(" "), now.split(" ")];
   let start = 0;
   while (start < a.length && start < b.length && a[start] === b[start]) start++;
   let end = 0;
   while (end < a.length - start && end < b.length - start && a.at(-1 - end) === b.at(-1 - end)) end++;
-  const part = (words: string[]) => dataLeftOut(words.slice(start, words.length - end).join(" "));
+  const part = (words: string[]) => words.slice(start, words.length - end).map((word) => (/\d/.test(word) ? "…" : word)).join(" ");
   return `${part(a)} → ${part(b)}`;
 }
 
