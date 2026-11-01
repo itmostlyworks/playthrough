@@ -1,4 +1,4 @@
-# Playthrough
+# <img src="https://raw.githubusercontent.com/itmostlyworks/playthrough/main/packages/viewer/public/logo.svg" alt="" height="28"> Playthrough
 
 The agent says it's done. You decide if it's good.
 
