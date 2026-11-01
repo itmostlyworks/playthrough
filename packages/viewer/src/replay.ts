@@ -178,7 +178,9 @@ export class Replay {
     this.#shape = this.shapes[0]!;
     Object.assign(this.host.style, { width: `${this.#shape.width}px`, height: `${this.#shape.height}px` });
     into.append(this.host);
-    this.#replayer = new Replayer(events, { root: this.host, mouseTail: false, triggerFocus: false, pauseAnimation: false, showWarning: false });
+    // Jumping, rrweb builds the page in a copy of its own first, and the page's own scroll never reached it: played on
+    // from a stop, the page sat at its first scroll for a moment, then jumped down. Built in place, it's where it was.
+    this.#replayer = new Replayer(events, { root: this.host, mouseTail: false, triggerFocus: false, pauseAnimation: false, showWarning: false, useVirtualDom: false });
     this.#keepKeys();
     this.#replayer.pause(this.#drawn);
   }
@@ -251,6 +253,17 @@ export class Replay {
     if (!b || at <= a[0] || b[0] - a[0] > 0.25) return [a[1], a[2]];
     const u = (at - a[0]) / (b[0] - a[0]);
     return [a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u];
+  }
+
+  // The page's own background, as red, green and blue, where the page or its body paints one: what a veil over it is
+  // made of. Nothing where neither does.
+  ground(): [number, number, number] | undefined {
+    const page = this.#replayer.iframe.contentDocument;
+    for (const element of [page?.body, page?.documentElement]) {
+      const colour = element && getComputedStyle(element).backgroundColor.match(/[\d.]+/g)?.map(Number);
+      if (colour && colour.length >= 3 && (colour[3] ?? 1) > 0.5) return [colour[0]!, colour[1]!, colour[2]!];
+    }
+    return undefined;
   }
 
   // Where one of the page's elements is now, in the page's own pixels, by its node in the recording; nothing while it

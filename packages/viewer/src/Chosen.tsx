@@ -35,6 +35,8 @@ export type Props = {
   onClose: () => void;
   // Pointing at one of several changes in a change's card, by its id, or away again.
   onPoint: (change?: string) => void;
+  // The change pointed at in its card, marked alone.
+  pointed?: string;
   onPlayOn: () => void;
   onNoteOn: (diamond: Diamond) => void;
   onNote: (note: Shown) => void;
@@ -249,7 +251,9 @@ function ChangeCard(props: Props & { diamond: Diamond; yours: Shown[] }) {
           </span>
         </span>
       </button>
-      <div className="grid gap-2.5 pr-3.5 pl-[44px]">
+      {/* Pointed at, a line stays the one marked until the pointer reaches another or leaves them all: crossing the gap
+          between two, the marks held still rather than jumping to every change and back. */}
+      <div className="grid gap-2.5 pr-3.5 pl-[44px]" onPointerLeave={() => props.onPoint(undefined)}>
         <Why {...props} />
       </div>
       {yours.map((note) => props.note(note, true))}
@@ -275,7 +279,7 @@ function ChangeCard(props: Props & { diamond: Diamond; yours: Shown[] }) {
 // Why each change is there, in the agent's words, or the note it was made for. Several at one moment are each a line
 // under a small hollow diamond, so they can be counted, and pointing at one marks just what it's about; changes one line
 // explains are that one line. One the agent wasn't asked about, seen only in the pictures, is marked and not said.
-function Why({ diamond, notes, onNote, onPoint }: Props & { diamond: Diamond }) {
+function Why({ diamond, notes, onNote, onPoint, pointed }: Props & { diamond: Diamond }) {
   const own = diamond.changes.filter((changed) => !changed.answers && (changed.line || changed.note));
   const says = (changed: Changed) => {
     const note = changed.note && notes.find((note) => note.id === changed.note);
@@ -292,8 +296,8 @@ function Why({ diamond, notes, onNote, onPoint }: Props & { diamond: Diamond }) 
   if (own.length === 1) return says(own[0]!);
   const lines = own.filter((changed, i) => !changed.line || own.findIndex((other) => other.line === changed.line) === i);
   return lines.map((changed) => (
-    <div key={changed.change.id} className="group/name flex items-start gap-[9px]" onPointerEnter={() => onPoint(changed.change.id)} onPointerLeave={() => onPoint(undefined)}>
-      <i className="mx-0.5 mt-[7px] size-[7px] flex-none rotate-45 shadow-[inset_0_0_0_1.5px_var(--soft)] transition-colors duration-150 ease-calm group-hover/name:bg-soft" aria-hidden />
+    <div key={changed.change.id} className="flex items-start gap-[9px]" onPointerEnter={() => onPoint(changed.change.id)}>
+      <i className={`mx-0.5 mt-[7px] size-[7px] flex-none rotate-45 shadow-[inset_0_0_0_1.5px_var(--soft)] transition-colors duration-150 ease-calm ${pointed === changed.change.id ? "bg-soft" : ""}`} aria-hidden />
       <div className="min-w-0 flex-1">{says(changed)}</div>
     </div>
   ));

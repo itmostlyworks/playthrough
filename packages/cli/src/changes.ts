@@ -14,7 +14,7 @@ import type { Box, Element } from "@playthrough/review";
 // ids of the changes it stands for, each by itself, so what changes by itself is left out as itself, never as all it's
 // told with.
 // Off the screen, it's what the page has but the recording doesn't show at this moment.
-export type Found = { id: string; words: string; element?: Element; alike?: Element[]; box?: Box; pieces: string[]; reworded?: string; offScreen?: true };
+export type Found = { id: string; words: string; element?: Element; alike?: Element[]; box?: Box; pieces: string[]; reworded?: string; offScreen?: true; top?: number };
 
 // What happened to a thing, before it's said in full: what it's on, in which of the two readings, and what came with it;
 // what it's known by, where the thing alone doesn't say, and the changes it stands for, by their ids.
@@ -504,7 +504,7 @@ function said(told: Told[], moment: Moment, unsteady: Set<string>): Found[] {
   const found: Found[] = [];
   for (const [holder, all] of inside) {
     if (!holder || all.length <= MOST_INSIDE) {
-      for (const alike of all) found.push({ id: id(alike[0]!), words: alikeWords(alike), ...placeOf(alike[0]!, now), ...alikeOf(alike, now), pieces: alike.flatMap(piecesOf), ...(alike[0]!.reworded && { reworded: alike[0]!.reworded }), ...offScreen(alike) });
+      for (const alike of all) found.push({ id: id(alike[0]!), words: alikeWords(alike), ...placeOf(alike[0]!, now), ...alikeOf(alike, now), pieces: alike.flatMap(piecesOf), ...(alike[0]!.reworded && { reworded: alike[0]!.reworded }), ...offScreen(alike), top: topOf(alike[0]!, now) });
       continue;
     }
     // Counted, not listed: Compare shows what they are better than their names can.
@@ -514,10 +514,14 @@ function said(told: Told[], moment: Moment, unsteady: Set<string>): Found[] {
         ? `Columns in ${the(holder)} changed width`
         : `${called(holder)}: ${count} ${things(count)} changed inside`;
     const changed: Told = { what: "changed inside", thing: holder, in: now, words };
-    found.push({ id: id(changed), words: sentence(words), ...placeOf(changed, now), pieces: all.flat().flatMap(piecesOf), ...offScreen(all.flat()) });
+    found.push({ id: id(changed), words: sentence(words), ...placeOf(changed, now), pieces: all.flat().flatMap(piecesOf), ...offScreen(all.flat()), top: topOf(changed, now) });
   }
   return found;
 }
+
+// How far down the screen it is, as a share of it, so a moment's changes are told as the screen reads, top to bottom.
+// What's gone isn't on it, and comes after.
+const topOf = (told: Told, now: Reading) => (told.in === now ? told.thing.box.y / now.screen.height : 2);
 
 // Whether none of what it's on is on the screen at this moment: on a long page, the page has it before the recording
 // shows it.

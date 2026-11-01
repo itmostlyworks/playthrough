@@ -118,7 +118,8 @@ async function compareFlow(page: Page, earlier: Recorded, before: Flow, round: R
     const pictures = { then: await earlier.picture(was.picture), now: await round.picture(reading.picture) };
     const shown = { then: around(glimpsed.then, before, was.step), now: around(glimpsed.now, flow, reading.step) };
     const pictured = await picturesAt(page, was, reading, pictures);
-    for (const found of [...changesAt(was, reading, unsteady, shown), ...pictured]) {
+    // Top to bottom, as the screen reads, whether read or pictured.
+    for (const found of [...changesAt(was, reading, unsteady, shown), ...pictured].sort((a, b) => (a.top ?? 0) - (b.top ?? 0))) {
       const on = found.element ? { element: found.element, ...(found.alike && { alike: found.alike }) } : found.box ? { box: found.box } : {};
       sightings.push({ id: found.id, words: found.words, place: { flow: flow.name, at: reading.at, ...on }, of: found.pieces, ...(found.reworded && { reworded: found.reworded }), ...(pictured.includes(found) && { pictureOnly: true as const }), ...(found.offScreen && { offScreen: true as const }) });
     }

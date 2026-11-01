@@ -1391,6 +1391,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     onDiamond: choose,
     onClose: () => setOpen(undefined),
     onPoint: setPointedChange,
+    pointed: pointedChange,
     onPlayOn: playOn,
     onNoteOn: noteOn,
     onNote: pick,

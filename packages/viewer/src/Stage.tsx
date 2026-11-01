@@ -323,6 +323,12 @@ export function Stage(props: Props) {
       part.line.hidden = !line;
       if (words.textContent !== line) [by.textContent, words.textContent] = [shown.by, line];
       part.card.style.opacity = card ? "1" : "0";
+      // Veiled in the page's own background: a dark page, its name light over it.
+      const ground = card && replay?.ground();
+      if (ground) {
+        part.card.style.setProperty("--veil", ground.join(" "));
+        part.card.toggleAttribute("data-dark", 0.2126 * ground[0] + 0.7152 * ground[1] + 0.0722 * ground[2] < 128);
+      }
       part.card.style.setProperty("--k", (card?.soft ?? 0).toFixed(3));
       part.card.style.setProperty("--n", (card?.name ?? 0).toFixed(3));
       part.app.style.filter = card && card.soft > 0.002 ? `blur(${(card.soft * 6).toFixed(2)}px)` : "";
@@ -1073,14 +1079,14 @@ export function Stage(props: Props) {
               the agent's words. */}
           <div
             data-card
-            className="pointer-events-none absolute inset-0 z-9 grid place-items-center rounded-lg bg-[rgba(247,247,245,calc(var(--k,0)*.45))] p-4 text-center font-recorded text-[20px] leading-[1.2] font-medium tracking-[-0.01em] text-[#222222] opacity-0 in-data-absent:bg-surface in-data-absent:font-ui in-data-absent:text-[13px] in-data-absent:leading-normal in-data-absent:font-normal in-data-absent:tracking-normal in-data-absent:text-faint"
+            className="pointer-events-none absolute inset-0 z-9 grid place-items-center rounded-lg bg-[rgb(var(--veil,247_247_245)/calc(var(--k,0)*.45))] p-4 text-center font-recorded text-[20px] leading-[1.2] font-medium tracking-[-0.01em] text-[#222222] opacity-0 data-dark:text-[#ececec] in-data-absent:bg-surface in-data-absent:font-ui in-data-absent:text-[13px] in-data-absent:leading-normal in-data-absent:font-normal in-data-absent:tracking-normal in-data-absent:text-faint"
           >
             <span className={`grid max-w-[min(30rem,100%)] justify-items-center gap-4 opacity-[var(--n,0)] ${HALO} in-data-absent:before:hidden`}>
               <span className="grid justify-items-center gap-1.5">
                 <span data-name />
-                <span data-as hidden className="font-ui text-[14px] leading-[1.4] font-normal tracking-normal text-[#6c707a]" />
+                <span data-as hidden className="font-ui text-[14px] leading-[1.4] font-normal tracking-normal text-[#6c707a] in-data-dark:text-[#a4a8b1]" />
               </span>
-              <span data-line hidden className="grid gap-1 font-ui text-[15px] leading-[1.45] font-normal tracking-normal text-[#3b3e46]">
+              <span data-line hidden className="grid gap-1 font-ui text-[15px] leading-[1.45] font-normal tracking-normal text-[#3b3e46] in-data-dark:text-[#d5d7dc]">
                 <span className="text-xs leading-4 text-[#8a8e97]" />
                 <span className="line-clamp-4" />
               </span>
@@ -1261,9 +1267,10 @@ function say(tag: HTMLElement, words: HTMLElement, said: string, mine = true, ge
   words.animate([{ opacity: 0, transform: "translateY(3px)" }, { opacity: 1, transform: "none" }], { delay: 90, duration: 280, easing: PORTAL, fill: "backwards" });
 }
 
-// Behind a flow's name over its picture, a glow of white, deepest under the words and gone at its edges: over a light page
-// it's not seen, and over whatever the page has there, the name reads (Kan's own centred “Join workspace”).
-export const HALO = "relative isolate before:pointer-events-none before:absolute before:-inset-x-20 before:-inset-y-12 before:-z-1 before:bg-[radial-gradient(closest-side,rgba(255,255,255,.92)_40%,rgba(255,255,255,0))] before:content-['']";
+// Behind a flow's name over its picture, a glow of the page's own background, white unless it says otherwise, deepest
+// under the words and gone at its edges: over the page it's not seen, and over whatever the page has there, the name
+// reads (Kan's own centred “Join workspace”).
+export const HALO = "relative isolate before:pointer-events-none before:absolute before:-inset-x-20 before:-inset-y-12 before:-z-1 before:bg-[radial-gradient(closest-side,rgb(var(--veil,255_255_255)/.92)_40%,rgb(var(--veil,255_255_255)/0))] before:content-['']";
 
 // The name on a pointer, just below and right of its tip.
 const TAG = "absolute top-[17px] left-[13px] overflow-hidden rounded-full bg-[#2B2E35] px-[7px] font-ui text-[11px] leading-[17px] whitespace-nowrap text-white tabular-nums shadow-[0_1px_3px_rgba(0,0,0,0.25)]";
