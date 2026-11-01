@@ -35,6 +35,9 @@ The person can only judge what the flows show, so keep them true to how a person
 
 THE APP
 
+The first time, add playthrough to the app's devDependencies with the app's own package manager, and run
+npx playwright install chromium: flows import from it, and record in that browser.
+
 playthrough/app.json says how to start the app, and is committed so every review uses it:
 
   { "start": "npm run dev", "url": "http://localhost:3000" }

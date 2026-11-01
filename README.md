@@ -14,26 +14,17 @@ Playthrough records your coding agent's change the way a person would use it, be
 
 ## Try it
 
-Playthrough needs Node 24 or later. In your app's repo:
+Ask your agent for a change in your app, and add one line:
 
-```bash
-npm install --save-dev playthrough
-npx playwright install chromium
-```
+> Show only the overdue invoices. Show me this change with `npx playthrough`.
 
-Then ask your agent for a change, and to show it to you:
-
-> Show only the overdue invoices. Use Playthrough to show me the change: run `npx playthrough` and follow what it says.
-
-The agent starts a review, records it, and hands it to you with `playthrough wait`. Open it:
+The agent does the rest. The first time, it adds Playthrough to your app and writes down how to start it and sign in, to commit with your app. Each time, it records the change and hands it to you. Open it:
 
 ```bash
 npx playthrough open
 ```
 
-The first time, the agent writes `playthrough/app.json`, which says how to start your app, and `playthrough/setup.ts` if flows need something first: a signed-in user, an account with data in it, or the people who use the app. Both are committed with your app, so every review after uses them.
-
-Reviews are kept in `.playthrough/` in your app's repo, recordings and all. Nothing is uploaded anywhere.
+Reviews stay in `.playthrough/` in your app's repo, recordings and all; nothing is uploaded. Playthrough needs Node 24 or later.
 
 ## On the example
 
