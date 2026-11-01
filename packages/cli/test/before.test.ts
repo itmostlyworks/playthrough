@@ -116,7 +116,7 @@ describe("How far Before goes with a flow", () => {
   // A flow as Playwright tells the reporter it ended on Before: its two steps, the second stopped by `error`.
   async function ended(error: string) {
     const folder = await mkdtemp(join(tmpdir(), "playthrough-"));
-    const reporter = new Flows({ folder, before: true, taken: [] });
+    const reporter = new Flows({ folder, flows: folder, before: true, taken: [] });
     const start = Date.now();
     const steps = [
       { category: "test.step", title: "Open the expenses", startTime: new Date(start), duration: 1000 },

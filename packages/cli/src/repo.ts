@@ -23,6 +23,8 @@ export function repo(root = home(process.cwd())) {
     // What Playwright wrote of the page each flow failed on, the last time any did, for the agent to look at.
     failed: (review: string) => join(reviews, review, "failed"),
     round: (review: string, round: number) => join(reviews, review, "rounds", String(round), "round.json"),
+    // The file each flow is written in, as it was when the flow last ran on Before.
+    ranOnBefore: (review: string) => join(reviews, review, "ran-on-before.json"),
     setAside: join(reviews, "set-aside.json"),
     // How to start the app, committed.
     appFile,

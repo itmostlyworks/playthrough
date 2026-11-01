@@ -109,9 +109,10 @@ const seeded = `(() => {
 export type HandTo = (person: string, screen?: Screen) => Promise<Page>;
 
 const recorded = base.extend<{ person: string | undefined; rest: () => Promise<void>; setup: Record<string, any>; handTo: HandTo; recorder: void }>({
-  // In one language and time zone wherever it's recorded.
+  // In one language and time zone wherever it's recorded, and opened as the app's setup says, under what the file says.
   locale: "en-US",
   timezoneId: "UTC",
+  contextOptions: async ({ contextOptions }, use) => use({ ...(await setupOf()).use, ...contextOptions }),
   // Who the flow is done as: one of the app's people (setup.ts), named by its file with test.use, or else the first.
   person: [async ({}, use) => use(firstOf(await setupOf())), { option: true }],
   // What waits for the page to come to rest, watching it from before setup sets its clock (rest.ts).
@@ -136,7 +137,7 @@ const recorded = base.extend<{ person: string | undefined; rest: () => Promise<v
     await use(async (person, screen = {}) => {
       const app = await setupOf();
       personIn(app, person);
-      const { page, context } = await pageFor(browser, baseURL!, screen);
+      const { page, context } = await pageFor(browser, baseURL!, screen, app.use);
       opened.push(context);
       const flow = underway;
       const rest = run && flow && (await watchRest(page));
@@ -223,9 +224,10 @@ async function readied(page: Page, run: Run) {
   await page.addInitScript({ content: seeded });
 }
 
-// A window of its own, in one language and time zone as every flow is, on the laptop unless it's on another screen.
-export async function pageFor(browser: Browser, baseURL: string, screen: Screen) {
-  const context = await browser.newContext({ baseURL, locale: "en-US", timezoneId: "UTC", viewport: LAPTOP, ...screen });
+// A window of its own, in one language and time zone as every flow is, on the laptop unless it's on another screen, and
+// opened as the app's setup says.
+export async function pageFor(browser: Browser, baseURL: string, screen: Screen, use?: BrowserContextOptions) {
+  const context = await browser.newContext({ ...use, baseURL, locale: "en-US", timezoneId: "UTC", viewport: LAPTOP, ...screen });
   return { context, page: await context.newPage() };
 }
 
@@ -367,7 +369,7 @@ export async function runAlongside(
     let made: Made | undefined;
     const handTo: HandTo = async (person, screen = {}) => {
       personIn(appSetup, person);
-      const next = await pageFor(page.context().browser()!, baseURL, screen);
+      const next = await pageFor(page.context().browser()!, baseURL, screen, appSetup.use);
       opened.push(next.context);
       const rest = await readied(next.page);
       await appSetup.signIn?.({ page: next.page, person, setup: made?.setup ?? {} });
@@ -585,7 +587,7 @@ function pace(page: Page) {
       }
       // As long as the flow said to wait, where it said.
       const timeout = args.findLast((arg): arg is { timeout: number } => !!arg && typeof arg === "object" && typeof (arg as { timeout?: unknown }).timeout === "number")?.timeout;
-      if (pointer) await approach(this, pointer, timeout);
+      if (pointer) await approach(this, pointer, timeout).catch((error) => Promise.reject(asAction(error, action)));
       // Filled in on a recording, words are typed as a person types them, where they're typed: a date or a number is
       // set as it is, as typing it can come out otherwise.
       const [text, options] = args as [unknown, { timeout?: number } | undefined];
@@ -727,6 +729,15 @@ const typedInto = (target: Locator) =>
   target
     .evaluate((on) => (on as HTMLElement).isContentEditable || on instanceof HTMLTextAreaElement || (on instanceof HTMLInputElement && ["text", "search", "email", "url", "tel", "password"].includes(on.type)))
     .catch(() => false);
+
+// What's acted on, waited for in the action's place, fails in the action's words: the flow said click, not waitFor.
+function asAction(error: unknown, action: string) {
+  if (error instanceof Error) {
+    error.message = error.message.replace("locator.waitFor", `locator.${action}`);
+    error.stack &&= error.stack.replace("locator.waitFor", `locator.${action}`);
+  }
+  return error;
+}
 
 async function approach(target: Locator, at: { page: Page; x: number; y: number }, timeout?: number) {
   // What it acts on is waited for here, as long as the action waits (flows.ts), and one that never comes fails here, in

@@ -89,7 +89,7 @@ async function tryAs(repo: Repo, browser: Browser, setup: Setup, baseURL: string
   const did = setup.make && person && setup.signIn ? "made and signed in" : setup.make ? "made" : person && setup.signIn ? "signed in" : "nothing made";
   const tried: Tried = { who, did, took: 0, at: "", picture: join(repo.tried, `${(person ?? "every flow").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "person"}.png`), made: false, givenBack: true };
   for (const time of ["first", "second"] as const) {
-    const context = await browser.newContext({ baseURL, locale: "en-US", timezoneId: "UTC", viewport: { width: 1280, height: 800 } });
+    const context = await browser.newContext({ ...setup.use, baseURL, locale: "en-US", timezoneId: "UTC", viewport: { width: 1280, height: 800 } });
     const page = await context.newPage();
     const request = await requests.newContext({ baseURL });
     let made: Made | undefined;

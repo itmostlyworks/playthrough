@@ -65,10 +65,15 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
     // The step it stopped at left nothing to read.
     assert.deepEqual((await app.readings(0, cut!)).map((reading) => reading.step), ["Open the invoices"]);
 
-    // Run again, it tries the flow Before cut short once more, in case that was the flow's own mistake: here it's the app.
+    // Run again, Before stays as it is; once a flow's file changes, the flow fixed perhaps, it records that flow again.
+    ({ said, code } = await app.run(["start", "overdue"]));
+    assert.equal(code, 1);
+    assert.match(said, /Before is recorded already\./);
+    await writeFile(join(app.flows, "export.ts"), `// It stops where the app has no Export yet.\n${exportThem}`);
     ({ said, code } = await app.run(["start", "overdue"]));
     assert.equal(code, 0, said);
-    assert.match(said, /Before cut “Export the overdue ones” short, so it is tried on it again, in place of what it has of it, on the app as it is: nothing has changed since Before\./);
+    assert.match(said, /“Export the overdue ones” has changed since it last ran on Before, so it's recorded on it again, in place of what it has of it, on the app as it is: nothing has changed since Before\./);
+    assert.doesNotMatch(said, /See what's overdue/, "the flows that haven't changed aren't run again");
     assert.match(said, /“Export the overdue ones” stops at “Export them”, where Playwright says/);
     assert.deepEqual((await app.round(0)).flows.map((flow) => [flow.name, flow.stopped]), [["See what's overdue", undefined], ["See what's paid", undefined], ["Export the overdue ones", "Export them"]]);
   });
@@ -177,7 +182,7 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
 
     const { said, code } = await waiting;
     assert.equal(code, 0);
-    assert.match(said, new RegExp(`Round 2 is ready for review\\.\\nWaiting for notes on overdue…\\n\\nAna says your answer to note ${note} looks good\\.`));
+    assert.match(said, new RegExp(`Round 2 is ready for review\\. Tell the person it.s theirs: npx playthrough open overdue opens it\\.\\nWaiting for notes on overdue…\\n\\nAna says your answer to note ${note} looks good\\.`));
     assert.match(said, /Ana: The badge is hard to read\.\n    You, in round 2: It's darker now\.\n    Ana, looks good\n    Ben, not quite: Still hard to read on a phone\./);
     assert.match(said, /record round 3: playthrough record overdue/);
 

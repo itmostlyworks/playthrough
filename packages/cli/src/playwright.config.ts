@@ -16,7 +16,7 @@ export default defineConfig({
   // Each flow plays in real time, is recorded and read, and the app serves them all on the same machine: at a quarter of
   // the cores, each runs at most about a tenth slower than alone (Kan's five, 126 s one at a time, take 50 s).
   workers: run.app.oneAtATime ? 1 : Math.max(1, Math.floor(availableParallelism() / 4)),
-  reporter: [[fileURLToPath(new URL("./reporter.ts", import.meta.url)), { folder: run.folder, before: run.before, taken: run.taken }]],
+  reporter: [[fileURLToPath(new URL("./reporter.ts", import.meta.url)), { folder: run.folder, flows: run.flows, before: run.before, taken: run.taken }]],
   // An action that can't happen fails in seconds rather than at the test's end (test.ts).
   use: { baseURL: run.app.url, viewport: { width: 1280, height: 800 }, actionTimeout: waitsFor(run), screenshot: "only-on-failure" },
   // Playwright starts flows in the order of their projects: one for each flow not yet timed, which may be long, then one

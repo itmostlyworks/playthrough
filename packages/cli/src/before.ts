@@ -8,12 +8,13 @@
 
 import { execFileSync } from "node:child_process";
 import { copyFileSync, cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { readFile, writeFile } from "node:fs/promises";
 import { constants, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { list, quote, Refused, type Flow } from "@playthrough/review";
+import { list, quote, Refused, type Flow, type Review } from "@playthrough/review";
 import { serves, stopApp } from "./app.ts";
-import { called, failedAt, runFlows, whereItStopped } from "./flows.ts";
-import type { Failed } from "./reporter.ts";
+import { called, failedAt, runFlows, whereItStopped, type Ran } from "./flows.ts";
+import { hashOf, type Failed, type Written } from "./reporter.ts";
 import type { Repo } from "./repo.ts";
 import { trySetup } from "./try-setup.ts";
 
@@ -81,12 +82,32 @@ export async function recordOnBefore(repo: Repo, id: string, number: number, flo
   await onBefore(repo, id, later, `${named} ${are} new, so ${they} recorded on Before too`, `Round ${number} wasn't recorded`, "Record again.", (why) => `${named} ${have} no Before: ${why}.`);
 }
 
-// The flows Before cut short or couldn't start, tried on it again, as playthrough start does once Before is recorded: a flow
-// that stopped for its own mistake, not the app's, goes as far as the app as it was can take it once it's fixed.
-export async function tryBeforeAgain(repo: Repo, id: string, flows: string[]) {
-  const [them, they] = flows.length > 1 ? ["them", "they"] : ["it", "it"];
+// The flows of Before to run on it again: each whose file has changed since it last ran there, or that Before has no word
+// of, so a flow fixed since shows the app as it was, not its own mistake. Once round 1 is handed over, it's been compared
+// with Before, so only a flow Before cut short or couldn't start goes further.
+export async function changedOnBefore(repo: Repo, review: Review): Promise<string[]> {
+  const before = review.rounds.find((round) => round.number === 0);
+  if (!before) return [];
+  const handedOver = review.rounds.some((round) => round.number > 0 && round.finished);
+  const flows = [...before.flows.filter((flow) => !handedOver || flow.stopped).map((flow) => flow.name), ...(before.cantStart ?? [])];
+  const ran = await ranOnBefore(repo, review.id);
+  return flows.filter((name) => !ran[name] || hashOf(join(repo.flows(review.id), ran[name].file)) !== ran[name].hash);
+}
+
+const ranOnBefore = (repo: Repo, id: string): Promise<Record<string, Written>> => readFile(repo.ranOnBefore(id), "utf8").then(JSON.parse, () => ({}));
+
+// Each flow that ran on Before, by the file it ran from, in place of what was; one Before let go is forgotten.
+export async function noteRanOnBefore(repo: Repo, id: string, written: Record<string, Written>, gone: string[] = []) {
+  const ran = { ...(await ranOnBefore(repo, id)), ...written };
+  for (const name of gone) delete ran[name];
+  await writeFile(repo.ranOnBefore(id), JSON.stringify(ran));
+}
+
+// Those flows, run on Before again, in place of what it has of them, as start does, and record before round 1.
+export async function tryBeforeAgain(repo: Repo, id: string, flows: string[], again: string) {
+  const [has, they, them] = flows.length > 1 ? ["have", "they're", "them"] : ["has", "it's", "it"];
   const named = called(flows);
-  await onBefore(repo, id, flows, `Before cut ${named} short, so ${they} ${flows.length > 1 ? "are" : "is"} tried on it again, in place of what it has of ${them}`, "Before wasn't recorded again", "Run this again.", (why) => `Before can't try ${named} again: ${why}.`);
+  await onBefore(repo, id, flows, `${named} ${has} changed since ${flows.length > 1 ? "they" : "it"} last ran on Before, so ${they} recorded on it again, in place of what it has of ${them}`, "Before wasn't recorded again", again, (why) => `Before can't record ${named} again: ${why}.`);
 }
 
 // Until round 1 is handed over, nothing has been compared with Before, so Before follows what every flow starts from:
@@ -120,8 +141,8 @@ async function onBefore(repo: Repo, id: string, flows: string[], doing: string, 
   const taken = await repo.reviews.files(id, 0);
   // An app as it was that doesn't start, for the reason Playwright gives, can't start any of them.
   const run = () =>
-    runFlows(repo, id, 0, { later: { flows: later, taken }, first: () => true }).catch((error) => {
-      if (error instanceof Refused) return { recorded: [], failed: later.map((flow) => ({ flow })) };
+    runFlows(repo, id, 0, { later: { flows: later, taken }, first: () => true }).catch((error): Ran => {
+      if (error instanceof Refused) return { recorded: [], failed: later.map((flow) => ({ flow })), written: {} };
       throw error;
     });
   let ran: Awaited<ReturnType<typeof run>>;
@@ -143,12 +164,15 @@ async function onBefore(repo: Repo, id: string, flows: string[], doing: string, 
         await stopApp(url);
       }
     });
+    // And back to the work, before a round is recorded on it.
+    if (shared) await caughtUp(url);
   }
   refuseIfBroken(ran.failed, unrecorded, again);
   const commit = whole ? keptWithOursNow(repo, id, before.commit!) : undefined;
   // A flow that neither ran nor failed isn't one any more: Before lets it go, rather than trying it again every time.
   const gone = later.filter((name) => !ran.recorded.some(({ flow }) => flow.name === name) && !ran.failed.some(({ flow }) => flow === name));
   await repo.reviews.addToBefore(id, { flows: ran.recorded.map(({ flow }) => flow), cantStart: cantStart(ran.recorded, ran.failed), files: ran.recorded.flatMap(({ files }) => files), ...(commit && { commit }), gone });
+  await noteRanOnBefore(repo, id, ran.written, gone);
   if (gone.length) console.log(`\n${gone.length > 3 ? `${gone.length} of them` : list(gone.map(quote))} ${gone.length > 1 ? "aren't flows" : "isn't a flow"} any more, so Before lets ${gone.length > 1 ? "them" : "it"} go.`);
   for (const line of howFar(repo, id, ran.recorded, ran.failed, "the app as it was")) console.log(line);
   return true;
@@ -178,7 +202,7 @@ export function howFar(repo: Repo, id: string, recorded: { flow: Flow }[], faile
   // An app as it was that didn't start left no page to see.
   const where = existsSync(repo.failed(id)) ? ` ${whereItStopped(repo, id, failed)}` : "";
   if (lines.length)
-    lines.push(`If that's the app as it was, that's Before. If it's the flow's own mistake, fix the flow and run playthrough start ${id} again: it tries the flows Before cut short again.${where}`);
+    lines.push(`If that's the app as it was, that's Before. If it's the flow's own mistake, fix the flow and run playthrough start ${id} again: it records a flow changed since on Before again.${where}`);
   return lines;
 }
 

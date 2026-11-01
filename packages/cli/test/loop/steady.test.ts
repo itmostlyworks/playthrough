@@ -28,6 +28,7 @@ test("Look at the invoices", async ({ page, setup }) => {
       say(\`Today is \${new Date().toISOString().slice(0, 10)}\`);
       say(\`Drawn \${Math.random().toFixed(6)}\`);
       say(\`Set up for \${word}\`);
+      say(\`Seen as \${navigator.userAgent}\`);
       // On a line of its own at the end, so it pushes nothing else along when its length changes.
       document.body.insertAdjacentHTML("beforeend", \`<p>Open for \${performance.now().toFixed(3)} ms</p>\`);
       document.querySelector("h1").insertAdjacentHTML("beforeend", '<img src="/dot.png" alt="" width="8" height="8">');
@@ -37,11 +38,11 @@ test("Look at the invoices", async ({ page, setup }) => {
 `;
 
 describe("The command line, as an agent uses it, from a steady start", { timeout: 300_000 }, () => {
-  test("each flow starts on the day the review started, from what playthrough/setup.ts makes, and is recorded twice to find what changes by itself", async () => {
+  test("each flow starts on the day the review started, from what playthrough/setup.ts makes, in a browser opened as it says, and is recorded twice to find what changes by itself", async () => {
     await app.run(["start", "overdue", "Show only overdue invoices", "Can the invoices list show just the overdue ones?"]);
     await mkdir(join(app.repo, "playthrough"));
     await writeFile(join(app.repo, "playthrough/app.json"), JSON.stringify(app.app));
-    await writeFile(join(app.repo, "playthrough/setup.ts"), `export default async function ({ page }) {\n  return { word: "Ana" };\n}\n`);
+    await writeFile(join(app.repo, "playthrough/setup.ts"), `export const use = { userAgent: "Steady browser" };\n\nexport default async function ({ page }) {\n  return { word: "Ana" };\n}\n`);
     await writeFile(join(app.repo, "app/dot.png"), DOT);
     await writeFile(join(app.flows, "look.ts"), shows);
     // The first time flows run in the app, its setup is tried by itself, and nothing's recorded yet.
@@ -58,6 +59,7 @@ describe("The command line, as an agent uses it, from a steady start", { timeout
     const started = (await app.reviews.get("overdue")).started.slice(0, 10);
     assert.match(words, new RegExp(`Today is ${started}`));
     assert.match(words, /Set up for Ana/);
+    assert.match(words, /Seen as Steady browser/);
     assert.equal(flow!.unsteady?.length, 1);
   });
 

@@ -3,10 +3,11 @@
 // “setup”. Each run makes its own, so no two start from what another left, and gives it back once it's over: setup's
 // `after`, if it has one, is given what was made, and takes it away, so the app, shared or not, isn't left with a world
 // for every run. The app's people, if it names them, are who a flow can be done as: `signIn` makes a page theirs, the
-// flow's own and any it's handed to on the way.
+// flow's own and any it's handed to on the way. And `use`, if it says, is how every page of the app is opened, as
+// Playwright's test.use would: an app that serves a test its own way, told by the browser's user agent, say.
 
-import { request as requests, type APIRequestContext, type Page } from "@playwright/test";
-import { list, quote } from "@playthrough/review";
+import { request as requests, type APIRequestContext, type BrowserContextOptions, type Page } from "@playwright/test";
+import { list, quote, Refused } from "@playthrough/review";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
@@ -23,7 +24,10 @@ type After = (given: { request: APIRequestContext; baseURL: string; setup: Recor
 type SignIn = (given: { page: Page; person: string; setup: Record<string, any> }) => unknown;
 // Each of the app's people, by name, in the team's words: for the agent to read, never shown.
 export type People = Record<string, string>;
-export type Setup = { make?: Make; after?: After; signIn?: SignIn; people?: People };
+export type Setup = { make?: Make; after?: After; signIn?: SignIn; people?: People; use?: BrowserContextOptions };
+
+// What Playthrough keeps the same for every flow, or a flow says with test.use, isn't the setup's to set for them all.
+const OURS = ["baseURL", "viewport", "screen", "isMobile", "hasTouch", "deviceScaleFactor", "locale", "timezoneId", "colorScheme", "reducedMotion", "forcedColors", "contrast"];
 
 // Loaded again in Playthrough once it's written again, by when.
 export async function setupIn(file: string, written?: number): Promise<Setup> {
@@ -31,14 +35,19 @@ export async function setupIn(file: string, written?: number): Promise<Setup> {
   const href = pathToFileURL(file).href;
   asModule(href);
   // In an app whose package.json doesn't say it's a module, Playwright loads the file as CommonJS, its exports one level down.
-  type Module = { default?: Make; after?: After; signIn?: SignIn; people?: People };
+  type Module = { default?: Make; after?: After; signIn?: SignIn; people?: People; use?: BrowserContextOptions };
   const module: Omit<Module, "default"> & { default?: Make | Module } = await import(`${href}${written ? `?${written}` : ""}`);
   const inner = typeof module.default === "object" ? module.default : undefined;
+  const use = module.use ?? inner?.use;
+  const ours = Object.keys(use ?? {}).filter((option) => OURS.includes(option));
+  if (ours.length)
+    throw new Refused([`playthrough/setup.ts's use sets ${list(ours)}, which Playthrough keeps the same for every flow, or a flow sets with test.use, like its screen. Take ${ours.length > 1 ? "them" : "it"} out of use.`]);
   return {
     make: typeof module.default === "function" ? module.default : inner?.default,
     after: module.after ?? inner?.after,
     signIn: module.signIn ?? inner?.signIn,
     people: module.people ?? inner?.people,
+    ...(use && { use }),
   };
 }
 

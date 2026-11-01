@@ -6,7 +6,7 @@ import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, test } from "node:test";
-import { giveBackLeft, make, watching, type Setup } from "../src/setup.ts";
+import { giveBackLeft, make, setupIn, watching, type Setup } from "../src/setup.ts";
 
 let borrowed = "";
 let given: Record<string, any>[] = [];
@@ -78,5 +78,19 @@ describe("What setup sends the app", () => {
     await watched.delete!("/boards/1");
     await watched.fetch!("/boards", { method: "put" });
     assert.equal(changed, 3);
+  });
+});
+
+describe("How setup opens the app's pages", () => {
+  test("is up to it, but for what Playthrough keeps the same for every flow, or a flow sets with test.use", async () => {
+    const folder = await mkdtemp(join(tmpdir(), "playthrough-setup-"));
+    try {
+      await writeFile(join(folder, "setup.ts"), `export const use = { userAgent: "playwright" };\n`);
+      assert.deepEqual((await setupIn(join(folder, "setup.ts"))).use, { userAgent: "playwright" });
+      await writeFile(join(folder, "theirs.ts"), `export const use = { userAgent: "playwright", viewport: { width: 390, height: 844 }, locale: "sv-SE" };\n`);
+      await assert.rejects(setupIn(join(folder, "theirs.ts")), /playthrough\/setup\.ts's use sets viewport and locale, which Playthrough keeps the same for every flow, or a flow sets with test\.use, like its screen\. Take them out of use\./);
+    } finally {
+      await rm(folder, { recursive: true, force: true });
+    }
   });
 });

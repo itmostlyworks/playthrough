@@ -3,8 +3,9 @@
 // so it writes them down, in the folder the run gave it, and says how each went as it ends, in a line of its own: Playwright's
 // list ticked a flow whose checks Before let go by, and printed a stack for one that stopped where it should.
 
-import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { createHash } from "node:crypto";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join, relative } from "node:path";
 import type { Reporter, TestCase, TestError, TestResult, TestStep } from "@playwright/test/reporter";
 import type { Glimpse, Reading } from "@playthrough/page";
 import { quote, type Flow, type Reviews } from "@playthrough/review";
@@ -53,16 +54,28 @@ const BROKEN = /Page crashed|Target crashed|Target page, context or browser has 
 export type Recorded = { flow: Flow; files: string[]; wrote?: string };
 // The flow handed on to someone else, on this machine's clock.
 export type Hand = { at: number; person: string };
+// The file a flow is written in, in the review's flows folder, and a hash of what it said as the flow ran: Before runs a
+// flow again once its file has changed.
+export type Written = { file: string; hash: string };
+export const hashOf = (file: string) => {
+  try {
+    return createHash("sha256").update(readFileSync(file)).digest("hex");
+  } catch {
+    return undefined;
+  }
+};
 type Event = { timestamp: number; [field: string]: unknown };
 
 export default class Flows implements Reporter {
   #folder: string;
+  #flows: string;
   #before: boolean;
   #taken: string[];
   #ran: { file: string; line: number; recorded?: Recorded; failed?: Failed }[] = [];
 
-  constructor({ folder, before, taken }: { folder: string; before: boolean; taken: string[] }) {
+  constructor({ folder, flows, before, taken }: { folder: string; flows: string; before: boolean; taken: string[] }) {
     this.#folder = folder;
+    this.#flows = flows;
     this.#before = before;
     this.#taken = taken;
   }
@@ -161,7 +174,12 @@ export default class Flows implements Reporter {
 
   onEnd() {
     const ran = this.#ran.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line);
-    writeFileSync(join(this.#folder, "flows.json"), JSON.stringify({ recorded: ran.flatMap((run) => run.recorded ?? []), failed: ran.flatMap((run) => run.failed ?? []) }));
+    const written: Record<string, Written> = {};
+    for (const { file, recorded, failed } of ran) {
+      const hash = hashOf(file);
+      if (hash) written[recorded?.flow.name ?? failed!.flow] = { file: relative(this.#flows, file), hash };
+    }
+    writeFileSync(join(this.#folder, "flows.json"), JSON.stringify({ recorded: ran.flatMap((run) => run.recorded ?? []), failed: ran.flatMap((run) => run.failed ?? []), written }));
   }
 
   printsToStdio() {

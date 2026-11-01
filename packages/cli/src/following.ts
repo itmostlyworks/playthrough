@@ -137,7 +137,7 @@ async function start(repo: Repo, id: string, to: To, files: string[], written: n
   // As the flow is recorded: in the window its file asks for with test.use, like a phone's screen and touch, where an
   // action that can't happen fails in seconds. A page may take as long as it takes to load, as the playhead may take to
   // get there. What else the file says with test.use, Playwright leaves aside.
-  const { context, page } = await pageFor(await browser(), app.url, kept.use);
+  const { context, page } = await pageFor(await browser(), app.url, kept.use, setup.use);
   context.setDefaultTimeout(10_000);
   context.setDefaultNavigationTimeout(0);
   const request = await requests.newContext({ baseURL: app.url });

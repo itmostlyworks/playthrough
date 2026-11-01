@@ -25,7 +25,7 @@ export async function wait(repo: Repo, id: string) {
           `${error.problems.length > 1 ? "Fix these" : "Fix it"} in ${repo.show(repo.round(id, last.number))}, then hand it over again: playthrough wait ${id}`,
         ]);
       }
-      console.log(`Round ${last.number} is ready for review.`);
+      console.log(`Round ${last.number} is ready for review. Tell the person it's theirs: npx playthrough open ${id} opens it.`);
       // Handed over, the notes it answered are answered: what's asked now is what comes next.
       review = await reviews.get(id);
     } else console.log(`Round ${last.number} is handed over already.`);
@@ -71,7 +71,7 @@ export async function wait(repo: Repo, id: string) {
     if (asking.some((note) => notes.get(note)?.note.on?.app))
       console.log(`\nWhat they did in the app is walked again on the new version when you record the round, and record says whether it still gets to their note. playthrough walk ${id} does that while you work.`);
     const first = pictures.size ? "Look at what each note is on, change" : "Change";
-    console.log(`\n${first} the app, then record round ${round}: playthrough record ${id}`);
+    console.log(`\n${first} the app, then record round ${round}: playthrough record ${id}. Then answer each note in that round's round.json, under “replies”: record says where.`);
     return console.log(`New to this review? Run playthrough alone for how Playthrough works. Its flows are in ${repo.show(repo.flows(id))}.`);
   }
 }

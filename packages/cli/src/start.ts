@@ -5,7 +5,7 @@
 import { existsSync } from "node:fs";
 import { list, quote, Refused } from "@playthrough/review";
 import { agent } from "./agent.ts";
-import { cantStart, howFar, keepBefore, recordBeforeAgain, refuseIfBroken, tryBeforeAgain } from "./before.ts";
+import { cantStart, changedOnBefore, howFar, keepBefore, noteRanOnBefore, recordBeforeAgain, refuseIfBroken, tryBeforeAgain } from "./before.ts";
 import { called, howToWriteFlows, makeFlowsFolder, runFlows } from "./flows.ts";
 import type { Repo } from "./repo.ts";
 import { setupIn } from "./setup.ts";
@@ -34,14 +34,14 @@ Then run playthrough start ${id} again. It records Before: each flow on the app 
   const last = review.rounds.at(-1);
   const before = review.rounds.find((round) => round.number === 0);
   if (last?.number === 0 && (await recordBeforeAgain(repo, id, `playthrough start ${id}`, "Run this again."))) return;
-  const short = before ? [...before.flows.filter((flow) => flow.stopped).map((flow) => flow.name), ...(before.cantStart ?? [])] : [];
-  if (before && short.length) return tryBeforeAgain(repo, id, short);
+  const changed = await changedOnBefore(repo, review);
+  if (changed.length) return tryBeforeAgain(repo, id, changed, "Run this again.");
   if (last?.number === 0) throw new Refused([`Before is recorded already. Change the app, then record round 1: playthrough record ${id}`]);
   if (last) throw new Refused([`Before is how the app was before the work, and ${id} has round ${last.number} already. Record the round being worked on: playthrough record ${id}`]);
 
   // What it's recorded from is kept first, before running the app can change anything.
   const commit = keepBefore(repo, id);
-  const { recorded, failed } = await runFlows(repo, id, 0, { first: () => true });
+  const { recorded, failed, written } = await runFlows(repo, id, 0, { first: () => true });
   refuseIfBroken(failed, "Before wasn't recorded", "Run this again.");
   if (!recorded.length)
     return console.log(`\nNone of the flows can start on the app as it is, so there's no Before. If one should, fix it and run this again. Otherwise change the app, then record round 1: playthrough record ${id}`);
@@ -50,6 +50,7 @@ Then run playthrough start ${id} again. It records Before: each flow on the app 
   const flows = recorded.map(({ flow }) => flow);
   await repo.reviews.saveRound(id, { number: 0, by: agent(), flows, replies: [], accounts: {}, cantStart: cantStart(recorded, failed), ...(commit && { commit }) });
   await repo.reviews.finish(id, 0);
+  await noteRanOnBefore(repo, id, written);
   console.log(`\nRecorded Before: ${called(flows.map((flow) => flow.name))}.`);
   for (const line of howFar(repo, id, recorded, failed, "the app as it is")) console.log(line);
   if (!commit) console.log(`This folder isn't in git, so Before isn't kept as a commit, and a flow added later can't be recorded on it.`);

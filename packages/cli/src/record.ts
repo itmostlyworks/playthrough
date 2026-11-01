@@ -6,7 +6,7 @@
 import { placeIn } from "@playthrough/page";
 import { lastSeen, list, LONGEST_LINE, notesToAnswer, problemsFinishing, quote, Refused, roundInProgress, type Flow, type Reply, type Review } from "@playthrough/review";
 import { agent, unnamed } from "./agent.ts";
-import { recordBeforeAgain, recordOnBefore } from "./before.ts";
+import { changedOnBefore, recordBeforeAgain, recordOnBefore, tryBeforeAgain } from "./before.ts";
 import { compareWithEarlier } from "./compare.ts";
 import { called, failedAt, runFlows, whereItStopped } from "./flows.ts";
 import type { Repo } from "./repo.ts";
@@ -20,8 +20,11 @@ export async function record(repo: Repo, id: string) {
   // A flow new since the last round is recorded twice on Before, when there's a Before to put back; otherwise here.
   const onBefore = !!review.rounds.find((round) => round.number === 0)?.commit;
   const first = (flow: string) => !onBefore && !review.rounds.some((round) => round.number !== number && round.flows.some((kept) => kept.name === flow));
-  // Until round 1 is handed over, Before follows a setup changed since it was recorded.
-  if (number === 1) await recordBeforeAgain(repo, id, `playthrough record ${id}`, "Record again.");
+  // Until round 1 is handed over, Before follows a setup, or a flow, changed since it was recorded.
+  if (number === 1 && !(await recordBeforeAgain(repo, id, `playthrough record ${id}`, "Record again."))) {
+    const again = await changedOnBefore(repo, review);
+    if (again.length) await tryBeforeAgain(repo, id, again, "Record again.");
+  }
   const { recorded, failed } = await runFlows(repo, id, number, { first });
   if (failed.length)
     throw new Refused([
@@ -63,16 +66,16 @@ export async function record(repo: Repo, id: string) {
     console.log(`Nothing at rest shows an answer that moves, like an animation: if yours does, add "watch": "<the title of the step it's seen in>" to its reply in ${file}, and the note plays that step.`);
   if (walked.length) console.log(`\n${walked.map(saidOf).join("\n")}`);
   if (left.length) console.log(`\nStill to do, in ${file}:\n${left.map((problem) => `  ${problem}`).join("\n")}`);
-  if (since?.changes.some((change) => !saved?.accounts[change.id]))
+  // How to say why is said the first time the review is recorded; after that, what's still to do says what's missing.
+  if (number === 1 && !saved && since?.changes.length)
     console.log(`\nSay why each change is there in “accounts”, by its id: { "line": "<why, in your words>" }, { "note": "<the note it was made for>" }, or { "notReal": "<why nothing really changed>" }.`);
   if (unsaid.length) {
     const [are, each] = unsaid.length > 1 ? ["are", "each"] : ["is", "it"];
     console.log(`\n${list(unsaid.map((flow) => quote(flow.name)))} ${are} new to the person. In ${file}, ${each} can have a line at its start, as “line” in its flow under “flows”: what it starts from, or the choice it shows, in a sentence of up to ${LONGEST_LINE} characters.`);
   }
   if (by === unnamed) console.log(`\nPlaythrough can't tell which agent you are. Write your name in ${file} as “by”, and each of your answers shows it.`);
-  console.log(left.length ? `\nThen hand it over: playthrough wait ${id}` : `\nHand it over when it's ready: playthrough wait ${id}`);
-  console.log("It waits for the person's notes, which can take hours: run it in the background, so you're told when it ends.");
-  console.log(`Once it's handed over, tell the person it's theirs to review: npx playthrough open ${id} opens it.`);
+  // It waits for the person's notes, which can take hours.
+  console.log(`\n${left.length ? "Then hand it over" : "Hand it over when it's ready"}, in the background, so you're told when the person's notes come: playthrough wait ${id}`);
 }
 
 // Each answer shows where its note's thing is on this round's recording, found by Playthrough from the last round it was
