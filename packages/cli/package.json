@@ -1,6 +1,6 @@
 {
   "name": "playthrough",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Review an AI agent's work on a web app by watching recordings of it.",
   "private": true,
   "type": "module",
