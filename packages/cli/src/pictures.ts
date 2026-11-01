@@ -32,9 +32,12 @@ export async function picturesAt(page: Page, then: Reading, now: Reading, pictur
     if (patch.nudged && found.length) continue;
     if (patch.moved && [...changedInside].some((holder) => contains(holder.box, patch, 8))) continue;
     const on = whatsThere(now, patch);
-    const by = patch.moved && Math.max(Math.abs(patch.moved.x), Math.abs(patch.moved.y));
-    const words = patch.moved ? `${on.called} moved ${wayOf(patch.moved.x, patch.moved.y)}, ${by}px` : `${on.called} looks different`;
-    const id = idOf(on.identity ?? `place:${Math.round(patch.x / 32)},${Math.round(patch.y / 32)}`, patch.moved ? "moved" : "looks different");
+    // Whether a thing that was read moved, the reading says: the picture only shows it looks different, as something drawn
+    // over it, unread, can (Next's dev indicator over Kan's “Robin Park”). What moved where nothing's read is something.
+    const moved = on.identity && !on.identity.startsWith("near ") ? undefined : patch.moved;
+    const by = moved && Math.max(Math.abs(moved.x), Math.abs(moved.y));
+    const words = moved ? `${on.called} moved ${wayOf(moved.x, moved.y)}, ${by}px` : `${on.called} looks different`;
+    const id = idOf(on.identity ?? `place:${Math.round(patch.x / 32)},${Math.round(patch.y / 32)}`, moved ? "moved" : "looks different");
     // Patches on the same thing are one change to it, over all of them.
     const same = told.get(id);
     told.set(id, { words, patch: same ? around(same.patch, patch) : patch, here: !on.identity || on.identity.startsWith("near ") });

@@ -3,8 +3,8 @@
 // change, and a note sits on its thing in every round, found the way the agent's answer to it was placed.
 
 import { useEffect, useState } from "react";
-import { called, holdsControls, placeIn, type Glimpse, type Reading, type Thing } from "@playthrough/page";
-import type { Element, Place, Point, Review, Round } from "@playthrough/review";
+import { called, HOLDING, holdsControls, nearTo, placeIn, type Glimpse, type Reading, type Thing } from "@playthrough/page";
+import type { Element, Place, Review, Round } from "@playthrough/review";
 import { glimpses, readings } from "./api.ts";
 import type { Rect } from "./replay.ts";
 
@@ -49,8 +49,6 @@ function thingAt(read: Glimpse[], node: number, at: number): Thing | undefined {
   return index.get(node)?.reduce((best, next) => (Math.abs(next.at - at) < Math.abs(best.at - at) ? next : best)).thing;
 }
 
-// What holds other things you could name on their own: words of their own in it are noted for themselves.
-const HOLDING = /^(dialog|alertdialog|group|radiogroup|table|grid|treegrid|listbox|menu)$/;
 const loose = (thing: Thing) => thing.role === "text" || thing.role === "box";
 
 // What a click there would note, from the element under the pointer outwards: the nearest thing with a role a person
@@ -85,26 +83,6 @@ export function holdersOf(outwards: number[], read: Glimpse[], at: number, pick:
     last = box;
   }
   return holders;
-}
-
-// A note on empty space is named by the nearest thing you could name within 80px of it, never by what holds it: inside
-// a panel, a dialog or a menu, only what's in it. With nothing close, it's about the moment.
-export function nearTo(read: Glimpse[], at: number, point: Point): Thing | undefined {
-  const reading = read.reduce<Glimpse | undefined>((best, next) => (!best || Math.abs(next.at - at) < Math.abs(best.at - at) ? next : best), undefined);
-  if (!reading) return undefined;
-  const x = point.x * reading.screen.width;
-  const y = point.y * reading.screen.height;
-  const inside = (thing: Thing) => x >= thing.box.x && x <= thing.box.x + thing.box.width && y >= thing.box.y && y <= thing.box.y + thing.box.height;
-  const area = (thing: Thing) => thing.box.width * thing.box.height;
-  const room = reading.things.filter((thing) => (thing.role === "box" || (HOLDING.test(thing.role) && !/^(table|grid|treegrid)$/.test(thing.role))) && inside(thing)).sort((a, b) => area(a) - area(b))[0];
-  const within = (thing: Thing) => {
-    for (let holder = thing.holder; holder !== undefined; holder = reading.things[holder]?.holder) if (reading.things[holder] === room) return true;
-    return false;
-  };
-  const gap = (thing: Thing) => Math.hypot(Math.max(thing.box.x - x, 0, x - thing.box.x - thing.box.width), Math.max(thing.box.y - y, 0, y - thing.box.y - thing.box.height));
-  return reading.things
-    .filter((thing) => thing.name && thing.role !== "box" && !HOLDING.test(thing.role) && (!room || within(thing)) && gap(thing) <= 80)
-    .sort((a, b) => gap(a) - gap(b) || area(a) - area(b))[0];
 }
 
 // What a note says it's on, as Playthrough calls things: “Settle up button”, “$600.00”, the “Who owes whom” area; a spot,

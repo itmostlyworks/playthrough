@@ -20,13 +20,14 @@ THE LOOP
    name. Once the work is done, add a flow for each choice you made that the person can see and didn't ask for.
 4. playthrough record <review> records the round and compares it with every round before it. In the round's round.json,
    say why each change since the round before is there, under "accounts" by its id: { "line": "<why, in your words>" },
-   { "note": "<the note it was made for>" }, or { "notReal": "<why nothing really changed>" }.
+   { "note": "<the id of the note it was made for>" }, or { "notReal": "<why nothing really changed>" }.
 5. playthrough wait <review> hands the round over and waits for the notes, which can take hours: run it in the
    background, so you're told when it ends. Each note comes with a picture of what it's on, or what the person did in
-   the app. Change the app, record the next round, and answer each note in its round.json, under "replies". Where the
-   answer moves, like an animation, add "watch": "<the title of the step it's seen in>". For a note made in the app,
-   record walks the person's steps again and puts your answer where they lead: answer it in words, not with a new flow,
-   and check your fix with playthrough walk <review>. Where their steps stop short, fix that, or say why they changed.
+   the app. Change the app, record the next round, and answer each note in its round.json, under "replies", in its
+   "words": its "on" is where Playthrough found the note's thing on this round, so leave it. Where the answer moves,
+   like an animation, add "watch": "<the title of the step it's seen in>". For a note made in the app, record walks the
+   person's steps again and puts your answer where they lead: answer it in words, not with a new flow, and check your
+   fix with playthrough walk <review>. Where their steps stop short, fix that, or say why they changed.
 
 The person can only judge what the flows show, so keep them true to how a person uses the app.
 
@@ -91,15 +92,16 @@ tells tests by (the screen, language and time zone are Playthrough's):
 
   export async function after({ request, setup }: { request: APIRequestContext; baseURL: string; setup: Record<string, any> }) {
     const removed = await request.delete(`/api/test/accounts/${setup.account}`);
-    if (!removed.ok()) throw new Error(`Removing the account failed: ${removed.status()}`);
+    if (!removed.ok() && removed.status() !== 404) throw new Error(`Removing the account failed: ${removed.status()}`);
   }
 
 Each run makes its own: what the app needs unique, like an email, of its own, and what the page shows, like a name, the
-same every run. Check what each request answers, so one that fails says so. Avoid what can't be given back, like an
-email sent: test keys, a mail catcher. Use what the project has (a test account, seed data, its own fixtures), make data
-through the API or database rather than on screen, and stub what you can't control at the network. Sign in with
-page.request, not request: it shares the page's cookies, so a person who takes the flow over is signed in too. Dates
-the server works out don't follow the page's clock: fix them through the app's own test hook if it has one.
+same every run. Check what each request answers, so one that fails says so. An after that fails is tried again whole by
+the next command, so it takes what's gone already as given back. Avoid what can't be given back, like an email sent:
+test keys, a mail catcher. Use what the project has (a test account, seed data, its own fixtures), make data through the
+API or database rather than on screen, and stub what you can't control at the network. Sign in with page.request, not
+request: it shares the page's cookies, so a person who takes the flow over is signed in too. Dates the server works out
+don't follow the page's clock: fix them through the app's own test hook if it has one.
 
 Whenever app.json or setup.ts changes, Playthrough tries the setup by itself first, twice for each of the app's people,
 and shows a picture of where each starts. Fix what the pictures show and run the command again. It's the person's app:

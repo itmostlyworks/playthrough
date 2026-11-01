@@ -12,6 +12,12 @@ export function roundInProgress(review: Review): number {
   return last.finished ? last.number + 1 : last.number;
 }
 
+// Every flow the review has had, in the order they joined it: the task's first, from Before, then those the agent added
+// for its own choices, whatever their files are called.
+export function inOrderJoined(review: Review): string[] {
+  return [...new Set(review.rounds.flatMap((kept) => [...kept.flows.map((flow) => flow.name), ...(kept.cantStart ?? [])]))];
+}
+
 // Every note in the review, with the round it was written on and who wrote it.
 export function allNotes(review: Review): Map<string, { note: Note; round: number; by: string }> {
   const notes = new Map<string, { note: Note; round: number; by: string }>();

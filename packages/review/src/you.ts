@@ -3,7 +3,7 @@
 // it; Looks good on a flow, and accepting, are each person's own.
 
 import type { Change, Place, Review } from "./model.ts";
-import { accountOf, allNotes, conversation, problemsAccepting, waitingForTheAgent, type Turn } from "./rules.ts";
+import { accountOf, allNotes, conversation, inOrderJoined, problemsAccepting, waitingForTheAgent, type Turn } from "./rules.ts";
 
 // The last round before `before` you said something about a flow on: a note in it, a verdict on an answer in it, or
 // Looks good on it, or taking that back. Once you have, you've seen what's in it. Nothing for a flow you haven't.
@@ -27,8 +27,7 @@ export type Shown = { change: Change; on: Place; since: number };
 
 // What's new to you on a round: each change that's different from the last round you looked at any flow it's in, or
 // from Before when you've looked at none of them. It's told in the flow of the note it was made for, or else the first
-// flow that shows it, in the order the flows joined the review, so the task's flows come before those the agent added
-// for its own choices, whatever their files are called. What the agent says isn't real is never told.
+// flow that shows it, in the order the flows joined the review. What the agent says isn't real is never told.
 export function newToYou(review: Review, round: number, you: string): Shown[] {
   const recorded = review.rounds.find((kept) => kept.number === round);
   const first = review.rounds[0]?.number;
@@ -36,7 +35,7 @@ export function newToYou(review: Review, round: number, you: string): Shown[] {
   const comparisons = review.comparisons.filter((comparison) => comparison.round === round);
   const notes = allNotes(review);
   const order = recorded.flows.map((flow) => flow.name);
-  const joined = [...new Set(review.rounds.flatMap((kept) => [...kept.flows.map((flow) => flow.name), ...(kept.cantStart ?? [])]))];
+  const joined = inOrderJoined(review);
 
   const found = comparisons.flatMap((comparison) => comparison.changes);
   const shown: Shown[] = [];

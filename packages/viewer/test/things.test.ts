@@ -2,9 +2,9 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { Reading, Thing } from "@playthrough/page";
+import { nearTo, type Reading, type Thing } from "@playthrough/page";
 import type { Flow, Review, Round } from "@playthrough/review";
-import { holdersOf, nearTo, pickAt, placeName, placeOn, watchedIn } from "../src/things.ts";
+import { holdersOf, pickAt, placeName, placeOn, watchedIn } from "../src/things.ts";
 
 const look = { color: "rgb(9, 9, 11)", background: "rgba(0, 0, 0, 0)", size: "16px", weight: "400", border: "none" };
 const box = (x: number, y: number, width: number, height: number) => ({ box: { x, y, width, height }, page: { x, y } });

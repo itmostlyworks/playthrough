@@ -48,7 +48,17 @@ test("a thing that's gone, or a step the round doesn't take, leaves only the mom
   assert.deepEqual(placeIn({ flow: "Settle up", at: 3, element: { role: "dialog", name: "Export", node: 6 } }, then, now), { flow: "Settle up", at: 2 });
 });
 
-test("a note noted by role and name alone is found by them, and a spot or a stretch keeps its place on the screen", () => {
+test("a spot beside a card that moved down the list moves down with it, as far from it as it was (Kan's sorted list)", () => {
+  const steps: [string, number][] = [["Add a card due on the 7th", 0]];
+  const then = round(flow(2, steps), reading("Add a card due on the 7th", 1, [thing("text", "Print the programme", 3, 420, 210), thing("text", "Order the banners", 4, 420, 280)]));
+  const now = round(
+    flow(2, steps),
+    reading("Add a card due on the 7th", 1, [thing("text", "Order the banners", 7, 420, 210), thing("text", "Send the invites", 8, 420, 280), thing("text", "Print the programme", 9, 420, 350)]),
+  );
+  assert.deepEqual(placeIn({ flow: "Settle up", at: 1, point: { x: 440 / 1280, y: 215 / 800 } }, then, now), { flow: "Settle up", at: 1, point: { x: 440 / 1280, y: 355 / 800 } });
+});
+
+test("a note noted by role and name alone is found by them, and a stretch, or a spot with nothing named near it, keeps its place on the screen", () => {
   const steps: [string, number][] = [["Open the expenses", 0]];
   const then = round(flow(2, steps), reading("Open the expenses", 1, [thing("link", "Groups", 3, 0, 0)]));
   const now = round(flow(4, steps), reading("Open the expenses", 1, [thing("link", "Groups", 8, 0, 0)]));

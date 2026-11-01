@@ -4,7 +4,7 @@
 // is there. Recording again keeps whatever the agent already wrote in the round.
 
 import { placeIn } from "@playthrough/page";
-import { lastSeen, list, LONGEST_LINE, notesToAnswer, problemsFinishing, quote, Refused, roundInProgress, type Flow, type Reply, type Review } from "@playthrough/review";
+import { inOrderJoined, lastSeen, list, LONGEST_LINE, notesToAnswer, problemsFinishing, quote, Refused, roundInProgress, type Flow, type Reply, type Review } from "@playthrough/review";
 import { agent, unnamed } from "./agent.ts";
 import { changedOnBefore, recordBeforeAgain, recordOnBefore, tryBeforeAgain } from "./before.ts";
 import { compareWithEarlier } from "./compare.ts";
@@ -35,10 +35,15 @@ export async function record(repo: Repo, id: string) {
   await recordOnBefore(repo, id, number, recorded.map(({ flow }) => flow.name));
 
   const saved = review.rounds.find((round) => round.number === number);
-  const flows = recorded.map(({ flow }) => {
-    const line = saved?.flows.find((kept) => kept.name === flow.name)?.line;
-    return line ? { ...flow, line } : flow;
-  });
+  // In the order they joined the review, as Before keeps them, rather than their files': one new here comes last.
+  const joined = inOrderJoined(review);
+  const place = (name: string) => (joined.includes(name) ? joined.indexOf(name) : joined.length);
+  const flows = recorded
+    .map(({ flow }) => {
+      const line = saved?.flows.find((kept) => kept.name === flow.name)?.line;
+      return line ? { ...flow, line } : flow;
+    })
+    .sort((a, b) => place(a.name) - place(b.name));
   for (const { files } of recorded) for (const { name, bytes } of files) await repo.reviews.saveFile(id, number, name, bytes);
   const written = saved?.replies ?? [];
   const waiting: Reply[] = notesToAnswer(review, number)
@@ -68,7 +73,7 @@ export async function record(repo: Repo, id: string) {
   if (left.length) console.log(`\nStill to do, in ${file}:\n${left.map((problem) => `  ${problem}`).join("\n")}`);
   // How to say why is said the first time the review is recorded; after that, what's still to do says what's missing.
   if (number === 1 && !saved && since?.changes.length)
-    console.log(`\nSay why each change is there in “accounts”, by its id: { "line": "<why, in your words>" }, { "note": "<the note it was made for>" }, or { "notReal": "<why nothing really changed>" }.`);
+    console.log(`\nSay why each change is there in “accounts”, by its id: { "line": "<why, in your words>" }, { "note": "<the id of the note it was made for>" }, or { "notReal": "<why nothing really changed>" }.`);
   if (unsaid.length) {
     const [are, each] = unsaid.length > 1 ? ["are", "each"] : ["is", "it"];
     console.log(`\n${list(unsaid.map((flow) => quote(flow.name)))} ${are} new to the person. In ${file}, ${each} can have a line at its start, as “line” in its flow under “flows”: what it starts from, or the choice it shows, in a sentence of up to ${LONGEST_LINE} characters.`);

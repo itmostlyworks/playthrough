@@ -89,6 +89,13 @@ describe("What changed at a moment", () => {
     assert.deepEqual(await said(list(["Buy milk", "Walk the dog", "Call Sam"]), list(["Walk the dog", "Buy milk", "Call Sam"])), ["“Walk the dog” and “Buy milk” have swapped places"]);
   });
 
+  test("one of a list's items that went past two others moved that many places, and didn't swap with them (Kan's card, sorted below two)", async () => {
+    const due: Record<string, string> = { "Order the banners": "28th Oct", "Send the invites": "5th Nov", "Print the programme": "7th Nov", "Confirm the speakers": "9th Nov" };
+    const list = (names: string[]) => `<h1>To do</h1><ul>${names.map((name) => `<li><p>${name}</p><p>${due[name]}</p></li>`).join("")}</ul><p>Doing</p>`;
+    const sorted = ["Order the banners", "Send the invites", "Print the programme", "Confirm the speakers"];
+    assert.deepEqual(await said(list(["Print the programme", ...sorted.filter((name) => name !== "Print the programme")]), list(sorted)), ["“Print the programme 7th Nov” moved down 2 places"]);
+  });
+
   test("a control whose words changed, wider and moved for it, is that control reworded, not one gone and one new (the todo app's Clear completed)", async () => {
     const footer = (button: string) => `<footer style="display: flex; gap: 8px; width: 400px"><p style="flex: 1; margin: 0">4 left</p><button>${button}</button></footer>`;
     assert.deepEqual(await said(footer("Clear completed"), footer("Clear 2 completed")), ["Clear completed button now says “Clear 2 completed”"]);

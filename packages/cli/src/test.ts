@@ -15,7 +15,7 @@ import type { Did } from "@playthrough/review";
 import { ALONGSIDE, BEAT, REACHES_OUTSIDE, WALKED, type Action, type Handed, type Run, type To, type Walk, type Walked } from "./flows.ts";
 import { readPage, unhovered } from "./read.ts";
 import { repo } from "./repo.ts";
-import { ACTIONS, ASSETS, firstLine, GLIMPSES, HANDS, HOLD, PERSON, PICTURE, READINGS, RECORDING, seconds, UNMET, WROTE, type Failed, type Hand } from "./reporter.ts";
+import { ACTIONS, ASSETS, firstLine, GLIMPSES, HANDS, HOLD, pathOf, PERSON, PICTURE, READINGS, RECORDING, seconds, STOPPED_ON, UNMET, WROTE, type Failed, type Hand } from "./reporter.ts";
 import { watchRest } from "./rest.ts";
 import { changes, firstOf, make, personIn, setupIn, type Made, type Setup } from "./setup.ts";
 
@@ -204,6 +204,9 @@ const recorded = base.extend<{ person: string | undefined; rest: () => Promise<v
       if (flow.hands.length) await testInfo.attach(HANDS, { body: JSON.stringify(flow.hands), contentType: "application/json" });
       if (flow.wrote) await testInfo.attach(WROTE, { body: flow.wrote, contentType: "text/plain" });
       if (flow.unmet) await testInfo.attach(UNMET, { body: String(flow.unmet), contentType: "text/plain" });
+      // Stopped on Before, the page it's on: a flow that clicked the wrong thing on its way, and stopped on a card's page
+      // rather than the board, reads the same as one the app doesn't have the next step's thing for yet, but for this.
+      if (!ended && last.url() !== "about:blank") await testInfo.attach(STOPPED_ON, { body: pathOf(last.url()), contentType: "text/plain" });
       for (const picture of pictures) await testInfo.attach(PICTURE, { body: picture, contentType: "image/png" });
     },
     { auto: true },

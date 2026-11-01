@@ -128,7 +128,7 @@ async function giveBack(after: After, file: string, baseURL: string, setup: Reco
     await rm(file, { force: true });
     return true;
   } catch (error) {
-    console.log(`playthrough/setup.ts's after couldn't give back what a run made: ${firstLine(String((error as Error)?.message ?? error))}. It's tried again by the next command.`);
+    console.log(`playthrough/setup.ts's after couldn't give back what a run made: ${firstLine(String((error as Error)?.message ?? error))}. The next command tries it again, whole, so it should take what's gone already as given back.`);
     return false;
   } finally {
     giving.delete(file);

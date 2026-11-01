@@ -40,11 +40,13 @@ export function changesAt(then: Reading, now: Reading, unsteady = new Set<string
   const caused = grownByWhatsInside(moment, own);
   const along = new Map<Difference, With>();
 
-  const { reordered, left } = rowsReordered(moment, own.filter(isMove));
+  const items = itemsReordered(moment, own.filter(isMove));
+  const { reordered, left } = rowsReordered(moment, items.left);
   const { shifts, loose } = layoutShifts(left, carried);
   moment.shifts = shifts.map((shift) => shift.by);
   const widened = widenedTogether(others, caused, along);
   const told = [
+    ...items.reordered,
     ...reordered,
     ...swappedOrMoved(moment, loose),
     ...causesOfShifts(moment, shifts, widened, others, caused, along),
@@ -173,6 +175,64 @@ function grownByWhatsInside(moment: Moment, own: Difference[]): Set<Difference> 
     if (ways.every((axis) => own.some((d) => explains(d, difference, axis, growth[axis])))) caused.add(difference);
   }
   return caused;
+}
+
+// A list whose items are in a new order is the fewest of them that moved, of those in it both times: the rest only made
+// room. Two that traded places have swapped; one or two that went past others moved that many places (Kan's card,
+// sorted below two, didn't swap with either); more are a new order. Each moved item is called by its words, as one new or
+// gone is; a new order isn't, so one that comes every run is learned as changing by itself. What moved inside the list's
+// items, with them, is theirs.
+function itemsReordered(moment: Moment, moves: Move[]): { reordered: Told[]; left: Move[] } {
+  const { then, now } = moment;
+  const pairs = pairItems(moment);
+  const reordered: Told[] = [];
+  let left = moves;
+  for (const [, paired] of groupBy([...pairs], ([, b]) => now.items![b]!.list)) {
+    const byThen = [...paired].sort((p, q) => p[0] - q[0]);
+    const byNow = [...paired].sort((p, q) => p[1] - q[1]);
+    const placeThen = new Map(byThen.map(([a], i) => [a, i]));
+    const kept = longestRising(byNow.map(([a]) => placeThen.get(a)!));
+    // Along the way the list goes: down a column, across a row.
+    const way = (a: number, b: number) => {
+      const went = moveOf(asThing(then.items![a]!, a), asThing(now.items![b]!, b));
+      return Math.abs(went.y) >= Math.abs(went.x) ? (went.y > 0 ? "down" : "up") : went.x > 0 ? "right" : "left";
+    };
+    const moved = byNow.flatMap(([a, b], i) => (kept.has(i) ? [] : [{ thing: asThing(now.items![b]!, b), way: way(a, b), places: Math.abs(i - placeThen.get(a)!) }]));
+    if (!moved.length) continue;
+    const changed = byNow.filter(([a], i) => placeThen.get(a) !== i);
+    const first = now.items![byNow[0]![1]]!;
+    const of = `${first.role} of ${listOf(now, first)}`;
+    const holder = first.holder === undefined ? undefined : now.things[first.holder];
+    if (changed.length === 2) {
+      const both = changed.map(([, b]) => asThing(now.items![b]!, b));
+      reordered.push({ what: "swapped", thing: both[0]!, in: now, words: `${together(both)} have swapped places`, key: `${of}: ${both.map((thing) => thing.words).join(" / ")}` });
+    } else if (moved.length <= 2) {
+      for (const { thing, way, places } of moved)
+        reordered.push({ what: "moved", thing, in: now, words: `${called(thing)} moved ${way} ${places} ${places > 1 ? "places" : "place"}`, key: `${of}: ${thing.words}` });
+    } else {
+      const order = byNow.slice(0, 3).map(([, b]) => called(asThing(now.items![b]!, b)));
+      const words = first.role === "row" ? `Rows in ${holder ? the(holder) : "the table"} are in a new order` : `What's in ${holder ? the(holder) : "the list"} is in a new order: ${order.join(", ")}${byNow.length > 3 ? "…" : ""}`;
+      reordered.push({ what: "reordered", thing: holder ?? moved[0]!.thing, in: now, words, key: of });
+    }
+    const inList = new Set(paired.map(([, b]) => b));
+    left = left.filter((move) => !(move.now.item !== undefined && inList.has(move.now.item) && move.then.item !== undefined && pairs.get(move.then.item) === move.now.item));
+  }
+  return { reordered, left };
+}
+
+// The most of a sequence that's still in order, by where each is in it: what stayed where it was among the rest.
+function longestRising(sequence: number[]): Set<number> {
+  const best = sequence.map(() => 1);
+  const before = sequence.map(() => -1);
+  for (let i = 0; i < sequence.length; i++)
+    for (let j = 0; j < i; j++)
+      if (sequence[j]! < sequence[i]! && best[j]! + 1 > best[i]!) {
+        best[i] = best[j]! + 1;
+        before[i] = j;
+      }
+  const kept = new Set<number>();
+  for (let i = best.indexOf(Math.max(...best)); i >= 0; i = before[i]!) kept.add(i);
+  return kept;
 }
 
 // A table or list whose rows moved by many amounts, up and down, has its rows in a new order.
@@ -459,16 +519,18 @@ function said(told: Told[], moment: Moment, unsteady: Set<string>): Found[] {
 }
 
 // What a thing in an item is, whichever item it's in: its place there, its column and which of the things of its kind in
-// it, in which kind of item of which list, and for words reworded, how they changed. Never its words, which in an item
-// are its data, so the same change in every row is one change: “(paid)” after each customer's name. Anything else is
-// what it is (differences.ts).
+// it, in which kind of item of which list, for words reworded, how they changed, and for a move, which way. Never its
+// words, which in an item are its data, so the same change in every row is one change: “(paid)” after each customer's
+// name; and never two moves the opposite way. Anything else is what it is (differences.ts).
 function identityOf({ in: reading, thing, what }: Told, moment: Moment): string {
   const item = thing.item === undefined ? undefined : reading.items?.[thing.item];
   if (!item) return identity(reading, thing);
   const kind = reading.things.filter((other) => other.item === thing.item && other.role === thing.role && other.column === thing.column);
   const place = `${thing.role} ${kind.indexOf(thing) + 1}${thing.column ? ` under ${thing.column}` : ""}`;
-  const was = what === "reworded" && moment.was.get(thing);
-  return `${place} in a ${item.role} of ${listOf(reading, item)}${was ? `: ${shapeOf(was.words, thing.words)}` : ""}`;
+  const was = /^(reworded|moved)$/.test(what) ? moment.was.get(thing) : undefined;
+  const went = was && what === "moved" && moveOf(was, thing);
+  const how = went ? `, ${wayOf(near(went.x, 0) ? 0 : went.x, near(went.y, 0) ? 0 : went.y)}` : was ? `: ${shapeOf(was.words, thing.words)}` : "";
+  return `${place} in a ${item.role} of ${listOf(reading, item)}${how}`;
 }
 const listOf = (reading: Reading, item: Item) => (item.holder === undefined ? "the page" : identity(reading, reading.things[item.holder]!, 0));
 

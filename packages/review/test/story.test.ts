@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   goodForYou,
+  inOrderJoined,
   memory,
   newId,
   newToYou,
@@ -167,4 +168,14 @@ test("a change seen in several flows is told in the one that joined the review f
   await reviews.saveComparison(id, { round: 1, since: 0, changes: [column] });
   await reviews.finish(id, 1);
   assert.deepEqual(told(await reviews.get(id), 1, "Ana"), ["column in See the counts"]);
+});
+
+test("the flows are in the order they joined the review, the task's from Before first, whatever their files are called (Kan's sort, listed last)", async () => {
+  const reviews = new Reviews(memory());
+  const id = "sort-by-due-date";
+  await reviews.start(id, "Let me sort the cards in a list by due date");
+  await reviews.saveRound(id, round(0, { flows: [flow("Sort a list by due date"), flow("Add a card to a sorted list")] }));
+  await reviews.finish(id, 0);
+  await reviews.saveRound(id, round(1, { flows: [flow("Add a card to a list in no order"), flow("Add a card to a sorted list"), flow("Sort a list by due date")] }));
+  assert.deepEqual(inOrderJoined(await reviews.get(id)), ["Sort a list by due date", "Add a card to a sorted list", "Add a card to a list in no order"]);
 });

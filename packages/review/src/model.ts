@@ -122,7 +122,7 @@ export const Comparison = z.strictObject({
 export const Account = z.union(
   [
     z.strictObject({ line: text("needs words in its line") }).describe("Why it's there, in the agent's voice: what it meant or chose"),
-    z.strictObject({ note: text("needs the note it was made for") }).describe("Made for that note: the reply on the note says why"),
+    z.strictObject({ note: text("needs the id of the note it was made for") }).describe("Made for that note: the reply on the note says why"),
     z.strictObject({ notReal: text("needs to say why nothing really changed") }).describe("Nothing really changed; nobody is shown it"),
   ],
   { error: "says one of { line }, { note } or { notReal }" },
