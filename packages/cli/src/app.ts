@@ -27,7 +27,7 @@ export async function keepRunning(app: App, root: string): Promise<number | unde
     // The app goes when Playthrough does, with everything its command started.
     process.once("exit", stop);
   }
-  if (await answers(app.url)) return;
+  if (await serves(app.url)) return;
   console.log(`Starting the app: ${app.start}`);
   const began = Date.now();
   started = spawn(app.start, { cwd: root, shell: true, stdio: ["ignore", "pipe", "pipe"], detached: true });
@@ -47,7 +47,7 @@ export async function keepRunning(app: App, root: string): Promise<number | unde
   started.once("exit", () => (ended = true));
   const saying = () => (said.length ? ["It said, last:", ...said.map((line) => `  ${line}`)] : []);
   while (Date.now() - began < 180_000) {
-    if (await answers(app.url)) return Date.now() - began;
+    if (await serves(app.url)) return Date.now() - began;
     if (ended) throw new Refused([`${quote(app.start)} ended before the app answered at ${app.url}.`, ...saying(), "Check that playthrough/app.json starts the app there."]);
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
@@ -60,7 +60,7 @@ export async function keepRunning(app: App, root: string): Promise<number | unde
 export async function stopApp(url: string) {
   if (!stop()) return;
   const began = Date.now();
-  while (Date.now() - began < 10_000 && (await answers(url))) await new Promise((resolve) => setTimeout(resolve, 250));
+  while (Date.now() - began < 10_000 && (await serves(url))) await new Promise((resolve) => setTimeout(resolve, 250));
 }
 
 function stop(): boolean {
@@ -72,8 +72,10 @@ function stop(): boolean {
   return true;
 }
 
-const answers = (url: string) =>
+// Whether something serves there: it answers, or it took the request and is still at it after two seconds, as a dev
+// server building a page for the first time is. Taken for nothing there, it was started again beside itself.
+export const serves = (url: string) =>
   fetch(url, { signal: AbortSignal.timeout(2000) }).then(
-    () => true,
-    () => false,
+    (response) => (response.body?.cancel(), true),
+    (error) => (error as Error)?.name === "TimeoutError",
   );

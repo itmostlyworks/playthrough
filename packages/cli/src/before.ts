@@ -11,7 +11,7 @@ import { copyFileSync, cpSync, existsSync, mkdtempSync, readFileSync, rmSync, wr
 import { constants, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { list, quote, Refused, type Flow } from "@playthrough/review";
-import { stopApp } from "./app.ts";
+import { serves, stopApp } from "./app.ts";
 import { failedAt, runFlows, whereItStopped } from "./flows.ts";
 import type { Failed } from "./reporter.ts";
 import type { Repo } from "./repo.ts";
@@ -133,7 +133,7 @@ async function onBefore(repo: Repo, id: string, flows: string[], doing: string, 
     // The app Playthrough started serves the work as it was when it started: it's started again on the app as it was,
     // and stopped before the work comes back.
     await stopApp(url);
-    const shared = await serving(url);
+    const shared = await serves(url);
     console.log(`\n${doing}. Your work is set aside with git stash meanwhile${shared ? `, and what serves ${url} serves the app as it was` : ""}.`);
     ran = await asItWas(repo, unrecorded, before.commit!, shared, async () => {
       if (shared) await caughtUp(url);
@@ -244,7 +244,7 @@ export async function putBack(repo: Repo) {
   if (!toDo) return;
   const back = `Playthrough was stopped while your work was set aside for a flow to record on Before. It's back now, on ${aside.back}.`;
   const url = (await repo.app().catch(() => undefined))?.url;
-  if (url && !aside.shared && (await serving(url))) throw new Refused([back, `Something is still serving ${url}, most likely the app as it was, left running: stop it, then run this again.`]);
+  if (url && !aside.shared && (await serves(url))) throw new Refused([back, `Something is still serving ${url}, most likely the app as it was, left running: stop it, then run this again.`]);
   console.log(`${back}\n`);
 }
 
@@ -287,13 +287,6 @@ function stashOf(repo: Repo, aside: SetAside): string | undefined {
   const stashes = git(repo, ["stash", "list", "--format=%gd %gs"]).split("\n");
   return stashes.find((stash) => stash.endsWith(aside.stash))?.split(" ")[0];
 }
-
-// Whether anything answers there.
-const serving = (url: string) =>
-  fetch(url, { signal: AbortSignal.timeout(2000) }).then(
-    (response) => (response.body?.cancel(), true),
-    () => false,
-  );
 
 // A server following the working copy has seen it change once it's had a moment to notice, and answered once more: a dev
 // server builds what was asked for again before it answers.

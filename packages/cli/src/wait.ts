@@ -28,7 +28,7 @@ export async function wait(repo: Repo, id: string) {
       console.log(`Round ${last.number} is ready for review.`);
       // Handed over, the notes it answered are answered: what's asked now is what comes next.
       review = await reviews.get(id);
-    }
+    } else console.log(`Round ${last.number} is handed over already.`);
     console.log(`Waiting for notes on ${id}…`);
   }
 

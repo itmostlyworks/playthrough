@@ -1096,12 +1096,13 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   // The one step, from where the playhead is, which Enter takes: play on through the flow you're in; at its end, its question, or
   // finishing a note you started there, or watching it from the start; then on to what needs you next, a flow with
   // something of yours to send among them. With nothing left that needs you, Accept; else what the agent is doing.
+  const atItsEnd = (name: string) => ["to send", "not saved"].includes(standing?.get(name)?.is ?? "");
   const onward = (from: number): Step => {
     const below = round.flows.slice(from + 1).find((flow) => needs(flow.name));
     const general = draft.unsaved.find((note) => !note.on) ?? inGeneral.find((note) => note.state === "needs you");
     const next = below ?? (general ? undefined : round.flows.slice(0, Math.max(0, from)).find((flow) => needs(flow.name)));
-    // One with something of yours to send goes to its end, where it's sent.
-    if (next) return { kind: "go", words: "Next", what: next.name, flow: next.name, take: () => (standing?.get(next.name)?.is === "to send" ? openEnd(next.name) : toOpening(next.name)) };
+    // One with something of yours to send goes to its end, where it's sent, and one with a note you didn't save, to it.
+    if (next) return { kind: "go", words: "Next", what: next.name, flow: next.name, take: () => (atItsEnd(next.name) ? openEnd(next.name) : toOpening(next.name)) };
     if (general && "turns" in general) return { kind: "go", words: "Next to check", what: general.turns[0]?.words, take: () => pick(general) };
     if (general) return { kind: "go", words: "Finish your note", what: placeName(general.on), take: () => setOpen({ writing: general.id }) };
     if (readyToAccept(asIfSent(review, you, unsent), you)) return { kind: "go", words: "All good", what: "Accept the work", take: acceptNow, final: true };
@@ -1140,7 +1141,18 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     const next = onward(-1);
     if (next.kind === "agent") return next;
     if (next.kind !== "go") return undefined;
-    if (next.flow) return { ...next, words: begun ? "Carry on checking" : "Start checking", what: undefined, take: () => leave(next.flow, true) };
+    // One with something of yours to send, or a note you didn't save, opens there, as Next goes there.
+    if (next.flow)
+      return {
+        ...next,
+        words: begun ? "Carry on checking" : "Start checking",
+        what: undefined,
+        take: () => {
+          const there = atItsEnd(next.flow!);
+          leave(next.flow, !there);
+          if (there) openEnd(next.flow!);
+        },
+      };
     if (next.final) return next;
     return {
       ...next,

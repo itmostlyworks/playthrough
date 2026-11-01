@@ -64,10 +64,10 @@ export async function trySetup(repo: Repo, again: string) {
     missing.push("playthrough/setup.ts has no after, so what each run makes stays in the app: one for each flow recorded, two for a new one, and one each time the person pauses a recording, as it's made ready to take over.");
   else if (tried.some(({ givenBack }) => !givenBack)) missing.push("playthrough/setup.ts's after couldn't give back what it made, for the reason above.");
   const slowest = Math.max(...tried.map(({ took }) => took));
-  if (slowest > SLOW) missing.push(`Each flow waits up to ${seconds(slowest)} for its setup before its first step, and so does each moment taken over.`);
+  if (slowest > SLOW) missing.push(`Setup took ${seconds(slowest)}: each flow waits that long before its first step, and so does each moment taken over.`);
 
   console.log(`
-Look at ${tried.length > 1 ? "each picture: it's where their flows start" : "the picture: it's where every flow starts"}. One that shows a sign-in page, or anything a flow shouldn't start from, is for playthrough/setup.ts.`);
+Look at ${tried.length > 1 ? "each picture: it's where their flows start" : "the picture: it's where every flow starts"}. One that shows a sign-in page for someone who should be signed in, or anything a flow shouldn't start from, is for playthrough/setup.ts.`);
   if (missing.length)
     console.log(`
 ${missing.map((said) => `- ${said}`).join("\n")}
