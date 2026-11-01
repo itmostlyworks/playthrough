@@ -13,6 +13,10 @@ import { idOf, onScreen, type Found } from "./changes.ts";
 type Patch = { x: number; y: number; width: number; height: number; nudged: boolean; moved?: { x: number; y: number } };
 type Area = { x: number; y: number; width: number; height: number };
 
+// A change known only by where it is on the screen, a part of a picture with nothing read there or only near it, as what
+// changes by itself: left out only in the flow it was found in, as the same place in another flow is another thing.
+export const HERE = "here:";
+
 export async function picturesAt(page: Page, then: Reading, now: Reading, pictures: { then: Buffer; now: Buffer }): Promise<Found[]> {
   // A page scrolled to another place differs in every dot, though nothing on it moved: there, the reading speaks alone.
   if (scrollOf(then) !== scrollOf(now)) return [];
@@ -22,7 +26,8 @@ export async function picturesAt(page: Page, then: Reading, now: Reading, pictur
 
   // What changed inside something at this moment: a patch moved inside it is that change's doing (the columns beside a wider one).
   const changedInside = new Set(found.flatMap((difference) => (difference.what === "gone" ? [] : holdersOf(now, difference.now))));
-  const told = new Map<string, { words: string; patch: Area }>();
+  // Each change, and whether it's known only by where it is: nothing read is there, or only near it.
+  const told = new Map<string, { words: string; patch: Area; here: boolean }>();
   for (const patch of patches) {
     if (patch.nudged && found.length) continue;
     if (patch.moved && [...changedInside].some((holder) => contains(holder.box, patch, 8))) continue;
@@ -32,11 +37,11 @@ export async function picturesAt(page: Page, then: Reading, now: Reading, pictur
     const id = idOf(on.identity ?? `place:${Math.round(patch.x / 32)},${Math.round(patch.y / 32)}`, patch.moved ? "moved" : "looks different");
     // Patches on the same thing are one change to it, over all of them.
     const same = told.get(id);
-    told.set(id, { words, patch: same ? around(same.patch, patch) : patch });
+    told.set(id, { words, patch: same ? around(same.patch, patch) : patch, here: !on.identity || on.identity.startsWith("near ") });
   }
-  return [...told].map(([id, { words, patch }]) => {
+  return [...told].map(([id, { words, patch, here }]) => {
     const box = onScreen(patch, now.screen);
-    return { id, words: sentence(words), ...(box && { box }), pieces: [id] };
+    return { id, words: sentence(words), ...(box && { box }), pieces: [here ? `${HERE}${id}` : id] };
   });
 }
 

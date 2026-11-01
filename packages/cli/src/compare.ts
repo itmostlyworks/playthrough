@@ -6,7 +6,7 @@
 import { chromium, type Page } from "@playwright/test";
 import { list, quote, Refused, type Change, type Comparison, type Flow, type Place, type Reviews, type Step } from "@playthrough/review";
 import { changesAt, idOf } from "./changes.ts";
-import { picturesAt } from "./pictures.ts";
+import { HERE, picturesAt } from "./pictures.ts";
 import type { Glimpse, Reading } from "@playthrough/page";
 import { glimpsesOf, readingsOf } from "./reporter.ts";
 
@@ -19,8 +19,7 @@ export async function compareWithEarlier(reviews: Reviews, id: string, number: n
   const review = await reviews.get(id);
   const earlier = review.rounds.filter((round) => round.number < number);
   if (!earlier.length) return [];
-  // What changes by itself in one flow, like a time the server stamps, changes by itself in every flow it's seen in.
-  const unsteady = new Set([...earlier.flatMap((round) => round.flows), ...flows].flatMap((flow) => flow.unsteady ?? []));
+  const unsteady = unsteadyIn([...earlier.flatMap((round) => round.flows), ...flows]);
   const browser = await chromium.launch();
   try {
     const page = await browser.newPage();
@@ -60,17 +59,28 @@ function kept(reviews: Reviews, id: string, number: number, flows: Flow[]): Reco
   return { number, flows, readings: async (flow) => JSON.parse((await file(readingsOf(flow))).toString()), glimpses, picture: file };
 }
 
-export async function compare(page: Page, earlier: Recorded, round: Recorded, unsteady = new Set<string>()): Promise<Comparison> {
+export async function compare(page: Page, earlier: Recorded, round: Recorded, unsteady: Unsteady = () => new Set()): Promise<Comparison> {
   const { pieces: _, ...comparison } = await comparing(page, earlier, round, unsteady);
   return comparison;
 }
 
 // And what each change stands for, by its id.
-async function comparing(page: Page, earlier: Recorded, round: Recorded, unsteady = new Set<string>()): Promise<Comparison & { pieces: Map<string, Set<string>> }> {
+// What changes by itself in a flow, by its name.
+type Unsteady = (flow: string) => Set<string>;
+
+// What changes by itself in one flow, like a time the server stamps, changes by itself in every flow it's seen in; a part
+// of a picture known only by where it is, only in its own flow.
+export function unsteadyIn(flows: Flow[]): Unsteady {
+  const everywhere = flows.flatMap((flow) => (flow.unsteady ?? []).filter((piece) => !piece.startsWith(HERE)));
+  const here = (name: string) => flows.filter((flow) => flow.name === name).flatMap((flow) => (flow.unsteady ?? []).filter((piece) => piece.startsWith(HERE)).map((piece) => piece.slice(HERE.length)));
+  return (name) => new Set([...everywhere, ...here(name)]);
+}
+
+async function comparing(page: Page, earlier: Recorded, round: Recorded, unsteady: Unsteady = () => new Set()): Promise<Comparison & { pieces: Map<string, Set<string>> }> {
   const changes = new Map<string, Change>();
   const pieces = new Map<string, Set<string>>();
   const see = ({ id, words, place, of = [id] }: Sighting) => {
-    if (unsteady.has(id)) return;
+    if (unsteady(place.flow).has(id)) return;
     const change = changes.get(id);
     for (const piece of of) (pieces.get(id) ?? pieces.set(id, new Set()).get(id)!).add(piece);
     if (!change) changes.set(id, { id, words, seen: [place] });
@@ -79,7 +89,7 @@ async function comparing(page: Page, earlier: Recorded, round: Recorded, unstead
   for (const flow of round.flows) {
     // A flow the earlier round didn't have has nothing to be compared with there: it's new to whoever looked then.
     const before = earlier.flows.find((kept) => kept.name === flow.name);
-    if (before) for (const sighting of await compareFlow(page, earlier, before, round, flow, unsteady)) see(sighting);
+    if (before) for (const sighting of await compareFlow(page, earlier, before, round, flow, unsteady(flow.name))) see(sighting);
   }
   // A flow the agent took away is a change too: what it showed isn't shown any more.
   for (const gone of earlier.flows.filter((flow) => !round.flows.some((kept) => kept.name === flow.name)))

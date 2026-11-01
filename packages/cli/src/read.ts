@@ -185,7 +185,8 @@ export function read() {
   const ITEMS = "li, tr, [role=listitem], [role=row]";
   const alikeBeside = (element: Element) =>
     typeof element.className === "string" && !!element.className && [...(element.parentElement?.children ?? [])].some((other) => other !== element && other.tagName === element.tagName && other.className === element.className);
-  type InItem = { element: Element; holder?: number; index?: number };
+  // And the item around it, if it's in one too.
+  type InItem = { element: Element; holder?: number; index?: number; outer?: InItem };
   const lists = new Map<Element, number>();
   const items: any[] = [];
   const itemOf = (inItem: InItem | undefined) => {
@@ -197,7 +198,7 @@ export function read() {
       const node = mirror?.getId(element);
       items.push({
         role: element.matches("tr, [role=row]") ? "row" : "listitem",
-        words: cut(allWords(element), 300),
+        words: "",
         box: { x: Math.round(box.left), y: Math.round(box.top), width: Math.round(box.width), height: Math.round(box.height) },
         page: { x: Math.round(box.left + scrollX), y: Math.round(box.top + scrollY) },
         list,
@@ -215,7 +216,7 @@ export function read() {
       const looks = style(child);
       if (looks.display === "none" || looks.visibility === "hidden" || Number(looks.opacity) === 0) continue;
       const box = child.getBoundingClientRect();
-      const item: InItem | undefined = child.matches(ITEMS) || alikeBeside(child) ? { element: child, ...(holder !== undefined && { holder }) } : inItem;
+      const item: InItem | undefined = child.matches(ITEMS) || alikeBeside(child) ? { element: child, ...(holder !== undefined && { holder }), ...(inItem && { outer: inItem }) } : inItem;
       const table = child.matches(TABLES);
       const under = table ? headingsOf(child) : headings;
       const own = plain([...child.childNodes].filter((node) => node.nodeType === Node.TEXT_NODE).map((node) => node.textContent).join(" "));
@@ -235,6 +236,11 @@ export function read() {
         const words = cut(own ? ownWords(child) : "", 300);
         const wordsInside = known && /^(box|menu)$/.test(known.role) ? cut(allWords(child), 300) : undefined;
         const ofItem = itemOf(item);
+        // An item says what's read in it, and so does each item it's in: not a menu's options it keeps hidden.
+        for (let around = item; around && words; around = around.outer) {
+          const kept = items[itemOf(around)!];
+          kept.words = cut(kept.words ? `${kept.words} ${words}` : words, 300);
+        }
         things.push({
           role: known?.role ?? "text",
           name: known?.name ?? cut(words, 120),

@@ -6,7 +6,7 @@ import { after, before, describe, test } from "node:test";
 import { chromium, type Browser, type Page } from "@playwright/test";
 import type { Reading } from "@playthrough/page";
 import type { Flow } from "@playthrough/review";
-import { compare, type Recorded } from "../src/compare.ts";
+import { changesByThemselves, compare, unsteadyIn, type Recorded } from "../src/compare.ts";
 import { readPage } from "../src/read.ts";
 
 let browser: Browser;
@@ -94,5 +94,17 @@ describe("A round compared with one before it", { timeout: 60_000 }, () => {
       changes.map((change) => [change.words, change.seen.map((seen) => [seen.flow, seen.at])]),
       [["Export button is new", [["See what's overdue", 1.9], ["Export them", 0.9]]]],
     );
+  });
+
+  test("what changes by itself is left out in every flow, but a part of a picture known only by where it is only in its own: elsewhere the same place is another thing (Kan's invite page)", async () => {
+    const shape = (colour: string) => `<h1>Invoices</h1><div style="width: 300px; height: 120px; background: ${colour}"></div>`;
+    const first = await round(0, { "Look at the chart": [["Open the chart", shape("#c33")]] });
+    const byItself = await changesByThemselves(first, await round(0, { "Look at the chart": [["Open the chart", shape("#3a3")]] }));
+    const unsteady = byItself.flatMap((change) => change.pieces);
+    assert.ok(unsteady.length && unsteady.every((piece) => piece.startsWith("here:")), "it's known only by where it is");
+    const then = await round(0, { "Look at the chart": [["Open the chart", shape("#c33")]], "Print the chart": [["Open the chart", shape("#c33")]] });
+    const now = await round(1, { "Look at the chart": [["Open the chart", shape("#33c")]], "Print the chart": [["Open the chart", shape("#33c")]] });
+    const { changes } = await compare(comparing, then, now, unsteadyIn([{ ...then.flows[0]!, unsteady }, then.flows[1]!]));
+    assert.deepEqual(changes.map((change) => change.seen.map((seen) => seen.flow)), [["Print the chart"]]);
   });
 });
