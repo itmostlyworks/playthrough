@@ -987,9 +987,10 @@ export function Stage(props: Props) {
           {/* Taken over, the app opens like a portal from where you last pointed, and the ring of its opening settles into
               the frame's edge while you're in it. It's shown, and hidden, by the portal itself (useLayoutEffect below):
               see-through rather than hidden, as browsers stop drawing a hidden frame from another address, and the app
-              there would never settle. */}
+              there would never settle. It's over all the recording draws, the veil of a flow's start or end too: only the
+              ring, the edge and your pointer are over it. */}
           {number === round.number && props.live?.address && (
-            <div data-live className="pointer-events-none absolute inset-0 z-9 overflow-hidden opacity-0">
+            <div data-live className="pointer-events-none absolute inset-0 z-10 overflow-hidden opacity-0">
               <div data-sheen className="pointer-events-none absolute inset-0 z-1 opacity-0 [background:radial-gradient(circle_at_var(--x)_var(--y),rgba(255,232,190,0.15),rgba(255,214,150,0.5))]" />
               <iframe
                 key={props.live.address}

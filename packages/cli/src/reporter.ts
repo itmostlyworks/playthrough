@@ -39,7 +39,7 @@ export const glimpsesOf = (flow: Flow) => `${picturesOf(flow)}.glimpses.json`;
 // the lines under it; as much of it as can be read, which an error's text an app sends back, stack and all, may not be.
 export function firstLine(said: string) {
   const lines = said.replace(/\x1b\[[0-9;]*m/g, "").split("\n");
-  let line = lines[0]?.trim() ?? "";
+  let line = lines[0]?.trim().replace(/,$/, "") ?? "";
   const waited = /Timeout \d+ms exceeded/.test(line) && lines.map((under) => under.match(/^\s*- (waiting for .+)$/)?.[1]).find(Boolean);
   if (waited) line = `${line.replace(/\.$/, "")}, ${waited}`;
   // A locator that found more than one thing lists them under it: the first two, as Playwright would find each alone.

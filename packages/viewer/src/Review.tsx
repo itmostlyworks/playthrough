@@ -243,7 +243,8 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
       return takeOverAt(base, onFork.from.at, onFork.did);
     }
     starting.current = { from: { flow: playhead.flow.name, at: Math.round(Math.max(0, playhead.now.moment.at) * 100) / 100 } };
-    takeOverAt(playhead.flow, playhead.now.moment.at);
+    // While its name is up, the flow is at its start.
+    takeOverAt(playhead.flow, Math.max(0, playhead.now.moment.at));
   };
   // A note made in the app on an earlier round is checked the way it was found, by trying it: this round's flow taken
   // over where you took it over then, what you did there done again, and in the app the note's pin on what it's on, its
@@ -1455,7 +1456,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
           </div>
           </div>
           {live?.problems && (
-            <div role="alert" className="fixed right-4 bottom-4 z-30 max-w-[28rem] animate-arrive rounded-lg bg-surface px-3 py-2 text-sm whitespace-pre-wrap shadow-tip">
+            <div role="alert" className="fixed right-4 bottom-4 z-30 max-w-[28rem] animate-arrive rounded-lg bg-surface px-3 py-2 text-sm whitespace-pre-wrap shadow-tip [overflow-wrap:anywhere]">
               {live.problems.join("\n")}
               <button className="ml-3 text-soft hover:text-fg" onClick={() => setLive(undefined)}>
                 Close
