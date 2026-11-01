@@ -4,14 +4,6 @@ The agent says it's done. You decide if it's good.
 
 Playthrough records your coding agent's change the way a person would use it, before and after, so you can watch it instead of setting it up by hand. Point at what's wrong, right on the recording, and the next round answers it there. Take over any moment and carry on in the real app. It runs on your machine, with any coding agent that has a shell.
 
-## How a review goes
-
-1. You ask your agent for a change, and to show it to you with Playthrough.
-2. Before it touches the code, the agent writes a flow for each thing a person does that the change touches, and Playthrough keeps the app as it is: Before.
-3. The agent makes the change, and Playthrough records every flow, on the app as it is now and on Before, as far as the app went before. It finds what changed itself, including what the agent didn't mention, and the agent says why each change is there.
-4. You watch. Leave a note on what's wrong, where it's wrong; compare with Before; take over and try it yourself. Then send.
-5. The agent answers each note in the next round, on the spot the note is on. You check its answers, and accept once every flow looks good.
-
 ## Try it
 
 Ask your agent for a change in your app, as you would anyway, and add:
@@ -29,6 +21,14 @@ Reviews stay in `.playthrough/` in your app's repo, recordings and all; nothing 
 ## On the example
 
 `example/` in this repo is a small invoices app to try it on before your own. Clone the repo, run `npm install`, `npx playwright install chromium` and `npm run build`, and from `example/`, ask your agent to show how much is overdue in total under the Invoices heading, and to show you the change with `npx playthrough`.
+
+## How a review goes
+
+1. You ask your agent for a change, and to show it to you with Playthrough.
+2. Before it touches the code, the agent writes a flow for each thing a person does that the change touches, and Playthrough keeps the app as it is: Before.
+3. The agent makes the change, and Playthrough records every flow, on the app as it is now and on Before, as far as the app went before. It finds what changed itself, including what the agent didn't mention, and the agent says why each change is there.
+4. You watch. Leave a note on what's wrong, where it's wrong; compare with Before; take over and try it yourself. Then send.
+5. The agent answers each note in the next round, on the spot the note is on. You check its answers, and accept once every flow looks good.
 
 ## In the viewer
 
