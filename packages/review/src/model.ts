@@ -104,6 +104,9 @@ export const Flow = z.strictObject({
 export const Change = z.strictObject({
   id: text("needs an id").describe("Its thing and its kind of change, so it keeps its id in every round while it's the same change"),
   words: text("needs its words").describe("What changed, for the agent: “Download CSV and Cancel have swapped places”"),
+  reworded: text("needs the words that read differently")
+    .optional()
+    .describe("For words reworded, the words that read differently now, which the viewer marks where they are: “on their own”"),
   seen: z
     .array(Place, { error: "needs where it's seen, a list" })
     .min(1, { error: "needs where it's seen: each flow, at its moment there" })

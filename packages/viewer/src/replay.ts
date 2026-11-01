@@ -254,10 +254,10 @@ export class Replay {
   }
 
   // Where one of the page's elements is now, in the page's own pixels, by its node in the recording; nothing while it
-  // isn't on the page.
-  boxOf(node: number): Rect | undefined {
+  // isn't on the page. With words, where those words in it are, where they're found in it; else the whole of it.
+  boxOf(node: number, words?: string): Rect | undefined {
     const element = this.#replayer.getMirror().getNode(node) as Element | null;
-    const box = element?.getBoundingClientRect?.();
+    const box = (words && element && wordsIn(element, words)?.getBoundingClientRect()) || element?.getBoundingClientRect?.();
     return box && (box.width || box.height) ? { left: box.left, top: box.top, width: box.width, height: box.height } : undefined;
   }
 
@@ -341,4 +341,28 @@ function finish(animation: Animation) {
   try {
     animation.finish();
   } catch {}
+}
+
+// Where words are in an element, as they read: across its text however the page split it, spaces as one, the first time
+// they're there.
+function wordsIn(element: Element, words: string): Range | undefined {
+  const page = element.ownerDocument;
+  const walker = page.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+  const at: [Text, number][] = [];
+  let read = "";
+  for (let text = walker.nextNode() as Text | null; text; text = walker.nextNode() as Text | null)
+    for (let i = 0; i < text.data.length; i++) {
+      const space = /\s/.test(text.data[i]!);
+      if (space && (read.endsWith(" ") || !read)) continue;
+      read += space ? " " : text.data[i];
+      at.push([text, i]);
+    }
+  const start = read.indexOf(words.replace(/\s+/g, " ").trim());
+  if (start < 0) return undefined;
+  const [first, from] = at[start]!;
+  const [last, to] = at[start + words.replace(/\s+/g, " ").trim().length - 1]!;
+  const range = page.createRange();
+  range.setStart(first, from);
+  range.setEnd(last, to + 1);
+  return range;
 }

@@ -599,6 +599,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   // A change is a difference from an earlier round, seen on one frame: it opens there, still. New steps open on the
   // first step the flow didn't take before; Play goes on through them.
   const choose = (diamond: Diamond) => {
+    setMet((met) => (met.includes(diamond.id) ? met : [...met, diamond.id]));
     setOpen({ change: diamond.id });
     go(diamond.flow, diamond.at);
   };
@@ -634,7 +635,8 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   const [readLines, setReadLines] = useState<string[]>([]);
   const pastCard = useNow(playhead, (now) => (now.moment.at >= 0 ? now.moment.flow : undefined));
   if (pastCard && !readLines.includes(pastCard)) setReadLines([...readLines, pastCard]);
-  // Playing stops at each answer that waits for you, the first time it gets there, and opens it as a click on it would.
+  // Playing stops at each answer that waits for you, and at each change new to you, the first time it gets there, and
+  // opens it as a click on it would: what changed is marked on the recording, where it's still, and the card says why.
   // One on a fork walked again is on the way: playing goes up the fork where you took the flow over, and stops at the
   // fork's end, as it does at a flow's.
   const walkedForks = forkList.filter((fork) => fork.walked);
@@ -647,6 +649,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     playhead.stopAt([
       ...walkedForks.filter(waitsOn).map((fork) => ({ id: fork.name, flow: fork.from.flow, at: fork.from.at, reached: onto(fork.name, fork.from.at) })),
       ...round.flows.filter((flow) => flow.line && !readLines.includes(flow.name)).map((flow) => ({ id: `card:${flow.name}`, flow: flow.name, at: POSTER, reached: () => {} })),
+      ...diamonds.filter((diamond) => diamond.row && diamond.until === undefined && !met.includes(diamond.id)).map((diamond) => ({ id: diamond.id, flow: diamond.flow, at: diamond.at, reached: () => choose(diamond) })),
       ...playingNotes.flatMap((note) =>
         note.on && note.state === "needs you" && !note.unsent && !met.includes(note.id) ? [{ id: note.id, flow: playedOn(note.on), at: span(note).at, reached: () => pick(note) }] : [],
       ),
@@ -1315,8 +1318,10 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     on?.element?.node !== undefined ? { node: on.element.node } : on?.point ? { point: on.point } : on?.box ? { box: on.box } : undefined;
   // A change in each place it's seen: things changed alike are one change, in several places.
   const marksOn = (on: Place | undefined): Mark["on"][] => [markOn(on), ...(on?.alike ?? []).map((element) => element.node !== undefined && { node: element.node })].filter((mark) => !!mark);
+  // Pointed at by its line, a change is marked alone, with the others that line explains.
   const pointedIn = (changes: Changed[]) => {
-    const pointed = changes.filter((changed) => changed.change.id === pointedChange);
+    const line = changes.find((changed) => changed.change.id === pointedChange)?.line;
+    const pointed = changes.filter((changed) => changed.change.id === pointedChange || (!!line && changed.line === line));
     return pointed.length ? pointed : changes;
   };
   // The open note's answer, outlined in every place in the note's colour, on the round you're watching and the one beside it.
@@ -1341,7 +1346,8 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     diamond.until === undefined || changes?.flow !== diamond.flow
       ? []
       : [...new Set(changes.acted.filter(([at]) => at >= diamond.at && at <= diamond.until!).map(([, node]) => node))].map((node) => ({ node }));
-  const changed = (outlined ? drawn(outlined) : []).flatMap((changed) => (markOn(changed.on) ? marksOn(changed.on) : actedOn(outlined!)));
+  // Words reworded are marked themselves, not what they're in.
+  const changed = (outlined ? drawn(outlined) : []).flatMap((changed) => (markOn(changed.on) ? marksOn(changed.on) : actedOn(outlined!)).map((on) => ({ on, words: changed.change.reworded })));
   const marks = new Map<number, Mark[]>([
     [
       round.number,
@@ -1352,7 +1358,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
           return on ? [{ id: note.id, kind: "note", on, pin: { number: note.number, fill: fill(note) }, ink: ink(note), chosen, shows: chosen ? undefined : span(note) }] : [];
         }),
         ...(writing?.on && playedOn(writing.on) === inPlay && writing.on.element?.node !== undefined && !grown.has(writing.id) ? [{ id: writing.id, kind: "writing" as const, on: { node: writing.on.element.node }, chosen: true }] : []),
-        ...changed.map((on, i): Mark => ({ id: outlined!.id, kind: "change", on, pin: i === 0 ? "diamond" : undefined, dot: grownInk(outlined!), chosen: outlined === chosen || outlined === grownOpen })),
+        ...changed.map(({ on, words }, i): Mark => ({ id: outlined!.id, kind: "change", on, words, pin: i === 0 ? "diamond" : undefined, dot: grownInk(outlined!), chosen: outlined === chosen || outlined === grownOpen })),
         ...answerMarks((changed) => changed.on),
       ],
     ],

@@ -29,6 +29,8 @@ export type Mark = {
   id: string;
   kind: "note" | "change" | "writing";
   on: { node: number } | { point: Point } | { box: Box };
+  // Words reworded in its thing, marked where they read rather than around the whole thing, where they're found.
+  words?: string;
   pin?: { number: number; fill: string } | "diamond";
   // A note's colour, and a change's made for it; on a change's diamond, the colour of the note grown out of it.
   ink?: string;
@@ -384,9 +386,9 @@ export function Stage(props: Props) {
     const gone: string[] = [];
     const outlined = new Map<HTMLElement, Edges>();
     for (const mark of layer.querySelectorAll<HTMLElement>("[data-mark-id]")) {
-      const { node, from, until, paused, markId } = mark.dataset;
+      const { node, from, until, paused, markId, words } = mark.dataset;
       const spot = mark.dataset.box?.split(" ").map(Number);
-      const box = node !== undefined ? replay?.boxOf(Number(node)) : spot && { left: spot[0]! * page.width, top: spot[1]! * page.height, width: spot[2]! * page.width, height: spot[3]! * page.height };
+      const box = node !== undefined ? replay?.boxOf(Number(node), words) : spot && { left: spot[0]! * page.width, top: spot[1]! * page.height, width: spot[2]! * page.width, height: spot[3]! * page.height };
       const left = Math.max(0, box?.left ?? 0);
       const top = Math.max(0, box?.top ?? 0);
       const right = Math.min(page.width, (box?.left ?? 0) + (box?.width ?? 0));
@@ -1190,8 +1192,8 @@ function Drawn({ mark, onMark }: { mark: Mark; onMark: (id: string) => void }) {
         ? mark.ink
           ? `${mark.pointed ? "outline-[1.5px]" : "outline-1"} outline-(--c) outline-solid`
           : chosen
-          ? "outline-[1.5px] outline-[#2b2e35] outline-solid"
-          : "outline-1 outline-[rgba(43,46,53,0.4)] outline-solid"
+          ? "outline-[1.5px] outline-[#2b2e35] outline-solid [filter:drop-shadow(0_0_1px_rgba(255,255,255,0.9))]"
+          : "outline-1 outline-[rgba(43,46,53,0.4)] outline-solid [filter:drop-shadow(0_0_1px_rgba(255,255,255,0.9))]"
         : chosen
           ? "outline-[1.5px] outline-(--c) outline-solid"
           : "outline-1 outline-[color-mix(in_srgb,var(--c)_50%,transparent)] outline-solid";
@@ -1203,6 +1205,7 @@ function Drawn({ mark, onMark }: { mark: Mark; onMark: (id: string) => void }) {
       data-answers={mark.answers}
       data-pointed={mark.pointed ? "" : undefined}
       data-node={"node" in on ? on.node : undefined}
+      data-words={mark.words}
       data-box={"box" in on ? `${on.box.x} ${on.box.y} ${on.box.width} ${on.box.height}` : undefined}
       {...shows}
       hidden

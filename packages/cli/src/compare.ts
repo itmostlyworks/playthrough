@@ -79,11 +79,11 @@ export function unsteadyIn(flows: Flow[]): Unsteady {
 async function comparing(page: Page, earlier: Recorded, round: Recorded, unsteady: Unsteady = () => new Set()): Promise<Comparison & { pieces: Map<string, Set<string>> }> {
   const changes = new Map<string, Change>();
   const pieces = new Map<string, Set<string>>();
-  const see = ({ id, words, place, of = [id], pictureOnly }: Sighting) => {
+  const see = ({ id, words, place, of = [id], reworded, pictureOnly }: Sighting) => {
     if (unsteady(place.flow).has(id)) return;
     const change = changes.get(id);
     for (const piece of of) (pieces.get(id) ?? pieces.set(id, new Set()).get(id)!).add(piece);
-    if (!change) changes.set(id, { id, words, seen: [place], ...(pictureOnly && { pictureOnly }) });
+    if (!change) changes.set(id, { id, words, seen: [place], ...(reworded && { reworded }), ...(pictureOnly && { pictureOnly }) });
     else {
       if (!change.seen.some((seen) => seen.flow === place.flow)) change.seen.push(place);
       // Read anywhere, it's a change Playthrough can name.
@@ -102,7 +102,7 @@ async function comparing(page: Page, earlier: Recorded, round: Recorded, unstead
 }
 
 // A change where it's seen in one flow, what it stands for, and whether only the pictures show it there.
-type Sighting = { id: string; words: string; place: Place; of?: string[]; pictureOnly?: true; offScreen?: true };
+type Sighting = { id: string; words: string; place: Place; of?: string[]; reworded?: string; pictureOnly?: true; offScreen?: true };
 
 async function compareFlow(page: Page, earlier: Recorded, before: Flow, round: Recorded, flow: Flow, unsteady: Set<string>): Promise<Sighting[]> {
   const pairs = pairSteps(before.steps, flow.steps);
@@ -120,7 +120,7 @@ async function compareFlow(page: Page, earlier: Recorded, before: Flow, round: R
     const pictured = await picturesAt(page, was, reading, pictures);
     for (const found of [...changesAt(was, reading, unsteady, shown), ...pictured]) {
       const on = found.element ? { element: found.element, ...(found.alike && { alike: found.alike }) } : found.box ? { box: found.box } : {};
-      sightings.push({ id: found.id, words: found.words, place: { flow: flow.name, at: reading.at, ...on }, of: found.pieces, ...(pictured.includes(found) && { pictureOnly: true as const }), ...(found.offScreen && { offScreen: true as const }) });
+      sightings.push({ id: found.id, words: found.words, place: { flow: flow.name, at: reading.at, ...on }, of: found.pieces, ...(found.reworded && { reworded: found.reworded }), ...(pictured.includes(found) && { pictureOnly: true as const }), ...(found.offScreen && { offScreen: true as const }) });
     }
   }
   // A change is seen where the person watching meets it: the first moment it's on the screen, not the first the page has

@@ -35,13 +35,15 @@ export function diamondsOn(review: Review, round: number, you: string): Diamond[
   }
   return diamonds.map((diamond) => {
     const own = diamond.changes.filter((changed) => !changed.answers);
-    return { ...diamond, name: nameOf((own.length ? own : diamond.changes).map(({ change }) => change)), row: own.length > 0 };
+    return { ...diamond, name: nameOf(own.length ? own : diamond.changes), row: own.length > 0 };
   });
 }
 
-// A diamond with several changes is named by its first, and how many more.
-function nameOf(changes: Change[]): string {
-  return changes.length > 1 ? `${changes[0]!.words} and ${changes.length - 1} more` : changes[0]!.words;
+// A diamond is named as its card says it: by the agent's line, or with several, how many changed. What changed isn't put
+// in words: the recording marks it.
+function nameOf(changes: Changed[]): string {
+  const lines = new Set(changes.map((changed) => changed.line ?? changed.change.id));
+  return lines.size > 1 ? `${changes.length} changes` : (changes[0]!.line ?? "Changed here");
 }
 
 // What the agent changed for a note, in the note's own flow.

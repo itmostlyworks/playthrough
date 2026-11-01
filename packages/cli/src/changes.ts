@@ -7,18 +7,18 @@
 // flow, at another moment or against another round is the same one.
 
 import { createHash } from "node:crypto";
-import { a, called, dataLeftOut, differences, HOLDS, holderOf, identity, lookWords, near, NEAR, parentOf, plural, rewordedWords, sentence, symbolOnly, the, things, together, wayOf, word, WORD, type Difference, type Glimpse, type Item, type Reading, type Thing } from "@playthrough/page";
+import { a, called, dataLeftOut, differences, HOLDS, holderOf, identity, lookWords, near, NEAR, parentOf, plural, rewordedPart, rewordedWords, sentence, symbolOnly, the, things, together, wayOf, word, WORD, type Difference, type Glimpse, type Item, type Reading, type Thing } from "@playthrough/page";
 import type { Box, Element } from "@playthrough/review";
 
 // A change at one moment: what it's on is an element of the newer round, or for something gone, where it was. And the
 // ids of the changes it stands for, each by itself, so what changes by itself is left out as itself, never as all it's
 // told with.
 // Off the screen, it's what the page has but the recording doesn't show at this moment.
-export type Found = { id: string; words: string; element?: Element; alike?: Element[]; box?: Box; pieces: string[]; offScreen?: true };
+export type Found = { id: string; words: string; element?: Element; alike?: Element[]; box?: Box; pieces: string[]; reworded?: string; offScreen?: true };
 
 // What happened to a thing, before it's said in full: what it's on, in which of the two readings, and what came with it;
 // what it's known by, where the thing alone doesn't say, and the changes it stands for, by their ids.
-type Told = { what: string; thing: Thing; in: Reading; words: string; key?: string; pieces?: string[] } & With;
+type Told = { what: string; thing: Thing; in: Reading; words: string; key?: string; pieces?: string[]; reworded?: string } & With;
 // What came with a change: what it pushed along, what it made wider or narrower, and how many more changed alike with it.
 type With = { pushed?: Along; sized?: Along; alike?: number };
 type Along = { things: Thing[]; way: string };
@@ -445,7 +445,7 @@ function tell(moment: Moment, difference: Difference, along: With = {}): Told {
     case "became":
       return { what: "became", thing: difference.now, in: now, words: `${called(difference.then)} is ${a(word(difference.now))} now`, ...along };
     case "reworded":
-      return { what: "reworded", thing: difference.now, in: now, words: rewordedWords(difference.then, difference.now), ...along };
+      return { what: "reworded", thing: difference.now, in: now, words: rewordedWords(difference.then, difference.now), reworded: rewordedPart(difference.then.words, difference.now.words), ...along };
     case "looks different": {
       const size = sizeWords(moment, difference);
       const words = `${called(difference.now)} looks different: ${lookWords(difference.then, difference.now)}${size ? `, and ${size}` : ""}`;
@@ -504,7 +504,7 @@ function said(told: Told[], moment: Moment, unsteady: Set<string>): Found[] {
   const found: Found[] = [];
   for (const [holder, all] of inside) {
     if (!holder || all.length <= MOST_INSIDE) {
-      for (const alike of all) found.push({ id: id(alike[0]!), words: alikeWords(alike), ...placeOf(alike[0]!, now), ...alikeOf(alike, now), pieces: alike.flatMap(piecesOf), ...offScreen(alike) });
+      for (const alike of all) found.push({ id: id(alike[0]!), words: alikeWords(alike), ...placeOf(alike[0]!, now), ...alikeOf(alike, now), pieces: alike.flatMap(piecesOf), ...(alike[0]!.reworded && { reworded: alike[0]!.reworded }), ...offScreen(alike) });
       continue;
     }
     // Counted, not listed: Compare shows what they are better than their names can.
@@ -606,7 +606,7 @@ function asItems(told: Told[], moment: Moment, id: (told: Told) => string): Told
     }
     const reworded = rewordedWords(asThing(before, was.get(index)!, "text"), asThing(item, index, "text"));
     out.push(
-      { ...whole, what: "reworded", words: reworded, pieces: words.flatMap((one) => one.pieces ?? [id(one)]), key: `${item.role} of ${listOf(now, item)}: ${shapeOf(before.words, item.words)}` },
+      { ...whole, what: "reworded", words: reworded, reworded: rewordedPart(before.words, item.words), pieces: words.flatMap((one) => one.pieces ?? [id(one)]), key: `${item.role} of ${listOf(now, item)}: ${shapeOf(before.words, item.words)}` },
       ...all.filter((one) => one.thing.role !== "text"),
     );
   }

@@ -229,8 +229,8 @@ const asksMark = "absolute top-4 left-4 z-1 size-[18px]";
 // tabbed to it.
 const keepKeys = (event: { preventDefault: () => void }) => event.preventDefault();
 
-// A change's card: its diamond, its name, wrapping rather than cutting, and its time, which goes to it again, and under
-// them the agent's why: what changed isn't put in words, since the recording outlines it. Your note on it grows out of
+// A change's card: its diamond, who says why, and its time, which goes to it again, and under them the agent's why.
+// What changed isn't put in words: the recording marks it, and Compare shows what it was. Your note on it grows out of
 // it: your words under its name, the note's colour a dot on its diamond. Then Compare, and Play on, with Note on this
 // while you've said nothing about it.
 function ChangeCard(props: Props & { diamond: Diamond; yours: Shown[] }) {
@@ -243,9 +243,9 @@ function ChangeCard(props: Props & { diamond: Diamond; yours: Shown[] }) {
           {yours[0] && <b className="absolute top-[calc(50%-8px)] left-[calc(50%+2px)] size-1.5 rounded-full shadow-[0_0_0_1.5px_var(--ground)]" style={{ background: ink(yours[0]) }} />}
         </span>
         <span className="-mr-[7px] block min-w-0 pr-[7px]">
-          <span className="block leading-5 [overflow-wrap:anywhere]">
-            <Time open className="float-right ml-2 text-faint">{when(diamond)}</Time>
-            <span>{diamond.name}</span>
+          <span className="block text-[11.5px] leading-5 text-faint">
+            <Time open className="float-right ml-2">{when(diamond)}</Time>
+            <span>{diamond.changes.find((changed) => changed.line)?.by ?? "Changed here"}</span>
           </span>
         </span>
       </button>
@@ -272,10 +272,11 @@ function ChangeCard(props: Props & { diamond: Diamond; yours: Shown[] }) {
   );
 }
 
-// Why each change is there, in the agent's words under its name, or the note it was made for. Several at one moment are
-// each on their own line under a small hollow diamond, so they can be counted, the line set off under the ones it explains.
+// Why each change is there, in the agent's words, or the note it was made for. Several at one moment are each a line
+// under a small hollow diamond, so they can be counted, and pointing at one marks just what it's about; changes one line
+// explains are that one line. One the agent wasn't asked about, seen only in the pictures, is marked and not said.
 function Why({ diamond, notes, onNote, onPoint }: Props & { diamond: Diamond }) {
-  const own = diamond.changes.filter((changed) => !changed.answers);
+  const own = diamond.changes.filter((changed) => !changed.answers && (changed.line || changed.note));
   const says = (changed: Changed) => {
     const note = changed.note && notes.find((note) => note.id === changed.note);
     if (note)
@@ -286,25 +287,14 @@ function Why({ diamond, notes, onNote, onPoint }: Props & { diamond: Diamond }) 
           </button>
         </Said>
       );
-    return changed.line && <Said who={changed.by}>{changed.line}</Said>;
+    return <p className="leading-normal whitespace-pre-wrap text-fg">{changed.line}</p>;
   };
   if (own.length === 1) return says(own[0]!);
-  // Changes one line explains stand together over it.
-  const blocks: Changed[][] = [];
-  for (const changed of own) {
-    const last = blocks.at(-1);
-    if (last && changed.line && last[0]!.line === changed.line) last.push(changed);
-    else blocks.push([changed]);
-  }
-  return blocks.map((block) => (
-    <div key={block[0]!.change.id} className="grid gap-0.5">
-      {block.map(({ change }) => (
-        <span key={change.id} className="group/name flex items-start gap-[9px] leading-normal font-medium" onPointerEnter={() => onPoint(change.id)} onPointerLeave={() => onPoint(undefined)}>
-          <i className="mx-0.5 mt-1.5 size-[7px] flex-none rotate-45 shadow-[inset_0_0_0_1.5px_var(--soft)] transition-colors duration-150 ease-calm group-hover/name:bg-soft" aria-hidden />
-          {change.words}
-        </span>
-      ))}
-      <div className="mt-[3px] ml-[19px] border-l-2 border-line pl-2.5 text-[12.5px] [&_p]:text-[12.5px]">{says(block[0]!)}</div>
+  const lines = own.filter((changed, i) => !changed.line || own.findIndex((other) => other.line === changed.line) === i);
+  return lines.map((changed) => (
+    <div key={changed.change.id} className="group/name flex items-start gap-[9px]" onPointerEnter={() => onPoint(changed.change.id)} onPointerLeave={() => onPoint(undefined)}>
+      <i className="mx-0.5 mt-[7px] size-[7px] flex-none rotate-45 shadow-[inset_0_0_0_1.5px_var(--soft)] transition-colors duration-150 ease-calm group-hover/name:bg-soft" aria-hidden />
+      <div className="min-w-0 flex-1">{says(changed)}</div>
     </div>
   ));
 }

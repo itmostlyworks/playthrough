@@ -80,6 +80,20 @@ export function rewordedWords(a: Thing, b: Thing): string {
   return `“${part(a.words)}” now says “${part(b.words)}”`;
 }
 
+// What reads differently in words reworded: the newer words that aren't the older's, as whole words, so the viewer marks
+// just them (“on their own”, added to “For reviewing what your coding agents build”). Nothing, where words only went.
+export function rewordedPart(a: string, b: string): string | undefined {
+  const letter = /[\p{L}\p{N}’']/u;
+  let start = 0;
+  while (start < a.length && start < b.length && a[start] === b[start]) start++;
+  let end = 0;
+  while (end < a.length - start && end < b.length - start && a.at(-1 - end) === b.at(-1 - end)) end++;
+  let to = b.length - end;
+  while (start > 0 && letter.test(b[start - 1]!) && letter.test(b[start] ?? "")) start--;
+  while (to < b.length && to > 0 && letter.test(b[to - 1]!) && letter.test(b[to]!)) to++;
+  return b.slice(start, to).trim() || undefined;
+}
+
 // The look of something, in words: what about it changed.
 export function lookWords(a: Thing, b: Thing): string {
   const parts: string[] = [];

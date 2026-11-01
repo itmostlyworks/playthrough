@@ -19,14 +19,14 @@ const review = (changes: Change[]): Review => ({
   taken: [],
 });
 
-test("changes at one moment of a flow are one diamond, named by the first and how many more", () => {
+test("changes at one moment of a flow are one diamond, named by how many changed: what changed is marked on the recording, not put in words", () => {
   const diamonds = diamondsOn(
     review([change("swap", "Create expense and Export have swapped places", "See who owes whom", 0.9), change("words", "“Here are the expenses…” now says “Everything your group has spent”", "See who owes whom", 0.92)]),
     1,
     "Ana",
   );
   assert.equal(diamonds.length, 1);
-  assert.equal(diamonds[0]!.name, "Create expense and Export have swapped places and 1 more");
+  assert.equal(diamonds[0]!.name, "2 changes");
   assert.deepEqual(diamonds[0]!.changes.map(({ change }) => change.id), ["swap", "words"]);
 });
 
