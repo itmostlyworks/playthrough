@@ -53,7 +53,8 @@ export async function trySetup(repo: Repo, again: string) {
   const width = Math.max("The app".length, ...tried.map(({ who }) => who.length)) + 3;
   const line = (label: string, said: string) => `  ${label.padEnd(width)}${said}`;
   console.log(`\n${line("The app", startedIn === undefined ? `running already at ${app.url}` : `started with ${quote(app.start)}, answering at ${app.url} in ${seconds(startedIn)}`)}`);
-  for (const { who, did, took, at, picture } of tried) console.log(line(who, `${did}${did === "nothing made" ? "" : ` in ${seconds(took)}`}, then at ${at}: ${repo.show(picture)}`));
+  for (const { who, did, took, at, refused, picture } of tried)
+    console.log(line(who, `${did}${did === "nothing made" ? "" : ` in ${seconds(took)}`}, then at ${at}${refused ? `, which the app answered with ${refused}` : ""}: ${repo.show(picture)}`));
 
   // What a run leaves behind is said only where setup was seen to make something: a setup that only opens a page, or one
   // the app needs none of, as one that keeps everything in the browser, leaves nothing. What flows leave without one,
@@ -78,9 +79,10 @@ Tell the person now, in a few lines, how flows get into their app, and for each 
 }
 
 // One of the app's people, or anyone where it names nobody: what was made for them, how long it took, where their page
-// was then, as the second run left it, whether setup made anything for them, sending the app what changes it or
-// returning what it made, and whether what was made was given back each time.
-type Tried = { who: string; did: string; took: number; at: string; picture: string; made: boolean; givenBack: boolean };
+// was then, as the second run left it, and the error the app answered that page with, if it did; whether setup made
+// anything for them, sending the app what changes it or returning what it made, and whether what was made was given back
+// each time.
+type Tried = { who: string; did: string; took: number; at: string; refused?: string; picture: string; made: boolean; givenBack: boolean };
 
 async function tryAs(repo: Repo, browser: Browser, setup: Setup, baseURL: string, person?: string): Promise<Tried> {
   const who = person ? person.charAt(0).toUpperCase() + person.slice(1) : "Every flow";
@@ -91,6 +93,8 @@ async function tryAs(repo: Repo, browser: Browser, setup: Setup, baseURL: string
     const page = await context.newPage();
     const request = await requests.newContext({ baseURL });
     let made: Made | undefined;
+    let answered: { status: () => number; statusText: () => string } | undefined;
+    page.on("response", (response) => void (response.request().isNavigationRequest() && response.frame() === page.mainFrame() && (answered = response)));
     try {
       const began = Date.now();
       const sent = (sent: { method: () => string }) => void (changes(sent.method()) && (tried.made = true));
@@ -114,6 +118,7 @@ async function tryAs(repo: Repo, browser: Browser, setup: Setup, baseURL: string
       await page.waitForLoadState("networkidle", { timeout: 5000 }).catch(() => {});
       const url = new URL(page.url());
       tried.at = url.origin === new URL(baseURL).origin ? `${url.pathname}${url.search}` : url.href;
+      tried.refused = answered && answered.status() >= 400 ? `${answered.status()} ${answered.statusText()}`.trim() : undefined;
       if (time === "second") await page.screenshot({ path: tried.picture });
     } finally {
       await context.close();

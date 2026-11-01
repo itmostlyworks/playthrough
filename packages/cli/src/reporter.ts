@@ -19,6 +19,8 @@ export const PERSON = "playthrough person";
 export const HANDS = "playthrough hands";
 export const ACTIONS = "playthrough actions";
 export const WROTE = "playthrough wrote";
+// On Before, how many things the flow expects weren't so.
+export const UNMET = "playthrough unmet";
 export const HOLD = 1500; // the end of a flow holds, so its last state can be seen
 
 // A flow's readings go beside the round's recordings, under the same name, each picture in a folder of its own.
@@ -39,6 +41,9 @@ export function firstLine(said: string) {
   let line = lines[0]?.trim() ?? "";
   const waited = /Timeout \d+ms exceeded/.test(line) && lines.map((under) => under.match(/^\s*- (waiting for .+)$/)?.[1]).find(Boolean);
   if (waited) line = `${line.replace(/\.$/, "")}, ${waited}`;
+  // A locator that found more than one thing lists them under it: the first two, as Playwright would find each alone.
+  const found = line.endsWith(":") ? lines.flatMap((under) => under.match(/^\s*\d+\) .* aka (.+)$/)?.[1] ?? []) : [];
+  if (found.length) line = `${line} ${found.slice(0, 2).join(", ")}${found.length > 2 ? ", …" : ""}`;
   return line.length > 300 ? `${line.slice(0, 300)}…` : line;
 }
 export type Failed ={ flow: string; at?: string; why?: string; broken?: true };
@@ -84,12 +89,14 @@ export default class Flows implements Reporter {
       if (wrote) made.wrote = wrote;
       return made;
     };
+    const unmet = Number(result.attachments.find((attachment) => attachment.name === UNMET)?.body?.toString() ?? 0);
+    const yet = unmet ? `, though ${unmet > 1 ? `${unmet} things it expects aren't` : "1 thing it expects isn't"} so yet` : "";
     const went = (how: string) => console.log(`  ${quote(test.title)}: ${how}`);
     if (result.status === "passed") {
       if (!recording) return;
       const recorded = as(this.#flow(test.title, recording, read, steps));
       this.#ran.push({ ...where, recorded });
-      return went(`to its end, ${Math.round(recorded.flow.length)}s`);
+      return went(`to its end, ${Math.round(recorded.flow.length)}s${yet}`);
     }
 
     // It stopped at the step it couldn't do, or after the last one when it failed between them. On Before, it's kept as
@@ -108,7 +115,7 @@ export default class Flows implements Reporter {
     const recorded = as(this.#flow(test.title, recording, read, kept, until));
     if (stop.error) recorded.flow.stopped = stop.title;
     this.#ran.push({ ...where, failed, recorded });
-    went(stop.error ? `stops at ${quote(stop.title)}` : "stops after its last step");
+    went(`${stop.error ? `stops at ${quote(stop.title)}` : "stops after its last step"}${yet}`);
   }
 
   // What stops the run itself, like a flow's file that doesn't load, as Playwright says it.

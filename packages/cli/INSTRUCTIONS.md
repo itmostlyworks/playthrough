@@ -16,6 +16,8 @@ THE LOOP
    thing a person does that the task touches. They show the task as the person put it, so write them from the task, not
    from the code.
 2. Run playthrough start <review> again. It records Before: each flow on the app as it is, as far as the app can take it.
+   What a flow expects of the finished work only waits a moment there, and the flow goes on; it stops only at a step the
+   app can't do yet.
 3. Change the app. Keep each flow's name, and each step's while it does the same job: they're matched across rounds by
    name. Once the work is done, add a flow for each choice you made that the person can see and didn't ask for.
 4. playthrough record <review> records the round and compares it with every round before it. In the round's round.json, say
@@ -104,7 +106,8 @@ page, Playwright's request and the app's address as baseURL, and what it returns
     if (!removed.ok()) throw new Error(`Removing the account failed: ${removed.status()}`);
   }
 
-Flows run several at once on the one app, so each run makes its own, with a name or an email of its own. Give it back:
+Flows run several at once on the one app, so each run makes its own: what the app needs unique, like an email, of its
+own, and what the page shows, like a name, the same every run, or the comparison finds it changed. Give it back:
 after, if setup.ts exports it, runs once the run is over (a flow recorded, the app taken over and let go), given a
 request of its own and what the default export returned, so return what's needed to find and remove it, and sign in
 again there if removing it needs that. Check what each request answers, so one that fails says so rather than leaving it

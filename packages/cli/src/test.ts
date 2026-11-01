@@ -15,7 +15,7 @@ import type { Did } from "@playthrough/review";
 import { ALONGSIDE, BEAT, REACHES_OUTSIDE, WALKED, type Action, type Handed, type Run, type To, type Walk, type Walked } from "./flows.ts";
 import { readPage, unhovered } from "./read.ts";
 import { repo } from "./repo.ts";
-import { ACTIONS, ASSETS, firstLine, GLIMPSES, HANDS, HOLD, PERSON, PICTURE, READINGS, RECORDING, seconds, WROTE, type Failed, type Hand } from "./reporter.ts";
+import { ACTIONS, ASSETS, firstLine, GLIMPSES, HANDS, HOLD, PERSON, PICTURE, READINGS, RECORDING, seconds, UNMET, WROTE, type Failed, type Hand } from "./reporter.ts";
 import { watchRest } from "./rest.ts";
 import { changes, firstOf, make, personIn, setupIn, type Made, type Setup } from "./setup.ts";
 
@@ -31,7 +31,7 @@ const run: Run | undefined = process.env.PLAYTHROUGH_RUN ? JSON.parse(process.en
 
 // On Before, what a flow expects is the finished work, which the app as it is may not show. So each expectation waits a
 // moment for it, as for a step's result, and the flow goes on either way: it stops only where the app as it is can't
-// do something, and it's recorded as far as that.
+// do something, and it's recorded as far as that. How many weren't so is said with it.
 export const expect = run?.before ? onlyWaits(playwrightExpect.configure({ timeout: 1000 })) : playwrightExpect;
 
 function onlyWaits(expect: typeof playwrightExpect): typeof playwrightExpect {
@@ -43,7 +43,7 @@ function onlyWaits(expect: typeof playwrightExpect): typeof playwrightExpect {
         if (typeof check !== "function") return check;
         return (...args: unknown[]) => {
           try {
-            return Promise.resolve(check.apply(target, args)).catch(() => {});
+            return Promise.resolve(check.apply(target, args)).catch(() => underway && (underway.unmet = (underway.unmet ?? 0) + 1));
           } catch {}
         };
       },
@@ -79,9 +79,9 @@ let pointer: { page: Page; x: number; y: number; handed?: boolean } | undefined;
 // The flow underway: the page it's on now, what waits for that page to rest, what was read at the end of each step so
 // far, with its picture, and when each action was done; the step it's in, and how many of that step's actions are done;
 // whoever it's been handed to, and the assets each page loaded; the first request it sent that changes what the app holds;
-// the browser's own dialog shown during the action being done, until it's answered; and walking a fork again, once the
-// fork's steps have begun, how far they got.
-type Underway = { page: Page; events: { timestamp: number }[]; rest: () => Promise<void>; depth: number; readings: Omit<Reading, "picture">[]; glimpses: Glimpse[]; pictures: Buffer[]; actions: number[]; step?: string; inStep: number; hands: Hand[]; assets: (() => Promise<Assets>)[]; wrote?: string; dialog?: Promise<void>; walked?: Walked };
+// the browser's own dialog shown during the action being done, until it's answered; on Before, how many things it
+// expects weren't so; and walking a fork again, once the fork's steps have begun, how far they got.
+type Underway = { page: Page; events: { timestamp: number }[]; rest: () => Promise<void>; depth: number; readings: Omit<Reading, "picture">[]; glimpses: Glimpse[]; pictures: Buffer[]; actions: number[]; step?: string; inStep: number; hands: Hand[]; assets: (() => Promise<Assets>)[]; wrote?: string; dialog?: Promise<void>; unmet?: number; walked?: Walked };
 let underway: Underway | undefined;
 
 // What every flow starts from (setup.ts), loaded once a run.
@@ -202,6 +202,7 @@ const recorded = base.extend<{ person: string | undefined; rest: () => Promise<v
       if (who) await testInfo.attach(PERSON, { body: who, contentType: "text/plain" });
       if (flow.hands.length) await testInfo.attach(HANDS, { body: JSON.stringify(flow.hands), contentType: "application/json" });
       if (flow.wrote) await testInfo.attach(WROTE, { body: flow.wrote, contentType: "text/plain" });
+      if (flow.unmet) await testInfo.attach(UNMET, { body: String(flow.unmet), contentType: "text/plain" });
       for (const picture of pictures) await testInfo.attach(PICTURE, { body: picture, contentType: "image/png" });
     },
     { auto: true },
