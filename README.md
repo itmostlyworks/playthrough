@@ -30,10 +30,6 @@ npx skills add itmostlyworks/playthrough
 
 In Claude Code, it's a plugin too: `/plugin install playthrough --marketplace itmostlyworks/playthrough`.
 
-## On the example
-
-`example/` in this repo is a small invoices app to try it on before your own. Clone the repo, run `npm install`, `npx playwright install chromium` and `npm run build`, and from `example/`, ask your agent to show how much is overdue in total under the Invoices heading, and to show you the change with `npx playthrough`.
-
 ## How a review goes
 
 1. You ask your agent for a change, and to show it to you with Playthrough.
