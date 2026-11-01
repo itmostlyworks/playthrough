@@ -58,7 +58,8 @@ const readme = readFileSync(join(packages, "../README.md"), "utf8").replace(/\]\
 writeFileSync(join(release, "README.md"), readme);
 
 const { private: _, devDependencies: __, scripts: ___, ...published } = own;
-const bin = Object.fromEntries(Object.entries<string>(own.bin).map(([name, path]) => [name, js(path)]));
+// A command's file as npm wants it named, from the package's folder without “./”: with it, npm takes the command out.
+const bin = Object.fromEntries(Object.entries<string>(own.bin).map(([name, path]) => [name, js(path).replace(/^\.\//, "")]));
 const exports = Object.fromEntries(
   Object.entries<string>(own.exports).map(([name, path]) => [name, { types: `./types/cli/${js(path).replace(/^\.\//, "").replace(/\.js$/, ".d.ts")}`, default: js(path) }]),
 );

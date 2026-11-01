@@ -1,0 +1,26 @@
+# Checks and tests every push to main, so main says whether it's ready to release long before a release runs: the
+# release tests it again, as the last word, but finding out there means starting it twice.
+
+name: Check
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run check
+      - run: npm test
+      - run: npm run build
