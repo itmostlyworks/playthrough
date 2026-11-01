@@ -3,6 +3,7 @@
 // of the moment made the way every flow starts, not a picture of it. Playthrough passes everything on to the app, and at
 // /take-over gives the browser what the flow's page had: its address, its cookies, and what the app kept in the browser.
 
+import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { createServer, request as ask, type IncomingMessage, type ServerResponse } from "node:http";
@@ -13,7 +14,7 @@ import { list, quote, Refused, type Did } from "@playthrough/review";
 import { keepRunning } from "./app.ts";
 import type { Handed } from "./flows.ts";
 import { follow, reachesOutside, runTo } from "./following.ts";
-import { listen } from "./open.ts";
+import { listen, thisMachine } from "./open.ts";
 import { read } from "./read.ts";
 import type { App, Repo } from "./repo.ts";
 import type { Made } from "./setup.ts";
@@ -28,7 +29,7 @@ export async function takeOver(repo: Repo, id: string, flowName?: string, stepNa
     throw new Refused([`Take over which flow? playthrough take-over ${id} "<flow>" ["<step>"]\nIts flows: ${list(round.flows.map((flow) => quote(flow.name)))}.`]);
   }
   console.log(`Running ${quote(flowName)} to ${stepName ? `the end of ${quote(stepName)}` : "its end"}, on the app as it is now…`);
-  const { port, moment, seconds } = await getReady(repo, id, flowName, { step: stepName });
+  const { port, moment, seconds } = await getReady(repo, id, flowName, { step: stepName, network: true });
   const here = `http://localhost:${port}/take-over/${moment}`;
   const away = addresses().map((address) => `http://${address}:${port}/take-over/${moment}`);
   console.log(`
@@ -41,12 +42,13 @@ Each address hands over the same copy, and the app is passed on through Playthro
 // ready while you look, and Take over turns the frame into the app there.
 // With what a person did there, as a note in the app keeps it, it's done again after them, to take over where they were,
 // and kept on by whatever they do next. Made ready ahead, as the playhead rests, before anyone has asked: not for a flow
-// that reaches outside the app, which each time would do that again.
+// that reaches outside the app, which each time would do that again. From the command line, the app is passed on to
+// this machine's networks too, for a phone on one of them; from the viewer, to this machine alone.
 export async function getReady(
   repo: Repo,
   id: string,
   flowName: string,
-  { step: stepName, actions, did, ahead }: { step?: string; actions?: number; did?: Did[]; ahead?: boolean } = {},
+  { step: stepName, actions, did, ahead, network }: { step?: string; actions?: number; did?: Did[]; ahead?: boolean; network?: boolean } = {},
 ): Promise<{ port: number; moment: string; seconds: string }> {
   const round = await recorded(repo, id);
   const flow = round.flows.find((flow) => flow.name === flowName);
@@ -61,8 +63,9 @@ export async function getReady(
   await keepRunning(app, repo.root);
   const began = Date.now();
   const { handed, made } = await runTo(repo, id, { flow: flow.name, ...(stepName && { step: stepName, ...(actions && { actions }) }), ...(did?.length && { did }) });
-  passing ??= { moments: new Map(), port: passOn(app, (moment) => passing!.moments.get(moment)), numbered: 0 };
-  const moment = String(++passing.numbered);
+  passing ??= { moments: new Map(), port: passOn(app, (moment) => passing!.moments.get(moment), network) };
+  // Not counted, as on a network a moment's address is the way in to the app: it can't be guessed.
+  const moment = randomBytes(12).toString("base64url");
   passing.moments.set(moment, did?.length ? { ...handed, did } : handed);
   // One app made ready for each review at a time: the one before, taken over or only made ready, is given back, and its
   // address goes with it, so pausing again and again leaves one, not one for each pause.
@@ -83,8 +86,8 @@ export async function keepUp(repo: Repo, id: string, flow: string, step?: string
   await follow(repo, id, { flow, ...(step && { step, ...(actions && { actions }) }) });
 }
 
-// One way through to the app for as long as Playthrough runs, handing over each moment made ready, by its number.
-let passing: { moments: Map<string, Handed>; port: Promise<number>; numbered: number } | undefined;
+// One way through to the app for as long as Playthrough runs, handing over each moment made ready, by its address.
+let passing: { moments: Map<string, Handed>; port: Promise<number> } | undefined;
 
 async function recorded(repo: Repo, id: string) {
   const review = await repo.reviews.get(id);
@@ -95,18 +98,20 @@ async function recorded(repo: Repo, id: string) {
 
 // Everything that isn't /take-over goes to the app as it is, answers and live connections both, as if the browser
 // were talking to it directly, so the app sees nothing unusual: its own address, and its own address as where a
-// request came from.
-function passOn(app: App, handed: (moment: string) => Handed | undefined): Promise<number> {
+// request came from. Only to this machine, and on a network, to whoever opened a moment's address there.
+function passOn(app: App, handed: (moment: string) => Handed | undefined, network?: boolean): Promise<number> {
   const target = new URL(app.url);
   const server = createServer((request, response) => {
+    if (!named(request)) return turnAway(response);
     const [first, moment] = new URL(request.url ?? "/", "http://playthrough").pathname.split("/").filter(Boolean);
-    if (first === "take-over") return handOver(handed(moment ?? ""), response);
+    if (first === "take-over") return handOver(handed(moment ?? ""), response, !fromThisMachine(request));
+    if (!passed(request)) return turnAway(response);
     // A page is asked for whole, so a word can be added to it: the app is told not to squeeze it.
     const page = /text\/html/.test(request.headers.accept ?? "");
     const headers = asIfDirect(request, target);
     if (page) delete headers["accept-encoding"];
     const forward = ask({ host: target.hostname, port: target.port, method: request.method, path: request.url, headers }, (answer) => {
-      const told = fromTheApp(answer, target);
+      const told = fromTheApp(answer, target, request);
       if (!page || !/text\/html/.test(String(answer.headers["content-type"])) || answer.headers["content-encoding"]) {
         response.writeHead(answer.statusCode ?? 502, told);
         return void answer.pipe(response);
@@ -127,6 +132,7 @@ function passOn(app: App, handed: (moment: string) => Handed | undefined): Promi
     request.pipe(forward);
   });
   server.on("upgrade", (request, socket, head) => {
+    if (!named(request) || !passed(request)) return void socket.destroy();
     const upstream = connect(Number(target.port || 80), target.hostname, () => {
       const headers = Object.entries(asIfDirect(request, target)).flatMap(([name, value]) => [value ?? []].flat().map((one) => `${name}: ${one}`));
       upstream.write(`${request.method} ${request.url} HTTP/1.1\r\n${headers.join("\r\n")}\r\n\r\n`);
@@ -136,7 +142,22 @@ function passOn(app: App, handed: (moment: string) => Handed | undefined): Promi
     upstream.on("error", () => socket.destroy());
     socket.on("error", () => upstream.destroy());
   });
-  return listen(server, PORT, "0.0.0.0");
+  return listen(server, PORT, network ? "0.0.0.0" : "127.0.0.1");
+}
+
+// Asked for by this machine's name or one of its addresses: a site that has made its name lead here (DNS rebinding)
+// still asks by its own.
+const named = (request: IncomingMessage) => thisMachine(request.headers.host) || addresses().includes(request.headers.host?.replace(/:\d+$/, "") ?? "");
+
+// One pass for as long as Playthrough runs, handed with a moment's page to whoever opened its address from elsewhere on
+// the network, and kept from the app: the rest of the network has no business with it.
+const PASS = `playthrough-pass=${randomBytes(16).toString("base64url")}`;
+const fromThisMachine = (request: IncomingMessage) => /^(127\.|::1$|::ffff:127\.)/.test(request.socket.remoteAddress ?? "");
+const passed = (request: IncomingMessage) => fromThisMachine(request) || !!request.headers.cookie?.split(/;\s*/).includes(PASS);
+
+function turnAway(response: ServerResponse) {
+  response.writeHead(403, { "content-type": "text/plain; charset=utf-8" });
+  response.end("Playthrough passes the app on to this machine, and to whoever opened the address of a moment taken over. Open that address first.");
 }
 
 function asIfDirect(request: IncomingMessage, target: URL) {
@@ -144,6 +165,9 @@ function asIfDirect(request: IncomingMessage, target: URL) {
   const from = `http://${request.headers.host}`;
   if (headers.origin) headers.origin = target.origin;
   if (headers.referer?.startsWith(from)) headers.referer = target.origin + headers.referer.slice(from.length);
+  const cookie = headers.cookie?.split(/;\s*/).filter((one) => one !== PASS).join("; ");
+  if (cookie) headers.cookie = cookie;
+  else delete headers.cookie;
   return headers;
 }
 
@@ -498,11 +522,14 @@ const SAYS = `<script>(() => {
 
 // Whatever the app says about its own address is said about Playthrough's, so the browser stays here, and the app may show
 // in the viewer's frame.
-function fromTheApp(answer: IncomingMessage, target: URL) {
+function fromTheApp(answer: IncomingMessage, target: URL, request: IncomingMessage) {
   const headers = { ...answer.headers };
   delete headers["x-frame-options"];
-  // Recorded here, the app's fonts and pictures are asked for again by the recording, from the viewer's page.
-  headers["access-control-allow-origin"] = "*";
+  // Recorded here, the app's fonts and pictures are asked for again by the recording, from the viewer's page: that page,
+  // on this machine, may read them, and no other site.
+  const origin = request.headers.origin;
+  if (origin && URL.canParse(origin) && thisMachine(new URL(origin).host)) headers["access-control-allow-origin"] = origin;
+  headers.vary = [headers.vary, "Origin"].filter(Boolean).join(", ");
   const policy = headers["content-security-policy"];
   if (policy) headers["content-security-policy"] = [policy].flat().map((rule) => rule.replace(/frame-ancestors[^;]*;?/i, ""));
   if (headers.location?.startsWith(target.origin)) headers.location = headers.location.slice(target.origin.length) || "/";
@@ -510,8 +537,9 @@ function fromTheApp(answer: IncomingMessage, target: URL) {
   return headers;
 }
 
-// The browser gets the flow's cookies and what the app kept in it, then goes to where the flow's page was.
-function handOver(handed: Handed | undefined, response: ServerResponse) {
+// The browser gets the flow's cookies and what the app kept in it, then goes to where the flow's page was. From
+// elsewhere on the network, it gets the pass too.
+function handOver(handed: Handed | undefined, response: ServerResponse, elsewhere: boolean) {
   if (!handed) {
     response.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
     return void response.end("There's no moment ready at this address. Take it over again from the viewer, or with playthrough take-over.");
@@ -524,6 +552,7 @@ function handOver(handed: Handed | undefined, response: ServerResponse) {
     ({ name, value, path, expires, httpOnly }) =>
       `${name}=${value}; Path=${path}; SameSite=Lax${httpOnly ? "; HttpOnly" : ""}${expires > 0 ? `; Expires=${new Date(expires * 1000).toUTCString()}` : ""}`,
   );
+  if (elsewhere) setCookies.push(`${PASS}; Path=/; SameSite=Lax; HttpOnly`);
   const keep = JSON.stringify({ local, session, scroll, clock, browser, again, did, to: pathname + search + hash }).replace(/</g, "\\u003c");
   response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "set-cookie": setCookies });
   response.end(`<!doctype html><meta name="viewport" content="width=device-width"><title>Taking over…</title>

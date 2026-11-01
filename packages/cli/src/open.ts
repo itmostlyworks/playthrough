@@ -52,6 +52,8 @@ export async function open(repo: Repo, id?: string) {
 }
 
 async function answer(repo: Repo, page: string, you: string, request: IncomingMessage, response: ServerResponse) {
+  const stranger = fromElsewhere(request);
+  if (stranger) return json(response, 403, { problems: [stranger] });
   const reviews = repo.reviews;
   const path = decodeURIComponent(new URL(request.url ?? "/", "http://localhost").pathname);
   const [api, collection, id, ...rest] = path.split("/").filter(Boolean);
@@ -177,6 +179,18 @@ async function serve(page: string, path: string, response: ServerResponse) {
   response.writeHead(200, { "content-type": TYPES[".html"], "cache-control": "no-store" });
   response.end(await readFile(join(page, "index.html")));
 }
+
+// What's sent here reaches the agent in the person's name, so only the viewer, on this machine, may ask: by this
+// machine's own name, which a site that has made its name lead here (DNS rebinding) doesn't use, and, sending, from the
+// viewer's own address, as any site's page can send here.
+function fromElsewhere(request: IncomingMessage): string | undefined {
+  const { host, origin } = request.headers;
+  if (!thisMachine(host)) return `Playthrough answers only at localhost, not at “${host}”. Open http://localhost:${request.socket.localPort}/.`;
+  if (origin !== undefined && origin !== `http://${host}`) return `Only Playthrough's own page can ask this, not ${origin}.`;
+}
+
+// This machine, by the names it's reached by here.
+export const thisMachine = (host: string | undefined) => /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(host ?? "");
 
 // Its shape is checked by the store, at the door, like anything else that's kept.
 async function body<T>(request: IncomingMessage): Promise<T> {
