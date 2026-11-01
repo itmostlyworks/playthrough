@@ -12,10 +12,11 @@ import { execFileSync } from "node:child_process";
 import { copyFileSync, cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { constants, tmpdir, uptime } from "node:os";
+import { constants, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { Refused, type Flow, type Review } from "@playthrough/review";
 import { serves, stopApp } from "./app.ts";
+import { stillAt, thisCommand, type Command } from "./command.ts";
 import { called, failedAt, runFlows, type Ran } from "./flows.ts";
 import type { Failed } from "./reporter.ts";
 import type { Repo } from "./repo.ts";
@@ -127,7 +128,7 @@ const cantStart = (recorded: { flow: Flow }[], failed: Failed[]) =>
 // Where the agent's work is while the working copy holds the app as it was: the branch or commit to come back to, the
 // stash it's set aside in, by its message, the command that set it aside, on which start of the machine, and whether a
 // server of the agent's was already serving the app, following the working copy.
-type SetAside = { back: string; stash: string; by: number; boot?: string | number; shared?: boolean };
+type SetAside = Command & { back: string; stash: string; shared?: boolean };
 const SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP"] as const;
 
 // The working copy holds the app as it was while `run` runs, then the agent's work again. Where the work is goes in
@@ -136,7 +137,7 @@ const SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP"] as const;
 async function asItWas<T>(repo: Repo, unrecorded: string, commit: string, shared: boolean, run: () => Promise<T>): Promise<T> {
   refuseWhileAside(repo);
   await repo.keepOutOfGit();
-  const aside: SetAside = { back: here(repo), stash: `Playthrough: your work, set aside while flows record on Before, ${new Date().toISOString()}`, by: process.pid, boot: boot(), ...(shared && { shared }) };
+  const aside: SetAside = { back: here(repo), stash: `Playthrough: your work, set aside while flows record on Before, ${new Date().toISOString()}`, ...thisCommand(), ...(shared && { shared }) };
   writeFileSync(repo.setAside, JSON.stringify(aside));
   // Listened for until the work is back, so a second signal can't end it halfway.
   let stopping = false;
@@ -206,21 +207,6 @@ export function refuseWhileAside(repo: Repo) {
 
 const setAside = (repo: Repo): SetAside | undefined => attempt(() => JSON.parse(readFileSync(repo.setAside, "utf8")));
 
-// The command that set the work aside is still at it: its process is running, and is the same one, not another that
-// has its number since the machine started again.
-const stillAt = (aside: SetAside) => sameBoot(aside.boot) && running(aside.by);
-
-// Which start of the machine this is. Linux names each one; elsewhere it's when it started, which a clock set since moves
-// by no more than a few minutes.
-function boot(): string | number {
-  return attempt(() => readFileSync("/proc/sys/kernel/random/boot_id", "utf8").trim()) || Date.now() / 1000 - uptime();
-}
-// One set aside before Playthrough noted the start is taken to be this one's, as it always was.
-function sameBoot(then: string | number | undefined, now = boot()): boolean {
-  if (typeof then === "number" && typeof now === "number") return Math.abs(then - now) < 300;
-  return then === undefined || then === now;
-}
-
 // Back on its branch or commit, then what was set aside, each only if it's still to do, so it's right to run again. Forced,
 // whatever the app as it was changed in the files git keeps is let go. Says what git said, if it couldn't.
 function putWorkBack(repo: Repo, aside: SetAside, force: boolean): string | undefined {
@@ -266,14 +252,6 @@ function stashOf(repo: Repo, aside: SetAside): string | undefined {
 async function caughtUp(url: string) {
   await new Promise((done) => setTimeout(done, 1000));
   await fetch(url, { signal: AbortSignal.timeout(60_000) }).then((response) => response.body?.cancel(), () => {});
-}
-
-function running(pid: number): boolean {
-  try {
-    return process.kill(pid, 0);
-  } catch (error) {
-    return (error as { code?: string }).code === "EPERM";
-  }
 }
 
 // Without the repo's hooks: Playthrough's checkouts and stashes aren't anyone's work, and a hook that fails, or installs

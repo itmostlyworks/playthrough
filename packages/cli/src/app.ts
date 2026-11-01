@@ -5,9 +5,11 @@
 // at the address it always has, one already running is used only where it can't be another copy's.
 
 import { spawn, type ChildProcess } from "node:child_process";
+import { readFileSync, writeFileSync } from "node:fs";
 import type { Socket } from "node:net";
 import { constants } from "node:os";
 import { quote, Refused } from "@playthrough/review";
+import { stillAt, thisCommand, type Command } from "./command.ts";
 import { inWorktree, PORTED, repo, type App } from "./repo.ts";
 import { giveBackOwn, setupIn } from "./setup.ts";
 
@@ -15,8 +17,13 @@ import { giveBackOwn, setupIn } from "./setup.ts";
 const started = new Map<string, { app: ChildProcess; root: string }>();
 let ending = false;
 
-// How long it took to answer, in milliseconds, when it's started here; nothing when it was running already.
-export async function keepRunning(app: App, root: string): Promise<number | undefined> {
+// Whose turn it is to run the app in a folder, as every command there sees it: a command that runs flows, or the viewer,
+// keeping the app ready for taking over, with the app it started and where it answers, for another command to stop.
+type Turn = Command & ({ ready: false } | { ready: true; app: number; url: string });
+
+// How long it took to answer, in milliseconds, when it's started here; nothing when it was running already. Ready, it's
+// the app the viewer keeps for taking over, which gives way to any other command's.
+export async function keepRunning(app: App, root: string, { ready = false } = {}): Promise<number | undefined> {
   // Stopped by a signal, Node ends without saying it's exiting, and what it started here runs on, orphaned: the flows
   // being recorded, the flows kept ready and the app. Told, they go with it.
   if (!ending) {
@@ -29,6 +36,7 @@ export async function keepRunning(app: App, root: string): Promise<number | unde
     // The app goes when Playthrough does, with everything its command started.
     process.once("exit", () => [...started.keys()].forEach(stop));
   }
+  await takeTurns(root, ready);
   const ours = started.get(app.url);
   // At the address the app always has, a copy started here from another folder gives way to this one.
   if (ours && ours.root !== root) await stopApp(app.url);
@@ -45,6 +53,7 @@ export async function keepRunning(app: App, root: string): Promise<number | unde
   const began = Date.now();
   const running = spawn(app.start, { cwd: root, shell: true, stdio: ["ignore", "pipe", "pipe"], detached: true });
   started.set(app.url, { app: running, root });
+  if (ready) writeFileSync(repo(root).turn, JSON.stringify({ ...thisCommand(), ready, app: running.pid!, url: app.url } satisfies Turn));
   // What it last said, for when it doesn't answer, without a stack trace's frames, which would hide its error.
   const said: string[] = [];
   for (const output of [running.stdout!, running.stderr!]) {
@@ -67,6 +76,33 @@ export async function keepRunning(app: App, root: string): Promise<number | unde
   }
   stop(app.url);
   throw new Refused([`The app didn't answer at ${app.url} within three minutes of ${quote(app.start)}.`, ...saying(), "Check that playthrough/app.json starts it there."]);
+}
+
+// One command at a time runs the app in a folder: a dev server like Next's runs only one there, and what a command records
+// has to be the work as it is now, which an app that doesn't follow the working copy, started before it changed, isn't.
+// So the app the viewer keeps ready for taking over is stopped for any other command, and starts again once it's needed
+// again; and while another command runs the app, the viewer waits.
+async function takeTurns(root: string, ready: boolean) {
+  const here = repo(root);
+  let turn: Turn | undefined;
+  try {
+    turn = JSON.parse(readFileSync(here.turn, "utf8"));
+  } catch {}
+  const theirs = turn && turn.by !== process.pid && stillAt(turn) ? turn : undefined;
+  if (ready) {
+    if (theirs && !theirs.ready)
+      throw new Refused([`Another playthrough command (process ${theirs.by}) runs the app just now, until it's done, in a minute or so. Try again then.`]);
+    return;
+  }
+  // Taken before the viewer's app is stopped, so the viewer waits from now on rather than starting it again meanwhile.
+  await here.keepOutOfGit();
+  writeFileSync(here.turn, JSON.stringify({ ...thisCommand(), ready } satisfies Turn));
+  if (!theirs?.ready) return;
+  try {
+    process.kill(-theirs.app);
+  } catch {}
+  const began = Date.now();
+  while (Date.now() - began < 10_000 && (await serves(theirs.url))) await new Promise((resolve) => setTimeout(resolve, 250));
 }
 
 // The app Playthrough started, stopped, so the next run starts it again on the working copy as it is then; one that was

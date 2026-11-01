@@ -30,6 +30,8 @@ export function repo(root = home(process.cwd())) {
     // The file each flow is written in, as it was when the flow last ran on Before.
     ranOnBefore: (review: string) => join(reviews, review, "ran-on-before.json"),
     setAside: join(reviews, "set-aside.json"),
+    // Whose turn it is to run the app here: a command that runs flows, or the viewer, keeping it ready for taking over.
+    turn: join(reviews, "turn.json"),
     // How to start the app, committed.
     appFile,
     // What every flow of the app starts from, committed beside app.json.

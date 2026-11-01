@@ -60,7 +60,7 @@ export async function getReady(
 
   const app = await repo.app();
   refuseWhileAside(repo);
-  await keepRunning(app, repo.root);
+  await keepRunning(app, repo.root, { ready: true });
   const began = Date.now();
   const { handed, made } = await runTo(repo, id, { flow: flow.name, ...(stepName && { step: stepName, ...(actions && { actions }) }), ...(did?.length && { did }) });
   // One way through for each copy of the app, as each answers at an address of its own.
@@ -88,7 +88,7 @@ const ready = new Map<string, { moment: string; made?: Made }>();
 // rest on is quick to make ready.
 export async function keepUp(repo: Repo, id: string, flow: string, step?: string, actions?: number) {
   refuseWhileAside(repo);
-  await keepRunning(await repo.app(), repo.root);
+  await keepRunning(await repo.app(), repo.root, { ready: true });
   await follow(repo, id, { flow, ...(step && { step, ...(actions && { actions }) }) });
 }
 

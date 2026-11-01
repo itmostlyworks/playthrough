@@ -2,14 +2,15 @@
 // app.json gives one, and at the address the app always has, what answers in a worktree is never taken for its own.
 
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 import { Refused } from "@playthrough/review";
-import { keepRunning } from "../src/app.ts";
+import { keepRunning, serves, stopApp } from "../src/app.ts";
+import { thisCommand } from "../src/command.ts";
 import { copies, inWorktree, repo } from "../src/repo.ts";
 import { start } from "../src/start.ts";
 
@@ -18,6 +19,14 @@ let worktree = "";
 const env = { ...process.env, GIT_AUTHOR_NAME: "Ana", GIT_AUTHOR_EMAIL: "ana@example.com", GIT_COMMITTER_NAME: "Ana", GIT_COMMITTER_EMAIL: "ana@example.com" };
 const git = (...args: string[]) => execFileSync("git", ["-c", "commit.gpgSign=false", ...args], { cwd: main, env, encoding: "utf8", stdio: "pipe" }).trim();
 const appJson = (root: string, app: object) => writeFile(join(root, "playthrough", "app.json"), JSON.stringify(app));
+// A port nothing is using now.
+const free = () =>
+  new Promise<number>((resolve) => {
+    const server = createServer().listen(0, "127.0.0.1", () => {
+      const { port } = server.address() as { port: number };
+      server.close(() => resolve(port));
+    });
+  });
 
 beforeEach(async () => {
   main = await realpath(await mkdtemp(join(tmpdir(), "playthrough-copies-")));
@@ -61,6 +70,30 @@ test("at the address the app always has, what answers is the app in the main fol
     await assert.rejects(keepRunning({ start: "node serve.ts", url }, worktree), (error: Refused) => error instanceof Refused && /else answers/.test(error.problems[0]!));
   } finally {
     server.close();
+  }
+});
+
+test("the app the viewer keeps ready gives way to a command that runs flows, and the viewer waits while one does", async () => {
+  await writeFile(join(main, "serve.mjs"), `import { createServer } from "node:http"; createServer((_, response) => response.end("the app")).listen(Number(process.argv[2]), "127.0.0.1");`);
+  const [readyPort, ownPort] = [await free(), await free()];
+  const [readyUrl, ownUrl] = [`http://127.0.0.1:${readyPort}`, `http://127.0.0.1:${ownPort}`];
+  // Another command, the viewer, and the app it keeps ready, as a group of its own as Playthrough starts one.
+  const viewer = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"]);
+  const ready = spawn(process.execPath, ["serve.mjs", String(readyPort)], { cwd: main, detached: true });
+  const turn = (them: object) => writeFile(repo(main).turn, JSON.stringify({ ...thisCommand(), by: viewer.pid, ...them }));
+  try {
+    await repo(main).keepOutOfGit();
+    while (!(await serves(readyUrl))) await new Promise((resolve) => setTimeout(resolve, 50));
+    await turn({ ready: true, app: ready.pid, url: readyUrl });
+    await keepRunning({ start: `node serve.mjs ${ownPort}`, url: ownUrl }, main);
+    assert.equal(await serves(readyUrl), false);
+    assert.equal(await serves(ownUrl), true);
+    await turn({ ready: false });
+    await assert.rejects(keepRunning({ start: `node serve.mjs ${readyPort}`, url: readyUrl }, main, { ready: true }), (error: Refused) => error instanceof Refused && /runs the app just now/.test(error.problems[0]!));
+  } finally {
+    viewer.kill();
+    ready.kill();
+    await stopApp(ownUrl);
   }
 });
 
