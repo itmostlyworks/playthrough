@@ -1,0 +1,10 @@
+{
+  "name": "playthrough",
+  "version": "0.4.3",
+  "description": "Review what your coding agent built in your web app by watching recordings of it.",
+  "author": { "name": "Ludwig Bäcklund" },
+  "homepage": "https://playthrough.sh",
+  "repository": "https://github.com/itmostlyworks/playthrough",
+  "license": "Apache-2.0",
+  "keywords": ["code-review", "ui-review", "playwright", "recording", "human-in-the-loop", "web-app"]
+}

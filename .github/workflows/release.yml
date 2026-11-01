@@ -1,6 +1,6 @@
 # Releases Playthrough to npm. In the repo's Actions tab: Release, Run workflow, and the version, as 0.1.1. It sets the
-# version, checks, tests and builds the package, publishes it, then commits the version to main with its tag and a
-# release on GitHub. npm knows this workflow as a trusted publisher of playthrough, so no token is kept anywhere. It
+# version, the package's and the Claude Code plugin's, checks, tests and builds the package, publishes it, then commits
+# the version to main with its tag and a release on GitHub. npm knows this workflow as a trusted publisher of playthrough, so no token is kept anywhere. It
 # releases main as it is now: a run re-run later, still on the commit it started on, stops before anything.
 
 name: Release
@@ -41,7 +41,9 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - name: Set the version
-        run: npm version "$VERSION" --workspace playthrough --no-git-tag-version --allow-same-version
+        run: |
+          npm version "$VERSION" --workspace playthrough --no-git-tag-version --allow-same-version
+          sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" .claude-plugin/plugin.json
       - run: npm run check
       - run: npm test
       - run: npm run build

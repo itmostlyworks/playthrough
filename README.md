@@ -22,6 +22,14 @@ npx playthrough open
 
 Reviews stay in `.playthrough/` in your app's repo, recordings and all; nothing is uploaded. Playthrough needs Node 24 or later.
 
+You can teach your agent Playthrough once, so “Show me this change” is enough from then on:
+
+```bash
+npx skills add itmostlyworks/playthrough
+```
+
+In Claude Code, it's a plugin too: `/plugin install playthrough --marketplace itmostlyworks/playthrough`.
+
 ## On the example
 
 `example/` in this repo is a small invoices app to try it on before your own. Clone the repo, run `npm install`, `npx playwright install chromium` and `npm run build`, and from `example/`, ask your agent to show how much is overdue in total under the Invoices heading, and to show you the change with `npx playthrough`.

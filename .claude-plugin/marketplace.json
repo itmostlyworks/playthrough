@@ -1,0 +1,6 @@
+{
+  "name": "playthrough",
+  "description": "Review what your coding agent built in your web app by watching recordings of it.",
+  "owner": { "name": "Ludwig Bäcklund" },
+  "plugins": [{ "name": "playthrough", "source": "./" }]
+}
