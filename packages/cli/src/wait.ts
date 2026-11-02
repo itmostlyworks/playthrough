@@ -3,7 +3,7 @@
 // each with a picture of what it's on, or for one made in the app, what was done there. The agent reading them may be a
 // fresh one, so they say which review they're for and where the rest is.
 
-import { allNotes, conversation, list, notesToAnswer, quote, Refused, roundInProgress, time, type Did, type Place } from "@playthrough/review";
+import { allNotes, conversation, list, notesToAnswer, pausedAt, quote, Refused, roundInProgress, time, type Did, type Flow, type Place } from "@playthrough/review";
 import { agent } from "./agent.ts";
 import { pictureNotes } from "./noted.ts";
 import type { Repo } from "./repo.ts";
@@ -66,17 +66,19 @@ export async function wait(repo: Repo, id: string) {
         return `    ${who}${turn.words.trim() ? `: ${turn.words}` : ""}`;
       });
       const picture = pictures.get(note);
-      console.log(`\n  ${note}  ${where(notes.get(note)?.note.on)}${picture ? `\n    As they saw it: ${picture}` : ""}\n${turns.join("\n")}`);
+      const kept = notes.get(note);
+      const from = kept?.note.on?.app && review.rounds.find((one) => one.number === kept.round)?.flows.find((flow) => flow.name === kept.note.on!.app!.from.flow);
+      console.log(`\n  ${note}  ${where(kept?.note.on, from)}${picture ? `\n    As they saw it: ${picture}` : ""}\n${turns.join("\n")}`);
     }
     if (asking.some((note) => notes.get(note)?.note.on?.app))
-      console.log(`\nWhat they did in the app is walked again on the new version when you record the round, and record says whether it still gets to their note. playthrough walk ${id} does that while you work.`);
+      console.log(`\nWhat they did in the app is yours to write, as a fork of the flow they took over, in its file: test.fork("<what they do there>", { notes: ["<the note's id>"] }, async ({ page }) => { … }), with steps as a flow's. Record runs the flow to where they took it over, then the fork, every round until the note is settled, and puts your answer on what the note is on, where the fork first shows it. playthrough forks ${id} runs it while you work.`);
     const first = pictures.size ? "Look at what each note is on, change" : "Change";
     console.log(`\n${first} the app, then record round ${round}: playthrough record ${id}. Then answer each note in that round's round.json, under “replies”: record says where.`);
     return console.log(`New to this review? Run playthrough alone for how Playthrough works. Its flows are in ${repo.show(repo.flows(id))}.`);
   }
 }
 
-function where(place: Place | undefined): string {
+function where(place: Place | undefined, from?: Flow): string {
   if (!place) return "on the work in general";
   const at = place.at === undefined ? "" : ` at ${time(place.at)}${place.until === undefined ? "" : ` to ${time(place.until)}`}`;
   const on = place.element
@@ -89,7 +91,9 @@ function where(place: Place | undefined): string {
   // Made in the app itself, not on a recording: the person took the flow over there and carried on by hand.
   if (place.app) {
     const did = place.app.did.length ? ` and carried on by hand (${list(place.app.did.map(done))})` : "";
-    return `on “${place.app.from.flow}”, in the app: they took the flow over at ${time(place.app.from.at)}${did}${on}`;
+    const paused = from && pausedAt(from, place.app.from.at);
+    const step = paused ? `, ${paused.actions ? `after ${paused.actions} of the actions in` : "at the end of"} its step “${paused.step}”` : "";
+    return `on “${place.app.from.flow}”, in the app: they took the flow over at ${time(place.app.from.at)}${step}${did}${on}`;
   }
   return `on “${place.flow}”${at}${on}`;
 }

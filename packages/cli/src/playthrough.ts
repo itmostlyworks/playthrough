@@ -14,7 +14,7 @@ import { repo } from "./repo.ts";
 import { start } from "./start.ts";
 import { takeOver } from "./take-over.ts";
 import { wait } from "./wait.ts";
-import { walk } from "./walk.ts";
+import { forks } from "./forks.ts";
 
 // Everything an agent needs to know, read once: bare, the command says it.
 const HELP = readFileSync(new URL("../INSTRUCTIONS.md", import.meta.url), "utf8").trimEnd();
@@ -27,7 +27,7 @@ const takes = {
   start: [2, `playthrough start <review> "<title>" "<what was asked>"`],
   record: [0, "playthrough record <review>"],
   wait: [0, "playthrough wait <review>"],
-  walk: [0, "playthrough walk <review>"],
+  forks: [0, "playthrough forks <review>"],
   open: [0, "playthrough open [<review>]"],
   "take-over": [2, `playthrough take-over <review> "<flow>" ["<step>"]`],
 } satisfies Record<string, [number, string]>;
@@ -49,7 +49,7 @@ try {
     else if (command === "start") await start(repo(), review!, words[0], words[1]);
     else if (command === "record") await record(repo(), review!);
     else if (command === "wait") await wait(repo(), review!);
-    else if (command === "walk") await walk(repo(), review!);
+    else if (command === "forks") await forks(repo(), review!);
     else if (command === "take-over") await takeOver(repo(), review!, words[0], words[1]);
   }
 } catch (error) {

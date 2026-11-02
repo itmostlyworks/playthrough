@@ -7,6 +7,7 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { Glimpse, Reading } from "@playthrough/page";
 import { list, quote, Refused, type Did, type Flow } from "@playthrough/review";
 import { changesByThemselves, type Recorded as Compared } from "./compare.ts";
 import { HERE } from "./pictures.ts";
@@ -24,26 +25,26 @@ export const recorder = join(dirname(createRequire(import.meta.url).resolve("@rr
 // round has already, so a flow added to it is named apart from them. And when the review started, which every round's
 // clock starts from, where Playwright writes what it keeps of a failed flow, when it's for the agent to see, and on
 // Before, what each flow's actions were done on in the round it's recorded with, by the flow's name.
-export type Run = { flows: string; only?: string[]; longest?: string[]; folder: string; results?: string; app: App; root: string; recorder: string; before: boolean; taken: string[]; started: string; walk?: Walk; doneInRound?: Record<string, DoneOn> };
+export type Run = { flows: string; only?: string[]; longest?: string[]; folder: string; results?: string; app: App; root: string; recorder: string; before: boolean; taken: string[]; started: string; fork?: ForkRun; doneInRound?: Record<string, DoneOn> };
 
 // What an action was done on, as a person points at it: its role and name, as getByRole finds it.
 export type On = { role: string; name: string };
 // What a flow's actions were done on, in order, by the step they're in: nothing, for something with no role or name.
 export type DoneOn = Record<string, (On | null)[]>;
 
-// A person's fork walked again on the app as it is now: the flow recorded to where they took it over (a step, and how
-// far into it), what they did there done again after it, and after so many of their steps, what each of their notes is
-// on looked for, by its path.
-export type Walk = { flow: string; step: string; actions?: number; did: Did[]; look: { after: number; css?: string }[] };
-// How far it got, in seconds of its recording: when their steps began, when each was done, and what each note is on, by
-// its node in the recording; and the step it couldn't do, by its words, with what was in its place instead, if anything.
-export type Walked = { from: number; done: number[]; found: (number | null)[]; stopped?: string; instead?: string };
-export const WALKED = "walked.json";
+// A note made in the app run again on the app as it is now: the flow recorded to where the person took it over (a step,
+// and how far into it), then the fork the agent wrote of what they did there, for those notes (test.fork).
+export type ForkRun = { flow: string; step: string; actions?: number; notes: string[] };
+// How far it got, in seconds of its recording: when the fork began, and each of its steps' start; the fork's name, or
+// none where the agent hasn't written one; and where it failed, in Playwright's words.
+export type ForkRan = { from: number; fork?: string; steps: { title: string; at: number }[]; failed?: { at?: string; why: string } };
+export const FORK_RAN = "fork.json";
 
 // Where a person takes a flow over: the end of one of its steps, or of the whole flow, or within a step, after as many of
 // its actions. Followed, it's as far as the run may go, and the playhead rests there once it's to be handed over. Taken
-// over where they were on their fork, what they did there, done before it's handed over.
-export type To = { flow: string; step?: string; actions?: number; rests?: boolean; did?: Did[] };
+// over on a note's fork, the fork written for those notes, run before it's handed over, and what they did there, kept;
+// where they were on the round they made it, with no fork yet, what they did there, done before it's handed over.
+export type To = { flow: string; step?: string; actions?: number; rests?: boolean; did?: Did[]; notes?: string[] };
 // The flow's page there, as a browser keeps it: its address, its cookies, what the app kept in the browser, how far it
 // was scrolled, how far its clock, the recordings', is ahead of the real one, in milliseconds, and what its browser said
 // of itself. And partway through a step, the actions to do again there, which changed only what was in the page's
@@ -248,23 +249,22 @@ async function runOnce(run: Omit<Run, "folder">): Promise<Ran> {
   }
 }
 
-// A person's fork walked again on the app as it is now (test.ts): its recording, what was read after each of their
-// steps, the fonts and pictures it loaded, a picture for each note looked for, and how far it got. Nothing when the flow
-// never got to where they took it over.
-export type WalkedRun = Walked & { events: { timestamp: number }[]; readings: unknown[]; assets: Record<string, string>; files: { name: string; bytes: Buffer }[]; pictures: (Buffer | undefined)[] };
+// A note's fork run on the app as it is now (test.ts): its recording, what was read at each of its steps' ends and after
+// each action, the fonts and pictures it loaded, a picture of where it ended, and how far it got. Nothing when the flow
+// never got to where the person took it over.
+export type ForkRecorded = ForkRan & { events: { timestamp: number }[]; readings: Reading[]; glimpses: Glimpse[]; assets: Record<string, string>; files: { name: string; bytes: Buffer }[]; picture?: Buffer };
 
-export async function walkFork(repo: Repo, id: string, walk: Walk): Promise<WalkedRun | undefined> {
+export async function runFork(repo: Repo, id: string, fork: ForkRun): Promise<ForkRecorded | undefined> {
   const app = await repo.app();
   const { started } = await repo.reviews.get(id);
   const folder = await mkdtemp(join(tmpdir(), "playthrough-"));
   try {
-    await playwright({ flows: repo.flows(id), folder, app, root: repo.root, recorder, before: false, taken: [], started, walk });
-    const text = await readFile(join(folder, WALKED), "utf8").catch(() => undefined);
+    await playwright({ flows: repo.flows(id), folder, app, root: repo.root, recorder, before: false, taken: [], started, fork });
+    const text = await readFile(join(folder, FORK_RAN), "utf8").catch(() => undefined);
     if (!text) return undefined;
-    const walked = JSON.parse(text);
-    const files = await Promise.all([...new Set(Object.values(walked.assets as Record<string, string>))].map(async (name) => ({ name, bytes: await readFile(join(folder, name)) })));
-    const pictures = await Promise.all(walk.look.map((_, i) => readFile(join(folder, `look-${i}.png`)).catch(() => undefined)));
-    return { ...walked, files, pictures };
+    const ran = JSON.parse(text);
+    const files = await Promise.all([...new Set(Object.values(ran.assets as Record<string, string>))].map(async (name) => ({ name, bytes: await readFile(join(folder, name)) })));
+    return { ...ran, files, picture: await readFile(join(folder, "end.png")).catch(() => undefined) };
   } finally {
     await rm(folder, { recursive: true, force: true });
   }

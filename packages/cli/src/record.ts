@@ -13,7 +13,7 @@ import { called, failedAt, runFlows, whereItStopped } from "./flows.ts";
 import type { Repo } from "./repo.ts";
 import { readingsOn } from "./reporter.ts";
 import { setupIn } from "./setup.ts";
-import { saidOf, walkForks, type WalkedNote } from "./walk.ts";
+import { runForks, saidOf, unfinished, type OnFork } from "./forks.ts";
 
 export async function record(repo: Repo, id: string) {
   const review = await repo.reviews.get(id);
@@ -47,8 +47,10 @@ export async function record(repo: Repo, id: string) {
     .filter((note) => !written.some((reply) => reply.note === note))
     .map((note) => ({ note, words: "" }));
   const by = agent(saved?.by);
-  const walked = await walkForks(repo, review, number, flows);
-  const replies = await Promise.all([...written, ...waiting].map((reply) => placed(repo, review, number, flows, reply, walked)));
+  const forked = await runForks(repo, review, number, flows);
+  const forkless = unfinished(forked);
+  if (forkless.length) throw new Refused([`\nRound ${number} wasn't recorded:`, ...forkless]);
+  const replies = await Promise.all([...written, ...waiting].map((reply) => placed(repo, review, number, flows, reply, forked)));
   // Compared before the round is kept, so it's never there to hand over without them.
   console.log(`\nComparing round ${number} with each round before it…`);
   const comparisons = await compareWithEarlier(repo.reviews, id, number, flows);
@@ -73,7 +75,7 @@ export async function record(repo: Repo, id: string) {
   // Compared at rest, an answer that moves shows as no change at all: its note can play the step it's seen in instead.
   if (since && !since.changes.length && replies.some((reply) => reply.on && !reply.on.app && !reply.watch))
     console.log(`Nothing at rest shows an answer that moves, like an animation: if yours does, add "watch": "<the title of the step it's seen in>" to its reply in ${file}, and the note plays that step.`);
-  if (walked.length) console.log(`\n${walked.map(saidOf).join("\n")}`);
+  if (forked.length) console.log(`\n${forked.map(saidOf).join("\n")}`);
   if (left.length) console.log(`\nStill to do, in ${file}:\n${left.map((problem) => `  ${problem}`).join("\n")}`);
   // How to say why is said the first time the review is recorded; after that, what's still to do says what's missing.
   if (number === 1 && !saved && named.length)
@@ -93,16 +95,16 @@ ${quote(wrote.flow.name)} sends the app ${wrote.wrote}, which changes what it ho
 }
 
 // Each answer shows where its note's thing is on this round's recording, found by Playthrough from the last round it was
-// seen on, never said by the agent: the next try lands right beside what was noted. One made in the app is placed on its
-// fork as it was walked again, where the person's steps got to.
-async function placed(repo: Repo, review: Review, number: number, flows: Flow[], reply: Reply, walked: WalkedNote[]): Promise<Reply> {
+// seen on, never said by the agent: the next try lands right beside what was noted. One made in the app is on its fork,
+// run again, where the fork first shows what it's on (forks.ts).
+async function placed(repo: Repo, review: Review, number: number, flows: Flow[], reply: Reply, forked: OnFork[]): Promise<Reply> {
   const answer: Reply = { note: reply.note, words: reply.words, ...(reply.watch && { watch: reply.watch }) };
+  const fork = forked.find((one) => one.note === reply.note);
+  if (fork) return fork.on ? { ...answer, on: fork.on } : answer;
   const seen = lastSeen(review, reply.note, number);
-  const walk = seen?.on.app && walked.find((one) => one.note === reply.note)?.on;
-  if (walk) return { ...answer, on: walk };
   const flow = seen && flows.find((flow) => flow.name === seen.on.flow);
   const then = seen && review.rounds.find((round) => round.number === seen.round)?.flows.find((kept) => kept.name === seen.on.flow);
-  if (!seen || seen.on.app || !flow || !then) return answer;
+  if (!seen || !flow || !then) return answer;
   const from = { flow: then, readings: await readingsOn(repo.reviews, review.id, seen.round, then) };
   return { ...answer, on: placeIn(seen.on, from, { flow, readings: await readingsOn(repo.reviews, review.id, number, flow) }) };
 }

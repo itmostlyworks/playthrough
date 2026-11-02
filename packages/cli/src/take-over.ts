@@ -40,15 +40,15 @@ Each address hands over the same copy, and the app is passed on through Playthro
 // Runs the flow to where it's taken over and passes the app on, then says where: each moment made ready has an address
 // of its own, /take-over/<moment>, so several can wait at once. In the viewer, the moment the playhead rests on is made
 // ready while you look, and Take over turns the frame into the app there.
-// With what a person did there, as a note in the app keeps it, it's done again after them, to take over where they were,
-// and kept on by whatever they do next. Made ready ahead, as the playhead rests, before anyone has asked: not for a flow
+// On a note's fork, the fork written for its notes is run after it, and what the person did there is kept on by whatever
+// they do next; on the round they made it, with no fork yet, what they did there is done again after them. Made ready ahead, as the playhead rests, before anyone has asked: not for a flow
 // that reaches outside the app, which each time would do that again. From the command line, the app is passed on to
 // this machine's networks too, for a phone on one of them; from the viewer, to this machine alone.
 export async function getReady(
   repo: Repo,
   id: string,
   flowName: string,
-  { step: stepName, actions, did, ahead, network }: { step?: string; actions?: number; did?: Did[]; ahead?: boolean; network?: boolean } = {},
+  { step: stepName, actions, did, notes, ahead, network }: { step?: string; actions?: number; did?: Did[]; notes?: string[]; ahead?: boolean; network?: boolean } = {},
 ): Promise<{ port: number; moment: string; seconds: string }> {
   const round = await recorded(repo, id);
   const flow = round.flows.find((flow) => flow.name === flowName);
@@ -63,7 +63,7 @@ export async function getReady(
   refuseWhileAside(repo);
   await keepRunning(app, repo.root, { ready: true });
   const began = Date.now();
-  const { handed, made } = await runTo(repo, id, { flow: flow.name, ...(stepName && { step: stepName, ...(actions && { actions }) }), ...(did?.length && { did }) });
+  const { handed, made } = await runTo(repo, id, { flow: flow.name, ...(stepName && { step: stepName, ...(actions && { actions }) }), ...(did?.length && { did }), ...(notes?.length && { notes }) });
   // One way through for each copy of the app, as each answers at an address of its own.
   if (!passings.has(app.url)) {
     const moments = new Map<string, Handed>();
@@ -353,11 +353,14 @@ const SAYS = `<script>(() => {
     e.stopImmediatePropagation();
     if (e.type === "pointerdown") {
       const on = thing(e.target);
-      const name = words(on);
       readNow();
       send();
       const node = window.rrwebRecord?.record?.mirror?.getId(on);
-      parent.postMessage({ playthrough: "noted", ...(name ? { element: { role: role(on), name, css: path(on), ...(node > 0 && { node }) } } : { point: { x: e.clientX / innerWidth, y: e.clientY / innerHeight } }), did, x: e.clientX, y: e.clientY }, "*");
+      // Named as the page is read for every flow, so a later round's flow finds it by the same name: a reminder's
+      // message box is "Message" there, where its own words named it here.
+      const known = node > 0 && recording ? read().things.find((thing) => thing.node === node) : undefined;
+      const [kind, name] = known ? [known.role, known.name] : [role(on), words(on)];
+      parent.postMessage({ playthrough: "noted", ...(name ? { element: { role: kind, name, css: path(on), ...(node > 0 && { node }) } } : { point: { x: e.clientX / innerWidth, y: e.clientY / innerHeight } }), did, x: e.clientX, y: e.clientY }, "*");
       noting = false;
       swallowing = true;
       ringed();

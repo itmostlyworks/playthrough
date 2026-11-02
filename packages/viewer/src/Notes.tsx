@@ -44,9 +44,8 @@ type Props = {
   answers: Changed[];
   compare?: Comparing;
   // Made in the app on an earlier round, it's checked by trying it: taken over where you were, in Compare's place, or
-  // without onTakeOver, said plainly that this round's recording doesn't go there. Walked again and left where your
-  // steps stopped: which one couldn't be done, in a line.
-  whereYouWere?: { round: number; live?: "waiting" | "shown"; onTakeOver?: () => void; stopped?: string };
+  // without onTakeOver, said plainly that this round's recording doesn't go there.
+  whereYouWere?: { round: number; live?: "waiting" | "shown"; onTakeOver?: () => void };
   // Not quite, being written.
   asking: boolean;
   // What was being written in Not quite or Edit when the card closed, until it's saved or cancelled.
@@ -162,8 +161,12 @@ function Card(props: Props) {
   const [earlier, setEarlier] = useState(false);
   const said = judged ? note.turns.slice(0, -1) : note.turns;
   const groups = exchanges(said);
-  const shown = earlier ? groups.flat() : (groups.at(-1) ?? []);
-  const folded = groups.length - 1;
+  // The latest exchange; sent back and waiting on the agent, with the answer it sent back over it, as a Not quite reads
+  // as a reply to that answer, which folded away left "Still just Ludwig, please." on its own.
+  const latest = groups.at(-1) ?? [];
+  const answered = latest.some((turn) => turn.agent) ? [] : (groups.at(-2)?.filter((turn) => turn.agent).slice(-1) ?? []);
+  const shown = earlier ? groups.flat() : [...answered, ...latest];
+  const folded = said.filter((turn) => turn.agent).length - [...answered, ...latest].filter((turn) => turn.agent).length;
   const name = (turn: Turn) => (turn.agent || turn.by !== you ? turn.by : "You");
   const comparing = compare && !props.whole && !asking && !editing && !props.away && <Compare {...compare} bar={quietly} />;
   const lastAgent = shown.findLastIndex((turn) => turn.agent);
@@ -304,14 +307,12 @@ function Card(props: Props) {
     // Its first line keeps clear of the card's ×, as a draft's Edit and Remove do.
     <div className={`grid gap-2.5 px-4 ${props.whole ? "py-3" : "py-2"} [&>p:first-child]:pr-5`}>
       <div className={`grid gap-2.5 transition-opacity duration-250 ease-calm ${props.away && !readOnly ? "opacity-45" : ""}`}>{words}</div>
-      {/* Walked again, your steps stopped short: which one couldn't be done, under what was said about it. */}
-      {whereYouWere?.stopped && <p className="text-xs leading-[18px] text-soft">{whereYouWere.stopped}</p>}
       {/* In the app, you're already there. */}
       {whereYouWere && whereYouWere.live !== "shown" && !asking && !editing && !props.away &&
         (whereYouWere.onTakeOver ? (
           <TakeOverHere waiting={whereYouWere.live === "waiting"} onTakeOver={whereYouWere.onTakeOver} />
         ) : (
-          !whereYouWere.stopped && <p className="text-xs leading-[18px] text-soft">Where you took this flow over isn’t in round {whereYouWere.round}’s recording.</p>
+          <p className="text-xs leading-[18px] text-soft">Where you took this flow over isn’t in round {whereYouWere.round}’s recording.</p>
         ))}
       {/* Compare is how to tell: how it was, beside the question. */}
       {(question || comparing) && (

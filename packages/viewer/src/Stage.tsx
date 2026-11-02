@@ -60,8 +60,8 @@ type Props = {
   playhead: Playhead;
   round: Round;
   earlier?: Round;
-  // After each side's round, what it is, where its name alone doesn't say: on a fork walked again, what you did, and
-  // your steps done again.
+  // After each side's round, what it is, where its name alone doesn't say: on a fork run again, what you did, and it
+  // done again.
   about?: { earlier: string; now: string };
   // Watching one round, the round Compare or How it was goes back to waits unseen over it, and shows while either is
   // held.
@@ -704,7 +704,9 @@ export function Stage(props: Props) {
     for (const part of [app, sheen, ring, edge, hand, tag, words]) part.getAnimations().forEach((animation) => animation.cancel());
     const box = frame.getBoundingClientRect();
     const view = painted.current.get(round.number);
-    const person = personAt(props.playhead.flow, props.playhead.now.moment.at);
+    // On a fork, you carry on as whoever its flow is done as, not as yourself, who the fork's pointer is.
+    const forkOf = (props.playhead.flow as Forked).fork;
+    const person = forkOf ? round.flows.find((flow) => flow.name === forkOf)?.person : personAt(props.playhead.flow, props.playhead.now.moment.at);
     const tip = (point: { x: number; y: number }) => `translate(${(point.x - 3).toFixed(1)}px,${(point.y - 2).toFixed(1)}px)`;
     const tipOf = (element: HTMLElement) => {
       const drawn = element.getBoundingClientRect();

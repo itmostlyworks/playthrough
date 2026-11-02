@@ -35,7 +35,7 @@ export async function runTo(repo: Repo, id: string, to: To): Promise<{ handed: H
         if (handed) {
           // How long handing over takes once it's there, for a run that got there after it was asked: not one that was
           // there already, waiting, nor one doing what the person did there again first.
-          if (one.passed.length > passed && !to.did?.length) timesOf(repo, id, one).handing.set(momentOf(to.step, to.actions), Date.now() - one.last.when);
+          if (one.passed.length > passed && !to.did?.length && !to.notes) timesOf(repo, id, one).handing.set(momentOf(to.step, to.actions), Date.now() - one.last.when);
           return { handed, made };
         }
         if (stopped) throw new Refused([`${quote(to.flow)} didn't get to ${where}: ${stoppedAt(stopped)}`]);
@@ -154,7 +154,7 @@ async function start(repo: Repo, id: string, to: To, files: string[], written: n
     if (one.passed.length > times.moments.length) times.moments = [...one.passed];
     one.last = { worked, when: Date.now(), rests: to.rests };
   };
-  one.ran = runAlongside(page, { request, baseURL: app.url, started, setup, borrowed: repo.borrowed, arrived, person: kept.use.person }, kept.body, orders).catch((error) => ({ stopped: { why: firstLine(String(error?.message ?? error)) } }));
+  one.ran = runAlongside(page, { request, baseURL: app.url, started, setup, borrowed: repo.borrowed, arrived, person: kept.use.person }, kept.body, orders, kept.forks).catch((error) => ({ stopped: { why: firstLine(String(error?.message ?? error)) } }));
   void one.ran.finally(() => ((one.over = true), close()));
   // Handed over, what it made is the app the person has, for as long as Playthrough runs, and given back as it ends.
   void one.ran.then(({ handed, made }: { handed?: Handed; made?: Made }) => (handed ? undefined : made?.giveBack()));

@@ -6,7 +6,7 @@ to its end; each command then says what's next.
   playthrough start <review>             once its flows are written, try the setup and keep Before: the app as it is
   playthrough record <review>            record the round being worked on, every flow, the way a person would use it
   playthrough wait <review>              hand the round over, then wait for the notes to answer
-  playthrough walk <review>              walk the person's steps in the app again, on the app as it is now
+  playthrough forks <review>             run each fork of a note made in the app, on the app as it is now
   playthrough open [<review>]            open the viewer on this machine
 
 THE LOOP
@@ -28,16 +28,15 @@ THE LOOP
    background, so you're told when it ends. Each note comes with a picture of what it's on, or what the person did in
    the app. Change the app, record the next round, and answer each note in its round.json, under "replies", in its
    "words": its "on" is where Playthrough found the note's thing on this round, so leave it. Where the answer moves,
-   like an animation, add "watch": "<the title of the step it's seen in>". For a note made in the app, record walks the
-   person's steps again and puts your answer where they lead: answer it in words, not with a new flow, and check your
-   fix with playthrough walk <review>. Where their steps stop short, fix that, or say why they changed.
+   like an animation, add "watch": "<the title of the step it's seen in>". A note made in the app comes with what the
+   person did there: write that as a fork of the flow they took over (FORKS, below), and record puts your answer on it.
 
 The person can only judge what the flows show, so keep them true to how a person uses the app.
 
 A bug you can't make happen is still a round to hand over: record the flow that does what the report says, give it a
 "line" in round.json saying you couldn't make it happen and how you tried, and hand it over. The person can take the
-flow over where it goes wrong and show you: what they do there comes back as a note made in the app, and record walks it
-again every round, so you see the bug and they see your fix.
+flow over where it goes wrong and show you: what they do there comes back as a note made in the app, and its fork, run
+every round, shows you the bug and them your fix.
 
 THE APP
 
@@ -96,6 +95,23 @@ While the person watches, Playthrough runs the flow again in the background, so 
 something outside the app that mustn't happen again, like sending an email, say so, and it runs only when taken over:
 
   test("Invite Sam", { annotation: { type: "reaches outside", description: "sends Sam an email" } }, async ({ page }) => {
+
+FORKS
+
+Where the person took a flow over in the app and made a note there, what they did is yours to write, as a fork of that
+flow, in its file, after it: steps as a flow's, by role and label, for the notes it shows:
+
+  test.fork("Remind Alder Dental", { notes: ["isikhse8"] }, async ({ page }) => {
+    await test.step("Open the reminder", async () => {
+      await page.getByRole("row", { name: /Alder Dental/ }).click();
+      await page.getByRole("button", { name: "Write a reminder" }).click();
+    });
+  });
+
+Record runs the flow to where they took it over, then the fork, and puts your answer on what the note is on, where the
+fork first shows it. It's run every round until its notes are settled, and the person watches it as a fork off the flow,
+not a flow of its own: keep it doing what they did, on the app as it is now. playthrough forks <review> runs it while you
+work. A round whose note has no fork, or whose fork fails, isn't recorded.
 
 WHAT EVERY FLOW STARTS FROM
 

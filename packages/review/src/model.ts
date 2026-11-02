@@ -56,6 +56,10 @@ export const Place = z
         did: z.array(Did).describe("What the person did there, in order"),
         recording: fileName("needs its recording: the name of a file in the round").describe("The flow up to where it was taken over, then the person's own steps"),
         length: z.number({ error: "needs its length, in seconds" }).positive({ error: "needs its length, in seconds" }),
+        steps: z
+          .array(z.strictObject({ title: text("needs its title"), at: seconds("needs its start, in seconds") }))
+          .optional()
+          .describe("Run again as the agent wrote it, a fork of its flow: its steps, each at its start"),
       })
       .optional()
       .describe("In the app: on the person's own recording, which branches off a flow where they took it over. Its flow names the branch"),

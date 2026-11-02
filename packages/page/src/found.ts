@@ -102,3 +102,30 @@ function sameIn({ reading, thing }: Shown, from: Reading[], to: Reading[]): Show
 
 // As an element of the round it's on. Something with no name of its own there keeps the one it was noted by.
 export const elementOf = (thing: Thing, name: string): Element => ({ role: thing.role, name: thing.name || name, ...(thing.node !== undefined && { node: thing.node }) });
+
+// Two names for the same thing, as a person would take them: most of the shorter one's words in the other's, so a card
+// that gained a badge, or a message that gained a sign-off, is still that card or that message.
+export function sameWords(one: string, other: string): boolean {
+  const [few, many] = [wordsOf(one), wordsOf(other)].sort((a, b) => a.length - b.length);
+  return !few!.length || few!.filter((word) => many!.includes(word)).length * 2 >= few!.length;
+}
+const wordsOf = (name: string) => name.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+
+// A thing noted where no flow records, in the app taken over, found where a flow first shows it, in what each step left
+// or what was glimpsed after an action: the same role, and the same words, the closest of them where several are, as a
+// reminder's subject, “INV-1043 is overdue”, shares enough with its message to pass for it. Nothing for one noted with no
+// words, as anything of its role would do.
+export function firstShown(element: Element, seen: Glimpse[]): { at: number; element: Element } | undefined {
+  const noted = wordsOf(element.name);
+  if (!noted.length) return undefined;
+  const closeness = (thing: Thing) => {
+    const words = wordsOf(thing.name);
+    return words.filter((word) => noted.includes(word)).length / Math.max(words.length, noted.length);
+  };
+  for (const glimpse of seen.toSorted((a, b) => a.at - b.at)) {
+    const same = glimpse.things.filter((thing) => thing.role === element.role && sameWords(thing.name, element.name));
+    const thing = same.toSorted((a, b) => closeness(b) - closeness(a))[0];
+    if (thing) return { at: glimpse.at, element: elementOf(thing, element.name) };
+  }
+  return undefined;
+}

@@ -156,8 +156,8 @@ async function live(repo: Repo, id: string, request: IncomingMessage, response: 
 // A moment of a flow made ready to take over: the viewer asks while the playhead rests on it, and shows the app there,
 // through Playthrough, at the port and moment this answers with.
 async function takeOver(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
-  const { flow, step, actions, did, ahead } = await body<{ flow: string; step?: string; actions?: number; did?: Did[]; ahead?: boolean }>(request);
-  const { port, moment } = await getReady(repo, id, flow, { step, actions, did, ahead });
+  const { flow, step, actions, did, notes, ahead } = await body<{ flow: string; step?: string; actions?: number; did?: Did[]; notes?: string[]; ahead?: boolean }>(request);
+  const { port, moment } = await getReady(repo, id, flow, { step, actions, did, notes, ahead });
   json(response, 200, { port, moment });
 }
 

@@ -22,10 +22,11 @@ const momentOf = (review: string, flow: string, paused: Paused) => JSON.stringif
 
 export const takenOver = (review: string, flow: string, paused: Paused) => void ready.delete(momentOf(review, flow, paused));
 
-// Gone back to from a note in the app, with what was done there: always a fresh copy. Ahead, as the playhead rests, before
+// Gone back to from a note in the app, with what was done there, and on a fork written for its notes, by them: always a
+// fresh copy. Ahead, as the playhead rests, before
 // Take over is asked for: not for a flow that reaches outside the app, which Playthrough then says it runs only when asked.
-export function readyAt(review: string, flow: string, paused: Paused, { did, ahead }: { did?: Did[]; ahead?: boolean } = {}): Promise<string | string[]> {
-  if (did) return ready.clear(), getReady(review, flow, paused, { did });
+export function readyAt(review: string, flow: string, paused: Paused, { did, notes, ahead }: { did?: Did[]; notes?: string[]; ahead?: boolean } = {}): Promise<string | string[]> {
+  if (did) return ready.clear(), getReady(review, flow, paused, { did, notes });
   const moment = momentOf(review, flow, paused);
   const asked = ready.get(moment);
   if (asked && (ahead || !aheadOnly.has(asked))) return asked;
@@ -52,9 +53,9 @@ export const readyIn = (review: string, flow: string, paused: Paused): Promise<n
     .then((said) => said.in ?? undefined, () => undefined);
 
 // Where the app is at that moment, through Playthrough, on the same machine name the viewer was reached by; or what stops it.
-async function getReady(review: string, flow: string, paused: Paused, { did, ahead }: { did?: Did[]; ahead?: boolean }): Promise<string | string[]> {
+async function getReady(review: string, flow: string, paused: Paused, { did, notes, ahead }: { did?: Did[]; notes?: string[]; ahead?: boolean }): Promise<string | string[]> {
   try {
-    const answer = await fetch(`/api/reviews/${encodeURIComponent(review)}/take-over`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ flow, ...paused, did, ahead }) });
+    const answer = await fetch(`/api/reviews/${encodeURIComponent(review)}/take-over`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ flow, ...paused, did, notes, ahead }) });
     const said = await answer.json();
     return answer.ok ? `${location.protocol}//${location.hostname}:${said.port}/take-over/${said.moment}` : (said.problems ?? [`It couldn't be made ready (${answer.status}).`]);
   } catch {
