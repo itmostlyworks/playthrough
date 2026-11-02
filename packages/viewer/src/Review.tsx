@@ -6,7 +6,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { elementOf } from "@playthrough/page";
 import { inStep, lastLooked, newId, readyToAccept, time, waitingForTheAgent, type Did, type Element as Thing, type Flow, type Note, type Point, type Place, type Review, type Round, type Send, type Verdict } from "@playthrough/review";
-import { accept, keepBranch, picture, recording, send, useReview, useYou } from "./api.ts";
+import { accept, keepBranch, picture, recording, send, useAgentWaiting, useReview, useYou } from "./api.ts";
 import { Bar } from "./Bar.tsx";
 import { Beside, clickedAt } from "./Beside.tsx";
 import { HOLD } from "./Card.tsx";
@@ -453,6 +453,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   const playingOn = useNow(playhead, (now) => now.playing);
   useEffect(() => void (playingOn && setNoting(false)), [playingOn]);
   const working = workingSince(review, latest);
+  const agentWaiting = useAgentWaiting(review.id);
 
   // Left and Right step to the next moment the page changes, or a second where nothing does; with Shift, a tenth.
   const [changes, setChanges] = useState<{ flow: string; at: number[]; clicks: number[]; acted: [number, number][]; moved: Map<string, number[]> }>();
@@ -1144,10 +1145,13 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     if (general && "turns" in general) return { kind: "go", words: "Next to check", what: general.turns[0]?.words, take: () => pick(general) };
     if (general) return { kind: "go", words: "Finish your note", what: placeName(general.on), take: () => setOpen({ writing: general.id }) };
     if (readyToAccept(asIfSent(review, you, unsent), you)) return { kind: "go", words: "All good", what: "Accept the work", take: acceptNow, final: true };
+    // Sent with no agent waiting, as when its wait ran out of time, it sits until one is: you're the one who can wake it.
     if (waitingForTheAgent(review).length)
       return working
         ? { kind: "agent", words: "The agent is working", what: `started at ${clock(working)}`, busy: true }
-        : { kind: "agent", words: "Sent, waiting for the agent", busy: false };
+        : agentWaiting === false
+          ? { kind: "agent", words: "Sent, no agent is waiting", what: "tell your agent", busy: false }
+          : { kind: "agent", words: "Sent, waiting for the agent", busy: false };
     return { kind: "say", words: "All good" };
   };
   const stepHere = (): Step => {

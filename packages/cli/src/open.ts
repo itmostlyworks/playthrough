@@ -16,6 +16,7 @@ import { copies, repo as copyAt, type Repo } from "./repo.ts";
 import { readyIn } from "./following.ts";
 import { getReady, keepUp } from "./take-over.ts";
 import { video, type Filmed } from "./video.ts";
+import { agentWaiting } from "./wait.ts";
 
 const PORT = 5790;
 const TYPES: Record<string, string> = {
@@ -108,6 +109,7 @@ async function answer(app: ReturnType<typeof everyCopy>, page: string, you: stri
   const reviews = repo.reviews;
 
   if (request.method === "GET" && rest[0] === "live") return live(repo, id, request, response);
+  if (request.method === "GET" && rest[0] === "waiting") return waiting(repo, id, request, response);
   if (request.method === "GET" && rest[0] === "rounds" && rest[2] === "files" && rest[3]) {
     // Your branches play beside the round's recordings, as if they were its own.
     const name = rest.slice(3).join("/");
@@ -151,6 +153,24 @@ async function live(repo: Repo, id: string, request: IncomingMessage, response: 
     response.write(`data: ${last}\n\n`);
   }
   response.end();
+}
+
+// Whether an agent is waiting for what's sent, then again each time that changes. One that's ended says nothing, so
+// it's looked at every two seconds.
+async function waiting(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
+  await repo.reviews.get(id);
+  response.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-store" });
+  let last: boolean | undefined;
+  const look = async () => {
+    const now = await agentWaiting(repo, id);
+    if (now !== last) response.write(`data: ${(last = now)}\n\n`);
+  };
+  await look();
+  const every = setInterval(look, 2000);
+  request.on("close", () => {
+    clearInterval(every);
+    response.end();
+  });
 }
 
 // A moment of a flow made ready to take over: the viewer asks while the playhead rests on it, and shows the app there,

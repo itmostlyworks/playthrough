@@ -111,5 +111,8 @@ async function placed(repo: Repo, review: Review, number: number, flows: Flow[],
 
 const changed = (count: number, since: number) => {
   const round = since === 0 ? "Before" : `round ${since}`;
-  return count ? `${count} ${count > 1 ? "changes" : "change"} since ${round}.` : `Nothing changed since ${round}.`;
+  // Only what the flows show is compared: nothing changed there isn't nothing changed.
+  return count
+    ? `${count} ${count > 1 ? "changes" : "change"} since ${round}.`
+    : `Nothing changed in what the flows show since ${round}. What they don't show, as a colour on hover or a tooltip never opened, isn't compared: if you changed something like that, a step that shows it lets the person see it.`;
 };

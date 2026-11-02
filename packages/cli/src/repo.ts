@@ -29,6 +29,8 @@ export function repo(root = home(process.cwd())) {
     round: (review: string, round: number) => join(reviews, review, "rounds", String(round), "round.json"),
     // The file each flow is written in, as it was when the flow last ran on Before.
     ranOnBefore: (review: string) => join(reviews, review, "ran-on-before.json"),
+    // A file for each agent waiting for what's sent, named by its process.
+    waiting: (review: string) => join(reviews, review, "waiting"),
     setAside: join(reviews, "set-aside.json"),
     // Whose turn it is to run the app here: a command that runs flows, or the viewer, keeping it ready for taking over.
     turn: join(reviews, "turn.json"),

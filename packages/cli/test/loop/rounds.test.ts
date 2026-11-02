@@ -148,7 +148,7 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
 
   test("a round isn't handed over until every note has an answer, which recording again keeps, placed where its note's thing is now", async () => {
     // Recorded again with nothing changed, nothing has changed since round 1.
-    assert.match((await app.run(["record", "overdue"])).said, /Nothing changed since round 1\./);
+    assert.match((await app.run(["record", "overdue"])).said, /Nothing changed in what the flows show since round 1\./);
     assert.deepEqual((await app.compared(2, 1)).changes, []);
     assert.equal((await app.compared(2, 0)).changes.length, 2);
     const [reply] = (await app.round(2)).replies;

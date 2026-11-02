@@ -4,6 +4,9 @@
 // fresh one, so they say which review they're for and where the rest is.
 
 import { allNotes, conversation, list, notesToAnswer, pausedAt, quote, Refused, roundInProgress, time, type Did, type Flow, type Place } from "@playthrough/review";
+import { rmSync } from "node:fs";
+import { mkdir, readdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { agent } from "./agent.ts";
 import { pictureNotes } from "./noted.ts";
 import type { Repo } from "./repo.ts";
@@ -38,7 +41,10 @@ export async function wait(repo: Repo, id: string) {
     // Notes an earlier wait took, for a round not recorded yet, are answered first: waiting for another send would wait
     // on what's already here.
     if (!asking.length) {
-      review = await reviews.wait(id, (review) => !!review.accepted || review.sends.some((send) => !review.taken.some((taken) => taken.send === send.id)));
+      const done = await listening(repo, id);
+      review = await reviews
+        .wait(id, (review) => !!review.accepted || review.sends.some((send) => !review.taken.some((taken) => taken.send === send.id)))
+        .finally(done);
       if (review.accepted) return console.log(`\n${review.accepted.by} accepted the work. The review is done.`);
       const taken = await reviews.take(id);
       review = await reviews.get(id);
@@ -77,6 +83,34 @@ export async function wait(repo: Repo, id: string) {
     return console.log(`New to this review? Run playthrough alone for how Playthrough works. Its flows are in ${repo.show(repo.flows(id))}.`);
   }
 }
+
+// While it waits, it says so beside the review, so the person can be told when nobody is: an agent's command in the
+// background can be ended by the agent's own time limit, and what's sent then sits until it's run again. Ended by a
+// signal, it leaves its file behind, so an agent counts as waiting only while its process runs.
+async function listening(repo: Repo, id: string): Promise<() => void> {
+  const file = join(repo.waiting(id), String(process.pid));
+  await mkdir(repo.waiting(id), { recursive: true });
+  await writeFile(file, "");
+  const gone = () => rmSync(file, { force: true });
+  process.once("exit", gone);
+  return () => {
+    process.off("exit", gone);
+    gone();
+  };
+}
+
+export async function agentWaiting(repo: Repo, id: string): Promise<boolean> {
+  const agents = await readdir(repo.waiting(id)).catch(() => []);
+  return agents.some((pid) => running(Number(pid)));
+}
+
+const running = (pid: number) => {
+  try {
+    return process.kill(pid, 0);
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
+};
 
 function where(place: Place | undefined, from?: Flow): string {
   if (!place) return "on the work in general";

@@ -77,7 +77,7 @@ describe("The command line, as an agent uses it, from a steady start", { timeout
     await app.reviews.finish("overdue", 1);
     const { said, code } = await app.run(["record", "overdue"]);
     assert.equal(code, 0, said);
-    assert.match(said, /Nothing changed since round 1\./);
+    assert.match(said, /Nothing changed in what the flows show since round 1\./);
     assert.doesNotMatch(said, /again, to see what changes by itself/);
   });
 });

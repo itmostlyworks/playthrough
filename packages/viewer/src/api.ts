@@ -26,6 +26,17 @@ export function useReview(id: string): Review | string[] | undefined {
   return review;
 }
 
+// Whether an agent is waiting for what's sent, as that changes; undefined until it's known.
+export function useAgentWaiting(id: string): boolean | undefined {
+  const [waiting, setWaiting] = useState<boolean>();
+  useEffect(() => {
+    const live = new EventSource(`/api/reviews/${id}/waiting`);
+    live.onmessage = (message) => setWaiting(JSON.parse(message.data));
+    return () => live.close();
+  }, [id]);
+  return waiting;
+}
+
 // Every review of the app, from every copy of it, and the app's name, as its folder is called.
 export function useReviews(): { app: string; reviews: Review[] } | undefined {
   const [reviews, setReviews] = useState<{ app: string; reviews: Review[] }>();
