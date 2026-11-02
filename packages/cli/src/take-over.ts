@@ -281,7 +281,8 @@ const SAYS = `<script>(() => {
     for (let at = target; at && at !== (pressed ?? document.body); at = at.parentElement) if (at.nodeType === 1 && words(at)) return at;
     return pressed ?? target;
   };
-  const words = (element) => (element.getAttribute?.("aria-label") || element.innerText || element.value || element.placeholder || "").trim().replace(/\\s+/g, " ").slice(0, 80);
+  // The words you saw on it, as you'd name it; its label only when it shows none, as an icon's.
+  const words = (element) => (element.innerText?.trim() || element.getAttribute?.("aria-label") || element.value || element.placeholder || "").trim().replace(/\\s+/g, " ").slice(0, 80);
   const roles = { A: "link", BUTTON: "button", SELECT: "combobox", TEXTAREA: "textbox", H1: "heading", H2: "heading", H3: "heading", H4: "heading", LI: "listitem", TD: "cell", TH: "columnheader", LABEL: "text", P: "text" };
   const role = (element) => element.getAttribute("role") || (element.tagName === "INPUT" ? (["checkbox", "radio"].includes(element.type) ? element.type : "textbox") : roles[element.tagName]) || "text";
   const path = (element) => {

@@ -473,12 +473,17 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   const readOnly = !!review.accepted || round.number === 0 || (!current && !arrived);
   const readOn = [round.number, ...(compared === undefined ? [] : [compared]), ...noted.map((note) => note.written)];
   const read = useReadings(review, review.rounds.filter((kept) => readOn.includes(kept.number)).map((kept) => (kept.number === round.number ? played : kept)));
+  // What's new to you on this round: a diamond at each moment something changed, on the timeline.
+  const diamonds = diamondsOn(review, round.number, you);
   // Each note sits where its thing is on this round: its moment here, on what it's on here, once that's found. One on
   // something this round doesn't have is lost here. One made in the app on an earlier round sits where you took its
   // flow over, which this round's recording shows, as nothing recorded what you did after; where this round's flow
   // doesn't go that far, it's on the whole flow.
-  // Walked again for this round, it's on the walk, where your steps got to; one whose steps stop short of it says so.
+  // Walked again for this round, it's on the walk, where your steps got to. One whose steps stop short of it says so,
+  // and is where what the agent changed for it is first seen, so the fix still shows, marked as any answer's is; with
+  // nothing changed for it, it's where they stopped.
   const walkedTo = (note: Shown) => (note.on?.app && note.written !== round.number ? round.replies.find((reply) => reply.note === note.id && reply.on?.app)?.on : undefined);
+  const fixSeen = (note: Shown) => answersTo(diamonds, note.id).toSorted((a, b) => a.on.at! - b.on.at!)[0]?.on;
   // Where they stop short, the step of yours that couldn't be done, in words.
   const stopsShort = new Map(
     noted.flatMap((note) => {
@@ -492,7 +497,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   );
   const notes = noted.map((note) => {
     const walked = walkedTo(note);
-    if (walked) return { ...note, on: walked };
+    if (walked) return { ...note, on: (stopsShort.has(note.id) && fixSeen(note)) || walked };
     const was = whereYouWere.get(note.id);
     if (was) return { ...note, on: { flow: note.on!.app!.from.flow, ...(was.at !== undefined && { at: was.at, ...(was.element && { element: was.element }) }) } };
     return note.on && !note.on.app ? { ...note, on: placeOn(review, note.id, note.on, note.written, round, read) ?? note.on } : note;
@@ -551,8 +556,6 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     playhead.go({ flow: name, at });
   };
 
-  // What's new to you on this round: a diamond at each moment something changed, on the timeline.
-  const diamonds = diamondsOn(review, round.number, you);
   const clicks = changes?.flow === flow?.name ? (changes?.clicks ?? []) : [];
   const onNow = useNow(playhead, (now) => diamondAt(diamonds, now.moment, clicks)?.id);
   const chosen = open && "change" in open ? diamonds.find((diamond) => diamond.id === open.change) : undefined;
@@ -953,7 +956,9 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     const was = whereYouWere.get(note.id);
     const takeable = current && !readOnly;
     // Walked again, it's checked by watching, as any answer is; where your steps stop short of it, the card says what
-    // couldn't be done, and offers nothing to do about it: there's nowhere to carry on to (T still takes it over).
+    // couldn't be done, and offers nothing to do about it: there's nowhere to carry on to (T still takes it over). On
+    // what the agent changed for it instead, it's compared there, as any answer is.
+    const stoppedThere = stopsShort.has(note.id) && !!note.on?.app;
     const tryHere = stopsShort.has(note.id)
       ? { round: round.number, stopped: stopsShort.get(note.id) }
       : was && (was.at === undefined || takeable) ? { round: round.number, live: trying.current === note.id ? liveNow : undefined, ...(was.at !== undefined && { onTakeOver: () => tryWhereYouWere(note) }) } : undefined;
@@ -967,7 +972,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
         open={isOpen}
         fresh={fresh === note.id}
         answers={answersTo(diamonds, note.id)}
-        compare={isOpen && !was && !stopsShort.has(note.id) && (answered(note) || grownHere) ? comparingIt : undefined}
+        compare={isOpen && !was && !stoppedThere && (answered(note) || grownHere) ? comparingIt : undefined}
         whereYouWere={tryHere}
         asking={asking === note.id}
         unfinished={unfinished[note.id]}
@@ -980,7 +985,6 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
         onUnfinished={(words) => keepUnfinished(note.id, words)}
         onJudge={(verdict) => judge(note, verdict)}
         onEdit={(words) => editNote(note.id, words)}
-        onPoint={setPointedChange}
         seen={(changed) => diamonds.find((diamond) => diamond.changes.includes(changed))?.at}
         onVisit={note.on?.at === undefined ? (changed) => visit(note, changed) : undefined}
         onPlayOn={inApp && trying.current === note.id ? () => {} : playOn}
@@ -1632,10 +1636,10 @@ function forksIn(notes: Note[]): Fork[] {
 
 // A step of yours a walk couldn't do, as you'd say it.
 function couldntDo({ does, what }: Did): string {
-  const named = what ? `“${what}”` : "What you did next";
-  if (does === "fill" || does === "type") return `${named} isn’t there to type into any more.`;
-  if (does === "selectOption") return `${named} isn’t there to choose from any more.`;
-  return `${named} isn’t there to click any more.`;
+  const named = what ? `“${what}”` : "what you did next";
+  if (does === "fill" || does === "type") return `Your steps stop short: ${named} isn’t there to type into any more.`;
+  if (does === "selectOption") return `Your steps stop short: ${named} isn’t there to choose from any more.`;
+  return `Your steps stop short: ${named} isn’t there to click any more.`;
 }
 
 // The forks walked again for a round, from where its answers to notes made in the app were placed.

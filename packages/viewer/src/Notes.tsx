@@ -1,7 +1,7 @@
 // A note: one line while it's closed, saying what was said, as it is over a flow's end or in the card of the change it
-// grew out of; and opened beside its spot, its card: the conversation turn by turn, the older exchanges folded, what the
-// agent changed for it, the way to compare, and the one thing you can do with it. A new note is written in a card
-// beside what it's on, as an open one is.
+// grew out of; and opened beside its spot, its card: the conversation turn by turn, the older exchanges folded, the way
+// to compare, and the one thing you can do with it. What the agent changed for it isn't put in words: the recording
+// marks it, in the note's colour. A new note is written in a card beside what it's on, as an open one is.
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { list, time, type Turn, type Verdict } from "@playthrough/review";
@@ -40,11 +40,12 @@ type Props = {
   fresh: boolean;
   you: string;
   readOnly: boolean;
-  // What the agent changed for it, in its flow.
+  // What the agent changed for it, in its flow: listed only on the whole flow, where nothing marks it.
   answers: Changed[];
   compare?: Comparing;
   // Made in the app on an earlier round, it's checked by trying it: taken over where you were, in Compare's place, or
-  // without onTakeOver, said plainly that this round's recording doesn't go there.
+  // without onTakeOver, said plainly that this round's recording doesn't go there. Walked again, your steps may stop
+  // short: which one couldn't be done, in a line.
   whereYouWere?: { round: number; live?: "waiting" | "shown"; onTakeOver?: () => void; stopped?: string };
   // Not quite, being written.
   asking: boolean;
@@ -63,7 +64,6 @@ type Props = {
   onUnfinished: (words: string | undefined) => void;
   onJudge: (verdict: Verdict | undefined) => void;
   onEdit: (words: string | undefined) => void;
-  onPoint: (change?: string) => void;
   // On the whole flow, each change made for it, at its moment, and going there.
   seen?: (changed: Changed) => number | undefined;
   onVisit?: (changed: Changed) => void;
@@ -72,7 +72,7 @@ type Props = {
 };
 
 export function NoteRow(props: Props) {
-  const { note, open, answers } = props;
+  const { note, open } = props;
   const at = note.on?.at;
   const here = useNow(props.playhead, ({ moment }) => at !== undefined && moment.flow === note.on?.flow && moment.at >= at - 0.05 && moment.at <= (note.on?.until ?? at) + SHOWN_FOR);
   if (props.grown)
@@ -102,47 +102,32 @@ export function NoteRow(props: Props) {
         </span>
         <span className="truncate">{note.turns[0]?.words}</span>
         {at === undefined ? <span className="w-[78px]" /> : <Time className={here ? "text-[color-mix(in_srgb,var(--c)_80%,var(--fg))]" : "text-faint"}>{time(at)}</Time>}
-        {answers.length > 0 && <Listed answers={answers} lines className="col-start-2 col-end-4 mt-[3px] text-[12.5px] leading-[18px] text-soft" />}
       </button>
     </div>
   );
 }
 
-// What the agent changed for a note, each under a small hollow diamond, as the timeline draws a change: a line each in a
-// closed note, whole in a card. Pointing at one outlines just it, as in a change's card. On the whole flow, they happened
-// along it, not at its end where they're listed: each says when, as a note's line does, and goes there.
-function Listed({ answers, className, lines, onPoint, seen, onVisit }: { answers: Changed[]; className: string; lines?: boolean; onPoint?: (change?: string) => void; seen?: (changed: Changed) => number | undefined; onVisit?: (changed: Changed) => void }) {
+// What the agent changed for a note on the whole flow, each under a small hollow diamond, as the timeline draws a change:
+// they happened along it, not at its end where they're listed, so each says when, as a note's line does, and goes there.
+function Listed({ answers, className, seen, onVisit }: { answers: Changed[]; className: string; seen?: (changed: Changed) => number | undefined; onVisit: (changed: Changed) => void }) {
   const shown = answers.length > LISTED ? answers.slice(0, LISTED - 1) : answers;
-  const diamond = <i className="size-1.5 flex-none translate-y-[-1px] rotate-45 shadow-[inset_0_0_0_1.5px_var(--soft)]" aria-hidden />;
-  if (onVisit)
-    return (
-      <span className={`grid gap-px ${className}`}>
-        {shown.map((changed) => {
-          const at = seen?.(changed);
-          return (
-            <button
-              key={changed.change.id}
-              className="group/row -mx-1.5 grid grid-cols-[6px_minmax(0,1fr)_auto] items-baseline gap-x-2 rounded-md px-1.5 py-px text-left text-fg transition-colors duration-150 ease-calm hover:bg-hover"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => onVisit(changed)}
-            >
-              {diamond}
-              <span className="min-w-0">{changed.change.words}</span>
-              {at !== undefined && <Time className="text-faint">{time(at)}</Time>}
-            </button>
-          );
-        })}
-        {shown.length < answers.length && <span className="pl-[15px]">{answers.length - shown.length} more changes</span>}
-      </span>
-    );
   return (
     <span className={`grid gap-px ${className}`}>
-      {shown.map(({ change }) => (
-        <span key={change.id} className="group/name flex min-w-0 items-baseline gap-2" onPointerEnter={onPoint && (() => onPoint(change.id))} onPointerLeave={onPoint && (() => onPoint(undefined))}>
-          <i className={`size-1.5 flex-none translate-y-[-1px] rotate-45 shadow-[inset_0_0_0_1.5px_var(--soft)] transition-colors duration-150 ease-calm ${onPoint ? "group-hover/name:bg-soft" : ""}`} aria-hidden />
-          <span className={lines ? "truncate" : "min-w-0 text-fg"}>{change.words}</span>
-        </span>
-      ))}
+      {shown.map((changed) => {
+        const at = seen?.(changed);
+        return (
+          <button
+            key={changed.change.id}
+            className="group/row -mx-1.5 grid grid-cols-[6px_minmax(0,1fr)_auto] items-baseline gap-x-2 rounded-md px-1.5 py-px text-left text-fg transition-colors duration-150 ease-calm hover:bg-hover"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => onVisit(changed)}
+          >
+            <i className="size-1.5 flex-none translate-y-[-1px] rotate-45 shadow-[inset_0_0_0_1.5px_var(--soft)]" aria-hidden />
+            <span className="min-w-0">{changed.change.words}</span>
+            {at !== undefined && <Time className="text-faint">{time(at)}</Time>}
+          </button>
+        );
+      })}
       {shown.length < answers.length && <span className="pl-[15px]">{answers.length - shown.length} more changes</span>}
     </span>
   );
@@ -241,7 +226,7 @@ function Card(props: Props) {
                 {turn.words}
               </Said>
             )}
-            {i === lastAgent && props.answers.length > 0 && <Listed answers={props.answers} className="-mt-0.5 leading-normal" onPoint={props.whole ? undefined : props.onPoint} seen={props.seen} onVisit={props.onVisit} />}
+            {i === lastAgent && props.onVisit && props.answers.length > 0 && <Listed answers={props.answers} className="-mt-0.5 leading-normal" seen={props.seen} onVisit={props.onVisit} />}
           </div>
         ))}
         {note.state === "with someone else" && !readOnly && <p className="text-xs leading-[18px] text-slate">Waiting for {list(note.waitingFor)}</p>}
@@ -318,9 +303,9 @@ function Card(props: Props) {
   return (
     // Its first line keeps clear of the card's ×, as a draft's Edit and Remove do.
     <div className={`grid gap-2.5 px-4 ${props.whole ? "py-3" : "py-2"} [&>p:first-child]:pr-5`}>
-      {/* Walked again, your steps stopped short: what couldn't be done, over the screen where they stopped. */}
-      {whereYouWere?.stopped && <p className="leading-normal text-fg">{whereYouWere.stopped}</p>}
       <div className={`grid gap-2.5 transition-opacity duration-250 ease-calm ${props.away && !readOnly ? "opacity-45" : ""}`}>{words}</div>
+      {/* Walked again, your steps stopped short: which one couldn't be done, under what was said about it. */}
+      {whereYouWere?.stopped && <p className="text-xs leading-[18px] text-soft">{whereYouWere.stopped}</p>}
       {/* In the app, you're already there. */}
       {whereYouWere && whereYouWere.live !== "shown" && !asking && !editing && !props.away &&
         (whereYouWere.onTakeOver ? (
