@@ -273,16 +273,18 @@ const SAYS = `<script>(() => {
   // What a thing is called, and the path back to it, so a note says what it's on, and taking your branch over does what you did again.
   // Something you can press or type into, or else the nearest thing with words of its own: inside a dialog, what's in
   // it, not the dialog. Something you press that holds others isn't one control but what holds them, as on a recording:
-  // Kan's list is one you drag, with its name field, its + and its cards in it, and its count is noted for itself.
-  const pressable = "a, button, input, select, textarea, label, summary, [role=button], [role=link], [role=checkbox], [role=radio], [role=switch], [role=tab], [role=menuitem], [role=option], [role=combobox]";
+  // Kan's list is one you drag, with its name field, its + and its cards in it, and its count is noted for itself. A box
+  // you write in that an editor draws, as Kan's comment box, is one too, empty or not, not the part of the page around it.
+  const pressable = "a, button, input, select, textarea, label, summary, [role=button], [role=link], [role=checkbox], [role=radio], [role=switch], [role=tab], [role=menuitem], [role=option], [role=combobox], [role=textbox], [contenteditable=''], [contenteditable=true]";
   const thing = (target) => {
     const pressed = target?.closest?.(pressable);
     if (pressed && !pressed.querySelector(pressable)) return pressed;
     for (let at = target; at && at !== (pressed ?? document.body); at = at.parentElement) if (at.nodeType === 1 && words(at)) return at;
     return pressed ?? target;
   };
-  // The words you saw on it, as you'd name it; its label only when it shows none, as an icon's.
-  const words = (element) => (element.innerText?.trim() || element.getAttribute?.("aria-label") || element.value || element.placeholder || "").trim().replace(/\\s+/g, " ").slice(0, 80);
+  // The words you saw on it, as you'd name it; its label only when it shows none, as an icon's, and an empty box what it
+  // says it's for, as an editor draws it ("Add comment…").
+  const words = (element) => (element.innerText?.trim() || element.getAttribute?.("aria-label") || element.value || element.placeholder || element.querySelector?.("[data-placeholder]")?.getAttribute("data-placeholder") || "").trim().replace(/\\s+/g, " ").slice(0, 80);
   const roles = { A: "link", BUTTON: "button", SELECT: "combobox", TEXTAREA: "textbox", H1: "heading", H2: "heading", H3: "heading", H4: "heading", LI: "listitem", TD: "cell", TH: "columnheader", LABEL: "text", P: "text" };
   const role = (element) => element.getAttribute("role") || (element.tagName === "INPUT" ? (["checkbox", "radio"].includes(element.type) ? element.type : "textbox") : roles[element.tagName]) || "text";
   const path = (element) => {
