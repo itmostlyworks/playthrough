@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { createServer, request as ask, type IncomingMessage, type ServerResponse } from "node:http";
 import { connect } from "node:net";
 import { networkInterfaces } from "node:os";
-import { answerAs, asRecorded } from "@playthrough/page";
+import { answerAs, asRecorded, pathTo } from "@playthrough/page";
 import { list, quote, Refused, type Did } from "@playthrough/review";
 import { keepRunning } from "./app.ts";
 import { refuseWhileAside } from "./before.ts";
@@ -245,8 +245,13 @@ const SAYS = `<script>(() => {
   yours(!!sessionStorage.getItem("playthrough:yours"));
   addEventListener("message", ({ source, data }) => { if (source === parent && data?.playthrough === "yours") yours(data.yours); });
   // Taken over, the page is scrolled where the recording was at that moment: made ready at a step's end, it was where
-  // the step left it, a screen or more from a moment partway through a page being read.
-  addEventListener("message", ({ source, data }) => { if (source === parent && data?.playthrough === "scroll") scrollTo({ left: data.x, top: data.y, behavior: "instant" }); });
+  // the step left it, a screen or more from a moment partway through a page being read. And so is each part of it that
+  // scrolls on its own, as Kan's card does inside the page, found by the path back to it.
+  addEventListener("message", ({ source, data }) => {
+    if (source !== parent || data?.playthrough !== "scroll") return;
+    scrollTo({ left: data.x, top: data.y, behavior: "instant" });
+    for (const part of data.parts ?? []) document.querySelector(part.path)?.scrollTo({ left: part.x, top: part.y, behavior: "instant" });
+  });
   const typing = (target) => !!target?.closest?.('input:not([type=button]):not([type=submit]):not([type=checkbox]):not([type=radio]):not([type=range]), textarea, [contenteditable=""], [contenteditable=true]');
   // Every move, as it comes: held for a frame, the name trailed the pointer like a smoothed one. Not the earlier raw
   // updates: in a scaled frame, Chrome gives them the page's position rather than the app's.
@@ -287,17 +292,7 @@ const SAYS = `<script>(() => {
   const words = (element) => (element.innerText?.trim() || element.getAttribute?.("aria-label") || element.value || element.placeholder || element.querySelector?.("[data-placeholder]")?.getAttribute("data-placeholder") || "").trim().replace(/\\s+/g, " ").slice(0, 80);
   const roles = { A: "link", BUTTON: "button", SELECT: "combobox", TEXTAREA: "textbox", H1: "heading", H2: "heading", H3: "heading", H4: "heading", LI: "listitem", TD: "cell", TH: "columnheader", LABEL: "text", P: "text" };
   const role = (element) => element.getAttribute("role") || (element.tagName === "INPUT" ? (["checkbox", "radio"].includes(element.type) ? element.type : "textbox") : roles[element.tagName]) || "text";
-  const path = (element) => {
-    const parts = [];
-    for (; element && element.nodeType === 1 && element !== document.documentElement; element = element.parentElement) {
-      // Not the ids an app makes up as it draws, or numbers, which differ next time.
-      if (element.id && !/[:«»\\d]/.test(element.id)) { parts.unshift("#" + CSS.escape(element.id)); break; }
-      let nth = 1;
-      for (let sibling = element.previousElementSibling; sibling; sibling = sibling.previousElementSibling) if (sibling.tagName === element.tagName) nth++;
-      parts.unshift(element.tagName.toLowerCase() + ":nth-of-type(" + nth + ")");
-    }
-    return parts.join(" > ");
-  };
+  const path = ${pathTo};
   // What you do here is kept, across the pages you go to, for a note to keep. Only what you did: what's done again for
   // you isn't trusted by the browser, so it isn't kept.
   const did = JSON.parse(sessionStorage.getItem("playthrough:did") || "[]");

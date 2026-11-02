@@ -3,11 +3,12 @@
 // where you pause, and is already over where you jump to. Its pointer and clicks are read from the recording's own
 // events, for Playthrough to draw over it.
 
-import { answerAs, type Answered } from "@playthrough/page";
+import { answerAs, pathTo, type Answered } from "@playthrough/page";
 import { EventType, IncrementalSource, MouseInteractions, Replayer, type eventWithTime } from "rrweb";
 
 export type Events = eventWithTime[];
 export type Rect = { left: number; top: number; width: number; height: number };
+export type Scrolled = { x: number; y: number; parts: { path: string; x: number; y: number }[] };
 
 // The screen a recording is on from a moment: a flow handed to someone else carries on on their screen, a phone's
 // tapped, with no pointer between taps, so none is drawn.
@@ -285,10 +286,12 @@ export class Replay {
     return [a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u];
   }
 
-  // How far the page is scrolled now, in its own pixels.
-  scrolled(): { x: number; y: number } {
+  // How far the page is scrolled now, in its own pixels, and each part of it scrolled on its own, as Kan's card is, by
+  // the path back to it.
+  scrolled(): Scrolled {
     const page = this.#replayer.iframe.contentWindow;
-    return { x: page?.scrollX ?? 0, y: page?.scrollY ?? 0 };
+    const parts = [...(page?.document.body?.querySelectorAll("*") ?? [])].filter((part) => part.scrollTop || part.scrollLeft);
+    return { x: page?.scrollX ?? 0, y: page?.scrollY ?? 0, parts: parts.map((part) => ({ path: pathTo(part), x: part.scrollLeft, y: part.scrollTop })) };
   }
 
   // The page's own background, as red, green and blue, where the page or its body paints one: what a veil over it is

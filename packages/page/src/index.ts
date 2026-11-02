@@ -3,3 +3,4 @@ export * from "./names.ts";
 export * from "./differences.ts";
 export * from "./found.ts";
 export * from "./scheme.ts";
+export * from "./path.ts";
