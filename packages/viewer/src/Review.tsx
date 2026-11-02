@@ -489,12 +489,15 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   // something this round doesn't have is lost here. One made in the app on an earlier round sits where you took its
   // flow over, which this round's recording shows, as nothing recorded what you did after; where this round's flow
   // doesn't go that far, it's on the whole flow.
-  // Walked again for this round, it's on the walk, where your steps got to. One whose steps stop short of it says so,
-  // and is on the fix, or with nothing changed for it, where they stopped.
+  // Walked again for this round, it's on the walk, where your steps got to. One whose steps stop short of it is on the
+  // fix, or with nothing changed for it, where they stopped.
   const walkedTo = (note: Shown) => (note.on?.app && note.written !== round.number ? round.replies.find((reply) => reply.note === note.id && reply.on?.app)?.on : undefined);
-  // Where they stop short, the step of yours that couldn't be done, in words.
+  // Left where they stopped, the step of yours that couldn't be done, in words: it's why the card is on a page without
+  // what you noted. On the fix, there's nothing to say: the step that went is a change at its own moment, and the
+  // agent's answer says why.
   const stopsShort = new Map(
     noted.flatMap((note) => {
+      if (onTheFix.has(note.id)) return [];
       const done = walkedTo(note)?.app?.did.length ?? Infinity;
       const step = note.on?.app?.did[done];
       return step ? [[note.id, couldntDo(step)] as const] : [];
@@ -963,11 +966,11 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     // as it is now; in the app, a Looks good stays where you said it, as there's nothing to play on to.
     const was = whereYouWere.get(note.id);
     const takeable = current && !readOnly;
-    // Walked again, it's checked by watching, as any answer is; where your steps stop short of it, the card says what
-    // couldn't be done, and offers nothing to do about it: there's nowhere to carry on to (T still takes it over). On
-    // what the agent changed for it instead, it's compared there, as any answer is.
-    const stoppedThere = stopsShort.has(note.id) && !!note.on?.app;
-    const tryHere = stopsShort.has(note.id)
+    // Walked again, it's checked by watching, as any answer is; left where your steps stopped, the card says what
+    // couldn't be done, and offers nothing to do about it: there's nowhere to carry on to (T still takes it over), and
+    // nothing to compare.
+    const stoppedThere = stopsShort.has(note.id);
+    const tryHere = stoppedThere
       ? { round: round.number, stopped: stopsShort.get(note.id) }
       : was && (was.at === undefined || takeable) ? { round: round.number, live: trying.current === note.id ? liveNow : undefined, ...(was.at !== undefined && { onTakeOver: () => tryWhereYouWere(note) }) } : undefined;
     return (
@@ -1643,11 +1646,8 @@ function forksIn(notes: Note[]): Fork[] {
 }
 
 // A step of yours a walk couldn't do, as you'd say it.
-function couldntDo({ does, what }: Did): string {
-  const named = what ? `“${what}”` : "what you did next";
-  if (does === "fill" || does === "type") return `Your steps stop short: ${named} isn’t there to type into any more.`;
-  if (does === "selectOption") return `Your steps stop short: ${named} isn’t there to choose from any more.`;
-  return `Your steps stop short: ${named} isn’t there to click any more.`;
+function couldntDo({ what }: Did): string {
+  return `Your steps stop here: ${what ? `“${what}”` : "what you did next"} isn’t there any more.`;
 }
 
 // The forks walked again for a round, from where its answers to notes made in the app were placed.

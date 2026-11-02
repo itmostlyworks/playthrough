@@ -44,8 +44,8 @@ type Props = {
   answers: Changed[];
   compare?: Comparing;
   // Made in the app on an earlier round, it's checked by trying it: taken over where you were, in Compare's place, or
-  // without onTakeOver, said plainly that this round's recording doesn't go there. Walked again, your steps may stop
-  // short: which one couldn't be done, in a line.
+  // without onTakeOver, said plainly that this round's recording doesn't go there. Walked again and left where your
+  // steps stopped: which one couldn't be done, in a line.
   whereYouWere?: { round: number; live?: "waiting" | "shown"; onTakeOver?: () => void; stopped?: string };
   // Not quite, being written.
   asking: boolean;
