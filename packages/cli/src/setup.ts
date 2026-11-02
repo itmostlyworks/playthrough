@@ -11,7 +11,7 @@ import { list, quote, Refused } from "@playthrough/review";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-// The whole module, as an older Node has no registerHooks to import: it says it needs Node 24 instead (node.ts).
+// The whole module, as an older Node has no registerHooks to import: it says which Node it needs instead (node.ts).
 import * as modules from "node:module";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -36,7 +36,9 @@ export async function setupIn(file: string, written?: number): Promise<Setup> {
   asModule(href);
   // In an app whose package.json doesn't say it's a module, Playwright loads the file as CommonJS, its exports one level down.
   type Module = { default?: Make; after?: After; signIn?: SignIn; people?: People; use?: BrowserContextOptions };
-  const module: Omit<Module, "default"> & { default?: Make | Module } = await import(`${href}${written ? `?${written}` : ""}`);
+  const module: Omit<Module, "default"> & { default?: Make | Module } = await import(`${href}${written ? `?${written}` : ""}`).catch((error) => {
+    throw twoPlaywrights(error, file) ?? error;
+  });
   const inner = typeof module.default === "object" ? module.default : undefined;
   const use = module.use ?? inner?.use;
   const ours = Object.keys(use ?? {}).filter((option) => OURS.includes(option));
@@ -49,6 +51,22 @@ export async function setupIn(file: string, written?: number): Promise<Setup> {
     people: module.people ?? inner?.people,
     ...(use && { use }),
   };
+}
+
+// An app with a Playwright of its own, another version than Playthrough's, loads it a second time when setup.ts uses it as
+// more than types, which Playwright refuses with a stack of its own: said instead with what to do.
+function twoPlaywrights(error: unknown, file: string): Refused | undefined {
+  if (!/Requiring @playwright\/test second time/.test(String((error as Error)?.message))) return;
+  const version = (from: string): string | undefined => {
+    try {
+      return modules.createRequire(from)("@playwright/test/package.json").version;
+    } catch {}
+  };
+  const theirs = version(file);
+  return new Refused([
+    `playthrough/setup.ts loads the app's own Playwright${theirs ? ` (${theirs})` : ""} beside Playthrough's (${version(import.meta.url)}), and Playwright can't run twice at once.`,
+    `Import only types from @playwright/test there (import type { Page } from "@playwright/test"), and expect, if it needs it, from playthrough/test. Then run this again.`,
+  ]);
 }
 
 // A setup is a module whatever the app's package.json says, as flows are: written with import and export, as they're

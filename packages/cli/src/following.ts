@@ -203,6 +203,7 @@ function loadedOf(repo: Repo, id: string, files: string[], written: number) {
   // less than Playwright's does.
   const load = <T>(file: string, by: (file: string, written: number) => Promise<T>) =>
     by(file, written).catch((error) => {
+      if (error instanceof Refused) throw error;
       throw new Refused([`${repo.show(file)} couldn't be loaded, because Node says “${firstLine(String(error?.message ?? error))}”, so no flow of ${id} can be taken over. Fix it, then take the flow over again.`]);
     });
   const flows = alongside().then(({ flowsIn }) => Promise.all([Promise.all(files.map((file) => load(file, flowsIn))), load(repo.setup, setupIn)])).then(
