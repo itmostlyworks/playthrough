@@ -6,9 +6,14 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 // Playing, it fades with the outlines, and comes back where the pin is once it stops.
 export function Wire({ id, colour, hidden, faded }: { id?: string; colour: string; hidden: boolean; faded: boolean }) {
   const path = useRef<SVGPathElement>(null);
+  // Every frame draws from what's open now, not from what was open when the frames began.
+  const now = useRef({ id, hidden });
+  now.current = { id, hidden };
+  const drawn = useRef<string>(undefined);
   const paint = () => {
     const line = path.current;
     if (!line) return;
+    const { id, hidden } = now.current;
     // Its card closed, it fades with it.
     const fading = line.getAnimations()[0];
     if (!id && !hidden && line.getAttribute("d") && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -48,7 +53,15 @@ export function Wire({ id, colour, hidden, faded }: { id?: string; colour: strin
     line.setAttribute("d", "");
   };
   // Both ends move: the view glides, a card opens or is dragged. While something is open, it's drawn every frame.
-  useLayoutEffect(paint);
+  // A card just opened is placed in the same moment, after this: its line waits for the next frame, once it stands where
+  // it goes, rather than reaching for where it was before.
+  useLayoutEffect(() => {
+    const opening = !!id && id !== drawn.current;
+    drawn.current = id;
+    if (!opening) return paint();
+    path.current?.getAnimations()[0]?.cancel();
+    path.current?.setAttribute("d", "");
+  });
   useEffect(() => {
     if (!id) return;
     let frame = requestAnimationFrame(function again() {

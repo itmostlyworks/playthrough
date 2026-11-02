@@ -1073,6 +1073,9 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   // Compare is there only where the round it compares with has what you're watching: a fork you made on this round, or
   // a flow new in it, has nothing to show beside it.
   const comparingIt: Comparing | undefined = heldOver?.flows.some((flow) => flow.name === inPlay) ? { on: peek || side, off: !!live?.shown, onPress: pressCompare, onRelease: releaseCompare } : undefined;
+  // Gone where there's nothing to compare, Compare is off, as its button is gone: back where there is, it's off until
+  // pressed, rather than on with no way to turn it off.
+  if (look === "side" && !comparingIt) setLook("one");
   // Side by side, the round it compares with is on the left, or above.
   const comparing = side && !!heldOver;
   const earlier = comparing ? heldOver : undefined;
