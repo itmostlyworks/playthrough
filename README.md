@@ -22,7 +22,7 @@ The agent does the rest. The first time, it adds Playthrough to your app and wri
 npx playthrough open
 ```
 
-Reviews stay in `.playthrough/` in your app's repo, recordings and all; nothing is uploaded. Playthrough needs Node 24 or later.
+Reviews stay in `.playthrough/` in your app's repo, recordings and all; nothing is uploaded. Playthrough needs Node 22.18 or later.
 
 You can teach your agent Playthrough once, so “Show me this change” is enough from then on:
 
