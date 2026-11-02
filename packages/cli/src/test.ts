@@ -7,6 +7,7 @@
 import { test as base, expect as playwrightExpect, type APIRequestContext, type Browser, type BrowserContext, type BrowserContextOptions, type Dialog, type Locator, type Page } from "@playwright/test";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { readFileSync, writeFileSync } from "node:fs";
+import * as modules from "node:module";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { sameWords, type Glimpse, type Reading } from "@playthrough/page";
@@ -300,6 +301,29 @@ function answers(dialog: Dialog) {
   }
 }
 
+// A flow can import a module of its own as Playwright finds it, without its ending (“../history”) or by its .js name, so
+// the flows that record can be taken over: Node, which loads them here, finds a module only by its whole name.
+let finding = false;
+function findsAsPlaywright() {
+  if (finding) return;
+  finding = true;
+  modules.registerHooks({
+    resolve(specifier, context, next) {
+      try {
+        return next(specifier, context);
+      } catch (error) {
+        if (!/^\.\.?\//.test(specifier) || (error as NodeJS.ErrnoException).code !== "ERR_MODULE_NOT_FOUND") throw error;
+        const named = [...[".ts", ".tsx", ".js", "/index.ts", "/index.js"].map((ending) => specifier + ending), specifier.replace(/\.js$/, ".ts")];
+        for (const name of named.filter((name) => name !== specifier))
+          try {
+            return next(name, context);
+          } catch {}
+        throw error;
+      }
+    },
+  });
+}
+
 // Taken over, a flow runs in Playthrough (following.ts), unrecorded, on the recordings' clock, which the person carries on
 // with. It's told how far the playhead has gone, and told again each time it moves; once the playhead rests where the
 // flow is, to hand its page over; and to stop, once it's no longer wanted.
@@ -321,6 +345,7 @@ let collectingForks: Forked[] = [];
 let around: { use: Kept["use"]; outside?: string }[] = [];
 let loading = Promise.resolve();
 export function flowsIn(file: string, written: number): Promise<Map<string, Kept>> {
+  findsAsPlaywright();
   const flows = new Map<string, Kept>();
   const loaded = loading.then(async () => {
     [collecting, around, collectingForks] = [flows, [{ use: {} }], []];
