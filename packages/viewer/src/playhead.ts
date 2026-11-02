@@ -8,8 +8,14 @@ import { CARD, clamp, type Moment } from "./moments.ts";
 
 export type Speed = 1 | 0.5 | 0.25;
 // A fork off a flow, where a person took it over and carried on by hand: played as a flow of its own, drawn as part of
-// the flow it's off.
-export type Forked = Flow & { fork?: string };
+// the flow it's off, and the moment it leaves it.
+export type Forked = Flow & { fork?: string; leaves?: number };
+
+// A fork is a detour: at its end, it comes back to where it left its flow, which plays on from there.
+const backFrom = (flow: Flow): Moment | undefined => {
+  const { fork, leaves } = flow as Forked;
+  return fork === undefined || leaves === undefined ? undefined : { flow: fork, at: leaves };
+};
 // What waits there, by an id of its own: two can wait at one moment.
 export type Stop = { id: string; flow: string; at: number; reached: () => void };
 // `stopped` says it stopped by itself on its way past something, rather than being paused.
@@ -42,10 +48,10 @@ export class Playhead {
     if (this.now.playing || !this.flows.length) return;
     const flow = this.flow;
     // At a flow's end, play goes on into the next one, from its title; at the last one's end, from the start. A fork
-    // off a flow is gone to, never played into.
+    // off a flow is gone to, never played into, and from its end, play goes back down into its flow.
     if (this.now.moment.at >= flow.length - 0.06) {
       const next = this.flows.slice(this.flows.indexOf(flow) + 1).find((flow) => !(flow as Forked).fork) ?? this.flows[0]!;
-      this.#set({ moment: { flow: next.name, at: -CARD } });
+      this.#set({ moment: backFrom(flow) ?? { flow: next.name, at: -CARD } });
     }
     this.#last = performance.now();
     this.#set({ playing: true });
@@ -155,6 +161,8 @@ export class Playhead {
       this.#until = undefined;
       return this.#set({ moment: { flow: flow.name, at: until }, playing: false, stopped: true });
     }
+    const back = at >= flow.length && this.#until === undefined ? backFrom(flow) : undefined;
+    if (back) return this.#set({ moment: back });
     if (at >= flow.length) cancelAnimationFrame(this.#frame);
     this.#set({ moment: { flow: flow.name, at }, playing: at < flow.length });
   };

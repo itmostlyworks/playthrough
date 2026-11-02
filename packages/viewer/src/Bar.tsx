@@ -18,7 +18,8 @@ type Props = {
   noting: boolean;
   // None where no note can be made: an accepted review, or a round gone by.
   onNote?: () => void;
-  onTakeOver: () => void;
+  // None on a fork run again: a fork is taken over from its flow, never from another fork.
+  onTakeOver?: () => void;
   onBack: () => void;
   flow: string;
   notes: Said[];
@@ -106,7 +107,7 @@ export function Bar(props: Props) {
             Back to the recording <Key>Esc</Key>
           </button>
         ) : (
-          <button className={item} disabled={!props.latest} aria-pressed={props.live === "waiting"} onClick={props.onTakeOver}>
+          <button className={item} disabled={!props.latest || !props.onTakeOver} aria-pressed={props.live === "waiting"} onClick={props.onTakeOver}>
             {props.live === "waiting" ? "Taking over…" : "Take over"} <Key>T</Key>
           </button>
         )}

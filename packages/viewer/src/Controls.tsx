@@ -14,7 +14,7 @@ export type Look = "one" | "side";
 type Props = {
   // Taken over: waiting while the moment is made ready, or the app showing in the frame.
   live?: "waiting" | "shown";
-  onTakeOver: () => void;
+  onTakeOver?: () => void;
   playhead: Playhead;
   dots: Dot[];
   onDot: (id: string) => void;
@@ -124,7 +124,7 @@ export function Controls(props: Props) {
       <span className={`h-4 w-px flex-none bg-line ${coveredForward}`} />
       {/* The frame turns into the app itself, at the step the playhead is in, on the app as it is now (live.ts). */}
       <button
-        disabled={!latest}
+        disabled={!latest || !props.onTakeOver}
         aria-pressed={!!props.live}
         className={`group/take relative ${quiet} ${coveredForward} enabled:hover:bg-hover enabled:hover:text-fg disabled:cursor-default disabled:opacity-55 aria-pressed:text-fg ${props.live === "waiting" ? "animate-pulse" : ""}`}
         onClick={props.onTakeOver}
