@@ -86,7 +86,7 @@ export function howToWriteFlows(repo: Repo, id: string): string {
     : setupMissing
       ? ", which this app doesn't have yet: run playthrough alone for how."
       : ".";
-  return `Each flow is a Playwright test in a .ts file in ${repo.show(repo.flows(id))}, one for each thing a person does, with a step for each part of it:
+  return `Each flow is one situation the change meets: someone, with what they'd really have, there to do one thing, shown as far as the change reaches, with a step for each part worth looking at. Another flow is another situation, like someone the change treats differently or a long list where the first had an empty one, never the same person, things and way again. Each is a Playwright test in a .ts file in ${repo.show(repo.flows(id))}:
 
   import { test, expect } from "playthrough/test";
 

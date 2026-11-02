@@ -19,7 +19,8 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
     const { said, code } = await app.run(["start", "overdue", "Show only overdue invoices", "Can the invoices list show just the overdue ones?"]);
     assert.equal(code, 0);
     assert.match(said, /Write its flows before you change anything\. They show what was asked, so write them from the task, not from the code/);
-    assert.match(said, /Each flow is a Playwright test in a \.ts file in \.playthrough\/overdue\/flows/);
+    assert.match(said, /Each flow is one situation the change meets/);
+    assert.match(said, /Each is a Playwright test in a \.ts file in \.playthrough\/overdue\/flows/);
     assert.match(said, /Then run playthrough start overdue again\. It tries the app's setup, and keeps the app as it is as Before/);
     const review = await app.reviews.get("overdue");
     assert.deepEqual([review.title, review.asked], ["Show only overdue invoices", "Can the invoices list show just the overdue ones?"]);
@@ -50,7 +51,7 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
     ({ said, code } = await app.run(["start", "overdue"]));
     assert.equal(code, 0, said);
     assert.match(said, /Kept Before: the app as it is now\. Each flow is recorded on it with round 1, as far as the app as it was takes it, for the person to compare with\./);
-    assert.match(said, /add a flow for each choice you made that the person can see and didn't ask for\. Then record round 1: playthrough record overdue/);
+    assert.match(said, /see that the flows show all of it a person would see: a choice of yours needs a step where no flow shows it yet, not a flow of its own\. Then record round 1: playthrough record overdue/);
     assert.doesNotMatch(said, /Recording/, "the flows are written for the work: nothing's recorded yet");
     const before = await app.round(0);
     assert.deepEqual(before.flows, []);

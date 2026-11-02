@@ -12,12 +12,13 @@ to its end; each command then says what's next.
 THE LOOP
 
 1. Start a review with a title, as you'd title its pull request, and what was asked, word for word: it's what the person
-   judges each round against. Before you change anything, write its flows, one for each thing a person does that the
-   task touches, from the task, not from the code.
+   judges each round against. Before you change anything, write its flows, one for each situation the change meets
+   (FLOWS, below), from the task, not from the code.
 2. Run playthrough start <review> again. It tries the app's setup, then keeps the app as it is as Before, for the person
    to compare each round with. Nothing's recorded yet: the flows are written for the work.
 3. Change the app. Keep each flow's name, and each step's while it does the same job: they're matched across rounds by
-   name. Once the work is done, add a flow for each choice you made that the person can see and didn't ask for.
+   name. Once the work is done, see that the flows show all of it a person would see. Playthrough finds what changed
+   in what they show, your own choices too, so a choice needs a step where no flow shows it yet, not a flow of its own.
 4. playthrough record <review> records the round, and each flow new to the review on Before too, doing what the round
    does as far as the app as it was can, then compares the round with every round before it. In the round's round.json,
    say why each change since the round before is there, under "accounts" by its id: { "line": "<why, in your words>" },
@@ -64,6 +65,13 @@ place, with playthrough/ as it is now, and puts your work back after, even when 
 meanwhile is kept in a stash of its own.
 
 FLOWS
+
+A flow is one situation the change meets: someone, with what they'd really have, there to do one thing, shown as far as
+the change reaches. Show it as you would to someone beside you, going through once and stopping on each part worth
+looking at: those are its steps, not flows of their own. Another flow is another situation: someone the change treats
+differently (WHO DOES A FLOW, below), things that make it look or work differently, like a long list and an empty one,
+or another reason to be there. The person watches every flow from its start, so two by the same person, on the same
+things, going the same way, are one.
 
 Each flow is a Playwright test in a .ts file in .playthrough/<review>/flows/, with a step for each part of it. The test's
 name is the flow's:
@@ -153,7 +161,8 @@ Each new flow is recorded twice: what changes by itself, like a time the server 
 WHO DOES A FLOW
 
 Every flow is done by someone: their name is on the pointer the person watches, and taking the flow over, the person is
-them. Once the app has more than one kind of person, name them in setup.ts as the team does, each with a line for you;
+them. It's who the change is for, as the person who asked would picture them, never an admin the change isn't for, so
+the recording shows what they'd see. Once the app has more than one kind of person, name them in setup.ts as the team does, each with a line for you;
 the first does every flow that names no one. Add one when a change first needs them:
 
   export const people = {
