@@ -5,7 +5,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { elementOf } from "@playthrough/page";
-import { inStep, lastLooked, newId, readyToAccept, time, waitingForTheAgent, type Did, type Element as Thing, type Flow, type Note, type Point, type Place, type Review, type Round, type Send, type Verdict } from "@playthrough/review";
+import { allNotes, inStep, lastLooked, newId, readyToAccept, time, waitingForTheAgent, type Did, type Element as Thing, type Flow, type Note, type Point, type Place, type Review, type Round, type Send, type Verdict } from "@playthrough/review";
 import { accept, keepBranch, picture, recording, send, useReview, useYou } from "./api.ts";
 import { Bar } from "./Bar.tsx";
 import { Beside, clickedAt } from "./Beside.tsx";
@@ -114,7 +114,19 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   // something there, from the notes you made in the app on it.
   const here = unsent[round.number] ?? nothing;
   const madeHere = [...review.sends.filter((send) => send.round === round.number).flatMap((send) => send.notes), ...here.notes, ...here.unsaved];
-  const forks = JSON.stringify([...forksIn(madeHere), ...walkedIn(round)]);
+  // What's new to you on this round: a diamond at each moment something changed, on the timeline.
+  const diamonds = diamondsOn(review, round.number, you);
+  // A note made in the app whose steps, walked again, stop short of it, where the agent changed something for it: its
+  // answer is where that's first seen in the flow, so the fix still shows, marked as any answer's is, and the walk,
+  // which leads nowhere now, isn't a fork of its own.
+  const everyNote = allNotes(review);
+  const onTheFix = new Map(
+    round.replies.flatMap(({ note, on }) => {
+      const fix = answersTo(diamonds, note).toSorted((a, b) => a.on.at! - b.on.at!)[0]?.on;
+      return on?.app && fix && on.app.did.length < (everyNote.get(note)?.note.on?.app?.did.length ?? 0) ? [[note, fix] as const] : [];
+    }),
+  );
+  const forks = JSON.stringify([...forksIn(madeHere), ...walkedIn(round).filter((fork) => !fork.notes!.every(({ id }) => onTheFix.has(id)))]);
   const forkList: Fork[] = useMemo(() => JSON.parse(forks), [forks]);
   const played = useMemo(() => forked(round, forkList), [round, forkList]);
   const [seenFlows, see] = useWatched(review.id);
@@ -473,17 +485,13 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   const readOnly = !!review.accepted || round.number === 0 || (!current && !arrived);
   const readOn = [round.number, ...(compared === undefined ? [] : [compared]), ...noted.map((note) => note.written)];
   const read = useReadings(review, review.rounds.filter((kept) => readOn.includes(kept.number)).map((kept) => (kept.number === round.number ? played : kept)));
-  // What's new to you on this round: a diamond at each moment something changed, on the timeline.
-  const diamonds = diamondsOn(review, round.number, you);
   // Each note sits where its thing is on this round: its moment here, on what it's on here, once that's found. One on
   // something this round doesn't have is lost here. One made in the app on an earlier round sits where you took its
   // flow over, which this round's recording shows, as nothing recorded what you did after; where this round's flow
   // doesn't go that far, it's on the whole flow.
   // Walked again for this round, it's on the walk, where your steps got to. One whose steps stop short of it says so,
-  // and is where what the agent changed for it is first seen, so the fix still shows, marked as any answer's is; with
-  // nothing changed for it, it's where they stopped.
+  // and is on the fix, or with nothing changed for it, where they stopped.
   const walkedTo = (note: Shown) => (note.on?.app && note.written !== round.number ? round.replies.find((reply) => reply.note === note.id && reply.on?.app)?.on : undefined);
-  const fixSeen = (note: Shown) => answersTo(diamonds, note.id).toSorted((a, b) => a.on.at! - b.on.at!)[0]?.on;
   // Where they stop short, the step of yours that couldn't be done, in words.
   const stopsShort = new Map(
     noted.flatMap((note) => {
@@ -497,7 +505,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   );
   const notes = noted.map((note) => {
     const walked = walkedTo(note);
-    if (walked) return { ...note, on: (stopsShort.has(note.id) && fixSeen(note)) || walked };
+    if (walked) return { ...note, on: onTheFix.get(note.id) ?? walked };
     const was = whereYouWere.get(note.id);
     if (was) return { ...note, on: { flow: note.on!.app!.from.flow, ...(was.at !== undefined && { at: was.at, ...(was.element && { element: was.element }) }) } };
     return note.on && !note.on.app ? { ...note, on: placeOn(review, note.id, note.on, note.written, round, read) ?? note.on } : note;
