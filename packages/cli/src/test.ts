@@ -9,7 +9,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { readFileSync, writeFileSync } from "node:fs";
 import * as modules from "node:module";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { sameWords, type Glimpse, type Reading } from "@playthrough/page";
 import { keepAssets, type Assets } from "./assets.ts";
 import type { Did } from "@playthrough/review";
@@ -302,26 +302,37 @@ function answers(dialog: Dialog) {
 }
 
 // A flow can import a module of its own as Playwright finds it, without its ending (“../history”) or by its .js name, so
-// the flows that record can be taken over: Node, which loads them here, finds a module only by its whole name.
+// the flows that record can be taken over: Node, which loads them here, finds a module only by its whole name. And it's
+// loaded again whenever the flows are, as an agent changes it with them: Node keeps a module by its address, so it's
+// asked for at the flows' time (`?written`). Each is kept in `imported`, whose times say when the flows were written too.
+export const imported = new Set<string>();
 let finding = false;
 function findsAsPlaywright() {
   if (finding) return;
   finding = true;
   modules.registerHooks({
     resolve(specifier, context, next) {
-      try {
-        return next(specifier, context);
-      } catch (error) {
-        if (!/^\.\.?\//.test(specifier) || (error as NodeJS.ErrnoException).code !== "ERR_MODULE_NOT_FOUND") throw error;
-        const named = [...[".ts", ".tsx", ".js", "/index.ts", "/index.js"].map((ending) => specifier + ending), specifier.replace(/\.js$/, ".ts")];
-        for (const name of named.filter((name) => name !== specifier))
-          try {
-            return next(name, context);
-          } catch {}
-        throw error;
-      }
+      if (!/^\.\.?\//.test(specifier)) return next(specifier, context);
+      const found = foundAsPlaywright(specifier, context, next);
+      if (!found.url.startsWith("file:") || found.url.includes("/node_modules/")) return found;
+      imported.add(fileURLToPath(found.url));
+      const written = context.parentURL && URL.parse(context.parentURL)?.search;
+      return written ? { ...found, url: found.url.split("?")[0] + written } : found;
     },
   });
+}
+function foundAsPlaywright(specifier: string, context: modules.ResolveHookContext, next: (specifier: string, context?: modules.ResolveHookContext) => modules.ResolveFnOutput) {
+  try {
+    return next(specifier, context);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ERR_MODULE_NOT_FOUND") throw error;
+    const named = [...[".ts", ".tsx", ".js", "/index.ts", "/index.js"].map((ending) => specifier + ending), specifier.replace(/\.js$/, ".ts")];
+    for (const name of named.filter((name) => name !== specifier))
+      try {
+        return next(name, context);
+      } catch {}
+    throw error;
+  }
 }
 
 // Taken over, a flow runs in Playthrough (following.ts), unrecorded, on the recordings' clock, which the person carries on
