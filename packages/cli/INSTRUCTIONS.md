@@ -56,7 +56,8 @@ another at its address, takes the address it always has, or a copy on a port of 
 
 Flows run several at once. Where a page shows what every run made, as a blog's index lists every post, add
 "oneAtATime": true. Recording on Before sets your work aside with git stash for a minute, puts the app as it was in its
-place, with playthrough/ as it is now, and puts your work back after, even when Playthrough is stopped.
+place, with playthrough/ as it is now, and puts your work back after, even when Playthrough is stopped; anything saved
+meanwhile is kept in a stash of its own.
 
 FLOWS
 

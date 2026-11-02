@@ -172,7 +172,7 @@ async function asItWas<T>(repo: Repo, unrecorded: string, commit: string, shared
   } finally {
     if (today) rmSync(today, { recursive: true, force: true });
     for (const signal of SIGNALS) process.off(signal, stopped);
-    // What the app as it was wrote into files git keeps goes: the agent's own changes are in the stash.
+    // What changed in the files meanwhile is kept in a stash of its own: the agent's own changes are in theirs.
     const problem = putWorkBack(repo, aside, true);
     if (problem) throw stillAside(repo, aside, problem);
     if (moved) console.log("Your work is back.");
@@ -208,13 +208,15 @@ export function refuseWhileAside(repo: Repo) {
 const setAside = (repo: Repo): SetAside | undefined => attempt(() => JSON.parse(readFileSync(repo.setAside, "utf8")));
 
 // Back on its branch or commit, then what was set aside, each only if it's still to do, so it's right to run again. Forced,
-// whatever the app as it was changed in the files git keeps is let go. Says what git said, if it couldn't.
+// what changed in the files meanwhile is kept in a stash of its own rather than let go: a file the person saved in their
+// editor, or one the app as it was wrote. Says what git said, if it couldn't.
 function putWorkBack(repo: Repo, aside: SetAside, force: boolean): string | undefined {
   try {
     if (here(repo) !== aside.back) {
       // playthrough/ as the app as it was had it, so nothing of what it was given in its place is in the work's way.
       attempt(() => git(repo, ["checkout", "--quiet", "HEAD", "--", "playthrough"]));
       git(repo, ["clean", "--force", "-d", "--quiet", "--", "playthrough"]);
+      if (force) keepWhatChanged(repo);
       git(repo, ["checkout", "--quiet", ...(force ? ["--force"] : []), aside.back]);
     }
     const stash = stashOf(repo, aside);
@@ -223,6 +225,19 @@ function putWorkBack(repo: Repo, aside: SetAside, force: boolean): string | unde
   } catch (error) {
     return said(error);
   }
+}
+
+// What changed while the working copy held the app as it was, kept in a stash and named, so nothing saved meanwhile is lost.
+function keepWhatChanged(repo: Repo) {
+  const changed = git(repo, ["status", "--porcelain", "--untracked-files=all"]).split("\n").filter(Boolean).map((line) => line.replace(/^\s*\S+\s+/, ""));
+  if (!changed.length) return;
+  const kept = `Playthrough: saved while flows recorded on Before, ${new Date().toISOString()}`;
+  git(repo, ["stash", "push", "--include-untracked", "--quiet", "--message", kept], { ...process.env, ...PLAYTHROUGH });
+  const ref = git(repo, ["stash", "list", "--format=%gd %gs"]).split("\n").find((stash) => stash.endsWith(kept))?.split(" ")[0];
+  const files = changed.length > 3 ? `${changed.slice(0, 3).join(", ")} and ${changed.length - 3} more` : changed.join(", ");
+  console.log(
+    `\nWhile flows recorded on Before, ${files} changed, in the app as it was. That's kept, not lost: git stash pop ${ref} puts it over your work, if it's something you saved.`,
+  );
 }
 
 function stillAside(repo: Repo, aside: SetAside, problem: string): Refused {
