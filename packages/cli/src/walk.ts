@@ -9,8 +9,9 @@ import { allNotes, list, notesToAnswer, pausedAt, quote, Refused, roundInProgres
 import { walkFork } from "./flows.ts";
 import type { Repo } from "./repo.ts";
 
-// Where each walked note's answer goes, whether its steps got there, the one they stopped at, and a picture of it.
-export type WalkedNote = { note: string; flow: string; on?: Place; reached: boolean; stopped?: string; picture?: string };
+// Where each walked note's answer goes, whether its steps got there, the one they stopped at and what's in its place
+// now, and a picture of it.
+export type WalkedNote = { note: string; flow: string; on?: Place; reached: boolean; stopped?: string; instead?: string; picture?: string };
 
 // The fork a note made in the app is on: the person's time in the app, whose notes share it.
 const forkOf = (recording: string) => recording.match(/^(?:branches\/(.+)-\d+|walks\/(.+))\.json$/)?.slice(1).find(Boolean) ?? recording.replace(/\W+/g, "-");
@@ -58,7 +59,7 @@ export async function walkForks(repo: Repo, review: Review, round: number, flows
       const node = reached ? run.found[i] : null;
       const on: Place = { flow: from.flow, at, ...(node && note.on!.element && { element: { role: note.on!.element.role, name: note.on!.element.name, node } }), app };
       const picture = run.pictures[i] && (await keepPicture(repo, review.id, round, `notes/${id}-walked.png`, run.pictures[i]!));
-      walked.push({ note: id, flow: from.flow, on, reached, ...(!reached && { stopped: run.stopped ?? "" }), ...(picture && { picture }) });
+      walked.push({ note: id, flow: from.flow, on, reached, ...(!reached && { stopped: run.stopped ?? "", ...(run.instead && { instead: run.instead }) }), ...(picture && { picture }) });
     }
   }
   return walked;
@@ -75,7 +76,7 @@ export function saidOf(walked: WalkedNote): string {
   const fork = `the steps note ${walked.note} was made after, on ${quote(walked.flow)}`;
   if (walked.reached) return `Walked ${fork} again: they get to the note.${walked.picture ? ` As it is now: ${walked.picture}` : ""}`;
   if (walked.on)
-    return `Walked ${fork} again: they stop at ${quote(walked.stopped ?? "")}, which they can't do now, and the person sees that there. Fix what it's on, or say in your answer to note ${walked.note} why their steps changed.`;
+    return `Walked ${fork} again: they stop at ${quote(walked.stopped ?? "")}, which isn't where they did it any more${walked.instead ? ` (${quote(walked.instead)} is there now)` : ""}. Fix what it's on, or say in your answer to note ${walked.note} why their steps changed.`;
   return `Couldn't walk ${fork} again: ${walked.stopped}.`;
 }
 

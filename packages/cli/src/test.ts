@@ -702,10 +702,26 @@ const doneOn = (target: Locator): Promise<On | undefined> =>
 // The same thing, in the app as it was and with the work: the same role, and most of the shorter name's words in the
 // other's, as a card the work gave a badge is still that card.
 function alike(one: On, other: On): boolean {
-  if (one.role !== other.role) return false;
+  return one.role === other.role && sameWords(one.name, other.name);
+}
+function sameWords(one: string, other: string): boolean {
   const words = (name: string) => name.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
-  const [few, many] = [words(one.name), words(other.name)].sort((a, b) => a.length - b.length);
+  const [few, many] = [words(one), words(other)].sort((a, b) => a.length - b.length);
   return !few!.length || few!.filter((word) => many!.includes(word)).length * 2 >= few!.length;
+}
+
+// A step of yours is found again by where you did it, so on the version as it is now that place can hold another
+// thing, as two buttons swapped: it's done only on what says what you did it on said, by the same rule as Before's, or
+// your steps stop there, saying what's there instead, if anything is. A step on something with no words goes by its
+// place alone.
+async function somethingElse(page: Page, { on, what }: Did): Promise<string | undefined> {
+  if (!what) return undefined;
+  const said: string[] = await page
+    .locator(on)
+    .first()
+    .evaluate((element: any) => [element.innerText, element.getAttribute("aria-label"), element.value, element.placeholder].filter((words) => typeof words === "string" && words.trim()), undefined, { timeout: 3000 })
+    .catch(() => []);
+  return said.some((words) => sameWords(words, what)) ? undefined : (said[0]?.trim().replace(/\s+/g, " ").slice(0, 80) ?? "");
 }
 
 // The person's steps done again where they took the flow over, recorded as the flow is, the pointer gliding to each: as
@@ -730,7 +746,10 @@ async function walkOn(flow: Underway, walk: Walk) {
   };
   await look();
   for (const did of walk.did) {
+    const instead = await somethingElse(flow.page, did);
+    if (instead) walked.instead = instead;
     try {
+      if (instead !== undefined) throw new Error();
       await doAgain(flow.page, did);
     } catch {
       walked.stopped = did.what || did.on;

@@ -1645,9 +1645,11 @@ function forksIn(notes: Note[]): Fork[] {
   return [...longest.values()];
 }
 
-// A step of yours a walk couldn't do, as you'd say it.
-function couldntDo({ what }: Did): string {
-  return `Your steps stop here: ${what ? `“${what}”` : "what you did next"} isn’t there any more.`;
+// A step of yours a walk couldn't do, as you'd say it: true whether what you did it on went, moved or says something
+// else now.
+function couldntDo({ does, what }: Did): string {
+  const how = does === "fill" || does === "type" ? "typed into it" : does === "selectOption" ? "chose from it" : "clicked it";
+  return `Your steps stop here: ${what ? `“${what}”` : "what you did next"} isn’t where you ${how} any more.`;
 }
 
 // The forks walked again for a round, from where its answers to notes made in the app were placed.

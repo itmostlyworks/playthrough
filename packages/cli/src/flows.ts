@@ -36,8 +36,8 @@ export type DoneOn = Record<string, (On | null)[]>;
 // on looked for, by its path.
 export type Walk = { flow: string; step: string; actions?: number; did: Did[]; look: { after: number; css?: string }[] };
 // How far it got, in seconds of its recording: when their steps began, when each was done, and what each note is on, by
-// its node in the recording; and the step it couldn't do, by its words.
-export type Walked = { from: number; done: number[]; found: (number | null)[]; stopped?: string };
+// its node in the recording; and the step it couldn't do, by its words, with what was in its place instead, if anything.
+export type Walked = { from: number; done: number[]; found: (number | null)[]; stopped?: string; instead?: string };
 export const WALKED = "walked.json";
 
 // Where a person takes a flow over: the end of one of its steps, or of the whole flow, or within a step, after as many of
