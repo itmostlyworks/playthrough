@@ -34,6 +34,11 @@ THE LOOP
 
 The person can only judge what the flows show, so keep them true to how a person uses the app.
 
+A bug you can't make happen is still a round to hand over: record the flow that does what the report says, give it a
+"line" in round.json saying you couldn't make it happen and how you tried, and hand it over. The person can take the
+flow over where it goes wrong and show you: what they do there comes back as a note made in the app, and record walks it
+again every round, so you see the bug and they see your fix.
+
 THE APP
 
 The first time, add playthrough to the app's devDependencies with the app's own package manager, and run
