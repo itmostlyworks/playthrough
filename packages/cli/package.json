@@ -1,6 +1,6 @@
 {
   "name": "playthrough",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Review what your coding agent built in your web app by watching recordings of it.",
   "keywords": [
     "coding-agent",
