@@ -849,15 +849,24 @@ export function Stage(props: Props) {
     return () => clearInterval(ticking);
   }, [due]);
   // Made ready unseen, the app may put its text cursor where the recording had it, which would take the keyboard: it
-  // stays with the review until you're in the app, and goes into it as you are.
+  // stays with the review until you're in the app, and goes into it as you are. What had it gets it back, as a note
+  // you're writing, which would otherwise lose what you type next.
   useEffect(() => {
+    let yours: Element | undefined;
+    const had = (event: FocusEvent) => void (event.target instanceof Element && !event.target.closest("[data-live]") && (yours = event.target));
     const kept = () =>
       setTimeout(() => {
         const app = document.activeElement;
-        if (app instanceof HTMLIFrameElement && app.closest("[data-live]") && !open.current) app.blur();
+        if (!(app instanceof HTMLIFrameElement && app.closest("[data-live]") && !open.current)) return;
+        app.blur();
+        if (yours instanceof HTMLElement && yours.isConnected) yours.focus({ preventScroll: true });
       });
+    addEventListener("focusin", had);
     addEventListener("blur", kept);
-    return () => removeEventListener("blur", kept);
+    return () => {
+      removeEventListener("focusin", had);
+      removeEventListener("blur", kept);
+    };
   }, []);
   // Your hand, drawn where it is in the frame, over the app or over the part of it not yet opened.
   const handTo = (at: { x: number; y: number }, inside: boolean, text: boolean) => {
