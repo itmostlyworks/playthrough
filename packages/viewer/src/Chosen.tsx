@@ -8,7 +8,7 @@ import { Answer, mac, tick, Time, useHold } from "./Card.tsx";
 import { when, type Diamond } from "./changes.ts";
 import { ink, type Shown, type Standing } from "./notes.ts";
 import type { Step } from "./Step.tsx";
-import { opened } from "./Notes.tsx";
+import { opened, quiet } from "./Notes.tsx";
 import { useNow, type Playhead } from "./playhead.ts";
 
 export type Props = {
@@ -229,34 +229,42 @@ const asksMark = "absolute top-4 left-4 z-1 size-[18px]";
 const keepKeys = (event: { preventDefault: () => void }) => event.preventDefault();
 
 // A change's card, opened from its pin, beside it: its diamond, who says why, and its time, which goes to it again, and
-// under them why it's there, in the agent's words, or the note it was made for. What changed isn't put in words: the
-// recording marks it, and Compare, on the bar, shows what it was. One seen only in the pictures, which the agent wasn't
-// asked about, has nothing said. Your note on it grows out of it: your words under its name, the note's colour a dot on
-// its diamond; else Note on this.
+// under them why it's there, in the agent's words. Made for a note, it's that note's answer seen here: the note, one line
+// as the notes list has it, going to it, where it's judged, then the agent's answer to it, which is the why. What changed
+// isn't put in words: the recording marks it, and Compare, on the bar, shows what it was. One seen only in the pictures,
+// which the agent wasn't asked about, has nothing said. Your note on it grows out of it: your words under its name; else
+// Note on this. Its diamond carries the colour of the note it's for, as its pin does.
 function ChangeCard(props: Props & { diamond: Diamond; yours: Shown[] }) {
   const { diamond, yours, notes, onNote } = props;
   const changed = diamond.changes.find(({ change }) => change.id === props.one);
   const note = changed?.note && notes.find((note) => note.id === changed.note);
+  const answer = note ? note.turns.findLast((turn) => turn.agent) : undefined;
+  const [who, why] = note ? [answer?.by ?? changed?.by, answer?.words] : [changed?.line && changed.by, changed?.line];
+  const dot = yours[0] ?? note;
   return (
     <div data-open="" className={`relative ${opened}`} onPointerEnter={() => props.onWhy(true)} onPointerLeave={() => props.onWhy(false)}>
       <button className="grid w-full grid-cols-[18px_minmax(0,1fr)] gap-2 py-1.5 pr-2.5 pl-[18px] text-left" onMouseDown={keepKeys} onClick={(event) => ((event.target as Element).closest("[data-time]") ? props.onDiamond(diamond) : props.onClose())} aria-expanded>
         <span data-mark className="relative z-1 mt-px grid size-[18px] place-items-center">
           <i className="size-2 rotate-45 bg-ground shadow-[inset_0_0_0_1.5px_var(--fg),0_0_0_2.5px_var(--ground)]" />
-          {yours[0] && <b className="absolute top-[calc(50%-8px)] left-[calc(50%+2px)] size-1.5 rounded-full shadow-[0_0_0_1.5px_var(--ground)]" style={{ background: ink(yours[0]) }} />}
+          {dot && <b className="absolute top-[calc(50%-8px)] left-[calc(50%+2px)] size-1.5 rounded-full shadow-[0_0_0_1.5px_var(--ground)]" style={{ background: ink(dot) }} />}
         </span>
         <span className="block text-[11.5px] leading-5 text-faint">
           <Time open className="float-right ml-2">{when(diamond)}</Time>
-          <span>{note ? `For your note ${note.number}` : changed?.line ? changed.by : "Changed here"}</span>
+          <span>{who ?? "Changed here"}</span>
         </span>
       </button>
       <div className="grid pr-3.5 pl-[44px]">
-        {note ? (
-          <button className="-mx-[3px] rounded px-[3px] text-left leading-normal text-fg transition-colors duration-150 ease-calm hover:bg-line" onClick={() => onNote(note)}>
-            {note.turns[0]?.words}
+        {note && (
+          <button
+            className="-mx-[3px] mb-1 flex min-w-0 items-center gap-1.5 rounded px-[3px] text-left text-[12.5px] leading-[18px] text-soft transition-colors duration-150 ease-calm hover:bg-line hover:text-fg"
+            style={{ "--c": ink(note) } as CSSProperties}
+            onClick={() => onNote(note)}
+          >
+            <span className={`size-4 flex-none rounded-full text-center text-[9px] leading-4 font-semibold ${quiet}`}>{note.number}</span>
+            <span className="truncate">{note.turns[0]?.words}</span>
           </button>
-        ) : (
-          changed?.line && <p className="leading-normal whitespace-pre-wrap text-fg">{changed.line}</p>
         )}
+        {why && <p className="leading-normal whitespace-pre-wrap text-fg">{why}</p>}
       </div>
       {yours.map((note) => props.note(note, true))}
       {!yours.length && (

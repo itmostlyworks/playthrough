@@ -13,7 +13,7 @@ import { useNow, type Playhead } from "./playhead.ts";
 export const number = "size-[18px] flex-none rounded-full text-center text-[10px] leading-[18px] font-semibold";
 // A note's number says where it stands in its colour: quiet at rest, and real while it's open or on screen, as its pin
 // is.
-const quiet = "bg-[color-mix(in_srgb,var(--c)_18%,var(--ground))] text-[color-mix(in_srgb,var(--c)_80%,var(--fg))]";
+export const quiet = "bg-[color-mix(in_srgb,var(--c)_18%,var(--ground))] text-[color-mix(in_srgb,var(--c)_80%,var(--fg))]";
 const real = "bg-(--c) text-white";
 // How long past its moment a note is on screen, as its pin is.
 const SHOWN_FOR = 1.5;
