@@ -1,7 +1,8 @@
 // What's new to you on a round, as the timeline and a change's card show it: a diamond at each moment something
 // changed in a flow, several changes at one moment being one diamond, and steps a flow takes that it couldn't before as
-// one, over the stretch they take. A change the agent made for a note in the same flow is that note's answer, told with
-// the note rather than on its own; made for a note in another flow, it's a change like any other, which says so.
+// one, over the stretch they take. A change the agent made for a note on a moment in the same flow is that note's answer,
+// told with the note rather than on its own; made for a note on the whole flow, which is answered at its end, or in
+// another flow, it's a change like any other, met where it happened, which says so.
 
 import { allNotes, newToYou, time, type Change, type Place, type Review } from "@playthrough/review";
 import type { Moment } from "./moments.ts";
@@ -28,7 +29,8 @@ export function diamondsOn(review: Review, round: number, you: string): Diamond[
     const account = said?.accounts[change.id];
     const note = account && "note" in account ? account.note : undefined;
     const line = account && "line" in account ? account.line : undefined;
-    const told: Changed = { change, on, since, line, by: said?.by, note, answers: !!note && notes.get(note)?.note.on?.flow === on.flow };
+    const asked = note === undefined ? undefined : notes.get(note)?.note.on;
+    const told: Changed = { change, on, since, line, by: said?.by, note, answers: asked?.flow === on.flow && asked.at !== undefined };
     const together = on.until === undefined && diamonds.find((diamond) => diamond.flow === on.flow && diamond.until === undefined && Math.abs(diamond.at - on.at!) < TOGETHER);
     if (together) together.changes.push(told);
     else diamonds.push({ id: change.id, flow: on.flow, at: on.at, until: on.until, changes: [told] });
@@ -48,6 +50,8 @@ function nameOf(changes: Changed[]): string {
 
 // What the agent changed for a note, in the note's own flow.
 export const answersTo = (diamonds: Diamond[], note: string): Changed[] => diamonds.flatMap((diamond) => diamond.changes.filter((changed) => changed.answers && changed.note === note));
+// The moments the agent changed something for a note.
+export const madeFor = (diamonds: Diamond[], note: string): Diamond[] => diamonds.filter((diamond) => diamond.changes.some((changed) => changed.note === note));
 
 // Your note on what changed, at its moment, on what it's on, or on the first of new steps, on nothing in particular: it
 // grows out of the change's row, so the change and what you said about it are one row, one card and one mark.

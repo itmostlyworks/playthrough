@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { list, time, type Turn, type Verdict } from "@playthrough/review";
 import { Answer, Compare, mac, play, Said, TakeOverHere, tick, Time } from "./Card.tsx";
-import type { Changed } from "./changes.ts";
+import { when, type Diamond } from "./changes.ts";
 import { ink, type Shown } from "./notes.ts";
 import { useNow, type Playhead } from "./playhead.ts";
 
@@ -17,9 +17,6 @@ const quiet = "bg-[color-mix(in_srgb,var(--c)_18%,var(--ground))] text-[color-mi
 const real = "bg-(--c) text-white";
 // How long past its moment a note is on screen, as its pin is.
 const SHOWN_FOR = 1.5;
-// An answer lists up to this many changes whole; more, one fewer and how many more.
-const LISTED = 4;
-
 // Compare in a note's card, as quiet as the words around it.
 const quietly = "-my-0.5 -mr-1.5 inline-flex flex-none items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs text-soft transition-colors duration-150 ease-calm select-none enabled:hover:text-fg disabled:cursor-default disabled:text-faint aria-pressed:bg-hover aria-pressed:text-fg";
 
@@ -40,8 +37,6 @@ type Props = {
   fresh: boolean;
   you: string;
   readOnly: boolean;
-  // What the agent changed for it, in its flow: listed only on the whole flow, where nothing marks it.
-  answers: Changed[];
   compare?: Comparing;
   // Made in the app on an earlier round, it's checked by trying it: taken over where you were, in Compare's place, or
   // without onTakeOver, said plainly that this round's recording doesn't go there.
@@ -63,9 +58,10 @@ type Props = {
   onUnfinished: (words: string | undefined) => void;
   onJudge: (verdict: Verdict | undefined) => void;
   onEdit: (words: string | undefined) => void;
-  // On the whole flow, each change made for it, at its moment, and going there.
-  seen?: (changed: Changed) => number | undefined;
-  onVisit?: (changed: Changed) => void;
+  // On the whole flow, the moments the agent changed something for it, each going there as its diamond on the timeline
+  // does.
+  changedAt?: Diamond[];
+  onDiamond?: (diamond: Diamond) => void;
   onPlayOn: () => void;
   onShow: () => void;
 };
@@ -106,28 +102,23 @@ export function NoteRow(props: Props) {
   );
 }
 
-// What the agent changed for a note on the whole flow, each under a small hollow diamond, as the timeline draws a change:
-// they happened along it, not at its end where they're listed, so each says when, as a note's line does, and goes there.
-function Listed({ answers, className, seen, onVisit }: { answers: Changed[]; className: string; seen?: (changed: Changed) => number | undefined; onVisit: (changed: Changed) => void }) {
-  const shown = answers.length > LISTED ? answers.slice(0, LISTED - 1) : answers;
+// What the agent changed for a note on the whole flow happened along it, not at its end where it's answered: each moment
+// is its diamond and time, as the timeline draws it, and goes there, where the recording marks what changed. What
+// changed isn't put in words.
+function Moments({ diamonds, onDiamond }: { diamonds: Diamond[]; onDiamond: (diamond: Diamond) => void }) {
   return (
-    <span className={`grid gap-px ${className}`}>
-      {shown.map((changed) => {
-        const at = seen?.(changed);
-        return (
-          <button
-            key={changed.change.id}
-            className="group/row -mx-1.5 grid grid-cols-[6px_minmax(0,1fr)_auto] items-baseline gap-x-2 rounded-md px-1.5 py-px text-left text-fg transition-colors duration-150 ease-calm hover:bg-hover"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => onVisit(changed)}
-          >
-            <i className="size-1.5 flex-none translate-y-[-1px] rotate-45 shadow-[inset_0_0_0_1.5px_var(--soft)]" aria-hidden />
-            <span className="min-w-0">{changed.change.words}</span>
-            {at !== undefined && <Time className="text-faint">{time(at)}</Time>}
-          </button>
-        );
-      })}
-      {shown.length < answers.length && <span className="pl-[15px]">{answers.length - shown.length} more changes</span>}
+    <span className="-mt-1 -ml-1.5 flex flex-wrap gap-0.5">
+      {diamonds.map((diamond) => (
+        <button
+          key={diamond.id}
+          className="inline-flex h-5 items-center gap-1.5 rounded-[10px] px-1.5 text-xs text-soft tabular-nums transition-colors duration-150 ease-calm hover:bg-hover hover:text-fg"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => onDiamond(diamond)}
+        >
+          <i className="size-1.5 rotate-45 shadow-[inset_0_0_0_1.5px_currentColor]" aria-hidden />
+          {when(diamond)}
+        </button>
+      ))}
     </span>
   );
 }
@@ -229,7 +220,7 @@ function Card(props: Props) {
                 {turn.words}
               </Said>
             )}
-            {i === lastAgent && props.onVisit && props.answers.length > 0 && <Listed answers={props.answers} className="-mt-0.5 leading-normal" seen={props.seen} onVisit={props.onVisit} />}
+            {i === lastAgent && props.onDiamond && !!props.changedAt?.length && <Moments diamonds={props.changedAt} onDiamond={props.onDiamond} />}
           </div>
         ))}
         {note.state === "with someone else" && !readOnly && <p className="text-xs leading-[18px] text-slate">Waiting for {list(note.waitingFor)}</p>}
