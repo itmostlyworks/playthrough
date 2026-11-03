@@ -108,8 +108,14 @@ export function Work(props: Props) {
     if (Math.abs(top - room.scrollTop) > 1) ((steering.current = true), room.scrollTo({ top, behavior: "smooth" }));
     return true;
   };
-  const now = useRef({ busy, move });
-  now.current = { busy, move };
+  const now = useRef({ busy, move, active });
+  now.current = { busy, move, active };
+  // A verdict lands where it was said, and the way goes on from there, unless you've gone on already.
+  const goOn = (flow: string) => {
+    const there = () => props.room.current?.querySelector<HTMLElement>(`[data-situation="${CSS.escape(flow)}"]`)?.dataset.stop;
+    const was = there();
+    window.setTimeout(() => !now.current.busy && now.current.active === flow && there() === was && now.current.move(1), LANDS);
+  };
   useLayoutEffect(() => {
     const room = props.room.current;
     if (!room) return;
@@ -216,6 +222,7 @@ export function Work(props: Props) {
               go={go?.round === round.number && go.flow === flow.name ? go : undefined}
               resting={!!inApp && inApp !== flow.name}
               onPointerDown={() => !busy && setActive(flow.name)}
+              onSaid={() => goOn(flow.name)}
             />
           ))}
         </div>
@@ -261,6 +268,8 @@ type SituationProps = {
   go?: { stop: number };
   resting: boolean;
   onPointerDown: () => void;
+  // A verdict said on it: an answer judged, or Looks good at the end of the way.
+  onSaid: () => void;
 };
 
 function Situation(props: SituationProps) {
@@ -289,7 +298,7 @@ function Situation(props: SituationProps) {
     ]),
   ];
   // And last, where it can be said, whether it looks good to you: the way ends in it.
-  const looksGood = standing && onLooksGood && JUDGED.includes(standing.is) ? { good: standing.is === "good", onPress: () => onLooksGood(flow.name) } : undefined;
+  const looksGood = standing && onLooksGood && JUDGED.includes(standing.is) ? { good: standing.is === "good", onPress: () => (onLooksGood(flow.name), standing.is !== "good" && props.onSaid()) } : undefined;
   const last = stops.length - (looksGood ? 0 : 1);
   const waiting = notes.find((note) => note.toJudge && momentOf(note) !== undefined);
   const [clock] = useState(() => new Clock(waiting ? Math.min(momentOf(waiting)!, end) : results[0]!));
@@ -483,7 +492,7 @@ function Situation(props: SituationProps) {
               away={false}
               onAsking={(on) => setAsking(on ? note.id : undefined)}
               onUnfinished={(words) => threads.onUnfinished(note.id, words)}
-              onJudge={(verdict) => threads.onJudge(note, verdict)}
+              onJudge={(verdict) => (threads.onJudge(note, verdict), verdict && props.onSaid())}
               onEdit={(words) => threads.onEdit(note.id, words)}
               onShow={() => {}}
             />
@@ -702,6 +711,8 @@ const STILL = 200;
 // the wheel; and how soon the next stop of a long turn comes after the one before, in milliseconds.
 const STRIDE = 110;
 const PACE = 120;
+// How long a verdict is seen where it was said before the way goes on, in milliseconds.
+const LANDS = 600;
 
 // Where the page is scrolled to for a situation to be at the window's top.
 const topOf = (room: HTMLElement, situation: HTMLElement) => room.scrollTop + situation.getBoundingClientRect().top - room.getBoundingClientRect().top;
