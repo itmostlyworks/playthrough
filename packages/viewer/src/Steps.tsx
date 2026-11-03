@@ -46,7 +46,8 @@ type Props = {
   // Taken over: the app is yours, and what plays the recording rests; the stop you're on stays lit, where you took it
   // over, and what you say there answers.
   resting?: boolean;
-  // The round you last said something about it on, since when steps kept together have nothing new; and opening them.
+  // The round you last said something about it on, since when steps kept together have nothing new; with none, they're as
+  // they were before the work. And opening them.
   since?: number;
   onUnfold: (stop: number) => void;
 };
@@ -165,7 +166,7 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
                 className={`block w-full text-left text-[14px] leading-5 transition-colors duration-300 ease-calm outline-none hover:text-fg focus-visible:text-fg ${here ? "text-fg" : "text-soft"}`}
                 onClick={() => onStop(k)}
               >
-                Nothing new since round {since}
+                {since === undefined ? "Same as before" : `Nothing new since round ${since}`}
               </button>
               <div className={folding(here)}>
                 <div inert={!here} className={fading(here)}>

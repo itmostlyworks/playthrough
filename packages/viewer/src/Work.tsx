@@ -303,12 +303,13 @@ function Situation(props: SituationProps) {
   ];
   // A step's result, where it rests once it has played.
   const results = flow.steps.map((_, i) => stepEnd(flow, i) - 0.05);
-  // Seen on a round before, as you said something about it then, its steps with nothing new to you since are kept
-  // together: nothing changed in them, no answer waits in them, nothing of yours is unsent there.
+  // Its steps with nothing new to you are kept together: seen on a round before, as you said something about it then,
+  // nothing changed in them since; else, the work changed nothing in them, as Before shows. And no answer waits in them,
+  // nothing of yours is unsent there.
   const since = lastLooked(review, threads.you, flow.name, round.number);
   const [unfolded, setUnfolded] = useState<number[]>([]);
   const together = (step: number) =>
-    since !== undefined &&
+    (since !== undefined || !!before?.flows.some((one) => one.name === flow.name)) &&
     !unfolded.includes(step) &&
     !diamonds.some((diamond) => diamond.row && stepOf(Math.min(diamond.at, end)) === step) &&
     !notes.some((note) => momentOf(note) !== undefined && stepOf(Math.min(momentOf(note)!, end)) === step && (note.toJudge || note.unsent)) &&
