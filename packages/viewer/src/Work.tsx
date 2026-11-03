@@ -11,10 +11,11 @@ import { EndMark } from "./Chosen.tsx";
 import { clamp } from "./moments.ts";
 import { fill, ink, unchangedSince, type Shown, type Standing } from "./notes.ts";
 import { HOLD, Said } from "./Card.tsx";
-import { asWho } from "./people.ts";
+import { asWho, personAt } from "./people.ts";
+import { Portal } from "./Portal.tsx";
 import { recorded, type Scrolled } from "./replay.ts";
 import type { CloseUp } from "./flight.ts";
-import { Clock, Player, type Mark, type Placed } from "./Player.tsx";
+import { Clock, Player, useCut, type Mark, type Placed } from "./Player.tsx";
 import type { Diamond } from "./changes.ts";
 import { Conversation } from "./Notes.tsx";
 import { Pinned, type Pin } from "./Pinned.tsx";
@@ -59,7 +60,7 @@ export type Acting = {
   onRest: (flow: string, at: number) => void;
   onClose: () => void;
   // Taken over: the app made ready unseen, being made ready as you wait, or yours.
-  live?: { flow: string; address?: string; shown: boolean; inApp: boolean };
+  live?: { flow: string; address?: string; shown: boolean; inApp: boolean; due?: number; at?: { x: number; y: number } };
   // The note you're writing on a recording: its number, and its card.
   writing?: { note: Note; number: number; card: ReactNode };
   // The note opened last: a note saved stays open.
@@ -91,7 +92,7 @@ export function Work(props: Props) {
   return (
     <div ref={props.room} inert={!up} className={`absolute inset-0 z-20 bg-ground transition-[opacity,visibility] duration-240 ease-calm ${inApp ? "overflow-hidden" : "overflow-y-auto"} ${up ? "visible opacity-100" : "invisible opacity-0"}`}>
       {/* As wide as a situation's recording can be with its name over it, the bar and its steps under it, and the foot, on the screen. */}
-      <div className="mx-auto w-full max-w-[min(1320px,max(760px,calc((100dvh_-_250px)_*_1.6_+_64px)))] px-8 pt-8 pb-4 phone:px-0 phone:pt-2">
+      <div className="mx-auto w-full max-w-[min(1320px,max(760px,calc((100dvh_-_265px)_*_1.6_+_64px)))] px-8 pt-8 pb-4 phone:px-0 phone:pt-2">
         <header className="max-w-[680px]">
           <h2 className="text-[20px] leading-[27px] font-semibold tracking-[-0.01em] text-balance">{review.title}</h2>
           {review.asked && <p className="mt-2 text-[14px] leading-[22px] text-soft">{review.asked}</p>}
@@ -187,6 +188,9 @@ function Situation(props: SituationProps) {
   const [clock] = useState(() => new Clock(waiting ? Math.min(momentOf(waiting)!, end) : stops.length ? Math.max(...stops.map((stop) => stop.at)) : end));
   const [at, setAt] = useState(clock.at);
   const [playing, setPlaying] = useState<{ until: number }>();
+  // Dragged along its steps, it goes where you are, and nothing else is drawn again until you let go.
+  const [scrubbing, setScrubbing] = useState(false);
+  const cut = useCut(review.id, round.number, flow);
   const [met, setMet] = useState<string[]>(waiting ? [waiting.id] : []);
   // Open beside its thing: on arriving, the answer waiting on you; then what you open, or what playing stopped at.
   const [picked, setPicked] = useState(waiting?.id);
@@ -223,6 +227,13 @@ function Situation(props: SituationProps) {
     return then.steps[there]!.at + u * (stepEnd(then, there) - then.steps[there]!.at);
   };
   const [side, setSide] = useState(false);
+  // Before stays while it goes, as it came.
+  const [beside, setBeside] = useState(false);
+  useEffect(() => {
+    if (side) return setBeside(true);
+    const gone = setTimeout(() => setBeside(false), 450);
+    return () => clearTimeout(gone);
+  }, [side]);
   const [peek, setPeek] = useState(false);
   const holding = useRef<number>(undefined);
   const peeked = useRef(false);
@@ -263,7 +274,7 @@ function Situation(props: SituationProps) {
   useEffect(() => void (noting && playing && pause()), [noting]);
   // At rest on the situation you're on, that's where Take over takes it over.
   const restsAt = Math.round(at * 100) / 100;
-  const resting = active && !playing && !taken;
+  const resting = active && !playing && !scrubbing && !taken;
   useEffect(() => void (resting && acting.onRest(flow.name, restsAt)), [resting, restsAt]);
 
   // What's drawn is what's at this moment: in its step, the notes made there up to now, and what changed there.
@@ -296,42 +307,22 @@ function Situation(props: SituationProps) {
   const [asking, setAsking] = useState<string>();
   // On the line, each note's dot and each change's diamond, where they are.
   const onLine: OnLine[] = [
-    ...notes.flatMap((note) => (momentOf(note) === undefined ? [] : [{ id: note.id, at: momentOf(note)!, fill: fill(note) }])),
-    ...diamonds.filter((diamond) => diamond.row).map((diamond) => ({ id: diamond.id, at: Math.min(diamond.at, end) })),
+    ...notes.flatMap((note) => (momentOf(note) === undefined ? [] : [{ id: note.id, at: momentOf(note)!, fill: fill(note), words: note.turns[0]?.words ?? "Your note" }])),
+    ...diamonds.filter((diamond) => diamond.row).map((diamond) => ({ id: diamond.id, at: Math.min(diamond.at, end), words: diamond.name })),
   ];
 
   const frames = useFrames(review, round, flow, readings, (step) => changed.filter((on) => on.at !== undefined && stepOf(on.at) === step));
   const frame = side ? frames[step] : undefined;
-  // The app is the page the recording was made of, at its size, as wide as the picture.
-  const box = useRef<HTMLDivElement>(null);
-  const [wide, setWide] = useState(0);
-  useEffect(() => {
-    const shown = box.current;
-    if (!shown) return;
-    const watching = new ResizeObserver(() => setWide(shown.clientWidth));
-    watching.observe(shown);
-    return () => watching.disconnect();
-  }, [folded]);
+  // The app is the page the recording was made of, at its size, scrolled where the recording rests.
   const screen = readings?.find((one) => one.step === flow.steps[step]?.title)?.screen ?? { width: 1280, height: 800 };
-  // Handed to you, the app is scrolled where the recording rests, records what you do, and has your keys; given back,
-  // it's no longer yours.
-  const app = useRef<HTMLIFrameElement>(null);
   const scrolled = useRef<() => Scrolled>(undefined);
-  const yours = !!live?.inApp && !!live.shown;
-  useEffect(() => {
-    const there = app.current?.contentWindow;
-    if (!there) return;
-    if (yours) there.postMessage({ playthrough: "scroll", ...scrolled.current?.() }, "*");
-    there.postMessage({ playthrough: "yours", yours }, "*");
-    if (yours) app.current!.focus();
-  }, [yours]);
   // How it was, at the same moment: following this one as it plays.
   const beforeAt = thenAt(at);
   const was = (frame?: Frame) =>
     then && beforeAt !== undefined ? (
       <>
         <Still src={picture(review.id, 0, then.recording, thenStep)} frame={frame} />
-        <Player review={review.id} round={0} recording={then.recording} at={beforeAt} following={playing ? { clock, at: (moment) => thenAt(moment) ?? beforeAt } : undefined} frame={frame} />
+        <Player review={review.id} round={0} recording={then.recording} at={beforeAt} following={playing || scrubbing ? { clock, at: (moment) => thenAt(moment) ?? beforeAt } : undefined} frame={frame} />
       </>
     ) : (
       <span className="absolute inset-0 grid place-content-center bg-ground px-6 text-center text-[13px] leading-5 text-soft">{then ? "Before the work, there was no such step" : "New: there was nothing like it before"}</span>
@@ -387,16 +378,12 @@ function Situation(props: SituationProps) {
           </div>
         )}
       </div>
-      <div ref={box} className="relative">
+      <div className="relative">
         {/* A click plays it on and stops it, as Space does; noting, it notes what's under it. */}
-        <button
-          data-picture={flow.name}
-          className="relative block aspect-[1.6] w-full overflow-hidden rounded-lg bg-paper shadow-frame"
-          aria-label={playing ? `Pause ${flow.name}` : `Play ${flow.name}`}
-          onClick={playOn}
-        >
-          {/* Side by side, the two share the picture, each close on the step's part of the page: nothing moves. */}
-          <span className={`absolute inset-y-0 left-0 overflow-hidden ${side ? HALVES : "w-full"}`}>
+        <button data-picture={flow.name} className="relative block aspect-[1.6] w-full" aria-label={playing ? `Pause ${flow.name}` : `Play ${flow.name}`} onClick={playOn}>
+          {/* Side by side, Now narrows to its half of the picture as its view glides close on the step's part of the page,
+              and Before comes in beside it: nothing around them moves. */}
+          <span className={`${FRAMED} left-0 z-1 transition-[width] duration-450 ease-calm ${side ? HALVES : "w-full"}`}>
             <Still src={picture(review.id, round.number, flow.recording, step)} frame={frame} />
             <Player
               review={review.id}
@@ -404,7 +391,9 @@ function Situation(props: SituationProps) {
               recording={flow.recording}
               at={at}
               playing={playing}
+              cut={cut}
               clock={clock}
+              following={scrubbing ? { clock, at: (moment) => moment } : undefined}
               onStop={stopped}
               frame={frame}
               marks={marks}
@@ -413,35 +402,22 @@ function Situation(props: SituationProps) {
               onPlace={noting && !taken && !writing ? (on) => acting.onPlace({ flow: flow.name, at: restsAt, ...on }) : undefined}
               scrolled={scrolled}
             />
+            <span className={`${CHIP} transition-opacity duration-450 ease-calm ${side ? "" : "opacity-0"}`}>Now</span>
           </span>
-          {side && (
-            <>
-              <span className={`absolute inset-y-0 right-0 overflow-hidden ${HALVES}`}>{was(frame)}</span>
-              <span className={`${CHIP} left-2.5`}>Now</span>
-              <span className={`${CHIP} left-[calc(50%+11px)]`}>Before</span>
-            </>
+          {beside && (
+            <span className={`${FRAMED} right-0 ${HALVES} transition-opacity duration-450 ease-calm starting:opacity-0 ${side ? "" : "opacity-0"}`}>
+              {was(frame)}
+              <span className={CHIP}>Before</span>
+            </span>
           )}
           {peek && (
-            <span className="absolute inset-0 z-2">
+            <span className="absolute inset-0 z-2 animate-arrive overflow-hidden rounded-lg">
               {was()}
-              <span className={`${CHIP} left-2.5`}>Before</span>
+              <span className={CHIP}>Before</span>
             </span>
           )}
         </button>
-        {/* Made ready unseen, see-through rather than hidden, as a hidden frame from another address never settles. */}
-        {live?.address && (
-          <div data-live data-yours={yours || undefined} className={`absolute inset-0 z-10 overflow-hidden rounded-lg transition-opacity duration-300 ease-calm ${yours ? "" : "pointer-events-none opacity-0"}`}>
-            <iframe
-              ref={app}
-              key={live.address}
-              src={live.address}
-              title="The app, taken over"
-              className="absolute top-0 left-0 origin-top-left border-0 bg-paper"
-              style={{ width: screen.width, height: screen.height, transform: `scale(${wide / screen.width})` }}
-            />
-          </div>
-        )}
-        {taken && <div className={`pointer-events-none absolute inset-0 z-10 rounded-lg shadow-[inset_0_0_0_1.5px_rgba(217,162,58,0.75),inset_0_0_22px_rgba(217,162,58,0.16)] ${live.inApp ? "" : "animate-pulse"}`} />}
+        <Portal live={live} person={personAt(flow, restsAt)} screen={screen} scrolled={() => scrolled.current?.()} />
         {active && (
           <div className="absolute bottom-0 left-1/2 z-20 -translate-x-1/2 translate-y-1/2">
             <div className="animate-arrive">
@@ -459,8 +435,8 @@ function Situation(props: SituationProps) {
           </div>
         )}
         {!taken && !peek && (
-          <div className={`pointer-events-none absolute inset-y-0 left-0 ${side ? HALVES : "w-full"}`}>
-            <Pinned pins={pins} placed={placed?.view === view ? placed.at : {}} open={open} faded={!!playing || placed?.view !== view} onOpen={(id) => (writing && id !== writing.note.id ? acting.onClose() : setPicked(id))}>
+          <div className={`pointer-events-none absolute inset-y-0 left-0 z-1 transition-[width] duration-450 ease-calm ${side ? `${HALVES} overflow-hidden rounded-lg` : "w-full"}`}>
+            <Pinned pins={pins} placed={placed?.view === view ? placed.at : {}} open={open} faded={!!playing || scrubbing || placed?.view !== view} onOpen={(id) => (writing && id !== writing.note.id ? acting.onClose() : setPicked(id))}>
               {writing?.card}
               {!writing && opened && (
                 <Conversation
@@ -498,16 +474,31 @@ function Situation(props: SituationProps) {
           </div>
         )}
       </div>
-      <Steps flow={flow} clock={clock} at={at} marks={onLine} onPlay={playStep} onGo={go} className="mt-6" />
+      <Steps
+        flow={flow}
+        clock={clock}
+        at={at}
+        cut={cut}
+        marks={onLine}
+        onPlay={playStep}
+        onGo={go}
+        onMark={(id) => {
+          const mark = onLine.find((mark) => mark.id === id);
+          if (mark) (go(mark.at), setPicked(id));
+        }}
+        onScrub={(on) => (setScrubbing(on), on && (setPlaying(undefined), setPicked(undefined)))}
+        className="mt-6"
+      />
     </section>
   );
 }
 
 // What changed is outlined in the recording's own dark ink, as the frame drew it.
 const RECORDED_INK = "#2b2e35";
-// Side by side, each round's half of the picture, a line of the page between them; and what each is, at its top left.
-const HALVES = "w-[calc(50%-1px)]";
-const CHIP = "pointer-events-none absolute top-2.5 z-1 rounded-md bg-ground px-2 py-0.5 text-xs leading-4 text-soft shadow-tip";
+// A recording's picture; side by side, each round's half, with room between them; and what each is, at its top left.
+const FRAMED = "absolute inset-y-0 overflow-hidden rounded-lg bg-paper shadow-frame";
+const HALVES = "w-[calc(50%-8px)]";
+const CHIP = "pointer-events-none absolute top-2.5 left-2.5 z-1 rounded-md bg-ground px-2 py-0.5 text-xs leading-4 text-soft shadow-tip";
 
 // A picture that gives way to the next softly, the one before staying under it until the next has come.
 function Still({ src, frame }: { src: string; frame?: Frame }) {

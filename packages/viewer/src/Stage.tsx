@@ -19,6 +19,7 @@ import { recorded, Replay, shapeOf, type Shape } from "./replay.ts";
 import type { Live } from "./live.ts";
 import { roundName } from "./Rounds.tsx";
 import { holdersOf, pickAt, type Read } from "./things.ts";
+import { BREATH, CLOSING, COUNTED, HANDING, OPENING, PORTAL, say, shape, TAG } from "./Portal.tsx";
 import { ahead, around, between, centreOf, fitted, GLIDE, moved, type Held, type Size, type View } from "./view.ts";
 
 // What Playthrough draws on a round's recording, each on its thing, by its node in that round's recording, or on a spot or
@@ -1284,42 +1285,10 @@ const fit = (room: Size, shape: Size): Size => {
   return { width, height: Math.floor((width * shape.height) / shape.width) };
 };
 
-// The pointer's shape: the arrow, or the text cursor over words you can type into.
-function shape(hand: HTMLElement, text: boolean) {
-  hand.querySelector<SVGElement>("[data-arrow]")!.style.display = text ? "none" : "";
-  hand.querySelector<SVGElement>("[data-beam]")!.style.display = text ? "" : "none";
-}
-
-// A name changes in place: its pill grows or shrinks to the new words as they come in, warm once they're yours.
-function say(tag: HTMLElement, words: HTMLElement, said: string, mine = true, gently = true) {
-  const from = tag.getBoundingClientRect().width;
-  words.textContent = said;
-  if (mine) tag.dataset.mine = "";
-  else delete tag.dataset.mine;
-  if (!gently || !from) return;
-  const to = tag.getBoundingClientRect().width;
-  tag.animate([{ width: `${from}px` }, { width: `${to}px` }], { duration: 380, easing: PORTAL });
-  words.animate([{ opacity: 0, transform: "translateY(3px)" }, { opacity: 1, transform: "none" }], { delay: 90, duration: 280, easing: PORTAL, fill: "backwards" });
-}
-
 // Behind a flow's name over its picture, a glow of the page's own background, white unless it says otherwise, deepest
 // under the words and gone at its edges: over the page it's not seen, and over whatever the page has there, the name
 // reads (Kan's own centred “Join workspace”).
 export const HALO = "relative isolate before:pointer-events-none before:absolute before:-inset-x-20 before:-inset-y-12 before:-z-1 before:bg-[radial-gradient(closest-side,rgb(var(--veil,255_255_255)/.92)_40%,rgb(var(--veil,255_255_255)/0))] before:content-['']";
-
-// The name on a pointer, just below and right of its tip.
-const TAG = "absolute top-[17px] left-[13px] overflow-hidden rounded-full bg-[#2B2E35] px-[7px] font-ui text-[11px] leading-[17px] whitespace-nowrap text-white tabular-nums shadow-[0_1px_3px_rgba(0,0,0,0.25)]";
-
-// Opening into the app takes a breath, after the agent's pointer has come to yours; leaving it is quicker, as stepping
-// out is.
-const HANDING = 420;
-// The edge at the top of a breath, while it waits: deeper than while you're in the app, to be seen over any page.
-const BREATH = "inset 0 0 0 3px rgba(236,170,50,1), inset 0 0 70px 6px rgba(226,160,50,0.55)";
-const OPENING = 1050;
-const CLOSING = 560;
-const PORTAL = "cubic-bezier(0.22, 0.8, 0.24, 1)";
-// Taking over in less than this, there's no counting: it opens as soon as it would be read.
-const COUNTED = 1500;
 
 // The app is the page the recording was made of, at its size, moved and scaled as the recording is.
 const liveAt = (view: View, page: Size) => ({

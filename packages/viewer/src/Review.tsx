@@ -1475,7 +1475,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
                 playhead.go({ flow, at });
               },
               onClose: () => setOpen(undefined),
-              live: live && { flow: live.flow, address: live.address, shown: live.shown, inApp },
+              live: live && { flow: live.flow, address: live.address, shown: live.shown, inApp, due: live.due, at: live.at },
               writing: writing && !writing.on?.app ? { note: writing, number: nextNumber + draft.unsaved.indexOf(writing), card: writingCard(writing) } : undefined,
               opened: openNote?.id,
             }}
