@@ -197,6 +197,7 @@ export class Replay {
     this.host.className = "absolute top-0 left-0 origin-top-left [&_.replayer-mouse]:hidden [&_iframe]:pointer-events-none [&_iframe]:block [&_iframe]:border-0";
     this.#shape = this.shapes[0]!;
     Object.assign(this.host.style, { width: `${this.#shape.width}px`, height: `${this.#shape.height}px` });
+    this.host.dataset.replay = "";
     into.append(this.host);
     // Jumping, rrweb builds the page in a copy of its own first, and the page's own scroll never reached it: played on
     // from a stop, the page sat at its first scroll for a moment, then jumped down. Built in place, it's where it was.

@@ -30,6 +30,8 @@ type Props = {
   step?: Step;
   trouble: string[];
   onFlow: (flow: string, beat: Beat) => void;
+  // The flow you came back from, and where you were in it.
+  left?: { flow: string; at: number };
   arrived?: Round;
   working?: string;
   onRound: (round: number) => void;
@@ -68,6 +70,7 @@ export function Work(props: Props) {
               notes={props.notes.filter((note) => note.on?.flow === flow.name)}
               standing={props.standing(flow.name)}
               onFlow={props.onFlow}
+              left={props.left?.flow === flow.name ? props.left : undefined}
             />
           ))}
         </div>
@@ -87,11 +90,14 @@ export function Work(props: Props) {
 // A situation: whose it is and what they do, where it stands, and its steps, each a part the agent thought worth looking
 // at. One step shows at a time, as it is now beside how it was before the work, the two moving together: to start with,
 // the last step where something changed.
-function Situation({ review, round, before, flow, changed, readings, notes, standing, onFlow }: { review: Review; round: Round; before?: Round; flow: Flow; changed: Place[]; readings?: Reading[]; notes: Shown[]; standing?: Standing; onFlow: (flow: string, beat: Beat) => void }) {
+function Situation({ review, round, before, flow, changed, readings, notes, standing, onFlow, left }: { review: Review; round: Round; before?: Round; flow: Flow; changed: Place[]; readings?: Reading[]; notes: Shown[]; standing?: Standing; onFlow: (flow: string, beat: Beat) => void; left?: { flow: string; at: number } }) {
   const stepOf = (at: number) => Math.max(0, flow.steps.findIndex((_, i) => stepEnd(flow, i) >= at - 0.05));
   const changedAt = new Set(changed.flatMap((on) => (on.at === undefined ? [] : [stepOf(on.at)])));
   const notedAt = (step: number) => notes.filter((note) => note.on?.at !== undefined && stepOf(note.on.at) === step);
   const [chosen, setChosen] = useState(() => (changedAt.size ? Math.max(...changedAt) : flow.steps.length - 1));
+  // Back from watching it, it's on the step you were on.
+  const [cameBack, setCameBack] = useState(left);
+  if (left !== cameBack) (setCameBack(left), left && setChosen(stepOf(left.at)));
   const frames = useFrames(review, round, flow, readings, (step) => changed.filter((on) => on.at !== undefined && stepOf(on.at) === step));
   const then = before?.flows.find((one) => one.name === flow.name);
   const thenAt = (step: number) => then?.steps.findIndex((one) => one.title === flow.steps[step]?.title) ?? -1;
