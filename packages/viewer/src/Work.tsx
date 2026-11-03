@@ -1,8 +1,8 @@
-// The work, as one page: what was asked, then each situation it meets, as a still of how it ends, framed on what changed
-// there, with Before beside it. Pointing at one steps through how they got there; choosing it plays it in the frame.
-// At the end, how it got here, and the one step to take. Where you arrive, and what "All flows" brings you back to.
+// The work, as one page: what was asked, then each situation it meets, step by step, as it is now beside how it was
+// before the work. Choosing a step plays the flow from there in the frame. At the end, how it got here, and the one step
+// to take. Where you arrive, and what "All flows" brings you back to.
 
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 import type { Reading } from "@playthrough/page";
 import { time, type Flow, type Place, type Review, type Round } from "@playthrough/review";
 import { picture, recording } from "./api.ts";
@@ -27,7 +27,7 @@ type Props = {
   accepted?: string;
   step?: Step;
   trouble: string[];
-  onFlow: (flow: string) => void;
+  onFlow: (flow: string, at?: number) => void;
   arrived?: Round;
   working?: string;
   onRound: (round: number) => void;
@@ -82,26 +82,41 @@ export function Work(props: Props) {
   );
 }
 
-// A situation: whose it is and what they do, where it stands, and how it ends, now and before. The still is its end,
-// framed on the first thing the work changed that's still there; where none is, on what the flow worked on.
-function Situation({ review, round, before, flow, changed, readings, notes, standing, onFlow }: { review: Review; round: Round; before?: Round; flow: Flow; changed: Place[]; readings?: Reading[]; notes: Shown[]; standing?: Standing; onFlow: (flow: string) => void }) {
-  const result = flow.steps.length - 1;
-  const end = readings?.find((one) => one.step === flow.steps[result]?.title);
-  const first = changed
-    .filter((on) => on.at !== undefined)
-    .toSorted((a, b) => a.at! - b.at!)
-    .map((on) => framed(end, [on]))
-    .find(Boolean);
-  const acted = useActed(review, round, flow, first ? undefined : end);
-  const frame = first ?? acted;
-  const title = flow.steps[result]?.title;
+// A situation: whose it is and what they do, where it stands, and its steps, each a part the agent thought worth looking
+// at. One step shows at a time, as it is now beside how it was before the work, the two moving together: to start with,
+// the last step where something changed.
+function Situation({ review, round, before, flow, changed, readings, notes, standing, onFlow }: { review: Review; round: Round; before?: Round; flow: Flow; changed: Place[]; readings?: Reading[]; notes: Shown[]; standing?: Standing; onFlow: (flow: string, at?: number) => void }) {
+  const stepOf = (at: number) => Math.max(0, flow.steps.findIndex((_, i) => stepEnd(flow, i) >= at - 0.05));
+  const changedAt = new Set(changed.flatMap((on) => (on.at === undefined ? [] : [stepOf(on.at)])));
+  const notedAt = (step: number) => notes.filter((note) => note.on?.at !== undefined && stepOf(note.on.at) === step);
+  const [chosen, setChosen] = useState(() => (changedAt.size ? Math.max(...changedAt) : flow.steps.length - 1));
+  const frames = useFrames(review, round, flow, readings, (step) => changed.filter((on) => on.at !== undefined && stepOf(on.at) === step));
   const then = before?.flows.find((one) => one.name === flow.name);
-  // Before, at the same step, or as it ended where it never got that far.
-  const sameStep = then?.steps.findIndex((one) => one.title === title) ?? -1;
-  const thenStep = sameStep >= 0 || !then ? sameStep : then.steps.length - 1;
-  const same = !changed.length;
+  const thenAt = (step: number) => then?.steps.findIndex((one) => one.title === flow.steps[step]?.title) ?? -1;
+  // Pointed at, the step plays: the page as the step before left it, then as this one did, on both sides at once.
+  const [starting, setStarting] = useState(false);
+  const playing = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const play = () => {
+    clearTimeout(playing.current);
+    if (chosen === 0) return;
+    setStarting(true);
+    playing.current = setTimeout(() => setStarting(false), 700);
+  };
+  useEffect(() => () => clearTimeout(playing.current), []);
+  const choose = (step: number) => (clearTimeout(playing.current), setStarting(false), setChosen(step));
+  const tabs = useRef<(HTMLButtonElement | null)[]>([]);
+  const arrows = (event: KeyboardEvent<HTMLButtonElement>) => {
+    const by = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+    if (!by) return;
+    event.preventDefault();
+    tabs.current[clamp(chosen + by, 0, flow.steps.length - 1)]?.focus();
+  };
+  const frame = frames[chosen];
+  const shown = starting ? chosen - 1 : chosen;
+  const thenShown = thenAt(chosen) >= 0 ? thenAt(chosen) - (starting ? 1 : 0) : -1;
+  const here = notedAt(chosen);
   return (
-    <section className="grid gap-3.5">
+    <section className="grid gap-3">
       <div className="flex items-baseline justify-between gap-4 px-0.5">
         <h3 className="min-w-0 text-[15px] leading-[21px] font-semibold">
           {flow.name}
@@ -113,27 +128,59 @@ function Situation({ review, round, before, flow, changed, readings, notes, stan
           <span className="text-faint tabular-nums">· {time(flow.length)}</span>
         </span>
       </div>
-      <div className="grid grid-cols-2 gap-4 phone:grid-cols-1">
-        <Still review={review} round={round} flow={flow} result={result} frame={frame} notes={notes} onFlow={onFlow} />
-        {then && !same ? (
-          <figure className="grid gap-2">
+      <div role="tablist" aria-label={`The steps of ${flow.name}`} className="-mx-2 flex flex-wrap gap-0.5">
+        {flow.steps.map((step, i) => (
+          <button
+            key={i}
+            ref={(tab) => void (tabs.current[i] = tab)}
+            role="tab"
+            aria-selected={i === chosen}
+            tabIndex={i === chosen ? 0 : -1}
+            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[13px] leading-[18px] text-soft transition-colors duration-150 ease-calm hover:text-fg aria-selected:bg-hover aria-selected:text-fg"
+            onPointerEnter={() => choose(i)}
+            onFocus={() => choose(i)}
+            onKeyDown={arrows}
+          >
+            <span className="text-faint tabular-nums">{i + 1}</span>
+            {step.title}
+            {changedAt.has(i) && <i title="Changed here" className="size-[6px] flex-none rotate-45 bg-fg" />}
+            {notedAt(i).map((note) => <b key={note.id} className={`size-1.5 flex-none rounded-full ${fill(note)}`} />)}
+          </button>
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-4 phone:grid-cols-1" onPointerEnter={play}>
+        <figure className="grid gap-2">
+          <button
+            data-picture={flow.name}
+            className="relative block aspect-[1.6] overflow-hidden rounded-lg bg-paper shadow-frame transition-shadow duration-150 ease-calm hover:shadow-[0_0_0_1px_var(--edge),0_8px_24px_var(--drop)] data-flying:invisible"
+            aria-label={`Play ${flow.name} from ${flow.steps[chosen]?.title}`}
+            onClick={() => onFlow(flow.name, stepEnd(flow, chosen) - 0.12)}
+          >
+            <Still src={picture(review.id, round.number, flow.recording, shown)} frame={frame} />
+            {here.length > 0 && (
+              <span className="absolute top-2.5 left-2.5 flex gap-1">
+                {here.map((note) => (
+                  <span key={note.id} className={`grid size-5 place-content-center rounded-full text-[11px] leading-none font-semibold text-white ${fill(note)}`}>
+                    {note.number}
+                  </span>
+                ))}
+              </span>
+            )}
+          </button>
+          <figcaption className="px-0.5 text-xs leading-4 text-soft">Now</figcaption>
+        </figure>
+        <figure className="grid gap-2">
+          {then && thenShown >= 0 ? (
             <span className="relative block aspect-[1.6] overflow-hidden rounded-lg bg-paper shadow-frame">
-              {thenStep >= 0 ? (
-                <Picture shot={{ src: picture(review.id, 0, then.recording, thenStep), frame }} />
-              ) : (
-                <span className="absolute inset-0 grid place-content-center text-[13px] text-soft">Not in {roundName(0)}</span>
-              )}
+              <Still src={picture(review.id, 0, then.recording, thenShown)} frame={frame} />
             </span>
-            <figcaption className="px-0.5 text-xs leading-4 text-soft">Before</figcaption>
-          </figure>
-        ) : (
-          <figure className="grid gap-2 phone:hidden">
+          ) : (
             <span className="grid aspect-[1.6] place-content-center rounded-lg border border-dashed border-line px-6 text-center text-[13px] leading-5 text-soft">
-              {then ? "The same as before the work" : "New: there was nothing like it before"}
+              {then ? "Before the work, there was no such step" : "New: there was nothing like it before"}
             </span>
-            <figcaption className="px-0.5 text-xs leading-4 text-soft">Before</figcaption>
-          </figure>
-        )}
+          )}
+          <figcaption className="px-0.5 text-xs leading-4 text-soft">Before</figcaption>
+        </figure>
       </div>
       {notes.length > 0 && (
         <ul className="grid gap-1.5 px-0.5">
@@ -150,48 +197,50 @@ function Situation({ review, round, before, flow, changed, readings, notes, stan
   );
 }
 
-// How it ends, still; pointed at, how they got there, a step at a time, back to how it ends. Chosen, it plays.
-function Still({ review, round, flow, result, frame, notes, onFlow }: { review: Review; round: Round; flow: Flow; result: number; frame?: Frame; notes: Shown[]; onFlow: (flow: string) => void }) {
-  const [shown, setShown] = useState<number>();
-  const timer = useRef<ReturnType<typeof setInterval>>(undefined);
-  const stop = () => (clearInterval(timer.current), setShown(undefined));
-  const start = () => {
-    for (let i = 0; i <= result; i++) new Image().src = picture(review.id, round.number, flow.recording, i);
-    setShown(0);
-    clearInterval(timer.current);
-    timer.current = setInterval(() => setShown((at) => (at === undefined || at >= result ? (clearInterval(timer.current), undefined) : at + 1)), 750);
-  };
-  useEffect(() => () => clearInterval(timer.current), []);
-  const at = shown ?? result;
+// A picture that gives way to the next softly, the one before staying under it until the next has come.
+function Still({ src, frame }: { src: string; frame?: Frame }) {
+  const [under, setUnder] = useState(src);
+  const [over, setOver] = useState(src);
+  if (src !== over) (setUnder(over), setOver(src));
   return (
-    <figure className="grid gap-2">
-      <button
-        data-picture={flow.name}
-        className="group/still relative block aspect-[1.6] overflow-hidden rounded-lg bg-paper shadow-frame transition-shadow duration-150 ease-calm hover:shadow-[0_0_0_1px_var(--edge),0_8px_24px_var(--drop)] data-flying:invisible"
-        aria-label={`Play ${flow.name}`}
-        onPointerEnter={start}
-        onPointerLeave={stop}
-        onFocus={start}
-        onBlur={stop}
-        onClick={() => (stop(), onFlow(flow.name))}
-      >
-        <Picture key={at === result ? "result" : at} shot={{ src: picture(review.id, round.number, flow.recording, at), frame: at === result ? frame : undefined }} />
-        {notes.length > 0 && (
-          <span className="absolute top-2.5 left-2.5 flex gap-1">
-            {notes.map((note) => (
-              <span key={note.id} className={`grid size-5 place-content-center rounded-full text-[11px] leading-none font-semibold text-white ${fill(note)}`}>
-                {note.number}
-              </span>
-            ))}
-          </span>
-        )}
-        <span className="pointer-events-none absolute right-2.5 bottom-2.5 rounded-md bg-surface px-2 py-0.5 text-xs leading-4 text-soft opacity-0 shadow-tip transition-opacity duration-150 ease-calm group-hover/still:opacity-100 group-focus-visible/still:opacity-100">
-          {flow.steps[at]?.title}
-        </span>
-      </button>
-      <figcaption className="px-0.5 text-xs leading-4 text-soft">Now</figcaption>
-    </figure>
+    <>
+      <Picture key={`under ${under}`} shot={{ src: under, frame }} />
+      <span key={`over ${over}`} className="absolute inset-0 animate-arrive">
+        <Picture shot={{ src: over, frame }} />
+      </span>
+    </>
   );
+}
+
+// A step's end: the next one's start, or the flow's end. Its page is read there.
+const stepEnd = (flow: Flow, step: number) => flow.steps[step + 1]?.at ?? flow.length;
+
+// Each step's page framed on what changed there, or where nothing did, on what the step acted on: the last thing clicked
+// or typed in that's still there, and is a thing rather than a stretch of the page clicked away on.
+function useFrames(review: Review, round: Round, flow: Flow, readings: Reading[] | undefined, changedIn: (step: number) => Place[]): (Frame | undefined)[] {
+  const [acted, setActed] = useState<(Frame | undefined)[]>([]);
+  const readingAt = (step: number) => readings?.find((one) => one.step === flow.steps[step]?.title);
+  useEffect(() => {
+    let current = true;
+    if (readings)
+      recording(review.id, round.number, flow.recording).then((events) => {
+        const all = recorded(events).acted.toReversed();
+        const frames = flow.steps.map((step, i) => {
+          const reading = readingAt(i);
+          if (!reading) return undefined;
+          const { width, height } = reading.screen;
+          const box = all
+            .filter(([moment]) => moment >= step.at && moment <= stepEnd(flow, i))
+            .map(([, node]) => reading.things.find((thing) => thing.node === node))
+            .find((thing) => thing && thing.box.width * thing.box.height < (width * height) / 8)?.box;
+          return box && around(box, reading);
+        });
+        if (current) setActed(frames);
+      });
+    return () => void (current = false);
+  }, [review.id, round.number, flow.recording, !!readings]);
+  // On one thing that changed, the first found there, so the still is close enough to read.
+  return flow.steps.map((_, i) => changedIn(i).map((on) => framed(readingAt(i), [on])).find(Boolean) ?? acted[i]);
 }
 
 // Each round in a line: who recorded it, what was said about it, and what came of that.
@@ -229,28 +278,6 @@ function Story({ review, round, general }: { review: Review; round: Round; gener
   );
 }
 
-// The end, framed on what the flow worked on.
-function useActed(review: Review, round: Round, flow: Flow, reading: Reading | undefined): Frame | undefined {
-  const [frame, setFrame] = useState<Frame>();
-  const step = flow.steps.at(-1);
-  useEffect(() => {
-    let current = true;
-    if (reading && step)
-      recording(review.id, round.number, flow.recording).then((events) => {
-        // What the flow worked on before its last step, which is how it ends, saving or leaving: the last thing acted on
-        // that's still there, and is a thing rather than a stretch of the page clicked away on.
-        const { width, height } = reading.screen;
-        const small = (thing: Reading["things"][number]) => thing.box.width * thing.box.height < (width * height) / 8;
-        const acted = recorded(events).acted.toReversed();
-        const found = (moments: typeof acted) => moments.map(([, node]) => reading.things.find((thing) => thing.node === node)).find((thing) => thing && small(thing));
-        const box = (found(acted.filter(([moment]) => moment < step.at)) ?? found(acted))?.box;
-        if (current && box) setFrame(around(box, reading));
-      });
-    return () => void (current = false);
-  }, [review.id, round.number, flow.recording, !!reading]);
-  return frame;
-}
-
 // A still framed on what changed there, close enough to read: the things that changed, with room around them. The whole
 // page where nothing is found.
 function framed(reading: Reading | undefined, on: Place[]): Frame | undefined {
@@ -268,11 +295,11 @@ function framed(reading: Reading | undefined, on: Place[]): Frame | undefined {
   return around({ x: left, y: top, width: Math.max(...boxes.map((box) => box.x + box.width)) - left, height: Math.max(...boxes.map((box) => box.y + box.height)) - top }, reading);
 }
 
-// A part of the page with room around it, at most four and a half times as close as the whole page, in the page's own shape.
+// A part of the page with room around it, at most two and a half times as close as the whole page, in the page's own shape.
 function around(box: { x: number; y: number; width: number; height: number }, reading: Reading): Frame {
   const { width: across, height: down } = reading.screen;
   const [left, top, right, bottom] = [box.x, box.y, box.x + box.width, box.y + box.height];
-  const width = Math.min(across, Math.max(right - left + across * 0.08, ((bottom - top + down * 0.25) * across) / down, across / 4.5));
+  const width = Math.min(across, Math.max(right - left + across * 0.08, ((bottom - top + down * 0.25) * across) / down, across / 2.6));
   const height = (width * down) / across;
   const x = clamp((left + right) / 2 - width / 2, 0, across - width);
   const y = clamp((top + bottom) / 2 - height / 2, 0, down - height);

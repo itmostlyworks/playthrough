@@ -818,10 +818,10 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   const flying = useRef<{ taking: Taking; playing: boolean }>(undefined);
   const settling = useRef<number>(undefined);
   useEffect(() => () => clearTimeout(settling.current), []);
-  const leave = (name: string | undefined, playing: boolean) => {
+  const leave = (name: string | undefined, playing: boolean, at?: number) => {
     flying.current = { taking: takeOff(gridRoom.current!), playing };
     setGrid(false);
-    if (name) go(name);
+    if (name) go(name, at);
   };
   // A flow's end always offers a step: what's next, or with nothing left to do here, back to every flow, where the
   // round stands.
@@ -1592,7 +1592,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
             accepted={review.accepted || acceptedHere ? acceptedAfter : undefined}
             step={gridStep}
             trouble={trouble}
-            onFlow={(name) => leave(name, true)}
+            onFlow={(name, at) => leave(name, at === undefined, at)}
             arrived={arrived ? latest : undefined}
             working={working}
             onRound={toRound}
