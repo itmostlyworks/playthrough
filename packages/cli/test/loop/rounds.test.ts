@@ -142,7 +142,7 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
     const { said, code } = await waiting;
     assert.equal(code, 0);
     assert.match(said, /Ana says “See what's paid” looks good\./);
-    assert.match(said, new RegExp(`${note.id}  on “See what's overdue” at \\d:\\d\\d, the button “Overdue”\\n    As they saw it: \\.playthrough/overdue/rounds/2/files/notes/${note.id}\\.png\\n    Ana: The badge is hard to read\\.`));
+    assert.match(said, new RegExp(`${note.id}  on “See what's overdue”, in its step “[^”]+”, at \\d:\\d\\d, the button “Overdue”\\n    As they saw it: \\.playthrough/overdue/rounds/2/files/notes/${note.id}\\.png\\n    Ana: The badge is hard to read\\.`));
     assert.match(said, /Look at what each note is on, change the app, then record round 2: playthrough record overdue/);
     assert.equal((await app.file(2, `notes/${note.id}.png`)).subarray(1, 4).toString(), "PNG", "the page as they saw it, what the note is on outlined");
   });

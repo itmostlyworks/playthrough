@@ -73,7 +73,9 @@ export async function wait(repo: Repo, id: string) {
       });
       const picture = pictures.get(note);
       const kept = notes.get(note);
-      const from = kept?.note.on?.app && review.rounds.find((one) => one.number === kept.round)?.flows.find((flow) => flow.name === kept.note.on!.app!.from.flow);
+      // The flow as it was recorded when the note was made, whose steps say where in it the note is.
+      const on = kept?.note.on;
+      const from = on && review.rounds.find((one) => one.number === kept.round)?.flows.find((flow) => flow.name === (on.app?.from.flow ?? on.flow));
       console.log(`\n  ${note}  ${where(kept?.note.on, from)}${picture ? `\n    As they saw it: ${picture}` : ""}\n${turns.join("\n")}`);
     }
     if (asking.some((note) => notes.get(note)?.note.on?.app))
@@ -129,7 +131,9 @@ function where(place: Place | undefined, from?: Flow): string {
     const step = paused ? `, ${paused.actions ? `after ${paused.actions} of the actions in` : "at the end of"} its step “${paused.step}”` : "";
     return `on “${place.app.from.flow}”, in the app: they took the flow over at ${time(place.app.from.at)}${step}${did}${on}`;
   }
-  return `on “${place.flow}”${at}${on}`;
+  // On a recording, the step it's in names where, as the person sees the steps listed beside it.
+  const step = from && place.at !== undefined ? from.steps.findLast((step) => step.at <= place.at! + 0.05) : undefined;
+  return `on “${place.flow}”${step ? `, in its step “${step.title}”,` : ""}${at}${on}`;
 }
 
 // What a person did in the app, as they'd say it.
