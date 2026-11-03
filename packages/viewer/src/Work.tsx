@@ -59,7 +59,8 @@ export function Work(props: Props) {
   const [active, setActive] = useState(round.flows[0]?.name);
   return (
     <div ref={props.room} inert={!up} className={`absolute inset-0 z-20 overflow-y-auto bg-ground transition-[opacity,visibility] duration-240 ease-calm ${up ? "visible opacity-100" : "invisible opacity-0"}`}>
-      <div className="mx-auto w-full max-w-[1040px] px-8 wide:max-w-[1320px] pt-8 pb-4 phone:px-0 phone:pt-2">
+      {/* As wide as a situation's recording can be with its name over it and its steps under it, and the foot, on the screen. */}
+      <div className="mx-auto w-full max-w-[min(1320px,max(760px,calc((100dvh_-_230px)_*_1.6_+_64px)))] px-8 pt-8 pb-4 phone:px-0 phone:pt-2">
         <header className="max-w-[680px]">
           <h2 className="text-[20px] leading-[27px] font-semibold tracking-[-0.01em] text-balance">{review.title}</h2>
           {review.asked && <p className="mt-2 text-[14px] leading-[22px] text-soft">{review.asked}</p>}
@@ -206,8 +207,8 @@ function Situation(props: { review: Review; round: Round; before?: Round; flow: 
   useEffect(() => void (begins && (new Image().src = begins)), [begins]);
   if (folded)
     return (
-      <section className="grid wide:grid-cols-[260px_1fr] wide:gap-x-8">
-        <button className="flex items-baseline justify-between gap-4 px-0.5 text-left opacity-60 transition-opacity duration-150 ease-calm hover:opacity-100 wide:col-start-2" onClick={() => setFolded(false)} aria-expanded={false}>
+      <section className="grid">
+        <button className="flex items-baseline justify-between gap-4 px-0.5 text-left opacity-60 transition-opacity duration-150 ease-calm hover:opacity-100" onClick={() => setFolded(false)} aria-expanded={false}>
           <h3 className="min-w-0 text-[15px] leading-[21px] font-semibold text-balance">
             {flow.name}
             {asWho(flow) && <span className="font-normal text-soft"> {asWho(flow)}</span>}
@@ -220,8 +221,8 @@ function Situation(props: { review: Review; round: Round; before?: Round; flow: 
       </section>
     );
   return (
-    <section className="grid gap-3 wide:grid-cols-[260px_1fr] wide:gap-x-8 wide:gap-y-4" onPointerEnter={onActive}>
-      <div className="grid content-start gap-3 wide:col-start-2 wide:row-start-1">
+    <section className="grid gap-3" onPointerEnter={onActive}>
+      <div className="grid content-start gap-3">
         <div className="flex items-baseline justify-between gap-4 px-0.5">
           <h3 className="min-w-0 text-[15px] leading-[21px] font-semibold text-balance">
             {flow.name}
@@ -250,19 +251,7 @@ function Situation(props: { review: Review; round: Round; before?: Round; flow: 
           </div>
         )}
       </div>
-      <Steps
-        flow={flow}
-        chosen={chosen}
-        changed={fresh}
-        notedAt={notedAt}
-        progress={progress}
-        by="point"
-        onChoose={choose}
-        onPointerEnter={() => (setThrough(false), play())}
-        onPointerLeave={rest}
-        className="wide:col-start-1 wide:row-start-2 wide:self-start"
-      />
-      <div className="grid content-start gap-3 wide:col-start-2">
+      <div className="grid content-start gap-3">
         <div className={`grid gap-4 ${comparing ? "grid-cols-2 phone:grid-cols-1" : ""}`}>
           <figure className="grid content-start gap-2">
             <div className="relative">
@@ -323,6 +312,18 @@ function Situation(props: { review: Review; round: Round; before?: Round; flow: 
           )}
         </div>
       </div>
+      <Steps
+        flow={flow}
+        chosen={chosen}
+        changed={fresh}
+        notedAt={notedAt}
+        progress={progress}
+        by="point"
+        onChoose={choose}
+        onPointerEnter={() => (setThrough(false), play())}
+        onPointerLeave={rest}
+        className="mt-1"
+      />
     </section>
   );
 }
