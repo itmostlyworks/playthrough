@@ -277,13 +277,14 @@ function Situation(props: SituationProps) {
   const end = flow.length - 0.05;
   const stepOf = (at: number) => Math.max(0, flow.steps.findIndex((_, i) => stepEnd(flow, i) >= at - 0.05));
   // A note's moment: where it was made, or made in the app, where the app was taken over.
-  const momentOf = (note: Shown) => (note.on?.app ? note.on.app.from.at : note.on?.at);
-  // The note you're writing on it, at its moment: a stop like any other, where its words are written.
-  const writing = acting.writing?.note.on?.flow === flow.name && !acting.writing.note.on.app && acting.writing.note.on.at !== undefined ? acting.writing : undefined;
+  const momentOf = (note: { on?: Place }) => (note.on?.app ? note.on.app.from.at : note.on?.at);
+  // The note you're writing on it, here or in the app, at its moment: a stop like any other, where its words are written.
+  const writingAt = acting.writing?.note.on?.flow === flow.name ? momentOf(acting.writing.note) : undefined;
+  const writing = writingAt !== undefined ? acting.writing : undefined;
   // On the steps' lines, each note's dot and each change's diamond, where they are.
   const onLine: OnLine[] = [
     ...notes.flatMap((note) => (momentOf(note) === undefined ? [] : [{ id: note.id, at: Math.min(momentOf(note)!, end), fill: fill(note), words: note.turns[0]?.words ?? "Your note" }])),
-    ...(writing ? [{ id: writing.note.id, at: Math.min(writing.note.on!.at!, end), fill: "bg-amber", words: "Your new note" }] : []),
+    ...(writing ? [{ id: writing.note.id, at: Math.min(writingAt!, end), fill: "bg-amber", words: "Your new note" }] : []),
     ...diamonds.filter((diamond) => diamond.row).map((diamond) => ({ id: diamond.id, at: Math.min(diamond.at, end), words: diamond.name })),
   ];
   // A step's result, where it rests once it has played.
@@ -436,7 +437,7 @@ function Situation(props: SituationProps) {
   // And there, it's a click from being the app: pointing at it says so beside your pointer, as who it's done as. A
   // click on another situation's makes it the one you're on.
   const person = personAt(flow, restsAt);
-  const stepIn = resting && !live && !noting && acting.latest ? acting.onTakeOver : undefined;
+  const stepIn = resting && !live?.shown && !noting && acting.latest ? acting.onTakeOver : undefined;
   const [aiming, setAiming] = useState(false);
   const pill = useRef<HTMLSpanElement>(null);
   const armed = useRef(false);
@@ -465,7 +466,7 @@ function Situation(props: SituationProps) {
     ),
     ...answeredMarks,
     ...changedHere.flatMap(changedMarks),
-    ...(writing ? [{ id: writing.note.id, node: writing.note.on?.element?.node, point: writing.note.on?.point }] : []),
+    ...(writing ? [writing.note.on?.app ? { id: writing.note.id, name: writing.note.on.element?.name } : { id: writing.note.id, node: writing.note.on?.element?.node, point: writing.note.on?.point }] : []),
   ];
   const pins: Pin[] = [
     ...here.map((note) => ({ id: note.id, on: [note.id, ...(note.id === chosen ? answeredMarks.map((mark) => mark.id) : [])], ink: ink(note), number: note.number, fill: fill(note) })),
@@ -542,7 +543,7 @@ function Situation(props: SituationProps) {
   // At rest on a note or a change, the recording is close on what it's on, and on a step, it's the whole page as it
   // plays; side by side, it's the step's part of the page; and taken over, the whole page the app comes in as.
   const there = stops[stop];
-  const closeOn = !side && !live && there?.id !== undefined && there.at !== undefined && Math.abs(at - there.at) < 0.02 ? pins.find((pin) => pin.id === there.id)?.on : undefined;
+  const closeOn = !side && !live?.shown && there?.id !== undefined && there.at !== undefined && Math.abs(at - there.at) < 0.02 ? pins.find((pin) => pin.id === there.id)?.on : undefined;
   const view = `${at} ${side} ${closeOn?.join(" ") ?? ""}`;
   // The app is the page the recording was made of, at its size, scrolled where the recording rests.
   const screen = readings?.find((one) => one.step === flow.steps[step]?.title)?.screen ?? { width: 1280, height: 800 };
@@ -680,7 +681,7 @@ function Situation(props: SituationProps) {
             ends: what's longer scrolls in it rather than pushing the page down. */}
         <div ref={column} className="-mx-3 -mb-2 flex flex-col gap-5 overflow-x-hidden overflow-y-auto px-3 pb-2 contain-size phone:mx-0 phone:px-0 phone:contain-none">
           {flow.line && (
-            <div className="px-0.5 text-[13px]">
+            <div inert={taken} className={`px-0.5 text-[13px] transition-opacity duration-300 ease-calm ${taken ? "opacity-35" : ""}`}>
               <Said who={round.by}>{flow.line}</Said>
             </div>
           )}
@@ -694,6 +695,7 @@ function Situation(props: SituationProps) {
             marks={onLine}
             said={said}
             looksGood={looksGood}
+            resting={taken}
             onStop={toStop}
             onPoint={setLit}
             onScrub={(on) => (on && ((setPlaying(undefined), setPicked(undefined))), setScrubbing(on))}

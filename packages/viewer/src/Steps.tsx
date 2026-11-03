@@ -41,9 +41,12 @@ type Props = {
   onGo: (moment: number) => void;
   // The way's last stop, where it can be said: whether it looks good to you, and saying so or taking it back.
   looksGood?: { good: boolean; onPress: () => void };
+  // Taken over: the app is yours, and what plays the recording rests; the stop you're on stays lit, where you took it
+  // over, and what you say there answers.
+  resting?: boolean;
 };
 
-export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, onPoint, onScrub, onGo, looksGood }: Props) {
+export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, onPoint, onScrub, onGo, looksGood, resting }: Props) {
   const end = (step: number) => flow.steps[step + 1]?.at ?? flow.length;
   const stepOf = (moment: number) => Math.max(0, flow.steps.findIndex((_, step) => end(step) >= moment - 0.05));
   // How far into its step a moment is, in the time it plays in, waiting cut short, so the line fills at one speed, full
@@ -130,17 +133,25 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
 
   return (
     <ol ref={list} aria-label={`The way through “${flow.name}”`} className="relative flex flex-[1_0_auto] flex-col">
-      <li aria-hidden className="pointer-events-none absolute top-(--rail-top) left-[9.5px] h-(--rail) w-px bg-line phone:hidden">
+      <li aria-hidden className={`pointer-events-none absolute top-(--rail-top) left-[9.5px] h-(--rail) w-px bg-line transition-opacity duration-300 ease-calm phone:hidden ${resting ? "opacity-35" : ""}`}>
         <span className="absolute inset-x-0 top-0 h-(--reach) bg-soft transition-[height] duration-300 ease-calm" />
       </li>
       {stops.flatMap((stop, k) => {
         const here = k === on;
         const gone = k < on;
-        const between = (k < stops.length - 1 || looksGood) &&<li key={`${k} between`} aria-hidden className="max-h-7 min-h-0 flex-[1_1_0]" />;
+        const between = (k < stops.length - 1 || looksGood) && <li key={`${k} between`} aria-hidden className="max-h-7 min-h-0 flex-[1_1_0]" />;
         if (stop.id !== undefined) {
           const { sign, line: words, whole } = said(stop.id);
           return [
-            <li key={stop.id} data-stop={k} aria-current={here ? "step" : undefined} className="relative flex-none py-2 pl-8" onPointerEnter={() => onPoint(stop.id)} onPointerLeave={() => onPoint(undefined)}>
+            <li
+              key={stop.id}
+              data-stop={k}
+              aria-current={here ? "step" : undefined}
+              inert={resting && !here}
+              className={`relative flex-none py-2 pl-8 transition-opacity duration-300 ease-calm ${resting && !here ? "opacity-35" : ""}`}
+              onPointerEnter={() => onPoint(stop.id)}
+              onPointerLeave={() => onPoint(undefined)}
+            >
               <span
                 data-sign=""
                 className={`absolute top-2.5 left-0.5 grid size-4 place-items-center rounded-full bg-ground transition-[box-shadow,opacity] duration-300 ease-calm ${here ? RING : gone ? "" : "opacity-60"}`}
@@ -164,7 +175,13 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
         const i = stop.step;
         const title = flow.steps[i]!.title;
         return [
-          <li key={`step ${i}`} data-stop={k} aria-current={here ? "step" : undefined} className="relative flex-none py-2 pl-8">
+          <li
+            key={`step ${i}`}
+            data-stop={k}
+            aria-current={here ? "step" : undefined}
+            inert={resting}
+            className={`relative flex-none py-2 pl-8 transition-opacity duration-300 ease-calm ${resting && !here ? "opacity-35" : ""}`}
+          >
             <span
               data-sign=""
               className={`absolute top-2 left-0 grid size-5 place-items-center rounded-full text-[10.5px] leading-none font-medium tabular-nums transition-colors duration-300 ease-calm ${i === current ? "bg-fg text-ground" : gone ? "bg-line text-soft" : "bg-ground text-faint shadow-[inset_0_0_0_1px_var(--line)]"}`}
@@ -226,7 +243,13 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
         ];
       })}
       {looksGood && (
-        <li key="looks good" data-stop={stops.length} aria-current={on === stops.length ? "step" : undefined} className="relative flex-none py-2 pl-8">
+        <li
+          key="looks good"
+          data-stop={stops.length}
+          aria-current={on === stops.length ? "step" : undefined}
+          inert={resting}
+          className={`relative flex-none py-2 pl-8 transition-opacity duration-300 ease-calm ${resting ? "opacity-35" : ""}`}
+        >
           <span
             data-sign=""
             className={`absolute top-2.5 left-0.5 grid size-4 place-items-center rounded-full bg-ground transition-[box-shadow,opacity] duration-300 ease-calm ${on === stops.length ? RING : looksGood.good ? "" : "opacity-60"}`}

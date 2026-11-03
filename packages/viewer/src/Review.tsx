@@ -1437,8 +1437,8 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
           pinned={openNote && inApp && (openNote.on?.app || tryingHere) ? () => appPins.current.get(openNote.id) : undefined}
           onAway={(openNote && !tryingHere) || chosen ? () => setOpen(undefined) : undefined}
         >
-          {/* On the page, a card sits on its situation's recording; in the app there, by its pin in the app. */}
-          {listed || (onGrid && !inApp) ? undefined : openNote ? row(openNote) : writing ? writingCard(writing) : oneOpen ? <Chosen {...chosenProps} /> : undefined}
+          {/* On the page, what's said is in its situation's list, in the app or not. */}
+          {listed || onGrid ? undefined : openNote ? row(openNote) : writing ? writingCard(writing) : oneOpen ? <Chosen {...chosenProps} /> : undefined}
         </Beside>
         {many && (
           <Work
@@ -1468,7 +1468,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
               },
               onClose: () => setOpen(undefined),
               live: live && { flow: live.flow, address: live.address, shown: live.shown, inApp, due: live.due, at: live.at },
-              writing: writing && !writing.on?.app ? { note: writing, number: nextNumber + draft.unsaved.indexOf(writing), words: writingWords(writing) } : undefined,
+              writing: writing ? { note: writing, number: nextNumber + draft.unsaved.indexOf(writing), words: writingWords(writing) } : undefined,
               opened: openNote?.id,
             }}
             arrived={arrived ? latest : undefined}
