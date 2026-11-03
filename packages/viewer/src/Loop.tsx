@@ -49,6 +49,38 @@ function cut(events: Events, from: number, until: number): Cut {
   };
 }
 
+// Where the view is, as a step plays: on its part of the page while the hand is in it, and where the hand goes beyond
+// it, along only as far as keeps it in, with room round it. It moves a little ahead, so what's clicked is in view as
+// it's clicked, and eases there and back. Its place a moment in, as played, in the page's own pixels.
+const ROOM = 0.1;
+const AHEAD = 0.3;
+function following(replay: Replay, stretch: Cut, part: Frame, shape: { width: number; height: number }, played: number, speed: number) {
+  const [width, height] = [part.width * shape.width, part.height * shape.height];
+  const home = [part.x * shape.width, part.y * shape.height] as const;
+  const room = Math.min(width, height) * ROOM;
+  const along = (at: number, from: number, length: number, page: number) => {
+    const place = at < from + room ? at - room : at > from + length - room ? at + room - length : from;
+    return Math.min(Math.max(place, 0), Math.max(page - length, 0)) - from;
+  };
+  const rate = 30;
+  const moves = Array.from({ length: Math.ceil(played * rate) + 1 }, (_, i) => {
+    const pointer = replay.pointerAt(stretch.real(Math.min(i / rate, played) * speed));
+    return pointer ? [along(pointer[0], home[0], width, shape.width), along(pointer[1], home[1], height, shape.height)] : [0, 0];
+  });
+  // Each moment goes as far as the furthest it needs to a moment either side, so it's there before the hand and
+  // stays a little after, and that is averaged over the same moment, so it eases there and back the whole way.
+  const near = (path: number[][], i: number) => path.slice(Math.max(0, i - AHEAD * rate), i + AHEAD * rate + 1);
+  const furthest = moves.map((_, i) => [0, 1].map((axis) => Math.max(0, ...near(moves, i).map((move) => move[axis]!)) + Math.min(0, ...near(moves, i).map((move) => move[axis]!))));
+  const eased = furthest.map((_, i) => [0, 1].map((axis) => near(furthest, i).reduce((sum, move) => sum + move[axis]!, 0) / near(furthest, i).length));
+  // Between two of its moments, the view is between them too, so it moves on every frame the screen draws.
+  return (going: number): [number, number] => {
+    const at = Math.min(Math.max(going * rate, 0), eased.length - 1);
+    const [a, b] = [eased[Math.floor(at)]!, eased[Math.ceil(at)]!];
+    const u = at - Math.floor(at);
+    return [home[0] + a[0]! + (b[0]! - a[0]!) * u, home[1] + a[1]! + (b[1]! - a[1]!) * u];
+  };
+}
+
 type Props = {
   review: string;
   round: number;
@@ -75,6 +107,8 @@ export function Loop(props: Props) {
     recording(props.review, props.round, props.recording).then((events) => {
       if (!current || !box.current) return;
       made = new Replay(events, box.current);
+      // Moved on every frame, the page is drawn once, as it is, and only shifted.
+      made.host.style.willChange = "transform";
       setReplay({ replay: made, events });
     });
     return () => void ((current = false), made?.destroy());
@@ -90,10 +124,11 @@ export function Loop(props: Props) {
     const shape = replayed.shapeAt(until);
     const part = frame ?? { x: 0, y: 0, width: 1, height: 1 };
     const k = box.current.clientWidth / (part.width * shape.width);
-    const [left, top] = [part.x * shape.width, part.y * shape.height];
-    replayed.host.style.transform = `translate(${-left * k}px, ${-top * k}px) scale(${k})`;
     const speed = stretch.length / played;
-    const draw = (at: number) => {
+    const follow = following(replayed, stretch, part, shape, played, speed);
+    const draw = (at: number, going = played) => {
+      const [left, top] = follow(going);
+      replayed.host.style.transform = `translate(${-left * k}px, ${-top * k}px) scale(${k})`;
       replayed.placeCaret(caret.current!, at, left, top, k);
       const pointer = replayed.pointerAt(at);
       const hand = cursor.current!;
@@ -118,7 +153,7 @@ export function Loop(props: Props) {
       const going = ((performance.now() - started) / 1000) % cycle;
       const at = Math.min(stretch.real(going * speed), until - 0.05);
       replayed.show(at, true, speed);
-      draw(at);
+      draw(at, Math.min(going, played));
       frameId = requestAnimationFrame(tick);
     };
     tick();
