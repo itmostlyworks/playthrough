@@ -1,6 +1,7 @@
-// A situation's steps, as the page and the frame both list them: each its number and words, a diamond under the number
-// where something's new to you, a dot for each note on it, and a line beside it, full on the step shown and filling as
-// that step plays. On the page, pointing at a step loops it; beside the frame, pressing one plays it.
+// A situation's steps, as the page and the frame both list them: each its number and words, a dot for each note on it,
+// and a line beside it, full on the step shown and filling as that step plays, all as tall as the tallest. Where
+// something's new to you, a diamond sits on the line level with the number, as the timeline marks it on its line. On the
+// page, pointing at a step loops it; beside the frame, pressing one plays it.
 
 import { useEffect, useRef, type KeyboardEvent, type RefObject } from "react";
 import type { Flow } from "@playthrough/review";
@@ -11,7 +12,8 @@ import { useNow, type Playhead } from "./playhead.ts";
 type Props = {
   flow: Flow;
   chosen: number;
-  changed: Set<number>;
+  // When something new to you happens in the flow.
+  changed: number[];
   notedAt: (step: number) => Shown[];
   // The line of the step shown: full, or as far as it's played, its `--done` from 0 to 1.
   progress: RefObject<HTMLSpanElement | null>;
@@ -33,14 +35,17 @@ export function Steps({ flow, chosen, changed, notedAt, progress, column, by, on
     event.stopPropagation();
     tabs.current[clamp(chosen + step, 0, flow.steps.length - 1)]?.focus();
   };
+  const end = (step: number) => flow.steps[step + 1]?.at ?? flow.length;
+  const fresh = new Set(changed.map((at) => Math.max(0, flow.steps.findIndex((_, step) => end(step) >= at - 0.05))));
+  // In a row, the diamond is before the number, the line being over it.
   const look = column
-    ? { list: "flex flex-col", step: "h-12 content-center py-1.5 pl-4", line: "absolute inset-y-0.5 left-0 w-[3px]", fill: "[transform:scaleY(var(--done,1))]", number: "h-[18px]", words: "line-clamp-2" }
+    ? { list: "grid auto-rows-fr", step: "min-h-9 content-center py-1.5 pl-4", line: "absolute inset-y-0.5 left-0 w-[3px]", fill: "[transform:scaleY(var(--done,1))]", diamond: "absolute top-[5.5px] -left-[18px]", words: "line-clamp-2" }
     : {
-        list: "grid grid-cols-[repeat(auto-fit,minmax(128px,1fr))] gap-x-2 gap-y-4 wide:flex wide:flex-col wide:gap-0",
-        step: "content-start gap-2 wide:h-12 wide:content-center wide:py-1.5 wide:pl-4",
+        list: "grid grid-cols-[repeat(auto-fit,minmax(128px,1fr))] gap-x-2 gap-y-4 wide:grid-cols-1 wide:auto-rows-fr wide:gap-0",
+        step: "content-start gap-2 wide:min-h-9 wide:content-center wide:py-1.5 wide:pl-4",
         line: "relative h-[3px] wide:absolute wide:inset-y-0.5 wide:left-0 wide:h-auto wide:w-[3px]",
         fill: "[transform:scaleX(var(--done,1))] wide:[transform:scaleY(var(--done,1))]",
-        number: "wide:h-[18px]",
+        diamond: "mt-[5.5px] mr-0.5 flex-none wide:absolute wide:top-[5.5px] wide:-left-[18px] wide:m-0",
         words: "line-clamp-3 wide:line-clamp-2",
       };
   return (
@@ -59,14 +64,12 @@ export function Steps({ flow, chosen, changed, notedAt, progress, column, by, on
           onClick={by === "press" ? () => onChoose(i) : undefined}
           onKeyDown={arrows}
         >
-          <span className={`overflow-hidden rounded-full bg-line ${look.line}`}>
-            {i === chosen && <span ref={progress} className={`absolute inset-0 origin-top-left bg-fg ${look.fill}`} />}
+          <span ref={i === chosen ? progress : undefined} className={look.line}>
+            <span className="absolute inset-0 overflow-hidden rounded-full bg-line">{i === chosen && <span className={`absolute inset-0 origin-top-left bg-fg ${look.fill}`} />}</span>
           </span>
-          <span className="flex gap-1.5">
-            <span className={`grid flex-none content-start justify-items-center gap-1.5 ${look.number}`}>
-              <span className="text-faint tabular-nums">{i + 1}</span>
-              {changed.has(i) && <i title="Changed here" className="size-[6px] rotate-45 bg-fg" />}
-            </span>
+          <span className="relative flex gap-1.5">
+            {fresh.has(i) && <i title="New here" className={`size-[7px] rotate-45 bg-fg shadow-[0_0_0_1.5px_var(--ground)] ${look.diamond}`} />}
+            <span className="flex-none text-faint tabular-nums">{i + 1}</span>
             <span className={`text-balance ${look.words}`}>
               {step.title}
               {notedAt(i).map((note) => <b key={note.id} className={`ml-1 inline-block size-1.5 translate-y-[-1px] rounded-full ${fill(note)}`} />)}
@@ -100,7 +103,7 @@ export function StepsBeside({ playhead, flow, changed, notes, className }: { pla
     <Steps
       flow={flow}
       chosen={shown}
-      changed={new Set(changed.map(stepOf))}
+      changed={changed}
       notedAt={(step) => notes.filter((note) => note.on?.at !== undefined && stepOf(note.on.at) === step)}
       progress={progress}
       column

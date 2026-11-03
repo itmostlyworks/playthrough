@@ -1293,7 +1293,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
             flow={shownFlow}
             changed={diamonds.filter((diamond) => diamond.flow === shownFlow.name).map((diamond) => diamond.at)}
             notes={notes.filter((note) => note.on?.flow === shownFlow.name)}
-            className="hidden self-start pt-[26px] wide:flex"
+            className="hidden self-start pt-[26px] wide:grid"
           />
         )}
         <section inert={onGrid} className={`grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto] pb-4 phone:flex-none phone:grid-rows-[auto_auto] phone:pr-0 phone:pb-3 ${onGrid ? "invisible" : ""}`}>

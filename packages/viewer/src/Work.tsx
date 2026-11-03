@@ -253,7 +253,7 @@ function Situation(props: { review: Review; round: Round; before?: Round; flow: 
       <Steps
         flow={flow}
         chosen={chosen}
-        changed={changedAt}
+        changed={fresh}
         notedAt={notedAt}
         progress={progress}
         by="point"
