@@ -431,12 +431,31 @@ const SAYS = `<script>(() => {
     press(element, "pointerup", "mouseup", "click");
   };
   const changed = (element) => ["input", "change"].forEach((type) => element.dispatchEvent(new Event(type, { bubbles: true })));
-  // Filled, what's there is replaced; typed, it's added where the caret is.
+  // A key made up here moves nothing by itself: one that moves the caret, pressed alone, moves it here too.
+  const caretMoved = new WeakSet();
+  const move = (element, key) => {
+    if (element.isContentEditable) {
+      const [direction, by] = { Home: ["backward", "lineboundary"], End: ["forward", "lineboundary"], ArrowLeft: ["backward", "character"], ArrowRight: ["forward", "character"] }[key] ?? [];
+      return void (direction && getSelection()?.modify("move", direction, by));
+    }
+    if (element.selectionStart == null) return;
+    const [at, length] = [element.selectionStart, element.value.length];
+    const to = { Home: 0, End: length, ArrowLeft: Math.max(0, at - 1), ArrowRight: Math.min(length, at + 1) }[key];
+    if (to === undefined) return;
+    element.setSelectionRange(to, to);
+    caretMoved.add(element);
+  };
+  // Filled, what's there is replaced; typed, it's added where the caret was moved to, else at the end, where a click into
+  // words mostly leaves it.
   const type = (element, words, adding) => {
     element.focus();
     if (element.isContentEditable) return void (adding || document.execCommand("selectAll"), document.execCommand("insertText", false, words));
+    const was = element.value ?? "";
+    const [from, to] = !adding ? [0, was.length] : caretMoved.has(element) ? [element.selectionStart, element.selectionEnd] : [was.length, was.length];
     const value = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(element), "value")?.set;
-    value ? value.call(element, words) : (element.value = words);
+    const now = was.slice(0, from) + words + was.slice(to);
+    value ? value.call(element, now) : (element.value = now);
+    if (caretMoved.has(element)) element.setSelectionRange(from + words.length, from + words.length);
     changed(element);
   };
   const doAgain = async ({ does, on, with: given }) => {
@@ -445,8 +464,13 @@ const SAYS = `<script>(() => {
     if (does === "click" || does === "tap") click(element);
     else if (does === "dblclick") (click(element), click(element), press(element, "dblclick"));
     else if (does === "fill") type(element, given);
-    else if (does === "type") type(element, (element.isContentEditable ? "" : element.value ?? "") + given, true);
-    else if (does === "press") for (const type of ["keydown", "keypress", "keyup"]) element.dispatchEvent(new KeyboardEvent(type, { key: given, bubbles: true, cancelable: true }));
+    else if (does === "type") type(element, given, true);
+    else if (does === "press") {
+      const key = (kind) => element.dispatchEvent(new KeyboardEvent(kind, { key: given, bubbles: true, cancelable: true }));
+      if (key("keydown")) move(element, given);
+      key("keypress");
+      key("keyup");
+    }
     else if (does === "hover") press(element, "pointerover", "pointerenter", "mouseover", "pointermove", "mousemove");
     else if (does === "selectOption") (element.value = [given].flat()[0], changed(element));
     else if (element.checked !== (does === "check" || (does === "setChecked" && given))) click(element);

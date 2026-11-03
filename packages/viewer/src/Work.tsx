@@ -2,7 +2,7 @@
 // it, and how it was before the work beside it when you compare. The situation you're on has the bar: you note it,
 // compare it and take it over where it is. At the end, how it got here, and the one step to take.
 
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import type { Glimpse, Reading } from "@playthrough/page";
 import { type Flow, type Note, type Place, type Review, type Round, type Verdict } from "@playthrough/review";
 import { picture, recording } from "./api.ts";
@@ -16,8 +16,8 @@ import { Portal } from "./Portal.tsx";
 import { recorded, type Scrolled } from "./replay.ts";
 import type { CloseUp } from "./flight.ts";
 import { Clock, Player, useCut, type Mark, type Placed } from "./Player.tsx";
-import type { Diamond } from "./changes.ts";
-import { Conversation } from "./Notes.tsx";
+import { answersTo, type Diamond } from "./changes.ts";
+import { Conversation, quiet as quietNumber } from "./Notes.tsx";
 import { Pinned, type Pin } from "./Pinned.tsx";
 import { Steps, type OnLine } from "./Steps.tsx";
 import { Picture, type Frame } from "./Picture.tsx";
@@ -75,19 +75,43 @@ export function Work(props: Props) {
   const general = props.notes.filter((note) => !note.on || !round.flows.some((flow) => flow.name === note.on?.flow));
   // The flows the work left as they were, against Before.
   const same = before ? unchangedSince(review, 0, round.number) : [];
-  // The situation you're on, which the bar and the keys are for: the one the pointer settles on, not one it passes over.
-  // Noting, writing or in the app, you stay on it, and in the app the page holds still and the rest of it rests.
+  // The situation you're on, which the bar and the keys are for: the one the pointer settles on, not one it passes over,
+  // or one you press; scrolled away from it, the one most in view, so the keys never drive one you can't see. Noting,
+  // writing or in the app, you stay on it, and in the app the page holds still and the rest of it rests.
   const [active, setActive] = useState(round.flows[0]?.name);
   const busy = acting.noting || !!acting.writing || !!acting.live?.shown;
   const settling = useRef<number>(undefined);
   const pointed = useRef<string>(undefined);
-  const settleOn = (name?: string) => {
+  const settleOn = (name?: string, after = SETTLE) => {
     clearTimeout(settling.current);
     pointed.current = name;
-    if (name && !busy) settling.current = window.setTimeout(() => setActive(name), SETTLE);
+    if (name && !busy) settling.current = window.setTimeout(() => setActive(name), after);
   };
   // Done, you're on the one the pointer's on.
   useEffect(() => void (!busy && settleOn(pointed.current)), [busy]);
+  const now = useRef({ active, busy });
+  now.current = { active, busy };
+  useEffect(() => {
+    const room = props.room.current;
+    if (!room) return;
+    const seen = (picture: Element) => {
+      const [view, box] = [room.getBoundingClientRect(), picture.getBoundingClientRect()];
+      return Math.max(0, Math.min(box.bottom, view.bottom) - Math.max(box.top, view.top)) / box.height;
+    };
+    let still: number | undefined;
+    const scrolled = () => {
+      clearTimeout(still);
+      still = window.setTimeout(() => {
+        const pictures = [...room.querySelectorAll<HTMLElement>("[data-picture]")];
+        const on = pictures.find((picture) => picture.dataset.picture === now.current.active);
+        if (now.current.busy || (on && seen(on) >= 0.5)) return;
+        const most = pictures.reduce<HTMLElement | undefined>((best, picture) => (!best || seen(picture) > seen(best) ? picture : best), undefined);
+        if (most && seen(most) > 0) setActive(most.dataset.picture);
+      }, SETTLE);
+    };
+    room.addEventListener("scroll", scrolled, { passive: true });
+    return () => (clearTimeout(still), room.removeEventListener("scroll", scrolled));
+  }, []);
   const inApp = acting.live?.shown ? acting.live.flow : undefined;
   return (
     <div ref={props.room} inert={!up} className={`absolute inset-0 z-20 bg-ground transition-[opacity,visibility] duration-240 ease-calm ${inApp ? "overflow-hidden" : "overflow-y-auto"} ${up ? "visible opacity-100" : "invisible opacity-0"}`}>
@@ -115,6 +139,7 @@ export function Work(props: Props) {
               changed={(work?.changes ?? []).flatMap((change) => change.seen.filter((on) => on.flow === flow.name).map((on) => (change.gone ? { ...on, element: undefined } : on)))}
               readings={props.read(round.number, flow.name)}
               notes={props.notes.filter((note) => note.on?.flow === flow.name)}
+              noteOf={(id) => props.notes.find((note) => note.id === id)}
               standing={props.standing(flow.name)}
               onLooksGood={props.onLooksGood}
               threads={props.threads}
@@ -126,11 +151,12 @@ export function Work(props: Props) {
               active={up && active === flow.name}
               resting={!!inApp && inApp !== flow.name}
               onPointerEnter={() => settleOn(flow.name)}
+              onPointerDown={() => settleOn(flow.name, 0)}
               onPointerLeave={() => settleOn()}
             />
           ))}
         </div>
-        <Story review={review} round={round} general={general} />
+        <Story review={review} round={round} general={general} onRound={props.onRound} />
         <div className="sticky bottom-0 z-10 mt-6 flex min-h-8 justify-end bg-ground py-4">
           <div className="w-[300px] max-w-full">
             {step?.kind === "go" && <Go step={step} className="w-full gap-3" />}
@@ -147,8 +173,9 @@ export function Work(props: Props) {
 // You walk it a step at a time: it rests on each step's result, and on the way at each answer waiting on you and each
 // change new to you, and never moves on without you. It arrives at what needs you first, else at the first step's
 // result. What's drawn on it, and what the bar does, is about the moment it's at: the notes there, what changed there and
-// why, a note made there, the app taken over there. Space or → plays on to the next resting place, and Space while it
-// moves stops it there; ← goes back to the one before. C held is how it was before the work, at the same moment, in
+// why, a note made there, the app taken over there. Next step on the bar, Space or → plays on to the next resting place,
+// and while it moves stops it there; ← goes back to the one before. The line over the step it's on is for the moments
+// between: dragged along, it goes anywhere in that step. C held is how it was before the work, at the same moment, in
 // place; pressed, the two side by side, each close on the step's part of the page.
 type SituationProps = {
   review: Review;
@@ -159,6 +186,8 @@ type SituationProps = {
   readings?: Reading[];
   glimpsed?: Glimpse[];
   notes: Shown[];
+  // Any note of yours, wherever it's on: a change here can be made for one on another situation.
+  noteOf: (id: string) => Shown | undefined;
   standing?: Standing;
   same: boolean;
   onLooksGood?: (flow: string) => void;
@@ -169,6 +198,7 @@ type SituationProps = {
   active: boolean;
   resting: boolean;
   onPointerEnter: () => void;
+  onPointerDown: () => void;
   onPointerLeave: () => void;
 };
 
@@ -198,6 +228,8 @@ function Situation(props: SituationProps) {
   const [clock] = useState(() => new Clock(first?.at ?? end));
   const [at, setAt] = useState(clock.at);
   const [playing, setPlaying] = useState<{ until: number }>();
+  // Dragged along the step it's on, it follows the line, and where it's let go, it rests.
+  const [scrubbing, setScrubbing] = useState(false);
   const cut = useCut(review.id, round.number, flow);
   // Open beside its thing: on arriving, the answer waiting on you; then what you open, or what it came to rest at.
   const [picked, setPicked] = useState(waiting?.id);
@@ -264,10 +296,11 @@ function Situation(props: SituationProps) {
   const live = acting.live?.flow === flow.name ? acting.live : undefined;
   const taken = !!live?.shown;
   if (taken && side) setSide(false);
-  // Space, the arrows and C are the situation's you're on; in the app, they're the app's. Gone to another, it stops.
-  // → while it moves is where it was going.
+  const noting = active && acting.noting;
+  // Space, the arrows and C are the situation's you're on; in the app, they're the app's, and noting, they rest until
+  // you've chosen what it's on. Gone to another, it stops. → while it moves is where it was going.
   useEffect(() => {
-    if (!active || taken) return;
+    if (!active || taken || noting) return;
     const typing = (event: KeyboardEvent) => (event.target as Element).closest?.("input, textarea, [contenteditable], [role=slider]");
     const down = (event: KeyboardEvent) => {
       if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || typing(event)) return;
@@ -290,11 +323,10 @@ function Situation(props: SituationProps) {
   });
   useEffect(() => void (!active && playing && pause()), [active]);
   // Noting, it stops where it is: a note is made on the moment it's at; in the app, on what you click there.
-  const noting = active && acting.noting;
   useEffect(() => void (noting && playing && pause()), [noting]);
   // At rest on the situation you're on, that's where Take over takes it over.
   const restsAt = Math.round(at * 100) / 100;
-  const resting = active && !playing && !taken;
+  const resting = active && !playing && !scrubbing && !taken;
   useEffect(() => void (resting && acting.onRest(flow.name, restsAt)), [resting, restsAt]);
 
   // What's drawn is what's at this moment: in its step, the notes made there up to now, and what changed there.
@@ -304,16 +336,27 @@ function Situation(props: SituationProps) {
   const writing = acting.writing?.note.on?.flow === flow.name && !acting.writing.note.on.app && acting.writing.note.on.at !== undefined && shown(acting.writing.note.on.at) ? acting.writing : undefined;
   // One made in the app is on its thing as it was written, found by its name: the app's nodes aren't this recording's.
   const written = (note: Shown) => review.sends.flatMap((send) => send.notes).find((kept) => kept.id === note.id)?.on ?? note.on;
+  // A change is on its thing and on each thing changed alike with it, where they are.
+  const marksOn = (id: string, on: Place): Mark[] => [
+    { id, node: on.element?.node, name: on.element?.name, point: on.point, box: on.box },
+    ...(on.alike ?? []).map((element, i) => ({ id: `${id} ${i}`, node: element.node, name: element.name })),
+  ];
+  // What the agent changed for the note you're on is the note's, outlined with it wherever it's there at this moment,
+  // and its card keeps clear of it.
+  const answered = here.some((note) => note.id === picked) ? answersTo(diamonds, picked!) : [];
+  const answeredMarks = answered.flatMap(({ on }, i) => marksOn(`${picked} answer ${i}`, on));
+  const changedMarks = (diamond: Diamond) => diamond.changes.flatMap(({ on }, i) => marksOn(`${diamond.id} ${i}`, on));
   const marks: Mark[] = [
     ...here.map((note) =>
       note.on?.app ? { id: note.id, name: written(note)?.element?.name ?? note.on.element?.name } : { id: note.id, node: note.on?.element?.node, name: note.on?.element?.name, point: note.on?.point },
     ),
-    ...changedHere.flatMap((diamond) => diamond.changes.map(({ on }, i) => ({ id: `${diamond.id} ${i}`, node: on.element?.node, name: on.element?.name, point: on.point, box: on.box }))),
+    ...answeredMarks,
+    ...changedHere.flatMap(changedMarks),
     ...(writing ? [{ id: writing.note.id, node: writing.note.on?.element?.node, point: writing.note.on?.point }] : []),
   ];
   const pins: Pin[] = [
-    ...here.map((note) => ({ id: note.id, on: [note.id], ink: ink(note), number: note.number, fill: fill(note) })),
-    ...changedHere.map((diamond) => ({ id: diamond.id, on: diamond.changes.map((_, i) => `${diamond.id} ${i}`), ink: RECORDED_INK, diamond: true as const })),
+    ...here.map((note) => ({ id: note.id, on: [note.id, ...(note.id === picked ? answeredMarks.map((mark) => mark.id) : [])], ink: ink(note), number: note.number, fill: fill(note) })),
+    ...changedHere.map((diamond) => ({ id: diamond.id, on: changedMarks(diamond).map((mark) => mark.id), ink: RECORDED_INK, diamond: true as const })),
     ...(writing ? [{ id: writing.note.id, on: [writing.note.id], ink: "var(--amber)", number: writing.number, fill: "bg-amber" }] : []),
   ];
   const view = `${at} ${side}`;
@@ -323,7 +366,11 @@ function Situation(props: SituationProps) {
   const open = writing ? writing.note.id : !side && pins.some((pin) => pin.id === picked) ? picked : undefined;
   const opened = here.find((note) => note.id === open);
   const changeOpen = changedHere.find((diamond) => diamond.id === open);
+  // Why it changed, in the agent's words: made for a note of yours, that note and the agent's answer to it.
   const said = changeOpen?.changes.find((changed) => changed.line);
+  const madeFor = changeOpen?.changes.map((changed) => changed.note && props.noteOf(changed.note)).find(Boolean) || undefined;
+  const answer = madeFor?.turns.findLast((turn) => turn.agent);
+  const [who, why] = madeFor ? [answer?.by ?? said?.by, answer?.words] : [said?.by, said?.line];
   const [asking, setAsking] = useState<string>();
   // On the line, each note's dot and each change's diamond, where they are.
   const onLine: OnLine[] = [
@@ -342,7 +389,7 @@ function Situation(props: SituationProps) {
     then && beforeAt !== undefined ? (
       <>
         <Still src={picture(review.id, 0, then.recording, thenStep)} frame={frame} />
-        <Player review={review.id} round={0} recording={then.recording} at={beforeAt} following={playing ? { clock, at: (moment) => thenAt(moment) ?? beforeAt } : undefined} frame={frame} />
+        <Player review={review.id} round={0} recording={then.recording} at={beforeAt} following={playing || scrubbing ? { clock, at: (moment) => thenAt(moment) ?? beforeAt } : undefined} frame={frame} />
       </>
     ) : (
       <span className="absolute inset-0 grid place-content-center bg-ground px-6 text-center text-[13px] leading-5 text-soft">{then ? "Before the work, there was no such step" : "New: there was nothing like it before"}</span>
@@ -368,6 +415,7 @@ function Situation(props: SituationProps) {
       inert={props.resting}
       className={`grid gap-3 transition-opacity duration-500 ease-calm ${props.resting ? "opacity-30" : ""}`}
       onPointerEnter={props.onPointerEnter}
+      onPointerDown={props.onPointerDown}
       onPointerLeave={props.onPointerLeave}
     >
       <div className="grid content-start gap-3">
@@ -399,8 +447,8 @@ function Situation(props: SituationProps) {
         )}
       </div>
       <div className="relative">
-        {/* A click plays it on and stops it, as Space does; noting, it notes what's under it. */}
-        <button data-picture={flow.name} className="relative block aspect-[1.6] w-full" aria-label={playing ? `Pause ${flow.name}` : `Play ${flow.name}`} onClick={playOn}>
+        {/* A click plays it on and stops it, as Space does; noting, it notes what's under it; taken over, it's the app's. */}
+        <button data-picture={flow.name} className="relative block aspect-[1.6] w-full" aria-label={playing ? `Stop ${flow.name}` : `Next step of ${flow.name}`} onClick={() => !taken && playOn()}>
           {/* Side by side, Now narrows to its half of the picture as its view glides close on the step's part of the page,
               and Before comes in beside it: nothing around them moves. */}
           <span className={`${FRAMED} left-0 z-1 transition-[width] duration-450 ease-calm ${side ? HALVES : "w-full"}`}>
@@ -414,6 +462,7 @@ function Situation(props: SituationProps) {
               cut={cut}
               clock={clock}
               onStop={stopped}
+              following={scrubbing ? { clock, at: (moment) => moment } : undefined}
               frame={frame}
               marks={marks}
               onMarks={(placed) => setPlaced({ view, at: placed })}
@@ -443,9 +492,10 @@ function Situation(props: SituationProps) {
               <Bar
                 live={taken ? (live.inApp ? "shown" : "waiting") : undefined}
                 latest={acting.latest}
+                play={{ moving: !!playing, last: !playing && at >= rests.at(-1)!.at - 0.01, onPlay: playOn }}
                 compare={then && { on: side || peek, off: taken, onPress: press, onRelease: release }}
                 noting={noting}
-                onNote={acting.onNote}
+                onNote={taken && !live.inApp ? undefined : acting.onNote}
                 onTakeOver={acting.onTakeOver}
                 onBack={acting.onBack}
                 flow={flow.name}
@@ -455,7 +505,7 @@ function Situation(props: SituationProps) {
         )}
         {!taken && !peek && (
           <div className={`pointer-events-none absolute inset-y-0 left-0 z-1 transition-[width] duration-450 ease-calm ${side ? `${HALVES} overflow-hidden rounded-lg` : "w-full"}`}>
-            <Pinned pins={pins} placed={placed?.view === view ? placed.at : {}} open={open} faded={!!playing || placed?.view !== view} onOpen={(id) => (writing && id !== writing.note.id ? acting.onClose() : setPicked(id))}>
+            <Pinned pins={pins} placed={placed?.view === view ? placed.at : {}} open={open} faded={!!playing || scrubbing || placed?.view !== view} onOpen={(id) => (writing && id !== writing.note.id ? acting.onClose() : setPicked(id))}>
               {writing?.card}
               {!writing && opened && (
                 <Conversation
@@ -474,8 +524,14 @@ function Situation(props: SituationProps) {
               )}
               {!writing && changeOpen && (
                 <div className="grid gap-1 py-1.5 pr-9 pl-4">
-                  <span className="text-[11.5px] leading-5 text-faint">{said?.by ?? "Changed here"}</span>
-                  {said?.line && <p className="text-[13px] leading-normal whitespace-pre-wrap">{said.line}</p>}
+                  <span className="text-[11.5px] leading-5 text-faint">{who ?? "Changed here"}</span>
+                  {madeFor && (
+                    <span className="flex min-w-0 items-center gap-1.5 text-[12.5px] leading-[18px] text-soft" style={{ "--c": ink(madeFor) } as CSSProperties}>
+                      <span className={`size-4 flex-none rounded-full text-center text-[9px] leading-4 font-semibold ${quietNumber}`}>{madeFor.number}</span>
+                      <span className="truncate">{madeFor.turns[0]?.words}</span>
+                    </span>
+                  )}
+                  {why && <p className="text-[13px] leading-normal whitespace-pre-wrap">{why}</p>}
                   {!threads.readOnly && (
                     <button
                       className="mt-1.5 justify-self-start rounded-md bg-hover px-2.5 py-1 text-[12.5px] transition-colors duration-150 ease-calm hover:bg-line"
@@ -497,8 +553,11 @@ function Situation(props: SituationProps) {
         flow={flow}
         clock={clock}
         at={at}
+        cut={cut}
         marks={onLine}
         onPlay={playStep}
+        onScrub={(on) => (on && ((setPlaying(undefined), setPicked(undefined))), setScrubbing(on))}
+        onGo={stopped}
         onMark={(id) => {
           const mark = onLine.find((mark) => mark.id === id);
           if (mark) go(mark.at, id);
@@ -586,8 +645,9 @@ function useFrames(review: Review, round: Round, flow: Flow, readings: Reading[]
   return frames;
 }
 
-// Each round in a line: who recorded it, what was said about it, and what came of that.
-function Story({ review, round, general }: { review: Review; round: Round; general: Shown[] }) {
+// Each round in a line: who recorded it, what was said about it, and what came of that. Its name goes to it, as the
+// rounds at the top do.
+function Story({ review, round, general, onRound }: { review: Review; round: Round; general: Shown[]; onRound: (round: number) => void }) {
   const rounds = review.rounds.filter((kept) => kept.number > 0 && kept.number <= round.number);
   if (rounds.length < 2 && !general.length) return null;
   return (
@@ -599,7 +659,14 @@ function Story({ review, round, general }: { review: Review; round: Round; gener
           const notes = sent.reduce((count, send) => count + send.notes.length, 0);
           return (
             <li key={kept.number}>
-              <span className="text-fg">{roundName(kept.number)}</span>, by {kept.by}
+              {kept.number === round.number ? (
+                <span className="text-fg">{roundName(kept.number)}</span>
+              ) : (
+                <button className="text-fg underline-offset-[3px] hover:underline" onClick={() => onRound(kept.number)}>
+                  {roundName(kept.number)}
+                </button>
+              )}
+              , by {kept.by}
               {kept.replies.length > 0 && `, answering ${kept.replies.length} ${kept.replies.length === 1 ? "note" : "notes"}`}
               {notes > 0 && ` · ${notes} ${notes === 1 ? "note" : "notes"} sent back`}
             </li>

@@ -49,9 +49,10 @@ export function Pinned({ pins, placed, open, faded, onOpen, children }: Props) {
     const place = () => {
       const [width, height, w, h] = [picture.clientWidth, picture.clientHeight, box.offsetWidth, box.offsetHeight];
       const spot = spotOf(opened);
-      // The card keeps clear of the thing and its pin; on a spot, of the pin.
+      // The card keeps clear of the things and the pin; on a spot, of the pin.
       const pin = pinOf(spot);
-      const thing = spot.width || spot.height ? spot : pin;
+      const things = opened.on.map((id) => placed[id]).filter((rect): rect is Rect => !!rect && (rect.width > 0 || rect.height > 0));
+      const thing = things.length ? around(things) : pin;
       const level = clamp(thing.top - 24, EDGE, height - h - EDGE);
       // Over it or under it, the card ends at the pin's right.
       const across = clamp(pin.left + pin.width - w, EDGE, width - w - EDGE);
@@ -132,3 +133,9 @@ export function Pinned({ pins, placed, open, faded, onOpen, children }: Props) {
 }
 
 const clamp = (value: number, low: number, high: number) => Math.min(Math.max(value, low), Math.max(low, high));
+
+// The part of the picture several things take up together.
+const around = (rects: Rect[]): Rect => {
+  const [left, top] = [Math.min(...rects.map((rect) => rect.left)), Math.min(...rects.map((rect) => rect.top))];
+  return { left, top, width: Math.max(...rects.map((rect) => rect.left + rect.width)) - left, height: Math.max(...rects.map((rect) => rect.top + rect.height)) - top };
+};

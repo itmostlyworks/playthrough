@@ -622,9 +622,12 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     ]),
   );
   // A new note starts unsaved, where it will sit. With words in it, it's never thrown away by going elsewhere: it's kept,
-  // not saved, until you save it or Cancel takes it back. With none, it goes.
+  // not saved, until you save it or Cancel takes it back. With none, it goes. Started again on the same thing at the same
+  // moment, it's the one kept there, opened again.
   const write = (on: Place) => {
     if (readOnly) return;
+    const kept = draft.unsaved.find((note) => JSON.stringify(note.on) === JSON.stringify(on));
+    if (kept) return setOpen({ writing: kept.id });
     const id = newId();
     changeHere((draft) => ({ ...draft, unsaved: [...draft.unsaved, { id, on, words: "" }] }));
     setOpen({ writing: id });
@@ -1112,8 +1115,11 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
         return acting.take();
       }
       if (writingHere(event) || event.metaKey || event.ctrlKey || event.altKey || event.defaultPrevented) return;
-      // Taking over, the keys that drive the recording rest with it: only noting and going back answer.
-      if (live?.shown && !/^(n|t|escape)$/i.test(event.key)) return;
+      // Taking over, the keys that drive the recording rest with it: only noting and going back answer, and until the app
+      // is there, only calling it off, as what you type then was meant for it. Noting, only noting answers until you've
+      // chosen what it's on.
+      if (live?.shown && !(inApp ? /^(n|t|escape)$/i : /^(t|escape)$/i).test(event.key)) return;
+      if (noting && !/^(n|escape)$/i.test(event.key)) return;
       // On the page, Enter takes the step; a row is chosen as a button is. N, T and Escape are for the situation you're
       // on, as its bar is; Space and C are its own.
       if (onGrid) {
