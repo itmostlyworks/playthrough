@@ -12,8 +12,6 @@ export type Said = { id: string; ink: string; words: string; at: string; app: bo
 type Props = {
   live?: "waiting" | "shown";
   latest: boolean;
-  // Playing the step it's in to its result, or pausing it; at the last, from the start again. None where nothing plays.
-  play?: { does: keyof typeof PLAY; onPlay: () => void };
   // How it was, where there's a round before this one to compare it with.
   compare?: Comparing;
   noting: boolean;
@@ -90,18 +88,6 @@ export function Bar(props: Props) {
         data-bar=""
         className={`flex gap-0.5 rounded-xl bg-surface p-1 text-[13px] select-none [&_kbd]:text-[color-mix(in_srgb,var(--faint)_55%,var(--soft))] ${inApp ? "shadow-[0_0_0_1.5px_rgba(236,178,72,0.95),0_6px_20px_rgba(20,24,34,0.12)]" : "shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]"}`}
       >
-        {!inApp && props.play && (
-          // As wide as its longest words, so saying another never moves the bar.
-          <button className={item} disabled={props.live === "waiting" || props.noting} aria-keyshortcuts="Space" onClick={props.play.onPlay}>
-            <span className="grid">
-              {Object.entries(PLAY).map(([does, words]) => (
-                <span key={does} className={`col-start-1 row-start-1 inline-flex items-center justify-center gap-2 ${does === props.play!.does ? "" : "invisible"}`}>
-                  {words} <Key>Space</Key>
-                </span>
-              ))}
-            </span>
-          </button>
-        )}
         <button className={item} disabled={!props.onNote} aria-pressed={props.noting} onClick={props.onNote}>
           Note <Key>N</Key>
         </button>
@@ -127,6 +113,3 @@ export function Bar(props: Props) {
     </div>
   );
 }
-
-// What playing does from here, in words.
-const PLAY = { play: "Play", pause: "Pause", again: "Play again" };
