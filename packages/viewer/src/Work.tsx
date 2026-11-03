@@ -539,15 +539,17 @@ function Situation(props: SituationProps) {
   // Only a note being written has its card on the recording, where it was dropped; what's said is under its step.
   const open = writing ? writing.note.id : !side && pins.some((pin) => pin.id === chosen) ? chosen : undefined;
   const [asking, setAsking] = useState<string>();
-  // At an answer waiting on you, Enter says it looks good and X that it's not quite, as its buttons say; ahead of the
-  // foot's step, so one press never does both.
+  // At an answer waiting on you, Enter says it looks good and X that it's not quite, as its buttons say; at the way's end,
+  // Enter says the situation looks good. Ahead of the foot's step, so one press never does both.
   const answering = notes.find((note) => note.id === stops[stop]?.id && note.toJudge && !threads.readOnly && asking !== note.id);
+  const ending = stop === stops.length && looksGood && !looksGood.good ? looksGood : undefined;
   useEffect(() => {
-    if (!active || !answering || taken || noting || acting.writing) return;
+    if (!active || !(answering || ending) || taken || noting || acting.writing) return;
     const down = (event: KeyboardEvent) => {
       if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || (event.target as Element).closest?.("button, input, textarea, [contenteditable], [role=slider]")) return;
-      if (event.key === "Enter") (event.preventDefault(), threads.onJudge(answering, { note: answering.id, verdict: "looks good" }), props.onSaid());
-      else if (event.key.toLowerCase() === "x") (event.preventDefault(), setAsking(answering.id));
+      if (event.key === "Enter" && ending) (event.preventDefault(), ending.onPress());
+      else if (event.key === "Enter" && answering) (event.preventDefault(), threads.onJudge(answering, { note: answering.id, verdict: "looks good" }), props.onSaid());
+      else if (event.key.toLowerCase() === "x" && answering) (event.preventDefault(), setAsking(answering.id));
     };
     addEventListener("keydown", down);
     return () => removeEventListener("keydown", down);

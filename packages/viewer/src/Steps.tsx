@@ -9,6 +9,7 @@
 
 import { useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from "react";
 import type { Flow } from "@playthrough/review";
+import { Key } from "./Card.tsx";
 import { EndMark } from "./Chosen.tsx";
 import { clamp } from "./moments.ts";
 import type { Clock, Cut } from "./Player.tsx";
@@ -302,10 +303,11 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
           </span>
           <button
             aria-pressed={looksGood.good}
-            className={`block text-left text-[13px] leading-5 transition-colors duration-300 ease-calm ${looksGood.good ? "text-green" : on === stops.length ? "text-fg" : "text-soft hover:text-fg"}`}
+            className={`flex items-center gap-2 text-left text-[13px] leading-5 transition-colors duration-300 ease-calm ${looksGood.good ? "text-green" : on === stops.length ? "text-fg" : "text-soft hover:text-fg"}`}
             onClick={looksGood.onPress}
           >
             Looks good
+            {on === stops.length && !looksGood.good && <Key>↵</Key>}
           </button>
         </li>
       )}
