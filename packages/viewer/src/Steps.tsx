@@ -33,12 +33,13 @@ export function Steps({ flow, chosen, changed, notedAt, progress, column, by, on
     tabs.current[clamp(chosen + step, 0, flow.steps.length - 1)]?.focus();
   };
   const look = column
-    ? { list: "flex flex-col", step: "h-12 py-1.5 pl-4", line: "absolute inset-y-0.5 left-0 w-[3px]", fill: "[transform:scaleY(var(--done,1))]", words: "line-clamp-2" }
+    ? { list: "flex flex-col", step: "h-12 content-center py-1.5 pl-4", line: "absolute inset-y-0.5 left-0 w-[3px]", fill: "[transform:scaleY(var(--done,1))]", number: "h-[18px]", words: "line-clamp-2" }
     : {
         list: "grid grid-cols-[repeat(auto-fit,minmax(128px,1fr))] gap-x-2 gap-y-4 wide:flex wide:flex-col wide:gap-0",
-        step: "gap-2 wide:h-12 wide:py-1.5 wide:pl-4",
+        step: "content-start gap-2 wide:h-12 wide:content-center wide:py-1.5 wide:pl-4",
         line: "relative h-[3px] wide:absolute wide:inset-y-0.5 wide:left-0 wide:h-auto wide:w-[3px]",
         fill: "[transform:scaleX(var(--done,1))] wide:[transform:scaleY(var(--done,1))]",
+        number: "wide:h-[18px]",
         words: "line-clamp-3 wide:line-clamp-2",
       };
   return (
@@ -51,7 +52,7 @@ export function Steps({ flow, chosen, changed, notedAt, progress, column, by, on
           title={step.title}
           aria-selected={i === chosen}
           tabIndex={i === chosen ? 0 : -1}
-          className={`relative grid content-start text-left text-[13px] leading-[18px] text-soft transition-colors duration-150 ease-calm outline-none hover:text-fg focus-visible:text-fg aria-selected:text-fg ${look.step}`}
+          className={`relative grid text-left text-[13px] leading-[18px] text-soft transition-colors duration-150 ease-calm outline-none hover:text-fg focus-visible:text-fg aria-selected:text-fg ${look.step}`}
           onPointerEnter={by === "point" ? () => onChoose(i) : undefined}
           onFocus={by === "point" ? () => onChoose(i) : undefined}
           onClick={by === "press" ? () => onChoose(i) : undefined}
@@ -61,7 +62,7 @@ export function Steps({ flow, chosen, changed, notedAt, progress, column, by, on
             {i === chosen && <span ref={progress} className={`absolute inset-0 origin-top-left bg-fg ${look.fill}`} />}
           </span>
           <span className="flex gap-1.5">
-            <span className="grid flex-none content-start justify-items-center gap-1.5">
+            <span className={`grid flex-none content-start justify-items-center gap-1.5 ${look.number}`}>
               <span className="text-faint tabular-nums">{i + 1}</span>
               {changed.has(i) && <i title="Changed here" className="size-[6px] rotate-45 bg-fg" />}
             </span>
