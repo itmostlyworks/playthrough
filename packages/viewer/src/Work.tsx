@@ -499,7 +499,10 @@ function Situation(props: SituationProps) {
   const person = personAt(flow, restsAt);
   const stepIn = resting && !live?.shown && !noting && !acting.writing && acting.latest ? acting.onTakeOver : undefined;
   const noteHere = noting && !taken && !acting.writing;
+  // It says so once you point, not each time the way comes to rest under a pointer left there.
   const [aiming, setAiming] = useState(false);
+  const pointed = useRef<{ x: number; y: number }>(undefined);
+  useEffect(() => setAiming(false), [stop, !!playing]);
   const pill = useRef<HTMLSpanElement>(null);
   const armed = useRef(false);
 
@@ -693,7 +696,10 @@ function Situation(props: SituationProps) {
               if (event.pointerType !== "mouse") return;
               const box = event.currentTarget.getBoundingClientRect();
               pill.current?.style.setProperty("translate", `${event.clientX - box.left}px ${event.clientY - box.top}px`);
-              setAiming(true);
+              // The page scrolled under a pointer that stayed put tells it moved, from where it was: that isn't pointing.
+              const was = pointed.current;
+              pointed.current = { x: event.clientX, y: event.clientY };
+              if (was && Math.hypot(event.clientX - was.x, event.clientY - was.y) > 2) setAiming(true);
             }}
             onPointerLeave={() => setAiming(false)}
             onClick={() => armed.current && !taken && (stepIn ? (setAiming(false), stepIn()) : again())}
