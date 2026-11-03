@@ -255,6 +255,8 @@ function Situation(props: SituationProps) {
     setPlaying(undefined);
     setPicked(rests.find((rest) => Math.abs(rest.at - moment) < 0.01)?.id);
   };
+  // Where playing on goes from here: the rest of the step it's partway through, or the next step.
+  const onward = rests.find((rest) => rest.at > at + 0.01);
   // A step plays from its start to its first resting place.
   const playStep = (step: number) => playTo(rests.find((rest) => rest.at > flow.steps[step]!.at + 0.01)!.at, flow.steps[step]!.at);
 
@@ -448,7 +450,7 @@ function Situation(props: SituationProps) {
       </div>
       <div className="relative">
         {/* A click plays it on and stops it, as Space does; noting, it notes what's under it; taken over, it's the app's. */}
-        <button data-picture={flow.name} className="relative block aspect-[1.6] w-full" aria-label={playing ? `Stop ${flow.name}` : `Next step of ${flow.name}`} onClick={() => !taken && playOn()}>
+        <button data-picture={flow.name} className="relative block aspect-[1.6] w-full" aria-label={`${playing ? "Stop" : "Play"} ${flow.name}`} onClick={() => !taken && playOn()}>
           {/* Side by side, Now narrows to its half of the picture as its view glides close on the step's part of the page,
               and Before comes in beside it: nothing around them moves. */}
           <span className={`${FRAMED} left-0 z-1 transition-[width] duration-450 ease-calm ${side ? HALVES : "w-full"}`}>
@@ -492,7 +494,7 @@ function Situation(props: SituationProps) {
               <Bar
                 live={taken ? (live.inApp ? "shown" : "waiting") : undefined}
                 latest={acting.latest}
-                play={{ moving: !!playing, last: !playing && at >= rests.at(-1)!.at - 0.01, onPlay: playOn }}
+                play={{ does: playing ? "moving" : !onward ? "again" : stepOf(onward.at) === step ? "on" : "next", onPlay: playOn }}
                 compare={then && { on: side || peek, off: taken, onPress: press, onRelease: release }}
                 noting={noting}
                 onNote={taken && !live.inApp ? undefined : acting.onNote}

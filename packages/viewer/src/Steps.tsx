@@ -1,8 +1,9 @@
 // A situation's steps, under its recording, in the parts the agent thought worth looking at: each its number and words,
 // the one it's on lit, and beside them a dot for each note made in it and a diamond for each change new to you. There's
 // no clock here: how long a step took is how fast it was recorded, not how long you need to look. Pressing a step's words
-// plays it; a dot or a diamond goes to it and opens it, and pointed at, says what it is. The line over the step it's on
-// fills as it plays through it, and pressed or dragged along, goes anywhere in it, for a moment the steps don't rest on.
+// or its line plays it; a dot or a diamond goes to it and opens it, and pointed at, says what it is. The line over the
+// step it's on fills as it plays through it, and pressed or dragged along, goes anywhere in it, for a moment the steps
+// don't rest on.
 
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import type { Flow } from "@playthrough/review";
@@ -85,7 +86,7 @@ export function Steps({ flow, clock, at, cut, marks, onPlay, onMark, onScrub, on
   return (
     <div role="group" aria-label={`The steps of ${flow.name}`} className={`grid grid-cols-[repeat(auto-fit,minmax(128px,1fr))] gap-x-2 gap-y-4 ${className}`}>
       {flow.steps.map((step, i) => (
-        <div key={i} className="grid content-start gap-2.5">
+        <div key={i} className="group/step grid content-start gap-2.5">
           {i === current ? (
             <div
               ref={line}
@@ -104,10 +105,25 @@ export function Steps({ flow, clock, at, cut, marks, onPlay, onMark, onScrub, on
               </span>
             </div>
           ) : (
-            <span className="h-0.5 rounded-[1px] bg-line" />
+            // Another step's line plays it, as its words do: pointed at, either says so with a play button on the line.
+            <button
+              data-play
+              tabIndex={-1}
+              aria-hidden
+              className="relative h-0.5 cursor-pointer outline-none before:absolute before:inset-x-0 before:-inset-y-2 before:content-['']"
+              onClick={() => onPlay(i)}
+            >
+              <span className="absolute inset-0 rounded-[1px] bg-line transition-[scale,background-color] duration-150 ease-calm group-has-[[data-play]:hover]/step:scale-y-200 group-has-[[data-play]:hover]/step:bg-faint" />
+              <span className="pointer-events-none absolute top-1/2 left-1/2 grid size-[18px] -translate-x-1/2 -translate-y-1/2 scale-90 place-items-center rounded-full bg-surface text-fg opacity-0 shadow-tip transition-[opacity,scale] duration-150 ease-calm group-has-[[data-play]:hover]/step:scale-100 group-has-[[data-play]:hover]/step:opacity-100">
+                <svg viewBox="0 0 8 8" className="ml-px size-2" fill="currentColor">
+                  <path d="M1.5 1v6l5-3z" />
+                </svg>
+              </span>
+            </button>
           )}
           <div className="flex items-start gap-1">
             <button
+              data-play
               title={step.title}
               aria-current={i === current ? "step" : undefined}
               className="flex min-w-0 gap-1.5 text-left text-[13px] leading-[18px] text-soft transition-colors duration-150 ease-calm outline-none hover:text-fg focus-visible:text-fg aria-[current]:text-fg"
