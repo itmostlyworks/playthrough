@@ -156,7 +156,7 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
             >
               <span
                 data-sign=""
-                className={`absolute top-2 left-2.5 grid h-5 min-w-5 -translate-x-1/2 place-items-center rounded-full px-1.5 text-[10.5px] leading-none font-medium whitespace-nowrap tabular-nums transition-colors duration-300 ease-calm ${here ? "bg-fg text-ground" : gone ? "bg-line text-soft" : "bg-ground text-faint shadow-[inset_0_0_0_1px_var(--line)]"}`}
+                className={`absolute top-2 left-2.5 grid h-5 min-w-5 -translate-x-1/2 place-items-center rounded-full px-1.5 phone:left-0 phone:translate-x-0 text-[10.5px] leading-none font-medium whitespace-nowrap tabular-nums transition-colors duration-300 ease-calm ${here ? "bg-fg text-ground" : gone ? "bg-line text-soft" : "bg-ground text-faint shadow-[inset_0_0_0_1px_var(--line)]"}`}
               >
                 {stop.from + 1}–{stop.step + 1}
               </span>
