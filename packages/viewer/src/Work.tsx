@@ -533,9 +533,9 @@ function Situation(props: SituationProps) {
   const frames = useFrames(review, round, flow, readings, (step) => changed.filter((on) => on.at !== undefined && stepOf(on.at) === step));
   const frame = side ? frames[step] : undefined;
   // At rest on a note or a change, the recording is close on what it's on, and on a step, it's the whole page as it
-  // plays; side by side, it's the step's part of the page.
+  // plays; side by side, it's the step's part of the page; and taken over, the whole page the app comes in as.
   const there = stops[stop];
-  const closeOn = !side && there?.id !== undefined && there.at !== undefined && Math.abs(at - there.at) < 0.02 ? pins.find((pin) => pin.id === there.id)?.on : undefined;
+  const closeOn = !side && !live && there?.id !== undefined && there.at !== undefined && Math.abs(at - there.at) < 0.02 ? pins.find((pin) => pin.id === there.id)?.on : undefined;
   const view = `${at} ${side} ${closeOn?.join(" ") ?? ""}`;
   // The app is the page the recording was made of, at its size, scrolled where the recording rests.
   const screen = readings?.find((one) => one.step === flow.steps[step]?.title)?.screen ?? { width: 1280, height: 800 };
