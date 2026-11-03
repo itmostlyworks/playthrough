@@ -12,7 +12,7 @@ import { fill, type Shown, type Standing } from "./notes.ts";
 import { asWho } from "./people.ts";
 import { recorded } from "./replay.ts";
 import type { CloseUp } from "./flight.ts";
-import { HOLD, Loop } from "./Loop.tsx";
+import { HOLD, Loop, ON } from "./Loop.tsx";
 import { Picture, type Frame } from "./Picture.tsx";
 import { roundName, Rounds } from "./Rounds.tsx";
 import { Agent, Go, says, type Step } from "./Step.tsx";
@@ -101,12 +101,14 @@ function Situation({ review, round, before, flow, changed, readings, notes, stan
   const frames = useFrames(review, round, flow, readings, (step) => changed.filter((on) => on.at !== undefined && stepOf(on.at) === step));
   const then = before?.flows.find((one) => one.name === flow.name);
   const thenAt = (step: number) => then?.steps.findIndex((one) => one.title === flow.steps[step]?.title) ?? -1;
-  // Pointed at, its steps or the pair, the step plays over and over, on both sides at once, from the start each time
-  // another is chosen. The loops are made the first time, and kept.
+  // Pointed at, a step in the list plays over and over, on both sides at once, from the start each time another is
+  // chosen. Pointed at, the pictures play on from the step they're on, each step into the next as the recording goes,
+  // and round again from the first. The loops are made the first time, and kept.
   const [started, setStarted] = useState<number>();
   const [woken, setWoken] = useState(false);
+  const [through, setThrough] = useState(false);
   const play = () => (setWoken(true), setStarted(performance.now()));
-  const choose = (step: number) => (setChosen(step), started !== undefined && setStarted(performance.now()));
+  const choose = (step: number) => (setThrough(false), setChosen(step), started !== undefined && setStarted(performance.now()));
   const tabs = useRef<(HTMLButtonElement | null)[]>([]);
   const arrows = (event: KeyboardEvent<HTMLButtonElement>) => {
     const by = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
@@ -120,7 +122,16 @@ function Situation({ review, round, before, flow, changed, readings, notes, stan
   const was = then && thenStep >= 0 ? { from: then.steps[thenStep]!.at, until: stepEnd(then, thenStep) } : undefined;
   // Each side says how long its step plays once its recording is in; both go round together, as long as the longer.
   const [lengths, setLengths] = useState<{ now?: number; was?: number }>({});
-  const cycle = Math.max(lengths.now ?? 0, (was && lengths.was) || 0) + HOLD;
+  // Played through, a step goes straight on into the next, holding only before it goes round again.
+  const last = chosen === flow.steps.length - 1;
+  const cycle = Math.max(lengths.now ?? 0, (was && lengths.was) || 0) + (through && !last ? ON : HOLD);
+  useEffect(() => {
+    if (!through || started === undefined) return;
+    const next = setTimeout(() => (setChosen(last ? 0 : chosen + 1), setStarted(performance.now())), started + cycle * 1000 - performance.now());
+    return () => clearTimeout(next);
+  }, [through, started, cycle]);
+  // How long until a step plays again: played through, it isn't, and waits on its end for the next.
+  const again = through ? Infinity : cycle;
   const here = notedAt(chosen);
   // The step's segment is where its picture is in it: full at rest, as the picture is its end, and filling as it plays.
   const progress = useRef<HTMLSpanElement>(null);
@@ -130,17 +141,17 @@ function Situation({ review, round, before, flow, changed, readings, notes, stan
     if (started === undefined || !lengths.now) return void bar.style.removeProperty("--done");
     let frameId = 0;
     const tick = () => {
-      bar.style.setProperty("--done", String(Math.min(1, (((performance.now() - started) / 1000) % cycle) / lengths.now!)));
+      bar.style.setProperty("--done", String(Math.min(1, (((performance.now() - started) / 1000) % again) / lengths.now!)));
       frameId = requestAnimationFrame(tick);
     };
     tick();
     return () => cancelAnimationFrame(frameId);
-  }, [started, cycle, lengths.now, chosen]);
+  }, [started, again, lengths.now, chosen]);
   // Opened, the step plays in the frame as it plays here, once, from the page as it begins: that picture's at hand.
   const begins = chosen > 0 ? picture(review.id, round.number, flow.recording, chosen - 1) : undefined;
   useEffect(() => void (begins && (new Image().src = begins)), [begins]);
   return (
-    <section className="grid gap-3 wide:grid-cols-[260px_1fr] wide:gap-8" onPointerEnter={play} onPointerLeave={() => setStarted(undefined)}>
+    <section className="grid gap-3 wide:grid-cols-[260px_1fr] wide:gap-8" onPointerEnter={play} onPointerLeave={() => (setStarted(undefined), setThrough(false))}>
       <div className="grid content-start gap-3 wide:gap-4">
         <div className="flex items-baseline justify-between gap-4 px-0.5 wide:flex-col wide:items-start wide:gap-1">
           <h3 className="min-w-0 text-[15px] leading-[21px] font-semibold text-balance">
@@ -153,7 +164,7 @@ function Situation({ review, round, before, flow, changed, readings, notes, stan
             <span className="text-faint tabular-nums">· {time(flow.length)}</span>
           </span>
         </div>
-        <div role="tablist" aria-label={`The steps of ${flow.name}`} className="grid grid-cols-[repeat(auto-fit,minmax(128px,1fr))] gap-x-2 gap-y-4 wide:flex wide:flex-col wide:gap-0 wide:self-start">
+        <div role="tablist" aria-label={`The steps of ${flow.name}`} onPointerEnter={() => setThrough(false)} className="grid grid-cols-[repeat(auto-fit,minmax(128px,1fr))] gap-x-2 gap-y-4 wide:flex wide:flex-col wide:gap-0 wide:self-start">
           {flow.steps.map((step, i) => (
             <button
               key={i}
@@ -185,7 +196,7 @@ function Situation({ review, round, before, flow, changed, readings, notes, stan
         </div>
       </div>
       <div className="grid content-start gap-3">
-        <div className="grid grid-cols-2 gap-4 phone:grid-cols-1">
+        <div className="grid grid-cols-2 gap-4 phone:grid-cols-1" onPointerEnter={() => setThrough(true)}>
           <figure className="grid gap-2">
             <button
               data-picture={flow.name}
@@ -194,7 +205,7 @@ function Situation({ review, round, before, flow, changed, readings, notes, stan
               onClick={() => onFlow(flow.name, { ...now, closeUp: { src: begins, frame, page: readings?.[chosen]?.screen ?? { width: 1600, height: 1000 } } })}
             >
               <Still src={picture(review.id, round.number, flow.recording, chosen)} frame={frame} />
-              {woken && <Loop review={review.id} round={round.number} recording={flow.recording} {...now} frame={frame} started={started} cycle={cycle} onLength={(now) => setLengths((all) => ({ ...all, now }))} />}
+              {woken && <Loop review={review.id} round={round.number} recording={flow.recording} {...now} frame={frame} started={started} cycle={again} onLength={(now) => setLengths((all) => ({ ...all, now }))} />}
               {here.length > 0 && (
                 <span className="absolute top-2.5 left-2.5 flex gap-1">
                   {here.map((note) => (
@@ -211,7 +222,7 @@ function Situation({ review, round, before, flow, changed, readings, notes, stan
             {then && was ? (
               <span className="relative block aspect-[1.6] overflow-hidden rounded-lg bg-paper shadow-frame">
                 <Still src={picture(review.id, 0, then.recording, thenStep)} frame={frame} />
-                {woken && <Loop review={review.id} round={0} recording={then.recording} {...was} frame={frame} started={started} cycle={cycle} onLength={(was) => setLengths((all) => ({ ...all, was }))} />}
+                {woken && <Loop review={review.id} round={0} recording={then.recording} {...was} frame={frame} started={started} cycle={again} onLength={(was) => setLengths((all) => ({ ...all, was }))} />}
               </span>
             ) : (
               <span className="grid aspect-[1.6] place-content-center rounded-lg border border-dashed border-line px-6 text-center text-[13px] leading-5 text-soft">

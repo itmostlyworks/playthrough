@@ -14,6 +14,11 @@ const LONGEST = 4.5;
 const SHORTEST = 1.4;
 // How long the end holds before it goes round again.
 export const HOLD = 0.9;
+// How long a step's end holds before the next step goes on from it.
+export const ON = 0.3;
+
+// How long the view takes to glide from one step's part of the page to another's.
+const GLIDE = 0.45;
 
 // Nothing happening for longer than this is waiting, and is shown as this long.
 const WAIT = 0.4;
@@ -101,6 +106,8 @@ export function Loop(props: Props) {
   const ring = useRef<HTMLSpanElement>(null);
   const caret = useRef<HTMLSpanElement>(null);
   const [replay, setReplay] = useState<{ replay: Replay; events: Events }>();
+  // Where the view was last drawn, so a step chosen as it plays is glided to rather than cut to.
+  const view = useRef<{ left: number; top: number; k: number }>(undefined);
   useEffect(() => {
     let current = true;
     let made: Replay | undefined;
@@ -123,11 +130,16 @@ export function Loop(props: Props) {
     const replayed = replay.replay;
     const shape = replayed.shapeAt(until);
     const part = frame ?? { x: 0, y: 0, width: 1, height: 1 };
-    const k = box.current.clientWidth / (part.width * shape.width);
+    const fit = box.current.clientWidth / (part.width * shape.width);
     const speed = stretch.length / played;
     const follow = following(replayed, stretch, part, shape, played, speed);
+    const [was, since] = [started === undefined ? undefined : view.current, performance.now()];
     const draw = (at: number, going = played) => {
-      const [left, top] = follow(going);
+      let [left, top] = follow(going);
+      let k = fit;
+      const glided = was ? 1 - (1 - Math.min(1, (performance.now() - since) / GLIDE)) ** 3 : 1;
+      if (was && glided < 1) [left, top, k] = [was.left + (left - was.left) * glided, was.top + (top - was.top) * glided, was.k + (k - was.k) * glided];
+      view.current = { left, top, k };
       replayed.host.style.transform = `translate(${-left * k}px, ${-top * k}px) scale(${k})`;
       replayed.placeCaret(caret.current!, at, left, top, k);
       const pointer = replayed.pointerAt(at);
