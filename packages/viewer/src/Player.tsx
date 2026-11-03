@@ -74,6 +74,19 @@ export function useCut(review: string, round: number, flow: Flow): Cut | undefin
   return kept;
 }
 
+// A view moved to sit in a part of the page: inside it where it's bigger than the view, the whole of it where it's not,
+// and never past the page's edges.
+function within(view: Frame, section: Rect, page: { width: number; height: number }): Frame {
+  const [width, height] = [view.width * page.width, view.height * page.height];
+  const fit = (at: number, size: number, from: number, length: number, all: number) =>
+    Math.min(Math.max(size >= length ? from + length / 2 - size / 2 : Math.min(Math.max(at, from), from + length - size), 0), all - size);
+  return {
+    ...view,
+    x: fit(view.x * page.width, width, section.left, section.width, page.width) / page.width,
+    y: fit(view.y * page.height, height, section.top, section.height, page.height) / page.height,
+  };
+}
+
 // How long the view takes to glide from one part of the page to another: Compare on or off, or a step that's elsewhere;
 // and how close it comes on something, at most, against the whole page.
 const GLIDE = 0.45;
@@ -225,9 +238,14 @@ export function Player(props: Props) {
       (mark.name ? replayed.named(mark.name) : undefined) ??
       (mark.box && { left: mark.box.x * shape.width, top: mark.box.y * shape.height, width: mark.box.width * shape.width, height: mark.box.height * shape.height }) ??
       (mark.point && { left: mark.point.x * shape.width, top: mark.point.y * shape.height, width: 0, height: 0 });
+    // Close on something, it's framed in what it sits in: kept inside a panel bigger than the view, and a smaller one
+    // whole, so it's seen with its edges rather than alone in the middle.
     if (closing && !close.current.found) {
-      const boxes = (marks ?? []).filter((mark) => closeOn!.includes(mark.id)).flatMap((mark) => found(mark) ?? []).map((thing) => ({ x: thing.left, y: thing.top, width: thing.width, height: thing.height }));
-      close.current = { on: closeKey, found: true, frame: boxes.length ? around(union(boxes), shape, box.current.clientWidth / box.current.clientHeight, CLOSEST) : frame };
+      const things = (marks ?? []).filter((mark) => closeOn!.includes(mark.id)).flatMap((mark) => found(mark) ?? []);
+      const thing = things.length ? union(things.map((one) => ({ x: one.left, y: one.top, width: one.width, height: one.height }))) : undefined;
+      const section = thing && replayed.sectionOf({ left: thing.x, top: thing.y, width: thing.width, height: thing.height });
+      const view = thing && around(thing, shape, box.current.clientWidth / box.current.clientHeight, CLOSEST);
+      close.current = { on: closeKey, found: true, frame: view && section ? within(view, section, shape) : (view ?? frame) };
       if (close.current.frame !== glide.current.frame) return setGlided((done) => done + 1);
     }
     told.current?.(

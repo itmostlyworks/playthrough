@@ -352,6 +352,18 @@ export class Replay {
     return rectOf(inside.getBoundingClientRect()) ?? rectOf(element.getBoundingClientRect());
   }
 
+  // The part of the page something sits in, as shown now: the nearest thing around it that draws itself, a panel, a card
+  // or a box, several times its size. Nothing where only the page does.
+  sectionOf(rect: Rect): Rect | undefined {
+    const page = this.#replayer.iframe.contentDocument;
+    const least = 4 * Math.max(rect.width * rect.height, 400);
+    for (let element = page?.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2) ?? null; element && element !== page?.body; element = element.parentElement) {
+      const box = element.getBoundingClientRect();
+      if (box.width * box.height >= least && drawsItself(element)) return rectOf(box);
+    }
+    return undefined;
+  }
+
   // Where a thing is on the page as shown now, by its name alone: the words it says, or what it's labelled, or waits for
   // as a placeholder. A note made in the app names its thing, but its nodes are the app's, not this recording's.
   named(name: string): Rect | undefined {
