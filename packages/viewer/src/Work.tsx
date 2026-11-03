@@ -14,7 +14,7 @@ import { clamp } from "./moments.ts";
 import { fill, ink, unchangedSince, type Shown, type Standing } from "./notes.ts";
 import { HOLD, Said } from "./Card.tsx";
 import { asWho, personAt } from "./people.ts";
-import { Portal } from "./Portal.tsx";
+import { Portal, TAG } from "./Portal.tsx";
 import { recorded, type Scrolled } from "./replay.ts";
 import type { CloseUp } from "./flight.ts";
 import { Clock, Player, useCut, type Mark, type Placed } from "./Player.tsx";
@@ -243,7 +243,7 @@ export function Work(props: Props) {
 // gone to plays into its result and rests there; gone back to, it plays again. A note or a change gone to is there at its
 // moment, lit. It arrives at the answer waiting on you, else at the first step's result. What's drawn on it, and what the
 // bar does, is about the moment it's at: the notes there, outlined, what changed there, a note made there, the app taken
-// over there. A click on it pauses it, or plays into the stop you're on again. C held is how it was before the work, at
+// over there. At rest, a click on it takes it over there; playing, it pauses it. C held is how it was before the work, at
 // the same moment, in place; pressed, the two side by side, each close on the step's part of the page.
 type SituationProps = {
   review: Review;
@@ -363,8 +363,8 @@ function Situation(props: SituationProps) {
     const by = there.top < box.top ? there.top - box.top - 8 : there.bottom > box.bottom ? Math.min(there.bottom - box.bottom + 8, there.top - box.top - 8) : 0;
     if (by) list.scrollBy({ top: by, behavior: "smooth" });
   }, [stop]);
-  // A click on it pauses it; paused partway, it plays on into the stop you're on, and there, plays into it again from
-  // its step's start. Before any stop, or on what was said about all of it, the step it shows plays.
+  // Playing, a click on it pauses it. Where it can't be taken over, a click plays on into the stop you're on, and there,
+  // plays into it again from its step's start; before any stop, or on what was said about all of it, the step it shows.
   const again = () => {
     if (playing) return pause();
     const there = stops[Math.min(stop, stops.length - 1)];
@@ -433,6 +433,13 @@ function Situation(props: SituationProps) {
   const restsAt = Math.round(at * 100) / 100;
   const resting = active && !playing && !scrubbing && !taken;
   useEffect(() => void (resting && acting.onRest(flow.name, restsAt)), [resting, restsAt]);
+  // And there, it's a click from being the app: pointing at it says so beside your pointer, as who it's done as. A
+  // click on another situation's makes it the one you're on.
+  const person = personAt(flow, restsAt);
+  const stepIn = resting && !live && !noting && acting.latest ? acting.onTakeOver : undefined;
+  const [aiming, setAiming] = useState(false);
+  const pill = useRef<HTMLSpanElement>(null);
+  const armed = useRef(false);
 
   // What's drawn is what's at this moment: in its step, the notes made there up to now, and what changed there.
   const shown = (moment: number) => stepOf(moment) === step && moment <= at + 0.05;
@@ -592,7 +599,20 @@ function Situation(props: SituationProps) {
       <div className="grid grid-cols-[minmax(0,1fr)_340px] gap-8 phone:grid-cols-1">
         <div className="relative self-start">
           {/* A click pauses it, or plays the step again; noting, it notes what's under it; taken over, it's the app's. */}
-          <button data-picture={flow.name} className="relative block aspect-[1.6] w-full" aria-label={`${playing ? "Pause" : "Play"} “${flow.steps[step]?.title}”`} onClick={() => !taken && again()}>
+          <button
+            data-picture={flow.name}
+            className="relative block aspect-[1.6] w-full"
+            aria-label={stepIn ? `Take over${person ? ` as ${person}` : ""}` : `${playing ? "Pause" : "Play"} “${flow.steps[step]?.title}”`}
+            onPointerDown={() => (armed.current = active)}
+            onPointerMove={(event) => {
+              if (event.pointerType !== "mouse") return;
+              const box = event.currentTarget.getBoundingClientRect();
+              pill.current?.style.setProperty("translate", `${event.clientX - box.left}px ${event.clientY - box.top}px`);
+              setAiming(true);
+            }}
+            onPointerLeave={() => setAiming(false)}
+            onClick={() => armed.current && !taken && (stepIn ? (setAiming(false), stepIn()) : again())}
+          >
             {/* Side by side, Now narrows to its half of the picture as its view glides close on the step's part of the page,
                 and Before comes in beside it: nothing around them moves. */}
             <span className={`${FRAMED} left-0 z-1 transition-[width] duration-450 ease-calm ${side ? HALVES : "w-full"}`}>
@@ -630,7 +650,10 @@ function Situation(props: SituationProps) {
               </span>
             )}
           </button>
-          <Portal live={live} person={personAt(flow, restsAt)} screen={screen} scrolled={() => scrolled.current?.()} />
+          <Portal live={live} person={person} screen={screen} scrolled={() => scrolled.current?.()} />
+          <span ref={pill} aria-hidden className={`pointer-events-none absolute top-0 left-0 z-30 transition-opacity duration-150 ease-calm ${stepIn && aiming ? "" : "opacity-0"}`}>
+            <span className={TAG}>{person ? `Take over as ${person}` : "Take over"}</span>
+          </span>
           {active && (
             <div className="absolute bottom-0 left-1/2 z-20 -translate-x-1/2 translate-y-1/2">
               <div className="animate-arrive">
