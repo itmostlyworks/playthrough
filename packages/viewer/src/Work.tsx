@@ -59,8 +59,9 @@ export type Acting = {
   onTakeOver?: () => void;
   onBack: () => void;
   onPlace: (on: Place) => void;
-  // Where the situation you're on rests: Take over takes it over there.
-  onRest: (flow: string, at: number) => void;
+  // Where the situation you're on rests: Take over takes it over there, or at an answer to a note made in the app, where
+  // the note was found, what you did there done again.
+  onRest: (flow: string, at: number, again?: string) => void;
   onClose: () => void;
   // Taken over: the app made ready unseen, being made ready as you wait, or yours.
   live?: { flow: string; address?: string; shown: boolean; inApp: boolean; due?: number; at?: { x: number; y: number } };
@@ -430,10 +431,23 @@ function Situation(props: SituationProps) {
   useEffect(() => void (!active && playing && pause()), [active]);
   // Noting, it stops where it is: a note is made on the moment it's at; in the app, on what you click there.
   useEffect(() => void (noting && playing && pause()), [noting]);
-  // At rest on the situation you're on, that's where Take over takes it over.
+  // An answer to a note made in the app is seen the way the note was found: what you did there, done again on this
+  // round's work as the agent recorded it, from where you took it over to where the answer shows, or to the end of the
+  // step of it the agent says it's seen in, where the page is the answer and nothing is outlined.
+  const redone = (() => {
+    const id = stops[stop]?.id;
+    const on = notes.find((note) => note.id === id)?.on;
+    if (!id || !on?.app?.steps || on.at === undefined) return undefined;
+    const watched = on.app.steps.findIndex((step) => step.title === round.replies.find((reply) => reply.note === id)?.watch);
+    const until = watched < 0 ? on.at : (on.app.steps[watched + 1]?.at ?? on.app.length) - 0.05;
+    return { id, on, app: on.app, until, outlined: watched < 0 };
+  })();
+  const [redoing, setRedoing] = useState(false);
+  // At rest on the situation you're on, that's where Take over takes it over; at such an answer, it's taken over the
+  // way it was found, what you did done again in the app.
   const restsAt = Math.round(at * 100) / 100;
   const resting = active && !playing && !scrubbing && !taken;
-  useEffect(() => void (resting && acting.onRest(flow.name, restsAt)), [resting, restsAt]);
+  useEffect(() => void (resting && acting.onRest(flow.name, restsAt, redone?.id)), [resting, restsAt, redone?.id]);
   // And there, it's a click from being the app: pointing at it says so beside your pointer, as who it's done as. A
   // click on another situation's makes it the one you're on.
   const person = personAt(flow, restsAt);
@@ -544,7 +558,7 @@ function Situation(props: SituationProps) {
   // plays; side by side, it's the step's part of the page; and taken over, the whole page the app comes in as.
   const there = stops[stop];
   const closeOn = !side && !live?.shown && there?.id !== undefined && there.at !== undefined && Math.abs(at - there.at) < 0.02 ? pins.find((pin) => pin.id === there.id)?.on : undefined;
-  const view = `${at} ${side} ${closeOn?.join(" ") ?? ""}`;
+  const view = `${at} ${side} ${closeOn?.join(" ") ?? ""} ${redone ? "redone" : ""}`;
   // The app is the page the recording was made of, at its size, scrolled where the recording rests.
   const screen = readings?.find((one) => one.step === flow.steps[step]?.title)?.screen ?? { width: 1280, height: 800 };
   const scrolled = useRef<() => Scrolled>(undefined);
@@ -630,12 +644,27 @@ function Situation(props: SituationProps) {
                 following={scrubbing ? { clock, at: (moment) => moment } : undefined}
                 frame={frame}
                 marks={marks}
-                closeOn={closeOn}
-                onMarks={(placed) => setPlaced({ view, at: placed })}
+                closeOn={redone ? undefined : closeOn}
+                onMarks={redone ? undefined : (placed) => setPlaced({ view, at: placed })}
                 things={noting && !taken && !writing ? props.glimpsed : undefined}
                 onPlace={noting && !taken && !writing ? (on) => acting.onPlace({ flow: flow.name, at: restsAt, ...on }) : undefined}
                 scrolled={scrolled}
               />
+              {redone && (
+                <Redone
+                  key={redone.id}
+                  review={review.id}
+                  round={round.number}
+                  flow={flow}
+                  app={redone.app}
+                  until={redone.until}
+                  frame={frame}
+                  marks={redone.outlined ? [{ id: redone.id, node: redone.on.element?.node, name: redone.on.element?.name }] : []}
+                  closeOn={redone.outlined && !side && !live?.shown && !redoing ? [redone.id] : undefined}
+                  onMarks={(placed) => setPlaced({ view, at: placed })}
+                  onPlaying={setRedoing}
+                />
+              )}
               <span className={`${CHIP} transition-opacity duration-450 ease-calm ${side ? "" : "opacity-0"}`}>Now</span>
             </span>
             {beside && (
@@ -673,7 +702,13 @@ function Situation(props: SituationProps) {
           )}
           {!taken && !peek && (
             <div className={`pointer-events-none absolute inset-y-0 left-0 z-1 transition-[width] duration-450 ease-calm ${side ? `${HALVES} overflow-hidden rounded-lg` : "w-full"}`}>
-              <Pinned pins={pins} placed={placed?.view === view ? placed.at : {}} open={open} faded={!!playing || scrubbing || placed?.view !== view} onOpen={(id) => (writing && id !== writing.note.id ? acting.onClose() : opened(id))} />
+              <Pinned
+                pins={redone ? pins.filter((pin) => pin.id === redone.id && redone.outlined) : pins}
+                placed={placed?.view === view ? placed.at : {}}
+                open={open}
+                faded={!!playing || scrubbing || (!!redone && redoing) || placed?.view !== view}
+                onOpen={(id) => (writing && id !== writing.note.id ? acting.onClose() : opened(id))}
+              />
             </div>
           )}
         </div>
@@ -712,7 +747,53 @@ const RECORDED_INK = "#2b2e35";
 // A recording's picture; side by side, each round's half, with room between them; and what each is, at its top left.
 const FRAMED = "absolute inset-y-0 overflow-hidden rounded-lg bg-paper shadow-frame";
 const HALVES = "w-[calc(50%-8px)]";
-const CHIP = "pointer-events-none absolute top-2.5 left-2.5 z-1 rounded-md bg-ground px-2 py-0.5 text-xs leading-4 text-soft shadow-tip";
+const CHIP = "pointer-events-none absolute top-2.5 left-2.5 z-3 rounded-md bg-ground px-2 py-0.5 text-xs leading-4 text-soft shadow-tip";
+
+// What you did in the app, done again on this round's work as the agent recorded it, over the situation's recording: it
+// plays once from where you took the situation over to where the answer shows, and rests there.
+function Redone(props: {
+  review: string;
+  round: number;
+  flow: Flow;
+  app: NonNullable<Place["app"]>;
+  until: number;
+  frame?: Frame;
+  marks: Mark[];
+  closeOn?: string[];
+  onMarks: (placed: Placed) => void;
+  onPlaying: (playing: boolean) => void;
+}) {
+  const { app } = props;
+  const [fork] = useState<Flow>(() => ({ ...props.flow, recording: app.recording, length: app.length, steps: app.steps ?? [] }));
+  const cut = useCut(props.review, props.round, fork);
+  const [clock] = useState(() => new Clock(app.from.at));
+  const [at, setAt] = useState(app.from.at);
+  const [playing, setPlaying] = useState<{ until: number }>();
+  // It plays once it knows its waits, to cut them short as a step's are.
+  const played = useRef(false);
+  useEffect(() => void (cut && !played.current && ((played.current = true), setPlaying({ until: props.until }))), [cut]);
+  useEffect(() => props.onPlaying(!!playing), [playing]);
+  useEffect(() => () => props.onPlaying(false), []);
+  return (
+    <span className="absolute inset-0 z-2 animate-arrive">
+      <Player
+        review={props.review}
+        round={props.round}
+        recording={fork.recording}
+        at={at}
+        playing={playing}
+        cut={cut}
+        clock={clock}
+        onStop={(moment) => (setAt(moment), setPlaying(undefined))}
+        frame={props.frame}
+        marks={props.marks}
+        closeOn={playing ? undefined : props.closeOn}
+        onMarks={props.onMarks}
+      />
+      <span className={CHIP}>What you did, done again</span>
+    </span>
+  );
+}
 
 // A picture that gives way to the next softly, the one before staying under it until the next has come.
 function Still({ src, frame }: { src: string; frame?: Frame }) {

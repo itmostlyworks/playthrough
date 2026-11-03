@@ -235,10 +235,11 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   // round you made it, is carried on from its end: the flow taken over where you took it, your steps done again.
   const forkOfFork = !!onFork?.again;
   // With the answer to a note made in the app open, it's taken over where you made the note, as Take over where you
-  // were in its card does.
+  // were in its card does; on the page, resting at one, the way it was found.
   const takeOver = () => {
     if (live?.shown) return letGo();
     if (forkOfFork) return;
+    if (onGrid && restingAt.current) return tryAgain(restingAt.current);
     if (openNote && whereYouWere.get(openNote.id)?.at !== undefined && openNote.on?.flow === watching) return tryWhereYouWere(openNote);
     trying.current = undefined;
     const base = onFork && round.flows.find((flow) => flow.name === onFork.from.flow);
@@ -249,6 +250,17 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     starting.current = { from: { flow: playhead.flow.name, at: Math.round(Math.max(0, playhead.now.moment.at) * 100) / 100 } };
     // While its name is up, the flow is at its start.
     takeOverAt(playhead.flow, Math.max(0, playhead.now.moment.at));
+  };
+  // On the page, the answer to a note made in the app you rest at: where you took its situation over, what you did there
+  // done again on this round's work, the note's pin on what it's on.
+  const restingAt = useRef<string>(undefined);
+  const tryAgain = (id: string) => {
+    const app = notes.find((note) => note.id === id)?.on?.app;
+    const flow = app && round.flows.find((one) => one.name === app.from.flow);
+    if (!app || !flow) return;
+    trying.current = id;
+    starting.current = { from: app.from };
+    takeOverAt(flow, app.from.at, app.did, [id]);
   };
   // A note made in the app on an earlier round is checked the way it was found, by trying it: this round's flow taken
   // over where you took it over then, what you did there done again, and in the app the note's pin on what it's on, its
@@ -1462,9 +1474,10 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
               onTakeOver: takeOver,
               onBack: () => letGo(),
               onPlace: (on) => (setNoting(false), write(on)),
-              onRest: (flow, at) => {
+              onRest: (flow, at, again) => {
                 playhead.pause();
                 playhead.go({ flow, at });
+                restingAt.current = again;
               },
               onClose: () => setOpen(undefined),
               live: live && { flow: live.flow, address: live.address, shown: live.shown, inApp, due: live.due, at: live.at },
