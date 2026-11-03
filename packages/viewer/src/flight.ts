@@ -1,10 +1,7 @@
 // Going from every flow at once to one, the flow's picture grows from where it was into the frame the flow plays in: a
-// picture is in one place at a time, so you see where it went. A step's close-up opens by pulling back from it, and
-// going back, pushes in on the step you were on.
+// picture is in one place at a time, so you see where it went. Going back, the camera pushes in on the step you were on.
 //
 // A picture is marked by data-picture, its flow's name; data-flying hides it while its copy is in the air.
-
-import type { Frame } from "./Picture.tsx";
 
 const FLIGHT = { duration: 420, easing: "cubic-bezier(.3,.7,.1,1)" };
 
@@ -33,27 +30,6 @@ export function grow(taking: Taking, frame: HTMLElement): number {
     for (const picture of [one.from, frame]) picture.removeAttribute("data-flying");
     flier.remove();
   };
-  return FLIGHT.duration;
-}
-
-// A step, as its picture shows it close up: the page as the step begins, none before a recording's first, the part of it
-// in view, and the page's size.
-export type CloseUp = { src?: string; frame?: Frame; page: { width: number; height: number } };
-
-// From a step's close-up into the frame, the camera pulls back: what was in view stays in view as the page around it
-// comes in, and the whole page settles where the frame draws it, at the top and in the middle. The frame shows once
-// it's there. How long until it has.
-export function pullBack(from: HTMLElement, closeUp: CloseUp, frame: HTMLElement): number {
-  const box = from.getBoundingClientRect();
-  const there = frame.getBoundingClientRect();
-  if (matchMedia("(prefers-reduced-motion: reduce)").matches || !box.width || !there.width) return 0;
-  const { src, frame: part, page } = closeUp;
-  const fit = Math.min(there.width / page.width, there.height / page.height);
-  const start = part
-    ? { left: box.left - (part.x * box.width) / part.width, top: box.top - (part.y * box.height) / part.height, width: box.width / part.width, height: box.height / part.height }
-    : within(box, page.width / page.height);
-  const end = { left: there.left + (there.width - page.width * fit) / 2, top: there.top, width: page.width * fit, height: page.height * fit };
-  move(from, box, start, frame, there, end, src);
   return FLIGHT.duration;
 }
 

@@ -16,9 +16,9 @@ import { Controls, type Look } from "./Controls.tsx";
 import { DownloadVideo, type Asked } from "./DownloadVideo.tsx";
 import type { ForkLine } from "./Timeline.tsx";
 import { useUnsent } from "./draft.ts";
-import { grow, pullBack, pushIn, takeOff, type Taking } from "./flight.ts";
+import { grow, pushIn, takeOff, type Taking } from "./flight.ts";
 import type { Step } from "./Step.tsx";
-import { Work, type Beat } from "./Work.tsx";
+import { Work } from "./Work.tsx";
 import { follow, pausedAt, readyAt, readyIn, samePaused, takenOver, type Live, type Paused } from "./live.ts";
 import { along, CARD, clamp, FLOW_IN, momentAt, POSTER, type Moment } from "./moments.ts";
 import { asIfSent, changedFirst, draftOn, toSend, everyDraft, fill, ink, lookGood, notesOn, nothing, said, seen, sendOf, settledBefore, standings, takeBack, upTo, workingSince, type Draft, type Shown } from "./notes.ts";
@@ -732,20 +732,13 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     row.style.transition = "opacity 520ms cubic-bezier(0.22, 0.8, 0.24, 1)";
     row.style.opacity = inApp ? "0.32" : "";
   }, [inApp, doing]);
-  const flying = useRef<{ taking: Taking; playing: boolean } | { from: HTMLElement; beat: Beat }>(undefined);
+  const flying = useRef<{ taking: Taking; playing: boolean }>(undefined);
   const settling = useRef<number>(undefined);
   useEffect(() => () => clearTimeout(settling.current), []);
   const leave = (name: string | undefined, playing: boolean) => {
     flying.current = { taking: takeOff(gridRoom.current!), playing };
     setGrid(false);
     if (name) go(name);
-  };
-  // Opening a step, the frame plays it as its loop did: from its start, once, stopping at its end.
-  const openStep = (name: string, beat: Beat) => {
-    const from = gridRoom.current?.querySelector<HTMLElement>(`[data-picture="${CSS.escape(name)}"]`);
-    if (from) flying.current = { from, beat };
-    setGrid(false);
-    go(name, beat.from);
   };
 
   // The flow you came back from and where you were in it, which every flow opens on.
@@ -774,15 +767,14 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     if (!flight) return;
     // Only the picture of the flow that plays grows into the frame.
     const frame = document.querySelector<HTMLElement>(`[data-frame="${round.number}"]`);
-    const last = !frame ? 0 : "beat" in flight ? pullBack(flight.from, flight.beat.closeUp, frame) : grow(flight.taking.filter((taken) => taken.flow === playhead.flow.name), frame);
-    if ("playing" in flight && !flight.playing) return;
+    const last = !frame ? 0 : grow(flight.taking.filter((taken) => taken.flow === playhead.flow.name), frame);
+    if (!flight.playing) return;
     const from = playhead.now.moment;
     clearTimeout(settling.current);
     settling.current = window.setTimeout(() => {
       const { moment, playing } = playhead.now;
       if (playing || moment.flow !== from.flow || moment.at !== from.at) return;
-      if ("beat" in flight) playhead.run(from, flight.beat.until);
-      else playhead.play();
+      playhead.play();
     }, last + SETTLE);
   });
 
@@ -1071,8 +1063,11 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
         kind: "go",
         words: "Finish your note",
         what: placeName(started.on),
+        // On the page, its situation comes up and the note opens in its list, where it was being written.
         take: () => {
-          if (started.on) {
+          const there = started.on && gridRoom.current?.querySelector(`[data-situation="${CSS.escape(started.on.flow)}"]`);
+          if (onGrid) (there?.scrollIntoView({ behavior: "smooth", block: "start" }), there?.querySelector<HTMLElement>("li[aria-current] textarea")?.focus({ preventScroll: true }));
+          else if (started.on) {
             leave(started.on.flow, false);
             go(started.on.flow, started.on.at);
           }
@@ -1277,8 +1272,6 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     ]);
   }
 
-  // The situation playing, or the fork off it you're on.
-  const shownFlow = played.flows.find((flow) => flow.name === watching);
   // What's chosen, beside the recording: a change's card.
   const chosenProps: ChosenProps = {
     notes: notes,

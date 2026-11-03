@@ -16,7 +16,6 @@ import { HOLD, Key, Said } from "./Card.tsx";
 import { asWho, personAt } from "./people.ts";
 import { Portal, TAG } from "./Portal.tsx";
 import { recorded, type Scrolled } from "./replay.ts";
-import type { CloseUp } from "./flight.ts";
 import { Clock, Player, useCut, type Mark, type Placed } from "./Player.tsx";
 import { answersTo, type Diamond } from "./changes.ts";
 import { Conversation, quiet as quietNumber } from "./Notes.tsx";
@@ -867,9 +866,6 @@ export type Threads = {
   onJudge: (note: Shown, verdict: Verdict | undefined) => void;
   onEdit: (id: string, words: string | undefined) => void;
 };
-
-// A step opened from its close-up: where it starts and ends, and how its picture showed it.
-export type Beat = { from: number; until: number; closeUp: CloseUp };
 
 // How long the wheel is still between one turn of it and the next, in milliseconds: turned again sooner, it's the same
 // turn going on.
