@@ -193,32 +193,15 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     return playing ? "playing" : moment.at >= length - 0.06 && !forking ? "end" : moment.at <= 0 ? "start" : "partway";
   });
 
-  // Taking over: the moment the playhead rests on, on the latest round, is made ready after a beat of stillness and
-  // loaded unseen, so Take over turns the frame into the app at once. Playing again, or going to another round, lays the
-  // recording back over it; a round arriving doesn't.
+  // Taking over: the moment the playhead rests on, on the latest round, is made ready when you press Take over, and the
+  // frame turns into the app once it has loaded. Playing again, or going to another round, lays the recording back over
+  // it; a round arriving doesn't.
   const [live, setLive] = useState<Live>();
   // How quickly the app has loaded and settled in the frame, from when its address came: on top of how long the moment
   // takes to be made ready, part of how long taking over takes. The quickest so far, as one slow load, a page the app
   // builds for the first time, isn't every load.
   const loading = useRef<{ since?: number; took?: number }>({});
   useEffect(() => void (live?.address && !live.settled && (loading.current.since = Date.now())), [live?.address]);
-  // Not on a fork: taking one over carries it on from its end.
-  const resting = useNow(playhead, ({ moment, playing }) => {
-    const on = round.flows.find((flow) => flow.name === moment.flow);
-    const paused = !playing && current && on && moment.at >= 0 ? pausedAt(on, moment.at) : undefined;
-    return paused && JSON.stringify({ flow: on!.name, paused });
-  });
-  useEffect(() => {
-    // Taken over already, it's asked for as it's taken.
-    if (!resting || live?.shown) return;
-    const { flow, paused }: { flow: string; paused: Paused } = JSON.parse(resting);
-    // Once it's ready, the app loads unseen in the frame, so Take over only has to show it.
-    const soon = setTimeout(
-      () => void readyAt(review.id, flow, paused, { ahead: true }).then((answer) => typeof answer === "string" && setLive((now) => (now?.shown ? now : { flow, paused, address: answer, shown: false }))),
-      200,
-    );
-    return () => clearTimeout(soon);
-  }, [resting, review.id]);
   const passing = useNow(playhead, ({ moment, playing }) => {
     const on = round.flows.find((flow) => flow.name === moment.flow);
     const paused = playing && current && !onGrid && on && moment.at >= 0 ? pausedAt(on, moment.at) : undefined;

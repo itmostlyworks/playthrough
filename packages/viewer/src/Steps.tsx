@@ -1,10 +1,12 @@
 // A situation's way through, beside its recording, a stop at a time: each step the agent chose, and after it what was
 // said there, your notes and what changed new to you, in the order they come; what was said about all of it comes first.
-// The stop you're on is marked and open: what was said there, all of it; or a step, with a line of its own that fills as
-// it plays, and dragged along, goes anywhere in the step and rests where it's let go, with a dot for each note made in
-// the step and a diamond for each change, at their moments. The others are a line each, and pressed, go there.
+// A rail runs down through them, filled as far as you've come, and its fill glides along as you go. The stop you're on
+// opens: what was said there, all of it; or a step, with a line of its own that fills as it plays, and dragged along,
+// goes anywhere in the step and rests where it's let go, with a dot for each note made in the step and a diamond for
+// each change, at their moments. The others are a line each, and pressed, go there. As much room as there is beside the
+// recording, the way spreads out into, up to a comfortable gap.
 
-import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from "react";
 import type { Flow } from "@playthrough/review";
 import { clamp } from "./moments.ts";
 import type { Clock, Cut } from "./Player.tsx";
@@ -16,6 +18,9 @@ export type Stop = { step: number; at?: number; id?: string };
 // What's on the line: a note's dot in its fill, or a change's diamond, at its moment, and what it says pointed at.
 export type OnLine = { id: string; at: number; fill?: string; words: string };
 
+// What was said at a stop: its sign on the rail, a line of it, and all of it.
+export type Saying = { sign: ReactNode; line: ReactNode; whole: ReactNode };
+
 type Props = {
   flow: Flow;
   clock: Clock;
@@ -25,15 +30,16 @@ type Props = {
   // The stop you're on; before the first, none.
   on: number;
   marks: OnLine[];
-  // What was said at a stop, folded to a line or open.
-  said: (id: string, open: boolean) => ReactNode;
+  said: (id: string) => Saying;
   onStop: (stop: number) => void;
+  // Pointed at, what was said is lit on the recording.
+  onPoint: (id?: string) => void;
   // Dragging along the line, and where it was let go.
   onScrub: (scrubbing: boolean) => void;
   onGo: (moment: number) => void;
 };
 
-export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, onScrub, onGo }: Props) {
+export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, onPoint, onScrub, onGo }: Props) {
   const end = (step: number) => flow.steps[step + 1]?.at ?? flow.length;
   const stepOf = (moment: number) => Math.max(0, flow.steps.findIndex((_, step) => end(step) >= moment - 0.05));
   // How far into its step a moment is, in the time it plays in, waiting cut short, so the line fills at one speed, full
@@ -51,13 +57,36 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
   // The step you're on, and how far into it it's played.
   const current = stops[on]?.step ?? -1;
   const line = useRef<HTMLDivElement>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (current < 0) return;
     const follow = (moment: number) => line.current?.style.setProperty("--done", String(share(current, moment)));
     follow(clock.at);
     return clock.follow(follow);
   }, [clock, flow, at, cut, current]);
   const toMark = (id: string) => onStop(stops.findIndex((stop) => stop.id === id));
+
+  // The rail, from the first stop's sign to the last's, and filled to the one you're on, measured as the stops open and
+  // close.
+  const list = useRef<HTMLOListElement>(null);
+  useLayoutEffect(() => {
+    const way = list.current;
+    if (!way) return;
+    const measure = () => {
+      const top = way.getBoundingClientRect().top;
+      const centres = [...way.querySelectorAll("[data-sign]")].map((sign) => {
+        const box = sign.getBoundingClientRect();
+        return box.top + box.height / 2 - top;
+      });
+      const first = centres[0] ?? 0;
+      way.style.setProperty("--rail-top", `${first}px`);
+      way.style.setProperty("--rail", `${(centres.at(-1) ?? first) - first}px`);
+      way.style.setProperty("--reach", `${on < 0 ? 0 : (centres[on] ?? first) - first}px`);
+    };
+    measure();
+    const watching = new ResizeObserver(measure);
+    for (const row of way.children) watching.observe(row);
+    return () => watching.disconnect();
+  }, [on, stops.length]);
 
   const along = (clientX: number) => {
     const box = line.current!.getBoundingClientRect();
@@ -91,78 +120,104 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
     addEventListener("pointercancel", up);
   };
 
+  // What opens, opening: it grows out of the line it was, as that fades.
+  const opening = (open: boolean) => `grid transition-[grid-template-rows] duration-300 ease-calm ${open ? "grid-rows-[0fr_1fr]" : "grid-rows-[1fr_0fr]"}`;
+  const fading = (shown: boolean) => `min-h-0 overflow-hidden transition-opacity duration-300 ease-calm ${shown ? "" : "opacity-0"}`;
+
   return (
-    <ol aria-label={`The way through “${flow.name}”`} className="grid grid-cols-1">
-      {stops.map((stop, k) => {
+    <ol ref={list} aria-label={`The way through “${flow.name}”`} className="relative flex flex-[1_0_auto] flex-col">
+      <li aria-hidden className="pointer-events-none absolute top-(--rail-top) left-[9.5px] h-(--rail) w-px bg-line phone:hidden">
+        <span className="absolute inset-x-0 top-0 h-(--reach) bg-soft transition-[height] duration-300 ease-calm" />
+      </li>
+      {stops.flatMap((stop, k) => {
         const here = k === on;
-        const marker = (
-          <span aria-hidden className={`absolute top-2 bottom-2 -left-3 w-[3px] rounded-full bg-fg transition-opacity duration-200 ease-calm phone:hidden ${here ? "" : "opacity-0"}`} />
-        );
-        if (stop.id !== undefined)
-          return (
-            <li key={stop.id} data-stop={k} aria-current={here ? "step" : undefined} className={`relative py-[5px] ${stop.step < 0 ? "" : "pl-6"}`}>
-              {marker}
-              {here ? (
-                said(stop.id, true)
-              ) : (
-                <button className="flex w-full min-w-0 text-left text-[13px] leading-5 text-soft transition-colors duration-150 ease-calm outline-none hover:text-fg focus-visible:text-fg" onClick={() => onStop(k)}>
-                  {said(stop.id, false)}
+        const gone = k < on;
+        const between = k < stops.length - 1 && <li key={`${k} between`} aria-hidden className="max-h-7 min-h-0 flex-[1_1_0]" />;
+        if (stop.id !== undefined) {
+          const { sign, line: words, whole } = said(stop.id);
+          return [
+            <li key={stop.id} data-stop={k} aria-current={here ? "step" : undefined} className="relative flex-none py-2 pl-8" onPointerEnter={() => onPoint(stop.id)} onPointerLeave={() => onPoint(undefined)}>
+              <span
+                data-sign=""
+                className={`absolute top-2.5 left-0.5 grid size-4 place-items-center rounded-full bg-ground transition-[box-shadow,opacity] duration-300 ease-calm ${here ? "shadow-[0_0_0_2px_var(--ground),0_0_0_3.5px_var(--fg)]" : gone ? "" : "opacity-60"}`}
+              >
+                {sign}
+              </span>
+              <div className={opening(here)}>
+                <button inert={here} className={`${fading(!here)} truncate text-left text-[13px] leading-5 text-soft hover:text-fg`} onClick={() => onStop(k)}>
+                  {words}
                 </button>
-              )}
-            </li>
-          );
+                <div inert={!here} className={`${fading(here)} text-[13px]`}>
+                  {whole}
+                </div>
+              </div>
+            </li>,
+            between,
+          ];
+        }
         const i = stop.step;
-        return (
-          <li key={`step ${i}`} data-stop={k} aria-current={here ? "step" : undefined} className="relative py-[7px]">
-            {marker}
+        const title = flow.steps[i]!.title;
+        return [
+          <li key={`step ${i}`} data-stop={k} aria-current={here ? "step" : undefined} className="relative flex-none py-2 pl-8">
+            <span
+              data-sign=""
+              className={`absolute top-2 left-0 grid size-5 place-items-center rounded-full text-[10.5px] leading-none font-medium tabular-nums transition-colors duration-300 ease-calm ${i === current ? "bg-fg text-ground" : gone ? "bg-line text-soft" : "bg-ground text-faint shadow-[inset_0_0_0_1px_var(--line)]"}`}
+            >
+              {i + 1}
+            </span>
             <button
-              className={`flex w-full min-w-0 gap-2 text-left text-[14px] leading-5 transition-colors duration-150 ease-calm outline-none hover:text-fg focus-visible:text-fg ${i === current ? "text-fg" : "text-soft"}`}
+              className={`block w-full text-left text-[14px] leading-5 text-balance transition-colors duration-300 ease-calm outline-none hover:text-fg focus-visible:text-fg ${i === current ? "text-fg" : "text-soft"}`}
               onClick={() => onStop(k)}
             >
-              <span className="w-4 flex-none text-faint tabular-nums">{i + 1}</span>
-              <span className="text-balance">{flow.steps[i]!.title}</span>
+              {title}
             </button>
-            {i === current && (
-              <div
-                ref={line}
-                role="slider"
-                tabIndex={0}
-                aria-label={`Where in “${flow.steps[i]!.title}”`}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={Math.round(share(i, at) * 100)}
-                className="group/line relative mt-2.5 ml-6 h-0.5 w-[calc(100%-24px)] cursor-pointer touch-none outline-none select-none before:absolute before:inset-x-0 before:-inset-y-2 before:content-['']"
-                onPointerDown={press}
-                onKeyDown={(event) =>
-                  (event.key === "ArrowLeft" || event.key === "ArrowRight") &&
-                  (event.preventDefault(), event.stopPropagation(), onGo(momentAt(i, clamp(share(i, clock.at) + (event.key === "ArrowRight" ? 0.05 : -0.05), 0, 1))))
-                }
-              >
-                <span className={`absolute inset-0 overflow-hidden rounded-[1px] bg-line transition-[scale] duration-150 ease-calm group-hover/line:scale-y-200 group-focus-visible/line:scale-y-200 ${held ? "scale-y-200" : ""}`}>
-                  <span className="absolute inset-0 origin-left bg-soft [scale:var(--done,1)_1]" />
-                </span>
-                {marks
-                  .filter((mark) => stepOf(mark.at) === i)
-                  .map((mark) => (
-                    <button
-                      key={mark.id}
-                      data-mark={mark.id}
-                      aria-label={mark.words}
-                      className="group/mark absolute top-1/2 z-3 grid size-3.5 -translate-x-1/2 -translate-y-1/2 place-items-center outline-none"
-                      style={{ left: `${share(i, mark.at) * 100}%` }}
-                      onKeyDown={(event) => event.key === "Enter" && toMark(mark.id)}
-                    >
-                      {mark.fill ? (
-                        <i className={`size-1.5 rounded-full shadow-[0_0_0_2px_var(--ground)] transition-[scale] duration-150 ease-calm group-hover/mark:scale-140 group-focus-visible/mark:scale-140 ${mark.fill}`} />
-                      ) : (
-                        <i className="size-[7px] rotate-45 bg-fg shadow-[0_0_0_1.5px_var(--ground)] transition-[scale] duration-150 ease-calm group-hover/mark:scale-130 group-focus-visible/mark:scale-130" />
-                      )}
-                    </button>
-                  ))}
+            <div className={`grid transition-[grid-template-rows] duration-300 ease-calm ${i === current ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
+              <div inert={i !== current} className={fading(i === current)}>
+                <div className="pt-3 pr-2 pb-1.5">
+                  <div
+                    ref={i === current ? line : undefined}
+                    role="slider"
+                    tabIndex={0}
+                    aria-label={`Where in “${title}”`}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.round(share(i, at) * 100)}
+                    style={i === current ? undefined : ({ "--done": i < current ? 1 : 0 } as CSSProperties)}
+                    className="group/line relative h-0.5 w-full cursor-pointer touch-none outline-none select-none before:absolute before:inset-x-0 before:-inset-y-2 before:content-['']"
+                    onPointerDown={press}
+                    onKeyDown={(event) =>
+                      (event.key === "ArrowLeft" || event.key === "ArrowRight") &&
+                      (event.preventDefault(), event.stopPropagation(), onGo(momentAt(i, clamp(share(i, clock.at) + (event.key === "ArrowRight" ? 0.05 : -0.05), 0, 1))))
+                    }
+                  >
+                    <span className={`absolute inset-0 overflow-hidden rounded-[1px] bg-line transition-[scale] duration-150 ease-calm group-hover/line:scale-y-200 group-focus-visible/line:scale-y-200 ${held ? "scale-y-200" : ""}`}>
+                      <span className="absolute inset-0 origin-left bg-soft [scale:var(--done,1)_1]" />
+                    </span>
+                    {marks
+                      .filter((mark) => stepOf(mark.at) === i)
+                      .map((mark) => (
+                        <button
+                          key={mark.id}
+                          data-mark={mark.id}
+                          aria-label={mark.words}
+                          className="group/mark absolute top-1/2 z-3 grid size-3.5 -translate-x-1/2 -translate-y-1/2 place-items-center outline-none"
+                          style={{ left: `${share(i, mark.at) * 100}%` }}
+                          onKeyDown={(event) => event.key === "Enter" && toMark(mark.id)}
+                        >
+                          {mark.fill ? (
+                            <i className={`size-1.5 rounded-full shadow-[0_0_0_2px_var(--ground)] transition-[scale] duration-150 ease-calm group-hover/mark:scale-140 group-focus-visible/mark:scale-140 ${mark.fill}`} />
+                          ) : (
+                            <i className="size-[7px] rotate-45 bg-fg shadow-[0_0_0_1.5px_var(--ground)] transition-[scale] duration-150 ease-calm group-hover/mark:scale-130 group-focus-visible/mark:scale-130" />
+                          )}
+                        </button>
+                      ))}
+                  </div>
+                </div>
               </div>
-            )}
-          </li>
-        );
+            </div>
+          </li>,
+          between,
+        ];
       })}
     </ol>
   );

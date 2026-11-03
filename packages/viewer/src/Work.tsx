@@ -21,7 +21,7 @@ import { Clock, Player, useCut, type Mark, type Placed } from "./Player.tsx";
 import { answersTo, type Diamond } from "./changes.ts";
 import { Conversation, quiet as quietNumber } from "./Notes.tsx";
 import { Pinned, type Pin } from "./Pinned.tsx";
-import { Steps, type OnLine, type Stop } from "./Steps.tsx";
+import { Steps, type OnLine, type Saying, type Stop } from "./Steps.tsx";
 import { onPhone } from "./phone.ts";
 import { Picture, type Frame } from "./Picture.tsx";
 import { roundName, Rounds } from "./Rounds.tsx";
@@ -86,26 +86,27 @@ export function Work(props: Props) {
   const busy = acting.noting || !!acting.writing || !!acting.live?.shown;
   // Along the way a stop at a time: from a situation's last stop on to the next one's first, and back to the last of the
   // one before; before the first stop, the page's top, and past the last, its end. The page goes to the situation you're
-  // on, its top at the window's.
+  // on, its top at the window's. Staying, it goes no further than the situation you're on, and says whether it went.
   const steering = useRef(false);
-  const move = (by: number) => {
+  const move = (by: number, staying = false) => {
     const room = props.room.current;
     const situations = [...(room?.querySelectorAll<HTMLElement>("[data-situation]") ?? [])];
     let i = situations.findIndex((situation) => situation.dataset.situation === active);
     if (i < 0 && room) i = atTop(room, situations);
-    if (!room || !situations[i]) return;
+    if (!room || !situations[i]) return false;
     const count = (i: number) => Number(situations[i]!.dataset.stops);
     const was = { i, stop: Number(situations[i]!.dataset.stop) };
     let stop = was.stop + by;
     if (stop >= count(i) && i < situations.length - 1) [i, stop] = [i + 1, 0];
     else if (stop < 0 && i > 0) [i, stop] = [i - 1, count(i - 1) - 1];
     else stop = clamp(stop, -1, count(i));
-    if (i === was.i && stop === was.stop) return;
+    if ((i === was.i && stop === was.stop) || (staying && (i !== was.i || stop < 0 || stop >= count(i)))) return false;
     const flow = situations[i]!.dataset.situation!;
     setActive(flow);
     setGo({ round: round.number, flow, stop });
     const top = stop < 0 ? 0 : stop >= count(i) ? room.scrollHeight - room.clientHeight : topOf(room, situations[i]!);
     if (Math.abs(top - room.scrollTop) > 1) ((steering.current = true), room.scrollTo({ top, behavior: "smooth" }));
+    return true;
   };
   const now = useRef({ busy, move });
   now.current = { busy, move };
@@ -123,27 +124,31 @@ export function Work(props: Props) {
     if (held) setActive(waiting.name);
     if (held && onPhone()) held.querySelector(`[data-stop="${held.dataset.stop}"]`)?.scrollIntoView({ block: "center" });
     else if (held) room.scrollTop = topOf(room, held);
-    // One turn of the wheel, or one swipe, goes one stop along, however far it would have scrolled: what follows of it,
-    // the wheel's run-on or the swipe's glide, goes nowhere, until the wheel has been still a moment, or picks up again
-    // once the glide has slowed. On a phone, the page scrolls as any page, and a stop is gone to by pressing it.
-    const turn = { last: -Infinity, by: 0, moved: false, travel: 0, recent: [] as number[], fastest: 0, slowest: Infinity };
+    // A turn of the wheel, or a swipe, goes a stop on at once, and a stop more for each stride further it goes, one after
+    // another so each is seen, so a long one goes further; a notch of the wheel is a stride. Only its first stop goes on
+    // to another situation: a long one comes to rest at the end of the situation you're on. It's a new turn once the
+    // wheel has been still a moment, or turned the other way. On a phone, the page scrolls as any page, and a stop is gone
+    // to by pressing it.
+    const turn = { last: -Infinity, by: 0, travel: 0, gone: 0, next: undefined as number | undefined };
+    const goOn = () => {
+      turn.next = undefined;
+      const due = turn.travel < 12 ? 0 : 1 + Math.floor((turn.travel - 12) / STRIDE);
+      if (turn.gone >= due || now.current.busy) return;
+      if (!now.current.move(turn.by, turn.gone > 0)) return void (turn.gone = Infinity);
+      turn.gone++;
+      if (turn.gone < due) turn.next = window.setTimeout(goOn, PACE);
+    };
     const wheel = (event: WheelEvent) => {
       const box = (event.target as Element).closest?.("textarea");
       if (event.ctrlKey || onPhone() || Math.abs(event.deltaX) > Math.abs(event.deltaY) || (box && box.scrollHeight > box.clientHeight)) return;
       event.preventDefault();
       const by = Math.sign(event.deltaY);
       if (now.current.busy || !by) return;
-      const size = Math.abs(event.deltaY) * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? room.clientHeight : 1);
-      turn.recent = [...turn.recent.slice(-2), size];
-      const pace = turn.recent.reduce((sum, one) => sum + one) / turn.recent.length;
-      const picksUp = turn.moved && turn.slowest < turn.fastest / 3 && pace > Math.max(12, turn.slowest * 3);
-      if (event.timeStamp - turn.last > STILL || by !== turn.by || picksUp) Object.assign(turn, { by, moved: false, travel: 0 });
+      const notch = event.deltaMode === 1 || (Number.isInteger(event.deltaY) && Math.abs(event.deltaY) >= 50);
+      if (event.timeStamp - turn.last > STILL || by !== turn.by) (clearTimeout(turn.next), Object.assign(turn, { by, travel: 0, gone: 0, next: undefined }));
       turn.last = event.timeStamp;
-      if (turn.moved) return void (pace > turn.fastest ? Object.assign(turn, { fastest: pace, slowest: Infinity }) : (turn.slowest = Math.min(turn.slowest, pace)));
-      turn.travel += size;
-      if (turn.travel < 12) return;
-      Object.assign(turn, { moved: true, fastest: pace, slowest: Infinity });
-      now.current.move(by);
+      turn.travel += notch ? STRIDE : Math.abs(event.deltaY) * (event.deltaMode === 2 ? room.clientHeight : 1);
+      if (turn.next === undefined) goOn();
     };
     // Scrolled by its bar, the situation you're on is the one come up to the window's top.
     let still: number | undefined;
@@ -156,7 +161,7 @@ export function Work(props: Props) {
     const scrolled = () => (clearTimeout(still), (still = window.setTimeout(settle, 120)));
     room.addEventListener("wheel", wheel, { passive: false });
     room.addEventListener("scroll", scrolled, { passive: true });
-    return () => (clearTimeout(still), watching.disconnect(), room.removeEventListener("wheel", wheel), room.removeEventListener("scroll", scrolled));
+    return () => (clearTimeout(still), clearTimeout(turn.next), watching.disconnect(), room.removeEventListener("wheel", wheel), room.removeEventListener("scroll", scrolled));
   }, []);
   // Space and ↓ go a stop on, ↑ a stop back.
   useEffect(() => {
@@ -449,65 +454,55 @@ function Situation(props: SituationProps) {
   const [asking, setAsking] = useState<string>();
 
   // What was said at a stop: a note of yours, its thread; or a change new to you, the agent's words on why, or that it was
-  // made for a note of yours. Folded, a line of it. Pointed at, it's lit on the recording.
-  const said = (id: string, open: boolean) => {
-    const point = { onPointerEnter: () => setLit(id), onPointerLeave: () => setLit(undefined) };
+  // made for a note of yours. Its sign on the rail is the note's number, or a diamond.
+  const said = (id: string): Saying => {
     const note = notes.find((note) => note.id === id);
     const own = diamonds.find((diamond) => diamond.id === id)?.changes.filter((changed) => !changed.answers) ?? [];
     const told = own.find((changed) => changed.line);
     const madeFor = own.map((changed) => changed.note && props.noteOf(changed.note)).find(Boolean) || undefined;
     const words = note ? note.turns[0]?.words : madeFor ? madeFor.turns[0]?.words : (told?.line ?? diamonds.find((diamond) => diamond.id === id)?.name);
-    const sign = note ? (
-      <span className={`mt-0.5 size-4 flex-none rounded-full text-center text-[9px] leading-4 font-semibold text-white ${fill(note)}`}>{note.number}</span>
-    ) : (
-      <span className="mt-0.5 grid size-4 flex-none place-items-center">
-        <i className="size-[7px] rotate-45 bg-fg" />
-      </span>
-    );
     const forNote = madeFor && (
       <span className={`mr-1.5 inline-block size-4 rounded-full text-center align-[-3px] text-[9px] leading-4 font-semibold ${quietNumber}`} style={{ "--c": ink(madeFor) } as CSSProperties}>
         {madeFor.number}
       </span>
     );
-    if (!open)
-      return (
-        <span className="flex min-w-0 items-start gap-2" {...point}>
-          {sign}
-          <span className="truncate">
-            {madeFor && <>Changed for your note {forNote}</>}
-            {words}
-          </span>
-        </span>
-      );
-    return (
-      <div className="flex gap-2 text-[13px]" {...point}>
-        {sign}
-        <div className="min-w-0 flex-1">
-          {note ? (
-            <div className="-mt-2 -ml-4">
-              <Conversation
-                note={note}
-                you={threads.you}
-                readOnly={threads.readOnly}
-                asking={asking === note.id}
-                unfinished={threads.unfinished[note.id]}
-                away={false}
-                onAsking={(on) => setAsking(on ? note.id : undefined)}
-                onUnfinished={(words) => threads.onUnfinished(note.id, words)}
-                onJudge={(verdict) => threads.onJudge(note, verdict)}
-                onEdit={(words) => threads.onEdit(note.id, words)}
-                onShow={() => {}}
-              />
-            </div>
-          ) : (
-            <Said who={madeFor ? "Changed for your note" : (told?.by ?? "Changed here")}>
-              {forNote}
-              {words}
-            </Said>
-          )}
-        </div>
-      </div>
-    );
+    if (note)
+      return {
+        sign: <span className={`size-4 rounded-full text-center text-[9px] leading-4 font-semibold text-white ${fill(note)}`}>{note.number}</span>,
+        line: words,
+        whole: (
+          <div className="-my-2 -ml-4">
+            <Conversation
+              note={note}
+              you={threads.you}
+              readOnly={threads.readOnly}
+              asking={asking === note.id}
+              unfinished={threads.unfinished[note.id]}
+              away={false}
+              onAsking={(on) => setAsking(on ? note.id : undefined)}
+              onUnfinished={(words) => threads.onUnfinished(note.id, words)}
+              onJudge={(verdict) => threads.onJudge(note, verdict)}
+              onEdit={(words) => threads.onEdit(note.id, words)}
+              onShow={() => {}}
+            />
+          </div>
+        ),
+      };
+    return {
+      sign: <i className="size-[7px] rotate-45 bg-fg" />,
+      line: (
+        <>
+          {madeFor && <>Changed for your note {forNote}</>}
+          {words}
+        </>
+      ),
+      whole: (
+        <Said who={madeFor ? "Changed for your note" : (told?.by ?? "Changed here")}>
+          {forNote}
+          {words}
+        </Said>
+      ),
+    };
   };
 
   const frames = useFrames(review, round, flow, readings, (step) => changed.filter((on) => on.at !== undefined && stepOf(on.at) === step));
@@ -573,8 +568,8 @@ function Situation(props: SituationProps) {
           )}
         </span>
       </div>
-      <div className="grid grid-cols-[minmax(0,1fr)_340px] items-start gap-8 phone:grid-cols-1">
-        <div className="relative">
+      <div className="grid grid-cols-[minmax(0,1fr)_340px] gap-8 phone:grid-cols-1">
+        <div className="relative self-start">
           {/* A click pauses it, or plays the step again; noting, it notes what's under it; taken over, it's the app's. */}
           <button data-picture={flow.name} className="relative block aspect-[1.6] w-full" aria-label={`${playing ? "Pause" : "Play"} “${flow.steps[step]?.title}”`} onClick={() => !taken && again()}>
             {/* Side by side, Now narrows to its half of the picture as its view glides close on the step's part of the page,
@@ -639,7 +634,7 @@ function Situation(props: SituationProps) {
           )}
         </div>
         {/* As tall as the window lets it be, with room inside it for the marker and a line's marks at its ends. */}
-        <div ref={column} className="-mx-3 -mb-2 grid max-h-[calc(var(--room)-128px)] grid-cols-1 content-start gap-4 overflow-x-hidden overflow-y-auto px-3 pb-2 phone:mx-0 phone:max-h-none phone:px-0">
+        <div ref={column} className="-mx-3 -mb-2 flex max-h-[calc(var(--room)-128px)] flex-col gap-5 overflow-x-hidden overflow-y-auto px-3 pb-2 phone:mx-0 phone:max-h-none phone:px-0">
           {flow.line && (
             <div className="px-0.5 text-[13px]">
               <Said who={round.by}>{flow.line}</Said>
@@ -655,6 +650,7 @@ function Situation(props: SituationProps) {
             marks={onLine}
             said={said}
             onStop={toStop}
+            onPoint={setLit}
             onScrub={(on) => (on && ((setPlaying(undefined), setPicked(undefined))), setScrubbing(on))}
             onGo={stopped}
           />
@@ -702,6 +698,10 @@ export type Beat = { from: number; until: number; closeUp: CloseUp };
 // How long the wheel is still between one turn of it and the next, in milliseconds: turned again sooner, it's the same
 // turn going on.
 const STILL = 200;
+// How much further a turn of the wheel goes for each stop more, in pixels as it would have scrolled the page: a notch of
+// the wheel; and how soon the next stop of a long turn comes after the one before, in milliseconds.
+const STRIDE = 110;
+const PACE = 120;
 
 // Where the page is scrolled to for a situation to be at the window's top.
 const topOf = (room: HTMLElement, situation: HTMLElement) => room.scrollTop + situation.getBoundingClientRect().top - room.getBoundingClientRect().top;
