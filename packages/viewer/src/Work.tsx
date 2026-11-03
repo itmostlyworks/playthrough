@@ -170,13 +170,12 @@ export function Work(props: Props) {
 }
 
 // A situation: whose it is and what they do, where it stands, and its recording at one moment, with its steps under it.
-// You walk it a step at a time: it rests on each step's result, and on the way at each answer waiting on you and each
-// change new to you, and never moves on without you. It arrives at what needs you first, else at the first step's
-// result. What's drawn on it, and what the bar does, is about the moment it's at: the notes there, what changed there and
-// why, a note made there, the app taken over there. Next step on the bar, Space or → plays on to the next resting place,
-// and while it moves stops it there; ← goes back to the one before. The line over the step it's on is for the moments
-// between: dragged along, it goes anywhere in that step. C held is how it was before the work, at the same moment, in
-// place; pressed, the two side by side, each close on the step's part of the page.
+// Each step is a short clip: it plays to the step's result and rests there, and played again, the next step plays. It
+// arrives at the answer waiting on you, else at the first step's result. What's drawn on it, and what the bar does, is
+// about the moment it's at: the notes there, what changed there and why, a note made there, the app taken over there.
+// Space plays and pauses, as Play on the bar does; ← and → go to the step before's result, or the next one's. The steps'
+// lines are where it goes anywhere else. C held is how it was before the work, at the same moment, in place; pressed,
+// the two side by side, each close on the step's part of the page.
 type SituationProps = {
   review: Review;
   round: Round;
@@ -208,27 +207,20 @@ function Situation(props: SituationProps) {
   const stepOf = (at: number) => Math.max(0, flow.steps.findIndex((_, i) => stepEnd(flow, i) >= at - 0.05));
   // A note's moment: where it was made, or made in the app, where the app was taken over.
   const momentOf = (note: Shown) => (note.on?.app ? note.on.app.from.at : note.on?.at);
-  // Where it rests: each step's result, and on the way, each answer waiting on you and each change new to you that has
-  // something to say of its own (one made for a note is in the note's answer), its card open there. One a moment from a
-  // step's end is that step's result.
-  const stops = [
-    ...notes.flatMap((note) => (note.toJudge && momentOf(note) !== undefined ? [{ id: note.id, at: Math.min(momentOf(note)!, end) }] : [])),
-    ...diamonds.filter((diamond) => diamond.row).map((diamond) => ({ id: diamond.id, at: Math.min(diamond.at, end) })),
+  // On the steps' lines, each note's dot and each change's diamond, where they are.
+  const onLine: OnLine[] = [
+    ...notes.flatMap((note) => (momentOf(note) === undefined ? [] : [{ id: note.id, at: Math.min(momentOf(note)!, end), fill: fill(note), words: note.turns[0]?.words ?? "Your note" }])),
+    ...diamonds.filter((diamond) => diamond.row).map((diamond) => ({ id: diamond.id, at: Math.min(diamond.at, end), words: diamond.name })),
   ];
-  const rests = [...stops, ...flow.steps.map((_, i) => ({ id: undefined, at: stepEnd(flow, i) - 0.05 }))]
-    .sort((a, b) => a.at - b.at)
-    .reduce<{ id?: string; at: number }[]>((all, rest) => {
-      const last = all.at(-1);
-      if (last && rest.at - last.at < 0.08) all[all.length - 1] = { id: last.id ?? rest.id, at: rest.at };
-      else all.push(rest);
-      return all;
-    }, []);
+  // A step's result, where it rests once it has played; and what's there, its card open as it comes to rest on it.
+  const resultOf = (step: number) => stepEnd(flow, step) - 0.05;
+  const results = flow.steps.map((_, i) => resultOf(i));
+  const markAt = (moment: number) => onLine.find((mark) => Math.abs(mark.at - moment) < 0.08)?.id;
   const waiting = notes.find((note) => note.toJudge && momentOf(note) !== undefined);
-  const first = (waiting && rests.find((rest) => rest.id === waiting.id)) ?? rests.find((rest) => rest.id) ?? rests[0];
-  const [clock] = useState(() => new Clock(first?.at ?? end));
+  const [clock] = useState(() => new Clock(waiting ? Math.min(momentOf(waiting)!, end) : results[0]!));
   const [at, setAt] = useState(clock.at);
   const [playing, setPlaying] = useState<{ until: number }>();
-  // Dragged along the step it's on, it follows the line, and where it's let go, it rests.
+  // Dragged along a step's line, it follows the line, and where it's let go, it rests.
   const [scrubbing, setScrubbing] = useState(false);
   const cut = useCut(review.id, round.number, flow);
   // Open beside its thing: on arriving, the answer waiting on you; then what you open, or what it came to rest at.
@@ -238,27 +230,21 @@ function Situation(props: SituationProps) {
   const go = (moment: number, id?: string) => (clock.set(moment), setAt(moment), setPlaying(undefined), setPicked(id));
   const playTo = (until: number, from = clock.at) => (clock.set(from), setAt(from), setPicked(undefined), setPlaying({ until }));
   const pause = () => (setAt(clock.at), setPlaying(undefined));
-  // On to the next resting place; from the last, the first step again. Moving, it stops where it is.
+  const stopped = (moment: number) => go(moment, markAt(moment));
+  // A step plays to its result, from its start or from where it's pressed.
+  const playStep = (step: number, from = flow.steps[step]!.at) => playTo(results[step]!, from);
+  // Played, the step it's in plays to its result; from a result, the next step; from the last, the first again.
+  // Playing, it pauses.
   const playOn = () => {
     if (playing) return pause();
-    const from = clock.at >= rests.at(-1)!.at - 0.01 ? 0 : clock.at;
-    playTo(rests.find((rest) => rest.at > from + 0.01)!.at, from);
+    const from = clock.at >= results.at(-1)! - 0.01 ? 0 : clock.at;
+    playStep(results.findIndex((result) => result > from + 0.01), from);
   };
-  // Back to the resting place before, at once; before the first, the start.
-  const back = () => {
-    const rest = rests.findLast((rest) => rest.at < clock.at - 0.01);
-    go(rest?.at ?? 0, rest?.id);
+  // The step before's result, or the next one's, at once; before the first, the start.
+  const toResult = (by: 1 | -1) => {
+    const moment = by > 0 ? results.find((result) => result > clock.at + 0.01) : (results.findLast((result) => result < clock.at - 0.01) ?? 0);
+    if (moment !== undefined) go(moment, markAt(moment));
   };
-  const stopped = (moment: number) => {
-    clock.set(moment);
-    setAt(moment);
-    setPlaying(undefined);
-    setPicked(rests.find((rest) => Math.abs(rest.at - moment) < 0.01)?.id);
-  };
-  // Where playing on goes from here: the rest of the step it's partway through, or the next step.
-  const onward = rests.find((rest) => rest.at > at + 0.01);
-  // A step plays from its start to its first resting place.
-  const playStep = (step: number) => playTo(rests.find((rest) => rest.at > flow.steps[step]!.at + 0.01)!.at, flow.steps[step]!.at);
 
   // Before the work, the step of the same name, as far into it as now is into its own.
   const then = before?.flows.find((one) => one.name === flow.name);
@@ -312,10 +298,10 @@ function Situation(props: SituationProps) {
       } else if (event.key === "ArrowRight") {
         event.preventDefault();
         if (playing) stopped(playing.until);
-        else playOn();
+        else toResult(1);
       } else if (event.key === "ArrowLeft") {
         event.preventDefault();
-        back();
+        toResult(-1);
       } else if (event.key.toLowerCase() === "c" && then) press();
     };
     const up = (event: KeyboardEvent) => event.key.toLowerCase() === "c" && release();
@@ -374,11 +360,6 @@ function Situation(props: SituationProps) {
   const answer = madeFor?.turns.findLast((turn) => turn.agent);
   const [who, why] = madeFor ? [answer?.by ?? said?.by, answer?.words] : [said?.by, said?.line];
   const [asking, setAsking] = useState<string>();
-  // On the line, each note's dot and each change's diamond, where they are.
-  const onLine: OnLine[] = [
-    ...notes.flatMap((note) => (momentOf(note) === undefined ? [] : [{ id: note.id, at: momentOf(note)!, fill: fill(note), words: note.turns[0]?.words ?? "Your note" }])),
-    ...diamonds.filter((diamond) => diamond.row).map((diamond) => ({ id: diamond.id, at: Math.min(diamond.at, end), words: diamond.name })),
-  ];
 
   const frames = useFrames(review, round, flow, readings, (step) => changed.filter((on) => on.at !== undefined && stepOf(on.at) === step));
   const frame = side ? frames[step] : undefined;
@@ -449,8 +430,8 @@ function Situation(props: SituationProps) {
         )}
       </div>
       <div className="relative">
-        {/* A click plays it on and stops it, as Space does; noting, it notes what's under it; taken over, it's the app's. */}
-        <button data-picture={flow.name} className="relative block aspect-[1.6] w-full" aria-label={`${playing ? "Stop" : "Play"} ${flow.name}`} onClick={() => !taken && playOn()}>
+        {/* A click plays and pauses it, as Space does; noting, it notes what's under it; taken over, it's the app's. */}
+        <button data-picture={flow.name} className="relative block aspect-[1.6] w-full" aria-label={`${playing ? "Pause" : "Play"} ${flow.name}`} onClick={() => !taken && playOn()}>
           {/* Side by side, Now narrows to its half of the picture as its view glides close on the step's part of the page,
               and Before comes in beside it: nothing around them moves. */}
           <span className={`${FRAMED} left-0 z-1 transition-[width] duration-450 ease-calm ${side ? HALVES : "w-full"}`}>
@@ -494,7 +475,7 @@ function Situation(props: SituationProps) {
               <Bar
                 live={taken ? (live.inApp ? "shown" : "waiting") : undefined}
                 latest={acting.latest}
-                play={{ does: playing ? "moving" : !onward ? "again" : stepOf(onward.at) === step ? "on" : "next", onPlay: playOn }}
+                play={{ does: playing ? "pause" : at >= results.at(-1)! - 0.01 ? "again" : "play", onPlay: playOn }}
                 compare={then && { on: side || peek, off: taken, onPress: press, onRelease: release }}
                 noting={noting}
                 onNote={taken && !live.inApp ? undefined : acting.onNote}

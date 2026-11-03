@@ -12,8 +12,7 @@ export type Said = { id: string; ink: string; words: string; at: string; app: bo
 type Props = {
   live?: "waiting" | "shown";
   latest: boolean;
-  // What playing does from where it is: on to the next step from a step's result, on through the step it's partway
-  // through, stopping it on the way, or at the last, from the start again. None where nothing plays.
+  // Playing the step it's in to its result, or pausing it; at the last, from the start again. None where nothing plays.
   play?: { does: keyof typeof PLAY; onPlay: () => void };
   // How it was, where there's a round before this one to compare it with.
   compare?: Comparing;
@@ -130,4 +129,4 @@ export function Bar(props: Props) {
 }
 
 // What playing does from here, in words.
-const PLAY = { next: "Next step", on: "Play", moving: "Stop", again: "Play again" };
+const PLAY = { play: "Play", pause: "Pause", again: "Play again" };
