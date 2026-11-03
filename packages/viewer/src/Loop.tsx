@@ -5,7 +5,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { recording } from "./api.ts";
-import { Replay, type Events } from "./replay.ts";
+import { Replay, type Events, type Rect } from "./replay.ts";
 import type { Frame } from "./Picture.tsx";
 
 // A step longer than this is played faster, so a loop never drags; one shorter, slower, so a few keys typed in a moment
@@ -98,20 +98,30 @@ type Props = {
   cycle: number;
   // How long its step plays, once it's known.
   onLength: (length: number) => void;
-  // A note pointed at on the page: the loop holds on its moment, its thing outlined, or its spot pinned, in its colour.
-  mark?: Mark;
+  // The notes on its step: at rest, where each one's thing is on the page at the step's end, in the loop's own pixels.
+  marks?: Mark[];
+  onMarks?: (placed: Placed) => void;
 };
 
-export type Mark = { at: number; node?: number; name?: string; point?: { x: number; y: number }; ink: string; number: number };
+// A note's thing, by its node in this recording, else by its name, as one made in the app names it; or its spot.
+export type Mark = { id: string; node?: number; name?: string; point?: { x: number; y: number } };
+export type Placed = Record<string, Rect | undefined>;
 
 export function Loop(props: Props) {
   const box = useRef<HTMLDivElement>(null);
   const cursor = useRef<HTMLDivElement>(null);
   const ring = useRef<HTMLSpanElement>(null);
   const caret = useRef<HTMLSpanElement>(null);
-  const outline = useRef<HTMLSpanElement>(null);
-  const pin = useRef<HTMLSpanElement>(null);
   const [replay, setReplay] = useState<{ replay: Replay; events: Events }>();
+  // Drawn to its width, and again as that changes: Compare on or off, the window resized.
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    const watching = new ResizeObserver(() => setWidth(box.current?.clientWidth ?? 0));
+    watching.observe(box.current!);
+    return () => watching.disconnect();
+  }, []);
+  const told = useRef(props.onMarks);
+  told.current = props.onMarks;
   // Where the view was last drawn, so a step chosen as it plays is glided to rather than cut to.
   const view = useRef<{ left: number; top: number; k: number }>(undefined);
   useEffect(() => {
@@ -127,19 +137,20 @@ export function Loop(props: Props) {
     return () => void ((current = false), made?.destroy());
   }, [props.review, props.round, props.recording]);
 
-  const { from, until, frame, started, cycle, onLength, mark } = props;
+  const { from, until, frame, started, cycle, onLength, marks } = props;
+  const marked = marks?.map((mark) => mark.id).join(" ");
   const stretch = replay && cut(replay.events, from, until);
   const played = stretch && playedFor(stretch.length);
   useEffect(() => void (played && onLength(played)), [played]);
   useEffect(() => {
-    if (!replay || !stretch || !played || !box.current) return;
+    if (!replay || !stretch || !played || !box.current?.clientWidth) return;
     const replayed = replay.replay;
     const shape = replayed.shapeAt(until);
     const part = frame ?? { x: 0, y: 0, width: 1, height: 1 };
     const fit = box.current.clientWidth / (part.width * shape.width);
     const speed = stretch.length / played;
     const follow = following(replayed, stretch, part, shape, played, speed);
-    const [was, since] = [started === undefined || mark ? undefined : view.current, performance.now()];
+    const [was, since] = [started === undefined ? undefined : view.current, performance.now()];
     const draw = (at: number, going = played) => {
       let [left, top] = follow(going);
       let k = fit;
@@ -159,27 +170,25 @@ export function Loop(props: Props) {
       const u = click === undefined ? 1 : (stretch.cut(at) - stretch.cut(click)) / speed / 0.5;
       Object.assign(ring.current!.style, { opacity: String(1 - u), transform: `translate(${x}px, ${y}px) scale(${0.4 + u * 1.1})` });
     };
-    // Held on a note, what it's on is where it was then: outlined, its pin at the outline's corner, or on its spot.
-    const [edge, dot] = [outline.current!, pin.current!];
-    edge.style.opacity = dot.style.opacity = "0";
-    if (mark) {
-      const at = Math.min(Math.max(mark.at, from), until - 0.05);
-      replayed.show(at, false, 1);
-      replayed.rest();
-      draw(at, stretch.cut(at) / speed);
-      const { left, top, k } = view.current!;
-      const box = mark.node === undefined ? undefined : replayed.markOf(mark.node, mark.name);
-      const spot = box ? [box.left, box.top] : mark.point && [mark.point.x * shape.width, mark.point.y * shape.height];
-      if (box) Object.assign(edge.style, { opacity: "1", borderColor: mark.ink, transform: `translate(${(box.left - left) * k - 3}px,${(box.top - top) * k - 3}px)`, width: `${box.width * k + 6}px`, height: `${box.height * k + 6}px` });
-      if (spot) Object.assign(dot.style, { opacity: "1", background: mark.ink, transform: `translate(${(spot[0]! - left) * k - 9}px,${(spot[1]! - top) * k - 9}px)` });
-      dot.textContent = String(mark.number);
-      return;
-    }
     if (started === undefined) {
       const end = until - 0.05;
       replayed.show(end, false, 1);
       replayed.rest();
       draw(end);
+      // Its notes' things as the step ends, where it rests.
+      const { left, top, k } = view.current!;
+      const found = (mark: Mark): Rect | undefined =>
+        (mark.node !== undefined ? replayed.markOf(mark.node) : undefined) ??
+        (mark.name ? replayed.named(mark.name) : undefined) ??
+        (mark.point && { left: mark.point.x * shape.width, top: mark.point.y * shape.height, width: 0, height: 0 });
+      told.current?.(
+        Object.fromEntries(
+          (marks ?? []).map((mark) => {
+            const thing = found(mark);
+            return [mark.id, thing && { left: (thing.left - left) * k, top: (thing.top - top) * k, width: thing.width * k, height: thing.height * k }];
+          }),
+        ),
+      );
       return;
     }
     let frameId = 0;
@@ -192,12 +201,10 @@ export function Loop(props: Props) {
     };
     tick();
     return () => cancelAnimationFrame(frameId);
-  }, [replay, from, until, frame, started, cycle, played, mark?.at, mark?.node, mark?.point, mark?.number]);
+  }, [replay, from, until, frame, started, cycle, played, marked, width]);
 
   return (
     <div ref={box} className="absolute inset-0 overflow-hidden">
-      <span ref={outline} className="pointer-events-none absolute top-0 left-0 z-1 rounded-[5px] border-[1.5px] opacity-0" />
-      <span ref={pin} className="pointer-events-none absolute top-0 left-0 z-2 grid size-[18px] place-content-center rounded-full text-[10.5px] leading-none font-semibold text-white opacity-0" />
       <span ref={caret} className="pointer-events-none absolute top-0 left-0 z-1 bg-[#1e2330] opacity-0" />
       <span ref={ring} className="pointer-events-none absolute top-0 left-0 z-1 -mt-3 -ml-3 size-6 rounded-full border-[1.5px] border-[rgba(40,44,54,0.5)] bg-[rgba(40,44,54,0.06)] opacity-0" />
       <div ref={cursor} className="pointer-events-none absolute top-0 left-0 z-1 size-5 opacity-0 [filter:drop-shadow(0_1px_1px_rgba(0,0,0,.3))]">

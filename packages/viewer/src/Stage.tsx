@@ -1275,7 +1275,7 @@ function Spots({ placing, aim }: { placing?: Point; aim?: Point }) {
 // A pin on an outline sits at its corner, where each paint puts it.
 const pressable = "pointer-events-auto cursor-pointer opacity-90 transition duration-150 ease-calm hover:scale-112 hover:opacity-100";
 const pinFace = "size-[18px] rounded-full text-[10px] leading-[18px] font-semibold text-white shadow-pin";
-const pinLook = `${pinFace} ${pressable}`;
+export const pinLook = `${pinFace} ${pressable}`;
 const share = (part: number) => `${(part * 100).toFixed(3)}%`;
 
 const fit = (room: Size, shape: Size): Size => {

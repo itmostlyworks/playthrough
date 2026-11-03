@@ -1113,13 +1113,9 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
       if (writingHere(event) || event.metaKey || event.ctrlKey || event.altKey || event.defaultPrevented) return;
       // Taking over, the keys that drive the recording rest with it: only noting and going back answer.
       if (live?.shown && !/^(n|t|escape)$/i.test(event.key)) return;
-      // Over every flow, Space plays what the frame shows, the flow you point at or the one the step goes to, and Enter
-      // takes the step; a row is chosen as a button is.
+      // On the page, Enter takes the step; a row is chosen as a button is. Space and C are the situation's.
       if (onGrid) {
-        if (event.key === " ") {
-          event.preventDefault();
-          leave(gridRoom.current?.querySelector<HTMLElement>("[data-picture]")?.dataset.picture ?? playhead.flow.name, true);
-        } else if (event.key === "Enter" && !pressing(event, "button") && gridStep?.kind === "go" && !gridStep.final) {
+        if (event.key === "Enter" && !pressing(event, "button") && gridStep?.kind === "go" && !gridStep.final) {
           event.preventDefault();
           gridStep.take();
         }

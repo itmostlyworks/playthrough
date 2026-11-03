@@ -352,6 +352,19 @@ export class Replay {
     return rectOf(inside.getBoundingClientRect()) ?? rectOf(element.getBoundingClientRect());
   }
 
+  // Where a thing is on the page as shown now, by its name alone: the words it says, or what it's labelled, or waits for
+  // as a placeholder. A note made in the app names its thing, but its nodes are the app's, not this recording's.
+  named(name: string): Rect | undefined {
+    const page = this.#replayer.iframe.contentDocument;
+    const words = name.replace(/\s+/g, " ").trim();
+    if (!page?.body || !words) return undefined;
+    const said = (element: Element) =>
+      ["aria-label", "placeholder", "data-placeholder", "title", "alt"].some((label) => element.getAttribute(label)?.replace(/\s+/g, " ").trim() === words) || element.textContent?.replace(/\s+/g, " ").trim() === words;
+    // Everything holding the words says them too: the thing is the smallest.
+    const found = [...page.body.querySelectorAll("*")].filter(said).flatMap((element) => rectOf(element.getBoundingClientRect()) ?? []);
+    return found.sort((a, b) => a.width * a.height - b.width * b.height)[0];
+  }
+
   // What's at a point of the page, in its own pixels, and everything holding it, by their nodes in the recording, from it
   // outwards. What's drawn there, whether or not a click could reach it: behind an open menu, a page can make the rest of
   // itself inert, and Kan's board was then one block with no cards in it.

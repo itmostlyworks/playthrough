@@ -21,9 +21,10 @@ type Props = {
   onChoose: (step: number) => void;
   className?: string;
   onPointerEnter?: () => void;
+  onPointerLeave?: () => void;
 };
 
-export function Steps({ flow, chosen, changed, notedAt, progress, column, by, onChoose, className = "", onPointerEnter }: Props) {
+export function Steps({ flow, chosen, changed, notedAt, progress, column, by, onChoose, className = "", onPointerEnter, onPointerLeave }: Props) {
   const tabs = useRef<(HTMLButtonElement | null)[]>([]);
   const arrows = (event: KeyboardEvent<HTMLButtonElement>) => {
     const step = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
@@ -43,7 +44,7 @@ export function Steps({ flow, chosen, changed, notedAt, progress, column, by, on
         words: "line-clamp-3 wide:line-clamp-2",
       };
   return (
-    <div role="tablist" aria-label={`The steps of ${flow.name}`} onPointerEnter={onPointerEnter} className={`${look.list} ${className}`}>
+    <div role="tablist" aria-label={`The steps of ${flow.name}`} onPointerEnter={onPointerEnter} onPointerLeave={onPointerLeave} className={`${look.list} ${className}`}>
       {flow.steps.map((step, i) => (
         <button
           key={i}
