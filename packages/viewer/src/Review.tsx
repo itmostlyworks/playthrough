@@ -799,6 +799,16 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   const nextNumber = Math.max(0, ...notes.map((note) => note.number)) + 1;
   const writing = draft.unsaved.find((note) => note.id === writingId);
   const placeName = (on: Place | undefined) => nameOf(on && { ...on, flow: playedOn(on) }, read, round.number);
+  const writingWords = (note: Note) => (
+    <Writing
+      words={note.words}
+      placeholder={note.on && note.on.at === undefined ? "What isn’t good about it?" : "What do you think?"}
+      question={note.on?.app ? "Your new note, on what’s in the app" : "Your new note"}
+      onWords={(words) => keepWords(note.id, words)}
+      onSave={(words) => saveNote(note, words)}
+      onCancel={() => dropUnsaved(note.id)}
+    />
+  );
   const writingCard = (note: Note) => (
     <div key={note.id} data-open className="grid gap-2.5 px-4 py-2">
       <div className="grid grid-cols-[18px_minmax(0,1fr)_auto] items-start gap-x-2">
@@ -808,14 +818,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
         <span className="truncate">{placeName(note.on)}</span>
         <span className="min-w-[78px] text-right text-xs leading-5 text-amber-ink tabular-nums">{note.on?.at === undefined ? "" : time(note.on.at)}</span>
       </div>
-      <Writing
-        words={note.words}
-        placeholder={note.on && note.on.at === undefined ? "What isn’t good about it?" : "What do you think?"}
-        question={note.on?.app ? "Your new note, on what’s in the app" : "Your new note"}
-        onWords={(words) => keepWords(note.id, words)}
-        onSave={(words) => saveNote(note, words)}
-        onCancel={() => dropUnsaved(note.id)}
-      />
+      {writingWords(note)}
     </div>
   );
   // What isn't right about a change is a note on what it's on, at its moment, or on the first of new steps: one note,
@@ -1465,7 +1468,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
               },
               onClose: () => setOpen(undefined),
               live: live && { flow: live.flow, address: live.address, shown: live.shown, inApp, due: live.due, at: live.at },
-              writing: writing && !writing.on?.app ? { note: writing, number: nextNumber + draft.unsaved.indexOf(writing), card: writingCard(writing) } : undefined,
+              writing: writing && !writing.on?.app ? { note: writing, number: nextNumber + draft.unsaved.indexOf(writing), words: writingWords(writing) } : undefined,
               opened: openNote?.id,
             }}
             arrived={arrived ? latest : undefined}

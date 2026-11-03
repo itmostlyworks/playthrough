@@ -339,9 +339,9 @@ export function Writing(props: {
 }) {
   const [words, setWords] = useState(props.words);
   const box = useRef<HTMLTextAreaElement>(null);
-  // At the end of what's there: where you left off.
+  // At the end of what's there: where you left off. Opening as it grows into place, it's found where it lands.
   useEffect(() => {
-    box.current?.focus();
+    box.current?.focus({ preventScroll: true });
     box.current?.setSelectionRange(box.current.value.length, box.current.value.length);
   }, []);
   const keep = useRef(props.onWords);

@@ -64,8 +64,8 @@ export type Acting = {
   onClose: () => void;
   // Taken over: the app made ready unseen, being made ready as you wait, or yours.
   live?: { flow: string; address?: string; shown: boolean; inApp: boolean; due?: number; at?: { x: number; y: number } };
-  // The note you're writing on a recording: its number, and its card.
-  writing?: { note: Note; number: number; card: ReactNode };
+  // The note you're writing on a recording: its number, and the box its words are written in.
+  writing?: { note: Note; number: number; words: ReactNode };
   // The note opened last: a note saved stays open.
   opened?: string;
 };
@@ -278,9 +278,12 @@ function Situation(props: SituationProps) {
   const stepOf = (at: number) => Math.max(0, flow.steps.findIndex((_, i) => stepEnd(flow, i) >= at - 0.05));
   // A note's moment: where it was made, or made in the app, where the app was taken over.
   const momentOf = (note: Shown) => (note.on?.app ? note.on.app.from.at : note.on?.at);
+  // The note you're writing on it, at its moment: a stop like any other, where its words are written.
+  const writing = acting.writing?.note.on?.flow === flow.name && !acting.writing.note.on.app && acting.writing.note.on.at !== undefined ? acting.writing : undefined;
   // On the steps' lines, each note's dot and each change's diamond, where they are.
   const onLine: OnLine[] = [
     ...notes.flatMap((note) => (momentOf(note) === undefined ? [] : [{ id: note.id, at: Math.min(momentOf(note)!, end), fill: fill(note), words: note.turns[0]?.words ?? "Your note" }])),
+    ...(writing ? [{ id: writing.note.id, at: Math.min(writing.note.on!.at!, end), fill: "bg-amber", words: "Your new note" }] : []),
     ...diamonds.filter((diamond) => diamond.row).map((diamond) => ({ id: diamond.id, at: Math.min(diamond.at, end), words: diamond.name })),
   ];
   // A step's result, where it rests once it has played.
@@ -334,6 +337,12 @@ function Situation(props: SituationProps) {
   // Opened on the recording, or just saved, what was said there is the stop you're on, there and then; closed there, it
   // isn't open.
   const opened = (id?: string) => (id && stops.some((one) => one.id === id) && setStop(stops.findIndex((one) => one.id === id)), setPicked(id));
+  // A note begun is the stop you're on, as you write it; let go unsaved, you're back on the stop you were on.
+  const [begun, setBegun] = useState<{ id: string; from: number }>();
+  if (writing?.note.id !== begun?.id) {
+    if (writing) (setBegun({ id: writing.note.id, from: stop }), setStop(stops.findIndex((one) => one.id === writing.note.id)));
+    else (setBegun(undefined), begun && !stops.some((one) => one.id === begun.id) && setStop(begun.from));
+  }
   // The last situation can come up to the window's top: there's a window's height under it, less its own.
   const section = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
@@ -429,7 +438,6 @@ function Situation(props: SituationProps) {
   const shown = (moment: number) => stepOf(moment) === step && moment <= at + 0.05;
   const here = notes.filter((note) => momentOf(note) !== undefined && shown(momentOf(note)!));
   const changedHere = diamonds.filter((diamond) => diamond.row && shown(Math.min(diamond.at, end)));
-  const writing = acting.writing?.note.on?.flow === flow.name && !acting.writing.note.on.app && acting.writing.note.on.at !== undefined && shown(acting.writing.note.on.at) ? acting.writing : undefined;
   // One made in the app is on its thing as it was written, found by its name: the app's nodes aren't this recording's.
   const written = (note: Shown) => review.sends.flatMap((send) => send.notes).find((kept) => kept.id === note.id)?.on ?? note.on;
   // A change is on its thing and on each thing changed alike with it, where they are.
@@ -464,9 +472,15 @@ function Situation(props: SituationProps) {
   const open = writing ? writing.note.id : !side && pins.some((pin) => pin.id === chosen) ? chosen : undefined;
   const [asking, setAsking] = useState<string>();
 
-  // What was said at a stop: a note of yours, its thread; or a change new to you, the agent's words on why, or that it was
-  // made for a note of yours. Its sign on the rail is the note's number, or a diamond.
+  // What was said at a stop: a note of yours, its thread, or the one you're writing; or a change new to you, the agent's
+  // words on why, or that it was made for a note of yours. Its sign on the rail is the note's number, or a diamond.
   const said = (id: string): Saying => {
+    if (id === writing?.note.id)
+      return {
+        sign: <span className="size-4 rounded-full bg-amber text-center text-[9px] leading-4 font-semibold text-white">{writing.number}</span>,
+        line: "Your new note",
+        whole: <div className="grid gap-2.5 pt-1 pb-1.5 text-[13px]">{writing.words}</div>,
+      };
     const note = notes.find((note) => note.id === id);
     const own = diamonds.find((diamond) => diamond.id === id)?.changes.filter((changed) => !changed.answers) ?? [];
     const told = own.find((changed) => changed.line);
@@ -635,14 +649,13 @@ function Situation(props: SituationProps) {
           )}
           {!taken && !peek && (
             <div className={`pointer-events-none absolute inset-y-0 left-0 z-1 transition-[width] duration-450 ease-calm ${side ? `${HALVES} overflow-hidden rounded-lg` : "w-full"}`}>
-              <Pinned pins={pins} placed={placed?.view === view ? placed.at : {}} open={open} faded={!!playing || scrubbing || placed?.view !== view} onOpen={(id) => (writing && id !== writing.note.id ? acting.onClose() : opened(id))}>
-                {writing?.card}
-              </Pinned>
+              <Pinned pins={pins} placed={placed?.view === view ? placed.at : {}} open={open} faded={!!playing || scrubbing || placed?.view !== view} onOpen={(id) => (writing && id !== writing.note.id ? acting.onClose() : opened(id))} />
             </div>
           )}
         </div>
-        {/* As tall as the window lets it be, with room inside it for the marker and a line's marks at its ends. */}
-        <div ref={column} className="-mx-3 -mb-2 flex max-h-[calc(var(--room)-128px)] flex-col gap-5 overflow-x-hidden overflow-y-auto px-3 pb-2 phone:mx-0 phone:max-h-none phone:px-0">
+        {/* As tall as the recording, whatever opens in it, with room inside it for the marker and a line's marks at its
+            ends: what's longer scrolls in it rather than pushing the page down. */}
+        <div ref={column} className="-mx-3 -mb-2 flex flex-col gap-5 overflow-x-hidden overflow-y-auto px-3 pb-2 contain-size phone:mx-0 phone:px-0 phone:contain-none">
           {flow.line && (
             <div className="px-0.5 text-[13px]">
               <Said who={round.by}>{flow.line}</Said>
