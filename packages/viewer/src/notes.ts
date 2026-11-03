@@ -57,6 +57,13 @@ export function watchedOn(review: Review, round: number, watched: Watched[]): st
 
 // What a send carries of the draft.
 export const sendOf = ({ notes, verdicts, looksGood, takenBack }: Draft) => ({ notes, verdicts, looksGood, ...(takenBack.length && { takenBack }) });
+// What a send holds, in a few words: the notes, the answers judged, the situations that look good.
+export function toSend(draft: Draft): string {
+  const count = (n: number, one: string, many: string) => (n ? [`${n} ${n === 1 ? one : many}`] : []);
+  const judged = draft.verdicts.filter((verdict) => !draft.withTheFlow.includes(verdict.note)).length;
+  return [...count(draft.notes.length, "note", "notes"), ...count(judged, "answer judged", "answers judged"), ...count(draft.looksGood.length, "looks good", "look good")].join(", ");
+}
+
 export const said = (draft: Draft) => draft.notes.length + draft.verdicts.length + draft.looksGood.length + draft.takenBack.length;
 
 // A flow's notes are sent at its end, so the agent starts on them while you watch the rest: what you wrote in it and
@@ -170,7 +177,7 @@ export type Standing = {
   asks: boolean;
 };
 
-export function standings(review: Review, round: number, you: string, unsent: Unsent, watched: string[]): Map<string, Standing> {
+export function standings(review: Review, round: number, you: string, unsent: Unsent): Map<string, Standing> {
   const then = asOf(asIfSent(review, you, unsent), round);
   const notes = notesOn(review, round, you, unsent);
   const draft = upTo(unsent, round);
@@ -189,10 +196,10 @@ export function standings(review: Review, round: number, you: string, unsent: Un
       // as it was, and it doesn't hold up sending.
       const held = on.filter((note) => note.state === "needs you" && note.on?.at !== undefined).length;
       if (toSend || sent) return held ? stands("needs you", held, false) : toSend ? stands("to send", toSend, false) : stands("with the agent", 0, false);
-      if (watched.includes(name)) return stands("is it good", waiting);
       if (waiting) return stands("needs you", waiting);
-      if (then.sends.some((send) => send.by === you && send.looksGood.includes(name))) return stands("looked good");
-      return stands("to watch");
+      const lastWord = then.sends.findLast((send) => send.by === you && (send.looksGood.includes(name) || send.takenBack?.includes(name)));
+      if (lastWord?.looksGood.includes(name)) return stands("looked good");
+      return stands("is it good");
     }),
   );
 }

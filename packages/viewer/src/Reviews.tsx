@@ -21,7 +21,7 @@ function standingOf(kept: Review, you: string): Standing {
   const latest = review.rounds.findLast((round) => round.number > 0);
   const moved = [review.started, ...review.rounds.map((round) => round.finished ?? ""), ...review.sends.map((send) => send.sent), ...review.taken.map((taken) => taken.at), review.accepted?.at ?? ""].sort().at(-1)!;
   if (!latest) return { review, toCheck: 0, good: false, moved };
-  const standing = standings(review, latest.number, you, unsentOn(review.id), watchedOn(review, latest.number, watchedOf(review.id)));
+  const standing = standings(review, latest.number, you, unsentOn(review.id));
   return {
     review,
     latest,

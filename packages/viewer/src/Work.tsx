@@ -4,16 +4,17 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 import type { Reading } from "@playthrough/page";
-import { time, type Flow, type Place, type Review, type Round } from "@playthrough/review";
+import { time, type Flow, type Place, type Review, type Round, type Verdict } from "@playthrough/review";
 import { picture, recording } from "./api.ts";
 import { EndMark, endOf } from "./Chosen.tsx";
 import { clamp } from "./moments.ts";
-import { fill, unchangedSince, type Shown, type Standing } from "./notes.ts";
+import { fill, ink, unchangedSince, type Shown, type Standing } from "./notes.ts";
 import { Said } from "./Card.tsx";
 import { asWho } from "./people.ts";
 import { recorded } from "./replay.ts";
 import type { CloseUp } from "./flight.ts";
-import { HOLD, Loop, ON } from "./Loop.tsx";
+import { HOLD, Loop, ON, type Mark } from "./Loop.tsx";
+import { Conversation } from "./Notes.tsx";
 import { Picture, type Frame } from "./Picture.tsx";
 import { roundName, Rounds } from "./Rounds.tsx";
 import { Agent, Go, says, type Step } from "./Step.tsx";
@@ -27,6 +28,9 @@ type Props = {
   read: Read;
   notes: Shown[];
   standing: (flow: string) => Standing | undefined;
+  // Saying a situation looks good, or taking it back; none where nothing can be said.
+  onLooksGood?: (flow: string) => void;
+  threads: Threads;
   accepted?: string;
   step?: Step;
   trouble: string[];
@@ -72,6 +76,8 @@ export function Work(props: Props) {
               readings={props.read(round.number, flow.name)}
               notes={props.notes.filter((note) => note.on?.flow === flow.name)}
               standing={props.standing(flow.name)}
+              onLooksGood={props.onLooksGood}
+              threads={props.threads}
               same={same.includes(flow.name)}
               onFlow={props.onFlow}
               left={props.left?.flow === flow.name ? props.left : undefined}
@@ -94,8 +100,8 @@ export function Work(props: Props) {
 // A situation: whose it is and what they do, where it stands, and its steps, each a part the agent thought worth looking
 // at. One step shows at a time, as it is now beside how it was before the work, the two moving together: to start with,
 // the last step where something changed.
-function Situation(props: { review: Review; round: Round; before?: Round; flow: Flow; changed: Place[]; readings?: Reading[]; notes: Shown[]; standing?: Standing; same: boolean; onFlow: (flow: string, beat: Beat) => void; left?: { flow: string; at: number } }) {
-  const { review, round, before, flow, changed, readings, notes, standing, same, onFlow, left } = props;
+function Situation(props: { review: Review; round: Round; before?: Round; flow: Flow; changed: Place[]; readings?: Reading[]; notes: Shown[]; standing?: Standing; same: boolean; onLooksGood?: (flow: string) => void; threads: Threads; onFlow: (flow: string, beat: Beat) => void; left?: { flow: string; at: number } }) {
+  const { review, round, before, flow, changed, readings, notes, standing, same, onLooksGood, threads, onFlow, left } = props;
   const stepOf = (at: number) => Math.max(0, flow.steps.findIndex((_, i) => stepEnd(flow, i) >= at - 0.05));
   const changedAt = new Set(changed.flatMap((on) => (on.at === undefined ? [] : [stepOf(on.at)])));
   const notedAt = (step: number) => notes.filter((note) => note.on?.at !== undefined && stepOf(note.on.at) === step);
@@ -140,6 +146,21 @@ function Situation(props: { review: Review; round: Round; before?: Round; flow: 
   // How long until a step plays again: played through, it isn't, and waits on its end for the next.
   const again = through ? Infinity : cycle;
   const here = notedAt(chosen);
+  // A thread pointed at brings its step into the loop, held on its moment with what it's on outlined.
+  const [pointed, setPointed] = useState<string>();
+  const [asking, setAsking] = useState<string>();
+  const held = notes.find((note) => note.id === pointed);
+  const mark: Mark | undefined =
+    held?.on?.at !== undefined && !held.on.app && stepOf(held.on.at) === chosen
+      ? { at: held.on.at, node: held.on.element?.node, name: held.on.element?.name, point: held.on.point, ink: ink(held), number: held.number }
+      : undefined;
+  const point = (note: Shown) => {
+    setPointed(note.id);
+    if (note.on?.at === undefined) return;
+    setWoken(true);
+    setChosen(stepOf(note.on.app ? note.on.app.from.at : note.on.at));
+  };
+  const inOrder = [...notes].sort((a, b) => (a.on?.at ?? -1) - (b.on?.at ?? -1));
   // The step's segment is where its picture is in it: full at rest, as the picture is its end, and filling as it plays.
   const progress = useRef<HTMLSpanElement>(null);
   useEffect(() => {
@@ -166,10 +187,19 @@ function Situation(props: { review: Review; round: Round; before?: Round; flow: 
             {asWho(flow) && <span className="font-normal text-soft"> {asWho(flow)}</span>}
           </h3>
           <span className="flex flex-none flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs leading-4 whitespace-nowrap">
-            {standing && <EndMark end={endOf(standing)} ahead={standing.is === "to watch"} just={false} className="size-3 flex-none" />}
-            {standing && <span className={INK[standing.is]}>{says(standing)}</span>}
-            {same && <span className="text-faint">· Same as before</span>}
-            <span className="text-faint tabular-nums">· {time(flow.length)}</span>
+            {standing && SAYS.includes(standing.is) && <span className={INK[standing.is]}>{says(standing)} ·</span>}
+            {same && <span className="text-faint">Same as before ·</span>}
+            <span className="text-faint tabular-nums">{time(flow.length)}</span>
+            {standing && onLooksGood && JUDGED.includes(standing.is) && (
+              <button
+                aria-pressed={standing.is === "good"}
+                className="-my-1 ml-1.5 inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-soft transition-colors duration-150 ease-calm hover:bg-hover hover:text-fg aria-pressed:text-green"
+                onClick={() => onLooksGood(flow.name)}
+              >
+                <EndMark end={standing.is === "good" ? "good" : "asks"} ahead just={false} className="size-3 flex-none" />
+                Looks good
+              </button>
+            )}
           </span>
         </div>
         {flow.line && (
@@ -210,7 +240,7 @@ function Situation(props: { review: Review; round: Round; before?: Round; flow: 
       </div>
       <div className="grid content-start gap-3 wide:col-start-2">
         <div className="grid grid-cols-2 gap-4 phone:grid-cols-1" onPointerEnter={() => setThrough(true)}>
-          <figure className="grid gap-2">
+          <figure className="grid content-start gap-2">
             <button
               data-picture={flow.name}
               className="relative block aspect-[1.6] overflow-hidden rounded-lg bg-paper shadow-frame transition-shadow duration-150 ease-calm hover:shadow-[0_0_0_1px_var(--edge),0_8px_24px_var(--drop)] data-flying:invisible"
@@ -218,7 +248,7 @@ function Situation(props: { review: Review; round: Round; before?: Round; flow: 
               onClick={() => onFlow(flow.name, { ...now, closeUp: { src: begins, frame, page: readings?.[chosen]?.screen ?? { width: 1600, height: 1000 } } })}
             >
               <Still src={picture(review.id, round.number, flow.recording, chosen)} frame={frame} />
-              {woken && <Loop review={review.id} round={round.number} recording={flow.recording} {...now} frame={frame} started={started} cycle={again} onLength={(now) => setLengths((all) => ({ ...all, now }))} />}
+              {woken && <Loop review={review.id} round={round.number} recording={flow.recording} {...now} frame={frame} started={started} cycle={again} mark={mark} onLength={(now) => setLengths((all) => ({ ...all, now }))} />}
               {here.length > 0 && (
                 <span className="absolute top-2.5 left-2.5 flex gap-1">
                   {here.map((note) => (
@@ -230,8 +260,45 @@ function Situation(props: { review: Review; round: Round; before?: Round; flow: 
               )}
             </button>
             <figcaption className="px-0.5 text-xs leading-4 text-soft">Now</figcaption>
+            {/* Its notes, each a thread on its step: the ones on the step the loop is on in full, the rest quiet. */}
+            {inOrder.length > 0 && (
+              <ol className="mt-1 grid gap-2 text-[13px]">
+                {inOrder.map((note) => {
+                  const step = note.on?.at === undefined ? undefined : stepOf(note.on.app ? note.on.app.from.at : note.on.at);
+                  const on = pointed ? pointed === note.id : step === undefined || step === chosen;
+                  return (
+                    <li
+                      key={note.id}
+                      className={`rounded-lg bg-surface shadow-[0_0_0_1px_var(--line)] transition-opacity duration-200 ease-calm ${on ? "" : "opacity-50"}`}
+                      onPointerEnter={() => point(note)}
+                      onPointerLeave={() => setPointed(undefined)}
+                    >
+                      <div className="flex min-w-0 items-center gap-2 px-4 pt-3 text-xs leading-4 text-soft">
+                        <span className={`grid size-[18px] flex-none place-content-center rounded-full text-[10.5px] leading-none font-semibold text-white ${fill(note)}`}>{note.number}</span>
+                        <span className="truncate">{step === undefined ? "The whole situation" : `${step + 1} · ${flow.steps[step]!.title}`}</span>
+                        {note.on?.at !== undefined && !note.on.app && <span className="flex-none text-faint tabular-nums">· {time(note.on.at)}</span>}
+                        {note.on?.app && <span className="flex-none text-faint">· in the app</span>}
+                      </div>
+                      <Conversation
+                        note={note}
+                        you={threads.you}
+                        readOnly={threads.readOnly}
+                        asking={asking === note.id}
+                        unfinished={threads.unfinished[note.id]}
+                        away={false}
+                        onAsking={(on) => setAsking(on ? note.id : undefined)}
+                        onUnfinished={(words) => threads.onUnfinished(note.id, words)}
+                        onJudge={(verdict) => threads.onJudge(note, verdict)}
+                        onEdit={(words) => threads.onEdit(note.id, words)}
+                        onShow={() => {}}
+                      />
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
           </figure>
-          <figure className="grid gap-2">
+          <figure className="grid content-start gap-2">
             {then && was ? (
               <span className="relative block aspect-[1.6] overflow-hidden rounded-lg bg-paper shadow-frame">
                 <Still src={picture(review.id, 0, then.recording, thenStep)} frame={frame} />
@@ -245,17 +312,6 @@ function Situation(props: { review: Review; round: Round; before?: Round; flow: 
             <figcaption className="px-0.5 text-xs leading-4 text-soft">Before</figcaption>
           </figure>
         </div>
-        {notes.length > 0 && (
-          <ul className="grid gap-1.5 px-0.5">
-            {notes.map((note) => (
-              <li key={note.id} className="flex min-w-0 items-baseline gap-2 text-[13px] leading-5">
-                <span className={`size-1.5 flex-none translate-y-[-1px] rounded-full ${fill(note)}`} />
-                <span className="truncate text-fg">{note.turns[0]?.words}</span>
-                {where(note) && <span className={`flex-none ${where(note)![1]}`}>· {where(note)![0]}</span>}
-              </li>
-            ))}
-          </ul>
-        )}
       </div>
     </section>
   );
@@ -275,6 +331,16 @@ function Still({ src, frame }: { src: string; frame?: Frame }) {
     </>
   );
 }
+
+// What a thread on the page can do: judge an answer, say what's still not right, change a note not sent yet.
+export type Threads = {
+  you: string;
+  readOnly: boolean;
+  unfinished: Record<string, string>;
+  onUnfinished: (id: string, words: string | undefined) => void;
+  onJudge: (note: Shown, verdict: Verdict | undefined) => void;
+  onEdit: (id: string, words: string | undefined) => void;
+};
 
 // A step opened from its close-up: where it starts and ends, and how its picture showed it.
 export type Beat = { from: number; until: number; closeUp: CloseUp };
@@ -384,6 +450,10 @@ function around(box: Box, reading: Reading): Frame {
 // Where a note stands, in a word or two after what was said.
 const where = (note: Shown): [string, string] | undefined =>
   note.unsent ? ["To send", "text-amber-ink"] : note.toJudge ? ["Does this fix it?", "text-amber-ink"] : note.state === "with the agent" ? ["With the agent", "text-slate"] : note.state === "settled" ? ["Settled", "text-green"] : undefined;
+
+// What a situation's standing says in words beside its Looks good, and when it can be judged at all.
+const SAYS: Standing["is"][] = ["not saved", "needs you", "to send", "with the agent", "looked good"];
+const JUDGED: Standing["is"][] = ["good", "is it good", "needs you", "looked good"];
 
 const INK: Record<Standing["is"], string> = {
   good: "text-green",

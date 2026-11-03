@@ -81,7 +81,7 @@ export function NoteRow(props: Props) {
   if (open || props.whole)
     return (
       <div data-open="">
-        <Card {...props} />
+        <Conversation {...props} />
       </div>
     );
   return (
@@ -135,7 +135,14 @@ function exchanges(turns: Turn[]): Turn[][] {
   return grouped;
 }
 
-function Card(props: Props) {
+// A note's conversation, as its card holds it in the player and its thread on the page: what was said, under each
+// one's name, and the question where it waits on you.
+type ConversationProps = Pick<Props, "note" | "you" | "readOnly" | "compare" | "whereYouWere" | "asking" | "unfinished" | "away" | "whole" | "onAsking" | "onUnfinished" | "onJudge" | "onEdit" | "changedAt" | "onDiamond" | "onShow"> & {
+  // Where it plays on from, once judged; none on the page, where the step loops by itself.
+  onPlayOn?: () => void;
+};
+
+export function Conversation(props: ConversationProps) {
   const { note, you, readOnly, compare, whereYouWere } = props;
   const draftNote = note.unsent && note.turns.length === 1;
   const judged = note.unsent && !draftNote ? note.turns.at(-1) : undefined;
@@ -232,8 +239,9 @@ function Card(props: Props) {
       </>
     );
 
-  const playOn = (
-    <Answer keys="↵" onClick={props.onPlayOn}>
+  const onPlayOn = props.onPlayOn;
+  const playOn = onPlayOn && (
+    <Answer keys="↵" onClick={onPlayOn}>
       {play}Play on
     </Answer>
   );
@@ -271,7 +279,7 @@ function Card(props: Props) {
           onClick={() => {
             if (settled) return;
             props.onJudge(judged?.verdict === "looks good" ? undefined : { note: note.id, verdict: "looks good" });
-            if (judged?.verdict !== "looks good") props.onPlayOn();
+            if (judged?.verdict !== "looks good") props.onPlayOn?.();
           }}
         >
           {tick}Looks good

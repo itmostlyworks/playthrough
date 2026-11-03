@@ -21,7 +21,7 @@ import type { Step } from "./Step.tsx";
 import { Work, type Beat } from "./Work.tsx";
 import { follow, pausedAt, readyAt, readyIn, samePaused, takenOver, type Live, type Paused } from "./live.ts";
 import { along, CARD, clamp, FLOW_IN, momentAt, POSTER, type Moment } from "./moments.ts";
-import { asIfSent, changedFirst, draftOn, everyDraft, fill, ink, lookGood, needsYou, notesOn, nothing, said, seen, sendingFlow, sendOf, settledBefore, standings, takeBack, upTo, watchedOn, workingSince, type Draft, type Shown } from "./notes.ts";
+import { asIfSent, changedFirst, draftOn, toSend, everyDraft, fill, ink, lookGood, needsYou, notesOn, nothing, said, seen, sendingFlow, sendOf, settledBefore, standings, takeBack, upTo, watchedOn, workingSince, type Draft, type Shown } from "./notes.ts";
 import { NoteRow, number as numberLook, Writing, type Comparing } from "./Notes.tsx";
 import { Playhead, useNow, type Forked } from "./playhead.ts";
 import { changesIn, recorded } from "./replay.ts";
@@ -518,7 +518,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
 
   // Where each flow stands for you on the round you judge, and, once the work is accepted, on the last.
   const judging = !readOnly || (!!review.accepted && round === latest);
-  const standing = useMemo(() => (judging ? standings(review, round.number, you, unsent, watched) : undefined), [judging, review, round.number, you, unsent, seenFlows]);
+  const standing = useMemo(() => (judging ? standings(review, round.number, you, unsent) : undefined), [judging, review, round.number, you, unsent]);
   const needs = (name: string) => needsYou(standing?.get(name));
 
   // The flow as a whole is a mark like a note's or a change's: its square, capping the timeline, and its card, at its
@@ -758,15 +758,14 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   // One said of an earlier round that a newer round changed is past: the flow asks again, and this one is new. One on
   // the whole flow is seen where the question is asked, laid out over its end.
   const unseen = (name: string) => notes.filter((note) => note.on?.flow === name && note.on.at !== undefined && note.state === "needs you" && !note.unsent && !met.includes(note.id));
-  // Said, it's sent, with the answers it settles and what you said of the answers in the flow: a flow's end is where
-  // what you said in it goes. Pressed again, taking it back is sent too.
-  const lookingGood = async (name: string) => {
+  // Said, it's kept with the rest until you send, with the answers in it you haven't judged riding along. Pressed again,
+  // it's taken back: unsent, it's gone; sent, taking it back goes with the next send.
+  const lookingGood = (name: string) => {
+    if (draft.takenBack.includes(name)) return changeHere((draft) => ({ ...draft, takenBack: draft.takenBack.filter((kept) => kept !== name) }));
     const good = standing?.get(name)?.is === "good";
     if (good && draft.looksGood.includes(name)) return change((draft) => takeBack(draft, name, notes));
-    if (good) return void sendNow(name, (draft) => ({ ...draft, takenBack: [...draft.takenBack, name] }));
-    const notSeen = unseen(name)[0];
-    if (notSeen) return pick(notSeen);
-    if (await sendNow(name, (draft) => lookGood(draft, name, notes))) tickLands(name);
+    if (good) return changeHere((draft) => ({ ...draft, takenBack: [...draft.takenBack, name] }));
+    changeHere((draft) => lookGood(draft, name, notes));
   };
   const sendingIt = async (name: string) => {
     if (await sendNow(name)) tickLands(name);
@@ -1181,37 +1180,37 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   };
   const step = stepHere();
 
-  // Over every flow, the step from the top: to the first flow that needs you, from its start, as Start checking, or
-  // Carry on checking once you've begun; else accepting. A round that arrived while you were here is the
-  // round's own to offer, under the work's name; looking back, it's the way back to now, as at a flow's end.
-  const begun = watched.length > 0 || said(draft) > 0 || draft.unsaved.length > 0;
+  // At the foot of every flow, what's yours to do: finish a note you started; send what you've said, all of it at once,
+  // so the agent starts on the whole of it; accept, once nothing waits on you or the agent, sending your Looks goods
+  // with it; else what the agent is doing. Looking back, it's the way back to now.
+  const asksTheAgent = draft.notes.length > 0 || draft.verdicts.some((verdict) => verdict.verdict === "not quite");
   const gridStep = ((): Step | undefined => {
     if (review.accepted || acceptedHere) return undefined;
     if (!current) return arrived ? undefined : step;
     if (readOnly) return undefined;
-    const next = onward(-1);
-    if (next.kind === "agent") return next;
-    if (next.kind !== "go") return undefined;
-    // One with something of yours to send, or a note you didn't save, opens there, as Next goes there.
-    if (next.flow)
+    const started = draft.unsaved[0];
+    if (started)
       return {
-        ...next,
-        words: begun ? "Carry on checking" : "Start checking",
-        what: undefined,
+        kind: "go",
+        words: "Finish your note",
+        what: placeName(started.on),
         take: () => {
-          const there = atItsEnd(next.flow!);
-          leave(next.flow, !there);
-          if (there) openEnd(next.flow!);
+          if (started.on) {
+            leave(started.on.flow, false);
+            go(started.on.flow, started.on.at);
+          }
+          setOpen({ writing: started.id });
         },
       };
-    if (next.final) return next;
-    return {
-      ...next,
-      take: () => {
-        leave(undefined, false);
-        next.take();
-      },
-    };
+    if (!asksTheAgent && readyToAccept(asIfSent(review, you, unsent), you)) return { kind: "go", words: "All good", what: "Accept the work", take: acceptNow, final: true };
+    if (said(draft)) return { kind: "go", words: "Send", what: toSend(draft), take: () => void sendNow() };
+    if (waitingForTheAgent(review).length)
+      return working
+        ? { kind: "agent", words: "The agent is working", what: `started at ${clock(working)}`, busy: true }
+        : agentWaiting === false
+          ? { kind: "agent", words: "Sent, no agent is waiting", what: "tell your agent", busy: false }
+          : { kind: "agent", words: "Sent, waiting for the agent", busy: false };
+    return undefined;
   })();
   const acting = onGrid ? gridStep : step;
   // Accepted, beside the round it was accepted on, with how many notes settled on the way.
@@ -1598,6 +1597,8 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
             read={read}
             notes={notes}
             standing={(name) => standing?.get(name)}
+            onLooksGood={readOnly ? undefined : lookingGood}
+            threads={{ you, readOnly, unfinished, onUnfinished: keepUnfinished, onJudge: judge, onEdit: editNote }}
             accepted={review.accepted || acceptedHere ? acceptedAfter : undefined}
             step={gridStep}
             trouble={trouble}
