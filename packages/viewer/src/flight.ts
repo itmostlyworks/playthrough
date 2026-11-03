@@ -3,6 +3,8 @@
 //
 // A picture is marked by data-picture, its flow's name; data-flying hides it while its copy is in the air.
 
+import type { Frame } from "./Picture.tsx";
+
 const FLIGHT = { duration: 420, easing: "cubic-bezier(.3,.7,.1,1)" };
 
 export type Taking = { flow: string; from: HTMLElement; box: DOMRect; copy: HTMLElement }[];
@@ -51,6 +53,37 @@ export function shrink(frame: HTMLElement, box: DOMRect, showing: string | undef
     for (const picture of [home, frame]) picture.removeAttribute("data-flying");
     flier.remove();
   };
+}
+
+// A step, as its picture shows it close up: the page as the step begins, none before a recording's first, the part of it
+// in view, and the page's size.
+export type CloseUp = { src?: string; frame?: Frame; page: { width: number; height: number } };
+
+// From a step's close-up into the frame, the camera pulls back: what was in view stays in view as the page around it
+// comes in, and the whole page settles where the frame draws it, at the top and in the middle. The frame shows once
+// it's there. How long until it has.
+export function pullBack(from: HTMLElement, closeUp: CloseUp, frame: HTMLElement): number {
+  const box = from.getBoundingClientRect();
+  const there = frame.getBoundingClientRect();
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches || !box.width || !there.width) return 0;
+  const { src, frame: part, page } = closeUp;
+  const fit = (room: DOMRect) => Math.min(room.width / page.width, room.height / page.height);
+  const start = part
+    ? { width: box.width / part.width, height: box.height / part.height, left: (-part.x * box.width) / part.width, top: (-part.y * box.height) / part.height }
+    : { width: page.width * fit(box), height: page.height * fit(box), left: (box.width - page.width * fit(box)) / 2, top: (box.height - page.height * fit(box)) / 2 };
+  const end = { width: page.width * fit(there), height: page.height * fit(there), left: (there.width - page.width * fit(there)) / 2, top: 0 };
+  const px = (place: Record<string, number>) => Object.fromEntries(Object.entries(place).map(([key, value]) => [key, `${value}px`]));
+  const copy = Object.assign(document.createElement("img"), { src: src ?? "", alt: "", hidden: !src, className: "absolute max-w-none" });
+  Object.assign(copy.style, px(start));
+  const flier = lift(from, box, copy);
+  frame.toggleAttribute("data-flying", true);
+  copy.animate([px(start), px(end)], { duration: FLIGHT.duration, easing: FLIGHT.easing, fill: "forwards" });
+  const landed = { left: `${there.left}px`, top: `${there.top}px`, width: `${there.width}px`, height: `${there.height}px`, borderRadius: getComputedStyle(frame).borderRadius };
+  flier.animate([{}, landed], { duration: FLIGHT.duration, easing: FLIGHT.easing, fill: "forwards" }).onfinish = () => {
+    for (const picture of [from, frame]) picture.removeAttribute("data-flying");
+    flier.remove();
+  };
+  return FLIGHT.duration;
 }
 
 // A picture's copy, in the air where the picture is, which hides while it's away.

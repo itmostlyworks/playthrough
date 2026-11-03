@@ -11,6 +11,7 @@ import { clamp } from "./moments.ts";
 import { fill, type Shown, type Standing } from "./notes.ts";
 import { asWho } from "./people.ts";
 import { recorded } from "./replay.ts";
+import type { CloseUp } from "./flight.ts";
 import { HOLD, Loop } from "./Loop.tsx";
 import { Picture, type Frame } from "./Picture.tsx";
 import { roundName, Rounds } from "./Rounds.tsx";
@@ -28,7 +29,7 @@ type Props = {
   accepted?: string;
   step?: Step;
   trouble: string[];
-  onFlow: (flow: string, at?: number) => void;
+  onFlow: (flow: string, beat: Beat) => void;
   arrived?: Round;
   working?: string;
   onRound: (round: number) => void;
@@ -86,7 +87,7 @@ export function Work(props: Props) {
 // A situation: whose it is and what they do, where it stands, and its steps, each a part the agent thought worth looking
 // at. One step shows at a time, as it is now beside how it was before the work, the two moving together: to start with,
 // the last step where something changed.
-function Situation({ review, round, before, flow, changed, readings, notes, standing, onFlow }: { review: Review; round: Round; before?: Round; flow: Flow; changed: Place[]; readings?: Reading[]; notes: Shown[]; standing?: Standing; onFlow: (flow: string, at?: number) => void }) {
+function Situation({ review, round, before, flow, changed, readings, notes, standing, onFlow }: { review: Review; round: Round; before?: Round; flow: Flow; changed: Place[]; readings?: Reading[]; notes: Shown[]; standing?: Standing; onFlow: (flow: string, beat: Beat) => void }) {
   const stepOf = (at: number) => Math.max(0, flow.steps.findIndex((_, i) => stepEnd(flow, i) >= at - 0.05));
   const changedAt = new Set(changed.flatMap((on) => (on.at === undefined ? [] : [stepOf(on.at)])));
   const notedAt = (step: number) => notes.filter((note) => note.on?.at !== undefined && stepOf(note.on.at) === step);
@@ -115,6 +116,9 @@ function Situation({ review, round, before, flow, changed, readings, notes, stan
   const [lengths, setLengths] = useState<{ now?: number; was?: number }>({});
   const cycle = Math.max(lengths.now ?? 0, (was && lengths.was) || 0) + HOLD;
   const here = notedAt(chosen);
+  // Opened, the step plays in the frame as it plays here, once, from the page as it begins: that picture's at hand.
+  const begins = chosen > 0 ? picture(review.id, round.number, flow.recording, chosen - 1) : undefined;
+  useEffect(() => void (begins && (new Image().src = begins)), [begins]);
   return (
     <section className="grid gap-3" onPointerEnter={play} onPointerLeave={() => setStarted(undefined)}>
       <div className="flex items-baseline justify-between gap-4 px-0.5">
@@ -154,7 +158,7 @@ function Situation({ review, round, before, flow, changed, readings, notes, stan
             data-picture={flow.name}
             className="relative block aspect-[1.6] overflow-hidden rounded-lg bg-paper shadow-frame transition-shadow duration-150 ease-calm hover:shadow-[0_0_0_1px_var(--edge),0_8px_24px_var(--drop)] data-flying:invisible"
             aria-label={`Play ${flow.name} from ${flow.steps[chosen]?.title}`}
-            onClick={() => onFlow(flow.name, stepEnd(flow, chosen) - 0.12)}
+            onClick={() => onFlow(flow.name, { ...now, closeUp: { src: begins, frame, page: readings?.[chosen]?.screen ?? { width: 1600, height: 1000 } } })}
           >
             <Still src={picture(review.id, round.number, flow.recording, chosen)} frame={frame} />
             {woken && <Loop review={review.id} round={round.number} recording={flow.recording} {...now} frame={frame} started={started} cycle={cycle} onLength={(now) => setLengths((all) => ({ ...all, now }))} />}
@@ -213,6 +217,9 @@ function Still({ src, frame }: { src: string; frame?: Frame }) {
     </>
   );
 }
+
+// A step opened from its close-up: where it starts and ends, and how its picture showed it.
+export type Beat = { from: number; until: number; closeUp: CloseUp };
 
 // A step's end: the next one's start, or the flow's end. Its page is read there.
 const stepEnd = (flow: Flow, step: number) => flow.steps[step + 1]?.at ?? flow.length;

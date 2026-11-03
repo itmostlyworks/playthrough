@@ -16,9 +16,9 @@ import { Controls, type Look } from "./Controls.tsx";
 import { DownloadVideo, type Asked } from "./DownloadVideo.tsx";
 import type { ForkLine } from "./Timeline.tsx";
 import { useUnsent, useWatched } from "./draft.ts";
-import { grow, shrink, takeOff, type Taking } from "./flight.ts";
+import { grow, pullBack, shrink, takeOff, type Taking } from "./flight.ts";
 import type { Step } from "./Step.tsx";
-import { Work } from "./Work.tsx";
+import { Work, type Beat } from "./Work.tsx";
 import { follow, pausedAt, readyAt, readyIn, samePaused, takenOver, type Live, type Paused } from "./live.ts";
 import { along, CARD, clamp, FLOW_IN, momentAt, POSTER, type Moment } from "./moments.ts";
 import { asIfSent, draftOn, everyDraft, fill, ink, lookGood, needsYou, notesOn, nothing, said, seen, sendingFlow, sendOf, settledBefore, standings, takeBack, upTo, watchedOn, workingSince, type Draft, type Shown } from "./notes.ts";
@@ -815,13 +815,20 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     row.style.transition = "opacity 520ms cubic-bezier(0.22, 0.8, 0.24, 1)";
     row.style.opacity = inApp ? "0.32" : "";
   }, [inApp, doing]);
-  const flying = useRef<{ taking: Taking; playing: boolean }>(undefined);
+  const flying = useRef<{ taking: Taking; playing: boolean } | { from: HTMLElement; beat: Beat }>(undefined);
   const settling = useRef<number>(undefined);
   useEffect(() => () => clearTimeout(settling.current), []);
-  const leave = (name: string | undefined, playing: boolean, at?: number) => {
+  const leave = (name: string | undefined, playing: boolean) => {
     flying.current = { taking: takeOff(gridRoom.current!), playing };
     setGrid(false);
-    if (name) go(name, at);
+    if (name) go(name);
+  };
+  // Opening a step, the frame plays it as its loop did: from its start, once, stopping at its end.
+  const openStep = (name: string, beat: Beat) => {
+    const from = gridRoom.current?.querySelector<HTMLElement>(`[data-picture="${CSS.escape(name)}"]`);
+    if (from) flying.current = { from, beat };
+    setGrid(false);
+    go(name, beat.from);
   };
   // A flow's end always offers a step: what's next, or with nothing left to do here, back to every flow, where the
   // round stands.
@@ -858,13 +865,15 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     if (!flight) return;
     // Only the picture of the flow that plays grows into the frame.
     const frame = document.querySelector<HTMLElement>(`[data-frame="${round.number}"]`);
-    const last = frame ? grow(flight.taking.filter((taken) => taken.flow === playhead.flow.name), frame) : 0;
-    if (!flight.playing) return;
+    const last = !frame ? 0 : "beat" in flight ? pullBack(flight.from, flight.beat.closeUp, frame) : grow(flight.taking.filter((taken) => taken.flow === playhead.flow.name), frame);
+    if ("playing" in flight && !flight.playing) return;
     const from = playhead.now.moment;
     clearTimeout(settling.current);
     settling.current = window.setTimeout(() => {
       const { moment, playing } = playhead.now;
-      if (!playing && moment.flow === from.flow && moment.at === from.at) playhead.play();
+      if (playing || moment.flow !== from.flow || moment.at !== from.at) return;
+      if ("beat" in flight) playhead.run(from, flight.beat.until);
+      else playhead.play();
     }, last + SETTLE);
   });
 
@@ -1592,7 +1601,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
             accepted={review.accepted || acceptedHere ? acceptedAfter : undefined}
             step={gridStep}
             trouble={trouble}
-            onFlow={(name, at) => leave(name, at === undefined, at)}
+            onFlow={openStep}
             arrived={arrived ? latest : undefined}
             working={working}
             onRound={toRound}
