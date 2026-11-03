@@ -228,11 +228,12 @@ export function Work(props: Props) {
           ))}
         </div>
         <Story review={review} round={round} general={general} onRound={props.onRound} />
-        <div className="sticky bottom-0 z-10 mt-6 flex min-h-8 justify-end bg-ground py-4">
-          <div className="w-[300px] max-w-full">
-            {step?.kind === "go" && <Go step={step} className="w-full gap-3" />}
-            {step?.kind === "agent" && !props.working && <Agent step={step} className="justify-end" />}
-            {props.trouble.length > 0 && <p className="mt-2 text-xs leading-[18px] text-amber-ink">{props.trouble.join(" ")}</p>}
+        {/* The one step to take floats at the window's foot, over the way rather than across the recordings. */}
+        <div className="pointer-events-none sticky bottom-0 z-10 mt-6 flex min-h-8 justify-end py-4">
+          <div className="pointer-events-auto w-[300px] max-w-full empty:hidden">
+            {step?.kind === "go" && <Go step={step} className="w-full gap-3 bg-surface! shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]!" />}
+            {step?.kind === "agent" && !props.working && <Agent step={step} className="justify-end rounded-lg bg-surface px-3 shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]" />}
+            {props.trouble.length > 0 && <p className="mt-2 rounded-lg bg-surface px-3 py-2 text-xs leading-[18px] text-amber-ink shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]">{props.trouble.join(" ")}</p>}
           </div>
         </div>
       </div>
