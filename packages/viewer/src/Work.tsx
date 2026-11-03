@@ -140,19 +140,19 @@ function Situation({ review, round, before, flow, changed, readings, notes, stan
   const begins = chosen > 0 ? picture(review.id, round.number, flow.recording, chosen - 1) : undefined;
   useEffect(() => void (begins && (new Image().src = begins)), [begins]);
   return (
-    <section className="grid gap-3" onPointerEnter={play} onPointerLeave={() => setStarted(undefined)}>
-      <div className="flex items-baseline justify-between gap-4 px-0.5">
-        <h3 className="min-w-0 text-[15px] leading-[21px] font-semibold">
-          {flow.name}
-          {asWho(flow) && <span className="font-normal text-soft"> {asWho(flow)}</span>}
-        </h3>
-        <span className="flex flex-none items-center gap-1.5 text-xs leading-4">
-          {standing && <EndMark end={endOf(standing)} ahead={standing.is === "to watch"} just={false} className="size-3 flex-none" />}
-          {standing && <span className={INK[standing.is]}>{says(standing)}</span>}
-          <span className="text-faint tabular-nums">· {time(flow.length)}</span>
-        </span>
-      </div>
-      <div className="grid gap-3 wide:grid-cols-[260px_1fr] wide:gap-8">
+    <section className="grid gap-3 wide:grid-cols-[260px_1fr] wide:gap-8" onPointerEnter={play} onPointerLeave={() => setStarted(undefined)}>
+      <div className="grid content-start gap-3 wide:gap-4">
+        <div className="flex items-baseline justify-between gap-4 px-0.5 wide:flex-col wide:items-start wide:gap-1">
+          <h3 className="min-w-0 text-[15px] leading-[21px] font-semibold text-balance">
+            {flow.name}
+            {asWho(flow) && <span className="font-normal text-soft"> {asWho(flow)}</span>}
+          </h3>
+          <span className="flex flex-none items-center gap-1.5 text-xs leading-4">
+            {standing && <EndMark end={endOf(standing)} ahead={standing.is === "to watch"} just={false} className="size-3 flex-none" />}
+            {standing && <span className={INK[standing.is]}>{says(standing)}</span>}
+            <span className="text-faint tabular-nums">· {time(flow.length)}</span>
+          </span>
+        </div>
         <div role="tablist" aria-label={`The steps of ${flow.name}`} className="grid grid-cols-[repeat(auto-fit,minmax(128px,1fr))] gap-x-2 gap-y-4 wide:flex wide:flex-col wide:gap-0 wide:self-start">
           {flow.steps.map((step, i) => (
             <button
@@ -183,55 +183,55 @@ function Situation({ review, round, before, flow, changed, readings, notes, stan
             </button>
           ))}
         </div>
-        <div className="grid content-start gap-3">
-          <div className="grid grid-cols-2 gap-4 phone:grid-cols-1">
-            <figure className="grid gap-2">
-              <button
-                data-picture={flow.name}
-                className="relative block aspect-[1.6] overflow-hidden rounded-lg bg-paper shadow-frame transition-shadow duration-150 ease-calm hover:shadow-[0_0_0_1px_var(--edge),0_8px_24px_var(--drop)] data-flying:invisible"
-                aria-label={`Play ${flow.name} from ${flow.steps[chosen]?.title}`}
-                onClick={() => onFlow(flow.name, { ...now, closeUp: { src: begins, frame, page: readings?.[chosen]?.screen ?? { width: 1600, height: 1000 } } })}
-              >
-                <Still src={picture(review.id, round.number, flow.recording, chosen)} frame={frame} />
-                {woken && <Loop review={review.id} round={round.number} recording={flow.recording} {...now} frame={frame} started={started} cycle={cycle} onLength={(now) => setLengths((all) => ({ ...all, now }))} />}
-                {here.length > 0 && (
-                  <span className="absolute top-2.5 left-2.5 flex gap-1">
-                    {here.map((note) => (
-                      <span key={note.id} className={`grid size-5 place-content-center rounded-full text-[11px] leading-none font-semibold text-white ${fill(note)}`}>
-                        {note.number}
-                      </span>
-                    ))}
-                  </span>
-                )}
-              </button>
-              <figcaption className="px-0.5 text-xs leading-4 text-soft">Now</figcaption>
-            </figure>
-            <figure className="grid gap-2">
-              {then && was ? (
-                <span className="relative block aspect-[1.6] overflow-hidden rounded-lg bg-paper shadow-frame">
-                  <Still src={picture(review.id, 0, then.recording, thenStep)} frame={frame} />
-                  {woken && <Loop review={review.id} round={0} recording={then.recording} {...was} frame={frame} started={started} cycle={cycle} onLength={(was) => setLengths((all) => ({ ...all, was }))} />}
-                </span>
-              ) : (
-                <span className="grid aspect-[1.6] place-content-center rounded-lg border border-dashed border-line px-6 text-center text-[13px] leading-5 text-soft">
-                  {then ? "Before the work, there was no such step" : "New: there was nothing like it before"}
+      </div>
+      <div className="grid content-start gap-3">
+        <div className="grid grid-cols-2 gap-4 phone:grid-cols-1">
+          <figure className="grid gap-2">
+            <button
+              data-picture={flow.name}
+              className="relative block aspect-[1.6] overflow-hidden rounded-lg bg-paper shadow-frame transition-shadow duration-150 ease-calm hover:shadow-[0_0_0_1px_var(--edge),0_8px_24px_var(--drop)] data-flying:invisible"
+              aria-label={`Play ${flow.name} from ${flow.steps[chosen]?.title}`}
+              onClick={() => onFlow(flow.name, { ...now, closeUp: { src: begins, frame, page: readings?.[chosen]?.screen ?? { width: 1600, height: 1000 } } })}
+            >
+              <Still src={picture(review.id, round.number, flow.recording, chosen)} frame={frame} />
+              {woken && <Loop review={review.id} round={round.number} recording={flow.recording} {...now} frame={frame} started={started} cycle={cycle} onLength={(now) => setLengths((all) => ({ ...all, now }))} />}
+              {here.length > 0 && (
+                <span className="absolute top-2.5 left-2.5 flex gap-1">
+                  {here.map((note) => (
+                    <span key={note.id} className={`grid size-5 place-content-center rounded-full text-[11px] leading-none font-semibold text-white ${fill(note)}`}>
+                      {note.number}
+                    </span>
+                  ))}
                 </span>
               )}
-              <figcaption className="px-0.5 text-xs leading-4 text-soft">Before</figcaption>
-            </figure>
-          </div>
-          {notes.length > 0 && (
-            <ul className="grid gap-1.5 px-0.5">
-              {notes.map((note) => (
-                <li key={note.id} className="flex min-w-0 items-baseline gap-2 text-[13px] leading-5">
-                  <span className={`size-1.5 flex-none translate-y-[-1px] rounded-full ${fill(note)}`} />
-                  <span className="truncate text-fg">{note.turns[0]?.words}</span>
-                  {where(note) && <span className={`flex-none ${where(note)![1]}`}>· {where(note)![0]}</span>}
-                </li>
-              ))}
-            </ul>
-          )}
+            </button>
+            <figcaption className="px-0.5 text-xs leading-4 text-soft">Now</figcaption>
+          </figure>
+          <figure className="grid gap-2">
+            {then && was ? (
+              <span className="relative block aspect-[1.6] overflow-hidden rounded-lg bg-paper shadow-frame">
+                <Still src={picture(review.id, 0, then.recording, thenStep)} frame={frame} />
+                {woken && <Loop review={review.id} round={0} recording={then.recording} {...was} frame={frame} started={started} cycle={cycle} onLength={(was) => setLengths((all) => ({ ...all, was }))} />}
+              </span>
+            ) : (
+              <span className="grid aspect-[1.6] place-content-center rounded-lg border border-dashed border-line px-6 text-center text-[13px] leading-5 text-soft">
+                {then ? "Before the work, there was no such step" : "New: there was nothing like it before"}
+              </span>
+            )}
+            <figcaption className="px-0.5 text-xs leading-4 text-soft">Before</figcaption>
+          </figure>
         </div>
+        {notes.length > 0 && (
+          <ul className="grid gap-1.5 px-0.5">
+            {notes.map((note) => (
+              <li key={note.id} className="flex min-w-0 items-baseline gap-2 text-[13px] leading-5">
+                <span className={`size-1.5 flex-none translate-y-[-1px] rounded-full ${fill(note)}`} />
+                <span className="truncate text-fg">{note.turns[0]?.words}</span>
+                {where(note) && <span className={`flex-none ${where(note)![1]}`}>· {where(note)![0]}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </section>
   );
