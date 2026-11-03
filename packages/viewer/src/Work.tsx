@@ -162,7 +162,7 @@ function Situation({ review, round, before, flow, changed, readings, notes, stan
               title={step.title}
               aria-selected={i === chosen}
               tabIndex={i === chosen ? 0 : -1}
-              className="group/step relative grid content-start gap-2 text-left wide:py-1.5 wide:pl-4 text-[13px] leading-[18px] text-soft transition-colors duration-150 ease-calm outline-none hover:text-fg focus-visible:text-fg aria-selected:text-fg"
+              className="group/step relative grid content-start gap-2 text-left wide:h-12 wide:py-1.5 wide:pl-4 text-[13px] leading-[18px] text-soft transition-colors duration-150 ease-calm outline-none hover:text-fg focus-visible:text-fg aria-selected:text-fg"
               onPointerEnter={() => choose(i)}
               onFocus={() => choose(i)}
               onKeyDown={arrows}
@@ -171,10 +171,12 @@ function Situation({ review, round, before, flow, changed, readings, notes, stan
                 {i === chosen && <span ref={progress} className="absolute inset-0 origin-top-left bg-fg [transform:scaleX(var(--done,1))] wide:[transform:scaleY(var(--done,1))]" />}
               </span>
               <span className="flex gap-1.5">
-                <span className="flex-none text-faint tabular-nums">{i + 1}</span>
-                <span className="line-clamp-3 text-balance">
+                <span className="grid flex-none content-start justify-items-center gap-1.5">
+                  <span className="text-faint tabular-nums">{i + 1}</span>
+                  {changedAt.has(i) && <i title="Changed here" className="size-[6px] rotate-45 bg-fg" />}
+                </span>
+                <span className="line-clamp-3 text-balance wide:line-clamp-2">
                   {step.title}
-                  {changedAt.has(i) && <i title="Changed here" className="ml-1.5 inline-block size-[6px] translate-y-[-1px] rotate-45 bg-fg" />}
                   {notedAt(i).map((note) => <b key={note.id} className={`ml-1 inline-block size-1.5 translate-y-[-1px] rounded-full ${fill(note)}`} />)}
                 </span>
               </span>
