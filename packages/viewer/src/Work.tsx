@@ -169,11 +169,13 @@ function Situation({ review, round, before, flow, changed, readings, notes, stan
             <span className="relative h-[3px] overflow-hidden rounded-full bg-line">
               {i === chosen && <span ref={progress} className="absolute inset-0 origin-left bg-fg" />}
             </span>
-            <span className="line-clamp-2">
-              <span className="mr-1.5 text-faint tabular-nums">{i + 1}</span>
-              {step.title}
-              {changedAt.has(i) && <i title="Changed here" className="ml-1.5 inline-block size-[6px] translate-y-[-1px] rotate-45 bg-fg" />}
-              {notedAt(i).map((note) => <b key={note.id} className={`ml-1 inline-block size-1.5 translate-y-[-1px] rounded-full ${fill(note)}`} />)}
+            <span className="flex gap-1.5">
+              <span className="flex-none text-faint tabular-nums">{i + 1}</span>
+              <span className="line-clamp-3 text-balance">
+                {step.title}
+                {changedAt.has(i) && <i title="Changed here" className="ml-1.5 inline-block size-[6px] translate-y-[-1px] rotate-45 bg-fg" />}
+                {notedAt(i).map((note) => <b key={note.id} className={`ml-1 inline-block size-1.5 translate-y-[-1px] rounded-full ${fill(note)}`} />)}
+              </span>
             </span>
           </button>
         ))}
