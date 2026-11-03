@@ -240,10 +240,32 @@ const SAYS = `<script>(() => {
   const hidden = document.createElement("style");
   hidden.textContent = "html, html * { cursor: none !important; }";
   document.documentElement.appendChild(hidden);
+  // Made ready unseen in the viewer, the page waits as the flow left it, the text cursor where it was: the keyboard goes
+  // back to the review until the page is yours, and the app isn't told it left, or a field that saves as it's left, as
+  // Kan's checklist item does, would save what was half typed. Leaving, it goes to nothing on the page. Once the page is
+  // yours and the keyboard comes in, it's back in that field, the text cursor where it was.
+  let left;
+  const unheard = (e) => {
+    if (window === parent || e.relatedTarget || sessionStorage.getItem("playthrough:yours")) return;
+    e.stopImmediatePropagation();
+    if (typing(e.target)) left = { field: e.target, at: getSelection().rangeCount ? getSelection().getRangeAt(0).cloneRange() : undefined };
+  };
+  addEventListener("blur", unheard, true);
+  addEventListener("focusout", unheard, true);
+  // The keyboard can come in a moment before the page is yours, or after: whichever is last puts it back.
+  const back = () => {
+    if (!left || !sessionStorage.getItem("playthrough:yours") || !document.hasFocus()) return;
+    const { field, at } = left;
+    left = undefined;
+    if (!field.isConnected) return;
+    field.focus({ preventScroll: true });
+    if (at && field.isContentEditable) getSelection().removeAllRanges(), getSelection().addRange(at);
+  };
+  addEventListener("focus", (e) => e.target === window && back());
   // Yours across the pages you go to, until you leave.
   const yours = (mine) => { hidden.disabled = mine; if (mine) sessionStorage.setItem("playthrough:yours", "1"); else sessionStorage.removeItem("playthrough:yours"); };
   yours(!!sessionStorage.getItem("playthrough:yours"));
-  addEventListener("message", ({ source, data }) => { if (source === parent && data?.playthrough === "yours") yours(data.yours); });
+  addEventListener("message", ({ source, data }) => { if (source === parent && data?.playthrough === "yours") (yours(data.yours), back()); });
   // Taken over, the page is scrolled where the recording was at that moment: made ready at a step's end, it was where
   // the step left it, a screen or more from a moment partway through a page being read. And so is each part of it that
   // scrolls on its own, as Kan's card does inside the page, found by the path back to it.
@@ -432,32 +454,33 @@ const SAYS = `<script>(() => {
     press(element, "pointerup", "mouseup", "click");
   };
   const changed = (element) => ["input", "change"].forEach((type) => element.dispatchEvent(new Event(type, { bubbles: true })));
-  // A key made up here moves nothing by itself: one that moves the caret, pressed alone, moves it here too.
-  const caretMoved = new WeakSet();
-  const move = (element, key) => {
-    if (element.isContentEditable) {
-      const [direction, by] = { Home: ["backward", "lineboundary"], End: ["forward", "lineboundary"], ArrowLeft: ["backward", "character"], ArrowRight: ["forward", "character"] }[key] ?? [];
-      return void (direction && getSelection()?.modify("move", direction, by));
-    }
-    if (element.selectionStart == null) return;
-    const [at, length] = [element.selectionStart, element.value.length];
-    const to = { Home: 0, End: length, ArrowLeft: Math.max(0, at - 1), ArrowRight: Math.min(length, at + 1) }[key];
-    if (to === undefined) return;
-    element.setSelectionRange(to, to);
-    caretMoved.add(element);
-  };
-  // Filled, what's there is replaced; typed, it's added where the caret was moved to, else at the end, where a click into
-  // words mostly leaves it.
+  // Filled, what's there is replaced; typed, it's added where the text cursor is.
   const type = (element, words, adding) => {
     element.focus({ preventScroll: true });
-    if (element.isContentEditable) return void (adding || document.execCommand("selectAll"), document.execCommand("insertText", false, words));
-    const was = element.value ?? "";
-    const [from, to] = !adding ? [0, was.length] : caretMoved.has(element) ? [element.selectionStart, element.selectionEnd] : [was.length, was.length];
+    if (adding) return void document.execCommand("insertText", false, words);
+    if (element.isContentEditable) return void (document.execCommand("selectAll"), document.execCommand("insertText", false, words));
     const value = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(element), "value")?.set;
-    const now = was.slice(0, from) + words + was.slice(to);
-    value ? value.call(element, now) : (element.value = now);
-    if (caretMoved.has(element)) element.setSelectionRange(from + words.length, from + words.length);
+    value ? value.call(element, words) : (element.value = words);
     changed(element);
+  };
+  // A key pressed for you is heard by the page alone: the browser does nothing with it. So unless the page takes it, it
+  // does what the key does where you type, Home taking the text cursor to the start of the line, Backspace deleting.
+  const moves = { Home: ["backward", "lineboundary"], End: ["forward", "lineboundary"], ArrowLeft: ["backward", "character"], ArrowRight: ["forward", "character"], ArrowUp: ["backward", "line"], ArrowDown: ["forward", "line"] };
+  const key = (element, given) => {
+    const keys = String(given).split(/\\+(?=.)/);
+    const name = keys.pop();
+    const held = { shiftKey: keys.includes("Shift"), ctrlKey: keys.some((one) => one.startsWith("Control")), altKey: keys.includes("Alt"), metaKey: keys.includes("Meta") };
+    const heard = (type) => element.dispatchEvent(new KeyboardEvent(type, { key: name, ...held, bubbles: true, cancelable: true }));
+    const letter = name.length === 1 || name === "Enter";
+    if (heard("keydown") && (!letter || heard("keypress")) && typing(element)) {
+      if (held.ctrlKey || held.metaKey || held.altKey) name.toLowerCase() === "a" && document.execCommand("selectAll");
+      else if (moves[name]) getSelection().modify(held.shiftKey ? "extend" : "move", ...moves[name]);
+      else if (name === "Backspace" || name === "Delete") document.execCommand(name === "Delete" ? "forwardDelete" : "delete");
+      else if (name === "Enter" && element.tagName === "INPUT") element.form?.requestSubmit();
+      else if (name === "Enter" && element.isContentEditable) document.execCommand(held.shiftKey ? "insertLineBreak" : "insertParagraph");
+      else if (letter) document.execCommand("insertText", false, name === "Enter" ? "\\n" : name);
+    }
+    heard("keyup");
   };
   const doAgain = async ({ does, on, with: given }) => {
     const element = await find(on);
@@ -466,12 +489,7 @@ const SAYS = `<script>(() => {
     else if (does === "dblclick") (click(element), click(element), press(element, "dblclick"));
     else if (does === "fill") type(element, given);
     else if (does === "type") type(element, given, true);
-    else if (does === "press") {
-      const key = (kind) => element.dispatchEvent(new KeyboardEvent(kind, { key: given, bubbles: true, cancelable: true }));
-      if (key("keydown")) move(element, given);
-      key("keypress");
-      key("keyup");
-    }
+    else if (does === "press") key(element, given);
     else if (does === "hover") press(element, "pointerover", "pointerenter", "mouseover", "pointermove", "mousemove");
     else if (does === "selectOption") (element.value = [given].flat()[0], changed(element));
     else if (element.checked !== (does === "check" || (does === "setChecked" && given))) click(element);
