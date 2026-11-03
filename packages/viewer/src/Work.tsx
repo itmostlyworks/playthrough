@@ -178,7 +178,7 @@ function Situation(props: { review: Review; round: Round; before?: Round; flow: 
           </div>
         )}
       </div>
-      <div role="tablist" aria-label={`The steps of ${flow.name}`} onPointerEnter={() => setThrough(false)} className="grid grid-cols-[repeat(auto-fit,minmax(128px,1fr))] gap-x-2 gap-y-4 wide:col-start-1 wide:row-span-2 wide:row-start-1 wide:flex wide:flex-col wide:gap-0 wide:self-start">
+      <div role="tablist" aria-label={`The steps of ${flow.name}`} onPointerEnter={() => setThrough(false)} className="grid grid-cols-[repeat(auto-fit,minmax(128px,1fr))] gap-x-2 gap-y-4 wide:col-start-1 wide:row-start-2 wide:flex wide:flex-col wide:gap-0 wide:self-start">
         {flow.steps.map((step, i) => (
           <button
             key={i}
