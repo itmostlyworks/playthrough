@@ -2,11 +2,11 @@
 // before the work. Choosing a step plays the flow from there in the frame. At the end, how it got here, and the one step
 // to take. Where you arrive, and what "All flows" brings you back to.
 
-import { useEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import type { Reading } from "@playthrough/page";
 import { time, type Flow, type Place, type Review, type Round, type Verdict } from "@playthrough/review";
 import { picture, recording } from "./api.ts";
-import { EndMark, endOf } from "./Chosen.tsx";
+import { EndMark } from "./Chosen.tsx";
 import { clamp } from "./moments.ts";
 import { fill, ink, unchangedSince, type Shown, type Standing } from "./notes.ts";
 import { Said } from "./Card.tsx";
@@ -16,6 +16,7 @@ import type { CloseUp } from "./flight.ts";
 import { HOLD, Loop, ON, type Mark } from "./Loop.tsx";
 import type { Diamond } from "./changes.ts";
 import { Conversation } from "./Notes.tsx";
+import { Steps } from "./Steps.tsx";
 import { Picture, type Frame } from "./Picture.tsx";
 import { roundName, Rounds } from "./Rounds.tsx";
 import { Agent, Go, says, type Step } from "./Step.tsx";
@@ -132,13 +133,6 @@ function Situation(props: { review: Review; round: Round; before?: Round; flow: 
   const [through, setThrough] = useState(false);
   const play = () => (setWoken(true), setStarted(performance.now()));
   const choose = (step: number) => (setThrough(false), setChosen(step), started !== undefined && setStarted(performance.now()));
-  const tabs = useRef<(HTMLButtonElement | null)[]>([]);
-  const arrows = (event: KeyboardEvent<HTMLButtonElement>) => {
-    const by = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
-    if (!by) return;
-    event.preventDefault();
-    tabs.current[clamp(chosen + by, 0, flow.steps.length - 1)]?.focus();
-  };
   const frame = frames[chosen];
   const thenStep = thenAt(chosen);
   const now = { from: flow.steps[chosen]!.at, until: stepEnd(flow, chosen) };
@@ -233,36 +227,7 @@ function Situation(props: { review: Review; round: Round; before?: Round; flow: 
           </div>
         )}
       </div>
-      <div role="tablist" aria-label={`The steps of ${flow.name}`} onPointerEnter={() => setThrough(false)} className="grid grid-cols-[repeat(auto-fit,minmax(128px,1fr))] gap-x-2 gap-y-4 wide:col-start-1 wide:row-start-2 wide:flex wide:flex-col wide:gap-0 wide:self-start">
-        {flow.steps.map((step, i) => (
-          <button
-            key={i}
-            ref={(tab) => void (tabs.current[i] = tab)}
-            role="tab"
-            title={step.title}
-            aria-selected={i === chosen}
-            tabIndex={i === chosen ? 0 : -1}
-            className="group/step relative grid content-start gap-2 text-left wide:h-12 wide:py-1.5 wide:pl-4 text-[13px] leading-[18px] text-soft transition-colors duration-150 ease-calm outline-none hover:text-fg focus-visible:text-fg aria-selected:text-fg"
-            onPointerEnter={() => choose(i)}
-            onFocus={() => choose(i)}
-            onKeyDown={arrows}
-          >
-            <span className="relative h-[3px] overflow-hidden rounded-full bg-line wide:absolute wide:inset-y-0.5 wide:left-0 wide:h-auto wide:w-[3px]">
-              {i === chosen && <span ref={progress} className="absolute inset-0 origin-top-left bg-fg [transform:scaleX(var(--done,1))] wide:[transform:scaleY(var(--done,1))]" />}
-            </span>
-            <span className="flex gap-1.5">
-              <span className="grid flex-none content-start justify-items-center gap-1.5">
-                <span className="text-faint tabular-nums">{i + 1}</span>
-                {changedAt.has(i) && <i title="Changed here" className="size-[6px] rotate-45 bg-fg" />}
-              </span>
-              <span className="line-clamp-3 text-balance wide:line-clamp-2">
-                {step.title}
-                {notedAt(i).map((note) => <b key={note.id} className={`ml-1 inline-block size-1.5 translate-y-[-1px] rounded-full ${fill(note)}`} />)}
-              </span>
-            </span>
-          </button>
-        ))}
-      </div>
+      <Steps flow={flow} chosen={chosen} changed={changedAt} notedAt={notedAt} progress={progress} by="point" onChoose={choose} onPointerEnter={() => setThrough(false)} className="wide:col-start-1 wide:row-start-2 wide:self-start" />
       <div className="grid content-start gap-3 wide:col-start-2">
         <div className="grid grid-cols-2 gap-4 phone:grid-cols-1" onPointerEnter={() => setThrough(true)}>
           <figure className="grid content-start gap-2">

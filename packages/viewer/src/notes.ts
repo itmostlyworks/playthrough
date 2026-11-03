@@ -48,13 +48,6 @@ export const everyDraft = (unsent: Unsent, change: (draft: Draft) => Draft): Uns
   Object.fromEntries(Object.entries(unsent).map(([about, draft]) => [about, change(draft)]));
 export const draftOn = (unsent: Unsent, round: number, change: (draft: Draft) => Draft): Unsent => ({ ...unsent, [round]: change(unsent[round] ?? nothing) });
 
-// The flows you've watched, each on the round you watched it. One a newer round shows as it was, you've watched there too.
-export type Watched = { flow: string; round: number };
-export function watchedOn(review: Review, round: number, watched: Watched[]): string[] {
-  const on = watched.filter((seen) => seen.round === round || (seen.round < round && unchangedSince(review, seen.round, round).includes(seen.flow)));
-  return [...new Set(on.map((seen) => seen.flow))];
-}
-
 // What a send carries of the draft.
 export const sendOf = ({ notes, verdicts, looksGood, takenBack }: Draft) => ({ notes, verdicts, looksGood, ...(takenBack.length && { takenBack }) });
 // What a send holds, in a few words: the notes, the answers judged, the situations that look good.
@@ -65,18 +58,6 @@ export function toSend(draft: Draft): string {
 }
 
 export const said = (draft: Draft) => draft.notes.length + draft.verdicts.length + draft.looksGood.length + draft.takenBack.length;
-
-// A flow's notes are sent at its end, so the agent starts on them while you watch the rest: what you wrote in it and
-// said of the answers in it, with every Looks good you haven't sent, or taken back, and the answers they settle riding along. The rest
-// stays for the flows you haven't finished.
-export function sendingFlow(draft: Draft, flow: string, notes: Shown[]): { sending: Draft; left: Draft } {
-  const inIt = new Set([...notes.filter((note) => note.on?.flow === flow).map((note) => note.id), ...draft.withTheFlow]);
-  const its = (note: Note) => note.on?.flow === flow;
-  return {
-    sending: { ...nothing, notes: draft.notes.filter(its), verdicts: draft.verdicts.filter((verdict) => inIt.has(verdict.note)), looksGood: draft.looksGood, takenBack: draft.takenBack },
-    left: { ...draft, notes: draft.notes.filter((note) => !its(note)), verdicts: draft.verdicts.filter((verdict) => !inIt.has(verdict.note)), looksGood: [], takenBack: [], withTheFlow: [] },
-  };
-}
 
 // The flows a newer round shows as they were: nothing found changed in them since, or only what the agent says isn't
 // real.

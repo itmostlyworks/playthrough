@@ -1,8 +1,8 @@
 // What's yours on a review, kept in this browser so a reload loses nothing, and nobody else sees it: what you've written
-// and not sent yet, which sending empties, and the flows you've watched, each under the round it's about.
+// and not sent yet, which sending empties, each under the round it's about.
 
 import { useState } from "react";
-import { nothing, said, type Unsent, type Watched } from "./notes.ts";
+import { nothing, said, type Unsent } from "./notes.ts";
 
 type Kept<T> = { key: string; shape: (kept: unknown) => T; empty: (value: T) => boolean; moved: () => T };
 
@@ -13,18 +13,9 @@ const unsent = (review: string): Kept<Unsent> => ({
   moved: () => Object.fromEntries(movedFrom(review, "").map(({ round, kept }) => [round, kept])) as Unsent,
 });
 
-const watched = (review: string): Kept<Watched[]> => ({
-  key: `playthrough:${review}:watched`,
-  shape: (kept) => (Array.isArray(kept) ? kept : []),
-  empty: (watched) => !watched.length,
-  moved: () => movedFrom(review, ":watched").flatMap(({ round, kept }) => (Array.isArray(kept) ? kept.map((flow: string) => ({ flow, round })) : [])),
-});
-
 export const useUnsent = (review: string) => useKept(unsent(review));
-export const useWatched = (review: string) => useKept(watched(review));
 // As they are now, for every review at once.
 export const unsentOn = (review: string) => read(unsent(review));
-export const watchedOf = (review: string) => read(watched(review));
 
 // Kept before what you haven't sent was the review's, under a key for each round: taken from there, once.
 function movedFrom(review: string, end: string): { round: number; kept: unknown }[] {

@@ -6,9 +6,9 @@
 import { useEffect, useState } from "react";
 import type { Review, Round } from "@playthrough/review";
 import { picture, useReviews, useYou } from "./api.ts";
-import { unsentOn, watchedOf } from "./draft.ts";
+import { unsentOn } from "./draft.ts";
 import { FRAME, LIST, ROW, SPREAD, THUMB, ToCheck, Veiled } from "./Grid.tsx";
-import { needsYou, seen, standings, watchedOn, workingSince } from "./notes.ts";
+import { needsYou, seen, standings, workingSince } from "./notes.ts";
 import { Picture } from "./Picture.tsx";
 import { Page } from "./Review.tsx";
 import { clock, roundName } from "./Rounds.tsx";

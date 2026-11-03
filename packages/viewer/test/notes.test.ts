@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { memory, newId, Reviews, type Flow, type Review, type Round, type Send } from "@playthrough/review";
-import { fill, lookGood, nothing, notesOn, sendingFlow, settledBefore, standings, takeBack, watchedOn } from "../src/notes.ts";
+import { fill, lookGood, nothing, notesOn, settledBefore, standings, takeBack } from "../src/notes.ts";
 
 const flow = (name: string): Flow => ({ name, length: 6, steps: [{ title: "Open the invoices", at: 0 }], recording: `${name.toLowerCase().replace(/\W+/g, "-")}.json` });
 const round = (number: number, parts: Partial<Round> = {}): Round => ({
@@ -151,16 +151,6 @@ test("a flow that looked good to you and changed since asks again", async () => 
   assert.equal(standings({ ...changed, accepted: { by: "Ana", at: "2026-10-25T12:00:00Z" } }, 2, "Ben", {}).get("Export them")?.is, "good", "accepted, every flow is");
 });
 
-test("a flow's end sends what you said in it, with your Looks goods riding along, and leaves the rest for the flows to come", async () => {
-  const review = await twoPeople();
-  const here = { id: newId(), on: { flow: "Export them", at: 1 }, words: "Name the file by the quarter" };
-  const there = { id: newId(), on: { flow: "See what's overdue", at: 2 }, words: "Sort by how late" };
-  const draft = { ...nothing, notes: [here, there], looksGood: ["See what's overdue"] };
-  const { sending, left } = sendingFlow(draft, "Export them", notesOn(review, 2, "Ana", { 2: draft }));
-  assert.deepEqual([sending.notes, sending.looksGood], [[here], ["See what's overdue"]]);
-  assert.deepEqual([left.notes, left.looksGood], [[there], []]);
-});
-
 test("what you haven't sent stays on the round it's about, and shows on the rounds after it as what you sent does", async () => {
   const review = await twoPeople();
   const earlier = { id: newId(), on: { flow: "See what's overdue", at: 1 }, words: "Sort by how late they are?" };
@@ -171,11 +161,3 @@ test("what you haven't sent stays on the round it's about, and shows on the roun
   assert.deepEqual(notesOn(review, 1, "Ben", { 2: { ...nothing, notes: [earlier] } }).map((note) => note.id), [note.id], "looking back, what's about a later round isn't there");
 });
 
-test("a flow you watched counts as watched on a newer round that shows it as it was", async () => {
-  const review = await twoPeople();
-  const watched = [{ flow: "Export them", round: 1 }, { flow: "See what's overdue", round: 1 }];
-  const change = { id: newId(), words: "Export is new", seen: [{ flow: "Export them", at: 1 }] };
-  assert.deepEqual(watchedOn({ ...review, comparisons: [{ round: 2, since: 1, changes: [change] }] }, 2, watched), ["See what's overdue"]);
-  assert.deepEqual(watchedOn(review, 2, watched), [], "not compared, nothing is known to be the same");
-  assert.deepEqual(watchedOn(review, 1, watched), ["Export them", "See what's overdue"]);
-});

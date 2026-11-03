@@ -4,7 +4,6 @@
 
 import { useEffect, useRef } from "react";
 import { Compare, ForkMark, Key } from "./Card.tsx";
-import { EndMark, type End } from "./Chosen.tsx";
 import type { Comparing } from "./Notes.tsx";
 
 // A note on this flow, as the list says it: its dot in its colour, its words, and its moment, made in the app or not.
@@ -23,9 +22,6 @@ type Props = {
   onBack: () => void;
   flow: string;
   notes: Said[];
-  // The flow as a whole, last: its square, how many notes are on the whole of it, and what its end says.
-  whole?: { end: End; notes: number; words: string };
-  onWhole: () => void;
   listed: boolean;
   onList: (listed: boolean) => void;
   onSaid: (id: string) => void;
@@ -48,7 +44,7 @@ export function Bar(props: Props) {
     addEventListener("keydown", escape);
     return () => (removeEventListener("pointerdown", away, true), removeEventListener("keydown", escape));
   }, [listed, onList]);
-  const count = props.notes.length + (props.whole?.notes ?? 0);
+  const count = props.notes.length;
   const row = "grid w-full grid-cols-[12px_minmax(0,1fr)_auto] items-center gap-x-2.5 rounded-lg px-2.5 py-[7px] text-left transition-colors duration-150 ease-calm hover:bg-hover focus-visible:bg-hover";
   return (
     <div ref={here} className="relative">
@@ -78,18 +74,7 @@ export function Bar(props: Props) {
                 </span>
               </button>
             ))}
-          {props.whole ? (
-            <button tabIndex={listed ? 0 : -1} className={row} onClick={props.onWhole}>
-              <EndMark end={props.whole.end} just={false} className="size-3" />
-              <span className="truncate text-[13px] leading-[18px] text-fg">
-                The whole flow
-                {props.whole.notes > 0 && <span className="text-soft"> · {props.whole.notes} {props.whole.notes === 1 ? "note" : "notes"}</span>}
-              </span>
-              <span className="text-[11.5px] text-faint">{props.whole.words}</span>
-            </button>
-          ) : (
-            !count && <p className="px-2.5 py-[7px] text-[13px] text-soft">No notes on this flow yet.</p>
-          )}
+          {!count && <p className="px-2.5 py-[7px] text-[13px] text-soft">No notes on this flow yet.</p>}
         </div>
       </div>
       <div
