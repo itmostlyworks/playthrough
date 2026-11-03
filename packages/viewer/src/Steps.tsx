@@ -1,109 +1,85 @@
-// A situation's steps, as the page and the frame both list them: each its number and words, a dot for each note on it,
-// and its line, full on the step shown and filling as that step plays. On the page they're the recording's chapters, in
-// a row under it, each its line over its words; beside the frame, a column, each its line beside them, all as tall as
-// the tallest. Where something's new to you, a diamond sits on the line by the number, as the timeline marks it on its
-// line. On the page, pointing at a step loops it; beside the frame, pressing one plays it.
+// A situation's steps, under its recording: its timeline, in the parts the agent thought worth looking at. Each is its
+// words and its stretch of one line, full where the recording has been, filling as it plays, empty ahead, with a dot
+// where each note is and a diamond where something new to you changed. Pressing a step plays it, once; pressing or
+// dragging along its line goes to that moment there. Pointing at one only says it can be pressed.
 
-import { useEffect, useRef, type KeyboardEvent, type RefObject } from "react";
+import { useEffect, useRef, useState, type PointerEvent } from "react";
 import type { Flow } from "@playthrough/review";
 import { clamp } from "./moments.ts";
-import { fill, type Shown } from "./notes.ts";
-import { useNow, type Playhead } from "./playhead.ts";
+import type { Clock } from "./Player.tsx";
+
+// What's on the line: a note's dot in its fill, or a change's diamond, at its moment.
+export type OnLine = { id: string; at: number; fill?: string };
 
 type Props = {
   flow: Flow;
-  chosen: number;
-  // When something new to you happens in the flow.
-  changed: number[];
-  notedAt: (step: number) => Shown[];
-  // The line of the step shown: full, or as far as it's played, its `--done` from 0 to 1.
-  progress: RefObject<HTMLSpanElement | null>;
-  // Beside the frame, a column; on the page, a row.
-  column?: boolean;
-  by: "point" | "press";
-  onChoose: (step: number) => void;
+  clock: Clock;
+  at: number;
+  marks: OnLine[];
+  onPlay: (step: number) => void;
+  onGo: (at: number) => void;
   className?: string;
-  onPointerEnter?: () => void;
-  onPointerLeave?: () => void;
 };
 
-export function Steps({ flow, chosen, changed, notedAt, progress, column, by, onChoose, className = "", onPointerEnter, onPointerLeave }: Props) {
-  const tabs = useRef<(HTMLButtonElement | null)[]>([]);
-  const arrows = (event: KeyboardEvent<HTMLButtonElement>) => {
-    const step = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
-    if (!step) return;
-    event.preventDefault();
-    event.stopPropagation();
-    tabs.current[clamp(chosen + step, 0, flow.steps.length - 1)]?.focus();
-  };
+export function Steps({ flow, clock, at, marks, onPlay, onGo, className = "" }: Props) {
   const end = (step: number) => flow.steps[step + 1]?.at ?? flow.length;
-  const fresh = new Set(changed.map((at) => Math.max(0, flow.steps.findIndex((_, step) => end(step) >= at - 0.05))));
-  // In a column the diamond is on the line beside the number; in a row, on the line over it.
-  const look = column
-    ? { list: "grid auto-rows-fr", step: "min-h-9 content-center py-1.5 pl-4", line: "absolute inset-y-0.5 left-0 w-[3px]", fill: "[transform:scaleY(var(--done,1))]", diamond: "top-[5.5px] -left-[18px]" }
-    : { list: "grid grid-cols-[repeat(auto-fit,minmax(128px,1fr))] gap-x-2 gap-y-4", step: "content-start gap-2", line: "relative h-[3px]", fill: "[transform:scaleX(var(--done,1))]", diamond: "-top-[13px] left-0" };
+  const stepOf = (moment: number) => Math.max(0, flow.steps.findIndex((_, step) => end(step) >= moment - 0.05));
+  const lines = useRef<(HTMLSpanElement | null)[]>([]);
+  const [current, setCurrent] = useState(stepOf(at));
+  // Each line is as full as the recording has got through its step.
+  useEffect(() => {
+    const fill = (moment: number) => {
+      flow.steps.forEach((step, i) => lines.current[i]?.style.setProperty("--done", String(clamp((moment - step.at) / Math.max(end(i) - step.at, 0.01), 0, 1))));
+      setCurrent(stepOf(moment));
+    };
+    fill(clock.at);
+    return clock.follow(fill);
+  }, [clock, flow, at]);
+  // Pressed or dragged along, a line goes to its moment there, never quite its start, which is the step before's end.
+  const going = useRef<number>(undefined);
+  const goTo = (event: PointerEvent, step: number) => {
+    const line = lines.current[step]?.getBoundingClientRect();
+    if (!line) return;
+    const from = flow.steps[step]!.at;
+    const u = clamp((event.clientX - line.left) / line.width, 0, 1);
+    onGo(clamp(from + u * (end(step) - from), from + (step ? 0.06 : 0), end(step) - 0.05));
+  };
   return (
-    <div role="tablist" aria-label={`The steps of ${flow.name}`} onPointerEnter={onPointerEnter} onPointerLeave={onPointerLeave} className={`${look.list} ${className}`}>
+    <div role="group" aria-label={`The steps of ${flow.name}`} className={`grid grid-cols-[repeat(auto-fit,minmax(128px,1fr))] gap-x-2 gap-y-4 ${className}`}>
       {flow.steps.map((step, i) => (
-        <button
-          key={i}
-          ref={(tab) => void (tabs.current[i] = tab)}
-          role="tab"
-          title={step.title}
-          aria-selected={i === chosen}
-          tabIndex={i === chosen ? 0 : -1}
-          className={`relative grid text-left text-[13px] leading-[18px] text-soft transition-colors duration-150 ease-calm outline-none hover:text-fg focus-visible:text-fg aria-selected:text-fg ${look.step}`}
-          onPointerEnter={by === "point" ? () => onChoose(i) : undefined}
-          onFocus={by === "point" ? () => onChoose(i) : undefined}
-          onClick={by === "press" ? () => onChoose(i) : undefined}
-          onKeyDown={arrows}
-        >
-          <span ref={i === chosen ? progress : undefined} className={look.line}>
-            <span className="absolute inset-0 overflow-hidden rounded-full bg-line">{i === chosen && <span className={`absolute inset-0 origin-top-left bg-fg ${look.fill}`} />}</span>
-          </span>
-          <span className="relative flex gap-1.5">
-            {fresh.has(i) && <i title="New here" className={`absolute size-[7px] rotate-45 bg-fg shadow-[0_0_0_1.5px_var(--ground)] ${look.diamond}`} />}
-            <span className="flex-none text-faint tabular-nums">{i + 1}</span>
-            <span className="line-clamp-2 text-balance">
-              {step.title}
-              {notedAt(i).map((note) => <b key={note.id} className={`ml-1 inline-block size-1.5 translate-y-[-1px] rounded-full ${fill(note)}`} />)}
+        <div key={i} className="grid content-start gap-2">
+          <span
+            className="relative h-[3px] cursor-ew-resize touch-none"
+            onPointerDown={(event) => (event.currentTarget.setPointerCapture(event.pointerId), (going.current = i), goTo(event, i))}
+            onPointerMove={(event) => going.current === i && goTo(event, i)}
+            onPointerUp={() => (going.current = undefined)}
+          >
+            {/* Easier to press than to see. */}
+            <span className="absolute -inset-y-2.5 inset-x-0" />
+            <span ref={(line) => void (lines.current[i] = line)} className="absolute inset-0 overflow-hidden rounded-full bg-line">
+              <span className="absolute inset-0 origin-left bg-fg [transform:scaleX(var(--done,0))]" />
             </span>
+            {marks
+              .filter((mark) => stepOf(mark.at) === i)
+              .map((mark) => (
+                <i
+                  key={mark.id}
+                  className={`pointer-events-none absolute top-1/2 size-[7px] -translate-1/2 shadow-[0_0_0_1.5px_var(--ground)] ${mark.fill ? `rounded-full ${mark.fill}` : "rotate-45 bg-fg"}`}
+                  style={{ left: `${clamp((mark.at - step.at) / Math.max(end(i) - step.at, 0.01), 0, 1) * 100}%` }}
+                />
+              ))}
           </span>
-        </button>
+          <button
+            title={step.title}
+            aria-current={i === current ? "step" : undefined}
+            className="flex gap-1.5 text-left text-[13px] leading-[18px] text-soft transition-colors duration-150 ease-calm outline-none hover:text-fg focus-visible:text-fg aria-[current]:text-fg"
+            onClick={() => onPlay(i)}
+          >
+            <span className="flex-none text-faint tabular-nums">{i + 1}</span>
+            <span className="line-clamp-2 text-balance">{step.title}</span>
+          </button>
+        </div>
       ))}
     </div>
-  );
-}
-
-// Beside the frame, the steps of the situation you're in, where they were on the page: the one the playhead's in is shown,
-// its line filling as it plays, and pressing one plays it, once, as its loop did.
-export function StepsBeside({ playhead, flow, changed, notes, className }: { playhead: Playhead; flow: Flow; changed: number[]; notes: Shown[]; className?: string }) {
-  const end = (step: number) => flow.steps[step + 1]?.at ?? flow.length;
-  const stepOf = (at: number) => Math.max(0, flow.steps.findIndex((_, step) => end(step) >= at - 0.05));
-  const shown = useNow(playhead, ({ moment }) => (moment.flow === flow.name ? stepOf(moment.at) : 0));
-  const progress = useRef<HTMLSpanElement>(null);
-  useEffect(
-    () =>
-      playhead.subscribe(() => {
-        const { moment } = playhead.now;
-        if (moment.flow !== flow.name || !progress.current) return;
-        const step = stepOf(moment.at);
-        const from = flow.steps[step]!.at;
-        progress.current.style.setProperty("--done", String(clamp((moment.at - from) / Math.max(end(step) - from, 0.01), 0, 1)));
-      }),
-    [playhead, flow],
-  );
-  return (
-    <Steps
-      flow={flow}
-      chosen={shown}
-      changed={changed}
-      notedAt={(step) => notes.filter((note) => note.on?.at !== undefined && stepOf(note.on.at) === step)}
-      progress={progress}
-      column
-      by="press"
-      onChoose={(step) => playhead.run({ flow: flow.name, at: flow.steps[step]!.at }, end(step))}
-      className={className}
-    />
   );
 }

@@ -9,16 +9,16 @@ import { picture, recording } from "./api.ts";
 import { Bar } from "./Bar.tsx";
 import { EndMark } from "./Chosen.tsx";
 import { clamp } from "./moments.ts";
-import { fill, unchangedSince, type Shown, type Standing } from "./notes.ts";
-import { Said } from "./Card.tsx";
+import { fill, ink, unchangedSince, type Shown, type Standing } from "./notes.ts";
+import { HOLD, Said } from "./Card.tsx";
 import { asWho } from "./people.ts";
 import { recorded, type Scrolled } from "./replay.ts";
 import type { CloseUp } from "./flight.ts";
-import { HOLD, Loop, ON, type Mark, type Placed } from "./Loop.tsx";
+import { Clock, Player, type Mark, type Placed } from "./Player.tsx";
 import type { Diamond } from "./changes.ts";
 import { Conversation } from "./Notes.tsx";
-import { Pinned } from "./Pinned.tsx";
-import { Steps } from "./Steps.tsx";
+import { Pinned, type Pin } from "./Pinned.tsx";
+import { Steps, type OnLine } from "./Steps.tsx";
 import { Picture, type Frame } from "./Picture.tsx";
 import { roundName, Rounds } from "./Rounds.tsx";
 import { Agent, Go, says, type Step } from "./Step.tsx";
@@ -41,8 +41,6 @@ type Props = {
   step?: Step;
   trouble: string[];
   acting: Acting;
-  // The flow you came back from, and where you were in it.
-  left?: { flow: string; at: number };
   arrived?: Round;
   working?: string;
   onRound: (round: number) => void;
@@ -119,10 +117,9 @@ export function Work(props: Props) {
               standing={props.standing(flow.name)}
               onLooksGood={props.onLooksGood}
               threads={props.threads}
-              fresh={props.diamonds.filter((diamond) => diamond.flow === flow.name).map((diamond) => diamond.at)}
+              diamonds={props.diamonds.filter((diamond) => diamond.flow === flow.name)}
               quiet={props.standing(flow.name)?.is === "good"}
               same={same.includes(flow.name)}
-              left={props.left?.flow === flow.name ? props.left : undefined}
               glimpsed={props.read(round.number, flow.name, true)}
               acting={acting}
               active={up && active === flow.name}
@@ -145,11 +142,13 @@ export function Work(props: Props) {
   );
 }
 
-// A situation: whose it is and what they do, where it stands, and its steps, each a part the agent thought worth looking
-// at. One step shows at a time, as it is now, its notes on it: to start with, the step with an answer waiting on you,
-// else the last step where something changed. Compare puts how it was before the work beside it, the two moving together.
-// On the one you're on, the bar: a note is made on the step's end, as it rests, and taken over, the app is there in its
-// place.
+// A situation: whose it is and what they do, where it stands, and its recording at one moment, with its steps under it
+// as its timeline. It rests at the moment that needs you: an answer waiting on you, else the last of what's new to you,
+// else its end. It moves only when you play it, and what's drawn on it, and what the bar does, is about the moment it's
+// at: the notes there, what changed there and why, a note made there, the app taken over there. Space plays on, and
+// stops by itself at each answer waiting on you and each change new to you, the first time it gets there. C held is
+// how it was before the work, at the same moment, in place; pressed, the two side by side, each close on the step's part
+// of the page.
 type SituationProps = {
   review: Review;
   round: Round;
@@ -163,9 +162,8 @@ type SituationProps = {
   same: boolean;
   onLooksGood?: (flow: string) => void;
   threads: Threads;
-  fresh: number[];
+  diamonds: Diamond[];
   quiet: boolean;
-  left?: { flow: string; at: number };
   acting: Acting;
   active: boolean;
   resting: boolean;
@@ -174,106 +172,136 @@ type SituationProps = {
 };
 
 function Situation(props: SituationProps) {
-  const { review, round, before, flow, changed, readings, notes, standing, same, onLooksGood, threads, fresh, quiet, left, acting, active } = props;
+  const { review, round, before, flow, changed, readings, notes, standing, same, onLooksGood, threads, diamonds, quiet, acting, active } = props;
+  const end = flow.length - 0.05;
   const stepOf = (at: number) => Math.max(0, flow.steps.findIndex((_, i) => stepEnd(flow, i) >= at - 0.05));
-  // Its diamonds are what's new to you, as on the player's timeline: on the first round, what changed since Before.
-  const changedAt = new Set(fresh.map(stepOf));
-  // A note's step: where it was made, or made in the app, where the app was taken over from.
-  const stepOfNote = (note: Shown) => (note.on?.at === undefined ? undefined : stepOf(note.on.app ? note.on.app.from.at : note.on.at));
-  const notedAt = (step: number) => notes.filter((note) => stepOfNote(note) === step);
-  // Where nothing changed, the step where the most is done: what it shows still working.
-  const busiest = flow.steps.reduce((most, step, i) => ((step.actions?.length ?? 0) > (flow.steps[most]!.actions?.length ?? 0) ? i : most), 0);
-  // It opens on an answer waiting on you, else on the last of what's new, else where the most is done.
-  const waiting = notes.find((note) => note.toJudge && note.on?.at !== undefined);
-  const [chosen, setChosen] = useState(() => (waiting ? stepOfNote(waiting)! : changedAt.size ? Math.max(...changedAt) : busiest));
+  // A note's moment: where it was made, or made in the app, where the app was taken over.
+  const momentOf = (note: Shown) => (note.on?.app ? note.on.app.from.at : note.on?.at);
+  // What playing stops at, the first time it gets there: an answer waiting on you, and a change new to you that has
+  // something to say of its own. One made for a note is in the note's answer.
+  const stops = [
+    ...notes.flatMap((note) => (note.toJudge && momentOf(note) !== undefined ? [{ id: note.id, at: Math.min(momentOf(note)!, end) }] : [])),
+    ...diamonds.filter((diamond) => diamond.row).map((diamond) => ({ id: diamond.id, at: Math.min(diamond.at, end) })),
+  ];
+  const waiting = notes.find((note) => note.toJudge && momentOf(note) !== undefined);
+  const [clock] = useState(() => new Clock(waiting ? Math.min(momentOf(waiting)!, end) : stops.length ? Math.max(...stops.map((stop) => stop.at)) : end));
+  const [at, setAt] = useState(clock.at);
+  const [playing, setPlaying] = useState<{ until: number }>();
+  const [met, setMet] = useState<string[]>(waiting ? [waiting.id] : []);
+  // Open beside its thing: on arriving, the answer waiting on you; then what you open, or what playing stopped at.
+  const [picked, setPicked] = useState(waiting?.id);
   // Good for you, as nothing's changed since you said so, it arrives folded to its name, and opens when you choose.
   const [folded, setFolded] = useState(quiet);
-  // Back from watching it, it's on the step you were on.
-  const [cameBack, setCameBack] = useState(left);
-  if (left !== cameBack) (setCameBack(left), left && setChosen(stepOf(left.at)));
-  const frames = useFrames(review, round, flow, readings, (step) => changed.filter((on) => on.at !== undefined && stepOf(on.at) === step));
+  const go = (moment: number) => (clock.set(moment), setAt(moment), setPlaying(undefined), setPicked(undefined));
+  const playTo = (until: number, from = clock.at) => (clock.set(from), setAt(from), setPicked(undefined), setPlaying({ until }));
+  const pause = () => (setAt(clock.at), setPlaying(undefined));
+  // Played on from its end, it starts again.
+  const playOn = () => {
+    if (playing) return pause();
+    const from = clock.at >= end - 0.01 ? 0 : clock.at;
+    playTo(Math.min(end, ...stops.filter((stop) => !met.includes(stop.id) && stop.at > from + 0.01).map((stop) => stop.at)), from);
+  };
+  const stopped = (moment: number) => {
+    const stop = stops.find((stop) => Math.abs(stop.at - moment) < 0.01 && !met.includes(stop.id));
+    clock.set(moment);
+    setAt(moment);
+    setPlaying(undefined);
+    if (stop) (setMet([...met, stop.id]), setPicked(stop.id));
+  };
+  const playStep = (step: number) => playTo(stepEnd(flow, step) - 0.05, flow.steps[step]!.at);
+
+  // Before the work, the step of the same name, as far into it as now is into its own.
   const then = before?.flows.find((one) => one.name === flow.name);
-  const thenAt = (step: number) => then?.steps.findIndex((one) => one.title === flow.steps[step]?.title) ?? -1;
-  // Now shows on its own, the whole page; with Before beside it, each is close on the step's part of the page.
-  const [comparing, setComparing] = useState(false);
-  // Pointed at, a step in the list plays over and over, from the start each time another is chosen. Space plays on from
-  // the step shown, each step into the next as the recording goes, and round again from the first. At rest, the step's
-  // end, with its notes on it.
-  const [started, setStarted] = useState<number>();
-  const [through, setThrough] = useState(false);
-  const play = () => setStarted(performance.now());
-  const rest = () => (setThrough(false), setStarted(undefined));
-  const choose = (step: number) => (setThrough(false), setChosen(step), started !== undefined && setStarted(performance.now()));
-  const playThrough = () => (through ? rest() : (setThrough(true), play()));
+  const step = stepOf(at);
+  const thenStep = then?.steps.findIndex((one) => one.title === flow.steps[step]?.title) ?? -1;
+  const thenAt = (moment: number) => {
+    const now = stepOf(moment);
+    const there = then?.steps.findIndex((one) => one.title === flow.steps[now]?.title) ?? -1;
+    if (!then || there < 0) return undefined;
+    const from = flow.steps[now]!.at;
+    const u = clamp((moment - from) / Math.max(stepEnd(flow, now) - from, 0.01), 0, 1);
+    return then.steps[there]!.at + u * (stepEnd(then, there) - then.steps[there]!.at);
+  };
+  const [side, setSide] = useState(false);
+  const [peek, setPeek] = useState(false);
+  const holding = useRef<number>(undefined);
+  const peeked = useRef(false);
+  const press = () => {
+    if (holding.current === undefined) holding.current = window.setTimeout(() => ((peeked.current = true), setPeek(true)), HOLD);
+  };
+  const release = () => {
+    if (holding.current === undefined) return;
+    clearTimeout(holding.current);
+    holding.current = undefined;
+    if (peeked.current) (peeked.current = false), setPeek(false);
+    else setSide(!side);
+  };
+
   // Taken over here: the app, unseen until it's yours, and the frame's edge warm from Take over until you're back.
   const live = acting.live?.flow === flow.name ? acting.live : undefined;
   const taken = !!live?.shown;
-  if (taken && comparing) setComparing(false);
-  // C and Space are the situation's you're on; in the app, they're the app's.
+  if (taken && side) setSide(false);
+  // Space and C are the situation's you're on; in the app, they're the app's. Gone to another, it stops.
   useEffect(() => {
-    if (!active) return rest();
-    if (taken) return;
+    if (!active || taken) return;
+    const typing = (event: KeyboardEvent) => (event.target as Element).closest?.("input, textarea, [contenteditable]");
     const down = (event: KeyboardEvent) => {
-      const target = event.target as Element;
-      if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || target.closest?.("input, textarea, [contenteditable]")) return;
+      if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || typing(event)) return;
       if (event.key === " ") {
         event.preventDefault();
-        playThrough();
-      } else if (event.key.toLowerCase() === "c") setComparing(!comparing);
+        playOn();
+      } else if (event.key.toLowerCase() === "c" && then) press();
     };
+    const up = (event: KeyboardEvent) => event.key.toLowerCase() === "c" && release();
     addEventListener("keydown", down);
-    return () => removeEventListener("keydown", down);
-  }, [active, through, comparing, taken]);
-  // Noting, it rests, as a note is made on the step's end; in the app, the app notes what you click.
+    addEventListener("keyup", up);
+    return () => (removeEventListener("keydown", down), removeEventListener("keyup", up));
+  });
+  useEffect(() => void (!active && playing && pause()), [active]);
+  // Noting, it stops where it is: a note is made on the moment it's at; in the app, on what you click there.
   const noting = active && acting.noting;
-  useEffect(() => void (noting && rest()), [noting]);
-  const frame = comparing ? frames[chosen] : undefined;
-  const thenStep = thenAt(chosen);
-  const now = { from: flow.steps[chosen]!.at, until: stepEnd(flow, chosen) };
-  const was = then && thenStep >= 0 ? { from: then.steps[thenStep]!.at, until: stepEnd(then, thenStep) } : undefined;
-  // Each side says how long its step plays once its recording is in; both go round together, as long as the longer.
-  const [lengths, setLengths] = useState<{ now?: number; was?: number }>({});
-  // Played through, a step goes straight on into the next, holding only before it goes round again.
-  const last = chosen === flow.steps.length - 1;
-  const cycle = Math.max(lengths.now ?? 0, (comparing && was && lengths.was) || 0) + (through && !last ? ON : HOLD);
-  useEffect(() => {
-    if (!through || started === undefined) return;
-    const next = setTimeout(() => (setChosen(last ? 0 : chosen + 1), setStarted(performance.now())), started + cycle * 1000 - performance.now());
-    return () => clearTimeout(next);
-  }, [through, started, cycle]);
-  // How long until a step plays again: played through, it isn't, and waits on its end for the next.
-  const again = through ? Infinity : cycle;
+  useEffect(() => void (noting && playing && pause()), [noting]);
   // At rest on the situation you're on, that's where Take over takes it over.
-  const resting = active && started === undefined && !taken;
-  const restsAt = Math.round((now.until - 0.05) * 100) / 100;
+  const restsAt = Math.round(at * 100) / 100;
+  const resting = active && !playing && !taken;
   useEffect(() => void (resting && acting.onRest(flow.name, restsAt)), [resting, restsAt]);
-  // The step's notes, where Now finds their things at rest; each place is for the step and the view it was found in.
-  const here = notedAt(chosen);
-  // The one you're writing, where you clicked on this step.
-  const writing = acting.writing?.note.on?.flow === flow.name && !acting.writing.note.on.app && acting.writing.note.on.at !== undefined && stepOf(acting.writing.note.on.at) === chosen ? acting.writing : undefined;
+
+  // What's drawn is what's at this moment: in its step, the notes made there up to now, and what changed there.
+  const shown = (moment: number) => stepOf(moment) === step && moment <= at + 0.05;
+  const here = notes.filter((note) => momentOf(note) !== undefined && shown(momentOf(note)!));
+  const changedHere = diamonds.filter((diamond) => diamond.row && shown(Math.min(diamond.at, end)));
+  const writing = acting.writing?.note.on?.flow === flow.name && !acting.writing.note.on.app && acting.writing.note.on.at !== undefined && shown(acting.writing.note.on.at) ? acting.writing : undefined;
   // One made in the app is on its thing as it was written, found by its name: the app's nodes aren't this recording's.
   const written = (note: Shown) => review.sends.flatMap((send) => send.notes).find((kept) => kept.id === note.id)?.on ?? note.on;
   const marks: Mark[] = [
     ...here.map((note) =>
       note.on?.app ? { id: note.id, name: written(note)?.element?.name ?? note.on.element?.name } : { id: note.id, node: note.on?.element?.node, name: note.on?.element?.name, point: note.on?.point },
     ),
+    ...changedHere.flatMap((diamond) => diamond.changes.map(({ on }, i) => ({ id: `${diamond.id} ${i}`, node: on.element?.node, name: on.element?.name, point: on.point, box: on.box }))),
     ...(writing ? [{ id: writing.note.id, node: writing.note.on?.element?.node, point: writing.note.on?.point }] : []),
   ];
-  const view = `${chosen} ${comparing}`;
+  const pins: Pin[] = [
+    ...here.map((note) => ({ id: note.id, on: [note.id], ink: ink(note), number: note.number, fill: fill(note) })),
+    ...changedHere.map((diamond) => ({ id: diamond.id, on: diamond.changes.map((_, i) => `${diamond.id} ${i}`), ink: RECORDED_INK, diamond: true as const })),
+    ...(writing ? [{ id: writing.note.id, on: [writing.note.id], ink: "var(--amber)", number: writing.number, fill: "bg-amber" }] : []),
+  ];
+  const view = `${at} ${side}`;
   const [placed, setPlaced] = useState<{ view: string; at: Placed }>();
-  // Open beside its thing, the answer waiting on you, until you open another or close it; judged, it stays open. The
-  // note you're writing is open until it's saved, and then it's the note that's open.
-  const [picked, setPicked] = useState<{ step: number; id?: string }>();
   const [saved, setSaved] = useState(acting.opened);
-  if (acting.opened !== saved) {
-    setSaved(acting.opened);
-    const note = notes.find((note) => note.id === acting.opened);
-    const step = note && stepOfNote(note);
-    if (step !== undefined) (setChosen(step), setPicked({ step, id: note!.id }));
-  }
-  const open = writing ? writing.note.id : comparing ? undefined : picked?.step === chosen ? picked.id : here.find((note) => note.toJudge)?.id;
+  if (acting.opened !== saved) (setSaved(acting.opened), notes.some((note) => note.id === acting.opened) && setPicked(acting.opened));
+  const open = writing ? writing.note.id : !side && pins.some((pin) => pin.id === picked) ? picked : undefined;
   const opened = here.find((note) => note.id === open);
+  const changeOpen = changedHere.find((diamond) => diamond.id === open);
+  const said = changeOpen?.changes.find((changed) => changed.line);
   const [asking, setAsking] = useState<string>();
+  // On the line, each note's dot and each change's diamond, where they are.
+  const onLine: OnLine[] = [
+    ...notes.flatMap((note) => (momentOf(note) === undefined ? [] : [{ id: note.id, at: momentOf(note)!, fill: fill(note) }])),
+    ...diamonds.filter((diamond) => diamond.row).map((diamond) => ({ id: diamond.id, at: Math.min(diamond.at, end) })),
+  ];
+
+  const frames = useFrames(review, round, flow, readings, (step) => changed.filter((on) => on.at !== undefined && stepOf(on.at) === step));
+  const frame = side ? frames[step] : undefined;
   // The app is the page the recording was made of, at its size, as wide as the picture.
   const box = useRef<HTMLDivElement>(null);
   const [wide, setWide] = useState(0);
@@ -284,21 +312,7 @@ function Situation(props: SituationProps) {
     watching.observe(shown);
     return () => watching.disconnect();
   }, [folded]);
-  const screen = readings?.find((one) => one.step === flow.steps[chosen]?.title)?.screen ?? { width: 1280, height: 800 };
-  // The step's segment is where its picture is in it: full at rest, as the picture is its end, and filling as it plays.
-  const progress = useRef<HTMLSpanElement>(null);
-  useEffect(() => {
-    const bar = progress.current;
-    if (!bar) return;
-    if (started === undefined || !lengths.now) return void bar.style.removeProperty("--done");
-    let frameId = 0;
-    const tick = () => {
-      bar.style.setProperty("--done", String(Math.min(1, (((performance.now() - started) / 1000) % again) / lengths.now!)));
-      frameId = requestAnimationFrame(tick);
-    };
-    tick();
-    return () => cancelAnimationFrame(frameId);
-  }, [started, again, lengths.now, chosen]);
+  const screen = readings?.find((one) => one.step === flow.steps[step]?.title)?.screen ?? { width: 1280, height: 800 };
   // Handed to you, the app is scrolled where the recording rests, records what you do, and has your keys; given back,
   // it's no longer yours.
   const app = useRef<HTMLIFrameElement>(null);
@@ -311,6 +325,18 @@ function Situation(props: SituationProps) {
     there.postMessage({ playthrough: "yours", yours }, "*");
     if (yours) app.current!.focus();
   }, [yours]);
+  // How it was, at the same moment: following this one as it plays.
+  const beforeAt = thenAt(at);
+  const was = (frame?: Frame) =>
+    then && beforeAt !== undefined ? (
+      <>
+        <Still src={picture(review.id, 0, then.recording, thenStep)} frame={frame} />
+        <Player review={review.id} round={0} recording={then.recording} at={beforeAt} following={playing ? { clock, at: (moment) => thenAt(moment) ?? beforeAt } : undefined} frame={frame} />
+      </>
+    ) : (
+      <span className="absolute inset-0 grid place-content-center bg-ground px-6 text-center text-[13px] leading-5 text-soft">{then ? "Before the work, there was no such step" : "New: there was nothing like it before"}</span>
+    );
+
   if (folded)
     return (
       <section className="grid">
@@ -361,126 +387,127 @@ function Situation(props: SituationProps) {
           </div>
         )}
       </div>
-      <div className="grid content-start gap-3">
-        <div className={`grid gap-4 ${comparing ? "grid-cols-2 phone:grid-cols-1" : ""}`}>
-          <figure className="grid content-start gap-2">
-            <div ref={box} className="relative">
-              {/* A click plays it through and stops it, as Space does; noting, it notes what's under it. */}
-              <button
-                data-picture={flow.name}
-                className="relative block aspect-[1.6] w-full overflow-hidden rounded-lg bg-paper shadow-frame"
-                aria-label={`Play ${flow.name} from ${flow.steps[chosen]?.title}`}
-                onClick={playThrough}
-              >
-                <Still src={picture(review.id, round.number, flow.recording, chosen)} frame={frame} />
-                <Loop
-                  review={review.id}
-                  round={round.number}
-                  recording={flow.recording}
-                  {...now}
-                  frame={frame}
-                  started={started}
-                  cycle={again}
-                  marks={marks}
-                  onMarks={(at) => setPlaced({ view, at })}
-                  onLength={(now) => setLengths((all) => ({ ...all, now }))}
-                  things={noting && !taken && !writing ? props.glimpsed : undefined}
-                  onPlace={noting && !taken && !writing ? (on) => acting.onPlace({ flow: flow.name, at: restsAt, ...on }) : undefined}
-                  scrolled={scrolled}
-                />
-              </button>
-              {/* Made ready unseen, see-through rather than hidden, as a hidden frame from another address never settles. */}
-              {live?.address && (
-                <div data-live data-yours={yours || undefined} className={`absolute inset-0 z-10 overflow-hidden rounded-lg transition-opacity duration-300 ease-calm ${yours ? "" : "pointer-events-none opacity-0"}`}>
-                  <iframe
-                    ref={app}
-                    key={live.address}
-                    src={live.address}
-                    title="The app, taken over"
-                    className="absolute top-0 left-0 origin-top-left border-0 bg-paper"
-                    style={{ width: screen.width, height: screen.height, transform: `scale(${wide / screen.width})` }}
-                  />
-                </div>
-              )}
-              {taken && <div className={`pointer-events-none absolute inset-0 z-10 rounded-lg shadow-[inset_0_0_0_1.5px_rgba(217,162,58,0.75),inset_0_0_22px_rgba(217,162,58,0.16)] ${live.inApp ? "" : "animate-pulse"}`} />}
-              {active && (
-                <div className="absolute bottom-0 left-1/2 z-20 -translate-x-1/2 translate-y-1/2">
-                  <div className="animate-arrive">
-                    <Bar
-                      live={taken ? (live.inApp ? "shown" : "waiting") : undefined}
-                      latest={acting.latest}
-                      compare={before && { on: comparing, off: taken, onPress: () => setComparing(!comparing), onRelease: () => {} }}
-                      noting={noting}
-                      onNote={acting.onNote}
-                      onTakeOver={acting.onTakeOver}
-                      onBack={acting.onBack}
-                      flow={flow.name}
-                    />
-                  </div>
-                </div>
-              )}
-              {!taken && (
-              <Pinned
-                notes={here}
-                writing={writing && { id: writing.note.id, number: writing.number }}
-                placed={placed?.view === view ? placed.at : {}}
-                open={open}
-                faded={started !== undefined || placed?.view !== view}
-                onOpen={(id) => (writing && id !== writing.note.id ? acting.onClose() : setPicked({ step: chosen, id }))}
-              >
-                {writing?.card}
-                {!writing && opened && (
-                  <Conversation
-                    note={opened}
-                    you={threads.you}
-                    readOnly={threads.readOnly}
-                    asking={asking === opened.id}
-                    unfinished={threads.unfinished[opened.id]}
-                    away={false}
-                    onAsking={(on) => setAsking(on ? opened.id : undefined)}
-                    onUnfinished={(words) => threads.onUnfinished(opened.id, words)}
-                    onJudge={(verdict) => (threads.onJudge(opened, verdict), setPicked({ step: chosen, id: opened.id }))}
-                    onEdit={(words) => threads.onEdit(opened.id, words)}
-                    onShow={() => {}}
-                  />
-                )}
-              </Pinned>
-              )}
-            </div>
-            {comparing && <figcaption className="px-0.5 text-xs leading-4 text-soft">Now</figcaption>}
-          </figure>
-          {comparing && (
-            <figure className="grid content-start gap-2">
-              {then && was ? (
-                <span className="relative block aspect-[1.6] overflow-hidden rounded-lg bg-paper shadow-frame">
-                  <Still src={picture(review.id, 0, then.recording, thenStep)} frame={frame} />
-                  <Loop review={review.id} round={0} recording={then.recording} {...was} frame={frame} started={started} cycle={again} onLength={(was) => setLengths((all) => ({ ...all, was }))} />
-                </span>
-              ) : (
-                <span className="grid aspect-[1.6] place-content-center rounded-lg border border-dashed border-line px-6 text-center text-[13px] leading-5 text-soft">
-                  {then ? "Before the work, there was no such step" : "New: there was nothing like it before"}
-                </span>
-              )}
-              <figcaption className="px-0.5 text-xs leading-4 text-soft">Before</figcaption>
-            </figure>
+      <div ref={box} className="relative">
+        {/* A click plays it on and stops it, as Space does; noting, it notes what's under it. */}
+        <button
+          data-picture={flow.name}
+          className="relative block aspect-[1.6] w-full overflow-hidden rounded-lg bg-paper shadow-frame"
+          aria-label={playing ? `Pause ${flow.name}` : `Play ${flow.name}`}
+          onClick={playOn}
+        >
+          {/* Side by side, the two share the picture, each close on the step's part of the page: nothing moves. */}
+          <span className={`absolute inset-y-0 left-0 overflow-hidden ${side ? HALVES : "w-full"}`}>
+            <Still src={picture(review.id, round.number, flow.recording, step)} frame={frame} />
+            <Player
+              review={review.id}
+              round={round.number}
+              recording={flow.recording}
+              at={at}
+              playing={playing}
+              clock={clock}
+              onStop={stopped}
+              frame={frame}
+              marks={marks}
+              onMarks={(placed) => setPlaced({ view, at: placed })}
+              things={noting && !taken && !writing ? props.glimpsed : undefined}
+              onPlace={noting && !taken && !writing ? (on) => acting.onPlace({ flow: flow.name, at: restsAt, ...on }) : undefined}
+              scrolled={scrolled}
+            />
+          </span>
+          {side && (
+            <>
+              <span className={`absolute inset-y-0 right-0 overflow-hidden ${HALVES}`}>{was(frame)}</span>
+              <span className={`${CHIP} left-2.5`}>Now</span>
+              <span className={`${CHIP} left-[calc(50%+11px)]`}>Before</span>
+            </>
           )}
-        </div>
+          {peek && (
+            <span className="absolute inset-0 z-2">
+              {was()}
+              <span className={`${CHIP} left-2.5`}>Before</span>
+            </span>
+          )}
+        </button>
+        {/* Made ready unseen, see-through rather than hidden, as a hidden frame from another address never settles. */}
+        {live?.address && (
+          <div data-live data-yours={yours || undefined} className={`absolute inset-0 z-10 overflow-hidden rounded-lg transition-opacity duration-300 ease-calm ${yours ? "" : "pointer-events-none opacity-0"}`}>
+            <iframe
+              ref={app}
+              key={live.address}
+              src={live.address}
+              title="The app, taken over"
+              className="absolute top-0 left-0 origin-top-left border-0 bg-paper"
+              style={{ width: screen.width, height: screen.height, transform: `scale(${wide / screen.width})` }}
+            />
+          </div>
+        )}
+        {taken && <div className={`pointer-events-none absolute inset-0 z-10 rounded-lg shadow-[inset_0_0_0_1.5px_rgba(217,162,58,0.75),inset_0_0_22px_rgba(217,162,58,0.16)] ${live.inApp ? "" : "animate-pulse"}`} />}
+        {active && (
+          <div className="absolute bottom-0 left-1/2 z-20 -translate-x-1/2 translate-y-1/2">
+            <div className="animate-arrive">
+              <Bar
+                live={taken ? (live.inApp ? "shown" : "waiting") : undefined}
+                latest={acting.latest}
+                compare={then && { on: side || peek, off: taken, onPress: press, onRelease: release }}
+                noting={noting}
+                onNote={acting.onNote}
+                onTakeOver={acting.onTakeOver}
+                onBack={acting.onBack}
+                flow={flow.name}
+              />
+            </div>
+          </div>
+        )}
+        {!taken && !peek && (
+          <div className={`pointer-events-none absolute inset-y-0 left-0 ${side ? HALVES : "w-full"}`}>
+            <Pinned pins={pins} placed={placed?.view === view ? placed.at : {}} open={open} faded={!!playing || placed?.view !== view} onOpen={(id) => (writing && id !== writing.note.id ? acting.onClose() : setPicked(id))}>
+              {writing?.card}
+              {!writing && opened && (
+                <Conversation
+                  note={opened}
+                  you={threads.you}
+                  readOnly={threads.readOnly}
+                  asking={asking === opened.id}
+                  unfinished={threads.unfinished[opened.id]}
+                  away={false}
+                  onAsking={(on) => setAsking(on ? opened.id : undefined)}
+                  onUnfinished={(words) => threads.onUnfinished(opened.id, words)}
+                  onJudge={(verdict) => (threads.onJudge(opened, verdict), setPicked(opened.id))}
+                  onEdit={(words) => threads.onEdit(opened.id, words)}
+                  onShow={() => {}}
+                />
+              )}
+              {!writing && changeOpen && (
+                <div className="grid gap-1 py-1.5 pr-9 pl-4">
+                  <span className="text-[11.5px] leading-5 text-faint">{said?.by ?? "Changed here"}</span>
+                  {said?.line && <p className="text-[13px] leading-normal whitespace-pre-wrap">{said.line}</p>}
+                  {!threads.readOnly && (
+                    <button
+                      className="mt-1.5 justify-self-start rounded-md bg-hover px-2.5 py-1 text-[12.5px] transition-colors duration-150 ease-calm hover:bg-line"
+                      onClick={() => {
+                        const on = changeOpen.changes[0]!.on;
+                        acting.onPlace({ flow: flow.name, at: restsAt, ...(on.element ? { element: on.element } : on.box ? { box: on.box } : on.point && { point: on.point }) });
+                      }}
+                    >
+                      Note on this
+                    </button>
+                  )}
+                </div>
+              )}
+            </Pinned>
+          </div>
+        )}
       </div>
-      <Steps
-        flow={flow}
-        chosen={chosen}
-        changed={fresh}
-        notedAt={notedAt}
-        progress={progress}
-        by="point"
-        onChoose={choose}
-        onPointerEnter={() => (setThrough(false), play())}
-        onPointerLeave={rest}
-        className="mt-6"
-      />
+      <Steps flow={flow} clock={clock} at={at} marks={onLine} onPlay={playStep} onGo={go} className="mt-6" />
     </section>
   );
 }
+
+// What changed is outlined in the recording's own dark ink, as the frame drew it.
+const RECORDED_INK = "#2b2e35";
+// Side by side, each round's half of the picture, a line of the page between them; and what each is, at its top left.
+const HALVES = "w-[calc(50%-1px)]";
+const CHIP = "pointer-events-none absolute top-2.5 z-1 rounded-md bg-ground px-2 py-0.5 text-xs leading-4 text-soft shadow-tip";
 
 // A picture that gives way to the next softly, the one before staying under it until the next has come.
 function Still({ src, frame }: { src: string; frame?: Frame }) {
@@ -517,10 +544,11 @@ const SETTLE = 250;
 // A step's end: the next one's start, or the flow's end. Its page is read there.
 const stepEnd = (flow: Flow, step: number) => flow.steps[step + 1]?.at ?? flow.length;
 
-// Each step's part of the page: what changed there, the first thing found, or where nothing did, what the step acted
-// on, the last thing clicked or typed in that's still there and is a thing rather than a stretch of the page clicked
-// away on; and where the hand went to get there, in the step's last few seconds, so its loop shows the hand at work. The
-// first step, and one that goes to another page, shows the whole page: where they are is what it's about.
+// Each step's part of the page, in the shape of half the picture, as side by side shows it: what changed there, the
+// first thing found, or where nothing did, what the step acted on, the last thing clicked or typed in that's still there
+// and is a thing rather than a stretch of the page clicked away on; and where the hand went to get there, in the step's
+// last few seconds, so it plays with the hand at work. The first step, and one that goes to another page, is the page's
+// full height, where the hand ends: where they are is what it's about.
 function useFrames(review: Review, round: Round, flow: Flow, readings: Reading[] | undefined, changedIn: (step: number) => Place[]): (Frame | undefined)[] {
   const [frames, setFrames] = useState<(Frame | undefined)[]>([]);
   useEffect(() => {
@@ -530,18 +558,19 @@ function useFrames(review: Review, round: Round, flow: Flow, readings: Reading[]
         const { acted, pointer, loads } = recorded(events);
         const found = flow.steps.map((step, i) => {
           const reading = readings.find((one) => one.step === step.title);
-          if (!reading || i === 0 || loads.some((load) => load > step.at && load <= stepEnd(flow, i))) return undefined;
+          if (!reading) return undefined;
           const { width, height } = reading.screen;
           const end = stepEnd(flow, i);
+          const hand = pointer.filter(([moment]) => moment >= Math.max(step.at, end - 3) && moment <= end).map(([, x, y]) => ({ x, y, width: 0, height: 0 }));
+          if (i === 0 || loads.some((load) => load > step.at && load <= end)) return around({ x: hand.at(-1)?.x ?? width / 2, y: 0, width: 0, height }, reading);
           const worked = acted
             .filter(([moment]) => moment >= step.at && moment <= end)
             .toReversed()
             .map(([, node]) => reading.things.find((thing) => thing.node === node))
             .find((thing) => thing && thing.box.width * thing.box.height < (width * height) / 8)?.box;
           const what = changedIn(i).map((on) => boxIn(reading, on)).find(Boolean) ?? worked;
-          const hand = pointer.filter(([moment]) => moment >= Math.max(step.at, end - 3) && moment <= end).map(([, x, y]) => ({ x, y, width: 0, height: 0 }));
           const all = [...(what ? [what] : []), ...hand];
-          return all.length ? around(union(all), reading) : undefined;
+          return around(all.length ? union(all) : { x: width / 2, y: 0, width: 0, height }, reading);
         });
         if (current) setFrames(found);
       });
@@ -605,12 +634,16 @@ const union = (boxes: Box[]): Box => {
   return { x: left, y: top, width: Math.max(...boxes.map((box) => box.x + box.width)) - left, height: Math.max(...boxes.map((box) => box.y + box.height)) - top };
 };
 
-// A part of the page with room around it, at most two and a half times as close as the whole page, in the page's own shape.
+// Side by side, each round has half the picture, as tall as the whole: this wide for its height.
+const HALF = 0.8;
+
+// A part of the page with room around it, in the shape of half the picture, at most twice as close as the page's full
+// height.
 function around(box: Box, reading: Reading): Frame {
   const { width: across, height: down } = reading.screen;
   const [left, top, right, bottom] = [box.x, box.y, box.x + box.width, box.y + box.height];
-  const width = Math.min(across, Math.max(right - left + across * 0.08, ((bottom - top + down * 0.25) * across) / down, across / 2.6));
-  const height = (width * down) / across;
+  const height = Math.min(down, across / HALF, Math.max((right - left + across * 0.08) / HALF, bottom - top + down * 0.25, down / 2));
+  const width = height * HALF;
   const x = clamp((left + right) / 2 - width / 2, 0, across - width);
   const y = clamp((top + bottom) / 2 - height / 2, 0, down - height);
   return { x: x / across, y: y / down, width: width / across, height: height / down };

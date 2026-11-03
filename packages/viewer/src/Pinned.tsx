@@ -1,11 +1,11 @@
-// A step's notes on its recording, as the frame draws them: each on its thing, outlined, its pin just outside the top
-// right corner like a badge, or on its spot; where nothing's found, at the picture's corner. The open one's card sits
-// beside it, where it covers neither the thing nor its pin: to its right, its left, over it or under it, the first with
-// room in the picture. They're the step's at rest, at its end: while it plays they fade, and come back once it stops.
+// What's at a situation's moment, on its recording, as the frame drew it: each note on its thing, outlined, its pin
+// just outside the top right corner like a badge, or on its spot, and what changed outlined in the recording's own ink,
+// a diamond for its pin; where nothing's found, at the picture's corner. The open one's card sits beside it, where it
+// covers neither the thing nor its pin: to its right, its left, over it or under it, the first with room in the
+// picture. While it plays they fade, and come back once it stops.
 
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { fill, ink, type Shown } from "./notes.ts";
-import type { Placed } from "./Loop.tsx";
+import type { Placed } from "./Player.tsx";
 import type { Rect } from "./replay.ts";
 import { pinLook } from "./Stage.tsx";
 
@@ -14,10 +14,12 @@ const OUT = 14;
 const GAP = 28;
 const EDGE = 12;
 
-// The note being written is pinned as the rest are, in the colour of what's yours and not yet saved.
-type Props = { notes: Shown[]; writing?: { id: string; number: number }; placed: Placed; open?: string; faded: boolean; onOpen: (id?: string) => void; children?: ReactNode };
+// A pin, on the things it's for: a note's, numbered in its colour; or a change's diamond.
+export type Pin = { id: string; on: string[]; ink: string } & ({ number: number; fill: string } | { diamond: true });
 
-export function Pinned({ notes, writing, placed, open, faded, onOpen, children }: Props) {
+type Props = { pins: Pin[]; placed: Placed; open?: string; faded: boolean; onOpen: (id?: string) => void; children?: ReactNode };
+
+export function Pinned({ pins, placed, open, faded, onOpen, children }: Props) {
   const room = useRef<HTMLDivElement>(null);
   const card = useRef<HTMLElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -27,7 +29,9 @@ export function Pinned({ notes, writing, placed, open, faded, onOpen, children }
     watching.observe(picture);
     return () => watching.disconnect();
   }, []);
-  const spotOf = (id: string): Rect => placed[id] ?? { left: EDGE + 9, top: EDGE + 9, width: 0, height: 0 };
+  const corner: Rect = { left: EDGE + 9, top: EDGE + 9, width: 0, height: 0 };
+  // A pin is on the first of its things that's found.
+  const spotOf = (pin: Pin): Rect => pin.on.map((id) => placed[id]).find(Boolean) ?? corner;
   // On a thing, its pin is just outside the top right corner; at the bottom right where the top is out of view, and
   // pulled in where the right or the bottom is, so it's never cut off. On a spot, it's the spot.
   const pinOf = (spot: Rect): Rect => {
@@ -38,12 +42,13 @@ export function Pinned({ notes, writing, placed, open, faded, onOpen, children }
     return { left: right + across - 9, top, width: 18, height: 18 };
   };
   const inView = (spot: Rect) => spot.left < size.width && spot.top < size.height && spot.left + spot.width > 0 && spot.top + spot.height > 0;
+  const opened = pins.find((pin) => pin.id === open);
   useLayoutEffect(() => {
     const [box, picture] = [card.current, room.current];
-    if (!box || !picture || !open) return;
+    if (!box || !picture || !opened) return;
     const place = () => {
       const [width, height, w, h] = [picture.clientWidth, picture.clientHeight, box.offsetWidth, box.offsetHeight];
-      const spot = spotOf(open);
+      const spot = spotOf(opened);
       // The card keeps clear of the thing and its pin; on a spot, of the pin.
       const pin = pinOf(spot);
       const thing = spot.width || spot.height ? spot : pin;
@@ -69,32 +74,44 @@ export function Pinned({ notes, writing, placed, open, faded, onOpen, children }
     return () => watching.disconnect();
   });
   return (
-    <div ref={room} className={`pointer-events-none absolute inset-0 transition-opacity duration-250 ease-calm ${faded ? "opacity-0" : ""}`}>
-      {[...notes.map((note) => ({ id: note.id, number: note.number, ink: ink(note), fill: fill(note) })), ...(writing ? [{ ...writing, ink: "var(--amber)", fill: "bg-amber" }] : [])].map((note) => {
-        const spot = spotOf(note.id);
+    <div ref={room} className={`pointer-events-none absolute inset-0 transition-opacity duration-250 ease-calm ${faded ? "opacity-0 [&_*]:pointer-events-none!" : ""}`}>
+      {pins.map((pin) => {
+        const spot = spotOf(pin);
         if (!inView(spot)) return null;
-        const pin = pinOf(spot);
+        const at = pinOf(spot);
+        const chosen = pin.id === open;
         return (
-          <div key={note.id} style={{ "--c": note.ink } as CSSProperties}>
-            {(spot.width > 0 || spot.height > 0) && (
-              <div
-                className={`absolute rounded-[4px] outline-offset-4 outline-solid ${note.id === open ? "outline-[1.5px] outline-(--c)" : "outline-1 outline-[color-mix(in_srgb,var(--c)_50%,transparent)]"}`}
-                style={{ left: spot.left, top: spot.top, width: spot.width, height: spot.height }}
-              />
-            )}
+          <div key={pin.id} style={{ "--c": pin.ink } as CSSProperties}>
+            {pin.on.map((id) => {
+              const thing = placed[id];
+              return (
+                thing &&
+                (thing.width > 0 || thing.height > 0) && (
+                  <div
+                    key={id}
+                    className={`absolute rounded-[4px] outline-offset-4 outline-solid ${chosen ? "outline-[1.5px] outline-(--c)" : "outline-1 outline-[color-mix(in_srgb,var(--c)_50%,transparent)]"}`}
+                    style={{ left: thing.left, top: thing.top, width: thing.width, height: thing.height }}
+                  />
+                )
+              );
+            })}
             <button
-              aria-label={`Note ${note.number}`}
-              aria-expanded={note.id === open}
-              className={`absolute ${pinLook} ${note.fill}`}
-              style={{ left: pin.left, top: pin.top }}
-              onClick={() => onOpen(note.id === open ? undefined : note.id)}
+              aria-label={"number" in pin ? `Note ${pin.number}` : "What changed here"}
+              aria-expanded={chosen}
+              className={
+                "number" in pin
+                  ? `absolute ${pinLook} ${pin.fill}`
+                  : "pointer-events-auto absolute grid size-[18px] cursor-pointer place-items-center transition duration-150 ease-calm hover:scale-112"
+              }
+              style={{ left: at.left, top: at.top }}
+              onClick={() => onOpen(chosen ? undefined : pin.id)}
             >
-              {note.number}
+              {"number" in pin ? pin.number : <i className="size-2.5 rotate-45 bg-(--c) shadow-[0_0_0_2px_#fff]" />}
             </button>
           </div>
         );
       })}
-      {open && children && (
+      {opened && children && (
         <aside ref={card} className="pointer-events-auto absolute top-0 left-0 z-1 w-[330px] animate-arrive rounded-xl bg-ground py-1.5 shadow-float">
           <div data-open className="grid grid-cols-[minmax(0,1fr)]">
             {children}

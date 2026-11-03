@@ -12,7 +12,6 @@ import { Beside, clickedAt } from "./Beside.tsx";
 import { HOLD } from "./Card.tsx";
 import { answersTo, diamondAt, diamondsOn, grownFrom, madeFor, type Changed, type Diamond } from "./changes.ts";
 import { Chosen, rowsIn, settles, type Props as ChosenProps, type Row } from "./Chosen.tsx";
-import { StepsBeside } from "./Steps.tsx";
 import { Controls, type Look } from "./Controls.tsx";
 import { DownloadVideo, type Asked } from "./DownloadVideo.tsx";
 import type { ForkLine } from "./Timeline.tsx";
@@ -1297,15 +1296,6 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
       <main className="relative grid min-h-0 grid-cols-[minmax(0,1fr)] phone:flex phone:flex-col">
         {/* Opened, a situation keeps its steps where they were on the page, beside the recording that took its pictures' place. */}
         <div inert={onGrid} className={`grid min-h-0 min-w-0 wide:mx-auto wide:w-full wide:max-w-[1320px] wide:grid-cols-[260px_minmax(0,1fr)] wide:gap-x-8 wide:px-8 ${onGrid ? "invisible" : ""}`}>
-        {shownFlow && (
-          <StepsBeside
-            playhead={playhead}
-            flow={shownFlow}
-            changed={diamonds.filter((diamond) => diamond.flow === shownFlow.name).map((diamond) => diamond.at)}
-            notes={notes.filter((note) => note.on?.flow === shownFlow.name)}
-            className="hidden self-start pt-[26px] wide:grid"
-          />
-        )}
         <section inert={onGrid} className={`grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto] pb-4 phone:flex-none phone:grid-rows-[auto_auto] phone:pr-0 phone:pb-3 ${onGrid ? "invisible" : ""}`}>
           <div className="relative grid min-h-0 grid-rows-[minmax(0,1fr)] pb-6">
           <Stage
@@ -1489,7 +1479,6 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
               writing: writing && !writing.on?.app ? { note: writing, number: nextNumber + draft.unsaved.indexOf(writing), card: writingCard(writing) } : undefined,
               opened: openNote?.id,
             }}
-            left={back}
             arrived={arrived ? latest : undefined}
             working={working}
             onRound={toRound}
