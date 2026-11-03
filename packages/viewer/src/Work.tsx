@@ -23,7 +23,7 @@ import { Conversation, quiet as quietNumber } from "./Notes.tsx";
 import { Pinned, type Pin } from "./Pinned.tsx";
 import { Steps, type OnLine, type Saying, type Stop } from "./Steps.tsx";
 import { onPhone } from "./phone.ts";
-import { Picture, type Frame } from "./Picture.tsx";
+import { around, Picture, union, type Box, type Frame } from "./Picture.tsx";
 import { roundName, Rounds } from "./Rounds.tsx";
 import { Agent, Go, says, type Step } from "./Step.tsx";
 import type { Read } from "./things.ts";
@@ -445,7 +445,6 @@ function Situation(props: SituationProps) {
     ...changedHere.map((diamond) => ({ id: diamond.id, on: changedMarks(diamond).map((mark) => mark.id), ink: RECORDED_INK, diamond: true as const })),
     ...(writing ? [{ id: writing.note.id, on: [writing.note.id], ink: "var(--amber)", number: writing.number, fill: "bg-amber" }] : []),
   ];
-  const view = `${at} ${side}`;
   const [placed, setPlaced] = useState<{ view: string; at: Placed }>();
   const [saved, setSaved] = useState(acting.opened);
   if (acting.opened !== saved) (setSaved(acting.opened), acting.opened && notes.some((note) => note.id === acting.opened) && opened(acting.opened));
@@ -507,6 +506,11 @@ function Situation(props: SituationProps) {
 
   const frames = useFrames(review, round, flow, readings, (step) => changed.filter((on) => on.at !== undefined && stepOf(on.at) === step));
   const frame = side ? frames[step] : undefined;
+  // At rest on a note or a change, the recording is close on what it's on, and on a step, it's the whole page as it
+  // plays; side by side, it's the step's part of the page.
+  const there = stops[stop];
+  const closeOn = !side && there?.id !== undefined && there.at !== undefined && Math.abs(at - there.at) < 0.02 ? pins.find((pin) => pin.id === there.id)?.on : undefined;
+  const view = `${at} ${side} ${closeOn?.join(" ") ?? ""}`;
   // The app is the page the recording was made of, at its size, scrolled where the recording rests.
   const screen = readings?.find((one) => one.step === flow.steps[step]?.title)?.screen ?? { width: 1280, height: 800 };
   const scrolled = useRef<() => Scrolled>(undefined);
@@ -588,6 +592,7 @@ function Situation(props: SituationProps) {
                 following={scrubbing ? { clock, at: (moment) => moment } : undefined}
                 frame={frame}
                 marks={marks}
+                closeOn={closeOn}
                 onMarks={(placed) => setPlaced({ view, at: placed })}
                 things={noting && !taken && !writing ? props.glimpsed : undefined}
                 onPlace={noting && !taken && !writing ? (on) => acting.onPlace({ flow: flow.name, at: restsAt, ...on }) : undefined}
@@ -733,7 +738,7 @@ function useFrames(review: Review, round: Round, flow: Flow, readings: Reading[]
           const { width, height } = reading.screen;
           const end = stepEnd(flow, i);
           const hand = pointer.filter(([moment]) => moment >= Math.max(step.at, end - 3) && moment <= end).map(([, x, y]) => ({ x, y, width: 0, height: 0 }));
-          if (i === 0 || loads.some((load) => load > step.at && load <= end)) return around({ x: hand.at(-1)?.x ?? width / 2, y: 0, width: 0, height }, reading);
+          if (i === 0 || loads.some((load) => load > step.at && load <= end)) return around({ x: hand.at(-1)?.x ?? width / 2, y: 0, width: 0, height }, reading.screen, HALF);
           const worked = acted
             .filter(([moment]) => moment >= step.at && moment <= end)
             .toReversed()
@@ -741,7 +746,7 @@ function useFrames(review: Review, round: Round, flow: Flow, readings: Reading[]
             .find((thing) => thing && thing.box.width * thing.box.height < (width * height) / 8)?.box;
           const what = changedIn(i).map((on) => boxIn(reading, on)).find(Boolean) ?? worked;
           const all = [...(what ? [what] : []), ...hand];
-          return around(all.length ? union(all) : { x: width / 2, y: 0, width: 0, height }, reading);
+          return around(all.length ? union(all) : { x: width / 2, y: 0, width: 0, height }, reading.screen, HALF);
         });
         if (current) setFrames(found);
       });
@@ -793,8 +798,6 @@ function Story({ review, round, general, onRound }: { review: Review; round: Rou
   );
 }
 
-type Box = { x: number; y: number; width: number; height: number };
-
 // Where something that changed is on a page: the things there by its role and name, or its part of the page.
 function boxIn(reading: Reading, on: Place): Box | undefined {
   const { width: across, height: down } = reading.screen;
@@ -807,26 +810,8 @@ function boxIn(reading: Reading, on: Place): Box | undefined {
   return boxes.length ? union(boxes) : undefined;
 }
 
-const union = (boxes: Box[]): Box => {
-  const left = Math.min(...boxes.map((box) => box.x));
-  const top = Math.min(...boxes.map((box) => box.y));
-  return { x: left, y: top, width: Math.max(...boxes.map((box) => box.x + box.width)) - left, height: Math.max(...boxes.map((box) => box.y + box.height)) - top };
-};
-
 // Side by side, each round has half the picture, as tall as the whole: this wide for its height.
 const HALF = 0.8;
-
-// A part of the page with room around it, in the shape of half the picture, at most twice as close as the page's full
-// height.
-function around(box: Box, reading: Reading): Frame {
-  const { width: across, height: down } = reading.screen;
-  const [left, top, right, bottom] = [box.x, box.y, box.x + box.width, box.y + box.height];
-  const height = Math.min(down, across / HALF, Math.max((right - left + across * 0.08) / HALF, bottom - top + down * 0.25, down / 2));
-  const width = height * HALF;
-  const x = clamp((left + right) / 2 - width / 2, 0, across - width);
-  const y = clamp((top + bottom) / 2 - height / 2, 0, down - height);
-  return { x: x / across, y: y / down, width: width / across, height: height / down };
-}
 
 // Where a note stands, in a word or two after what was said.
 const where = (note: Shown): [string, string] | undefined =>

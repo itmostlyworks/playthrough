@@ -11,6 +11,27 @@ import { recorded, shapeOf } from "./replay.ts";
 export type Frame = { x: number; y: number; width: number; height: number };
 // Without a frame, the whole page, as large as fits.
 export type Shot = { src: string; frame?: Frame };
+// A part of the page, in its pixels.
+export type Box = { x: number; y: number; width: number; height: number };
+
+// The part of the page several things take up together.
+export const union = (boxes: Box[]): Box => {
+  const left = Math.min(...boxes.map((box) => box.x));
+  const top = Math.min(...boxes.map((box) => box.y));
+  return { x: left, y: top, width: Math.max(...boxes.map((box) => box.x + box.width)) - left, height: Math.max(...boxes.map((box) => box.y + box.height)) - top };
+};
+
+// A part of the page with room around a box on it, this wide for its height, at most so many times as close as the
+// page's full height.
+export function around(box: Box, page: { width: number; height: number }, shape: number, closest = 2): Frame {
+  const { width: across, height: down } = page;
+  const [left, top, right, bottom] = [box.x, box.y, box.x + box.width, box.y + box.height];
+  const height = Math.min(down, across / shape, Math.max((right - left + across * 0.08) / shape, bottom - top + down * 0.25, down / closest));
+  const width = height * shape;
+  const x = clamp((left + right) / 2 - width / 2, 0, across - width);
+  const y = clamp((top + bottom) / 2 - height / 2, 0, down - height);
+  return { x: x / across, y: y / down, width: width / across, height: height / down };
+}
 
 // A picture that isn't there leaves its place empty.
 export function Picture({ shot }: { shot: Shot }) {
