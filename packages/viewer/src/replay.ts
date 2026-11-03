@@ -300,6 +300,16 @@ export class Replay {
     return caret && caret[3] ? [caret[1], caret[2], caret[3]] : undefined;
   }
 
+  // The text cursor drawn over a page shown k times its size from (left, top): as a browser draws it, one of the page's
+  // pixels wide and as tall as the letters rather than the line, so it reads as the app's own and not as a mark of ours.
+  placeCaret(element: HTMLElement, at: number, left: number, top: number, k: number) {
+    const caret = this.caretAt(at);
+    element.style.opacity = caret ? "1" : "0";
+    if (!caret) return;
+    const [x, y, height] = caret;
+    Object.assign(element.style, { width: `${Math.max(0.75, k)}px`, height: `${(height * 0.8 * k).toFixed(2)}px`, transform: `translate(${((x - left) * k).toFixed(2)}px,${((y + height * 0.1 - top) * k).toFixed(2)}px)` });
+  }
+
   // How far the page is scrolled now, in its own pixels, and each part of it scrolled on its own, as Kan's card is, by
   // the path back to it.
   scrolled(): Scrolled {

@@ -94,9 +94,7 @@ export function Loop(props: Props) {
     replayed.host.style.transform = `translate(${-left * k}px, ${-top * k}px) scale(${k})`;
     const speed = stretch.length / played;
     const draw = (at: number) => {
-      const typing = replayed.caretAt(at);
-      caret.current!.style.opacity = typing ? "1" : "0";
-      if (typing) Object.assign(caret.current!.style, { height: `${typing[2] * k}px`, transform: `translate(${(typing[0] - left) * k}px, ${(typing[1] - top) * k}px)` });
+      replayed.placeCaret(caret.current!, at, left, top, k);
       const pointer = replayed.pointerAt(at);
       const hand = cursor.current!;
       hand.style.opacity = pointer ? "1" : "0";
@@ -129,7 +127,7 @@ export function Loop(props: Props) {
 
   return (
     <div ref={box} className="absolute inset-0 overflow-hidden">
-      <span ref={caret} className="pointer-events-none absolute top-0 left-0 z-1 w-[1.5px] -ml-px rounded-full bg-[#1e2330] opacity-0" />
+      <span ref={caret} className="pointer-events-none absolute top-0 left-0 z-1 bg-[#1e2330] opacity-0" />
       <span ref={ring} className="pointer-events-none absolute top-0 left-0 z-1 -mt-3 -ml-3 size-6 rounded-full border-[1.5px] border-[rgba(40,44,54,0.5)] bg-[rgba(40,44,54,0.06)] opacity-0" />
       <div ref={cursor} className="pointer-events-none absolute top-0 left-0 z-1 size-5 opacity-0 [filter:drop-shadow(0_1px_1px_rgba(0,0,0,.3))]">
         <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden>
