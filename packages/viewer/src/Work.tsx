@@ -11,7 +11,7 @@ import { clamp } from "./moments.ts";
 import { fill, type Shown, type Standing } from "./notes.ts";
 import { asWho } from "./people.ts";
 import { recorded } from "./replay.ts";
-import { HOLD, Loop, playedFor } from "./Loop.tsx";
+import { HOLD, Loop } from "./Loop.tsx";
 import { Picture, type Frame } from "./Picture.tsx";
 import { roundName, Rounds } from "./Rounds.tsx";
 import { Agent, Go, says, type Step } from "./Step.tsx";
@@ -111,7 +111,9 @@ function Situation({ review, round, before, flow, changed, readings, notes, stan
   const thenStep = thenAt(chosen);
   const now = { from: flow.steps[chosen]!.at, until: stepEnd(flow, chosen) };
   const was = then && thenStep >= 0 ? { from: then.steps[thenStep]!.at, until: stepEnd(then, thenStep) } : undefined;
-  const cycle = Math.max(playedFor(now.from, now.until), was ? playedFor(was.from, was.until) : 0) + HOLD;
+  // Each side says how long its step plays once its recording is in; both go round together, as long as the longer.
+  const [lengths, setLengths] = useState<{ now?: number; was?: number }>({});
+  const cycle = Math.max(lengths.now ?? 0, (was && lengths.was) || 0) + HOLD;
   const here = notedAt(chosen);
   return (
     <section className="grid gap-3" onPointerEnter={play} onPointerLeave={() => setStarted(undefined)}>
@@ -155,7 +157,7 @@ function Situation({ review, round, before, flow, changed, readings, notes, stan
             onClick={() => onFlow(flow.name, stepEnd(flow, chosen) - 0.12)}
           >
             <Still src={picture(review.id, round.number, flow.recording, chosen)} frame={frame} />
-            {woken && <Loop review={review.id} round={round.number} recording={flow.recording} {...now} frame={frame} started={started} cycle={cycle} />}
+            {woken && <Loop review={review.id} round={round.number} recording={flow.recording} {...now} frame={frame} started={started} cycle={cycle} onLength={(now) => setLengths((all) => ({ ...all, now }))} />}
             {here.length > 0 && (
               <span className="absolute top-2.5 left-2.5 flex gap-1">
                 {here.map((note) => (
@@ -172,7 +174,7 @@ function Situation({ review, round, before, flow, changed, readings, notes, stan
           {then && was ? (
             <span className="relative block aspect-[1.6] overflow-hidden rounded-lg bg-paper shadow-frame">
               <Still src={picture(review.id, 0, then.recording, thenStep)} frame={frame} />
-              {woken && <Loop review={review.id} round={0} recording={then.recording} {...was} frame={frame} started={started} cycle={cycle} />}
+              {woken && <Loop review={review.id} round={0} recording={then.recording} {...was} frame={frame} started={started} cycle={cycle} onLength={(was) => setLengths((all) => ({ ...all, was }))} />}
             </span>
           ) : (
             <span className="grid aspect-[1.6] place-content-center rounded-lg border border-dashed border-line px-6 text-center text-[13px] leading-5 text-soft">
@@ -217,17 +219,18 @@ const stepEnd = (flow: Flow, step: number) => flow.steps[step + 1]?.at ?? flow.l
 
 // Each step's part of the page: what changed there, the first thing found, or where nothing did, what the step acted
 // on, the last thing clicked or typed in that's still there and is a thing rather than a stretch of the page clicked
-// away on; and where the hand went to get there, in the step's last few seconds, so its loop shows the hand at work.
+// away on; and where the hand went to get there, in the step's last few seconds, so its loop shows the hand at work. The
+// first step, and one that goes to another page, shows the whole page: where they are is what it's about.
 function useFrames(review: Review, round: Round, flow: Flow, readings: Reading[] | undefined, changedIn: (step: number) => Place[]): (Frame | undefined)[] {
   const [frames, setFrames] = useState<(Frame | undefined)[]>([]);
   useEffect(() => {
     let current = true;
     if (readings)
       recording(review.id, round.number, flow.recording).then((events) => {
-        const { acted, pointer } = recorded(events);
+        const { acted, pointer, loads } = recorded(events);
         const found = flow.steps.map((step, i) => {
           const reading = readings.find((one) => one.step === step.title);
-          if (!reading) return undefined;
+          if (!reading || i === 0 || loads.some((load) => load > step.at && load <= stepEnd(flow, i))) return undefined;
           const { width, height } = reading.screen;
           const end = stepEnd(flow, i);
           const worked = acted
