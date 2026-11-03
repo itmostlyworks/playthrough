@@ -91,7 +91,7 @@ export const Flow = z.strictObject({
   length: z.number({ error: "needs its length, in seconds" }).positive({ error: "needs its length, in seconds" }),
   steps: z.array(Step),
   recording: fileName("needs its recording: the name of a file in the round"),
-  line: text("needs words in its line, or no line").optional().describe("The agent's, at the flow's start: what it starts from, or the choice it shows"),
+  line: text("needs words in its line, or no line").optional().describe("The agent's, beside the flow's steps and at its start: what it starts from, and whether it shows the change or what the change leaves alone"),
   stopped: text("needs the step it stopped at")
     .optional()
     .describe("On Before, the step the flow couldn't take there, or that the app as it was had something else for: it's kept as far as that"),

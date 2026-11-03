@@ -73,7 +73,7 @@ export function sendingFlow(draft: Draft, flow: string, notes: Shown[]): { sendi
 
 // The flows a newer round shows as they were: nothing found changed in them since, or only what the agent says isn't
 // real.
-function unchangedSince(review: Review, since: number, round: number): string[] {
+export function unchangedSince(review: Review, since: number, round: number): string[] {
   const flows = review.rounds.find((kept) => kept.number === round)?.flows ?? [];
   const comparison = review.comparisons.find((kept) => kept.round === round && kept.since === since);
   if (!comparison) return [];
@@ -91,6 +91,16 @@ export type Shown = { id: string; number: number; on?: Place; written: number; t
 // The rounds anyone can see: the one being worked on is the agent's until it's finished.
 export function seen(review: Review): Review {
   return { ...review, rounds: review.rounds.filter((round) => round.finished) };
+}
+
+// Each round's flows with those the work changed first, then those it left as they were against Before: every flow at
+// once opens on what was asked, and the flows play, and are gone through, in the same order.
+export function changedFirst(review: Review): Review {
+  const rounds = review.rounds.map((round) => {
+    const same = unchangedSince(review, 0, round.number);
+    return same.length ? { ...round, flows: [...round.flows.filter((flow) => !same.includes(flow.name)), ...round.flows.filter((flow) => same.includes(flow.name))] } : round;
+  });
+  return { ...review, rounds };
 }
 
 // The review as it was on a round, so looking back shows what was said then and nothing after.

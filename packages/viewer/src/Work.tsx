@@ -8,7 +8,8 @@ import { time, type Flow, type Place, type Review, type Round } from "@playthrou
 import { picture, recording } from "./api.ts";
 import { EndMark, endOf } from "./Chosen.tsx";
 import { clamp } from "./moments.ts";
-import { fill, type Shown, type Standing } from "./notes.ts";
+import { fill, unchangedSince, type Shown, type Standing } from "./notes.ts";
+import { Said } from "./Card.tsx";
 import { asWho } from "./people.ts";
 import { recorded } from "./replay.ts";
 import type { CloseUp } from "./flight.ts";
@@ -43,6 +44,8 @@ export function Work(props: Props) {
   // What the work changed, against Before where there is one, else against the round before.
   const work = review.comparisons.find((kept) => kept.round === round.number && kept.since === 0) ?? review.comparisons.findLast((kept) => kept.round === round.number);
   const general = props.notes.filter((note) => !note.on || !round.flows.some((flow) => flow.name === note.on?.flow));
+  // The flows the work left as they were, against Before.
+  const same = before ? unchangedSince(review, 0, round.number) : [];
   return (
     <div ref={props.room} inert={!up} className={`absolute inset-0 z-20 overflow-y-auto bg-ground transition-[opacity,visibility] duration-240 ease-calm ${up ? "visible opacity-100" : "invisible opacity-0"}`}>
       <div className="mx-auto w-full max-w-[1040px] px-8 wide:max-w-[1320px] pt-8 pb-4 phone:px-0 phone:pt-2">
@@ -69,6 +72,7 @@ export function Work(props: Props) {
               readings={props.read(round.number, flow.name)}
               notes={props.notes.filter((note) => note.on?.flow === flow.name)}
               standing={props.standing(flow.name)}
+              same={same.includes(flow.name)}
               onFlow={props.onFlow}
               left={props.left?.flow === flow.name ? props.left : undefined}
             />
@@ -90,11 +94,14 @@ export function Work(props: Props) {
 // A situation: whose it is and what they do, where it stands, and its steps, each a part the agent thought worth looking
 // at. One step shows at a time, as it is now beside how it was before the work, the two moving together: to start with,
 // the last step where something changed.
-function Situation({ review, round, before, flow, changed, readings, notes, standing, onFlow, left }: { review: Review; round: Round; before?: Round; flow: Flow; changed: Place[]; readings?: Reading[]; notes: Shown[]; standing?: Standing; onFlow: (flow: string, beat: Beat) => void; left?: { flow: string; at: number } }) {
+function Situation(props: { review: Review; round: Round; before?: Round; flow: Flow; changed: Place[]; readings?: Reading[]; notes: Shown[]; standing?: Standing; same: boolean; onFlow: (flow: string, beat: Beat) => void; left?: { flow: string; at: number } }) {
+  const { review, round, before, flow, changed, readings, notes, standing, same, onFlow, left } = props;
   const stepOf = (at: number) => Math.max(0, flow.steps.findIndex((_, i) => stepEnd(flow, i) >= at - 0.05));
   const changedAt = new Set(changed.flatMap((on) => (on.at === undefined ? [] : [stepOf(on.at)])));
   const notedAt = (step: number) => notes.filter((note) => note.on?.at !== undefined && stepOf(note.on.at) === step);
-  const [chosen, setChosen] = useState(() => (changedAt.size ? Math.max(...changedAt) : flow.steps.length - 1));
+  // Where nothing changed, the step where the most is done: what it shows still working.
+  const busiest = flow.steps.reduce((most, step, i) => ((step.actions?.length ?? 0) > (flow.steps[most]!.actions?.length ?? 0) ? i : most), 0);
+  const [chosen, setChosen] = useState(() => (changedAt.size ? Math.max(...changedAt) : busiest));
   // Back from watching it, it's on the step you were on.
   const [cameBack, setCameBack] = useState(left);
   if (left !== cameBack) (setCameBack(left), left && setChosen(stepOf(left.at)));
@@ -151,51 +158,57 @@ function Situation({ review, round, before, flow, changed, readings, notes, stan
   const begins = chosen > 0 ? picture(review.id, round.number, flow.recording, chosen - 1) : undefined;
   useEffect(() => void (begins && (new Image().src = begins)), [begins]);
   return (
-    <section className="grid gap-3 wide:grid-cols-[260px_1fr] wide:gap-8" onPointerEnter={play} onPointerLeave={() => (setStarted(undefined), setThrough(false))}>
-      <div className="grid content-start gap-3 wide:gap-4">
-        <div className="flex items-baseline justify-between gap-4 px-0.5 wide:flex-col wide:items-start wide:gap-1">
+    <section className="grid gap-3 wide:grid-cols-[260px_1fr] wide:gap-x-8 wide:gap-y-4" onPointerEnter={play} onPointerLeave={() => (setStarted(undefined), setThrough(false))}>
+      <div className="grid content-start gap-3 wide:col-start-2 wide:row-start-1">
+        <div className="flex items-baseline justify-between gap-4 px-0.5">
           <h3 className="min-w-0 text-[15px] leading-[21px] font-semibold text-balance">
             {flow.name}
             {asWho(flow) && <span className="font-normal text-soft"> {asWho(flow)}</span>}
           </h3>
-          <span className="flex flex-none items-center gap-1.5 text-xs leading-4">
+          <span className="flex flex-none flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs leading-4 whitespace-nowrap">
             {standing && <EndMark end={endOf(standing)} ahead={standing.is === "to watch"} just={false} className="size-3 flex-none" />}
             {standing && <span className={INK[standing.is]}>{says(standing)}</span>}
+            {same && <span className="text-faint">· Same as before</span>}
             <span className="text-faint tabular-nums">· {time(flow.length)}</span>
           </span>
         </div>
-        <div role="tablist" aria-label={`The steps of ${flow.name}`} onPointerEnter={() => setThrough(false)} className="grid grid-cols-[repeat(auto-fit,minmax(128px,1fr))] gap-x-2 gap-y-4 wide:flex wide:flex-col wide:gap-0 wide:self-start">
-          {flow.steps.map((step, i) => (
-            <button
-              key={i}
-              ref={(tab) => void (tabs.current[i] = tab)}
-              role="tab"
-              title={step.title}
-              aria-selected={i === chosen}
-              tabIndex={i === chosen ? 0 : -1}
-              className="group/step relative grid content-start gap-2 text-left wide:h-12 wide:py-1.5 wide:pl-4 text-[13px] leading-[18px] text-soft transition-colors duration-150 ease-calm outline-none hover:text-fg focus-visible:text-fg aria-selected:text-fg"
-              onPointerEnter={() => choose(i)}
-              onFocus={() => choose(i)}
-              onKeyDown={arrows}
-            >
-              <span className="relative h-[3px] overflow-hidden rounded-full bg-line wide:absolute wide:inset-y-0.5 wide:left-0 wide:h-auto wide:w-[3px]">
-                {i === chosen && <span ref={progress} className="absolute inset-0 origin-top-left bg-fg [transform:scaleX(var(--done,1))] wide:[transform:scaleY(var(--done,1))]" />}
-              </span>
-              <span className="flex gap-1.5">
-                <span className="grid flex-none content-start justify-items-center gap-1.5">
-                  <span className="text-faint tabular-nums">{i + 1}</span>
-                  {changedAt.has(i) && <i title="Changed here" className="size-[6px] rotate-45 bg-fg" />}
-                </span>
-                <span className="line-clamp-3 text-balance wide:line-clamp-2">
-                  {step.title}
-                  {notedAt(i).map((note) => <b key={note.id} className={`ml-1 inline-block size-1.5 translate-y-[-1px] rounded-full ${fill(note)}`} />)}
-                </span>
-              </span>
-            </button>
-          ))}
-        </div>
+        {flow.line && (
+          <div className="px-0.5 text-[13px]">
+            <Said who={round.by}>{flow.line}</Said>
+          </div>
+        )}
       </div>
-      <div className="grid content-start gap-3">
+      <div role="tablist" aria-label={`The steps of ${flow.name}`} onPointerEnter={() => setThrough(false)} className="grid grid-cols-[repeat(auto-fit,minmax(128px,1fr))] gap-x-2 gap-y-4 wide:col-start-1 wide:row-span-2 wide:row-start-1 wide:flex wide:flex-col wide:gap-0 wide:self-start">
+        {flow.steps.map((step, i) => (
+          <button
+            key={i}
+            ref={(tab) => void (tabs.current[i] = tab)}
+            role="tab"
+            title={step.title}
+            aria-selected={i === chosen}
+            tabIndex={i === chosen ? 0 : -1}
+            className="group/step relative grid content-start gap-2 text-left wide:h-12 wide:py-1.5 wide:pl-4 text-[13px] leading-[18px] text-soft transition-colors duration-150 ease-calm outline-none hover:text-fg focus-visible:text-fg aria-selected:text-fg"
+            onPointerEnter={() => choose(i)}
+            onFocus={() => choose(i)}
+            onKeyDown={arrows}
+          >
+            <span className="relative h-[3px] overflow-hidden rounded-full bg-line wide:absolute wide:inset-y-0.5 wide:left-0 wide:h-auto wide:w-[3px]">
+              {i === chosen && <span ref={progress} className="absolute inset-0 origin-top-left bg-fg [transform:scaleX(var(--done,1))] wide:[transform:scaleY(var(--done,1))]" />}
+            </span>
+            <span className="flex gap-1.5">
+              <span className="grid flex-none content-start justify-items-center gap-1.5">
+                <span className="text-faint tabular-nums">{i + 1}</span>
+                {changedAt.has(i) && <i title="Changed here" className="size-[6px] rotate-45 bg-fg" />}
+              </span>
+              <span className="line-clamp-3 text-balance wide:line-clamp-2">
+                {step.title}
+                {notedAt(i).map((note) => <b key={note.id} className={`ml-1 inline-block size-1.5 translate-y-[-1px] rounded-full ${fill(note)}`} />)}
+              </span>
+            </span>
+          </button>
+        ))}
+      </div>
+      <div className="grid content-start gap-3 wide:col-start-2">
         <div className="grid grid-cols-2 gap-4 phone:grid-cols-1" onPointerEnter={() => setThrough(true)}>
           <figure className="grid gap-2">
             <button

@@ -76,7 +76,7 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
     const { said, code } = await app.run(["record", "overdue"]);
     assert.equal(code, 0, said);
     assert.match(said, /Recorded round 1: “Export the overdue ones” \(\d+s\), “See what's overdue” \(\d+s\) and “See what's paid” \(\d+s\)/);
-    assert.match(said, /are new to the person\. In \.playthrough\/overdue\/rounds\/1\/round\.json, each can have a line at its start, as “line” in its flow under “flows”: what it starts from, or the choice it shows, in a sentence of up to 140 characters\./);
+    assert.match(said, /are new to the person\. In \.playthrough\/overdue\/rounds\/1\/round\.json, each can have a line, as “line” in its flow under “flows”: what it starts from, and whether it shows the change or what the change leaves alone, in a sentence of up to 140 characters\./);
 
     const recorded = await app.round(1);
     const steps: Record<string, string> = { "Export the overdue ones": "Export them", "See what's overdue": "Show only the overdue ones", "See what's paid": "Show only the paid ones" };

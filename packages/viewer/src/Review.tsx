@@ -21,7 +21,7 @@ import type { Step } from "./Step.tsx";
 import { Work, type Beat } from "./Work.tsx";
 import { follow, pausedAt, readyAt, readyIn, samePaused, takenOver, type Live, type Paused } from "./live.ts";
 import { along, CARD, clamp, FLOW_IN, momentAt, POSTER, type Moment } from "./moments.ts";
-import { asIfSent, draftOn, everyDraft, fill, ink, lookGood, needsYou, notesOn, nothing, said, seen, sendingFlow, sendOf, settledBefore, standings, takeBack, upTo, watchedOn, workingSince, type Draft, type Shown } from "./notes.ts";
+import { asIfSent, changedFirst, draftOn, everyDraft, fill, ink, lookGood, needsYou, notesOn, nothing, said, seen, sendingFlow, sendOf, settledBefore, standings, takeBack, upTo, watchedOn, workingSince, type Draft, type Shown } from "./notes.ts";
 import { NoteRow, number as numberLook, Writing, type Comparing } from "./Notes.tsx";
 import { Playhead, useNow, type Forked } from "./playhead.ts";
 import { changesIn, recorded } from "./replay.ts";
@@ -49,9 +49,10 @@ export function ReviewPage({ id, flow }: { id: string; flow?: string }) {
   const you = useYou();
   const title = Array.isArray(kept) ? undefined : kept?.title;
   useEffect(() => void (document.title = title ? `${title} · Playthrough` : "Playthrough"), [title]);
+  const shown = useMemo(() => (kept && !Array.isArray(kept) ? changedFirst(seen(kept)) : undefined), [kept]);
   if (Array.isArray(kept)) return <Page><p className="m-auto text-soft">{kept[0]}</p></Page>;
-  if (!kept || !you) return <Page />;
-  return <Reviewing review={seen(kept)} you={you} flow={flow} />;
+  if (!shown || !you) return <Page />;
+  return <Reviewing review={shown} you={you} flow={flow} />;
 }
 
 // What's done with the review as a whole sits at the right of the line its title is on.

@@ -99,7 +99,8 @@ export function howToWriteFlows(repo: Repo, id: string): string {
     });
   });
 
-The test's name is the flow's, and steps are matched across rounds by their names. What every flow starts from, like
+The test's name is the flow's, and steps are matched across rounds by their names. Each step ends on what it shows,
+so it can be looked at by itself: the person sees each step's end beside the same step on Before. What every flow starts from, like
 the account it opens, is made in playthrough/setup.ts${missing}`;
 }
 

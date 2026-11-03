@@ -221,7 +221,7 @@ export function problemsFinishing(review: Review, number: number): string[] {
   // A flow's line is read in the moment before it plays, on its title card: a sentence, not a paragraph.
   for (const flow of round.flows)
     if (flow.line && flow.line.length > LONGEST_LINE)
-      problems.push(`${at}: the line on “${flow.name}” is ${flow.line.length} characters. Say it in a sentence of up to ${LONGEST_LINE}: what it starts from, or the choice it shows.`);
+      problems.push(`${at}: the line on “${flow.name}” is ${flow.line.length} characters. Say it in a sentence of up to ${LONGEST_LINE}: what it starts from, and whether it shows the change or what the change leaves alone.`);
 
   // Compared at all, a round is compared with every round before it, so what's new to anyone, wherever they last
   // looked, is known.

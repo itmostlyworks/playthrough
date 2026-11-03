@@ -57,9 +57,12 @@ export async function record(repo: Repo, id: string) {
   await repo.reviews.saveRound(id, { number, by, flows, replies, accounts: saved?.accounts ?? {} });
   for (const comparison of comparisons) await repo.reviews.saveComparison(id, comparison);
 
-  // A flow that's new to the person can say at its start what it starts from, or the choice it shows.
+  // A flow that's new to the person can say what it starts from, and whether it shows the change or what the change
+  // leaves alone. One that shows nothing different from Before is asked which: it may never reach the change.
   const previous = review.rounds.findLast((round) => round.number > 0 && round.number < number);
-  const unsaid = flows.filter((flow) => !flow.line && !previous?.flows.some((kept) => kept.name === flow.name));
+  const before = comparisons.find((comparison) => comparison.since === 0);
+  const same = before ? flows.filter((flow) => !flow.line && !before.changes.some((change) => change.seen.some((seen) => seen.flow === flow.name))) : [];
+  const unsaid = flows.filter((flow) => !flow.line && !same.includes(flow) && !previous?.flows.some((kept) => kept.name === flow.name));
   const file = repo.show(repo.round(id, number));
   const left = problemsFinishing(await repo.reviews.get(id), number);
   console.log(`\nRecorded round ${number}: ${flows.length > 3 ? called(flows.map((flow) => flow.name)) : list(flows.map((flow) => `${quote(flow.name)} (${Math.round(flow.length)}s)`))}.`);
@@ -85,9 +88,13 @@ export async function record(repo: Repo, id: string) {
   if (wrote && !(await setupIn(repo.setup)).after)
     console.log(`
 ${quote(wrote.flow.name)} sends the app ${wrote.wrote}, which changes what it holds, and ${existsSync(repo.setup) ? "playthrough/setup.ts has no after, so what each flow makes stays in the app" : "there's no playthrough/setup.ts, so each flow starts on what the ones before it left, and what they make stays in the app"}: one for each flow recorded, three for a new one. Tell the person, with the step that would fix it; run playthrough alone for how setup.ts makes what each flow starts from, and gives it back.`);
+  if (same.length) {
+    const [shows, them, each] = same.length > 1 ? ["show", "them", "each"] : ["shows", "it", "it"];
+    console.log(`\n${list(same.map((flow) => quote(flow.name)))} ${shows} nothing different from Before. If that's what ${them} ${same.length > 1 ? "are" : "is"} for, something the change leaves alone that still works, say so in ${each}'s “line” under “flows” in ${file}, in a sentence of up to ${LONGEST_LINE} characters. If ${them} should show the work, ${them} ${same.length > 1 ? "don't" : "doesn't"} reach it yet: take ${them} as far as the change, and record again.`);
+  }
   if (unsaid.length) {
     const [are, each] = unsaid.length > 1 ? ["are", "each"] : ["is", "it"];
-    console.log(`\n${list(unsaid.map((flow) => quote(flow.name)))} ${are} new to the person. In ${file}, ${each} can have a line at its start, as “line” in its flow under “flows”: what it starts from, or the choice it shows, in a sentence of up to ${LONGEST_LINE} characters.`);
+    console.log(`\n${list(unsaid.map((flow) => quote(flow.name)))} ${are} new to the person. In ${file}, ${each} can have a line, as “line” in its flow under “flows”: what it starts from, and whether it shows the change or what the change leaves alone, in a sentence of up to ${LONGEST_LINE} characters.`);
   }
   if (by === unnamed) console.log(`\nPlaythrough can't tell which agent you are. Write your name in ${file} as “by”, and each of your answers shows it.`);
   // It waits for the person's notes, which can take hours.
