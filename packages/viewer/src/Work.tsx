@@ -497,7 +497,7 @@ function Situation(props: SituationProps) {
   // And there, it's a click from being the app: pointing at it says so beside your pointer, as who it's done as. A
   // click on another situation's makes it the one you're on.
   const person = personAt(flow, restsAt);
-  const stepIn = resting && !live?.shown && !noting && acting.latest ? acting.onTakeOver : undefined;
+  const stepIn = resting && !live?.shown && !noting && !acting.writing && acting.latest ? acting.onTakeOver : undefined;
   const noteHere = noting && !taken && !acting.writing;
   const [aiming, setAiming] = useState(false);
   const pill = useRef<HTMLSpanElement>(null);
