@@ -120,8 +120,8 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
     addEventListener("pointercancel", up);
   };
 
-  // What opens, opening: it grows out of the line it was, as that fades.
-  const opening = (open: boolean) => `grid transition-[grid-template-rows] duration-300 ease-calm ${open ? "grid-rows-[0fr_1fr]" : "grid-rows-[1fr_0fr]"}`;
+  // What opens, opening: it grows out of the line it was, as that folds away, each as tall as itself and no taller.
+  const folding = (shown: boolean) => `grid transition-[grid-template-rows] duration-300 ease-calm ${shown ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`;
   const fading = (shown: boolean) => `min-h-0 overflow-hidden transition-opacity duration-300 ease-calm ${shown ? "" : "opacity-0"}`;
 
   return (
@@ -143,10 +143,12 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
               >
                 {sign}
               </span>
-              <div className={opening(here)}>
+              <div className={folding(!here)}>
                 <button inert={here} className={`${fading(!here)} truncate text-left text-[13px] leading-5 text-soft hover:text-fg`} onClick={() => onStop(k)}>
                   {words}
                 </button>
+              </div>
+              <div className={folding(here)}>
                 <div inert={!here} className={`${fading(here)} text-[13px]`}>
                   {whole}
                 </div>
