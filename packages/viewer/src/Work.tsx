@@ -496,6 +496,7 @@ function Situation(props: SituationProps) {
   // click on another situation's makes it the one you're on.
   const person = personAt(flow, restsAt);
   const stepIn = resting && !live?.shown && !noting && acting.latest ? acting.onTakeOver : undefined;
+  const noteHere = noting && !taken && !acting.writing;
   const [aiming, setAiming] = useState(false);
   const pill = useRef<HTMLSpanElement>(null);
   const armed = useRef(false);
@@ -725,8 +726,9 @@ function Situation(props: SituationProps) {
             )}
           </button>
           <Portal live={live} person={person} screen={screen} scrolled={() => scrolled.current?.()} />
-          <span ref={pill} aria-hidden className={`pointer-events-none absolute top-0 left-0 z-30 transition-opacity duration-150 ease-calm ${stepIn && aiming ? "" : "opacity-0"}`}>
-            <span className={TAG}>{person ? `Take over as ${person}` : "Take over"}</span>
+          {/* Beside your pointer, what a click on the recording does: note what's under it, or take it over. */}
+          <span ref={pill} aria-hidden className={`pointer-events-none absolute top-0 left-0 z-30 transition-opacity duration-150 ease-calm ${(stepIn || noteHere) && aiming ? "" : "opacity-0"}`}>
+            <span className={TAG}>{noteHere ? "Note on this" : person ? `Take over as ${person}` : "Take over"}</span>
           </span>
           {active && (
             <div className="absolute bottom-0 left-1/2 z-20 -translate-x-1/2 translate-y-1/2">
