@@ -18,7 +18,7 @@ import type { ForkLine } from "./Timeline.tsx";
 import { useUnsent, useWatched } from "./draft.ts";
 import { grow, shrink, takeOff, type Taking } from "./flight.ts";
 import type { Step } from "./Step.tsx";
-import { Grid } from "./Grid.tsx";
+import { Work } from "./Work.tsx";
 import { follow, pausedAt, readyAt, readyIn, samePaused, takenOver, type Live, type Paused } from "./live.ts";
 import { along, CARD, clamp, FLOW_IN, momentAt, POSTER, type Moment } from "./moments.ts";
 import { asIfSent, draftOn, everyDraft, fill, ink, lookGood, needsYou, notesOn, nothing, said, seen, sendingFlow, sendOf, settledBefore, standings, takeBack, upTo, watchedOn, workingSince, type Draft, type Shown } from "./notes.ts";
@@ -1581,18 +1581,18 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
           {listed || onGrid ? undefined : openNote ? row(openNote) : writing && !writingWhole ? writingCard(writing) : oneOpen || overEnd ? <Chosen {...chosenProps} writing={writingWhole && writing ? writingCard(writing) : undefined} /> : undefined}
         </Beside>
         {many && (
-          <Grid
+          <Work
             room={gridRoom}
             review={review}
             round={round}
             up={onGrid}
+            read={read}
+            notes={notes}
             standing={(name) => standing?.get(name)}
-            needs={needs}
             accepted={review.accepted || acceptedHere ? acceptedAfter : undefined}
             step={gridStep}
             trouble={trouble}
             onFlow={(name) => leave(name, true)}
-            back={back}
             arrived={arrived ? latest : undefined}
             working={working}
             onRound={toRound}
