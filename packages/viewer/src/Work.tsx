@@ -288,6 +288,9 @@ function Situation(props: SituationProps) {
         .map((mark) => ({ step: i, at: mark.at, id: mark.id })),
     ]),
   ];
+  // And last, where it can be said, whether it looks good to you: the way ends in it.
+  const looksGood = standing && onLooksGood && JUDGED.includes(standing.is) ? { good: standing.is === "good", onPress: () => onLooksGood(flow.name) } : undefined;
+  const last = stops.length - (looksGood ? 0 : 1);
   const waiting = notes.find((note) => note.toJudge && momentOf(note) !== undefined);
   const [clock] = useState(() => new Clock(waiting ? Math.min(momentOf(waiting)!, end) : results[0]!));
   const [at, setAt] = useState(clock.at);
@@ -309,11 +312,11 @@ function Situation(props: SituationProps) {
   // A step plays from its start, which is the step before's result, so from just after it.
   const startOf = (step: number) => flow.steps[step]!.at + (step ? 0.06 : 0);
   // Gone to, a step plays into its result; what was said in one is there at its moment, still; what was said about all
-  // of it, where it is. Before the first stop and past the last, it rests.
+  // of it, where it is. Before the first stop it rests, and past the last, it's how it ends.
   const toStop = (k: number) => {
     setStop(k);
     const there = stops[k];
-    if (!there) return void (playing && pause());
+    if (!there) return void (k < 0 ? playing && pause() : go(results.at(-1)!));
     if (there.id === undefined) playTo(there.at!, startOf(there.step));
     else if (there.at === undefined) setPicked(there.id);
     else go(there.at, there.id);
@@ -336,7 +339,7 @@ function Situation(props: SituationProps) {
   // The stop you're on stays in sight, where the way is longer than the window lets it be.
   const column = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
-    const [list, row] = [column.current, column.current?.querySelector<HTMLElement>(`[data-stop="${Math.min(stop, stops.length - 1)}"]`)];
+    const [list, row] = [column.current, column.current?.querySelector<HTMLElement>(`[data-stop="${Math.min(stop, last)}"]`)];
     if (!list || !row || list.scrollHeight <= list.clientHeight) return;
     const [box, there] = [list.getBoundingClientRect(), row.getBoundingClientRect()];
     const by = there.top < box.top ? there.top - box.top - 8 : there.bottom > box.bottom ? Math.min(there.bottom - box.bottom + 8, there.top - box.top - 8) : 0;
@@ -545,7 +548,7 @@ function Situation(props: SituationProps) {
     <section
       ref={section}
       data-situation={flow.name}
-      data-stops={stops.length}
+      data-stops={last + 1}
       data-stop={stop}
       inert={props.resting}
       className={`relative pt-3 pb-8 transition-opacity duration-500 ease-calm last:mb-[max(0px,calc(var(--room)-var(--tall)-56px))] ${props.resting ? "opacity-30" : ""}`}
@@ -560,16 +563,7 @@ function Situation(props: SituationProps) {
           {standing && SAYS.includes(standing.is) && <span className={INK[standing.is]}>{says(standing)}</span>}
           {standing && SAYS.includes(standing.is) && same && <span className="text-faint">·</span>}
           {same && <span className="text-faint">Same as before</span>}
-          {standing && onLooksGood && JUDGED.includes(standing.is) && (
-            <button
-              aria-pressed={standing.is === "good"}
-              className="-my-1 ml-1.5 inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-soft transition-colors duration-150 ease-calm hover:bg-hover hover:text-fg aria-pressed:text-green"
-              onClick={() => onLooksGood(flow.name)}
-            >
-              <EndMark end={standing.is === "good" ? "good" : "asks"} ahead just={false} className="size-3 flex-none" />
-              Looks good
-            </button>
-          )}
+          {standing?.is === "good" && <span className="text-green">Looks good</span>}
         </span>
       </div>
       <div className="grid grid-cols-[minmax(0,1fr)_340px] gap-8 phone:grid-cols-1">
@@ -651,9 +645,10 @@ function Situation(props: SituationProps) {
             at={at}
             cut={cut}
             stops={stops}
-            on={Math.min(stop, stops.length - 1)}
+            on={Math.min(stop, last)}
             marks={onLine}
             said={said}
+            looksGood={looksGood}
             onStop={toStop}
             onPoint={setLit}
             onScrub={(on) => (on && ((setPlaying(undefined), setPicked(undefined))), setScrubbing(on))}

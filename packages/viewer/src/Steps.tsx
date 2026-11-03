@@ -1,5 +1,6 @@
 // A situation's way through, beside its recording, a stop at a time: each step the agent chose, and after it what was
-// said there, your notes and what changed new to you, in the order they come; what was said about all of it comes first.
+// said there, your notes and what changed new to you, in the order they come; what was said about all of it comes first,
+// and last, whether it looks good to you, once you've seen it through.
 // A rail runs down through them, filled as far as you've come, and its fill glides along as you go. The stop you're on
 // opens: what was said there, all of it; or a step, with a line of its own that fills as it plays, and dragged along,
 // goes anywhere in the step and rests where it's let go, with a dot for each note made in the step and a diamond for
@@ -8,6 +9,7 @@
 
 import { useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from "react";
 import type { Flow } from "@playthrough/review";
+import { EndMark } from "./Chosen.tsx";
 import { clamp } from "./moments.ts";
 import type { Clock, Cut } from "./Player.tsx";
 
@@ -37,9 +39,11 @@ type Props = {
   // Dragging along the line, and where it was let go.
   onScrub: (scrubbing: boolean) => void;
   onGo: (moment: number) => void;
+  // The way's last stop, where it can be said: whether it looks good to you, and saying so or taking it back.
+  looksGood?: { good: boolean; onPress: () => void };
 };
 
-export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, onPoint, onScrub, onGo }: Props) {
+export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, onPoint, onScrub, onGo, looksGood }: Props) {
   const end = (step: number) => flow.steps[step + 1]?.at ?? flow.length;
   const stepOf = (moment: number) => Math.max(0, flow.steps.findIndex((_, step) => end(step) >= moment - 0.05));
   // How far into its step a moment is, in the time it plays in, waiting cut short, so the line fills at one speed, full
@@ -86,7 +90,7 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
     const watching = new ResizeObserver(measure);
     for (const row of way.children) watching.observe(row);
     return () => watching.disconnect();
-  }, [on, stops.length]);
+  }, [on, stops.length, !!looksGood]);
 
   const along = (clientX: number) => {
     const box = line.current!.getBoundingClientRect();
@@ -132,14 +136,14 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
       {stops.flatMap((stop, k) => {
         const here = k === on;
         const gone = k < on;
-        const between = k < stops.length - 1 && <li key={`${k} between`} aria-hidden className="max-h-7 min-h-0 flex-[1_1_0]" />;
+        const between = (k < stops.length - 1 || looksGood) &&<li key={`${k} between`} aria-hidden className="max-h-7 min-h-0 flex-[1_1_0]" />;
         if (stop.id !== undefined) {
           const { sign, line: words, whole } = said(stop.id);
           return [
             <li key={stop.id} data-stop={k} aria-current={here ? "step" : undefined} className="relative flex-none py-2 pl-8" onPointerEnter={() => onPoint(stop.id)} onPointerLeave={() => onPoint(undefined)}>
               <span
                 data-sign=""
-                className={`absolute top-2.5 left-0.5 grid size-4 place-items-center rounded-full bg-ground transition-[box-shadow,opacity] duration-300 ease-calm ${here ? "shadow-[0_0_0_2px_var(--ground),0_0_0_3.5px_var(--fg)]" : gone ? "" : "opacity-60"}`}
+                className={`absolute top-2.5 left-0.5 grid size-4 place-items-center rounded-full bg-ground transition-[box-shadow,opacity] duration-300 ease-calm ${here ? RING : gone ? "" : "opacity-60"}`}
               >
                 {sign}
               </span>
@@ -221,6 +225,26 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
           between,
         ];
       })}
+      {looksGood && (
+        <li key="looks good" data-stop={stops.length} aria-current={on === stops.length ? "step" : undefined} className="relative flex-none py-2 pl-8">
+          <span
+            data-sign=""
+            className={`absolute top-2.5 left-0.5 grid size-4 place-items-center rounded-full bg-ground transition-[box-shadow,opacity] duration-300 ease-calm ${on === stops.length ? RING : looksGood.good ? "" : "opacity-60"}`}
+          >
+            <EndMark end={looksGood.good ? "good" : "asks"} ahead just={false} className="size-3" />
+          </span>
+          <button
+            aria-pressed={looksGood.good}
+            className={`block text-left text-[13px] leading-5 transition-colors duration-300 ease-calm ${looksGood.good ? "text-green" : on === stops.length ? "text-fg" : "text-soft hover:text-fg"}`}
+            onClick={looksGood.onPress}
+          >
+            Looks good
+          </button>
+        </li>
+      )}
     </ol>
   );
 }
+
+// The ring around the sign of the stop you're on.
+const RING = "shadow-[0_0_0_2px_var(--ground),0_0_0_3.5px_var(--fg)]";
