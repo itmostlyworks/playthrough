@@ -45,7 +45,7 @@ export function Work(props: Props) {
   const general = props.notes.filter((note) => !note.on || !round.flows.some((flow) => flow.name === note.on?.flow));
   return (
     <div ref={props.room} inert={!up} className={`absolute inset-0 z-20 overflow-y-auto bg-ground transition-[opacity,visibility] duration-240 ease-calm ${up ? "visible opacity-100" : "invisible opacity-0"}`}>
-      <div className="mx-auto w-full max-w-[1040px] px-8 pt-8 pb-4 phone:px-0 phone:pt-2">
+      <div className="mx-auto w-full max-w-[1040px] px-8 wide:max-w-[1320px] pt-8 pb-4 phone:px-0 phone:pt-2">
         <header className="max-w-[680px]">
           <h2 className="text-[20px] leading-[27px] font-semibold tracking-[-0.01em] text-balance">{review.title}</h2>
           {review.asked && <p className="mt-2 text-[14px] leading-[22px] text-soft">{review.asked}</p>}
@@ -109,7 +109,7 @@ function Situation({ review, round, before, flow, changed, readings, notes, stan
   const choose = (step: number) => (setChosen(step), started !== undefined && setStarted(performance.now()));
   const tabs = useRef<(HTMLButtonElement | null)[]>([]);
   const arrows = (event: KeyboardEvent<HTMLButtonElement>) => {
-    const by = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+    const by = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
     if (!by) return;
     event.preventDefault();
     tabs.current[clamp(chosen + by, 0, flow.steps.length - 1)]?.focus();
@@ -127,10 +127,10 @@ function Situation({ review, round, before, flow, changed, readings, notes, stan
   useEffect(() => {
     const bar = progress.current;
     if (!bar) return;
-    if (started === undefined || !lengths.now) return void (bar.style.transform = "");
+    if (started === undefined || !lengths.now) return void bar.style.removeProperty("--done");
     let frameId = 0;
     const tick = () => {
-      bar.style.transform = `scaleX(${Math.min(1, (((performance.now() - started) / 1000) % cycle) / lengths.now!)})`;
+      bar.style.setProperty("--done", String(Math.min(1, (((performance.now() - started) / 1000) % cycle) / lengths.now!)));
       frameId = requestAnimationFrame(tick);
     };
     tick();
@@ -152,81 +152,85 @@ function Situation({ review, round, before, flow, changed, readings, notes, stan
           <span className="text-faint tabular-nums">· {time(flow.length)}</span>
         </span>
       </div>
-      <div role="tablist" aria-label={`The steps of ${flow.name}`} className="grid grid-cols-[repeat(auto-fit,minmax(128px,1fr))] gap-x-2 gap-y-4">
-        {flow.steps.map((step, i) => (
-          <button
-            key={i}
-            ref={(tab) => void (tabs.current[i] = tab)}
-            role="tab"
-            title={step.title}
-            aria-selected={i === chosen}
-            tabIndex={i === chosen ? 0 : -1}
-            className="group/step grid content-start gap-2 text-left text-[13px] leading-[18px] text-soft transition-colors duration-150 ease-calm outline-none hover:text-fg focus-visible:text-fg aria-selected:text-fg"
-            onPointerEnter={() => choose(i)}
-            onFocus={() => choose(i)}
-            onKeyDown={arrows}
-          >
-            <span className="relative h-[3px] overflow-hidden rounded-full bg-line">
-              {i === chosen && <span ref={progress} className="absolute inset-0 origin-left bg-fg" />}
-            </span>
-            <span className="flex gap-1.5">
-              <span className="flex-none text-faint tabular-nums">{i + 1}</span>
-              <span className="line-clamp-3 text-balance">
-                {step.title}
-                {changedAt.has(i) && <i title="Changed here" className="ml-1.5 inline-block size-[6px] translate-y-[-1px] rotate-45 bg-fg" />}
-                {notedAt(i).map((note) => <b key={note.id} className={`ml-1 inline-block size-1.5 translate-y-[-1px] rounded-full ${fill(note)}`} />)}
+      <div className="grid gap-3 wide:grid-cols-[260px_1fr] wide:gap-8">
+        <div role="tablist" aria-label={`The steps of ${flow.name}`} className="grid grid-cols-[repeat(auto-fit,minmax(128px,1fr))] gap-x-2 gap-y-4 wide:flex wide:flex-col wide:gap-0 wide:self-start">
+          {flow.steps.map((step, i) => (
+            <button
+              key={i}
+              ref={(tab) => void (tabs.current[i] = tab)}
+              role="tab"
+              title={step.title}
+              aria-selected={i === chosen}
+              tabIndex={i === chosen ? 0 : -1}
+              className="group/step relative grid content-start gap-2 text-left wide:py-1.5 wide:pl-4 text-[13px] leading-[18px] text-soft transition-colors duration-150 ease-calm outline-none hover:text-fg focus-visible:text-fg aria-selected:text-fg"
+              onPointerEnter={() => choose(i)}
+              onFocus={() => choose(i)}
+              onKeyDown={arrows}
+            >
+              <span className="relative h-[3px] overflow-hidden rounded-full bg-line wide:absolute wide:inset-y-0.5 wide:left-0 wide:h-auto wide:w-[3px]">
+                {i === chosen && <span ref={progress} className="absolute inset-0 origin-top-left bg-fg [transform:scaleX(var(--done,1))] wide:[transform:scaleY(var(--done,1))]" />}
               </span>
-            </span>
-          </button>
-        ))}
-      </div>
-      <div className="grid grid-cols-2 gap-4 phone:grid-cols-1">
-        <figure className="grid gap-2">
-          <button
-            data-picture={flow.name}
-            className="relative block aspect-[1.6] overflow-hidden rounded-lg bg-paper shadow-frame transition-shadow duration-150 ease-calm hover:shadow-[0_0_0_1px_var(--edge),0_8px_24px_var(--drop)] data-flying:invisible"
-            aria-label={`Play ${flow.name} from ${flow.steps[chosen]?.title}`}
-            onClick={() => onFlow(flow.name, { ...now, closeUp: { src: begins, frame, page: readings?.[chosen]?.screen ?? { width: 1600, height: 1000 } } })}
-          >
-            <Still src={picture(review.id, round.number, flow.recording, chosen)} frame={frame} />
-            {woken && <Loop review={review.id} round={round.number} recording={flow.recording} {...now} frame={frame} started={started} cycle={cycle} onLength={(now) => setLengths((all) => ({ ...all, now }))} />}
-            {here.length > 0 && (
-              <span className="absolute top-2.5 left-2.5 flex gap-1">
-                {here.map((note) => (
-                  <span key={note.id} className={`grid size-5 place-content-center rounded-full text-[11px] leading-none font-semibold text-white ${fill(note)}`}>
-                    {note.number}
-                  </span>
-                ))}
+              <span className="flex gap-1.5">
+                <span className="flex-none text-faint tabular-nums">{i + 1}</span>
+                <span className="line-clamp-3 text-balance">
+                  {step.title}
+                  {changedAt.has(i) && <i title="Changed here" className="ml-1.5 inline-block size-[6px] translate-y-[-1px] rotate-45 bg-fg" />}
+                  {notedAt(i).map((note) => <b key={note.id} className={`ml-1 inline-block size-1.5 translate-y-[-1px] rounded-full ${fill(note)}`} />)}
+                </span>
               </span>
-            )}
-          </button>
-          <figcaption className="px-0.5 text-xs leading-4 text-soft">Now</figcaption>
-        </figure>
-        <figure className="grid gap-2">
-          {then && was ? (
-            <span className="relative block aspect-[1.6] overflow-hidden rounded-lg bg-paper shadow-frame">
-              <Still src={picture(review.id, 0, then.recording, thenStep)} frame={frame} />
-              {woken && <Loop review={review.id} round={0} recording={then.recording} {...was} frame={frame} started={started} cycle={cycle} onLength={(was) => setLengths((all) => ({ ...all, was }))} />}
-            </span>
-          ) : (
-            <span className="grid aspect-[1.6] place-content-center rounded-lg border border-dashed border-line px-6 text-center text-[13px] leading-5 text-soft">
-              {then ? "Before the work, there was no such step" : "New: there was nothing like it before"}
-            </span>
-          )}
-          <figcaption className="px-0.5 text-xs leading-4 text-soft">Before</figcaption>
-        </figure>
-      </div>
-      {notes.length > 0 && (
-        <ul className="grid gap-1.5 px-0.5">
-          {notes.map((note) => (
-            <li key={note.id} className="flex min-w-0 items-baseline gap-2 text-[13px] leading-5">
-              <span className={`size-1.5 flex-none translate-y-[-1px] rounded-full ${fill(note)}`} />
-              <span className="truncate text-fg">{note.turns[0]?.words}</span>
-              {where(note) && <span className={`flex-none ${where(note)![1]}`}>· {where(note)![0]}</span>}
-            </li>
+            </button>
           ))}
-        </ul>
-      )}
+        </div>
+        <div className="grid content-start gap-3">
+          <div className="grid grid-cols-2 gap-4 phone:grid-cols-1">
+            <figure className="grid gap-2">
+              <button
+                data-picture={flow.name}
+                className="relative block aspect-[1.6] overflow-hidden rounded-lg bg-paper shadow-frame transition-shadow duration-150 ease-calm hover:shadow-[0_0_0_1px_var(--edge),0_8px_24px_var(--drop)] data-flying:invisible"
+                aria-label={`Play ${flow.name} from ${flow.steps[chosen]?.title}`}
+                onClick={() => onFlow(flow.name, { ...now, closeUp: { src: begins, frame, page: readings?.[chosen]?.screen ?? { width: 1600, height: 1000 } } })}
+              >
+                <Still src={picture(review.id, round.number, flow.recording, chosen)} frame={frame} />
+                {woken && <Loop review={review.id} round={round.number} recording={flow.recording} {...now} frame={frame} started={started} cycle={cycle} onLength={(now) => setLengths((all) => ({ ...all, now }))} />}
+                {here.length > 0 && (
+                  <span className="absolute top-2.5 left-2.5 flex gap-1">
+                    {here.map((note) => (
+                      <span key={note.id} className={`grid size-5 place-content-center rounded-full text-[11px] leading-none font-semibold text-white ${fill(note)}`}>
+                        {note.number}
+                      </span>
+                    ))}
+                  </span>
+                )}
+              </button>
+              <figcaption className="px-0.5 text-xs leading-4 text-soft">Now</figcaption>
+            </figure>
+            <figure className="grid gap-2">
+              {then && was ? (
+                <span className="relative block aspect-[1.6] overflow-hidden rounded-lg bg-paper shadow-frame">
+                  <Still src={picture(review.id, 0, then.recording, thenStep)} frame={frame} />
+                  {woken && <Loop review={review.id} round={0} recording={then.recording} {...was} frame={frame} started={started} cycle={cycle} onLength={(was) => setLengths((all) => ({ ...all, was }))} />}
+                </span>
+              ) : (
+                <span className="grid aspect-[1.6] place-content-center rounded-lg border border-dashed border-line px-6 text-center text-[13px] leading-5 text-soft">
+                  {then ? "Before the work, there was no such step" : "New: there was nothing like it before"}
+                </span>
+              )}
+              <figcaption className="px-0.5 text-xs leading-4 text-soft">Before</figcaption>
+            </figure>
+          </div>
+          {notes.length > 0 && (
+            <ul className="grid gap-1.5 px-0.5">
+              {notes.map((note) => (
+                <li key={note.id} className="flex min-w-0 items-baseline gap-2 text-[13px] leading-5">
+                  <span className={`size-1.5 flex-none translate-y-[-1px] rounded-full ${fill(note)}`} />
+                  <span className="truncate text-fg">{note.turns[0]?.words}</span>
+                  {where(note) && <span className={`flex-none ${where(note)![1]}`}>· {where(note)![0]}</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
     </section>
   );
 }
