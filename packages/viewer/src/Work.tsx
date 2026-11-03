@@ -122,6 +122,20 @@ function Situation({ review, round, before, flow, changed, readings, notes, stan
   const [lengths, setLengths] = useState<{ now?: number; was?: number }>({});
   const cycle = Math.max(lengths.now ?? 0, (was && lengths.was) || 0) + HOLD;
   const here = notedAt(chosen);
+  // The step's segment is where its picture is in it: full at rest, as the picture is its end, and filling as it plays.
+  const progress = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const bar = progress.current;
+    if (!bar) return;
+    if (started === undefined || !lengths.now) return void (bar.style.transform = "");
+    let frameId = 0;
+    const tick = () => {
+      bar.style.transform = `scaleX(${Math.min(1, (((performance.now() - started) / 1000) % cycle) / lengths.now!)})`;
+      frameId = requestAnimationFrame(tick);
+    };
+    tick();
+    return () => cancelAnimationFrame(frameId);
+  }, [started, cycle, lengths.now, chosen]);
   // Opened, the step plays in the frame as it plays here, once, from the page as it begins: that picture's at hand.
   const begins = chosen > 0 ? picture(review.id, round.number, flow.recording, chosen - 1) : undefined;
   useEffect(() => void (begins && (new Image().src = begins)), [begins]);
@@ -138,23 +152,29 @@ function Situation({ review, round, before, flow, changed, readings, notes, stan
           <span className="text-faint tabular-nums">· {time(flow.length)}</span>
         </span>
       </div>
-      <div role="tablist" aria-label={`The steps of ${flow.name}`} className="-mx-2 flex flex-wrap gap-0.5">
+      <div role="tablist" aria-label={`The steps of ${flow.name}`} className="grid grid-cols-[repeat(auto-fit,minmax(128px,1fr))] gap-x-2 gap-y-4">
         {flow.steps.map((step, i) => (
           <button
             key={i}
             ref={(tab) => void (tabs.current[i] = tab)}
             role="tab"
+            title={step.title}
             aria-selected={i === chosen}
             tabIndex={i === chosen ? 0 : -1}
-            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[13px] leading-[18px] text-soft transition-colors duration-150 ease-calm hover:text-fg aria-selected:bg-hover aria-selected:text-fg"
+            className="group/step grid content-start gap-2 text-left text-[13px] leading-[18px] text-soft transition-colors duration-150 ease-calm outline-none hover:text-fg focus-visible:text-fg aria-selected:text-fg"
             onPointerEnter={() => choose(i)}
             onFocus={() => choose(i)}
             onKeyDown={arrows}
           >
-            <span className="text-faint tabular-nums">{i + 1}</span>
-            {step.title}
-            {changedAt.has(i) && <i title="Changed here" className="size-[6px] flex-none rotate-45 bg-fg" />}
-            {notedAt(i).map((note) => <b key={note.id} className={`size-1.5 flex-none rounded-full ${fill(note)}`} />)}
+            <span className="relative h-[3px] overflow-hidden rounded-full bg-line">
+              {i === chosen && <span ref={progress} className="absolute inset-0 origin-left bg-fg" />}
+            </span>
+            <span className="line-clamp-2">
+              <span className="mr-1.5 text-faint tabular-nums">{i + 1}</span>
+              {step.title}
+              {changedAt.has(i) && <i title="Changed here" className="ml-1.5 inline-block size-[6px] translate-y-[-1px] rotate-45 bg-fg" />}
+              {notedAt(i).map((note) => <b key={note.id} className={`ml-1 inline-block size-1.5 translate-y-[-1px] rounded-full ${fill(note)}`} />)}
+            </span>
           </button>
         ))}
       </div>
