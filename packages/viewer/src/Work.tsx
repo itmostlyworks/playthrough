@@ -12,7 +12,7 @@ import { Bar } from "./Bar.tsx";
 import { EndMark } from "./Chosen.tsx";
 import { clamp } from "./moments.ts";
 import { fill, ink, unchangedSince, type Shown, type Standing } from "./notes.ts";
-import { HOLD, Said } from "./Card.tsx";
+import { HOLD, Key, Said } from "./Card.tsx";
 import { asWho, personAt } from "./people.ts";
 import { Portal, TAG } from "./Portal.tsx";
 import { recorded, type Scrolled } from "./replay.ts";
@@ -84,6 +84,9 @@ export function Work(props: Props) {
   // app, you stay where you are, and in the app the page holds still and the rest of it rests.
   const [active, setActive] = useState(round.flows[0]?.name);
   const [go, setGo] = useState<{ round: number; flow: string; stop: number }>();
+  // Begun once you've gone along, or arrived on an answer waiting on you; until then, the foot says how to begin.
+  const [arrivedOn] = useState(() => props.notes.some((note) => note.toJudge && round.flows.some((flow) => flow.name === note.on?.flow)));
+  const begun = !!go || arrivedOn;
   const busy = acting.noting || !!acting.writing || !!acting.live?.shown;
   // Along the way a stop at a time: from a situation's last stop on to the next one's first, and back to the last of the
   // one before; before the first stop, the page's top, and past the last, its end. The page goes to the situation you're
@@ -232,6 +235,16 @@ export function Work(props: Props) {
         <div className="pointer-events-none sticky bottom-0 z-10 mt-6 flex min-h-8 justify-end py-4">
           <div className="pointer-events-auto w-[300px] max-w-full empty:hidden">
             {step?.kind === "go" && <Go step={step} className="w-full gap-3 bg-surface! shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]!" />}
+            {!step && !begun && up && (
+              <button
+                className="flex h-8 w-full items-center gap-3 rounded-lg bg-surface px-3 text-xs leading-4 text-fg shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => move(1)}
+              >
+                Go through it, a step at a time
+                <Key className="ml-auto">↓</Key>
+              </button>
+            )}
             {step?.kind === "agent" && !props.working && <Agent step={step} className="justify-end rounded-lg bg-surface px-3 shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]" />}
             {props.trouble.length > 0 && <p className="mt-2 rounded-lg bg-surface px-3 py-2 text-xs leading-[18px] text-amber-ink shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]">{props.trouble.join(" ")}</p>}
           </div>
