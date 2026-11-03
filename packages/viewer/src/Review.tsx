@@ -1075,7 +1075,9 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
         },
       };
     if (!asksTheAgent && readyToAccept(asIfSent(review, you, unsent), you)) return { kind: "go", words: "All good", what: "Accept the work", take: acceptNow, final: true };
-    if (said(draft)) return { kind: "go", words: "Send", what: toSend(draft), take: () => void sendNow() };
+    // Sent, it can't be taken back, so it's Ctrl+Enter, as accepting is: never a plain Enter in passing, where Enter says
+    // Looks good.
+    if (said(draft)) return { kind: "go", words: "Send", what: toSend(draft), take: () => void sendNow(), final: true };
     if (waitingForTheAgent(review).length)
       return working
         ? { kind: "agent", words: "The agent is working", what: `started at ${clock(working)}`, busy: true }

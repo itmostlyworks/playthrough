@@ -51,6 +51,8 @@ type SituationProps = {
   onPointerDown: () => void;
   // A verdict said on it: an answer judged, or Looks good at the end of the way.
   onSaid: () => void;
+  // A stop on its way pressed, where it may be half out of the window.
+  onPressed: () => void;
 };
 
 export function Situation(props: SituationProps) {
@@ -118,6 +120,8 @@ export function Situation(props: SituationProps) {
   // beside its thing, as is what you open on the recording.
   const [stop, setStop] = useState(() => (waiting ? stops.findIndex((one) => one.id === waiting.id) : -1));
   const [picked, setPicked] = useState(waiting?.id);
+  // Still on the stop it arrived on, it's as it was found: nothing plays until you go along.
+  const [arrived, setArrived] = useState(true);
   // Good for you, as nothing's changed since you said so, it arrives folded to its name, and opens when you choose.
   const [folded, setFolded] = useState(quiet);
   const go = (moment: number, id?: string) => (clock.set(moment), setAt(moment), setPlaying(undefined), setPicked(id));
@@ -131,6 +135,7 @@ export function Situation(props: SituationProps) {
   // of it, where it is. Before the first stop it rests, and past the last, it's how it ends.
   const toStop = (k: number) => {
     setStop(k);
+    setArrived(false);
     const there = stops[k];
     if (!there) return void (k < 0 ? playing && pause() : go(results.at(-1)!));
     if (there.id === undefined) playTo(there.at!, startOf(there.from ?? there.step));
@@ -311,19 +316,19 @@ export function Situation(props: SituationProps) {
   const open = writing ? writing.note.id : !side && pins.some((pin) => pin.id === chosen) ? chosen : undefined;
   const [asking, setAsking] = useState<string>();
   // At an answer waiting on you, Enter says it looks good and X that it's not quite, as its buttons say; at the way's end,
-  // Enter says the situation looks good. Ahead of the foot's step, so one press never does both.
+  // Enter says the situation looks good. It's heard first, on the way in, so the page's own Enter never has it too.
   const answering = notes.find((note) => note.id === stops[stop]?.id && note.toJudge && !threads.readOnly && asking !== note.id);
   const ending = stop === stops.length && looksGood && !looksGood.good ? looksGood : undefined;
   useEffect(() => {
     if (!active || !(answering || ending) || taken || noting || acting.writing) return;
     const down = (event: KeyboardEvent) => {
       if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || (event.target as Element).closest?.("button, input, textarea, [contenteditable], [role=slider]")) return;
-      if (event.key === "Enter" && ending) (event.preventDefault(), ending.onPress());
-      else if (event.key === "Enter" && answering) (event.preventDefault(), threads.onJudge(answering, { note: answering.id, verdict: "looks good" }), props.onSaid());
-      else if (event.key.toLowerCase() === "x" && answering) (event.preventDefault(), setAsking(answering.id));
+      if (event.key === "Enter" && ending) (event.preventDefault(), event.stopImmediatePropagation(), ending.onPress());
+      else if (event.key === "Enter" && answering) (event.preventDefault(), event.stopImmediatePropagation(), threads.onJudge(answering, { note: answering.id, verdict: "looks good" }), props.onSaid());
+      else if (event.key.toLowerCase() === "x" && answering) (event.preventDefault(), event.stopImmediatePropagation(), setAsking(answering.id));
     };
-    addEventListener("keydown", down);
-    return () => removeEventListener("keydown", down);
+    addEventListener("keydown", down, true);
+    return () => removeEventListener("keydown", down, true);
   });
 
   // What was said at a stop: a note of yours, its thread, or the one you're writing; or a change new to you, the agent's
@@ -393,11 +398,14 @@ export function Situation(props: SituationProps) {
   };
 
   const frames = useFrames(review, round, flow, readings, (step) => changed.filter((on) => on.at !== undefined && stepOf(on.at) === step));
-  const frame = side ? frames[step] : undefined;
   // At rest on a note or a change, the recording is close on what it's on, and on a step, it's the whole page as it
-  // plays; side by side, it's the step's part of the page; and taken over, the whole page the app comes in as.
+  // plays; and taken over, the whole page the app comes in as. Side by side, Now is close on it in its half, and Before
+  // shows the same part of the page; else each is on the step's part of the page.
   const there = stops[stop];
-  const closeOn = !side && !live?.shown && there?.id !== undefined && there.at !== undefined && Math.abs(at - there.at) < 0.02 ? pins.find((pin) => pin.id === there.id)?.on : undefined;
+  const onIt = there?.id !== undefined && there.at !== undefined && !playing && !scrubbing && Math.abs(at - there.at) < 0.02;
+  const closeOn = !live?.shown && onIt ? pins.find((pin) => pin.id === there!.id)?.on : undefined;
+  const [closed, setClosed] = useState<Frame>();
+  const frame = side ? frames[step] : undefined;
   const view = `${at} ${side} ${closeOn?.join(" ") ?? ""} ${redone ? "redone" : ""}`;
   // The app is the page the recording was made of, at its size, scrolled where the recording rests.
   const screen = readings?.find((one) => one.step === flow.steps[step]?.title)?.screen ?? { width: 1280, height: 800 };
@@ -444,10 +452,13 @@ export function Situation(props: SituationProps) {
           {flow.name}
           {asWho(flow) && <span className="font-normal text-soft"> {asWho(flow)}</span>}
         </h3>
+        {/* Where it stands, and what its recording shows when it's not the situation's own: never over the recording. */}
         <span className="flex flex-none flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs leading-4 whitespace-nowrap">
+          {redone && <span className="text-soft">Showing what you did, done again</span>}
+          {redone && standing && SAYS.includes(standing.is) && <span className="text-faint">·</span>}
           {standing && SAYS.includes(standing.is) && <span className={INK[standing.is]}>{says(standing)}</span>}
           {standing && SAYS.includes(standing.is) && same && <span className="text-faint">·</span>}
-          {same && <span className="text-faint">Same as before</span>}
+          {same && <span className="text-faint">Unchanged</span>}
           {standing?.is === "good" && <span className="text-green">Looks good</span>}
         </span>
       </div>
@@ -488,6 +499,8 @@ export function Situation(props: SituationProps) {
                 frame={frame}
                 marks={marks}
                 closeOn={redone ? undefined : closeOn}
+                closeShape={side ? HALF : undefined}
+                onClosed={setClosed}
                 onMarks={redone ? undefined : (placed) => setPlaced({ view, at: placed })}
                 things={noting && !taken && !writing ? props.glimpsed : undefined}
                 onPlace={noting && !taken && !writing ? (on) => acting.onPlace({ flow: flow.name, at: restsAt, ...on }) : undefined}
@@ -506,13 +519,14 @@ export function Situation(props: SituationProps) {
                   closeOn={redone.outlined && !side && !live?.shown && !redoing ? [redone.id] : undefined}
                   onMarks={(placed) => setPlaced({ view, at: placed })}
                   onPlaying={setRedoing}
+                  still={arrived}
                 />
               )}
               <span className={`${CHIP} transition-opacity duration-450 ease-calm ${side ? "" : "opacity-0"}`}>Now</span>
             </span>
             {beside && (
               <span className={`${FRAMED} right-0 ${HALVES} transition-opacity duration-450 ease-calm starting:opacity-0 ${side ? "" : "opacity-0"}`}>
-                {was(frame)}
+                {was(side && closeOn && !redone && closed ? closed : frame)}
                 <span className={CHIP}>Before</span>
               </span>
             )}
@@ -577,7 +591,7 @@ export function Situation(props: SituationProps) {
             since={since}
             onUnfold={unfold}
             resting={taken}
-            onStop={toStop}
+            onStop={(k) => (toStop(k), props.onPressed())}
             onPoint={setLit}
             onScrub={(on) => (on && ((setPlaying(undefined), setPicked(undefined))), setScrubbing(on))}
             onGo={stopped}
@@ -608,15 +622,18 @@ function Redone(props: {
   closeOn?: string[];
   onMarks: (placed: Placed) => void;
   onPlaying: (playing: boolean) => void;
+  // Arrived on, it rests where it ends, still, as arriving is calm; gone to, it plays.
+  still: boolean;
 }) {
   const { app } = props;
   const [fork] = useState<Flow>(() => ({ ...props.flow, recording: app.recording, length: app.length, steps: app.steps ?? [] }));
   const cut = useCut(props.review, props.round, fork);
-  const [clock] = useState(() => new Clock(app.from.at));
-  const [at, setAt] = useState(app.from.at);
+  const [from] = useState(() => (props.still ? props.until : app.from.at));
+  const [clock] = useState(() => new Clock(from));
+  const [at, setAt] = useState(from);
   const [playing, setPlaying] = useState<{ until: number }>();
   // It plays once it knows its waits, to cut them short as a step's are.
-  const played = useRef(false);
+  const played = useRef(props.still);
   useEffect(() => void (cut && !played.current && ((played.current = true), setPlaying({ until: props.until }))), [cut]);
   useEffect(() => props.onPlaying(!!playing), [playing]);
   useEffect(() => () => props.onPlaying(false), []);
@@ -636,7 +653,6 @@ function Redone(props: {
         closeOn={playing ? undefined : props.closeOn}
         onMarks={props.onMarks}
       />
-      <span className={CHIP}>What you did, done again</span>
     </span>
   );
 }

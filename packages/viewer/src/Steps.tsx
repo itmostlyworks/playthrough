@@ -166,7 +166,7 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
                 className={`block w-full text-left text-[14px] leading-5 transition-colors duration-300 ease-calm outline-none hover:text-fg focus-visible:text-fg ${here ? "text-fg" : "text-soft"}`}
                 onClick={() => onStop(k)}
               >
-                {since === undefined ? "Same as before" : `Nothing new since round ${since}`}
+                {since === undefined ? "Unchanged" : `Nothing new since round ${since}`}
               </button>
               <div className={folding(here)}>
                 <div inert={!here} className={fading(here)}>

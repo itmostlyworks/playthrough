@@ -102,6 +102,15 @@ export function Work(props: Props) {
   };
   const now = useRef({ busy, move, active });
   now.current = { busy, move, active };
+  // A stop pressed in a situation's list brings it up to the window's top, as going along does; a phone's page stays put.
+  const bringUp = (flow: string) => {
+    const room = props.room.current;
+    const there = room?.querySelector<HTMLElement>(`[data-situation="${CSS.escape(flow)}"]`);
+    if (!room || !there || onPhone()) return;
+    setActive(flow);
+    const top = topOf(room, there);
+    if (Math.abs(top - room.scrollTop) > 1) ((steering.current = true), room.scrollTo({ top, behavior: "smooth" }));
+  };
   // A verdict lands where it was said, and the way goes on from there, unless you've gone on already.
   const goOn = (flow: string) => {
     const there = () => props.room.current?.querySelector<HTMLElement>(`[data-situation="${CSS.escape(flow)}"]`)?.dataset.stop;
@@ -215,6 +224,7 @@ export function Work(props: Props) {
               resting={!!inApp && inApp !== flow.name}
               onPointerDown={() => !busy && setActive(flow.name)}
               onSaid={() => goOn(flow.name)}
+              onPressed={() => bringUp(flow.name)}
             />
           ))}
         </div>

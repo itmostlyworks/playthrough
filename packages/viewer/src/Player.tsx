@@ -109,8 +109,11 @@ type Props = {
   // The notes on what's at this moment: at rest, where each one's thing is on the page, in the player's own pixels.
   marks?: Mark[];
   onMarks?: (placed: Placed) => void;
-  // At rest, close on some of them: the part of the page around them, once they're found there.
+  // At rest, close on some of them: the part of the page around them, once they're found there, this wide for its height
+  // where it's to be shown in another shape than the player's now, as Compare narrows it; and that part, once it's found.
   closeOn?: string[];
+  closeShape?: number;
+  onClosed?: (frame: Frame | undefined) => void;
   // Noting, at rest: what a click would note is outlined, and a click notes it, or else the spot, by what was read there.
   things?: Glimpse[];
   onPlace?: (on: { element: Element } | { point: Point }) => void;
@@ -138,6 +141,8 @@ export function Player(props: Props) {
   }, []);
   const told = useRef(props.onMarks);
   told.current = props.onMarks;
+  const closed = useRef(props.onClosed);
+  closed.current = props.onClosed;
   const stopped = useRef(props.onStop);
   stopped.current = props.onStop;
   // Where the page is shown from, at the moment drawn last.
@@ -159,7 +164,7 @@ export function Player(props: Props) {
 
   const { at, playing, cut, clock, following, frame, marks, closeOn } = props;
   const marked = marks?.map((mark) => mark.id).join(" ");
-  const closeKey = closeOn?.join(" ") ?? "";
+  const closeKey = closeOn ? `${closeOn.join(" ")} ${props.closeShape ?? ""}` : "";
   const close = useRef<{ on: string; found?: boolean; frame?: Frame }>({ on: "" });
   if (close.current.on !== closeKey) close.current = { on: closeKey };
   // Another part of the page to show, the view glides there from where it was, whatever else changes meanwhile: the
@@ -244,8 +249,12 @@ export function Player(props: Props) {
       const things = (marks ?? []).filter((mark) => closeOn!.includes(mark.id)).flatMap((mark) => found(mark) ?? []);
       const thing = things.length ? union(things.map((one) => ({ x: one.left, y: one.top, width: one.width, height: one.height }))) : undefined;
       const section = thing && replayed.sectionOf({ left: thing.x, top: thing.y, width: thing.width, height: thing.height });
-      const view = thing && around(thing, shape, box.current.clientWidth / box.current.clientHeight, CLOSEST);
+      // Closer where the picture is small, as on a phone, so what it's on can be read: at most three times as close.
+      const wide = props.closeShape ? box.current.clientHeight * props.closeShape : box.current.clientWidth;
+      const closest = Math.min(3, Math.max(CLOSEST, (0.75 * shape.width) / wide));
+      const view = thing && around(thing, shape, wide / box.current.clientHeight, closest);
       close.current = { on: closeKey, found: true, frame: view && section ? within(view, section, shape) : (view ?? frame) };
+      closed.current?.(view && close.current.frame);
       if (close.current.frame !== glide.current.frame) return setGlided((done) => done + 1);
     }
     told.current?.(
