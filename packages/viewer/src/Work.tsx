@@ -11,6 +11,7 @@ import { clamp } from "./moments.ts";
 import { fill, type Shown, type Standing } from "./notes.ts";
 import { asWho } from "./people.ts";
 import { recorded } from "./replay.ts";
+import { HOLD, Loop, playedFor } from "./Loop.tsx";
 import { Picture, type Frame } from "./Picture.tsx";
 import { roundName, Rounds } from "./Rounds.tsx";
 import { Agent, Go, says, type Step } from "./Step.tsx";
@@ -93,17 +94,12 @@ function Situation({ review, round, before, flow, changed, readings, notes, stan
   const frames = useFrames(review, round, flow, readings, (step) => changed.filter((on) => on.at !== undefined && stepOf(on.at) === step));
   const then = before?.flows.find((one) => one.name === flow.name);
   const thenAt = (step: number) => then?.steps.findIndex((one) => one.title === flow.steps[step]?.title) ?? -1;
-  // Pointed at, the step plays: the page as the step before left it, then as this one did, on both sides at once.
-  const [starting, setStarting] = useState(false);
-  const playing = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const play = () => {
-    clearTimeout(playing.current);
-    if (chosen === 0) return;
-    setStarting(true);
-    playing.current = setTimeout(() => setStarting(false), 700);
-  };
-  useEffect(() => () => clearTimeout(playing.current), []);
-  const choose = (step: number) => (clearTimeout(playing.current), setStarting(false), setChosen(step));
+  // Pointed at, its steps or the pair, the step plays over and over, on both sides at once, from the start each time
+  // another is chosen. The loops are made the first time, and kept.
+  const [started, setStarted] = useState<number>();
+  const [woken, setWoken] = useState(false);
+  const play = () => (setWoken(true), setStarted(performance.now()));
+  const choose = (step: number) => (setChosen(step), started !== undefined && setStarted(performance.now()));
   const tabs = useRef<(HTMLButtonElement | null)[]>([]);
   const arrows = (event: KeyboardEvent<HTMLButtonElement>) => {
     const by = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
@@ -112,11 +108,13 @@ function Situation({ review, round, before, flow, changed, readings, notes, stan
     tabs.current[clamp(chosen + by, 0, flow.steps.length - 1)]?.focus();
   };
   const frame = frames[chosen];
-  const shown = starting ? chosen - 1 : chosen;
-  const thenShown = thenAt(chosen) >= 0 ? thenAt(chosen) - (starting ? 1 : 0) : -1;
+  const thenStep = thenAt(chosen);
+  const now = { from: flow.steps[chosen]!.at, until: stepEnd(flow, chosen) };
+  const was = then && thenStep >= 0 ? { from: then.steps[thenStep]!.at, until: stepEnd(then, thenStep) } : undefined;
+  const cycle = Math.max(playedFor(now.from, now.until), was ? playedFor(was.from, was.until) : 0) + HOLD;
   const here = notedAt(chosen);
   return (
-    <section className="grid gap-3">
+    <section className="grid gap-3" onPointerEnter={play} onPointerLeave={() => setStarted(undefined)}>
       <div className="flex items-baseline justify-between gap-4 px-0.5">
         <h3 className="min-w-0 text-[15px] leading-[21px] font-semibold">
           {flow.name}
@@ -148,7 +146,7 @@ function Situation({ review, round, before, flow, changed, readings, notes, stan
           </button>
         ))}
       </div>
-      <div className="grid grid-cols-2 gap-4 phone:grid-cols-1" onPointerEnter={play}>
+      <div className="grid grid-cols-2 gap-4 phone:grid-cols-1">
         <figure className="grid gap-2">
           <button
             data-picture={flow.name}
@@ -156,7 +154,8 @@ function Situation({ review, round, before, flow, changed, readings, notes, stan
             aria-label={`Play ${flow.name} from ${flow.steps[chosen]?.title}`}
             onClick={() => onFlow(flow.name, stepEnd(flow, chosen) - 0.12)}
           >
-            <Still src={picture(review.id, round.number, flow.recording, shown)} frame={frame} />
+            <Still src={picture(review.id, round.number, flow.recording, chosen)} frame={frame} />
+            {woken && <Loop review={review.id} round={round.number} recording={flow.recording} {...now} frame={frame} started={started} cycle={cycle} />}
             {here.length > 0 && (
               <span className="absolute top-2.5 left-2.5 flex gap-1">
                 {here.map((note) => (
@@ -170,9 +169,10 @@ function Situation({ review, round, before, flow, changed, readings, notes, stan
           <figcaption className="px-0.5 text-xs leading-4 text-soft">Now</figcaption>
         </figure>
         <figure className="grid gap-2">
-          {then && thenShown >= 0 ? (
+          {then && was ? (
             <span className="relative block aspect-[1.6] overflow-hidden rounded-lg bg-paper shadow-frame">
-              <Still src={picture(review.id, 0, then.recording, thenShown)} frame={frame} />
+              <Still src={picture(review.id, 0, then.recording, thenStep)} frame={frame} />
+              {woken && <Loop review={review.id} round={0} recording={then.recording} {...was} frame={frame} started={started} cycle={cycle} />}
             </span>
           ) : (
             <span className="grid aspect-[1.6] place-content-center rounded-lg border border-dashed border-line px-6 text-center text-[13px] leading-5 text-soft">
@@ -215,32 +215,36 @@ function Still({ src, frame }: { src: string; frame?: Frame }) {
 // A step's end: the next one's start, or the flow's end. Its page is read there.
 const stepEnd = (flow: Flow, step: number) => flow.steps[step + 1]?.at ?? flow.length;
 
-// Each step's page framed on what changed there, or where nothing did, on what the step acted on: the last thing clicked
-// or typed in that's still there, and is a thing rather than a stretch of the page clicked away on.
+// Each step's part of the page: what changed there, the first thing found, or where nothing did, what the step acted
+// on, the last thing clicked or typed in that's still there and is a thing rather than a stretch of the page clicked
+// away on; and where the hand went to get there, in the step's last few seconds, so its loop shows the hand at work.
 function useFrames(review: Review, round: Round, flow: Flow, readings: Reading[] | undefined, changedIn: (step: number) => Place[]): (Frame | undefined)[] {
-  const [acted, setActed] = useState<(Frame | undefined)[]>([]);
-  const readingAt = (step: number) => readings?.find((one) => one.step === flow.steps[step]?.title);
+  const [frames, setFrames] = useState<(Frame | undefined)[]>([]);
   useEffect(() => {
     let current = true;
     if (readings)
       recording(review.id, round.number, flow.recording).then((events) => {
-        const all = recorded(events).acted.toReversed();
-        const frames = flow.steps.map((step, i) => {
-          const reading = readingAt(i);
+        const { acted, pointer } = recorded(events);
+        const found = flow.steps.map((step, i) => {
+          const reading = readings.find((one) => one.step === step.title);
           if (!reading) return undefined;
           const { width, height } = reading.screen;
-          const box = all
-            .filter(([moment]) => moment >= step.at && moment <= stepEnd(flow, i))
+          const end = stepEnd(flow, i);
+          const worked = acted
+            .filter(([moment]) => moment >= step.at && moment <= end)
+            .toReversed()
             .map(([, node]) => reading.things.find((thing) => thing.node === node))
             .find((thing) => thing && thing.box.width * thing.box.height < (width * height) / 8)?.box;
-          return box && around(box, reading);
+          const what = changedIn(i).map((on) => boxIn(reading, on)).find(Boolean) ?? worked;
+          const hand = pointer.filter(([moment]) => moment >= Math.max(step.at, end - 3) && moment <= end).map(([, x, y]) => ({ x, y, width: 0, height: 0 }));
+          const all = [...(what ? [what] : []), ...hand];
+          return all.length ? around(union(all), reading) : undefined;
         });
-        if (current) setActed(frames);
+        if (current) setFrames(found);
       });
     return () => void (current = false);
   }, [review.id, round.number, flow.recording, !!readings]);
-  // On one thing that changed, the first found there, so the still is close enough to read.
-  return flow.steps.map((_, i) => changedIn(i).map((on) => framed(readingAt(i), [on])).find(Boolean) ?? acted[i]);
+  return frames;
 }
 
 // Each round in a line: who recorded it, what was said about it, and what came of that.
@@ -278,25 +282,28 @@ function Story({ review, round, general }: { review: Review; round: Round; gener
   );
 }
 
-// A still framed on what changed there, close enough to read: the things that changed, with room around them. The whole
-// page where nothing is found.
-function framed(reading: Reading | undefined, on: Place[]): Frame | undefined {
-  if (!reading || !on.length) return undefined;
+type Box = { x: number; y: number; width: number; height: number };
+
+// Where something that changed is on a page: the things there by its role and name, or its part of the page.
+function boxIn(reading: Reading, on: Place): Box | undefined {
   const { width: across, height: down } = reading.screen;
-  const named = (role: string, name: string) => on.some(({ element }) => element?.role === role && element.name === name);
+  const named = (role: string, name: string) => on.element?.role === role && on.element.name === name;
   const boxes = [
     ...reading.things.filter((thing) => named(thing.role, thing.name)).map((thing) => thing.box),
     ...(reading.items ?? []).filter((item) => named(item.role, item.words)).map((item) => item.box),
-    ...on.flatMap(({ box }) => (box ? [{ x: box.x * across, y: box.y * down, width: box.width * across, height: box.height * down }] : [])),
+    ...(on.box ? [{ x: on.box.x * across, y: on.box.y * down, width: on.box.width * across, height: on.box.height * down }] : []),
   ];
-  if (!boxes.length) return undefined;
-  const left = Math.min(...boxes.map((box) => box.x));
-  const top = Math.min(...boxes.map((box) => box.y));
-  return around({ x: left, y: top, width: Math.max(...boxes.map((box) => box.x + box.width)) - left, height: Math.max(...boxes.map((box) => box.y + box.height)) - top }, reading);
+  return boxes.length ? union(boxes) : undefined;
 }
 
+const union = (boxes: Box[]): Box => {
+  const left = Math.min(...boxes.map((box) => box.x));
+  const top = Math.min(...boxes.map((box) => box.y));
+  return { x: left, y: top, width: Math.max(...boxes.map((box) => box.x + box.width)) - left, height: Math.max(...boxes.map((box) => box.y + box.height)) - top };
+};
+
 // A part of the page with room around it, at most two and a half times as close as the whole page, in the page's own shape.
-function around(box: { x: number; y: number; width: number; height: number }, reading: Reading): Frame {
+function around(box: Box, reading: Reading): Frame {
   const { width: across, height: down } = reading.screen;
   const [left, top, right, bottom] = [box.x, box.y, box.x + box.width, box.y + box.height];
   const width = Math.min(across, Math.max(right - left + across * 0.08, ((bottom - top + down * 0.25) * across) / down, across / 2.6));
