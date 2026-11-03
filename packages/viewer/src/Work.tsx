@@ -82,20 +82,23 @@ export function Work(props: Props) {
   );
 }
 
-// A situation: whose it is and what they do, where it stands, and how it ends, now and before. The still is where the
-// work first shows, framed on what changed there; where nothing changed, the end, framed on what its last step acted on.
+// A situation: whose it is and what they do, where it stands, and how it ends, now and before. The still is its end,
+// framed on the first thing the work changed that's still there; where none is, on what the flow worked on.
 function Situation({ review, round, before, flow, changed, readings, notes, standing, onFlow }: { review: Review; round: Round; before?: Round; flow: Flow; changed: Place[]; readings?: Reading[]; notes: Shown[]; standing?: Standing; onFlow: (flow: string) => void }) {
-  const stepOf = (at: number) => Math.max(0, flow.steps.findIndex((_, i) => (flow.steps[i + 1]?.at ?? flow.length) >= at - 0.05));
-  const readingAt = (step: number) => readings?.find((one) => one.step === flow.steps[step]?.title);
-  const changedAt = [...new Set(changed.filter((on) => on.at !== undefined).map((on) => stepOf(on.at!)))].toSorted((a, b) => a - b);
-  const shows = changedAt.map((step) => ({ step, frame: framed(readingAt(step), changed.filter((on) => on.at !== undefined && stepOf(on.at) === step)) }));
-  const first = shows.find((one) => one.frame) ?? shows[0];
-  const result = first?.step ?? flow.steps.length - 1;
-  const acted = useActed(review, round, flow, first ? undefined : readingAt(result));
-  const frame = first?.frame ?? acted;
+  const result = flow.steps.length - 1;
+  const end = readings?.find((one) => one.step === flow.steps[result]?.title);
+  const first = changed
+    .filter((on) => on.at !== undefined)
+    .toSorted((a, b) => a.at! - b.at!)
+    .map((on) => framed(end, [on]))
+    .find(Boolean);
+  const acted = useActed(review, round, flow, first ? undefined : end);
+  const frame = first ?? acted;
   const title = flow.steps[result]?.title;
   const then = before?.flows.find((one) => one.name === flow.name);
-  const thenStep = then?.steps.findIndex((one) => one.title === title) ?? -1;
+  // Before, at the same step, or as it ended where it never got that far.
+  const sameStep = then?.steps.findIndex((one) => one.title === title) ?? -1;
+  const thenStep = sameStep >= 0 || !then ? sameStep : then.steps.length - 1;
   const same = !changed.length;
   return (
     <section className="grid gap-3.5">
