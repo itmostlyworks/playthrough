@@ -539,6 +539,19 @@ function Situation(props: SituationProps) {
   // Only a note being written has its card on the recording, where it was dropped; what's said is under its step.
   const open = writing ? writing.note.id : !side && pins.some((pin) => pin.id === chosen) ? chosen : undefined;
   const [asking, setAsking] = useState<string>();
+  // At an answer waiting on you, Enter says it looks good and X that it's not quite, as its buttons say; ahead of the
+  // foot's step, so one press never does both.
+  const answering = notes.find((note) => note.id === stops[stop]?.id && note.toJudge && !threads.readOnly && asking !== note.id);
+  useEffect(() => {
+    if (!active || !answering || taken || noting || acting.writing) return;
+    const down = (event: KeyboardEvent) => {
+      if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || (event.target as Element).closest?.("button, input, textarea, [contenteditable], [role=slider]")) return;
+      if (event.key === "Enter") (event.preventDefault(), threads.onJudge(answering, { note: answering.id, verdict: "looks good" }), props.onSaid());
+      else if (event.key.toLowerCase() === "x") (event.preventDefault(), setAsking(answering.id));
+    };
+    addEventListener("keydown", down);
+    return () => removeEventListener("keydown", down);
+  });
 
   // What was said at a stop: a note of yours, its thread, or the one you're writing; or a change new to you, the agent's
   // words on why, or that it was made for a note of yours. Its sign on the rail is the note's number, or a diamond.
