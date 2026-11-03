@@ -12,13 +12,13 @@ import { Bar } from "./Bar.tsx";
 import { EndMark } from "./Chosen.tsx";
 import { clamp } from "./moments.ts";
 import { fill, ink, unchangedSince, type Shown, type Standing } from "./notes.ts";
-import { HOLD, Key, Said } from "./Card.tsx";
+import { Compare, HOLD, Key, Said } from "./Card.tsx";
 import { asWho, personAt } from "./people.ts";
 import { Portal, TAG } from "./Portal.tsx";
 import { recorded, type Scrolled } from "./replay.ts";
 import { Clock, Player, useCut, type Mark, type Placed } from "./Player.tsx";
 import { answersTo, type Diamond } from "./changes.ts";
-import { Conversation, quiet as quietNumber } from "./Notes.tsx";
+import { Conversation, quiet as quietNumber, quietly } from "./Notes.tsx";
 import { Pinned, type Pin } from "./Pinned.tsx";
 import { Steps, type OnLine, type Saying, type Stop } from "./Steps.tsx";
 import { onPhone } from "./phone.ts";
@@ -456,6 +456,8 @@ function Situation(props: SituationProps) {
   const live = acting.live?.flow === flow.name ? acting.live : undefined;
   const taken = !!live?.shown;
   if (taken && side) setSide(false);
+  // Compare, on the bar and beside what changed or was answered: how it was before the work, at the same moment.
+  const comparing = then ? { on: side || peek, off: taken, onPress: press, onRelease: release } : undefined;
   const noting = active && acting.noting;
   // C is the situation's you're on; in the app, it's the app's, and noting, it rests until you've chosen what it's on.
   // Gone to another, it stops.
@@ -575,6 +577,7 @@ function Situation(props: SituationProps) {
               onJudge={(verdict) => (threads.onJudge(note, verdict), verdict && props.onSaid())}
               onEdit={(words) => threads.onEdit(note.id, words)}
               onShow={() => {}}
+              compare={note.on?.app?.steps ? undefined : comparing}
             />
           </div>
         ),
@@ -588,10 +591,17 @@ function Situation(props: SituationProps) {
         </>
       ),
       whole: (
-        <Said who={madeFor ? "Changed for your note" : (told?.by ?? "Changed here")}>
-          {forNote}
-          {words}
-        </Said>
+        <div className="grid gap-1.5">
+          <Said who={madeFor ? "Changed for your note" : (told?.by ?? "Changed here")}>
+            {forNote}
+            {words}
+          </Said>
+          {comparing && (
+            <span className="flex justify-end pr-1.5">
+              <Compare {...comparing} bar={quietly} />
+            </span>
+          )}
+        </div>
       ),
     };
   };
@@ -735,7 +745,7 @@ function Situation(props: SituationProps) {
                 <Bar
                   live={taken ? (live.inApp ? "shown" : "waiting") : undefined}
                   latest={acting.latest}
-                  compare={then && { on: side || peek, off: taken, onPress: press, onRelease: release }}
+                  compare={comparing}
                   noting={noting}
                   onNote={taken && !live.inApp ? undefined : acting.onNote}
                   onTakeOver={acting.onTakeOver}

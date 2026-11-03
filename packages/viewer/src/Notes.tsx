@@ -18,7 +18,7 @@ const real = "bg-(--c) text-white";
 // How long past its moment a note is on screen, as its pin is.
 const SHOWN_FOR = 1.5;
 // Compare in a note's card, as quiet as the words around it.
-const quietly = "-my-0.5 -mr-1.5 inline-flex flex-none items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs text-soft transition-colors duration-150 ease-calm select-none enabled:hover:text-fg disabled:cursor-default disabled:text-faint aria-pressed:bg-hover aria-pressed:text-fg";
+export const quietly = "-my-0.5 -mr-1.5 inline-flex flex-none items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs text-soft transition-colors duration-150 ease-calm select-none enabled:hover:text-fg disabled:cursor-default disabled:text-faint aria-pressed:bg-hover aria-pressed:text-fg";
 
 // A row's tint hangs to the right of its number or diamond, which sits at its corner: while you point at the row, and
 // opened, as a change's card.
