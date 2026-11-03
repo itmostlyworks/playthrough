@@ -13,7 +13,7 @@ import type { Frame } from "./Picture.tsx";
 import { pickAt } from "./things.ts";
 
 // Nothing happening for longer than this is waiting, and is played as this long.
-const WAIT = 0.4;
+const WAIT = 0.7;
 
 // The moment a situation is at as it plays: what plays it sets it each frame, and what follows it is told.
 export class Clock {
