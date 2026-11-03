@@ -6,7 +6,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import type { Glimpse, Reading } from "@playthrough/page";
-import { type Flow, type Note, type Place, type Review, type Round, type Verdict } from "@playthrough/review";
+import { lastLooked, type Flow, type Note, type Place, type Review, type Round, type Verdict } from "@playthrough/review";
 import { picture, recording } from "./api.ts";
 import { Bar } from "./Bar.tsx";
 import { EndMark } from "./Chosen.tsx";
@@ -291,17 +291,38 @@ function Situation(props: SituationProps) {
   ];
   // A step's result, where it rests once it has played.
   const results = flow.steps.map((_, i) => stepEnd(flow, i) - 0.05);
+  // Seen on a round before, as you said something about it then, its steps with nothing new to you since are kept
+  // together: nothing changed in them, no answer waits in them, nothing of yours is unsent there.
+  const since = lastLooked(review, threads.you, flow.name, round.number);
+  const [unfolded, setUnfolded] = useState<number[]>([]);
+  const together = (step: number) =>
+    since !== undefined &&
+    !unfolded.includes(step) &&
+    !diamonds.some((diamond) => diamond.row && stepOf(Math.min(diamond.at, end)) === step) &&
+    !notes.some((note) => momentOf(note) !== undefined && stepOf(Math.min(momentOf(note)!, end)) === step && (note.toJudge || note.unsent)) &&
+    !(writingAt !== undefined && stepOf(Math.min(writingAt, end)) === step);
+  const run = (step: number) => {
+    let [first, last] = [step, step];
+    while (first > 0 && together(first - 1)) first--;
+    while (last + 1 < flow.steps.length && together(last + 1)) last++;
+    return [first, last] as const;
+  };
   // The way through it, a stop at a time: what was said about all of it, then each step, and after it what was said in
-  // it, in the order it comes, a change before what you said about it.
+  // it, in the order it comes, a change before what you said about it. Two or more steps in a row with nothing new are
+  // one stop, played through.
   const stops: Stop[] = [
     ...notes.filter((note) => momentOf(note) === undefined).map((note) => ({ step: -1, id: note.id })),
-    ...flow.steps.flatMap((_, i) => [
-      { step: i, at: results[i]! },
-      ...onLine
-        .filter((mark) => stepOf(mark.at) === i)
-        .sort((a, b) => a.at - b.at || Number(!!a.fill) - Number(!!b.fill))
-        .map((mark) => ({ step: i, at: mark.at, id: mark.id })),
-    ]),
+    ...flow.steps.flatMap((_, i): Stop[] => {
+      const [first, last] = together(i) ? run(i) : [i, i];
+      if (last > first) return i === first ? [{ step: last, at: results[last]!, from: first }] : [];
+      return [
+        { step: i, at: results[i]! },
+        ...onLine
+          .filter((mark) => stepOf(mark.at) === i)
+          .sort((a, b) => a.at - b.at || Number(!!a.fill) - Number(!!b.fill))
+          .map((mark) => ({ step: i, at: mark.at, id: mark.id })),
+      ];
+    }),
   ];
   // And last, where it can be said, whether it looks good to you: the way ends in it.
   const looksGood = standing && onLooksGood && JUDGED.includes(standing.is) ? { good: standing.is === "good", onPress: () => (onLooksGood(flow.name), standing.is !== "good" && props.onSaid()) } : undefined;
@@ -332,11 +353,20 @@ function Situation(props: SituationProps) {
     setStop(k);
     const there = stops[k];
     if (!there) return void (k < 0 ? playing && pause() : go(results.at(-1)!));
-    if (there.id === undefined) playTo(there.at!, startOf(there.step));
+    if (there.id === undefined) playTo(there.at!, startOf(there.from ?? there.step));
     else if (there.at === undefined) setPicked(there.id);
     else go(there.at, there.id);
   };
   useLayoutEffect(() => void (props.go && toStop(props.go.stop)), [props.go]);
+  // Opened, steps kept together are each a stop again, walked from the first.
+  const [unfolding, setUnfolding] = useState<number>();
+  const unfold = (k: number) => {
+    const there = stops[k];
+    if (there?.from === undefined) return;
+    setUnfolded((was) => [...was, ...flow.steps.map((_, i) => i).filter((i) => i >= there.from! && i <= there.step)]);
+    setUnfolding(k);
+  };
+  useLayoutEffect(() => void (unfolding !== undefined && (toStop(unfolding), setUnfolding(undefined))), [unfolding]);
   // Opened on the recording, or just saved, what was said there is the stop you're on, there and then; closed there, it
   // isn't open.
   const opened = (id?: string) => (id && stops.some((one) => one.id === id) && setStop(stops.findIndex((one) => one.id === id)), setPicked(id));
@@ -731,6 +761,8 @@ function Situation(props: SituationProps) {
             marks={onLine}
             said={said}
             looksGood={looksGood}
+            since={since}
+            onUnfold={unfold}
             resting={taken}
             onStop={toStop}
             onPoint={setLit}

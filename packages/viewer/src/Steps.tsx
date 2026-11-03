@@ -13,9 +13,10 @@ import { EndMark } from "./Chosen.tsx";
 import { clamp } from "./moments.ts";
 import type { Clock, Cut } from "./Player.tsx";
 
-// A stop on the way: a step, at its result; something said in a step, a note or a change, at its moment; or something
-// said about all of it, in no step.
-export type Stop = { step: number; at?: number; id?: string };
+// A stop on the way: a step, at its result; steps in a row with nothing new since you last said something, from the
+// first, at the last one's result; something said in a step, a note or a change, at its moment; or something said
+// about all of it, in no step.
+export type Stop = { step: number; at?: number; id?: string; from?: number };
 
 // What's on the line: a note's dot in its fill, or a change's diamond, at its moment, and what it says pointed at.
 export type OnLine = { id: string; at: number; fill?: string; words: string };
@@ -44,9 +45,12 @@ type Props = {
   // Taken over: the app is yours, and what plays the recording rests; the stop you're on stays lit, where you took it
   // over, and what you say there answers.
   resting?: boolean;
+  // The round you last said something about it on, since when steps kept together have nothing new; and opening them.
+  since?: number;
+  onUnfold: (stop: number) => void;
 };
 
-export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, onPoint, onScrub, onGo, looksGood, resting }: Props) {
+export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, onPoint, onScrub, onGo, looksGood, resting, since, onUnfold }: Props) {
   const end = (step: number) => flow.steps[step + 1]?.at ?? flow.length;
   const stepOf = (moment: number) => Math.max(0, flow.steps.findIndex((_, step) => end(step) >= moment - 0.05));
   // How far into its step a moment is, in the time it plays in, waiting cut short, so the line fills at one speed, full
@@ -140,6 +144,46 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
         const here = k === on;
         const gone = k < on;
         const between = (k < stops.length - 1 || looksGood) && <li key={`${k} between`} aria-hidden className="max-h-7 min-h-0 flex-[1_1_0]" />;
+        if (stop.from !== undefined) {
+          const kept = flow.steps.slice(stop.from, stop.step + 1);
+          return [
+            <li
+              key={`together ${stop.from}`}
+              data-stop={k}
+              aria-current={here ? "step" : undefined}
+              inert={resting}
+              className={`relative flex-none py-2 pl-8 transition-opacity duration-300 ease-calm ${resting && !here ? "opacity-35" : ""}`}
+            >
+              <span
+                data-sign=""
+                className={`absolute top-2 left-2.5 grid h-5 min-w-5 -translate-x-1/2 place-items-center rounded-full px-1.5 text-[10.5px] leading-none font-medium whitespace-nowrap tabular-nums transition-colors duration-300 ease-calm ${here ? "bg-fg text-ground" : gone ? "bg-line text-soft" : "bg-ground text-faint shadow-[inset_0_0_0_1px_var(--line)]"}`}
+              >
+                {stop.from + 1}–{stop.step + 1}
+              </span>
+              <button
+                className={`block w-full text-left text-[14px] leading-5 transition-colors duration-300 ease-calm outline-none hover:text-fg focus-visible:text-fg ${here ? "text-fg" : "text-soft"}`}
+                onClick={() => onStop(k)}
+              >
+                Nothing new since round {since}
+              </button>
+              <div className={folding(here)}>
+                <div inert={!here} className={fading(here)}>
+                  <ol className="grid gap-0.5 pt-1.5 text-[13px] leading-[18px] text-soft">
+                    {kept.map((one, i) => (
+                      <li key={i} className="truncate">
+                        {one.title}
+                      </li>
+                    ))}
+                  </ol>
+                  <button className="mt-1.5 mb-0.5 text-[12.5px] leading-[18px] text-soft underline-offset-[3px] hover:text-fg hover:underline" onClick={() => onUnfold(k)}>
+                    Go through each step
+                  </button>
+                </div>
+              </div>
+            </li>,
+            between,
+          ];
+        }
         if (stop.id !== undefined) {
           const { sign, line: words, whole } = said(stop.id);
           return [
