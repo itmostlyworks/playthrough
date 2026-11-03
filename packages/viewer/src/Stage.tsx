@@ -359,6 +359,10 @@ export function Stage(props: Props) {
         const u = (at - click) / 0.5;
         Object.assign(part.ring.style, { opacity: String(1 - u), transform: `translate(${drawn[0]}px,${drawn[1]}px) scale(${0.4 + u * 1.1})` });
       } else part.ring.style.opacity = "0";
+      // Where words go as they're typed: the text cursor, where the recording kept it.
+      const typing = replay && !card && !yours ? replay.caretAt(at) : undefined;
+      part.caret.style.opacity = typing ? "1" : "0";
+      if (typing) Object.assign(part.caret.style, { height: `${typing[2] * view.k}px`, transform: `translate(${((typing[0] - view.x) * view.k).toFixed(2)}px,${((typing[1] - view.y) * view.k).toFixed(2)}px)` });
 
       // The browser's own dialog, while it's up, where the browser puts it: at the top of the window, over the page. Its
       // answer is pressed a moment before it goes.
@@ -1060,6 +1064,7 @@ export function Stage(props: Props) {
               {number === round.number && <Spots placing={props.placing} aim={aiming ? aim : undefined} />}
             </div>
           </div>
+          <span data-caret className={`pointer-events-none absolute top-0 left-0 z-7 w-[1.5px] -ml-px rounded-full bg-[#1e2330] opacity-0 ${hideable}`} />
           <div
             data-ring
             className={`pointer-events-none absolute top-0 left-0 z-7 -mt-[17px] -ml-[17px] size-[34px] rounded-full border-[1.5px] border-[rgba(40,44,54,0.5)] bg-[rgba(40,44,54,0.06)] opacity-0 ${hideable}`}
@@ -1329,12 +1334,12 @@ const LAPTOP: Shape = { from: 0, width: 1280, height: 800, touch: false };
 // The browser's own dialog is this wide, as Chrome draws one.
 const DIALOG = 448;
 
-type Parts = { app: HTMLElement; stack: HTMLElement; marks: HTMLElement; ring: HTMLElement; dialog: HTMLElement; cursor: HTMLElement; card: HTMLElement; name: HTMLElement; as: HTMLElement; line: HTMLElement };
+type Parts = { app: HTMLElement; stack: HTMLElement; marks: HTMLElement; ring: HTMLElement; caret: HTMLElement; dialog: HTMLElement; cursor: HTMLElement; card: HTMLElement; name: HTMLElement; as: HTMLElement; line: HTMLElement };
 const known = new WeakMap<HTMLElement, Parts>();
 function parts(frame: HTMLElement): Parts {
   if (!known.has(frame)) {
     const part = (name: string) => frame.querySelector<HTMLElement>(`[data-${name}]`)!;
-    known.set(frame, { app: part("app"), stack: part("stack"), marks: part("marks"), ring: part("ring"), dialog: part("dialog"), cursor: part("cursor"), card: part("card"), name: part("name"), as: part("as"), line: part("line") });
+    known.set(frame, { app: part("app"), stack: part("stack"), marks: part("marks"), ring: part("ring"), caret: part("caret"), dialog: part("dialog"), cursor: part("cursor"), card: part("card"), name: part("name"), as: part("as"), line: part("line") });
   }
   return known.get(frame)!;
 }

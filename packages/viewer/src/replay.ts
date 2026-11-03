@@ -33,6 +33,9 @@ export type Recorded = {
   scrolls: [number, number, number, number][];
   // The browser's own dialogs, which aren't in the page.
   dialogs: Dialog[];
+  // Where the text cursor was, as [seconds, x, y, height], from when it moved; a height of 0 when nothing was typed into.
+  // Kept by Playthrough while recording, as rrweb keeps none: in an earlier recording there's none.
+  carets: [number, number, number, number][];
   // Whether the browser it was recorded in was dark, and asked for no motion; light and moving, in a recording that
   // doesn't say, as Playwright's browser is.
   browser: Answered;
@@ -45,12 +48,16 @@ export type Dialog = { from: number; until: number; type: string; host: string; 
 export function recorded(events: Events): Recorded {
   const start = events[0]?.timestamp ?? 0;
   const seconds = (timestamp: number) => (timestamp - start) / 1000;
-  const shown: Recorded = { shapes: [], loads: [], pointer: [], away: [], clicks: [], changes: [], acted: [], scrolls: [], dialogs: [], browser: { dark: false, still: false } };
+  const shown: Recorded = { shapes: [], loads: [], pointer: [], away: [], clicks: [], changes: [], acted: [], scrolls: [], dialogs: [], carets: [], browser: { dark: false, still: false } };
   let said = false;
   let host = "";
   for (const event of events) {
     if (event.type === EventType.Custom) {
       const { tag, payload } = event.data as { tag: string; payload: { type: string; message: string; value?: string; yes?: boolean } };
+      if (tag === "caret") {
+        const caret = payload as unknown as { x?: number; y?: number; height?: number };
+        shown.carets.push([seconds(event.timestamp), caret.x ?? 0, caret.y ?? 0, caret.height ?? 0]);
+      }
       if (tag === "dialog") shown.dialogs.push({ from: seconds(event.timestamp), until: Infinity, host, ...payload });
       if (tag === "browser" && !said) [shown.browser, said] = [{ dark: !!(payload as unknown as Answered).dark, still: !!(payload as unknown as Answered).still }, true];
       const open = shown.dialogs.at(-1);
@@ -157,6 +164,7 @@ export class Replay {
   readonly away: Recorded["away"];
   readonly clicks: number[];
   readonly dialogs: Dialog[];
+  readonly carets: Recorded["carets"];
   #replayer: Replayer;
   // The screen the page is shown on now, which rrweb changes with it as someone else's page loads.
   #shape: Shape;
@@ -184,7 +192,7 @@ export class Replay {
       Object.defineProperty(event.data, "removes", { get: () => removes, set() {}, enumerable: true, configurable: true });
     }
     const shows = recorded(events);
-    ({ shapes: this.shapes, loads: this.loads, pointer: this.pointer, away: this.away, clicks: this.clicks, dialogs: this.dialogs, scrolls: this.#scrolls } = shows);
+    ({ shapes: this.shapes, loads: this.loads, pointer: this.pointer, away: this.away, clicks: this.clicks, dialogs: this.dialogs, carets: this.carets, scrolls: this.#scrolls } = shows);
     this.#drawn = Math.max(0, (events.find((event) => event.type === EventType.FullSnapshot)?.timestamp ?? start) - start + 1);
     this.host.className = "absolute top-0 left-0 origin-top-left [&_.replayer-mouse]:hidden [&_iframe]:pointer-events-none [&_iframe]:block [&_iframe]:border-0";
     this.#shape = this.shapes[0]!;
@@ -284,6 +292,12 @@ export class Replay {
     if (!b || at <= a[0] || b[0] - a[0] > 0.25) return [a[1], a[2]];
     const u = (at - a[0]) / (b[0] - a[0]);
     return [a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u];
+  }
+
+  // Where the text cursor is at a moment, as x, y and height in the page's own pixels; nothing where nothing is typed into.
+  caretAt(at: number): [number, number, number] | undefined {
+    const caret = this.carets.findLast(([when]) => when <= at);
+    return caret && caret[3] ? [caret[1], caret[2], caret[3]] : undefined;
   }
 
   // How far the page is scrolled now, in its own pixels, and each part of it scrolled on its own, as Kan's card is, by

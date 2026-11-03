@@ -70,6 +70,58 @@ if (window.top === window) {
     maskAllInputs: false,
     inlineStylesheet: true,
   });
+  // Where the text cursor is, which rrweb doesn't keep: where words go is half of what typing shows. Said whenever it
+  // moves, as where on the screen it is and how tall, and that it's gone once nothing is typed into.
+  let saidCaret = "";
+  const caretOf = () => {
+    const field = document.activeElement;
+    if (!field || !(field.isContentEditable || field.matches("input:not([type]), input[type=text], input[type=search], input[type=email], input[type=url], textarea"))) return undefined;
+    if (field.isContentEditable) {
+      const selection = getSelection();
+      if (!selection || !selection.rangeCount || !selection.isCollapsed) return undefined;
+      const range = selection.getRangeAt(0);
+      // In words, where the range is. An editor can put it in an empty text node of its own, as Kan's did, where it has no
+      // place on the screen: there, and before a line break, it's just after the last letter before it; with none, at
+      // the start of the field.
+      const box = range.startContainer.nodeType === 3 && range.startContainer.length ? range.getClientRects()[0] : undefined;
+      if (box) return { x: box.left, y: box.top, height: box.height || 16 };
+      const walker = document.createTreeWalker(field, NodeFilter.SHOW_TEXT);
+      let last;
+      for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+        if (range.comparePoint(text, 0) > 0) break;
+        const end = text === range.startContainer ? range.startOffset : text.length;
+        if (end > 0) last = [text, end];
+      }
+      if (last) {
+        const letter = document.createRange();
+        letter.setStart(last[0], last[1] - 1);
+        letter.setEnd(last[0], last[1]);
+        const after = letter.getBoundingClientRect();
+        return { x: after.right, y: after.top, height: after.height || 16 };
+      }
+      const around = field.getBoundingClientRect();
+      return { x: around.left, y: around.top, height: Math.min(around.height, 24) || 16 };
+    }
+    // In a field, measured: the field's own words up to where the cursor is, in its font, from where its words start.
+    if (field.selectionStart !== field.selectionEnd || field.tagName === "TEXTAREA") return undefined;
+    const look = getComputedStyle(field);
+    const measure = (caretOf.canvas ??= document.createElement("canvas")).getContext("2d");
+    measure.font = look.font;
+    const box = field.getBoundingClientRect();
+    const height = parseFloat(look.lineHeight) || parseFloat(look.fontSize) * 1.25;
+    const x = box.left + parseFloat(look.borderLeftWidth) + parseFloat(look.paddingLeft) + measure.measureText(field.value.slice(0, field.selectionStart ?? 0)).width - field.scrollLeft;
+    return { x, y: box.top + (box.height - height) / 2, height };
+  };
+  const sayCaret = () => {
+    const caret = caretOf();
+    const now = caret ? [caret.x, caret.y, caret.height].map(Math.round).join(",") : "";
+    if (now === saidCaret) return;
+    saidCaret = now;
+    try {
+      window.rrwebRecord.record.addCustomEvent("caret", caret ? { x: Math.round(caret.x), y: Math.round(caret.y), height: Math.round(caret.height) } : {});
+    } catch {}
+  };
+  for (const type of ["selectionchange", "input", "keyup", "focusin", "focusout", "scroll"]) document.addEventListener(type, () => requestAnimationFrame(sayCaret), true);
 }`;
 
 // Playwright acts instantly, and a recording made at that speed can't be watched.
@@ -671,6 +723,14 @@ function pace(page: Page) {
       return result;
     };
   }
+  // Words typed into an element go a key at a time on a recording too, unless the flow said how fast.
+  for (const action of ["pressSequentially", "type"] as const) {
+    const original = prototype[action];
+    prototype[action] = function (this: Locator, text: string, options?: { delay?: number; timeout?: number }) {
+      const paced = pointer && options?.delay === undefined ? { ...options, delay: Math.min(KEY, TYPED / Math.max(1, text.length)) } : options;
+      return original.call(this, text, paced);
+    };
+  }
   // The wheel scrolls a little each frame, as a person's does: left to Playwright, a page that's read jumped a screen at
   // each step of its recording.
   const mouse = Object.getPrototypeOf(page.mouse);
@@ -693,10 +753,21 @@ function pace(page: Page) {
     const on = page.locator(":focus").first();
     return (await on.count()) ? pathTo(on) : undefined;
   };
+  // On a recording, keys go at a person's pace, as words filled in do: typed a key at a time, and a key pressed alone,
+  // Home or Enter, with a moment either side, so where it moved the text cursor or what it did is seen.
   for (const [action, does] of [["type", "type"], ["insertText", "type"], ["press", "press"]] as const) {
     const original = keyboard[action];
     keyboard[action] = async function (this: unknown, ...args: unknown[]) {
-      return acted(does, focused, () => original.apply(this, args), args[0]);
+      const [given, options] = args as [string, { delay?: number } | undefined];
+      const act =
+        !pointer || options?.delay !== undefined
+          ? () => original.apply(this, args)
+          : action === "press"
+            ? async () => (await pointer!.page.waitForTimeout(KEY * 3), await original.apply(this, args), await pointer!.page.waitForTimeout(KEY * 3))
+            : action === "type"
+              ? () => original.call(this, given, { ...options, delay: Math.min(KEY, TYPED / Math.max(1, given.length)) })
+              : () => original.apply(this, args);
+      return acted(does, focused, act, args[0]);
     };
   }
 }
