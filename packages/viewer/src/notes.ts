@@ -100,11 +100,12 @@ export function seen(review: Review): Review {
   return { ...review, rounds: review.rounds.filter((round) => round.finished) };
 }
 
-// Each round's flows with those the work changed first, then those it left as they were against Before: every flow at
-// once opens on what was asked, and the flows play, and are gone through, in the same order.
+// Each round's flows with those it changed first, since the round before, or since Before on the first, then those it
+// left as they were: the page opens on what's new, and the flows play, and are gone through, in the same order. It's
+// the round's own order, so nothing moves when you send.
 export function changedFirst(review: Review): Review {
   const rounds = review.rounds.map((round) => {
-    const same = unchangedSince(review, 0, round.number);
+    const same = unchangedSince(review, Math.max(0, round.number - 1), round.number);
     return same.length ? { ...round, flows: [...round.flows.filter((flow) => !same.includes(flow.name)), ...round.flows.filter((flow) => same.includes(flow.name))] } : round;
   });
   return { ...review, rounds };

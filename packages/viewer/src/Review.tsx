@@ -1599,6 +1599,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
             standing={(name) => standing?.get(name)}
             onLooksGood={readOnly ? undefined : lookingGood}
             threads={{ you, readOnly, unfinished, onUnfinished: keepUnfinished, onJudge: judge, onEdit: editNote }}
+            diamonds={diamonds}
             accepted={review.accepted || acceptedHere ? acceptedAfter : undefined}
             step={gridStep}
             trouble={trouble}

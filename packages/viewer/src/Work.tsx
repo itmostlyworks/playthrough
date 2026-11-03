@@ -14,6 +14,7 @@ import { asWho } from "./people.ts";
 import { recorded } from "./replay.ts";
 import type { CloseUp } from "./flight.ts";
 import { HOLD, Loop, ON, type Mark } from "./Loop.tsx";
+import type { Diamond } from "./changes.ts";
 import { Conversation } from "./Notes.tsx";
 import { Picture, type Frame } from "./Picture.tsx";
 import { roundName, Rounds } from "./Rounds.tsx";
@@ -31,6 +32,8 @@ type Props = {
   // Saying a situation looks good, or taking it back; none where nothing can be said.
   onLooksGood?: (flow: string) => void;
   threads: Threads;
+  // What's new to you on the round, as the player's timeline marks it.
+  diamonds: Diamond[];
   accepted?: string;
   step?: Step;
   trouble: string[];
@@ -67,7 +70,7 @@ export function Work(props: Props) {
         <div className="mt-10 grid gap-12 phone:mt-7 phone:gap-9">
           {round.flows.map((flow) => (
             <Situation
-              key={flow.name}
+              key={`${round.number} ${flow.name}`}
               review={review}
               round={round}
               before={before}
@@ -78,6 +81,8 @@ export function Work(props: Props) {
               standing={props.standing(flow.name)}
               onLooksGood={props.onLooksGood}
               threads={props.threads}
+              fresh={props.diamonds.filter((diamond) => diamond.flow === flow.name).map((diamond) => diamond.at)}
+              quiet={props.standing(flow.name)?.is === "good"}
               same={same.includes(flow.name)}
               onFlow={props.onFlow}
               left={props.left?.flow === flow.name ? props.left : undefined}
@@ -100,14 +105,19 @@ export function Work(props: Props) {
 // A situation: whose it is and what they do, where it stands, and its steps, each a part the agent thought worth looking
 // at. One step shows at a time, as it is now beside how it was before the work, the two moving together: to start with,
 // the last step where something changed.
-function Situation(props: { review: Review; round: Round; before?: Round; flow: Flow; changed: Place[]; readings?: Reading[]; notes: Shown[]; standing?: Standing; same: boolean; onLooksGood?: (flow: string) => void; threads: Threads; onFlow: (flow: string, beat: Beat) => void; left?: { flow: string; at: number } }) {
-  const { review, round, before, flow, changed, readings, notes, standing, same, onLooksGood, threads, onFlow, left } = props;
+function Situation(props: { review: Review; round: Round; before?: Round; flow: Flow; changed: Place[]; readings?: Reading[]; notes: Shown[]; standing?: Standing; same: boolean; onLooksGood?: (flow: string) => void; threads: Threads; fresh: number[]; quiet: boolean; onFlow: (flow: string, beat: Beat) => void; left?: { flow: string; at: number } }) {
+  const { review, round, before, flow, changed, readings, notes, standing, same, onLooksGood, threads, fresh, quiet, onFlow, left } = props;
   const stepOf = (at: number) => Math.max(0, flow.steps.findIndex((_, i) => stepEnd(flow, i) >= at - 0.05));
-  const changedAt = new Set(changed.flatMap((on) => (on.at === undefined ? [] : [stepOf(on.at)])));
+  // Its diamonds are what's new to you, as on the player's timeline: on the first round, what changed since Before.
+  const changedAt = new Set(fresh.map(stepOf));
   const notedAt = (step: number) => notes.filter((note) => note.on?.at !== undefined && stepOf(note.on.at) === step);
   // Where nothing changed, the step where the most is done: what it shows still working.
   const busiest = flow.steps.reduce((most, step, i) => ((step.actions?.length ?? 0) > (flow.steps[most]!.actions?.length ?? 0) ? i : most), 0);
-  const [chosen, setChosen] = useState(() => (changedAt.size ? Math.max(...changedAt) : busiest));
+  // It opens on an answer waiting on you, else on the last of what's new, else where the most is done.
+  const waiting = notes.find((note) => note.toJudge && note.on?.at !== undefined);
+  const [chosen, setChosen] = useState(() => (waiting?.on?.at !== undefined ? stepOf(waiting.on.app ? waiting.on.app.from.at : waiting.on.at) : changedAt.size ? Math.max(...changedAt) : busiest));
+  // Good for you, as nothing's changed since you said so, it arrives folded to its name, and opens when you choose.
+  const [folded, setFolded] = useState(quiet);
   // Back from watching it, it's on the step you were on.
   const [cameBack, setCameBack] = useState(left);
   if (left !== cameBack) (setCameBack(left), left && setChosen(stepOf(left.at)));
@@ -178,6 +188,21 @@ function Situation(props: { review: Review; round: Round; before?: Round; flow: 
   // Opened, the step plays in the frame as it plays here, once, from the page as it begins: that picture's at hand.
   const begins = chosen > 0 ? picture(review.id, round.number, flow.recording, chosen - 1) : undefined;
   useEffect(() => void (begins && (new Image().src = begins)), [begins]);
+  if (folded)
+    return (
+      <section className="grid wide:grid-cols-[260px_1fr] wide:gap-x-8">
+        <button className="flex items-baseline justify-between gap-4 px-0.5 text-left opacity-60 transition-opacity duration-150 ease-calm hover:opacity-100 wide:col-start-2" onClick={() => setFolded(false)} aria-expanded={false}>
+          <h3 className="min-w-0 text-[15px] leading-[21px] font-semibold text-balance">
+            {flow.name}
+            {asWho(flow) && <span className="font-normal text-soft"> {asWho(flow)}</span>}
+          </h3>
+          <span className="flex flex-none items-center gap-1.5 text-xs leading-4 whitespace-nowrap text-green">
+            <EndMark end="good" just={false} className="size-3 flex-none" />
+            Looks good
+          </span>
+        </button>
+      </section>
+    );
   return (
     <section className="grid gap-3 wide:grid-cols-[260px_1fr] wide:gap-x-8 wide:gap-y-4" onPointerEnter={play} onPointerLeave={() => (setStarted(undefined), setThrough(false))}>
       <div className="grid content-start gap-3 wide:col-start-2 wide:row-start-1">
