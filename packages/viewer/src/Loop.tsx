@@ -3,10 +3,13 @@
 // so two side by side, one app slower than the other, still show the same thing at the same time: each starts its step
 // when the other does, and the quicker waits on its last frame. At rest it's that last frame.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent, type RefObject } from "react";
+import { elementOf, type Glimpse } from "@playthrough/page";
+import type { Element, Point } from "@playthrough/review";
 import { recording } from "./api.ts";
-import { Replay, type Events, type Rect } from "./replay.ts";
+import { Replay, type Events, type Rect, type Scrolled } from "./replay.ts";
 import type { Frame } from "./Picture.tsx";
+import { pickAt } from "./things.ts";
 
 // A step longer than this is played faster, so a loop never drags; one shorter, slower, so a few keys typed in a moment
 // can be seen.
@@ -101,6 +104,11 @@ type Props = {
   // The notes on its step: at rest, where each one's thing is on the page at the step's end, in the loop's own pixels.
   marks?: Mark[];
   onMarks?: (placed: Placed) => void;
+  // Noting, at rest: what a click would note is outlined, and a click notes it, or else the spot, by what was read there.
+  things?: Glimpse[];
+  onPlace?: (on: { element: Element } | { point: Point }) => void;
+  // Where its page and each part of it that scrolls on its own is scrolled, as it rests: the app taken over there is too.
+  scrolled?: RefObject<(() => Scrolled) | undefined>;
 };
 
 // A note's thing, by its node in this recording, else by its name, as one made in the app names it; or its spot.
@@ -138,6 +146,7 @@ export function Loop(props: Props) {
   }, [props.review, props.round, props.recording]);
 
   const { from, until, frame, started, cycle, onLength, marks } = props;
+  if (props.scrolled) props.scrolled.current = replay && (() => replay.replay.scrolled());
   const marked = marks?.map((mark) => mark.id).join(" ");
   const stretch = replay && cut(replay.events, from, until);
   const played = stretch && playedFor(stretch.length);
@@ -203,8 +212,36 @@ export function Loop(props: Props) {
     return () => cancelAnimationFrame(frameId);
   }, [replay, from, until, frame, started, cycle, played, marked, width]);
 
+  // What's under the pointer on the page at rest, in its own pixels, and what a click there would note.
+  const [hover, setHover] = useState<Rect>();
+  const aiming = !!props.onPlace && started === undefined && !!replay;
+  if (!aiming && hover) setHover(undefined);
+  const under = (event: { clientX: number; clientY: number }) => {
+    const [shown, seen] = [box.current?.getBoundingClientRect(), view.current];
+    if (!replay || !shown || !seen) return undefined;
+    const [x, y] = [(event.clientX - shown.left) / seen.k + seen.left, (event.clientY - shown.top) / seen.k + seen.top];
+    const pick = props.things && pickAt(replay.replay.outwards(x, y), props.things, until - 0.05);
+    return { x, y, pick, seen };
+  };
+  const aim = (event: MouseEvent) => {
+    const here = aiming ? under(event) : undefined;
+    const thing = here?.pick?.node !== undefined ? replay!.replay.boxOf(here.pick.node) : undefined;
+    const { left, top, k } = here?.seen ?? { left: 0, top: 0, k: 1 };
+    setHover(thing && { left: (thing.left - left) * k, top: (thing.top - top) * k, width: thing.width * k, height: thing.height * k });
+  };
+  const place = (event: MouseEvent) => {
+    if (!aiming) return;
+    event.stopPropagation();
+    const here = under(event);
+    if (!here) return;
+    setHover(undefined);
+    const shape = replay!.replay.shapeAt(until);
+    props.onPlace!(here.pick ? { element: elementOf(here.pick, here.pick.name) } : { point: { x: here.x / shape.width, y: here.y / shape.height } });
+  };
+
   return (
-    <div ref={box} className="absolute inset-0 overflow-hidden">
+    <div ref={box} className={`absolute inset-0 overflow-hidden ${aiming ? (hover ? "cursor-pointer" : "cursor-crosshair") : ""}`} onPointerMove={aim} onPointerLeave={() => setHover(undefined)} onClick={place}>
+      {hover && <div className="pointer-events-none absolute z-1 rounded-[4px] outline-1 outline-offset-4 outline-[rgba(217,162,58,0.75)] outline-solid" style={hover} />}
       <span ref={caret} className="pointer-events-none absolute top-0 left-0 z-1 bg-[#1e2330] opacity-0" />
       <span ref={ring} className="pointer-events-none absolute top-0 left-0 z-1 -mt-3 -ml-3 size-6 rounded-full border-[1.5px] border-[rgba(40,44,54,0.5)] bg-[rgba(40,44,54,0.06)] opacity-0" />
       <div ref={cursor} className="pointer-events-none absolute top-0 left-0 z-1 size-5 opacity-0 [filter:drop-shadow(0_1px_1px_rgba(0,0,0,.3))]">

@@ -140,7 +140,8 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   // where you are.
   const many = round.flows.length > 0;
   const [arrivedIn] = useState(() => round.flows.find((flow) => slug(flow.name) === inAddress)?.name);
-  const [grid, setGrid] = useState(many && !arrivedIn);
+  // Every situation is noted and taken over where it is, on the page: you don't leave it for one.
+  const [grid, setGrid] = useState(many);
   const onGrid = grid && many;
   const been = useRef([round.number]);
   if (on !== round.number) {
@@ -205,7 +206,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   // Not on a fork: taking one over carries it on from its end.
   const resting = useNow(playhead, ({ moment, playing }) => {
     const on = round.flows.find((flow) => flow.name === moment.flow);
-    const paused = !playing && current && !onGrid && on && moment.at >= 0 ? pausedAt(on, moment.at) : undefined;
+    const paused = !playing && current && on && moment.at >= 0 ? pausedAt(on, moment.at) : undefined;
     return paused && JSON.stringify({ flow: on!.name, paused });
   });
   useEffect(() => {
@@ -240,7 +241,8 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   // Letting go, what you did is kept only as far as you said something about it: you land at your last note on the
   // fork, or with nothing said, back where you took the flow over, with nothing left behind.
   const letGo = (at?: { x: number; y: number }) => {
-    const kept = live?.shown && yours.current.address === live.address && forkList.find((fork) => fork.session === yours.current.id);
+    // On the page, you're back on the step you took over, your notes from the app on it.
+    const kept = !onGrid && live?.shown && yours.current.address === live.address && forkList.find((fork) => fork.session === yours.current.id);
     if (kept) playhead.go({ flow: kept.name, at: kept.length });
     trying.current = undefined;
     backToRecording(at);
@@ -1113,12 +1115,20 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
       if (writingHere(event) || event.metaKey || event.ctrlKey || event.altKey || event.defaultPrevented) return;
       // Taking over, the keys that drive the recording rest with it: only noting and going back answer.
       if (live?.shown && !/^(n|t|escape)$/i.test(event.key)) return;
-      // On the page, Enter takes the step; a row is chosen as a button is. Space and C are the situation's.
+      // On the page, Enter takes the step; a row is chosen as a button is. N, T and Escape are for the situation you're
+      // on, as its bar is; Space and C are its own.
       if (onGrid) {
         if (event.key === "Enter" && !pressing(event, "button") && gridStep?.kind === "go" && !gridStep.final) {
           event.preventDefault();
           gridStep.take();
-        }
+        } else if (event.key.toLowerCase() === "n" && !event.repeat) {
+          event.preventDefault();
+          pressNote();
+        } else if (event.key.toLowerCase() === "t" && !event.repeat) {
+          event.preventDefault();
+          takeOver();
+        } else if (event.key === "Escape" && noting) setNoting(false);
+        else if (event.key === "Escape" && live?.shown) letGo();
         return;
       }
       // Space plays and pauses wherever you are, also on a button you just clicked: it never presses it.
@@ -1283,7 +1293,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   return (
     <Page title={review.title} actions={<DownloadVideo ref={downloader} asked={toDownload} shown={!onGrid && !!flow} resting={inApp} />}>
       {/* In the app, the recording's pins are under it: a card there sits by the app's own pin, with nothing drawn to it. */}
-      <Wire id={grownOpen?.id ?? openNote?.id ?? oneOpen} colour={openNote ? ink(openNote) : grownOpen ? "var(--amber)" : "var(--soft)"} hidden={!!bare || peeking || inApp} faded={playingNow} />
+      <Wire id={grownOpen?.id ?? openNote?.id ?? oneOpen} colour={openNote ? ink(openNote) : grownOpen ? "var(--amber)" : "var(--soft)"} hidden={!!bare || peeking || inApp || onGrid} faded={playingNow} />
       <main className="relative grid min-h-0 grid-cols-[minmax(0,1fr)] phone:flex phone:flex-col">
         {/* Opened, a situation keeps its steps where they were on the page, beside the recording that took its pictures' place. */}
         <div inert={onGrid} className={`grid min-h-0 min-w-0 wide:mx-auto wide:w-full wide:max-w-[1320px] wide:grid-cols-[260px_minmax(0,1fr)] wide:gap-x-8 wide:px-8 ${onGrid ? "invisible" : ""}`}>
@@ -1340,7 +1350,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
             onPointAt={whyOf}
             onAllFlows={many ? () => toGrid() : undefined}
             over={arrived ? { words: `${roundName(latest.number)} is in`, take: () => toRound(latest.number) } : current ? undefined : { words: roundName(round.number) }}
-            live={live}
+            live={onGrid ? undefined : live}
           />
           {/* Playing, the bar stays: what you can do is there while you watch, as it is paused. */}
           <div className="absolute bottom-6 left-1/2 z-20 -translate-x-1/2 translate-y-1/2">
@@ -1353,20 +1363,22 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
               onTakeOver={forkOfFork ? undefined : takeOver}
               onBack={() => letGo()}
               flow={watching ?? ""}
-              notes={notes
-                .filter((note) => note.on?.flow === watching && note.on.at !== undefined && note.turns[0]?.words)
-                .sort((a, b) => a.on!.at! - b.on!.at!)
-                .map((note) => ({ id: note.id, ink: ink(note), words: note.turns[0]!.words, at: time(note.on!.at!), app: !!note.on!.app || whereYouWere.has(note.id) }))}
-              listed={listed}
-              onList={(listed) => (setListed(listed), listed || setLitNote(undefined))}
-              onLight={setLitNote}
-              onSaid={(id) => {
-                setListed(false);
-                setLitNote(undefined);
-                const note = notes.find((note) => note.id === id);
-                // From the app, a note goes back to the recording, at it.
-                if (live?.shown) letGo();
-                if (note) pick(note);
+              list={{
+                notes: notes
+                  .filter((note) => note.on?.flow === watching && note.on.at !== undefined && note.turns[0]?.words)
+                  .sort((a, b) => a.on!.at! - b.on!.at!)
+                  .map((note) => ({ id: note.id, ink: ink(note), words: note.turns[0]!.words, at: time(note.on!.at!), app: !!note.on!.app || whereYouWere.has(note.id) })),
+                listed,
+                onList: (listed) => (setListed(listed), listed || setLitNote(undefined)),
+                onLight: setLitNote,
+                onSaid: (id) => {
+                  setListed(false);
+                  setLitNote(undefined);
+                  const note = notes.find((note) => note.id === id);
+                  // From the app, a note goes back to the recording, at it.
+                  if (live?.shown) letGo();
+                  if (note) pick(note);
+                },
               }}
             />
           </div>
@@ -1443,7 +1455,8 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
           pinned={openNote && inApp && (openNote.on?.app || tryingHere) ? () => appPins.current.get(openNote.id) : undefined}
           onAway={(openNote && !tryingHere) || chosen ? () => setOpen(undefined) : undefined}
         >
-          {listed || onGrid ? undefined : openNote ? row(openNote) : writing ? writingCard(writing) : oneOpen ? <Chosen {...chosenProps} /> : undefined}
+          {/* On the page, a card sits on its situation's recording; in the app there, by its pin in the app. */}
+          {listed || (onGrid && !inApp) ? undefined : openNote ? row(openNote) : writing ? writingCard(writing) : oneOpen ? <Chosen {...chosenProps} /> : undefined}
         </Beside>
         {many && (
           <Work
@@ -1460,7 +1473,22 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
             accepted={review.accepted || acceptedHere ? acceptedAfter : undefined}
             step={gridStep}
             trouble={trouble}
-            onFlow={openStep}
+            acting={{
+              latest: current,
+              noting,
+              onNote: readOnly ? undefined : pressNote,
+              onTakeOver: takeOver,
+              onBack: () => letGo(),
+              onPlace: (on) => (setNoting(false), write(on)),
+              onRest: (flow, at) => {
+                playhead.pause();
+                playhead.go({ flow, at });
+              },
+              onClose: () => setOpen(undefined),
+              live: live && { flow: live.flow, address: live.address, shown: live.shown, inApp },
+              writing: writing && !writing.on?.app ? { note: writing, number: nextNumber + draft.unsaved.indexOf(writing), card: writingCard(writing) } : undefined,
+              opened: openNote?.id,
+            }}
             left={back}
             arrived={arrived ? latest : undefined}
             working={working}

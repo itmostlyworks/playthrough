@@ -14,9 +14,10 @@ const OUT = 14;
 const GAP = 28;
 const EDGE = 12;
 
-type Props = { notes: Shown[]; placed: Placed; open?: string; faded: boolean; onOpen: (id?: string) => void; children?: ReactNode };
+// The note being written is pinned as the rest are, in the colour of what's yours and not yet saved.
+type Props = { notes: Shown[]; writing?: { id: string; number: number }; placed: Placed; open?: string; faded: boolean; onOpen: (id?: string) => void; children?: ReactNode };
 
-export function Pinned({ notes, placed, open, faded, onOpen, children }: Props) {
+export function Pinned({ notes, writing, placed, open, faded, onOpen, children }: Props) {
   const room = useRef<HTMLDivElement>(null);
   const card = useRef<HTMLElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -69,12 +70,12 @@ export function Pinned({ notes, placed, open, faded, onOpen, children }: Props) 
   });
   return (
     <div ref={room} className={`pointer-events-none absolute inset-0 transition-opacity duration-250 ease-calm ${faded ? "opacity-0" : ""}`}>
-      {notes.map((note) => {
+      {[...notes.map((note) => ({ id: note.id, number: note.number, ink: ink(note), fill: fill(note) })), ...(writing ? [{ ...writing, ink: "var(--amber)", fill: "bg-amber" }] : [])].map((note) => {
         const spot = spotOf(note.id);
         if (!inView(spot)) return null;
         const pin = pinOf(spot);
         return (
-          <div key={note.id} style={{ "--c": ink(note) } as CSSProperties}>
+          <div key={note.id} style={{ "--c": note.ink } as CSSProperties}>
             {(spot.width > 0 || spot.height > 0) && (
               <div
                 className={`absolute rounded-[4px] outline-offset-4 outline-solid ${note.id === open ? "outline-[1.5px] outline-(--c)" : "outline-1 outline-[color-mix(in_srgb,var(--c)_50%,transparent)]"}`}
@@ -84,7 +85,7 @@ export function Pinned({ notes, placed, open, faded, onOpen, children }: Props) 
             <button
               aria-label={`Note ${note.number}`}
               aria-expanded={note.id === open}
-              className={`absolute ${pinLook} ${fill(note)}`}
+              className={`absolute ${pinLook} ${note.fill}`}
               style={{ left: pin.left, top: pin.top }}
               onClick={() => onOpen(note.id === open ? undefined : note.id)}
             >

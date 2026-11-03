@@ -1,6 +1,6 @@
 // What you can do to the moment you're on, across the frame's bottom edge: note it, compare it with how it was, take it
-// over, and what you've said on this flow, which opens over it. Only what you can do now is in it: in the app, noting what's
-// there, and going back.
+// over, and in the frame, what you've said on this flow, which opens over it. Only what you can do now is in it: in the
+// app, noting what's there, and going back.
 
 import { useEffect, useRef } from "react";
 import { Compare, ForkMark, Key } from "./Card.tsx";
@@ -21,12 +21,15 @@ type Props = {
   onTakeOver?: () => void;
   onBack: () => void;
   flow: string;
-  notes: Said[];
-  listed: boolean;
-  onList: (listed: boolean) => void;
-  onSaid: (id: string) => void;
-  // The note pointed at in the list, lit on the line too.
-  onLight: (id: string | undefined) => void;
+  // On the page, a situation's notes are on its recording and its steps, and there's no list.
+  list?: {
+    notes: Said[];
+    listed: boolean;
+    onList: (listed: boolean) => void;
+    onSaid: (id: string) => void;
+    // The note pointed at in the list, lit on the line too.
+    onLight: (id: string | undefined) => void;
+  };
 };
 
 export function Bar(props: Props) {
@@ -35,36 +38,38 @@ export function Bar(props: Props) {
   const inApp = props.live === "shown";
   // Open, a click anywhere else or Escape closes it.
   const here = useRef<HTMLDivElement>(null);
-  const { listed, onList } = props;
+  const { list } = props;
+  const listed = !!list?.listed;
+  const onList = list?.onList;
   useEffect(() => {
-    if (!listed) return;
+    if (!listed || !onList) return;
     const away = (event: PointerEvent) => !here.current?.contains(event.target as Node) && onList(false);
     const escape = (event: KeyboardEvent) => event.key === "Escape" && onList(false);
     addEventListener("pointerdown", away, true);
     addEventListener("keydown", escape);
     return () => (removeEventListener("pointerdown", away, true), removeEventListener("keydown", escape));
   }, [listed, onList]);
-  const count = props.notes.length;
+  const count = list?.notes.length ?? 0;
   const row = "grid w-full grid-cols-[12px_minmax(0,1fr)_auto] items-center gap-x-2.5 rounded-lg px-2.5 py-[7px] text-left transition-colors duration-150 ease-calm hover:bg-hover focus-visible:bg-hover";
   return (
     <div ref={here} className="relative">
-      <div
+      {list && <div
         role="dialog"
         aria-label={`Notes on ${props.flow}`}
         aria-hidden={!listed}
         className={`absolute right-0 bottom-full mb-2 w-[340px] max-w-[calc(100vw-32px)] rounded-xl bg-surface p-1.5 shadow-float transition-[opacity,translate] duration-150 ease-calm ${listed ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-1 opacity-0"}`}
       >
         <div className="max-h-[min(55vh,420px)] overflow-y-auto">
-          {props.notes.map((said) => (
+          {list.notes.map((said) => (
               <button
                 key={said.id}
                 tabIndex={listed ? 0 : -1}
                 className={row}
-                onPointerEnter={() => props.onLight(said.id)}
-                onPointerLeave={() => props.onLight(undefined)}
-                onFocus={() => props.onLight(said.id)}
-                onBlur={() => props.onLight(undefined)}
-                onClick={() => props.onSaid(said.id)}
+                onPointerEnter={() => list.onLight(said.id)}
+                onPointerLeave={() => list.onLight(undefined)}
+                onFocus={() => list.onLight(said.id)}
+                onBlur={() => list.onLight(undefined)}
+                onClick={() => list.onSaid(said.id)}
               >
                 <span className="size-1.5 justify-self-center rounded-full" style={{ background: said.ink }} />
                 <span className="truncate text-[13px] leading-[18px] text-fg">{said.words}</span>
@@ -76,7 +81,7 @@ export function Bar(props: Props) {
             ))}
           {!count && <p className="px-2.5 py-[7px] text-[13px] text-soft">No notes on this flow yet.</p>}
         </div>
-      </div>
+      </div>}
       <div
         role="toolbar"
         aria-label="This moment"
@@ -96,10 +101,14 @@ export function Bar(props: Props) {
             {props.live === "waiting" ? "Taking over…" : "Take over"} <Key>T</Key>
           </button>
         )}
-        <span className="my-1.5 w-px bg-line" />
-        <button className={`${item} text-soft`} aria-pressed={listed} onClick={() => onList(!listed)}>
-          {count ? `${count} ${count === 1 ? "note" : "notes"}` : "Notes"}
-        </button>
+        {list && (
+          <>
+            <span className="my-1.5 w-px bg-line" />
+            <button className={`${item} text-soft`} aria-pressed={listed} onClick={() => list.onList(!listed)}>
+              {count ? `${count} ${count === 1 ? "note" : "notes"}` : "Notes"}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

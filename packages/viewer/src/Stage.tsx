@@ -728,6 +728,7 @@ export function Stage(props: Props) {
     sheen.style.setProperty("--y", `${at.y}px`);
     const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
     open.current = inPortal;
+    app.toggleAttribute("data-yours", inPortal);
     // Once the recording's pointer has come to yours, the pointer is your own, with no drawn one trailing it: only your
     // name goes with it.
     const real = (mine: boolean) => {
@@ -860,7 +861,7 @@ export function Stage(props: Props) {
     const kept = () =>
       setTimeout(() => {
         const app = document.activeElement;
-        if (!(app instanceof HTMLIFrameElement && app.closest("[data-live]") && !open.current)) return;
+        if (!(app instanceof HTMLIFrameElement && app.closest("[data-live]:not([data-yours])"))) return;
         app.blur();
         if (yours instanceof HTMLElement && yours.isConnected) yours.focus({ preventScroll: true });
       });
