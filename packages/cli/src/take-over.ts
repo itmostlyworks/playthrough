@@ -425,9 +425,10 @@ const SAYS = `<script>(() => {
     const at = { bubbles: true, cancelable: true, composed: true, view: window, clientX: box.x + box.width / 2, clientY: box.y + box.height / 2, button: 0, buttons: 1, pointerId: 1, pointerType: "mouse", isPrimary: true };
     for (const type of types) element.dispatchEvent(new (type.startsWith("pointer") ? PointerEvent : MouseEvent)(type, at));
   };
+  // Focused without scrolling to it: made ready unseen in the viewer, it would scroll the viewer's page to its frame.
   const click = (element) => {
     press(element, "pointerover", "pointerenter", "mouseover", "pointermove", "mousemove", "pointerdown", "mousedown");
-    element.focus?.();
+    element.focus?.({ preventScroll: true });
     press(element, "pointerup", "mouseup", "click");
   };
   const changed = (element) => ["input", "change"].forEach((type) => element.dispatchEvent(new Event(type, { bubbles: true })));
@@ -448,7 +449,7 @@ const SAYS = `<script>(() => {
   // Filled, what's there is replaced; typed, it's added where the caret was moved to, else at the end, where a click into
   // words mostly leaves it.
   const type = (element, words, adding) => {
-    element.focus();
+    element.focus({ preventScroll: true });
     if (element.isContentEditable) return void (adding || document.execCommand("selectAll"), document.execCommand("insertText", false, words));
     const was = element.value ?? "";
     const [from, to] = !adding ? [0, was.length] : caretMoved.has(element) ? [element.selectionStart, element.selectionEnd] : [was.length, was.length];

@@ -1,7 +1,8 @@
-// The work, as one page you read from the top: what was asked, then each situation it meets, its recording with its
-// steps beside it, both held at the window's top while scrolling goes along the steps, each playing into its result as
-// you come to it, with what was said about it under it. The situation held there has the bar: you note it, compare it
-// with how it was and take it over where it is. At the end, how it got here, and the one step to take.
+// The work, as one page you go along from the top: what was asked, then each situation it meets, its recording with its
+// way through beside it, its steps and what was said in them, a stop at a time. A turn of the wheel, a swipe or a key
+// goes one stop on or back, and from a situation's last stop on to the next situation, which comes up to the window's
+// top. The situation you're on has the bar: you note it, compare it with how it was and take it over where it is. At the
+// end, how it got here, and the one step to take.
 
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import type { Glimpse, Reading } from "@playthrough/page";
@@ -20,7 +21,7 @@ import { Clock, Player, useCut, type Mark, type Placed } from "./Player.tsx";
 import { answersTo, type Diamond } from "./changes.ts";
 import { Conversation, quiet as quietNumber } from "./Notes.tsx";
 import { Pinned, type Pin } from "./Pinned.tsx";
-import { Steps, type OnLine } from "./Steps.tsx";
+import { Steps, type OnLine, type Stop } from "./Steps.tsx";
 import { onPhone } from "./phone.ts";
 import { Picture, type Frame } from "./Picture.tsx";
 import { roundName, Rounds } from "./Rounds.tsx";
@@ -77,63 +78,95 @@ export function Work(props: Props) {
   const general = props.notes.filter((note) => !note.on || !round.flows.some((flow) => flow.name === note.on?.flow));
   // The flows the work left as they were, against Before.
   const same = before ? unchangedSince(review, 0, round.number) : [];
-  // The situation you're on, which the bar and the keys are for, is the one held at the window's top, and the step it's
-  // on, as far along its steps as the scrolling has come, once it stops; or one you press. Noting, writing or in the app,
-  // you stay where you are, and in the app the page holds still and the rest of it rests.
+  // The situation you're on, which the bar and the keys are for: the one gone along to, or pressed, or scrolled to the
+  // window's top by its bar; and the last move along the way, which its situation goes to. Noting, writing or in the
+  // app, you stay where you are, and in the app the page holds still and the rest of it rests.
   const [active, setActive] = useState(round.flows[0]?.name);
-  const [reached, setReached] = useState<{ flow: string; step: number }>();
+  const [go, setGo] = useState<{ round: number; flow: string; stop: number }>();
   const busy = acting.noting || !!acting.writing || !!acting.live?.shown;
-  const now = useRef({ busy });
-  now.current = { busy };
+  // Along the way a stop at a time: from a situation's last stop on to the next one's first, and back to the last of the
+  // one before; before the first stop, the page's top, and past the last, its end. The page goes to the situation you're
+  // on, its top at the window's.
+  const steering = useRef(false);
+  const move = (by: number) => {
+    const room = props.room.current;
+    const situations = [...(room?.querySelectorAll<HTMLElement>("[data-situation]") ?? [])];
+    let i = situations.findIndex((situation) => situation.dataset.situation === active);
+    if (i < 0 && room) i = atTop(room, situations);
+    if (!room || !situations[i]) return;
+    const count = (i: number) => Number(situations[i]!.dataset.stops);
+    const was = { i, stop: Number(situations[i]!.dataset.stop) };
+    let stop = was.stop + by;
+    if (stop >= count(i) && i < situations.length - 1) [i, stop] = [i + 1, 0];
+    else if (stop < 0 && i > 0) [i, stop] = [i - 1, count(i - 1) - 1];
+    else stop = clamp(stop, -1, count(i));
+    if (i === was.i && stop === was.stop) return;
+    const flow = situations[i]!.dataset.situation!;
+    setActive(flow);
+    setGo({ round: round.number, flow, stop });
+    const top = stop < 0 ? 0 : stop >= count(i) ? room.scrollHeight - room.clientHeight : topOf(room, situations[i]!);
+    if (Math.abs(top - room.scrollTop) > 1) ((steering.current = true), room.scrollTo({ top, behavior: "smooth" }));
+  };
+  const now = useRef({ busy, move });
+  now.current = { busy, move };
   useLayoutEffect(() => {
     const room = props.room.current;
     if (!room) return;
-    // On a phone, nothing's held at the top: the page scrolls as any page, and a step plays when you press it.
-    const look = () => {
-      const at = atDial(room);
-      if (!at || now.current.busy || onPhone()) return;
-      setActive(at.flow);
-      setReached((was) => (was?.flow === at.flow && was.step === at.step ? was : { flow: at.flow, step: at.step }));
-    };
-    // Arriving with an answer waiting on you, you're on its step.
-    const waiting = round.flows
-      .map((flow) => {
-        const note = props.notes.find((note) => note.on?.flow === flow.name && note.toJudge && (note.on.app ? note.on.app.from.at : note.on.at) !== undefined);
-        const moment = note?.on && (note.on.app ? note.on.app.from.at : note.on.at)!;
-        return moment === undefined ? undefined : { flow: flow.name, step: Math.max(0, flow.steps.findIndex((_, i) => stepEnd(flow, i) >= moment - 0.05)) };
-      })
-      .find(Boolean);
-    // The last situation's last step can be scrolled to: there's a window's height under it, less what's held.
+    // The last situation can come up to the window's top: there's a window's height under it, less its own.
     const tall = () => room.style.setProperty("--room", `${room.clientHeight}px`);
     tall();
     const watching = new ResizeObserver(tall);
     watching.observe(room);
-    const held = waiting && room.querySelector<HTMLElement>(`[data-situation="${CSS.escape(waiting.flow)}"]`);
-    if (held && onPhone()) held.querySelector(`[data-step="${waiting.step}"]`)?.scrollIntoView({ block: "center" });
-    else if (held) room.scrollTop = along(room, held, waiting.step);
-    look();
+    // Arriving with an answer waiting on you, you're on it.
+    const waiting = round.flows.find((flow) => props.notes.some((note) => note.on?.flow === flow.name && note.toJudge && (note.on.app ? note.on.app.from.at : note.on.at) !== undefined));
+    const held = waiting && room.querySelector<HTMLElement>(`[data-situation="${CSS.escape(waiting.name)}"]`);
+    if (held) setActive(waiting.name);
+    if (held && onPhone()) held.querySelector(`[data-stop="${held.dataset.stop}"]`)?.scrollIntoView({ block: "center" });
+    else if (held) room.scrollTop = topOf(room, held);
+    // One turn of the wheel, or one swipe, goes one stop along, however far it would have scrolled: what follows of it,
+    // the wheel's run-on or the swipe's glide, goes nowhere, until the wheel has been still a moment, or picks up again
+    // once the glide has slowed. On a phone, the page scrolls as any page, and a stop is gone to by pressing it.
+    const turn = { last: -Infinity, by: 0, moved: false, travel: 0, recent: [] as number[], fastest: 0, slowest: Infinity };
+    const wheel = (event: WheelEvent) => {
+      const box = (event.target as Element).closest?.("textarea");
+      if (event.ctrlKey || onPhone() || Math.abs(event.deltaX) > Math.abs(event.deltaY) || (box && box.scrollHeight > box.clientHeight)) return;
+      event.preventDefault();
+      const by = Math.sign(event.deltaY);
+      if (now.current.busy || !by) return;
+      const size = Math.abs(event.deltaY) * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? room.clientHeight : 1);
+      turn.recent = [...turn.recent.slice(-2), size];
+      const pace = turn.recent.reduce((sum, one) => sum + one) / turn.recent.length;
+      const picksUp = turn.moved && turn.slowest < turn.fastest / 3 && pace > Math.max(12, turn.slowest * 3);
+      if (event.timeStamp - turn.last > STILL || by !== turn.by || picksUp) Object.assign(turn, { by, moved: false, travel: 0 });
+      turn.last = event.timeStamp;
+      if (turn.moved) return void (pace > turn.fastest ? Object.assign(turn, { fastest: pace, slowest: Infinity }) : (turn.slowest = Math.min(turn.slowest, pace)));
+      turn.travel += size;
+      if (turn.travel < 12) return;
+      Object.assign(turn, { moved: true, fastest: pace, slowest: Infinity });
+      now.current.move(by);
+    };
+    // Scrolled by its bar, the situation you're on is the one come up to the window's top.
     let still: number | undefined;
-    const scrolled = () => (clearTimeout(still), (still = window.setTimeout(look, LOOK)));
+    const settle = () => {
+      if (steering.current) return void (steering.current = false);
+      const situations = [...room.querySelectorAll<HTMLElement>("[data-situation]")];
+      const flow = situations[atTop(room, situations)]?.dataset.situation;
+      if (flow && !now.current.busy) setActive(flow);
+    };
+    const scrolled = () => (clearTimeout(still), (still = window.setTimeout(settle, 120)));
+    room.addEventListener("wheel", wheel, { passive: false });
     room.addEventListener("scroll", scrolled, { passive: true });
-    return () => (clearTimeout(still), watching.disconnect(), room.removeEventListener("scroll", scrolled));
+    return () => (clearTimeout(still), watching.disconnect(), room.removeEventListener("wheel", wheel), room.removeEventListener("scroll", scrolled));
   }, []);
-  // Space and ↓ go to the next step, ↑ to the one before, from one situation into the next.
+  // Space and ↓ go a stop on, ↑ a stop back.
   useEffect(() => {
     if (!up || busy) return;
     const down = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey || (event.target as Element).closest?.("input, textarea, [contenteditable]")) return;
       const by = event.key === "ArrowDown" || (event.key === " " && !event.shiftKey) ? 1 : event.key === "ArrowUp" || (event.key === " " && event.shiftKey) ? -1 : 0;
-      const room = props.room.current;
-      if (!by || !room) return;
+      if (!by) return;
       event.preventDefault();
-      const at = atDial(room);
-      if (!at) return;
-      const count = (i: number) => Number(at.situations[i]?.dataset.steps ?? 0);
-      let [i, step] = [at.index, at.step + by];
-      if (step >= count(i)) [i, step] = [i + 1, 0];
-      else if (step < 0) [i, step] = [i - 1, count(i - 1) - 1];
-      const situation = at.situations[i];
-      if (situation) room.scrollTo({ top: along(room, situation, step), behavior: "smooth" });
+      move(by);
     };
     addEventListener("keydown", down);
     return () => removeEventListener("keydown", down);
@@ -175,7 +208,7 @@ export function Work(props: Props) {
               glimpsed={props.read(round.number, flow.name, true)}
               acting={acting}
               active={up && active === flow.name}
-              reached={reached?.flow === flow.name ? reached.step : undefined}
+              go={go?.round === round.number && go.flow === flow.name ? go : undefined}
               resting={!!inApp && inApp !== flow.name}
               onPointerDown={() => !busy && setActive(flow.name)}
             />
@@ -194,13 +227,12 @@ export function Work(props: Props) {
   );
 }
 
-// A situation: whose it is and what they do, where it stands, and its recording, held at the window's top as its steps
-// scroll up under it. The step that comes up to the recording's edge plays into its result and rests there; scrolled
-// back to, it plays again. It arrives at the answer waiting on you, else at the first step's result. What's drawn on it,
-// and what the bar does, is about the moment it's at: the notes there, outlined, what changed there, a note made there,
-// the app taken over there; what was said about them is under their step. A click on it pauses it, or plays the step
-// again. C held is how it was before the work, at the same moment, in place; pressed, the two side by side, each close
-// on the step's part of the page.
+// A situation: whose it is and what they do, where it stands, and its recording, with its way through beside it. A step
+// gone to plays into its result and rests there; gone back to, it plays again. A note or a change gone to is there at its
+// moment, lit. It arrives at the answer waiting on you, else at the first step's result. What's drawn on it, and what the
+// bar does, is about the moment it's at: the notes there, outlined, what changed there, a note made there, the app taken
+// over there. A click on it pauses it, or plays into the stop you're on again. C held is how it was before the work, at
+// the same moment, in place; pressed, the two side by side, each close on the step's part of the page.
 type SituationProps = {
   review: Review;
   round: Round;
@@ -220,8 +252,8 @@ type SituationProps = {
   quiet: boolean;
   acting: Acting;
   active: boolean;
-  // The step scrolled up to the recording's edge, while it's held at the window's top.
-  reached?: number;
+  // The stop gone along to, by the wheel or the keys.
+  go?: { stop: number };
   resting: boolean;
   onPointerDown: () => void;
 };
@@ -237,10 +269,20 @@ function Situation(props: SituationProps) {
     ...notes.flatMap((note) => (momentOf(note) === undefined ? [] : [{ id: note.id, at: Math.min(momentOf(note)!, end), fill: fill(note), words: note.turns[0]?.words ?? "Your note" }])),
     ...diamonds.filter((diamond) => diamond.row).map((diamond) => ({ id: diamond.id, at: Math.min(diamond.at, end), words: diamond.name })),
   ];
-  // A step's result, where it rests once it has played; and what's there, its card open as it comes to rest on it.
-  const resultOf = (step: number) => stepEnd(flow, step) - 0.05;
-  const results = flow.steps.map((_, i) => resultOf(i));
-  const markAt = (moment: number) => onLine.find((mark) => Math.abs(mark.at - moment) < 0.08)?.id;
+  // A step's result, where it rests once it has played.
+  const results = flow.steps.map((_, i) => stepEnd(flow, i) - 0.05);
+  // The way through it, a stop at a time: what was said about all of it, then each step, and after it what was said in
+  // it, in the order it comes, a change before what you said about it.
+  const stops: Stop[] = [
+    ...notes.filter((note) => momentOf(note) === undefined).map((note) => ({ step: -1, id: note.id })),
+    ...flow.steps.flatMap((_, i) => [
+      { step: i, at: results[i]! },
+      ...onLine
+        .filter((mark) => stepOf(mark.at) === i)
+        .sort((a, b) => a.at - b.at || Number(!!a.fill) - Number(!!b.fill))
+        .map((mark) => ({ step: i, at: mark.at, id: mark.id })),
+    ]),
+  ];
   const waiting = notes.find((note) => note.toJudge && momentOf(note) !== undefined);
   const [clock] = useState(() => new Clock(waiting ? Math.min(momentOf(waiting)!, end) : results[0]!));
   const [at, setAt] = useState(clock.at);
@@ -248,50 +290,61 @@ function Situation(props: SituationProps) {
   // Dragged along a step's line, it follows the line, and where it's let go, it rests.
   const [scrubbing, setScrubbing] = useState(false);
   const cut = useCut(review.id, round.number, flow);
-  // Open beside its thing: on arriving, the answer waiting on you; then what you open, or what it came to rest at.
+  // The stop you're on: arriving, the answer waiting on you, else none until you go along. What was said there is open
+  // beside its thing, as is what you open on the recording.
+  const [stop, setStop] = useState(() => (waiting ? stops.findIndex((one) => one.id === waiting.id) : -1));
   const [picked, setPicked] = useState(waiting?.id);
   // Good for you, as nothing's changed since you said so, it arrives folded to its name, and opens when you choose.
   const [folded, setFolded] = useState(quiet);
   const go = (moment: number, id?: string) => (clock.set(moment), setAt(moment), setPlaying(undefined), setPicked(id));
   const playTo = (until: number, from = clock.at) => (clock.set(from), setAt(from), setPicked(undefined), setPlaying({ until }));
   const pause = () => (setAt(clock.at), setPlaying(undefined));
-  const stopped = (moment: number) => go(moment, markAt(moment));
-  // A step plays into its result from its start, which is the step before's result, so from just after it.
-  const playStep = (step: number) => playTo(results[step]!, flow.steps[step]!.at + (step ? 0.06 : 0));
-  // Scrolled up to the recording's edge, a step plays, unless it's the one already there: as it arrived, or just
-  // scrolled past and back.
-  const edge = useRef(stepOf(clock.at));
-  useEffect(() => {
-    if (props.reached === undefined || props.reached === edge.current) return;
-    edge.current = props.reached;
-    playStep(props.reached);
-  }, [props.reached]);
-  // What's held at the window's top, the recording and its steps, stays there for a turn of the wheel per step: the
-  // situation is as tall as that, and as it.
+  // Come to rest, played or dragged to, what was said at the stop you're on stays open.
+  const stopped = (moment: number) => go(moment, stops[stop]?.id);
+  // A step plays from its start, which is the step before's result, so from just after it.
+  const startOf = (step: number) => flow.steps[step]!.at + (step ? 0.06 : 0);
+  // Gone to, a step plays into its result; what was said in one is there at its moment, still; what was said about all
+  // of it, where it is. Before the first stop and past the last, it rests.
+  const toStop = (k: number) => {
+    setStop(k);
+    const there = stops[k];
+    if (!there) return void (playing && pause());
+    if (there.id === undefined) playTo(there.at!, startOf(there.step));
+    else if (there.at === undefined) setPicked(there.id);
+    else go(there.at, there.id);
+  };
+  useLayoutEffect(() => void (props.go && toStop(props.go.stop)), [props.go]);
+  // Opened on the recording, or just saved, what was said there is the stop you're on, there and then; closed there, it
+  // isn't open.
+  const opened = (id?: string) => (id && stops.some((one) => one.id === id) && setStop(stops.findIndex((one) => one.id === id)), setPicked(id));
+  // The last situation can come up to the window's top: there's a window's height under it, less its own.
   const section = useRef<HTMLElement>(null);
-  const stage = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
-    const [held, around] = [stage.current, section.current];
-    if (!held || !around) return;
-    const measure = () => around.style.setProperty("--held", `${held.offsetHeight}px`);
+    const around = section.current;
+    if (!around) return;
+    const measure = () => around.style.setProperty("--tall", `${around.offsetHeight}px`);
     measure();
     const watching = new ResizeObserver(measure);
-    watching.observe(held);
+    watching.observe(around);
     return () => watching.disconnect();
   }, [folded]);
-  // Pressed, a step plays again, or the page goes along to it and it plays there.
-  const toStep = (step: number) => {
-    edge.current = step;
-    playStep(step);
-    const [room, around] = [section.current?.closest<HTMLElement>("[data-room]"), section.current];
-    if (room && around && !onPhone()) room.scrollTo({ top: along(room, around, step), behavior: "smooth" });
-  };
-  // A click on it pauses it; paused partway, it plays on to the result; at the result, the step plays again.
+  // The stop you're on stays in sight, where the way is longer than the window lets it be.
+  const column = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const [list, row] = [column.current, column.current?.querySelector<HTMLElement>(`[data-stop="${Math.min(stop, stops.length - 1)}"]`)];
+    if (!list || !row || list.scrollHeight <= list.clientHeight) return;
+    const [box, there] = [list.getBoundingClientRect(), row.getBoundingClientRect()];
+    const by = there.top < box.top ? there.top - box.top - 8 : there.bottom > box.bottom ? Math.min(there.bottom - box.bottom + 8, there.top - box.top - 8) : 0;
+    if (by) list.scrollBy({ top: by, behavior: "smooth" });
+  }, [stop]);
+  // A click on it pauses it; paused partway, it plays on into the stop you're on, and there, plays into it again from
+  // its step's start. Before any stop, or on what was said about all of it, the step it shows plays.
   const again = () => {
     if (playing) return pause();
-    const now = stepOf(clock.at);
-    if (clock.at < results[now]! - 0.01) playTo(results[now]!);
-    else playStep(now);
+    const there = stops[Math.min(stop, stops.length - 1)];
+    if (there?.at === undefined) return toStop(stops.findIndex((one) => one.id === undefined && one.step === stepOf(clock.at)));
+    if (clock.at < there.at - 0.01) playTo(there.at);
+    else playTo(there.at, startOf(there.step));
   };
 
   // Before the work, the step of the same name, as far into it as now is into its own.
@@ -390,58 +443,48 @@ function Situation(props: SituationProps) {
   const view = `${at} ${side}`;
   const [placed, setPlaced] = useState<{ view: string; at: Placed }>();
   const [saved, setSaved] = useState(acting.opened);
-  if (acting.opened !== saved) (setSaved(acting.opened), notes.some((note) => note.id === acting.opened) && setPicked(acting.opened));
+  if (acting.opened !== saved) (setSaved(acting.opened), acting.opened && notes.some((note) => note.id === acting.opened) && opened(acting.opened));
   // Only a note being written has its card on the recording, where it was dropped; what's said is under its step.
   const open = writing ? writing.note.id : !side && pins.some((pin) => pin.id === chosen) ? chosen : undefined;
   const [asking, setAsking] = useState<string>();
 
-  // A step you're not on says only what's there: a diamond for what changed new to you, and each note's number.
-  const hint = (i: number) => {
-    const changes = diamonds.some((diamond) => diamond.row && stepOf(Math.min(diamond.at, end)) === i);
-    const theirs = notes.filter((note) => momentOf(note) !== undefined && stepOf(Math.min(momentOf(note)!, end)) === i);
-    if (!changes && !theirs.length) return null;
-    return (
-      <span className="ml-auto flex flex-none items-center gap-1.5 pl-3">
-        {changes && <i className="mr-0.5 size-[7px] rotate-45 bg-fg" />}
-        {theirs.map((note) => (
-          <span key={note.id} className={`size-4 rounded-full text-center text-[9px] leading-4 font-semibold text-white ${fill(note)}`}>
-            {note.number}
-          </span>
-        ))}
+  // What was said at a stop: a note of yours, its thread; or a change new to you, the agent's words on why, or that it was
+  // made for a note of yours. Folded, a line of it. Pointed at, it's lit on the recording.
+  const said = (id: string, open: boolean) => {
+    const point = { onPointerEnter: () => setLit(id), onPointerLeave: () => setLit(undefined) };
+    const note = notes.find((note) => note.id === id);
+    const own = diamonds.find((diamond) => diamond.id === id)?.changes.filter((changed) => !changed.answers) ?? [];
+    const told = own.find((changed) => changed.line);
+    const madeFor = own.map((changed) => changed.note && props.noteOf(changed.note)).find(Boolean) || undefined;
+    const words = note ? note.turns[0]?.words : madeFor ? madeFor.turns[0]?.words : (told?.line ?? diamonds.find((diamond) => diamond.id === id)?.name);
+    const sign = note ? (
+      <span className={`mt-0.5 size-4 flex-none rounded-full text-center text-[9px] leading-4 font-semibold text-white ${fill(note)}`}>{note.number}</span>
+    ) : (
+      <span className="mt-0.5 grid size-4 flex-none place-items-center">
+        <i className="size-[7px] rotate-45 bg-fg" />
       </span>
     );
-  };
-  // What was said about a step, under its words: why each thing new to you changed there, in the agent's words, or that
-  // it was made for a note of yours; and each of your notes made there, its thread. Pointed at, it's lit on the recording.
-  const about = (i: number, whole?: boolean) => {
-    const changes = whole ? [] : diamonds.filter((diamond) => diamond.row && stepOf(Math.min(diamond.at, end)) === i);
-    const theirs = notes.filter((note) => (whole ? momentOf(note) === undefined : momentOf(note) !== undefined && stepOf(Math.min(momentOf(note)!, end)) === i));
-    if (!changes.length && !theirs.length) return null;
+    const forNote = madeFor && (
+      <span className={`mr-1.5 inline-block size-4 rounded-full text-center align-[-3px] text-[9px] leading-4 font-semibold ${quietNumber}`} style={{ "--c": ink(madeFor) } as CSSProperties}>
+        {madeFor.number}
+      </span>
+    );
+    if (!open)
+      return (
+        <span className="flex min-w-0 items-start gap-2" {...point}>
+          {sign}
+          <span className="truncate">
+            {madeFor && <>Changed for your note {forNote}</>}
+            {words}
+          </span>
+        </span>
+      );
     return (
-      <div className="mt-2.5 ml-6 grid max-w-[540px] gap-3">
-        {changes.map((diamond) => {
-          const said = diamond.changes.find((changed) => changed.line);
-          const madeFor = diamond.changes.map((changed) => changed.note && props.noteOf(changed.note)).find(Boolean) || undefined;
-          return (
-            <div key={diamond.id} className="grid gap-1 text-[13px]" onPointerEnter={() => setLit(diamond.id)} onPointerLeave={() => setLit(undefined)}>
-              <span className="flex items-center gap-2 text-[11.5px] leading-5 text-faint">
-                <i className="size-[7px] flex-none rotate-45 bg-fg" />
-                {madeFor ? "Changed for your note" : (said?.by ?? "Changed here")}
-                {madeFor && (
-                  <span className="flex min-w-0 items-center gap-1.5 text-soft" style={{ "--c": ink(madeFor) } as CSSProperties}>
-                    <span className={`size-4 flex-none rounded-full text-center text-[9px] leading-4 font-semibold ${quietNumber}`}>{madeFor.number}</span>
-                    <span className="truncate">{madeFor.turns[0]?.words}</span>
-                  </span>
-                )}
-              </span>
-              {!madeFor && <p className="leading-normal whitespace-pre-wrap">{said?.line ?? diamond.name}</p>}
-            </div>
-          );
-        })}
-        {theirs.map((note) => (
-          <div key={note.id} className="flex gap-2" onPointerEnter={() => setLit(note.id)} onPointerLeave={() => setLit(undefined)}>
-            <span className={`mt-2 size-[18px] flex-none rounded-full text-center text-[10px] leading-[18px] font-semibold text-white shadow-pin ${fill(note)}`}>{note.number}</span>
-            <div className="-ml-2 min-w-0 flex-1 text-[13px]">
+      <div className="flex gap-2 text-[13px]" {...point}>
+        {sign}
+        <div className="min-w-0 flex-1">
+          {note ? (
+            <div className="-mt-2 -ml-4">
               <Conversation
                 note={note}
                 you={threads.you}
@@ -456,8 +499,13 @@ function Situation(props: SituationProps) {
                 onShow={() => {}}
               />
             </div>
-          </div>
-        ))}
+          ) : (
+            <Said who={madeFor ? "Changed for your note" : (told?.by ?? "Changed here")}>
+              {forNote}
+              {words}
+            </Said>
+          )}
+        </div>
       </div>
     );
   };
@@ -498,124 +546,118 @@ function Situation(props: SituationProps) {
     <section
       ref={section}
       data-situation={flow.name}
-      data-steps={flow.steps.length}
+      data-stops={stops.length}
+      data-stop={stop}
       inert={props.resting}
-      style={{ height: `calc(var(--held) + ${(flow.steps.length - 1) * STEP}px)` }}
-      className={`relative transition-opacity duration-500 ease-calm last:mb-[max(0px,calc(var(--room)-var(--held)-56px))] phone:h-auto! ${props.resting ? "opacity-30" : ""}`}
+      className={`relative pt-3 pb-8 transition-opacity duration-500 ease-calm last:mb-[max(0px,calc(var(--room)-var(--tall)-56px))] ${props.resting ? "opacity-30" : ""}`}
       onPointerDown={props.onPointerDown}
     >
-      {/* Held at the window's top while scrolling goes along its steps. */}
-      <div ref={stage} data-stage="" className="sticky top-0 z-10 bg-ground pt-3 pb-8 phone:static">
-        <div className="mb-3 flex items-baseline justify-between gap-x-4 gap-y-1 px-0.5 phone:flex-wrap">
-          <h3 className="min-w-0 text-[15px] leading-[21px] font-semibold text-balance">
-            {flow.name}
-            {asWho(flow) && <span className="font-normal text-soft"> {asWho(flow)}</span>}
-          </h3>
-          <span className="flex flex-none flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs leading-4 whitespace-nowrap">
-            {standing && SAYS.includes(standing.is) && <span className={INK[standing.is]}>{says(standing)}</span>}
-            {standing && SAYS.includes(standing.is) && same && <span className="text-faint">·</span>}
-            {same && <span className="text-faint">Same as before</span>}
-            {standing && onLooksGood && JUDGED.includes(standing.is) && (
-              <button
-                aria-pressed={standing.is === "good"}
-                className="-my-1 ml-1.5 inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-soft transition-colors duration-150 ease-calm hover:bg-hover hover:text-fg aria-pressed:text-green"
-                onClick={() => onLooksGood(flow.name)}
-              >
-                <EndMark end={standing.is === "good" ? "good" : "asks"} ahead just={false} className="size-3 flex-none" />
-                Looks good
-              </button>
-            )}
-          </span>
-        </div>
-        <div className="grid grid-cols-[minmax(0,1fr)_340px] items-start gap-8 phone:grid-cols-1">
-          <div className="relative">
-            {/* A click pauses it, or plays the step again; noting, it notes what's under it; taken over, it's the app's. */}
-            <button data-picture={flow.name} className="relative block aspect-[1.6] w-full" aria-label={`${playing ? "Pause" : "Play"} “${flow.steps[step]?.title}”`} onClick={() => !taken && again()}>
-              {/* Side by side, Now narrows to its half of the picture as its view glides close on the step's part of the page,
-                  and Before comes in beside it: nothing around them moves. */}
-              <span className={`${FRAMED} left-0 z-1 transition-[width] duration-450 ease-calm ${side ? HALVES : "w-full"}`}>
-                <Still src={picture(review.id, round.number, flow.recording, step)} frame={frame} />
-                <Player
-                  review={review.id}
-                  round={round.number}
-                  recording={flow.recording}
-                  at={at}
-                  playing={playing}
-                  cut={cut}
-                  clock={clock}
-                  onStop={stopped}
-                  following={scrubbing ? { clock, at: (moment) => moment } : undefined}
-                  frame={frame}
-                  marks={marks}
-                  onMarks={(placed) => setPlaced({ view, at: placed })}
-                  things={noting && !taken && !writing ? props.glimpsed : undefined}
-                  onPlace={noting && !taken && !writing ? (on) => acting.onPlace({ flow: flow.name, at: restsAt, ...on }) : undefined}
-                  scrolled={scrolled}
-                />
-                <span className={`${CHIP} transition-opacity duration-450 ease-calm ${side ? "" : "opacity-0"}`}>Now</span>
-              </span>
-              {beside && (
-                <span className={`${FRAMED} right-0 ${HALVES} transition-opacity duration-450 ease-calm starting:opacity-0 ${side ? "" : "opacity-0"}`}>
-                  {was(frame)}
-                  <span className={CHIP}>Before</span>
-                </span>
-              )}
-              {peek && (
-                <span className="absolute inset-0 z-2 animate-arrive overflow-hidden rounded-lg">
-                  {was()}
-                  <span className={CHIP}>Before</span>
-                </span>
-              )}
+      <div className="mb-3 flex items-baseline justify-between gap-x-4 gap-y-1 px-0.5 phone:flex-wrap">
+        <h3 className="min-w-0 text-[15px] leading-[21px] font-semibold text-balance">
+          {flow.name}
+          {asWho(flow) && <span className="font-normal text-soft"> {asWho(flow)}</span>}
+        </h3>
+        <span className="flex flex-none flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs leading-4 whitespace-nowrap">
+          {standing && SAYS.includes(standing.is) && <span className={INK[standing.is]}>{says(standing)}</span>}
+          {standing && SAYS.includes(standing.is) && same && <span className="text-faint">·</span>}
+          {same && <span className="text-faint">Same as before</span>}
+          {standing && onLooksGood && JUDGED.includes(standing.is) && (
+            <button
+              aria-pressed={standing.is === "good"}
+              className="-my-1 ml-1.5 inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-soft transition-colors duration-150 ease-calm hover:bg-hover hover:text-fg aria-pressed:text-green"
+              onClick={() => onLooksGood(flow.name)}
+            >
+              <EndMark end={standing.is === "good" ? "good" : "asks"} ahead just={false} className="size-3 flex-none" />
+              Looks good
             </button>
-            <Portal live={live} person={personAt(flow, restsAt)} screen={screen} scrolled={() => scrolled.current?.()} />
-            {active && (
-              <div className="absolute bottom-0 left-1/2 z-20 -translate-x-1/2 translate-y-1/2">
-                <div className="animate-arrive">
-                  <Bar
-                    live={taken ? (live.inApp ? "shown" : "waiting") : undefined}
-                    latest={acting.latest}
-                    compare={then && { on: side || peek, off: taken, onPress: press, onRelease: release }}
-                    noting={noting}
-                    onNote={taken && !live.inApp ? undefined : acting.onNote}
-                    onTakeOver={acting.onTakeOver}
-                    onBack={acting.onBack}
-                    flow={flow.name}
-                  />
-                </div>
-              </div>
+          )}
+        </span>
+      </div>
+      <div className="grid grid-cols-[minmax(0,1fr)_340px] items-start gap-8 phone:grid-cols-1">
+        <div className="relative">
+          {/* A click pauses it, or plays the step again; noting, it notes what's under it; taken over, it's the app's. */}
+          <button data-picture={flow.name} className="relative block aspect-[1.6] w-full" aria-label={`${playing ? "Pause" : "Play"} “${flow.steps[step]?.title}”`} onClick={() => !taken && again()}>
+            {/* Side by side, Now narrows to its half of the picture as its view glides close on the step's part of the page,
+                and Before comes in beside it: nothing around them moves. */}
+            <span className={`${FRAMED} left-0 z-1 transition-[width] duration-450 ease-calm ${side ? HALVES : "w-full"}`}>
+              <Still src={picture(review.id, round.number, flow.recording, step)} frame={frame} />
+              <Player
+                review={review.id}
+                round={round.number}
+                recording={flow.recording}
+                at={at}
+                playing={playing}
+                cut={cut}
+                clock={clock}
+                onStop={stopped}
+                following={scrubbing ? { clock, at: (moment) => moment } : undefined}
+                frame={frame}
+                marks={marks}
+                onMarks={(placed) => setPlaced({ view, at: placed })}
+                things={noting && !taken && !writing ? props.glimpsed : undefined}
+                onPlace={noting && !taken && !writing ? (on) => acting.onPlace({ flow: flow.name, at: restsAt, ...on }) : undefined}
+                scrolled={scrolled}
+              />
+              <span className={`${CHIP} transition-opacity duration-450 ease-calm ${side ? "" : "opacity-0"}`}>Now</span>
+            </span>
+            {beside && (
+              <span className={`${FRAMED} right-0 ${HALVES} transition-opacity duration-450 ease-calm starting:opacity-0 ${side ? "" : "opacity-0"}`}>
+                {was(frame)}
+                <span className={CHIP}>Before</span>
+              </span>
             )}
-            {!taken && !peek && (
-              <div className={`pointer-events-none absolute inset-y-0 left-0 z-1 transition-[width] duration-450 ease-calm ${side ? `${HALVES} overflow-hidden rounded-lg` : "w-full"}`}>
-                <Pinned pins={pins} placed={placed?.view === view ? placed.at : {}} open={open} faded={!!playing || scrubbing || placed?.view !== view} onOpen={(id) => (writing && id !== writing.note.id ? acting.onClose() : setPicked(id))}>
-                  {writing?.card}
-                </Pinned>
-              </div>
+            {peek && (
+              <span className="absolute inset-0 z-2 animate-arrive overflow-hidden rounded-lg">
+                {was()}
+                <span className={CHIP}>Before</span>
+              </span>
             )}
-          </div>
-          <div className="grid content-start gap-4">
-            {(flow.line || about(-1, true)) && (
-              <div className="px-0.5 text-[13px]">
-                {flow.line && <Said who={round.by}>{flow.line}</Said>}
-                {about(-1, true)}
+          </button>
+          <Portal live={live} person={personAt(flow, restsAt)} screen={screen} scrolled={() => scrolled.current?.()} />
+          {active && (
+            <div className="absolute bottom-0 left-1/2 z-20 -translate-x-1/2 translate-y-1/2">
+              <div className="animate-arrive">
+                <Bar
+                  live={taken ? (live.inApp ? "shown" : "waiting") : undefined}
+                  latest={acting.latest}
+                  compare={then && { on: side || peek, off: taken, onPress: press, onRelease: release }}
+                  noting={noting}
+                  onNote={taken && !live.inApp ? undefined : acting.onNote}
+                  onTakeOver={acting.onTakeOver}
+                  onBack={acting.onBack}
+                  flow={flow.name}
+                />
               </div>
-            )}
-            <Steps
-              flow={flow}
-              clock={clock}
-              at={at}
-              cut={cut}
-              marks={onLine}
-              about={about}
-              hint={hint}
-              onStep={toStep}
-              onScrub={(on) => (on && ((setPlaying(undefined), setPicked(undefined))), setScrubbing(on))}
-              onGo={stopped}
-              onMark={(id) => {
-                const mark = onLine.find((mark) => mark.id === id);
-                if (mark) go(mark.at, id);
-              }}
-            />
-          </div>
+            </div>
+          )}
+          {!taken && !peek && (
+            <div className={`pointer-events-none absolute inset-y-0 left-0 z-1 transition-[width] duration-450 ease-calm ${side ? `${HALVES} overflow-hidden rounded-lg` : "w-full"}`}>
+              <Pinned pins={pins} placed={placed?.view === view ? placed.at : {}} open={open} faded={!!playing || scrubbing || placed?.view !== view} onOpen={(id) => (writing && id !== writing.note.id ? acting.onClose() : opened(id))}>
+                {writing?.card}
+              </Pinned>
+            </div>
+          )}
+        </div>
+        {/* As tall as the window lets it be, with room inside it for the marker and a line's marks at its ends. */}
+        <div ref={column} className="-mx-3 -mb-2 grid max-h-[calc(var(--room)-128px)] grid-cols-1 content-start gap-4 overflow-x-hidden overflow-y-auto px-3 pb-2 phone:mx-0 phone:max-h-none phone:px-0">
+          {flow.line && (
+            <div className="px-0.5 text-[13px]">
+              <Said who={round.by}>{flow.line}</Said>
+            </div>
+          )}
+          <Steps
+            flow={flow}
+            clock={clock}
+            at={at}
+            cut={cut}
+            stops={stops}
+            on={Math.min(stop, stops.length - 1)}
+            marks={onLine}
+            said={said}
+            onStop={toStop}
+            onScrub={(on) => (on && ((setPlaying(undefined), setPicked(undefined))), setScrubbing(on))}
+            onGo={stopped}
+          />
         </div>
       </div>
     </section>
@@ -657,27 +699,18 @@ export type Threads = {
 // A step opened from its close-up: where it starts and ends, and how its picture showed it.
 export type Beat = { from: number; until: number; closeUp: CloseUp };
 
-// How long scrolling stops before the step you've come to plays, so a step scrolled past on the way doesn't, in
-// milliseconds.
-const LOOK = 90;
-// How far the page scrolls from one step to the next while a situation is held at the window's top, in pixels: a turn
-// of the wheel.
-export const STEP = 100;
+// How long the wheel is still between one turn of it and the next, in milliseconds: turned again sooner, it's the same
+// turn going on.
+const STILL = 200;
 
-// Where you are on the page: the last situation scrolled up to the window's top, else the first, and how far along its
-// steps the scrolling has come.
-function atDial(room: HTMLElement): { index: number; flow: string; step: number; situations: HTMLElement[] } | undefined {
-  const top = room.getBoundingClientRect().top;
-  const situations = [...room.querySelectorAll<HTMLElement>("[data-situation]")];
-  const index = Math.max(0, situations.findLastIndex((situation) => situation.getBoundingClientRect().top <= top + 1));
-  const situation = situations[index];
-  if (!situation) return undefined;
-  const step = clamp(Math.round((top - situation.getBoundingClientRect().top) / STEP), 0, Number(situation.dataset.steps) - 1);
-  return { index, flow: situation.dataset.situation!, step, situations };
-}
+// Where the page is scrolled to for a situation to be at the window's top.
+const topOf = (room: HTMLElement, situation: HTMLElement) => room.scrollTop + situation.getBoundingClientRect().top - room.getBoundingClientRect().top;
 
-// Where the page is scrolled to for a situation's step.
-const along = (room: HTMLElement, situation: HTMLElement, step: number) => room.scrollTop + situation.getBoundingClientRect().top - room.getBoundingClientRect().top + step * STEP;
+// The situation scrolled up to the window's top: the last whose top is in the window's top third, else the first.
+const atTop = (room: HTMLElement, situations: HTMLElement[]) => {
+  const top = room.getBoundingClientRect().top + room.clientHeight / 3;
+  return Math.max(0, situations.findLastIndex((situation) => situation.getBoundingClientRect().top <= top));
+};
 
 // A step's end: the next one's start, or the flow's end. Its page is read there.
 const stepEnd = (flow: Flow, step: number) => flow.steps[step + 1]?.at ?? flow.length;

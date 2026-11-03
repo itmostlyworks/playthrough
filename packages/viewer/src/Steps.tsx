@@ -1,14 +1,17 @@
-// A situation's steps, beside its recording, one under another: the journey the agent chose, gone along in order. The
-// step it's on is lit and open, with what was said about it (what changed there and why, and your notes on it) and a
-// line of its own that fills as it plays, and dragged along, goes anywhere in the step and rests where it's let go. On
-// that line, a dot for each note made in the step and a diamond for each change new to you, at their moments: pressed,
-// it goes there. The others say only what's there. Pressing a step's words goes to it, and the step it's on, plays it
-// again.
+// A situation's way through, beside its recording, a stop at a time: each step the agent chose, and after it what was
+// said there, your notes and what changed new to you, in the order they come; what was said about all of it comes first.
+// The stop you're on is marked and open: what was said there, all of it; or a step, with a line of its own that fills as
+// it plays, and dragged along, goes anywhere in the step and rests where it's let go, with a dot for each note made in
+// the step and a diamond for each change, at their moments. The others are a line each, and pressed, go there.
 
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import type { Flow } from "@playthrough/review";
 import { clamp } from "./moments.ts";
 import type { Clock, Cut } from "./Player.tsx";
+
+// A stop on the way: a step, at its result; something said in a step, a note or a change, at its moment; or something
+// said about all of it, in no step.
+export type Stop = { step: number; at?: number; id?: string };
 
 // What's on the line: a note's dot in its fill, or a change's diamond, at its moment, and what it says pointed at.
 export type OnLine = { id: string; at: number; fill?: string; words: string };
@@ -18,18 +21,19 @@ type Props = {
   clock: Clock;
   at: number;
   cut?: Cut;
+  stops: Stop[];
+  // The stop you're on; before the first, none.
+  on: number;
   marks: OnLine[];
-  // What was said about the step it's on, under its words; and about the others, only what's there.
-  about: (step: number) => ReactNode;
-  hint: (step: number) => ReactNode;
-  onStep: (step: number) => void;
-  onMark: (id: string) => void;
+  // What was said at a stop, folded to a line or open.
+  said: (id: string, open: boolean) => ReactNode;
+  onStop: (stop: number) => void;
   // Dragging along the line, and where it was let go.
   onScrub: (scrubbing: boolean) => void;
   onGo: (moment: number) => void;
 };
 
-export function Steps({ flow, clock, at, cut, marks, about, hint, onStep, onMark, onScrub, onGo }: Props) {
+export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, onScrub, onGo }: Props) {
   const end = (step: number) => flow.steps[step + 1]?.at ?? flow.length;
   const stepOf = (moment: number) => Math.max(0, flow.steps.findIndex((_, step) => end(step) >= moment - 0.05));
   // How far into its step a moment is, in the time it plays in, waiting cut short, so the line fills at one speed, full
@@ -44,17 +48,16 @@ export function Steps({ flow, clock, at, cut, marks, about, hint, onStep, onMark
     const moment = from + u * (to - from);
     return Math.max(cut ? cut.real(moment) : moment, flow.steps[step]!.at + (step ? 0.06 : 0));
   };
-  // The step it's on, as it plays through it, and how far into it.
-  const [current, setCurrent] = useState(stepOf(at));
+  // The step you're on, and how far into it it's played.
+  const current = stops[on]?.step ?? -1;
   const line = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const follow = (moment: number) => {
-      setCurrent(stepOf(moment));
-      line.current?.style.setProperty("--done", String(share(stepOf(moment), moment)));
-    };
+    if (current < 0) return;
+    const follow = (moment: number) => line.current?.style.setProperty("--done", String(share(current, moment)));
     follow(clock.at);
     return clock.follow(follow);
   }, [clock, flow, at, cut, current]);
+  const toMark = (id: string) => onStop(stops.findIndex((stop) => stop.id === id));
 
   const along = (clientX: number) => {
     const box = line.current!.getBoundingClientRect();
@@ -78,7 +81,7 @@ export function Steps({ flow, clock, at, cut, marks, about, hint, onStep, onMark
       removeEventListener("pointermove", move);
       removeEventListener("pointerup", up);
       removeEventListener("pointercancel", up);
-      if (!dragging) return mark ? onMark(mark) : onGo(momentAt(current, along(start)));
+      if (!dragging) return mark ? toMark(mark) : onGo(momentAt(current, along(start)));
       setHeld(false);
       onScrub(false);
       onGo(clock.at);
@@ -89,27 +92,42 @@ export function Steps({ flow, clock, at, cut, marks, about, hint, onStep, onMark
   };
 
   return (
-    <ol aria-label={`The steps of ${flow.name}`} className="grid">
-      {flow.steps.map((step, i) => {
-        const on = i === current;
+    <ol aria-label={`The way through “${flow.name}”`} className="grid grid-cols-1">
+      {stops.map((stop, k) => {
+        const here = k === on;
+        const marker = (
+          <span aria-hidden className={`absolute top-2 bottom-2 -left-3 w-[3px] rounded-full bg-fg transition-opacity duration-200 ease-calm phone:hidden ${here ? "" : "opacity-0"}`} />
+        );
+        if (stop.id !== undefined)
+          return (
+            <li key={stop.id} data-stop={k} aria-current={here ? "step" : undefined} className={`relative py-[5px] ${stop.step < 0 ? "" : "pl-6"}`}>
+              {marker}
+              {here ? (
+                said(stop.id, true)
+              ) : (
+                <button className="flex w-full min-w-0 text-left text-[13px] leading-5 text-soft transition-colors duration-150 ease-calm outline-none hover:text-fg focus-visible:text-fg" onClick={() => onStop(k)}>
+                  {said(stop.id, false)}
+                </button>
+              )}
+            </li>
+          );
+        const i = stop.step;
         return (
-          <li key={i} data-step={i} className="relative py-[7px]">
-            <span aria-hidden className={`absolute top-2 bottom-2 -left-3 w-[3px] rounded-full bg-fg transition-opacity duration-200 ease-calm phone:hidden ${on ? "" : "opacity-0"}`} />
+          <li key={`step ${i}`} data-stop={k} aria-current={here ? "step" : undefined} className="relative py-[7px]">
+            {marker}
             <button
-              aria-current={on ? "step" : undefined}
-              className="flex w-full min-w-0 gap-2 text-left text-[14px] leading-5 text-soft transition-colors duration-150 ease-calm outline-none hover:text-fg focus-visible:text-fg aria-[current]:text-fg"
-              onClick={() => onStep(i)}
+              className={`flex w-full min-w-0 gap-2 text-left text-[14px] leading-5 transition-colors duration-150 ease-calm outline-none hover:text-fg focus-visible:text-fg ${i === current ? "text-fg" : "text-soft"}`}
+              onClick={() => onStop(k)}
             >
               <span className="w-4 flex-none text-faint tabular-nums">{i + 1}</span>
-              <span className="text-balance">{step.title}</span>
-              {!on && hint(i)}
+              <span className="text-balance">{flow.steps[i]!.title}</span>
             </button>
-            {on && (
+            {i === current && (
               <div
                 ref={line}
                 role="slider"
                 tabIndex={0}
-                aria-label={`Where in “${step.title}”`}
+                aria-label={`Where in “${flow.steps[i]!.title}”`}
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={Math.round(share(i, at) * 100)}
@@ -132,7 +150,7 @@ export function Steps({ flow, clock, at, cut, marks, about, hint, onStep, onMark
                       aria-label={mark.words}
                       className="group/mark absolute top-1/2 z-3 grid size-3.5 -translate-x-1/2 -translate-y-1/2 place-items-center outline-none"
                       style={{ left: `${share(i, mark.at) * 100}%` }}
-                      onKeyDown={(event) => event.key === "Enter" && onMark(mark.id)}
+                      onKeyDown={(event) => event.key === "Enter" && toMark(mark.id)}
                     >
                       {mark.fill ? (
                         <i className={`size-1.5 rounded-full shadow-[0_0_0_2px_var(--ground)] transition-[scale] duration-150 ease-calm group-hover/mark:scale-140 group-focus-visible/mark:scale-140 ${mark.fill}`} />
@@ -143,7 +161,6 @@ export function Steps({ flow, clock, at, cut, marks, about, hint, onStep, onMark
                   ))}
               </div>
             )}
-            {on && about(i)}
           </li>
         );
       })}
