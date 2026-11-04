@@ -120,7 +120,7 @@ export function SceneView(props: SceneViewProps) {
       return [
         { step: i, at: results[i]! },
         ...onLine
-          .filter((mark) => stepOf(mark.at) === i)
+          .filter((mark) => mark.fill && stepOf(mark.at) === i)
           .sort((a, b) => a.at - b.at || Number(!!a.fill) - Number(!!b.fill))
           .map((mark) => ({ step: i, at: mark.at, id: mark.id })),
       ];
@@ -390,8 +390,8 @@ export function SceneView(props: SceneViewProps) {
     return () => removeEventListener("keydown", down, true);
   });
 
-  // What was said at a stop: a note of yours, its thread, or the one you're writing; or a change new to you, the agent's
-  // words on why, or that it was made for a note of yours. Its sign on the rail is the note's number, or a diamond.
+  // What was said at a stop: a note of yours, its thread, or the one you're writing. Its sign on the rail is the note's
+  // number.
   const said = (id: string): Saying => {
     if (id === ours?.note.id)
       return {
@@ -399,60 +399,76 @@ export function SceneView(props: SceneViewProps) {
         line: "Your new note",
         whole: <div className="grid gap-2.5 pt-1 pb-1.5 text-[13px]">{ours.words}</div>,
       };
-    const note = notes.find((note) => note.id === id);
-    const diamond = diamonds.find((diamond) => diamond.id === id);
-    const own = diamond?.changes.filter((changed) => !changed.answers) ?? [];
-    const told = own.find((changed) => changed.line);
-    const madeFor = own.map((changed) => changed.note && props.noteOf(changed.note)).find(Boolean) || undefined;
-    const words = note ? note.turns[0]?.words : madeFor ? madeFor.turns[0]?.words : (told?.line ?? diamond?.name);
-    const forNote = madeFor && (
-      <span className={`ml-1 inline-block size-3.5 rounded-full text-center text-[8.5px] leading-3.5 font-semibold ${quietNumber}`} style={{ "--c": ink(madeFor) } as CSSProperties}>
-        {madeFor.number}
-      </span>
-    );
-    if (note)
-      return {
-        sign: <span className={`size-4 rounded-full text-center text-[9px] leading-4 font-semibold text-white ${fill(note)}`}>{note.number}</span>,
-        line: words,
-        whole: (
-          <div className="-my-2 -ml-4">
-            <Conversation
-              note={note}
-              you={threads.you}
-              readOnly={threads.readOnly}
-              replying={replying === note.id}
-              unfinished={threads.unfinished[note.id]}
-              away={false}
-              onReplying={(on) => setReplying(on ? note.id : undefined)}
-              onUnfinished={(words) => threads.onUnfinished(note.id, words)}
-              onJudge={(said) => (threads.onJudge(note, said), said && "verdict" in said && said.verdict === "looks good" && props.onSaid())}
-              onEdit={(words) => threads.onEdit(note.id, words)}
-              onShow={() => {}}
-              compare={comparing}
-            />
-          </div>
-        ),
-      };
-    // Opened, it reads as a note's thread does: who said what, then what it is, with Compare beside it, as a thread has
-    // its question.
+    const note = notes.find((note) => note.id === id)!;
     return {
-      sign: <i className="size-[7px] rotate-45 bg-fg" />,
-      line: (
-        <>
-          {madeFor && <>Changed for your note{forNote} </>}
-          {words}
-        </>
-      ),
+      sign: <span className={`size-4 rounded-full text-center text-[9px] leading-4 font-semibold text-white ${fill(note)}`}>{note.number}</span>,
+      line: note.turns[0]?.words,
       whole: (
-        <div className="grid gap-2.5 pr-4">
-          {(madeFor || told) && <Said who={madeFor ? <>Your note{forNote}</> : told!.by}>{words}</Said>}
-          <div className="flex items-center justify-between gap-2 text-xs leading-[18px] text-soft">
-            <span>{madeFor ? "Changed here for it" : told ? "Changed here" : words}</span>
-            {comparing && <Compare {...comparing} bar={quietly} />}
-          </div>
+        <div className="-my-2 -ml-4">
+          <Conversation
+            note={note}
+            you={threads.you}
+            readOnly={threads.readOnly}
+            replying={replying === note.id}
+            unfinished={threads.unfinished[note.id]}
+            away={false}
+            onReplying={(on) => setReplying(on ? note.id : undefined)}
+            onUnfinished={(words) => threads.onUnfinished(note.id, words)}
+            onJudge={(said) => (threads.onJudge(note, said), said && "verdict" in said && said.verdict === "looks good" && props.onSaid())}
+            onEdit={(words) => threads.onEdit(note.id, words)}
+            onShow={() => {}}
+            compare={comparing}
+          />
         </div>
       ),
     };
+  };
+
+  // What changed new to you in a step is met under its line, where its diamond is, not as a stop of its own: what the
+  // agent says of it under its name, or that it was made for a note of yours, or else what it is, in a line. Gone to,
+  // the recording is at its moment, close on it, with Compare beside it.
+  const toChange = (diamond: Diamond) => go(changeAt(diamond), diamond.id);
+  const changesIn = (step: number) => {
+    const here = diamonds.filter((diamond) => diamond.row && stepOf(changeAt(diamond)) === step);
+    if (!here.length) return undefined;
+    return (
+      <ul className="grid gap-0.5 pt-1.5">
+        {here.map((diamond) => {
+          const own = diamond.changes.filter((changed) => !changed.answers);
+          const told = own.find((changed) => changed.line);
+          const madeFor = own.map((changed) => changed.note && props.noteOf(changed.note)).find(Boolean) || undefined;
+          const on = picked === diamond.id;
+          return (
+            <li key={diamond.id} className="flex min-w-0 items-start gap-2 pr-2" onPointerEnter={() => setLit(diamond.id)} onPointerLeave={() => setLit(undefined)}>
+              <button
+                className={`flex min-w-0 flex-1 items-start gap-2 py-0.5 text-left text-[12.5px] leading-[18px] transition-colors duration-150 ease-calm hover:text-fg ${on ? "text-fg" : "text-soft"}`}
+                onClick={() => toChange(diamond)}
+              >
+                <i className={`mt-[5.5px] size-[7px] flex-none rotate-45 ${on ? "bg-fg" : "bg-soft"}`} />
+                <span className="min-w-0">
+                  {madeFor ? (
+                    <>
+                      Changed for your note
+                      <span className={`ml-1 inline-block size-3.5 rounded-full text-center text-[8.5px] leading-3.5 font-semibold ${quietNumber}`} style={{ "--c": ink(madeFor) } as CSSProperties}>
+                        {madeFor.number}
+                      </span>
+                    </>
+                  ) : told ? (
+                    <>
+                      <span className="text-faint">{told.by} · </span>
+                      {told.line}
+                    </>
+                  ) : (
+                    diamond.name
+                  )}
+                </span>
+              </button>
+              {on && comparing && <Compare {...comparing} bar={quietly} />}
+            </li>
+          );
+        })}
+      </ul>
+    );
   };
 
   const frames = useFrames(review, round, scene, readings, (step) => changed.filter((on) => on.at !== undefined && stepOf(on.at) === step));
@@ -463,8 +479,11 @@ export function SceneView(props: SceneViewProps) {
   // Passed on the way, or gone to while the recording's still coming into its place, a note or a change is only its
   // moment: it closes in, and its pins come, once the recording's settled and it's stopped on, as a step plays.
   const passing = !!props.go?.passing;
-  const onIt = there?.id !== undefined && there.at !== undefined && !playing && !scrubbing && !passing && Math.abs(at - there.at) < 0.02;
-  const closeOn = !live?.shown && onIt ? pins.find((pin) => pin.id === there!.id)?.on : undefined;
+  // What the recording rests close on: the note at the stop you're on, or the change gone to under its step.
+  const change = diamonds.find((diamond) => diamond.id === picked && diamond.row);
+  const focus = there?.id !== undefined && there.at !== undefined ? { id: there.id, at: there.at } : change && { id: change.id, at: changeAt(change) };
+  const onIt = !!focus && !playing && !scrubbing && !passing && Math.abs(at - focus.at) < 0.02;
+  const closeOn = !live?.shown && onIt ? pins.find((pin) => pin.id === focus!.id)?.on : undefined;
   const [closed, setClosed] = useState<Frame>();
   // A phone's recording is the phone's shape, as tall as any scene's picture: side by side, a second phone comes in beside
   // it, each the whole screen.
@@ -674,6 +693,11 @@ export function SceneView(props: SceneViewProps) {
             stops={stops}
             on={Math.min(stop, last)}
             marks={onLine}
+            changesIn={changesIn}
+            onChange={(id) => {
+              const diamond = diamonds.find((diamond) => diamond.id === id);
+              if (diamond) toChange(diamond);
+            }}
             said={said}
             end={atEnd}
             since={since}

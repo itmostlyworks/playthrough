@@ -42,6 +42,9 @@ type Props = {
   onStop: (stop: number) => void;
   // Pointed at, what was said is lit on the recording.
   onPoint: (id?: string) => void;
+  // What changed in a step, under its line; and going to one, from its diamond there.
+  changesIn: (step: number) => ReactNode;
+  onChange: (id: string) => void;
   // Dragging along the line, and where it was let go.
   onScrub: (scrubbing: boolean) => void;
   onGo: (moment: number) => void;
@@ -57,7 +60,7 @@ type Props = {
   onUnfold: (stop: number) => void;
 };
 
-export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, onPoint, onScrub, onGo, end, resting, since, onUnfold }: Props) {
+export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, onPoint, onScrub, onGo, end, resting, since, onUnfold, changesIn, onChange }: Props) {
   const looksGood = end?.looksGood;
   const stepEnd = (step: number) => scene.steps[step + 1]?.at ?? scene.length;
   const stepOf = (moment: number) => Math.max(0, scene.steps.findIndex((_, step) => stepEnd(step) >= moment - 0.05));
@@ -82,7 +85,12 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
     follow(clock.at);
     return clock.follow(follow);
   }, [clock, scene, at, cut, current]);
-  const toMark = (id: string) => onStop(stops.findIndex((stop) => stop.id === id));
+  // A note's dot goes to its stop; a change's diamond, to it under its step.
+  const toMark = (id: string) => {
+    const k = stops.findIndex((stop) => stop.id === id);
+    if (k < 0) onChange(id);
+    else onStop(k);
+  };
 
   // The rail, from the first stop's sign to the last's, and filled to the one you're on, measured as the stops open and
   // close.
@@ -256,6 +264,7 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
                   ))}
               </div>
             </div>
+            {changesIn(i)}
           </li>
         );
       }).concat(
