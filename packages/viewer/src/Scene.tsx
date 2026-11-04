@@ -212,8 +212,8 @@ export function SceneView(props: SceneViewProps) {
     else (setBegun(undefined), begun && !stops.some((one) => one.id === begun.id) && setStop(begun.from));
   }
   // Held at the top, its way stays put beside the recording, but for a way longer than the room beside it: that goes up
-  // as far as it must for the stop you're on to be in view over the foot, and no further, its top first where it's
-  // taller than the room, so a stop always shows the way the same.
+  // to bring the stop you're on to a fifth of the way down, as the page brings a scene up, until its end is over the
+  // foot. Gone up only as far as the stop needed, a stop late in a long way sat at the bottom ("so far down").
   const column = useRef<HTMLDivElement>(null);
   const way = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -222,7 +222,7 @@ export function SceneView(props: SceneViewProps) {
     const follow = () => {
       const here = inner.querySelector<HTMLElement>("li[aria-current=step]");
       const top = here ? here.getBoundingClientRect().top - inner.getBoundingClientRect().top : 0;
-      const raised = onPhone() ? 0 : Math.min(top, Math.max(0, top + (here?.offsetHeight ?? 0) - (beside.clientHeight - FOOT)));
+      const raised = onPhone() ? 0 : clamp(top - beside.clientHeight / 5, 0, Math.max(0, inner.offsetHeight - (beside.clientHeight - FOOT)));
       inner.style.translate = raised ? `0 ${-raised}px` : "";
       // What's gone up fades out under the top rather than being cut off there.
       beside.style.maskImage = raised ? "linear-gradient(to bottom, transparent, #000 28px)" : "";
