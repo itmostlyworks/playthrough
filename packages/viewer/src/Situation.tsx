@@ -24,7 +24,7 @@ import { Clock, CLOSEST, Player, useCut, type Mark, type Placed } from "./Player
 import { Portal, TAG } from "./Portal.tsx";
 import { recorded, type Scrolled } from "./replay.ts";
 import { says } from "./Step.tsx";
-import { Steps, type OnLine, type Saying, type Stop } from "./Steps.tsx";
+import { Steps, stepStart, type OnLine, type Saying, type Stop } from "./Steps.tsx";
 import type { Acting } from "./Work.tsx";
 
 type SituationProps = {
@@ -142,9 +142,7 @@ export function Situation(props: SituationProps) {
   const pause = () => (setAt(clock.at), setPlaying(undefined));
   // Come to rest, played or dragged to, what was said at the stop you're on stays open.
   const stopped = (moment: number) => go(moment, stops[stop]?.id);
-  // A step plays from its start, which is the step before's result, so from just after it; the first, from where its
-  // page has drawn itself, not the blank page before.
-  const startOf = (step: number) => (step ? flow.steps[step]!.at + 0.06 : Math.max(flow.steps[0]!.at, cut?.drawn ?? 0));
+  const startOf = (step: number) => stepStart(flow, step, cut);
   // Gone to, a step plays into its result; what was said in one is there at its moment, still; what was said about all
   // of it, where it is. Before the first stop it rests, and past the last, it's how it ends. Passed, a step is at its
   // start, to play from there once it's stopped on.

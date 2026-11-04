@@ -19,6 +19,10 @@ import type { Clock, Cut } from "./Player.tsx";
 // about all of it, in no step.
 export type Stop = { step: number; at?: number; id?: string; from?: number };
 
+// Where a step starts playing: its start is the step before's result, so just after it; the first, where its page has
+// drawn itself, not the blank page the app is still loading into.
+export const stepStart = (flow: Flow, step: number, cut?: Cut) => (step ? flow.steps[step]!.at + 0.06 : Math.max(flow.steps[0]!.at, cut?.drawn ?? 0));
+
 // What's on the line: a note's dot in its fill, or a change's diamond, at its moment, and what it says pointed at.
 export type OnLine = { id: string; at: number; fill?: string; words: string };
 
@@ -55,9 +59,9 @@ type Props = {
 export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, onPoint, onScrub, onGo, looksGood, resting, since, onUnfold }: Props) {
   const end = (step: number) => flow.steps[step + 1]?.at ?? flow.length;
   const stepOf = (moment: number) => Math.max(0, flow.steps.findIndex((_, step) => end(step) >= moment - 0.05));
-  // How far into its step a moment is, in the time it plays in, waiting cut short, so the line fills at one speed, full
-  // at its result; and the moment that far in, never quite its start, which is the step before's result.
-  const span = (step: number) => [flow.steps[step]!.at, end(step) - 0.05].map((moment) => (cut ? cut.cut(moment) : moment)) as [number, number];
+  // How far into its step a moment is, in the time it plays in, waiting cut short, so the line fills at one speed, from
+  // where the step starts playing to its result; and the moment that far in.
+  const span = (step: number) => [stepStart(flow, step, cut), end(step) - 0.05].map((moment) => (cut ? cut.cut(moment) : moment)) as [number, number];
   const share = (step: number, moment: number) => {
     const [from, to] = span(step);
     return clamp(((cut ? cut.cut(moment) : moment) - from) / Math.max(to - from, 0.01), 0, 1);
@@ -65,7 +69,7 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
   const momentAt = (step: number, u: number) => {
     const [from, to] = span(step);
     const moment = from + u * (to - from);
-    return Math.max(cut ? cut.real(moment) : moment, flow.steps[step]!.at + (step ? 0.06 : 0));
+    return Math.max(cut ? cut.real(moment) : moment, stepStart(flow, step, cut));
   };
   // The step you're on, and how far into it it's played.
   const current = stops[on]?.step ?? -1;
