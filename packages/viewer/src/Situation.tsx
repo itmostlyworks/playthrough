@@ -46,8 +46,9 @@ type SituationProps = {
   quiet: boolean;
   acting: Acting;
   active: boolean;
-  // The stop gone along to, by the wheel or the keys.
-  go?: { stop: number };
+  // The stop gone along to, by the wheel or the keys; passing, as a turn of the wheel goes on through it, it plays
+  // nothing until the wheel's still there.
+  go?: { stop: number; passing?: boolean };
   resting: boolean;
   onPointerDown: () => void;
   // A verdict said on it: an answer judged, or Looks good at the end of the way.
@@ -132,8 +133,8 @@ export function Situation(props: SituationProps) {
   // beside its thing, as is what you open on the recording.
   const [stop, setStop] = useState(() => (waiting ? stops.findIndex((one) => one.id === waiting.id) : -1));
   const [picked, setPicked] = useState(waiting?.id);
-  // Still on the stop it arrived on, it's as it was found: nothing plays until you go along.
-  const [arrived, setArrived] = useState(true);
+  // Still on the stop it arrived on, or passed on the way, it's as it was found: nothing plays until you stop there.
+  const [still, setStill] = useState(true);
   // Good for you, as nothing's changed since you said so, it arrives folded to its name, and opens when you choose.
   const [folded, setFolded] = useState(quiet);
   const go = (moment: number, id?: string) => (clock.set(moment), setAt(moment), setPlaying(undefined), setPicked(id));
@@ -144,17 +145,19 @@ export function Situation(props: SituationProps) {
   // A step plays from its start, which is the step before's result, so from just after it.
   const startOf = (step: number) => flow.steps[step]!.at + (step ? 0.06 : 0);
   // Gone to, a step plays into its result; what was said in one is there at its moment, still; what was said about all
-  // of it, where it is. Before the first stop it rests, and past the last, it's how it ends.
-  const toStop = (k: number) => {
+  // of it, where it is. Before the first stop it rests, and past the last, it's how it ends. Passed, a step is at its
+  // start, to play from there once it's stopped on.
+  const toStop = (k: number, passing = false) => {
     setStop(k);
-    setArrived(false);
+    setStill(passing);
     const there = stops[k];
     if (!there) return void (k < 0 ? playing && pause() : go(results.at(-1)!));
-    if (there.id === undefined) playTo(there.at!, startOf(there.from ?? there.step));
+    if (there.id === undefined && passing) go(startOf(there.from ?? there.step));
+    else if (there.id === undefined) playTo(there.at!, startOf(there.from ?? there.step));
     else if (there.at === undefined) setPicked(there.id);
     else go(there.at, there.id);
   };
-  useLayoutEffect(() => void (props.go && toStop(props.go.stop)), [props.go]);
+  useLayoutEffect(() => void (props.go && toStop(props.go.stop, props.go.passing)), [props.go]);
   // Opened, steps kept together are each a stop again, walked from the first.
   const [unfolding, setUnfolding] = useState<number>();
   const unfold = (k: number) => {
@@ -550,8 +553,7 @@ export function Situation(props: SituationProps) {
                 following={scrubbing ? { clock, at: (moment) => moment } : undefined}
                 frame={frame}
                 marks={marks}
-                closeOn={redone ? undefined : closeOn}
-                closeShape={side ? HALF : undefined}
+                closeOn={redone || !closeOn ? undefined : { on: closeOn, shape: side ? HALF : WHOLE }}
                 onClosed={setClosed}
                 onMarks={redone ? undefined : (placed) => setPlaced({ view, at: placed })}
                 things={noting && !taken && !writing ? props.glimpsed : undefined}
@@ -571,7 +573,7 @@ export function Situation(props: SituationProps) {
                   closeOn={redone.outlined && !side && !live?.shown && !redoing ? [redone.id] : undefined}
                   onMarks={(placed) => setPlaced({ view, at: placed })}
                   onPlaying={setRedoing}
-                  still={arrived}
+                  still={still}
                   clock={redoneClock}
                   replays={replays}
                 />
@@ -676,7 +678,7 @@ function Redone(props: {
   closeOn?: string[];
   onMarks: (placed: Placed) => void;
   onPlaying: (playing: boolean) => void;
-  // Arrived on, it rests where it ends, still, as arriving is calm; gone to, it plays.
+  // Arrived on or passed, it rests where it ends, still, as arriving is calm; stopped on, it plays.
   still: boolean;
   // Its clock, for what's beside it to follow; and how many times Compare has come on, each a time to play it again.
   clock: RefObject<Clock | undefined>;
@@ -690,9 +692,9 @@ function Redone(props: {
   props.clock.current = clock;
   const [at, setAt] = useState(from);
   const [playing, setPlaying] = useState<{ until: number }>();
-  // It plays once it knows its waits, to cut them short as a step's are.
-  const played = useRef(props.still);
-  useEffect(() => void (cut && !played.current && ((played.current = true), setPlaying({ until: props.until }))), [cut]);
+  // It plays once it knows its waits, to cut them short as a step's are, from where you took it over.
+  const played = useRef(false);
+  useEffect(() => void (cut && !props.still && !played.current && ((played.current = true), clock.set(app.from.at), setAt(app.from.at), setPlaying({ until: props.until }))), [cut, props.still]);
   const [replayed] = useState(props.replays);
   useEffect(() => void (props.replays > replayed && (clock.set(app.from.at), setAt(app.from.at), setPlaying({ until: props.until }))), [props.replays]);
   useEffect(() => props.onPlaying(!!playing), [playing]);
@@ -710,7 +712,7 @@ function Redone(props: {
         onStop={(moment) => (setAt(moment), setPlaying(undefined))}
         frame={props.frame}
         marks={props.marks}
-        closeOn={playing ? undefined : props.closeOn}
+        closeOn={playing || !props.closeOn ? undefined : { on: props.closeOn, shape: WHOLE }}
         onMarks={props.onMarks}
       />
     </span>
@@ -799,7 +801,8 @@ function boxIn(reading: Reading, on: Place): Box | undefined {
   return boxes.length ? union(boxes) : undefined;
 }
 
-// Side by side, each round has half the picture, as tall as the whole: this wide for its height.
+// A situation's picture is this wide for its height; side by side, each round has half of it, as tall as the whole.
+const WHOLE = 1.6;
 const HALF = 0.8;
 
 // What a situation's standing says in words beside its Looks good, and when it can be judged at all.
