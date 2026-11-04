@@ -228,8 +228,9 @@ export function SceneView(props: SceneViewProps) {
       const room = Math.min(beside.clientHeight - FOOT, recorded ? recorded.getBoundingClientRect().bottom + BAR - beside.getBoundingClientRect().top : Infinity);
       const raised = onPhone() ? 0 : clamp(top - beside.clientHeight / 5, 0, Math.max(0, inner.offsetHeight - room));
       inner.style.translate = raised ? `0 ${-raised}px` : "";
-      // The fade at its end is always there, so a stop opening out never shows past it before it's measured.
-      beside.style.maskImage = onPhone() ? "" : `linear-gradient(to bottom, ${raised ? "transparent, #000 28px" : "#000, #000"}, #000 ${room - 28}px, transparent ${room}px)`;
+      // The fade at its end is always there, so a stop opening out never shows past it before it's measured, and just
+      // past it, so the end of a way gone up as far as it goes is clear of it.
+      beside.style.maskImage = onPhone() ? "" : `linear-gradient(to bottom, ${raised ? "transparent, #000 28px" : "#000, #000"}, #000 ${room}px, transparent ${room + 28}px)`;
     };
     follow();
     const watching = new ResizeObserver(follow);
