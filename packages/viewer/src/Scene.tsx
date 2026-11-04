@@ -496,6 +496,7 @@ export function SceneView(props: SceneViewProps) {
               const told = linesOf(diamond);
               const answered = answerTo(diamond);
               const madeFor = answered?.note;
+              const words = (answered?.turn?.words ?? "Changed for your note").trim();
               const on = picked === diamond.id;
               return (
                 <li key={diamond.id} className="flex min-w-0 items-start gap-2" onPointerEnter={() => setLit(diamond.id)} onPointerLeave={() => setLit(undefined)}>
@@ -506,10 +507,14 @@ export function SceneView(props: SceneViewProps) {
                     <i className={`mt-[5.5px] size-[7px] flex-none rotate-45 ${on ? "bg-fg" : "bg-soft"}`} />
                     <span className="min-w-0 flex-1">
                       {madeFor ? (
+                        // Its number goes with its last word, never onto a line of its own.
                         <>
-                          {answered?.turn?.words ?? "Changed for your note"}
-                          <span className={`ml-1 inline-block size-3.5 rounded-full text-center text-[8.5px] leading-3.5 font-semibold ${quietNumber}`} style={{ "--c": ink(madeFor) } as CSSProperties}>
-                            {madeFor.number}
+                          {words.slice(0, words.lastIndexOf(" ") + 1)}
+                          <span className="whitespace-nowrap">
+                            {words.slice(words.lastIndexOf(" ") + 1)}
+                            <span className={`ml-1 inline-block size-3.5 rounded-full text-center text-[8.5px] leading-3.5 font-semibold ${quietNumber}`} style={{ "--c": ink(madeFor) } as CSSProperties}>
+                              {madeFor.number}
+                            </span>
                           </span>
                         </>
                       ) : told.length ? (
