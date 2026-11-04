@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { memory, newId, Reviews, type Scene, type Review, type Round, type Send } from "@playthrough/review";
-import { fill, lookGood, nothing, notesOn, settledBefore, standings, takeBack } from "../src/notes.ts";
+import { fill, lookGood, nothing, notesOn, standings, takeBack } from "../src/notes.ts";
 
 const scene = (name: string): Scene => ({ name, length: 6, steps: [{ title: "Open the invoices", at: 0 }], recording: `${name.toLowerCase().replace(/\W+/g, "-")}.json` });
 const round = (number: number, parts: Partial<Round> = {}): Round => ({
@@ -96,7 +96,7 @@ test("looking back shows what was said then, and nothing after", async () => {
   assert.deepEqual([then?.state, then?.turns.length], ["with the agent", 1]);
 });
 
-test("a note settled on an earlier round is counted apart, and no longer a row on the rounds after", async () => {
+test("a note settled on an earlier round is still there on the rounds after, settled", async () => {
   const reviews = new Reviews(memory());
   await twoPeople(reviews);
   const another = { id: newId(), on: { scene: "Export them", at: 4 }, words: "The file could be named for the month." };
@@ -106,8 +106,7 @@ test("a note settled on an earlier round is counted apart, and no longer a row o
   await reviews.finish("export", 3);
   const later = await reviews.get("export");
   assert.deepEqual(notesOn(later, 2, "Ben").map((shown) => shown.number), [1, 2], "settled on round 2, it's still a row there");
-  assert.deepEqual(settledBefore(later, 3, "Ben").map((shown) => shown.number), [1]);
-  assert.deepEqual(notesOn(later, 3, "Ben").map((shown) => shown.number), [2]);
+  assert.deepEqual(notesOn(later, 3, "Ben").map((shown) => [shown.number, shown.state]), [[1, "settled"], [2, "with someone else"]]);
 });
 
 test("a scene with an answer waiting asks for it, and its Looks good settles the answers in it you haven't judged", async () => {

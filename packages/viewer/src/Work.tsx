@@ -11,7 +11,7 @@ import type { Diamond } from "./changes.ts";
 import { clamp } from "./moments.ts";
 import { fill, unchangedSince, type Shown, type Standing } from "./notes.ts";
 import { onPhone } from "./phone.ts";
-import { roundName, Rounds } from "./Rounds.tsx";
+import { clock } from "./Rounds.tsx";
 import { SceneView, type Threads } from "./Scene.tsx";
 import { Agent, Go, type Step } from "./Step.tsx";
 import type { Read } from "./things.ts";
@@ -29,18 +29,17 @@ type Props = {
   threads: Threads;
   // What's new to you on the round, as the player's timeline marks it.
   diamonds: Diamond[];
-  accepted?: string;
+  accepted: boolean;
   step?: Step;
   trouble: string[];
   acting: Acting;
-  arrived?: Round;
-  working?: string;
-  onRound: (round: number) => void;
+  // The notes whose thing this round no longer has, as a comment on a line that's since changed is outdated, each by
+  // what it was on.
+  outdated: Map<string, string>;
 };
 
 // What can be done on the scene you're on, from the bar across its recording's bottom edge, and how far it's got.
 export type Acting = {
-  latest: boolean;
   noting: boolean;
   // None where no note can be made, or nothing taken over.
   onNote?: () => void;
@@ -132,6 +131,15 @@ export function Work(props: Props) {
     if (!room || !there) return;
     if (onPhone()) return void (setActive(scene), setGo({ round: round.number, scene, stop }));
     goTo(room, there, stop);
+  };
+  // A note gone to from the line under the title: its stop on its scene's way, or where it's said at the page's end, or
+  // the scene, folded as it looks good to you.
+  const toNote = (note: Shown) => {
+    const room = props.room.current;
+    const stop = room?.querySelector<HTMLElement>(`[data-scene] [data-note="${CSS.escape(note.id)}"]`);
+    const scene = stop?.closest<HTMLElement>("[data-scene]")?.dataset.scene;
+    if (scene) return bringTo(scene, Number(stop!.dataset.stop));
+    room?.querySelector(`[data-note="${CSS.escape(note.id)}"], [data-folded="${CSS.escape(note.on?.scene ?? "")}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
   // The page glides where it's sent a frame at a time, rather than by the browser's smooth scroll, which another can cut
   // short; meanwhile, what it passes isn't where you are. Asked for less motion, it's there at once; your hand on the
@@ -257,13 +265,21 @@ export function Work(props: Props) {
         <header className="max-w-[680px]">
           <h2 className="text-[20px] leading-[27px] font-semibold tracking-[-0.01em] text-balance">{review.title}</h2>
           {review.asked && <p className="mt-2 text-[14px] leading-[22px] text-soft">{review.asked}</p>}
-          <div className="mt-3 -ml-2.5 flex items-center gap-1 text-[13px] leading-5 text-soft">
-            <Rounds quiet rounds={review.rounds} watching={round.number} arrived={props.arrived} working={props.working} onRound={props.onRound} />
-            <span className="min-w-0 truncate">
+          <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] leading-5 text-soft">
+            <span>
               {round.scenes.length} {round.scenes.length === 1 ? "scene" : "scenes"}, recorded by {round.by}
-              {props.accepted && <span className="text-green"> · {props.accepted}</span>}
+              {props.accepted && <span className="text-green"> · Accepted</span>}
             </span>
-          </div>
+            {standsAt(props.notes).map(([words, notes]) => {
+              const first = notes.find((note) => props.standing(note.on?.scene ?? "")?.is !== "good" && round.scenes.some((scene) => scene.name === note.on?.scene)) ?? notes[0]!;
+              return (
+                <button key={words} className="inline-flex items-center gap-1.5 underline-offset-[3px] hover:text-fg hover:underline" onClick={() => toNote(first)}>
+                  <i className={`size-1.5 rounded-full ${fill(first)}`} />
+                  {notes.length} {words}
+                </button>
+              );
+            })}
+          </p>
         </header>
         {/* Scenes that look good to you, folded to their pictures, sit side by side. */}
         <div className="mt-10 flex flex-wrap gap-x-5 gap-y-12 phone:mt-7 phone:gap-y-9 [&>[data-scene]]:basis-full [&>[data-folded]+[data-folded]]:mt-0">
@@ -277,6 +293,7 @@ export function Work(props: Props) {
               changed={(work?.changes ?? []).flatMap((change) => change.seen.filter((on) => on.scene === scene.name).map((on) => (change.gone ? { ...on, element: undefined } : on)))}
               readings={props.read(round.number, scene.name)}
               notes={props.notes.filter((note) => note.on?.scene === scene.name)}
+              outdated={props.outdated}
               noteOf={(id) => props.notes.find((note) => note.id === id)}
               standing={props.standing(scene.name)}
               onLooksGood={props.onLooksGood}
@@ -295,7 +312,7 @@ export function Work(props: Props) {
             />
           ))}
         </div>
-        <Story review={review} round={round} general={general} onRound={props.onRound} />
+        <Story review={review} round={round} general={general} />
         {/* The one step to take floats at the window's foot, over the way rather than across the recordings. */}
         <div className="pointer-events-none sticky bottom-0 z-10 mt-6 flex min-h-8 justify-end py-4">
           {/* As wide as what it says, and on a plate of the page's ground fading in above it, so the way's words go under
@@ -333,28 +350,23 @@ const STEP = 100;
 // How long a verdict is seen where it was said before the way goes on, in milliseconds.
 const LANDS = 600;
 
-// Each round in a line: who recorded it, what was said about it, and what came of that. Its name goes to it, as the
-// rounds at the top do.
-function Story({ review, round, general, onRound }: { review: Review; round: Round; general: Shown[]; onRound: (round: number) => void }) {
+// How it got here, a line each time the agent recorded it: by whom and when, what it answered, and what was sent back,
+// as a pull request's pushes are told among its comments. A round is the agent's turn, not a place to go. Then the
+// notes on scenes this round doesn't have, outdated as their scene is gone.
+function Story({ review, round, general }: { review: Review; round: Round; general: Shown[] }) {
   const rounds = review.rounds.filter((kept) => kept.number > 0 && kept.number <= round.number);
   if (rounds.length < 2 && !general.length) return null;
   return (
     <section className="mt-14 max-w-[680px] border-t border-line pt-6">
       <h3 className="text-[13px] leading-5 font-semibold">How it got here</h3>
       <ol className="mt-2 grid gap-1 text-[13px] leading-5 text-soft">
-        {rounds.map((kept) => {
+        {rounds.map((kept, i) => {
           const sent = review.sends.filter((send) => send.round === kept.number);
           const notes = sent.reduce((count, send) => count + send.notes.length, 0);
           return (
             <li key={kept.number}>
-              {kept.number === round.number ? (
-                <span className="text-fg">{roundName(kept.number)}</span>
-              ) : (
-                <button className="text-fg underline-offset-[3px] hover:underline" onClick={() => onRound(kept.number)}>
-                  {roundName(kept.number)}
-                </button>
-              )}
-              , by {kept.by}
+              {i ? "Recorded again" : "Recorded"} by {kept.by}
+              {kept.finished && ` at ${clock(kept.finished)}`}
               {kept.replies.length > 0 && `, answering ${kept.replies.length} ${kept.replies.length === 1 ? "note" : "notes"}`}
               {notes > 0 && ` · ${notes} ${notes === 1 ? "note" : "notes"} sent back`}
             </li>
@@ -364,9 +376,10 @@ function Story({ review, round, general, onRound }: { review: Review; round: Rou
       {general.length > 0 && (
         <ul className="mt-3 grid gap-1.5">
           {general.map((note) => (
-            <li key={note.id} className="flex min-w-0 items-baseline gap-2 text-[13px] leading-5">
+            <li key={note.id} data-note={note.id} className="flex min-w-0 items-baseline gap-2 text-[13px] leading-5">
               <span className={`size-1.5 flex-none translate-y-[-1px] rounded-full ${fill(note)}`} />
               <span className="truncate text-fg">{note.turns[0]?.words}</span>
+              {note.on && <span className="flex-none text-soft">· Outdated</span>}
               {where(note) && <span className={`flex-none ${where(note)![1]}`}>· {where(note)![0]}</span>}
             </li>
           ))}
@@ -379,4 +392,16 @@ function Story({ review, round, general, onRound }: { review: Review; round: Rou
 // Where a note stands, in a word or two after what was said.
 const where = (note: Shown): [string, string] | undefined =>
   note.unsent ? ["To send", "text-amber-ink"] : note.toJudge ? ["Does this fix it?", "text-amber-ink"] : note.state === "with the agent" ? ["With the agent", "text-slate"] : note.state === "settled" ? ["Settled", "text-green"] : undefined;
+
+// Where your notes stand, all of them, as a count each beside the dot a note has, for the line under the title: as a
+// pull request says how many conversations are still open. Those with none are left out.
+const standsAt = (notes: Shown[]): [string, Shown[]][] =>
+  (
+    [
+      ["to send", notes.filter((note) => note.unsent)],
+      ["to check", notes.filter((note) => !note.unsent && note.toJudge)],
+      ["with the agent", notes.filter((note) => !note.unsent && note.state === "with the agent")],
+      ["settled", notes.filter((note) => !note.unsent && note.state === "settled")],
+    ] as [string, Shown[]][]
+  ).filter(([, some]) => some.length);
 

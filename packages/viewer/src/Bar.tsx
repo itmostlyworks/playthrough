@@ -11,7 +11,6 @@ export type Said = { id: string; ink: string; words: string; at: string; app: bo
 
 type Props = {
   live?: "waiting" | "shown";
-  latest: boolean;
   // How it was, where there's a round before this one to compare it with.
   compare?: Comparing;
   noting: boolean;
@@ -97,7 +96,7 @@ export function Bar(props: Props) {
             Back to the recording <Key>Esc</Key>
           </button>
         ) : (
-          <button className={item} disabled={!props.latest || !props.onTakeOver} aria-pressed={props.live === "waiting"} onClick={props.onTakeOver}>
+          <button className={item} disabled={!props.onTakeOver} aria-pressed={props.live === "waiting"} onClick={props.onTakeOver}>
             {props.live === "waiting" ? "Taking over…" : "Take over"} <Key>T</Key>
           </button>
         )}

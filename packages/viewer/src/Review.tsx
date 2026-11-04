@@ -21,7 +21,7 @@ import type { Step } from "./Step.tsx";
 import { Work } from "./Work.tsx";
 import { follow, pausedAt, readyAt, readyIn, samePaused, takenOver, type Live, type Paused } from "./live.ts";
 import { along, CARD, clamp, SCENE_IN, momentAt, POSTER, type Moment } from "./moments.ts";
-import { changedFirst, draftOn, toSend, everyDraft, fill, ink, lookGood, notesOn, nothing, said, seen, sendOf, settledBefore, standings, takeBack, upTo, workingSince, type Draft, type Replied, type Shown } from "./notes.ts";
+import { changedFirst, draftOn, toSend, everyDraft, fill, ink, lookGood, notesOn, nothing, said, seen, sendOf, standings, takeBack, upTo, workingSince, type Draft, type Replied, type Shown } from "./notes.ts";
 import { NoteRow, number as numberLook, Writing, type Comparing } from "./Notes.tsx";
 import { Playhead, useNow, type Forked } from "./playhead.ts";
 import { changesIn, recorded } from "./replay.ts";
@@ -71,31 +71,23 @@ export function Page({ title, actions, children }: { title?: string; actions?: R
   );
 }
 
-// You review scenes, each its newest recording: a round that arrives while you're on the newest is followed between scenes,
-// never under you. One that arrives while you're looking back at an older one says it's in; it's yours to go to. Going to
-// the newest round, you've seen it's there, and the older ones are for looking back.
+// You review the work as it is now, as a pull request shows its latest push: a round that arrives is followed, between
+// scenes, never under you. Older rounds aren't places to go: what was is Before, or how it was the last time you said
+// something, beside what you're on. Looking back at a whole round showed each note as it stood then, so one note had a
+// version for every round, answered on one and not on another.
 function Reviewing({ review, you, scene }: { review: Review; you: string; scene?: string }) {
   const latest = review.rounds.at(-1);
   const [viewing, setViewing] = useState(latest?.number);
-  const [newest, setNewest] = useState(latest?.number);
-  if (viewing === undefined && latest) {
-    setViewing(latest.number);
-    setNewest(latest.number);
-  }
+  if (viewing === undefined && latest) setViewing(latest.number);
   const round = review.rounds.find((round) => round.number === viewing);
   if (!round || !latest) return <Page title={review.title}><p className="m-auto text-soft">Nothing’s been recorded yet. The first round shows here once the agent finishes it.</p></Page>;
-  const choose = (number: number) => {
-    setViewing(number);
-    if (number === latest.number) setNewest(number);
-  };
-  const following = viewing === newest && latest.number !== newest;
-  return <OnRound review={review} round={round} latest={latest} newer={following ? latest : undefined} arrived={latest.number !== newest && !following} you={you} scene={scene} onRound={choose} />;
+  return <OnRound review={review} round={round} latest={latest} newer={round === latest ? undefined : latest} you={you} scene={scene} onRound={setViewing} />;
 }
 
-// newer: a round that came in while you were on the newest, to follow at the next scene you go to.
-type OnRoundProps = { review: Review; round: Round; latest: Round; newer?: Round; arrived: boolean; you: string; scene?: string; onRound: (round: number) => void };
+// newer: a round that came in while you were in a scene, to follow at the next scene you go to.
+type OnRoundProps = { review: Review; round: Round; latest: Round; newer?: Round; you: string; scene?: string; onRound: (round: number) => void };
 
-function OnRound({ review: kept, round, latest, newer, arrived, you, scene: inAddress, onRound }: OnRoundProps) {
+function OnRound({ review: kept, round, latest, newer, you, scene: inAddress, onRound }: OnRoundProps) {
   // What you've just sent shows as sent until the review comes back with it.
   const [posted, setPosted] = useState<Send[]>([]);
   const notBack = posted.filter((sent) => !kept.sends.some((send) => send.id === sent.id));
@@ -119,8 +111,6 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, scene: inAd
   const forkList: Fork[] = useMemo(() => JSON.parse(forks), [forks]);
   const played = useMemo(() => forked(round, forkList), [round, forkList]);
   const [open, setOpen] = useState<Open>();
-  // Until a newer round is followed, the round you're on is still the one you act on.
-  const current = round === latest || !!newer;
   const following = useRef(false);
   // The note whose reply is being written.
   const [replying, setReplying] = useState<string>();
@@ -204,7 +194,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, scene: inAd
   useEffect(() => void (live?.address && !live.settled && (loading.current.since = Date.now())), [live?.address]);
   const passing = useNow(playhead, ({ moment, playing }) => {
     const on = round.scenes.find((scene) => scene.name === moment.scene);
-    const paused = playing && current && !onGrid && on && moment.at >= 0 ? pausedAt(on, moment.at) : undefined;
+    const paused = playing && !onGrid && on && moment.at >= 0 ? pausedAt(on, moment.at) : undefined;
     return paused && JSON.stringify({ scene: on!.name, paused });
   });
   useEffect(() => {
@@ -268,7 +258,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, scene: inAd
   const tryWhereYouWere = (note: Shown) => {
     const was = whereYouWere.get(note.id);
     const scene = round.scenes.find((scene) => scene.name === note.on?.scene);
-    if (!scene || was?.at === undefined || !current) return;
+    if (!scene || was?.at === undefined) return;
     trying.current = note.id;
     setOpen({ note: note.id });
     starting.current = { from: { scene: scene.name, at: was.at } };
@@ -276,7 +266,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, scene: inAd
   };
   const takeOverAt = (on: Scene, at: number, did?: Did[], notes?: string[]) => {
     const paused = pausedAt(on, at);
-    if (!current || at < 0 || !paused) return;
+    if (at < 0 || !paused) return;
     playhead.pause();
     // The app is now, alone: how it was goes.
     setPeek(false);
@@ -338,10 +328,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, scene: inAd
     setLook(chosen);
     if (chosen === "side") setSideFit(false);
   };
-  const toRound = (number: number) => {
-    onRound(number);
-  };
-  const noted = notesOn(review, round.number, you, unsent);
+  const noted =notesOn(review, round.number, you, unsent);
   // Only an answer is a difference to judge: a note nobody has answered has nothing to compare.
   const answered = (note: Shown) => note.on?.at !== undefined && note.turns.some((turn) => turn.agent);
   // An answer is judged against what its note asked about: the round it was written on, or the round it was last sent
@@ -468,7 +455,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, scene: inAd
   };
 
   // Before is how the app was: it's there to look back on, and notes go on the rounds after it.
-  const readOnly = !!review.accepted || round.number === 0 || (!current && !arrived);
+  const readOnly = !!review.accepted || round.number === 0;
   const readOn = [round.number, ...(compared === undefined ? [] : [compared]), ...noted.map((note) => note.written)];
   const read = useReadings(review, review.rounds.filter((kept) => readOn.includes(kept.number)).map((kept) => (kept.number === round.number ? played : kept)));
   // Each note sits where its thing is on this round: its moment here, on what it's on here, once that's found. One on
@@ -488,9 +475,10 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, scene: inAd
     return note.on && !note.on.app ? { ...note, on: placeOn(review, note.id, note.on, note.written, round, read) ?? note.on } : note;
   });
   const lost = noted.filter((note, i) => note.on?.element && !note.on.app && notes[i]!.on !== note.on && !notes[i]!.on?.element).map((note) => note.id);
+  // Each lost here, by what it was on, as it was called where it was written.
+  const outdated = new Map(noted.filter((note) => lost.includes(note.id)).map((note) => [note.id, nameOf(note.on, read, note.written)]));
   // The notes whose things have left the page you're watching.
   const [gone, setGone] = useState<string[]>([]);
-  const settled = settledBefore(review, round.number, you);
   const playingNotes = scene ? notes.filter((note) => note.on?.scene === scene.name && note.on.at !== undefined) : [];
 
   // Where each scene stands for you on the round you judge, and, once the work is accepted, on the last.
@@ -860,9 +848,8 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, scene: inAd
     // Made in the app on an earlier round, it's tried where you were rather than compared, on the round that's the app
     // as it is now; in the app, a Looks good stays where you said it, as there's nothing to play on to.
     const was = whereYouWere.get(note.id);
-    const takeable = current && !readOnly;
     // Answered on its fork, it's checked by watching and compared, as any answer is.
-    const tryHere = was && (was.at === undefined || takeable) ? { round: round.number, live: trying.current === note.id ? liveNow : undefined, ...(was.at !== undefined && { onTakeOver: () => tryWhereYouWere(note) }) } : undefined;
+    const tryHere = was && (was.at === undefined || !readOnly) ? { round: round.number, live: trying.current === note.id ? liveNow : undefined, ...(was.at !== undefined && { onTakeOver: () => tryWhereYouWere(note) }) } : undefined;
     return (
       <NoteRow
         key={note.id}
@@ -1043,8 +1030,6 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, scene: inAd
   const stepHere = (): Step => {
     if (review.accepted || acceptedHere)
       return { kind: "done", words: !review.accepted || review.accepted.by === you ? "Accepted" : `Accepted by ${review.accepted.by}`, just: acceptedHere };
-    if (round !== latest && arrived) return { kind: "go", words: `${roundName(latest.number)} is in`, what: "See it", take: () => toRound(latest.number) };
-    if (!current) return { kind: "go", words: "Back to now", what: roundName(latest.number), take: () => toRound(latest.number) };
     if (round.number === 0) return { kind: "agent", words: "The agent is working", what: "on round 1", busy: true };
     if (!scene) return { kind: "go", words: "All scenes", take: toGrid };
     if (where === "playing") return { kind: "say", words: "Playing", what: scene.name };
@@ -1058,11 +1043,9 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, scene: inAd
 
   // At the foot of every scene, what's yours to do: finish a note you started; send what you've said, all of it at once,
   // so the agent starts on the whole of it; accept, once it's sent and nothing waits on you or the agent; else what the
-  // agent is doing. Looking back, it's the way back to now.
+  // agent is doing.
   const gridStep = ((): Step | undefined => {
-    if (review.accepted || acceptedHere) return undefined;
-    if (!current) return arrived ? undefined : step;
-    if (readOnly) return undefined;
+    if (review.accepted || acceptedHere || readOnly) return undefined;
     const started = draft.unsaved[0];
     if (started)
       return {
@@ -1093,9 +1076,6 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, scene: inAd
     return undefined;
   })();
   const acting = onGrid ? gridStep : step;
-  // Accepted, beside the round it was accepted on, with how many notes settled on the way.
-  const settledNotes = [...settled, ...notes].filter((note) => note.state === "settled").length;
-  const acceptedAfter = `Accepted${settledNotes ? ` · ${settledNotes} ${settledNotes === 1 ? "note" : "notes"} settled` : ""}`;
 
   // The button you last clicked, keeping focus: Enter on it is the step's, as Space is, until Tab takes you elsewhere.
   const clicked = useRef<Element | null>(null);
@@ -1188,11 +1168,9 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, scene: inAd
         setPeek(false);
         chooseLook("one");
       } else if (event.key === "Escape") {
-        // Escape goes back a step you can see: from a note or a change to the recording, from a scene to every scene, and
-        // looking back to now.
+        // Escape goes back a step you can see: from a note or a change to the recording, from a scene to every scene.
         if (open) setOpen(undefined);
         else if (many) toGrid();
-        else if (!current) toRound(latest.number);
       }
     };
     const up = (event: KeyboardEvent) => {
@@ -1346,7 +1324,6 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, scene: inAd
             onGone={setGone}
             onPointAt={whyOf}
             onAllScenes={many ? () => toGrid() : undefined}
-            over={arrived ? { words: `${roundName(latest.number)} is in`, take: () => toRound(latest.number) } : current ? undefined : { words: roundName(round.number) }}
             live={onGrid ? undefined : live}
             away={onGrid}
           />
@@ -1354,7 +1331,6 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, scene: inAd
           <div className="absolute bottom-6 left-1/2 z-20 -translate-x-1/2 translate-y-1/2">
             <Bar
               live={liveNow}
-              latest={current}
               compare={liveNow === "shown" ? undefined : comparingIt}
               noting={noting}
               onNote={readOnly ? undefined : pressNote}
@@ -1432,9 +1408,8 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, scene: inAd
             rounds={review.rounds}
             watching={round.number}
             earlier={earlier?.number}
-            arrived={arrived ? latest : undefined}
             working={working}
-            onRound={toRound}
+            onRound={onRound}
             look={look}
             onLook={chooseLook}
           />
@@ -1468,11 +1443,10 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, scene: inAd
             onLooksGood={readOnly ? undefined : lookingGood}
             threads={{ you, readOnly, unfinished, onUnfinished: keepUnfinished, onJudge: judge, onEdit: editNote }}
             diamonds={diamonds}
-            accepted={review.accepted || acceptedHere ? acceptedAfter : undefined}
+            accepted={!!review.accepted || acceptedHere}
             step={gridStep}
             trouble={trouble}
             acting={{
-              latest: current,
               noting,
               onNote: readOnly ? undefined : pressNote,
               onTakeOver: takeOver,
@@ -1488,9 +1462,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, scene: inAd
               writing: writing ? { note: writing, number: nextNumber + draft.unsaved.indexOf(writing), words: writingWords(writing) } : undefined,
               opened: openNote?.id,
             }}
-            arrived={arrived ? latest : undefined}
-            working={working}
-            onRound={toRound}
+            outdated={outdated}
           />
         )}
       </main>

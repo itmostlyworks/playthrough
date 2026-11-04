@@ -56,8 +56,8 @@ type Props = {
   // Taken over: the app is yours, and what plays the recording rests; the stop you're on stays lit, where you took it
   // over, and what you say there answers.
   resting?: boolean;
-  // The round you last said something about it on, since when steps kept together have nothing new; with none, they're as
-  // they were before the work. And opening them.
+  // The round you last said something about it on, the last time, since when steps kept together have nothing new; with
+  // none, they're as they were before the work. And opening them.
   since?: number;
   onUnfold: (stop: number) => void;
 };
@@ -187,7 +187,7 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
                 {stop.from + 1}–{stop.step + 1}
               </span>
               <button className={`block w-full text-left text-[14px] leading-5 outline-none hover:text-fg focus-visible:text-fg ${here ? "text-fg" : "text-soft"}`} onClick={() => onStop(k)}>
-                {since === undefined ? "Unchanged" : `Nothing new since round ${since}`}
+                {since === undefined ? "Unchanged" : "Nothing new since last time"}
               </button>
               <ol className="grid gap-0.5 pt-1.5 text-[13px] leading-[18px] text-soft">
                 {kept.map((one, i) => (
@@ -205,7 +205,7 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
         if (stop.id !== undefined) {
           const { sign, whole } = said(stop.id);
           return (
-            <li key={stop.id} {...row(k)} inert={resting && !here} onPointerEnter={() => onPoint(stop.id)} onPointerLeave={() => onPoint(undefined)}>
+            <li key={stop.id} data-note={stop.id} {...row(k)} inert={resting && !here} onPointerEnter={() => onPoint(stop.id)} onPointerLeave={() => onPoint(undefined)}>
               <span data-sign="" className={`absolute top-2.5 left-0.5 grid size-4 place-items-center rounded-full bg-ground transition-[box-shadow] duration-300 ease-calm ${here ? RING : ""}`}>
                 {sign}
               </span>

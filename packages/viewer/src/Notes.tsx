@@ -141,6 +141,8 @@ function exchanges(turns: Turn[]): Turn[][] {
 type ConversationProps = Pick<Props, "note" | "you" | "readOnly" | "compare" | "whereYouWere" | "replying" | "unfinished" | "away" | "whole" | "onReplying" | "onUnfinished" | "onJudge" | "onEdit" | "changedAt" | "onDiamond" | "onShow"> & {
   // Where it plays on from, once judged; none on the page, where the step loops by itself.
   onPlayOn?: () => void;
+  // Settled, opened from its line on the page: folding it back there.
+  onFold?: () => void;
 };
 
 export function Conversation(props: ConversationProps) {
@@ -248,10 +250,21 @@ export function Conversation(props: ConversationProps) {
       {play}Play on
     </Answer>
   );
+  // Settled, it says so; opened from its line on the page, the word folds it back, as the earlier answers fold.
+  const settledWord = props.onFold ? (
+    <button className="flex items-center gap-[3px] text-green" onClick={props.onFold} aria-expanded>
+      Settled
+      <svg viewBox="0 0 12 12" className="size-3" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" aria-hidden>
+        <path d="M3.5 7.5L6 5l2.5 2.5" />
+      </svg>
+    </button>
+  ) : (
+    <span className="text-green">Settled</span>
+  );
   let question: ReactNode;
   let answers: ReactNode;
   if (props.whole) [question, answers] = ["", undefined];
-  else if (readOnly) [question, answers] = [note.state === "settled" ? "Settled" : "", undefined];
+  else if (readOnly) [question, answers] = [note.state === "settled" ? settledWord : "", undefined];
   // A reply is your words back to the agent, whatever they are: what's still not right, or an answer to its question. It
   // judges nothing, and the agent goes on from it.
   else if (replying && !props.away)
@@ -277,7 +290,7 @@ export function Conversation(props: ConversationProps) {
   else if (settled && !props.away)
     question = (
       <span className="flex items-baseline gap-2">
-        <span className="text-green">Settled</span>
+        {settledWord}
         <button className="text-soft underline-offset-[3px] hover:text-fg hover:underline" onClick={() => setReplying(true)}>
           Reply
         </button>

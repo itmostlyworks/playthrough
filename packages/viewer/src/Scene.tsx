@@ -38,6 +38,8 @@ type SceneViewProps = {
   readings?: Reading[];
   glimpsed?: Glimpse[];
   notes: Shown[];
+  // The notes whose thing this round no longer has, each by what it was on.
+  outdated: Map<string, string>;
   // Any note of yours, wherever it's on: a change here can be made for one on another scene.
   noteOf: (id: string) => Shown | undefined;
   standing?: Standing;
@@ -127,18 +129,17 @@ export function SceneView(props: SceneViewProps) {
   };
   // The way through it, a stop at a time: each step, and after it what was said in it, in the order it comes, a change
   // before what you said about it; then what was said about all of it, where it ends. Two or more steps in a row with
-  // nothing new are one stop, played through.
+  // nothing new are one stop, played through, the notes settled in them after it, each at its moment.
+  const saidIn = (from: number, to: number) =>
+    onLine
+      .filter((mark) => mark.fill && stepOf(mark.at) >= from && stepOf(mark.at) <= to)
+      .sort((a, b) => a.at - b.at || Number(!!a.fill) - Number(!!b.fill))
+      .map((mark) => ({ step: stepOf(mark.at), at: mark.at, id: mark.id }));
   const stops: Stop[] = [
     ...scene.steps.flatMap((_, i): Stop[] => {
       const [first, last] = together(i) ? run(i) : [i, i];
-      if (last > first) return i === first ? [{ step: last, at: results[last]!, from: first }] : [];
-      return [
-        { step: i, at: results[i]! },
-        ...onLine
-          .filter((mark) => mark.fill && stepOf(mark.at) === i)
-          .sort((a, b) => a.at - b.at || Number(!!a.fill) - Number(!!b.fill))
-          .map((mark) => ({ step: i, at: mark.at, id: mark.id })),
-      ];
+      if (last > first) return i === first ? [{ step: last, at: results[last]!, from: first }, ...saidIn(first, last)] : [];
+      return [{ step: i, at: results[i]! }, ...saidIn(i, i)];
     }),
     ...notes.filter((note) => momentOf(note) === undefined).map((note) => ({ step: -1, id: note.id })),
     ...(ours && !writing ? [{ step: -1, id: ours.note.id }] : []),
@@ -347,7 +348,8 @@ export function SceneView(props: SceneViewProps) {
   const taken = !!live?.shown;
   if (taken && side) setSide(false);
   // Compare, on the bar: how it was before the work, at the same moment; beside what changed or was answered, how it was
-  // on the round it's new since; at an answer to a note made in the app, what you did then.
+  // the last time you said something about the scene, Last time; at an answer to a note made in the app, what you did
+  // then. Never a round's number: rounds are the agent's turns, not what you remember.
   const comparingWith = (number: number) =>
     sceneOn(number) || redone?.then ? { on: (side || peek) && against === number, off: taken, onPress: () => press(number), onRelease: release } : undefined;
   const comparing = comparingWith(0);
@@ -379,7 +381,7 @@ export function SceneView(props: SceneViewProps) {
   // And there, it's a click from being the app: pointing at it says so beside your pointer, as who it's done as. A
   // click on another scene's makes it the one you're on.
   const person = personAt(scene, restsAt);
-  const stepIn = resting && !live?.shown && !noting && !acting.writing && acting.latest ? acting.onTakeOver : undefined;
+  const stepIn = resting && !live?.shown && !noting && !acting.writing ? acting.onTakeOver : undefined;
   const noteHere = noting && !taken && !acting.writing;
   // It says so once you point, not each time the way comes to rest under a pointer left there.
   const [aiming, setAiming] = useState(false);
@@ -449,7 +451,10 @@ export function SceneView(props: SceneViewProps) {
   });
 
   // What was said at a stop: a note of yours, its thread, or the one you're writing. Its sign on the rail is the note's
-  // number.
+  // number. Settled and sent, a note is folded to a line, as a resolved conversation is, and opens when pressed: before,
+  // one settled on an earlier round left the page. One whose thing has gone says so over its thread, as a comment on a
+  // line that's since changed is outdated, and Compare shows the thing as it was.
+  const [reading, setReading] = useState<string[]>([]);
   const said = (id: string): Saying => {
     if (id === ours?.note.id)
       return {
@@ -458,12 +463,28 @@ export function SceneView(props: SceneViewProps) {
         whole: <div className="grid gap-2.5 pt-1 pb-1.5 text-[13px]">{ours.words}</div>,
       };
     const note = notes.find((note) => note.id === id)!;
+    const sign = <span className={`size-4 rounded-full text-center text-[9px] leading-4 font-semibold text-white ${fill(note)}`}>{note.number}</span>;
+    const settled = note.state === "settled" && !note.unsent;
+    if (settled && !reading.includes(note.id))
+      return {
+        sign,
+        line: note.turns[0]?.words,
+        whole: (
+          <button className="flex w-full min-w-0 items-baseline gap-2 pr-2 text-left text-[13px] leading-5 hover:text-fg" aria-expanded={false} onClick={() => setReading([...reading, note.id])}>
+            <span className="min-w-0 flex-1 truncate">{note.turns[0]?.words}</span>
+            <span className="flex-none text-[12px] text-green">Settled</span>
+          </button>
+        ),
+      };
+    const thing = props.outdated.get(note.id);
     return {
-      sign: <span className={`size-4 rounded-full text-center text-[9px] leading-4 font-semibold text-white ${fill(note)}`}>{note.number}</span>,
+      sign,
       line: note.turns[0]?.words,
       whole: (
         <div className="-my-2 -ml-4">
+          {thing && <p className="pt-2 pl-4 text-[12px] leading-4 text-soft">Outdated · {thing} is gone</p>}
           <Conversation
+            onFold={settled ? () => setReading(reading.filter((one) => one !== note.id)) : undefined}
             note={note}
             you={threads.you}
             readOnly={threads.readOnly}
@@ -616,7 +637,7 @@ export function SceneView(props: SceneViewProps) {
         <Player review={review.id} round={against} recording={then.recording} at={beforeAt} following={playing || scrubbing ? { clock, at: (moment) => thenAt(moment) ?? beforeAt } : undefined} frame={frame} />
       </>
     ) : (
-      <span className="absolute inset-0 grid place-content-center bg-ground px-6 text-center text-[13px] leading-5 text-soft">{against ? (then ? `In round ${against}, there was no such step` : `New since round ${against}`) : then ? "Before the work, there was no such step" : "New: there was nothing like it before"}</span>
+      <span className="absolute inset-0 grid place-content-center bg-ground px-6 text-center text-[13px] leading-5 text-soft">{against ? (then ? "Last time, there was no such step" : "New since last time") : then ? "Before the work, there was no such step" : "New: there was nothing like it before"}</span>
     );
 
   // Folded, it's the picture it ends on, small, with its name under it, beside the others that look good.
@@ -726,13 +747,13 @@ export function SceneView(props: SceneViewProps) {
             {beside && (
               <span className={`${FRAMED} right-0 ${HALVES} transition-opacity duration-450 ease-calm starting:opacity-0 ${side ? "" : "opacity-0"}`}>
                 {was(side && closeOn && !redone && closed ? closed : frame)}
-                <span className={CHIP}>{against ? `Round ${against}` : "Before"}</span>
+                <span className={CHIP}>{against ? "Last time" : "Before"}</span>
               </span>
             )}
             {peek && (
               <span className="absolute inset-0 z-2 animate-arrive overflow-hidden rounded-lg">
                 {was()}
-                <span className={CHIP}>{against ? `Round ${against}` : "Before"}</span>
+                <span className={CHIP}>{against ? "Last time" : "Before"}</span>
               </span>
             )}
           </button>
@@ -746,7 +767,6 @@ export function SceneView(props: SceneViewProps) {
               <div className="animate-arrive">
                 <Bar
                   live={taken ? (live.inApp ? "shown" : "waiting") : undefined}
-                  latest={acting.latest}
                   compare={comparing}
                   noting={noting}
                   onNote={taken && !live.inApp ? undefined : acting.onNote}

@@ -120,17 +120,10 @@ function numbers(review: Review): Map<string, number> {
   return new Map(order.map((id, i) => [id, i + 1]));
 }
 
-// The notes on a round: those started on it, those with something said on it, and any not settled yet.
+// Every note on a round, each one thread as it stands: one settled rounds ago is still there, as a resolved comment is
+// still on its line. Before, a note settled on an earlier round left the page, found only by looking back at that
+// round, where it was as it stood then, its answer not yet in.
 export function notesOn(review: Review, round: number, you: string, unsent: Unsent = {}): Shown[] {
-  return everyNote(review, round, you, unsent).filter(([, on]) => on).map(([note]) => note);
-}
-
-// The notes settled on the rounds before it, nothing said about them since.
-export function settledBefore(review: Review, round: number, you: string): Shown[] {
-  return everyNote(review, round, you, {}).filter(([, on]) => !on).map(([note]) => note);
-}
-
-function everyNote(review: Review, round: number, you: string, unsent: Unsent): [Shown, boolean][] {
   const then = asOf(asIfSent(review, you, unsent), round);
   const draft = upTo(unsent, round);
   const numbered = numbers(then);
@@ -139,7 +132,7 @@ function everyNote(review: Review, round: number, you: string, unsent: Unsent): 
   const withTheAgent = waitingForTheAgent(then);
   const yours = yourNotes(then, round, you);
 
-  const every: [Shown, boolean][] = [];
+  const every: Shown[] = [];
   for (const [id, { note, round: started }] of allNotes(then)) {
     const turns = conversation(then, id);
     const waitingFor = [...people].filter((person) => person !== you && waiting.get(person)?.includes(id));
@@ -151,10 +144,9 @@ function everyNote(review: Review, round: number, you: string, unsent: Unsent): 
           ? "with someone else"
           : "settled";
     const unsent = [...draft.notes.map((kept) => kept.id), ...draft.verdicts.map((verdict) => verdict.note), ...draft.replies.map((reply) => reply.note)].includes(id);
-    const shown = { id, number: numbered.get(id) ?? 0, on: note.on, written: started, turns, state, waitingFor, yours: yours.has(id), toJudge: toJudge(turns), unsent };
-    every.push([shown, started === round || turns.some((turn) => turn.round === round) || state !== "settled"]);
+    every.push({ id, number: numbered.get(id) ?? 0, on: note.on, written: started, turns, state, waitingFor, yours: yours.has(id), toJudge: toJudge(turns), unsent });
   }
-  return every.sort(([a], [b]) => a.number - b.number);
+  return every.sort((a, b) => a.number - b.number);
 }
 
 // Where a scene stands for you, what you haven't sent counting as sent. It's good, as every scene is once the work is

@@ -11,7 +11,7 @@ import { FRAME, LIST, ROW, SPREAD, THUMB, ToCheck, Veiled } from "./Grid.tsx";
 import { needsYou, seen, standings, workingSince } from "./notes.ts";
 import { Picture } from "./Picture.tsx";
 import { Page } from "./Review.tsx";
-import { clock, roundName } from "./Rounds.tsx";
+import { clock } from "./Rounds.tsx";
 
 // Where a review stands for you, worked out as its own page does, from the review and what's kept in your browser.
 type Standing = { review: Review; latest?: Round; toCheck: number; good: boolean; working?: string; moved: string };
@@ -92,22 +92,20 @@ function Row({ it, on, onPoint }: { it: Standing; on: boolean; onPoint: (review:
   );
 }
 
-// As its round says it on its page: the round, or the next one coming while the agent works, then what's yours to check,
-// or all good; or accepted.
+// Where it stands, as its page says it, never by its round's number: the agent working, what's yours to check, or all
+// good; or accepted; else who recorded it.
 function Stands({ it }: { it: Standing }) {
   if (it.review.accepted) return <span className="text-green">Accepted</span>;
   if (!it.latest) return <span className="text-faint">Nothing recorded yet</span>;
-  // A row is narrower than the round's line: what doesn't fit goes under, whole.
+  // A row is narrower than the page's line: what doesn't fit goes under, whole.
   return (
-    <span className="flex flex-wrap gap-x-1.5 text-soft">
-      {it.working ? (
+    <span className="flex flex-wrap gap-x-2 text-soft">
+      {it.working && (
         <span className="text-slate before:mr-1.5 before:mb-px before:inline-block before:size-1.5 before:animate-breathe before:rounded-full before:bg-slate before:align-middle before:content-['']">
-          {roundName(it.latest.number + 1)} coming
+          The agent is working
         </span>
-      ) : (
-        <span>{roundName(it.latest.number)}</span>
       )}
-      {it.toCheck ? <ToCheck count={it.toCheck} /> : it.good ? <span>· All good</span> : null}
+      {it.toCheck ? <ToCheck count={it.toCheck} /> : it.good ? <span>All good</span> : !it.working && <span>Recorded by {it.latest.by}</span>}
     </span>
   );
 }
