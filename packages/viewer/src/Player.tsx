@@ -91,7 +91,24 @@ function within(view: Frame, section: Rect, page: { width: number; height: numbe
 // and how close it comes on something, at most, against the whole page.
 const GLIDE = 0.45;
 export const CLOSEST = 1.5;
-type View = { left: number; top: number; k: number };
+// Where on the page the view is, how much of the page it shows across, and how much that's grown to fit the picture.
+type View = { left: number; top: number; across: number; k: number };
+
+// The time of the frame being drawn, as the page's own transitions keep it.
+const frameTime = () => Number(document.timeline.currentTime ?? performance.now());
+
+// The page's own curve, --ease-calm, cubic-bezier(0.2, 0.8, 0.2, 1): the view glides on it, as the picture narrows and
+// widens around it for Compare, so the two move in step.
+function calm(t: number): number {
+  const along = (s: number, a: number, b: number) => 3 * (1 - s) ** 2 * s * a + 3 * (1 - s) * s * s * b + s ** 3;
+  let [low, high] = [0, 1];
+  for (let i = 0; i < 20; i++) {
+    const s = (low + high) / 2;
+    if (along(s, 0.2, 0.2) < t) low = s;
+    else high = s;
+  }
+  return along((low + high) / 2, 0.8, 1);
+}
 
 type Props = {
   review: string;
@@ -167,27 +184,35 @@ export function Player(props: Props) {
   const close = useRef<{ on: string; found?: boolean; frame?: Frame }>({ on: "" });
   if (close.current.on !== closeKey) close.current = { on: closeKey };
   // Another part of the page to show, the view glides there from where it was, whatever else changes meanwhile: the
-  // picture narrowing for Compare redraws it all the way. Close on something, it stays where it was until that's found.
-  const glide = useRef<{ frame?: Frame; from?: View; since: number }>({ frame, since: 0 });
+  // picture narrowing for Compare redraws it all the way. What glides is the part of the page shown, never how close it
+  // is: that's the picture's width over it, so a picture still narrowing is never aimed past where it ends. Close on
+  // something, it stays where it was until that's found, and glides there at once. It keeps the browser's frame clock,
+  // as the narrowing does, from when the narrowing started, or else from the frame after it's set.
+  const glide = useRef<{ frame?: Frame; from?: View; set: number; since?: number }>({ frame, set: 0 });
   useEffect(() => {
     if (!replay || !box.current?.clientWidth) return;
     const replayed = replay.replay;
     const closing = !!closeKey && !playing && !following;
     const shown = closing ? (close.current.found ? close.current.frame : glide.current.frame) : frame;
-    if (shown !== glide.current.frame) glide.current = { frame: shown, from: view.current, since: performance.now() };
-    const gliding = () => !!glide.current.from && performance.now() - glide.current.since < GLIDE * 1000;
+    if (shown !== glide.current.frame) glide.current = { frame: shown, from: view.current, set: frameTime() };
+    const gliding = () => !!glide.current.from && frameTime() - (glide.current.since ?? frameTime()) < GLIDE * 1000;
     const draw = (moment: number, moving: boolean) => {
       // Gone, as Before is once Compare's let go, it's told nothing more.
       if (!box.current) return;
       const shape = replayed.shapeAt(moment);
       const part = glide.current.frame ?? { x: 0, y: 0, width: 1, height: 1 };
-      let [left, top, k] = [part.x * shape.width, part.y * shape.height, box.current.clientWidth / (part.width * shape.width)];
-      const { from, since } = glide.current;
+      let [left, top, across] = [part.x * shape.width, part.y * shape.height, part.width * shape.width];
+      const { from } = glide.current;
       if (from && gliding()) {
-        const u = 1 - (1 - (performance.now() - since) / (GLIDE * 1000)) ** 3;
-        [left, top, k] = [from.left + (left - from.left) * u, from.top + (top - from.top) * u, from.k + (k - from.k) * u];
+        const now = frameTime();
+        // The picture narrowing or widening around it, it starts when that did, to the frame.
+        const resizing = box.current.parentElement?.getAnimations().find((one) => one instanceof CSSTransition && one.transitionProperty === "width");
+        if (glide.current.since === undefined) glide.current.since = resizing ? (resizing.startTime === null ? undefined : Number(resizing.startTime)) : now > glide.current.set ? now : undefined;
+        const u = calm((now - (glide.current.since ?? now)) / (GLIDE * 1000));
+        [left, top, across] = [from.left + (left - from.left) * u, from.top + (top - from.top) * u, from.across + (across - from.across) * u];
       }
-      view.current = { left, top, k };
+      const k = box.current.clientWidth / across;
+      view.current = { left, top, across, k };
       replayed.show(moment, moving, 1);
       replayed.host.style.transform = `translate(${-left * k}px, ${-top * k}px) scale(${k})`;
       replayed.placeCaret(caret.current!, moment, left, top, k);
@@ -227,12 +252,13 @@ export function Player(props: Props) {
     }
     if (playing) return;
     // Gliding, it rests once it's there.
-    if (gliding()) {
+    const glideOn = () => {
       const glided = () => (draw(at, false), (frameId = requestAnimationFrame(gliding() ? glided : rested)));
       const rested = () => ((glide.current.from = undefined), setGlided((done) => done + 1));
       glided();
       return stop;
-    }
+    };
+    if (gliding()) return glideOn();
     draw(at, false);
     replayed.rest();
     // What's noted here, where it is on the page as it rests.
@@ -252,10 +278,13 @@ export function Player(props: Props) {
       // Closer where the picture is small, as on a phone, so what it's on can be read: at most three times as close.
       const wide = box.current.clientHeight * closeOn!.shape;
       const closest = Math.min(3, Math.max(CLOSEST, (0.75 * shape.width) / wide));
-      const view = thing && around(thing, shape, wide / box.current.clientHeight, closest);
-      close.current = { on: closeKey, found: true, frame: view && section ? within(view, section, shape) : (view ?? frame) };
-      closed.current?.(view && close.current.frame);
-      if (close.current.frame !== glide.current.frame) return setGlided((done) => done + 1);
+      const part = thing && around(thing, shape, wide / box.current.clientHeight, closest);
+      close.current = { on: closeKey, found: true, frame: part && section ? within(part, section, shape) : (part ?? frame) };
+      closed.current?.(part && close.current.frame);
+      if (close.current.frame !== glide.current.frame) {
+        glide.current = { frame: close.current.frame, from: view.current, set: frameTime() };
+        return glideOn();
+      }
     }
     told.current?.(
       Object.fromEntries(
