@@ -372,8 +372,14 @@ export class Replay {
     if (!page?.body || !words) return undefined;
     const said = (element: Element) =>
       ["aria-label", "placeholder", "data-placeholder", "title", "alt"].some((label) => element.getAttribute(label)?.replace(/\s+/g, " ").trim() === words) || element.textContent?.replace(/\s+/g, " ").trim() === words;
+    // A name as long as the app cuts them is the start of its words, read where the app's lines broke: it's said by what
+    // starts with it, spaces aside, where nothing says it whole.
+    const bare = (text: string) => text.replace(/\s+/g, "");
+    const begins = (element: Element) => bare(element.textContent ?? "").startsWith(bare(words));
     // Everything holding the words says them too: the thing is the smallest.
-    const found = [...page.body.querySelectorAll("*")].filter(said).flatMap((element) => rectOf(element.getBoundingClientRect()) ?? []);
+    const all = [...page.body.querySelectorAll("*")];
+    const whole = all.filter(said);
+    const found = (whole.length || words.length < CUT - 1 ? whole : all.filter(begins)).flatMap((element) => rectOf(element.getBoundingClientRect()) ?? []);
     return found.sort((a, b) => a.width * a.height - b.width * b.height)[0];
   }
 
@@ -451,6 +457,9 @@ export class Replay {
     }
   }
 }
+
+// How many characters of its words a thing clicked in the app is named by, at most.
+const CUT = 80;
 
 // One that never ends can't be finished, and plays on.
 function finish(animation: Animation) {

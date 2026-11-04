@@ -8,7 +8,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 import type { Glimpse, Reading } from "@playthrough/page";
-import { lastLooked, type Flow, type Place, type Review, type Round, type Verdict } from "@playthrough/review";
+import { accountOf, allNotes, lastLooked, type Flow, type Place, type Review, type Round, type Verdict } from "@playthrough/review";
 import { picture, readings as readingsOf, recording } from "./api.ts";
 import { Bar } from "./Bar.tsx";
 import { Compare, HOLD, Said } from "./Card.tsx";
@@ -74,15 +74,26 @@ export function Situation(props: SituationProps) {
   // A step's result, where it rests once it has played.
   const results = flow.steps.map((_, i) => stepEnd(flow, i) - 0.05);
   // Its steps with nothing new to you are kept together: seen on a round before, as you said something about it then,
-  // nothing changed in them since; else, the work changed nothing in them, as Before shows. And no answer waits in them,
-  // nothing of yours is unsent there.
+  // nothing changed in them since; else, the work changed nothing in them, as Before shows. Changed is as the round's
+  // comparison found it in this situation, wherever the change is told, but for what the agent says isn't real and what
+  // was made for a note on it, which is seen with the note's answer. And no note in them is still open: none waits on
+  // anyone, nothing of yours is unsent there.
   const since = lastLooked(review, threads.you, flow.name, round.number);
+  const comparison = review.comparisons.find((kept) => kept.round === round.number && kept.since === (since ?? review.rounds[0]?.number));
+  const changedIn = (step: number) =>
+    !comparison ||
+    comparison.changes.some((change) => {
+      const account = accountOf(review, round.number, change.id);
+      if (account && ("notReal" in account || ("note" in account && allNotes(review).get(account.note)?.note.on?.flow === flow.name))) return false;
+      return change.seen.some((seen) => seen.flow === flow.name && seen.at !== undefined && stepOf(Math.min(seen.at, end)) <= step && step <= stepOf(Math.min(seen.until ?? seen.at, end)));
+    });
   const [unfolded, setUnfolded] = useState<number[]>([]);
   const together = (step: number) =>
     (since !== undefined || !!before?.flows.some((one) => one.name === flow.name)) &&
     !unfolded.includes(step) &&
+    !changedIn(step) &&
     !diamonds.some((diamond) => diamond.row && stepOf(Math.min(diamond.at, end)) === step) &&
-    !notes.some((note) => momentOf(note) !== undefined && stepOf(Math.min(momentOf(note)!, end)) === step && (note.toJudge || note.unsent)) &&
+    !notes.some((note) => momentOf(note) !== undefined && stepOf(Math.min(momentOf(note)!, end)) === step && (note.toJudge || note.unsent || note.state !== "settled")) &&
     !(writingAt !== undefined && stepOf(Math.min(writingAt, end)) === step);
   const run = (step: number) => {
     let [first, last] = [step, step];
