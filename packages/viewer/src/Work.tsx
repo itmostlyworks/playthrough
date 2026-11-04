@@ -297,7 +297,9 @@ export function Work(props: Props) {
         <Story review={review} round={round} general={general} onRound={props.onRound} />
         {/* The one step to take floats at the window's foot, over the way rather than across the recordings. */}
         <div className="pointer-events-none sticky bottom-0 z-10 mt-6 flex min-h-8 justify-end py-4">
-          <div className="pointer-events-auto w-[300px] max-w-full empty:hidden">
+          {/* As wide as what it says, and on a plate of the page's ground fading in above it, so the way's words go under
+              it quietly rather than through it. */}
+          <div className="pointer-events-auto relative w-max max-w-full min-w-[300px] empty:hidden before:pointer-events-none before:absolute before:-inset-x-4 before:-top-8 before:-bottom-4 before:-z-10 before:bg-linear-to-b before:from-transparent before:to-ground before:to-35%">
             {step?.kind === "go" && <Go step={step} className="w-full gap-3 bg-surface! shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]!" />}
             {!step && !begun && up && (
               <button
@@ -309,7 +311,8 @@ export function Work(props: Props) {
                 <Key className="ml-auto">↓</Key>
               </button>
             )}
-            {step?.kind === "agent" && !props.working && <Agent step={step} className="justify-end rounded-lg bg-surface px-3 shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]" />}
+            {/* Sent, what the agent does with it is said where Send was, rather than the foot going quiet. */}
+            {step?.kind === "agent" && <Agent step={step} className="justify-end rounded-lg bg-surface px-3 shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]" />}
             {props.trouble.length > 0 && <p className="mt-2 rounded-lg bg-surface px-3 py-2 text-xs leading-[18px] text-amber-ink shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]">{props.trouble.join(" ")}</p>}
           </div>
         </div>

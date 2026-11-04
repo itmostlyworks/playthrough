@@ -251,18 +251,21 @@ async function runOnce(run: Omit<Run, "folder">): Promise<Ran> {
 }
 
 // A note's fork run on the app as it is now (test.ts): its recording, what was read at each of its steps' ends and after
-// each action, the fonts and pictures it loaded, a picture of where it ended, and how far it got. Nothing when the scene
-// never got to where the person took it over.
+// each action, the fonts and pictures it loaded, a picture of where it ended, and how far it got. When the scene never got
+// to where the person took it over, where it stopped instead, in Playwright's words, as record says it.
 export type ForkRecorded = ForkRan & { events: { timestamp: number }[]; readings: Reading[]; glimpses: Glimpse[]; assets: Record<string, string>; files: { name: string; bytes: Buffer }[]; picture?: Buffer };
 
-export async function runFork(repo: Repo, id: string, fork: ForkRun): Promise<ForkRecorded | undefined> {
+export async function runFork(repo: Repo, id: string, fork: ForkRun): Promise<ForkRecorded | { stopped: Failed | undefined }> {
   const app = await repo.app();
   const { started } = await repo.reviews.get(id);
   const folder = await mkdtemp(join(tmpdir(), "playthrough-"));
   try {
     await playwright({ scenes: repo.scenes(id), folder, app, root: repo.root, recorder, before: false, taken: [], started, fork });
     const text = await readFile(join(folder, FORK_RAN), "utf8").catch(() => undefined);
-    if (!text) return undefined;
+    if (!text) {
+      const scenes = await readFile(join(folder, "scenes.json"), "utf8").then(JSON.parse).catch(() => undefined);
+      return { stopped: (scenes?.failed as Failed[] | undefined)?.find((failed) => failed.scene === fork.scene) };
+    }
     const ran = JSON.parse(text);
     const files = await Promise.all([...new Set(Object.values(ran.assets as Record<string, string>))].map(async (name) => ({ name, bytes: await readFile(join(folder, name)) })));
     return { ...ran, files, picture: await readFile(join(folder, "end.png")).catch(() => undefined) };

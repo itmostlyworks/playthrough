@@ -705,7 +705,7 @@ function pace(page: Page) {
       }
       // As long as the scene said to wait, where it said.
       const timeout = args.findLast((arg): arg is { timeout: number } => !!arg && typeof arg === "object" && typeof (arg as { timeout?: unknown }).timeout === "number")?.timeout;
-      if (pointer) await approach(this, pointer, timeout).catch((error) => Promise.reject(asAction(error, action)));
+      const aimed = pointer ? await approach(this, pointer, timeout).catch((error) => Promise.reject(asAction(error, action))) : undefined;
       if (underway?.depth) await follow(underway, this);
       // Filled in on a recording, words are typed as a person types them, where they're typed: a date or a number is
       // set as it is, as typing it can come out otherwise.
@@ -716,7 +716,15 @@ function pace(page: Page) {
             await original.call(this, "", options);
             await this.pressSequentially(typed, { ...options, delay: Math.min(KEY, TYPED / typed.length) });
           }
-        : () => original.apply(this, args);
+        : aimed
+          ? // What the hand came to is what's acted on, though pointing at it changed its name, as "Marked done" turning
+            // into "Mark as not done": found again by the name the scene gave, it was gone. Drawn anew meanwhile, it's
+            // found again.
+            () =>
+              (aimed[action] as (...args: unknown[]) => Promise<unknown>)
+                .apply(aimed, args)
+                .catch((error) => (/not attached|detached/i.test(String(error)) ? original.apply(this, args) : Promise.reject(error)))
+          : () => original.apply(this, args);
       const result = await acted(action, () => pathTo(this), act, args[0]);
       if (pointer) await pointer.page.waitForTimeout(BEAT);
       await glimpse();
@@ -906,8 +914,10 @@ function asAction(error: unknown, action: string) {
 
 async function approach(target: Locator, at: { page: Page; x: number; y: number }, timeout?: number) {
   // What it acts on is waited for here, as long as the action waits (scenes.ts), and one that never comes fails here, in
-  // Playwright's words: waited for again by the action, it took twice as long to give up on.
+  // Playwright's words: waited for again by the action, it took twice as long to give up on. It's found now, before the
+  // hand is on its way, and that's what's acted on.
   await target.waitFor({ state: "attached", timeout });
+  const aimed = (await target.elementHandle({ timeout: 5000 }).catch(() => null)) ?? undefined;
   const scroll = await target
     .evaluate((element) => {
       const box = element.getBoundingClientRect();
@@ -924,6 +934,8 @@ async function approach(target: Locator, at: { page: Page; x: number; y: number 
     }
     await at.page.waitForTimeout(REST);
   }
+  // On a touch screen nothing is pointed at on the way: a finger comes down where it taps.
+  if (await at.page.evaluate(() => navigator.maxTouchPoints > 0).catch(() => false)) return aimed;
 
   // A page still settling moves the target while the pointer is on its way, and Playwright then acts where it is now:
   // the pointer jumped there. So the pointer keeps its eye on the target, re-aiming as it goes, until both hold still.
@@ -932,14 +944,15 @@ async function approach(target: Locator, at: { page: Page; x: number; y: number 
     return box && { x: box.x + box.width / 2, y: box.y + box.height / 2 };
   };
   let to = await centre();
-  if (!to) return;
+  if (!to) return aimed;
   for (let tries = 0; tries < 3 && to; tries++) {
     to = await glide(at, to, centre);
     await at.page.waitForTimeout(REST);
     const now = await centre();
-    if (!now || Math.hypot(now.x - at.x, now.y - at.y) < 3) return;
+    if (!now || Math.hypot(now.x - at.x, now.y - at.y) < 3) return aimed;
     to = now;
   }
+  return aimed;
 }
 
 // The way a hand moves a pointer: longer the further it goes, speeding up and slowing down smoothly (minimum jerk), in a

@@ -8,9 +8,8 @@ import type { Placed } from "./Player.tsx";
 import type { Rect } from "./replay.ts";
 import { pinLook } from "./Stage.tsx";
 
-// How far a pin sits out from its outline's corner, as in the frame, and from the picture's edges.
+// How far a pin sits out from its outline's corner, as in the frame.
 const OUT = 14;
-const EDGE = 12;
 
 // A pin, on the things it's for: a note's, numbered in its colour; or a change's diamond.
 export type Pin = { id: string; on: string[]; ink: string } & ({ number: number; fill: string } | { diamond: true });
@@ -26,9 +25,9 @@ export function Pinned({ pins, placed, open, faded, onOpen }: Props) {
     watching.observe(picture);
     return () => watching.disconnect();
   }, []);
-  const corner: Rect = { left: EDGE + 9, top: EDGE + 9, width: 0, height: 0 };
-  // A pin is on the first of its things that's found.
-  const spotOf = (pin: Pin): Rect => pin.on.map((id) => placed[id]).find(Boolean) ?? corner;
+  // A pin is on the first of its things that's found. With none on this frame, as a note made in the app on what the
+  // recording never shows, there's no pin: in a corner it covered the app, and what's said is in the way beside it.
+  const spotOf = (pin: Pin): Rect | undefined => pin.on.map((id) => placed[id]).find(Boolean);
   // On a thing, its pin is just outside the top right corner; at the bottom right where the top is out of view, and
   // pulled in where the right or the bottom is, so it's never cut off. On a spot, it's the spot.
   const pinOf = (spot: Rect): Rect => {
@@ -42,14 +41,17 @@ export function Pinned({ pins, placed, open, faded, onOpen }: Props) {
   // Pins on the same thing, as a note and a change on it are, sit side by side, the later to the left.
   const at = new Map<string, Rect>();
   for (const pin of pins) {
-    const here = pinOf(spotOf(pin));
+    const spot = spotOf(pin);
+    if (!spot) continue;
+    const here = pinOf(spot);
     while ([...at.values()].some((other) => Math.abs(other.left - here.left) < 18 && Math.abs(other.top - here.top) < 18)) here.left -= 22;
     at.set(pin.id, here);
   }
   return (
     <div ref={room} className={`pointer-events-none absolute inset-0 transition-opacity duration-250 ease-calm ${faded ? "opacity-0 [&_*]:pointer-events-none!" : ""}`}>
       {pins.map((pin) => {
-        if (!inView(spotOf(pin))) return null;
+        const spot = spotOf(pin);
+        if (!spot || !inView(spot)) return null;
         const { left, top } = at.get(pin.id)!;
         const chosen = pin.id === open;
         return (

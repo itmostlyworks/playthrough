@@ -67,10 +67,16 @@ export function SceneView(props: SceneViewProps) {
   const writingAt = acting.writing?.note.on?.scene === scene.name ? momentOf(acting.writing.note) : undefined;
   const writing = writingAt !== undefined ? acting.writing : undefined;
   // On the steps' lines, each note's dot and each change's diamond, where they are.
+  // Where a change is on the way: at its moment, a step's result counted as that step's; new steps from where the first
+  // of them plays, not the result of the step before them, where they start.
+  const changeAt = (diamond: Diamond) => {
+    const first = diamond.until === undefined ? -1 : scene.steps.findIndex((step) => step.at >= diamond.at - 0.01);
+    return Math.min(first < 0 ? diamond.at : stepStart(scene, first), end);
+  };
   const onLine: OnLine[] = [
     ...notes.flatMap((note) => (momentOf(note) === undefined ? [] : [{ id: note.id, at: Math.min(momentOf(note)!, end), fill: fill(note), words: note.turns[0]?.words ?? "Your note" }])),
     ...(writing ? [{ id: writing.note.id, at: Math.min(writingAt!, end), fill: "bg-amber", words: "Your new note" }] : []),
-    ...diamonds.filter((diamond) => diamond.row).map((diamond) => ({ id: diamond.id, at: Math.min(diamond.at, end), words: diamond.name })),
+    ...diamonds.filter((diamond) => diamond.row).map((diamond) => ({ id: diamond.id, at: changeAt(diamond), words: diamond.name })),
   ];
   // A step's result, where it rests once it has played.
   const results = scene.steps.map((_, i) => stepEnd(scene, i) - 0.05);
@@ -93,7 +99,7 @@ export function SceneView(props: SceneViewProps) {
     (since !== undefined || !!before?.scenes.some((one) => one.name === scene.name)) &&
     !unfolded.includes(step) &&
     !changedIn(step) &&
-    !diamonds.some((diamond) => diamond.row && stepOf(Math.min(diamond.at, end)) === step) &&
+    !diamonds.some((diamond) => diamond.row && stepOf(changeAt(diamond)) === step) &&
     !notes.some((note) => momentOf(note) !== undefined && stepOf(Math.min(momentOf(note)!, end)) === step && (note.toJudge || note.unsent || note.state !== "settled")) &&
     !(writingAt !== undefined && stepOf(Math.min(writingAt, end)) === step);
   const run = (step: number) => {

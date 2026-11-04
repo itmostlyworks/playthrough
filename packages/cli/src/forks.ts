@@ -37,8 +37,9 @@ export async function runForks(repo: Repo, review: Review, round: number, scenes
     }
     console.log(`\nRunning ${quote(from.scene)} to where ${list([...new Set(notes.map(({ note }) => quote(note.id)))])} took it over, then its fork…`);
     const run = await runFork(repo, review.id, { scene: from.scene, step: paused.step, actions: paused.actions, notes: notes.map(({ id }) => id) });
-    if (!run) {
-      ran.push(...unrun(`${quote(from.scene)} doesn't get to where they took it over, the step ${quote(paused.step)}`));
+    if ("stopped" in run) {
+      const stopped = run.stopped?.at ? `: it failed at ${quote(run.stopped.at)}${run.stopped.why ? `, where Playwright says “${run.stopped.why}”` : ""}` : "";
+      ran.push(...unrun(`${quote(from.scene)} doesn't get to where they took it over, the step ${quote(paused.step)}${stopped}`));
       continue;
     }
     const step = paused.step;

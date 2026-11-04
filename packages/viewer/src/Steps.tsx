@@ -266,7 +266,9 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
             <button
               aria-pressed={looksGood.good}
               className={`flex w-full items-center justify-between gap-2.5 pr-2 text-left text-[14px] leading-5 transition-colors duration-300 ease-calm ${looksGood.good || on === stops.length ? "text-green" : "text-soft hover:text-fg"}`}
-              onClick={looksGood.onPress}
+              // Said, the way goes on, and the key that said it is the page's again, not this button's: Enter on the next
+              // scene's Looks good would otherwise press this one again and take it back.
+              onClick={(event) => (looksGood.onPress(), event.currentTarget.blur())}
             >
               Looks good
               {on === stops.length && !looksGood.good && <Key>↵</Key>}
