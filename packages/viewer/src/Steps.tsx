@@ -7,7 +7,7 @@
 // each change, at their moments. The others are a line each, and pressed, go there. Each stop is as tall as what's in
 // it: how far the page scrolls for it is the page's to say, the same for every stop.
 
-import { Fragment, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from "react";
+import { Fragment, useLayoutEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import type { Scene } from "@playthrough/review";
 import { Key } from "./Card.tsx";
 import { EndMark, type End } from "./Chosen.tsx";
@@ -88,7 +88,7 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
     const follow = (moment: number) => line.current?.style.setProperty("--done", String(share(current, moment)));
     follow(clock.at);
     return clock.follow(follow);
-  }, [clock, scene, at, cut, current]);
+  }, [clock, scene, at, cut, current, on]);
   // A note's dot goes to its stop; a change's diamond, to it under its step.
   const toMark = (id: string) => {
     const k = stops.findIndex((stop) => stop.id === id);
@@ -156,11 +156,9 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
   // Every stop is a line, the same distance apart, and the one you're on opens out of it as the one you left folds back:
   // what it says, and what you can do there, is only ever where you are. Laid out open, every step's why, every note's
   // thread and every answer's buttons stood beside each other, some to read and some to press ("too many different things
-  // going on in the sidebar"). The one you're on sits on the page's surface, the others' words quieter, their signs
-  // still whole on the rail, and a press anywhere on another goes there. Before you've gone along it, all are folded and
-  // quieter, as you're on none.
-  // Each stop has the surface under it, there while you're on it, so it opens and folds with what's on it: one surface
-  // gliding from stop to stop trailed behind them as they opened and folded.
+  // going on in the sidebar"). The one you're on sits on the page's surface, its own, so it opens and folds with it (one
+  // surface gliding from stop to stop trailed behind them); the others' words are quieter, their signs still whole on
+  // the rail, and a press anywhere on another goes there. Before you've gone along it, all are folded and quieter.
   const row = (k: number) => ({
     "data-stop": k,
     "aria-current": k === on ? ("step" as const) : undefined,
@@ -212,7 +210,8 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
               <span data-sign="" className={`absolute top-2 left-0.5 grid size-4 translate-y-0.5 place-items-center rounded-full bg-ground transition-[box-shadow] duration-300 ease-calm ${here ? RING : ""}`}>
                 {sign}
               </span>
-              {/* Folded, its first words and where it stands; open, the whole of it, which starts with them. */}
+              {/* Folded, its first words and where it stands; open, the whole of it, which starts with them, its thread's own
+                  room at its left kept in what it opens in. */}
               <Opens open={!here}>{line}</Opens>
               <Opens open={here} className="-ml-4 pl-4">
                 <div className="text-[13px]">{whole}</div>
@@ -245,7 +244,6 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={Math.round(share(i, at) * 100)}
-                style={i === current ? undefined : ({ "--done": i < current ? 1 : 0 } as CSSProperties)}
                 className="group/line relative h-0.5 w-full cursor-pointer touch-none outline-none select-none before:absolute before:inset-x-0 before:-inset-y-2 before:content-['']"
                 onPointerDown={press}
                 onKeyDown={(event) =>
