@@ -372,7 +372,8 @@ export function Writing(props: {
   const save = () => words.trim() && end(() => props.onSave(words.trim()));
   const cancel = () => end(props.onCancel);
   return (
-    <>
+    // One block of its own, wherever it is: in a row of answers too, its words, what it is and its way out stack.
+    <div className="grid w-full gap-2.5">
       <textarea
         ref={box}
         rows={5}
@@ -403,6 +404,6 @@ export function Writing(props: {
           <kbd className="order-2 flex-none rounded-[3px] px-1 font-ui whitespace-nowrap pointer-coarse:hidden text-[11px] leading-4 font-normal opacity-60 shadow-[0_0_0_1px_currentColor]">{mac ? "⌘↵" : "Ctrl ↵"}</kbd>
         </button>
       </div>
-    </>
+    </div>
   );
 }
