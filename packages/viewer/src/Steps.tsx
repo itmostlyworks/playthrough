@@ -133,184 +133,134 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
     addEventListener("pointercancel", up);
   };
 
-  // What opens, opening: it grows out of the line it was, as that folds away, each as tall as itself and no taller.
-  const folding = (shown: boolean) => `grid transition-[grid-template-rows] duration-300 ease-calm ${shown ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`;
-  const fading = (shown: boolean) => `min-h-0 overflow-hidden transition-opacity duration-300 ease-calm ${shown ? "" : "opacity-0"}`;
+  // Every stop is laid out open, so the way never reflows under you as you go along it: the one you're on is lit, the
+  // others quieter, and a press anywhere on one that isn't a control goes there.
+  const row = (k: number) => ({
+    "data-stop": k,
+    "aria-current": k === on ? ("step" as const) : undefined,
+    className: `relative min-h-24 flex-none py-2 pb-4 pl-8 phone:min-h-0 transition-opacity duration-300 ease-calm ${k === on ? "" : resting ? "opacity-35" : "opacity-55 hover:opacity-100"}`,
+    onClick: (event: { target: EventTarget }) => !(event.target as Element).closest?.("button, a, textarea, input, [contenteditable], [role=slider]") && onStop(k),
+  });
 
   return (
-    <ol ref={list} aria-label={`The way through “${flow.name}”`} className="relative flex flex-[1_0_auto] flex-col">
+    <ol ref={list} aria-label={`The way through “${flow.name}”`} className="relative flex flex-col">
       <li aria-hidden className={`pointer-events-none absolute top-(--rail-top) left-[9.5px] h-(--rail) w-px bg-line transition-opacity duration-300 ease-calm phone:hidden ${resting ? "opacity-35" : ""}`}>
         <span className="absolute inset-x-0 top-0 h-(--reach) bg-soft transition-[height] duration-300 ease-calm" />
       </li>
-      {stops.flatMap((stop, k) => {
+      {stops.map((stop, k) => {
         const here = k === on;
         const gone = k < on;
-        const between = (k < stops.length - 1 || looksGood) && <li key={`${k} between`} aria-hidden className="max-h-7 min-h-0 flex-[1_1_0]" />;
         if (stop.from !== undefined) {
           const kept = flow.steps.slice(stop.from, stop.step + 1);
-          return [
-            <li
-              key={`together ${stop.from}`}
-              data-stop={k}
-              aria-current={here ? "step" : undefined}
-              inert={resting}
-              className={`relative flex-none py-2 pl-8 transition-opacity duration-300 ease-calm ${resting && !here ? "opacity-35" : ""}`}
-            >
+          return (
+            <li key={`together ${stop.from}`} {...row(k)} inert={resting}>
               <span
                 data-sign=""
                 className={`absolute top-2 left-2.5 grid h-5 min-w-5 -translate-x-1/2 place-items-center rounded-full px-1.5 phone:left-0 phone:translate-x-0 phone:px-1 phone:text-[9.5px] text-[10.5px] leading-none font-medium whitespace-nowrap tabular-nums transition-colors duration-300 ease-calm ${here ? "bg-fg text-ground" : gone ? "bg-line text-soft" : "bg-ground text-faint shadow-[inset_0_0_0_1px_var(--line)]"}`}
               >
                 {stop.from + 1}–{stop.step + 1}
               </span>
-              <button
-                className={`block w-full text-left text-[14px] leading-5 transition-colors duration-300 ease-calm outline-none hover:text-fg focus-visible:text-fg ${here ? "text-fg" : "text-soft"}`}
-                onClick={() => onStop(k)}
-              >
+              <button className={`block w-full text-left text-[14px] leading-5 outline-none hover:text-fg focus-visible:text-fg ${here ? "text-fg" : "text-soft"}`} onClick={() => onStop(k)}>
                 {since === undefined ? "Unchanged" : `Nothing new since round ${since}`}
               </button>
-              <div className={folding(here)}>
-                <div inert={!here} className={fading(here)}>
-                  <ol className="grid gap-0.5 pt-1.5 text-[13px] leading-[18px] text-soft">
-                    {kept.map((one, i) => (
-                      <li key={i} className="truncate">
-                        {one.title}
-                      </li>
-                    ))}
-                  </ol>
-                  <button className="mt-1.5 mb-0.5 text-[12.5px] leading-[18px] text-soft underline-offset-[3px] hover:text-fg hover:underline" onClick={() => onUnfold(k)}>
-                    Go through each step
-                  </button>
-                </div>
-              </div>
-            </li>,
-            between,
-          ];
+              <ol className="grid gap-0.5 pt-1.5 text-[13px] leading-[18px] text-soft">
+                {kept.map((one, i) => (
+                  <li key={i} className="truncate">
+                    {one.title}
+                  </li>
+                ))}
+              </ol>
+              <button className="mt-1.5 mb-0.5 text-[12.5px] leading-[18px] text-soft underline-offset-[3px] hover:text-fg hover:underline" onClick={() => onUnfold(k)}>
+                Go through each step
+              </button>
+            </li>
+          );
         }
         if (stop.id !== undefined) {
-          const { sign, line: words, whole } = said(stop.id);
-          return [
-            <li
-              key={stop.id}
-              data-stop={k}
-              aria-current={here ? "step" : undefined}
-              inert={resting && !here}
-              className={`relative flex-none py-2 pl-8 transition-opacity duration-300 ease-calm ${resting && !here ? "opacity-35" : ""}`}
-              onPointerEnter={() => onPoint(stop.id)}
-              onPointerLeave={() => onPoint(undefined)}
-            >
-              <span
-                data-sign=""
-                className={`absolute top-2.5 left-0.5 grid size-4 place-items-center rounded-full bg-ground transition-[box-shadow,opacity] duration-300 ease-calm ${here ? RING : gone ? "" : "opacity-60"}`}
-              >
+          const { sign, whole } = said(stop.id);
+          return (
+            <li key={stop.id} {...row(k)} inert={resting && !here} onPointerEnter={() => onPoint(stop.id)} onPointerLeave={() => onPoint(undefined)}>
+              <span data-sign="" className={`absolute top-2.5 left-0.5 grid size-4 place-items-center rounded-full bg-ground transition-[box-shadow] duration-300 ease-calm ${here ? RING : ""}`}>
                 {sign}
               </span>
-              <div className={folding(!here)}>
-                <button inert={here} className={`${fading(!here)} truncate text-left text-[13px] leading-5 text-soft hover:text-fg`} onClick={() => onStop(k)}>
-                  {words}
-                </button>
-              </div>
-              <div className={folding(here)}>
-                <div inert={!here} className={`${fading(here)} text-[13px]`}>
-                  {whole}
-                </div>
-              </div>
-            </li>,
-            between,
-          ];
+              <div className="text-[13px]">{whole}</div>
+            </li>
+          );
         }
         const i = stop.step;
         const title = flow.steps[i]!.title;
-        return [
-          <li
-            key={`step ${i}`}
-            data-stop={k}
-            aria-current={here ? "step" : undefined}
-            inert={resting}
-            className={`relative flex-none py-2 pl-8 transition-opacity duration-300 ease-calm ${resting && !here ? "opacity-35" : ""}`}
-          >
+        return (
+          <li key={`step ${i}`} {...row(k)} inert={resting}>
             <span
               data-sign=""
               className={`absolute top-2 left-0 grid size-5 place-items-center rounded-full text-[10.5px] leading-none font-medium tabular-nums transition-colors duration-300 ease-calm ${i === current ? "bg-fg text-ground" : gone ? "bg-line text-soft" : "bg-ground text-faint shadow-[inset_0_0_0_1px_var(--line)]"}`}
             >
               {i + 1}
             </span>
-            <button
-              className={`block w-full text-left text-[14px] leading-5 text-balance transition-colors duration-300 ease-calm outline-none hover:text-fg focus-visible:text-fg ${i === current ? "text-fg" : "text-soft"}`}
-              onClick={() => onStop(k)}
-            >
+            <button className={`block w-full text-left text-[14px] leading-5 text-balance outline-none hover:text-fg focus-visible:text-fg ${i === current ? "text-fg" : "text-soft"}`} onClick={() => onStop(k)}>
               {title}
             </button>
-            <div className={`grid transition-[grid-template-rows] duration-300 ease-calm ${i === current ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
-              <div inert={i !== current} className={fading(i === current)}>
-                <div className="pt-3 pr-2 pb-1.5">
-                  <div
-                    ref={i === current ? line : undefined}
-                    role="slider"
-                    tabIndex={0}
-                    aria-label={`Where in “${title}”`}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuenow={Math.round(share(i, at) * 100)}
-                    style={i === current ? undefined : ({ "--done": i < current ? 1 : 0 } as CSSProperties)}
-                    className="group/line relative h-0.5 w-full cursor-pointer touch-none outline-none select-none before:absolute before:inset-x-0 before:-inset-y-2 before:content-['']"
-                    onPointerDown={press}
-                    onKeyDown={(event) =>
-                      (event.key === "ArrowLeft" || event.key === "ArrowRight") &&
-                      (event.preventDefault(), event.stopPropagation(), onGo(momentAt(i, clamp(share(i, clock.at) + (event.key === "ArrowRight" ? 0.05 : -0.05), 0, 1))))
-                    }
-                  >
-                    <span className={`absolute inset-0 overflow-hidden rounded-[1px] bg-line transition-[scale] duration-150 ease-calm group-hover/line:scale-y-200 group-focus-visible/line:scale-y-200 ${held ? "scale-y-200" : ""}`}>
-                      <span className="absolute inset-0 origin-left bg-soft [scale:var(--done,1)_1]" />
-                    </span>
-                    {marks
-                      .filter((mark) => stepOf(mark.at) === i)
-                      .map((mark) => (
-                        <button
-                          key={mark.id}
-                          data-mark={mark.id}
-                          aria-label={mark.words}
-                          className="group/mark absolute top-1/2 z-3 grid size-3.5 -translate-x-1/2 -translate-y-1/2 place-items-center outline-none"
-                          style={{ left: `${share(i, mark.at) * 100}%` }}
-                          onKeyDown={(event) => event.key === "Enter" && toMark(mark.id)}
-                        >
-                          {mark.fill ? (
-                            <i className={`size-1.5 rounded-full shadow-[0_0_0_2px_var(--ground)] transition-[scale] duration-150 ease-calm group-hover/mark:scale-140 group-focus-visible/mark:scale-140 ${mark.fill}`} />
-                          ) : (
-                            <i className="size-[7px] rotate-45 bg-fg shadow-[0_0_0_1.5px_var(--ground)] transition-[scale] duration-150 ease-calm group-hover/mark:scale-130 group-focus-visible/mark:scale-130" />
-                          )}
-                        </button>
-                      ))}
-                  </div>
-                </div>
+            <div className="pt-3 pr-2 pb-1.5">
+              <div
+                ref={i === current ? line : undefined}
+                role="slider"
+                tabIndex={i === current ? 0 : -1}
+                aria-label={`Where in “${title}”`}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(share(i, at) * 100)}
+                style={i === current ? undefined : ({ "--done": i < current ? 1 : 0 } as CSSProperties)}
+                className={`group/line relative h-0.5 w-full cursor-pointer touch-none outline-none select-none before:absolute before:inset-x-0 before:-inset-y-2 before:content-[''] ${i === current ? "" : "pointer-events-none"}`}
+                onPointerDown={press}
+                onKeyDown={(event) =>
+                  (event.key === "ArrowLeft" || event.key === "ArrowRight") &&
+                  (event.preventDefault(), event.stopPropagation(), onGo(momentAt(i, clamp(share(i, clock.at) + (event.key === "ArrowRight" ? 0.05 : -0.05), 0, 1))))
+                }
+              >
+                <span className={`absolute inset-0 overflow-hidden rounded-[1px] bg-line transition-[scale] duration-150 ease-calm group-hover/line:scale-y-200 group-focus-visible/line:scale-y-200 ${held ? "scale-y-200" : ""}`}>
+                  <span className="absolute inset-0 origin-left bg-soft [scale:var(--done,1)_1]" />
+                </span>
+                {marks
+                  .filter((mark) => stepOf(mark.at) === i)
+                  .map((mark) => (
+                    <button
+                      key={mark.id}
+                      data-mark={mark.id}
+                      aria-label={mark.words}
+                      className="group/mark absolute top-1/2 z-3 grid size-3.5 -translate-x-1/2 -translate-y-1/2 place-items-center outline-none"
+                      style={{ left: `${share(i, mark.at) * 100}%` }}
+                      onKeyDown={(event) => event.key === "Enter" && toMark(mark.id)}
+                    >
+                      {mark.fill ? (
+                        <i className={`size-1.5 rounded-full shadow-[0_0_0_2px_var(--ground)] transition-[scale] duration-150 ease-calm group-hover/mark:scale-140 group-focus-visible/mark:scale-140 ${mark.fill}`} />
+                      ) : (
+                        <i className="size-[7px] rotate-45 bg-fg shadow-[0_0_0_1.5px_var(--ground)] transition-[scale] duration-150 ease-calm group-hover/mark:scale-130 group-focus-visible/mark:scale-130" />
+                      )}
+                    </button>
+                  ))}
               </div>
             </div>
-          </li>,
-          between,
-        ];
-      })}
-      {looksGood && (
-        <li
-          key="looks good"
-          data-stop={stops.length}
-          aria-current={on === stops.length ? "step" : undefined}
-          inert={resting}
-          className={`relative flex-none py-2 pl-8 transition-opacity duration-300 ease-calm ${resting ? "opacity-35" : ""}`}
-        >
-          <span
-            data-sign=""
-            className={`absolute top-2.5 left-0.5 grid size-4 place-items-center rounded-full bg-ground transition-[box-shadow,opacity] duration-300 ease-calm ${on === stops.length ? RING : looksGood.good ? "" : "opacity-60"}`}
-          >
-            <EndMark end={looksGood.good ? "good" : "asks"} ahead just={false} className="size-3" />
-          </span>
-          <button
-            aria-pressed={looksGood.good}
-            className={`flex items-center gap-2 text-left text-[13px] leading-5 transition-colors duration-300 ease-calm ${looksGood.good ? "text-green" : on === stops.length ? "text-fg" : "text-soft hover:text-fg"}`}
-            onClick={looksGood.onPress}
-          >
-            Looks good
-            {on === stops.length && !looksGood.good && <Key>↵</Key>}
-          </button>
-        </li>
+          </li>
+        );
+      }).concat(
+        looksGood ? (
+          <li key="looks good" {...row(stops.length)} inert={resting}>
+            <span
+              data-sign=""
+              className={`absolute top-2.5 left-0.5 grid size-4 place-items-center rounded-full bg-ground transition-[box-shadow] duration-300 ease-calm ${on === stops.length ? RING : ""}`}
+            >
+              <EndMark end={looksGood.good ? "good" : "asks"} ahead just={false} className="size-3" />
+            </span>
+            <button
+              aria-pressed={looksGood.good}
+              className={`flex items-center gap-2 text-left text-[13px] leading-5 transition-colors duration-300 ease-calm ${looksGood.good ? "text-green" : on === stops.length ? "text-fg" : "text-soft hover:text-fg"}`}
+              onClick={looksGood.onPress}
+            >
+              Looks good
+              {on === stops.length && !looksGood.good && <Key>↵</Key>}
+            </button>
+          </li>
+        ) : [],
       )}
     </ol>
   );

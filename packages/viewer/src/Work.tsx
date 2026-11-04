@@ -1,8 +1,8 @@
-// The work, as one page you go along from the top: what was asked, then each situation it meets, its recording with its
-// way through beside it, its steps and what was said in them, a stop at a time. A turn of the wheel, a swipe or a key
-// goes one stop on or back, and from a situation's last stop on to the next situation, which comes up to the window's
-// top. The situation you're on has the bar: you note it, compare it with how it was and take it over where it is. At the
-// end, how it got here, and the one step to take.
+// The work, as one page you scroll down from the top: what was asked, then each situation it meets, its recording pinned
+// at the window's top while its way through goes by beside it, its steps and what was said in them, a stop at a time:
+// the one come up to the line is the one you're on. A key goes one stop on or back. The situation you're on has the bar:
+// you note it, compare it with how it was and take it over where it is. At the end, how it got here, and the one step
+// to take.
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import type { Note, Place, Review, Round } from "@playthrough/review";
@@ -76,16 +76,26 @@ export function Work(props: Props) {
   const [arrivedOn] = useState(() => props.notes.some((note) => note.toJudge && round.flows.some((flow) => flow.name === note.on?.flow)));
   const begun = !!go || arrivedOn;
   const busy = acting.noting || !!acting.writing || !!acting.live?.shown;
-  // Along the way a stop at a time: from a situation's last stop on to the next one's first, and back to the last of the
-  // one before; before the first stop, the page's top, and past the last, its end. The page goes to the situation you're
-  // on, its top at the window's. Staying, it goes no further than the situation you're on, and says whether it went;
-  // passing, on the way somewhere further, nothing plays there.
-  const steering = useRef(false);
-  const move = (by: number, staying = false, passing = false) => {
+  // Where you are is where you've scrolled to: the stop you're on is the one come up to the line, a third of the way
+  // down the window, beside its situation's recording pinned at the top. The page scrolls as any page does, with your
+  // hand, and moves by itself only to take you to a stop you asked for. What's passed plays nothing; where you rest a
+  // moment plays. On a phone, a stop is gone to by pressing it.
+  const steered = useRef(0);
+  const lineOf = (room: HTMLElement) => room.getBoundingClientRect().top + room.clientHeight * LINE;
+  // Where the page is scrolled for a situation's stop to be at the line; before its first, for the situation to come
+  // up to the window's top; past the page's last stop, its end.
+  const scrollFor = (room: HTMLElement, situation: HTMLElement, stop: number) => {
+    const row = situation.querySelector<HTMLElement>(`li[data-stop="${stop}"]`);
+    if (row) return room.scrollTop + row.getBoundingClientRect().top - lineOf(room);
+    return stop < 0 ? topOf(room, situation) - PIN : room.scrollHeight;
+  };
+  // With the keys, along the way a stop at a time: from a situation's last stop on to the next one's first, and back to
+  // the last of the one before. It plays at once, and the page glides it up to the line.
+  const move = (by: number) => {
     const room = props.room.current;
     const situations = [...(room?.querySelectorAll<HTMLElement>("[data-situation]") ?? [])];
     let i = situations.findIndex((situation) => situation.dataset.situation === active);
-    if (i < 0 && room) i = atTop(room, situations);
+    if (i < 0 && room) i = Math.max(0, situations.findLastIndex((situation) => situation.getBoundingClientRect().top <= lineOf(room)));
     if (!room || !situations[i]) return false;
     const count = (i: number) => Number(situations[i]!.dataset.stops);
     const was = { i, stop: Number(situations[i]!.dataset.stop) };
@@ -93,16 +103,24 @@ export function Work(props: Props) {
     if (stop >= count(i) && i < situations.length - 1) [i, stop] = [i + 1, 0];
     else if (stop < 0 && i > 0) [i, stop] = [i - 1, count(i - 1) - 1];
     else stop = clamp(stop, -1, count(i));
-    if ((i === was.i && stop === was.stop) || (staying && (i !== was.i || stop < 0 || stop >= count(i)))) return false;
+    if (i === was.i && stop === was.stop) return false;
     const flow = situations[i]!.dataset.situation!;
     setActive(flow);
-    setGo({ round: round.number, flow, stop, passing });
-    glide(stop < 0 ? 0 : stop >= count(i) ? room.scrollHeight - room.clientHeight : topOf(room, situations[i]!));
+    setGo({ round: round.number, flow, stop });
+    glide(scrollFor(room, situations[i]!, stop));
     return true;
   };
-  // The page glides where it's sent a frame at a time, rather than by the browser's smooth scroll, which another smooth
-  // scroll can cut short, leaving the page on the situation before while the next one plays. Sent elsewhere on the way,
-  // it turns there from where it is; asked for less motion, it's there at once. Let go, the wheel has it.
+  // A stop pressed comes up to the line; a phone's page stays put.
+  const bringTo = (flow: string, stop: number) => {
+    const room = props.room.current;
+    const there = room?.querySelector<HTMLElement>(`[data-situation="${CSS.escape(flow)}"]`);
+    if (!room || !there || onPhone()) return;
+    setActive(flow);
+    glide(scrollFor(room, there, stop));
+  };
+  // The page glides where it's sent a frame at a time, rather than by the browser's smooth scroll, which another can cut
+  // short; meanwhile, what it passes isn't where you are. Asked for less motion, it's there at once; your hand on the
+  // wheel or the screen, it lets go.
   const gliding = useRef<number>(undefined);
   const glide = (top: number) => {
     const room = props.room.current;
@@ -110,27 +128,18 @@ export function Work(props: Props) {
     cancelAnimationFrame(gliding.current!);
     const [from, to] = [room.scrollTop, clamp(top, 0, room.scrollHeight - room.clientHeight)];
     if (Math.abs(to - from) <= 1) return;
-    steering.current = true;
-    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return void (room.scrollTop = to);
-    const [since, takes] = [performance.now(), Math.min(700, 300 + Math.abs(to - from) / 4)];
+    const [since, takes] = [performance.now(), matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : Math.min(600, 250 + Math.abs(to - from) / 4)];
+    steered.current = since + takes + 100;
     const step = () => {
-      const u = Math.min(1, (performance.now() - since) / takes);
+      const u = takes ? Math.min(1, (performance.now() - since) / takes) : 1;
       room.scrollTop = from + (to - from) * (1 - (1 - u) ** 3);
       gliding.current = u < 1 ? requestAnimationFrame(step) : undefined;
     };
     step();
   };
-  const letGo = () => (cancelAnimationFrame(gliding.current!), (gliding.current = undefined), (steering.current = false));
+  const letGo = () => (cancelAnimationFrame(gliding.current!), (gliding.current = undefined), (steered.current = 0));
   const now = useRef({ busy, move, active, letGo });
   now.current = { busy, move, active, letGo };
-  // A stop pressed in a situation's list brings it up to the window's top, as going along does; a phone's page stays put.
-  const bringUp = (flow: string) => {
-    const room = props.room.current;
-    const there = room?.querySelector<HTMLElement>(`[data-situation="${CSS.escape(flow)}"]`);
-    if (!room || !there || onPhone()) return;
-    setActive(flow);
-    glide(topOf(room, there));
-  };
   // A verdict lands where it was said, and the way goes on from there, unless you've gone on already.
   const goOn = (flow: string) => {
     const there = () => props.room.current?.querySelector<HTMLElement>(`[data-situation="${CSS.escape(flow)}"]`)?.dataset.stop;
@@ -140,76 +149,52 @@ export function Work(props: Props) {
   useLayoutEffect(() => {
     const room = props.room.current;
     if (!room) return;
-    // The last situation can come up to the window's top: there's a window's height under it, less its own.
-    const tall = () => room.style.setProperty("--room", `${room.clientHeight}px`);
+    // The last situation can come up to the window's top: there's a window's height under it, less its own. Where the
+    // line is, and where a recording is pinned, for the situations to lay their ways out by.
+    const tall = () => {
+      room.style.setProperty("--room", `${room.clientHeight}px`);
+      room.style.setProperty("--line", `${Math.round(room.clientHeight * LINE)}px`);
+      room.style.setProperty("--pin", `${PIN}px`);
+    };
     tall();
     const watching = new ResizeObserver(tall);
     watching.observe(room);
-    // Arriving with an answer waiting on you, you're on it.
+    // Arriving with an answer waiting on you, you're on it, at the line.
     const waiting = round.flows.find((flow) => props.notes.some((note) => note.on?.flow === flow.name && note.toJudge && (note.on.app ? note.on.app.from.at : note.on.at) !== undefined));
     const held = waiting && room.querySelector<HTMLElement>(`[data-situation="${CSS.escape(waiting.name)}"]`);
     if (held) setActive(waiting.name);
     if (held && onPhone()) held.querySelector(`[data-stop="${held.dataset.stop}"]`)?.scrollIntoView({ block: "center" });
-    else if (held) room.scrollTop = topOf(room, held);
-    // A turn of the wheel, or a swipe, goes a stop on at once, and a stop more for each stride further it goes, one after
-    // another so each is seen, so a long one goes further; a notch of the wheel is a stride. Its first stop can go on to
-    // another situation; after that, a situation's end holds it until it has gone a detent further, so a flick's last
-    // drift stays where it came to and a turn that keeps going goes on. What a turn passes through plays nothing: where it
-    // comes to rest plays, once the wheel's still. Going faster than the stops can be seen, the page is the wheel's: it
-    // scrolls as any page does, momentum and all, nothing plays, and the situation come up to the window's top is the one
-    // you're on once it's still. It's a new turn once the wheel has been still a moment, or turned the other way. On a
-    // phone, the page scrolls as any page, and a stop is gone to by pressing it.
-    const turn = { last: -Infinity, by: 0, travel: 0, gone: 0, next: undefined as number | undefined, wall: undefined as number | undefined, free: false, lands: undefined as number | undefined, moved: -Infinity };
-    const land = () => {
-      if (turn.next !== undefined) return void (turn.lands = window.setTimeout(land, PACE));
-      setGo((go) => (go?.passing ? { ...go, passing: false } : go));
-    };
-    const due = () => (turn.travel < 12 ? 0 : 1 + Math.floor((turn.travel - 12) / STRIDE));
-    const goOn = () => {
-      turn.next = undefined;
-      const asked = due();
-      if (turn.gone >= asked || now.current.busy) return;
-      // However fast the wheel turns, a stop comes no sooner than its pace after the one before; falling behind, the
-      // turn is going faster than the stops can be seen.
-      const soon = turn.moved + PACE - performance.now();
-      if (soon > 0) return void (turn.next = window.setTimeout(goOn, soon));
-      const crossing = turn.gone === 0 || (turn.wall !== undefined && turn.travel - turn.wall >= DETENT);
-      if (!now.current.move(turn.by, !crossing, true)) return void ((turn.wall ??= turn.travel), (turn.gone = asked));
-      // Gone on past an end, it doesn't make up the stops the end held.
-      turn.gone = turn.wall === undefined ? turn.gone + 1 : asked;
-      turn.wall = undefined;
-      turn.moved = performance.now();
-      if (turn.gone < asked) turn.next = window.setTimeout(goOn, PACE);
-    };
-    const wheel = (event: WheelEvent) => {
-      const box = (event.target as Element).closest?.("textarea");
-      if (event.ctrlKey || onPhone() || Math.abs(event.deltaX) > Math.abs(event.deltaY) || (box && box.scrollHeight > box.clientHeight)) return;
-      const by = Math.sign(event.deltaY);
-      if (now.current.busy || !by) return void event.preventDefault();
-      if (event.timeStamp - turn.last > (turn.free ? 2 * STILL : STILL) || by !== turn.by)
-        (clearTimeout(turn.next), Object.assign(turn, { by, travel: 0, gone: 0, next: undefined, wall: undefined, free: false, moved: -Infinity }));
-      turn.last = event.timeStamp;
-      if (turn.free) return;
-      const notch = event.deltaMode === 1 || (Number.isInteger(event.deltaY) && Math.abs(event.deltaY) >= 50);
-      turn.travel += notch ? STRIDE : Math.abs(event.deltaY) * (event.deltaMode === 2 ? room.clientHeight : 1);
-      clearTimeout(turn.lands);
-      if (due() - turn.gone > AHEAD) return void ((turn.free = true), clearTimeout(turn.next), (turn.next = undefined), now.current.letGo());
-      event.preventDefault();
-      turn.lands = window.setTimeout(land, STILL);
-      if (turn.next === undefined) goOn();
-    };
-    // Scrolled by its bar, the situation you're on is the one come up to the window's top.
-    let still: number | undefined;
-    const settle = () => {
-      if (steering.current) return void (steering.current = false);
+    else if (held) ((steered.current = performance.now() + 200), (room.scrollTop = scrollFor(room, held, Number(held.dataset.stop))));
+    // Scrolled, the stop at the line is the one you're on, passing; still a moment, it plays.
+    let reading: number | undefined;
+    let rest: number | undefined;
+    const read = () => {
+      reading = undefined;
+      if (now.current.busy || onPhone() || performance.now() < steered.current) return;
+      const line = lineOf(room);
       const situations = [...room.querySelectorAll<HTMLElement>("[data-situation]")];
-      const flow = situations[atTop(room, situations)]?.dataset.situation;
-      if (flow && !now.current.busy) setActive(flow);
+      const here = situations.findLast((situation) => situation.getBoundingClientRect().top <= line) ?? situations[0];
+      if (!here) return;
+      const flow = here.dataset.situation!;
+      const stop = Number([...here.querySelectorAll<HTMLElement>("li[data-stop]")].findLast((row) => row.getBoundingClientRect().top <= line)?.dataset.stop ?? -1);
+      if (flow !== now.current.active) setActive(flow);
+      if (stop !== Number(here.dataset.stop)) setGo({ round: round.number, flow, stop, passing: true });
+      clearTimeout(rest);
+      rest = window.setTimeout(() => setGo((go) => (go?.passing ? { ...go, passing: false } : go)), REST);
     };
-    const scrolled = () => (clearTimeout(still), (still = window.setTimeout(settle, 120)));
-    room.addEventListener("wheel", wheel, { passive: false });
+    const scrolled = () => void (reading ??= requestAnimationFrame(read));
+    const handTakes = () => now.current.letGo();
     room.addEventListener("scroll", scrolled, { passive: true });
-    return () => (clearTimeout(still), clearTimeout(turn.next), clearTimeout(turn.lands), watching.disconnect(), room.removeEventListener("wheel", wheel), room.removeEventListener("scroll", scrolled));
+    room.addEventListener("wheel", handTakes, { passive: true });
+    room.addEventListener("touchstart", handTakes, { passive: true });
+    return () => (
+      cancelAnimationFrame(reading!),
+      clearTimeout(rest),
+      watching.disconnect(),
+      room.removeEventListener("scroll", scrolled),
+      room.removeEventListener("wheel", handTakes),
+      room.removeEventListener("touchstart", handTakes)
+    );
   }, []);
   // Space and ↓ go a stop on, ↑ a stop back.
   useEffect(() => {
@@ -265,7 +250,7 @@ export function Work(props: Props) {
               resting={!!inApp && inApp !== flow.name}
               onPointerDown={() => !busy && setActive(flow.name)}
               onSaid={() => goOn(flow.name)}
-              onPressed={() => bringUp(flow.name)}
+              onPressed={(stop) => bringTo(flow.name, stop)}
             />
           ))}
         </div>
@@ -293,28 +278,17 @@ export function Work(props: Props) {
   );
 }
 
-// How long the wheel is still between one turn of it and the next, in milliseconds: turned again sooner, it's the same
-// turn going on.
-const STILL = 200;
-// How much further a turn of the wheel goes for each stop more, in pixels as it would have scrolled the page: a notch of
-// the wheel; and how soon the next stop of a long turn comes after the one before, in milliseconds.
-const STRIDE = 110;
-const PACE = 120;
-// How much further a turn goes on past a situation's end before it goes on to the next one: two notches.
-const DETENT = 2 * STRIDE;
-// How many stops a turn can ask for beyond those it's gone before it's going faster than they can be seen.
-const AHEAD = 2;
+// Where the line is that the stop you're on has come up to, as a share of the window's height down from its top; how far
+// below the window's top a situation's recording is pinned, in pixels; and how long the page is still at a stop before
+// it plays, in milliseconds.
+const LINE = 0.36;
+const PIN = 24;
+const REST = 180;
 // How long a verdict is seen where it was said before the way goes on, in milliseconds.
 const LANDS = 600;
 
 // Where the page is scrolled to for a situation to be at the window's top.
 const topOf = (room: HTMLElement, situation: HTMLElement) => room.scrollTop + situation.getBoundingClientRect().top - room.getBoundingClientRect().top;
-
-// The situation scrolled up to the window's top: the last whose top is in the window's top third, else the first.
-const atTop = (room: HTMLElement, situations: HTMLElement[]) => {
-  const top = room.getBoundingClientRect().top + room.clientHeight / 3;
-  return Math.max(0, situations.findLastIndex((situation) => situation.getBoundingClientRect().top <= top));
-};
 
 // Each round in a line: who recorded it, what was said about it, and what came of that. Its name goes to it, as the
 // rounds at the top do.

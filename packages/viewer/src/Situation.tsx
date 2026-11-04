@@ -53,8 +53,8 @@ type SituationProps = {
   onPointerDown: () => void;
   // A verdict said on it: an answer judged, or Looks good at the end of the way.
   onSaid: () => void;
-  // A stop on its way pressed, where it may be half out of the window.
-  onPressed: () => void;
+  // A stop on its way pressed, to come up to the line.
+  onPressed: (stop: number) => void;
 };
 
 export function Situation(props: SituationProps) {
@@ -176,26 +176,20 @@ export function Situation(props: SituationProps) {
     if (writing) (setBegun({ id: writing.note.id, from: stop }), setStop(stops.findIndex((one) => one.id === writing.note.id)));
     else (setBegun(undefined), begun && !stops.some((one) => one.id === begun.id) && setStop(begun.from));
   }
-  // The last situation can come up to the window's top: there's a window's height under it, less its own.
+  // The last situation can come up to the window's top: there's a window's height under it, less its own. And its way
+  // is long enough for its last stop to come up to the line while its recording is still pinned beside it.
   const section = useRef<HTMLElement>(null);
+  const block = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const around = section.current;
     if (!around) return;
-    const measure = () => around.style.setProperty("--tall", `${around.offsetHeight}px`);
+    const measure = () => (around.style.setProperty("--tall", `${around.offsetHeight}px`), around.style.setProperty("--block", `${block.current?.offsetHeight ?? 0}px`));
     measure();
     const watching = new ResizeObserver(measure);
     watching.observe(around);
+    if (block.current) watching.observe(block.current);
     return () => watching.disconnect();
   }, [folded]);
-  // The stop you're on stays in sight, where the way is longer than the window lets it be.
-  const column = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    const [list, row] = [column.current, column.current?.querySelector<HTMLElement>(`[data-stop="${Math.min(stop, last)}"]`)];
-    if (!list || !row || list.scrollHeight <= list.clientHeight) return;
-    const [box, there] = [list.getBoundingClientRect(), row.getBoundingClientRect()];
-    const by = there.top < box.top ? there.top - box.top - 8 : there.bottom > box.bottom ? Math.min(there.bottom - box.bottom + 8, there.top - box.top - 8) : 0;
-    if (by) list.scrollBy({ top: by, behavior: "smooth" });
-  }, [stop]);
   // Playing, a click on it pauses it. Where it can't be taken over, a click plays on into the stop you're on, and there,
   // plays into it again from its step's start; before any stop, or on what was said about all of it, the step it shows.
   const again = () => {
@@ -502,23 +496,14 @@ export function Situation(props: SituationProps) {
       className={`relative pt-3 pb-8 transition-opacity duration-500 ease-calm last:mb-[max(0px,calc(var(--room)-var(--tall)-56px))] ${props.resting ? "opacity-30" : ""}`}
       onPointerDown={props.onPointerDown}
     >
-      <div className="mb-3 flex items-baseline justify-between gap-x-4 gap-y-1 px-0.5 phone:flex-wrap">
-        <h3 className="min-w-0 text-[15px] leading-[21px] font-semibold text-balance">
+      <div className="grid grid-cols-[minmax(0,1fr)_340px] gap-8 phone:grid-cols-1">
+        {/* Its name and recording stay at the window's top while its way goes by beside them. */}
+        <div ref={block} className="sticky top-(--pin) self-start phone:static">
+        <h3 className="mb-3 min-w-0 px-0.5 text-[15px] leading-[21px] font-semibold text-balance">
           {flow.name}
           {asWho(flow) && <span className="font-normal text-soft"> {asWho(flow)}</span>}
         </h3>
-        {/* Where it stands, and what its recording shows when it's not the situation's own: never over the recording. */}
-        <span className="flex flex-none flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs leading-4 whitespace-nowrap">
-          {redone && <span className="text-soft">Showing what you did, done again</span>}
-          {redone && standing && SAYS.includes(standing.is) && <span className="text-faint">·</span>}
-          {standing && SAYS.includes(standing.is) && <span className={INK[standing.is]}>{says(standing)}</span>}
-          {standing && SAYS.includes(standing.is) && same && <span className="text-faint">·</span>}
-          {same && <span className="text-faint">Unchanged</span>}
-          {standing?.is === "good" && <span className="text-green">Looks good</span>}
-        </span>
-      </div>
-      <div className="grid grid-cols-[minmax(0,1fr)_340px] gap-8 phone:grid-cols-1">
-        <div className="relative self-start">
+        <div className="relative">
           {/* A click pauses it, or plays the step again; noting, it notes what's under it; taken over, it's the app's. */}
           <button
             data-picture={flow.name}
@@ -626,14 +611,26 @@ export function Situation(props: SituationProps) {
             </div>
           )}
         </div>
-        {/* As tall as the recording, whatever opens in it, with room inside it for the marker and a line's marks at its
-            ends: what's longer scrolls in it rather than pushing the page down. */}
-        <div ref={column} className="-mx-3 -mb-2 flex flex-col gap-5 overflow-x-hidden overflow-y-auto px-3 pb-2 contain-size phone:mx-0 phone:px-0 phone:contain-none">
-          {flow.line && (
-            <div inert={taken} className={`px-0.5 text-[13px] transition-opacity duration-300 ease-calm ${taken ? "opacity-35" : ""}`}>
-              <Said who={round.by}>{flow.line}</Said>
-            </div>
-          )}
+        </div>
+        {/* The way goes by beside the recording as the page scrolls: where it stands and what the agent said first, then
+            its stops, and room after its last for it to come up to the line while the recording's still pinned. */}
+        <div className="flex flex-col pb-[max(0px,calc(var(--block)-var(--line)+var(--pin)))] phone:pb-0">
+          <div className="grid content-start gap-5 pb-5">
+            {/* Where it stands, and what its recording shows when it's not the situation's own: never over the recording. */}
+            <span className="flex min-h-[21px] flex-wrap items-baseline gap-x-1.5 gap-y-0.5 px-0.5 text-xs leading-[21px]">
+              {redone && <span className="text-soft">Showing what you did, done again</span>}
+              {redone && standing && SAYS.includes(standing.is) && <span className="text-faint">·</span>}
+              {standing && SAYS.includes(standing.is) && <span className={INK[standing.is]}>{says(standing)}</span>}
+              {standing && SAYS.includes(standing.is) && same && <span className="text-faint">·</span>}
+              {same && <span className="text-faint">Unchanged</span>}
+              {standing?.is === "good" && <span className="text-green">Looks good</span>}
+            </span>
+            {flow.line && (
+              <div inert={taken} className={`px-0.5 text-[13px] transition-opacity duration-300 ease-calm ${taken ? "opacity-35" : ""}`}>
+                <Said who={round.by}>{flow.line}</Said>
+              </div>
+            )}
+          </div>
           <Steps
             flow={flow}
             clock={clock}
@@ -647,7 +644,7 @@ export function Situation(props: SituationProps) {
             since={since}
             onUnfold={unfold}
             resting={taken}
-            onStop={(k) => (toStop(k), props.onPressed())}
+            onStop={(k) => (toStop(k), props.onPressed(k))}
             onPoint={setLit}
             onScrub={(on) => (on && ((setPlaying(undefined), setPicked(undefined))), setScrubbing(on))}
             onGo={stopped}
