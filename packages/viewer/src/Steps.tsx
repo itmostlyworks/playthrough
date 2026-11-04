@@ -134,12 +134,13 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
   };
 
   // Every stop is laid out open, so the way never reflows under you as you go along it: the one you're on is lit, the
-  // others quieter, and a press anywhere on one that isn't a control goes there.
+  // others quieter, and a press anywhere on another goes there first, so what's pressed in it, as its Compare, is about
+  // it.
   const row = (k: number) => ({
     "data-stop": k,
     "aria-current": k === on ? ("step" as const) : undefined,
     className: `relative min-h-24 flex-none py-2 pb-4 pl-8 phone:min-h-0 transition-opacity duration-300 ease-calm ${k === on ? "" : resting ? "opacity-35" : "opacity-55 hover:opacity-100"}`,
-    onClick: (event: { target: EventTarget }) => !(event.target as Element).closest?.("button, a, textarea, input, [contenteditable], [role=slider]") && onStop(k),
+    onPointerDownCapture: () => k !== on && onStop(k),
   });
 
   return (
