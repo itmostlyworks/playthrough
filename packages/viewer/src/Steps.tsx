@@ -44,6 +44,8 @@ type Props = {
   onPoint: (id?: string) => void;
   // What changed in a step, under its line; and going to one, from its diamond there.
   changesIn: (step: number) => ReactNode;
+  // Whether a step is new to you: one it takes that it couldn't before.
+  added: (step: number) => boolean;
   onChange: (id: string) => void;
   // Dragging along the line, and where it was let go.
   onScrub: (scrubbing: boolean) => void;
@@ -60,7 +62,7 @@ type Props = {
   onUnfold: (stop: number) => void;
 };
 
-export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, onPoint, onScrub, onGo, end, resting, since, onUnfold, changesIn, onChange }: Props) {
+export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, onPoint, onScrub, onGo, end, resting, since, onUnfold, changesIn, onChange, added }: Props) {
   const looksGood = end?.looksGood;
   const stepEnd = (step: number) => scene.steps[step + 1]?.at ?? scene.length;
   const stepOf = (moment: number) => Math.max(0, scene.steps.findIndex((_, step) => stepEnd(step) >= moment - 0.05));
@@ -223,6 +225,7 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
             </span>
             <button className={`block w-full text-left text-[14px] leading-5 text-balance outline-none hover:text-fg focus-visible:text-fg ${i === current ? "text-fg" : "text-soft"}`} onClick={() => onStop(k)}>
               {title}
+              {added(i) && <span className="ml-2 inline-block rounded-[5px] px-1.5 align-[1px] text-[11px] leading-[17px] font-medium text-soft shadow-[inset_0_0_0_1px_var(--track)]">New</span>}
             </button>
             <div className="pt-3 pr-2 pb-1.5">
               <div

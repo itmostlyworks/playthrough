@@ -24,6 +24,7 @@ import { Pinned, type Pin } from "./Pinned.tsx";
 import { Clock, CLOSEST, Player, useCut, type Mark, type Placed } from "./Player.tsx";
 import { Portal, TAG } from "./Portal.tsx";
 import { recorded, type Scrolled } from "./replay.ts";
+import { Difference, partsOf } from "./Difference.tsx";
 import { says } from "./Step.tsx";
 import { Steps, stepStart, type OnLine, type Saying, type Stop } from "./Steps.tsx";
 import type { Acting } from "./Work.tsx";
@@ -76,11 +77,26 @@ export function SceneView(props: SceneViewProps) {
     const first = diamond.until === undefined ? -1 : scene.steps.findIndex((step) => step.at >= diamond.at - 0.01);
     return Math.min(first < 0 ? diamond.at : stepStart(scene, first), end);
   };
+  // Where what changed is, on the screen a step's reading was made of: each thing it's on, or the part of the page.
+  const boxesOf = (changes: Diamond["changes"], reading: Reading) =>
+    changes.flatMap(({ on }) => [
+      ...[on.element, ...(on.alike ?? [])].flatMap((element) => (element?.node === undefined ? [] : reading.things.filter((thing) => thing.node === element.node).map((thing) => thing.box))),
+      ...(on.box ? [{ x: on.box.x * reading.screen.width, y: on.box.y * reading.screen.height, width: on.box.width * reading.screen.width, height: on.box.height * reading.screen.height }] : []),
+    ]);
+  const readingOf = (step: number) => readings?.find((one) => one.step === scene.steps[step]?.title);
+  // What changed only off the screen a step was read on can't be seen in its recording, nor pictured: it isn't met here.
+  const unseen = (diamond: Diamond) => {
+    const reading = readingOf(stepOf(changeAt(diamond)));
+    const boxes = reading ? boxesOf(diamond.changes, reading) : [];
+    return boxes.length > 0 && !partsOf(boxes, reading!.screen).length;
+  };
   const onLine: OnLine[] = [
     ...notes.flatMap((note) => (momentOf(note) === undefined ? [] : [{ id: note.id, at: Math.min(momentOf(note)!, end), fill: fill(note), words: note.turns[0]?.words ?? "Your note" }])),
     ...(writing ? [{ id: writing.note.id, at: Math.min(writingAt!, end), fill: "bg-amber", words: "Your new note" }] : []),
-    ...diamonds.filter((diamond) => diamond.row).map((diamond) => ({ id: diamond.id, at: changeAt(diamond), words: diamond.name })),
+    ...diamonds.filter((diamond) => diamond.row && diamond.until === undefined && !unseen(diamond)).map((diamond) => ({ id: diamond.id, at: changeAt(diamond), words: diamond.name })),
   ];
+  // Steps it takes that it couldn't before, new to you: each says so on its own row, rather than being told as a change.
+  const added = new Set(diamonds.filter((diamond) => diamond.until !== undefined).flatMap((diamond) => scene.steps.flatMap((one, i) => (one.at >= diamond.at - 0.1 && one.at < diamond.until! ? [i] : []))));
   // A step's result, where it rests once it has played.
   const results = scene.steps.map((_, i) => stepEnd(scene, i) - 0.05);
   // Its steps with nothing new to you are kept together: seen on a round before, as you said something about it then,
@@ -434,19 +450,41 @@ export function SceneView(props: SceneViewProps) {
   };
 
   // What changed new to you in a step is met under its line, where its diamond is, not as a stop of its own: what the
-  // agent says of it under its name, or that it was made for a note of yours, or else what it is, in a line. Gone to,
-  // the recording is at its moment, close on it, with Compare beside it.
+  // agent says of it under its name, or that it was made for a note of yours, and the part of the page it's on, as it
+  // was and as it is. Gone to, the recording is at its moment, close on it. Where the step's picture can't show it, off
+  // the screen it was read on, it's a line, with Compare beside it.
   const toChange = (diamond: Diamond) => go(changeAt(diamond), diamond.id);
   const changesIn = (step: number) => {
-    const here = diamonds.filter((diamond) => diamond.row && stepOf(changeAt(diamond)) === step);
+    const reading = readingOf(step);
+    const now = reading && picture(review.id, round.number, scene.recording, readings!.indexOf(reading));
+    const here = diamonds.filter((diamond) => diamond.row && diamond.until === undefined && stepOf(changeAt(diamond)) === step && !unseen(diamond));
     if (!here.length) return undefined;
     return (
-      <ul className="grid gap-0.5 pt-1.5">
+      <ul className="grid gap-2.5 pt-2">
         {here.map((diamond) => {
           const own = diamond.changes.filter((changed) => !changed.answers);
-          const told = own.find((changed) => changed.line);
+          const told = [...new Map(own.filter((changed) => changed.line).map((changed) => [changed.line, changed])).values()];
           const madeFor = own.map((changed) => changed.note && props.noteOf(changed.note)).find(Boolean) || undefined;
+          const parts = reading ? partsOf(boxesOf(own, reading), reading.screen) : [];
+          const before = thenPicture(diamond.changes[0]?.since, step);
           const on = picked === diamond.id;
+          const words = madeFor ? (
+            <>
+              Changed for your note
+              <span className={`ml-1 inline-block size-3.5 rounded-full text-center text-[8.5px] leading-3.5 font-semibold ${quietNumber}`} style={{ "--c": ink(madeFor) } as CSSProperties}>
+                {madeFor.number}
+              </span>
+            </>
+          ) : told.length ? (
+            told.map((changed) => (
+              <span key={changed.line} className="block">
+                <span className="text-faint">{changed.by} · </span>
+                {changed.line}
+              </span>
+            ))
+          ) : parts.length ? undefined : (
+            diamond.name
+          );
           return (
             <li key={diamond.id} className="flex min-w-0 items-start gap-2 pr-2" onPointerEnter={() => setLit(diamond.id)} onPointerLeave={() => setLit(undefined)}>
               <button
@@ -454,30 +492,23 @@ export function SceneView(props: SceneViewProps) {
                 onClick={() => toChange(diamond)}
               >
                 <i className={`mt-[5.5px] size-[7px] flex-none rotate-45 ${on ? "bg-fg" : "bg-soft"}`} />
-                <span className="min-w-0">
-                  {madeFor ? (
-                    <>
-                      Changed for your note
-                      <span className={`ml-1 inline-block size-3.5 rounded-full text-center text-[8.5px] leading-3.5 font-semibold ${quietNumber}`} style={{ "--c": ink(madeFor) } as CSSProperties}>
-                        {madeFor.number}
-                      </span>
-                    </>
-                  ) : told ? (
-                    <>
-                      <span className="text-faint">{told.by} · </span>
-                      {told.line}
-                    </>
-                  ) : (
-                    diamond.name
-                  )}
+                <span className="grid min-w-0 flex-1 gap-2">
+                  {words && <span className="min-w-0">{words}</span>}
+                  {parts.map((part, i) => <Difference key={i} part={part} now={now!} before={before} />)}
                 </span>
               </button>
-              {on && comparing && <Compare {...comparing} bar={quietly} />}
+              {on && comparing && !parts.length && <Compare {...comparing} bar={quietly} />}
             </li>
           );
         })}
       </ul>
     );
+  };
+  // The picture the same step ended on in the round it's new since, where it had the step.
+  const thenPicture = (since: number | undefined, step: number) => {
+    const was = review.rounds.find((kept) => kept.number === since)?.scenes.find((one) => one.name === scene.name);
+    const there = was?.steps.findIndex((one) => one.title === scene.steps[step]?.title) ?? -1;
+    return was && there >= 0 ? picture(review.id, since!, was.recording, there) : undefined;
   };
 
   const frames = useFrames(review, round, scene, readings, (step) => changed.filter((on) => on.at !== undefined && stepOf(on.at) === step));
@@ -705,6 +736,7 @@ export function SceneView(props: SceneViewProps) {
               on={Math.min(stop, last)}
               marks={onLine}
               changesIn={changesIn}
+              added={(step) => added.has(step)}
               onChange={(id) => {
                 const diamond = diamonds.find((diamond) => diamond.id === id);
                 if (diamond) toChange(diamond);
