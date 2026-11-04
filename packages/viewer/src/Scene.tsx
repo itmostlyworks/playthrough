@@ -211,9 +211,11 @@ export function SceneView(props: SceneViewProps) {
     if (ours) (setBegun({ id: ours.note.id, from: stop }), setStop(stops.findIndex((one) => one.id === ours.note.id)));
     else (setBegun(undefined), begun && !stops.some((one) => one.id === begun.id) && setStop(begun.from));
   }
-  // Held at the top, its way stays put beside the recording, but for a way longer than the room beside it: that goes up
-  // to bring the stop you're on to a fifth of the way down, as the page brings a scene up, until its end is over the
-  // foot. Gone up only as far as the stop needed, a stop late in a long way sat at the bottom ("so far down").
+  // Held at the top, its way stays put beside the recording, and ends where the recording does, its bar under it with it:
+  // what goes on past that fades out there, as what's gone up does under the top. A way longer than that goes up to
+  // bring the stop you're on to a fifth of the way down, as the page brings a scene up, until its end is in view. Gone
+  // up only as far as the stop needed, a stop late in a long way sat at the window's bottom ("so far down"), and run on
+  // to it, past the recording, notes went on below it.
   const column = useRef<HTMLDivElement>(null);
   const way = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -222,15 +224,19 @@ export function SceneView(props: SceneViewProps) {
     const follow = () => {
       const here = inner.querySelector<HTMLElement>("li[aria-current=step]");
       const top = here ? here.getBoundingClientRect().top - inner.getBoundingClientRect().top : 0;
-      const raised = onPhone() ? 0 : clamp(top - beside.clientHeight / 5, 0, Math.max(0, inner.offsetHeight - (beside.clientHeight - FOOT)));
+      const recorded = beside.closest(".sticky")?.firstElementChild;
+      const room = Math.min(beside.clientHeight - FOOT, recorded ? recorded.getBoundingClientRect().bottom + BAR - beside.getBoundingClientRect().top : Infinity);
+      const raised = onPhone() ? 0 : clamp(top - beside.clientHeight / 5, 0, Math.max(0, inner.offsetHeight - room));
       inner.style.translate = raised ? `0 ${-raised}px` : "";
-      // What's gone up fades out under the top rather than being cut off there.
-      beside.style.maskImage = raised ? "linear-gradient(to bottom, transparent, #000 28px)" : "";
+      // The fade at its end is always there, so a stop opening out never shows past it before it's measured.
+      beside.style.maskImage = onPhone() ? "" : `linear-gradient(to bottom, ${raised ? "transparent, #000 28px" : "#000, #000"}, #000 ${room - 28}px, transparent ${room}px)`;
     };
     follow();
     const watching = new ResizeObserver(follow);
     watching.observe(inner);
     watching.observe(beside);
+    const recorded = beside.closest(".sticky")?.firstElementChild;
+    if (recorded) watching.observe(recorded);
     return () => watching.disconnect();
   }, [stop, folded]);
   // Playing, a click on it pauses it. Where it can't be taken over, a click plays on into the stop you're on, and there,
@@ -966,6 +972,8 @@ const HALF = 0.8;
 
 // How much of the window's foot the one step to take floats over, in pixels, which a way that goes up keeps clear of.
 const FOOT = 72;
+// How far the bar under a recording reaches below it.
+const BAR = 22;
 
 // What a scene's standing says in words beside its Looks good, and when it can be judged at all.
 const SAYS: Standing["is"][] = ["not saved", "needs you", "to send", "with the agent", "looked good"];
