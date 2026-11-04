@@ -24,7 +24,7 @@ import { Pinned, type Pin } from "./Pinned.tsx";
 import { Clock, CLOSEST, Player, useCut, type Mark, type Placed } from "./Player.tsx";
 import { Portal, TAG } from "./Portal.tsx";
 import { recorded, type Scrolled } from "./replay.ts";
-import { Difference, partsOf } from "./Difference.tsx";
+import { Difference, partsOf, regionsOf } from "./Difference.tsx";
 import { says } from "./Step.tsx";
 import { Steps, stepStart, type OnLine, type Saying, type Stop } from "./Steps.tsx";
 import type { Acting } from "./Work.tsx";
@@ -379,7 +379,14 @@ export function SceneView(props: SceneViewProps) {
   const chosen = lit ?? picked;
   const answered = here.some((note) => note.id === chosen) ? answersTo(diamonds, chosen!) : [];
   const answeredMarks = answered.flatMap(({ on }, i) => marksOn(`${chosen} answer ${i}`, on));
-  const changedMarks = (diamond: Diamond) => diamond.changes.flatMap(({ on }, i) => marksOn(`${diamond.id} ${i}`, on));
+  // What changed at a moment is outlined as the regions its pictures show, where its step was read; else each thing.
+  const changedMarks = (diamond: Diamond): Mark[] => {
+    const reading = readingOf(stepOf(changeAt(diamond)));
+    const regions = reading ? regionsOf(boxesOf(diamond.changes, reading), reading.screen) : [];
+    if (!regions.length) return diamond.changes.flatMap(({ on }, i) => marksOn(`${diamond.id} ${i}`, on));
+    const { width, height } = reading!.screen;
+    return regions.map((box, i) => ({ id: `${diamond.id} ${i}`, box: { x: (box.x - 4) / width, y: (box.y - 4) / height, width: (box.width + 8) / width, height: (box.height + 8) / height } }));
+  };
   const marks: Mark[] = [
     ...here.map((note) =>
       note.on?.app ? { id: note.id, name: written(note)?.element?.name ?? note.on.element?.name } : { id: note.id, node: note.on?.element?.node, name: note.on?.element?.name, point: note.on?.point },
@@ -476,12 +483,14 @@ export function SceneView(props: SceneViewProps) {
               </span>
             </>
           ) : told.length ? (
-            told.map((changed) => (
-              <span key={changed.line} className="block">
-                <span className="text-faint">{changed.by} · </span>
-                {changed.line}
-              </span>
-            ))
+            <>
+              <span className="text-faint">{told[0]!.by} · </span>
+              {told.map((changed, i) => (
+                <span key={changed.line} className={i ? "block pt-1" : undefined}>
+                  {changed.line}
+                </span>
+              ))}
+            </>
           ) : parts.length ? undefined : (
             diamond.name
           );
@@ -494,7 +503,7 @@ export function SceneView(props: SceneViewProps) {
                 <i className={`mt-[5.5px] size-[7px] flex-none rotate-45 ${on ? "bg-fg" : "bg-soft"}`} />
                 <span className="grid min-w-0 flex-1 gap-2">
                   {words && <span className="min-w-0">{words}</span>}
-                  {parts.map((part, i) => <Difference key={i} part={part} now={now!} before={before} onBefore={on && onIt && comparable ? setPeek : undefined} />)}
+                  {parts.map((part, i) => <Difference key={i} part={part} now={now!} before={before} />)}
                 </span>
               </button>
               {on && comparing && !parts.length && <Compare {...comparing} bar={quietly} />}

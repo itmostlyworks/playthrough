@@ -225,7 +225,7 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
             </span>
             <button className={`block w-full text-left text-[14px] leading-5 text-balance outline-none hover:text-fg focus-visible:text-fg ${i === current ? "text-fg" : "text-soft"}`} onClick={() => onStop(k)}>
               {title}
-              {added(i) && <span className="ml-2 inline-block rounded-[5px] px-1.5 align-[1px] text-[11px] leading-[17px] font-medium text-soft shadow-[inset_0_0_0_1px_var(--track)]">New</span>}
+              {added(i) && <span className="text-faint"> · New</span>}
             </button>
             <div className="pt-3 pr-2 pb-1.5">
               <div

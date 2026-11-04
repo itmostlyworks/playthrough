@@ -12,14 +12,16 @@ export type Part = { frame: Frame; shape: number };
 // Things this far apart, in pixels, are pictured apart; and pictured, the most parts one moment shows.
 const APART = 96;
 const PARTS = 2;
-// Room around what changed, in pixels; the least of the page a part shows across, so a small thing is seen in its
-// place and no closer than the page itself; and the widest and narrowest a part's picture is, for its height.
+// Room around what changed, in pixels; the least and the most of the page a part shows across, so a small thing is
+// seen in its place and no closer than the page itself, and words in a wide one can still be read; and the widest and
+// narrowest a part's picture is, for its height.
 const ROOM = { x: 24, y: 16 };
-const ACROSS = 320;
+const ACROSS = [320, 480] as const;
 const SHAPES = [2.4, 5] as const;
 
-// The parts of a step's page what changed is on, top to bottom: what's off the screen it was read on isn't in them.
-export function partsOf(boxes: Box[], screen: Reading["screen"]): Part[] {
+// Where what changed is on a step's page, in regions top to bottom, each what's close together: what's off the screen it
+// was read on isn't in them. The recording outlines these, and each is pictured as it was and as it is.
+export function regionsOf(boxes: Box[], screen: Reading["screen"]): Box[] {
   const groups: Box[][] = [];
   const seen = boxes.filter((box) => box.x < screen.width && box.y < screen.height && box.x + box.width > 0 && box.y + box.height > 0).sort((a, b) => a.y - b.y);
   for (const box of seen) {
@@ -28,11 +30,15 @@ export function partsOf(boxes: Box[], screen: Reading["screen"]): Part[] {
     if (last && box.y <= bottom! + APART) last.push(box);
     else groups.push([box]);
   }
-  return groups.slice(0, PARTS).map((group) => {
-    const around = union(group);
+  return groups.slice(0, PARTS).map(union);
+}
+
+// Each region, framed for its picture.
+export function partsOf(boxes: Box[], screen: Reading["screen"]): Part[] {
+  return regionsOf(boxes, screen).map((around) => {
     const [wide, high] = [around.width + 2 * ROOM.x, around.height + 2 * ROOM.y];
     const shape = clamp(wide / high, ...SHAPES);
-    const width = Math.min(screen.width, Math.max(wide, high * shape, ACROSS), screen.height * shape);
+    const width = Math.min(screen.width, ACROSS[1], Math.max(wide, high * shape, ACROSS[0]), screen.height * shape);
     const height = width / shape;
     const x = clamp(around.x + around.width / 2 - width / 2, 0, screen.width - width);
     const y = clamp(around.y + around.height / 2 - height / 2, 0, screen.height - height);
@@ -40,20 +46,17 @@ export function partsOf(boxes: Box[], screen: Reading["screen"]): Part[] {
   });
 }
 
-// One part, before and now; with nothing before it, now alone. Pointed at, before is shown where the recording is too,
-// as holding C shows it, where the recording's at its moment.
-export function Difference({ part, now, before, onBefore }: { part: Part; now: string; before?: string; onBefore?: (shown: boolean) => void }) {
+// One part, before over now, together on a ground of their own; with nothing before it, now alone.
+export function Difference({ part, now, before }: { part: Part; now: string; before?: string }) {
   return (
-    <span className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 gap-y-1">
+    <span className="grid gap-1 rounded-lg bg-hover p-1.5 pt-1">
       {before && (
         <>
-          <span className="text-[11px] leading-4 text-faint">Before</span>
-          <span onPointerEnter={() => onBefore?.(true)} onPointerLeave={() => onBefore?.(false)}>
-            <Crop src={before} part={part} />
-          </span>
+          <span className="px-0.5 text-[11px] leading-4 text-faint">Before</span>
+          <Crop src={before} part={part} />
         </>
       )}
-      <span className="text-[11px] leading-4 text-faint">Now</span>
+      <span className={`px-0.5 text-[11px] leading-4 text-faint ${before ? "pt-0.5" : ""}`}>Now</span>
       <Crop src={now} part={part} />
     </span>
   );
