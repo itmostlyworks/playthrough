@@ -207,8 +207,11 @@ export function Player(props: Props) {
       // Gone, as Before is once Compare's let go, it's told nothing more.
       if (!box.current) return;
       const shape = replayed.shapeAt(moment);
-      const part = glide.current.frame ?? { x: 0, y: 0, width: 1, height: 1 };
-      let [left, top, across] = [part.x * shape.width, part.y * shape.height, part.width * shape.width];
+      const part = glide.current.frame;
+      // On no part of it, it's the whole screen, as its picture is: a phone's, narrower than the picture, whole and in
+      // the middle, rather than across the picture's width and cut off below its top.
+      const whole = Math.max(shape.width, (shape.height * box.current.clientWidth) / box.current.clientHeight);
+      let [left, top, across] = part ? [part.x * shape.width, part.y * shape.height, part.width * shape.width] : [(shape.width - whole) / 2, 0, whole];
       const { from } = glide.current;
       if (from && gliding()) {
         const now = frameTime();
@@ -296,8 +299,11 @@ export function Player(props: Props) {
     told.current?.(
       Object.fromEntries(
         (marks ?? []).map((mark) => {
+          // Off the screen, as a board's columns past a phone's edge are, it's not on the frame: the screen beside the
+          // picture's edge no longer hides it.
           const thing = found(mark);
-          return [mark.id, thing && { left: (thing.left - left) * k, top: (thing.top - top) * k, width: thing.width * k, height: thing.height * k }];
+          const onScreen = thing && thing.left < shape.width && thing.top < shape.height && thing.left + thing.width > 0 && thing.top + thing.height > 0;
+          return [mark.id, onScreen ? { left: (thing.left - left) * k, top: (thing.top - top) * k, width: thing.width * k, height: thing.height * k } : undefined];
         }),
       ),
     );

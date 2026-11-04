@@ -466,7 +466,13 @@ export function SceneView(props: SceneViewProps) {
   const onIt = there?.id !== undefined && there.at !== undefined && !playing && !scrubbing && !passing && Math.abs(at - there.at) < 0.02;
   const closeOn = !live?.shown && onIt ? pins.find((pin) => pin.id === there!.id)?.on : undefined;
   const [closed, setClosed] = useState<Frame>();
-  const frame = side ? ((redone && traced?.id === redone.id && traced.frame) || frames[step]) : undefined;
+  // A phone's recording is the phone's shape, as tall as any scene's picture: side by side, a second phone comes in beside
+  // it, each the whole screen.
+  const tall = readings?.[0]?.screen;
+  const phone = tall && tall.height > tall.width ? tall.width / tall.height : undefined;
+  // As tall as the window has room for, as a scene's picture is at most, and narrow enough for two side by side.
+  const high = phone && `min(100dvh - 150px, (100cqw - 16px) / ${2 * phone})`;
+  const frame = side && !phone ? ((redone && traced?.id === redone.id && traced.frame) || frames[step]) : undefined;
   const view = `${at} ${side} ${closeOn?.join(" ") ?? ""} ${redone ? "redone" : ""}`;
   // The pins are drawn where the recording, come to rest, found their things in the view it shows; on its way to another
   // view, none are, rather than in the corner that's for things it didn't find.
@@ -520,8 +526,11 @@ export function SceneView(props: SceneViewProps) {
     >
       <div className="grid grid-cols-[minmax(0,1fr)_340px] gap-8 phone:grid-cols-1">
         {/* Its name and recording stay at the window's top while its way goes by beside them. */}
-        <div ref={block} data-block="" className="sticky top-(--pin) self-start phone:static">
-        <h3 className="mb-3 min-w-0 px-0.5 text-[15px] leading-[21px] font-semibold text-balance">
+        <div ref={block} data-block="" className="@container sticky top-(--pin) self-start phone:static">
+        {/* A phone's sits against its way, as narrow as it is. */}
+        <div className={phone ? "ml-auto transition-[width] duration-450 ease-calm" : undefined} style={phone ? { width: side ? `calc(${2 * phone} * ${high} + 16px)` : `calc(${phone} * ${high})` } : undefined}>
+        {/* Over a phone, as wide as the one phone, so it never rewraps, moving the picture, as Compare brings a second. */}
+        <h3 className="mb-3 min-w-0 px-0.5 text-[15px] leading-[21px] font-semibold text-balance" style={phone ? { width: `calc(${phone} * ${high})` } : undefined}>
           {scene.name}
           {asWho(scene) && <span className="font-normal text-soft"> {asWho(scene)}</span>}
         </h3>
@@ -529,7 +538,8 @@ export function SceneView(props: SceneViewProps) {
           {/* A click pauses it, or plays the step again; noting, it notes what's under it; taken over, it's the app's. */}
           <button
             data-picture={scene.name}
-            className="relative block aspect-[1.6] w-full"
+            className={`relative block w-full ${phone ? "" : "aspect-[1.6]"}`}
+            style={phone ? { height: high } : undefined}
             aria-label={stepIn ? `Take over${person ? ` as ${person}` : ""}` : `${playing ? "Pause" : "Play"} “${scene.steps[step]?.title}”`}
             onPointerDown={() => (armed.current = active)}
             onPointerMove={(event) => {
@@ -560,7 +570,7 @@ export function SceneView(props: SceneViewProps) {
                 following={scrubbing ? { clock, at: (moment) => moment } : undefined}
                 frame={frame}
                 marks={marks}
-                closeOn={redone || !closeOn ? undefined : { on: closeOn, shape: side ? HALF : WHOLE }}
+                closeOn={redone || !closeOn ? undefined : { on: closeOn, shape: phone ?? (side ? HALF : WHOLE) }}
                 onClosed={setClosed}
                 onMarks={redone ? undefined : (placed) => setPlaced({ view, at: placed })}
                 things={noting && !taken && !writing ? props.glimpsed : undefined}
@@ -578,6 +588,7 @@ export function SceneView(props: SceneViewProps) {
                   frame={frame}
                   marks={redone.outlined ? [{ id: redone.id, node: redone.on.element?.node, name: redone.on.element?.name }] : []}
                   closeOn={redone.outlined && !side && !live?.shown && !redoing ? [redone.id] : undefined}
+                  shape={phone ?? WHOLE}
                   onMarks={(placed) => setPlaced({ view, at: placed })}
                   onPlaying={setRedoing}
                   still={still}
@@ -632,6 +643,7 @@ export function SceneView(props: SceneViewProps) {
               />
             </div>
           )}
+        </div>
         </div>
         </div>
         {/* The way goes by beside the recording as the page scrolls: where it stands and what the agent said first, its
@@ -696,6 +708,8 @@ function Redone(props: {
   frame?: Frame;
   marks: Mark[];
   closeOn?: string[];
+  // The picture's shape, its width over its height, which it's close in: a phone's, or any scene's.
+  shape: number;
   onMarks: (placed: Placed) => void;
   onPlaying: (playing: boolean) => void;
   // Arrived on or passed, it rests where it ends, still, as arriving is calm; stopped on, it plays.
@@ -732,7 +746,7 @@ function Redone(props: {
         onStop={(moment) => (setAt(moment), setPlaying(undefined))}
         frame={props.frame}
         marks={props.marks}
-        closeOn={playing || !props.closeOn ? undefined : { on: props.closeOn, shape: WHOLE }}
+        closeOn={playing || !props.closeOn ? undefined : { on: props.closeOn, shape: props.shape }}
         onMarks={props.onMarks}
       />
     </span>
