@@ -3,12 +3,13 @@
 // moment, lit. It arrives at the answer waiting on you, else at the first step's result. What's drawn on it, and what the
 // bar does, is about the moment it's at: the notes there, outlined, what changed there, a note made there, the app taken
 // over there. At rest, a click on it takes it over there; playing, it pauses it. C held is how it was before the work, at
-// the same moment, in place; pressed, the two side by side, each close on the step's part of the page.
+// the same moment, in place; pressed, the two side by side, each close on the step's part of the page. At an answer to
+// a note made in the app, how it was is what you did then, played again beside what you did, done again.
 
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 import type { Glimpse, Reading } from "@playthrough/page";
 import { lastLooked, type Flow, type Place, type Review, type Round, type Verdict } from "@playthrough/review";
-import { picture, recording } from "./api.ts";
+import { picture, readings as readingsOf, recording } from "./api.ts";
 import { Bar } from "./Bar.tsx";
 import { Compare, HOLD, Said } from "./Card.tsx";
 import { answersTo, type Diamond } from "./changes.ts";
@@ -225,12 +226,56 @@ export function Situation(props: SituationProps) {
     else setSide(!side);
   };
 
+  // An answer to a note made in the app is seen the way the note was found: what you did there, done again on this
+  // round's work as the agent recorded it, from where you took it over to where the answer shows, or to the end of the
+  // step of it the agent says it's seen in, where the page is the answer and nothing is outlined. Before it is what you
+  // did then, as you kept it, from where you took it over to where you noted it, as far into it as what's done again is:
+  // click for click, where both made as many. Side by side, both are on what was done there: the things clicked and
+  // typed in, in the shape of half the picture.
+  const [traced, setTraced] = useState<{ id: string; now: number[]; then: number[]; frame?: Frame }>();
+  const redone = (() => {
+    const id = stops[stop]?.id;
+    const on = notes.find((note) => note.id === id)?.on;
+    if (!id || !on?.app?.steps || on.at === undefined) return undefined;
+    const watched = on.app.steps.findIndex((step) => step.title === round.replies.find((reply) => reply.note === id)?.watch);
+    const until = watched < 0 ? on.at : (on.app.steps[watched + 1]?.at ?? on.app.length) - 0.05;
+    const from = on.app.from.at;
+    const kept = review.sends.flatMap((send) => send.notes).find((sent) => sent.id === id)?.on;
+    if (!kept?.app || kept.at === undefined) return { id, on, app: on.app, until, outlined: watched < 0 };
+    const [since, to] = [kept.app.from.at, kept.at];
+    const [now, then] = traced?.id === id ? [traced.now.filter((at) => at > from && at < until), traced.then.filter((at) => at > since && at < to)] : [[], []];
+    const [here, there] = now.length === then.length ? [[from, ...now, until], [since, ...then, to]] : [[from, until], [since, to]];
+    return { id, on, app: on.app, until, outlined: watched < 0, then: { recording: kept.app.recording, at: (moment: number) => along(moment, here, there) } };
+  })();
+  useEffect(() => {
+    if (!redone?.then) return;
+    let current = true;
+    const { id, app, until, then } = redone;
+    Promise.all([recording(review.id, round.number, app.recording), recording(review.id, round.number, then.recording), readingsOf(review.id, round.number, app.recording)]).then(
+      ([now, before, read]) => {
+        const done = recorded(now);
+        const things = done.acted.filter(([at]) => at > app.from.at && at <= until).flatMap(([, node]) => read.flatMap((reading) => reading.things.filter((thing) => thing.node === node)).at(-1)?.box ?? []);
+        const screen = read.at(-1)?.screen;
+        if (current) setTraced({ id, now: done.clicks, then: recorded(before).clicks, frame: things.length && screen ? around(union(things), screen, HALF) : undefined });
+      },
+    );
+    return () => void (current = false);
+  }, [redone?.id]);
+  const [redoing, setRedoing] = useState(false);
+  // It plays on a clock of its own, which Before follows; and each time Compare comes on, it plays again from where you
+  // took it over, as what's compared there is what happens.
+  const redoneClock = useRef<Clock>(undefined);
+  const [replays, setReplays] = useState(0);
+  useEffect(() => void (redone?.then && (side || peek) && setReplays((times) => times + 1)), [side || peek]);
+
   // Taken over here: the app, unseen until it's yours, and the frame's edge warm from Take over until you're back.
   const live = acting.live?.flow === flow.name ? acting.live : undefined;
   const taken = !!live?.shown;
   if (taken && side) setSide(false);
-  // Compare, on the bar and beside what changed or was answered: how it was before the work, at the same moment.
-  const comparing = then ? { on: side || peek, off: taken, onPress: press, onRelease: release } : undefined;
+  // Compare, on the bar and beside what changed or was answered: how it was before the work, at the same moment; at an
+  // answer to a note made in the app, what you did then.
+  const comparable = !!then || !!redone?.then;
+  const comparing = comparable ? { on: side || peek, off: taken, onPress: press, onRelease: release } : undefined;
   const noting = active && acting.noting;
   // C is the situation's you're on; in the app, it's the app's, and noting, it rests until you've chosen what it's on.
   // Gone to another, it stops.
@@ -239,7 +284,7 @@ export function Situation(props: SituationProps) {
     const typing = (event: KeyboardEvent) => (event.target as Element).closest?.("input, textarea, [contenteditable]");
     const down = (event: KeyboardEvent) => {
       if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || typing(event)) return;
-      if (event.key.toLowerCase() === "c" && then) press();
+      if (event.key.toLowerCase() === "c" && comparable) press();
     };
     const up = (event: KeyboardEvent) => event.key.toLowerCase() === "c" && release();
     addEventListener("keydown", down);
@@ -249,18 +294,6 @@ export function Situation(props: SituationProps) {
   useEffect(() => void (!active && playing && pause()), [active]);
   // Noting, it stops where it is: a note is made on the moment it's at; in the app, on what you click there.
   useEffect(() => void (noting && playing && pause()), [noting]);
-  // An answer to a note made in the app is seen the way the note was found: what you did there, done again on this
-  // round's work as the agent recorded it, from where you took it over to where the answer shows, or to the end of the
-  // step of it the agent says it's seen in, where the page is the answer and nothing is outlined.
-  const redone = (() => {
-    const id = stops[stop]?.id;
-    const on = notes.find((note) => note.id === id)?.on;
-    if (!id || !on?.app?.steps || on.at === undefined) return undefined;
-    const watched = on.app.steps.findIndex((step) => step.title === round.replies.find((reply) => reply.note === id)?.watch);
-    const until = watched < 0 ? on.at : (on.app.steps[watched + 1]?.at ?? on.app.length) - 0.05;
-    return { id, on, app: on.app, until, outlined: watched < 0 };
-  })();
-  const [redoing, setRedoing] = useState(false);
   // At rest on the situation you're on, that's where Take over takes it over; at such an answer, it's taken over the
   // way it was found, what you did done again in the app.
   const restsAt = Math.round(at * 100) / 100;
@@ -341,12 +374,13 @@ export function Situation(props: SituationProps) {
         whole: <div className="grid gap-2.5 pt-1 pb-1.5 text-[13px]">{writing.words}</div>,
       };
     const note = notes.find((note) => note.id === id);
-    const own = diamonds.find((diamond) => diamond.id === id)?.changes.filter((changed) => !changed.answers) ?? [];
+    const diamond = diamonds.find((diamond) => diamond.id === id);
+    const own = diamond?.changes.filter((changed) => !changed.answers) ?? [];
     const told = own.find((changed) => changed.line);
     const madeFor = own.map((changed) => changed.note && props.noteOf(changed.note)).find(Boolean) || undefined;
-    const words = note ? note.turns[0]?.words : madeFor ? madeFor.turns[0]?.words : (told?.line ?? diamonds.find((diamond) => diamond.id === id)?.name);
+    const words = note ? note.turns[0]?.words : madeFor ? madeFor.turns[0]?.words : (told?.line ?? diamond?.name);
     const forNote = madeFor && (
-      <span className={`mr-1.5 inline-block size-4 rounded-full text-center align-[-3px] text-[9px] leading-4 font-semibold ${quietNumber}`} style={{ "--c": ink(madeFor) } as CSSProperties}>
+      <span className={`ml-1 inline-block size-3.5 rounded-full text-center text-[8.5px] leading-3.5 font-semibold ${quietNumber}`} style={{ "--c": ink(madeFor) } as CSSProperties}>
         {madeFor.number}
       </span>
     );
@@ -368,30 +402,28 @@ export function Situation(props: SituationProps) {
               onJudge={(verdict) => (threads.onJudge(note, verdict), verdict && props.onSaid())}
               onEdit={(words) => threads.onEdit(note.id, words)}
               onShow={() => {}}
-              compare={note.on?.app?.steps ? undefined : comparing}
+              compare={comparing}
             />
           </div>
         ),
       };
+    // Opened, it reads as a note's thread does: who said what, then what it is, with Compare beside it, as a thread has
+    // its question.
     return {
       sign: <i className="size-[7px] rotate-45 bg-fg" />,
       line: (
         <>
-          {madeFor && <>Changed for your note {forNote}</>}
+          {madeFor && <>Changed for your note{forNote} </>}
           {words}
         </>
       ),
       whole: (
-        <div className="grid gap-1.5">
-          <Said who={madeFor ? "Changed for your note" : (told?.by ?? "Changed here")}>
-            {forNote}
-            {words}
-          </Said>
-          {comparing && (
-            <span className="flex justify-end pr-1.5">
-              <Compare {...comparing} bar={quietly} />
-            </span>
-          )}
+        <div className="grid gap-2.5 pr-4">
+          {(madeFor || told) && <Said who={madeFor ? <>Your note{forNote}</> : told!.by}>{words}</Said>}
+          <div className="flex items-center justify-between gap-2 text-xs leading-[18px] text-soft">
+            <span>{madeFor ? "Changed here for it" : told ? "Changed here" : words}</span>
+            {comparing && <Compare {...comparing} bar={quietly} />}
+          </div>
         </div>
       ),
     };
@@ -405,7 +437,7 @@ export function Situation(props: SituationProps) {
   const onIt = there?.id !== undefined && there.at !== undefined && !playing && !scrubbing && Math.abs(at - there.at) < 0.02;
   const closeOn = !live?.shown && onIt ? pins.find((pin) => pin.id === there!.id)?.on : undefined;
   const [closed, setClosed] = useState<Frame>();
-  const frame = side ? frames[step] : undefined;
+  const frame = side ? ((redone && traced?.id === redone.id && traced.frame) || frames[step]) : undefined;
   const view = `${at} ${side} ${closeOn?.join(" ") ?? ""} ${redone ? "redone" : ""}`;
   // The app is the page the recording was made of, at its size, scrolled where the recording rests.
   const screen = readings?.find((one) => one.step === flow.steps[step]?.title)?.screen ?? { width: 1280, height: 800 };
@@ -413,7 +445,16 @@ export function Situation(props: SituationProps) {
   // How it was, at the same moment: following this one as it plays.
   const beforeAt = thenAt(at);
   const was = (frame?: Frame) =>
-    then && beforeAt !== undefined ? (
+    redone?.then ? (
+      <Player
+        review={review.id}
+        round={round.number}
+        recording={redone.then.recording}
+        at={redone.then.at(redoneClock.current?.at ?? redone.until)}
+        following={redoing && redoneClock.current ? { clock: redoneClock.current, at: redone.then.at } : undefined}
+        frame={frame}
+      />
+    ) : then && beforeAt !== undefined ? (
       <>
         <Still src={picture(review.id, 0, then.recording, thenStep)} frame={frame} />
         <Player review={review.id} round={0} recording={then.recording} at={beforeAt} following={playing || scrubbing ? { clock, at: (moment) => thenAt(moment) ?? beforeAt } : undefined} frame={frame} />
@@ -520,6 +561,8 @@ export function Situation(props: SituationProps) {
                   onMarks={(placed) => setPlaced({ view, at: placed })}
                   onPlaying={setRedoing}
                   still={arrived}
+                  clock={redoneClock}
+                  replays={replays}
                 />
               )}
               <span className={`${CHIP} transition-opacity duration-450 ease-calm ${side ? "" : "opacity-0"}`}>Now</span>
@@ -624,17 +667,23 @@ function Redone(props: {
   onPlaying: (playing: boolean) => void;
   // Arrived on, it rests where it ends, still, as arriving is calm; gone to, it plays.
   still: boolean;
+  // Its clock, for what's beside it to follow; and how many times Compare has come on, each a time to play it again.
+  clock: RefObject<Clock | undefined>;
+  replays: number;
 }) {
   const { app } = props;
   const [fork] = useState<Flow>(() => ({ ...props.flow, recording: app.recording, length: app.length, steps: app.steps ?? [] }));
   const cut = useCut(props.review, props.round, fork);
   const [from] = useState(() => (props.still ? props.until : app.from.at));
   const [clock] = useState(() => new Clock(from));
+  props.clock.current = clock;
   const [at, setAt] = useState(from);
   const [playing, setPlaying] = useState<{ until: number }>();
   // It plays once it knows its waits, to cut them short as a step's are.
   const played = useRef(props.still);
   useEffect(() => void (cut && !played.current && ((played.current = true), setPlaying({ until: props.until }))), [cut]);
+  const [replayed] = useState(props.replays);
+  useEffect(() => void (props.replays > replayed && (clock.set(app.from.at), setAt(app.from.at), setPlaying({ until: props.until }))), [props.replays]);
   useEffect(() => props.onPlaying(!!playing), [playing]);
   useEffect(() => () => props.onPlaying(false), []);
   return (
@@ -684,6 +733,13 @@ export type Threads = {
 
 // A step's end: the next one's start, or the flow's end. Its page is read there.
 const stepEnd = (flow: Flow, step: number) => flow.steps[step + 1]?.at ?? flow.length;
+
+// A moment of one stretch, as far into the other as it is into its own, between the moments paired in both.
+function along(moment: number, here: number[], there: number[]): number {
+  const i = clamp(here.findLastIndex((at) => at <= moment), 0, here.length - 2);
+  const u = clamp((moment - here[i]!) / Math.max(here[i + 1]! - here[i]!, 0.01), 0, 1);
+  return there[i]! + u * (there[i + 1]! - there[i]!);
+}
 
 // Each step's part of the page, in the shape of half the picture, as side by side shows it: what changed there, the
 // first thing found, or where nothing did, what the step acted on, the last thing clicked or typed in that's still there
