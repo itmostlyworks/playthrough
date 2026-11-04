@@ -6,7 +6,7 @@
 // the same moment, in place; pressed, the two side by side, each close on the step's part of the page. At an answer to
 // a note made in the app, how it was is what you did then, played again beside what you did, done again.
 
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import type { Glimpse, Reading } from "@playthrough/page";
 import { accountOf, allNotes, lastLooked, type Scene, type Place, type Review, type Round, type Verdict } from "@playthrough/review";
 import { picture, readings as readingsOf, recording } from "./api.ts";
@@ -474,15 +474,22 @@ export function SceneView(props: SceneViewProps) {
       onShow={() => {}}
     />
   );
+  // Folded, a note's line is its first words and where it stands, in the words the line under the title counts it by.
+  const lineOf = (words: ReactNode, stands: string) => (
+    <p className="flex min-w-0 items-baseline gap-2 pr-2 text-[13px] leading-5">
+      <span className="min-w-0 flex-1 truncate">{words}</span>
+      <span className="flex-none text-[12px] text-amber-ink">{stands}</span>
+    </p>
+  );
   const said = (id: string): Saying => {
     if (id === ours?.note.id)
       return {
         sign: <span className="size-2 rounded-full bg-amber" />,
-        line: "Your new note",
+        line: lineOf("Your new note", ""),
         whole: <div className="grid gap-2.5 pt-1 pb-1.5 text-[13px]">{ours.words}</div>,
       };
     const note = notes.find((note) => note.id === id)!;
-    return { sign: <span className={`size-2 rounded-full ${fill(note)}`} />, line: note.turns[0]?.words, whole: <div className="-my-2 -ml-4">{thread(note)}</div> };
+    return { sign: <span className={`size-2 rounded-full ${fill(note)}`} />, line: lineOf(note.turns[0]?.words, note.unsent ? "To send" : "To check"), whole: <div className="-my-2 -ml-4">{thread(note)}</div> };
   };
   // A note that asks nothing of you is a line in its step, as a resolved conversation is: its first words and where it
   // stands, opening when pressed and folding again from its thread.

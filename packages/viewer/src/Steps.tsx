@@ -157,14 +157,16 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
     addEventListener("pointercancel", up);
   };
 
-  // Every stop is laid out open, so the way never reflows under you as you go along it: the one you're on sits on the
-  // page's surface, the others' words quieter, their signs still whole on the rail, and a press anywhere on another goes
-  // there first, so what's pressed in it, as its Compare, is about it. Before you've gone along it, all are quieter, as
-  // you're on none: left whole then, your notes' words stood out over the steps' titles, and dimmed once you went on.
+  // Every stop is a line, the same distance apart, and the one you're on opens out of it as the one you left folds back:
+  // what it says, and what you can do there, is only ever where you are. Laid out open, every step's why, every note's
+  // thread and every answer's buttons stood beside each other, some to read and some to press ("too many different things
+  // going on in the sidebar"). The one you're on sits on the page's surface, the others' words quieter, their signs
+  // still whole on the rail, and a press anywhere on another goes there. Before you've gone along it, all are folded and
+  // quieter, as you're on none.
   const row = (k: number) => ({
     "data-stop": k,
     "aria-current": k === on ? ("step" as const) : undefined,
-    className: `relative flex-none py-2 pb-4 pl-8 transition-opacity duration-300 ease-calm [&>*]:transition-opacity [&>*]:duration-300 [&>*]:ease-calm ${k === on ? "[--under:var(--surface)]" : resting ? "opacity-35" : "[&>:not([data-sign])]:opacity-60 hover:[&>:not([data-sign])]:opacity-100"}`,
+    className: `relative flex-none py-2 pl-8 transition-opacity duration-300 ease-calm [&>*]:transition-opacity [&>*]:duration-300 [&>*]:ease-calm ${k === on ? "[--under:var(--surface)]" : resting ? "opacity-35" : "[&>:not([data-sign])]:opacity-60 hover:[&>:not([data-sign])]:opacity-100"}`,
     onPointerDownCapture: () => k !== on && onStop(k),
   });
 
@@ -192,27 +194,33 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
                 {since === undefined ? "Unchanged" : "Nothing new since last time"}
               </button>
               {/* Each of them pressed is gone to, the steps kept together each a stop again from there. */}
-              <ol className="grid gap-0.5 pt-1.5 text-[13px] leading-[18px] text-soft">
-                {kept.map((one, i) => (
-                  <li key={i}>
-                    <button className="block w-full truncate text-left hover:text-fg" onClick={() => onUnfold(k, stop.from! + i)}>
-                      {one.title}
-                    </button>
-                    {quietIn(stop.from! + i)}
-                  </li>
-                ))}
-              </ol>
+              <Opens open={here}>
+                <ol className="grid gap-0.5 pt-1.5 pb-1 text-[13px] leading-[18px] text-soft">
+                  {kept.map((one, i) => (
+                    <li key={i}>
+                      <button className="block w-full truncate text-left hover:text-fg" onClick={() => onUnfold(k, stop.from! + i)}>
+                        {one.title}
+                      </button>
+                      {quietIn(stop.from! + i)}
+                    </li>
+                  ))}
+                </ol>
+              </Opens>
             </li>
           );
         }
         if (stop.id !== undefined) {
-          const { sign, whole } = said(stop.id);
+          const { sign, line, whole } = said(stop.id);
           return (
             <li key={stop.id} data-note={stop.id} {...row(k)} inert={resting && !here} onPointerEnter={() => onPoint(stop.id)} onPointerLeave={() => onPoint(undefined)}>
-              <span data-sign="" className={`absolute top-2.5 left-0.5 grid size-4 place-items-center rounded-full bg-ground transition-[box-shadow] duration-300 ease-calm ${here ? RING : ""}`}>
+              <span data-sign="" className={`absolute top-2 left-0.5 grid size-4 translate-y-0.5 place-items-center rounded-full bg-ground transition-[box-shadow] duration-300 ease-calm ${here ? RING : ""}`}>
                 {sign}
               </span>
-              <div className="text-[13px]">{whole}</div>
+              {/* Folded, its first words and where it stands; open, the whole of it, which starts with them. */}
+              <Opens open={!here}>{line}</Opens>
+              <Opens open={here} className="-ml-4 pl-4">
+                <div className="text-[13px]">{whole}</div>
+              </Opens>
             </li>
           );
         }
@@ -228,23 +236,21 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
             >
               {i + 1}
             </span>
-            {/* Only the step you're on has its line, just under its name, in room every step keeps, so nothing moves as it
-                comes: on every step, it was a line each to look past. */}
-            <div className="relative pb-3">
             <button className={`block w-full text-left text-[14px] leading-5 text-balance outline-none hover:text-fg focus-visible:text-fg ${i === current ? "text-fg" : "text-soft"}`} onClick={() => onStop(k)}>
               {title}
             </button>
-            <div className="absolute inset-x-0 bottom-[3px] pr-2">
+            <Opens open={here}>
+            <div className="pt-[11px] pr-2 pb-[3px]">
               <div
-                ref={i === current ? line : undefined}
+                ref={here ? line : undefined}
                 role="slider"
-                tabIndex={i === current ? 0 : -1}
+                tabIndex={here ? 0 : -1}
                 aria-label={`Where in “${title}”`}
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={Math.round(share(i, at) * 100)}
                 style={i === current ? undefined : ({ "--done": i < current ? 1 : 0 } as CSSProperties)}
-                className={`group/line relative h-0.5 w-full cursor-pointer touch-none outline-none select-none transition-opacity duration-300 ease-calm before:absolute before:inset-x-0 before:-inset-y-2 before:content-[''] ${i === current ? "" : "pointer-events-none opacity-0"}`}
+                className="group/line relative h-0.5 w-full cursor-pointer touch-none outline-none select-none before:absolute before:inset-x-0 before:-inset-y-2 before:content-['']"
                 onPointerDown={press}
                 onKeyDown={(event) =>
                   (event.key === "ArrowLeft" || event.key === "ArrowRight") &&
@@ -274,9 +280,9 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
                   ))}
               </div>
             </div>
-            </div>
             {changesIn(i)}
             {quietIn(i)}
+            </Opens>
           </li>
           </Fragment>
         );
@@ -301,16 +307,27 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
             ) : (
               <p className="text-[14px] leading-5">{end.says}</p>
             )}
-            {end.onNote && (
-              <button className="mt-1.5 mb-0.5 text-[12.5px] leading-[18px] text-soft underline-offset-[3px] hover:text-fg hover:underline" onClick={end.onNote}>
-                Note on the whole scene
-              </button>
-            )}
-            {quietIn()}
+            <Opens open={on === stops.length}>
+              {end.onNote && (
+                <button className="mt-1.5 mb-0.5 text-[12.5px] leading-[18px] text-soft underline-offset-[3px] hover:text-fg hover:underline" onClick={end.onNote}>
+                  Note on the whole scene
+                </button>
+              )}
+              {quietIn()}
+            </Opens>
           </li>
         ) : [],
       )}
     </ol>
+  );
+}
+
+// What a stop says beyond its line, there while you're on it: it grows out of the line, and folds back into it.
+function Opens({ open, className = "", children }: { open: boolean; className?: string; children: ReactNode }) {
+  return (
+    <div inert={!open} className={`grid transition-[grid-template-rows,opacity] duration-300 ease-calm ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr] opacity-0"}`}>
+      <div className={`min-h-0 overflow-hidden ${className}`}>{children}</div>
+    </div>
   );
 }
 
