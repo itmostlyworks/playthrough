@@ -71,7 +71,8 @@ if (window.top === window) {
     inlineStylesheet: true,
   });
   // Where the text cursor is, which rrweb doesn't keep: where words go is half of what typing shows. Said whenever it
-  // moves, as where on the screen it is and how tall, and that it's gone once nothing is typed into.
+  // moves, as where on the screen it is and how tall, in a field after how many of its letters, and that it's gone once
+  // nothing is typed into.
   let saidCaret = "";
   const caretOf = () => {
     const field = document.activeElement;
@@ -110,7 +111,7 @@ if (window.top === window) {
     const box = field.getBoundingClientRect();
     const height = parseFloat(look.lineHeight) || parseFloat(look.fontSize) * 1.25;
     const x = box.left + parseFloat(look.borderLeftWidth) + parseFloat(look.paddingLeft) + measure.measureText(field.value.slice(0, field.selectionStart ?? 0)).width - field.scrollLeft;
-    return { x, y: box.top + (box.height - height) / 2, height };
+    return { x, y: box.top + (box.height - height) / 2, height, letters: field.selectionStart ?? field.value.length };
   };
   const sayCaret = () => {
     const caret = caretOf();
@@ -118,7 +119,7 @@ if (window.top === window) {
     if (now === saidCaret) return;
     saidCaret = now;
     try {
-      window.rrwebRecord.record.addCustomEvent("caret", caret ? { x: Math.round(caret.x), y: Math.round(caret.y), height: Math.round(caret.height) } : {});
+      window.rrwebRecord.record.addCustomEvent("caret", caret ? { x: Math.round(caret.x), y: Math.round(caret.y), height: Math.round(caret.height), letters: caret.letters } : {});
     } catch {}
   };
   for (const type of ["selectionchange", "input", "keyup", "focusin", "focusout", "scroll"]) document.addEventListener(type, () => requestAnimationFrame(sayCaret), true);

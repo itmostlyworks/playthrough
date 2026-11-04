@@ -35,9 +35,10 @@ export type Recorded = {
   scrolls: [number, number, number, number][];
   // The browser's own dialogs, which aren't in the page.
   dialogs: Dialog[];
-  // Where the text cursor was, as [seconds, x, y, height], from when it moved; a height of 0 when nothing was typed into.
-  // Kept by Playthrough while recording, as rrweb keeps none: in an earlier recording there's none.
-  carets: [number, number, number, number][];
+  // Where the text cursor was, as [seconds, x, y, height, letters], from when it moved; a height of 0 when nothing was
+  // typed into, and in a field, after how many of its letters. Kept by Playthrough while recording, as rrweb keeps none:
+  // in an earlier recording there's none, and before 5 Nov, no letters.
+  carets: [number, number, number, number, number?][];
   // Whether the browser it was recorded in was dark, and asked for no motion; light and moving, in a recording that
   // doesn't say, as Playwright's browser is.
   browser: Answered;
@@ -57,8 +58,8 @@ export function recorded(events: Events): Recorded {
     if (event.type === EventType.Custom) {
       const { tag, payload } = event.data as { tag: string; payload: { type: string; message: string; value?: string; yes?: boolean } };
       if (tag === "caret") {
-        const caret = payload as unknown as { x?: number; y?: number; height?: number };
-        shown.carets.push([seconds(event.timestamp), caret.x ?? 0, caret.y ?? 0, caret.height ?? 0]);
+        const caret = payload as unknown as { x?: number; y?: number; height?: number; letters?: number };
+        shown.carets.push([seconds(event.timestamp), caret.x ?? 0, caret.y ?? 0, caret.height ?? 0, caret.letters]);
       }
       if (tag === "dialog") shown.dialogs.push({ from: seconds(event.timestamp), until: Infinity, host, ...payload });
       if (tag === "browser" && !said) [shown.browser, said] = [{ dark: !!(payload as unknown as Answered).dark, still: !!(payload as unknown as Answered).still }, true];
@@ -345,8 +346,9 @@ export class Replay {
     for (let extra = 0.25; extra <= 4 && !fits(); extra += 0.25) frame.style.width = `${this.#shape.width + extra}px`;
   }
 
-  // Typing into a field, the cursor is at the end of its words as this browser lays them out, which another browser can
-  // put elsewhere than where the recording measured it: Firefox laid Kan's header out 42px to the right of Chromium.
+  // Typing into a field, the cursor is after as many of its words' letters as it was, as this browser lays them out,
+  // which another browser can put elsewhere than where the recording measured it: Firefox laid Kan's header out 42px to
+  // the right of Chromium. Recorded before the letters were kept, it's at their end, where typing mostly is.
   #onField(at: number): [number, number, number] | undefined {
     const caret = this.carets.findLast(([when]) => when <= at);
     const typed = this.typed.findLast(([when]) => when <= at);
@@ -363,7 +365,7 @@ export class Replay {
     measure.font = `${look.fontStyle} ${look.fontWeight} ${look.fontSize} ${look.fontFamily}`;
     const box = field.getBoundingClientRect();
     const height = caret[3];
-    const x = box.left + parseFloat(look.borderLeftWidth) + parseFloat(look.paddingLeft) + measure.measureText(field.value).width - field.scrollLeft;
+    const x = box.left + parseFloat(look.borderLeftWidth) + parseFloat(look.paddingLeft) + measure.measureText(field.value.slice(0, caret[4] ?? field.value.length)).width - field.scrollLeft;
     return [x, box.top + (box.height - height) / 2, height];
   }
 
