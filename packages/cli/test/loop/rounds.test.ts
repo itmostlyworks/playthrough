@@ -15,23 +15,23 @@ after(() => app.remove());
 const waitingForNotes = { says: /Waiting for notes on overdue…/ };
 
 describe("The command line, as an agent uses it, round after round", { timeout: 300_000 }, () => {
-  test("start begins a review and asks for its flows from the task, before anything changes", async () => {
+  test("start begins a review and asks for its scenes from the task, before anything changes", async () => {
     const { said, code } = await app.run(["start", "overdue", "Show only overdue invoices", "Can the invoices list show just the overdue ones?"]);
     assert.equal(code, 0);
-    assert.match(said, /Write its flows before you change anything\. They show what was asked, so write them from the task, not from the code/);
-    assert.match(said, /Each flow is one situation the change meets/);
-    assert.match(said, /Each is a Playwright test in a \.ts file in \.playthrough\/overdue\/flows/);
+    assert.match(said, /Write its scenes before you change anything\. They show what was asked, so write them from the task, not from the code/);
+    assert.match(said, /Each scene is one situation the change meets/);
+    assert.match(said, /Each is a Playwright test in a \.ts file in \.playthrough\/overdue\/scenes/);
     assert.match(said, /Then run playthrough start overdue again\. It tries the app's setup, and keeps the app as it is as Before/);
     const review = await app.reviews.get("overdue");
     assert.deepEqual([review.title, review.asked], ["Show only overdue invoices", "Can the invoices list show just the overdue ones?"]);
   });
 
-  test("record says what it needs before recording anything: flows, then how to start the app", async () => {
+  test("record says what it needs before recording anything: scenes, then how to start the app", async () => {
     let { said, code } = await app.run(["record", "overdue"]);
     assert.equal(code, 1);
-    assert.match(said, /overdue has no flows yet/);
+    assert.match(said, /overdue has no scenes yet/);
 
-    await writeFile(join(app.flows, "overdue.ts"), seeOverdue);
+    await writeFile(join(app.scenes, "overdue.ts"), seeOverdue);
     ({ said, code } = await app.run(["record", "overdue"]));
     assert.equal(code, 1);
     assert.match(said, /Say how to start the app in playthrough\/app\.json/);
@@ -40,21 +40,21 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
   test("run again, start tries the app's setup by itself first and records nothing; once more, it keeps the app as it is as Before, and still records nothing", async () => {
     await mkdir(join(app.repo, "playthrough"));
     await writeFile(join(app.repo, "playthrough/app.json"), JSON.stringify(app.app));
-    await writeFile(join(app.flows, "paid.ts"), seePaid);
-    await writeFile(join(app.flows, "export.ts"), exportThem);
+    await writeFile(join(app.scenes, "paid.ts"), seePaid);
+    await writeFile(join(app.scenes, "export.ts"), exportThem);
     let { said, code } = await app.run(["start", "overdue"]);
     assert.equal(code, 1);
-    assert.match(said, /Trying the app's setup by itself first, twice, as every flow will start…/);
-    assert.match(said, /Nothing's recorded yet\. Once the picture shows where a flow should start, run playthrough start overdue again\./);
+    assert.match(said, /Trying the app's setup by itself first, twice, as every scene will start…/);
+    assert.match(said, /Nothing's recorded yet\. Once the picture shows where a scene should start, run playthrough start overdue again\./);
     assert.deepEqual((await app.reviews.get("overdue")).rounds, []);
 
     ({ said, code } = await app.run(["start", "overdue"]));
     assert.equal(code, 0, said);
-    assert.match(said, /Kept Before: the app as it is now\. Each flow is recorded on it with round 1, as far as the app as it was takes it, for the person to compare with\./);
-    assert.match(said, /see that the flows show all of it a person would see: a choice of yours needs a step where no flow shows it yet, not a flow of its own\. Then record round 1: playthrough record overdue/);
-    assert.doesNotMatch(said, /Recording/, "the flows are written for the work: nothing's recorded yet");
+    assert.match(said, /Kept Before: the app as it is now\. Each scene is recorded on it with round 1, as far as the app as it was takes it, for the person to compare with\./);
+    assert.match(said, /see that the scenes show all of it a person would see: a choice of yours needs a step where no scene shows it yet, not a scene of its own\. Then record round 1: playthrough record overdue/);
+    assert.doesNotMatch(said, /Recording/, "the scenes are written for the work: nothing's recorded yet");
     const before = await app.round(0);
-    assert.deepEqual(before.flows, []);
+    assert.deepEqual(before.scenes, []);
     assert.ok(before.commit && before.finished, "nothing is reviewed on it, so it's done once it's kept");
 
     ({ said, code } = await app.run(["start", "overdue"]));
@@ -62,39 +62,39 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
     assert.match(said, /Before is kept already\. Change the app, then record round 1: playthrough record overdue/);
   });
 
-  test("a flow that fails records nothing, and names itself", async () => {
+  test("a scene that fails records nothing, and names itself", async () => {
     await addExport(app);
-    await writeFile(join(app.flows, "overdue.ts"), seeOverdue.replace("toHaveCount(3)", "toHaveCount(30, { timeout: 1000 })"));
+    await writeFile(join(app.scenes, "overdue.ts"), seeOverdue.replace("toHaveCount(3)", "toHaveCount(30, { timeout: 1000 })"));
     const { said, code } = await app.run(["record", "overdue"]);
     assert.equal(code, 1);
-    assert.match(said, /Round 1 wasn't recorded, because a flow failed:\n  “See what's overdue”, at the step “Show only the overdue ones”, where Playwright says “[^\n]+”\nFix it and record again, which runs it first\./);
+    assert.match(said, /Round 1 wasn't recorded, because a scene failed:\n  “See what's overdue”, at the step “Show only the overdue ones”, where Playwright says “[^\n]+”\nFix it and record again, which runs it first\./);
     assert.deepEqual((await app.reviews.get("overdue")).rounds.map((round) => round.number), [0]);
   });
 
-  test("record keeps every flow's recording, with where each of its steps starts, in the order the flows are written", async () => {
-    await writeFile(join(app.flows, "overdue.ts"), seeOverdue);
+  test("record keeps every scene's recording, with where each of its steps starts, in the order the scenes are written", async () => {
+    await writeFile(join(app.scenes, "overdue.ts"), seeOverdue);
     const { said, code } = await app.run(["record", "overdue"]);
     assert.equal(code, 0, said);
     assert.match(said, /Recorded round 1: “Export the overdue ones” \(\d+s\), “See what's overdue” \(\d+s\) and “See what's paid” \(\d+s\)/);
-    assert.match(said, /are new to the person\. In \.playthrough\/overdue\/rounds\/1\/round\.json, each can have a line, as “line” in its flow under “flows”: what it starts from, and whether it shows the change or what the change leaves alone, in a sentence of up to 140 characters\./);
+    assert.match(said, /are new to the person\. In \.playthrough\/overdue\/rounds\/1\/round\.json, each can have a line, as “line” in its scene under “scenes”: what it starts from, and whether it shows the change or what the change leaves alone, in a sentence of up to 140 characters\./);
 
     const recorded = await app.round(1);
     const steps: Record<string, string> = { "Export the overdue ones": "Export them", "See what's overdue": "Show only the overdue ones", "See what's paid": "Show only the paid ones" };
-    assert.deepEqual(recorded.flows.map((flow) => flow.name), Object.keys(steps));
-    for (const flow of recorded.flows) {
-      assert.deepEqual(flow.steps.map((step) => step.title), ["Open the invoices", steps[flow.name]]);
-      assert.ok(flow.length > 1.5, "it holds its end long enough to be seen");
-      assert.ok((flow.steps[1]?.at ?? 0) >= (flow.steps[0]?.at ?? 0));
-      assert.ok((await stat(join(app.repo, `.playthrough/overdue/rounds/1/files/${flow.recording}`))).size > 1000);
+    assert.deepEqual(recorded.scenes.map((scene) => scene.name), Object.keys(steps));
+    for (const scene of recorded.scenes) {
+      assert.deepEqual(scene.steps.map((step) => step.title), ["Open the invoices", steps[scene.name]]);
+      assert.ok(scene.length > 1.5, "it holds its end long enough to be seen");
+      assert.ok((scene.steps[1]?.at ?? 0) >= (scene.steps[0]?.at ?? 0));
+      assert.ok((await stat(join(app.repo, `.playthrough/overdue/rounds/1/files/${scene.recording}`))).size > 1000);
     }
-    assert.deepEqual(recorded.flows.map((flow) => flow.recording), ["export-the-overdue-ones.json", "see-whats-overdue.json", "see-whats-paid.json"]);
+    assert.deepEqual(recorded.scenes.map((scene) => scene.recording), ["export-the-overdue-ones.json", "see-whats-overdue.json", "see-whats-paid.json"]);
   });
 
-  test("record keeps each flow on Before too, as far as the app as it was takes it, with the agent's work put back", async () => {
+  test("record keeps each scene on Before too, as far as the app as it was takes it, with the agent's work put back", async () => {
     const before = await app.round(0);
-    assert.deepEqual(before.flows.map((flow) => [flow.name, flow.stopped]), [["Export the overdue ones", "Export them"], ["See what's overdue", undefined], ["See what's paid", undefined]]);
+    assert.deepEqual(before.scenes.map((scene) => [scene.name, scene.stopped]), [["Export the overdue ones", "Export them"], ["See what's overdue", undefined], ["See what's paid", undefined]]);
     // What it expects of the finished work only waits on Before; where it can't act, it stops, and holds there.
-    const [cut] = before.flows;
+    const [cut] = before.scenes;
     assert.deepEqual(cut?.steps.map((step) => step.title), ["Open the invoices"]);
     const events: { type: number; data: { tag?: string } }[] = JSON.parse((await app.file(0, cut!.recording)).toString());
     assert.equal(events.at(-1)?.data.tag, "end");
@@ -105,7 +105,7 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
   });
 
   test("each step is read where it ended, once the page was at rest, with a picture of the page it left", async () => {
-    const [, overdue] = (await app.round(1)).flows;
+    const [, overdue] = (await app.round(1)).scenes;
     const read = await app.readings(1, overdue!);
     assert.deepEqual(read.map((reading) => reading.step), ["Open the invoices", "Show only the overdue ones"]);
     assert.ok(read[0]!.at < overdue!.steps[1]!.at && read[1]!.at < overdue!.length, "each is read after its step starts, before the next one");
@@ -114,14 +114,14 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
   });
 
   test("record compares the round with Before, and it isn't handed over until the agent says why each change is there", async () => {
-    // Since Before, the app has an Export button, and the flow that exports takes the step Before couldn't.
+    // Since Before, the app has an Export button, and the scene that exports takes the step Before couldn't.
     const { changes } = await app.compared(1, 0);
     const button = changes.find((change) => change.words === "Export button is new, and moved the Show choice left");
     assert.deepEqual(
       changes.map((change) => change.words),
       ["Export button is new, and moved the Show choice left", "New steps: “Export them”"],
     );
-    assert.deepEqual(button?.seen.map((seen) => seen.flow), ["Export the overdue ones", "See what's overdue", "See what's paid"], "one change, seen in each flow");
+    assert.deepEqual(button?.seen.map((seen) => seen.scene), ["Export the overdue ones", "See what's overdue", "See what's paid"], "one change, seen in each scene");
 
     const { said, code } = await app.run(["wait", "overdue"]);
     assert.equal(code, 1);
@@ -133,10 +133,10 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
   test("waiting hands the round over, then brings the notes that ask for something, each with its conversation and a picture of what it's on", async () => {
     const waiting = app.run(["wait", "overdue"]);
     await app.reviews.wait("overdue", (review) => !!review.rounds.find((round) => round.number === 1)?.finished);
-    const [, overdue] = (await app.round(1)).flows;
+    const [, overdue] = (await app.round(1)).scenes;
     const shown = (await app.readings(1, overdue!))[1]!;
     const button = shown.things.find((thing) => thing.role === "button" && thing.name === "Overdue")!;
-    const note = { id: newId(), on: { flow: "See what's overdue", at: shown.at, element: { role: "button", name: "Overdue", node: button.node } }, words: "The badge is hard to read." };
+    const note = { id: newId(), on: { scene: "See what's overdue", at: shown.at, element: { role: "button", name: "Overdue", node: button.node } }, words: "The badge is hard to read." };
     await app.reviews.send("overdue", { id: newId(), round: 1, by: "Ana", sent: new Date().toISOString(), notes: [note], verdicts: [], looksGood: ["See what's paid"] });
 
     const { said, code } = await waiting;
@@ -149,13 +149,13 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
 
   test("a round isn't handed over until every note has an answer, which recording again keeps, placed where its note's thing is now", async () => {
     // Recorded again with nothing changed, nothing has changed since round 1.
-    assert.match((await app.run(["record", "overdue"])).said, /Nothing changed in what the flows show since round 1\./);
+    assert.match((await app.run(["record", "overdue"])).said, /Nothing changed in what the scenes show since round 1\./);
     assert.deepEqual((await app.compared(2, 1)).changes, []);
     assert.equal((await app.compared(2, 0)).changes.length, 2);
     const [reply] = (await app.round(2)).replies;
     assert.equal(reply?.words, "");
     // Its answer shows where the note's thing is on the new recording, found by what was read at the same step.
-    const [, overdue] = (await app.round(2)).flows;
+    const [, overdue] = (await app.round(2)).scenes;
     const there = (await app.readings(2, overdue!))[1]!.things.find((thing) => thing.role === "button" && thing.name === "Overdue");
     assert.deepEqual(reply?.on?.element, { role: "button", name: "Overdue", node: there!.node });
 

@@ -1,4 +1,4 @@
-// A note: one line while it's closed, saying what was said, as it is over a flow's end or in the card of the change it
+// A note: one line while it's closed, saying what was said, as it is over a scene's end or in the card of the change it
 // grew out of; and opened beside its spot, its card: the conversation turn by turn, the older exchanges folded, the way
 // to compare, and the one thing you can do with it. What the agent changed for it isn't put in words: the recording
 // marks it, in the note's colour. A new note is written in a card beside what it's on, as an open one is.
@@ -27,7 +27,7 @@ const pointed = `${hangs} hover:before:bg-hover`;
 export const opened = `${hangs} before:bg-hover pb-3`;
 
 // Compare, on or off: pressed and let go it stays on, held it's on while you hold it.
-// Off while you're taking the flow over: the app is now, with nothing beside it.
+// Off while you're taking the scene over: the app is now, with nothing beside it.
 export type Comparing = { on: boolean; off?: boolean; onPress: () => void; onRelease: () => void };
 
 type Props = {
@@ -49,7 +49,7 @@ type Props = {
   away: boolean;
   // Grown out of a change: your words under its name, in the change's card.
   grown?: boolean;
-  // On the whole flow, at its end: the conversation laid out, with no question of its own, as the flow's question
+  // On the whole scene, at its end: the conversation laid out, with no question of its own, as the scene's question
   // answers it.
   whole?: boolean;
   onOpen: () => void;
@@ -58,7 +58,7 @@ type Props = {
   onUnfinished: (words: string | undefined) => void;
   onJudge: (verdict: Verdict | undefined) => void;
   onEdit: (words: string | undefined) => void;
-  // On the whole flow, the moments the agent changed something for it, each going there as its diamond on the timeline
+  // On the whole scene, the moments the agent changed something for it, each going there as its diamond on the timeline
   // does.
   changedAt?: Diamond[];
   onDiamond?: (diamond: Diamond) => void;
@@ -69,7 +69,7 @@ type Props = {
 export function NoteRow(props: Props) {
   const { note, open } = props;
   const at = note.on?.at;
-  const here = useNow(props.playhead, ({ moment }) => at !== undefined && moment.flow === note.on?.flow && moment.at >= at - 0.05 && moment.at <= (note.on?.until ?? at) + SHOWN_FOR);
+  const here = useNow(props.playhead, ({ moment }) => at !== undefined && moment.scene === note.on?.scene && moment.at >= at - 0.05 && moment.at <= (note.on?.until ?? at) + SHOWN_FOR);
   if (props.grown)
     return (
       <button className="-mt-1 block w-full truncate pr-2.5 pb-1.5 pl-[44px] text-left text-[12.5px] leading-[18px] text-soft transition-colors duration-150 ease-calm hover:text-fg" onMouseDown={(event) => event.preventDefault()} onClick={props.onOpen}>
@@ -77,7 +77,7 @@ export function NoteRow(props: Props) {
       </button>
     );
   // Opened, it's beside its pin, which says its number and where it is: the card is the conversation alone. On the
-  // whole flow, it's always the conversation.
+  // whole scene, it's always the conversation.
   if (open || props.whole)
     return (
       <div data-open="">
@@ -102,7 +102,7 @@ export function NoteRow(props: Props) {
   );
 }
 
-// What the agent changed for a note on the whole flow happened along it, not at its end where it's answered: each moment
+// What the agent changed for a note on the whole scene happened along it, not at its end where it's answered: each moment
 // is its diamond and time, as the timeline draws it, and goes there, where the recording marks what changed. What
 // changed isn't put in words.
 function Moments({ diamonds, onDiamond }: { diamonds: Diamond[]; onDiamond: (diamond: Diamond) => void }) {
@@ -311,7 +311,7 @@ export function Conversation(props: ConversationProps) {
         (whereYouWere.onTakeOver ? (
           <TakeOverHere waiting={whereYouWere.live === "waiting"} onTakeOver={whereYouWere.onTakeOver} />
         ) : (
-          <p className="text-xs leading-[18px] text-soft">Where you took this flow over isn’t in round {whereYouWere.round}’s recording.</p>
+          <p className="text-xs leading-[18px] text-soft">Where you took this scene over isn’t in round {whereYouWere.round}’s recording.</p>
         ))}
       {/* Compare is how to tell: how it was, beside the question. */}
       {(question || comparing) && (

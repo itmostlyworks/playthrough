@@ -9,8 +9,8 @@ export type View = { k: number; x: number; y: number; fit: number };
 export type Size = { width: number; height: number };
 export type Point = [number, number];
 
-// Where you've moved the view to stays, at its size, playing too, until you choose another size or go to another flow.
-export type Held = { centre: Point; k: number; flow: string };
+// Where you've moved the view to stays, at its size, playing too, until you choose another size or go to another scene.
+export type Held = { centre: Point; k: number; scene: string };
 
 export function fitted(frame: Size, page: Size): View {
   const fit = Math.min(frame.width / page.width, frame.height / page.height);

@@ -2,7 +2,7 @@
 // Each returns what's wrong in plain words, saying what to do about it, and nothing when all is well.
 
 import type { z } from "zod";
-import { Comparison, fileName, Round, Send, type Account, type Change, type Flow, type Note, type Place, type Reply, type Review, type Verdict } from "./model.ts";
+import { Comparison, fileName, Round, Send, type Account, type Change, type Scene, type Note, type Place, type Reply, type Review, type Verdict } from "./model.ts";
 import { list, quote, time } from "./words.ts";
 
 // The round the agent is working on: the last one until it's finished, then the next.
@@ -12,10 +12,10 @@ export function roundInProgress(review: Review): number {
   return last.finished ? last.number + 1 : last.number;
 }
 
-// Every flow the review has had, in the order they joined it: the task's first, from Before, then those the agent added
+// Every scene the review has had, in the order they joined it: the task's first, from Before, then those the agent added
 // for its own choices, whatever their files are called.
 export function inOrderJoined(review: Review): string[] {
-  return [...new Set(review.rounds.flatMap((kept) => [...kept.flows.map((flow) => flow.name), ...(kept.cantStart ?? [])]))];
+  return [...new Set(review.rounds.flatMap((kept) => [...kept.scenes.map((scene) => scene.name), ...(kept.cantStart ?? [])]))];
 }
 
 // Every note in the review, with the round it was written on and who wrote it.
@@ -111,59 +111,59 @@ export function problemsWithRound(review: Review, round: Round): string[] {
   }
 
   const at = `Round ${round.number}`;
-  const problems = problemsWithFlows(round, at);
+  const problems = problemsWithScenes(round, at);
   const notes = allNotes(review);
   problems.push(...duplicates(round.replies.map((reply) => reply.note), (id) => `${at} has two replies to note ${id}. Say it all in one.`));
   for (const reply of round.replies) {
     if (!notes.has(reply.note)) problems.push(`${at} replies to note ${reply.note}, which doesn't exist.`);
-    // One on a person's fork, run again, is on that fork's recording, which branches off a flow of the round.
-    if (reply.on) problems.push(...problemsWithPlace(reply.on.app ? { flow: reply.on.app.from.flow } : reply.on, round.flows, `${at}: the reply to note ${reply.note}`));
+    // One on a person's fork, run again, is on that fork's recording, which branches off a scene of the round.
+    if (reply.on) problems.push(...problemsWithPlace(reply.on.app ? { scene: reply.on.app.from.scene } : reply.on, round.scenes, `${at}: the reply to note ${reply.note}`));
     if (reply.watch) problems.push(...problemsWatching(reply, round, at));
   }
   return problems;
 }
 
-// An answer watched in a step plays it, so the step is one of its flow's, here; one in the app plays where the person's
+// An answer watched in a step plays it, so the step is one of its scene's, here; one in the app plays where the person's
 // steps went.
 function problemsWatching(reply: Reply, round: Round, at: string): string[] {
-  const flow = reply.on && !reply.on.app ? round.flows.find((flow) => flow.name === reply.on!.flow) : undefined;
-  if (!flow) return [`${at}: the reply to note ${reply.note} watches ${quote(reply.watch!)}, but it isn't on one of this round's flows. Take "watch" out.`];
-  if (flow.steps.some((step) => step.title === reply.watch)) return [];
-  return [`${at}: the reply to note ${reply.note} watches ${quote(reply.watch!)}, which isn't a step of ${quote(flow.name)}. Name one of its steps: ${list(flow.steps.map((step) => quote(step.title)))}.`];
+  const scene = reply.on && !reply.on.app ? round.scenes.find((scene) => scene.name === reply.on!.scene) : undefined;
+  if (!scene) return [`${at}: the reply to note ${reply.note} watches ${quote(reply.watch!)}, but it isn't on one of this round's scenes. Take "watch" out.`];
+  if (scene.steps.some((step) => step.title === reply.watch)) return [];
+  return [`${at}: the reply to note ${reply.note} watches ${quote(reply.watch!)}, which isn't a step of ${quote(scene.name)}. Name one of its steps: ${list(scene.steps.map((step) => quote(step.title)))}.`];
 }
 
-// Before gains each flow as its round is recorded: the flow recorded on the app as it was, or the word that the app as
+// Before gains each scene as its round is recorded: the scene recorded on the app as it was, or the word that the app as
 // it was can't start it.
-export function problemsAddingToBefore(review: Review, flows: Flow[], cantStart: string[]): string[] {
+export function problemsAddingToBefore(review: Review, scenes: Scene[], cantStart: string[]): string[] {
   if (review.accepted) return ["This review is accepted, so nothing more can be recorded."];
   const before = review.rounds.find((round) => round.number === 0);
-  if (!before) return ["There's no Before to add a flow to: the app was new."];
-  const after = withInBefore(before, flows, cantStart);
+  if (!before) return ["There's no Before to add a scene to: the app was new."];
+  const after = withInBefore(before, scenes, cantStart);
   const shape = problemsWithShape(Round, after, "Before");
-  return shape.length ? shape : problemsWithFlows(after, "Before");
+  return shape.length ? shape : problemsWithScenes(after, "Before");
 }
 
-// Before with these flows in it, in place of what it had of them: a flow tried again replaces how far it went before.
+// Before with these scenes in it, in place of what it had of them: a scene tried again replaces how far it went before.
 // One that's gone since, tried again, goes from Before too.
-export function withInBefore(before: Round, flows: Flow[], cantStart: string[], gone: string[] = []): Round {
-  const names = new Set([...flows.map((flow) => flow.name), ...cantStart, ...gone]);
-  // One recorded again keeps its place, so the flows stay in the order they joined the review.
-  const again = new Map(flows.map((flow) => [flow.name, flow]));
+export function withInBefore(before: Round, scenes: Scene[], cantStart: string[], gone: string[] = []): Round {
+  const names = new Set([...scenes.map((scene) => scene.name), ...cantStart, ...gone]);
+  // One recorded again keeps its place, so the scenes stay in the order they joined the review.
+  const again = new Map(scenes.map((scene) => [scene.name, scene]));
   return {
     ...before,
-    flows: [...before.flows.flatMap((flow) => (again.has(flow.name) ? [again.get(flow.name)!] : names.has(flow.name) ? [] : [flow])), ...flows.filter((flow) => !before.flows.some((kept) => kept.name === flow.name))],
+    scenes: [...before.scenes.flatMap((scene) => (again.has(scene.name) ? [again.get(scene.name)!] : names.has(scene.name) ? [] : [scene])), ...scenes.filter((scene) => !before.scenes.some((kept) => kept.name === scene.name))],
     cantStart: [...(before.cantStart ?? []).filter((name) => !names.has(name)), ...cantStart],
   };
 }
 
-// Flows are told apart by their names, and their steps by their titles, so each is there once.
-function problemsWithFlows(round: Round, at: string): string[] {
-  const problems = duplicates([...round.flows.map((flow) => flow.name), ...(round.cantStart ?? [])], (name) => `${at} has two flows called “${name}”.`);
-  for (const flow of round.flows) {
-    const steps = flow.steps.map((step) => step.title);
-    problems.push(...duplicates(steps, (title) => `${at}: the flow “${flow.name}” has two steps called “${title}”. Steps are matched by title.`));
-    for (const step of flow.steps.filter((step) => step.at > flow.length))
-      problems.push(`${at}: the step “${step.title}” in the flow “${flow.name}” starts after the flow ends.`);
+// Scenes are told apart by their names, and their steps by their titles, so each is there once.
+function problemsWithScenes(round: Round, at: string): string[] {
+  const problems = duplicates([...round.scenes.map((scene) => scene.name), ...(round.cantStart ?? [])], (name) => `${at} has two scenes called “${name}”.`);
+  for (const scene of round.scenes) {
+    const steps = scene.steps.map((step) => step.title);
+    problems.push(...duplicates(steps, (title) => `${at}: the scene “${scene.name}” has two steps called “${title}”. Steps are matched by title.`));
+    for (const step of scene.steps.filter((step) => step.at > scene.length))
+      problems.push(`${at}: the step “${step.title}” in the scene “${scene.name}” starts after the scene ends.`);
   }
   return problems;
 }
@@ -184,15 +184,15 @@ export function problemsWithComparison(review: Review, comparison: Comparison): 
   const problems = duplicates(comparison.changes.map((change) => change.id), (id) => `${at} has two changes with the id ${id}.`);
   for (const change of comparison.changes)
     for (const seen of change.seen) {
-      const gone = seen.at === undefined && !round.flows.some((flow) => flow.name === seen.flow);
-      problems.push(...problemsWithPlace(seen, gone ? earlier.flows : round.flows, `${at}: ${describe(change)}`));
+      const gone = seen.at === undefined && !round.scenes.some((scene) => scene.name === seen.scene);
+      problems.push(...problemsWithPlace(seen, gone ? earlier.scenes : round.scenes, `${at}: ${describe(change)}`));
     }
   return problems;
 }
 
 // A round is handed over once its file is in the right shape, every note it took is answered, it's compared with every
 // round before it, and the agent has said why each change new since the round before that Playthrough can name is there.
-// The most a flow's line can say.
+// The most a scene's line can say.
 export const LONGEST_LINE = 140;
 
 // The changes the agent says why of: those Playthrough can name. One only the pictures show is the person's to look at.
@@ -205,8 +205,8 @@ export function problemsFinishing(review: Review, number: number): string[] {
   const at = `Round ${number}`;
   const shape = problemsWithShape(Round, round, at);
   if (shape.length) return shape;
-  // Before gains its flows as their rounds are recorded, so it's kept with none.
-  if (number > 0 && !round.flows.length) return [`${at} has no flows yet. Record them first.`];
+  // Before gains its scenes as their rounds are recorded, so it's kept with none.
+  if (number > 0 && !round.scenes.length) return [`${at} has no scenes yet. Record them first.`];
 
   const problems: string[] = [];
   const notes = allNotes(review);
@@ -214,14 +214,14 @@ export function problemsFinishing(review: Review, number: number): string[] {
     const reply = round.replies.find((reply) => reply.note === id);
     const note = notes.get(id)?.note;
     if (!isText(reply?.words)) problems.push(`${at} needs an answer to note ${id}${note ? `, “${cut(note.words)}”` : ""}: its reply's “words”, under “replies”.`);
-    else if (reply?.on && note?.on && reply.on.flow !== note.on.flow)
-      problems.push(`${at}: the reply to note ${id} is on “${reply.on.flow}”, but the note is on “${note.on.flow}”. A reply goes in its note's flow.`);
+    else if (reply?.on && note?.on && reply.on.scene !== note.on.scene)
+      problems.push(`${at}: the reply to note ${id} is on “${reply.on.scene}”, but the note is on “${note.on.scene}”. A reply goes in its note's scene.`);
   }
 
-  // A flow's line is read in the moment before it plays, on its title card: a sentence, not a paragraph.
-  for (const flow of round.flows)
-    if (flow.line && flow.line.length > LONGEST_LINE)
-      problems.push(`${at}: the line on “${flow.name}” is ${flow.line.length} characters. Say it in a sentence of up to ${LONGEST_LINE}: what it starts from, and whether it shows the change or what the change leaves alone.`);
+  // A scene's line is read in the moment before it plays, on its title card: a sentence, not a paragraph.
+  for (const scene of round.scenes)
+    if (scene.line && scene.line.length > LONGEST_LINE)
+      problems.push(`${at}: the line on “${scene.name}” is ${scene.line.length} characters. Say it in a sentence of up to ${LONGEST_LINE}: what it starts from, and whether it shows the change or what the change leaves alone.`);
 
   // Compared at all, a round is compared with every round before it, so what's new to anyone, wherever they last
   // looked, is known.
@@ -272,8 +272,8 @@ export function problemsWithSend(review: Review, send: Send): string[] {
   problems.push(...duplicates(send.notes.map((note) => note.id), (id) => `This send has two notes with the id ${id}.`));
   for (const note of send.notes) {
     if (notes.has(note.id)) problems.push(`The id ${note.id} is already a note's. Make a new one.`);
-    // One in the app is on the person's own recording, which branches off a flow of the round.
-    if (note.on) problems.push(...problemsWithPlace(note.on.app ? { flow: note.on.app.from.flow } : note.on, round.flows, `Note ${note.id}`));
+    // One in the app is on the person's own recording, which branches off a scene of the round.
+    if (note.on) problems.push(...problemsWithPlace(note.on.app ? { scene: note.on.app.from.scene } : note.on, round.scenes, `Note ${note.id}`));
   }
 
   problems.push(...duplicates(send.verdicts.map((verdict) => verdict.note), (id) => `This send has two verdicts on note ${id}.`));
@@ -283,11 +283,11 @@ export function problemsWithSend(review: Review, send: Send): string[] {
     else if (!known || known.round > send.round) problems.push(`There's no note ${verdict.note} on round ${send.round} to judge.`);
   }
 
-  problems.push(...duplicates(send.looksGood, (flow) => `This send says “${flow}” looks good twice.`));
-  problems.push(...duplicates(takenBack, (flow) => `This send takes back Looks good on “${flow}” twice.`));
-  for (const flow of send.looksGood.filter((flow) => takenBack.includes(flow))) problems.push(`This send says “${flow}” looks good and takes that back: say one.`);
-  for (const flow of [...send.looksGood, ...takenBack].filter((flow) => !round.flows.some((recorded) => recorded.name === flow)))
-    problems.push(`Round ${send.round} has no flow called “${flow}”.`);
+  problems.push(...duplicates(send.looksGood, (scene) => `This send says “${scene}” looks good twice.`));
+  problems.push(...duplicates(takenBack, (scene) => `This send takes back Looks good on “${scene}” twice.`));
+  for (const scene of send.looksGood.filter((scene) => takenBack.includes(scene))) problems.push(`This send says “${scene}” looks good and takes that back: say one.`);
+  for (const scene of [...send.looksGood, ...takenBack].filter((scene) => !round.scenes.some((recorded) => recorded.name === scene)))
+    problems.push(`Round ${send.round} has no scene called “${scene}”.`);
   return problems;
 }
 
@@ -302,7 +302,7 @@ export function problemsAccepting(review: Review, by: string): string[] {
   });
 }
 
-// What's wrong with something's shape: its name, then what it needs, as in “Round 2: flow 3 needs a name.”
+// What's wrong with something's shape: its name, then what it needs, as in “Round 2: scene 3 needs a name.”
 function problemsWithShape(schema: z.ZodType, value: unknown, subject: string): string[] {
   const result = schema.safeParse(value, { error: plainly });
   if (result.success) return [];
@@ -325,7 +325,7 @@ const plainly: z.core.$ZodErrorMap = (issue) => {
 };
 const KINDS: Record<string, string> = { string: "text", number: "a number", array: "a list", object: "an object", boolean: "true or false" };
 
-// Names what a problem is on, innermost first: “Round 2: the step “Open” in the flow “Export a quarter””.
+// Names what a problem is on, innermost first: “Round 2: the step “Open” in the scene “Export a quarter””.
 function whose(subject: string, path: PropertyKey[], value: unknown): string {
   const things: string[] = [];
   let here = value;
@@ -340,22 +340,22 @@ function whose(subject: string, path: PropertyKey[], value: unknown): string {
 function nameOf(list: string, item: Record<string, unknown> | undefined, index: number): string {
   const { name, title, words, id, note } = item ?? {};
   const named: Record<string, string | false> = {
-    flows: isText(name) && `the flow “${name}”`,
+    scenes: isText(name) && `the scene “${name}”`,
     steps: isText(title) && `the step “${title}”`,
     changes: (isText(words) && `the change “${cut(words)}”`) || (isText(id) && `the change ${id}`),
     replies: isText(note) && `the reply to note ${note}`,
     notes: isText(id) && `note ${id}`,
     verdicts: isText(note) && `the verdict on note ${note}`,
   };
-  const singular: Record<string, string> = { flows: "flow", steps: "step", changes: "change", seen: "place it's seen", replies: "reply", notes: "note", verdicts: "verdict", looksGood: "flow said to look good" };
+  const singular: Record<string, string> = { scenes: "scene", steps: "step", changes: "change", seen: "place it's seen", replies: "reply", notes: "note", verdicts: "verdict", looksGood: "scene said to look good" };
   return named[list] || `${singular[list] ?? list} ${index + 1}`;
 }
 
-function problemsWithPlace(place: Place, flows: Flow[], what: string): string[] {
-  const flow = flows.find((flow) => flow.name === place.flow);
-  if (!flow) return [`${what} is on the flow “${place.flow}”, which isn't there.`];
+function problemsWithPlace(place: Place, scenes: Scene[], what: string): string[] {
+  const scene = scenes.find((scene) => scene.name === place.scene);
+  if (!scene) return [`${what} is on the scene “${place.scene}”, which isn't there.`];
   const end = Math.max(place.at ?? 0, place.until ?? 0);
-  return end <= flow.length ? [] : [`${what} is at ${end}s, but “${flow.name}” is ${flow.length}s long.`];
+  return end <= scene.length ? [] : [`${what} is at ${end}s, but “${scene.name}” is ${scene.length}s long.`];
 }
 
 function duplicates(values: string[], problem: (value: string) => string): string[] {
@@ -367,6 +367,6 @@ function duplicates(values: string[], problem: (value: string) => string): strin
 const roundName = (number: number) => (number === 0 ? "Before" : `round ${number}`);
 const describe = (change: Change) => `the change ${change.id} (${cut(change.words)})`;
 // Where it's first seen, so the agent can find it: “in “Export a quarter” at 0:02”.
-const where = ({ seen: [first] }: Change) => (first ? `, in ${quote(first.flow)}${first.at === undefined ? "" : ` at ${time(first.at)}`}` : "");
+const where = ({ seen: [first] }: Change) => (first ? `, in ${quote(first.scene)}${first.at === undefined ? "" : ` at ${time(first.at)}`}` : "");
 const cut = (words: string) => (words.length > 48 ? `${words.slice(0, 47).trimEnd()}…` : words);
 const isText = (value: unknown): value is string => typeof value === "string" && value.trim() !== "";

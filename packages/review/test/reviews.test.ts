@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, test } from "node:test";
 import { folder } from "../src/folder.ts";
-import { conversation, memory, newId, Refused, Reviews, type Change, type Flow, type Round, type Send, type Storage } from "../src/index.ts";
+import { conversation, memory, newId, Refused, Reviews, type Change, type Scene, type Round, type Send, type Storage } from "../src/index.ts";
 
 const folders: string[] = [];
 after(() => Promise.all(folders.map((path) => rm(path, { recursive: true }))));
@@ -16,7 +16,7 @@ const storages: [string, () => Promise<Storage>][] = [
   ["in a folder", async () => folder(folders[folders.push(await mkdtemp(join(tmpdir(), "playthrough-"))) - 1] ?? "")],
 ];
 
-const flow = (name: string, length = 6): Flow => ({
+const scene = (name: string, length = 6): Scene => ({
   name,
   length,
   steps: [
@@ -29,13 +29,13 @@ const flow = (name: string, length = 6): Flow => ({
 const round = (number: number, parts: Partial<Round> = {}): Round => ({
   number,
   by: "Claude Code",
-  flows: [flow("Export a quarter"), flow("Cancel halfway")],
+  scenes: [scene("Export a quarter"), scene("Cancel halfway")],
   replies: [],
   accounts: {},
   ...parts,
 });
 
-const change = (id: string, words: string, at = 2, flow = "Export a quarter"): Change => ({ id, words, seen: [{ flow, at }] });
+const change = (id: string, words: string, at = 2, scene = "Export a quarter"): Change => ({ id, words, seen: [{ scene, at }] });
 
 let clock = Date.parse("2026-10-22T09:00:00Z");
 const send = (round: number, parts: Partial<Send> = {}): Send => ({
@@ -49,7 +49,7 @@ const send = (round: number, parts: Partial<Send> = {}): Send => ({
   ...parts,
 });
 
-const note = (words: string, at = 3) => ({ id: newId(), on: { flow: "Export a quarter", at }, words });
+const note = (words: string, at = 3) => ({ id: newId(), on: { scene: "Export a quarter", at }, words });
 
 const refused = (pattern: RegExp) => (error: unknown) => {
   assert.ok(error instanceof Refused, `expected a refusal, got ${error}`);
@@ -134,38 +134,38 @@ for (const [kept, storage] of storages) {
 
     test("a round can be saved as often as needed until it's finished, then it never changes", async () => {
       const reviews = await recorded();
-      await reviews.saveRound("invoice-export", round(2, { flows: [flow("Export a quarter")] }));
+      await reviews.saveRound("invoice-export", round(2, { scenes: [scene("Export a quarter")] }));
       await reviews.saveRound("invoice-export", round(2));
-      assert.equal((await reviews.get("invoice-export")).rounds[2]?.flows.length, 2);
+      assert.equal((await reviews.get("invoice-export")).rounds[2]?.scenes.length, 2);
       await reviews.finish("invoice-export", 2);
       await assert.rejects(reviews.saveRound("invoice-export", round(2)), refused(/Round 2 is finished/));
       await assert.rejects(reviews.saveRound("invoice-export", round(4)), refused(/being worked on is 3/));
     });
 
-    test("Before gains a flow added later, with its files, or the word that the app as it was can't start it; a flow tried again takes the place of what it had of it; a file it has stays as it is", async () => {
+    test("Before gains a scene added later, with its files, or the word that the app as it was can't start it; a scene tried again takes the place of what it had of it; a file it has stays as it is", async () => {
       const reviews = await recorded();
       const recording = new TextEncoder().encode("[]");
-      const add = (flows: Flow[], cantStart: string[], files = [{ name: "export-a-year.json", bytes: recording }]) =>
-        reviews.addToBefore("invoice-export", { flows, cantStart, files });
-      await add([flow("Export a year")], ["Open the export"]);
+      const add = (scenes: Scene[], cantStart: string[], files = [{ name: "export-a-year.json", bytes: recording }]) =>
+        reviews.addToBefore("invoice-export", { scenes, cantStart, files });
+      await add([scene("Export a year")], ["Open the export"]);
       const before = (await reviews.get("invoice-export")).rounds[0];
-      assert.deepEqual(before?.flows.map((flow) => flow.name), ["Export a quarter", "Cancel halfway", "Export a year"]);
+      assert.deepEqual(before?.scenes.map((scene) => scene.name), ["Export a quarter", "Cancel halfway", "Export a year"]);
       assert.deepEqual([before?.cantStart, !!before?.finished], [["Open the export"], true]);
       assert.deepEqual(await reviews.file("invoice-export", 0, "export-a-year.json"), recording);
 
-      await add([flow("Export a quarter")], [], []);
-      await add([flow("Open the export")], [], []);
+      await add([scene("Export a quarter")], [], []);
+      await add([scene("Open the export")], [], []);
       const again = (await reviews.get("invoice-export")).rounds[0];
-      assert.deepEqual([again?.flows.map((flow) => flow.name), again?.cantStart], [["Export a quarter", "Cancel halfway", "Export a year", "Open the export"], []]);
+      assert.deepEqual([again?.scenes.map((scene) => scene.name), again?.cantStart], [["Export a quarter", "Cancel halfway", "Export a year", "Open the export"], []]);
       const other = [{ name: "export-a-year.json", bytes: new TextEncoder().encode("[{}]") }];
-      await assert.rejects(add([flow("Export a month")], [], other), refused(/Before has a file called “export-a-year\.json” already, with something else in it/));
-      // A file kept by what's in it, like a font two flows load, comes again the same.
-      await add([flow("Export a month")], []);
+      await assert.rejects(add([scene("Export a month")], [], other), refused(/Before has a file called “export-a-year\.json” already, with something else in it/));
+      // A file kept by what's in it, like a font two scenes load, comes again the same.
+      await add([scene("Export a month")], []);
 
       const app = new Reviews(await storage());
       await app.start("new-app", "A title");
       await app.saveRound("new-app", round(1));
-      await assert.rejects(app.addToBefore("new-app", { flows: [flow("Export a year")], cantStart: [], files: [] }), refused(/no Before to add a flow to/));
+      await assert.rejects(app.addToBefore("new-app", { scenes: [scene("Export a year")], cantStart: [], files: [] }), refused(/no Before to add a scene to/));
     });
 
     test("finishing twice is the same as finishing once", async () => {
@@ -221,12 +221,12 @@ for (const [kept, storage] of storages) {
       });
     });
 
-    test("a flow that's gone is a change with no moment, on the earlier round's flow", async () => {
+    test("a scene that's gone is a change with no moment, on the earlier round's scene", async () => {
       const reviews = await recorded();
-      await reviews.saveRound("invoice-export", round(2, { flows: [flow("Export a quarter")] }));
-      const gone = { id: "c2", words: "No longer recorded", seen: [{ flow: "Cancel halfway" }] };
+      await reviews.saveRound("invoice-export", round(2, { scenes: [scene("Export a quarter")] }));
+      const gone = { id: "c2", words: "No longer recorded", seen: [{ scene: "Cancel halfway" }] };
       await reviews.saveComparison("invoice-export", { round: 2, since: 1, changes: [gone] });
-      const late = { ...gone, seen: [{ flow: "Cancel halfway", at: 1 }] };
+      const late = { ...gone, seen: [{ scene: "Cancel halfway", at: 1 }] };
       await assert.rejects(reviews.saveComparison("invoice-export", { round: 2, since: 1, changes: [late] }), refused(/isn't there/));
     });
 
@@ -240,12 +240,12 @@ for (const [kept, storage] of storages) {
       await assert.rejects(reviews.send("invoice-export", send(1, { notes: [note("Hm")] })), refused(/isn't finished/));
     });
 
-    test("a note's place is on a flow in its round, at a moment within it", async () => {
+    test("a note's place is on a scene in its round, at a moment within it", async () => {
       const reviews = await recorded();
-      const elsewhere = { id: newId(), on: { flow: "Pay an invoice", at: 1 }, words: "Hm" };
+      const elsewhere = { id: newId(), on: { scene: "Pay an invoice", at: 1 }, words: "Hm" };
       await assert.rejects(reviews.send("invoice-export", send(1, { notes: [elsewhere] })), refused(/“Pay an invoice”, which isn't there/));
       await assert.rejects(reviews.send("invoice-export", send(1, { notes: [note("Hm", 9)] })), refused(/is at 9s, but “Export a quarter” is 6s long/));
-      const twice = { ...note("Hm"), on: { flow: "Export a quarter", at: 1, point: { x: 0.5, y: 0.5 }, box: { x: 0, y: 0, width: 1, height: 1 } } };
+      const twice = { ...note("Hm"), on: { scene: "Export a quarter", at: 1, point: { x: 0.5, y: 0.5 }, box: { x: 0, y: 0, width: 1, height: 1 } } };
       await assert.rejects(reviews.send("invoice-export", send(1, { notes: [twice] })), refused(/more than one thing/));
     });
 
@@ -257,11 +257,11 @@ for (const [kept, storage] of storages) {
       await reviews.finish("invoice-export", 2);
     });
 
-    test("a reply goes in its note's flow", async () => {
+    test("a reply goes in its note's scene", async () => {
       const { reviews, asked } = await working();
-      const reply = { note: asked.id, words: "It fades in now.", on: { flow: "Cancel halfway", at: 1 } };
+      const reply = { note: asked.id, words: "It fades in now.", on: { scene: "Cancel halfway", at: 1 } };
       await reviews.saveRound("invoice-export", round(2, { replies: [reply] }));
-      await assert.rejects(reviews.finish("invoice-export", 2), refused(/A reply goes in its note's flow/));
+      await assert.rejects(reviews.finish("invoice-export", 2), refused(/A reply goes in its note's scene/));
     });
 
     test("looks good settles a note, and not quite asks again, in words", async () => {
@@ -328,10 +328,10 @@ for (const [kept, storage] of storages) {
       await assert.rejects(reviews.send("invoice-export", both), refused(/is new: it needs words, not a verdict/));
     });
 
-    test("a whole flow can look good, if the round has it", async () => {
+    test("a whole scene can look good, if the round has it", async () => {
       const reviews = await recorded();
       await reviews.send("invoice-export", send(1, { looksGood: ["Export a quarter"] }));
-      await assert.rejects(reviews.send("invoice-export", send(1, { looksGood: ["Pay an invoice"] })), refused(/no flow called “Pay an invoice”/));
+      await assert.rejects(reviews.send("invoice-export", send(1, { looksGood: ["Pay an invoice"] })), refused(/no scene called “Pay an invoice”/));
     });
 
     test("what's sent or recorded in the wrong shape is refused in plain words, naming the thing", async () => {
@@ -341,14 +341,14 @@ for (const [kept, storage] of storages) {
         reviews.saveRound("invoice-export", typo as never),
         refused(/^Round 2: the reply to note abc needs its words, even if empty until it's answered\.\nRound 2: the reply to note abc has “txt”, which isn't one of its fields\.$/),
       );
-      const nameless = { ...round(2), flows: [{ ...flow("Export a quarter"), steps: [{ title: "Open", at: "soon" }] }, { length: 3 }] };
+      const nameless = { ...round(2), scenes: [{ ...scene("Export a quarter"), steps: [{ title: "Open", at: "soon" }] }, { length: 3 }] };
       await assert.rejects(reviews.saveRound("invoice-export", nameless as never), (error: unknown) => {
         assert.ok(error instanceof Refused);
         assert.deepEqual(error.problems, [
-          "Round 2: the step “Open” in the flow “Export a quarter” needs the moment it starts, in seconds.",
-          "Round 2: flow 2 needs a name.",
-          "Round 2: flow 2 needs its steps, a list, even if it's empty.",
-          "Round 2: flow 2 needs its recording: the name of a file in the round.",
+          "Round 2: the step “Open” in the scene “Export a quarter” needs the moment it starts, in seconds.",
+          "Round 2: scene 2 needs a name.",
+          "Round 2: scene 2 needs its steps, a list, even if it's empty.",
+          "Round 2: scene 2 needs its recording: the name of a file in the round.",
         ]);
         return true;
       });

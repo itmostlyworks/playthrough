@@ -1,5 +1,5 @@
 // Every control in one row under the recordings: play, the time and the timeline, the speed, the size, the rounds, how
-// to look at them, on their own or side by side, and taking the flow over to carry on by hand. Nothing in it appears, disappears or changes width as you move.
+// to look at them, on their own or side by side, and taking the scene over to carry on by hand. Nothing in it appears, disappears or changes width as you move.
 
 import { useLayoutEffect, useRef, type ComponentProps } from "react";
 import type { Round } from "@playthrough/review";
@@ -33,12 +33,12 @@ type Props = {
   onLook: (look: Look) => void;
   // With the action bar on the stage, the row keeps only what's about time.
   stage?: boolean;
-  // Where you took the flow over and carried on by hand, and the one you're making now.
+  // Where you took the scene over and carried on by hand, and the one you're making now.
   forks?: ForkLine[];
   growing?: ForkLine;
   // A note pointed at elsewhere, lit on the line.
   lit?: string;
-  // What the flow's end asks, under the line's end.
+  // What the scene's end asks, under the line's end.
   end?: ComponentProps<typeof Timeline>["end"];
 };
 

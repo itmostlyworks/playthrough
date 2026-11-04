@@ -1,17 +1,17 @@
-// Where you are in a round: a flow, and a moment in its recording, in seconds from its start. Each flow opens with its
+// Where you are in a round: a scene, and a moment in its recording, in seconds from its start. Each scene opens with its
 // title card, part of its time like everything else: for the CARD seconds before its recording starts, its name is up
-// over the page its first step left. The times people see are within a flow, from its recording's start.
+// over the page its first step left. The times people see are within a scene, from its recording's start.
 
-import type { Flow } from "@playthrough/review";
+import type { Scene } from "@playthrough/review";
 
-export type Moment = { flow: string; at: number };
+export type Moment = { scene: string; at: number };
 
 export const CARD = 1.2;
-// A flow recorded in another shape (a phone after a laptop) takes its own shape in the first part of its card.
+// A scene recorded in another shape (a phone after a laptop) takes its own shape in the first part of its card.
 export const MORPH = 0.3;
-// Going to a flow lands where its name is up and the frame has its own shape.
-export const FLOW_IN = -CARD + MORPH;
-// A review opens as a video does before you press play: the first flow's name over its first step's page, softened.
+// Going to a scene lands where its name is up and the frame has its own shape.
+export const SCENE_IN = -CARD + MORPH;
+// A review opens as a video does before you press play: the first scene's name over its first step's page, softened.
 export const POSTER = -CARD + 0.5;
 
 export const clamp = (value: number, low = 0, high = 1) => Math.max(low, Math.min(high, value));
@@ -28,21 +28,21 @@ export function titleCard(at: number): { soft: number; name: number } | undefine
   };
 }
 
-// A round's flows end to end, each with its card, so a step back or forward can cross from one flow into the next.
-export function along(flows: Flow[], moment: Moment): number {
+// A round's scenes end to end, each with its card, so a step back or forward can cross from one scene into the next.
+export function along(scenes: Scene[], moment: Moment): number {
   let start = 0;
-  for (const flow of flows) {
-    if (flow.name === moment.flow) return start + CARD + moment.at;
-    start += CARD + flow.length;
+  for (const scene of scenes) {
+    if (scene.name === moment.scene) return start + CARD + moment.at;
+    start += CARD + scene.length;
   }
   return 0;
 }
 
-export function momentAt(flows: Flow[], seconds: number): Moment {
+export function momentAt(scenes: Scene[], seconds: number): Moment {
   let start = 0;
-  for (const flow of flows) {
-    if (seconds < start + CARD + flow.length || flow === flows.at(-1)) return { flow: flow.name, at: clamp(seconds - start - CARD, -CARD, flow.length) };
-    start += CARD + flow.length;
+  for (const scene of scenes) {
+    if (seconds < start + CARD + scene.length || scene === scenes.at(-1)) return { scene: scene.name, at: clamp(seconds - start - CARD, -CARD, scene.length) };
+    start += CARD + scene.length;
   }
-  return { flow: "", at: 0 };
+  return { scene: "", at: 0 };
 }

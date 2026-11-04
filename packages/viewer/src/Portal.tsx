@@ -1,7 +1,7 @@
-// Taking a situation over, the app opens in its picture like a portal. Asked for before it's ready, the picture's edge
+// Taking a scene over, the app opens in its picture like a portal. Asked for before it's ready, the picture's edge
 // breathes and the recording's pointer says it's being taken over, counting down when it's known how long. Once it's
 // there, the recording's pointer comes to yours, and the app opens from where they meet, a ring going out to the
-// picture's edges; your name goes with your pointer, as whoever the flow is done as. Given back, it closes on where
+// picture's edges; your name goes with your pointer, as whoever the scene is done as. Given back, it closes on where
 // your pointer was in the app, and the pointer goes back to where the recording has it.
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -10,7 +10,7 @@ import type { Scrolled } from "./replay.ts";
 type Props = {
   // The app: made ready unseen, being made ready while you wait, or yours; and where your pointer was in it as you left.
   live?: { address?: string; shown: boolean; inApp: boolean; due?: number; at?: { x: number; y: number } };
-  // Who the flow is done as, there.
+  // Who the scene is done as, there.
   person?: string;
   // The page the recording was made of, at its size.
   screen: { width: number; height: number };
@@ -146,7 +146,7 @@ export function Portal({ live, person, screen, scrolled }: Props) {
     door.style.pointerEvents = "none";
     const hide = () => ((door.style.opacity = "0"), (yours.style.opacity = "0"), (name.hidden = true));
     if (still) return void hide();
-    // Your hand goes back to where the recording has it, its name back to whoever the flow is done as, and goes.
+    // Your hand goes back to where the recording has it, its name back to whoever the scene is done as, and goes.
     const back = recorded ? tip(recorded) : tip(at);
     yours.animate([{ transform: tip(at), opacity: 1 }, { transform: tip(at), opacity: 1, offset: 0.3 }, { transform: back, opacity: recorded ? 1 : 0 }], { duration: CLOSING + HANDING, easing: PORTAL });
     if (person) say(name, said, person, false);

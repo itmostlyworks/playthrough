@@ -1,4 +1,4 @@
-// A page's light or dark, and still or moving, as the browser a flow was recorded in answered them.
+// A page's light or dark, and still or moving, as the browser a scene was recorded in answered them.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";

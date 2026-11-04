@@ -1,5 +1,5 @@
 // What's on the page at a moment, as a person would name it: each control by its role and name, each piece of words, and
-// each panel or bar, with where it is, how it looks and what holds it. Each step of a flow ends with the page read, so
+// each panel or bar, with where it is, how it looks and what holds it. Each step of a scene ends with the page read, so
 // two rounds compare step by step, and something pointed at in one is found in another.
 
 export type Thing = {

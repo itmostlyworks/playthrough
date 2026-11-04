@@ -1,5 +1,5 @@
 // A copy of the example app, made a git repo of its own, with the commands run in it as an agent types them, and the
-// flows an agent writes for it. Each story gets a copy of its own on a port of its own, so the stories run side by side.
+// scenes an agent writes for it. Each story gets a copy of its own on a port of its own, so the stories run side by side.
 
 import { execFileSync, spawn } from "node:child_process";
 import { cp, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Reading } from "@playthrough/page";
-import { Reviews, type Comparison, type Flow, type Round } from "@playthrough/review";
+import { Reviews, type Comparison, type Scene, type Round } from "@playthrough/review";
 import { folder } from "@playthrough/review/folder";
 
 const core = fileURLToPath(new URL("../../../..", import.meta.url));
@@ -39,11 +39,11 @@ export async function example(port: number) {
     git,
     app: { start: "node serve.ts", url: `http://localhost:${port}` },
     reviews: new Reviews(folder(join(repo, ".playthrough"))),
-    flows: review("flows"),
+    scenes: review("scenes"),
     round: async (n: number): Promise<Round> => JSON.parse(await readFile(review(`rounds/${n}/round.json`), "utf8")),
     saveRound: (round: Round) => writeFile(review(`rounds/${round.number}/round.json`), JSON.stringify(round)),
     file,
-    readings: async (n: number, flow: Flow): Promise<Reading[]> => JSON.parse((await file(n, `readings/${flow.recording}`)).toString()),
+    readings: async (n: number, scene: Scene): Promise<Reading[]> => JSON.parse((await file(n, `readings/${scene.recording}`)).toString()),
     compared: async (n: number, since: number): Promise<Comparison> => JSON.parse(await readFile(review(`rounds/${n}/since/${since}.json`), "utf8")),
     // Runs a command in the repo and gives back what it said. One that doesn't end by itself is stopped the moment it says
     // something, with a signal of its own, or by default.
@@ -65,7 +65,7 @@ export async function example(port: number) {
   };
 }
 
-const flow = (name: string, steps: string) => `import { test, expect } from "playthrough/test";
+const scene = (name: string, steps: string) => `import { test, expect } from "playthrough/test";
 
 test(${JSON.stringify(name)}, async ({ page }) => {
 ${steps}
@@ -74,7 +74,7 @@ ${steps}
 
 // On Before, a click on what the app as it was doesn't have gives up after a second rather than ten: what's promised is
 // where Before stops, not how long it waits there.
-export const seeOverdue = flow(
+export const seeOverdue = scene(
   "See what's overdue",
   `  await test.step("Open the invoices", async () => {
     await page.goto("/");
@@ -84,7 +84,7 @@ export const seeOverdue = flow(
     await expect(page.getByRole("row")).toHaveCount(3);
   });`,
 );
-export const seePaid = flow(
+export const seePaid = scene(
   "See what's paid",
   `  await test.step("Open the invoices", async () => {
     await page.goto("/");
@@ -94,7 +94,7 @@ export const seePaid = flow(
   });`,
 );
 // The app as it is has no Export button: the agent adds it once Before is recorded.
-export const exportThem = flow(
+export const exportThem = scene(
   "Export the overdue ones",
   `  await test.step("Open the invoices", async () => {
     await page.goto("/");
@@ -106,7 +106,7 @@ export const exportThem = flow(
   });`,
 );
 // Added later, after Before: the app as it was can take the first two steps of one, and none of the other.
-export const exportPaid = flow(
+export const exportPaid = scene(
   "Export the paid ones",
   `  await test.step("Open the invoices", async () => {
     await page.goto("/");
@@ -118,7 +118,7 @@ export const exportPaid = flow(
     await page.getByRole("button", { name: "Export" }).click({ timeout: 1000 });
   });`,
 );
-export const openExport = flow(
+export const openExport = scene(
   "Open the export",
   `  await test.step("Open the export", async () => {
     await page.goto("/");
@@ -126,7 +126,7 @@ export const openExport = flow(
   });`,
 );
 // Written for the work, where the header's last button is Export: in the app as it was, it's another one.
-export const exportFromHeader = flow(
+export const exportFromHeader = scene(
   "Export from the header",
   `  await test.step("Open the invoices", async () => {
     await page.goto("/");
@@ -135,7 +135,7 @@ export const exportFromHeader = flow(
     await page.locator("header button").last().click();
   });`,
 );
-export const lookThrough = flow(
+export const lookThrough = scene(
   "Look through the invoices",
   `  await test.step("Open the invoices", async () => {
     await page.goto("/");

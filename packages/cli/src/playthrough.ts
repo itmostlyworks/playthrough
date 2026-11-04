@@ -1,8 +1,8 @@
 #!/usr/bin/env -S node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
-// An app's playthrough/setup.ts is loaded here to take flows over, and Node would say each time that an app not written as
+// An app's playthrough/setup.ts is loaded here to take scenes over, and Node would say each time that an app not written as
 // modules has one: nothing anyone need act on.
 // The command line: the commands an agent runs to have a person review its work, and take-over, for a person to carry on
-// from a moment of a flow by hand. When one stops, it says why and what to do.
+// from a moment of a scene by hand. When one stops, it says why and what to do.
 
 import "./node.ts";
 import { readFileSync } from "node:fs";
@@ -29,7 +29,7 @@ const takes = {
   wait: [0, "playthrough wait <review>"],
   forks: [0, "playthrough forks <review>"],
   open: [0, "playthrough open [<review>]"],
-  "take-over": [2, `playthrough take-over <review> "<flow>" ["<step>"]`],
+  "take-over": [2, `playthrough take-over <review> "<scene>" ["<step>"]`],
 } satisfies Record<string, [number, string]>;
 const limit = Object.hasOwn(takes, command ?? "") ? takes[command as keyof typeof takes] : undefined;
 
@@ -41,7 +41,7 @@ try {
   // Every command but open is about one review.
   else if (!review && command !== "open") throw new Refused([`That needs more: ${limit[1]}`]);
   else {
-    // A command stopped while flows recorded on Before left the agent's work set aside: it's put back before anything else.
+    // A command stopped while scenes recorded on Before left the agent's work set aside: it's put back before anything else.
     await putBack(repo());
     // Each of the others runs the app or keeps it, which can't wait while another has the app as it was in place.
     if (command !== "open" && command !== "wait") refuseWhileAside(repo());

@@ -1,16 +1,16 @@
-// What the viewer shows each person of the same review: whose call each note is, whether each flow looks good to them,
+// What the viewer shows each person of the same review: whose call each note is, whether each scene looks good to them,
 // and what you haven't sent yet, as if it were.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { memory, newId, Reviews, type Flow, type Review, type Round, type Send } from "@playthrough/review";
+import { memory, newId, Reviews, type Scene, type Review, type Round, type Send } from "@playthrough/review";
 import { fill, lookGood, nothing, notesOn, settledBefore, standings, takeBack } from "../src/notes.ts";
 
-const flow = (name: string): Flow => ({ name, length: 6, steps: [{ title: "Open the invoices", at: 0 }], recording: `${name.toLowerCase().replace(/\W+/g, "-")}.json` });
+const scene = (name: string): Scene => ({ name, length: 6, steps: [{ title: "Open the invoices", at: 0 }], recording: `${name.toLowerCase().replace(/\W+/g, "-")}.json` });
 const round = (number: number, parts: Partial<Round> = {}): Round => ({
   number,
   by: "Claude Code",
-  flows: [flow("See what's overdue"), flow("Export them")],
+  scenes: [scene("See what's overdue"), scene("Export them")],
   replies: [],
   accounts: {},
   ...parts,
@@ -28,7 +28,7 @@ const send = (by: string, round: number, parts: Partial<Send>): Send => ({
 });
 
 // Ana and Ben both look at round 1. Ana leaves a note on the export; round 2 answers it.
-const note = { id: newId(), on: { flow: "Export them", at: 2 }, words: "Export should only take the overdue ones." };
+const note = { id: newId(), on: { scene: "Export them", at: 2 }, words: "Export should only take the overdue ones." };
 async function twoPeople(reviews = new Reviews(memory())): Promise<Review> {
   await reviews.start("export", "Export the overdue invoices");
   for (const number of [0, 1]) {
@@ -74,9 +74,9 @@ test("a Not quite after someone's Looks good sends the note back for everyone", 
   assert.deepEqual(notesOn(review, 2, "Ana").map((note) => note.state), ["with the agent"]);
 });
 
-test("each person's Looks good is their own, and a note of theirs in the flow takes it back", async () => {
+test("each person's Looks good is their own, and a note of theirs in the scene takes it back", async () => {
   const review = await twoPeople();
-  const goodTo = (round: number, flow: string) => ["Ana", "Ben"].filter((person) => standings(review, round, person, {}).get(flow)?.is === "good");
+  const goodTo = (round: number, scene: string) => ["Ana", "Ben"].filter((person) => standings(review, round, person, {}).get(scene)?.is === "good");
   assert.deepEqual(goodTo(1, "See what's overdue"), ["Ana", "Ben"]);
   assert.deepEqual(goodTo(1, "Export them"), ["Ben"]);
   assert.deepEqual(goodTo(2, "Export them"), ["Ben"]);
@@ -99,7 +99,7 @@ test("looking back shows what was said then, and nothing after", async () => {
 test("a note settled on an earlier round is counted apart, and no longer a row on the rounds after", async () => {
   const reviews = new Reviews(memory());
   await twoPeople(reviews);
-  const another = { id: newId(), on: { flow: "Export them", at: 4 }, words: "The file could be named for the month." };
+  const another = { id: newId(), on: { scene: "Export them", at: 4 }, words: "The file could be named for the month." };
   await reviews.send("export", send("Ana", 2, { verdicts: [{ note: note.id, verdict: "looks good" }], notes: [another] }));
   await reviews.take("export");
   await reviews.saveRound("export", round(3, { replies: [{ note: another.id, words: "It's named for the month now." }] }));
@@ -110,7 +110,7 @@ test("a note settled on an earlier round is counted apart, and no longer a row o
   assert.deepEqual(notesOn(later, 3, "Ben").map((shown) => shown.number), [2]);
 });
 
-test("a flow with an answer waiting asks for it, and its Looks good settles the answers in it you haven't judged", async () => {
+test("a scene with an answer waiting asks for it, and its Looks good settles the answers in it you haven't judged", async () => {
   const review = await twoPeople();
   const export_ = (draft = nothing) => standings(review, 2, "Ana", { 2: draft }).get("Export them");
   assert.deepEqual(export_(), { is: "needs you", count: 1, asks: true });
@@ -121,16 +121,16 @@ test("a flow with an answer waiting asks for it, and its Looks good settles the 
   assert.deepEqual([back.looksGood, back.verdicts], [[], []], "taken back, the answer it settled waits again");
 });
 
-test("a flow with something of yours for the agent asks nothing more this round", async () => {
+test("a scene with something of yours for the agent asks nothing more this round", async () => {
   const review = await twoPeople();
   assert.deepEqual(standings(review, 1, "Ana", {}).get("Export them"), { is: "with the agent", count: 0, asks: false });
-  const draft = { ...nothing, notes: [{ id: newId(), on: { flow: "See what's overdue", at: 1 }, words: "Sort by how late they are?" }] };
+  const draft = { ...nothing, notes: [{ id: newId(), on: { scene: "See what's overdue", at: 1 }, words: "Sort by how late they are?" }] };
   assert.deepEqual(standings(review, 2, "Ben", { 2: draft }).get("See what's overdue"), { is: "to send", count: 1, asks: false });
-  const unsaved = { ...nothing, unsaved: [{ id: newId(), on: { flow: "Export them" }, words: "The file" }] };
+  const unsaved = { ...nothing, unsaved: [{ id: newId(), on: { scene: "Export them" }, words: "The file" }] };
   assert.equal(standings(review, 2, "Ana", { 2: unsaved }).get("Export them")?.is, "not saved");
 });
 
-test("a Looks good you've sent can be taken back, and the flow asks again; taken back, it's yours to say again", async () => {
+test("a Looks good you've sent can be taken back, and the scene asks again; taken back, it's yours to say again", async () => {
   const review = await twoPeople();
   assert.equal(standings(review, 2, "Ben", {}).get("Export them")?.is, "good");
   const back = { 2: { ...nothing, takenBack: ["Export them"] } };
@@ -143,17 +143,17 @@ test("a Looks good you've sent can be taken back, and the flow asks again; taken
   assert.equal(standings(sent, 2, "Ben", { 2: lookGood(nothing, "Export them", []) }).get("Export them")?.is, "good");
 });
 
-test("a flow that looked good to you and changed since asks again", async () => {
+test("a scene that looked good to you and changed since asks again", async () => {
   const review = await twoPeople();
   assert.equal(standings(review, 2, "Ben", {}).get("Export them")?.is, "good");
-  const changed: Review = { ...review, comparisons: [{ round: 2, since: 1, changes: [{ id: newId(), words: "Export is new", seen: [{ flow: "Export them", at: 1 }] }] }] };
+  const changed: Review = { ...review, comparisons: [{ round: 2, since: 1, changes: [{ id: newId(), words: "Export is new", seen: [{ scene: "Export them", at: 1 }] }] }] };
   assert.equal(standings(changed, 2, "Ben", {}).get("Export them")?.is, "looked good");
-  assert.equal(standings({ ...changed, accepted: { by: "Ana", at: "2026-10-25T12:00:00Z" } }, 2, "Ben", {}).get("Export them")?.is, "good", "accepted, every flow is");
+  assert.equal(standings({ ...changed, accepted: { by: "Ana", at: "2026-10-25T12:00:00Z" } }, 2, "Ben", {}).get("Export them")?.is, "good", "accepted, every scene is");
 });
 
 test("what you haven't sent stays on the round it's about, and shows on the rounds after it as what you sent does", async () => {
   const review = await twoPeople();
-  const earlier = { id: newId(), on: { flow: "See what's overdue", at: 1 }, words: "Sort by how late they are?" };
+  const earlier = { id: newId(), on: { scene: "See what's overdue", at: 1 }, words: "Sort by how late they are?" };
   const unsent = { 1: { ...nothing, notes: [earlier] } };
   const shown = notesOn(review, 2, "Ben", unsent).find((shown) => shown.id === earlier.id);
   assert.deepEqual([shown?.written, shown?.state, shown?.unsent], [1, "with the agent", true]);

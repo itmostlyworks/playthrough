@@ -3,7 +3,7 @@
 // each with a picture of what it's on, or for one made in the app, what was done there. The agent reading them may be a
 // fresh one, so they say which review they're for and where the rest is.
 
-import { allNotes, conversation, list, notesToAnswer, pausedAt, quote, Refused, roundInProgress, time, type Did, type Flow, type Place } from "@playthrough/review";
+import { allNotes, conversation, list, notesToAnswer, pausedAt, quote, Refused, roundInProgress, time, type Did, type Scene, type Place } from "@playthrough/review";
 import { rmSync } from "node:fs";
 import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -73,16 +73,16 @@ export async function wait(repo: Repo, id: string) {
       });
       const picture = pictures.get(note);
       const kept = notes.get(note);
-      // The flow as it was recorded when the note was made, whose steps say where in it the note is.
+      // The scene as it was recorded when the note was made, whose steps say where in it the note is.
       const on = kept?.note.on;
-      const from = on && review.rounds.find((one) => one.number === kept.round)?.flows.find((flow) => flow.name === (on.app?.from.flow ?? on.flow));
+      const from = on && review.rounds.find((one) => one.number === kept.round)?.scenes.find((scene) => scene.name === (on.app?.from.scene ?? on.scene));
       console.log(`\n  ${note}  ${where(kept?.note.on, from)}${picture ? `\n    As they saw it: ${picture}` : ""}\n${turns.join("\n")}`);
     }
     if (asking.some((note) => notes.get(note)?.note.on?.app))
-      console.log(`\nWhat they did in the app is yours to write, as a fork of the flow they took over, in its file: test.fork("<what they do there>", { notes: ["<the note's id>"] }, async ({ page }) => { … }), with steps as a flow's. Record runs the flow to where they took it over, then the fork, every round until the note is settled, and puts your answer on what the note is on, where the fork first shows it. playthrough forks ${id} runs it while you work.`);
+      console.log(`\nWhat they did in the app is yours to write, as a fork of the scene they took over, in its file: test.fork("<what they do there>", { notes: ["<the note's id>"] }, async ({ page }) => { … }), with steps as a scene's. Record runs the scene to where they took it over, then the fork, every round until the note is settled, and puts your answer on what the note is on, where the fork first shows it. playthrough forks ${id} runs it while you work.`);
     const first = pictures.size ? "Look at what each note is on, change" : "Change";
     console.log(`\n${first} the app, then record round ${round}: playthrough record ${id}. Then answer each note in that round's round.json, under “replies”: record says where.`);
-    return console.log(`New to this review? Run playthrough alone for how Playthrough works. Its flows are in ${repo.show(repo.flows(id))}.`);
+    return console.log(`New to this review? Run playthrough alone for how Playthrough works. Its scenes are in ${repo.show(repo.scenes(id))}.`);
   }
 }
 
@@ -114,7 +114,7 @@ const running = (pid: number) => {
   }
 };
 
-function where(place: Place | undefined, from?: Flow): string {
+function where(place: Place | undefined, from?: Scene): string {
   if (!place) return "on the work in general";
   const at = place.at === undefined ? "" : ` at ${time(place.at)}${place.until === undefined ? "" : ` to ${time(place.until)}`}`;
   const on = place.element
@@ -124,16 +124,16 @@ function where(place: Place | undefined, from?: Flow): string {
       : place.box
         ? `, the part of the screen ${share(place.box.x)} across and ${share(place.box.y)} down`
         : "";
-  // Made in the app itself, not on a recording: the person took the flow over there and carried on by hand.
+  // Made in the app itself, not on a recording: the person took the scene over there and carried on by hand.
   if (place.app) {
     const did = place.app.did.length ? ` and carried on by hand (${list(place.app.did.map(done))})` : "";
     const paused = from && pausedAt(from, place.app.from.at);
     const step = paused ? `, ${paused.actions ? `after ${paused.actions} of the actions in` : "at the end of"} its step “${paused.step}”` : "";
-    return `on “${place.app.from.flow}”, in the app: they took the flow over at ${time(place.app.from.at)}${step}${did}${on}`;
+    return `on “${place.app.from.scene}”, in the app: they took the scene over at ${time(place.app.from.at)}${step}${did}${on}`;
   }
   // On a recording, the step it's in names where, as the person sees the steps listed beside it.
   const step = from && place.at !== undefined ? from.steps.findLast((step) => step.at <= place.at! + 0.05) : undefined;
-  return `on “${place.flow}”${step ? `, in its step “${step.title}”,` : ""}${at}${on}`;
+  return `on “${place.scene}”${step ? `, in its step “${step.title}”,` : ""}${at}${on}`;
 }
 
 // What a person did in the app, as they'd say it.

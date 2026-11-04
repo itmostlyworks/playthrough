@@ -1,6 +1,6 @@
-// The app, as playthrough/app.json starts it, or the one already running there. Every run of flows, trying the setup
-// and taking a flow over start it here when nothing answers, rather than Playwright: one it started itself would go on
-// running, orphaned, when Playthrough is stopped by a signal, and as soon as the flow was done when it isn't. Started
+// The app, as playthrough/app.json starts it, or the one already running there. Every run of scenes, trying the setup
+// and taking a scene over start it here when nothing answers, rather than Playwright: one it started itself would go on
+// running, orphaned, when Playthrough is stopped by a signal, and as soon as the scene was done when it isn't. Started
 // here, it goes when Playthrough does, whatever stops it. Given a port, each copy of the app is started on its own;
 // at the address it always has, one already running is used only where it can't be another copy's.
 
@@ -17,15 +17,15 @@ import { giveBackOwn, setupIn } from "./setup.ts";
 const started = new Map<string, { app: ChildProcess; root: string }>();
 let ending = false;
 
-// Whose turn it is to run the app in a folder, as every command there sees it: a command that runs flows, or the viewer,
+// Whose turn it is to run the app in a folder, as every command there sees it: a command that runs scenes, or the viewer,
 // keeping the app ready for taking over, with the app it started and where it answers, for another command to stop.
 type Turn = Command & ({ ready: false } | { ready: true; app: number; url: string });
 
 // How long it took to answer, in milliseconds, when it's started here; nothing when it was running already. Ready, it's
 // the app the viewer keeps for taking over, which gives way to any other command's.
 export async function keepRunning(app: App, root: string, { ready = false } = {}): Promise<number | undefined> {
-  // Stopped by a signal, Node ends without saying it's exiting, and what it started here runs on, orphaned: the flows
-  // being recorded, the flows kept ready and the app. Told, they go with it.
+  // Stopped by a signal, Node ends without saying it's exiting, and what it started here runs on, orphaned: the scenes
+  // being recorded, the scenes kept ready and the app. Told, they go with it.
   if (!ending) {
     ending = true;
     // What its runs made is given back first, for as long as ten seconds: what isn't, the next command gives back.

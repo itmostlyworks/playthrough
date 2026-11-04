@@ -15,12 +15,12 @@ import {
   Reviews,
   waitingForYou,
   type Change,
-  type Flow,
+  type Scene,
   type Round,
   type Send,
 } from "../src/index.ts";
 
-const flow = (name: string): Flow => ({
+const scene = (name: string): Scene => ({
   name,
   length: 6,
   steps: [
@@ -29,11 +29,11 @@ const flow = (name: string): Flow => ({
   ],
   recording: `${name.toLowerCase().replaceAll(" ", "-")}.json`,
 });
-const flows = [flow("Export a quarter"), flow("Cancel halfway")];
-const round = (number: number, parts: Partial<Round> = {}): Round => ({ number, by: "Claude Code", flows, replies: [], accounts: {}, ...parts });
+const scenes = [scene("Export a quarter"), scene("Cancel halfway")];
+const round = (number: number, parts: Partial<Round> = {}): Round => ({ number, by: "Claude Code", scenes, replies: [], accounts: {}, ...parts });
 
-// Both flows open the same Export dialog; each has a part of its own.
-const seenIn = (...places: [string, number][]) => places.map(([flow, at]) => ({ flow, at }));
+// Both scenes open the same Export dialog; each has a part of its own.
+const seenIn = (...places: [string, number][]) => places.map(([scene, at]) => ({ scene, at }));
 const dialog: Change = { id: "dialog", words: "Export dialog is new", seen: seenIn(["Export a quarter", 2], ["Cancel halfway", 2]) };
 const format: Change = { id: "format", words: "“Format” choice is new in the Export dialog", seen: seenIn(["Export a quarter", 3]) };
 const keep: Change = { id: "keep", words: "“Keep editing” button is new in the Export dialog", seen: seenIn(["Cancel halfway", 3]) };
@@ -53,7 +53,7 @@ const send = (by: string, round: number, parts: Partial<Send>): Send => ({
 });
 
 const told = (review: Awaited<ReturnType<Reviews["get"]>>, number: number, you: string) =>
-  newToYou(review, number, you).map(({ change, on }) => `${change.id} in ${on.flow}`);
+  newToYou(review, number, you).map(({ change, on }) => `${change.id} in ${on.scene}`);
 
 test("two people review the same work, each from where they last looked", async () => {
   const reviews = new Reviews(memory());
@@ -70,12 +70,12 @@ test("two people review the same work, each from where they last looked", async 
   await reviews.saveRound(id, round(1, { accounts: { dialog: lines, format: { line: "CSV first: it's what accountants ask for." }, keep: { line: "A way back without losing your choices." } } }));
   await reviews.finish(id, 1);
 
-  // Nobody has looked yet, so each sees every change once: the dialog in the first flow that shows it.
+  // Nobody has looked yet, so each sees every change once: the dialog in the first scene that shows it.
   let review = await reviews.get(id);
   assert.deepEqual(told(review, 1, "Ana"), ["dialog in Export a quarter", "format in Export a quarter", "keep in Cancel halfway"]);
 
-  // Ana says the first flow is good and notes something in the second. Ben says the second is good.
-  const small = { id: newId(), on: { flow: "Cancel halfway", at: 2 }, words: "The dialog's buttons are too small to hit." };
+  // Ana says the first scene is good and notes something in the second. Ben says the second is good.
+  const small = { id: newId(), on: { scene: "Cancel halfway", at: 2 }, words: "The dialog's buttons are too small to hit." };
   await reviews.send(id, send("Ana", 1, { looksGood: ["Export a quarter"], notes: [small] }));
   await reviews.send(id, send("Ben", 1, { looksGood: ["Cancel halfway"] }));
   await reviews.take(id);
@@ -94,23 +94,23 @@ test("two people review the same work, each from where they last looked", async 
   await reviews.finish(id, 2);
   review = await reviews.get(id);
 
-  // Ana looked at both flows on round 1, so only this round's changes are new to her. The one made for her note is told
-  // in her note's flow; the swap in the first flow, which she'd said was good, so that flow asks her again.
+  // Ana looked at both scenes on round 1, so only this round's changes are new to her. The one made for her note is told
+  // in her note's scene; the swap in the first scene, which she'd said was good, so that scene asks her again.
   assert.deepEqual(told(review, 2, "Ana"), ["swap in Export a quarter", "buttons in Cancel halfway"]);
   assert.equal(goodForYou(review, 2, "Ana", "Export a quarter"), false);
   assert.deepEqual(waitingForYou(review, 2, "Ana"), [small.id]);
 
-  // Ben only looked at the second flow. The first flow's own change is new to him, from Before; the dialog isn't,
-  // since he saw it in the second flow. His good flow asks again for what's new in it.
+  // Ben only looked at the second scene. The first scene's own change is new to him, from Before; the dialog isn't,
+  // since he saw it in the second scene. His good scene asks again for what's new in it.
   assert.deepEqual(told(review, 2, "Ben"), ["swap in Export a quarter", "format in Export a quarter", "buttons in Cancel halfway"]);
   assert.equal(goodForYou(review, 2, "Ben", "Cancel halfway"), false);
   // Each change says which round it's new since, so how it was then can be shown beside it: for Ben, the swap since round
-  // 1, when he looked at the second flow, which shows it too, and the first flow's own change since Before.
+  // 1, when he looked at the second scene, which shows it too, and the first scene's own change since Before.
   assert.deepEqual(newToYou(review, 2, "Ana").map(({ since }) => since), [1, 1]);
   assert.deepEqual(newToYou(review, 2, "Ben").map(({ since }) => since), [1, 0, 1]);
   assert.deepEqual(waitingForYou(review, 2, "Ben"), []);
 
-  // Ana is happy with the answer and the first flow. Ben isn't: a Not quite from anyone sends the answer back.
+  // Ana is happy with the answer and the first scene. Ben isn't: a Not quite from anyone sends the answer back.
   await reviews.send(id, send("Ana", 2, { verdicts: [{ note: small.id, verdict: "looks good" }], looksGood: ["Export a quarter"] }));
   await reviews.send(id, send("Ben", 2, { verdicts: [{ note: small.id, verdict: "not quite", words: "Cancel is still tiny on a phone." }] }));
   review = await reviews.get(id);
@@ -132,7 +132,7 @@ test("two people review the same work, each from where they last looked", async 
   assert.equal(goodForYou(review, 3, "Ana", "Export a quarter"), true);
 
   // Ben says the answer looks good, which settles it for Ana too: a note has one state, the last word on it. Each says
-  // their flows look good for themselves, and either of them can accept.
+  // their scenes look good for themselves, and either of them can accept.
   await reviews.send(id, send("Ben", 3, { verdicts: [{ note: small.id, verdict: "looks good" }], looksGood: ["Export a quarter", "Cancel halfway"] }));
   review = await reviews.get(id);
   assert.deepEqual(waitingForYou(review, 3, "Ana"), []);
@@ -155,27 +155,27 @@ test("what the agent says isn't real is never shown to anyone", async () => {
   assert.deepEqual(told(await reviews.get("invoice-export"), 1, "Ana"), ["dialog in Export a quarter"]);
 });
 
-test("a change seen in several flows is told in the one that joined the review first, whatever the order of their files", async () => {
+test("a change seen in several scenes is told in the one that joined the review first, whatever the order of their files", async () => {
   const reviews = new Reviews(memory());
   const id = "transaction-counts";
   await reviews.start(id, "Show how many transactions each payee has");
-  // The task's flows, recorded on Before; the agent's own choice added after the work, its file named so it comes first.
-  const [see, choice] = [flow("See the counts"), flow("Put the payees back")];
-  await reviews.saveRound(id, round(0, { flows: [see] }));
+  // The task's scenes, recorded on Before; the agent's own choice added after the work, its file named so it comes first.
+  const [see, choice] = [scene("See the counts"), scene("Put the payees back")];
+  await reviews.saveRound(id, round(0, { scenes: [see] }));
   await reviews.finish(id, 0);
   const column: Change = { id: "column", words: "“96”, “2”, “2” and 18 more are new", seen: seenIn(["Put the payees back", 1], ["See the counts", 1]) };
-  await reviews.saveRound(id, round(1, { flows: [choice, see], accounts: { column: { line: "A count for each payee." } } }));
+  await reviews.saveRound(id, round(1, { scenes: [choice, see], accounts: { column: { line: "A count for each payee." } } }));
   await reviews.saveComparison(id, { round: 1, since: 0, changes: [column] });
   await reviews.finish(id, 1);
   assert.deepEqual(told(await reviews.get(id), 1, "Ana"), ["column in See the counts"]);
 });
 
-test("the flows are in the order they joined the review, the task's from Before first, whatever their files are called (Kan's sort, listed last)", async () => {
+test("the scenes are in the order they joined the review, the task's from Before first, whatever their files are called (Kan's sort, listed last)", async () => {
   const reviews = new Reviews(memory());
   const id = "sort-by-due-date";
   await reviews.start(id, "Let me sort the cards in a list by due date");
-  await reviews.saveRound(id, round(0, { flows: [flow("Sort a list by due date"), flow("Add a card to a sorted list")] }));
+  await reviews.saveRound(id, round(0, { scenes: [scene("Sort a list by due date"), scene("Add a card to a sorted list")] }));
   await reviews.finish(id, 0);
-  await reviews.saveRound(id, round(1, { flows: [flow("Add a card to a list in no order"), flow("Add a card to a sorted list"), flow("Sort a list by due date")] }));
+  await reviews.saveRound(id, round(1, { scenes: [scene("Add a card to a list in no order"), scene("Add a card to a sorted list"), scene("Sort a list by due date")] }));
   assert.deepEqual(inOrderJoined(await reviews.get(id)), ["Sort a list by due date", "Add a card to a sorted list", "Add a card to a list in no order"]);
 });

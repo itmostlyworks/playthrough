@@ -1,6 +1,6 @@
-// What's at a situation's moment, on its recording, as the frame drew it: each note on its thing, outlined, its pin
+// What's at a scene's moment, on its recording, as the frame drew it: each note on its thing, outlined, its pin
 // just outside the top right corner like a badge, or on its spot, and what changed outlined in the recording's own ink,
-// a diamond for its pin; where nothing's found, at the picture's corner. What's said about them is in the situation's
+// a diamond for its pin; where nothing's found, at the picture's corner. What's said about them is in the scene's
 // list, never over the recording. While it plays they fade, and come back once it stops.
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";

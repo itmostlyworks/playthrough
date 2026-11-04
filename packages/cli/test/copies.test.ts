@@ -73,7 +73,7 @@ test("at the address the app always has, what answers is the app in the main fol
   }
 });
 
-test("the app the viewer keeps ready gives way to a command that runs flows, and the viewer waits while one does", async () => {
+test("the app the viewer keeps ready gives way to a command that runs scenes, and the viewer waits while one does", async () => {
   await writeFile(join(main, "serve.mjs"), `import { createServer } from "node:http"; createServer((_, response) => response.end("the app")).listen(Number(process.argv[2]), "127.0.0.1");`);
   const [readyPort, ownPort] = [await free(), await free()];
   const [readyUrl, ownUrl] = [`http://127.0.0.1:${readyPort}`, `http://127.0.0.1:${ownPort}`];

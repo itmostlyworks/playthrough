@@ -1,7 +1,7 @@
 // What only the pictures show. The reading names what changed, but some things it can't see: a bar with no words, an icon,
 // something brought in front of another, something moved a pixel or two. So the pictures of the same moment are compared
 // too, and where they differ with nothing the reading found there, that's a change of its own, named by what it's on. They
-// are taken from the page itself, so where nothing changed they're the same dot for dot, and a flow whose pictures are the
+// are taken from the page itself, so where nothing changed they're the same dot for dot, and a scene whose pictures are the
 // same at every step looks the same.
 
 import type { Page } from "@playwright/test";
@@ -14,7 +14,7 @@ type Patch = { x: number; y: number; width: number; height: number; nudged: bool
 type Area = { x: number; y: number; width: number; height: number };
 
 // A change known only by where it is on the screen, a part of a picture with nothing read there or only near it, as what
-// changes by itself: left out only in the flow it was found in, as the same place in another flow is another thing.
+// changes by itself: left out only in the scene it was found in, as the same place in another scene is another thing.
 export const HERE = "here:";
 
 export async function picturesAt(page: Page, then: Reading, now: Reading, pictures: { then: Buffer; now: Buffer }): Promise<Found[]> {

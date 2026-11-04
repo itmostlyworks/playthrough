@@ -1,15 +1,15 @@
-// The one step to take, on the page with every flow: worked out from where you are, a button that takes it, as Enter
-// does, or what the agent is doing with what you sent. And where each flow stands, in words.
+// The one step to take, on the page with every scene: worked out from where you are, a button that takes it, as Enter
+// does, or what the agent is doing with what you sent. And where each scene stands, in words.
 
 import type { ReactNode } from "react";
 import { Key, mac } from "./Card.tsx";
 import type { Standing } from "./notes.ts";
 
-// A button takes the step, as Enter does, or Ctrl+Enter for what can't be undone; one that goes to a flow names it.
-// Otherwise it only says where things stand: what's playing, where the flow's question is, what the agent is doing, or
+// A button takes the step, as Enter does, or Ctrl+Enter for what can't be undone; one that goes to a scene names it.
+// Otherwise it only says where things stand: what's playing, where the scene's question is, what the agent is doing, or
 // that it's done.
 export type Step =
-  | { kind: "go"; words: string; what?: string; take: () => void; flow?: string; final?: boolean }
+  | { kind: "go"; words: string; what?: string; take: () => void; scene?: string; final?: boolean }
   | { kind: "say"; words: string; what?: string }
   | { kind: "agent"; words: string; what?: string; busy: boolean }
   | { kind: "done"; words: string; just: boolean };
@@ -43,7 +43,7 @@ export function Agent({ step, className }: { step: Extract<Step, { kind: "agent"
   );
 }
 
-// Where a flow stands, in words.
+// Where a scene stands, in words.
 export const says = (standing: Standing) => {
   const notes = `${standing.count} ${standing.count === 1 ? "note" : "notes"}`;
   return {

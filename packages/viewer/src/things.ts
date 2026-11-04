@@ -8,31 +8,31 @@ import type { Element, Place, Review, Round } from "@playthrough/review";
 import { glimpses, readings } from "./api.ts";
 import type { Rect } from "./replay.ts";
 
-// What was read on a round's flow, once it's here: the page each step left, or, for what a note can be on, with what
+// What was read on a round's scene, once it's here: the page each step left, or, for what a note can be on, with what
 // was glimpsed after each action among them.
 export type Read = {
-  (round: number, flow: string): Reading[] | undefined;
-  (round: number, flow: string, glimpsed: true): Glimpse[] | undefined;
+  (round: number, scene: string): Reading[] | undefined;
+  (round: number, scene: string, glimpsed: true): Glimpse[] | undefined;
 };
 
-// Every flow's readings on these rounds, as they arrive, your forks' with them.
+// Every scene's readings on these rounds, as they arrive, your forks' with them.
 export function useReadings(review: Review, rounds: Round[]): Read {
   const [kept, setKept] = useState(() => new Map<string, { readings: Reading[]; seen: Glimpse[] }>());
-  const wanted = rounds.flatMap((round) => round.flows.map((flow) => ({ round: round.number, flow })));
-  const key = wanted.map(({ round, flow }) => `${round}/${flow.name}/${flow.recording}`).join("\n");
+  const wanted = rounds.flatMap((round) => round.scenes.map((scene) => ({ round: round.number, scene })));
+  const key = wanted.map(({ round, scene }) => `${round}/${scene.name}/${scene.recording}`).join("\n");
   useEffect(() => {
     let current = true;
-    for (const { round, flow } of wanted)
-      Promise.all([readings(review.id, round, flow.recording), glimpses(review.id, round, flow.recording)]).then(([read, glimpsed]) => {
+    for (const { round, scene } of wanted)
+      Promise.all([readings(review.id, round, scene.recording), glimpses(review.id, round, scene.recording)]).then(([read, glimpsed]) => {
         const seen = [...read, ...glimpsed].sort((a, b) => a.at - b.at);
-        if (current) setKept((kept) => (kept.has(`${round}/${flow.recording}`) ? kept : new Map(kept).set(`${round}/${flow.recording}`, { readings: read, seen })));
+        if (current) setKept((kept) => (kept.has(`${round}/${scene.recording}`) ? kept : new Map(kept).set(`${round}/${scene.recording}`, { readings: read, seen })));
       });
     return () => void (current = false);
   }, [review.id, key]);
   // A fork is kept again, longer, under a new recording, and read again with it.
   return ((round: number, name: string, glimpsed?: true) => {
-    const flow = wanted.find((wanted) => wanted.round === round && wanted.flow.name === name)?.flow;
-    const read = flow && kept.get(`${round}/${flow.recording}`);
+    const scene = wanted.find((wanted) => wanted.round === round && wanted.scene.name === name)?.scene;
+    const read = scene && kept.get(`${round}/${scene.recording}`);
     return glimpsed ? read?.seen : read?.readings;
   }) as Read;
 }
@@ -89,8 +89,8 @@ export function holdersOf(outwards: number[], read: Glimpse[], at: number, pick:
 // by what's near it.
 export function placeName(on: Place | undefined, read: Read, round: number): string {
   if (!on) return "New note";
-  if (on.at === undefined) return "The whole flow";
-  const seen = read(round, on.flow, true);
+  if (on.at === undefined) return "The whole scene";
+  const seen = read(round, on.scene, true);
   if (on.element) return calledBy(on.element, seen, on.at);
   const near = on.point && seen && nearTo(seen, on.at, on.point);
   return near ? `Near ${called(near)}` : "This moment";
@@ -100,7 +100,7 @@ const calledBy = (element: Element, seen: Glimpse[] | undefined, at: number) =>
   called((element.node !== undefined && seen && thingAt(seen, element.node, at)) || { ...element, words: element.name });
 
 // Where a note is on a round: where it was written, on its own thing; where the agent answered it, where Playthrough placed
-// the answer; on any other round, found from the readings, once they're here. Nothing where that round has no flow of
+// the answer; on any other round, found from the readings, once they're here. Nothing where that round has no scene of
 // its name.
 export function placeOn(review: Review, id: string, on: Place, written: number, round: Round, read: Read): Place | undefined {
   if (round.number === written) return on;
@@ -113,28 +113,28 @@ export function placeOn(review: Review, id: string, on: Place, written: number, 
 // the note (or the step's end) that what it's on changed after (`changed`, the moments it did, from the recording):
 // cards arriving, then leaving, are both the answer. Until the recording says, it's the last.
 const BREATH = 1;
-export function watchedIn(round: Round, id: string, changed: number[] = []): { flow: string; at: number; until: number } | undefined {
+export function watchedIn(round: Round, id: string, changed: number[] = []): { scene: string; at: number; until: number } | undefined {
   const reply = round.replies.find((reply) => reply.note === id);
-  const flow = reply?.watch ? round.flows.find((flow) => flow.name === reply.on?.flow) : undefined;
-  const index = flow?.steps.findIndex((step) => step.title === reply!.watch) ?? -1;
-  if (!flow || index < 0) return undefined;
-  const step = flow.steps[index]!;
-  const until = flow.steps[index + 1]?.at ?? flow.length;
+  const scene = reply?.watch ? round.scenes.find((scene) => scene.name === reply.on?.scene) : undefined;
+  const index = scene?.steps.findIndex((step) => step.title === reply!.watch) ?? -1;
+  if (!scene || index < 0) return undefined;
+  const step = scene.steps[index]!;
+  const until = scene.steps[index + 1]?.at ?? scene.length;
   const before = Math.min(reply!.on?.at ?? until, until);
   const actions = step.actions?.filter((action) => action <= before) ?? [];
   const moving = actions.find((action, i) => changed.some((at) => at > action && at <= (actions[i + 1] ?? before))) ?? actions.at(-1) ?? step.at;
-  return { flow: flow.name, at: Math.max(0, Math.round((moving - BREATH) * 100) / 100), until };
+  return { scene: scene.name, at: Math.max(0, Math.round((moving - BREATH) * 100) / 100), until };
 }
 
 // A place on one round, found on another.
 const found = new Map<string, Place | undefined>();
 export function placeFrom(review: Review, on: Place, from: number, round: Round, read: Read): Place | undefined {
-  const then = review.rounds.find((kept) => kept.number === from)?.flows.find((flow) => flow.name === on.flow);
-  const now = round.flows.find((flow) => flow.name === on.flow);
-  const was = read(from, on.flow);
-  const is = read(round.number, on.flow);
+  const then = review.rounds.find((kept) => kept.number === from)?.scenes.find((scene) => scene.name === on.scene);
+  const now = round.scenes.find((scene) => scene.name === on.scene);
+  const was = read(from, on.scene);
+  const is = read(round.number, on.scene);
   if (!then || !now || !was || !is) return undefined;
   const key = JSON.stringify([review.id, from, round.number, on]);
-  if (!found.has(key)) found.set(key, placeIn(on, { flow: then, readings: was }, { flow: now, readings: is }));
+  if (!found.has(key)) found.set(key, placeIn(on, { scene: then, readings: was }, { scene: now, readings: is }));
   return found.get(key);
 }

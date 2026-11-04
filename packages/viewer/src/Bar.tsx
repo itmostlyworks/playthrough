@@ -1,12 +1,12 @@
 // What you can do to the moment you're on, across the frame's bottom edge: note it, compare it with how it was, take it
-// over, and in the frame, what you've said on this flow, which opens over it. Only what you can do now is in it: in the
+// over, and in the frame, what you've said on this scene, which opens over it. Only what you can do now is in it: in the
 // app, noting what's there, and going back.
 
 import { useEffect, useRef } from "react";
 import { Compare, ForkMark, Key } from "./Card.tsx";
 import type { Comparing } from "./Notes.tsx";
 
-// A note on this flow, as the list says it: its dot in its colour, its words, and its moment, made in the app or not.
+// A note on this scene, as the list says it: its dot in its colour, its words, and its moment, made in the app or not.
 export type Said = { id: string; ink: string; words: string; at: string; app: boolean };
 
 type Props = {
@@ -17,11 +17,11 @@ type Props = {
   noting: boolean;
   // None where no note can be made: an accepted review, or a round gone by.
   onNote?: () => void;
-  // None on a fork run again: a fork is taken over from its flow, never from another fork.
+  // None on a fork run again: a fork is taken over from its scene, never from another fork.
   onTakeOver?: () => void;
   onBack: () => void;
-  flow: string;
-  // On the page, a situation's notes are on its recording and its steps, and there's no list.
+  scene: string;
+  // On the page, a scene's notes are on its recording and its steps, and there's no list.
   list?: {
     notes: Said[];
     listed: boolean;
@@ -55,7 +55,7 @@ export function Bar(props: Props) {
     <div ref={here} className="relative">
       {list && <div
         role="dialog"
-        aria-label={`Notes on ${props.flow}`}
+        aria-label={`Notes on ${props.scene}`}
         aria-hidden={!listed}
         className={`absolute right-0 bottom-full mb-2 w-[340px] max-w-[calc(100vw-32px)] rounded-xl bg-surface p-1.5 shadow-float transition-[opacity,translate] duration-150 ease-calm ${listed ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-1 opacity-0"}`}
       >
@@ -79,7 +79,7 @@ export function Bar(props: Props) {
                 </span>
               </button>
             ))}
-          {!count && <p className="px-2.5 py-[7px] text-[13px] text-soft">No notes on this flow yet.</p>}
+          {!count && <p className="px-2.5 py-[7px] text-[13px] text-soft">No notes on this scene yet.</p>}
         </div>
       </div>}
       <div

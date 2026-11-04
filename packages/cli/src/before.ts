@@ -1,12 +1,12 @@
 // Before is the app as it was before the work, for the person: this moment as it was, beside how it is now, so the
 // difference is the change. It's kept as a commit when the review starts, with whatever wasn't committed yet, and each
-// flow is recorded on it with the round it's first recorded in, as far as the app as it was takes it, doing what the round
+// scene is recorded on it with the round it's first recorded in, as far as the app as it was takes it, doing what the round
 // does, step by step. That happens in the agent's own working copy, the one copy known to run: its env files, installed
 // packages and local data stay as they are, since git leaves what it ignores alone. The agent's work is set aside with
 // git stash meanwhile, and put back after, even when recording fails or Playthrough is stopped. It's recorded on whatever
 // serves the app, as every round is: a server already running follows the working copy, as a dev server does, so for that
 // minute it serves the app as it was, and one Playthrough started is started again on it. There, playthrough/ is as it is
-// now: it goes with the flows, not with the work.
+// now: it goes with the scenes, not with the work.
 
 import { execFileSync } from "node:child_process";
 import { copyFileSync, cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -14,10 +14,10 @@ import { readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { constants, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { Refused, type Flow, type Review } from "@playthrough/review";
+import { Refused, type Scene, type Review } from "@playthrough/review";
 import { serves, stopApp } from "./app.ts";
 import { stillAt, thisCommand, type Command } from "./command.ts";
-import { called, failedAt, runFlows, type Ran } from "./flows.ts";
+import { called, failedAt, runScenes, type Ran } from "./scenes.ts";
 import type { Failed } from "./reporter.ts";
 import type { Repo } from "./repo.ts";
 import { writtenNow } from "./try-setup.ts";
@@ -55,36 +55,36 @@ function treeNow(repo: Repo): string {
 // The commit is Playthrough's, whoever's git this is.
 const PLAYTHROUGH = { GIT_AUTHOR_NAME: "Playthrough", GIT_AUTHOR_EMAIL: "playthrough@localhost", GIT_COMMITTER_NAME: "Playthrough", GIT_COMMITTER_EMAIL: "playthrough@localhost" };
 
-// Whether a round the flow is in has been handed over: it's been compared with Before then, and Before keeps it as it is.
-export const handedOver = (review: Review, flow: string) => review.rounds.some((round) => round.number > 0 && round.finished && round.flows.some((kept) => kept.name === flow));
+// Whether a round the scene is in has been handed over: it's been compared with Before then, and Before keeps it as it is.
+export const handedOver = (review: Review, scene: string) => review.rounds.some((round) => round.number > 0 && round.finished && round.scenes.some((kept) => kept.name === scene));
 
-// The round's flows are recorded on Before too, each doing what the round did, as far as the app as it was takes it: so
-// every flow is compared with how the app was along its own way. Until its round is handed over, a flow's Before follows
+// The round's scenes are recorded on Before too, each doing what the round did, as far as the app as it was takes it: so
+// every scene is compared with how the app was along its own way. Until its round is handed over, a scene's Before follows
 // it, recorded again once its file, playthrough/ or what the round does has changed, and one that's gone goes from Before.
 export async function recordOnBefore(repo: Repo, id: string, number: number, { recorded, written }: Ran) {
   const review = await repo.reviews.get(id);
   const before = review.rounds.find((round) => round.number === 0);
   if (!before) return;
   const ran: Record<string, string> = await readFile(repo.ranOnBefore(id), "utf8").then(JSON.parse).catch(() => ({}));
-  // What its Before follows: the flow's file as it ran, what every flow starts from, and what the round did.
+  // What its Before follows: the scene's file as it ran, what every scene starts from, and what the round did.
   const setup = await writtenNow(repo);
-  const follows = Object.fromEntries(recorded.map(({ flow, doneOn }) => [flow.name, createHash("sha256").update(JSON.stringify([written[flow.name]?.hash, setup, doneOn ?? {}])).digest("hex")]));
-  const on = [...before.flows.map((flow) => flow.name), ...(before.cantStart ?? [])];
-  const flows = recorded.filter(({ flow }) => !on.includes(flow.name) || (!handedOver(review, flow.name) && ran[flow.name] !== follows[flow.name]));
-  const gone = on.filter((name) => !handedOver(review, name) && !recorded.some(({ flow }) => flow.name === name));
-  if (!flows.length && !gone.length) return;
+  const follows = Object.fromEntries(recorded.map(({ scene, doneOn }) => [scene.name, createHash("sha256").update(JSON.stringify([written[scene.name]?.hash, setup, doneOn ?? {}])).digest("hex")]));
+  const on = [...before.scenes.map((scene) => scene.name), ...(before.cantStart ?? [])];
+  const scenes = recorded.filter(({ scene }) => !on.includes(scene.name) || (!handedOver(review, scene.name) && ran[scene.name] !== follows[scene.name]));
+  const gone = on.filter((name) => !handedOver(review, name) && !recorded.some(({ scene }) => scene.name === name));
+  if (!scenes.length && !gone.length) return;
 
-  const names = flows.map(({ flow }) => flow.name);
+  const names = scenes.map(({ scene }) => scene.name);
   const unrecorded = `Round ${number} wasn't recorded`;
   const why = !before.commit ? "Before wasn't kept as a commit, so the app as it was can't be put back" : !headOf(repo) ? UNBORN : undefined;
   if (why) return void (names.length && console.log(`\n${called(names)} ${names.length > 1 ? "have" : "has"} no Before: ${why}.`));
-  // Named apart from every recording Before holds, one a flow recorded again no longer uses among them.
+  // Named apart from every recording Before holds, one a scene recorded again no longer uses among them.
   const taken = await repo.reviews.files(id, 0);
-  const doneInRound = Object.fromEntries(flows.map(({ flow, doneOn }) => [flow.name, doneOn ?? {}]));
+  const doneInRound = Object.fromEntries(scenes.map(({ scene, doneOn }) => [scene.name, doneOn ?? {}]));
   // An app as it was that doesn't start, for the reason Playwright gives, can't start any of them.
   const run = () =>
-    runFlows(repo, id, 0, { before: { flows: names, taken, doneInRound } }).catch((error): Ran => {
-      if (error instanceof Refused) return { recorded: [], failed: names.map((flow) => ({ flow })), written: {} };
+    runScenes(repo, id, 0, { before: { scenes: names, taken, doneInRound } }).catch((error): Ran => {
+      if (error instanceof Refused) return { recorded: [], failed: names.map((scene) => ({ scene })), written: {} };
       throw error;
     });
   let kept: Ran = { recorded: [], failed: [], written: {} };
@@ -107,23 +107,23 @@ export async function recordOnBefore(repo: Repo, id: string, number: number, { r
     if (shared) await caughtUp(url);
     refuseIfBroken(kept.failed, unrecorded, "Record again.");
   }
-  await repo.reviews.addToBefore(id, { flows: kept.recorded.map(({ flow }) => flow), cantStart: cantStart(kept.recorded, kept.failed), files: kept.recorded.flatMap(({ files }) => files), gone });
+  await repo.reviews.addToBefore(id, { scenes: kept.recorded.map(({ scene }) => scene), cantStart: cantStart(kept.recorded, kept.failed), files: kept.recorded.flatMap(({ files }) => files), gone });
   for (const name of names) ran[name] = follows[name]!;
   for (const name of gone) delete ran[name];
   await writeFile(repo.ranOnBefore(id), JSON.stringify(ran));
 }
 
-// A flow the browser stopped, not the app, says nothing about how far the app goes, so nothing of the run is kept, and
+// A scene the browser stopped, not the app, says nothing about how far the app goes, so nothing of the run is kept, and
 // recording again tries again.
 export function refuseIfBroken(failed: Failed[], unrecorded: string, again: string) {
   const broken = failed.filter((failure) => failure.broken);
   if (broken.length)
-    throw new Refused([`\n${unrecorded}, because the browser stopped ${broken.length > 1 ? "these flows" : "a flow"}, not the app:`, ...broken.map(failedAt), again]);
+    throw new Refused([`\n${unrecorded}, because the browser stopped ${broken.length > 1 ? "these scenes" : "a scene"}, not the app:`, ...broken.map(failedAt), again]);
 }
 
-// The flows Before has nothing of: they didn't take a step.
-const cantStart = (recorded: { flow: Flow }[], failed: Failed[]) =>
-  failed.map(({ flow }) => flow).filter((flow) => !recorded.some((kept) => kept.flow.name === flow));
+// The scenes Before has nothing of: they didn't take a step.
+const cantStart = (recorded: { scene: Scene }[], failed: Failed[]) =>
+  failed.map(({ scene }) => scene).filter((scene) => !recorded.some((kept) => kept.scene.name === scene));
 
 // Where the agent's work is while the working copy holds the app as it was: the branch or commit to come back to, the
 // stash it's set aside in, by its message, the command that set it aside, on which start of the machine, and whether a
@@ -137,7 +137,7 @@ const SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP"] as const;
 async function asItWas<T>(repo: Repo, unrecorded: string, commit: string, shared: boolean, run: () => Promise<T>): Promise<T> {
   refuseWhileAside(repo);
   await repo.keepOutOfGit();
-  const aside: SetAside = { back: here(repo), stash: `Playthrough: your work, set aside while flows record on Before, ${new Date().toISOString()}`, ...thisCommand(), ...(shared && { shared }) };
+  const aside: SetAside = { back: here(repo), stash: `Playthrough: your work, set aside while scenes record on Before, ${new Date().toISOString()}`, ...thisCommand(), ...(shared && { shared }) };
   writeFileSync(repo.setAside, JSON.stringify(aside));
   // Listened for until the work is back, so a second signal can't end it halfway.
   let stopping = false;
@@ -149,7 +149,7 @@ async function asItWas<T>(repo: Repo, unrecorded: string, commit: string, shared
     process.exit(128 + constants.signals[signal]);
   };
   for (const signal of SIGNALS) process.on(signal, stopped);
-  // The app as it was gets flows in as the app does now: playthrough/ goes with the flows, not with the work, so a setup
+  // The app as it was gets scenes in as the app does now: playthrough/ goes with the scenes, not with the work, so a setup
   // fixed since Before is the one Before is recorded on.
   const ours = join(repo.root, "playthrough");
   const today = existsSync(ours) ? mkdtempSync(join(tmpdir(), "playthrough-")) : undefined;
@@ -189,7 +189,7 @@ export async function putBack(repo: Repo) {
   const problem = putWorkBack(repo, aside, false);
   if (problem) throw stillAside(repo, aside, problem);
   if (!toDo) return;
-  const back = `Playthrough was stopped while your work was set aside for a flow to record on Before. It's back now, on ${aside.back}.`;
+  const back = `Playthrough was stopped while your work was set aside for a scene to record on Before. It's back now, on ${aside.back}.`;
   const url = (await repo.app().catch(() => undefined))?.url;
   if (url && !aside.shared && (await serves(url))) throw new Refused([back, `Something is still serving ${url}, most likely the app as it was, left running: stop it, then run this again.`]);
   console.log(`${back}\n`);
@@ -201,7 +201,7 @@ export function refuseWhileAside(repo: Repo) {
   const aside = setAside(repo);
   if (aside && aside.by !== process.pid && stillAt(aside))
     throw new Refused([
-      `Another playthrough command (process ${aside.by}) is recording flows on Before just now, so the app as it was is in your work's place until it's done, in a minute or so. Try again then.`,
+      `Another playthrough command (process ${aside.by}) is recording scenes on Before just now, so the app as it was is in your work's place until it's done, in a minute or so. Try again then.`,
     ]);
 }
 
@@ -231,19 +231,19 @@ function putWorkBack(repo: Repo, aside: SetAside, force: boolean): string | unde
 function keepWhatChanged(repo: Repo) {
   const changed = git(repo, ["status", "--porcelain", "--untracked-files=all"]).split("\n").filter(Boolean).map((line) => line.replace(/^\s*\S+\s+/, ""));
   if (!changed.length) return;
-  const kept = `Playthrough: saved while flows recorded on Before, ${new Date().toISOString()}`;
+  const kept = `Playthrough: saved while scenes recorded on Before, ${new Date().toISOString()}`;
   git(repo, ["stash", "push", "--include-untracked", "--quiet", "--message", kept], { ...process.env, ...PLAYTHROUGH });
   const ref = git(repo, ["stash", "list", "--format=%gd %gs"]).split("\n").find((stash) => stash.endsWith(kept))?.split(" ")[0];
   const files = changed.length > 3 ? `${changed.slice(0, 3).join(", ")} and ${changed.length - 3} more` : changed.join(", ");
   console.log(
-    `\nWhile flows recorded on Before, ${files} changed, in the app as it was. That's kept, not lost: git stash pop ${ref} puts it over your work, if it's something you saved.`,
+    `\nWhile scenes recorded on Before, ${files} changed, in the app as it was. That's kept, not lost: git stash pop ${ref} puts it over your work, if it's something you saved.`,
   );
 }
 
 function stillAside(repo: Repo, aside: SetAside, problem: string): Refused {
   const stash = stashOf(repo, aside);
   return new Refused([
-    "Your work is still set aside, from recording a flow on Before, and git couldn't put it back by itself, because it says:",
+    "Your work is still set aside, from recording a scene on Before, and git couldn't put it back by itself, because it says:",
     `  ${problem}`,
     `Put it back with git checkout ${aside.back}${stash ? `, then git stash pop --index ${stash}` : ""}. Playthrough carries on once it's back.`,
   ]);

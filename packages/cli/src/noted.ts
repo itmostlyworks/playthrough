@@ -46,13 +46,13 @@ export async function pictureNotes(repo: Repo, review: Review, round: number, no
 }
 
 // The picture of the step the note was last seen at, and where on it: what it's on, or its spot or part of the screen.
-// One on the whole flow was made at its end, so it's the page the flow left, with nothing marked.
+// One on the whole scene was made at its end, so it's the page the scene left, with nothing marked.
 async function whereSeen(repo: Repo, review: Review, id: string, before: number) {
   const seen = lastSeen(review, id, before);
   const on = seen?.on;
-  const flow = seen && review.rounds.find((round) => round.number === seen.round)?.flows.find((flow) => flow.name === on!.flow);
-  if (!seen || !on || !flow) return undefined;
-  const readings = await readingsOn(repo.reviews, review.id, seen.round, flow);
+  const scene = seen && review.rounds.find((round) => round.number === seen.round)?.scenes.find((scene) => scene.name === on!.scene);
+  if (!seen || !on || !scene) return undefined;
+  const readings = await readingsOn(repo.reviews, review.id, seen.round, scene);
   if (on.at === undefined) {
     const end = readings.at(-1);
     return end && { round: seen.round, picture: end.picture, width: end.screen.width, height: end.screen.height };

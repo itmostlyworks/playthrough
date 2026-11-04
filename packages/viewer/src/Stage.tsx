@@ -1,15 +1,15 @@
 // The recordings: the round you're watching, or side by side with the round it's compared with, each at the playhead's
-// moment in its own recording of the flow. Each takes its flow's recorded shape, as large as fits and never larger than
+// moment in its own recording of the scene. Each takes its scene's recorded shape, as large as fits and never larger than
 // it was recorded; at actual size it's a window onto the page that follows the pointer, or stays where you move it.
 // Nothing Playthrough draws covers what's recorded except the marks on it, and H hides those. Paused, what a click would note
 // is outlined, and Alt and the wheel widen it to what holds it.
 //
-// Every round once shown keeps its frame and its replays, in the same place in the page, so going back to a flow or a
+// Every round once shown keeps its frame and its replays, in the same place in the page, so going back to a scene or a
 // round shows it at once: a recording moved elsewhere in the page would have to be built again.
 
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
 import { elementOf, type Thing } from "@playthrough/page";
-import { inStep, type Box, type Flow, type Place, type Point, type Review, type Round } from "@playthrough/review";
+import { inStep, type Box, type Scene, type Place, type Point, type Review, type Round } from "@playthrough/review";
 import { recording } from "./api.ts";
 import { CARD, clamp, ease, MORPH, titleCard } from "./moments.ts";
 import { onPhone } from "./phone.ts";
@@ -85,15 +85,15 @@ type Props = {
   read: Read;
   // The notes whose things aren't on the page now, on the round you're watching.
   onGone: (ids: string[]) => void;
-  // The way back to every flow at once, on the latest round with more than one.
-  onAllFlows?: () => void;
+  // The way back to every scene at once, on the latest round with more than one.
+  onAllScenes?: () => void;
   // What the line over the frame says, on the latest round nothing: the round looked back at, or the next one in.
   over?: { words: string; take?: () => void };
   // Taken over, the app itself at that moment, in the round's frame exactly where its recording is.
   live?: Live;
   // Under the page, it's drawn nothing: its recordings aren't built or moved until it shows again.
   away?: boolean;
-  // The flow's end standing as a place: its last frame softens under the veil its name has at the start, while its card
+  // The scene's end standing as a place: its last frame softens under the veil its name has at the start, while its card
   // stands there.
   ending?: boolean;
 };
@@ -106,7 +106,7 @@ export function Stage(props: Props) {
   const stage = useRef<HTMLDivElement>(null);
   const frames = useRef(new Map<number, HTMLDivElement>());
   const captions = useRef(new Map<number, HTMLDivElement>());
-  const allFlows = useRef<HTMLDivElement>(null);
+  const allScenes = useRef<HTMLDivElement>(null);
   const replays = useRef(new Map<string, Replay | "loading">());
   const sizes = useRef(new Map<string, Shape[]>());
   const held = useRef<Held>(undefined);
@@ -135,42 +135,42 @@ export function Stage(props: Props) {
   if (onScreen.some((shown) => !visited.includes(shown.number))) setVisited([...new Set([...visited, ...onScreen.map((shown) => shown.number)])].sort((a, b) => a - b));
 
   // By its recording too: a fork kept longer, for another note made in the app, is the same fork on a longer recording.
-  const key = (round: Round, flow: Flow) => `${round.number}/${flow.name}/${flow.recording}`;
-  const shapesOf = (round: Round, flow: Flow): Shape[] => {
-    const replay = replays.current.get(key(round, flow));
-    return replay instanceof Replay ? replay.shapes : (sizes.current.get(key(round, flow)) ?? [LAPTOP]);
+  const key = (round: Round, scene: Scene) => `${round.number}/${scene.name}/${scene.recording}`;
+  const shapesOf = (round: Round, scene: Scene): Shape[] => {
+    const replay = replays.current.get(key(round, scene));
+    return replay instanceof Replay ? replay.shapes : (sizes.current.get(key(round, scene)) ?? [LAPTOP]);
   };
-  // Its screen at a moment: a flow handed to someone else carries on on theirs.
-  const sizeOf = (round: Round, flow: Flow, at = 0): Size => shapeOf(shapesOf(round, flow), at);
+  // Its screen at a moment: a scene handed to someone else carries on on theirs.
+  const sizeOf = (round: Round, scene: Scene, at = 0): Size => shapeOf(shapesOf(round, scene), at);
 
-  // A replay is built the first time its flow shows.
-  const replayOf = (round: Round, flow: Flow): Replay | undefined => {
-    const kept = replays.current.get(key(round, flow));
+  // A replay is built the first time its scene shows.
+  const replayOf = (round: Round, scene: Scene): Replay | undefined => {
+    const kept = replays.current.get(key(round, scene));
     if (kept) return kept instanceof Replay ? kept : undefined;
-    replays.current.set(key(round, flow), "loading");
-    recording(latest.current.review.id, round.number, flow.recording).then(
+    replays.current.set(key(round, scene), "loading");
+    recording(latest.current.review.id, round.number, scene.recording).then(
       (events) => {
-        replays.current.set(key(round, flow), new Replay(events, parts(frames.current.get(round.number)!).stack));
+        replays.current.set(key(round, scene), new Replay(events, parts(frames.current.get(round.number)!).stack));
         paint();
       },
       // asked for again the next time it shows
-      () => replays.current.delete(key(round, flow)),
+      () => replays.current.delete(key(round, scene)),
     );
     return undefined;
   };
 
-  // A flow recorded in another shape takes its own as its title card comes up, and a flow handed to someone on another
-  // screen takes theirs as their page comes, as from one flow to the next.
-  const shapeAt = (round: Round, flow: Flow, at: number): Size => {
-    const own = sizeOf(round, flow, at);
-    const shapes = shapesOf(round, flow);
+  // A scene recorded in another shape takes its own as its title card comes up, and a scene handed to someone on another
+  // screen takes theirs as their page comes, as from one scene to the next.
+  const shapeAt = (round: Round, scene: Scene, at: number): Size => {
+    const own = sizeOf(round, scene, at);
+    const shapes = shapesOf(round, scene);
     const handed = shapes.findLast((shape) => shape.from > 0 && shape.from <= at);
     if (handed && at - handed.from < MORPH) {
       const was = shapeOf(shapes, handed.from - 0.001);
       const u = ease(clamp((at - handed.from) / MORPH));
       return { width: was.width + (own.width - was.width) * u, height: was.height + (own.height - was.height) * u };
     }
-    const before = round.flows[round.flows.indexOf(flow) - 1];
+    const before = round.scenes[round.scenes.indexOf(scene) - 1];
     const u = ease(clamp((at + CARD) / MORPH));
     if (!before || u >= 1) return own;
     const was = sizeOf(round, before);
@@ -179,13 +179,13 @@ export function Stage(props: Props) {
 
   // On a phone the recordings take the height they need at the screen's width, up to a little over half the screen, and
   // the controls follow under them with no room between. Side by side at actual size, they fill it.
-  const onPhoneNeeds = (width: number, flow: Flow | undefined, at: number): number => {
+  const onPhoneNeeds = (width: number, scene: Scene | undefined, at: number): number => {
     const { round, earlier, zoomed } = latest.current;
     const most = Math.max(160, Math.round(innerHeight * 0.58));
-    if (!flow || (earlier && zoomed)) return most;
+    if (!scene || (earlier && zoomed)) return most;
     const shapes = (earlier ? [earlier, round] : [round]).map((shown) => {
-      const its = shown.flows.find((other) => other.name === flow.name);
-      return shown === round || !its ? shapeAt(round, flow, at) : sizeOf(shown, its);
+      const its = shown.scenes.find((other) => other.name === scene.name);
+      return shown === round || !its ? shapeAt(round, scene, at) : sizeOf(shown, its);
     });
     const tallest = (room: Size) => CAPTION + Math.max(...shapes.map((shape) => fit(room, shape).height));
     if (!earlier) return tallest({ width, height: most - CAPTION });
@@ -205,12 +205,12 @@ export function Stage(props: Props) {
     const room = stage.current;
     if (!room) return;
     const { moment, playing, speed, stopped } = playhead.now;
-    const flow = round.flows.find((flow) => flow.name === moment.flow);
+    const scene = round.scenes.find((scene) => scene.name === moment.scene);
     const width = room.clientWidth;
-    const height = onPhone() ? onPhoneNeeds(width, flow, moment.at) : room.clientHeight;
+    const height = onPhone() ? onPhoneNeeds(width, scene, moment.at) : room.clientHeight;
     room.style.height = onPhone() ? `${height}px` : "";
     // Side by side, or one above the other where that shows each recording larger.
-    const shape = flow ? shapeAt(round, flow, moment.at) : LAPTOP;
+    const shape = scene ? shapeAt(round, scene, moment.at) : LAPTOP;
     const area = (room: Size) => {
       const shown = fit({ width: room.width, height: room.height - CAPTION }, shape);
       return shown.width * shown.height;
@@ -239,12 +239,12 @@ export function Stage(props: Props) {
       if (arriving) void frame.offsetWidth;
       frame.style.transition = "";
     }
-    // Watching one round, "All flows" keeps one place whatever the flow's shape: over the left edge of the round's
+    // Watching one round, "All scenes" keeps one place whatever the scene's shape: over the left edge of the round's
     // widest recording.
     const own = panes.get(round.number)!;
-    const widest = Math.max(...round.flows.map((flow) => fit({ width: own.width, height: own.height - CAPTION }, sizeOf(round, flow)).width));
-    if (allFlows.current) allFlows.current.style.left = `${Math.round(own.left + (own.width - widest) / 2)}px`;
-    if (!flow) return;
+    const widest = Math.max(...round.scenes.map((scene) => fit({ width: own.width, height: own.height - CAPTION }, sizeOf(round, scene)).width));
+    if (allScenes.current) allScenes.current.style.left = `${Math.round(own.left + (own.width - widest) / 2)}px`;
+    if (!scene) return;
 
     const gliding = glide.current && performance.now() - glide.current.started < GLIDE ? glide.current : undefined;
     let lead: { view: View; box: Size; chosen?: [number, number] } | undefined;
@@ -254,10 +254,10 @@ export function Stage(props: Props) {
       const frame = frames.current.get(shown.number);
       const pane = panes.get(shown.number)!;
       if (!frame) continue;
-      const its = shown === round ? flow : shown.flows.find((other) => other.name === flow.name);
-      const clicks = its && its !== flow && { from: replayOf(round, flow)?.clicks ?? [], to: replayOf(shown, its)?.clicks ?? [] };
-      const at = !its || its === flow ? moment.at : inStep(moment.at, flow, its, clicks || undefined);
-      const shape = its ? shapeAt(shown, its, at) : shapeAt(round, flow, moment.at);
+      const its = shown === round ? scene : shown.scenes.find((other) => other.name === scene.name);
+      const clicks = its && its !== scene && { from: replayOf(round, scene)?.clicks ?? [], to: replayOf(shown, its)?.clicks ?? [] };
+      const at = !its || its === scene ? moment.at : inStep(moment.at, scene, its, clicks || undefined);
+      const shape = its ? shapeAt(shown, its, at) : shapeAt(round, scene, moment.at);
       const room = { width: pane.width, height: pane.height - CAPTION };
       const box = zoomed && earlier ? { width: Math.floor(Math.min(room.width, shape.width)), height: Math.floor(Math.min(room.height, shape.height)) } : fit(room, shape);
       const left = Math.round(pane.left + (pane.width - box.width) / 2);
@@ -269,7 +269,7 @@ export function Stage(props: Props) {
       const replay = its && replayOf(shown, its);
       for (const host of part.stack.children) (host as HTMLElement).hidden = host !== replay?.host;
       frame.toggleAttribute("data-absent", !its);
-      // A round that never recorded this flow says so plainly, rather than freezing on something unrelated.
+      // A round that never recorded this scene says so plainly, rather than freezing on something unrelated.
       if (!its) {
         part.name.textContent = `Not in ${roundName(shown.number)}`;
         part.line.hidden = true;
@@ -282,7 +282,7 @@ export function Stage(props: Props) {
       }
 
       const page = sizeOf(shown, its, at);
-      // Until its recording is here, the flow's name stands on its own.
+      // Until its recording is here, the scene's name stands on its own.
       const opening = replay ? titleCard(at) : { soft: 1, name: 1 };
       const card = shown === round && endSoft > 0.002 ? { soft: Math.max(opening?.soft ?? 0, endSoft), name: opening?.name ?? 0 } : opening;
       let view: View;
@@ -293,7 +293,7 @@ export function Stage(props: Props) {
         const [from, to] = [lead.chosen, replay && chosenOn(shown.number, replay, page)?.centre];
         view = around(box, page, from && to ? [x + to[0] - from[0], y + to[1] - from[1]] : [x, y], lead.view.k);
       } else {
-        const hold = held.current?.flow === flow.name ? held.current : undefined;
+        const hold = held.current?.scene === scene.name ? held.current : undefined;
         const chosen = hold || !replay ? undefined : focusOn(replay, page, box);
         view = around(box, page, hold?.centre ?? chosen?.centre ?? (replay ? ahead(replay, at, its.length) : [page.width / 2, 0]), hold?.k ?? chosen?.k ?? 1);
       }
@@ -308,7 +308,7 @@ export function Stage(props: Props) {
       const shift = `translate(${(-view.x * view.k).toFixed(2)}px,${(-view.y * view.k).toFixed(2)}px)`;
       if (replay) {
         replay.host.style.transform = `${shift} scale(${view.k.toFixed(5)})`;
-        // While its name is up, the flow shows the page its picture is of, as its first step left it, so what grew into
+        // While its name is up, the scene shows the page its picture is of, as its first step left it, so what grew into
         // the frame stays there: its first frame is often still a blank page.
         replay.show(at < 0 ? (latest.current.read(shown.number, its.name)?.[0]?.at ?? at) : at, playing, speed);
         if (stopped && wasPlaying.current) replay.rest();
@@ -317,13 +317,13 @@ export function Stage(props: Props) {
       const app = frame.querySelector<HTMLElement>("[data-live] iframe");
       if (app) Object.assign(app.style, liveAt(view, page));
       place(part.marks, replay, page, view, box, at, playing, shown === round);
-      // A fork is called by the flow it leaves, as everywhere you see it, and the flow by who does it, once there's more
+      // A fork is called by the scene it leaves, as everywhere you see it, and the scene by who does it, once there's more
       // than one person to tell apart.
       part.name.textContent = (its as Forked).fork ?? its.name;
       const who = manyIn(latest.current.review) && !(its as Forked).fork ? asWho(its) : "";
       if (part.as.textContent !== who) part.as.textContent = who;
       part.as.hidden = !who;
-      // Under it, on the round you're watching, what the agent says the flow starts from or the choice it shows.
+      // Under it, on the round you're watching, what the agent says the scene starts from or the choice it shows.
       const line = shown === round ? (its.line ?? "") : "";
       const [by, words] = part.line.children as unknown as [HTMLElement, HTMLElement];
       part.line.hidden = !line;
@@ -339,8 +339,8 @@ export function Stage(props: Props) {
       part.card.style.setProperty("--n", (card?.name ?? 0).toFixed(3));
       part.app.style.filter = card && card.soft > 0.002 ? `blur(${(card.soft * 6).toFixed(2)}px)` : "";
 
-      // The pointer belongs to the flow: it stays out of the title, and appears as the frame comes into focus. A phone is
-      // touched, so there it's a fingertip, and one only from when that screen shows: a hand handed the flow starts afresh.
+      // The pointer belongs to the scene: it stays out of the title, and appears as the frame comes into focus. A phone is
+      // touched, so there it's a fingertip, and one only from when that screen shows: a hand handed the scene starts afresh.
       const screen = replay?.shapeAt(at);
       const pointer = replay?.pointerAt(at, screen?.touch ? screen.from : 0);
       const drawn: [number, number] | undefined = pointer && [(pointer[0] - view.x) * view.k, (pointer[1] - view.y) * view.k];
@@ -349,7 +349,7 @@ export function Stage(props: Props) {
       const yours = shown === round && open.current;
       if (!yours) part.cursor.style.opacity = drawn ? String(1 - (card?.soft ?? 0)) : "0";
       if (drawn && !yours) part.cursor.style.transform = `translate(${drawn[0] - 3}px,${drawn[1] - 2}px)`;
-      // Whose hand it is: who the flow is done as, or whoever it's been handed to by now.
+      // Whose hand it is: who the scene is done as, or whoever it's been handed to by now.
       const tag = part.cursor.querySelector<HTMLElement>("[data-tag]")!;
       if (!yours && !taking.current) {
         const person = personAt(its, at, replay?.loads) ?? "";
@@ -519,14 +519,14 @@ export function Stage(props: Props) {
   }, []);
   useEffect(() => () => replays.current.forEach((replay) => replay instanceof Replay && replay.destroy()), []);
 
-  // The shapes of the flows on screen are known before they play, so nothing changes shape when they do.
+  // The shapes of the scenes on screen are known before they play, so nothing changes shape when they do.
   useEffect(() => {
     for (const shown of onScreen)
-      for (const flow of shown.flows)
-        if (!sizes.current.has(key(shown, flow))) {
-          sizes.current.set(key(shown, flow), [LAPTOP]);
-          recording(review.id, shown.number, flow.recording).then((events) => {
-            sizes.current.set(key(shown, flow), recorded(events).shapes);
+      for (const scene of shown.scenes)
+        if (!sizes.current.has(key(shown, scene))) {
+          sizes.current.set(key(shown, scene), [LAPTOP]);
+          recording(review.id, shown.number, scene.recording).then((events) => {
+            sizes.current.set(key(shown, scene), recorded(events).shapes);
             paint();
           });
         }
@@ -586,7 +586,7 @@ export function Stage(props: Props) {
     if (!view) return;
     const centre = held.current?.centre ?? centreOf(view, view);
     glide.current = undefined;
-    held.current = { centre: moved(to(centre, view.k), view, view.page, view.k), k: view.k, flow: latest.current.playhead.now.moment.flow };
+    held.current = { centre: moved(to(centre, view.k), view, view.page, view.k), k: view.k, scene: latest.current.playhead.now.moment.scene };
     if (!latest.current.playhead.now.playing) paint();
   };
   // Paused, with Alt (Option) held, the wheel widens what a click would note instead, a notch a step; a trackpad's small
@@ -638,12 +638,12 @@ export function Stage(props: Props) {
   const under = (event: { clientX: number; clientY: number }) => {
     const { round, playhead, read } = latest.current;
     const { moment } = playhead.now;
-    const flow = round.flows.find((flow) => flow.name === moment.flow);
-    const replay = flow && replays.current.get(key(round, flow));
-    const things = flow && read(round.number, flow.name, true);
+    const scene = round.scenes.find((scene) => scene.name === moment.scene);
+    const replay = scene && replays.current.get(key(round, scene));
+    const things = scene && read(round.number, scene.name, true);
     const at = onPage(event, round.number);
     if (!(replay instanceof Replay) || !things || !at || moment.at < 0) return undefined;
-    return { replay, things, at: moment.at, outwards: replay.outwards(at[0], at[1]), here: `${round.number}/${moment.flow}/${moment.at}` };
+    return { replay, things, at: moment.at, outwards: replay.outwards(at[0], at[1]), here: `${round.number}/${moment.scene}/${moment.at}` };
   };
   // What a click there would note: what it's widened to while the pointer stays inside that, else what's under it.
   const pickFor = (event: { clientX: number; clientY: number }): Thing | undefined => {
@@ -711,9 +711,9 @@ export function Stage(props: Props) {
     for (const part of [app, sheen, ring, edge, hand, tag, words]) part.getAnimations().forEach((animation) => animation.cancel());
     const box = frame.getBoundingClientRect();
     const view = painted.current.get(round.number);
-    // On a fork, you carry on as whoever its flow is done as, not as yourself, who the fork's pointer is.
-    const forkOf = (props.playhead.flow as Forked).fork;
-    const person = forkOf ? round.flows.find((flow) => flow.name === forkOf)?.person : personAt(props.playhead.flow, props.playhead.now.moment.at);
+    // On a fork, you carry on as whoever its scene is done as, not as yourself, who the fork's pointer is.
+    const forkOf = (props.playhead.scene as Forked).fork;
+    const person = forkOf ? round.scenes.find((scene) => scene.name === forkOf)?.person : personAt(props.playhead.scene, props.playhead.now.moment.at);
     const tip = (point: { x: number; y: number }) => `translate(${(point.x - 3).toFixed(1)}px,${(point.y - 2).toFixed(1)}px)`;
     const tipOf = (element: HTMLElement) => {
       const drawn = element.getBoundingClientRect();
@@ -742,7 +742,7 @@ export function Stage(props: Props) {
     };
 
     if (inPortal) {
-      const scrolled = replayOf(round, props.playhead.flow)?.scrolled();
+      const scrolled = replayOf(round, props.playhead.scene)?.scrolled();
       if (scrolled) app.querySelector("iframe")?.contentWindow?.postMessage({ playthrough: "scroll", ...scrolled }, "*");
       Object.assign(app.style, { opacity: "1", pointerEvents: "auto" });
       app.querySelector("iframe")?.focus();
@@ -784,7 +784,7 @@ export function Stage(props: Props) {
     const client = { clientX: box.left + at.x, clientY: box.top + at.y };
     if (inApp) document.elementFromPoint(client.clientX, client.clientY)?.dispatchEvent(new PointerEvent("pointermove", { ...client, bubbles: true }));
     // The recording has the pointer again: it goes back from your hand to where the recording has it, its name back to
-    // the person the flow acts as.
+    // the person the scene acts as.
     paint();
     const hide = () => void (app.style.opacity = "0");
     // Over the closing app until it's home, then under the marks again, as the recording's.
@@ -813,7 +813,7 @@ export function Stage(props: Props) {
     const words = tag?.querySelector<HTMLElement>("[data-words]");
     if (!edge || !tag || !words || waiting === taking.current) return;
     taking.current = waiting;
-    const person = personAt(props.playhead.flow, props.playhead.now.moment.at);
+    const person = personAt(props.playhead.scene, props.playhead.now.moment.at);
     if (waiting) {
       tag.hidden = false;
       say(tag, words, "Taking over…", false);
@@ -984,15 +984,15 @@ export function Stage(props: Props) {
     );
   }, [playing]);
   // First on the line over the recording, where the grid's own heading was.
-  const toAll = props.onAllFlows && (
+  const toAll = props.onAllScenes && (
     <button
       className="-my-0.5 mr-1 -ml-1 inline-flex flex-none items-baseline gap-0.5 rounded-md py-0.5 pr-2 pl-0.5 text-xs leading-4 text-soft transition-colors duration-150 ease-calm hover:bg-hover hover:text-fg"
-      onClick={props.onAllFlows}
+      onClick={props.onAllScenes}
     >
       <svg viewBox="0 0 12 12" className="size-3.5 self-center" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
         <path d="M7.5 3L4.5 6l3 3" />
       </svg>
-      All flows
+      All scenes
     </button>
   );
   // Kept hidden, the marks say so on the line over the recording: centred watching one round, and side by side at the
@@ -1036,7 +1036,7 @@ export function Stage(props: Props) {
           {/* Taken over, the app opens like a portal from where you last pointed, and the ring of its opening settles into
               the frame's edge while you're in it. It's shown, and hidden, by the portal itself (useLayoutEffect below):
               see-through rather than hidden, as browsers stop drawing a hidden frame from another address, and the app
-              there would never settle. It's over all the recording draws, the veil of a flow's start or end too: only the
+              there would never settle. It's over all the recording draws, the veil of a scene's start or end too: only the
               ring, the edge and your pointer are over it. */}
           {number === round.number && props.live?.address && (
             <div data-live className="pointer-events-none absolute inset-0 z-10 overflow-hidden opacity-0">
@@ -1073,7 +1073,7 @@ export function Stage(props: Props) {
             data-ring
             className={`pointer-events-none absolute top-0 left-0 z-7 -mt-[17px] -ml-[17px] size-[34px] rounded-full border-[1.5px] border-[rgba(40,44,54,0.5)] bg-[rgba(40,44,54,0.06)] opacity-0 ${hideable}`}
           />
-          {/* The browser's own dialog the flow met, an alert, a confirm or a prompt: not in the page, so drawn here as
+          {/* The browser's own dialog the scene met, an alert, a confirm or a prompt: not in the page, so drawn here as
               the browser drew it, under the pointer. It belongs to the recording, so it looks the same in both themes. */}
           <div
             data-dialog
@@ -1110,9 +1110,9 @@ export function Stage(props: Props) {
               <span data-words />
             </span>
           </div>
-          {/* Between flows, the flow's name over the page its first step left, softened under a veil in the recorded
+          {/* Between scenes, the scene's name over the page its first step left, softened under a veil in the recorded
               app's background, in the app's ink and face: it belongs to the recording, so it looks the same in both
-              themes. The agent's line about the flow is under it, under the agent's name, in Playthrough's face: those are
+              themes. The agent's line about the scene is under it, under the agent's name, in Playthrough's face: those are
               the agent's words. */}
           <div
             data-card
@@ -1149,7 +1149,7 @@ export function Stage(props: Props) {
             {shown === round && props.bare === "kept" && bareOff("-mt-px ml-auto flex-none self-start")}
           </div>
         ))}
-      {/* The line over the frame says what you're looking at, in its middle, clear of All flows at its start: a round
+      {/* The line over the frame says what you're looking at, in its middle, clear of All scenes at its start: a round
           looked back at, or the next round in, or the round Compare shows over it. Marks hidden, kept, sits there in its
           place. */}
       {!earlier && props.bare !== "kept" && (
@@ -1180,7 +1180,7 @@ export function Stage(props: Props) {
       {/* Taken over, it rests with the rest of what drives the recording, and steps back with it in the app. */}
       {!earlier && toAll && (
         <div
-          ref={allFlows}
+          ref={allScenes}
           inert={!!props.live?.shown}
           className="absolute top-0 z-20 flex h-[26px] items-baseline px-0.5 pt-0.5 pb-1.5 text-xs"
           style={{ opacity: inPortal ? 0.32 : undefined, transition: `opacity 520ms ${PORTAL}` }}
@@ -1288,7 +1288,7 @@ const fit = (room: Size, shape: Size): Size => {
   return { width, height: Math.floor((width * shape.height) / shape.width) };
 };
 
-// Behind a flow's name over its picture, a glow of the page's own background, white unless it says otherwise, deepest
+// Behind a scene's name over its picture, a glow of the page's own background, white unless it says otherwise, deepest
 // under the words and gone at its edges: over the page it's not seen, and over whatever the page has there, the name
 // reads (Kan's own centred “Join workspace”).
 export const HALO = "relative isolate before:pointer-events-none before:absolute before:-inset-x-20 before:-inset-y-12 before:-z-1 before:bg-[radial-gradient(closest-side,rgb(var(--veil,255_255_255)/.92)_40%,rgb(var(--veil,255_255_255)/0))] before:content-['']";

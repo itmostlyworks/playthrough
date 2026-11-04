@@ -1,6 +1,6 @@
 // What's open sits beside its spot on the recording, where it covers neither the thing it's on nor that thing in the
 // round beside it, nor, where it can, what changed: to its right, its left, over it or under it, the first with room. A
-// note by its pin, the one you're writing by what it's on, or by where you clicked, a change by its outline. A flow's
+// note by its pin, the one you're writing by what it's on, or by where you clicked, a change by its outline. A scene's
 // question sits over its last frame. In the app, a note sits by its pin there (pinned). Where nothing marks the spot, it
 // stays where it opened; where its thing is still to be drawn, it waits for it, unseen, and once it's stood beside it, it
 // stays there while it's gone. It's placed as it opens, and as the recordings' layout changes (Compare on or off, the
@@ -32,7 +32,7 @@ const SETTLED = 120;
 // Taken over, a card about the recording rests with what drives it (resting, while the app is on its way or shown): it
 // answers nothing, goes once you're in the app, where it would cover what you're doing, and is there as it was when
 // you're back.
-// Standing (the flow's end, a place as its start is), the card over the last frame stands in its middle, wider.
+// Standing (the scene's end, a place as its start is), the card over the last frame stands in its middle, wider.
 export function Beside({ id, over, standing, still, resting, pinned, onAway, children }: { id?: string; over?: boolean; standing?: boolean; still?: boolean; resting?: "waiting" | "shown"; pinned?: () => Spot | undefined; onAway?: () => void; children?: ReactNode }) {
   const card = useRef<HTMLElement>(null);
   const opened = useRef<{ id?: string; at: Spot; since: number; side?: Side; put?: Spot; was?: Spot; last?: Spot; fromPin?: Spot; layout?: string; seen?: { layout: string; since: number }; gone?: boolean; shown?: boolean }>(undefined);
@@ -132,7 +132,7 @@ export function Beside({ id, over, standing, still, resting, pinned, onAway, chi
         if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
         box.animate(opening ? [{ opacity: 0, scale: 0.96 }, { opacity: 1, scale: 1 }] : [{ opacity: 0 }, { opacity: 1 }], { duration: opening ? 180 : 160, easing: "cubic-bezier(0.2, 0, 0, 1)" });
       };
-      // A flow's question sits over its last frame, clear of the bar. Only the round you're watching is where it sits:
+      // A scene's question sits over its last frame, clear of the bar. Only the round you're watching is where it sits:
       // not one held over it or beside it, or one you've been to and left.
       const shown = "[data-frame][data-watched]";
       const frame = over && document.querySelector<HTMLElement>(shown)?.getBoundingClientRect();
@@ -161,7 +161,7 @@ export function Beside({ id, over, standing, still, resting, pinned, onAway, chi
       const spot = found ? drawn! : new DOMRect(at.x, at.y, 0, 0);
       const pin = id ? document.querySelector<HTMLElement>(`${shown} [data-pin="${CSS.escape(id)}"]`)?.getBoundingClientRect() : undefined;
       const corner = pin?.width ? pin : spot;
-      // It stays above the action bar, as a flow's question does: the bar, and the timeline under it, are never covered.
+      // It stays above the action bar, as a scene's question does: the bar, and the timeline under it, are never covered.
       const bar = document.querySelector("[data-bar]")?.getBoundingClientRect();
       const floor = bar?.height ? bar.top - EDGE : innerHeight - EDGE;
       const fits = ({ x, y }: Spot) => x >= EDGE && x + w <= innerWidth - EDGE && y >= EDGE && y + h <= floor;

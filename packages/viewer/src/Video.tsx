@@ -1,9 +1,9 @@
-// A flow as a video: what Playthrough films when you save one. Only the recording, or it beside the round Compare shows,
-// as the viewer plays it: opening on the flow's name, and closing on its last frame softened, with Playthrough's mark
+// A scene as a video: what Playthrough films when you save one. Only the recording, or it beside the round Compare shows,
+// as the viewer plays it: opening on the scene's name, and closing on its last frame softened, with Playthrough's mark
 // where the name was. The command films it as it plays, through what this page offers it.
 
 import { useEffect, useRef, useState } from "react";
-import type { Flow, Review, Round } from "@playthrough/review";
+import type { Scene, Review, Round } from "@playthrough/review";
 import { useReview } from "./api.ts";
 import { HALO, Stage } from "./Stage.tsx";
 import { POSTER } from "./moments.ts";
@@ -11,7 +11,7 @@ import { Playhead } from "./playhead.ts";
 import { useReadings } from "./things.ts";
 
 // Drawn `larger` times its size, as Chromium films a page only at the size of its screen.
-export type Filmed = { round: number; flow: string; beside?: number; larger: number };
+export type Filmed = { round: number; scene: string; beside?: number; larger: number };
 
 declare global {
   interface Window {
@@ -30,14 +30,14 @@ export function Video({ id, filmed }: { id: string; filmed: Filmed }) {
   const review = useReview(id);
   if (!review || Array.isArray(review)) return null;
   const round = review.rounds.find((round) => round.number === filmed.round);
-  const flow = round?.flows.find((flow) => flow.name === filmed.flow);
+  const scene = round?.scenes.find((scene) => scene.name === filmed.scene);
   const beside = review.rounds.find((round) => round.number === filmed.beside);
-  return round && flow ? <Filming review={review} round={round} flow={flow} beside={beside} larger={filmed.larger} /> : null;
+  return round && scene ? <Filming review={review} round={round} scene={scene} beside={beside} larger={filmed.larger} /> : null;
 }
 
-function Filming({ review, round, flow, beside, larger }: { review: Review; round: Round; flow: Flow; beside?: Round; larger: number }) {
+function Filming({ review, round, scene, beside, larger }: { review: Review; round: Round; scene: Scene; beside?: Round; larger: number }) {
   const read = useReadings(review, beside ? [beside, round] : [round]);
-  const [playhead] = useState(() => new Playhead([flow], { flow: flow.name, at: POSTER }));
+  const [playhead] = useState(() => new Playhead([scene], { scene: scene.name, at: POSTER }));
   // Where the mark stands at the end: over the round's own frame, side by side too, where its name stood.
   const [ending, setEnding] = useState<Pick<CSSStyleDeclaration, "left" | "top" | "width" | "height">>();
   const over = useRef<HTMLDivElement>(null);
@@ -45,7 +45,7 @@ function Filming({ review, round, flow, beside, larger }: { review: Review; roun
   useEffect(() => {
     const wait = (seconds: number) => new Promise((done) => setTimeout(done, seconds * 1000));
     window.video = {
-      length: NAME - POSTER + flow.length + LAST + MARK,
+      length: NAME - POSTER + scene.length + LAST + MARK,
       play: async () => {
         await wait(NAME);
         playhead.play();

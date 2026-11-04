@@ -1,5 +1,5 @@
 // What's chosen on the stage opens beside the recording: a change, its card the agent's why and your note on it. And the
-// order Up and Down go through a flow's notes and changes in, and the mark a flow's Looks good wears.
+// order Up and Down go through a scene's notes and changes in, and the mark a scene's Looks good wears.
 
 import type { CSSProperties, ReactNode } from "react";
 import { Answer, Time } from "./Card.tsx";
@@ -26,15 +26,15 @@ export type Props = {
   onNote: (note: Shown) => void;
 };
 
-// A flow that just turned good, and when: its tick pops, in its question and the meter at once.
+// A scene that just turned good, and when: its tick pops, in its question and the meter at once.
 
-// A flow's notes and changes, as Up and Down go through them: a note on a moment and a change by their time, and a note
-// on the whole flow last, since it answers the flow as a whole. Settled, only what's still on its way stays.
+// A scene's notes and changes, as Up and Down go through them: a note on a moment and a change by their time, and a note
+// on the whole scene last, since it answers the scene as a whole. Settled, only what's still on its way stays.
 export type Row = ({ note: Shown } | { diamond: Diamond }) & { at: number };
-export function rowsIn(flow: string, notes: Shown[], diamonds: Diamond[], settled = false): Row[] {
+export function rowsIn(scene: string, notes: Shown[], diamonds: Diamond[], settled = false): Row[] {
   const rows: Row[] = [
-    ...notes.filter((note) => note.on?.flow === flow && (!settled || note.unsent || note.state === "with the agent")).map((note) => ({ note, at: note.on?.at ?? Infinity })),
-    ...diamonds.filter((diamond) => diamond.flow === flow && diamond.row && !settled).map((diamond) => ({ diamond, at: diamond.at })),
+    ...notes.filter((note) => note.on?.scene === scene && (!settled || note.unsent || note.state === "with the agent")).map((note) => ({ note, at: note.on?.at ?? Infinity })),
+    ...diamonds.filter((diamond) => diamond.scene === scene && diamond.row && !settled).map((diamond) => ({ diamond, at: diamond.at })),
   ];
   return rows.sort((a, b) => a.at - b.at);
 }
@@ -43,7 +43,7 @@ export function settles(standing: Standing | undefined, on: boolean) {
   return standing?.is === "good" && !on;
 }
 
-// What's chosen opens beside the recording: a change by its outline, and a flow's question over its last frame.
+// What's chosen opens beside the recording: a change by its outline, and a scene's question over its last frame.
 export function Chosen(props: Props) {
   const diamond = props.diamonds.find((diamond) => diamond.id === props.chosen);
   if (diamond && props.one) return <ChangeCard {...props} diamond={diamond} yours={props.notes.filter((note) => props.grown.get(note.id) === diamond.id)} />;
@@ -104,7 +104,7 @@ function ChangeCard(props: Props & { diamond: Diamond; yours: Shown[] }) {
   );
 }
 
-// A flow's end, drawn alike wherever it is, in its question over the last frame and capping the timeline: amber while it
+// A scene's end, drawn alike wherever it is, in its question over the last frame and capping the timeline: amber while it
 // asks you, with ↑ when what it asks is sending what you said in it; green and ticked once it looks good, the agent's
 // slate and ticked once what you said is with the agent. Ahead of the playhead on the timeline it's pale, as a note's dot
 // is. Answered, it pops in both at once. Square, as a round mark is a note.

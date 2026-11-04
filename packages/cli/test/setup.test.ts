@@ -82,13 +82,13 @@ describe("What setup sends the app", () => {
 });
 
 describe("How setup opens the app's pages", () => {
-  test("is up to it, but for what Playthrough keeps the same for every flow, or a flow sets with test.use", async () => {
+  test("is up to it, but for what Playthrough keeps the same for every scene, or a scene sets with test.use", async () => {
     const folder = await mkdtemp(join(tmpdir(), "playthrough-setup-"));
     try {
       await writeFile(join(folder, "setup.ts"), `export const use = { userAgent: "playwright" };\n`);
       assert.deepEqual((await setupIn(join(folder, "setup.ts"))).use, { userAgent: "playwright" });
       await writeFile(join(folder, "theirs.ts"), `export const use = { userAgent: "playwright", viewport: { width: 390, height: 844 }, locale: "sv-SE" };\n`);
-      await assert.rejects(setupIn(join(folder, "theirs.ts")), /playthrough\/setup\.ts's use sets viewport and locale, which Playthrough keeps the same for every flow, or a flow sets with test\.use, like its screen\. Take them out of use\./);
+      await assert.rejects(setupIn(join(folder, "theirs.ts")), /playthrough\/setup\.ts's use sets viewport and locale, which Playthrough keeps the same for every scene, or a scene sets with test\.use, like its screen\. Take them out of use\./);
     } finally {
       await rm(folder, { recursive: true, force: true });
     }

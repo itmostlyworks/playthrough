@@ -1,12 +1,12 @@
-// Starts a review: a title for the change, as a pull request has, what was asked, in the person's words, and the flows
+// Starts a review: a title for the change, as a pull request has, what was asked, in the person's words, and the scenes
 // that will show it, written before anything changes so they show the task as the person put it. Run again once they're
-// written, it tries the app's setup and keeps Before: the app as it is, which each flow is recorded on with its round.
+// written, it tries the app's setup and keeps Before: the app as it is, which each scene is recorded on with its round.
 
 import { basename } from "node:path";
 import { Refused } from "@playthrough/review";
 import { agent } from "./agent.ts";
 import { keepBefore } from "./before.ts";
-import { flowsOf, howToWriteFlows, makeFlowsFolder } from "./flows.ts";
+import { scenesOf, howToWriteScenes, makeScenesFolder } from "./scenes.ts";
 import { copies, repo as copyAt, type Repo } from "./repo.ts";
 import { trySetup } from "./try-setup.ts";
 
@@ -23,14 +23,14 @@ export async function start(repo: Repo, id: string, title?: string, asked?: stri
       ]);
     await repo.reviews.start(id, title, asked);
     await repo.keepOutOfGit();
-    await makeFlowsFolder(repo, id);
+    await makeScenesFolder(repo, id);
     return console.log(`Started ${id}: “${title}”.
 
-Write its flows before you change anything. They show what was asked, so write them from the task, not from the code.
+Write its scenes before you change anything. They show what was asked, so write them from the task, not from the code.
 
-${howToWriteFlows(repo, id)}
+${howToWriteScenes(repo, id)}
 
-Then run playthrough start ${id} again. It tries the app's setup, and keeps the app as it is as Before, to record each flow on with round 1, so the person can compare. If the app is new, there's no Before: go straight to the work.`);
+Then run playthrough start ${id} again. It tries the app's setup, and keeps the app as it is as Before, to record each scene on with round 1, so the person can compare. If the app is new, there's no Before: go straight to the work.`);
   }
 
   const review = await repo.reviews.get(id);
@@ -40,17 +40,17 @@ Then run playthrough start ${id} again. It tries the app's setup, and keeps the 
   if (last?.number === 0) throw new Refused([`Before is kept already. Change the app, then record round 1: playthrough record ${id}`]);
   if (last) throw new Refused([`Before is how the app was before the work, and ${id} has round ${last.number} already. Record the round being worked on: playthrough record ${id}`]);
 
-  await flowsOf(repo, id);
+  await scenesOf(repo, id);
   await trySetup(repo, `playthrough start ${id}`);
-  // Kept before anything changes, as the app the work starts from. Each flow is recorded on it with its round, doing what
-  // the round does, so nothing's recorded now: the flows are written for the work.
+  // Kept before anything changes, as the app the work starts from. Each scene is recorded on it with its round, doing what
+  // the round does, so nothing's recorded now: the scenes are written for the work.
   const commit = keepBefore(repo, id);
   if (commit) {
-    await repo.reviews.saveRound(id, { number: 0, by: agent(), flows: [], replies: [], accounts: {}, commit });
+    await repo.reviews.saveRound(id, { number: 0, by: agent(), scenes: [], replies: [], accounts: {}, commit });
     await repo.reviews.finish(id, 0);
   }
   console.log(`
-${commit ? "Kept Before: the app as it is now. Each flow is recorded on it with round 1, as far as the app as it was takes it, for the person to compare with." : "This folder isn't in git, or has no commits yet, so there's no Before: the app as it is can't be put back once you've changed it."}
+${commit ? "Kept Before: the app as it is now. Each scene is recorded on it with round 1, as far as the app as it was takes it, for the person to compare with." : "This folder isn't in git, or has no commits yet, so there's no Before: the app as it is can't be put back once you've changed it."}
 
-Now change the app. Keep each flow's name, and each step's while it does the same job: they're matched across rounds by name. Once the work is done, see that the flows show all of it a person would see: a choice of yours needs a step where no flow shows it yet, not a flow of its own. Then record round 1: playthrough record ${id}`);
+Now change the app. Keep each scene's name, and each step's while it does the same job: they're matched across rounds by name. Once the work is done, see that the scenes show all of it a person would see: a choice of yours needs a step where no scene shows it yet, not a scene of its own. Then record round 1: playthrough record ${id}`);
 }

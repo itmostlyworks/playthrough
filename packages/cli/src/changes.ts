@@ -1,10 +1,10 @@
-// What changed at one moment of a flow between two rounds, as the changes a person would name. What only follows from
+// What changed at one moment of a scene between two rounds, as the changes a person would name. What only follows from
 // another is told with it: what moved or grew with what holds it, and what was pushed along by something new, gone or
 // resized above or beside it. Things that swapped places, rows in a new order, and alike things changed alike are one
 // change each. A person reads a row, a list's item or a card as one thing: one new or gone is one change, and so are the
 // words one says now; the same change in each of them is one change, in as many places. Each is said in Playthrough's
 // fixed words, never the agent's, and its id is the thing and what happened to it, so the same change seen in another
-// flow, at another moment or against another round is the same one.
+// scene, at another moment or against another round is the same one.
 
 import { createHash } from "node:crypto";
 import { a, called, dataLeftOut, differences, HOLDS, holderOf, identity, lookWords, near, NEAR, parentOf, plural, rewordedPart, rewordedWords, sentence, symbolOnly, the, things, together, wayOf, word, WORD, type Difference, type Glimpse, type Item, type Reading, type Thing } from "@playthrough/page";

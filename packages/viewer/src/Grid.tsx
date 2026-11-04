@@ -1,10 +1,10 @@
-// Every flow at once: where you arrive on a round with more than one flow, and where "All flows" brings you back. The
-// work's name and where it stands, then its flows as a list, and beside them the frame the recording plays in, showing
-// the flow you point at as it opens, its name over its first picture. Each row says the flow's length and, in words, where it stands. Choosing one plays it, its picture
+// Every scene at once: where you arrive on a round with more than one scene, and where "All scenes" brings you back. The
+// work's name and where it stands, then its scenes as a list, and beside them the frame the recording plays in, showing
+// the scene you point at as it opens, its name over its first picture. Each row says the scene's length and, in words, where it stands. Choosing one plays it, its picture
 // growing into the frame. Under the frame, the one step to take.
 
 import { useRef, useState, type ReactNode, type RefObject } from "react";
-import { time, type Flow, type Review, type Round } from "@playthrough/review";
+import { time, type Scene, type Review, type Round } from "@playthrough/review";
 import { picture } from "./api.ts";
 import { EndMark, endOf } from "./Chosen.tsx";
 import { asWho, manyIn } from "./people.ts";
@@ -19,15 +19,15 @@ type Props = {
   review: Review;
   round: Round;
   up: boolean;
-  standing: (flow: string) => Standing | undefined;
-  needs: (flow: string) => boolean;
+  standing: (scene: string) => Standing | undefined;
+  needs: (scene: string) => boolean;
   // Accepted, how it got there, in fixed words.
   accepted?: string;
   step?: Step;
   // Why sending or accepting didn't go through.
   trouble: string[];
-  onFlow: (flow: string) => void;
-  // The flow you came back from, which the frame shows until you point at another: its picture is where it went home.
+  onScene: (scene: string) => void;
+  // The scene you came back from, which the frame shows until you point at another: its picture is where it went home.
   back?: string;
   // The rounds, under the work's name: going back through them flips every picture at once, and once you've sent, the
   // next round coming, and in.
@@ -38,24 +38,24 @@ type Props = {
 
 export function Grid(props: Props) {
   const { review, round, up, step } = props;
-  // The flow you point at stays in the frame until you leave the list and the frame both, so you can go across to it.
-  // Otherwise it's the flow you came back from, or the flow the step goes to, or the one it last went to: a step that
-  // goes to no flow, such as a round arriving, changes nothing in the frame.
+  // The scene you point at stays in the frame until you leave the list and the frame both, so you can go across to it.
+  // Otherwise it's the scene you came back from, or the scene the step goes to, or the one it last went to: a step that
+  // goes to no scene, such as a round arriving, changes nothing in the frame.
   const [pointed, setPointed] = useState<string>();
   const stepped = useRef<string>(undefined);
-  if (step?.kind === "go" && step.flow) stepped.current = step.flow;
-  const toCheck = round.flows.filter((flow) => props.needs(flow.name)).length;
-  const shown = round.flows.find((flow) => flow.name === (pointed ?? props.back)) ?? round.flows.find((flow) => flow.name === stepped.current) ?? round.flows[0]!;
+  if (step?.kind === "go" && step.scene) stepped.current = step.scene;
+  const toCheck = round.scenes.filter((scene) => props.needs(scene.name)).length;
+  const shown = round.scenes.find((scene) => scene.name === (pointed ?? props.back)) ?? round.scenes.find((scene) => scene.name === stepped.current) ?? round.scenes[0]!;
 
-  const row = (flow: Flow) => (
-    <Row key={flow.name} review={review} round={round} flow={flow} standing={props.standing(flow.name)} on={flow === shown} onPoint={setPointed} onFlow={props.onFlow} />
+  const row = (scene: Scene) => (
+    <Row key={scene.name} review={review} round={round} scene={scene} standing={props.standing(scene.name)} on={scene === shown} onPoint={setPointed} onScene={props.onScene} />
   );
   const left = review.accepted ? null : toCheck ? (
     <>
       {" "}
       <ToCheck count={toCheck} className="ml-1.5" />
     </>
-  ) : round.flows.every((flow) => props.standing(flow.name)?.is === "good") ? (
+  ) : round.scenes.every((scene) => props.standing(scene.name)?.is === "good") ? (
     " · All good"
   ) : null;
 
@@ -72,11 +72,11 @@ export function Grid(props: Props) {
             </div>
           </div>
           <div className="-mx-1 mt-5 min-h-0 overflow-y-auto px-1">
-            {round.flows.map(row)}
+            {round.scenes.map(row)}
           </div>
         </div>
         <div className="flex min-w-0 flex-col justify-center">
-          <Opening review={review} round={round} flow={shown} onFlow={props.onFlow} />
+          <Opening review={review} round={round} scene={shown} onScene={props.onScene} />
           <div className="mt-3 flex min-h-8 items-start justify-end gap-2">
             <div className="w-[300px] max-w-full">
               {step?.kind === "go" && <Go step={step} className="w-full gap-3" />}
@@ -96,11 +96,11 @@ export const SPREAD = "m-auto grid w-full max-w-[1240px] grid-cols-[320px_minmax
 export const LIST = "flex max-h-[calc(100dvh-140px)] min-h-0 flex-col phone:max-h-none";
 export const FRAME = "relative aspect-[1.6] w-full max-w-[calc((100dvh-200px)*1.6)] self-center overflow-hidden rounded-lg bg-paper shadow-frame";
 
-// How many flows wait for you, after the round's name, a dot of amber before it.
+// How many scenes wait for you, after the round's name, a dot of amber before it.
 export function ToCheck({ count, className = "" }: { count: number; className?: string }) {
   return (
     <span className={`${className} whitespace-nowrap text-fg before:mr-[5px] before:mb-px before:ml-px before:inline-block before:size-1.5 before:rounded-full before:bg-amber before:align-middle before:content-['']`}>
-      {count} {count === 1 ? "flow" : "flows"} to check
+      {count} {count === 1 ? "scene" : "scenes"} to check
     </span>
   );
 }
@@ -109,33 +109,33 @@ export function ToCheck({ count, className = "" }: { count: number; className?: 
 export const ROW = "group/row grid w-full grid-cols-[64px_minmax(0,1fr)_auto] items-center gap-x-3 rounded-lg p-2 text-left transition-colors duration-150 ease-calm hover:bg-hover data-on:bg-hover";
 export const THUMB = "relative block aspect-[1.6] overflow-hidden rounded-[5px] bg-paper shadow-frame";
 
-// A flow in the list, a thing of its own: its picture, its name and length, and under them where it stands, as its square
+// A scene in the list, a thing of its own: its picture, its name and length, and under them where it stands, as its square
 // at its end says it, and in words: what asks something of you in amber, what's the agent's in its slate, what looks
 // good in green, and not watched yet quietly, its square pale, as everything starts.
-function Row({ review, round, flow, standing, on, onPoint, onFlow }: { review: Review; round: Round; flow: Flow; standing?: Standing; on: boolean; onPoint: (flow: string) => void; onFlow: (flow: string) => void }) {
+function Row({ review, round, scene, standing, on, onPoint, onScene }: { review: Review; round: Round; scene: Scene; standing?: Standing; on: boolean; onPoint: (scene: string) => void; onScene: (scene: string) => void }) {
   return (
     <button
       data-on={on ? "" : undefined}
       className={ROW}
-      aria-label={`Play ${flow.name}${standing ? `. ${says(standing)}` : ""}`}
-      onPointerEnter={() => onPoint(flow.name)}
-      onFocus={() => onPoint(flow.name)}
-      onClick={() => onFlow(flow.name)}
+      aria-label={`Play ${scene.name}${standing ? `. ${says(standing)}` : ""}`}
+      onPointerEnter={() => onPoint(scene.name)}
+      onFocus={() => onPoint(scene.name)}
+      onClick={() => onScene(scene.name)}
     >
       <span className={THUMB}>
-        <Picture shot={useStill(review, round, flow)} />
+        <Picture shot={useStill(review, round, scene)} />
       </span>
       <span className="grid min-w-0">
         <span className="line-clamp-2 text-[13px] leading-[18px] text-fg">
-          {flow.name}
-          {manyIn(review) && <span className="text-soft"> {asWho(flow)}</span>}
+          {scene.name}
+          {manyIn(review) && <span className="text-soft"> {asWho(scene)}</span>}
         </span>
         <span className="mt-0.5 flex min-w-0 items-center gap-1 text-xs leading-4">
           {standing && <EndMark end={endOf(standing)} ahead={standing.is === "to watch"} just={false} className="size-3 flex-none" />}
           {standing && <span className={`truncate ${INK[standing.is]}`}>{says(standing)}</span>}
         </span>
       </span>
-      <span className="self-start text-xs leading-[18px] text-faint tabular-nums">{time(flow.length)}</span>
+      <span className="self-start text-xs leading-[18px] text-faint tabular-nums">{time(scene.length)}</span>
     </button>
   );
 }
@@ -151,27 +151,27 @@ const INK: Record<Standing["is"], string> = {
   "with the agent": "text-slate",
 };
 
-// The frame, as the flow opens in it: its name over its first picture, softened under a veil in the recorded app's
-// background and in its ink and face, a glow of it behind the words, as the stage draws it between flows. It's the picture that grows into the frame
-// the flow plays in.
-function Opening({ review, round, flow, onFlow }: { review: Review; round: Round; flow: Flow; onFlow: (flow: string) => void }) {
+// The frame, as the scene opens in it: its name over its first picture, softened under a veil in the recorded app's
+// background and in its ink and face, a glow of it behind the words, as the stage draws it between scenes. It's the picture that grows into the frame
+// the scene plays in.
+function Opening({ review, round, scene, onScene }: { review: Review; round: Round; scene: Scene; onScene: (scene: string) => void }) {
   return (
     <button
-      data-picture={flow.name}
+      data-picture={scene.name}
       className={`${FRAME} data-flying:invisible`}
-      aria-label={`Play ${flow.name}`}
-      onClick={() => onFlow(flow.name)}
+      aria-label={`Play ${scene.name}`}
+      onClick={() => onScene(scene.name)}
     >
-      <Picture key={flow.name} shot={{ src: picture(review.id, round.number, flow.recording, 0) }} />
+      <Picture key={scene.name} shot={{ src: picture(review.id, round.number, scene.recording, 0) }} />
       <Veiled>
-        {flow.name}
-        {manyIn(review) && asWho(flow) && <span className="font-ui text-[14px] leading-[1.4] font-normal tracking-normal text-[#6c707a]">{asWho(flow)}</span>}
+        {scene.name}
+        {manyIn(review) && asWho(scene) && <span className="font-ui text-[14px] leading-[1.4] font-normal tracking-normal text-[#6c707a]">{asWho(scene)}</span>}
       </Veiled>
     </button>
   );
 }
 
-// Words over a picture in the frame, as a flow's name stands over it as it opens.
+// Words over a picture in the frame, as a scene's name stands over it as it opens.
 export function Veiled({ children }: { children: ReactNode }) {
   return (
     <span className="absolute inset-0 grid place-content-center bg-[rgba(247,247,245,.45)] p-4 text-center font-recorded text-[20px] leading-[1.2] font-medium tracking-[-0.01em] text-[#222222]">

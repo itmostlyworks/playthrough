@@ -1,22 +1,22 @@
-// What's worked out for each person, never kept: where you last looked at each flow, what's new to you, which notes wait
-// for you, whether a flow is good for you, and whether you can accept. A note has one state for everyone, the last word on
-// it; Looks good on a flow, and accepting, are each person's own.
+// What's worked out for each person, never kept: where you last looked at each scene, what's new to you, which notes wait
+// for you, whether a scene is good for you, and whether you can accept. A note has one state for everyone, the last word on
+// it; Looks good on a scene, and accepting, are each person's own.
 
 import type { Change, Place, Review } from "./model.ts";
 import { accountOf, allNotes, conversation, inOrderJoined, problemsAccepting, waitingForTheAgent, type Turn } from "./rules.ts";
 
-// The last round before `before` you said something about a flow on: a note in it, a verdict on an answer in it, or
-// Looks good on it, or taking that back. Once you have, you've seen what's in it. Nothing for a flow you haven't.
-export function lastLooked(review: Review, you: string, flow: string, before = Infinity): number | undefined {
+// The last round before `before` you said something about a scene on: a note in it, a verdict on an answer in it, or
+// Looks good on it, or taking that back. Once you have, you've seen what's in it. Nothing for a scene you haven't.
+export function lastLooked(review: Review, you: string, scene: string, before = Infinity): number | undefined {
   const notes = allNotes(review);
   const rounds = review.sends
     .filter((send) => send.by === you && send.round < before)
     .filter(
       (send) =>
-        send.looksGood.includes(flow) ||
-        !!send.takenBack?.includes(flow) ||
-        send.notes.some((note) => note.on?.flow === flow) ||
-        send.verdicts.some((verdict) => notes.get(verdict.note)?.note.on?.flow === flow),
+        send.looksGood.includes(scene) ||
+        !!send.takenBack?.includes(scene) ||
+        send.notes.some((note) => note.on?.scene === scene) ||
+        send.verdicts.some((verdict) => notes.get(verdict.note)?.note.on?.scene === scene),
     )
     .map((send) => send.round);
   return rounds.length ? Math.max(...rounds) : undefined;
@@ -25,16 +25,16 @@ export function lastLooked(review: Review, you: string, flow: string, before = I
 // A change new to you, told once, where you'll meet it, and the round it's new since.
 export type Shown = { change: Change; on: Place; since: number };
 
-// What's new to you on a round: each change that's different from the last round you looked at any flow it's in, or
-// from Before when you've looked at none of them. It's told in the flow of the note it was made for, or else the first
-// flow that shows it, in the order the flows joined the review. What the agent says isn't real is never told.
+// What's new to you on a round: each change that's different from the last round you looked at any scene it's in, or
+// from Before when you've looked at none of them. It's told in the scene of the note it was made for, or else the first
+// scene that shows it, in the order the scenes joined the review. What the agent says isn't real is never told.
 export function newToYou(review: Review, round: number, you: string): Shown[] {
   const recorded = review.rounds.find((kept) => kept.number === round);
   const first = review.rounds[0]?.number;
   if (!recorded || first === undefined) return [];
   const comparisons = review.comparisons.filter((comparison) => comparison.round === round);
   const notes = allNotes(review);
-  const order = recorded.flows.map((flow) => flow.name);
+  const order = recorded.scenes.map((scene) => scene.name);
   const joined = inOrderJoined(review);
 
   const found = comparisons.flatMap((comparison) => comparison.changes);
@@ -42,18 +42,18 @@ export function newToYou(review: Review, round: number, you: string): Shown[] {
   for (const id of new Set(found.map((change) => change.id))) {
     const account = accountOf(review, round, id);
     if (account && "notReal" in account) continue;
-    const flows = new Set(found.filter((change) => change.id === id).flatMap((change) => change.seen.map((seen) => seen.flow)));
-    const looked = [...flows].map((flow) => lastLooked(review, you, flow, round)).filter((looked) => looked !== undefined);
+    const scenes = new Set(found.filter((change) => change.id === id).flatMap((change) => change.seen.map((seen) => seen.scene)));
+    const looked = [...scenes].map((scene) => lastLooked(review, you, scene, round)).filter((looked) => looked !== undefined);
     const since = looked.length ? Math.max(...looked) : first;
     const change = comparisons.find((comparison) => comparison.since === since)?.changes.find((change) => change.id === id);
     if (!change) continue; // the same as when you last looked
 
-    const noted = account && "note" in account ? notes.get(account.note)?.note.on?.flow : undefined;
-    const flow = [noted, ...joined].find((name) => change.seen.some((seen) => seen.flow === name)) ?? change.seen[0]!.flow;
-    const on = change.seen.filter((seen) => seen.flow === flow).sort((a, b) => (a.at ?? 0) - (b.at ?? 0))[0]!;
+    const noted = account && "note" in account ? notes.get(account.note)?.note.on?.scene : undefined;
+    const scene = [noted, ...joined].find((name) => change.seen.some((seen) => seen.scene === name)) ?? change.seen[0]!.scene;
+    const on = change.seen.filter((seen) => seen.scene === scene).sort((a, b) => (a.at ?? 0) - (b.at ?? 0))[0]!;
     shown.push({ change, on, since });
   }
-  return shown.sort((a, b) => order.indexOf(a.on.flow) - order.indexOf(b.on.flow) || (a.on.at ?? 0) - (b.on.at ?? 0));
+  return shown.sort((a, b) => order.indexOf(a.on.scene) - order.indexOf(b.on.scene) || (a.on.at ?? 0) - (b.on.at ?? 0));
 }
 
 // Your notes are the ones you asked the agent about, up to this round: you wrote them, or sent an answer on them back.
@@ -77,25 +77,25 @@ export function waitingForYou(review: Review, round: number, you: string): strin
   return [...yourNotes(review, round, you)].filter(([, turns]) => toJudge(turns)).map(([id]) => id);
 }
 
-// A flow is good for you once you've said it looks good, while nothing new to you is told in it on the rounds since and
+// A scene is good for you once you've said it looks good, while nothing new to you is told in it on the rounds since and
 // none of your notes in it waits, for you or for the agent.
-export function goodForYou(review: Review, round: number, you: string, flow: string): boolean {
+export function goodForYou(review: Review, round: number, you: string, scene: string): boolean {
   // Your last word on it holds: Looks good, or taking that back.
-  const last = review.sends.findLast((send) => send.by === you && send.round <= round && (send.looksGood.includes(flow) || send.takenBack?.includes(flow)));
-  if (!last?.looksGood.includes(flow)) return false;
+  const last = review.sends.findLast((send) => send.by === you && send.round <= round && (send.looksGood.includes(scene) || send.takenBack?.includes(scene)));
+  if (!last?.looksGood.includes(scene)) return false;
   for (let later = last.round + 1; later <= round; later++)
-    if (newToYou(review, later, you).some((shown) => shown.on.flow === flow)) return false;
+    if (newToYou(review, later, you).some((shown) => shown.on.scene === scene)) return false;
 
   const notes = allNotes(review);
   const yours = yourNotes(review, round, you);
   const waiting = [...waitingForYou(review, round, you), ...waitingForTheAgent(review).filter((id) => yours.has(id))];
-  return !waiting.some((id) => notes.get(id)?.note.on?.flow === flow);
+  return !waiting.some((id) => notes.get(id)?.note.on?.scene === scene);
 }
 
-// You can accept once every flow of the latest round is good for you, nothing waits for you, and nothing waits for the
+// You can accept once every scene of the latest round is good for you, nothing waits for you, and nothing waits for the
 // agent. Anyone can: everyone else's judgement shows with their name, and people can be trusted to read it.
 export function readyToAccept(review: Review, you: string): boolean {
   const latest = review.rounds.findLast((round) => round.finished && round.number > 0);
   if (!latest || problemsAccepting(review, you).length || waitingForYou(review, latest.number, you).length) return false;
-  return latest.flows.every((flow) => goodForYou(review, latest.number, you, flow.name));
+  return latest.scenes.every((scene) => goodForYou(review, latest.number, you, scene.name));
 }

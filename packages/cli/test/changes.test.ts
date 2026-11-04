@@ -179,13 +179,13 @@ describe("What changed at a moment", () => {
   test("words that kept most of what they said, with a sentence added, are those words reworded, marked by what reads differently, wherever they moved; and what only moved down for something new above it is part of that (the site's close)", async () => {
     const close = (more: string) => `<h2>Try it on your agent's next change.</h2><p>Open source, on your machine, with any web app. <span style="display: block">It records with Playwright.</span>${more}</p><button>Copy</button>`;
     const then = `<h1>Playthrough</h1>${close("")}`;
-    const now = `<h1>Playthrough</h1><section style="height: 600px"><h2>Everything your agents built, ready to watch.</h2></section>${close('<span style="display: block">Any flow downloads as a video.</span>')}`;
+    const now = `<h1>Playthrough</h1><section style="height: 600px"><h2>Everything your agents built, ready to watch.</h2></section>${close('<span style="display: block">Any scene downloads as a video.</span>')}`;
     const found = await changes(then, now);
     assert.deepEqual(
       found.map((change) => [change.words, change.reworded]),
       [
         ["Everything your agents built, ready to watch. heading is new, and moved the Try it on your agent's next change. heading down", undefined],
-        ["“…with Playwright.” now says “…with Playwright. Any flow downloads as a video.”, and moved the Copy button down", "Any flow downloads as a video."],
+        ["“…with Playwright.” now says “…with Playwright. Any scene downloads as a video.”, and moved the Copy button down", "Any scene downloads as a video."],
       ],
     );
   });

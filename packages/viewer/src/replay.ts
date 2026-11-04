@@ -1,4 +1,4 @@
-// One flow's recording, replayed by rrweb in a page of its own and moved to the moment the playhead says: forward a
+// One scene's recording, replayed by rrweb in a page of its own and moved to the moment the playhead says: forward a
 // little at a time, or rebuilt from its first frame to go back. The page's own motion follows the playback speed, holds
 // where you pause, and is already over where you jump to. Its pointer and clicks are read from the recording's own
 // events, for Playthrough to draw over it.
@@ -10,7 +10,7 @@ export type Events = eventWithTime[];
 export type Rect = { left: number; top: number; width: number; height: number };
 export type Scrolled = { x: number; y: number; parts: { path: string; x: number; y: number }[] };
 
-// The screen a recording is on from a moment: a flow handed to someone else carries on on their screen, a phone's
+// The screen a recording is on from a moment: a scene handed to someone else carries on on their screen, a phone's
 // tapped, with no pointer between taps, so none is drawn.
 export type Shape = { from: number; width: number; height: number; touch: boolean };
 
@@ -22,7 +22,7 @@ export type Recorded = {
   loads: number[];
   // Where the pointer was, as [seconds, x, y], and when it clicked.
   pointer: [number, number, number][];
-  // When the hand was out of the app: in a recording you made by taking a flow over, going to Playthrough's own controls.
+  // When the hand was out of the app: in a recording you made by taking a scene over, going to Playthrough's own controls.
   away: [number, number][];
   clicks: number[];
   // The moments its page changes: a click, something on the page changing, typing or a scroll.
@@ -169,7 +169,7 @@ export class Replay {
   // The screen the page is shown on now, which rrweb changes with it as someone else's page loads.
   #shape: Shape;
   // The page is first drawn a few milliseconds in. Moved to before that, rrweb draws nothing and keeps whatever it
-  // showed, so a flow's first frame would show its end.
+  // showed, so a scene's first frame would show its end.
   #drawn: number;
   #at = -1;
   #scrolls: Recorded["scrolls"];
@@ -222,7 +222,7 @@ export class Replay {
     this.#replayer.pause(this.#drawn);
   }
 
-  // The page at a moment of its recording, in seconds. Before its start, while the flow's name is up, its first frame.
+  // The page at a moment of its recording, in seconds. Before its start, while the scene's name is up, its first frame.
   show(at: number, playing: boolean, speed: number) {
     const ms = Math.max(Math.round(Math.max(0, at) * 1000), this.#drawn);
     const moved = ms !== this.#at;

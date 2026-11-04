@@ -1,4 +1,4 @@
-// A flow that fails costs the agent one look at the page it stopped on, not a whole run to see it again: what Playwright
+// A scene that fails costs the agent one look at the page it stopped on, not a whole run to see it again: what Playwright
 // wrote of it stays in the review's folder, and the next round runs it first.
 
 import assert from "node:assert/strict";
@@ -7,14 +7,14 @@ import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, test } from "node:test";
-import { failedLastTime, keepFailed, whereItStopped } from "../src/flows.ts";
+import { failedLastTime, keepFailed, whereItStopped } from "../src/scenes.ts";
 import { repo, type Repo } from "../src/repo.ts";
 
 let root = "";
 let app: Repo;
 const was = process.cwd();
 
-// What Playwright leaves after a run: the page a flow failed on, an empty folder for one that passed, and its own notes.
+// What Playwright leaves after a run: the page a scene failed on, an empty folder for one that passed, and its own notes.
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), "playthrough-failed-"));
   process.chdir(root);
@@ -30,13 +30,13 @@ afterEach(async () => {
   await rm(root, { recursive: true });
 });
 
-const copy = { flow: "Filter the board to the Copy cards", at: "Clear the filter" };
+const copy = { scene: "Filter the board to the Copy cards", at: "Clear the filter" };
 
-describe("A flow that fails", () => {
+describe("A scene that fails", () => {
   test("in a round, the page it stopped on is kept, and it's run first next time", async () => {
     await keepFailed(app, "list-counts", [copy]);
-    assert.deepEqual(await left(), ["filter-copy", "flows.json"], "and nothing of the flows that passed");
-    assert.deepEqual(await failedLastTime(app, "list-counts"), [copy.flow]);
+    assert.deepEqual(await left(), ["filter-copy", "scenes.json"], "and nothing of the scenes that passed");
+    assert.deepEqual(await failedLastTime(app, "list-counts"), [copy.scene]);
   });
 
   test("once a run has none failed, what was kept goes", async () => {
@@ -48,6 +48,6 @@ describe("A flow that fails", () => {
 
   test("the refusal ends with where to look, as a person in the app's folder would type it", () => {
     assert.equal(whereItStopped(app, "list-counts", [copy]), "What the page held where it stopped is in .playthrough/list-counts/failed/.");
-    assert.equal(whereItStopped(app, "list-counts", [copy, { flow: "Count the cards" }]), "What the page held where each stopped is in .playthrough/list-counts/failed/.");
+    assert.equal(whereItStopped(app, "list-counts", [copy, { scene: "Count the cards" }]), "What the page held where each stopped is in .playthrough/list-counts/failed/.");
   });
 });

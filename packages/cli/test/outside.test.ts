@@ -1,4 +1,4 @@
-// A flow whose steps do something outside the app, an email sent or a card charged, says so in its file, and Playthrough runs
+// A scene whose steps do something outside the app, an email sent or a card charged, says so in its file, and Playthrough runs
 // it only when it's taken over: ahead of the playhead, each pause would do it again.
 
 import assert from "node:assert/strict";
@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { after, before, test } from "node:test";
-import { ALONGSIDE } from "../src/flows.ts";
+import { ALONGSIDE } from "../src/scenes.ts";
 
 let folder = "";
 before(async () => {
@@ -34,23 +34,23 @@ test("Look at the invites", async () => {});
 });
 after(() => rm(folder, { recursive: true }));
 
-async function flowsOf(file: string) {
+async function scenesOf(file: string) {
   (globalThis as Record<symbol, unknown>)[ALONGSIDE] = true;
-  const { flowsIn } = await import("../src/test.ts");
-  const flows = await flowsIn(join(folder, file), 1);
-  return [...flows].map(([name, kept]) => [name, kept.outside]);
+  const { scenesIn } = await import("../src/test.ts");
+  const scenes = await scenesIn(join(folder, file), 1);
+  return [...scenes].map(([name, kept]) => [name, kept.outside]);
 }
 
-test("a flow's file says what it does outside the app, and only that flow is kept as reaching outside", async () => {
-  assert.deepEqual(await flowsOf("team.spec.ts"), [
+test("a scene's file says what it does outside the app, and only that scene is kept as reaching outside", async () => {
+  assert.deepEqual(await scenesOf("team.spec.ts"), [
     ["Invite Sam", "sends Sam an email"],
     ["Rename the team", undefined],
     ["Look at the team", undefined],
   ]);
 });
 
-test("a describe() says it for each flow in it, unless the flow says it for itself", async () => {
-  assert.deepEqual(await flowsOf("invites.spec.ts"), [
+test("a describe() says it for each scene in it, unless the scene says it for itself", async () => {
+  assert.deepEqual(await scenesOf("invites.spec.ts"), [
     ["Invite Kim", "sends an email"],
     ["Invite Lee", "sends Lee a text"],
     ["Look at the invites", undefined],

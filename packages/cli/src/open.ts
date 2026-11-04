@@ -11,7 +11,7 @@ import { extname, join, normalize, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Reading } from "@playthrough/page";
 import { Refused, type Did, type Send } from "@playthrough/review";
-import { BEAT } from "./flows.ts";
+import { BEAT } from "./scenes.ts";
 import { copies, repo as copyAt, type Repo } from "./repo.ts";
 import { readyIn } from "./following.ts";
 import { getReady, keepUp } from "./take-over.ts";
@@ -173,23 +173,23 @@ async function waiting(repo: Repo, id: string, request: IncomingMessage, respons
   });
 }
 
-// A moment of a flow made ready to take over: the viewer asks while the playhead rests on it, and shows the app there,
+// A moment of a scene made ready to take over: the viewer asks while the playhead rests on it, and shows the app there,
 // through Playthrough, at the port and moment this answers with.
 async function takeOver(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
-  const { flow, step, actions, did, notes, ahead } = await body<{ flow: string; step?: string; actions?: number; did?: Did[]; notes?: string[]; ahead?: boolean }>(request);
-  const { port, moment } = await getReady(repo, id, flow, { step, actions, did, notes, ahead });
+  const { scene, step, actions, did, notes, ahead } = await body<{ scene: string; step?: string; actions?: number; did?: Did[]; notes?: string[]; ahead?: boolean }>(request);
+  const { port, moment } = await getReady(repo, id, scene, { step, actions, did, notes, ahead });
   json(response, 200, { port, moment });
 }
 
-// What a person did in the app, taken over, kept as a recording of its own: the flow as it was recorded up to where they
-// took it over, then theirs, going on from there. It plays like any flow, with what the flow's recording kept of the
+// What a person did in the app, taken over, kept as a recording of its own: the scene as it was recorded up to where they
+// took it over, then theirs, going on from there. It plays like any scene, with what the scene's recording kept of the
 // app's files, and a note on it is on what they saw. Each time it's kept, it's kept whole, under a new name, as what
 // the viewer has fetched once it keeps.
 async function branch(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
-  const { round, flow: name, at, events, recording } = await body<{ round: number; flow: string; at: number; events: Event[]; recording: string }>(request);
-  const flow = (await repo.reviews.get(id)).rounds.find((kept) => kept.number === round)?.flows.find((flow) => flow.name === name);
-  const was = flow && (await repo.reviews.file(id, round, flow.recording));
-  if (!flow || !was || !events.length) return json(response, 404, { problems: [`Round ${round} of ${id} has no recording of “${name}” to branch off.`] });
+  const { round, scene: name, at, events, recording } = await body<{ round: number; scene: string; at: number; events: Event[]; recording: string }>(request);
+  const scene = (await repo.reviews.get(id)).rounds.find((kept) => kept.number === round)?.scenes.find((scene) => scene.name === name);
+  const was = scene && (await repo.reviews.file(id, round, scene.recording));
+  if (!scene || !was || !events.length) return json(response, 404, { problems: [`Round ${round} of ${id} has no recording of “${name}” to branch off.`] });
   const before: Event[] = JSON.parse(Buffer.from(was).toString("utf8"));
   const start = before[0]!.timestamp;
   const then = start + at * 1000;
@@ -198,17 +198,17 @@ async function branch(repo: Repo, id: string, request: IncomingMessage, response
   const joined = [...before.filter((event) => event.timestamp <= then), ...yours.filter((event) => !readingOf(event))];
   await repo.reviews.saveBranch(id, recording, Buffer.from(JSON.stringify(joined)));
   // As the app read itself while you were in it. Only yours: the page there is recorded afresh, its elements numbered
-  // anew, so the flow's readings from before would name the wrong things.
+  // anew, so the scene's readings from before would name the wrong things.
   const readings = yours.filter(readingOf).map((event) => ({ step: "In the app", at: (event.timestamp - start) / 1000, ...readingOf(event)! }));
   await repo.reviews.saveBranch(id, `readings/${recording}`, Buffer.from(JSON.stringify(readings)));
-  const kept = await repo.reviews.file(id, round, `assets/${flow.recording}`);
+  const kept = await repo.reviews.file(id, round, `assets/${scene.recording}`);
   if (kept) await repo.reviews.saveBranch(id, `assets/${recording}`, kept);
   json(response, 200, { length: (joined.at(-1)!.timestamp - start) / 1000 });
 }
 
 type Event = { timestamp: number; type?: number; data?: { tag?: string; payload?: Pick<Reading, "screen" | "things"> } };
 // Watched later, yours keeps its pace while you act, but a while spent looking, when nothing happened, goes by in a
-// flow's pause.
+// scene's pause.
 function paced(events: Event[]): Event[] {
   let cut = 0;
   return events.map((event, i) => {
@@ -218,17 +218,17 @@ function paced(events: Event[]): Event[] {
 }
 const readingOf = (event: Event) => (event.type === 5 && event.data?.tag === "reading" ? event.data.payload : undefined);
 
-// A flow as a video, alone or beside the round Compare shows, at the size of the largest screen it's recorded on.
+// A scene as a video, alone or beside the round Compare shows, at the size of the largest screen it's recorded on.
 async function saveVideo(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
   const filmed = await body<Filmed>(request);
   const rounds = (await repo.reviews.get(id)).rounds.filter((round) => round.number === filmed.round || round.number === filmed.beside);
   const screens: { width: number; height: number }[] = [];
   for (const round of rounds) {
-    const flow = round.flows.find((flow) => flow.name === filmed.flow);
-    const kept = flow && (await repo.reviews.file(id, round.number, flow.recording));
+    const scene = round.scenes.find((scene) => scene.name === filmed.scene);
+    const kept = scene && (await repo.reviews.file(id, round.number, scene.recording));
     if (kept) for (const event of JSON.parse(Buffer.from(kept).toString("utf8")) as { type: number; data: { width?: number; height?: number } }[]) if (event.type === 4) screens.push(event.data as { width: number; height: number });
   }
-  if (!screens.length) return json(response, 404, { problems: [`Round ${filmed.round} of ${id} has no recording of “${filmed.flow}”.`] });
+  if (!screens.length) return json(response, 404, { problems: [`Round ${filmed.round} of ${id} has no recording of “${filmed.scene}”.`] });
   const shape = { width: Math.max(...screens.map((screen) => screen.width)), height: Math.max(...screens.map((screen) => screen.height)) };
   // A line at a time while it's made: how long it has left, then the video, or what went wrong.
   response.writeHead(200, { "content-type": "application/x-ndjson", "cache-control": "no-store" });
@@ -243,14 +243,14 @@ async function saveVideo(repo: Repo, id: string, request: IncomingMessage, respo
 
 // How long until a moment asked for is ready, for the viewer to count down to, if it can be known.
 async function readyInFor(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
-  const { flow, step, actions } = await body<{ flow: string; step?: string; actions?: number }>(request);
-  json(response, 200, { in: await readyIn(repo, id, { flow, step, actions }) });
+  const { scene, step, actions } = await body<{ scene: string; step?: string; actions?: number }>(request);
+  json(response, 200, { in: await readyIn(repo, id, { scene, step, actions }) });
 }
 
-// Where the playhead has got to while the latest round plays, for the flow run alongside it.
+// Where the playhead has got to while the latest round plays, for the scene run alongside it.
 async function followAlong(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
-  const { flow, step, actions } = await body<{ flow: string; step?: string; actions?: number }>(request);
-  await keepUp(repo, id, flow, step, actions);
+  const { scene, step, actions } = await body<{ scene: string; step?: string; actions?: number }>(request);
+  await keepUp(repo, id, scene, step, actions);
   json(response, 200, {});
 }
 

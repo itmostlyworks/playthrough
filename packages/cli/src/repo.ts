@@ -1,5 +1,5 @@
-// Where Playthrough keeps things in the app's repo: each review in .playthrough/, out of git, with the flows written for it,
-// and how to start the app in playthrough/app.json, which is committed so every review uses it. While a flow added later
+// Where Playthrough keeps things in the app's repo: each review in .playthrough/, out of git, with the scenes written for it,
+// and how to start the app in playthrough/app.json, which is committed so every review uses it. While a scene added later
 // records on Before, where the agent's work is set aside is written down in .playthrough/ too. Each of git's worktrees is
 // a copy of the app with reviews of its own, beside the work they're about.
 
@@ -11,8 +11,8 @@ import { dirname, join, relative, resolve } from "node:path";
 import { Refused, Reviews } from "@playthrough/review";
 import { folder } from "@playthrough/review/folder";
 
-// And whether its flows run one at a time: on an app with a page that shows what every run made, as a blog's index lists
-// every post, flows run side by side would see each other's. Where app.json lets Playthrough give the app a port, the
+// And whether its scenes run one at a time: on an app with a page that shows what every run made, as a blog's index lists
+// every post, scenes run side by side would see each other's. Where app.json lets Playthrough give the app a port, the
 // port it gave this copy, and start and url say it.
 export type App = { start: string; url: string; oneAtATime?: boolean; port?: number };
 export type Repo = ReturnType<typeof repo>;
@@ -23,20 +23,20 @@ export function repo(root = home(process.cwd())) {
   return {
     root,
     reviews: new Reviews(folder(reviews)),
-    flows: (review: string) => join(reviews, review, "flows"),
-    // What Playwright wrote of the page each flow failed on, the last time any did, for the agent to look at.
+    scenes: (review: string) => join(reviews, review, "scenes"),
+    // What Playwright wrote of the page each scene failed on, the last time any did, for the agent to look at.
     failed: (review: string) => join(reviews, review, "failed"),
     round: (review: string, round: number) => join(reviews, review, "rounds", String(round), "round.json"),
-    // The file each flow is written in, as it was when the flow last ran on Before.
+    // The file each scene is written in, as it was when the scene last ran on Before.
     ranOnBefore: (review: string) => join(reviews, review, "ran-on-before.json"),
     // A file for each agent waiting for what's sent, named by its process.
     waiting: (review: string) => join(reviews, review, "waiting"),
     setAside: join(reviews, "set-aside.json"),
-    // Whose turn it is to run the app here: a command that runs flows, or the viewer, keeping it ready for taking over.
+    // Whose turn it is to run the app here: a command that runs scenes, or the viewer, keeping it ready for taking over.
     turn: join(reviews, "turn.json"),
     // How to start the app, committed.
     appFile,
-    // What every flow of the app starts from, committed beside app.json.
+    // What every scene of the app starts from, committed beside app.json.
     setup: join(root, "playthrough", "setup.ts"),
     // What setup made for each run, until its after gives it back.
     borrowed: join(reviews, "borrowed"),
@@ -71,7 +71,7 @@ export function repo(root = home(process.cwd())) {
       // Otherwise it's started, and waited for, for three minutes, at an address nothing can answer at.
       if (!/^https?:$/.test(URL.parse(url)?.protocol ?? ""))
         throw new Refused([`playthrough/app.json's “url” is a whole address, as a browser takes it, like http://localhost:{port}, not “${app.url}”.`]);
-      if (app.oneAtATime !== undefined && typeof app.oneAtATime !== "boolean") throw new Refused([`playthrough/app.json's “oneAtATime” is true or false: true runs each flow by itself.`]);
+      if (app.oneAtATime !== undefined && typeof app.oneAtATime !== "boolean") throw new Refused([`playthrough/app.json's “oneAtATime” is true or false: true runs each scene by itself.`]);
       return { start: given(app.start), url, ...(app.oneAtATime && { oneAtATime: true }), ...(port !== undefined && { port }) };
     },
   };

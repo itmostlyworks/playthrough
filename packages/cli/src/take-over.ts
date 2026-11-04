@@ -1,7 +1,7 @@
-// Takes a flow over: runs it to the end of a step on the app as it is now, then hands the page as it was there to a
+// Takes a scene over: runs it to the end of a step on the app as it is now, then hands the page as it was there to a
 // person, in their own browser or on their phone, to carry on from. It's the real app under their hands, a fresh copy
-// of the moment made the way every flow starts, not a picture of it. Playthrough passes everything on to the app, and at
-// /take-over gives the browser what the flow's page had: its address, its cookies, and what the app kept in the browser.
+// of the moment made the way every scene starts, not a picture of it. Playthrough passes everything on to the app, and at
+// /take-over gives the browser what the scene's page had: its address, its cookies, and what the app kept in the browser.
 
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -12,7 +12,7 @@ import { answerAs, asRecorded, pathTo } from "@playthrough/page";
 import { list, quote, Refused, type Did } from "@playthrough/review";
 import { keepRunning } from "./app.ts";
 import { refuseWhileAside } from "./before.ts";
-import { recorder, type Handed } from "./flows.ts";
+import { recorder, type Handed } from "./scenes.ts";
 import { follow, reachesOutside, runTo } from "./following.ts";
 import { listen, thisMachine } from "./open.ts";
 import { read } from "./read.ts";
@@ -23,13 +23,13 @@ import type { Made } from "./setup.ts";
 const PORT = 5830;
 
 // From the command line: ready, then passed on until Ctrl+C.
-export async function takeOver(repo: Repo, id: string, flowName?: string, stepName?: string) {
-  if (!flowName) {
+export async function takeOver(repo: Repo, id: string, sceneName?: string, stepName?: string) {
+  if (!sceneName) {
     const round = await recorded(repo, id);
-    throw new Refused([`Take over which flow? playthrough take-over ${id} "<flow>" ["<step>"]\nIts flows: ${list(round.flows.map((flow) => quote(flow.name)))}.`]);
+    throw new Refused([`Take over which scene? playthrough take-over ${id} "<scene>" ["<step>"]\nIts scenes: ${list(round.scenes.map((scene) => quote(scene.name)))}.`]);
   }
-  console.log(`Running ${quote(flowName)} to ${stepName ? `the end of ${quote(stepName)}` : "its end"}, on the app as it is now…`);
-  const { port, moment, seconds } = await getReady(repo, id, flowName, { step: stepName, network: true });
+  console.log(`Running ${quote(sceneName)} to ${stepName ? `the end of ${quote(stepName)}` : "its end"}, on the app as it is now…`);
+  const { port, moment, seconds } = await getReady(repo, id, sceneName, { step: stepName, network: true });
   const here = `http://localhost:${port}/take-over/${moment}`;
   const away = addresses().map((address) => `http://${address}:${port}/take-over/${moment}`);
   console.log(`
@@ -37,33 +37,33 @@ Ready in ${seconds}s. Carry on from there in your browser: ${here}${away.length 
 Each address hands over the same copy, and the app is passed on through Playthrough while this runs. Ctrl+C ends it.`);
 }
 
-// Runs the flow to where it's taken over and passes the app on, then says where: each moment made ready has an address
+// Runs the scene to where it's taken over and passes the app on, then says where: each moment made ready has an address
 // of its own, /take-over/<moment>, so several can wait at once. In the viewer, the moment the playhead rests on is made
 // ready while you look, and Take over turns the frame into the app there.
 // On a note's fork, the fork written for its notes is run after it, and what the person did there is kept on by whatever
-// they do next; on the round they made it, with no fork yet, what they did there is done again after them. Made ready ahead, as the playhead rests, before anyone has asked: not for a flow
+// they do next; on the round they made it, with no fork yet, what they did there is done again after them. Made ready ahead, as the playhead rests, before anyone has asked: not for a scene
 // that reaches outside the app, which each time would do that again. From the command line, the app is passed on to
 // this machine's networks too, for a phone on one of them; from the viewer, to this machine alone.
 export async function getReady(
   repo: Repo,
   id: string,
-  flowName: string,
+  sceneName: string,
   { step: stepName, actions, did, notes, ahead, network }: { step?: string; actions?: number; did?: Did[]; notes?: string[]; ahead?: boolean; network?: boolean } = {},
 ): Promise<{ port: number; moment: string; seconds: string }> {
   const round = await recorded(repo, id);
-  const flow = round.flows.find((flow) => flow.name === flowName);
-  if (!flow) throw new Refused([`${id} has no flow called ${quote(flowName)}. Its flows: ${list(round.flows.map((flow) => quote(flow.name)))}.`]);
-  if (stepName && !flow.steps.some((step) => step.title === stepName))
-    throw new Refused([`${quote(flow.name)} has no step called ${quote(stepName)}. Its steps: ${list(flow.steps.map((step) => quote(step.title)))}.`]);
+  const scene = round.scenes.find((scene) => scene.name === sceneName);
+  if (!scene) throw new Refused([`${id} has no scene called ${quote(sceneName)}. Its scenes: ${list(round.scenes.map((scene) => quote(scene.name)))}.`]);
+  if (stepName && !scene.steps.some((step) => step.title === stepName))
+    throw new Refused([`${quote(scene.name)} has no step called ${quote(stepName)}. Its steps: ${list(scene.steps.map((step) => quote(step.title)))}.`]);
 
-  const outside = ahead && (await reachesOutside(repo, id, flow.name));
-  if (outside) throw new Refused([`${quote(flow.name)} reaches outside the app (${outside}), so it's run only when it's taken over.`]);
+  const outside = ahead && (await reachesOutside(repo, id, scene.name));
+  if (outside) throw new Refused([`${quote(scene.name)} reaches outside the app (${outside}), so it's run only when it's taken over.`]);
 
   const app = await repo.app();
   refuseWhileAside(repo);
   await keepRunning(app, repo.root, { ready: true });
   const began = Date.now();
-  const { handed, made } = await runTo(repo, id, { flow: flow.name, ...(stepName && { step: stepName, ...(actions && { actions }) }), ...(did?.length && { did }), ...(notes?.length && { notes }) });
+  const { handed, made } = await runTo(repo, id, { scene: scene.name, ...(stepName && { step: stepName, ...(actions && { actions }) }), ...(did?.length && { did }), ...(notes?.length && { notes }) });
   // One way through for each copy of the app, as each answers at an address of its own.
   if (!passings.has(app.url)) {
     const moments = new Map<string, Handed>();
@@ -85,12 +85,12 @@ export async function getReady(
 }
 const ready = new Map<string, { moment: string; made?: Made }>();
 
-// While the latest round plays, its flow is run alongside, as far as the playhead has gone, so the moment it comes to
+// While the latest round plays, its scene is run alongside, as far as the playhead has gone, so the moment it comes to
 // rest on is quick to make ready.
-export async function keepUp(repo: Repo, id: string, flow: string, step?: string, actions?: number) {
+export async function keepUp(repo: Repo, id: string, scene: string, step?: string, actions?: number) {
   refuseWhileAside(repo);
   await keepRunning(await repo.app(), repo.root, { ready: true });
-  await follow(repo, id, { flow, ...(step && { step, ...(actions && { actions }) }) });
+  await follow(repo, id, { scene, ...(step && { step, ...(actions && { actions }) }) });
 }
 
 // One way through to the app for as long as Playthrough runs, handing over each moment made ready, by its address.
@@ -179,12 +179,12 @@ function asIfDirect(request: IncomingMessage, target: URL) {
 }
 
 // Taken over in the viewer, the app sits in its frame, and this goes into each of its pages, first. Scrolled where the
-// flow's page was, it tells the viewer once it has settled (loaded, its fonts and pictures in, nothing on its way and
+// scene's page was, it tells the viewer once it has settled (loaded, its fonts and pictures in, nothing on its way and
 // nothing changing for a moment), so the frame turns into it with nothing on screen changing. It tells the viewer where
 // the pointer is, and whether it's over words you can type into: the viewer draws the recording's pointer coming to
 // yours, hiding the app's own until they meet, and then only your name, beside the app's own. And as every key there
 // goes to the app, Escape goes back to the viewer too, when the app does nothing with it.
-// rrweb's recorder, as every flow has it, for what you do here to be recorded.
+// rrweb's recorder, as every scene has it, for what you do here to be recorded.
 let RECORDER: string | undefined;
 
 const SAYS = `<script>(() => {
@@ -201,7 +201,7 @@ const SAYS = `<script>(() => {
     Object.assign(Shifted, { now: () => Real.now() + ahead, parse: Real.parse, UTC: Real.UTC });
     window.Date = Shifted;
   }
-  // In the browser the flow was recorded in, whatever yours says: light or dark, still or moving, in its languages.
+  // In the browser the scene was recorded in, whatever yours says: light or dark, still or moving, in its languages.
   const browser = JSON.parse(sessionStorage.getItem("playthrough:browser") || "null");
   if (browser) {
     ${asRecorded.toString()}
@@ -240,7 +240,7 @@ const SAYS = `<script>(() => {
   const hidden = document.createElement("style");
   hidden.textContent = "html, html * { cursor: none !important; }";
   document.documentElement.appendChild(hidden);
-  // Made ready unseen in the viewer, the page waits as the flow left it, the text cursor where it was: the keyboard goes
+  // Made ready unseen in the viewer, the page waits as the scene left it, the text cursor where it was: the keyboard goes
   // back to the review until the page is yours, and the app isn't told it left, or a field that saves as it's left, as
   // Kan's checklist item does, would save what was half typed. Leaving, it goes to nothing on the page. Once the page is
   // yours and the keyboard comes in, it's back in that field, the text cursor where it was.
@@ -326,8 +326,8 @@ const SAYS = `<script>(() => {
     parent.postMessage({ playthrough: "did", did }, "*");
     readSoon();
   };
-  // What's on the page, read as a flow's page is after each step, once what you did has settled: a note on your
-  // recording is on a thing there, as on any flow's.
+  // What's on the page, read as a scene's page is after each step, once what you did has settled: a note on your
+  // recording is on a thing there, as on any scene's.
   const read = ${read};
   let recording = false, reading;
   const readNow = () => recording && window.rrwebRecord.record.addCustomEvent("reading", read());
@@ -375,7 +375,7 @@ const SAYS = `<script>(() => {
       readNow();
       send();
       const node = window.rrwebRecord?.record?.mirror?.getId(on);
-      // Named as the page is read for every flow, so a later round's flow finds it by the same name: a reminder's
+      // Named as the page is read for every scene, so a later round's scene finds it by the same name: a reminder's
       // message box is "Message" there, where its own words named it here.
       const known = node > 0 && recording ? read().things.find((thing) => thing.node === node) : undefined;
       const [kind, name] = known ? [known.role, known.name] : [role(on), words(on)];
@@ -433,9 +433,9 @@ const SAYS = `<script>(() => {
     await document.fonts?.ready;
     while (!still() && performance.now() - since < 8000) await wait(80);
   };
-  // Partway through a step, the actions that only changed what was on the page are done again here, as the flow did them.
+  // Partway through a step, the actions that only changed what was on the page are done again here, as the scene did them.
   // Each waits for what it acts on while the page is changing, as it does after the one before; on a still page, what
-  // isn't there isn't coming, as a menu that was open only on the flow's page.
+  // isn't there isn't coming, as a menu that was open only on the scene's page.
   const find = async (path) => {
     for (const until = performance.now() + 3000; performance.now() < until; await wait(80)) {
       const found = document.querySelector(path);
@@ -496,7 +496,7 @@ const SAYS = `<script>(() => {
     stir();
     return true;
   };
-  // Once it's yours, what you do is recorded, as a flow is, from the page as it was handed over: a note you make here
+  // Once it's yours, what you do is recorded, as a scene is, from the page as it was handed over: a note you make here
   // is on your own recording. Each page records itself, from its own first frame, or made ready unseen, from when you
   // take it over, where your recording starts.
   let recorded = [];
@@ -510,7 +510,7 @@ const SAYS = `<script>(() => {
       maskAllInputs: false,
       inlineStylesheet: true,
     }) && ((recording = true), said(), readNow());
-  // Light or dark, still or moving, as the flow was recorded, for your recording to be played back as it was too.
+  // Light or dark, still or moving, as the scene was recorded, for your recording to be played back as it was too.
   const said = () => window.rrwebRecord.record.addCustomEvent("browser", { dark: matchMedia("(prefers-color-scheme: dark)").matches, still: matchMedia("(prefers-reduced-motion: reduce)").matches });
   addEventListener("message", ({ source, data }) => source === parent && data?.playthrough === "yours" && record());
   const settle = async () => {
@@ -551,7 +551,7 @@ function fromTheApp(answer: IncomingMessage, target: URL, request: IncomingMessa
   return headers;
 }
 
-// The browser gets the flow's cookies and what the app kept in it, then goes to where the flow's page was. From
+// The browser gets the scene's cookies and what the app kept in it, then goes to where the scene's page was. From
 // elsewhere on the network, it gets the pass too.
 function handOver(handed: Handed | undefined, response: ServerResponse, elsewhere: boolean) {
   if (!handed) {

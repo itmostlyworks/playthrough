@@ -1,21 +1,21 @@
-// Under the recording: play, the time, and the line, which is the flow you're in end to end with its name under it,
+// Under the recording: play, the time, and the line, which is the scene you're in end to end with its name under it,
 // a dot for each note on it and a diamond where something new to you changed, new steps too. The line answers
 // the pointer: under it the line thickens, the playhead grows, and a ghost of the playhead with its time says where a
-// click lands. Nothing here changes width as it plays. Where you took the flow over and carried on by hand, a fork
+// click lands. Nothing here changes width as it plays. Where you took the scene over and carried on by hand, a fork
 // leaves the line there and runs above it as long as you were there, faint until pointed at or played: then it answers
 // as the line does, and it plays like the rest of the line. Forks that would overlap rise in lanes, one over another.
-// It ends in the flow's end, the mark its question has, so you know where playing leads and how it stands: pointed at,
+// It ends in the scene's end, the mark its question has, so you know where playing leads and how it stands: pointed at,
 // it says so; pressed, it goes there, its question up.
 
 import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent } from "react";
-import { time, type Flow } from "@playthrough/review";
+import { time, type Scene } from "@playthrough/review";
 import { EndMark, type End } from "./Chosen.tsx";
 import { CARD, clamp } from "./moments.ts";
 import { useNow, type Forked, type Playhead } from "./playhead.ts";
 
 // A note on the line: a dot at its moment, or a pill over its stretch, in its colour (a CSS colour).
 export type Dot = { id: string; at: number; until?: number; ink: string; number: number; words: string; fork?: string };
-// A fork off the flow: the moment it leaves at, and how long it runs.
+// A fork off the scene: the moment it leaves at, and how long it runs.
 export type ForkLine = { name: string; at: number; length: number };
 // What changed, under the notes: a diamond at its moment, or where new steps start, named as its card names it. One
 // the agent made for a note carries the note's dot on its corner, its number before its name. Lit, it's ringed: the
@@ -34,7 +34,7 @@ type Props = {
   growing?: ForkLine;
   // A note pointed at elsewhere: its dot grows.
   lit?: string;
-  // What the flow's end asks, and going there.
+  // What the scene's end asks, and going there.
   end?: { end: End; words: string; just: boolean; go: () => void };
 };
 
@@ -62,14 +62,14 @@ const CRUMB = 8;
 
 export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [], growing, lit, end }: Props) {
   const now = useNow(playhead);
-  const flows = playhead.flows;
-  // On a fork, the line is still its flow's.
-  const of = (playhead.flow as Forked).fork;
-  const flow = (of && flows.find((flow) => flow.name === of)) || playhead.flow;
-  const here = flows.indexOf(flow);
-  const onFork = forks.find((fork) => fork.name === playhead.flow.name);
+  const scenes = playhead.scenes;
+  // On a fork, the line is still its scene's.
+  const of = (playhead.scene as Forked).fork;
+  const scene = (of && scenes.find((scene) => scene.name === of)) || playhead.scene;
+  const here = scenes.indexOf(scene);
+  const onFork = forks.find((fork) => fork.name === playhead.scene.name);
   const line = useRef<HTMLDivElement>(null);
-  // Where the pointer is on the line, and which line it's on: the flow's, or a fork's by its name.
+  // Where the pointer is on the line, and which line it's on: the scene's, or a fork's by its name.
   const [pointing, setPointing] = useState<{ at: number; fork?: string }>();
   const [scrubbing, setScrubbing] = useState(false);
   const [held, setHeld] = useState<string>();
@@ -95,31 +95,31 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
     if (!matchMedia("(prefers-reduced-motion: reduce)").matches) toggled.current?.animate([{ opacity: 0, scale: 0.5 }, { opacity: 1, scale: 1 }], { duration: 180, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
   });
 
-  // Where a moment of a flow sits: the line is the flow you're in, and the others' marks wait at its ends, out of sight.
-  const share = (on: Flow, at: number) => {
-    const k = flows.indexOf(on);
+  // Where a moment of a scene sits: the line is the scene you're in, and the others' marks wait at its ends, out of sight.
+  const share = (on: Scene, at: number) => {
+    const k = scenes.indexOf(on);
     return k < here ? 0 : k > here ? 1 : clamp((at + CARD) / (on.length + CARD));
   };
-  const percent = (on: Flow, at: number) => `${(share(on, at) * 100).toFixed(4)}%`;
+  const percent = (on: Scene, at: number) => `${(share(on, at) * 100).toFixed(4)}%`;
   const pc = (share: number) => `${(share * 100).toFixed(4)}%`;
 
-  // A fork runs as long as you were there, on the flow's clock, from where it leaves; one longer than what's left of the
-  // flow ends with the line, which never moves for it. While you're there, it's a short one, under way, your place
+  // A fork runs as long as you were there, on the scene's clock, from where it leaves; one longer than what's left of the
+  // scene ends with the line, which never moves for it. While you're there, it's a short one, under way, your place
   // where it opens.
   const grown = growing && (forks.find((fork) => fork.name === growing.name) ?? growing);
   const lines = [...forks.filter((fork) => fork.name !== grown?.name), ...(grown ? [grown] : [])];
   const until = (fork: ForkLine) => {
     const last = Math.max(...dots.filter((dot) => dot.fork === fork.name).map((dot) => dot.at));
-    return last > fork.at && last < fork.length && (share(flow, fork.length) - share(flow, last)) * wide < CRUMB ? last : fork.length;
+    return last > fork.at && last < fork.length && (share(scene, fork.length) - share(scene, last)) * wide < CRUMB ? last : fork.length;
   };
   const reach = (fork: ForkLine) => {
-    const start = share(flow, fork.at);
-    return { start, end: Math.min(1, Math.max(share(flow, until(fork)), start + SHORTEST)) };
+    const start = share(scene, fork.at);
+    return { start, end: Math.min(1, Math.max(share(scene, until(fork)), start + SHORTEST)) };
   };
-  // Under way, a fork reaches out past its foot, as far as the line has room: at a flow's end, where there isn't room
+  // Under way, a fork reaches out past its foot, as far as the line has room: at a scene's end, where there isn't room
   // for its curve, its foot steps back, so it never runs off the line.
   const underWayOf = (fork: ForkLine) => {
-    const room = (1 - share(flow, fork.at)) * wide;
+    const room = (1 - share(scene, fork.at)) * wide;
     const length = clamp(room, CURVE + OPEN_END, UNDER_WAY);
     return { length, back: Math.max(0, length - room) };
   };
@@ -136,7 +136,7 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
   };
   const dotShare = (dot: { at: number; fork?: string }) => {
     const fork = dot.fork ? lines.find((line) => line.name === dot.fork) : undefined;
-    return fork ? forkShare(fork, dot.at) : share(flow, dot.at);
+    return fork ? forkShare(fork, dot.at) : share(scene, dot.at);
   };
 
   // Notes too close to tell apart stand side by side around their moment, each wide enough to click.
@@ -150,7 +150,7 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
   const points = dots.filter((dot) => dot.until === undefined).sort((a, b) => a.at - b.at);
   for (let i = 0; i < points.length; ) {
     let j = i + 1;
-    while (j < points.length && (share(flow, points[j]!.at) - share(flow, points[j - 1]!.at)) * wide < DOT) j++;
+    while (j < points.length && (share(scene, points[j]!.at) - share(scene, points[j - 1]!.at)) * wide < DOT) j++;
     points.slice(i, j).forEach((dot, k) => apart.set(dot.id, (k - (j - i - 1) / 2) * DOT));
     i = j;
   }
@@ -179,12 +179,12 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
   // How far over the first lane a fork rises: what's on it, and what it says, rises with it.
   const rise = (fork: ForkLine | undefined) => (fork ? (laneOf.get(fork.name) ?? 0) * LANE : 0);
 
-  // Crossing into another flow opens it up in one smooth shift, never while you're dragging. Known as the line changes,
+  // Crossing into another scene opens it up in one smooth shift, never while you're dragging. Known as the line changes,
   // not after: the shift has to be there when everything moves, or there's nothing to ease.
   const [shifting, setShifting] = useState(false);
-  const [was, setWas] = useState(flow.name);
-  if (was !== flow.name) {
-    setWas(flow.name);
+  const [was, setWas] = useState(scene.name);
+  if (was !== scene.name) {
+    setWas(scene.name);
     if (!scrubbing) setShifting(true);
   }
   useEffect(() => {
@@ -193,10 +193,10 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
     return () => clearTimeout(done);
   }, [shifting, was]);
 
-  // A drag stays inside the open flow and holds at its edges.
+  // A drag stays inside the open scene and holds at its edges.
   const timeAt = (clientX: number) => {
     const box = line.current!.getBoundingClientRect();
-    return -CARD + clamp((clientX - box.left) / box.width, 0, 0.9995) * (flow.length + CARD);
+    return -CARD + clamp((clientX - box.left) / box.width, 0, 0.9995) * (scene.length + CARD);
   };
   // While you drag, the playhead settles onto a note's or a change's moment when it comes within a few pixels, so
   // landing on one is easy. Measured to the moment itself: a note on a stretch is drawn across it, and its middle pulled
@@ -207,7 +207,7 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
     let nearest = Infinity;
     for (const dot of line.current!.querySelectorAll<HTMLElement>("[data-at]")) {
       const moment = Number(dot.dataset.at);
-      const off = Math.abs(clientX - (box.left + share(flow, moment) * box.width));
+      const off = Math.abs(clientX - (box.left + share(scene, moment) * box.width));
       if (off < 5 && off < nearest) [nearest, best] = [off, moment];
     }
     return best;
@@ -219,9 +219,9 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
   const press = (event: PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
     const onDot = !!(event.target as Element).closest("[data-mark]");
-    // Pressed on a fork, the drag goes along it; anywhere else, along the flow.
+    // Pressed on a fork, the drag goes along it; anywhere else, along the scene.
     const fork = forks.find((fork) => fork.name === (event.target as Element).closest("[data-fork]")?.getAttribute("data-fork"));
-    const to = (clientX: number) => (fork ? playhead.go({ flow: fork.name, at: forkTimeAt(fork, clientX) }) : playhead.go({ flow: flow.name, at: snap(clientX, timeAt(clientX)) }));
+    const to = (clientX: number) => (fork ? playhead.go({ scene: fork.name, at: forkTimeAt(fork, clientX) }) : playhead.go({ scene: scene.name, at: snap(clientX, timeAt(clientX)) }));
     const start = event.clientX;
     const id = event.pointerId;
     const playing = playhead.now.playing;
@@ -236,7 +236,7 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
     if (!onDot) {
       begin();
       if (fork) to(start);
-      else playhead.go({ flow: flow.name, at: timeAt(start) });
+      else playhead.go({ scene: scene.name, at: timeAt(start) });
     }
     const move = (moving: globalThis.PointerEvent) => {
       if (moving.pointerId !== id) return;
@@ -257,8 +257,8 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
       }
       setScrubbing(false);
       playhead.scrub(false);
-      // Let go at a flow's very end, it stops there, as playing to it would.
-      if (playing && playhead.now.moment.at >= playhead.flow.length - 0.06) playhead.pause();
+      // Let go at a scene's very end, it stops there, as playing to it would.
+      if (playing && playhead.now.moment.at >= playhead.scene.length - 0.06) playhead.pause();
     };
     addEventListener("pointermove", move);
     addEventListener("pointerup", up);
@@ -268,10 +268,10 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
   const at = now.moment.at;
   // In the app, the playhead rests at the end of the fork you're making.
   const riding = grown ?? onFork;
-  const underWay = (fork: ForkLine) => `calc(${pc(share(flow, fork.at))} + ${underWayOf(fork).length - underWayOf(fork).back - OPEN_END}px)`;
-  const head = grown ? underWay(grown) : pc(onFork ? forkShare(onFork, at) : share(flow, at));
-  const filled = riding ? percent(flow, riding.at) : head;
-  // The line under the pointer, or being dragged along, thickens, and so does the playhead on it: "" for the flow's.
+  const underWay = (fork: ForkLine) => `calc(${pc(share(scene, fork.at))} + ${underWayOf(fork).length - underWayOf(fork).back - OPEN_END}px)`;
+  const head = grown ? underWay(grown) : pc(onFork ? forkShare(onFork, at) : share(scene, at));
+  const filled = riding ? percent(scene, riding.at) : head;
+  // The line under the pointer, or being dragged along, thickens, and so does the playhead on it: "" for the scene's.
   const hot = held ?? pointing?.fork ?? (pointing ? "" : undefined);
   const headHot = hot !== undefined && hot === (riding ? riding.name : "");
   const thick = "-ml-[1.5px] w-[3px] rounded-[1.5px]";
@@ -281,12 +281,12 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
   const dot = dots.find((dot) => dot.id === named);
   const mark = marks.find((mark) => mark.id === named);
   const ends = named === END ? end : undefined;
-  const atEnd = !onFork && at >= flow.length - 0.06;
+  const atEnd = !onFork && at >= scene.length - 0.06;
   // Playing is watching: what a mark says waits until it stops.
   const tip = now.playing ? undefined : (dot ?? mark ?? ends);
   const ghost = !scrubbing && pointing !== undefined && !tip;
   const pointedFork = pointing?.fork ? lines.find((line) => line.name === pointing.fork) : undefined;
-  const pointed = pointing === undefined ? undefined : pc(pointedFork ? forkShare(pointedFork, pointing.at) : share(flow, pointing.at));
+  const pointed = pointing === undefined ? undefined : pc(pointedFork ? forkShare(pointedFork, pointing.at) : share(scene, pointing.at));
 
   return (
     <>
@@ -310,8 +310,8 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
       <span className="grid text-soft tabular-nums">
         <span className={`col-start-1 row-start-1 ${live ? "invisible" : ""}`}>
           {time(Math.max(0, at))}
-          {/* On a fork, out of the fork's own length, which runs on past its flow's. */}
-          <small className="text-[smaller] text-faint"> / {time(playhead.flow.length)}</small>
+          {/* On a fork, out of the fork's own length, which runs on past its scene's. */}
+          <small className="text-[smaller] text-faint"> / {time(playhead.scene.length)}</small>
         </span>
         {live && <span className="col-start-1 row-start-1 text-fg">Live</span>}
       </span>
@@ -321,7 +321,7 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
         tabIndex={0}
         aria-label="Playback position"
         aria-valuemin={0}
-        aria-valuemax={flow.length}
+        aria-valuemax={scene.length}
         aria-valuenow={Math.max(0, at)}
         data-scrubbing={scrubbing ? "" : undefined}
         className="group/line relative mr-5 h-9 min-w-30 flex-[1_1_160px] cursor-pointer touch-none select-none"
@@ -350,10 +350,10 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
           const played = on ? (going ? 1 : forkShare(fork, at)) : start;
           const lit = hot === fork.name;
           const up = rise(fork);
-          // Faint until it's pointed at or played: an aside to the flow, there when you look for it.
+          // Faint until it's pointed at or played: an aside to the scene, there when you look for it.
           const ink = lit || on ? "var(--amber)" : "color-mix(in srgb, var(--amber) 40%, var(--ground))";
           const pale = `color-mix(in srgb, var(--amber) ${lit ? 45 : 25}%, var(--ground))`;
-          // From its foot, under the flow's line, up to its lane, at the one slope every curve has.
+          // From its foot, under the scene's line, up to its lane, at the one slope every curve has.
           const run = CURVE + up;
           const step = stepOf.get(fork.name) ?? 0;
           const curve = `M0 ${16 + up} C ${run / 2} ${16 + up}, ${run / 2} 4, ${run} 4`;
@@ -364,11 +364,11 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
               className="absolute h-2 transition-[width] duration-500 ease-calm"
               style={{ top: 1 - up, left: `calc(${pc(start)} + ${step - (going ? underWayOf(fork).back : 0)}px)`, width: going ? `${underWayOf(fork).length}px` : `calc(${pc(end - start)} - ${step}px)` }}
             >
-              {/* Pressed nearer it than the line under it, it's the fork: halfway down to the flow's line, or to the next lane. */}
+              {/* Pressed nearer it than the line under it, it's the fork: halfway down to the scene's line, or to the next lane. */}
               <span aria-hidden className="absolute inset-x-0 -top-1" style={{ bottom: up ? 0 : -2 }} />
               <svg width={run} height="8" aria-hidden className="pointer-events-none absolute top-0 left-0 overflow-visible">
                 {/* One piece with the line it leaves and the line it runs into: as wide as its line, the colour of its start,
-                    and square at both ends, so nothing shows where they meet. Its foot is under the flow's line. */}
+                    and square at both ends, so nothing shows where they meet. Its foot is under the scene's line. */}
                 <path d={curve} fill="none" stroke={on ? ink : pale} strokeWidth={lit ? 4 : 2} className="transition-[stroke-width] duration-150 ease-calm" />
               </svg>
               <div
@@ -386,11 +386,11 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
             </div>
           );
         })}
-        {flows.filter((other) => !(other as Forked).fork).length > 1 &&
-          flows.filter((other) => !(other as Forked).fork).map((other) => (
+        {scenes.filter((other) => !(other as Forked).fork).length > 1 &&
+          scenes.filter((other) => !(other as Forked).fork).map((other) => (
             <span
               key={other.name}
-              className={`pointer-events-none absolute top-[23px] truncate text-[10.5px] leading-3 whitespace-nowrap text-faint ${other === flow ? "" : "invisible opacity-0"} ${moving || "transition-opacity duration-300"}`}
+              className={`pointer-events-none absolute top-[23px] truncate text-[10.5px] leading-3 whitespace-nowrap text-faint ${other === scene ? "" : "invisible opacity-0"} ${moving || "transition-opacity duration-300"}`}
               style={{ left: percent(other, -CARD), width: `calc(${percent(other, other.length)} - ${percent(other, -CARD)})` }}
             >
               {other.name}
@@ -410,7 +410,7 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
         )}
         {marks.map((shown) => {
           const pointed = { onPointerEnter: () => setNamed(shown.id), onPointerLeave: () => setNamed(undefined), onClick: () => !swallow.current && onMark(shown.id) };
-          const left = percent(flow, shown.at);
+          const left = percent(scene, shown.at);
           // A change over a stretch, new steps, is a diamond where it starts, as any change is: it's one thing to look at.
           // Hollow ahead of the playhead and filled once passed, as a dot fills; ringed while it's the one you're on.
           const look = at < shown.at - 0.02
@@ -444,7 +444,7 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
               style={{
                 left: shown.fork ? `min(${shown.fork === grown?.name ? underWay(grown) : pc(dotShare(shown))}, calc(100% - 4px))` : `calc(${pc(dotShare(shown))} + ${apart.get(shown.id) ?? 0}px)`,
                 ...(shown.fork && shown.until === undefined && { top: -2 - rise(lines.find((line) => line.name === shown.fork)) }),
-                ...(shown.until !== undefined && { width: `calc(${percent(flow, shown.until)} - ${percent(flow, shown.at)})`, background: `linear-gradient(90deg, ${ink} ${played}%, ${pale} ${played}%)` }),
+                ...(shown.until !== undefined && { width: `calc(${percent(scene, shown.until)} - ${percent(scene, shown.at)})`, background: `linear-gradient(90deg, ${ink} ${played}%, ${pale} ${played}%)` }),
               }}
               onPointerEnter={() => setNamed(shown.id)}
               onPointerLeave={() => setNamed(undefined)}
@@ -468,7 +468,7 @@ export function Timeline({ playhead, dots, onDot, marks, onMark, live, forks = [
           className={`pointer-events-none absolute z-4 transition-opacity duration-120 ease-calm ${pointedFork ? "-top-[3px] bottom-[21px] -ml-px w-0.5 rounded-[1px] bg-amber" : "top-1.5 bottom-1.5 -ml-[1.5px] w-[3px] rounded-[1.5px] bg-fg"} ${ghost ? (pointedFork ? "opacity-60" : "opacity-30") : "opacity-0"}`}
           style={{ left: pointed, translate: `0 ${-rise(pointedFork)}px` }}
         />
-        <span aria-hidden className={`${label} z-300 text-fg ${tip ? "translate-y-0 opacity-100" : "translate-y-[2px] opacity-0"}`} style={{ marginBottom: rise(dot?.fork ? lines.find((line) => line.name === dot.fork) : undefined), left: dot ? (dot.fork && dot.fork === grown?.name ? underWay(grown) : pc(dotShare(dot))) : mark ? percent(flow, mark.at) : ends ? "calc(100% + 11px)" : undefined }}>
+        <span aria-hidden className={`${label} z-300 text-fg ${tip ? "translate-y-0 opacity-100" : "translate-y-[2px] opacity-0"}`} style={{ marginBottom: rise(dot?.fork ? lines.find((line) => line.name === dot.fork) : undefined), left: dot ? (dot.fork && dot.fork === grown?.name ? underWay(grown) : pc(dotShare(dot))) : mark ? percent(scene, mark.at) : ends ? "calc(100% + 11px)" : undefined }}>
           {dot && <span className="block max-w-[220px] truncate">{dot.words}</span>}
           {ends && <span className="block">{ends.words}</span>}
           {mark && (

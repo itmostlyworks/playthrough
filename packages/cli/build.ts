@@ -1,6 +1,6 @@
 // Makes the package npm publishes, in release/. Node runs Playthrough's TypeScript from a checkout but not from inside an
 // installed package, so the command is made JavaScript there, with the review and the page inside it, and beside it go
-// the viewer it serves, the types a flow is written against and what it prints. Run after the viewer is built, by
+// the viewer it serves, the types a scene is written against and what it prints. Run after the viewer is built, by
 // `npm run build` from core. What the package needs from npm is what its parts need, less each other.
 
 import { execFileSync } from "node:child_process";
@@ -22,7 +22,7 @@ const js = (path: string) => path.replace(/\.ts$/, ".js");
 
 rmSync(release, { recursive: true, force: true });
 
-// What Playwright and the command load by their paths: the command, what flows import, and the config and reporter a
+// What Playwright and the command load by their paths: the command, what scenes import, and the config and reporter a
 // recording runs with. Each is found beside the file that names it, as in the checkout.
 await build({
   input: { playthrough: "src/playthrough.ts", test: "src/test.ts", "playwright.config": "src/playwright.config.ts", reporter: "src/reporter.ts" },

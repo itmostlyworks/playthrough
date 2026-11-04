@@ -99,7 +99,7 @@ export function fromKept(events: string, kept: Record<string, string>, files: st
     .replace(/https?:\/\/[^\s"'()\\]+/g, (address) => (address in kept ? files + kept[address] + (/\.svg$/.test(kept[address]!) ? `?as=${as}` : "") : address));
 }
 
-// What was on the page at each step of a flow, read as it was recorded, and its picture then.
+// What was on the page at each step of a scene, read as it was recorded, and its picture then.
 const readingsName = (recording: string) => `readings/${recording.replace(/\.json$/, "")}`;
 export const readings = (review: string, round: number, recording: string) => file<Reading[]>(review, round, `${readingsName(recording)}.json`).catch((): Reading[] => []);
 // None for a round recorded before Playthrough glimpsed the page after each action.
@@ -115,9 +115,9 @@ export async function accept(review: string, by: string): Promise<string[]> {
   return post(`/api/reviews/${review}/accept`, { by });
 }
 
-// A flow as a video, alone or beside the round Compare shows, downloaded by your browser, telling the seconds it has
+// A scene as a video, alone or beside the round Compare shows, downloaded by your browser, telling the seconds it has
 // left as it's made; what's wrong in plain words, or nothing once it's downloaded.
-export async function downloadVideo(review: string, filmed: { round: number; flow: string; beside?: number; dark: boolean }, name: string, onLeft: (seconds: number) => void): Promise<string[]> {
+export async function downloadVideo(review: string, filmed: { round: number; scene: string; beside?: number; dark: boolean }, name: string, onLeft: (seconds: number) => void): Promise<string[]> {
   try {
     const answer = await fetch(`/api/reviews/${review}/video`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(filmed) });
     if (!answer.ok || !answer.body) return (await answer.json()).problems ?? [`It wasn't made (${answer.status}).`];
@@ -167,9 +167,9 @@ async function posted<T>(path: string, body: unknown): Promise<{ answer: T } | {
   }
 }
 
-// What you did in the app, kept as your branch off the flow you took over: its length, in seconds, once it's kept, or
+// What you did in the app, kept as your branch off the scene you took over: its length, in seconds, once it's kept, or
 // what's wrong in plain words.
-export async function keepBranch(review: string, round: number, from: { flow: string; at: number }, events: unknown[], recording: string): Promise<number | string[]> {
+export async function keepBranch(review: string, round: number, from: { scene: string; at: number }, events: unknown[], recording: string): Promise<number | string[]> {
   const done = await posted<{ length: number }>(`/api/reviews/${review}/branches`, { round, ...from, events, recording });
   return "problems" in done ? done.problems : done.answer.length;
 }

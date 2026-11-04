@@ -1,11 +1,11 @@
 // A review on one page: the recording is where you look, with what you can do to its moment on a bar across its bottom
 // edge and what's open beside its spot; the timeline under it is the map of what's been said. The round is the page with
-// every flow: where you arrive, go back through rounds, and send and accept. The view changes only when you change it: a
+// every scene: where you arrive, go back through rounds, and send and accept. The view changes only when you change it: a
 // new round says it's in, and waits for you.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { elementOf } from "@playthrough/page";
-import { inStep, lastLooked, newId, readyToAccept, time, waitingForTheAgent, type Did, type Element as Thing, type Flow, type Note, type Point, type Place, type Review, type Round, type Send, type Verdict } from "@playthrough/review";
+import { inStep, lastLooked, newId, readyToAccept, time, waitingForTheAgent, type Did, type Element as Thing, type Scene, type Note, type Point, type Place, type Review, type Round, type Send, type Verdict } from "@playthrough/review";
 import { accept, keepBranch, recording, send, useAgentWaiting, useReview, useYou } from "./api.ts";
 import { Bar } from "./Bar.tsx";
 import { Beside, clickedAt } from "./Beside.tsx";
@@ -20,7 +20,7 @@ import { grow, pushIn, takeOff, type Taking } from "./flight.ts";
 import type { Step } from "./Step.tsx";
 import { Work } from "./Work.tsx";
 import { follow, pausedAt, readyAt, readyIn, samePaused, takenOver, type Live, type Paused } from "./live.ts";
-import { along, CARD, clamp, FLOW_IN, momentAt, POSTER, type Moment } from "./moments.ts";
+import { along, CARD, clamp, SCENE_IN, momentAt, POSTER, type Moment } from "./moments.ts";
 import { asIfSent, changedFirst, draftOn, toSend, everyDraft, fill, ink, lookGood, notesOn, nothing, said, seen, sendOf, settledBefore, standings, takeBack, upTo, workingSince, type Draft, type Shown } from "./notes.ts";
 import { NoteRow, number as numberLook, Writing, type Comparing } from "./Notes.tsx";
 import { Playhead, useNow, type Forked } from "./playhead.ts";
@@ -31,20 +31,20 @@ import { placeFrom, placeName as nameOf, placeOn, useReadings, watchedIn, type R
 import { Wire } from "./Wire.tsx";
 
 // What's open beside the recording: a note, a change you chose, or a new note being written, by its id.
-// What's open: a note, a change, a note being written, or a flow's own card, at its end.
+// What's open: a note, a change, a note being written, or a scene's own card, at its end.
 // A change's moment is open with `change`; with `one`, the change whose why is open beside its mark, `kept` once its
 // pin is pressed rather than pointed at.
 type Open = { note: string } | { change: string; one?: string; kept?: boolean } | { writing: string } | { end: string };
 // A click noted in the app: what it's on there, what was done there before it, and where, in the app's page.
 type NotedInApp = { element?: Thing; point?: Point; did: Did[]; x: number; y: number };
 
-// Leaving every flow at once for one, the recording waits under its name until the pictures have landed, and this long
+// Leaving every scene at once for one, the recording waits under its name until the pictures have landed, and this long
 // after: one thing moves at a time.
 const SETTLE = 400;
 // A card is at its mark while the playhead is this near it, in seconds: a moment kept to the hundredth lands a frame off.
 const NEAR = 0.05;
 
-export function ReviewPage({ id, flow }: { id: string; flow?: string }) {
+export function ReviewPage({ id, scene }: { id: string; scene?: string }) {
   const kept = useReview(id);
   const you = useYou();
   const title = Array.isArray(kept) ? undefined : kept?.title;
@@ -52,7 +52,7 @@ export function ReviewPage({ id, flow }: { id: string; flow?: string }) {
   const shown = useMemo(() => (kept && !Array.isArray(kept) ? changedFirst(seen(kept)) : undefined), [kept]);
   if (Array.isArray(kept)) return <Page><p className="m-auto text-soft">{kept[0]}</p></Page>;
   if (!shown || !you) return <Page />;
-  return <Reviewing review={shown} you={you} flow={flow} />;
+  return <Reviewing review={shown} you={you} scene={scene} />;
 }
 
 // What's done with the review as a whole sits at the right of the line its title is on.
@@ -71,10 +71,10 @@ export function Page({ title, actions, children }: { title?: string; actions?: R
   );
 }
 
-// You review flows, each its newest recording: a round that arrives while you're on the newest is followed between flows,
+// You review scenes, each its newest recording: a round that arrives while you're on the newest is followed between scenes,
 // never under you. One that arrives while you're looking back at an older one says it's in; it's yours to go to. Going to
 // the newest round, you've seen it's there, and the older ones are for looking back.
-function Reviewing({ review, you, flow }: { review: Review; you: string; flow?: string }) {
+function Reviewing({ review, you, scene }: { review: Review; you: string; scene?: string }) {
   const latest = review.rounds.at(-1);
   const [viewing, setViewing] = useState(latest?.number);
   const [newest, setNewest] = useState(latest?.number);
@@ -89,13 +89,13 @@ function Reviewing({ review, you, flow }: { review: Review; you: string; flow?: 
     if (number === latest.number) setNewest(number);
   };
   const following = viewing === newest && latest.number !== newest;
-  return <OnRound review={review} round={round} latest={latest} newer={following ? latest : undefined} arrived={latest.number !== newest && !following} you={you} flow={flow} onRound={choose} />;
+  return <OnRound review={review} round={round} latest={latest} newer={following ? latest : undefined} arrived={latest.number !== newest && !following} you={you} scene={scene} onRound={choose} />;
 }
 
-// newer: a round that came in while you were on the newest, to follow at the next flow you go to.
-type OnRoundProps = { review: Review; round: Round; latest: Round; newer?: Round; arrived: boolean; you: string; flow?: string; onRound: (round: number) => void };
+// newer: a round that came in while you were on the newest, to follow at the next scene you go to.
+type OnRoundProps = { review: Review; round: Round; latest: Round; newer?: Round; arrived: boolean; you: string; scene?: string; onRound: (round: number) => void };
 
-function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAddress, onRound }: OnRoundProps) {
+function OnRound({ review: kept, round, latest, newer, arrived, you, scene: inAddress, onRound }: OnRoundProps) {
   // What you've just sent shows as sent until the review comes back with it.
   const [posted, setPosted] = useState<Send[]>([]);
   const notBack = posted.filter((sent) => !kept.sends.some((send) => send.id === sent.id));
@@ -106,12 +106,12 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   const draft = upTo(unsent, round.number);
   const change = (changed: (draft: Draft) => Draft) => changeUnsent((unsent) => everyDraft(unsent, changed));
   const changeHere = (changed: (draft: Draft) => Draft) => changeUnsent((unsent) => draftOn(unsent, round.number, changed));
-  // A note made in the app before forks were part of their flow named a flow of its own.
+  // A note made in the app before forks were part of their scene named a scene of its own.
   useEffect(() => {
-    const own = (note: Note) => (note.on?.app && note.on.flow !== note.on.app.from.flow ? { ...note, on: { ...note.on, flow: note.on.app.from.flow } } : note);
+    const own = (note: Note) => (note.on?.app && note.on.scene !== note.on.app.from.scene ? { ...note, on: { ...note.on, scene: note.on.app.from.scene } } : note);
     if ([...draft.notes, ...draft.unsaved].some((note) => own(note) !== note)) change((draft) => ({ ...draft, notes: draft.notes.map(own), unsaved: draft.unsaved.map(own) }));
   });
-  // The round as it plays: each flow with your forks off it, where you took it over, carried on by hand and said
+  // The round as it plays: each scene with your forks off it, where you took it over, carried on by hand and said
   // something there, from the notes you made in the app on it.
   const here = unsent[round.number] ?? nothing;
   const madeHere = [...review.sends.filter((send) => send.round === round.number).flatMap((send) => send.notes), ...here.notes, ...here.unsaved];
@@ -133,13 +133,13 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   const [met, setMet] = useState<string[]>([]);
   // Looking at another round starts with nothing open.
   const [on, setOn] = useState(round.number);
-  // Every flow at once: where you arrive on a round, even one with a single flow, and come back to, where the round is
-  // sent and accepted, unless the address names a flow of the round: there, you're in it. A round that's new to you
+  // Every scene at once: where you arrive on a round, even one with a single scene, and come back to, where the round is
+  // sent and accepted, unless the address names a scene of the round: there, you're in it. A round that's new to you
   // starts there too, and going through rounds there stays there. One that arrives while you're on another leaves you
   // where you are.
-  const many = round.flows.length > 0;
-  const [arrivedIn] = useState(() => round.flows.find((flow) => slug(flow.name) === inAddress)?.name);
-  // Every situation is noted and taken over where it is, on the page: you don't leave it for one.
+  const many = round.scenes.length > 0;
+  const [arrivedIn] = useState(() => round.scenes.find((scene) => slug(scene.name) === inAddress)?.name);
+  // Every scene is noted and taken over where it is, on the page: you don't leave it for one.
   const [grid, setGrid] = useState(many);
   const onGrid = grid && many;
   const been = useRef([round.number]);
@@ -150,46 +150,46 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     been.current.push(round.number);
   }
 
-  // You arrive at the start, as on a video before you press play. Going to another round keeps your place: the same flow
-  // at the matching moment, or its start if that round never recorded the flow.
-  const [playhead] = useState(() => new Playhead(played.flows, { flow: arrivedIn ?? round.flows[0]?.name ?? "", at: POSTER }));
+  // You arrive at the start, as on a video before you press play. Going to another round keeps your place: the same scene
+  // at the matching moment, or its start if that round never recorded the scene.
+  const [playhead] = useState(() => new Playhead(played.scenes, { scene: arrivedIn ?? round.scenes[0]?.name ?? "", at: POSTER }));
   useEffect(() => () => playhead.destroy(), [playhead]);
   const onRoundNow = useRef(round.number);
   useLayoutEffect(() => {
-    // A fork that's gone, with its last note, or on the round you go to, leaves you where it left its flow.
-    const from = playhead.flow as Forked;
-    const gone = !played.flows.some((flow) => flow.name === from.name) && from.fork !== undefined && from.leaves !== undefined;
-    const was = gone ? { flow: playhead.flows.find((flow) => flow.name === from.fork) ?? from, at: from.leaves! } : { flow: from, at: playhead.now.moment.at };
-    const to = played.flows.find((flow) => flow.name === was.flow.name);
+    // A fork that's gone, with its last note, or on the round you go to, leaves you where it left its scene.
+    const from = playhead.scene as Forked;
+    const gone = !played.scenes.some((scene) => scene.name === from.name) && from.fork !== undefined && from.leaves !== undefined;
+    const was = gone ? { scene: playhead.scenes.find((scene) => scene.name === from.fork) ?? from, at: from.leaves! } : { scene: from, at: playhead.now.moment.at };
+    const to = played.scenes.find((scene) => scene.name === was.scene.name);
     if (onRoundNow.current === round.number) {
-      playhead.keep(played.flows);
-      if (gone && to) playhead.go({ flow: to.name, at: was.at });
+      playhead.keep(played.scenes);
+      if (gone && to) playhead.go({ scene: to.name, at: was.at });
       return;
     }
     onRoundNow.current = round.number;
-    // Followed between flows, what was playing plays on.
+    // Followed between scenes, what was playing plays on.
     const playing = following.current && playhead.now.playing;
     following.current = false;
     playhead.pause();
-    playhead.watch(played.flows, to ? { flow: to.name, at: inStep(was.at, was.flow, to) } : { flow: round.flows[0]?.name ?? "", at: -CARD });
+    playhead.watch(played.scenes, to ? { scene: to.name, at: inStep(was.at, was.scene, to) } : { scene: round.scenes[0]?.name ?? "", at: -CARD });
     if (playing) playhead.play();
   }, [round, played, playhead]);
-  // On a fork, you're still watching its flow.
-  const inPlay = useNow(playhead, (now) => now.moment.flow);
+  // On a fork, you're still watching its scene.
+  const inPlay = useNow(playhead, (now) => now.moment.scene);
   const onFork = forkList.find((fork) => fork.name === inPlay);
-  const watching = onFork?.from.flow ?? inPlay;
-  const flow = round.flows.find((flow) => flow.name === watching) ?? round.flows[0];
-  // The address says the flow you're in, as words joined by dashes, as a review's id is, and only the review on every
-  // flow at once.
+  const watching = onFork?.from.scene ?? inPlay;
+  const scene = round.scenes.find((scene) => scene.name === watching) ?? round.scenes[0];
+  // The address says the scene you're in, as words joined by dashes, as a review's id is, and only the review on every
+  // scene at once.
   useEffect(() => {
     const address = `/${encodeURIComponent(review.id)}${onGrid || !watching ? "" : `/${slug(watching)}`}`;
     if (location.pathname !== address) history.replaceState(null, "", address);
   }, [review.id, onGrid, watching]);
-  // Where the playhead is, as the step needs it: playing, at a flow's start, partway, or at its end. A fork's end
-  // isn't the flow's.
+  // Where the playhead is, as the step needs it: playing, at a scene's start, partway, or at its end. A fork's end
+  // isn't the scene's.
   const where = useNow(playhead, ({ moment, playing }) => {
-    const length = playhead.flows.find((flow) => flow.name === moment.flow)?.length ?? 0;
-    const forking = forkList.some((fork) => fork.name === moment.flow);
+    const length = playhead.scenes.find((scene) => scene.name === moment.scene)?.length ?? 0;
+    const forking = forkList.some((fork) => fork.name === moment.scene);
     return playing ? "playing" : moment.at >= length - 0.06 && !forking ? "end" : moment.at <= 0 ? "start" : "partway";
   });
 
@@ -203,14 +203,14 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   const loading = useRef<{ since?: number; took?: number }>({});
   useEffect(() => void (live?.address && !live.settled && (loading.current.since = Date.now())), [live?.address]);
   const passing = useNow(playhead, ({ moment, playing }) => {
-    const on = round.flows.find((flow) => flow.name === moment.flow);
+    const on = round.scenes.find((scene) => scene.name === moment.scene);
     const paused = playing && current && !onGrid && on && moment.at >= 0 ? pausedAt(on, moment.at) : undefined;
-    return paused && JSON.stringify({ flow: on!.name, paused });
+    return paused && JSON.stringify({ scene: on!.name, paused });
   });
   useEffect(() => {
     if (!passing) return;
-    const { flow, paused }: { flow: string; paused: Paused } = JSON.parse(passing);
-    follow(review.id, flow, paused);
+    const { scene, paused }: { scene: string; paused: Paused } = JSON.parse(passing);
+    follow(review.id, scene, paused);
   }, [passing, review.id]);
   const playingNow = useNow(playhead, (now) => now.playing);
   const backToRecording = (at?: { x: number; y: number }) => {
@@ -221,18 +221,18 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   // The note whose answer you're trying in the app, taken over where you made it.
   const trying = useRef<string>(undefined);
   // Letting go, what you did is kept only as far as you said something about it: you land at your last note on the
-  // fork, or with nothing said, back where you took the flow over, with nothing left behind.
+  // fork, or with nothing said, back where you took the scene over, with nothing left behind.
   const letGo = (at?: { x: number; y: number }) => {
     // On the page, you're back on the step you took over, your notes from the app on it.
     const kept = !onGrid && live?.shown && yours.current.address === live.address && forkList.find((fork) => fork.session === yours.current.id);
-    if (kept) playhead.go({ flow: kept.name, at: kept.length });
+    if (kept) playhead.go({ scene: kept.name, at: kept.length });
     trying.current = undefined;
     backToRecording(at);
   };
   const letGoNow = useRef(letGo);
   letGoNow.current = letGo;
-  // A fork run again isn't taken over: a fork is taken over from its flow, never from another fork. Your own, on the
-  // round you made it, is carried on from its end: the flow taken over where you took it, your steps done again.
+  // A fork run again isn't taken over: a fork is taken over from its scene, never from another fork. Your own, on the
+  // round you made it, is carried on from its end: the scene taken over where you took it, your steps done again.
   const forkOfFork = !!onFork?.again;
   // With the answer to a note made in the app open, it's taken over where you made the note, as Take over where you
   // were in its card does; on the page, resting at one, the way it was found.
@@ -240,55 +240,55 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     if (live?.shown) return letGo();
     if (forkOfFork) return;
     if (onGrid && restingAt.current) return tryAgain(restingAt.current);
-    if (openNote && whereYouWere.get(openNote.id)?.at !== undefined && openNote.on?.flow === watching) return tryWhereYouWere(openNote);
+    if (openNote && whereYouWere.get(openNote.id)?.at !== undefined && openNote.on?.scene === watching) return tryWhereYouWere(openNote);
     trying.current = undefined;
-    const base = onFork && round.flows.find((flow) => flow.name === onFork.from.flow);
+    const base = onFork && round.scenes.find((scene) => scene.name === onFork.from.scene);
     if (onFork && base) {
       starting.current = { from: onFork.from, carry: yours.current.id === onFork.session ? yours.current : undefined };
       return takeOverAt(base, onFork.from.at, onFork.did);
     }
-    starting.current = { from: { flow: playhead.flow.name, at: Math.round(Math.max(0, playhead.now.moment.at) * 100) / 100 } };
-    // While its name is up, the flow is at its start.
-    takeOverAt(playhead.flow, Math.max(0, playhead.now.moment.at));
+    starting.current = { from: { scene: playhead.scene.name, at: Math.round(Math.max(0, playhead.now.moment.at) * 100) / 100 } };
+    // While its name is up, the scene is at its start.
+    takeOverAt(playhead.scene, Math.max(0, playhead.now.moment.at));
   };
-  // On the page, the answer to a note made in the app you rest at: where you took its situation over, what you did there
+  // On the page, the answer to a note made in the app you rest at: where you took its scene over, what you did there
   // done again on this round's work, the note's pin on what it's on.
   const restingAt = useRef<string>(undefined);
   const tryAgain = (id: string) => {
     const app = notes.find((note) => note.id === id)?.on?.app;
-    const flow = app && round.flows.find((one) => one.name === app.from.flow);
-    if (!app || !flow) return;
+    const scene = app && round.scenes.find((one) => one.name === app.from.scene);
+    if (!app || !scene) return;
     trying.current = id;
     starting.current = { from: app.from };
-    takeOverAt(flow, app.from.at, app.did, [id]);
+    takeOverAt(scene, app.from.at, app.did, [id]);
   };
-  // A note made in the app on an earlier round is checked the way it was found, by trying it: this round's flow taken
+  // A note made in the app on an earlier round is checked the way it was found, by trying it: this round's scene taken
   // over where you took it over then, what you did there done again, and in the app the note's pin on what it's on, its
   // card beside it.
   const tryWhereYouWere = (note: Shown) => {
     const was = whereYouWere.get(note.id);
-    const flow = round.flows.find((flow) => flow.name === note.on?.flow);
-    if (!flow || was?.at === undefined || !current) return;
+    const scene = round.scenes.find((scene) => scene.name === note.on?.scene);
+    if (!scene || was?.at === undefined || !current) return;
     trying.current = note.id;
     setOpen({ note: note.id });
-    starting.current = { from: { flow: flow.name, at: was.at } };
-    takeOverAt(flow, was.at, was.did, [note.id]);
+    starting.current = { from: { scene: scene.name, at: was.at } };
+    takeOverAt(scene, was.at, was.did, [note.id]);
   };
-  const takeOverAt = (on: Flow, at: number, did?: Did[], notes?: string[]) => {
+  const takeOverAt = (on: Scene, at: number, did?: Did[], notes?: string[]) => {
     const paused = pausedAt(on, at);
     if (!current || at < 0 || !paused) return;
     playhead.pause();
     // The app is now, alone: how it was goes.
     setPeek(false);
     chooseLook("one");
-    if (!did && live && live.flow === on.name && samePaused(live.paused, paused) && live.address) {
+    if (!did && live && live.scene === on.name && samePaused(live.paused, paused) && live.address) {
       takenOver(review.id, on.name, paused);
       const { since, took } = loading.current;
       return setLive({ ...live, shown: true, at: undefined, due: !live.settled && since && took ? since + took : undefined });
     }
     // The one being made ready since you paused, if it is, and how long it will be, if the last run says.
-    setLive({ flow: on.name, paused, shown: true });
-    const same = (now: Live | undefined): now is Live => now?.flow === on.name && samePaused(now.paused, paused);
+    setLive({ scene: on.name, paused, shown: true });
+    const same = (now: Live | undefined): now is Live => now?.scene === on.name && samePaused(now.paused, paused);
     readyAt(review.id, on.name, paused, { did, notes }).then((answer) => {
       takenOver(review.id, on.name, paused);
       setLive((now) => (same(now) ? (typeof answer === "string" ? { ...now, address: answer } : { ...now, problems: answer, shown: false }) : now));
@@ -349,9 +349,9 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   const noteOpen = open && "note" in open ? noted.find((note) => note.id === open.note) : undefined;
   const askedIn = noteOpen && answered(noteOpen) ? noteOpen.turns.filter((turn) => !turn.agent && turn.round < round.number).map((turn) => turn.round) : [];
   const askedFrom = askedIn.length ? Math.max(...askedIn) : undefined;
-  const looked = flow ? lastLooked(review, you, flow.name, round.number) : undefined;
+  const looked = scene ? lastLooked(review, you, scene.name, round.number) : undefined;
   // Compare is this moment as it was: on the round an open answer's note asked about, or else the round you last looked
-  // at this flow on, or Before. Held, it's a still look in place while you hold it; pressed and let go, the two go side
+  // at this scene on, or Before. Held, it's a still look in place while you hold it; pressed and let go, the two go side
   // by side, playing together, until it's pressed again, or Escape. On a bar, an answer that moves, held or pressed, the
   // two play its stretch side by side on repeat.
   const compared = round.number > first ? (askedFrom ?? looked ?? first) : undefined;
@@ -379,16 +379,16 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   notingNow.current = noting;
   const noteNow = useRef(() => {});
   const notedInApp = useRef<(noted: NotedInApp) => void>(() => {});
-  // While you're in the app, what you do there is recorded, from when it was handed to you: a fork off the flow, on the
+  // While you're in the app, what you do there is recorded, from when it was handed to you: a fork off the scene, on the
   // timeline as soon as you're there. Carried on from a fork, it goes on from where that one ended.
-  const yours = useRef<Session>({ id: "", events: [], did: [], kept: 0, shift: 0, from: { flow: "", at: 0 } });
+  const yours = useRef<Session>({ id: "", events: [], did: [], kept: 0, shift: 0, from: { scene: "", at: 0 } });
   const starting = useRef<{ from: Fork["from"]; carry?: Session }>(undefined);
   const [growing, setGrowing] = useState<Growing>();
   const recordedInApp = useRef<(events: { timestamp: number }[]) => void>(() => {});
   recordedInApp.current = (events) => {
     if (!live || !events.length) return;
     if (yours.current.address !== live.address) {
-      const { from, carry } = starting.current ?? { from: { flow: live.flow, at: 0 } };
+      const { from, carry } = starting.current ?? { from: { scene: live.scene, at: 0 } };
       const last = carry?.events.at(-1);
       yours.current = carry && last
         ? { ...carry, address: live.address, shift: last.timestamp + 400 - events[0]!.timestamp }
@@ -400,7 +400,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     const address = live.address ?? "";
     setGrowing((now) => (now?.address === address ? now : { address, name: `fork:${session.id}`, at: session.from.at, length: session.from.at }));
   };
-  // Kept as a recording, what you did plays as the flow up to where you took it over, then you. What you said earlier on
+  // Kept as a recording, what you did plays as the scene up to where you took it over, then you. What you said earlier on
   // the same fork goes on with the longer one.
   const keepFork = async (session: Session): Promise<Fork | string[]> => {
     const kept = `${session.id}-${++session.kept}.json`;
@@ -435,36 +435,36 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   const agentWaiting = useAgentWaiting(review.id);
 
   // Left and Right step to the next moment the page changes, or a second where nothing does; with Shift, a tenth.
-  const [changes, setChanges] = useState<{ flow: string; at: number[]; clicks: number[]; acted: [number, number][]; moved: Map<string, number[]> }>();
+  const [changes, setChanges] = useState<{ scene: string; at: number[]; clicks: number[]; acted: [number, number][]; moved: Map<string, number[]> }>();
   useEffect(() => {
-    if (!flow) return;
+    if (!scene) return;
     let current = true;
-    recording(review.id, round.number, flow.recording).then((events) => {
+    recording(review.id, round.number, scene.recording).then((events) => {
       const { changes, clicks, acted } = recorded(events);
       // When what each answer that moves is on changed: watching it starts at what set it moving.
-      const moved = new Map(round.replies.flatMap((reply) => (reply.watch && reply.on?.flow === flow.name && reply.on.element?.node !== undefined ? [[reply.note, changesIn(events, reply.on.element.node)] as const] : [])));
-      if (current) setChanges({ flow: flow.name, at: changes, clicks, acted, moved });
+      const moved = new Map(round.replies.flatMap((reply) => (reply.watch && reply.on?.scene === scene.name && reply.on.element?.node !== undefined ? [[reply.note, changesIn(events, reply.on.element.node)] as const] : [])));
+      if (current) setChanges({ scene: scene.name, at: changes, clicks, acted, moved });
     });
     return () => void (current = false);
-  }, [review.id, round.number, flow]);
-  // The forks off the flow you're watching.
-  const forksHere = forkList.filter((fork) => fork.from.flow === watching).map((fork): ForkLine => ({ name: fork.name, at: fork.from.at, length: fork.length }));
-  // A step crosses from one flow into the next, never into a fork; on a fork, past its end, it's back where the fork
-  // left its flow, and before where it leaves, on the flow, which it's the same as there.
+  }, [review.id, round.number, scene]);
+  // The forks off the scene you're watching.
+  const forksHere = forkList.filter((fork) => fork.from.scene === watching).map((fork): ForkLine => ({ name: fork.name, at: fork.from.at, length: fork.length }));
+  // A step crosses from one scene into the next, never into a fork; on a fork, past its end, it's back where the fork
+  // left its scene, and before where it leaves, on the scene, which it's the same as there.
   const nudge = (direction: 1 | -1, fine: boolean) => {
-    const on = playhead.flow as Forked;
+    const on = playhead.scene as Forked;
     if (on.fork !== undefined && on.leaves !== undefined) {
       const at = playhead.now.moment.at + direction * (fine ? 0.1 : 1);
-      if (at > on.length) return playhead.go({ flow: on.fork, at: on.leaves + Math.min(at - on.length, 0.1) });
-      return playhead.go(at < on.leaves ? { flow: on.fork, at } : { flow: on.name, at });
+      if (at > on.length) return playhead.go({ scene: on.fork, at: on.leaves + Math.min(at - on.length, 0.1) });
+      return playhead.go(at < on.leaves ? { scene: on.fork, at } : { scene: on.name, at });
     }
-    const flows = playhead.flows.filter((flow) => (flow as Forked).fork === undefined);
-    const now = along(flows, playhead.now.moment);
-    const starts = flows.map((flow) => along(flows, { flow: flow.name, at: 0 }));
-    const here = changes?.flow === flow?.name ? (changes?.at ?? []).map((at) => along(flows, { flow: flow!.name, at: Math.min(at, flow!.length - 0.02) })) : [];
+    const scenes = playhead.scenes.filter((scene) => (scene as Forked).fork === undefined);
+    const now = along(scenes, playhead.now.moment);
+    const starts = scenes.map((scene) => along(scenes, { scene: scene.name, at: 0 }));
+    const here = changes?.scene === scene?.name ? (changes?.at ?? []).map((at) => along(scenes, { scene: scene!.name, at: Math.min(at, scene!.length - 0.02) })) : [];
     const moments = [...starts, ...here].sort((a, b) => a - b);
     const next = direction > 0 ? moments.find((at) => at > now + 0.02) : moments.findLast((at) => at < now - 0.02);
-    playhead.go(momentAt(flows, fine ? now + direction * 0.1 : next !== undefined && Math.abs(next - now) < 1 ? next : now + direction));
+    playhead.go(momentAt(scenes, fine ? now + direction * 0.1 : next !== undefined && Math.abs(next - now) < 1 ? next : now + direction));
   };
 
   // Before is how the app was: it's there to look back on, and notes go on the rounds after it.
@@ -473,8 +473,8 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   const read = useReadings(review, review.rounds.filter((kept) => readOn.includes(kept.number)).map((kept) => (kept.number === round.number ? played : kept)));
   // Each note sits where its thing is on this round: its moment here, on what it's on here, once that's found. One on
   // something this round doesn't have is lost here. One made in the app is answered on its fork, run again as the agent
-  // wrote it, where the fork first shows its thing, as record places it. On a round that doesn't answer it, it sits where you took its flow over, which this round's recording shows, as nothing
-  // recorded what you did after; where this round's flow doesn't go that far, it's on the whole flow.
+  // wrote it, where the fork first shows its thing, as record places it. On a round that doesn't answer it, it sits where you took its scene over, which this round's recording shows, as nothing
+  // recorded what you did after; where this round's scene doesn't go that far, it's on the whole scene.
   const answeredOn = (note: Shown) => (note.on?.app && note.written !== round.number ? round.replies.find((reply) => reply.note === note.id)?.on : undefined);
   const ranAgainTo = (note: Shown) => (answeredOn(note)?.app ? answeredOn(note) : undefined);
   const whereYouWere = new Map(
@@ -484,36 +484,36 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     const answered = answeredOn(note);
     if (answered) return { ...note, on: answered };
     const was = whereYouWere.get(note.id);
-    if (was) return { ...note, on: { flow: note.on!.app!.from.flow, ...(was.at !== undefined && { at: was.at, ...(was.element && { element: was.element }) }) } };
+    if (was) return { ...note, on: { scene: note.on!.app!.from.scene, ...(was.at !== undefined && { at: was.at, ...(was.element && { element: was.element }) }) } };
     return note.on && !note.on.app ? { ...note, on: placeOn(review, note.id, note.on, note.written, round, read) ?? note.on } : note;
   });
   const lost = noted.filter((note, i) => note.on?.element && !note.on.app && notes[i]!.on !== note.on && !notes[i]!.on?.element).map((note) => note.id);
   // The notes whose things have left the page you're watching.
   const [gone, setGone] = useState<string[]>([]);
   const settled = settledBefore(review, round.number, you);
-  const playingNotes = flow ? notes.filter((note) => note.on?.flow === flow.name && note.on.at !== undefined) : [];
+  const playingNotes = scene ? notes.filter((note) => note.on?.scene === scene.name && note.on.at !== undefined) : [];
 
-  // Where each flow stands for you on the round you judge, and, once the work is accepted, on the last.
+  // Where each scene stands for you on the round you judge, and, once the work is accepted, on the last.
   const judging = !readOnly || (!!review.accepted && round === latest);
   const standing = useMemo(() => (judging ? standings(review, round.number, you, unsent) : undefined), [judging, review, round.number, you, unsent]);
 
-  // A newer round is followed once you go to another flow, or to every flow: never under the flow you're watching.
-  const followFrom = useRef<{ round: number; flow: string }>(undefined);
+  // A newer round is followed once you go to another scene, or to every scene: never under the scene you're watching.
+  const followFrom = useRef<{ round: number; scene: string }>(undefined);
   useEffect(() => {
     if (!newer) return void (followFrom.current = undefined);
-    if (followFrom.current?.round !== newer.number) followFrom.current = { round: newer.number, flow: watching };
-    if (!onGrid && watching === followFrom.current.flow) return;
+    if (followFrom.current?.round !== newer.number) followFrom.current = { round: newer.number, scene: watching };
+    if (!onGrid && watching === followFrom.current.scene) return;
     following.current = true;
     onRound(newer.number);
   });
-  const go = (name: string, at = FLOW_IN) => {
+  const go = (name: string, at = SCENE_IN) => {
     playhead.pause();
-    playhead.go({ flow: name, at });
+    playhead.go({ scene: name, at });
   };
 
   // What's new to you on this round: a diamond at each moment something changed, on the timeline.
   const diamonds = diamondsOn(review, round.number, you);
-  const clicks = changes?.flow === flow?.name ? (changes?.clicks ?? []) : [];
+  const clicks = changes?.scene === scene?.name ? (changes?.clicks ?? []) : [];
   const onNow = useNow(playhead, (now) => diamondAt(diamonds, now.moment, clicks)?.id);
   const chosen = open && "change" in open ? diamonds.find((diamond) => diamond.id === open.change) : undefined;
   const oneOpen = chosen && open && "change" in open ? open.one : undefined;
@@ -547,7 +547,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   useEffect(() => setPointedChange(undefined), [changeOpen?.id]);
   // Paused on a change, with nothing else open, it's outlined where it is on the page; chosen, more firmly. What the agent
   // changed for the open note is the note's, drawn with it.
-  const outlined = changeOpen?.flow === watching ? changeOpen : !open ? diamonds.find((diamond) => diamond.id === onNow) : undefined;
+  const outlined = changeOpen?.scene === watching ? changeOpen : !open ? diamonds.find((diamond) => diamond.id === onNow) : undefined;
 
   // Every mark covers what it shows. Opened, a dot or a diamond goes still to its moment; a bar plays what it covers. In a
   // change's card its time goes there again, and a click on the rest of its header closes it, never playing or pausing
@@ -558,61 +558,61 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     playhead.run(from, until);
   };
   // A change is a difference from an earlier round, seen on one frame: it opens there, still. New steps open on the
-  // first step the flow didn't take before; Play goes on through them.
+  // first step the scene didn't take before; Play goes on through them.
   const choose = (diamond: Diamond) => {
     setMet((met) => (met.includes(diamond.id) ? met : [...met, diamond.id]));
     setOpen({ change: diamond.id });
-    go(diamond.flow, diamond.at);
+    go(diamond.scene, diamond.at);
   };
-  // One on the whole flow is laid out at its end, so that's where it opens.
+  // One on the whole scene is laid out at its end, so that's where it opens.
   const show = (note: Shown) => {
-    setOpen(note.on && note.on.at === undefined ? { end: note.on.flow } : { note: note.id });
+    setOpen(note.on && note.on.at === undefined ? { end: note.on.scene } : { note: note.id });
     setMet((met) => (met.includes(note.id) ? met : [...met, note.id]));
-    if (note.on) go(playedOn(note.on), note.on.at ?? played.flows.find((flow) => flow.name === playedOn(note.on!))?.length);
+    if (note.on) go(playedOn(note.on), note.on.at ?? played.scenes.find((scene) => scene.name === playedOn(note.on!))?.length);
   };
-  // Where an answer that moves is watched, in the flow its note is on, once the recording says when what it's on changed.
+  // Where an answer that moves is watched, in the scene its note is on, once the recording says when what it's on changed.
   const movingOf = (note: Shown) => {
-    const watched = watchedIn(round, note.id, changes?.flow === flow?.name ? changes?.moved.get(note.id) : undefined);
-    return watched && note.on && playedOn(note.on) === watched.flow ? watched : undefined;
+    const watched = watchedIn(round, note.id, changes?.scene === scene?.name ? changes?.moved.get(note.id) : undefined);
+    return watched && note.on && playedOn(note.on) === watched.scene ? watched : undefined;
   };
   // The time a note covers on the timeline is the time it plays: a dot its moment, a bar the stretch its answer moves in
   // (or that it's on).
   const span = (note: Shown) => movingOf(note) ?? { at: note.on?.at ?? 0, until: note.on?.until };
   // Chosen, from its dot, its pin or the bar's list alike, a note opens on the frame it was written on, still: that frame
-  // is what it's about. A bar plays exactly what it covers, then its card asks. One on a whole flow opens in the flow's
+  // is what it's about. A bar plays exactly what it covers, then its card asks. One on a whole scene opens in the scene's
   // own card, at its end.
   const pick = (note: Shown) => {
     const on = note.on;
-    const its = on && played.flows.find((flow) => flow.name === playedOn(on));
+    const its = on && played.scenes.find((scene) => scene.name === playedOn(on));
     const { at, until } = span(note);
     if (!its || until === undefined) return show(note);
     setOpen({ note: note.id });
     setMet((met) => (met.includes(note.id) ? met : [...met, note.id]));
-    play(note.id, { flow: its.name, at }, Math.min(its.length, until));
+    play(note.id, { scene: its.name, at }, Math.min(its.length, until));
   };
 
-  // The agent's line about a flow is on its title card: the first time you come to the flow, playing waits there, the
+  // The agent's line about a scene is on its title card: the first time you come to the scene, playing waits there, the
   // card up, until you play on. Once its recording has started, it's read.
   const [readLines, setReadLines] = useState<string[]>([]);
-  const pastCard = useNow(playhead, (now) => (now.moment.at >= 0 ? now.moment.flow : undefined));
+  const pastCard = useNow(playhead, (now) => (now.moment.at >= 0 ? now.moment.scene : undefined));
   if (pastCard && !readLines.includes(pastCard)) setReadLines([...readLines, pastCard]);
   // Playing stops at each answer that waits for you, and at each change new to you, the first time it gets there, and
   // opens it as a click on it would: what changed is marked on the recording, where it's still, and the card says why.
-  // One on a fork run again is on the way: playing goes up the fork where you took the flow over, and from the fork's
-  // end comes back down into the flow (playhead.ts).
+  // One on a fork run again is on the way: playing goes up the fork where you took the scene over, and from the fork's
+  // end comes back down into the scene (playhead.ts).
   const forksAgain = forkList.filter((fork) => fork.again);
   const waitsOn = (fork: Fork) => playingNotes.some((note) => note.on && playedOn(note.on) === fork.name && note.state === "needs you" && !note.unsent && !met.includes(note.id));
-  const onto = (flow: string, at: number) => () => {
-    playhead.go({ flow, at });
+  const onto = (scene: string, at: number) => () => {
+    playhead.go({ scene, at });
     playhead.play();
   };
   useEffect(() =>
     playhead.stopAt([
-      ...forksAgain.filter(waitsOn).map((fork) => ({ id: fork.name, flow: fork.from.flow, at: fork.from.at, reached: onto(fork.name, fork.from.at) })),
-      ...round.flows.filter((flow) => flow.line && !readLines.includes(flow.name)).map((flow) => ({ id: `card:${flow.name}`, flow: flow.name, at: POSTER, reached: () => {} })),
-      ...diamonds.filter((diamond) => diamond.row && diamond.until === undefined && !met.includes(diamond.id)).map((diamond) => ({ id: diamond.id, flow: diamond.flow, at: diamond.at, reached: () => choose(diamond) })),
+      ...forksAgain.filter(waitsOn).map((fork) => ({ id: fork.name, scene: fork.from.scene, at: fork.from.at, reached: onto(fork.name, fork.from.at) })),
+      ...round.scenes.filter((scene) => scene.line && !readLines.includes(scene.name)).map((scene) => ({ id: `card:${scene.name}`, scene: scene.name, at: POSTER, reached: () => {} })),
+      ...diamonds.filter((diamond) => diamond.row && diamond.until === undefined && !met.includes(diamond.id)).map((diamond) => ({ id: diamond.id, scene: diamond.scene, at: diamond.at, reached: () => choose(diamond) })),
       ...playingNotes.flatMap((note) =>
-        note.on && note.state === "needs you" && !note.unsent && !met.includes(note.id) ? [{ id: note.id, flow: playedOn(note.on), at: span(note).at, reached: () => pick(note) }] : [],
+        note.on && note.state === "needs you" && !note.unsent && !met.includes(note.id) ? [{ id: note.id, scene: playedOn(note.on), at: span(note).at, reached: () => pick(note) }] : [],
       ),
     ]),
   );
@@ -649,7 +649,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     // Not kept, there's nothing for a note to be on: it says why, as a send that wasn't kept does.
     if (Array.isArray(fork)) return void setTrouble(fork);
     const app = { from: fork.from, did, recording: fork.recording, length: fork.length };
-    write({ flow: fork.from.flow, at: Math.floor(fork.length * 100) / 100, ...(element ? { element } : point && { point }), app });
+    write({ scene: fork.from.scene, at: Math.floor(fork.length * 100) / 100, ...(element ? { element } : point && { point }), app });
   };
   // A note in the app shows there as a pin on what it's on.
   const pinInApp = (id: string, on: Place) =>
@@ -672,16 +672,16 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     setTimeout(() => setFresh((fresh) => (fresh === id ? undefined : fresh)), 1200);
   };
 
-  // Saved, a new note stays open with your words in it, and Play on its way on. A note on a flow you said looks good
+  // Saved, a new note stays open with your words in it, and Play on its way on. A note on a scene you said looks good
   // takes that back.
   const saveNote = (note: Note, words: string) => {
     // Saved under the round it was started on.
     change((draft) => ({
-      ...(note.on ? takeBack(draft, note.on.flow, notes) : draft),
+      ...(note.on ? takeBack(draft, note.on.scene, notes) : draft),
       notes: draft.unsaved.some((kept) => kept.id === note.id) ? [...draft.notes, { id: note.id, ...(note.on && { on: note.on }), words }] : draft.notes,
       unsaved: draft.unsaved.filter((kept) => kept.id !== note.id),
     }));
-    setOpen(note.on && note.on.at === undefined ? { end: note.on.flow } : { note: note.id });
+    setOpen(note.on && note.on.at === undefined ? { end: note.on.scene } : { note: note.id });
     glow(note.id);
     if (note.on?.app && inApp) pinInApp(note.id, note.on);
   };
@@ -695,16 +695,16 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     change((draft) => ({ ...draft, notes: draft.notes.flatMap((note) => (note.id !== id ? [note] : words ? [{ ...note, words }] : [])) }));
     if (!words) setOpen(undefined);
   };
-  // Judging an answer yourself takes it from its flow's Looks good; Not quite takes back the flow's Looks good.
+  // Judging an answer yourself takes it from its scene's Looks good; Not quite takes back the scene's Looks good.
   const judge = (note: Shown, verdict: Verdict | undefined) =>
     changeUnsent((unsent) => {
       const unjudged = everyDraft(unsent, (draft) => {
-        const kept = verdict?.verdict === "not quite" && note.on ? takeBack(draft, note.on.flow, notes) : draft;
-        return { ...kept, verdicts: kept.verdicts.filter((kept) => kept.note !== note.id), withTheFlow: kept.withTheFlow.filter((id) => id !== note.id) };
+        const kept = verdict?.verdict === "not quite" && note.on ? takeBack(draft, note.on.scene, notes) : draft;
+        return { ...kept, verdicts: kept.verdicts.filter((kept) => kept.note !== note.id), withTheScene: kept.withTheScene.filter((id) => id !== note.id) };
       });
       return verdict ? draftOn(unjudged, round.number, (draft) => ({ ...draft, verdicts: [...draft.verdicts, verdict] })) : unjudged;
     });
-  // A situation's Looks good is a checkbox in its header: pressed again, it's taken back.
+  // A scene's Looks good is a checkbox in its header: pressed again, it's taken back.
   // Said, it's kept with the rest until you send, with the answers in it you haven't judged riding along. Pressed again,
   // it's taken back: unsent, it's gone; sent, taking it back goes with the next send.
   const lookingGood = (name: string) => {
@@ -716,7 +716,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   };
 
 
-  // Leaving every flow at once for a flow, its picture grows into the frame, and the flow plays once it's there; for a
+  // Leaving every scene at once for a scene, its picture grows into the frame, and the scene plays once it's there; for a
   // step, the camera pulls back from it. Coming back, it pushes in on the step you were on, and what you were reading is
   // let go, unless you're writing it.
   const gridRoom = useRef<HTMLDivElement>(null);
@@ -741,52 +741,52 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     if (name) go(name);
   };
 
-  // The flow you came back from and where you were in it, which every flow opens on.
-  const [back, setBack] = useState<{ flow: string; at: number }>();
+  // The scene you came back from and where you were in it, which every scene opens on.
+  const [back, setBack] = useState<{ scene: string; at: number }>();
   const homing = useRef<{ frame: HTMLElement; box: DOMRect; page: DOMRect }>(undefined);
   const toGrid = () => {
-    const flow = playhead.flow as Forked;
+    const scene = playhead.scene as Forked;
     const frame = document.querySelector<HTMLElement>("[data-frame][data-watched]");
     const page = frame?.querySelector("[data-replay]:not([hidden])")?.getBoundingClientRect();
     if (frame && page) homing.current = { frame, box: frame.getBoundingClientRect(), page };
-    setBack(flow.fork === undefined ? { flow: flow.name, at: playhead.now.moment.at } : { flow: flow.fork, at: flow.leaves ?? 0 });
+    setBack(scene.fork === undefined ? { scene: scene.name, at: playhead.now.moment.at } : { scene: scene.fork, at: scene.leaves ?? 0 });
     playhead.pause();
-    playhead.go({ flow: round.flows[0]!.name, at: POSTER });
+    playhead.go({ scene: round.scenes[0]!.name, at: POSTER });
     if (open && !("writing" in open)) setOpen(undefined);
     setGrid(true);
   };
   useLayoutEffect(() => {
     const going = homing.current;
     homing.current = undefined;
-    const home = back && gridRoom.current?.querySelector<HTMLElement>(`[data-picture="${CSS.escape(back.flow)}"]`);
+    const home = back && gridRoom.current?.querySelector<HTMLElement>(`[data-picture="${CSS.escape(back.scene)}"]`);
     if (going && home && onGrid) pushIn(going.frame, going.box, going.page, home);
   });
   useLayoutEffect(() => {
     const flight = flying.current;
     flying.current = undefined;
     if (!flight) return;
-    // Only the picture of the flow that plays grows into the frame.
+    // Only the picture of the scene that plays grows into the frame.
     const frame = document.querySelector<HTMLElement>(`[data-frame="${round.number}"]`);
-    const last = !frame ? 0 : grow(flight.taking.filter((taken) => taken.flow === playhead.flow.name), frame);
+    const last = !frame ? 0 : grow(flight.taking.filter((taken) => taken.scene === playhead.scene.name), frame);
     if (!flight.playing) return;
     const from = playhead.now.moment;
     clearTimeout(settling.current);
     settling.current = window.setTimeout(() => {
       const { moment, playing } = playhead.now;
-      if (playing || moment.flow !== from.flow || moment.at !== from.at) return;
+      if (playing || moment.scene !== from.scene || moment.at !== from.at) return;
       playhead.play();
     }, last + SETTLE);
   });
 
-  // Up and Down go through the situation you're in: its notes and changes by their time, the recording going with them.
-  const order: (Row | { flow: Flow })[] = flow ? [{ flow }, ...rowsIn(flow.name, notes, diamonds, settles(standing?.get(flow.name), true))] : [];
+  // Up and Down go through the scene you're in: its notes and changes by their time, the recording going with them.
+  const order: (Row | { scene: Scene })[] = scene ? [{ scene }, ...rowsIn(scene.name, notes, diamonds, settles(standing?.get(scene.name), true))] : [];
   const through = (direction: 1 | -1) => {
     const here = order.findIndex((row) =>
       "note" in row
         ? open && "note" in open && open.note === row.note.id
         : "diamond" in row
           ? chosen === row.diamond
-          : !open && row.flow.name === watching,
+          : !open && row.scene.name === watching,
     );
     const next = order[here < 0 ? 0 : clamp(here + direction, 0, order.length - 1)];
     if (!next || (here >= 0 && order[here] === next)) return;
@@ -794,7 +794,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     else if ("diamond" in next) choose(next.diamond);
     else {
       setOpen(undefined);
-      go(next.flow.name);
+      go(next.scene.name);
     }
   };
 
@@ -802,7 +802,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   // the rest, counting the ones you haven't saved, and named for where it is, over its box.
   const nextNumber = Math.max(0, ...notes.map((note) => note.number)) + 1;
   const writing = draft.unsaved.find((note) => note.id === writingId);
-  const placeName = (on: Place | undefined) => nameOf(on && { ...on, flow: playedOn(on) }, read, round.number);
+  const placeName = (on: Place | undefined) => nameOf(on && { ...on, scene: playedOn(on) }, read, round.number);
   const writingWords = (note: Note) => (
     <Writing
       words={note.words}
@@ -833,11 +833,11 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     if (note) return pick(note);
     if (already) return setOpen({ writing: already });
     const on = diamond.changes.find((changed) => (one ? changed.change.id === one : !changed.answers))?.on;
-    go(diamond.flow, diamond.at);
-    write({ flow: diamond.flow, at: diamond.at, ...(diamond.until === undefined && (on?.element ? { element: on.element } : on?.box && { box: on.box })) });
+    go(diamond.scene, diamond.at);
+    write({ scene: diamond.scene, at: diamond.at, ...(diamond.until === undefined && (on?.element ? { element: on.element } : on?.box && { box: on.box })) });
   };
-  // Playing on from an open card lets it go, as moving on from it does. At the flow's end there's nothing left to play,
-  // and the flow asks whether it's good before the next one starts.
+  // Playing on from an open card lets it go, as moving on from it does. At the scene's end there's nothing left to play,
+  // and the scene asks whether it's good before the next one starts.
   const playOn = () => {
     setOpen(undefined);
     if (where !== "end") playhead.play();
@@ -845,10 +845,10 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   // What the agent changed for a note is gone to as its diamond is, the note staying open.
   const row = (note: Shown, grownHere?: boolean) => {
     const isOpen = !!open && "note" in open && open.note === note.id;
-    // A note's card is away once you've gone on into another flow, or what it's on has left the page: it asks nothing
+    // A note's card is away once you've gone on into another scene, or what it's on has left the page: it asks nothing
     // there. Not while its own moment plays, on the way to it.
     const away =
-      (!!note.on && round.flows.some((flow) => flow.name === note.on!.flow) && note.on.flow !== watching) ||
+      (!!note.on && round.scenes.some((scene) => scene.name === note.on!.scene) && note.on.scene !== watching) ||
       ((gone.includes(note.id) || lost.includes(note.id)) && !(where === "playing" && running.current === note.id));
     // Made in the app on an earlier round, it's tried where you were rather than compared, on the round that's the app
     // as it is now; in the app, a Looks good stays where you said it, as there's nothing to play on to.
@@ -910,18 +910,18 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   // The open card answers Enter and X, as its buttons say: Looks good and Not quite on an answer not yet judged, Play on and a note on
   // a change. C compares, held for a look and tapped for side by side, as the pointer does on Compare.
   const openNote = open && "note" in open ? notes.find((note) => note.id === open.note) : undefined;
-  const asks = !!openNote && !readOnly && openNote.on?.at !== undefined && openNote.toJudge && !draft.verdicts.some((verdict) => verdict.note === openNote.id) && openNote.on?.flow === watching;
+  const asks = !!openNote && !readOnly && openNote.on?.at !== undefined && openNote.toJudge && !draft.verdicts.some((verdict) => verdict.note === openNote.id) && openNote.on?.scene === watching;
   // In the app where you were, with the note you're trying open: it stays by its pin there while you try it.
   const tryingHere = inApp && !!openNote && trying.current === openNote.id;
   // A card is about its mark's moment, a dot's or a diamond's, or a bar's stretch: once the playhead has left it, played
   // on or dragged along the timeline, it closes, and doesn't come back when playing stops. One made in the app is about
-  // its moment on its fork run again, as its dot there is. One on a whole flow, or on the fork you're making, has no
+  // its moment on its fork run again, as its dot there is. One on a whole scene, or on the fork you're making, has no
   // mark there, and stays.
   const marked = openNote?.on?.at !== undefined && (!openNote.on.app || !!ranAgainTo(openNote));
-  const mark = marked ? { flow: playedOn(openNote!.on!), ...span(openNote!) } : chosen && { flow: chosen.flow, at: chosen.at, until: undefined };
+  const mark = marked ? { scene: playedOn(openNote!.on!), ...span(openNote!) } : chosen && { scene: chosen.scene, at: chosen.at, until: undefined };
   // A change's card stays as long as its marks do: just past its moment too, until the next click, as they're drawn.
   const leftMark = useNow(playhead, ({ moment }) =>
-    !!mark && !live?.shown && (chosen && !openNote ? diamondAt(diamonds, moment, clicks)?.id !== chosen.id : moment.flow !== mark.flow || moment.at < mark.at - NEAR || moment.at > (mark.until ?? mark.at) + NEAR),
+    !!mark && !live?.shown && (chosen && !openNote ? diamondAt(diamonds, moment, clicks)?.id !== chosen.id : moment.scene !== mark.scene || moment.at < mark.at - NEAR || moment.at > (mark.until ?? mark.at) + NEAR),
   );
   useEffect(() => {
     if (leftMark) setOpen(undefined);
@@ -946,7 +946,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   const source = madeFrom.toSorted((a, b) => b.app.length - a.app.length)[0]?.app;
   // Past your last note, your fork plays on at its own pace and ends where the one run again does: what you did after
   // it was writing the note, and kept in step with the other's short end, it raced.
-  const again = againHere && played.flows.find((flow) => flow.name === againHere.name);
+  const again = againHere && played.scenes.find((scene) => scene.name === againHere.name);
   const lastNote = again?.steps.findLast((step) => step.title.startsWith("Note "));
   const after = again && lastNote ? again.length - lastNote.at : undefined;
   const lastAt = Math.max(...madeFrom.map((from) => from.at));
@@ -962,8 +962,8 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
       ])
     : comparedRound;
   // Compare is there only where the round it compares with has what you're watching: a fork you made on this round, or
-  // a flow new in it, has nothing to show beside it.
-  const comparingIt: Comparing | undefined = heldOver?.flows.some((flow) => flow.name === inPlay) ? { on: peek || side, off: !!live?.shown, onPress: pressCompare, onRelease: releaseCompare } : undefined;
+  // a scene new in it, has nothing to show beside it.
+  const comparingIt: Comparing | undefined = heldOver?.scenes.some((scene) => scene.name === inPlay) ? { on: peek || side, off: !!live?.shown, onPress: pressCompare, onRelease: releaseCompare } : undefined;
   // Gone where there's nothing to compare, Compare is off, as its button is gone: back where there is, it's off until
   // pressed, rather than on with no way to turn it off.
   if (look === "side" && !comparingIt) setLook("one");
@@ -971,14 +971,14 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   const comparing = side && !!heldOver;
   const earlier = comparing ? heldOver : undefined;
   const zoomed = comparing ? !sideFit : actual;
-  // The flow as a video, as it's shown: alone, or beside the round Compare shows.
+  // The scene as a video, as it's shown: alone, or beside the round Compare shows.
   const downloader = useRef<{ start: () => void }>(null);
   const toDownload = (): Asked | undefined =>
-    flow && !onGrid
+    scene && !onGrid
       ? {
           review: review.id,
-          filmed: { round: round.number, flow: flow.name, beside: earlier?.number, dark: matchMedia("(prefers-color-scheme: dark)").matches },
-          name: `${flow.name} · ${earlier ? `${roundName(earlier.number)} and ${roundName(round.number)}` : roundName(round.number)}`,
+          filmed: { round: round.number, scene: scene.name, beside: earlier?.number, dark: matchMedia("(prefers-color-scheme: dark)").matches },
+          name: `${scene.name} · ${earlier ? `${roundName(earlier.number)} and ${roundName(round.number)}` : roundName(round.number)}`,
         }
       : undefined;
   // Holding Compare or How it was, that round shows over the recording, in place.
@@ -986,14 +986,14 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   const peeking = peek && !repeats && !!comparedRound;
   // Side by side on a bar, both rounds play its stretch again and again; let go or pressed again, it rests at the
   // stretch's end, where its card asks.
-  const looping = comparing && repeats ? `${openNote!.id} ${repeats.flow} ${repeats.at} ${repeats.until}` : undefined;
+  const looping = comparing && repeats ? `${openNote!.id} ${repeats.scene} ${repeats.at} ${repeats.until}` : undefined;
   useEffect(() => {
     if (!looping || !repeats) return;
     running.current = openNote!.id;
-    playhead.repeat({ flow: repeats.flow, at: repeats.at }, repeats.until);
+    playhead.repeat({ scene: repeats.scene, at: repeats.at }, repeats.until);
     return () => {
       playhead.pause();
-      playhead.go({ flow: repeats.flow, at: repeats.until });
+      playhead.go({ scene: repeats.scene, at: repeats.until });
     };
   }, [looping]);
 
@@ -1027,29 +1027,29 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     setTrouble(problems);
     if (problems.length) return;
     setAcceptedHere(true);
-    // Done, it goes back to every flow, where their ticks land in turn.
+    // Done, it goes back to every scene, where their ticks land in turn.
     if (many) setTimeout(toGrid, 900);
   };
 
-  // The one step, from where the playhead is, which Enter takes: play on through the situation you're in, finishing a
-  // note you started in it; at its end, back to every situation, where it's judged and what you said is sent.
+  // The one step, from where the playhead is, which Enter takes: play on through the scene you're in, finishing a
+  // note you started in it; at its end, back to every scene, where it's judged and what you said is sent.
   const stepHere = (): Step => {
     if (review.accepted || acceptedHere)
       return { kind: "done", words: !review.accepted || review.accepted.by === you ? "Accepted" : `Accepted by ${review.accepted.by}`, just: acceptedHere };
     if (round !== latest && arrived) return { kind: "go", words: `${roundName(latest.number)} is in`, what: "See it", take: () => toRound(latest.number) };
     if (!current) return { kind: "go", words: "Back to now", what: roundName(latest.number), take: () => toRound(latest.number) };
     if (round.number === 0) return { kind: "agent", words: "The agent is working", what: "on round 1", busy: true };
-    if (!flow) return { kind: "go", words: "All flows", take: toGrid };
-    if (where === "playing") return { kind: "say", words: "Playing", what: flow.name };
+    if (!scene) return { kind: "go", words: "All scenes", take: toGrid };
+    if (where === "playing") return { kind: "say", words: "Playing", what: scene.name };
     // A note you started here and didn't save, as one a reload kept, is finished where it is.
-    const started = draft.unsaved.find((note) => note.on?.flow === flow.name);
+    const started = draft.unsaved.find((note) => note.on?.scene === scene.name);
     if (started) return { kind: "go", words: "Finish your note", what: placeName(started.on), take: () => setOpen({ writing: started.id }) };
-    if (where !== "end") return { kind: "go", words: where === "start" ? "Play" : "Play on", what: flow.name, take: () => playhead.play() };
-    return { kind: "go", words: "All flows", take: toGrid };
+    if (where !== "end") return { kind: "go", words: where === "start" ? "Play" : "Play on", what: scene.name, take: () => playhead.play() };
+    return { kind: "go", words: "All scenes", take: toGrid };
   };
   const step = stepHere();
 
-  // At the foot of every flow, what's yours to do: finish a note you started; send what you've said, all of it at once,
+  // At the foot of every scene, what's yours to do: finish a note you started; send what you've said, all of it at once,
   // so the agent starts on the whole of it; accept, once nothing waits on you or the agent, sending your Looks goods
   // with it; else what the agent is doing. Looking back, it's the way back to now.
   const asksTheAgent = draft.notes.length > 0 || draft.verdicts.some((verdict) => verdict.verdict === "not quite");
@@ -1063,13 +1063,13 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
         kind: "go",
         words: "Finish your note",
         what: placeName(started.on),
-        // On the page, its situation comes up and the note opens in its list, where it was being written.
+        // On the page, its scene comes up and the note opens in its list, where it was being written.
         take: () => {
-          const there = started.on && gridRoom.current?.querySelector(`[data-situation="${CSS.escape(started.on.flow)}"]`);
+          const there = started.on && gridRoom.current?.querySelector(`[data-scene="${CSS.escape(started.on.scene)}"]`);
           if (onGrid) (there?.scrollIntoView({ behavior: "smooth", block: "start" }), there?.querySelector<HTMLElement>("li[aria-current] textarea")?.focus({ preventScroll: true }));
           else if (started.on) {
-            leave(started.on.flow, false);
-            go(started.on.flow, started.on.at);
+            leave(started.on.scene, false);
+            go(started.on.scene, started.on.at);
           }
           setOpen({ writing: started.id });
         },
@@ -1095,7 +1095,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   const clicked = useRef<Element | null>(null);
   useEffect(() => {
     const writingHere = (event: KeyboardEvent) => event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement;
-    // Enter presses a button you came to by keyboard; one you just clicked, like play, keeps no hold on it, so at a flow's
+    // Enter presses a button you came to by keyboard; one you just clicked, like play, keeps no hold on it, so at a scene's
     // end it's still Looks good.
     const pressing = (event: KeyboardEvent, buttons: string) => {
       const button = (event.target as Element).closest?.(buttons);
@@ -1115,7 +1115,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
       // chosen what it's on.
       if (live?.shown && !(inApp ? /^(n|t|escape)$/i : /^(t|escape)$/i).test(event.key)) return;
       if (noting && !/^(n|escape)$/i.test(event.key)) return;
-      // On the page, Enter takes the step; a row is chosen as a button is. N, T and Escape are for the situation you're
+      // On the page, Enter takes the step; a row is chosen as a button is. N, T and Escape are for the scene you're
       // on, as its bar is; Space and C are its own.
       if (onGrid) {
         if (event.key === "Enter" && !pressing(event, "button") && gridStep?.kind === "go" && !gridStep.final) {
@@ -1180,7 +1180,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
         setPeek(false);
         chooseLook("one");
       } else if (event.key === "Escape") {
-        // Escape goes back a step you can see: from a note or a change to the recording, from a flow to every flow, and
+        // Escape goes back a step you can see: from a note or a change to the recording, from a scene to every scene, and
         // looking back to now.
         if (open) setOpen(undefined);
         else if (many) toGrid();
@@ -1205,12 +1205,12 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     };
   });
 
-  // What's drawn on the recordings: on the round you're watching, the notes in its flow on their things, the open one
+  // What's drawn on the recordings: on the round you're watching, the notes in its scene on their things, the open one
   // whenever its thing is there and the rest around their moments, the note being written, and what changed where
   // you're stopped; on the round beside it, what's chosen, where it is there.
-  // The note on the whole flow a change was made for: answered at the flow's end, the change is met where it happened.
+  // The note on the whole scene a change was made for: answered at the scene's end, the change is met where it happened.
   const wholeOf = (diamond: Diamond) => notes.find((note) => note.on?.at === undefined && madeFor([diamond], note.id).length > 0);
-  // A change carries the colour of the note grown out of it, or of the note on the whole flow it was made for.
+  // A change carries the colour of the note grown out of it, or of the note on the whole scene it was made for.
   const grownInk = (diamond: Diamond) => {
     const id = [...grown].find(([, on]) => on === diamond)?.[0];
     const note = notes.find((note) => note.id === id) ?? wholeOf(diamond);
@@ -1229,7 +1229,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   // The open note's answer, outlined in every place in the note's colour, on the round you're watching and the one beside it.
   const answerMarks = (on: (changed: Changed) => Place | undefined): Mark[] => {
     const note = openNote && openNote.on?.at !== undefined ? openNote : undefined;
-    const changes = note ? pointedIn(answersTo(diamonds, note.id).filter((changed) => changed.on.flow === watching)) : [];
+    const changes = note ? pointedIn(answersTo(diamonds, note.id).filter((changed) => changed.on.scene === watching)) : [];
     return note
       ? changes.flatMap((changed) =>
           marksOn(on(changed)).map((at): Mark => ({ id: changed.change.id, kind: "change", on: at, ink: ink(note), answers: note.id, pointed: changed.change.id === pointedChange, chosen: false })),
@@ -1239,7 +1239,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   const drawn = (diamond: Diamond) => pointedIn(diamond.changes);
   // New steps aren't on one thing: they're outlined on what they click or type into, as the recording shows it.
   const actedOn = (diamond: Diamond): Mark["on"][] =>
-    diamond.until === undefined || changes?.flow !== diamond.flow
+    diamond.until === undefined || changes?.scene !== diamond.scene
       ? []
       : [...new Set(changes.acted.filter(([at]) => at >= diamond.at && at <= diamond.until!).map(([, node]) => node))].map((node) => ({ node }));
   // Each change is marked on its own, with a pin of its own that opens its why; words reworded are marked themselves, not
@@ -1269,7 +1269,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     const there = own?.on && markOn(placeOn(review, own.id, own.on, own.written, other, read));
     marks.set(other.number, [
       ...(there ? [{ id: own.id, kind: "note" as const, on: there, ink: ink(own), chosen: true }] : []),
-      ...(chosen?.flow === watching ? drawn(chosen).flatMap((changed) => marksOn(placeFrom(review, changed.on, round.number, other, read)).map((on): Mark => ({ id: changed.change.id, kind: "change", on, chosen: !keptOne || changed.change.id === keptOne }))) : []),
+      ...(chosen?.scene === watching ? drawn(chosen).flatMap((changed) => marksOn(placeFrom(review, changed.on, round.number, other, read)).map((on): Mark => ({ id: changed.change.id, kind: "change", on, chosen: !keptOne || changed.change.id === keptOne }))) : []),
       ...answerMarks((changed) => placeFrom(review, changed.on, round.number, other, read)),
     ]);
   }
@@ -1289,11 +1289,11 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
     onNote: pick,
   };
   return (
-    <Page title={review.title} actions={<DownloadVideo ref={downloader} asked={toDownload} shown={!onGrid && !!flow} resting={inApp} />}>
+    <Page title={review.title} actions={<DownloadVideo ref={downloader} asked={toDownload} shown={!onGrid && !!scene} resting={inApp} />}>
       {/* In the app, the recording's pins are under it: a card there sits by the app's own pin, with nothing drawn to it. */}
       <Wire id={grownOpen?.id ?? openNote?.id ?? oneOpen} colour={openNote ? ink(openNote) : grownOpen ? "var(--amber)" : "var(--soft)"} hidden={!!bare || peeking || inApp || onGrid} faded={playingNow} />
       <main className="relative grid min-h-0 grid-cols-[minmax(0,1fr)] phone:flex phone:flex-col">
-        {/* Opened, a situation keeps its steps where they were on the page, beside the recording that took its pictures' place. */}
+        {/* Opened, a scene keeps its steps where they were on the page, beside the recording that took its pictures' place. */}
         <div inert={onGrid} className={`grid min-h-0 min-w-0 wide:mx-auto wide:w-full wide:max-w-[1320px] wide:grid-cols-[260px_minmax(0,1fr)] wide:gap-x-8 wide:px-8 ${onGrid ? "invisible" : ""}`}>
         <section inert={onGrid} className={`grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto] pb-4 phone:flex-none phone:grid-rows-[auto_auto] phone:pr-0 phone:pb-3 ${onGrid ? "invisible" : ""}`}>
           <div className="relative grid min-h-0 grid-rows-[minmax(0,1fr)] pb-6">
@@ -1322,7 +1322,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
                     setNoting(false);
                     // On a fork, it's on your recording, as one made in the app is.
                     const app = onFork && { from: onFork.from, did: onFork.did, recording: onFork.recording, length: onFork.length };
-                    if (flow) write({ flow: flow.name, at: Math.round(Math.max(0, playhead.now.moment.at) * 100) / 100, ...on, ...(app && { app }) });
+                    if (scene) write({ scene: scene.name, at: Math.round(Math.max(0, playhead.now.moment.at) * 100) / 100, ...on, ...(app && { app }) });
                   }
             }
             onMark={(id) => {
@@ -1337,7 +1337,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
             read={read}
             onGone={setGone}
             onPointAt={whyOf}
-            onAllFlows={many ? () => toGrid() : undefined}
+            onAllScenes={many ? () => toGrid() : undefined}
             over={arrived ? { words: `${roundName(latest.number)} is in`, take: () => toRound(latest.number) } : current ? undefined : { words: roundName(round.number) }}
             live={onGrid ? undefined : live}
             away={onGrid}
@@ -1352,10 +1352,10 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
               onNote={readOnly ? undefined : pressNote}
               onTakeOver={forkOfFork ? undefined : takeOver}
               onBack={() => letGo()}
-              flow={watching ?? ""}
+              scene={watching ?? ""}
               list={{
                 notes: notes
-                  .filter((note) => note.on?.flow === watching && note.on.at !== undefined && note.turns[0]?.words)
+                  .filter((note) => note.on?.scene === watching && note.on.at !== undefined && note.turns[0]?.words)
                   .sort((a, b) => a.on!.at! - b.on!.at!)
                   .map((note) => ({ id: note.id, ink: ink(note), words: note.turns[0]!.words, at: time(note.on!.at!), app: !!note.on!.app || whereYouWere.has(note.id) })),
                 listed,
@@ -1373,7 +1373,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
             />
           </div>
           </div>
-          {/* What went wrong taking a flow over, sending or noting: on the page with every flow, a send says it there instead. */}
+          {/* What went wrong taking a scene over, sending or noting: on the page with every scene, a send says it there instead. */}
           {(live?.problems || (!onGrid && trouble.length > 0)) && (
             <div role="alert" className="fixed right-4 bottom-4 z-30 max-w-[28rem] animate-arrive rounded-lg bg-surface px-3 py-2 text-sm whitespace-pre-wrap shadow-tip [overflow-wrap:anywhere]">
               {[...(live?.problems ?? []), ...(onGrid ? [] : trouble)].join("\n")}
@@ -1405,7 +1405,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
             }}
             // What was changed for a note is in the note's answer, not marked again: its dot is the one mark for both.
             marks={diamonds
-              .filter((diamond) => diamond.flow === watching && diamond.row)
+              .filter((diamond) => diamond.scene === watching && diamond.row)
               .map((diamond) => {
                 const answered = notes.find((note) => grown.get(note.id) === diamond) ?? wholeOf(diamond);
                 return {
@@ -1445,7 +1445,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
           pinned={openNote && inApp && (openNote.on?.app || tryingHere) ? () => appPins.current.get(openNote.id) : undefined}
           onAway={(openNote && !tryingHere) || chosen ? () => setOpen(undefined) : undefined}
         >
-          {/* On the page, what's said is in its situation's list, in the app or not. */}
+          {/* On the page, what's said is in its scene's list, in the app or not. */}
           {listed || onGrid ? undefined : openNote ? row(openNote) : writing ? writingCard(writing) : oneOpen ? <Chosen {...chosenProps} /> : undefined}
         </Beside>
         {many && (
@@ -1470,13 +1470,13 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
               onTakeOver: takeOver,
               onBack: () => letGo(),
               onPlace: (on) => (setNoting(false), write(on)),
-              onRest: (flow, at, again) => {
+              onRest: (scene, at, again) => {
                 playhead.pause();
-                playhead.go({ flow, at });
+                playhead.go({ scene, at });
                 restingAt.current = again;
               },
               onClose: () => setOpen(undefined),
-              live: live && { flow: live.flow, address: live.address, shown: live.shown, inApp, due: live.due, at: live.at },
+              live: live && { scene: live.scene, address: live.address, shown: live.shown, inApp, due: live.due, at: live.at },
               writing: writing ? { note: writing, number: nextNumber + draft.unsaved.indexOf(writing), words: writingWords(writing) } : undefined,
               opened: openNote?.id,
             }}
@@ -1490,22 +1490,22 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
   );
 }
 
-// What you did taken over, as it's kept while you're there: the flow and moment you took it over at, the recording so
+// What you did taken over, as it's kept while you're there: the scene and moment you took it over at, the recording so
 // far on one clock, and what you did, for taking it over again.
-type Session = { address?: string; id: string; from: { flow: string; at: number }; events: { timestamp: number }[]; did: Did[]; kept: number; shift: number; heard?: number };
+type Session = { address?: string; id: string; from: { scene: string; at: number }; events: { timestamp: number }[]; did: Did[]; kept: number; shift: number; heard?: number };
 // The fork you're making while you're in the app, on the page you're in.
 type Growing = ForkLine & { address: string };
 
-// A fork off a flow: where you took it over, what you did there, and the longest recording kept of it, which plays the
-// flow up to there, then you. It's named for the time you were in the app, as each note there keeps it. Run again on a
+// A fork off a scene: where you took it over, what you did there, and the longest recording kept of it, which plays the
+// scene up to there, then you. It's named for the time you were in the app, as each note there keeps it. Run again on a
 // later round, it's that round's recording of what you did, as the agent wrote it, its steps the agent's, with your
 // notes on it where it shows their things: the same fork, under the same name, so the two are compared as two rounds of
-// a flow are.
-type Fork = { name: string; session: string; from: { flow: string; at: number }; did: Did[]; recording: string; length: number; steps?: { title: string; at: number }[]; again?: boolean; notes?: { id: string; at: number }[] };
+// a scene are.
+type Fork = { name: string; session: string; from: { scene: string; at: number }; did: Did[]; recording: string; length: number; steps?: { title: string; at: number }[]; again?: boolean; notes?: { id: string; at: number }[] };
 const sessionOf = (recording: string) => recording.match(/^(?:branches\/(.+)-\d+|forks\/(.+))\.json$/)?.slice(1).find(Boolean) ?? recording;
 const forkName = (recording: string) => `fork:${sessionOf(recording)}`;
-// The recording a place is on: its flow's, or its fork's.
-const playedOn = (place: Place) => (place.app ? forkName(place.app.recording) : place.flow);
+// The recording a place is on: its scene's, or its fork's.
+const playedOn = (place: Place) => (place.app ? forkName(place.app.recording) : place.scene);
 function forksIn(notes: Note[]): Fork[] {
   const longest = new Map<string, Fork>();
   const keep = (fork: Fork) => void ((longest.get(fork.name)?.length ?? 0) < fork.length && longest.set(fork.name, fork));
@@ -1525,19 +1525,19 @@ function ranAgainIn(round: Round): Fork[] {
   return [...again.values()];
 }
 
-// Each fork plays after its flow, as the flow's steps up to where you took over, then yours in the app, or run again,
+// Each fork plays after its scene, as the scene's steps up to where you took over, then yours in the app, or run again,
 // the agent's, and each of your notes a step of its own, so a fork and the same fork run again keep in step at each
 // note.
 function forked(round: Round, forks: Fork[]): Round {
   if (!forks.length) return round;
-  const off = (flow: Flow): Forked[] =>
+  const off = (scene: Scene): Forked[] =>
     forks
-      .filter((fork) => fork.from.flow === flow.name)
+      .filter((fork) => fork.from.scene === scene.name)
       .map((fork) => ({
         name: fork.name,
         length: fork.length,
         steps: [
-          ...flow.steps.filter((step) => step.at < fork.from.at),
+          ...scene.steps.filter((step) => step.at < fork.from.at),
           ...[
             ...(fork.steps ?? [{ title: "In the app", at: fork.from.at }]),
             ...(fork.notes ?? []).map((note) => ({ title: `Note ${note.id}`, at: note.at })),
@@ -1545,19 +1545,19 @@ function forked(round: Round, forks: Fork[]): Round {
         ],
         recording: fork.recording,
         person: "You",
-        fork: flow.name,
+        fork: scene.name,
         leaves: fork.from.at,
       }));
-  return { ...round, flows: round.flows.flatMap((flow) => [flow, ...off(flow)]) };
+  return { ...round, scenes: round.scenes.flatMap((scene) => [scene, ...off(scene)]) };
 }
 
-// Where a note made in the app was taken over, on another round's recording of its flow: in the step you were in, by its
+// Where a note made in the app was taken over, on another round's recording of its scene: in the step you were in, by its
 // title, as far into it as you were, kept in step as every moment is across rounds; and what the note is on, if the
-// page there has it. Nowhere when that round's flow doesn't take the step that far.
+// page there has it. Nowhere when that round's scene doesn't take the step that far.
 function takenOverIn(review: Review, on: Place, written: number, round: Round, read: Read): { at?: number; element?: Thing } {
   const from = on.app!.from;
-  const then = review.rounds.find((kept) => kept.number === written)?.flows.find((flow) => flow.name === from.flow);
-  const now = round.flows.find((flow) => flow.name === from.flow);
+  const then = review.rounds.find((kept) => kept.number === written)?.scenes.find((scene) => scene.name === from.scene);
+  const now = round.scenes.find((scene) => scene.name === from.scene);
   const paused = then && pausedAt(then, from.at);
   const step = paused && now?.steps.find((step) => step.title === paused.step);
   if (!then || !now || !paused || !step || (step.actions?.length ?? 0) < (paused.actions ?? 0)) return {};

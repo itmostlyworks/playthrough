@@ -1,5 +1,5 @@
-// How far Before goes with a flow, Before kept as a commit, and the agent's work put back after Playthrough was stopped while
-// a flow recorded on Before, in a small repo of its own. Recording on Before itself is in the loop's promises.
+// How far Before goes with a scene, Before kept as a commit, and the agent's work put back after Playthrough was stopped while
+// a scene recorded on Before, in a small repo of its own. Recording on Before itself is in the loop's promises.
 
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
@@ -11,7 +11,7 @@ import { Refused } from "@playthrough/review";
 import type { TestCase, TestResult } from "@playwright/test/reporter";
 import { keepBefore, putBack, refuseIfBroken, refuseWhileAside } from "../src/before.ts";
 import { repo, type Repo } from "../src/repo.ts";
-import Flows, { READINGS, RECORDING, type Failed, type Recorded } from "../src/reporter.ts";
+import Scenes, { READINGS, RECORDING, type Failed, type Recorded } from "../src/reporter.ts";
 
 let root = "";
 let app: Repo;
@@ -63,7 +63,7 @@ describe("Before kept as a commit", () => {
   });
 });
 
-describe("The agent's work, set aside while a flow records on Before", () => {
+describe("The agent's work, set aside while a scene records on Before", () => {
   // As a command stopped halfway leaves it: set aside in a stash, the working copy on Before, and where it all is written
   // down by a command that's gone.
   async function stoppedHalfway() {
@@ -73,7 +73,7 @@ describe("The agent's work, set aside while a flow records on Before", () => {
     await writeFile(join(root, "app.txt"), "changed again");
     await writeFile(join(root, "new.txt"), "newer");
     const was = state();
-    const stash = "Playthrough: your work, set aside while flows record on Before";
+    const stash = "Playthrough: your work, set aside while scenes record on Before";
     await writeFile(app.setAside, JSON.stringify({ back: "main", stash, by: spawnSync(process.execPath, ["-e", ""]).pid }));
     git("stash", "push", "--quiet", "--include-untracked", "--message", stash);
     git("checkout", "--quiet", "--detach", commit);
@@ -95,7 +95,7 @@ describe("The agent's work, set aside while a flow records on Before", () => {
     await writeFile(app.setAside, JSON.stringify({ ...aside, by: process.ppid }));
     await putBack(app);
     assert.equal(git("rev-parse", "--abbrev-ref", "HEAD"), "HEAD", "it's left on Before, to the command that set it aside");
-    assert.throws(() => refuseWhileAside(app), /Another playthrough command \(process \d+\) is recording flows on Before just now/);
+    assert.throws(() => refuseWhileAside(app), /Another playthrough command \(process \d+\) is recording scenes on Before just now/);
     // The same number after the machine started again is another process's: the work is put back.
     await writeFile(app.setAside, JSON.stringify({ ...aside, by: process.ppid, boot: "an earlier start" }));
     assert.doesNotThrow(() => refuseWhileAside(app));
@@ -110,17 +110,17 @@ describe("The agent's work, set aside while a flow records on Before", () => {
       putBack(app),
       (error) =>
         error instanceof Refused &&
-        /Your work is still set aside, from recording a flow on Before, and git couldn't put it back by itself, because it says:\n  error: Your local changes/.test(error.message) &&
+        /Your work is still set aside, from recording a scene on Before, and git couldn't put it back by itself, because it says:\n  error: Your local changes/.test(error.message) &&
         /Put it back with git checkout main, then git stash pop --index stash@\{0\}\. Playthrough carries on once it's back\./.test(error.message),
     );
   });
 });
 
-describe("How far Before goes with a flow", () => {
-  // A flow as Playwright tells the reporter it ended on Before: its two steps, the second stopped by `error`.
+describe("How far Before goes with a scene", () => {
+  // A scene as Playwright tells the reporter it ended on Before: its two steps, the second stopped by `error`.
   async function ended(error: string) {
     const folder = await mkdtemp(join(tmpdir(), "playthrough-"));
-    const reporter = new Flows({ folder, flows: folder, before: true, taken: [] });
+    const reporter = new Scenes({ folder, scenes: folder, before: true, taken: [] });
     const start = Date.now();
     const steps = [
       { category: "test.step", title: "Open the expenses", startTime: new Date(start), duration: 1000 },
@@ -132,24 +132,24 @@ describe("How far Before goes with a flow", () => {
     ];
     reporter.onTestEnd({ title: "Search the expenses", location: { file: "spliit.ts", line: 1 } } as TestCase, { status: "failed", steps, attachments, error: { message: error } } as unknown as TestResult);
     reporter.onEnd();
-    const ran: { recorded: Recorded[]; failed: Failed[] } = JSON.parse(await readFile(join(folder, "flows.json"), "utf8"));
+    const ran: { recorded: Recorded[]; failed: Failed[] } = JSON.parse(await readFile(join(folder, "scenes.json"), "utf8"));
     await rm(folder, { recursive: true });
     return ran;
   }
 
   test("it goes as far as the app as it was can take it, marked where it stopped, with Playwright's reason and what it waited for", async () => {
     const { recorded, failed } = await ended("TimeoutError: locator.waitFor: Timeout 3000ms exceeded.\nCall log:\n  - waiting for getByRole('button', { name: 'Search' }) to be attached\n");
-    assert.deepEqual(recorded[0]?.flow.steps.map((step) => step.title), ["Open the expenses"]);
-    assert.equal(recorded[0]?.flow.stopped, "Search for the cabin");
-    assert.deepEqual(failed, [{ flow: "Search the expenses", at: "Search for the cabin", why: "TimeoutError: locator.waitFor: Timeout 3000ms exceeded, waiting for getByRole('button', { name: 'Search' }) to be attached" }]);
+    assert.deepEqual(recorded[0]?.scene.steps.map((step) => step.title), ["Open the expenses"]);
+    assert.equal(recorded[0]?.scene.stopped, "Search for the cabin");
+    assert.deepEqual(failed, [{ scene: "Search the expenses", at: "Search for the cabin", why: "TimeoutError: locator.waitFor: Timeout 3000ms exceeded, waiting for getByRole('button', { name: 'Search' }) to be attached" }]);
   });
 
-  test("a flow the browser stopped, not the app, says nothing about the app: nothing of the run is kept, and running again tries again", async () => {
+  test("a scene the browser stopped, not the app, says nothing about the app: nothing of the run is kept, and running again tries again", async () => {
     const { recorded, failed } = await ended("Error: page.goto: Page crashed");
-    assert.deepEqual([recorded, failed], [[], [{ flow: "Search the expenses", at: "Search for the cabin", why: "Error: page.goto: Page crashed", broken: true }]]);
+    assert.deepEqual([recorded, failed], [[], [{ scene: "Search the expenses", at: "Search for the cabin", why: "Error: page.goto: Page crashed", broken: true }]]);
     assert.throws(
       () => refuseIfBroken(failed, "Before wasn't recorded", "Run this again."),
-      /Before wasn't recorded, because the browser stopped a flow, not the app:\n  “Search the expenses”, at the step “Search for the cabin”, where Playwright says “Error: page\.goto: Page crashed”\nRun this again\.$/,
+      /Before wasn't recorded, because the browser stopped a scene, not the app:\n  “Search the expenses”, at the step “Search for the cabin”, where Playwright says “Error: page\.goto: Page crashed”\nRun this again\.$/,
     );
   });
 });

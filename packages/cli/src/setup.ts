@@ -1,9 +1,9 @@
-// What every flow of the app starts from, made by playthrough/setup.ts before each flow, if the app has one: its default
-// export is given the page, Playwright's request and who the flow is done as, and what it returns is each flow's
+// What every scene of the app starts from, made by playthrough/setup.ts before each scene, if the app has one: its default
+// export is given the page, Playwright's request and who the scene is done as, and what it returns is each scene's
 // “setup”. Each run makes its own, so no two start from what another left, and gives it back once it's over: setup's
 // `after`, if it has one, is given what was made, and takes it away, so the app, shared or not, isn't left with a world
-// for every run. The app's people, if it names them, are who a flow can be done as: `signIn` makes a page theirs, the
-// flow's own and any it's handed to on the way. And `use`, if it says, is how every page of the app is opened, as
+// for every run. The app's people, if it names them, are who a scene can be done as: `signIn` makes a page theirs, the
+// scene's own and any it's handed to on the way. And `use`, if it says, is how every page of the app is opened, as
 // Playwright's test.use would: an app that serves a test its own way, told by the browser's user agent, say.
 
 import { request as requests, type APIRequestContext, type BrowserContextOptions, type Page } from "@playwright/test";
@@ -26,7 +26,7 @@ type SignIn = (given: { page: Page; person: string; setup: Record<string, any> }
 export type People = Record<string, string>;
 export type Setup = { make?: Make; after?: After; signIn?: SignIn; people?: People; use?: BrowserContextOptions };
 
-// What Playthrough keeps the same for every flow, or a flow says with test.use, isn't the setup's to set for them all.
+// What Playthrough keeps the same for every scene, or a scene says with test.use, isn't the setup's to set for them all.
 const OURS = ["baseURL", "viewport", "screen", "isMobile", "hasTouch", "deviceScaleFactor", "locale", "timezoneId", "colorScheme", "reducedMotion", "forcedColors", "contrast"];
 
 // Loaded again in Playthrough once it's written again, by when.
@@ -43,7 +43,7 @@ export async function setupIn(file: string, written?: number): Promise<Setup> {
   const use = module.use ?? inner?.use;
   const ours = Object.keys(use ?? {}).filter((option) => OURS.includes(option));
   if (ours.length)
-    throw new Refused([`playthrough/setup.ts's use sets ${list(ours)}, which Playthrough keeps the same for every flow, or a flow sets with test.use, like its screen. Take ${ours.length > 1 ? "them" : "it"} out of use.`]);
+    throw new Refused([`playthrough/setup.ts's use sets ${list(ours)}, which Playthrough keeps the same for every scene, or a scene sets with test.use, like its screen. Take ${ours.length > 1 ? "them" : "it"} out of use.`]);
   return {
     make: typeof module.default === "function" ? module.default : inner?.default,
     after: module.after ?? inner?.after,
@@ -69,7 +69,7 @@ function twoPlaywrights(error: unknown, file: string): Refused | undefined {
   ]);
 }
 
-// A setup is a module whatever the app's package.json says, as flows are: written with import and export, as they're
+// A setup is a module whatever the app's package.json says, as scenes are: written with import and export, as they're
 // shown, one in an app that says it's CommonJS would otherwise fail to load.
 const setups = new Set<string>();
 function asModule(href: string) {
@@ -96,13 +96,13 @@ export function watching(request: APIRequestContext, changed: () => void): APIRe
   });
 }
 
-// Who a flow that names no one is done as: the first the app names.
+// Who a scene that names no one is done as: the first the app names.
 export const firstOf = ({ people }: Setup) => Object.keys(people ?? {})[0];
 
-// Someone the app names, or anyone at all where it names nobody; one it doesn't name stops the flow before anything is made.
+// Someone the app names, or anyone at all where it names nobody; one it doesn't name stops the scene before anything is made.
 export function personIn({ people }: Setup, person: string) {
   if (people && !(person in people))
-    throw new Error(`playthrough/setup.ts names no one called ${quote(person)}. Its people: ${list(Object.keys(people).map(quote))}. Add them there, or do the flow as one of them.`);
+    throw new Error(`playthrough/setup.ts names no one called ${quote(person)}. Its people: ${list(Object.keys(people).map(quote))}. Add them there, or do the scene as one of them.`);
 }
 
 // Made for one run, and written down in .playthrough/borrowed/ until it's given back, by the process it's made for, named

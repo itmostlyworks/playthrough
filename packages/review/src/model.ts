@@ -1,10 +1,10 @@
 // What a review is. A review is one piece of work an agent does, round after round, until a person accepts it.
 // The agent records rounds, answers notes and says why each change is there; Playthrough compares each round with the ones
 // before it; people send notes and verdicts. Each thing here has one writer, and once written, only a round still being
-// worked on ever changes, and Before, which gains each flow added later.
+// worked on ever changes, and Before, which gains each scene added later.
 //
 // Each shape is a schema, so the types and what's checked at the door are one statement. An error is written as
-// what the thing still needs, to follow its name: “the flow “Export a quarter” needs its length, in seconds”.
+// what the thing still needs, to follow its name: “the scene “Export a quarter” needs its length, in seconds”.
 
 import { z } from "zod";
 
@@ -43,8 +43,8 @@ export const Did = z.strictObject({
 
 export const Place = z
   .strictObject({
-    flow: text("needs the flow it's on"),
-    at: seconds("needs its moment, in seconds").optional().describe("Without it, the whole flow"),
+    scene: text("needs the scene it's on"),
+    at: seconds("needs its moment, in seconds").optional().describe("Without it, the whole scene"),
     until: seconds("needs its end, in seconds").optional().describe("The end of a stretch"),
     element: Element.optional(),
     alike: z.array(Element).optional().describe("The other things changed alike with its element, each where it is"),
@@ -52,17 +52,17 @@ export const Place = z
     point: Point.optional().describe("Empty space"),
     app: z
       .strictObject({
-        from: z.strictObject({ flow: text("needs the flow it was taken over in"), at: seconds("needs the moment it was taken over at, in seconds") }),
+        from: z.strictObject({ scene: text("needs the scene it was taken over in"), at: seconds("needs the moment it was taken over at, in seconds") }),
         did: z.array(Did).describe("What the person did there, in order"),
-        recording: fileName("needs its recording: the name of a file in the round").describe("The flow up to where it was taken over, then the person's own steps"),
+        recording: fileName("needs its recording: the name of a file in the round").describe("The scene up to where it was taken over, then the person's own steps"),
         length: z.number({ error: "needs its length, in seconds" }).positive({ error: "needs its length, in seconds" }),
         steps: z
           .array(z.strictObject({ title: text("needs its title"), at: seconds("needs its start, in seconds") }))
           .optional()
-          .describe("Run again as the agent wrote it, a fork of its flow: its steps, each at its start"),
+          .describe("Run again as the agent wrote it, a fork of its scene: its steps, each at its start"),
       })
       .optional()
-      .describe("In the app: on the person's own recording, which branches off a flow where they took it over. Its flow names the branch"),
+      .describe("In the app: on the person's own recording, which branches off a scene where they took it over. Its scene names the branch"),
   })
   .refine((place) => [place.element, place.box, place.point].filter((thing) => thing).length <= 1, {
     error: "is on more than one thing. Choose an element, a box or a point",
@@ -80,28 +80,28 @@ export const Step = z.strictObject({
   actions: z
     .array(seconds("needs the moment each of its actions was done, in seconds"))
     .optional()
-    .describe("When each of its actions was done: between them the page rests, and a person can take the flow over there"),
+    .describe("When each of its actions was done: between them the page rests, and a person can take the scene over there"),
   person: text("needs the name of who does it, or no person")
     .optional()
-    .describe("Who does it, once the flow has changed hands: someone other than who the flow is done as"),
+    .describe("Who does it, once the scene has changed hands: someone other than who the scene is done as"),
 });
 
-export const Flow = z.strictObject({
-  name: text("needs a name").describe("Its identity: a new name is a new flow"),
+export const Scene = z.strictObject({
+  name: text("needs a name").describe("Its identity: a new name is a new scene"),
   length: z.number({ error: "needs its length, in seconds" }).positive({ error: "needs its length, in seconds" }),
   steps: z.array(Step),
   recording: fileName("needs its recording: the name of a file in the round"),
-  line: text("needs words in its line, or no line").optional().describe("The agent's, beside the flow's steps and at its start: what it starts from, and whether it shows the change or what the change leaves alone"),
+  line: text("needs words in its line, or no line").optional().describe("The agent's, beside the scene's steps and at its start: what it starts from, and whether it shows the change or what the change leaves alone"),
   stopped: text("needs the step it stopped at")
     .optional()
-    .describe("On Before, the step the flow couldn't take there, or that the app as it was had something else for: it's kept as far as that"),
+    .describe("On Before, the step the scene couldn't take there, or that the app as it was had something else for: it's kept as far as that"),
   person: text("needs the name of who it acts as, or no person")
     .optional()
-    .describe("Who the flow is done as, as its file or the app's setup names them: the name on the recorded pointer, handed to you when you take over"),
+    .describe("Who the scene is done as, as its file or the app's setup names them: the name on the recorded pointer, handed to you when you take over"),
   unsteady: z
     .array(text("needs the ids of the changes it makes by itself"))
     .optional()
-    .describe("Changes found between two recordings of the same app, like a time the server stamps: left out of every comparison, in every flow"),
+    .describe("Changes found between two recordings of the same app, like a time the server stamps: left out of every comparison, in every scene"),
 });
 
 // Something different on screen between two rounds, found by Playthrough and said in its fixed words.
@@ -114,8 +114,8 @@ export const Change = z.strictObject({
   gone: z.literal(true).optional().describe("Not on the newer round: where it was, on the round before, is where it's seen, with Compare"),
   seen: z
     .array(Place, { error: "needs where it's seen, a list" })
-    .min(1, { error: "needs where it's seen: each flow, at its moment there" })
-    .describe("Each flow it's seen in, at its moment there; a flow that's gone, with no moment"),
+    .min(1, { error: "needs where it's seen: each scene, at its moment there" })
+    .describe("Each scene it's seen in, at its moment there; a scene that's gone, with no moment"),
   pictureOnly: z
     .literal(true)
     .optional()
@@ -123,7 +123,7 @@ export const Change = z.strictObject({
 });
 
 // A round compared with one before it. Against Before it's the work so far; against the round before, what the agent
-// did this round; against the round someone last looked at a flow on, what's new to them. The same difference found by
+// did this round; against the round someone last looked at a scene on, what's new to them. The same difference found by
 // two comparisons has the same id, so what the agent said about it holds in both.
 export const Comparison = z.strictObject({
   round: z.number({ error: "needs its round" }).int().min(1, { error: "needs its round, after Before" }),
@@ -146,7 +146,7 @@ export const Reply = z.strictObject({
   note: text("needs the note it answers"),
   words: z.string({ error: "needs its words, even if empty until it's answered" }),
   on: Place.optional().describe("Where it shows on this round's recording; without it, the note's place was lost"),
-  watch: text("needs a step's title").optional().describe("For an answer that moves: the step of its flow it's seen in, which the note then plays"),
+  watch: text("needs a step's title").optional().describe("For an answer that moves: the step of its scene it's seen in, which the note then plays"),
 });
 
 // A note is a conversation about one thing. A person starts it in a send; then the agent's replies and people's verdicts
@@ -158,15 +158,15 @@ export const Note = z.strictObject({
 });
 
 // What the agent recorded, and what it says about it. Once finished, a round never changes, except that Before gains each
-// flow added later, recorded on the app as it was.
+// scene added later, recorded on the app as it was.
 export const Round = z.strictObject({
   number: z.number().int().min(0).describe("Round 0 is Before: the app as it was"),
   by: text("needs to say which agent recorded it").describe("By the name it goes by, “Claude Code” or “Codex”: one review can pass between agents"),
-  flows: z.array(Flow),
+  scenes: z.array(Scene),
   replies: z.array(Reply).describe("The agent's answer to each note that asks for one"),
   accounts: z.record(z.string(), Account).describe("What the agent says about each change new since the round before, by its id"),
   commit: z.string().optional().describe("What it was recorded from"),
-  cantStart: z.array(text("needs the flow's name")).optional().describe("Before: the flows the app as it was can't start, so they have no Before"),
+  cantStart: z.array(text("needs the scene's name")).optional().describe("Before: the scenes the app as it was can't start, so they have no Before"),
   finished: z.iso.datetime().optional(),
 });
 
@@ -188,8 +188,8 @@ export const Send = z.strictObject({
   sent: z.iso.datetime({ error: "needs to say when it was sent, as an ISO date" }),
   notes: z.array(Note).describe("New ones"),
   verdicts: z.array(Verdict),
-  looksGood: z.array(text("needs the flow's name")).describe("Flows that look good as a whole; one that isn't quite right gets a note"),
-  takenBack: z.array(text("needs the flow's name")).optional().describe("Flows whose Looks good, said before, is taken back: they ask again"),
+  looksGood: z.array(text("needs the scene's name")).describe("Scenes that look good as a whole; one that isn't quite right gets a note"),
+  takenBack: z.array(text("needs the scene's name")).optional().describe("Scenes whose Looks good, said before, is taken back: they ask again"),
 });
 
 // The agent took a send, and answers it in this round.
@@ -216,7 +216,7 @@ export type Point = z.infer<typeof Point>;
 export type Did = z.infer<typeof Did>;
 export type Place = z.infer<typeof Place>;
 export type Step = z.infer<typeof Step>;
-export type Flow = z.infer<typeof Flow>;
+export type Scene = z.infer<typeof Scene>;
 export type Change = z.infer<typeof Change>;
 export type Comparison = z.infer<typeof Comparison>;
 export type Account = z.infer<typeof Account>;

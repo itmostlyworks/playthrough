@@ -1,11 +1,11 @@
-// A flow saved as a video. The viewer plays it in a browser of its own, alone or beside the round Compare shows, and
+// A scene saved as a video. The viewer plays it in a browser of its own, alone or beside the round Compare shows, and
 // what it shows is filmed as it plays and made into an MP4 as it's filmed, by that browser's own H.264: nothing more to
 // install.
 
 import { chromium, type Page } from "@playwright/test";
 import { mp4 } from "./mp4.ts";
 
-export type Filmed = { round: number; flow: string; beside?: number; dark: boolean };
+export type Filmed = { round: number; scene: string; beside?: number; dark: boolean };
 type Size = { width: number; height: number };
 
 // As smooth as a screen shows it.

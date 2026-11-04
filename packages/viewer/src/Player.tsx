@@ -1,4 +1,4 @@
-// A situation's recording at a moment, and played on from it, with the hand that does it: what a still can't say, where
+// A scene's recording at a moment, and played on from it, with the hand that does it: what a still can't say, where
 // they clicked and what the page did. Waiting, for a page to load or an app to answer, is cut short as it plays, so
 // nothing is spent watching nothing happen. Another round's recording follows the clock of the one that plays, at the
 // matching moment, so the two stay in step. At rest, what's noted there is found on the page, and noting, what a click
@@ -6,7 +6,7 @@
 
 import { useEffect, useRef, useState, type MouseEvent, type RefObject } from "react";
 import { elementOf, type Glimpse } from "@playthrough/page";
-import type { Element, Flow, Point } from "@playthrough/review";
+import type { Element, Scene, Point } from "@playthrough/review";
 import { recording } from "./api.ts";
 import { Replay, type Events, type Rect, type Scrolled } from "./replay.ts";
 import { around, union, type Frame } from "./Picture.tsx";
@@ -15,7 +15,7 @@ import { pickAt } from "./things.ts";
 // Nothing happening for longer than this is waiting, and is played as this long.
 const WAIT = 0.7;
 
-// The moment a situation is at as it plays: what plays it sets it each frame, and what follows it is told.
+// The moment a scene is at as it plays: what plays it sets it each frame, and what follows it is told.
 export class Clock {
   #at: number;
   #told = new Set<(at: number) => void>();
@@ -35,7 +35,7 @@ export class Clock {
   }
 }
 
-// A situation's recording with its waiting cut short, as it plays: how long it is then, the recording's own moment at a
+// A scene's recording with its waiting cut short, as it plays: how long it is then, the recording's own moment at a
 // moment of it, and back. Its steps' lines run on it, so a line fills at one speed as it plays and goes where it's
 // pressed at the same speed, leaping no wait. A step's start is where a wait is cut at, so each step's is its own.
 // And where its page has first drawn itself: a recording starts as the page loads, blank until the app has put itself
@@ -71,13 +71,13 @@ function cutOf(events: Events, length: number, starts: number[]): Cut {
   };
 }
 
-export function useCut(review: string, round: number, flow: Flow): Cut | undefined {
+export function useCut(review: string, round: number, scene: Scene): Cut | undefined {
   const [kept, setKept] = useState<Cut>();
   useEffect(() => {
     let current = true;
-    recording(review, round, flow.recording).then((events) => current && setKept(cutOf(events, flow.length, flow.steps.map((step) => step.at))));
+    recording(review, round, scene.recording).then((events) => current && setKept(cutOf(events, scene.length, scene.steps.map((step) => step.at))));
     return () => void (current = false);
-  }, [review, round, flow.recording]);
+  }, [review, round, scene.recording]);
   return kept;
 }
 

@@ -1,5 +1,5 @@
 // Every review of the app, from every copy of it: where you arrive without a review's address, and where Playthrough's
-// name takes you. It's the page with every flow a level up: the app's name, then its reviews as a list, what waits for
+// name takes you. It's the page with every scene a level up: the app's name, then its reviews as a list, what waits for
 // you first and otherwise the newest, each saying where it stands for you as its round does; and beside them the frame,
 // showing the review you point at as it opens, its title over its first picture. Opened, its frame is where this one is.
 
@@ -25,8 +25,8 @@ function standingOf(kept: Review, you: string): Standing {
   return {
     review,
     latest,
-    toCheck: review.accepted ? 0 : latest.flows.filter((flow) => needsYou(standing.get(flow.name))).length,
-    good: latest.flows.every((flow) => standing.get(flow.name)?.is === "good"),
+    toCheck: review.accepted ? 0 : latest.scenes.filter((scene) => needsYou(standing.get(scene.name))).length,
+    good: latest.scenes.every((scene) => standing.get(scene.name)?.is === "good"),
     working: workingSince(review, latest),
     moved,
   };
@@ -112,10 +112,10 @@ function Stands({ it }: { it: Standing }) {
   );
 }
 
-// The page its first flow starts on, on its latest round; before a round, the paper it will be on.
+// The page its first scene starts on, on its latest round; before a round, the paper it will be on.
 function FirstPicture({ it }: { it: Standing }) {
-  const flow = it.latest?.flows[0];
-  return flow ? <Picture key={it.review.id} shot={{ src: picture(it.review.id, it.latest!.number, flow.recording, 0) }} /> : null;
+  const scene = it.latest?.scenes[0];
+  return scene ? <Picture key={it.review.id} shot={{ src: picture(it.review.id, it.latest!.number, scene.recording, 0) }} /> : null;
 }
 
 // Today, the time, as everything in the viewer says it; before, the day.

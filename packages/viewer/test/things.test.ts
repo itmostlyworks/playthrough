@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { nearTo, type Reading, type Thing } from "@playthrough/page";
-import type { Flow, Review, Round } from "@playthrough/review";
+import type { Scene, Review, Round } from "@playthrough/review";
 import { holdersOf, pickAt, placeName, placeOn, watchedIn } from "../src/things.ts";
 
 const look = { color: "rgb(9, 9, 11)", background: "rgba(0, 0, 0, 0)", size: "16px", weight: "400", border: "none" };
@@ -49,23 +49,23 @@ test("a note on empty space is named by the nearest thing within 80px of it, onl
   assert.equal(nearTo([page], 1, { x: 1000 / 1280, y: 600 / 800 })?.name, "Cabin $600.00", "nearest by its edge: the expense, 10px off");
   assert.equal(nearTo([page], 1, { x: 100 / 1280, y: 100 / 800 }), undefined);
   const read = () => [page];
-  assert.equal(placeName({ flow: "Search", at: 1, point: { x: 1000 / 1280, y: 600 / 800 } }, read, 2), "Near Cabin $600.00 link");
-  assert.equal(placeName({ flow: "Search", at: 1, point: { x: 0.05, y: 0.05 } }, read, 2), "This moment");
-  assert.equal(placeName({ flow: "Search", at: 1, element: { role: "dialog", name: "Delete it?", node: 20 } }, read, 2), "Delete it? dialog");
-  assert.equal(placeName({ flow: "Search" }, read, 2), "The whole flow");
+  assert.equal(placeName({ scene: "Search", at: 1, point: { x: 1000 / 1280, y: 600 / 800 } }, read, 2), "Near Cabin $600.00 link");
+  assert.equal(placeName({ scene: "Search", at: 1, point: { x: 0.05, y: 0.05 } }, read, 2), "This moment");
+  assert.equal(placeName({ scene: "Search", at: 1, element: { role: "dialog", name: "Delete it?", node: 20 } }, read, 2), "Delete it? dialog");
+  assert.equal(placeName({ scene: "Search" }, read, 2), "The whole scene");
 });
 
 test("a thing Playthrough has no word for, such as a list item or a column's heading noted in the app, is called by its words", () => {
   const read = () => [page];
-  assert.equal(placeName({ flow: "Search", at: 1, element: { role: "listitem", name: "Plan the review stage" } }, read, 2), "“Plan the review stage”");
-  assert.equal(placeName({ flow: "Search", at: 1, element: { role: "columnheader", name: "Due" } }, read, 2), "“Due”");
+  assert.equal(placeName({ scene: "Search", at: 1, element: { role: "listitem", name: "Plan the review stage" } }, read, 2), "“Plan the review stage”");
+  assert.equal(placeName({ scene: "Search", at: 1, element: { role: "columnheader", name: "Due" } }, read, 2), "“Due”");
 });
 
 test("a note sits on its own thing where it was written, where Playthrough placed the answer, and found on any other round", () => {
-  const flow: Flow = { name: "Search", length: 4, steps: [{ title: "Open the expenses", at: 0 }], recording: "search.json" };
-  const round = (number: number, replies: Round["replies"] = []): Round => ({ number, by: "Claude Code", flows: [flow], replies, accounts: {} });
-  const on = { flow: "Search", at: 1, element: { role: "text", name: "$600.00", node: 13 } };
-  const placed = { flow: "Search", at: 1.5, element: { role: "text", name: "$600.00", node: 40 } };
+  const scene: Scene = { name: "Search", length: 4, steps: [{ title: "Open the expenses", at: 0 }], recording: "search.json" };
+  const round = (number: number, replies: Round["replies"] = []): Round => ({ number, by: "Claude Code", scenes: [scene], replies, accounts: {} });
+  const on = { scene: "Search", at: 1, element: { role: "text", name: "$600.00", node: 13 } };
+  const placed = { scene: "Search", at: 1.5, element: { role: "text", name: "$600.00", node: 40 } };
   const review: Review = { id: "tidy", title: "Tidy", started: "2026-10-25T16:00:00.000Z", rounds: [round(1), round(2, [{ note: "n1", words: "Darker now.", on: placed }]), round(3)], comparisons: [], sends: [], taken: [] };
   const moved = reading(1, page.things.map((kept) => (kept.node === 13 ? { ...kept, node: 77, ...box(880, 620, 55, 20) } : kept)));
   const read = (number: number) => (number === 3 ? [moved] : [page]);
@@ -76,13 +76,13 @@ test("a note sits on its own thing where it was written, where Playthrough place
 
 test("an answer that moves is watched in the step its reply names, from a second before the action that set it moving to the next step", () => {
   const steps = [{ title: "Open the board", at: 0 }, { title: "Filter to Design", at: 2, actions: [2.2, 2.3, 2.6] }, { title: "Clear the filter", at: 3.5 }];
-  const flow: Flow = { name: "Filter", length: 5, steps, recording: "filter.json" };
-  const round = (number: number, replies: Round["replies"] = []): Round => ({ number, by: "Claude Code", flows: [flow], replies, accounts: {} });
-  const on = { flow: "Filter", at: 2.4, element: { role: "button", name: "To do 0/2", node: 9 } };
+  const scene: Scene = { name: "Filter", length: 5, steps, recording: "filter.json" };
+  const round = (number: number, replies: Round["replies"] = []): Round => ({ number, by: "Claude Code", scenes: [scene], replies, accounts: {} });
+  const on = { scene: "Filter", at: 2.4, element: { role: "button", name: "To do 0/2", node: 9 } };
   const review: Review = {
     id: "fold", title: "Fold", started: "2026-10-29T16:00:00.000Z", comparisons: [], sends: [], taken: [],
     rounds: [round(1), round(2, [{ note: "n1", words: "Cards fold away now.", on, watch: "Filter to Design" }])],
   };
-  assert.deepEqual(watchedIn(review.rounds[1]!, "n1"), { flow: "Filter", at: 1.3, until: 3.5 });
+  assert.deepEqual(watchedIn(review.rounds[1]!, "n1"), { scene: "Filter", at: 1.3, until: 3.5 });
   assert.equal(watchedIn(review.rounds[0]!, "n1"), undefined);
 });

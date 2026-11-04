@@ -1,4 +1,4 @@
-// The flow you're in, as it's shown, as a video your browser downloads. Making one takes a while, and the button says so
+// The scene you're in, as it's shown, as a video your browser downloads. Making one takes a while, and the button says so
 // where you pressed it, as taking over does: it counts down to the download a second at a time, filling as it goes, and
 // ends on a tick, “Downloaded”. Only it redraws while it counts.
 
@@ -6,8 +6,8 @@ import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type
 import { downloadVideo } from "./api.ts";
 import { Key, tick } from "./Card.tsx";
 
-// What to film, as the page is now: nothing where there's no flow to film.
-export type Asked = { review: string; filmed: { round: number; flow: string; beside?: number; dark: boolean }; name: string };
+// What to film, as the page is now: nothing where there's no scene to film.
+export type Asked = { review: string; filmed: { round: number; scene: string; beside?: number; dark: boolean }; name: string };
 // Since you asked, and when it's due once that's known; then downloaded, or what went wrong.
 type Making = { since: number; due?: number } | { downloaded: true } | { problems: string[] };
 
@@ -58,7 +58,7 @@ export function DownloadVideo({ asked, shown, resting, ref }: Props) {
       className={`relative inline-flex items-center gap-1.5 overflow-hidden rounded-lg px-2.5 py-1.5 whitespace-nowrap text-soft transition-[background-color,color,opacity] duration-150 ease-calm enabled:hover:bg-hover enabled:hover:text-fg disabled:cursor-default aria-busy:text-fg ${shown ? "" : "invisible opacity-0"} ${resting ? "opacity-32" : ""}`}
       disabled={!shown || resting}
       aria-busy={busy}
-      title={making && "problems" in making ? making.problems.join(" ") : "The flow as it's shown, as an MP4"}
+      title={making && "problems" in making ? making.problems.join(" ") : "The scene as it's shown, as an MP4"}
       onClick={start}
     >
       <Fill making={making} />

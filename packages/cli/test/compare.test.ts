@@ -1,11 +1,11 @@
-// A round compared with one before it, flow by flow and step by step. Each step's page is a small page, read and
+// A round compared with one before it, scene by scene and step by step. Each step's page is a small page, read and
 // pictured in Chromium as a step would leave it.
 
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
 import { chromium, type Browser, type Page } from "@playwright/test";
 import type { Reading } from "@playthrough/page";
-import type { Flow } from "@playthrough/review";
+import type { Scene } from "@playthrough/review";
 import { changesByThemselves, compare, unsteadyIn, type Recorded } from "../src/compare.ts";
 import { readPage } from "../src/read.ts";
 
@@ -19,13 +19,13 @@ before(async () => {
 });
 after(() => browser.close());
 
-// A round of flows, each a list of steps and the page each one leaves. Step n starts at n seconds and is read just before
+// A round of scenes, each a list of steps and the page each one leaves. Step n starts at n seconds and is read just before
 // the next.
-async function round(number: number, flows: Record<string, [title: string, page: string][]>): Promise<Recorded> {
+async function round(number: number, scenes: Record<string, [title: string, page: string][]>): Promise<Recorded> {
   const pictures = new Map<string, Buffer>();
   const readings = new Map<string, Reading[]>();
-  const kept: Flow[] = [];
-  for (const [name, steps] of Object.entries(flows)) {
+  const kept: Scene[] = [];
+  for (const [name, steps] of Object.entries(scenes)) {
     const read: Reading[] = [];
     for (const [i, [title, html]] of steps.entries()) {
       await page.setContent(`<style>body { font: 16px sans-serif; margin: 24px }</style>${html}`);
@@ -36,7 +36,7 @@ async function round(number: number, flows: Record<string, [title: string, page:
     readings.set(name, read);
     kept.push({ name, length: steps.length + 1, steps: steps.map(([title], i) => ({ title, at: i })), recording: `${name}.json` });
   }
-  return { number, flows: kept, readings: async (flow) => readings.get(flow.name)!, picture: async (name) => pictures.get(name)! };
+  return { number, scenes: kept, readings: async (scene) => readings.get(scene.name)!, picture: async (name) => pictures.get(name)! };
 }
 
 const invoices = `<h1>Invoices</h1><button>Overdue</button>`;
@@ -44,17 +44,17 @@ const withExport = `${invoices}<button>Export</button>`;
 const dialog = `${withExport}<div role="dialog" aria-label="Export"><button>Download</button></div>`;
 
 describe("A round compared with one before it", { timeout: 60_000 }, () => {
-  test("steps only the newer flow takes are New steps, one stretch to the next step both take", async () => {
+  test("steps only the newer scene takes are New steps, one stretch to the next step both take", async () => {
     const then = await round(0, { "Export them": [["Open the invoices", invoices], ["Export", invoices]] });
     const now = await round(1, { "Export them": [["Open the invoices", invoices], ["Choose a format", invoices], ["Download", invoices], ["Export", invoices]] });
     const { changes } = await compare(comparing, then, now);
     assert.deepEqual(
       changes.map((change) => [change.words, change.seen]),
-      [["New steps: “Choose a format” and “Download”", [{ flow: "Export them", at: 1, until: 3 }]]],
+      [["New steps: “Choose a format” and “Download”", [{ scene: "Export them", at: 1, until: 3 }]]],
     );
   });
 
-  test("a flow Before took only part of is compared as far as it went, and the rest is New steps", async () => {
+  test("a scene Before took only part of is compared as far as it went, and the rest is New steps", async () => {
     const then = await round(0, { "Export them": [["Open the invoices", invoices]] });
     const now = await round(1, { "Export them": [["Open the invoices", withExport], ["Export", dialog]] });
     const { changes } = await compare(comparing, then, now);
@@ -62,42 +62,42 @@ describe("A round compared with one before it", { timeout: 60_000 }, () => {
       changes.map((change) => change.words),
       ["Export button is new", "New steps: “Export”"],
     );
-    assert.deepEqual(changes[1]?.seen, [{ flow: "Export them", at: 1, until: 3 }]);
+    assert.deepEqual(changes[1]?.seen, [{ scene: "Export them", at: 1, until: 3 }]);
   });
 
-  test("a step the flow doesn't take any more is gone, where it was", async () => {
+  test("a step the scene doesn't take any more is gone, where it was", async () => {
     const then = await round(1, { "Export them": [["Open the invoices", invoices], ["Pick a quarter", invoices], ["Export", invoices]] });
     const now = await round(2, { "Export them": [["Open the invoices", invoices], ["Export", invoices]] });
     const { changes } = await compare(comparing, then, now);
     assert.deepEqual(
       changes.map((change) => [change.words, change.seen]),
-      [["“Pick a quarter” isn't a step here any more", [{ flow: "Export them", at: 1 }]]],
+      [["“Pick a quarter” isn't a step here any more", [{ scene: "Export them", at: 1 }]]],
     );
   });
 
-  test("a flow taken away is a change; a flow the earlier round didn't have isn't compared with it", async () => {
+  test("a scene taken away is a change; a scene the earlier round didn't have isn't compared with it", async () => {
     const then = await round(1, { "See what's overdue": [["Open the invoices", invoices]], "Export them": [["Open the invoices", invoices]] });
     const now = await round(2, { "See what's overdue": [["Open the invoices", invoices]], "Export a year": [["Open the invoices", withExport]] });
     const { changes } = await compare(comparing, then, now);
     assert.deepEqual(
       changes.map((change) => [change.words, change.seen]),
-      [["“Export them” isn't a flow any more", [{ flow: "Export them" }]]],
+      [["“Export them” isn't a scene any more", [{ scene: "Export them" }]]],
     );
   });
 
-  test("the same change in several flows, or at several steps, is one change, seen in each flow where it first shows", async () => {
+  test("the same change in several scenes, or at several steps, is one change, seen in each scene where it first shows", async () => {
     const then = await round(0, { "See what's overdue": [["Open the invoices", invoices], ["Show the overdue ones", invoices]], "Export them": [["Open the invoices", invoices]] });
     const now = await round(1, { "See what's overdue": [["Open the invoices", invoices], ["Show the overdue ones", withExport]], "Export them": [["Open the invoices", withExport]] });
     const { round: number, since, changes } = await compare(comparing, then, now);
     assert.deepEqual([number, since], [1, 0]);
     assert.deepEqual(
-      changes.map((change) => [change.words, change.seen.map((seen) => [seen.flow, seen.at])]),
+      changes.map((change) => [change.words, change.seen.map((seen) => [seen.scene, seen.at])]),
       [["Export button is new", [["See what's overdue", 1.9], ["Export them", 0.9]]]],
     );
   });
 
   test("a change is seen where the recording first has it on the screen, not where the page first has it; one never on the screen keeps its first moment", async () => {
-    const page = (end: string, lower: boolean) => `<h1>Playthrough</h1>${end}<div style="height: 1400px"></div><h2>Try it</h2>${lower ? "<p>Any flow downloads as a video.</p>" : ""}`;
+    const page = (end: string, lower: boolean) => `<h1>Playthrough</h1>${end}<div style="height: 1400px"></div><h2>Try it</h2>${lower ? "<p>Any scene downloads as a video.</p>" : ""}`;
     const read = (end: string, lower: boolean) => [
       ["Read what it is", `${page(end, lower)}<script>scrollTo(0, 0)</script>`],
       ["Read how to try it", `${page(end, lower)}<script>scrollTo(0, document.body.scrollHeight)</script>`],
@@ -106,10 +106,10 @@ describe("A round compared with one before it", { timeout: 60_000 }, () => {
     const now = await round(1, { "Read the page": read("<p>Open source, on your machine.</p>", true), "Glance at the top": read("<p>Open source, on your machine.</p>", true).slice(0, 1) });
     const { changes } = await compare(comparing, then, now);
     assert.deepEqual(
-      changes.map((change) => [change.words, change.seen.map((seen) => [seen.flow, seen.at])]),
+      changes.map((change) => [change.words, change.seen.map((seen) => [seen.scene, seen.at])]),
       [
         ["“Open source.” now says “Open source, on your machine.”", [["Read the page", 0.9], ["Glance at the top", 0.9]]],
-        ["“Any flow downloads as a video.” is new", [["Read the page", 1.9], ["Glance at the top", 0.9]]],
+        ["“Any scene downloads as a video.” is new", [["Read the page", 1.9], ["Glance at the top", 0.9]]],
       ],
     );
   });
@@ -122,7 +122,7 @@ describe("A round compared with one before it", { timeout: 60_000 }, () => {
     assert.deepEqual(changes.map((change) => [change.words, !!change.pictureOnly]).sort(), [["Export button is new", false], ["Something near the Invoices heading looks different", true]]);
   });
 
-  test("what changes by itself is left out in every flow, but a part of a picture known only by where it is only in its own: elsewhere the same place is another thing (Kan's invite page)", async () => {
+  test("what changes by itself is left out in every scene, but a part of a picture known only by where it is only in its own: elsewhere the same place is another thing (Kan's invite page)", async () => {
     const shape = (colour: string) => `<h1>Invoices</h1><div style="width: 300px; height: 120px; background: ${colour}"></div>`;
     const first = await round(0, { "Look at the chart": [["Open the chart", shape("#c33")]] });
     const byItself = await changesByThemselves(first, await round(0, { "Look at the chart": [["Open the chart", shape("#3a3")]] }));
@@ -130,7 +130,7 @@ describe("A round compared with one before it", { timeout: 60_000 }, () => {
     assert.ok(unsteady.length && unsteady.every((piece) => piece.startsWith("here:")), "it's known only by where it is");
     const then = await round(0, { "Look at the chart": [["Open the chart", shape("#c33")]], "Print the chart": [["Open the chart", shape("#c33")]] });
     const now = await round(1, { "Look at the chart": [["Open the chart", shape("#33c")]], "Print the chart": [["Open the chart", shape("#33c")]] });
-    const { changes } = await compare(comparing, then, now, unsteadyIn([{ ...then.flows[0]!, unsteady }, then.flows[1]!]));
-    assert.deepEqual(changes.map((change) => change.seen.map((seen) => seen.flow)), [["Print the chart"]]);
+    const { changes } = await compare(comparing, then, now, unsteadyIn([{ ...then.scenes[0]!, unsteady }, then.scenes[1]!]));
+    assert.deepEqual(changes.map((change) => change.seen.map((seen) => seen.scene)), [["Print the chart"]]);
   });
 });

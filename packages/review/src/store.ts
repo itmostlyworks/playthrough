@@ -1,7 +1,7 @@
 // The review store: the steps of the loop, each checked against the rules before anything is kept.
 // Where things are kept is a Storage, so a folder, memory and later a hosted store all keep reviews the same way.
 
-import type { Accepted, Comparison, Flow, Review, Round, Send, Taken } from "./model.ts";
+import type { Accepted, Comparison, Scene, Review, Round, Send, Taken } from "./model.ts";
 import {
   problemsAccepting,
   problemsAddingToBefore,
@@ -37,7 +37,7 @@ export class Refused extends Error {
 
 // How a review is laid out in its storage, each file with one writer:
 //   <review>/review.json                 the agent, when it starts
-//   <review>/rounds/<n>/round.json       the agent, until the round is finished; Before, as it gains a flow added later
+//   <review>/rounds/<n>/round.json       the agent, until the round is finished; Before, as it gains a scene added later
 //   <review>/rounds/<n>/files/<name>     the agent: recordings, pictures
 //   <review>/rounds/<n>/since/<k>.json   Playthrough: round n compared with round k, while n is being worked on
 //   <review>/sends/<id>.json             whoever sent it
@@ -122,7 +122,7 @@ export class Reviews {
     });
   }
 
-  // What a person did in the app, kept as their branch off a flow: theirs, not a round's, so it's kept beside the rounds
+  // What a person did in the app, kept as their branch off a scene: theirs, not a round's, so it's kept beside the rounds
   // and can be kept again, longer, while the round it branches off never changes.
   async saveBranch(id: string, name: string, bytes: Uint8Array): Promise<void> {
     const problems = [...problemsWithId(id), ...problemsWithFileName(name)];
@@ -161,23 +161,23 @@ export class Reviews {
     });
   }
 
-  // Before gains a flow, recorded on the app as it was, with its files, or the word that it can't start there; a flow
+  // Before gains a scene, recorded on the app as it was, with its files, or the word that it can't start there; a scene
   // it has, recorded again, is in place of what it had, and one that's gone goes.
-  async addToBefore(id: string, added: { flows: Flow[]; cantStart: string[]; files: { name: string; bytes: Uint8Array }[]; gone?: string[] }): Promise<void> {
+  async addToBefore(id: string, added: { scenes: Scene[]; cantStart: string[]; files: { name: string; bytes: Uint8Array }[]; gone?: string[] }): Promise<void> {
     return this.#one(id, async () => {
       const review = await this.get(id);
-      const problems = problemsAddingToBefore(review, added.flows, added.cantStart);
+      const problems = problemsAddingToBefore(review, added.scenes, added.cantStart);
       for (const { name, bytes } of added.files) {
         const named = problemsWithFileName(name);
         problems.push(...named);
-        // What's kept by its content, like a font two flows load, is the same file again.
+        // What's kept by its content, like a font two scenes load, is the same file again.
         const there = named.length ? undefined : await this.storage.read(`${id}/rounds/0/files/${name}`);
         if (there && Buffer.compare(there, bytes)) problems.push(`Before has a file called “${name}” already, with something else in it.`);
       }
       if (problems.length) throw new Refused(problems);
       const before = review.rounds.find((round) => round.number === 0)!;
       for (const { name, bytes } of added.files) await this.storage.write(`${id}/rounds/0/files/${name}`, bytes);
-      await this.#writeJson(`${id}/rounds/0/round.json`, withInBefore(before, added.flows, added.cantStart, added.gone));
+      await this.#writeJson(`${id}/rounds/0/round.json`, withInBefore(before, added.scenes, added.cantStart, added.gone));
     });
   }
 
@@ -225,7 +225,7 @@ export class Reviews {
     return this.storage.read(`${id}/rounds/${round}/files/${name}`);
   }
 
-  // The names at the top of a round's files: its recordings, and those of flows it kept in place of them.
+  // The names at the top of a round's files: its recordings, and those of scenes it kept in place of them.
   async files(id: string, round: number): Promise<string[]> {
     const problems = problemsWithId(id);
     if (problems.length || !Number.isInteger(round)) throw new Refused(problems.length ? problems : [`There's no round ${round}.`]);

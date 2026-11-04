@@ -1,11 +1,11 @@
-// Going from every flow at once to one, the flow's picture grows from where it was into the frame the flow plays in: a
+// Going from every scene at once to one, the scene's picture grows from where it was into the frame the scene plays in: a
 // picture is in one place at a time, so you see where it went. Going back, the camera pushes in on the step you were on.
 //
-// A picture is marked by data-picture, its flow's name; data-flying hides it while its copy is in the air.
+// A picture is marked by data-picture, its scene's name; data-flying hides it while its copy is in the air.
 
 const FLIGHT = { duration: 420, easing: "cubic-bezier(.3,.7,.1,1)" };
 
-export type Taking = { flow: string; from: HTMLElement; box: DOMRect; copy: HTMLElement }[];
+export type Taking = { scene: string; from: HTMLElement; box: DOMRect; copy: HTMLElement }[];
 
 // Each picture in the room as it shows now, and where.
 export function takeOff(room: Element): Taking {
@@ -13,12 +13,12 @@ export function takeOff(room: Element): Taking {
   return [...room.querySelectorAll<HTMLElement>("[data-picture]")].flatMap((from) => {
     const box = from.getBoundingClientRect();
     if (!box.width) return [];
-    return [{ flow: from.dataset.picture!, from, box, copy: copyOf(from) }];
+    return [{ scene: from.dataset.picture!, from, box, copy: copyOf(from) }];
   });
 }
 
-// Into one flow, its picture grows into the frame it plays in, which shows once it's there: what the frame shows is
-// the picture it grows from, the flow opening. How long until it has.
+// Into one scene, its picture grows into the frame it plays in, which shows once it's there: what the frame shows is
+// the picture it grows from, the scene opening. How long until it has.
 export function grow(taking: Taking, frame: HTMLElement): number {
   const one = taking[0];
   const there = frame.getBoundingClientRect();
@@ -33,7 +33,7 @@ export function grow(taking: Taking, frame: HTMLElement): number {
   return FLIGHT.duration;
 }
 
-// Back to every flow, the camera pushes in on the step you were on: the page, from where the frame drew it, closes in
+// Back to every scene, the camera pushes in on the step you were on: the page, from where the frame drew it, closes in
 // on the part of it the step's picture shows, until it's that picture. The picture is the page as the step left it.
 export function pushIn(frame: HTMLElement, box: DOMRect, page: DOMRect, home: HTMLElement) {
   const there = home.getBoundingClientRect();

@@ -1,5 +1,5 @@
 // What the viewer shows of a review on a round, for you: each note with its number, its conversation and who it waits
-// for, and where each flow stands for you. What you haven't sent counts as if it were sent, so it shows at once.
+// for, and where each scene stands for you. What you haven't sent counts as if it were sent, so it shows at once.
 // Numbers are the viewer's to give; a note's id is only for the agent.
 
 import {
@@ -21,10 +21,10 @@ import {
 } from "@playthrough/review";
 
 // What you've written on a round and not sent yet: what a send will carry, with the Looks goods you've sent and taken
-// back since, the answers that came with their flow's Looks good, and the notes you started and haven't saved, which
+// back since, the answers that came with their scene's Looks good, and the notes you started and haven't saved, which
 // never go.
-export type Draft = { notes: Note[]; verdicts: Verdict[]; looksGood: string[]; takenBack: string[]; withTheFlow: string[]; unsaved: Note[] };
-export const nothing: Draft = { notes: [], verdicts: [], looksGood: [], takenBack: [], withTheFlow: [], unsaved: [] };
+export type Draft = { notes: Note[]; verdicts: Verdict[]; looksGood: string[]; takenBack: string[]; withTheScene: string[]; unsaved: Note[] };
+export const nothing: Draft = { notes: [], verdicts: [], looksGood: [], takenBack: [], withTheScene: [], unsaved: [] };
 
 // What you haven't sent is the review's, each draft under the round it's about, as a send is: a newer round arriving
 // leaves it where it is, and shows it as it shows what you sent.
@@ -38,7 +38,7 @@ export function upTo(unsent: Unsent, round: number): Draft {
     verdicts: drafts.flatMap((draft) => draft.verdicts),
     looksGood: drafts.flatMap((draft) => draft.looksGood),
     takenBack: drafts.flatMap((draft) => draft.takenBack),
-    withTheFlow: drafts.flatMap((draft) => draft.withTheFlow),
+    withTheScene: drafts.flatMap((draft) => draft.withTheScene),
     unsaved: drafts.flatMap((draft) => draft.unsaved),
   };
 }
@@ -50,23 +50,23 @@ export const draftOn = (unsent: Unsent, round: number, change: (draft: Draft) =>
 
 // What a send carries of the draft.
 export const sendOf = ({ notes, verdicts, looksGood, takenBack }: Draft) => ({ notes, verdicts, looksGood, ...(takenBack.length && { takenBack }) });
-// What a send holds, in a few words: the notes, the answers judged, the situations that look good.
+// What a send holds, in a few words: the notes, the answers judged, the scenes that look good.
 export function toSend(draft: Draft): string {
   const count = (n: number, one: string, many: string) => (n ? [`${n} ${n === 1 ? one : many}`] : []);
-  const judged = draft.verdicts.filter((verdict) => !draft.withTheFlow.includes(verdict.note)).length;
+  const judged = draft.verdicts.filter((verdict) => !draft.withTheScene.includes(verdict.note)).length;
   return [...count(draft.notes.length, "note", "notes"), ...count(judged, "answer judged", "answers judged"), ...count(draft.looksGood.length, "looks good", "look good")].join(", ");
 }
 
 export const said = (draft: Draft) => draft.notes.length + draft.verdicts.length + draft.looksGood.length + draft.takenBack.length;
 
-// The flows a newer round shows as they were: nothing found changed in them since, or only what the agent says isn't
+// The scenes a newer round shows as they were: nothing found changed in them since, or only what the agent says isn't
 // real.
 export function unchangedSince(review: Review, since: number, round: number): string[] {
-  const flows = review.rounds.find((kept) => kept.number === round)?.flows ?? [];
+  const scenes = review.rounds.find((kept) => kept.number === round)?.scenes ?? [];
   const comparison = review.comparisons.find((kept) => kept.round === round && kept.since === since);
   if (!comparison) return [];
   const real = comparison.changes.filter((change) => !("notReal" in (accountOf(review, round, change.id) ?? {})));
-  return flows.filter((flow) => !real.some((change) => change.seen.some((seen) => seen.flow === flow.name))).map((flow) => flow.name);
+  return scenes.filter((scene) => !real.some((change) => change.seen.some((seen) => seen.scene === scene.name))).map((scene) => scene.name);
 }
 
 // Amber waits for you, slate for the agent or for someone else, green is settled.
@@ -81,13 +81,13 @@ export function seen(review: Review): Review {
   return { ...review, rounds: review.rounds.filter((round) => round.finished) };
 }
 
-// Each round's flows with those it changed first, since the round before, or since Before on the first, then those it
-// left as they were: the page opens on what's new, and the flows play, and are gone through, in the same order. It's
+// Each round's scenes with those it changed first, since the round before, or since Before on the first, then those it
+// left as they were: the page opens on what's new, and the scenes play, and are gone through, in the same order. It's
 // the round's own order, so nothing moves when you send.
 export function changedFirst(review: Review): Review {
   const rounds = review.rounds.map((round) => {
     const same = unchangedSince(review, Math.max(0, round.number - 1), round.number);
-    return same.length ? { ...round, flows: [...round.flows.filter((flow) => !same.includes(flow.name)), ...round.flows.filter((flow) => same.includes(flow.name))] } : round;
+    return same.length ? { ...round, scenes: [...round.scenes.filter((scene) => !same.includes(scene.name)), ...round.scenes.filter((scene) => same.includes(scene.name))] } : round;
   });
   return { ...review, rounds };
 }
@@ -148,7 +148,7 @@ function everyNote(review: Review, round: number, you: string, unsent: Unsent): 
   return every.sort(([a], [b]) => a.number - b.number);
 }
 
-// Where a flow stands for you, what you haven't sent counting as sent. It's good, as every flow is once the work is
+// Where a scene stands for you, what you haven't sent counting as sent. It's good, as every scene is once the work is
 // accepted, when nothing more is asked; or a note you started in it isn't
 // saved; or what you said in it is yours to send, or with the agent, so it asks nothing more this round; or it asks
 // whether it's good: once you've watched it, settling the answers in it you haven't judged, and before that it waits for
@@ -163,18 +163,18 @@ export function standings(review: Review, round: number, you: string, unsent: Un
   const then = asOf(asIfSent(review, you, unsent), round);
   const notes = notesOn(review, round, you, unsent);
   const draft = upTo(unsent, round);
-  const flows = review.rounds.find((kept) => kept.number === round)?.flows ?? [];
+  const scenes = review.rounds.find((kept) => kept.number === round)?.scenes ?? [];
   return new Map(
-    flows.map(({ name }): [string, Standing] => {
-      const on = notes.filter((note) => note.on?.flow === name);
+    scenes.map(({ name }): [string, Standing] => {
+      const on = notes.filter((note) => note.on?.scene === name);
       const waiting = on.filter((note) => note.state === "needs you").length;
       const toSend = on.filter((note) => note.unsent && note.state === "with the agent").length;
       const sent = on.some((note) => note.yours && !note.unsent && note.state === "with the agent");
       const stands = (is: Standing["is"], count = 0, asks = true) => [name, { is, count, asks }] as [string, Standing];
       if (review.accepted) return stands("good", 0, false);
       if (goodForYou(then, round, you, name)) return stands("good");
-      if (draft.unsaved.some((note) => note.on?.flow === name)) return stands("not saved", 1, false);
-      // An answer on the whole flow is answered by the flow's own Looks good: saying Not quite to the flow instead leaves it
+      if (draft.unsaved.some((note) => note.on?.scene === name)) return stands("not saved", 1, false);
+      // An answer on the whole scene is answered by the scene's own Looks good: saying Not quite to the scene instead leaves it
       // as it was, and it doesn't hold up sending.
       const held = on.filter((note) => note.state === "needs you" && note.on?.at !== undefined).length;
       if (toSend || sent) return held ? stands("needs you", held, false) : toSend ? stands("to send", toSend, false) : stands("with the agent", 0, false);
@@ -186,7 +186,7 @@ export function standings(review: Review, round: number, you: string, unsent: Un
   );
 }
 
-// A flow that still needs you: not good, and not only waiting on what you've said for the agent.
+// A scene that still needs you: not good, and not only waiting on what you've said for the agent.
 export const needsYou = (standing: Standing | undefined) => !!standing && standing.is !== "good" && standing.is !== "with the agent";
 
 // Since when the agent has been working on what was sent, for the round after the latest: only on what asks it
@@ -194,25 +194,25 @@ export const needsYou = (standing: Standing | undefined) => !!standing && standi
 export const workingSince = (review: Review, latest: Round) =>
   review.accepted ? undefined : review.taken.find((taken) => taken.round > latest.number && notesToAnswer(review, taken.round).length > 0)?.at;
 
-// Your Looks good on a flow settles the answers in it you haven't judged, as a Looks good to each. Taking it back takes
+// Your Looks good on a scene settles the answers in it you haven't judged, as a Looks good to each. Taking it back takes
 // those back with it, and nothing you said yourself. One you've sent is taken back by saying so, in the next send.
-export function lookGood(draft: Draft, flow: string, notes: Shown[]): Draft {
-  const riding = notes.filter((note) => note.on?.flow === flow && note.state === "needs you").map((note) => note.id);
+export function lookGood(draft: Draft, scene: string, notes: Shown[]): Draft {
+  const riding = notes.filter((note) => note.on?.scene === scene && note.state === "needs you").map((note) => note.id);
   return {
     ...draft,
-    looksGood: [...draft.looksGood.filter((kept) => kept !== flow), flow],
+    looksGood: [...draft.looksGood.filter((kept) => kept !== scene), scene],
     verdicts: [...draft.verdicts, ...riding.map((note) => ({ note, verdict: "looks good" as const }))],
-    withTheFlow: [...draft.withTheFlow, ...riding],
+    withTheScene: [...draft.withTheScene, ...riding],
   };
 }
 
-export function takeBack(draft: Draft, flow: string, notes: Shown[]): Draft {
-  const riding = draft.withTheFlow.filter((id) => notes.find((note) => note.id === id)?.on?.flow === flow);
+export function takeBack(draft: Draft, scene: string, notes: Shown[]): Draft {
+  const riding = draft.withTheScene.filter((id) => notes.find((note) => note.id === id)?.on?.scene === scene);
   return {
     ...draft,
-    looksGood: draft.looksGood.filter((kept) => kept !== flow),
+    looksGood: draft.looksGood.filter((kept) => kept !== scene),
     verdicts: draft.verdicts.filter((verdict) => !riding.includes(verdict.note)),
-    withTheFlow: draft.withTheFlow.filter((id) => !riding.includes(id)),
+    withTheScene: draft.withTheScene.filter((id) => !riding.includes(id)),
   };
 }
 

@@ -2,12 +2,12 @@
 // nothing in another; what links them is the page each step left, read on both rounds and paired as the comparison pairs
 // it: the same step, by its title, and on it the thing that's the same thing.
 
-import { inStep, type Element, type Flow, type Place, type Point } from "@playthrough/review";
+import { inStep, type Element, type Scene, type Place, type Point } from "@playthrough/review";
 import { differences } from "./differences.ts";
 import type { Glimpse, Reading, Thing } from "./reading.ts";
 
-// A round's recording of a flow, with what was read at the end of each of its steps.
-export type Recorded = { flow: Flow; readings: Reading[] };
+// A round's recording of a scene, with what was read at the end of each of its steps.
+export type Recorded = { scene: Scene; readings: Reading[] };
 export type Shown = { reading: Reading; thing: Thing };
 
 // A place on another round: its moment there, kept in step through the steps both take, on its thing as it's found
@@ -15,11 +15,11 @@ export type Shown = { reading: Reading; thing: Thing };
 // part of the screen, or a spot with nothing named near it, stays where it was on the screen; a thing that isn't there
 // leaves only the moment.
 export function placeIn(place: Place, from: Recorded, to: Recorded): Place {
-  if (place.at === undefined) return { flow: place.flow };
-  // To the hundredth, but never past the flow's end, which isn't rounded: 5.689s long, an answer at its end was at 5.69s.
-  const at = (moment: number) => Math.min(to.flow.length, Math.round(inStep(moment, from.flow, to.flow) * 100) / 100);
+  if (place.at === undefined) return { scene: place.scene };
+  // To the hundredth, but never past the scene's end, which isn't rounded: 5.689s long, an answer at its end was at 5.69s.
+  const at = (moment: number) => Math.min(to.scene.length, Math.round(inStep(moment, from.scene, to.scene) * 100) / 100);
   const until = place.until === undefined ? undefined : at(place.until);
-  const moment = { flow: place.flow, at: at(place.at), ...(until !== undefined && until > at(place.at) && { until }) };
+  const moment = { scene: place.scene, at: at(place.at), ...(until !== undefined && until > at(place.at) && { until }) };
   if (place.box) return { ...moment, box: place.box };
   if (place.point) return { ...moment, point: besideOn(place.point, place.at, from, to) ?? place.point };
   const there = (element: Element) => {
@@ -111,7 +111,7 @@ export function sameWords(one: string, other: string): boolean {
 }
 const wordsOf = (name: string) => name.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
 
-// A thing noted where no flow records, in the app taken over, found where a flow first shows it, in what each step left
+// A thing noted where no scene records, in the app taken over, found where a scene first shows it, in what each step left
 // or what was glimpsed after an action: the same role, and the same words, the closest of them where several are, as a
 // reminder's subject, “INV-1043 is overdue”, shares enough with its message to pass for it. Nothing for one noted with no
 // words, as anything of its role would do.

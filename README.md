@@ -4,7 +4,7 @@ The agent says it's done. You decide if it's good.
 
 Playthrough records your coding agent's change the way a person would use it, before and after, so you can watch it instead of setting it up by hand. Point at what's wrong, right on the recording, and the next round answers it there. Take over any moment and carry on in the real app. It runs on your machine, with any coding agent that has a shell.
 
-Many agents, one of you: each change arrives already recorded, and one page shows which ones need you. Any flow downloads as a video, for a pull request or a teammate. Keep your code review: it reads the code; Playthrough shows what the change does.
+Many agents, one of you: each change arrives already recorded, and one page shows which ones need you. Any scene downloads as a video, for a pull request or a teammate. Keep your code review: it reads the code; Playthrough shows what the change does.
 
 To see a review before you install anything, play the one at [playthrough.sh](https://playthrough.sh).
 
@@ -35,14 +35,14 @@ In Claude Code, it's a plugin too: `/plugin install playthrough --marketplace it
 ## How a review goes
 
 1. You ask your agent for a change, and to show it to you with Playthrough.
-2. Before it touches the code, the agent writes a flow for each situation the change meets (someone, with what they'd have, there to do one thing), and Playthrough keeps the app as it is: Before.
-3. The agent makes the change, and Playthrough records every flow, on the app as it is now and on Before, as far as the app went before. It finds what changed itself, including what the agent didn't mention, and the agent says why each change is there.
+2. Before it touches the code, the agent writes a scene for each situation the change meets (someone, with what they'd have, there to do one thing), and Playthrough keeps the app as it is: Before.
+3. The agent makes the change, and Playthrough records every scene, on the app as it is now and on Before, as far as the app went before. It finds what changed itself, including what the agent didn't mention, and the agent says why each change is there.
 4. You watch. Leave a note on what's wrong, where it's wrong; compare with Before; take over and try it yourself. Then send.
-5. The agent answers each note in the next round, on the spot the note is on. You check its answers, and accept once every flow looks good.
+5. The agent answers each note in the next round, on the spot the note is on. You check its answers, and accept once every scene looks good.
 
 ## In the viewer
 
-You arrive at the round: what was asked, and a row for each flow. Choose one to watch it.
+You arrive at the round: what was asked, and a row for each scene. Choose one to watch it.
 
 | | |
 |---|---|
@@ -50,16 +50,16 @@ You arrive at the round: what was asked, and a row for each flow. Choose one to 
 | N | Note: click what's wrong |
 | C | Compare: hold to see this moment as it was, press to see both side by side |
 | T | Take over: the frame becomes the real app at this moment |
-| Escape | Back: from the app to the recording, from a flow to every flow |
-| Enter | The next step: play on, the next flow |
+| Escape | Back: from the app to the recording, from a scene to every scene |
+| Enter | The next step: play on, the next scene |
 
-At the end of each flow, say whether it looks good. Send, and the agent starts on what you said while you watch the rest.
+At the end of each scene, say whether it looks good. Send, and the agent starts on what you said while you watch the rest.
 
 ## More
 
 - [How Playthrough works](docs/how-it-works.md): everything it does, in detail.
 - [What the agent reads](packages/cli/INSTRUCTIONS.md): everything `playthrough` tells an agent, printed when it runs bare.
-- Flows are [Playwright](https://playwright.dev) tests, so an agent already knows how to write them.
+- Scenes are [Playwright](https://playwright.dev) tests, so an agent already knows how to write them.
 - Claude Code, Codex, Cursor and Gemini CLI are recognised by their shell. Any other agent gives its name.
 
 ## Licence

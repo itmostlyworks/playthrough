@@ -2,7 +2,7 @@
 
 **The code is Playthrough too.** It should feel like the tool: delightful, elegant, plain, and useful because its foundational pieces are right.
 
-- **Plain words.** Name things for what they are, in the words a reviewer uses: review, round, flow, note, send. No codes, abbreviations or internal names. A name that needs a comment is the wrong name.
+- **Plain words.** Name things for what they are, in the words a reviewer uses: review, round, scene, note, send. No codes, abbreviations or internal names. A name that needs a comment is the wrong name.
 - **One word, one meaning.** The same word for the same thing in the types, the files, the commands and the docs.
 - **From first principles.** Start from the job to be done, not from how the prototype or another tool did it. Keep what real runs taught us and drop what was an accident.
 - **The obvious solution.** If it needs explaining, look for a simpler one. No abstraction until a second real use asks for it, no option nobody asked for, no framework where a function will do.

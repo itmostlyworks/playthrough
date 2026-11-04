@@ -1,6 +1,6 @@
-// The work, as one page you scroll down from the top: what was asked, then each situation it meets, its recording pinned
+// The work, as one page you scroll down from the top: what was asked, then each scene it meets, its recording pinned
 // at the window's top while its way through goes by beside it, its steps and what was said in them, a stop at a time:
-// the one come up to the line is the one you're on. A key goes one stop on or back. The situation you're on has the bar:
+// the one come up to the line is the one you're on. A key goes one stop on or back. The scene you're on has the bar:
 // you note it, compare it with how it was and take it over where it is. At the end, how it got here, and the one step
 // to take.
 
@@ -12,7 +12,7 @@ import { clamp } from "./moments.ts";
 import { fill, unchangedSince, type Shown, type Standing } from "./notes.ts";
 import { onPhone } from "./phone.ts";
 import { roundName, Rounds } from "./Rounds.tsx";
-import { Situation, type Threads } from "./Situation.tsx";
+import { SceneView, type Threads } from "./Scene.tsx";
 import { Agent, Go, type Step } from "./Step.tsx";
 import type { Read } from "./things.ts";
 
@@ -23,9 +23,9 @@ type Props = {
   up: boolean;
   read: Read;
   notes: Shown[];
-  standing: (flow: string) => Standing | undefined;
-  // Saying a situation looks good, or taking it back; none where nothing can be said.
-  onLooksGood?: (flow: string) => void;
+  standing: (scene: string) => Standing | undefined;
+  // Saying a scene looks good, or taking it back; none where nothing can be said.
+  onLooksGood?: (scene: string) => void;
   threads: Threads;
   // What's new to you on the round, as the player's timeline marks it.
   diamonds: Diamond[];
@@ -38,7 +38,7 @@ type Props = {
   onRound: (round: number) => void;
 };
 
-// What can be done on the situation you're on, from the bar across its recording's bottom edge, and how far it's got.
+// What can be done on the scene you're on, from the bar across its recording's bottom edge, and how far it's got.
 export type Acting = {
   latest: boolean;
   noting: boolean;
@@ -47,12 +47,12 @@ export type Acting = {
   onTakeOver?: () => void;
   onBack: () => void;
   onPlace: (on: Place) => void;
-  // Where the situation you're on rests: Take over takes it over there, or at an answer to a note made in the app, where
+  // Where the scene you're on rests: Take over takes it over there, or at an answer to a note made in the app, where
   // the note was found, what you did there done again.
-  onRest: (flow: string, at: number, again?: string) => void;
+  onRest: (scene: string, at: number, again?: string) => void;
   onClose: () => void;
   // Taken over: the app made ready unseen, being made ready as you wait, or yours.
-  live?: { flow: string; address?: string; shown: boolean; inApp: boolean; due?: number; at?: { x: number; y: number } };
+  live?: { scene: string; address?: string; shown: boolean; inApp: boolean; due?: number; at?: { x: number; y: number } };
   // The note you're writing on a recording: its number, and the box its words are written in.
   writing?: { note: Note; number: number; words: ReactNode };
   // The note opened last: a note saved stays open.
@@ -61,71 +61,71 @@ export type Acting = {
 
 export function Work(props: Props) {
   const { review, round, up, step, acting } = props;
-  const before = review.rounds.find((kept) => kept.number === 0 && kept.flows.length && round.number > 0);
+  const before = review.rounds.find((kept) => kept.number === 0 && kept.scenes.length && round.number > 0);
   // What the work changed, against Before where there is one, else against the round before.
   const work = review.comparisons.find((kept) => kept.round === round.number && kept.since === 0) ?? review.comparisons.findLast((kept) => kept.round === round.number);
-  const general = props.notes.filter((note) => !note.on || !round.flows.some((flow) => flow.name === note.on?.flow));
-  // The flows the work left as they were, against Before.
+  const general = props.notes.filter((note) => !note.on || !round.scenes.some((scene) => scene.name === note.on?.scene));
+  // The scenes the work left as they were, against Before.
   const same = before ? unchangedSince(review, 0, round.number) : [];
-  // The situation you're on, which the bar and the keys are for: the one gone along to, or pressed, or scrolled to the
-  // window's top by its bar; and the last move along the way, which its situation goes to. Noting, writing or in the
+  // The scene you're on, which the bar and the keys are for: the one gone along to, or pressed, or scrolled to the
+  // window's top by its bar; and the last move along the way, which its scene goes to. Noting, writing or in the
   // app, you stay where you are, and in the app the page holds still and the rest of it rests.
-  const [active, setActive] = useState(round.flows[0]?.name);
-  const [go, setGo] = useState<{ round: number; flow: string; stop: number; passing?: boolean }>();
+  const [active, setActive] = useState(round.scenes[0]?.name);
+  const [go, setGo] = useState<{ round: number; scene: string; stop: number; passing?: boolean }>();
   // Begun once you've gone along, or arrived on an answer waiting on you; until then, the foot says how to begin.
-  const [arrivedOn] = useState(() => props.notes.some((note) => note.toJudge && round.flows.some((flow) => flow.name === note.on?.flow)));
+  const [arrivedOn] = useState(() => props.notes.some((note) => note.toJudge && round.scenes.some((scene) => scene.name === note.on?.scene)));
   const begun = !!go || arrivedOn;
   const busy = acting.noting || !!acting.writing || !!acting.live?.shown;
   // Where you are is where you've scrolled to: the stop you're on is the one come up to the line, a fifth of the way
-  // down the window, beside its situation's recording settled at the top. Coming up or going away, a recording is
+  // down the window, beside its scene's recording settled at the top. Coming up or going away, a recording is
   // nobody's: nothing plays while it moves, and its bar waits. The page scrolls as any page does, with your hand, and
   // moves by itself only to take you to a stop you asked for. What's passed plays nothing; where you rest a moment
   // plays. On a phone, a stop is gone to by pressing it.
   const steered = useRef(0);
   const lineOf = (room: HTMLElement) => room.getBoundingClientRect().top + room.clientHeight * LINE;
-  // Where the page is scrolled for a situation's stop to be at the line; before its first, for the situation to come
+  // Where the page is scrolled for a scene's stop to be at the line; before its first, for the scene to come
   // up to the window's top; past the page's last stop, its end.
-  const scrollFor = (room: HTMLElement, situation: HTMLElement, stop: number) => {
-    const row = situation.querySelector<HTMLElement>(`li[data-stop="${stop}"]`);
+  const scrollFor = (room: HTMLElement, section: HTMLElement, stop: number) => {
+    const row = section.querySelector<HTMLElement>(`li[data-stop="${stop}"]`);
     if (row) return room.scrollTop + row.getBoundingClientRect().top - lineOf(room);
-    return stop < 0 ? topOf(room, situation) - PIN : room.scrollHeight;
+    return stop < 0 ? topOf(room, section) - PIN : room.scrollHeight;
   };
-  // Whether a situation's recording has settled at the window's top.
-  const settled = (room: HTMLElement, situation: HTMLElement) =>
-    Math.abs((situation.querySelector("[data-block]")?.getBoundingClientRect().top ?? NaN) - room.getBoundingClientRect().top - PIN) < 1.5;
-  // There, it plays: gone to while the page glides another situation up, once that's settled.
+  // Whether a scene's recording has settled at the window's top.
+  const settled = (room: HTMLElement, section: HTMLElement) =>
+    Math.abs((section.querySelector("[data-block]")?.getBoundingClientRect().top ?? NaN) - room.getBoundingClientRect().top - PIN) < 1.5;
+  // There, it plays: gone to while the page glides another scene up, once that's settled.
   const land = () => setGo((go) => (go?.passing ? { ...go, passing: false } : go));
-  const goTo = (room: HTMLElement, situation: HTMLElement, stop: number) => {
-    const flow = situation.dataset.situation!;
-    const there = settled(room, situation);
-    setActive(flow);
-    setGo({ round: round.number, flow, stop, passing: !there });
-    glide(scrollFor(room, situation, stop), there ? undefined : land);
+  const goTo = (room: HTMLElement, section: HTMLElement, stop: number) => {
+    const scene = section.dataset.scene!;
+    const there = settled(room, section);
+    setActive(scene);
+    setGo({ round: round.number, scene, stop, passing: !there });
+    glide(scrollFor(room, section, stop), there ? undefined : land);
   };
-  // With the keys, along the way a stop at a time: from a situation's last stop on to the next one's first, and back to
+  // With the keys, along the way a stop at a time: from a scene's last stop on to the next one's first, and back to
   // the last of the one before. The page glides it up to the line.
   const move = (by: number) => {
     const room = props.room.current;
-    const situations = [...(room?.querySelectorAll<HTMLElement>("[data-situation]") ?? [])];
-    let i = situations.findIndex((situation) => situation.dataset.situation === active);
-    if (i < 0 && room) i = Math.max(0, situations.findLastIndex((situation) => situation.getBoundingClientRect().top <= lineOf(room)));
-    if (!room || !situations[i]) return false;
-    const count = (i: number) => Number(situations[i]!.dataset.stops);
-    const was = { i, stop: Number(situations[i]!.dataset.stop) };
+    const sections = [...(room?.querySelectorAll<HTMLElement>("[data-scene]") ?? [])];
+    let i = sections.findIndex((section) => section.dataset.scene === active);
+    if (i < 0 && room) i = Math.max(0, sections.findLastIndex((section) => section.getBoundingClientRect().top <= lineOf(room)));
+    if (!room || !sections[i]) return false;
+    const count = (i: number) => Number(sections[i]!.dataset.stops);
+    const was = { i, stop: Number(sections[i]!.dataset.stop) };
     let stop = was.stop + by;
-    if (stop >= count(i) && i < situations.length - 1) [i, stop] = [i + 1, 0];
+    if (stop >= count(i) && i < sections.length - 1) [i, stop] = [i + 1, 0];
     else if (stop < 0 && i > 0) [i, stop] = [i - 1, count(i - 1) - 1];
     else stop = clamp(stop, -1, count(i));
     if (i === was.i && stop === was.stop) return false;
-    goTo(room, situations[i]!, stop);
+    goTo(room, sections[i]!, stop);
     return true;
   };
   // A stop pressed comes up to the line; on a phone, where the page stays put, it's gone to where it is.
-  const bringTo = (flow: string, stop: number) => {
+  const bringTo = (scene: string, stop: number) => {
     const room = props.room.current;
-    const there = room?.querySelector<HTMLElement>(`[data-situation="${CSS.escape(flow)}"]`);
+    const there = room?.querySelector<HTMLElement>(`[data-scene="${CSS.escape(scene)}"]`);
     if (!room || !there) return;
-    if (onPhone()) return void (setActive(flow), setGo({ round: round.number, flow, stop }));
+    if (onPhone()) return void (setActive(scene), setGo({ round: round.number, scene, stop }));
     goTo(room, there, stop);
   };
   // The page glides where it's sent a frame at a time, rather than by the browser's smooth scroll, which another can cut
@@ -151,16 +151,16 @@ export function Work(props: Props) {
   const now = useRef({ busy, move, active, letGo, settled, goTo });
   now.current = { busy, move, active, letGo, settled, goTo };
   // A verdict lands where it was said, and the way goes on from there, unless you've gone on already.
-  const goOn = (flow: string) => {
-    const there = () => props.room.current?.querySelector<HTMLElement>(`[data-situation="${CSS.escape(flow)}"]`)?.dataset.stop;
+  const goOn = (scene: string) => {
+    const there = () => props.room.current?.querySelector<HTMLElement>(`[data-scene="${CSS.escape(scene)}"]`)?.dataset.stop;
     const was = there();
-    window.setTimeout(() => !now.current.busy && now.current.active === flow && there() === was && now.current.move(1), LANDS);
+    window.setTimeout(() => !now.current.busy && now.current.active === scene && there() === was && now.current.move(1), LANDS);
   };
   useLayoutEffect(() => {
     const room = props.room.current;
     if (!room) return;
-    // The last situation can come up to the window's top: there's a window's height under it, less its own. Where the
-    // line is, and where a recording is pinned, for the situations to lay their ways out by.
+    // The last scene can come up to the window's top: there's a window's height under it, less its own. Where the
+    // line is, and where a recording is pinned, for the scenes to lay their ways out by.
     const tall = () => {
       room.style.setProperty("--room", `${room.clientHeight}px`);
       room.style.setProperty("--to-line", `${Math.round(room.clientHeight * LINE)}px`);
@@ -170,10 +170,10 @@ export function Work(props: Props) {
     const watching = new ResizeObserver(tall);
     watching.observe(room);
     // Arriving with an answer waiting on you, you're on it, at the line.
-    const waiting = round.flows.find((flow) => props.notes.some((note) => note.on?.flow === flow.name && note.toJudge && (note.on.app ? note.on.app.from.at : note.on.at) !== undefined));
-    const held = waiting && room.querySelector<HTMLElement>(`[data-situation="${CSS.escape(waiting.name)}"]`);
+    const waiting = round.scenes.find((scene) => props.notes.some((note) => note.on?.scene === scene.name && note.toJudge && (note.on.app ? note.on.app.from.at : note.on.at) !== undefined));
+    const held = waiting && room.querySelector<HTMLElement>(`[data-scene="${CSS.escape(waiting.name)}"]`);
     if (held) setActive(waiting.name);
-    // Arriving at the top, no situation's yours until one comes up.
+    // Arriving at the top, no scene's yours until one comes up.
     else setActive(undefined);
     if (held && onPhone()) held.querySelector(`[data-stop="${held.dataset.stop}"]`)?.scrollIntoView({ block: "center" });
     else if (held) ((steered.current = performance.now() + 200), (room.scrollTop = scrollFor(room, held, Number(held.dataset.stop))));
@@ -184,30 +184,30 @@ export function Work(props: Props) {
       reading = undefined;
       if (now.current.busy || onPhone() || performance.now() < steered.current) return;
       const line = lineOf(room);
-      const here = [...room.querySelectorAll<HTMLElement>("[data-situation]")].find((situation) => now.current.settled(room, situation));
-      // Scrolled back above the situation you were on, it's before its first stop again, as it was arrived at, however
+      const here = [...room.querySelectorAll<HTMLElement>("[data-scene]")].find((section) => now.current.settled(room, section));
+      // Scrolled back above the scene you were on, it's before its first stop again, as it was arrived at, however
       // fast the page went past its first stop: what's under the line, you haven't come to.
-      const left = now.current.active === undefined || now.current.active === here?.dataset.situation ? null : room.querySelector<HTMLElement>(`[data-situation="${CSS.escape(now.current.active)}"]`);
+      const left = now.current.active === undefined || now.current.active === here?.dataset.scene ? null : room.querySelector<HTMLElement>(`[data-scene="${CSS.escape(now.current.active)}"]`);
       const first = left?.querySelector("li[data-stop]")?.getBoundingClientRect().top;
-      if (left && Number(left.dataset.stop) >= 0 && first !== undefined && first > line) setGo({ round: round.number, flow: left.dataset.situation!, stop: -1, passing: true });
+      if (left && Number(left.dataset.stop) >= 0 && first !== undefined && first > line) setGo({ round: round.number, scene: left.dataset.scene!, stop: -1, passing: true });
       if (rest === undefined) {
         const on = here ?? left;
-        from = on && which(on.querySelector<HTMLElement>(`li[data-stop="${on.dataset.stop}"]`) ?? on);
+        from = on ? which(on.querySelector<HTMLElement>(`li[data-stop="${on.dataset.stop}"]`) ?? on) : undefined;
       }
       clearTimeout(rest);
       rest = window.setTimeout(() => rested(!!here), REST);
       if (!here) return void (now.current.active !== undefined && setActive(undefined));
-      const flow = here.dataset.situation!;
+      const scene = here.dataset.scene!;
       const stop = Number([...here.querySelectorAll<HTMLElement>("li[data-stop]")].findLast((row) => row.getBoundingClientRect().top <= line)?.dataset.stop ?? -1);
-      if (flow !== now.current.active) setActive(flow);
-      if (stop !== Number(here.dataset.stop)) setGo({ round: round.number, flow, stop, passing: true });
+      if (scene !== now.current.active) setActive(scene);
+      if (stop !== Number(here.dataset.stop)) setGo({ round: round.number, scene, stop, passing: true });
     };
     // Come to rest just off a stop, it's brought to the line, so each turn of the wheel goes a stop from where the last
     // left you, rather than a little further each time until a turn goes past one: the stop at the line, just past it,
     // or the next, just short of it, but only from the stop you were on, so a rest never goes on past one you haven't
     // been on.
     let from: string | undefined;
-    const which = (row: HTMLElement) => `${row.closest<HTMLElement>("[data-situation]")?.dataset.situation} ${row.dataset.stop}`;
+    const which = (row: HTMLElement) => `${row.closest<HTMLElement>("[data-scene]")?.dataset.scene} ${row.dataset.stop}`;
     const rested = (settled: boolean) => {
       rest = undefined;
       if (now.current.busy) return;
@@ -215,8 +215,8 @@ export function Work(props: Props) {
       const rows = [...room.querySelectorAll<HTMLElement>("li[data-stop]")].map((row) => ({ row, by: row.getBoundingClientRect().top - line }));
       const [at, next] = [rows.findLast(({ by }) => by <= 0), rows.find(({ by }) => by > 0)];
       const to = at && -at.by <= SETTLE ? at : next && next.by <= SETTLE && at && which(at.row) === from ? next : undefined;
-      const situation = to?.row.closest<HTMLElement>("[data-situation]");
-      if (situation && Math.abs(to!.by) > 1) now.current.goTo(room, situation, Number(to!.row.dataset.stop));
+      const section = to?.row.closest<HTMLElement>("[data-scene]");
+      if (section && Math.abs(to!.by) > 1) now.current.goTo(room, section, Number(to!.row.dataset.stop));
       else if (settled) land();
     };
     const scrolled = () => void (reading ??= requestAnimationFrame(read));
@@ -246,10 +246,10 @@ export function Work(props: Props) {
     addEventListener("keydown", down);
     return () => removeEventListener("keydown", down);
   });
-  const inApp = acting.live?.shown ? acting.live.flow : undefined;
+  const inApp = acting.live?.shown ? acting.live.scene : undefined;
   return (
     <div ref={props.room} data-room="" inert={!up} className={`absolute inset-0 z-20 bg-ground transition-[opacity,visibility] duration-240 ease-calm ${inApp ? "overflow-hidden" : "overflow-y-auto"} ${up ? "visible opacity-100" : "invisible opacity-0"}`}>
-      {/* As wide as a situation's recording can be with its name over it and the bar under it, on the screen, and its steps beside it. */}
+      {/* As wide as a scene's recording can be with its name over it and the bar under it, on the screen, and its steps beside it. */}
       <div className="mx-auto w-full max-w-[min(1480px,max(1000px,calc((100dvh_-_150px)_*_1.6_+_436px)))] px-8 pt-8 pb-4 phone:px-0 phone:pt-2">
         <header className="max-w-[680px]">
           <h2 className="text-[20px] leading-[27px] font-semibold tracking-[-0.01em] text-balance">{review.title}</h2>
@@ -257,38 +257,38 @@ export function Work(props: Props) {
           <div className="mt-3 -ml-2.5 flex items-center gap-1 text-[13px] leading-5 text-soft">
             <Rounds quiet rounds={review.rounds} watching={round.number} arrived={props.arrived} working={props.working} onRound={props.onRound} />
             <span className="min-w-0 truncate">
-              {round.flows.length} {round.flows.length === 1 ? "situation" : "situations"}, recorded by {round.by}
+              {round.scenes.length} {round.scenes.length === 1 ? "scene" : "scenes"}, recorded by {round.by}
               {props.accepted && <span className="text-green"> · {props.accepted}</span>}
             </span>
           </div>
         </header>
-        {/* Situations that look good to you, folded to their names, sit together as one list. */}
+        {/* Scenes that look good to you, folded to their names, sit together as one list. */}
         <div className="mt-10 flex flex-col gap-12 phone:mt-7 phone:gap-9 [&>[data-folded]+[data-folded]]:-mt-12 phone:[&>[data-folded]+[data-folded]]:-mt-9">
-          {round.flows.map((flow) => (
-            <Situation
-              key={`${round.number} ${flow.name}`}
+          {round.scenes.map((scene) => (
+            <SceneView
+              key={`${round.number} ${scene.name}`}
               review={review}
               round={round}
               before={before}
-              flow={flow}
-              changed={(work?.changes ?? []).flatMap((change) => change.seen.filter((on) => on.flow === flow.name).map((on) => (change.gone ? { ...on, element: undefined } : on)))}
-              readings={props.read(round.number, flow.name)}
-              notes={props.notes.filter((note) => note.on?.flow === flow.name)}
+              scene={scene}
+              changed={(work?.changes ?? []).flatMap((change) => change.seen.filter((on) => on.scene === scene.name).map((on) => (change.gone ? { ...on, element: undefined } : on)))}
+              readings={props.read(round.number, scene.name)}
+              notes={props.notes.filter((note) => note.on?.scene === scene.name)}
               noteOf={(id) => props.notes.find((note) => note.id === id)}
-              standing={props.standing(flow.name)}
+              standing={props.standing(scene.name)}
               onLooksGood={props.onLooksGood}
               threads={props.threads}
-              diamonds={props.diamonds.filter((diamond) => diamond.flow === flow.name)}
-              quiet={props.standing(flow.name)?.is === "good"}
-              same={same.includes(flow.name)}
-              glimpsed={props.read(round.number, flow.name, true)}
+              diamonds={props.diamonds.filter((diamond) => diamond.scene === scene.name)}
+              quiet={props.standing(scene.name)?.is === "good"}
+              same={same.includes(scene.name)}
+              glimpsed={props.read(round.number, scene.name, true)}
               acting={acting}
-              active={up && active === flow.name}
-              go={go?.round === round.number && go.flow === flow.name ? go : undefined}
-              resting={!!inApp && inApp !== flow.name}
-              onPointerDown={() => !busy && setActive(flow.name)}
-              onSaid={() => goOn(flow.name)}
-              onPressed={(stop) => bringTo(flow.name, stop)}
+              active={up && active === scene.name}
+              go={go?.round === round.number && go.scene === scene.name ? go : undefined}
+              resting={!!inApp && inApp !== scene.name}
+              onPointerDown={() => !busy && setActive(scene.name)}
+              onSaid={() => goOn(scene.name)}
+              onPressed={(stop) => bringTo(scene.name, stop)}
             />
           ))}
         </div>
@@ -317,7 +317,7 @@ export function Work(props: Props) {
 }
 
 // Where the line is that the stop you're on has come up to, as a share of the window's height down from its top; how far
-// below the window's top a situation's recording is pinned, in pixels; and how long the page is still at a stop before
+// below the window's top a scene's recording is pinned, in pixels; and how long the page is still at a stop before
 // it plays, in milliseconds.
 const LINE = 0.2;
 const PIN = 24;
@@ -327,8 +327,8 @@ const SETTLE = 40;
 // How long a verdict is seen where it was said before the way goes on, in milliseconds.
 const LANDS = 600;
 
-// Where the page is scrolled to for a situation to be at the window's top.
-const topOf = (room: HTMLElement, situation: HTMLElement) => room.scrollTop + situation.getBoundingClientRect().top - room.getBoundingClientRect().top;
+// Where the page is scrolled to for a scene to be at the window's top.
+const topOf = (room: HTMLElement, section: HTMLElement) => room.scrollTop + section.getBoundingClientRect().top - room.getBoundingClientRect().top;
 
 // Each round in a line: who recorded it, what was said about it, and what came of that. Its name goes to it, as the
 // rounds at the top do.

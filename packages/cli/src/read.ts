@@ -1,4 +1,4 @@
-// The page a step left, read in the browser running the flow: everything a person would name on it, with where it is,
+// The page a step left, read in the browser running the scene: everything a person would name on it, with where it is,
 // how it looks and what holds it. The comparison compares two readings of the same moment in two rounds, so this is
 // everything it can tell apart.
 
@@ -50,7 +50,7 @@ function hovering(on: boolean) {
   for (const animation of document.getAnimations()) if (animation instanceof CSSTransition) animation.finish();
 }
 
-// Runs in the page, so everything it uses is inside it: a flow's, and the app taken over, where it's said as words.
+// Runs in the page, so everything it uses is inside it: a scene's, and the app taken over, where it's said as words.
 export function read() {
   const ROLES = /^(button|link|dialog|alertdialog|group|radiogroup|table|grid|treegrid|heading|status|alert|textbox|searchbox|combobox|checkbox|radio|switch|slider|listbox|option|tab|menu|menuitem|img)$/;
   const HOLDERS = /^(dialog|alertdialog|status|alert|group|radiogroup|table|grid|treegrid|listbox|menu|box)$/;

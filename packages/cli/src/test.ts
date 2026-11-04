@@ -1,8 +1,8 @@
-// What every flow imports in place of "@playwright/test". While `playthrough record` runs, it records each flow the way a person
+// What every scene imports in place of "@playwright/test". While `playthrough record` runs, it records each scene the way a person
 // would watch it: rrweb in every page, the pointer gliding to what it acts on, and a beat after each action so its result can
 // be seen. Each step ends once the page is at rest, and the page it left is read there, with a picture of it: what the
 // comparison compares. Run as plain tests, it does nothing. Each recording and its readings go to the reporter, which makes
-// them a flow (reporter.ts). Taken over, a flow runs in Playthrough itself instead (following.ts), on the same pace and steps.
+// them a scene (reporter.ts). Taken over, a scene runs in Playthrough itself instead (following.ts), on the same pace and steps.
 
 import { test as base, expect as playwrightExpect, type APIRequestContext, type Browser, type BrowserContext, type BrowserContextOptions, type Dialog, type Locator, type Page } from "@playwright/test";
 import { AsyncLocalStorage } from "node:async_hooks";
@@ -13,25 +13,25 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { sameWords, type Glimpse, type Reading } from "@playthrough/page";
 import { keepAssets, type Assets } from "./assets.ts";
 import type { Did } from "@playthrough/review";
-import { ALONGSIDE, BEAT, REACHES_OUTSIDE, FORK_RAN, type Action, type DoneOn, type Handed, type On, type Run, type ForkRan, type ForkRun, type To } from "./flows.ts";
+import { ALONGSIDE, BEAT, REACHES_OUTSIDE, FORK_RAN, type Action, type DoneOn, type Handed, type On, type Run, type ForkRan, type ForkRun, type To } from "./scenes.ts";
 import { readPage, unhovered } from "./read.ts";
 import { repo } from "./repo.ts";
 import { ACTIONS, ASSETS, DONE_ON, firstLine, GLIMPSES, HANDS, HOLD, PERSON, PICTURE, READINGS, RECORDING, seconds, WROTE, type Failed, type Hand } from "./reporter.ts";
 import { watchRest } from "./rest.ts";
 import { changes, firstOf, make, personIn, setupIn, type Made, type Setup } from "./setup.ts";
 
-// The screens besides the laptop every flow is on unless it says otherwise: a phone, tapped, and a tablet. A flow takes
+// The screens besides the laptop every scene is on unless it says otherwise: a phone, tapped, and a tablet. A scene takes
 // one with test.use, and so does someone it's handed to.
 export type Screen = Pick<BrowserContextOptions, "viewport" | "isMobile" | "hasTouch" | "timezoneId" | "colorScheme">;
 export const phone: Screen = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
 export const tablet: Screen = { viewport: { width: 820, height: 1180 }, isMobile: true, hasTouch: true };
 const LAPTOP = { width: 1280, height: 800 };
 
-// Everything it needs comes with the run (flows.ts), so it never has to find anything for itself.
+// Everything it needs comes with the run (scenes.ts), so it never has to find anything for itself.
 const run: Run | undefined = process.env.PLAYTHROUGH_RUN ? JSON.parse(process.env.PLAYTHROUGH_RUN) : undefined;
 
-// On Before, what a flow expects is the finished work, which the app as it was may not show. So each expectation waits a
-// moment for it, as for a step's result, and the flow goes on either way: it stops only where the app as it was can't
+// On Before, what a scene expects is the finished work, which the app as it was may not show. So each expectation waits a
+// moment for it, as for a step's result, and the scene goes on either way: it stops only where the app as it was can't
 // do something, and it's recorded as far as that.
 export const expect = run?.before ? onlyWaits(playwrightExpect.configure({ timeout: 1000 })) : playwrightExpect;
 
@@ -62,7 +62,7 @@ ${readFileSync(rrweb, "utf8")}
 const said = () => window.rrwebRecord.record.addCustomEvent("browser", { dark: matchMedia("(prefers-color-scheme: dark)").matches, still: matchMedia("(prefers-reduced-motion: reduce)").matches });
 if (window.top === window) {
   window.rrwebRecord.record({
-    // Nothing is kept until the flow itself starts, after whatever the app's setup did on the page.
+    // Nothing is kept until the scene itself starts, after whatever the app's setup did on the page.
     emit: (event) => (window.__playthrough?.(event), event.type === 2 && setTimeout(said)),
     // every input, not just the last: with "last", rrweb only hears a field change when it loses focus,
     // so words typed into a search box that kept focus never reached the recording
@@ -134,16 +134,16 @@ const HANDING = 1200; // handed on, the page left holds this long, and the new h
 
 let pointer: { page: Page; x: number; y: number; handed?: boolean } | undefined;
 
-// The flow underway: the page it's on now, what waits for that page to rest, what was read at the end of each step so
+// The scene underway: the page it's on now, what waits for that page to rest, what was read at the end of each step so
 // far, with its picture, and when each action was done; the step it's in, and how many of that step's actions are done;
 // whoever it's been handed to, and the assets each page loaded; the first request it sent that changes what the app holds;
 // the browser's own dialog shown during the action being done, until it's answered; what each action was done on, by
-// its step; what Playwright gave the flow, for a fork to carry on with; and running a note's fork, once it has begun, how
+// its step; what Playwright gave the scene, for a fork to carry on with; and running a note's fork, once it has begun, how
 // far it got.
 type Underway = { page: Page; events: { timestamp: number }[]; rest: () => Promise<void>; depth: number; readings: Omit<Reading, "picture">[]; glimpses: Glimpse[]; pictures: Buffer[]; actions: number[]; step?: string; inStep: number; hands: Hand[]; assets: (() => Promise<Assets>)[]; wrote?: string; dialog?: Promise<void>; doneOn: DoneOn; given?: Parameters<Body>[0]; forked?: ForkRan };
 let underway: Underway | undefined;
 
-// What every flow starts from (setup.ts), loaded once a run.
+// What every scene starts from (setup.ts), loaded once a run.
 let appSetup: Promise<Setup> | undefined;
 const setupOf = () => (appSetup ??= setupIn(repo(run?.root).setup));
 
@@ -164,7 +164,7 @@ const seeded = `(() => {
   };
 })();`;
 
-// Someone else carries the flow on, on a page of their own in the same world, on their screen.
+// Someone else carries the scene on, on a page of their own in the same world, on their screen.
 export type HandTo = (person: string, screen?: Screen) => Promise<Page>;
 
 const recorded = base.extend<{ person: string | undefined; rest: () => Promise<void>; setup: Record<string, any>; handTo: HandTo; recorder: void }>({
@@ -172,15 +172,15 @@ const recorded = base.extend<{ person: string | undefined; rest: () => Promise<v
   locale: "en-US",
   timezoneId: "UTC",
   contextOptions: async ({ contextOptions }, use) => use({ ...(await setupOf()).use, ...contextOptions }),
-  // Who the flow is done as: one of the app's people (setup.ts), named by its file with test.use, or else the first.
+  // Who the scene is done as: one of the app's people (setup.ts), named by its file with test.use, or else the first.
   person: [async ({}, use) => use(firstOf(await setupOf())), { option: true }],
   // What waits for the page to come to rest, watching it from before setup sets its clock (rest.ts).
   rest: async ({ page }, use) => use(run ? await watchRest(page) : async () => {}),
   setup: async ({ page, request, baseURL, person, rest: _ }, use, testInfo) => {
-    // Recording flows added later on Before, the others aren't run, nor is anything made for them. Running a note's fork,
-    // only the flow it's off.
+    // Recording scenes added later on Before, the others aren't run, nor is anything made for them. Running a note's fork,
+    // only the scene it's off.
     if (run?.only && !run.only.includes(testInfo.title)) testInfo.skip();
-    if (run?.fork && testInfo.title !== run.fork.flow) testInfo.skip();
+    if (run?.fork && testInfo.title !== run.fork.scene) testInfo.skip();
     const app = await setupOf();
     if (person) personIn(app, person);
     if (run) await readied(page, run);
@@ -189,7 +189,7 @@ const recorded = base.extend<{ person: string | undefined; rest: () => Promise<v
     await use(made.setup);
     await made.giveBack();
   },
-  // Handed on, someone else is signed in by the app's setup on a page of their own, and recorded, the flow carries on
+  // Handed on, someone else is signed in by the app's setup on a page of their own, and recorded, the scene carries on
   // there: its own page says no more.
   handTo: async ({ browser, baseURL, setup }, use) => {
     const opened: BrowserContext[] = [];
@@ -198,33 +198,33 @@ const recorded = base.extend<{ person: string | undefined; rest: () => Promise<v
       personIn(app, person);
       const { page, context } = await pageFor(browser, baseURL!, screen, app.use);
       opened.push(context);
-      const flow = underway;
-      const rest = run && flow && (await watchRest(page));
-      if (run && flow) await readied(page, run);
+      const scene = underway;
+      const rest = run && scene && (await watchRest(page));
+      if (run && scene) await readied(page, run);
       await app.signIn?.({ page, person, setup });
-      if (run && flow && rest) await carryOn(flow, page, rest, person, run);
+      if (run && scene && rest) await carryOn(scene, page, rest, person, run);
       return page;
     });
     for (const context of opened) await context.close();
   },
   recorder: [
-    // Once what the flow starts from is made, so making it isn't in the recording; and kept until the pages it was
+    // Once what the scene starts from is made, so making it isn't in the recording; and kept until the pages it was
     // handed to are done with, as it ends on the last of them.
     async ({ page, request, baseURL, setup, rest, person, handTo }, use, testInfo) => {
       if (!run) return use();
       testInfo.setTimeout(testInfo.timeout * 3);
       const given = { page, context: page.context(), request, baseURL: baseURL!, setup, handTo };
-      const flow: Underway = { page, events: [], rest, depth: 0, readings: [], glimpses: [], pictures: [], actions: [], inStep: 0, hands: [], assets: [], doneOn: {}, given };
-      // Only the page the flow is on is recorded: handed on, it carries on on the other's.
-      await page.exposeFunction("__playthrough", (event: { timestamp: number }) => void (flow.page === page && flow.events.push(event)));
-      flow.assets.push(keepAssets(page, run.folder));
+      const scene: Underway = { page, events: [], rest, depth: 0, readings: [], glimpses: [], pictures: [], actions: [], inStep: 0, hands: [], assets: [], doneOn: {}, given };
+      // Only the page the scene is on is recorded: handed on, it carries on on the other's.
+      await page.exposeFunction("__playthrough", (event: { timestamp: number }) => void (scene.page === page && scene.events.push(event)));
+      scene.assets.push(keepAssets(page, run.folder));
       pace(page);
-      dialogsOn(page, flow);
+      dialogsOn(page, scene);
       pointer = { page, x: 640, y: 640 };
-      underway = flow;
-      const { events, readings, glimpses, pictures, actions } = flow;
-      // A page setup left loaded, where the flow starts, is taken whole now, as rrweb took it before anything heard it;
-      // otherwise the recording starts with the first page the flow loads. Taken then, it played blank until the next.
+      underway = scene;
+      const { events, readings, glimpses, pictures, actions } = scene;
+      // A page setup left loaded, where the scene starts, is taken whole now, as rrweb took it before anything heard it;
+      // otherwise the recording starts with the first page the scene loads. Taken then, it played blank until the next.
       if (page.url() !== "about:blank") await page.evaluate(() => (window as any).rrwebRecord?.record.takeFullSnapshot());
       await page.mouse.move(pointer.x, pointer.y);
       try {
@@ -234,17 +234,17 @@ const recorded = base.extend<{ person: string | undefined; rest: () => Promise<v
         underway = undefined;
       }
       // It ends on the page it's on: its own, or the last one it was handed to.
-      const last = flow.page;
-      const assets = async () => Object.assign({}, ...(await Promise.all(flow.assets.map((kept) => kept()))));
-      // A note's fork is kept as far as it got, with a picture of where it ended; one whose flow never got to where it
+      const last = scene.page;
+      const assets = async () => Object.assign({}, ...(await Promise.all(scene.assets.map((kept) => kept()))));
+      // A note's fork is kept as far as it got, with a picture of where it ended; one whose scene never got to where it
       // was taken over leaves nothing.
       if (run.fork) {
-        if (!flow.forked) return;
+        if (!scene.forked) return;
         await last.waitForTimeout(HOLD);
         await last.evaluate(() => (window as any).rrwebRecord.record.addCustomEvent("end", {}));
         await last.waitForTimeout(100);
         writeFileSync(join(run.folder, "end.png"), await last.screenshot({ animations: "disabled", caret: "hide" }));
-        return writeFileSync(join(run.folder, FORK_RAN), JSON.stringify({ ...flow.forked, events, readings, glimpses, assets: await assets() }));
+        return writeFileSync(join(run.folder, FORK_RAN), JSON.stringify({ ...scene.forked, events, readings, glimpses, assets: await assets() }));
       }
       const ended = testInfo.status === testInfo.expectedStatus;
       if (!ended && !run.before) return;
@@ -262,9 +262,9 @@ const recorded = base.extend<{ person: string | undefined; rest: () => Promise<v
       // Who it's done as: who its file names, or else who the app's setup says.
       const who = person ?? (typeof setup.person === "string" ? setup.person.trim() : undefined);
       if (who) await testInfo.attach(PERSON, { body: who, contentType: "text/plain" });
-      if (flow.hands.length) await testInfo.attach(HANDS, { body: JSON.stringify(flow.hands), contentType: "application/json" });
-      if (flow.wrote) await testInfo.attach(WROTE, { body: flow.wrote, contentType: "text/plain" });
-      await testInfo.attach(DONE_ON, { body: JSON.stringify(flow.doneOn), contentType: "application/json" });
+      if (scene.hands.length) await testInfo.attach(HANDS, { body: JSON.stringify(scene.hands), contentType: "application/json" });
+      if (scene.wrote) await testInfo.attach(WROTE, { body: scene.wrote, contentType: "text/plain" });
+      await testInfo.attach(DONE_ON, { body: JSON.stringify(scene.doneOn), contentType: "application/json" });
       for (const picture of pictures) await testInfo.attach(PICTURE, { body: picture, contentType: "image/png" });
     },
     { auto: true },
@@ -272,37 +272,37 @@ const recorded = base.extend<{ person: string | undefined; rest: () => Promise<v
 });
 
 // A page recorded, readied before anything loads in it: rrweb first, to take the page's own clock before it's set, then
-// the review's day and the seeded random numbers. And from when the flow starts, what it sends the app, on any port of its
+// the review's day and the seeded random numbers. And from when the scene starts, what it sends the app, on any port of its
 // host, that changes what it holds, as Before says what a run leaves in the app without a setup to give it back.
 async function readied(page: Page, run: Run) {
   const host = new URL(run.app.url).hostname;
   page.on("request", (sent) => {
-    const flow = underway;
-    if (flow && !flow.wrote && changes(sent.method()) && new URL(sent.url()).hostname === host) flow.wrote = `${sent.method()} ${new URL(sent.url()).pathname}`;
+    const scene = underway;
+    if (scene && !scene.wrote && changes(sent.method()) && new URL(sent.url()).hostname === host) scene.wrote = `${sent.method()} ${new URL(sent.url()).pathname}`;
   });
   await page.addInitScript({ content: recorder(run.recorder) });
   await page.clock.setSystemTime(onReviewDay(run.started));
   await page.addInitScript({ content: seeded });
 }
 
-// A window of its own, in one language and time zone as every flow is, on the laptop unless it's on another screen, and
+// A window of its own, in one language and time zone as every scene is, on the laptop unless it's on another screen, and
 // opened as the app's setup says.
 export async function pageFor(browser: Browser, baseURL: string, screen: Screen, use?: BrowserContextOptions) {
   const context = await browser.newContext({ ...use, baseURL, locale: "en-US", timezoneId: "UTC", viewport: LAPTOP, ...screen });
   return { context, page: await context.newPage() };
 }
 
-// The flow, handed on: from here, its page is the one it was handed to, read at each step's end and paced as its own was,
+// The scene, handed on: from here, its page is the one it was handed to, read at each step's end and paced as its own was,
 // and the recording carries on there. A page signing in already loaded is taken whole now, as it was before the
 // recording heard it; otherwise the recording carries on with the first page it loads.
-async function carryOn(flow: Underway, page: Page, rest: () => Promise<void>, person: string, run: Run) {
+async function carryOn(scene: Underway, page: Page, rest: () => Promise<void>, person: string, run: Run) {
   // So you see what the one handing it on left it at, before the frame becomes the other's.
-  await flow.page.waitForTimeout(HANDING);
-  await page.exposeFunction("__playthrough", (event: { timestamp: number }) => void (flow.page === page && flow.events.push(event)));
-  flow.assets.push(keepAssets(page, run.folder));
-  dialogsOn(page, flow);
-  flow.hands.push({ at: Date.now(), person });
-  Object.assign(flow, { page, rest });
+  await scene.page.waitForTimeout(HANDING);
+  await page.exposeFunction("__playthrough", (event: { timestamp: number }) => void (scene.page === page && scene.events.push(event)));
+  scene.assets.push(keepAssets(page, run.folder));
+  dialogsOn(page, scene);
+  scene.hands.push({ at: Date.now(), person });
+  Object.assign(scene, { page, rest });
   const size = page.viewportSize() ?? LAPTOP;
   pointer = { page, x: size.width / 2, y: size.height * 0.8, handed: true };
   if (page.url() !== "about:blank") await page.evaluate(() => (window as any).rrwebRecord?.record.takeFullSnapshot());
@@ -310,22 +310,22 @@ async function carryOn(flow: Underway, page: Page, rest: () => Promise<void>, pe
 
 // The browser's own dialogs, an alert, a confirm or a prompt, aren't in the page, so rrweb never sees them: each is kept
 // in the recording as a moment of its own, with what it says, and held long enough to read before it's answered, as the
-// flow answers it, or else as Playwright would, which is No. The viewer draws it there (replay.ts). One about leaving the
+// scene answers it, or else as Playwright would, which is No. The viewer draws it there (replay.ts). One about leaving the
 // page is answered as Playwright does, Yes, and not kept.
-const holding = new WeakMap<Dialog, { flow: Underway; page: Page; read: Promise<void>; answered: () => void }>();
+const holding = new WeakMap<Dialog, { scene: Underway; page: Page; read: Promise<void>; answered: () => void }>();
 const answered = new WeakSet<object>();
-function dialogsOn(page: Page, flow: Underway) {
+function dialogsOn(page: Page, scene: Underway) {
   const listening = (to: object) => (to as { listenerCount: (event: string) => number }).listenerCount("dialog");
   page.on("dialog", (dialog) => {
-    // The flow answers it if it listens for it, on its page or the page's window.
+    // The scene answers it if it listens for it, on its page or the page's window.
     const theirs = listening(page) > 1 || listening(page.context()) > 0;
     if (dialog.type() === "beforeunload") return void (theirs || dialog.accept().catch(() => {}));
     answers(dialog);
     const said = { type: dialog.type(), message: dialog.message(), ...(dialog.type() === "prompt" && { value: dialog.defaultValue() }) };
-    if (flow.page === page) flow.events.push({ type: 5, data: { tag: "dialog", payload: said }, timestamp: Date.now() } as { timestamp: number });
+    if (scene.page === page) scene.events.push({ type: 5, data: { tag: "dialog", payload: said }, timestamp: Date.now() } as { timestamp: number });
     let answered = () => {};
-    flow.dialog = new Promise((done) => (answered = done));
-    holding.set(dialog, { flow, page, read: new Promise((read) => setTimeout(read, Math.min(4000, 1200 + 40 * dialog.message().length))), answered });
+    scene.dialog = new Promise((done) => (answered = done));
+    holding.set(dialog, { scene, page, read: new Promise((read) => setTimeout(read, Math.min(4000, 1200 + 40 * dialog.message().length))), answered });
     if (!theirs) dialog.dismiss().catch(() => {});
   });
 }
@@ -342,7 +342,7 @@ function answers(dialog: Dialog) {
       if (held) {
         await held.read;
         const answer = { yes, ...(yes && this.type() === "prompt" && { value: value ?? "" }) };
-        if (held.flow.page === held.page) held.flow.events.push({ type: 5, data: { tag: "dialog answered", payload: answer }, timestamp: Date.now() } as { timestamp: number });
+        if (held.scene.page === held.page) held.scene.events.push({ type: 5, data: { tag: "dialog answered", payload: answer }, timestamp: Date.now() } as { timestamp: number });
       }
       try {
         return await original.call(this, value);
@@ -353,10 +353,10 @@ function answers(dialog: Dialog) {
   }
 }
 
-// A flow can import a module of its own as Playwright finds it, without its ending (“../history”) or by its .js name, so
-// the flows that record can be taken over: Node, which loads them here, finds a module only by its whole name. And it's
-// loaded again whenever the flows are, as an agent changes it with them: Node keeps a module by its address, so it's
-// asked for at the flows' time (`?written`). Each is kept in `imported`, whose times say when the flows were written too.
+// A scene can import a module of its own as Playwright finds it, without its ending (“../history”) or by its .js name, so
+// the scenes that record can be taken over: Node, which loads them here, finds a module only by its whole name. And it's
+// loaded again whenever the scenes are, as an agent changes it with them: Node keeps a module by its address, so it's
+// asked for at the scenes' time (`?written`). Each is kept in `imported`, whose times say when the scenes were written too.
 export const imported = new Set<string>();
 let finding = false;
 function findsAsPlaywright() {
@@ -387,43 +387,43 @@ function foundAsPlaywright(specifier: string, context: modules.ResolveHookContex
   }
 }
 
-// Taken over, a flow runs in Playthrough (following.ts), unrecorded, on the recordings' clock, which the person carries on
+// Taken over, a scene runs in Playthrough (following.ts), unrecorded, on the recordings' clock, which the person carries on
 // with. It's told how far the playhead has gone, and told again each time it moves; once the playhead rests where the
-// flow is, to hand its page over; and to stop, once it's no longer wanted.
+// scene is, to hand its page over; and to stop, once it's no longer wanted.
 export type Orders = { to: To; stopped?: boolean; moved?: () => void };
-// A flow, as its file gives it to test(): with the page, what Playwright gives every test besides, and the setup.
+// A scene, as its file gives it to test(): with the page, what Playwright gives every test besides, and the setup.
 export type Body = (given: { page: Page; context: BrowserContext; request: APIRequestContext; baseURL: string; setup: Record<string, any>; handTo: HandTo }) => Promise<unknown>;
 
-// Loaded in Playthrough, each flow is kept by its name instead of run. A file at a time, as test() can't tell whose it is.
+// Loaded in Playthrough, each scene is kept by its name instead of run. A file at a time, as test() can't tell whose it is.
 // With what it does outside the app, if its file says so (REACHES_OUTSIDE): an email sent, a card charged, a paid API
-// called. Such a flow is run only when it's taken over, never ahead of the playhead, where every pause would do it again.
+// called. Such a scene is run only when it's taken over, never ahead of the playhead, where every pause would do it again.
 // And everything its file says with test.use: the window it's recorded in, like a phone's screen and touch, and who it's
 // done as.
 // And the forks written in its file, for notes made in the app on it.
 export type Kept = { body: Body; outside?: string; use: BrowserContextOptions & { person?: string }; forks: Forked[] };
 let collecting: Map<string, Kept> | undefined;
 let collectingForks: Forked[] = [];
-// The file being loaded, and each describe() in it around the flows being kept now: what it says with test.use, and
-// what its annotation says the flows in it do outside the app.
+// The file being loaded, and each describe() in it around the scenes being kept now: what it says with test.use, and
+// what its annotation says the scenes in it do outside the app.
 let around: { use: Kept["use"]; outside?: string }[] = [];
 let loading = Promise.resolve();
-export function flowsIn(file: string, written: number): Promise<Map<string, Kept>> {
+export function scenesIn(file: string, written: number): Promise<Map<string, Kept>> {
   findsAsPlaywright();
-  const flows = new Map<string, Kept>();
+  const scenes = new Map<string, Kept>();
   const loaded = loading.then(async () => {
-    [collecting, around, collectingForks] = [flows, [{ use: {} }], []];
+    [collecting, around, collectingForks] = [scenes, [{ use: {} }], []];
     try {
       await import(`${pathToFileURL(file).href}?${written}`);
     } finally {
       [collecting, around] = [undefined, []];
     }
-    return flows;
+    return scenes;
   });
   loading = loaded.then(() => {}, () => {});
   return loaded;
 }
 
-// The flow being taken over, how deep in its steps it is, as only its own steps are places to take it over, and the
+// The scene being taken over, how deep in its steps it is, as only its own steps are places to take it over, and the
 // step it's in, with how many of its actions are done.
 // What's only in the page's memory, like a search typed or a form opened, wouldn't survive loading it in the person's
 // browser. So it's handed over as it was before the actions that only changed what's on it (`from`), however many steps
@@ -438,9 +438,9 @@ export type Arrived = (step: string | undefined, actions: number | undefined, wo
 const taking = new AsyncLocalStorage<Taking>();
 
 // What's kept to do again holds while the page is still where the last of it left it, and nothing has been saved since.
-const holds = (flow: Taking) => !flow.wrote && flow.page.url() === flow.address;
+const holds = (scene: Taking) => !scene.wrote && scene.page.url() === scene.address;
 
-// The playhead went back before it, it's been handed over, or it's no longer wanted: the flow goes no further.
+// The playhead went back before it, it's been handed over, or it's no longer wanted: the scene goes no further.
 class Stopped extends Error {}
 
 export async function runAlongside(
@@ -450,21 +450,21 @@ export async function runAlongside(
   orders: Orders,
   forks: Forked[] = [],
 ): Promise<{ handed?: Handed; stopped?: Pick<Failed, "at" | "why">; made?: Made }> {
-  // Each page the run goes on, readied as the flow's was when it was recorded, and what it writes noted.
+  // Each page the run goes on, readied as the scene's was when it was recorded, and what it writes noted.
   const readied = async (page: Page) => {
     const rest = await watchRest(page);
     await page.clock.setSystemTime(onReviewDay(started));
     await page.addInitScript({ content: seeded });
-    page.on("request", (request) => void (["GET", "HEAD", "OPTIONS"].includes(request.method()) || (flow.wrote = true)));
+    page.on("request", (request) => void (["GET", "HEAD", "OPTIONS"].includes(request.method()) || (scene.wrote = true)));
     return rest;
   };
-  const flow: Taking = { page, forks, depth: 0, rest: async () => {}, actions: 0, again: [], wrote: false, passed: [], orders, began: Date.now(), waited: 0, arrived };
-  flow.rest = await readied(page);
+  const scene: Taking = { page, forks, depth: 0, rest: async () => {}, actions: 0, again: [], wrote: false, passed: [], orders, began: Date.now(), waited: 0, arrived };
+  scene.rest = await readied(page);
   pace(page);
   // Handed on, the run carries on on the other's page, as the recording does: where the playhead rests there, it's that
   // page that's handed over.
   const opened: BrowserContext[] = [];
-  return taking.run(flow, async () => {
+  return taking.run(scene, async () => {
     let made: Made | undefined;
     const handTo: HandTo = async (person, screen = {}) => {
       personIn(appSetup, person);
@@ -472,47 +472,47 @@ export async function runAlongside(
       opened.push(next.context);
       const rest = await readied(next.page);
       await appSetup.signIn?.({ page: next.page, person, setup: made?.setup ?? {} });
-      Object.assign(flow, { page: next.page, rest, from: undefined, again: [] });
+      Object.assign(scene, { page: next.page, rest, from: undefined, again: [] });
       return next.page;
     };
     try {
-      // Who the flow is done as, as when it was recorded: who its file names, or else the first the app names.
+      // Who the scene is done as, as when it was recorded: who its file names, or else the first the app names.
       const who = person ?? firstOf(appSetup);
       if (who) personIn(appSetup, who);
       made = await make(appSetup, borrowed, { page, request, baseURL, person: who });
       if (who) await appSetup.signIn?.({ page, person: who, setup: made.setup });
-      flow.given = { page, context: page.context(), request, baseURL, setup: made.setup, handTo };
-      await body(flow.given);
-      await reached(flow);
-      return { handed: flow.handed, made };
+      scene.given = { page, context: page.context(), request, baseURL, setup: made.setup, handTo };
+      await body(scene.given);
+      await reached(scene);
+      return { handed: scene.handed, made };
     } catch (error) {
-      if (error instanceof Stopped || orders.stopped) return { handed: flow.handed, made };
-      return { stopped: { at: flow.step, why: firstLine(String((error as Error)?.message ?? error)) }, made };
+      if (error instanceof Stopped || orders.stopped) return { handed: scene.handed, made };
+      return { stopped: { at: scene.step, why: firstLine(String((error as Error)?.message ?? error)) }, made };
     } finally {
       for (const context of opened) await context.close().catch(() => {});
     }
   });
 }
 
-// After an action, at a step's end, or at the flow's end (no step): it goes on once the playhead has passed, waits while
+// After an action, at a step's end, or at the scene's end (no step): it goes on once the playhead has passed, waits while
 // the playhead is there, and hands over once it rests there. Nothing here can be undone, so if the playhead went back
 // before it, it stops.
-async function reached(flow: Taking, step?: string, actions?: number) {
-  flow.arrived?.(step, actions, Date.now() - flow.began - flow.waited);
+async function reached(scene: Taking, step?: string, actions?: number) {
+  scene.arrived?.(step, actions, Date.now() - scene.began - scene.waited);
   for (;;) {
-    const { to, stopped } = flow.orders;
+    const { to, stopped } = scene.orders;
     if (stopped) throw new Stopped();
-    const where = against(flow.passed, step, actions, to);
+    const where = against(scene.passed, step, actions, to);
     if (where === "on") return;
-    if (where === "here" && to.rests) await handOver(flow, to);
+    if (where === "here" && to.rests) await handOver(scene, to);
     if (where === "past" || to.rests) {
       if (step) throw new Stopped();
       return;
     }
     const since = Date.now();
-    await new Promise<void>((moved) => (flow.orders.moved = moved));
-    flow.orders.moved = undefined;
-    flow.waited += Date.now() - since;
+    await new Promise<void>((moved) => (scene.orders.moved = moved));
+    scene.orders.moved = undefined;
+    scene.waited += Date.now() - since;
   }
 }
 
@@ -539,21 +539,21 @@ async function kept(page: Page, rest: () => Promise<void>): Promise<Handed> {
   return { url: page.url(), cookies: await page.context().cookies(), ...kept, clock: kept.clock - Date.now() };
 }
 
-// The flow goes no further. Taken over on a note's fork, the fork the agent wrote for it is run first, on the app as it is
+// The scene goes no further. Taken over on a note's fork, the fork the agent wrote for it is run first, on the app as it is
 // now, and what the person did there is kept for what they do next to carry on from. With no fork for it, as on the round
 // they made it, their steps are done here first, on the same app, as a person does them, so what
 // they saved is saved, and the page is handed over as they left it: done again in their browser, a date picked in a
 // calendar never took.
-async function handOver(flow: Taking, { notes, did }: To) {
-  const fork = notes && flow.forks.find((fork) => fork.notes.some((note) => notes.includes(note)));
+async function handOver(scene: Taking, { notes, did }: To) {
+  const fork = notes && scene.forks.find((fork) => fork.notes.some((note) => notes.includes(note)));
   if (fork) {
-    // Its steps are its own: none of them is a place to take the flow over. What they change only on the page is kept
-    // to do again, as the flow's own actions are.
-    flow.forking = true;
-    await fork.body(flow.given!);
+    // Its steps are its own: none of them is a place to take the scene over. What they change only on the page is kept
+    // to do again, as the scene's own actions are.
+    scene.forking = true;
+    await fork.body(scene.given!);
   } else if (did?.length) {
-    const { page, rest } = flow;
-    // Theirs, not the flow's: none of them is a place to take the flow over.
+    const { page, rest } = scene;
+    // Theirs, not the scene's: none of them is a place to take the scene over.
     await taking.exit(async () => {
       for (const one of did) {
         const done = await doAgain(page, one).then(() => true, () => false);
@@ -561,11 +561,11 @@ async function handOver(flow: Taking, { notes, did }: To) {
         await rest();
       }
     });
-    flow.handed = await kept(page, rest);
+    scene.handed = await kept(page, rest);
     return;
   }
-  const { page, rest, from, again } = flow;
-  flow.handed = from && again.length && holds(flow) ? { ...from, again } : await kept(page, rest);
+  const { page, rest, from, again } = scene;
+  scene.handed = from && again.length && holds(scene) ? { ...from, again } : await kept(page, rest);
 }
 
 // Where an element is on its page, the same on a copy made the same way.
@@ -582,7 +582,7 @@ const pathTo = (target: Locator) =>
     }, undefined, { timeout: 5000 })
     .catch(() => undefined);
 
-// A flow's steps are the ones it takes itself, not steps inside them. Each ends once the page is at rest, and the page
+// A scene's steps are the ones it takes itself, not steps inside them. Each ends once the page is at rest, and the page
 // it left is read there, unless the step failed.
 const playwrightStep = base.step;
 const step = Object.assign(async (title: string, body: (info: unknown) => unknown, options?: object) => {
@@ -604,28 +604,28 @@ const step = Object.assign(async (title: string, body: (info: unknown) => unknow
     }
     return done;
   }
-  const flow = underway;
-  if (!flow || flow.depth) return playwrightStep(title, body, options);
+  const scene = underway;
+  if (!scene || scene.depth) return playwrightStep(title, body, options);
   return playwrightStep(
     title,
     async (info) => {
-      Object.assign(flow, { step: title, inStep: 0 });
-      flow.forked?.steps.push({ title, at: seconds(Date.now() - (flow.events[0]?.timestamp ?? Date.now())) });
-      flow.depth++;
+      Object.assign(scene, { step: title, inStep: 0 });
+      scene.forked?.steps.push({ title, at: seconds(Date.now() - (scene.events[0]?.timestamp ?? Date.now())) });
+      scene.depth++;
       let done: unknown;
       try {
         done = await body(info);
       } finally {
-        flow.depth--;
+        scene.depth--;
       }
-      await flow.rest();
-      const at = seconds(Date.now() - (flow.events[0]?.timestamp ?? Date.now()));
-      await unhovered(flow.page, async () => {
-        const { screen, things, items } = await readPage(flow.page);
-        flow.readings.push({ step: title, at, screen, things, items });
-        flow.pictures.push(await flow.page.screenshot({ animations: "disabled", caret: "hide" }));
+      await scene.rest();
+      const at = seconds(Date.now() - (scene.events[0]?.timestamp ?? Date.now()));
+      await unhovered(scene.page, async () => {
+        const { screen, things, items } = await readPage(scene.page);
+        scene.readings.push({ step: title, at, screen, things, items });
+        scene.pictures.push(await scene.page.screenshot({ animations: "disabled", caret: "hide" }));
       });
-      if (run?.fork?.step === title && run.fork.actions === undefined && !flow.forked) await forkOn(flow, run.fork);
+      if (run?.fork?.step === title && run.fork.actions === undefined && !scene.forked) await forkOn(scene, run.fork);
       return done;
     },
     options,
@@ -638,15 +638,15 @@ function withSteps<T extends typeof recorded>(test: T): T {
   const extend = test.extend;
   return Object.assign(test, { step, extend: (...args: Parameters<typeof extend>) => withSteps(extend.apply(test, args)) });
 }
-// Loaded in Playthrough, which says so first (following.ts), test() keeps each flow by its name instead. It's settled once,
+// Loaded in Playthrough, which says so first (following.ts), test() keeps each scene by its name instead. It's settled once,
 // as the file loads: wrapped, Playwright's test() would take the wrapper for where each test is written.
 type Annotation = { type: string; description?: string };
 const outsideIn = (details: unknown) => {
   const said = [(details as { annotation?: Annotation | Annotation[] } | undefined)?.annotation ?? []].flat().find((annotation) => annotation.type === REACHES_OUTSIDE);
   return said && (said.description?.trim() || "it reaches outside the app");
 };
-// As in Playwright, what a file or a describe() in it says with test.use holds for every flow in it, wherever it's said
-// there, and so does what its annotation says the flows do outside the app; what's said nearer a flow goes over what's
+// As in Playwright, what a file or a describe() in it says with test.use holds for every scene in it, wherever it's said
+// there, and so does what its annotation says the scenes do outside the app; what's said nearer a scene goes over what's
 // said further out.
 const keeping: object = Object.assign(
   (title: string, ...rest: unknown[]) => {
@@ -656,7 +656,7 @@ const keeping: object = Object.assign(
       body: rest.at(-1) as Body,
       forks,
       outside: (rest.length > 1 ? outsideIn(rest[0]) : undefined) ?? scopes.findLast((scope) => scope.outside)?.outside,
-      // Once the file has loaded, so what's said after the flow holds too.
+      // Once the file has loaded, so what's said after the scene holds too.
       get use() {
         return Object.assign({}, ...scopes.map((scope) => scope.use));
       },
@@ -677,15 +677,15 @@ const keeping: object = Object.assign(
   },
 );
 
-// What a person did in the app, written by the agent as a fork of the flow they took over, for the notes they made there:
-// in the flow's own file, run from where they took it over, the flow's steps up to there and then the fork's. A fork is
-// for its notes alone, so it isn't a flow of the review: it's run while one of them is open, and gone once they're settled.
+// What a person did in the app, written by the agent as a fork of the scene they took over, for the notes they made there:
+// in the scene's own file, run from where they took it over, the scene's steps up to there and then the fork's. A fork is
+// for its notes alone, so it isn't a scene of the review: it's run while one of them is open, and gone once they're settled.
 type Forked = { name: string; notes: string[]; body: Body };
 const forks: Forked[] = [];
 const fork = (name: string, { notes }: { notes: string[] }, body: Body) => void forks.push({ name, notes: notes.map(String), body });
 export const test = ((globalThis as Record<symbol, unknown>)[ALONGSIDE] ? Object.assign(keeping, { fork: (name: string, { notes }: { notes: string[] }, body: Body) => void collectingForks.push({ name, notes: notes.map(String), body }) }) : Object.assign(withSteps(recorded), { fork })) as typeof recorded & { fork: typeof fork };
 
-// Every action on an element glides there first and pauses after, and once it's done is a place to take the flow over.
+// Every action on an element glides there first and pauses after, and once it's done is a place to take the scene over.
 // Patched once in each worker, for every locator.
 const actions = ["click", "dblclick", "check", "uncheck", "setChecked", "hover", "tap", "fill", "selectOption", "press"] as const;
 const paced = new WeakSet<object>();
@@ -703,7 +703,7 @@ function pace(page: Page) {
         await pointer.page.mouse.move(pointer.x, pointer.y);
         await pointer.page.waitForTimeout(HANDING);
       }
-      // As long as the flow said to wait, where it said.
+      // As long as the scene said to wait, where it said.
       const timeout = args.findLast((arg): arg is { timeout: number } => !!arg && typeof arg === "object" && typeof (arg as { timeout?: unknown }).timeout === "number")?.timeout;
       if (pointer) await approach(this, pointer, timeout).catch((error) => Promise.reject(asAction(error, action)));
       if (underway?.depth) await follow(underway, this);
@@ -723,7 +723,7 @@ function pace(page: Page) {
       return result;
     };
   }
-  // Words typed into an element go a key at a time on a recording too, unless the flow said how fast.
+  // Words typed into an element go a key at a time on a recording too, unless the scene said how fast.
   for (const action of ["pressSequentially", "type"] as const) {
     const original = prototype[action];
     prototype[action] = function (this: Locator, text: string, options?: { delay?: number; timeout?: number }) {
@@ -773,7 +773,7 @@ function pace(page: Page) {
 }
 
 // An action is done, and when, and kept to be done again in the person's browser if it only changed what's on the page;
-// the flow is handed over once it's done as many as the recording had.
+// the scene is handed over once it's done as many as the recording had.
 async function acted(does: string, target: (page: Page) => Promise<string | undefined>, act: () => Promise<unknown>, given: unknown) {
   const taken = taking.getStore();
   const keeping = taken?.depth || taken?.forking ? taken : undefined;
@@ -793,7 +793,7 @@ async function acted(does: string, target: (page: Page) => Promise<string | unde
     await dialog;
   });
   underway?.actions.push(Date.now());
-  // Running a note's fork, it leaves the flow where the person did, after as many of the step's actions.
+  // Running a note's fork, it leaves the scene where the person did, after as many of the step's actions.
   const fork = run?.fork;
   if (fork && underway?.depth && !underway.forked && fork.step === underway.step && fork.actions === ++underway.inStep) {
     await underway.page.waitForTimeout(BEAT);
@@ -811,13 +811,13 @@ async function acted(does: string, target: (page: Page) => Promise<string | unde
   return result;
 }
 
-// What each action is done on is noted by its step. On Before, an action the round did on something else stops the flow
-// there: a flow is written for the work, and in the app as it was, what it looks for can find another thing, as a card
+// What each action is done on is noted by its step. On Before, an action the round did on something else stops the scene
+// there: a scene is written for the work, and in the app as it was, what it looks for can find another thing, as a card
 // for a list's menu. What it did there isn't how the app was, and nobody should have to tell the two apart.
-async function follow(flow: Underway, target: Locator) {
+async function follow(scene: Underway, target: Locator) {
   const on = await doneOn(target);
-  const done = (flow.doneOn[flow.step ?? ""] ??= []);
-  const inRound = run?.before && run.doneInRound?.[base.info().title]?.[flow.step ?? ""]?.[done.length];
+  const done = (scene.doneOn[scene.step ?? ""] ??= []);
+  const inRound = run?.before && run.doneInRound?.[base.info().title]?.[scene.step ?? ""]?.[done.length];
   done.push(on ?? null);
   if (on && inRound && !alike(on, inRound)) throw new Error(`The app as it was has ${on.role} “${on.name}” here, where the round has ${inRound.role} “${inRound.name}”.`);
 }
@@ -838,30 +838,30 @@ function alike(one: On, other: On): boolean {
   return one.role === other.role && sameWords(one.name, other.name);
 }
 
-// The fork the agent wrote for the notes, run where the person took the flow over, recorded as the flow is, each of its
-// steps read at its end and the page glimpsed after each action, as the flow's are; then the flow goes no further. With
+// The fork the agent wrote for the notes, run where the person took the scene over, recorded as the scene is, each of its
+// steps read at its end and the page glimpsed after each action, as the scene's are; then the scene goes no further. With
 // no fork written for them, nothing more is run.
-async function forkOn(flow: Underway, run: ForkRun) {
-  await flow.rest();
-  const since = () => seconds(Date.now() - (flow.events[0]?.timestamp ?? Date.now()));
+async function forkOn(scene: Underway, run: ForkRun) {
+  await scene.rest();
+  const since = () => seconds(Date.now() - (scene.events[0]?.timestamp ?? Date.now()));
   const written = forks.find((fork) => fork.notes.some((note) => run.notes.includes(note)));
-  const ran: ForkRan = (flow.forked = { from: since(), steps: [], ...(written && { fork: written.name }) });
+  const ran: ForkRan = (scene.forked = { from: since(), steps: [], ...(written && { fork: written.name }) });
   if (written) {
-    // Its steps are its own, not inside the flow's step it starts after.
-    const depth = flow.depth;
-    flow.depth = 0;
+    // Its steps are its own, not inside the scene's step it starts after.
+    const depth = scene.depth;
+    scene.depth = 0;
     try {
-      await written.body(flow.given!);
+      await written.body(scene.given!);
     } catch (error) {
       ran.failed = { ...(ran.steps.length && { at: ran.steps.at(-1)!.title }), why: firstLine(String((error as Error)?.message ?? error)) };
     } finally {
-      flow.depth = depth;
+      scene.depth = depth;
     }
   }
   base.info().skip(true, "Ran as far as the note's fork");
 }
 
-// One of a person's steps, done again as the flow does its own: on what's at its path, by the paced actions.
+// One of a person's steps, done again as the scene does its own: on what's at its path, by the paced actions.
 async function doAgain(page: Page, { does, on, with: given }: Did) {
   const target = page.locator(on).first();
   const quickly = { timeout: 3000 };
@@ -882,11 +882,11 @@ async function doAgain(page: Page, { does, on, with: given }: Did) {
 // and go inside a step, gone by its end, where the page is read for the comparison. It takes a few hundredths of a
 // second, after the beat; a page on its way to another address has nothing to read.
 async function glimpse() {
-  const flow = underway;
-  if (!pointer || !flow || (run?.fork && !flow.forked)) return;
-  const at = seconds(Date.now() - (flow.events[0]?.timestamp ?? Date.now()));
-  const read = await readPage(flow.page).catch(() => undefined);
-  if (read) flow.glimpses.push({ step: flow.step ?? "", at, ...read });
+  const scene = underway;
+  if (!pointer || !scene || (run?.fork && !scene.forked)) return;
+  const at = seconds(Date.now() - (scene.events[0]?.timestamp ?? Date.now()));
+  const read = await readPage(scene.page).catch(() => undefined);
+  if (read) scene.glimpses.push({ step: scene.step ?? "", at, ...read });
 }
 
 // Somewhere a person types words: a text box, a text area, an editor.
@@ -895,7 +895,7 @@ const typedInto = (target: Locator) =>
     .evaluate((on) => (on as HTMLElement).isContentEditable || on instanceof HTMLTextAreaElement || (on instanceof HTMLInputElement && ["text", "search", "email", "url", "tel", "password"].includes(on.type)))
     .catch(() => false);
 
-// What's acted on, waited for in the action's place, fails in the action's words: the flow said click, not waitFor.
+// What's acted on, waited for in the action's place, fails in the action's words: the scene said click, not waitFor.
 function asAction(error: unknown, action: string) {
   if (error instanceof Error) {
     error.message = error.message.replace("locator.waitFor", `locator.${action}`);
@@ -905,7 +905,7 @@ function asAction(error: unknown, action: string) {
 }
 
 async function approach(target: Locator, at: { page: Page; x: number; y: number }, timeout?: number) {
-  // What it acts on is waited for here, as long as the action waits (flows.ts), and one that never comes fails here, in
+  // What it acts on is waited for here, as long as the action waits (scenes.ts), and one that never comes fails here, in
   // Playwright's words: waited for again by the action, it took twice as long to give up on.
   await target.waitFor({ state: "attached", timeout });
   const scroll = await target

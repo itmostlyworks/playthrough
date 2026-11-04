@@ -1,4 +1,4 @@
-// A situation's way through, beside its recording, a stop at a time: each step the agent chose, and after it what was
+// A scene's way through, beside its recording, a stop at a time: each step the agent chose, and after it what was
 // said there, your notes and what changed new to you, in the order they come; what was said about all of it comes first,
 // and last, whether it looks good to you, once you've seen it through.
 // A rail runs down through them, filled as far as you've come, and its fill glides along as you go. The stop you're on
@@ -8,7 +8,7 @@
 // recording, the way spreads out into, up to a comfortable gap.
 
 import { useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from "react";
-import type { Flow } from "@playthrough/review";
+import type { Scene } from "@playthrough/review";
 import { Key } from "./Card.tsx";
 import { EndMark } from "./Chosen.tsx";
 import { clamp } from "./moments.ts";
@@ -21,7 +21,7 @@ export type Stop = { step: number; at?: number; id?: string; from?: number };
 
 // Where a step starts playing: its start is the step before's result, so just after it; the first, where its page has
 // drawn itself, not the blank page the app is still loading into.
-export const stepStart = (flow: Flow, step: number, cut?: Cut) => (step ? flow.steps[step]!.at + 0.06 : Math.max(flow.steps[0]!.at, cut?.drawn ?? 0));
+export const stepStart = (scene: Scene, step: number, cut?: Cut) => (step ? scene.steps[step]!.at + 0.06 : Math.max(scene.steps[0]!.at, cut?.drawn ?? 0));
 
 // What's on the line: a note's dot in its fill, or a change's diamond, at its moment, and what it says pointed at.
 export type OnLine = { id: string; at: number; fill?: string; words: string };
@@ -30,7 +30,7 @@ export type OnLine = { id: string; at: number; fill?: string; words: string };
 export type Saying = { sign: ReactNode; line: ReactNode; whole: ReactNode };
 
 type Props = {
-  flow: Flow;
+  scene: Scene;
   clock: Clock;
   at: number;
   cut?: Cut;
@@ -56,12 +56,12 @@ type Props = {
   onUnfold: (stop: number) => void;
 };
 
-export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, onPoint, onScrub, onGo, looksGood, resting, since, onUnfold }: Props) {
-  const end = (step: number) => flow.steps[step + 1]?.at ?? flow.length;
-  const stepOf = (moment: number) => Math.max(0, flow.steps.findIndex((_, step) => end(step) >= moment - 0.05));
+export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, onPoint, onScrub, onGo, looksGood, resting, since, onUnfold }: Props) {
+  const end = (step: number) => scene.steps[step + 1]?.at ?? scene.length;
+  const stepOf = (moment: number) => Math.max(0, scene.steps.findIndex((_, step) => end(step) >= moment - 0.05));
   // How far into its step a moment is, in the time it plays in, waiting cut short, so the line fills at one speed, from
   // where the step starts playing to its result; and the moment that far in.
-  const span = (step: number) => [stepStart(flow, step, cut), end(step) - 0.05].map((moment) => (cut ? cut.cut(moment) : moment)) as [number, number];
+  const span = (step: number) => [stepStart(scene, step, cut), end(step) - 0.05].map((moment) => (cut ? cut.cut(moment) : moment)) as [number, number];
   const share = (step: number, moment: number) => {
     const [from, to] = span(step);
     return clamp(((cut ? cut.cut(moment) : moment) - from) / Math.max(to - from, 0.01), 0, 1);
@@ -69,7 +69,7 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
   const momentAt = (step: number, u: number) => {
     const [from, to] = span(step);
     const moment = from + u * (to - from);
-    return Math.max(cut ? cut.real(moment) : moment, stepStart(flow, step, cut));
+    return Math.max(cut ? cut.real(moment) : moment, stepStart(scene, step, cut));
   };
   // The step you're on, and how far into it it's played.
   const current = stops[on]?.step ?? -1;
@@ -79,7 +79,7 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
     const follow = (moment: number) => line.current?.style.setProperty("--done", String(share(current, moment)));
     follow(clock.at);
     return clock.follow(follow);
-  }, [clock, flow, at, cut, current]);
+  }, [clock, scene, at, cut, current]);
   const toMark = (id: string) => onStop(stops.findIndex((stop) => stop.id === id));
 
   // The rail, from the first stop's sign to the last's, and filled to the one you're on, measured as the stops open and
@@ -155,7 +155,7 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
   });
 
   return (
-    <ol ref={list} aria-label={`The way through “${flow.name}”`} className="relative flex flex-col">
+    <ol ref={list} aria-label={`The way through “${scene.name}”`} className="relative flex flex-col">
       <li aria-hidden className={`pointer-events-none absolute top-(--rail-top) left-[9.5px] h-(--rail) w-px bg-track transition-opacity duration-300 ease-calm phone:hidden ${resting ? "opacity-35" : ""}`}>
         <span className="absolute inset-0 origin-top bg-soft [scale:1_var(--reach,0)] transition-[scale] duration-300 ease-calm" />
       </li>
@@ -165,7 +165,7 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
         const here = k === on;
         const gone = k < on;
         if (stop.from !== undefined) {
-          const kept = flow.steps.slice(stop.from, stop.step + 1);
+          const kept = scene.steps.slice(stop.from, stop.step + 1);
           return (
             <li key={`together ${stop.from}`} {...row(k)} inert={resting}>
               <span
@@ -202,7 +202,7 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
           );
         }
         const i = stop.step;
-        const title = flow.steps[i]!.title;
+        const title = scene.steps[i]!.title;
         return (
           <li key={`step ${i}`} {...row(k)} inert={resting}>
             <span

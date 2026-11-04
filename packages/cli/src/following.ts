@@ -1,5 +1,5 @@
-// Taking a flow over, ready before it's asked for. While the latest round plays, a run of its flow keeps up with the
-// playhead, as far as it has gone and no further, so the moment it comes to rest on is there already. The flows run here,
+// Taking a scene over, ready before it's asked for. While the latest round plays, a run of its scene keeps up with the
+// playhead, as far as it has gone and no further, so the moment it comes to rest on is there already. The scenes run here,
 // in Playthrough, each in a window of its own, with its own cookies and storage, in one browser kept open while Playthrough runs:
 // a window opens in a moment, where a run of its own took a second and half a gigabyte.
 
@@ -7,13 +7,13 @@ import { chromium, request as requests, type Browser } from "@playwright/test";
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { list, quote, Refused } from "@playthrough/review";
-import { ALONGSIDE, isFlow, type Handed, type To } from "./flows.ts";
+import { ALONGSIDE, isScene, type Handed, type To } from "./scenes.ts";
 import { firstLine } from "./reporter.ts";
 import type { Repo } from "./repo.ts";
 import { giveBackLeft, setupIn, type Made, type Setup } from "./setup.ts";
 import type { Kept, Orders } from "./test.ts";
 
-// Runs one flow to where a person takes it over, on the app as it is now: quickly and unrecorded, from what every flow
+// Runs one scene to where a person takes it over, on the app as it is now: quickly and unrecorded, from what every scene
 // starts from, so they carry on from a fresh copy of the moment rather than a picture of it. The run that has followed
 // the playhead there is there already; one that went past it, the playhead having gone back, is run again.
 // With what the run made for it (setup.ts), which is the app the person has, theirs to give back.
@@ -38,46 +38,46 @@ export async function runTo(repo: Repo, id: string, to: To): Promise<{ handed: H
           if (one.passed.length > passed && !to.did?.length && !to.notes) timesOf(repo, id, one).handing.set(momentOf(to.step, to.actions), Date.now() - one.last.when);
           return { handed, made };
         }
-        if (stopped) throw new Refused([`${quote(to.flow)} didn't get to ${where}: ${stoppedAt(stopped)}`]);
+        if (stopped) throw new Refused([`${quote(to.scene)} didn't get to ${where}: ${stoppedAt(stopped)}`]);
       } finally {
         one.stop();
         if (asked.get(key(repo, id)) === one) asked.delete(key(repo, id));
       }
     }
-    throw new Refused([`${quote(to.flow)} didn't get to ${where}.`]);
+    throw new Refused([`${quote(to.scene)} didn't get to ${where}.`]);
   } finally {
     // The next one starts there while the person looks, in case they play on; not if they have already, into another
-    // flow, whose run it would stop, nor for a flow that reaches outside the app.
-    const there = { flow: to.flow, step: to.step, actions: to.actions };
+    // scene, whose run it would stop, nor for a scene that reaches outside the app.
+    const there = { scene: to.scene, step: to.step, actions: to.actions };
     void inTurn(repo, id, async () => {
-      if (await reachesOutside(repo, id, to.flow)) return;
+      if (await reachesOutside(repo, id, to.scene)) return;
       const now = following.get(key(repo, id));
-      if (!now || now.over || now.flow === to.flow) order(await followingFor(repo, id, there), there);
+      if (!now || now.over || now.scene === to.scene) order(await followingFor(repo, id, there), there);
     }).catch(() => {});
   }
 }
 
-// While the latest round plays, a run of the flow keeps up with the playhead, as far as it has gone and no further, so
+// While the latest round plays, a run of the scene keeps up with the playhead, as far as it has gone and no further, so
 // the moment it comes to rest on is there already.
-// Not a flow that reaches outside the app: each run would do that again.
+// Not a scene that reaches outside the app: each run would do that again.
 export const follow = (repo: Repo, id: string, to: To) =>
   inTurn(repo, id, async () => {
-    if (!(await reachesOutside(repo, id, to.flow))) order(await followingFor(repo, id, to), to);
+    if (!(await reachesOutside(repo, id, to.scene))) order(await followingFor(repo, id, to), to);
   });
 
-// What the flow does outside the app, as its file says now, if it says so.
-export async function reachesOutside(repo: Repo, id: string, flow: string) {
+// What the scene does outside the app, as its file says now, if it says so.
+export async function reachesOutside(repo: Repo, id: string, scene: string) {
   const { files, written } = await writtenOf(repo, id);
-  return (await loadedOf(repo, id, files, written)).flows.get(flow)?.outside;
+  return (await loadedOf(repo, id, files, written)).scenes.get(scene)?.outside;
 }
 
 // How long until a moment asked for is ready, in milliseconds: what the runs taken over before took from each of its
 // moments to the next, from where this one has got to that one, as it will go, and to hand it over there. Nothing until
-// a run taken over has got there once, for flows and a setup written as they are now.
+// a run taken over has got there once, for scenes and a setup written as they are now.
 export const readyIn = (repo: Repo, id: string, to: To) =>
   inTurn(repo, id, async () => {
     const one = asked.get(key(repo, id)) ?? following.get(key(repo, id));
-    if (!one || one.flow !== to.flow) return undefined;
+    if (!one || one.scene !== to.scene) return undefined;
     const { moments, straight, keeping, handing } = timesOf(repo, id, one);
     const there = moments.indexOf(momentOf(to.step, to.actions));
     const here = moments.indexOf(one.passed.at(-1)!);
@@ -95,22 +95,22 @@ export const readyIn = (repo: Repo, id: string, to: To) =>
     return Math.max(0, Math.round(left));
   });
 
-// A run of one flow, told how far it may go, and how far it has got: the moments it has passed, how long it had worked
-// at the last, when it set off from there, and whether it was told where it rests. One that's over, or for flows or a
-// setup that have changed since, or for another flow, is stopped, and a new one takes its place. One asked for is kept
+// A run of one scene, told how far it may go, and how far it has got: the moments it has passed, how long it had worked
+// at the last, when it set off from there, and whether it was told where it rests. One that's over, or for scenes or a
+// setup that have changed since, or for another scene, is stopped, and a new one takes its place. One asked for is kept
 // apart while it gets there.
-type Following = { flow: string; written: number; orders: Orders; ran: ReturnType<Alongside["runAlongside"]>; stop: () => void; over?: boolean; passed: string[]; last: { worked: number; when: number; rests?: boolean } };
+type Following = { scene: string; written: number; orders: Orders; ran: ReturnType<Alongside["runAlongside"]>; stop: () => void; over?: boolean; passed: string[]; last: { worked: number; when: number; rests?: boolean } };
 const following = new Map<string, Following>();
 const asked = new Map<string, Following>();
 
-// How long the runs taken over took to get to each moment of a flow from the one before, working: going straight on, or
+// How long the runs taken over took to get to each moment of a scene from the one before, working: going straight on, or
 // keeping what's done in the step they may be handed over in, which takes longer. And its moments in order, and how long
 // each took to hand its page over once it got there. Not a run following the playhead: it keeps everything to do again,
 // and its page settles while it waits.
 type Took = { moments: string[]; straight: Map<string, number>; keeping: Map<string, number>; handing: Map<string, number> };
 const took = new Map<string, Took>();
-function timesOf(repo: Repo, id: string, { flow, written }: Following): Took {
-  const at = `${key(repo, id)}\n${flow}\n${written}`;
+function timesOf(repo: Repo, id: string, { scene, written }: Following): Took {
+  const at = `${key(repo, id)}\n${scene}\n${written}`;
   return took.get(at) ?? took.set(at, { moments: [], straight: new Map(), keeping: new Map(), handing: new Map() }).get(at)!;
 }
 const momentOf = (step?: string, actions?: number) => `${step ?? ""}\n${actions ?? ""}`;
@@ -120,7 +120,7 @@ const key = (repo: Repo, id: string) => `${repo.root}\n${id}`;
 async function followingFor(repo: Repo, id: string, to: To, fresh = false): Promise<Following> {
   const { files, written } = await writtenOf(repo, id);
   const one = following.get(key(repo, id));
-  if (one && !one.over && !fresh && one.written === written && one.flow === to.flow) return one;
+  if (one && !one.over && !fresh && one.written === written && one.scene === to.scene) return one;
   one?.stop();
   const made = await start(repo, id, to, files, written);
   following.set(key(repo, id), made);
@@ -131,10 +131,10 @@ async function start(repo: Repo, id: string, to: To, files: string[], written: n
   const app = await repo.app();
   const { started } = await repo.reviews.get(id);
   const { runAlongside, pageFor } = await alongside();
-  const { flows, setup } = await loadedOf(repo, id, files, written);
-  const kept = flows.get(to.flow);
-  if (!kept) throw new Refused([`${id} has no flow called ${quote(to.flow)} any more. Its flows: ${list([...flows.keys()].map(quote))}.`]);
-  // As the flow is recorded: in the window its file asks for with test.use, like a phone's screen and touch, where an
+  const { scenes, setup } = await loadedOf(repo, id, files, written);
+  const kept = scenes.get(to.scene);
+  if (!kept) throw new Refused([`${id} has no scene called ${quote(to.scene)} any more. Its scenes: ${list([...scenes.keys()].map(quote))}.`]);
+  // As the scene is recorded: in the window its file asks for with test.use, like a phone's screen and touch, where an
   // action that can't happen fails in seconds. A page may take as long as it takes to load, as the playhead may take to
   // get there. What else the file says with test.use, Playwright leaves aside.
   const { context, page } = await pageFor(await browser(), app.url, kept.use, setup.use);
@@ -143,7 +143,7 @@ async function start(repo: Repo, id: string, to: To, files: string[], written: n
   const request = await requests.newContext({ baseURL: app.url });
   const close = () => void Promise.all([context.close(), request.dispose()]).catch(() => {});
   const orders: Orders = { to };
-  const one = { flow: to.flow, written, orders, stop: () => ((orders.stopped = true), orders.moved?.(), close()), passed: [] as string[], last: { worked: 0, when: Date.now(), rests: to.rests } } as Following;
+  const one = { scene: to.scene, written, orders, stop: () => ((orders.stopped = true), orders.moved?.(), close()), passed: [] as string[], last: { worked: 0, when: Date.now(), rests: to.rests } } as Following;
   const times = timesOf(repo, id, one);
   const arrived = (step: string | undefined, actions: number | undefined, worked: number) => {
     const moment = momentOf(step, actions);
@@ -171,7 +171,7 @@ function order({ orders, last }: Following, to: To) {
   orders.moved?.();
 }
 
-// What every flow imports, loaded here once Playthrough has said it's taking flows over, not running them as tests.
+// What every scene imports, loaded here once Playthrough has said it's taking scenes over, not running them as tests.
 type Alongside = typeof import("./test.ts");
 let loading: Promise<Alongside> | undefined;
 const alongside = () => (loading ??= (((globalThis as Record<symbol, unknown>)[ALONGSIDE] = true), import("./test.ts")));
@@ -187,45 +187,45 @@ function browser(): Promise<Browser> {
   return opened;
 }
 
-// The review's flows and the app's setup as they're written now, loaded once each time they're written again: a flow file
+// The review's scenes and the app's setup as they're written now, loaded once each time they're written again: a scene file
 // added or taken away changes its folder's time, and a module of their own that they import, once loaded, its own.
 async function writtenOf(repo: Repo, id: string) {
-  const files = (await readdir(repo.flows(id))).filter(isFlow).map((name) => join(repo.flows(id), name));
+  const files = (await readdir(repo.scenes(id))).filter(isScene).map((name) => join(repo.scenes(id), name));
   const { imported } = await alongside();
-  const written = Math.max(...(await Promise.all([repo.flows(id), ...files, repo.setup, ...imported].map((file) => stat(file).then((it) => it.mtimeMs, () => 0)))));
+  const written = Math.max(...(await Promise.all([repo.scenes(id), ...files, repo.setup, ...imported].map((file) => stat(file).then((it) => it.mtimeMs, () => 0)))));
   return { files, written };
 }
 
-const loaded = new Map<string, { written: number; flows: Promise<{ flows: Map<string, Kept>; setup: Setup }> }>();
+const loaded = new Map<string, { written: number; scenes: Promise<{ scenes: Map<string, Kept>; setup: Setup }> }>();
 function loadedOf(repo: Repo, id: string, files: string[], written: number) {
   const kept = loaded.get(key(repo, id));
-  if (kept?.written === written) return kept.flows;
+  if (kept?.written === written) return kept.scenes;
   // A file that doesn't load is named, in Node's words: one that Playwright loads may not load here, where test() keeps
   // less than Playwright's does.
   const load = <T>(file: string, by: (file: string, written: number) => Promise<T>) =>
     by(file, written).catch((error) => {
       if (error instanceof Refused) throw error;
-      throw new Refused([`${repo.show(file)} couldn't be loaded, because Node says “${firstLine(String(error?.message ?? error))}”, so no flow of ${id} can be taken over. Fix it, then take the flow over again.`]);
+      throw new Refused([`${repo.show(file)} couldn't be loaded, because Node says “${firstLine(String(error?.message ?? error))}”, so no scene of ${id} can be taken over. Fix it, then take the scene over again.`]);
     });
-  const flows = alongside().then(({ flowsIn }) => Promise.all([Promise.all(files.map((file) => load(file, flowsIn))), load(repo.setup, setupIn)])).then(
+  const scenes = alongside().then(({ scenesIn }) => Promise.all([Promise.all(files.map((file) => load(file, scenesIn))), load(repo.setup, setupIn)])).then(
     ([each, setup]) => {
-      // What a Playthrough that has ended left, given back the first time this one runs a flow.
+      // What a Playthrough that has ended left, given back the first time this one runs a scene.
       if (!sweptFor.has(repo.root)) void giveBackLeft(setup, repo.borrowed);
       sweptFor.add(repo.root);
-      return { flows: new Map(each.flatMap((flows) => [...flows])), setup };
+      return { scenes: new Map(each.flatMap((scenes) => [...scenes])), setup };
     },
     (error) => {
       loaded.delete(key(repo, id));
       throw error;
     },
   );
-  loaded.set(key(repo, id), { written, flows });
-  return flows;
+  loaded.set(key(repo, id), { written, scenes });
+  return scenes;
 }
 
 const sweptFor = new Set<string>();
 
-// Where a flow taken over stopped, and why, in Playwright's words: read in the viewer too, where there's no terminal
+// Where a scene taken over stopped, and why, in Playwright's words: read in the viewer too, where there's no terminal
 // above it to point to.
 const stoppedAt = ({ at, why }: { at?: string; why?: string }) => `it stopped${at ? ` at ${quote(at)}` : ""}${why ? `, where Playwright says “${why}”` : ""}.`;
 

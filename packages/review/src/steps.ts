@@ -1,13 +1,13 @@
-// Each round is its own recording of a flow, so a moment in one is found in another through the steps both take.
+// Each round is its own recording of a scene, so a moment in one is found in another through the steps both take.
 
-import type { Flow } from "./model.ts";
+import type { Scene } from "./model.ts";
 
-// The same moment in another round's recording of the flow. The two keep in step through the steps both have, by title,
+// The same moment in another round's recording of the scene. The two keep in step through the steps both have, by title,
 // at each one's start and end: a step only one side has plays there while the other holds just before the step they
 // share next, so Before waits while round 1 opens a menu it didn't have, then both go on together. Given when each side
 // clicks, a step both take with as many clicks keeps in step at each click too: a pointer that glides at another pace
 // clicked half a second apart, side by side.
-export function inStep(at: number, from: Flow, to: Flow, clicks?: { from: number[]; to: number[] }): number {
+export function inStep(at: number, from: Scene, to: Scene, clicks?: { from: number[]; to: number[] }): number {
   if (at <= 0) return at;
   const [mine, theirs] = clicks ? withClicks(pairs(from, to), clicks) : pairs(from, to);
   for (let i = 0; i < mine.length - 1; i++)
@@ -15,9 +15,9 @@ export function inStep(at: number, from: Flow, to: Flow, clicks?: { from: number
   return to.length;
 }
 
-// Where each step starts, and where the last one ends, paired between two recordings of a flow.
-function pairs(from: Flow, to: Flow): [number[], number[]] {
-  const marks = (flow: Flow) => [...flow.steps.map((step) => step.at), flow.length];
+// Where each step starts, and where the last one ends, paired between two recordings of a scene.
+function pairs(from: Scene, to: Scene): [number[], number[]] {
+  const marks = (scene: Scene) => [...scene.steps.map((step) => step.at), scene.length];
   const ours = marks(from);
   const others = marks(to);
   if (ours.length === others.length) return [ours, others];
@@ -55,18 +55,18 @@ function withClicks([mine, theirs]: [number[], number[]], clicks: { from: number
   return [ours, others];
 }
 
-// Where a flow is taken over, as the recording was at a moment: after as many of a step's actions as it had done, or at
+// Where a scene is taken over, as the recording was at a moment: after as many of a step's actions as it had done, or at
 // the step's end, as the page rests between them. The same place on every round that takes that step that far.
 export type Paused = { step: string; actions?: number };
 
-export function pausedAt(flow: Flow, at: number): Paused | undefined {
-  const step = flow.steps.findLast((step) => step.at <= at + 0.05) ?? flow.steps[0];
+export function pausedAt(scene: Scene, at: number): Paused | undefined {
+  const step = scene.steps.findLast((step) => step.at <= at + 0.05) ?? scene.steps[0];
   if (!step) return undefined;
   const actions = step.actions ?? [];
   const done = actions.filter((action) => action <= at).length;
   if (done === actions.length) return { step: step.title };
   if (done) return { step: step.title, actions: done };
   // Before its first action, the page is as the step before left it; the first step's, after it.
-  const before = flow.steps[flow.steps.indexOf(step) - 1];
+  const before = scene.steps[scene.steps.indexOf(step) - 1];
   return before ? { step: before.title } : { step: step.title, actions: 1 };
 }
