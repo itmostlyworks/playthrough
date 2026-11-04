@@ -243,8 +243,11 @@ export function SceneView(props: SceneViewProps) {
     else playTo(there.at, startOf(there.step));
   };
 
-  // Before the work, the step of the same name, as far into it as now is into its own.
-  const then = before?.scenes.find((one) => one.name === scene.name);
+  // Compared, the step of the same name, as far into it as now is into its own: before the work, from the bar; beside
+  // what changed or was answered, as it was on the round that's new since, as its diamond counts it.
+  const [against, setAgainst] = useState(0);
+  const sceneOn = (number: number) => (number ? review.rounds.find((kept) => kept.number === number) : before)?.scenes.find((one) => one.name === scene.name);
+  const then = sceneOn(against);
   const step = stepOf(at);
   const thenStep = then?.steps.findIndex((one) => one.title === scene.steps[step]?.title) ?? -1;
   const thenAt = (moment: number) => {
@@ -266,7 +269,10 @@ export function SceneView(props: SceneViewProps) {
   const [peek, setPeek] = useState(false);
   const holding = useRef<number>(undefined);
   const peeked = useRef(false);
-  const press = () => {
+  // Side by side with one round, a press for another turns to it rather than closing.
+  const turning = useRef(false);
+  const press = (number: number) => {
+    if (number !== against) (setAgainst(number), (turning.current = side));
     if (holding.current === undefined) holding.current = window.setTimeout(() => ((peeked.current = true), setPeek(true)), HOLD);
   };
   const release = () => {
@@ -274,7 +280,8 @@ export function SceneView(props: SceneViewProps) {
     clearTimeout(holding.current);
     holding.current = undefined;
     if (peeked.current) (peeked.current = false), setPeek(false);
-    else setSide(!side);
+    else if (!turning.current) setSide(!side);
+    turning.current = false;
   };
 
   // An answer to a note made in the app is seen the way the note was found: what you did there, done again on this
@@ -323,10 +330,13 @@ export function SceneView(props: SceneViewProps) {
   const live = acting.live?.scene === scene.name ? acting.live : undefined;
   const taken = !!live?.shown;
   if (taken && side) setSide(false);
-  // Compare, on the bar and beside what changed or was answered: how it was before the work, at the same moment; at an
-  // answer to a note made in the app, what you did then.
-  const comparable = !!then || !!redone?.then;
-  const comparing = comparable ? { on: side || peek, off: taken, onPress: press, onRelease: release } : undefined;
+  // Compare, on the bar: how it was before the work, at the same moment; beside what changed or was answered, how it was
+  // on the round it's new since; at an answer to a note made in the app, what you did then.
+  const comparingWith = (number: number) =>
+    sceneOn(number) || redone?.then ? { on: (side || peek) && against === number, off: taken, onPress: () => press(number), onRelease: release } : undefined;
+  const comparing = comparingWith(0);
+  const comparable = !!comparing;
+  const sinceHere = since ?? 0;
   const noting = active && acting.noting;
   // C is the scene's you're on; in the app, it's the app's, and noting, it rests until you've chosen what it's on.
   // Gone to another, it stops.
@@ -335,7 +345,7 @@ export function SceneView(props: SceneViewProps) {
     const typing = (event: KeyboardEvent) => (event.target as Element).closest?.("input, textarea, [contenteditable]");
     const down = (event: KeyboardEvent) => {
       if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || typing(event)) return;
-      if (event.key.toLowerCase() === "c" && comparable) press();
+      if (event.key.toLowerCase() === "c" && comparable) press(0);
     };
     const up = (event: KeyboardEvent) => event.key.toLowerCase() === "c" && release();
     addEventListener("keydown", down);
@@ -449,7 +459,7 @@ export function SceneView(props: SceneViewProps) {
             onJudge={(said) => (threads.onJudge(note, said), said && "verdict" in said && said.verdict === "looks good" && props.onSaid())}
             onEdit={(words) => threads.onEdit(note.id, words)}
             onShow={() => {}}
-            compare={comparing}
+            compare={comparingWith(sinceHere)}
           />
         </div>
       ),
@@ -507,7 +517,7 @@ export function SceneView(props: SceneViewProps) {
                       )}
                     </span>
                   </button>
-                  {on && comparing && <Compare {...comparing} bar={quietly} />}
+                  {on && comparingWith(diamond.changes[0]!.since) && <Compare {...comparingWith(diamond.changes[0]!.since)!} bar={quietly} />}
                 </li>
               );
             })}
@@ -559,22 +569,28 @@ export function SceneView(props: SceneViewProps) {
       />
     ) : then && beforeAt !== undefined ? (
       <>
-        <Still src={picture(review.id, 0, then.recording, thenStep)} frame={frame} />
-        <Player review={review.id} round={0} recording={then.recording} at={beforeAt} following={playing || scrubbing ? { clock, at: (moment) => thenAt(moment) ?? beforeAt } : undefined} frame={frame} />
+        <Still src={picture(review.id, against, then.recording, thenStep)} frame={frame} />
+        <Player review={review.id} round={against} recording={then.recording} at={beforeAt} following={playing || scrubbing ? { clock, at: (moment) => thenAt(moment) ?? beforeAt } : undefined} frame={frame} />
       </>
     ) : (
-      <span className="absolute inset-0 grid place-content-center bg-ground px-6 text-center text-[13px] leading-5 text-soft">{then ? "Before the work, there was no such step" : "New: there was nothing like it before"}</span>
+      <span className="absolute inset-0 grid place-content-center bg-ground px-6 text-center text-[13px] leading-5 text-soft">{against ? (then ? `In round ${against}, there was no such step` : `New since round ${against}`) : then ? "Before the work, there was no such step" : "New: there was nothing like it before"}</span>
     );
 
+  // Folded, it's the picture it ends on, small, with its name under it, beside the others that look good.
   if (folded)
     return (
-      <section data-folded="" className="grid self-start">
-        <button className="-mx-2.5 flex items-center gap-3 justify-self-start rounded-lg px-2.5 py-2 text-left transition-colors duration-150 ease-calm hover:bg-surface" onClick={() => setFolded(false)} aria-expanded={false}>
-          <EndMark end="good" just={false} className="size-3.5 flex-none" />
-          <h3 className="min-w-0 text-[14px] leading-5 font-medium text-balance">
+      <section data-folded="" className="w-[232px] phone:w-[calc(50%-10px)]">
+        <button className="group grid w-full gap-2.5 text-left" onClick={() => setFolded(false)} aria-expanded={false}>
+          <span className="relative block aspect-[16/10] overflow-hidden rounded-[10px] bg-surface shadow-[0_0_0_1px_var(--edge)] transition-shadow duration-150 ease-calm group-hover:shadow-[0_0_0_1px_var(--edge),0_6px_18px_var(--drop)]">
+            <img src={picture(review.id, round.number, scene.recording, scene.steps.length - 1)} alt="" className="size-full object-cover object-top" />
+          </span>
+          <h3 className="flex min-w-0 gap-2 px-0.5 text-[13px] leading-[18px] font-medium text-balance">
+            <EndMark end="good" just={false} className="mt-0.5 size-3.5 flex-none" />
+            <span className="min-w-0">
             {scene.name}
             {asWho(scene) && <span className="font-normal text-soft"> {asWho(scene)}</span>}
             <span className="sr-only">, looks good</span>
+            </span>
           </h3>
         </button>
       </section>
@@ -667,13 +683,13 @@ export function SceneView(props: SceneViewProps) {
             {beside && (
               <span className={`${FRAMED} right-0 ${HALVES} transition-opacity duration-450 ease-calm starting:opacity-0 ${side ? "" : "opacity-0"}`}>
                 {was(side && closeOn && !redone && closed ? closed : frame)}
-                <span className={CHIP}>Before</span>
+                <span className={CHIP}>{against ? `Round ${against}` : "Before"}</span>
               </span>
             )}
             {peek && (
               <span className="absolute inset-0 z-2 animate-arrive overflow-hidden rounded-lg">
                 {was()}
-                <span className={CHIP}>Before</span>
+                <span className={CHIP}>{against ? `Round ${against}` : "Before"}</span>
               </span>
             )}
           </button>

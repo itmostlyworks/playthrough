@@ -5,11 +5,12 @@ import type { ReactNode } from "react";
 import { Key, mac } from "./Card.tsx";
 import type { Standing } from "./notes.ts";
 
-// A button takes the step, as Enter does, or Ctrl+Enter for what can't be undone; one that goes to a scene names it.
+// A button takes the step, as Enter does; what can't be undone never takes a plain Enter: sending takes Ctrl+Enter, and
+// accepting, which ends the review, only a click. One that goes to a scene names it.
 // Otherwise it only says where things stand: what's playing, where the scene's question is, what the agent is doing, or
 // that it's done.
 export type Step =
-  | { kind: "go"; words: string; what?: string; take: () => void; scene?: string; final?: boolean }
+  | { kind: "go"; words: string; what?: string; take: () => void; scene?: string; final?: "send" | "accept" }
   | { kind: "say"; words: string; what?: string }
   | { kind: "agent"; words: string; what?: string; busy: boolean }
   | { kind: "done"; words: string; just: boolean };
@@ -18,7 +19,7 @@ export function Go({ step, before, className }: { step: Extract<Step, { kind: "g
   return (
     <button
       className={`flex h-8 min-w-0 items-center rounded-lg bg-hover px-3 text-xs leading-4 text-fg shadow-[inset_0_0_0_1px_var(--line)] transition-colors duration-150 ease-calm ${className}`}
-      aria-keyshortcuts={step.final ? (mac ? "Meta+Enter" : "Control+Enter") : "Enter"}
+      aria-keyshortcuts={step.final === "accept" ? undefined : step.final ? (mac ? "Meta+Enter" : "Control+Enter") : "Enter"}
       onMouseDown={(event) => event.preventDefault()}
       onClick={step.take}
     >
@@ -26,7 +27,7 @@ export function Go({ step, before, className }: { step: Extract<Step, { kind: "g
       <span className="flex-none">{step.words}</span>
       {step.what && <span className="flex-none text-faint">·</span>}
       {step.what && <b className="min-w-0 truncate font-medium">{step.what}</b>}
-      <Key className="ml-auto">{step.final ? mac ? "⌘↵" : "Ctrl ↵" : "↵"}</Key>
+      {step.final !== "accept" && <Key className="ml-auto">{step.final ? mac ? "⌘↵" : "Ctrl ↵" : "↵"}</Key>}
     </button>
   );
 }

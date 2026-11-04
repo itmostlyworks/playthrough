@@ -158,10 +158,15 @@ export function Work(props: Props) {
   const now = useRef({ busy, move, active, letGo, settled, round: round.number });
   now.current = { busy, move, active, letGo, settled, round: round.number };
   // A verdict lands where it was said, and the way goes on from there, unless you've gone on already.
+  // On the last scene's last stop there's nothing on to go to: it stays, rather than scrolling past how it ends.
   const goOn = (scene: string) => {
-    const there = () => props.room.current?.querySelector<HTMLElement>(`[data-scene="${CSS.escape(scene)}"]`)?.dataset.stop;
-    const was = there();
-    window.setTimeout(() => !now.current.busy && now.current.active === scene && there() === was && now.current.move(1), LANDS);
+    const section = () => props.room.current?.querySelector<HTMLElement>(`[data-scene="${CSS.escape(scene)}"]`);
+    const was = section()?.dataset.stop;
+    const lastOfAll = () => {
+      const here = section();
+      return !!here && [...props.room.current!.querySelectorAll("[data-scene]")].at(-1) === here && Number(here.dataset.stop) >= Number(here.dataset.stops) - 1;
+    };
+    window.setTimeout(() => !now.current.busy && now.current.active === scene && section()?.dataset.stop === was && !lastOfAll() && now.current.move(1), LANDS);
   };
   useLayoutEffect(() => {
     const room = props.room.current;
@@ -260,8 +265,8 @@ export function Work(props: Props) {
             </span>
           </div>
         </header>
-        {/* Scenes that look good to you, folded to their names, sit together as one list. */}
-        <div className="mt-10 flex flex-col gap-12 phone:mt-7 phone:gap-9 [&>[data-folded]+[data-folded]]:-mt-12 phone:[&>[data-folded]+[data-folded]]:-mt-9">
+        {/* Scenes that look good to you, folded to their pictures, sit side by side. */}
+        <div className="mt-10 flex flex-wrap gap-x-5 gap-y-12 phone:mt-7 phone:gap-y-9 [&>[data-scene]]:basis-full [&>[data-folded]+[data-folded]]:mt-0">
           {round.scenes.map((scene) => (
             <SceneView
               key={`${round.number} ${scene.name}`}

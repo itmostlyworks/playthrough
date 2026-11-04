@@ -211,7 +211,17 @@ export class Replay {
     into.append(this.host);
     // Jumping, rrweb builds the page in a copy of its own first, and the page's own scroll never reached it: played on
     // from a stop, the page sat at its first scroll for a moment, then jumped down. Built in place, it's where it was.
-    this.#replayer = new Replayer(events, { root: this.host, mouseTail: false, triggerFocus: false, pauseAnimation: false, showWarning: false, useVirtualDom: false });
+    // Shown smaller than it was recorded, text drawn with hinting comes out wider than the words were laid out, and drifts
+    // right of what the recording measured: the caret, outlines and pins. Drawn at its exact size, it stays where it was.
+    this.#replayer = new Replayer(events, {
+      root: this.host,
+      mouseTail: false,
+      triggerFocus: false,
+      pauseAnimation: false,
+      showWarning: false,
+      useVirtualDom: false,
+      insertStyleRules: ["*, ::before, ::after { text-rendering: geometricPrecision !important; }"],
+    });
     (this.#replayer as unknown as { cache: typeof styles }).cache = styles;
     this.#replayer.on("event-cast", () => (this.#changed = true));
     // Light or dark, still or moving, as it was recorded, as the app taken over is: the page's own styles asked the

@@ -21,7 +21,7 @@ import type { Step } from "./Step.tsx";
 import { Work } from "./Work.tsx";
 import { follow, pausedAt, readyAt, readyIn, samePaused, takenOver, type Live, type Paused } from "./live.ts";
 import { along, CARD, clamp, SCENE_IN, momentAt, POSTER, type Moment } from "./moments.ts";
-import { asIfSent, changedFirst, draftOn, toSend, everyDraft, fill, ink, lookGood, notesOn, nothing, said, seen, sendOf, settledBefore, standings, takeBack, upTo, workingSince, type Draft, type Replied, type Shown } from "./notes.ts";
+import { changedFirst, draftOn, toSend, everyDraft, fill, ink, lookGood, notesOn, nothing, said, seen, sendOf, settledBefore, standings, takeBack, upTo, workingSince, type Draft, type Replied, type Shown } from "./notes.ts";
 import { NoteRow, number as numberLook, Writing, type Comparing } from "./Notes.tsx";
 import { Playhead, useNow, type Forked } from "./playhead.ts";
 import { changesIn, recorded } from "./replay.ts";
@@ -1057,9 +1057,8 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, scene: inAd
   const step = stepHere();
 
   // At the foot of every scene, what's yours to do: finish a note you started; send what you've said, all of it at once,
-  // so the agent starts on the whole of it; accept, once nothing waits on you or the agent, sending your Looks goods
-  // with it; else what the agent is doing. Looking back, it's the way back to now.
-  const asksTheAgent = draft.notes.length > 0 || draft.replies.length > 0;
+  // so the agent starts on the whole of it; accept, once it's sent and nothing waits on you or the agent; else what the
+  // agent is doing. Looking back, it's the way back to now.
   const gridStep = ((): Step | undefined => {
     if (review.accepted || acceptedHere) return undefined;
     if (!current) return arrived ? undefined : step;
@@ -1081,10 +1080,10 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, scene: inAd
           setOpen({ writing: started.id });
         },
       };
-    if (!asksTheAgent && readyToAccept(asIfSent(review, you, unsent), you)) return { kind: "go", words: "All good", what: "Accept the work", take: acceptNow, final: true };
-    // Sent, it can't be taken back, so it's Ctrl+Enter, as accepting is: never a plain Enter in passing, where Enter says
-    // Looks good.
-    if (said(draft)) return { kind: "go", words: "Send", what: toSend(draft), take: () => void sendNow(), final: true };
+    // Sent, it can't be taken back, so it's Ctrl+Enter: never a plain Enter in passing, where Enter says Looks good. What
+    // you've said goes first, even when it's all good, so accepting is never the only way to send it.
+    if (said(draft)) return { kind: "go", words: "Send", what: toSend(draft), take: () => void sendNow(), final: "send" };
+    if (readyToAccept(review, you)) return { kind: "go", words: "All good", what: "Accept the work", take: acceptNow, final: "accept" };
     if (waitingForTheAgent(review).length)
       return working
         ? { kind: "agent", words: "The agent is working", what: `started at ${clock(working)}`, busy: true }
@@ -1112,7 +1111,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, scene: inAd
     const down = (event: KeyboardEvent) => {
       if (event.key === "Tab") clicked.current = null;
       // What can't be undone takes Ctrl+Enter, never a plain Enter in passing, and never while the app is yours.
-      if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !writingHere(event) && !live?.shown && acting?.kind === "go" && acting.final) {
+      if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !writingHere(event) && !live?.shown && acting?.kind === "go" && acting.final === "send") {
         event.preventDefault();
         return acting.take();
       }
