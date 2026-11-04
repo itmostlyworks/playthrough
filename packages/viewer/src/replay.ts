@@ -213,6 +213,7 @@ export class Replay {
     // from a stop, the page sat at its first scroll for a moment, then jumped down. Built in place, it's where it was.
     // Shown smaller than it was recorded, text drawn with hinting comes out wider than the words were laid out, and drifts
     // right of what the recording measured: the caret, outlines and pins. Drawn at its exact size, it stays where it was.
+    // Recorded with no scrollbars, it's played with none, so none takes width its page didn't have.
     this.#replayer = new Replayer(events, {
       root: this.host,
       mouseTail: false,
@@ -220,7 +221,11 @@ export class Replay {
       pauseAnimation: false,
       showWarning: false,
       useVirtualDom: false,
-      insertStyleRules: ["*, ::before, ::after { text-rendering: geometricPrecision !important; }"],
+      insertStyleRules: [
+        "*, ::before, ::after { text-rendering: geometricPrecision !important; }",
+        "* { scrollbar-width: none !important; }",
+        "::-webkit-scrollbar { display: none !important; }",
+      ],
     });
     (this.#replayer as unknown as { cache: typeof styles }).cache = styles;
     this.#replayer.on("event-cast", () => (this.#changed = true));
@@ -244,10 +249,12 @@ export class Replay {
       if (jumped) this.#settle();
       this.#scrollBetween(ms / 1000);
       const shape = this.shapeAt(ms / 1000);
-      if (shape !== this.#shape) {
+      const resized = shape !== this.#shape;
+      if (resized) {
         this.#shape = shape;
         Object.assign(this.host.style, { width: `${shape.width}px`, height: `${shape.height}px` });
       }
+      this.#fit(resized);
     }
     // A page rebuilt for a jump can start its transitions a frame late, and a dialog centred by its transform slid in
     // from the side: for its first 0.15s after a jump, its motion is over, playing too.
@@ -321,6 +328,18 @@ export class Replay {
     if (!b || at <= a[0] || b[0] - a[0] > 0.25) return [a[1], a[2]];
     const u = (at - a[0]) / (b[0] - a[0]);
     return [a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u];
+  }
+
+  // The page laid out again in the viewer's browser is told it's as wide as it was recorded, whatever the browser's zoom:
+  // at some zooms its window came out a fraction narrower, under the app's own breakpoint at exactly that width, and the
+  // app moved its search field to a row of its own.
+  #fit(resized: boolean) {
+    const frame = this.#replayer.iframe;
+    const page = frame.contentWindow;
+    const fits = () => !!page?.matchMedia(`(width >= ${this.#shape.width}px)`).matches;
+    if (!page || (!resized && fits())) return;
+    frame.style.width = "";
+    for (let extra = 0.25; extra <= 4 && !fits(); extra += 0.25) frame.style.width = `${this.#shape.width + extra}px`;
   }
 
   // Where the text cursor is at a moment, as x, y and height in the page's own pixels; nothing where nothing is typed into.
