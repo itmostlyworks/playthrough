@@ -3,7 +3,8 @@
 
 import type { z } from "zod";
 import { Comparison, fileName, Round, Send, type Account, type Change, type Scene, type Note, type Place, type Reply, type Review, type Verdict } from "./model.ts";
-import { list, quote, time } from "./words.ts";
+import { stepAt } from "./steps.ts";
+import { list, quote } from "./words.ts";
 
 // The round the agent is working on: the last one until it's finished, then the next.
 export function roundInProgress(review: Review): number {
@@ -201,6 +202,39 @@ export const LONGEST_LINE = 140;
 // The changes the agent says why of: those Playthrough can name. One only the pictures show is the person's to look at.
 export const toAccountFor = (comparison?: Comparison) => (comparison?.changes ?? []).filter((change) => !change.pictureOnly);
 
+// Changes this close together are at one moment: the person meets them together, and the agent says why of them once.
+export const TOGETHER = 0.05;
+
+// What the agent says why of, a step at a time, as the person meets it: all that changed at one moment of a scene, or
+// the new steps it takes, under the id of the first change found there. A change seen in several scenes is in the first
+// of them, in the order they joined.
+export type StepToAccountFor = { id: string; scene: string; at?: number; until?: number; changes: Change[] };
+
+// What's new since the round before; and in a scene new this round, all that's different from Before, as nobody has
+// been asked about it.
+export function stepsToAccountFor(review: Review, number: number): StepToAccountFor[] {
+  const comparisons = review.comparisons.filter((comparison) => comparison.round === number);
+  const since = toAccountFor(comparisons.find((comparison) => comparison.since === number - 1));
+  const scenes = (round?: Round) => round?.scenes.map((scene) => scene.name) ?? [];
+  const earlier = scenes(review.rounds.find((round) => round.number === number - 1));
+  const joined = inOrderJoined(review);
+  const fresh = number > 1 ? joined.filter((name) => scenes(review.rounds.find((round) => round.number === number)).includes(name) && !earlier.includes(name)) : [];
+  const unasked = toAccountFor(comparisons.find((comparison) => comparison.since === 0)).filter(
+    (change) => change.seen.some((seen) => fresh.includes(seen.scene)) && !since.some((one) => one.id === change.id) && !accountOf(review, number - 1, change.id),
+  );
+  const steps: StepToAccountFor[] = [];
+  for (const change of [...since, ...unasked]) {
+    const scene = (unasked.includes(change) ? fresh : joined).find((name) => change.seen.some((seen) => seen.scene === name)) ?? change.seen[0]!.scene;
+    const on = change.seen.filter((seen) => seen.scene === scene).sort((a, b) => (a.at ?? 0) - (b.at ?? 0))[0]!;
+    const moment = on.at !== undefined && on.until === undefined;
+    const step = moment && steps.find((one) => one.scene === scene && one.at !== undefined && one.until === undefined && Math.abs(one.at - on.at!) < TOGETHER);
+    if (step) step.changes.push(change);
+    else steps.push({ id: change.id, scene, at: on.at, until: on.until, changes: [change] });
+  }
+  // As the person meets them: a scene at a time, in the order they joined, down its way.
+  return steps.sort((a, b) => joined.indexOf(a.scene) - joined.indexOf(b.scene) || (a.at ?? 0) - (b.at ?? 0));
+}
+
 export function problemsFinishing(review: Review, number: number): string[] {
   if (review.accepted) return ["This review is accepted, so nothing more can be recorded."];
   const round = review.rounds.find((round) => round.number === number);
@@ -233,9 +267,11 @@ export function problemsFinishing(review: Review, number: number): string[] {
     for (const earlier of review.rounds.filter((earlier) => earlier.number < number && !comparisons.some((comparison) => comparison.since === earlier.number)))
       problems.push(`${at} isn't compared with ${roundName(earlier.number)} yet, so it can't be handed over. Record it again.`);
   const changes = new Map(comparisons.flatMap((comparison) => comparison.changes.map((change) => [change.id, change])));
-  for (const change of toAccountFor(comparisons.find((comparison) => comparison.since === number - 1)))
-    if (!round.accounts[change.id])
-      problems.push(`${at}: say why ${change.id} is there (${change.words}${where(change)}): its line, the id of the note it was made for, or why nothing really changed.`);
+  for (const step of stepsToAccountFor(review, number))
+    if (!step.changes.some((change) => round.accounts[change.id]))
+      problems.push(
+        `${at}: say why ${placeOf(step, round)} changed (${step.changes.map((change) => change.words).join("; ")}), in one account under ${step.id}: its line, the id of the note it was made for, or why nothing really changed.`,
+      );
   for (const [id, account] of Object.entries(round.accounts)) {
     const change = changes.get(id);
     if (!change) problems.push(`${at} says something about the change ${id}, which isn't one of this round's changes.`);
@@ -378,7 +414,12 @@ function duplicates(values: string[], problem: (value: string) => string): strin
 
 const roundName = (number: number) => (number === 0 ? "Before" : `round ${number}`);
 const describe = (change: Change) => `the change ${change.id} (${cut(change.words)})`;
-// Where it's first seen, so the agent can find it: “in “Export a quarter” at 0:02”.
-const where = ({ seen: [first] }: Change) => (first ? `, in ${quote(first.scene)}${first.at === undefined ? "" : ` at ${time(first.at)}`}` : "");
+// Where the agent's own steps put it: “Export the quarter” in “Export a quarter”; new steps, or a scene that's gone, are
+// the scene's.
+function placeOf({ scene, at, until }: StepToAccountFor, round: Round): string {
+  const recorded = round.scenes.find((one) => one.name === scene);
+  const step = recorded && at !== undefined && until === undefined ? stepAt(recorded, at) : undefined;
+  return step ? `${quote(step.title)} in ${quote(scene)}` : quote(scene);
+}
 const cut = (words: string) => (words.length > 48 ? `${words.slice(0, 47).trimEnd()}…` : words);
 const isText = (value: unknown): value is string => typeof value === "string" && value.trim() !== "";

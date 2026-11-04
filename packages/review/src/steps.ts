@@ -55,6 +55,9 @@ function withClicks([mine, theirs]: [number[], number[]], clicks: { from: number
   return [ours, others];
 }
 
+// The step a moment is in: its result, where the page rests once it has played, is the step's, not the next one's.
+export const stepAt = (scene: Scene, at: number) => scene.steps.find((_, i) => (scene.steps[i + 1]?.at ?? scene.length) >= at - 0.05) ?? scene.steps.at(-1);
+
 // Where a scene is taken over, as the recording was at a moment: after as many of a step's actions as it had done, or at
 // the step's end, as the page rests between them. The same place on every round that takes that step that far.
 export type Paused = { step: string; actions?: number };

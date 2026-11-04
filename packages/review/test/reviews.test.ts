@@ -175,16 +175,41 @@ for (const [kept, storage] of storages) {
       assert.equal((await reviews.get("invoice-export")).rounds[1]?.finished, finished);
     });
 
-    test("a round isn't handed over until the agent says why each change new since the round before is there", async () => {
+    test("a round isn't handed over until the agent says why each step changed since the round before", async () => {
       const reviews = await recorded();
       await reviews.saveRound("invoice-export", round(2));
       await reviews.saveComparison("invoice-export", { round: 2, since: 0, changes: [change("c1", "“Export” button is new"), change("c2", "Download CSV and Cancel swapped")] });
       await reviews.saveComparison("invoice-export", { round: 2, since: 1, changes: [change("c2", "Download CSV and Cancel swapped")] });
       await assert.rejects(
         reviews.finish("invoice-export", 2),
-        refused(/^Round 2: say why c2 is there \(Download CSV and Cancel swapped, in “Export a quarter” at 0:02\): its line, the id of the note it was made for, or why nothing really changed\.$/),
+        refused(/^Round 2: say why “Open the invoices” in “Export a quarter” changed \(Download CSV and Cancel swapped\), in one account under c2: its line, the id of the note it was made for, or why nothing really changed\.$/),
       );
       await reviews.saveRound("invoice-export", round(2, { accounts: { c2: { notReal: "The page was still drawing." } } }));
+      await reviews.finish("invoice-export", 2);
+    });
+
+    test("the agent says why once for all that changed at one moment of a scene, and handed over, it's what the agent says of each", async () => {
+      const reviews = await recorded();
+      const changes = [change("c2", "Download CSV and Cancel swapped"), change("c3", "Download CSV looks different"), change("c4", "“Done” is new", 5)];
+      const swapped = { line: "Download sits on the right, like every other dialog." };
+      await reviews.saveRound("invoice-export", round(2, { accounts: { c2: swapped } }));
+      await reviews.saveComparison("invoice-export", { round: 2, since: 0, changes: [change("c1", "“Export” button is new"), ...changes] });
+      await reviews.saveComparison("invoice-export", { round: 2, since: 1, changes });
+      await assert.rejects(reviews.finish("invoice-export", 2), refused(/^Round 2: say why “Export the quarter” in “Export a quarter” changed \(“Done” is new\), in one account under c4: /));
+      const drawing = { notReal: "The page was still drawing." };
+      await reviews.saveRound("invoice-export", round(2, { accounts: { c2: swapped, c4: drawing } }));
+      await reviews.finish("invoice-export", 2);
+      assert.deepEqual((await reviews.get("invoice-export")).rounds[2]?.accounts, { c2: swapped, c3: swapped, c4: drawing });
+    });
+
+    test("in a scene new this round, what's different from Before is asked about too, a step at a time: nobody has been", async () => {
+      const reviews = await recorded();
+      const scenes = [scene("Export a quarter"), scene("Cancel halfway"), scene("Export a year")];
+      await reviews.saveRound("invoice-export", round(2, { scenes }));
+      await reviews.saveComparison("invoice-export", { round: 2, since: 1, changes: [] });
+      await reviews.saveComparison("invoice-export", { round: 2, since: 0, changes: [change("c1", "“Export” button is new"), change("c5", "Year picker is new", 2, "Export a year")] });
+      await assert.rejects(reviews.finish("invoice-export", 2), refused(/^Round 2: say why “Open the invoices” in “Export a year” changed \(Year picker is new\), in one account under c5: /));
+      await reviews.saveRound("invoice-export", round(2, { scenes, accounts: { c5: { line: "A whole year at once, for the yearly return." } } }));
       await reviews.finish("invoice-export", 2);
     });
 

@@ -21,7 +21,8 @@ THE LOOP
    in what they show, your own choices too, so a choice needs a step where no scene shows it yet, not a scene of its own.
 4. playthrough record <review> records the round, and each scene new to the review on Before too, doing what the round
    does as far as the app as it was can, then compares the round with every round before it. In the round's round.json,
-   say why each change since the round before is there, under "accounts" by its id: { "line": "<why, in your words>" },
+   say why each step changed since the round before (in a scene new to the review, since Before), once for all that
+   changed there, under "accounts" by the id record gives it: { "line": "<why, in your words>" },
    { "note": "<the id of the note it was made for>" }, or { "notReal": "<why nothing really changed>" }. What only the
    pictures show is the person's to look at, and asks nothing of you, unless you made it for a note: then say so. The
    person sees what changed, marked where it is: a line says only why, in a short sentence.

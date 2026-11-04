@@ -4,7 +4,7 @@
 // told with the note rather than on its own; made for a note on the whole scene, which is answered at its end, or in
 // another scene, it's a change like any other, met where it happened, which says so.
 
-import { allNotes, newToYou, time, type Change, type Place, type Review } from "@playthrough/review";
+import { allNotes, newToYou, time, TOGETHER, type Change, type Place, type Review } from "@playthrough/review";
 import type { Moment } from "./moments.ts";
 
 // A change as it's told: where, the round it's new since, the agent's line on why and which agent said it, or the note
@@ -13,8 +13,6 @@ export type Changed = { change: Change; on: Place; since: number; line?: string;
 // `row` says it has something to tell of its own, beside the notes' answers it holds.
 export type Diamond = { id: string; scene: string; at: number; until?: number; changes: Changed[]; name: string; row: boolean };
 
-// Changes this close together are at one moment, drawn as one diamond.
-const TOGETHER = 0.05;
 // Past its moment, a change is still the one you're on until the next click, and for this long at most.
 const STAYS = 1.5;
 

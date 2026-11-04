@@ -113,7 +113,7 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
     for (const reading of read) assert.equal((await app.file(1, reading.picture)).subarray(1, 4).toString(), "PNG");
   });
 
-  test("record compares the round with Before, and it isn't handed over until the agent says why each change is there", async () => {
+  test("record compares the round with Before, and it isn't handed over until the agent says why each step changed", async () => {
     // Since Before, the app has an Export button, and the scene that exports takes the step Before couldn't.
     const { changes } = await app.compared(1, 0);
     const button = changes.find((change) => change.words === "Export button is new, and moved the Show choice left");
@@ -125,7 +125,7 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
 
     const { said, code } = await app.run(["wait", "overdue"]);
     assert.equal(code, 1);
-    assert.match(said, new RegExp(`say why ${button!.id} is there \\(Export button is new, and moved the Show choice left, in “Export the overdue ones” at 0:00\\)`));
+    assert.match(said, new RegExp(`say why “[^”]+” in “Export the overdue ones” changed \\(Export button is new, and moved the Show choice left\\), in one account under ${button!.id}`));
     const accounts = Object.fromEntries(changes.map((change) => [change.id, { line: "The export the task asked for." }]));
     await app.saveRound({ ...(await app.round(1)), accounts });
   });

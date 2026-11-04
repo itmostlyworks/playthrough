@@ -1,7 +1,7 @@
 // Records the round being worked on: runs every scene like a person would, keeps each recording, records the scenes new to
 // the review on Before too, places each note's answer on its thing there, compares the round with each round before it,
-// and says what's left before it can be handed over: an answer to each note, and why each change since the round before
-// is there. Recording again keeps whatever the agent already wrote in the round.
+// and says what's left before it can be handed over: an answer to each note, and why each step changed since the round
+// before, or in a scene new this round, since Before. Recording again keeps whatever the agent already wrote in the round.
 
 import { existsSync } from "node:fs";
 import { placeIn } from "@playthrough/page";
@@ -82,7 +82,7 @@ export async function record(repo: Repo, id: string) {
   if (left.length) console.log(`\nStill to do, in ${file}:\n${left.map((problem) => `  ${problem}`).join("\n")}`);
   // How to say why is said the first time the review is recorded; after that, what's still to do says what's missing.
   if (number === 1 && !saved && named.length)
-    console.log(`\nSay why each change is there in “accounts”, by its id: { "line": "<why, in your words>" }, { "note": "<the id of the note it was made for>" }, or { "notReal": "<why nothing really changed>" }.`);
+    console.log(`\nSay why each step changed in “accounts”, once for all that changed there, under the id it's given: { "line": "<why, in your words>" }, { "note": "<the id of the note it was made for>" }, or { "notReal": "<why nothing really changed>" }.`);
   // What a run leaves in the app, said once, as it's first seen: a scene saving something, with nothing to give it back.
   const wrote = number === 1 && !saved && recorded.find((kept) => kept.wrote);
   if (wrote && !(await setupIn(repo.setup)).after)

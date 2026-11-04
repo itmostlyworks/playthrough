@@ -14,6 +14,7 @@ import {
   problemsWithRound,
   problemsWithSend,
   roundInProgress,
+  stepsToAccountFor,
   withInBefore,
 } from "./rules.ts";
 import { list, quote } from "./words.ts";
@@ -157,7 +158,13 @@ export class Reviews {
       if (saved?.finished) return;
       const problems = problemsFinishing(review, round);
       if (problems.length || !saved) throw new Refused(problems);
-      await this.#writeJson(`${id}/rounds/${round}/round.json`, { ...saved, finished: now() });
+      // What the agent said once for a step is what it says of each change there, kept so: it's read a change at a time.
+      const accounts = { ...saved.accounts };
+      for (const step of stepsToAccountFor(review, round)) {
+        const said = step.changes.map((change) => saved.accounts[change.id]).find(Boolean)!;
+        for (const change of step.changes) accounts[change.id] ??= said;
+      }
+      await this.#writeJson(`${id}/rounds/${round}/round.json`, { ...saved, accounts, finished: now() });
     });
   }
 
