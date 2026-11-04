@@ -148,8 +148,10 @@ export function Work(props: Props) {
     step();
   };
   const letGo = () => (cancelAnimationFrame(gliding.current!), (gliding.current = undefined), (steered.current = 0));
-  const now = useRef({ busy, move, active, letGo, settled, goTo });
-  now.current = { busy, move, active, letGo, settled, goTo };
+  // What the scroll reading, set up once, needs as it is now: the round you're looking at among it, so a step read on
+  // an older round is that round's.
+  const now = useRef({ busy, move, active, letGo, settled, goTo, round: round.number });
+  now.current = { busy, move, active, letGo, settled, goTo, round: round.number };
   // A verdict lands where it was said, and the way goes on from there, unless you've gone on already.
   const goOn = (scene: string) => {
     const there = () => props.room.current?.querySelector<HTMLElement>(`[data-scene="${CSS.escape(scene)}"]`)?.dataset.stop;
@@ -189,7 +191,7 @@ export function Work(props: Props) {
       // fast the page went past its first stop: what's under the line, you haven't come to.
       const left = now.current.active === undefined || now.current.active === here?.dataset.scene ? null : room.querySelector<HTMLElement>(`[data-scene="${CSS.escape(now.current.active)}"]`);
       const first = left?.querySelector("li[data-stop]")?.getBoundingClientRect().top;
-      if (left && Number(left.dataset.stop) >= 0 && first !== undefined && first > line) setGo({ round: round.number, scene: left.dataset.scene!, stop: -1, passing: true });
+      if (left && Number(left.dataset.stop) >= 0 && first !== undefined && first > line) setGo({ round: now.current.round, scene: left.dataset.scene!, stop: -1, passing: true });
       if (rest === undefined) {
         const on = here ?? left;
         from = on ? which(on.querySelector<HTMLElement>(`li[data-stop="${on.dataset.stop}"]`) ?? on) : undefined;
@@ -200,7 +202,7 @@ export function Work(props: Props) {
       const scene = here.dataset.scene!;
       const stop = Number([...here.querySelectorAll<HTMLElement>("li[data-stop]")].findLast((row) => row.getBoundingClientRect().top <= line)?.dataset.stop ?? -1);
       if (scene !== now.current.active) setActive(scene);
-      if (stop !== Number(here.dataset.stop)) setGo({ round: round.number, scene, stop, passing: true });
+      if (stop !== Number(here.dataset.stop)) setGo({ round: now.current.round, scene, stop, passing: true });
     };
     // Come to rest just off a stop, it's brought to the line, so each turn of the wheel goes a stop from where the last
     // left you, rather than a little further each time until a turn goes past one: the stop at the line, just past it,
