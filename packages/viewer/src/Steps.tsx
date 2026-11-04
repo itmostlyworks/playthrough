@@ -96,6 +96,10 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
       way.style.setProperty("--rail", `${rail}px`);
       // How much of the rail is filled, as a share of it, for it to fill without laying the page out each frame.
       way.style.setProperty("--reach", String(on < 0 || rail <= 0 ? 0 : ((centres[on] ?? first) - first) / rail));
+      const here = way.querySelector<HTMLElement>("[aria-current=step]");
+      // The surface fits what's in the stop, with as much room under it as over it, not the room after it.
+      const fits = here && Math.max(...[...here.children].map((child) => (child as HTMLElement).offsetTop + (child as HTMLElement).offsetHeight)) + 8;
+      if (here && fits) (way.style.setProperty("--here-top", `${here.offsetTop}px`), way.style.setProperty("--here", `${fits}px`));
     };
     measure();
     const watching = new ResizeObserver(measure);
@@ -136,12 +140,13 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
   };
 
   // Every stop is laid out open, so the way never reflows under you as you go along it: the one you're on sits on the
-  // page's surface, the others quieter, and a press anywhere on another goes there first, so what's pressed in it, as
-  // its Compare, is about it. Before you've gone along it, none is quieter: it's the map of what's ahead.
+  // page's surface, the others' words quieter, their signs still whole on the rail, and a press anywhere on another goes
+  // there first, so what's pressed in it, as its Compare, is about it. Before you've gone along it, none is quieter: it's
+  // the map of what's ahead.
   const row = (k: number) => ({
     "data-stop": k,
     "aria-current": k === on ? ("step" as const) : undefined,
-    className: `relative isolate min-h-24 flex-none py-2 pb-4 pl-8 phone:min-h-0 transition-opacity duration-300 ease-calm ${SURFACE} ${k === on ? "[--under:var(--surface)] before:opacity-100" : `before:opacity-0 ${resting ? "opacity-35" : on < 0 ? "" : "opacity-60 hover:opacity-100"}`}`,
+    className: `relative flex-none py-2 pb-4 pl-8 phone:min-h-0 ${k < stops.length ? "min-h-24" : ""} transition-opacity duration-300 ease-calm [&>*]:transition-opacity [&>*]:duration-300 [&>*]:ease-calm ${k === on ? "[--under:var(--surface)]" : resting ? "opacity-35" : on < 0 ? "" : "[&>:not([data-sign])]:opacity-60 hover:[&>:not([data-sign])]:opacity-100"}`,
     onPointerDownCapture: () => k !== on && onStop(k),
   });
 
@@ -150,6 +155,8 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
       <li aria-hidden className={`pointer-events-none absolute top-(--rail-top) left-[9.5px] h-(--rail) w-px bg-track transition-opacity duration-300 ease-calm phone:hidden ${resting ? "opacity-35" : ""}`}>
         <span className="absolute inset-0 origin-top bg-soft [scale:1_var(--reach,0)] transition-[scale] duration-300 ease-calm" />
       </li>
+      {/* The surface the stop you're on sits on: one, gliding along with the rail's fill as you go. */}
+      <li aria-hidden className={`pointer-events-none absolute top-0 left-6 -right-3 h-(--here) translate-y-(--here-top) rounded-xl transition-[translate,height,opacity,background-color] duration-300 ease-calm phone:left-5 ${on === stops.length ? "bg-[color-mix(in_srgb,var(--green)_13%,var(--surface))]" : "bg-surface"} ${on < 0 || resting ? "opacity-0" : ""}`} />
       {stops.map((stop, k) => {
         const here = k === on;
         const gone = k < on;
@@ -248,15 +255,13 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
       }).concat(
         looksGood ? (
           <li key="looks good" {...row(stops.length)} inert={resting}>
-            <span
-              data-sign=""
-              className={`absolute top-2.5 left-0.5 grid size-4 place-items-center rounded-full bg-ground transition-[box-shadow] duration-300 ease-calm ${on === stops.length ? RING : ""}`}
-            >
-              <EndMark end={looksGood.good ? "good" : "asks"} ahead just={false} className="size-3" />
+            <span data-sign="" className={`absolute top-2 left-0 grid size-5 place-items-center rounded-full bg-ground transition-[scale] duration-300 ease-calm ${on === stops.length ? "scale-125" : ""}`}>
+              <EndMark end={looksGood.good ? "good" : "asks"} ahead={on !== stops.length} just={false} className="size-3.5" />
             </span>
+            {/* At the end, saying it is the one thing to do here: the surface it's on takes the colour it turns. */}
             <button
               aria-pressed={looksGood.good}
-              className={`flex items-center gap-2 text-left text-[13px] leading-5 transition-colors duration-300 ease-calm ${looksGood.good ? "text-green" : on === stops.length ? "text-fg" : "text-soft hover:text-fg"}`}
+              className={`flex w-full items-center justify-between gap-2.5 pr-2 text-left text-[14px] leading-5 transition-colors duration-300 ease-calm ${looksGood.good || on === stops.length ? "text-green" : "text-soft hover:text-fg"}`}
               onClick={looksGood.onPress}
             >
               Looks good
@@ -269,6 +274,5 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
   );
 }
 
-// The surface the stop you're on sits on, beside its sign on the rail; and the ring around that sign.
-const SURFACE = "before:pointer-events-none before:absolute before:inset-y-0 before:left-6 before:-right-3 before:-z-1 before:rounded-xl before:bg-surface before:transition-opacity before:duration-300 before:ease-calm before:content-['']";
+// The ring around the sign of the stop you're on.
 const RING = "shadow-[0_0_0_2px_var(--ground),0_0_0_3.5px_var(--fg)]";
