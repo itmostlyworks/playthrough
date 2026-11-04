@@ -167,6 +167,7 @@ export function Work(props: Props) {
       room.style.setProperty("--room", `${room.clientHeight}px`);
       room.style.setProperty("--to-line", `${LINE}px`);
       room.style.setProperty("--pin", `${PIN}px`);
+      room.style.setProperty("--pitch", `${PITCH}px`);
     };
     tall();
     const watching = new ResizeObserver(tall);
@@ -330,6 +331,9 @@ export function Work(props: Props) {
 const LINE = 88;
 const PIN = 24;
 const REST = 180;
+// The least room a stop has on the way, in pixels, which is how far the page scrolls past it: more than a turn of the
+// wheel (100px on Windows), so a turn never goes past one, and the next, settling, never past two.
+const PITCH = 112;
 // How far from the line a stop can be, in pixels, for the page to bring it there once you rest: under half a stop's room.
 const SETTLE = 40;
 // How long a verdict is seen where it was said before the way goes on, in milliseconds.

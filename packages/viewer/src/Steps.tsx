@@ -152,7 +152,7 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
   const row = (k: number) => ({
     "data-stop": k,
     "aria-current": k === on ? ("step" as const) : undefined,
-    className: `relative flex-none py-2 pb-4 pl-8 phone:min-h-0 ${k < stops.length ? "min-h-32" : ""} transition-opacity duration-300 ease-calm [&>*]:transition-opacity [&>*]:duration-300 [&>*]:ease-calm ${k === on ? "[--under:var(--surface)]" : resting ? "opacity-35" : on < 0 ? "" : "[&>:not([data-sign])]:opacity-60 hover:[&>:not([data-sign])]:opacity-100"}`,
+    className: `relative flex-none py-2 pb-4 pl-8 phone:min-h-0 ${k < stops.length ? "min-h-(--pitch)" : ""} transition-opacity duration-300 ease-calm [&>*]:transition-opacity [&>*]:duration-300 [&>*]:ease-calm ${k === on ? "[--under:var(--surface)]" : resting ? "opacity-35" : on < 0 ? "" : "[&>:not([data-sign])]:opacity-60 hover:[&>:not([data-sign])]:opacity-100"}`,
     onPointerDownCapture: () => k !== on && onStop(k),
   });
 
