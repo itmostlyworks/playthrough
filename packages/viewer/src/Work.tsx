@@ -185,6 +185,11 @@ export function Work(props: Props) {
       if (now.current.busy || onPhone() || performance.now() < steered.current) return;
       const line = lineOf(room);
       const here = [...room.querySelectorAll<HTMLElement>("[data-situation]")].find((situation) => now.current.settled(room, situation));
+      // Scrolled back above the situation you were on, it's before its first stop again, as it was arrived at, however
+      // fast the page went past its first stop: what's under the line, you haven't come to.
+      const left = now.current.active === undefined || now.current.active === here?.dataset.situation ? null : room.querySelector<HTMLElement>(`[data-situation="${CSS.escape(now.current.active)}"]`);
+      const first = left?.querySelector("li[data-stop]")?.getBoundingClientRect().top;
+      if (left && Number(left.dataset.stop) >= 0 && first !== undefined && first > line) setGo({ round: round.number, flow: left.dataset.situation!, stop: -1, passing: true });
       if (!here) return void (now.current.active !== undefined && setActive(undefined));
       const flow = here.dataset.situation!;
       const stop = Number([...here.querySelectorAll<HTMLElement>("li[data-stop]")].findLast((row) => row.getBoundingClientRect().top <= line)?.dataset.stop ?? -1);
