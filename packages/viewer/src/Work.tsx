@@ -76,13 +76,13 @@ export function Work(props: Props) {
   const [arrivedOn] = useState(() => props.notes.some((note) => note.toJudge && round.scenes.some((scene) => scene.name === note.on?.scene)));
   const begun = !!go || arrivedOn;
   const busy = acting.noting || !!acting.writing || !!acting.live?.shown;
-  // Where you are is where you've scrolled to: the stop you're on is the one come up to the line, a fifth of the way
-  // down the window, beside its scene's recording settled at the top. Coming up or going away, a recording is
+  // Where you are is where you've scrolled to: the stop you're on is the one come up to the line, just under where a
+  // scene's heading ends, beside its recording settled at the top. Coming up or going away, a recording is
   // nobody's: nothing plays while it moves, and its bar waits. The page scrolls as any page does, with your hand, and
   // moves by itself only to take you to a stop you asked for. What's passed plays nothing; where you rest a moment
   // plays. On a phone, a stop is gone to by pressing it.
   const steered = useRef(0);
-  const lineOf = (room: HTMLElement) => room.getBoundingClientRect().top + room.clientHeight * LINE;
+  const lineOf = (room: HTMLElement) => room.getBoundingClientRect().top + LINE;
   // Where the page is scrolled for a scene's stop to be at the line; before its first, for the scene to come
   // up to the window's top; past the page's last stop, its end.
   const scrollFor = (room: HTMLElement, section: HTMLElement, stop: number) => {
@@ -165,7 +165,7 @@ export function Work(props: Props) {
     // line is, and where a recording is pinned, for the scenes to lay their ways out by.
     const tall = () => {
       room.style.setProperty("--room", `${room.clientHeight}px`);
-      room.style.setProperty("--to-line", `${Math.round(room.clientHeight * LINE)}px`);
+      room.style.setProperty("--to-line", `${LINE}px`);
       room.style.setProperty("--pin", `${PIN}px`);
     };
     tall();
@@ -321,10 +321,13 @@ export function Work(props: Props) {
   );
 }
 
-// Where the line is that the stop you're on has come up to, as a share of the window's height down from its top; how far
-// below the window's top a scene's recording is pinned, in pixels; and how long the page is still at a stop before
-// it plays, in milliseconds.
-const LINE = 0.2;
+// Where the line is that the stop you're on has come up to, in pixels down from the window's top: just under a scene's
+// heading where it's only where the scene stands, so its first stop comes up to it as the recording settles with no
+// room held empty over it; a longer heading, with the agent's line, has it come up a little after. A share of the window
+// held a third of a tall one empty. How far below the
+// window's top a scene's recording is pinned, in pixels; and how long the page is still at a stop before it plays, in
+// milliseconds.
+const LINE = 88;
 const PIN = 24;
 const REST = 180;
 // How far from the line a stop can be, in pixels, for the page to bring it there once you rest: under half a stop's room.
