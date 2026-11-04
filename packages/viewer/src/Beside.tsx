@@ -68,7 +68,7 @@ export function Beside({ id, over, standing, still, resting, pinned, onAway, chi
   }, []);
   // Its pin, or what it's on where it has none, can move with the view any frame, and the recordings' layout change, so
   // it's followed every frame while it's open.
-  // What it says changing its length, as Edit, Not quite or earlier answers do, it grows or shrinks to it rather than
+  // What it says changing its length, as Edit, a reply or earlier answers do, it grows or shrinks to it rather than
   // jumping, the line to its pin going with it; a card opening for something else is just there.
   const open = !!children;
   useEffect(() => {

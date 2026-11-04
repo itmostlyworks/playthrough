@@ -149,8 +149,8 @@ export const Reply = z.strictObject({
   watch: text("needs a step's title").optional().describe("For an answer that moves: the step of its scene it's seen in, which the note then plays"),
 });
 
-// A note is a conversation about one thing. A person starts it in a send; then the agent's replies and people's verdicts
-// take turns on it until it looks good.
+// A note is a conversation about one thing. A person starts it in a send; then the agent's replies and people's replies
+// take turns on it until someone says it looks good.
 export const Note = z.strictObject({
   id: id("needs an id of letters, digits and dashes"),
   on: Place.optional().describe("Without it, about the work in general"),
@@ -170,15 +170,12 @@ export const Round = z.strictObject({
   finished: z.iso.datetime().optional(),
 });
 
-export const Verdict = z
-  .strictObject({
-    note: text("needs the note it's on"),
-    verdict: z.enum(["looks good", "not quite"], { error: "is “looks good” or “not quite”" }),
-    words: z.string().optional(),
-  })
-  .refine((verdict) => verdict.verdict !== "not quite" || verdict.words?.trim(), {
-    error: "is not quite, so it needs words saying what's still wrong",
-  });
+// An answer that fixes what its note asked for. One that doesn't gets a reply instead, saying what's still wrong.
+export const Verdict = z.strictObject({
+  note: text("needs the note it's on"),
+  verdict: z.literal("looks good", { error: "is “looks good”: one that isn't gets a reply" }),
+  words: z.string().optional(),
+});
 
 // What one person sent about one round, at once. Once sent, it never changes.
 export const Send = z.strictObject({
@@ -188,6 +185,10 @@ export const Send = z.strictObject({
   sent: z.iso.datetime({ error: "needs to say when it was sent, as an ISO date" }),
   notes: z.array(Note).describe("New ones"),
   verdicts: z.array(Verdict),
+  replies: z
+    .array(z.strictObject({ note: text("needs the note it's on"), words: text("needs words") }))
+    .optional()
+    .describe("A person's words back on a note's latest answer: what's still not right, or an answer to a question the agent asked. They judge nothing, and ask the agent again"),
   looksGood: z.array(text("needs the scene's name")).describe("Scenes that look good as a whole; one that isn't quite right gets a note"),
   takenBack: z.array(text("needs the scene's name")).optional().describe("Scenes whose Looks good, said before, is taken back: they ask again"),
 });

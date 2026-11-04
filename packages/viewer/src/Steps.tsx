@@ -1,6 +1,6 @@
 // A scene's way through, beside its recording, a stop at a time: each step the agent chose, and after it what was
-// said there, your notes and what changed new to you, in the order they come; what was said about all of it comes first,
-// and last, whether it looks good to you, once you've seen it through.
+// said there, your notes and what changed new to you, in the order they come; then what was said about all of it, and
+// last, its end, where you say whether it looks good to you, once you've seen it through, or a note on the whole of it.
 // A rail runs down through them, filled as far as you've come, and its fill glides along as you go. The stop you're on
 // opens: what was said there, all of it; or a step, with a line of its own that fills as it plays, and dragged along,
 // goes anywhere in the step and rests where it's let go, with a dot for each note made in the step and a diamond for
@@ -10,7 +10,7 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from "react";
 import type { Scene } from "@playthrough/review";
 import { Key } from "./Card.tsx";
-import { EndMark } from "./Chosen.tsx";
+import { EndMark, type End } from "./Chosen.tsx";
 import { clamp } from "./moments.ts";
 import type { Clock, Cut } from "./Player.tsx";
 
@@ -45,8 +45,9 @@ type Props = {
   // Dragging along the line, and where it was let go.
   onScrub: (scrubbing: boolean) => void;
   onGo: (moment: number) => void;
-  // The way's last stop, where it can be said: whether it looks good to you, and saying so or taking it back.
-  looksGood?: { good: boolean; onPress: () => void };
+  // The way's last stop, its end: how it stands, as its mark; whether it looks good to you, and saying so or taking it
+  // back, once nothing in it is still open, or else what's open, in words; and a note on the whole scene.
+  end?: { mark: End; looksGood?: { good: boolean; onPress: () => void }; says: ReactNode; onNote?: () => void };
   // Taken over: the app is yours, and what plays the recording rests; the stop you're on stays lit, where you took it
   // over, and what you say there answers.
   resting?: boolean;
@@ -56,12 +57,13 @@ type Props = {
   onUnfold: (stop: number) => void;
 };
 
-export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, onPoint, onScrub, onGo, looksGood, resting, since, onUnfold }: Props) {
-  const end = (step: number) => scene.steps[step + 1]?.at ?? scene.length;
-  const stepOf = (moment: number) => Math.max(0, scene.steps.findIndex((_, step) => end(step) >= moment - 0.05));
+export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, onPoint, onScrub, onGo, end, resting, since, onUnfold }: Props) {
+  const looksGood = end?.looksGood;
+  const stepEnd = (step: number) => scene.steps[step + 1]?.at ?? scene.length;
+  const stepOf = (moment: number) => Math.max(0, scene.steps.findIndex((_, step) => stepEnd(step) >= moment - 0.05));
   // How far into its step a moment is, in the time it plays in, waiting cut short, so the line fills at one speed, from
   // where the step starts playing to its result; and the moment that far in.
-  const span = (step: number) => [stepStart(scene, step, cut), end(step) - 0.05].map((moment) => (cut ? cut.cut(moment) : moment)) as [number, number];
+  const span = (step: number) => [stepStart(scene, step, cut), stepEnd(step) - 0.05].map((moment) => (cut ? cut.cut(moment) : moment)) as [number, number];
   const share = (step: number, moment: number) => {
     const [from, to] = span(step);
     return clamp(((cut ? cut.cut(moment) : moment) - from) / Math.max(to - from, 0.01), 0, 1);
@@ -109,7 +111,7 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
     const watching = new ResizeObserver(measure);
     for (const row of way.children) watching.observe(row);
     return () => watching.disconnect();
-  }, [on, stops.length, !!looksGood]);
+  }, [on, stops.length, !!end]);
 
   const along = (clientX: number) => {
     const box = line.current!.getBoundingClientRect();
@@ -160,7 +162,7 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
         <span className="absolute inset-0 origin-top bg-soft [scale:1_var(--reach,0)] transition-[scale] duration-300 ease-calm" />
       </li>
       {/* The surface the stop you're on sits on: one, gliding along with the rail's fill as you go. */}
-      <li aria-hidden className={`pointer-events-none absolute top-0 left-6 -right-3 h-(--here) translate-y-(--here-top) rounded-xl transition-[translate,height,opacity,background-color] duration-300 ease-calm phone:left-5 ${on === stops.length ? "bg-[color-mix(in_srgb,var(--green)_13%,var(--surface))]" : "bg-surface"} ${on < 0 || resting ? "opacity-0" : ""}`} />
+      <li aria-hidden className={`pointer-events-none absolute top-0 left-6 -right-3 h-(--here) translate-y-(--here-top) rounded-xl transition-[translate,height,opacity,background-color] duration-300 ease-calm phone:left-5 ${on === stops.length && looksGood ? "bg-[color-mix(in_srgb,var(--green)_13%,var(--surface))]" : "bg-surface"} ${on < 0 || resting ? "opacity-0" : ""}`} />
       {stops.map((stop, k) => {
         const here = k === on;
         const gone = k < on;
@@ -257,22 +259,31 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
           </li>
         );
       }).concat(
-        looksGood ? (
-          <li key="looks good" {...row(stops.length)} inert={resting}>
+        end ? (
+          <li key="end" {...row(stops.length)} inert={resting}>
             <span data-sign="" className={`absolute top-2 left-0 grid size-5 place-items-center rounded-full bg-ground transition-[scale] duration-300 ease-calm ${on === stops.length ? "scale-125" : ""}`}>
-              <EndMark end={looksGood.good ? "good" : "asks"} ahead={on !== stops.length} just={false} className="size-3.5" />
+              <EndMark end={end.mark} ahead={on !== stops.length} just={false} className="size-3.5" />
             </span>
             {/* At the end, saying it is the one thing to do here: the surface it's on takes the colour it turns. */}
-            <button
-              aria-pressed={looksGood.good}
-              className={`flex w-full items-center justify-between gap-2.5 pr-2 text-left text-[14px] leading-5 transition-colors duration-300 ease-calm ${looksGood.good || on === stops.length ? "text-green" : "text-soft hover:text-fg"}`}
-              // Said, the way goes on, and the key that said it is the page's again, not this button's: Enter on the next
-              // scene's Looks good would otherwise press this one again and take it back.
-              onClick={(event) => (looksGood.onPress(), event.currentTarget.blur())}
-            >
-              Looks good
-              {on === stops.length && !looksGood.good && <Key>↵</Key>}
-            </button>
+            {looksGood ? (
+              <button
+                aria-pressed={looksGood.good}
+                className={`flex w-full items-center justify-between gap-2.5 pr-2 text-left text-[14px] leading-5 transition-colors duration-300 ease-calm ${looksGood.good || on === stops.length ? "text-green" : "text-soft hover:text-fg"}`}
+                // Said, the way goes on, and the key that said it is the page's again, not this button's: Enter on the next
+                // scene's Looks good would otherwise press this one again and take it back.
+                onClick={(event) => (looksGood.onPress(), event.currentTarget.blur())}
+              >
+                Looks good
+                {on === stops.length && !looksGood.good && <Key>↵</Key>}
+              </button>
+            ) : (
+              <p className="text-[14px] leading-5">{end.says}</p>
+            )}
+            {end.onNote && (
+              <button className="mt-1.5 mb-0.5 text-[12.5px] leading-[18px] text-soft underline-offset-[3px] hover:text-fg hover:underline" onClick={end.onNote}>
+                Note on the whole scene
+              </button>
+            )}
           </li>
         ) : [],
       )}

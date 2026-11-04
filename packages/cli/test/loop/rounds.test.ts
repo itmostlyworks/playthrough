@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { mkdir, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, describe, test } from "node:test";
-import { newId } from "@playthrough/review";
+import { newId, type Send } from "@playthrough/review";
 import { addExport, example, exportThem, seeOverdue, seePaid, type Example } from "./example.ts";
 
 let app: Example;
@@ -169,19 +169,18 @@ describe("The command line, as an agent uses it, round after round", { timeout: 
     assert.equal((await app.round(2)).replies[0]?.words, "It's darker now.");
   });
 
-  test("handed over, a round's answers wait for what's said of them, a Not quite from anyone sends one back, and wait says whose each verdict is", async () => {
+  test("handed over, a round's answers wait for what's said of them, a reply from anyone sends one back, and wait says whose each word is", async () => {
     const waiting = app.run(["wait", "overdue"]);
     await app.reviews.wait("overdue", (review) => !!review.rounds.find((round) => round.number === 2)?.finished);
     const [note] = (await app.round(2)).replies.map((reply) => reply.note);
-    const verdict = (by: string, verdict: "looks good" | "not quite", words?: string) =>
-      app.reviews.send("overdue", { id: newId(), round: 2, by, sent: new Date().toISOString(), notes: [], verdicts: [{ note: note!, verdict, words }], looksGood: [] });
-    await verdict("Ana", "looks good");
-    await verdict("Ben", "not quite", "Still hard to read on a phone.");
+    const sent = (by: string, said: Partial<Send>) => app.reviews.send("overdue", { id: newId(), round: 2, by, sent: new Date().toISOString(), notes: [], verdicts: [], looksGood: [], ...said });
+    await sent("Ana", { verdicts: [{ note: note!, verdict: "looks good" }] });
+    await sent("Ben", { replies: [{ note: note!, words: "Still hard to read on a phone." }] });
 
     const { said, code } = await waiting;
     assert.equal(code, 0);
     assert.match(said, new RegExp(`Round 2 is ready for review\\. Tell the person it.s theirs: npx playthrough open overdue opens it\\.\\nWaiting for notes on overdue…\\n\\nAna says your answer to note ${note} looks good\\.`));
-    assert.match(said, /Ana: The badge is hard to read\.\n    You, in round 2: It's darker now\.\n    Ana, looks good\n    Ben, not quite: Still hard to read on a phone\./);
+    assert.match(said, /Ana: The badge is hard to read\.\n    You, in round 2: It's darker now\.\n    Ana, looks good\n    Ben: Still hard to read on a phone\./);
     assert.match(said, /record round 3: playthrough record overdue/);
 
     await app.run(["record", "overdue"]);

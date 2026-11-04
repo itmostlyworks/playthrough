@@ -47,9 +47,11 @@ export function conversation(review: Review, id: string): Turn[] {
     const reply = round.replies.find((reply) => reply.note === id);
     if (reply?.words.trim()) turns.push({ turn: { by: round.by, agent: true, round: round.number, words: reply.words }, order: 1 });
   }
-  for (const send of review.sends)
+  for (const send of review.sends) {
     for (const verdict of send.verdicts.filter((verdict) => verdict.note === id))
       turns.push({ turn: { by: send.by, agent: false, round: send.round, words: verdict.words ?? "", verdict: verdict.verdict }, order: 2 });
+    for (const reply of (send.replies ?? []).filter((reply) => reply.note === id)) turns.push({ turn: { by: send.by, agent: false, round: send.round, words: reply.words }, order: 2 });
+  }
   return turns.sort((a, b) => a.turn.round - b.turn.round || a.order - b.order).map(({ turn }) => turn);
 }
 
@@ -67,16 +69,17 @@ export function waitingForTheAgent(review: Review): string[] {
   return asking(review.sends.filter((send) => !answered(send)));
 }
 
-// What asks for an answer in some sends: a new note, or one whose answer was last said not to be quite right. A note
-// has one state for everyone, so the last word on it decides, whoever said it.
+// What asks for an answer in some sends: a new note, or one whose answer was last replied to rather than said to look
+// good. A note has one state for everyone, so the last word on it decides, whoever said it.
 function asking(sends: Send[]): string[] {
   const asks = new Set<string>();
-  const last = new Map<string, Verdict["verdict"]>();
+  const replied = new Map<string, boolean>();
   for (const send of sends) {
     for (const note of send.notes) asks.add(note.id);
-    for (const verdict of send.verdicts) last.set(verdict.note, verdict.verdict);
+    for (const verdict of send.verdicts) replied.set(verdict.note, false);
+    for (const reply of send.replies ?? []) replied.set(reply.note, true);
   }
-  for (const [note, verdict] of last) if (verdict === "not quite") asks.add(note);
+  for (const [note, yes] of replied) if (yes) asks.add(note);
   return [...asks];
 }
 
@@ -261,7 +264,8 @@ export function problemsWithSend(review: Review, send: Send): string[] {
   if (review.accepted) return ["This review is accepted, so nothing more can be sent."];
   if (review.sends.some((other) => other.id === send.id)) return [`Something else was already sent as ${send.id}. Send this with a new id.`];
   const takenBack = send.takenBack ?? [];
-  if (!send.notes.length && !send.verdicts.length && !send.looksGood.length && !takenBack.length) return ["There's nothing in this send."];
+  const replies = send.replies ?? [];
+  if (!send.notes.length && !send.verdicts.length && !replies.length && !send.looksGood.length && !takenBack.length) return ["There's nothing in this send."];
 
   const round = review.rounds.find((round) => round.number === send.round);
   if (send.round === 0) return ["Round 0 is Before: notes go on the rounds after it."];
@@ -281,6 +285,14 @@ export function problemsWithSend(review: Review, send: Send): string[] {
     const known = notes.get(verdict.note);
     if (send.notes.some((note) => note.id === verdict.note)) problems.push(`Note ${verdict.note} is new: it needs words, not a verdict.`);
     else if (!known || known.round > send.round) problems.push(`There's no note ${verdict.note} on round ${send.round} to judge.`);
+  }
+
+  problems.push(...duplicates(replies.map((reply) => reply.note), (id) => `This send has two replies on note ${id}. Say it all in one.`));
+  for (const reply of replies) {
+    const known = notes.get(reply.note);
+    if (send.notes.some((note) => note.id === reply.note)) problems.push(`Note ${reply.note} is new: say it in the note, not a reply.`);
+    else if (!known || known.round > send.round) problems.push(`There's no note ${reply.note} on round ${send.round} to reply to.`);
+    else if (send.verdicts.some((verdict) => verdict.note === reply.note)) problems.push(`This send judges note ${reply.note} and replies to it: say one.`);
   }
 
   problems.push(...duplicates(send.looksGood, (scene) => `This send says “${scene}” looks good twice.`));

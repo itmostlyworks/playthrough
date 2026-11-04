@@ -16,7 +16,7 @@ export function lastLooked(review: Review, you: string, scene: string, before = 
         send.looksGood.includes(scene) ||
         !!send.takenBack?.includes(scene) ||
         send.notes.some((note) => note.on?.scene === scene) ||
-        send.verdicts.some((verdict) => notes.get(verdict.note)?.note.on?.scene === scene),
+        [...send.verdicts, ...(send.replies ?? [])].some((said) => notes.get(said.note)?.note.on?.scene === scene),
     )
     .map((send) => send.round);
   return rounds.length ? Math.max(...rounds) : undefined;
@@ -66,10 +66,11 @@ export function yourNotes(review: Review, round: number, you: string): Map<strin
   return yours;
 }
 
-// A note's latest answer is to judge until someone says whether it fixes it. Anyone can, on anyone's note.
+// A note's latest answer is to judge until someone says whether it fixes it, or replies to it. Anyone can, on anyone's
+// note.
 export function toJudge(turns: Turn[]): boolean {
   const answered = turns.findLast((turn) => turn.agent)?.round;
-  return answered !== undefined && !turns.some((turn) => !turn.agent && turn.verdict && turn.round >= answered);
+  return answered !== undefined && !turns.some((turn) => !turn.agent && turn.round >= answered);
 }
 
 // One of your notes waits for you once it has an answer nobody has judged yet.

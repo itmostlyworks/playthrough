@@ -64,11 +64,11 @@ test("whoever says an answer looks good settles the note for everyone, under the
   assert.deepEqual([ben?.state, ben?.yours], ["settled", false]);
 });
 
-test("a Not quite after someone's Looks good sends the note back for everyone", async () => {
+test("a reply after someone's Looks good sends the note back for everyone", async () => {
   const reviews = new Reviews(memory());
   await twoPeople(reviews);
   await reviews.send("export", send("Ben", 2, { verdicts: [{ note: note.id, verdict: "looks good" }] }));
-  await reviews.send("export", send("Ana", 2, { verdicts: [{ note: note.id, verdict: "not quite", words: "It should still be only the overdue ones." }] }));
+  await reviews.send("export", send("Ana", 2, { replies: [{ note: note.id, words: "It should still be only the overdue ones." }] }));
   const review = await reviews.get("export");
   assert.deepEqual(notesOn(review, 2, "Ben").map((note) => note.state), ["with the agent"]);
   assert.deepEqual(notesOn(review, 2, "Ana").map((note) => note.state), ["with the agent"]);

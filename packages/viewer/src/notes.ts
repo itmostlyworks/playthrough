@@ -16,6 +16,7 @@ import {
   type Place,
   type Review,
   type Round,
+  type Send,
   type Turn,
   type Verdict,
 } from "@playthrough/review";
@@ -23,8 +24,10 @@ import {
 // What you've written on a round and not sent yet: what a send will carry, with the Looks goods you've sent and taken
 // back since, the answers that came with their scene's Looks good, and the notes you started and haven't saved, which
 // never go.
-export type Draft = { notes: Note[]; verdicts: Verdict[]; looksGood: string[]; takenBack: string[]; withTheScene: string[]; unsaved: Note[] };
-export const nothing: Draft = { notes: [], verdicts: [], looksGood: [], takenBack: [], withTheScene: [], unsaved: [] };
+export type Draft = { notes: Note[]; verdicts: Verdict[]; replies: Replied[]; looksGood: string[]; takenBack: string[]; withTheScene: string[]; unsaved: Note[] };
+export const nothing: Draft = { notes: [], verdicts: [], replies: [], looksGood: [], takenBack: [], withTheScene: [], unsaved: [] };
+// A reply of yours on a note: words to what the agent said, judging nothing.
+export type Replied = NonNullable<Send["replies"]>[number];
 
 // What you haven't sent is the review's, each draft under the round it's about, as a send is: a newer round arriving
 // leaves it where it is, and shows it as it shows what you sent.
@@ -36,6 +39,7 @@ export function upTo(unsent: Unsent, round: number): Draft {
   return {
     notes: drafts.flatMap((draft) => draft.notes),
     verdicts: drafts.flatMap((draft) => draft.verdicts),
+    replies: drafts.flatMap((draft) => draft.replies),
     looksGood: drafts.flatMap((draft) => draft.looksGood),
     takenBack: drafts.flatMap((draft) => draft.takenBack),
     withTheScene: drafts.flatMap((draft) => draft.withTheScene),
@@ -49,15 +53,20 @@ export const everyDraft = (unsent: Unsent, change: (draft: Draft) => Draft): Uns
 export const draftOn = (unsent: Unsent, round: number, change: (draft: Draft) => Draft): Unsent => ({ ...unsent, [round]: change(unsent[round] ?? nothing) });
 
 // What a send carries of the draft.
-export const sendOf = ({ notes, verdicts, looksGood, takenBack }: Draft) => ({ notes, verdicts, looksGood, ...(takenBack.length && { takenBack }) });
-// What a send holds, in a few words: the notes, the answers judged, the scenes that look good.
+export const sendOf = ({ notes, verdicts, replies, looksGood, takenBack }: Draft) => ({ notes, verdicts, ...(replies.length && { replies }), looksGood, ...(takenBack.length && { takenBack }) });
+// What a send holds, in a few words: the notes, the answers judged and replied to, the scenes that look good.
 export function toSend(draft: Draft): string {
   const count = (n: number, one: string, many: string) => (n ? [`${n} ${n === 1 ? one : many}`] : []);
   const judged = draft.verdicts.filter((verdict) => !draft.withTheScene.includes(verdict.note)).length;
-  return [...count(draft.notes.length, "note", "notes"), ...count(judged, "answer judged", "answers judged"), ...count(draft.looksGood.length, "looks good", "look good")].join(", ");
+  return [
+    ...count(draft.notes.length, "note", "notes"),
+    ...count(judged, "answer judged", "answers judged"),
+    ...count(draft.replies.length, "reply", "replies"),
+    ...count(draft.looksGood.length, "looks good", "look good"),
+  ].join(", ");
 }
 
-export const said = (draft: Draft) => draft.notes.length + draft.verdicts.length + draft.looksGood.length + draft.takenBack.length;
+export const said = (draft: Draft) => draft.notes.length + draft.verdicts.length + draft.replies.length + draft.looksGood.length + draft.takenBack.length;
 
 // The scenes a newer round shows as they were: nothing found changed in them since, or only what the agent says isn't
 // real.
@@ -141,7 +150,7 @@ function everyNote(review: Review, round: number, you: string, unsent: Unsent): 
         : waitingFor.length
           ? "with someone else"
           : "settled";
-    const unsent = draft.notes.some((kept) => kept.id === id) || draft.verdicts.some((verdict) => verdict.note === id);
+    const unsent = [...draft.notes.map((kept) => kept.id), ...draft.verdicts.map((verdict) => verdict.note), ...draft.replies.map((reply) => reply.note)].includes(id);
     const shown = { id, number: numbered.get(id) ?? 0, on: note.on, written: started, turns, state, waitingFor, yours: yours.has(id), toJudge: toJudge(turns), unsent };
     every.push([shown, started === round || turns.some((turn) => turn.round === round) || state !== "settled"]);
   }
@@ -174,10 +183,7 @@ export function standings(review: Review, round: number, you: string, unsent: Un
       if (review.accepted) return stands("good", 0, false);
       if (goodForYou(then, round, you, name)) return stands("good");
       if (draft.unsaved.some((note) => note.on?.scene === name)) return stands("not saved", 1, false);
-      // An answer on the whole scene is answered by the scene's own Looks good: saying Not quite to the scene instead leaves it
-      // as it was, and it doesn't hold up sending.
-      const held = on.filter((note) => note.state === "needs you" && note.on?.at !== undefined).length;
-      if (toSend || sent) return held ? stands("needs you", held, false) : toSend ? stands("to send", toSend, false) : stands("with the agent", 0, false);
+      if (toSend || sent) return waiting ? stands("needs you", waiting, false) : toSend ? stands("to send", toSend, false) : stands("with the agent", 0, false);
       if (waiting) return stands("needs you", waiting);
       const lastWord = then.sends.findLast((send) => send.by === you && (send.looksGood.includes(name) || send.takenBack?.includes(name)));
       if (lastWord?.looksGood.includes(name)) return stands("looked good");

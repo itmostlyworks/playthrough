@@ -21,7 +21,7 @@ import type { Step } from "./Step.tsx";
 import { Work } from "./Work.tsx";
 import { follow, pausedAt, readyAt, readyIn, samePaused, takenOver, type Live, type Paused } from "./live.ts";
 import { along, CARD, clamp, SCENE_IN, momentAt, POSTER, type Moment } from "./moments.ts";
-import { asIfSent, changedFirst, draftOn, toSend, everyDraft, fill, ink, lookGood, notesOn, nothing, said, seen, sendOf, settledBefore, standings, takeBack, upTo, workingSince, type Draft, type Shown } from "./notes.ts";
+import { asIfSent, changedFirst, draftOn, toSend, everyDraft, fill, ink, lookGood, notesOn, nothing, said, seen, sendOf, settledBefore, standings, takeBack, upTo, workingSince, type Draft, type Replied, type Shown } from "./notes.ts";
 import { NoteRow, number as numberLook, Writing, type Comparing } from "./Notes.tsx";
 import { Playhead, useNow, type Forked } from "./playhead.ts";
 import { changesIn, recorded } from "./replay.ts";
@@ -122,10 +122,10 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, scene: inAd
   // Until a newer round is followed, the round you're on is still the one you act on.
   const current = round === latest || !!newer;
   const following = useRef(false);
-  // The note whose Not quite is being written.
-  const [asking, setAsking] = useState<string>();
-  if (asking && !(open && "note" in open && open.note === asking)) setAsking(undefined);
-  // What was being written in a note's Not quite or Edit when its card closed, by the note.
+  // The note whose reply is being written.
+  const [replying, setReplying] = useState<string>();
+  if (replying && !(open && "note" in open && open.note === replying)) setReplying(undefined);
+  // What was being written in a note's reply or Edit when its card closed, by the note.
   const [unfinished, setUnfinished] = useState<Record<string, string>>({});
   const keepUnfinished = (id: string, words: string | undefined) =>
     setUnfinished(({ [id]: _, ...others }) => (words === undefined ? others : { ...others, [id]: words }));
@@ -695,14 +695,21 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, scene: inAd
     change((draft) => ({ ...draft, notes: draft.notes.flatMap((note) => (note.id !== id ? [note] : words ? [{ ...note, words }] : [])) }));
     if (!words) setOpen(undefined);
   };
-  // Judging an answer yourself takes it from its scene's Looks good; Not quite takes back the scene's Looks good.
-  const judge = (note: Shown, verdict: Verdict | undefined) =>
+  // Judging an answer yourself, or replying to it, takes it from its scene's Looks good, and takes the place of what you
+  // said on it before; a reply takes back the scene's Looks good, as it asks the agent again.
+  const judge = (note: Shown, said: Verdict | Replied | undefined) =>
     changeUnsent((unsent) => {
       const unjudged = everyDraft(unsent, (draft) => {
-        const kept = verdict?.verdict === "not quite" && note.on ? takeBack(draft, note.on.scene, notes) : draft;
-        return { ...kept, verdicts: kept.verdicts.filter((kept) => kept.note !== note.id), withTheScene: kept.withTheScene.filter((id) => id !== note.id) };
+        const kept = said && !("verdict" in said && said.verdict === "looks good") && note.on ? takeBack(draft, note.on.scene, notes) : draft;
+        return {
+          ...kept,
+          verdicts: kept.verdicts.filter((kept) => kept.note !== note.id),
+          replies: kept.replies.filter((kept) => kept.note !== note.id),
+          withTheScene: kept.withTheScene.filter((id) => id !== note.id),
+        };
       });
-      return verdict ? draftOn(unjudged, round.number, (draft) => ({ ...draft, verdicts: [...draft.verdicts, verdict] })) : unjudged;
+      if (!said) return unjudged;
+      return draftOn(unjudged, round.number, (draft) => ("verdict" in said ? { ...draft, verdicts: [...draft.verdicts, said] } : { ...draft, replies: [...draft.replies, said] }));
     });
   // A scene's Looks good is a checkbox in its header: pressed again, it's taken back.
   // Said, it's kept with the rest until you send, with the answers in it you haven't judged riding along. Pressed again,
@@ -867,14 +874,14 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, scene: inAd
         fresh={fresh === note.id}
         compare={isOpen && !was && (answered(note) || grownHere) ? comparingIt : undefined}
         whereYouWere={tryHere}
-        asking={asking === note.id}
+        replying={replying === note.id}
         unfinished={unfinished[note.id]}
         away={away}
         grown={grownHere}
         whole={note.on?.at === undefined}
         onOpen={() => pick(note)}
         onClose={() => setOpen(undefined)}
-        onAsking={(on) => setAsking(on ? note.id : undefined)}
+        onReplying={(on) => setReplying(on ? note.id : undefined)}
         onUnfinished={(words) => keepUnfinished(note.id, words)}
         onJudge={(verdict) => judge(note, verdict)}
         onEdit={(words) => editNote(note.id, words)}
@@ -907,8 +914,8 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, scene: inAd
     keys.up = now - keys.down < 300 ? now : 0;
   };
 
-  // The open card answers Enter and X, as its buttons say: Looks good and Not quite on an answer not yet judged, Play on and a note on
-  // a change. C compares, held for a look and tapped for side by side, as the pointer does on Compare.
+  // The open card answers Enter, R and X, as its buttons say: Looks good and Reply on an answer not yet judged, Play on
+  // and a note on a change. C compares, held for a look and tapped for side by side, as the pointer does on Compare.
   const openNote = open && "note" in open ? notes.find((note) => note.id === open.note) : undefined;
   const asks = !!openNote && !readOnly && openNote.on?.at !== undefined && openNote.toJudge && !draft.verdicts.some((verdict) => verdict.note === openNote.id) && openNote.on?.scene === watching;
   // In the app where you were, with the note you're trying open: it stays by its pin there while you try it.
@@ -1052,7 +1059,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, scene: inAd
   // At the foot of every scene, what's yours to do: finish a note you started; send what you've said, all of it at once,
   // so the agent starts on the whole of it; accept, once nothing waits on you or the agent, sending your Looks goods
   // with it; else what the agent is doing. Looking back, it's the way back to now.
-  const asksTheAgent = draft.notes.length > 0 || draft.verdicts.some((verdict) => verdict.verdict === "not quite");
+  const asksTheAgent = draft.notes.length > 0 || draft.replies.length > 0;
   const gridStep = ((): Step | undefined => {
     if (review.accepted || acceptedHere) return undefined;
     if (!current) return arrived ? undefined : step;
@@ -1156,11 +1163,13 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, scene: inAd
           event.preventDefault();
           step.take();
         }
-      } else if (event.key.toLowerCase() === "x" && !event.repeat) {
+      } else if (event.key.toLowerCase() === "r" && !event.repeat && asks) {
         // The box it opens takes the next key, not this one.
         event.preventDefault();
-        if (asks) setAsking(openNote.id);
-        else if (chosen && oneOpen && !readOnly) noteOn(chosen, oneOpen);
+        setReplying(openNote.id);
+      } else if (event.key.toLowerCase() === "x" && !event.repeat && chosen && oneOpen && !readOnly) {
+        event.preventDefault();
+        noteOn(chosen, oneOpen);
       } else if (event.key.toLowerCase() === "c" && !event.repeat && comparingIt && !live?.shown) {
         pressCompare();
       } else if (event.key.toLowerCase() === "n" && !event.repeat) {

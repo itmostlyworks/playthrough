@@ -13,10 +13,10 @@ import { picture, readings as readingsOf, recording } from "./api.ts";
 import { Bar } from "./Bar.tsx";
 import { Compare, HOLD, Said } from "./Card.tsx";
 import { answersTo, type Diamond } from "./changes.ts";
-import { EndMark } from "./Chosen.tsx";
+import { EndMark, endOf } from "./Chosen.tsx";
 import { clamp } from "./moments.ts";
 import { Conversation, quiet as quietNumber, quietly } from "./Notes.tsx";
-import { fill, ink, type Shown, type Standing } from "./notes.ts";
+import { fill, ink, type Replied, type Shown, type Standing } from "./notes.ts";
 import { asWho, personAt } from "./people.ts";
 import { around, Picture, union, type Box, type Frame } from "./Picture.tsx";
 import { Pinned, type Pin } from "./Pinned.tsx";
@@ -63,9 +63,11 @@ export function SceneView(props: SceneViewProps) {
   const stepOf = (at: number) => Math.max(0, scene.steps.findIndex((_, i) => stepEnd(scene, i) >= at - 0.05));
   // A note's moment: where it was made, or made in the app, where the app was taken over.
   const momentOf = (note: { on?: Place }) => (note.on?.app ? note.on.app.from.at : note.on?.at);
-  // The note you're writing on it, here or in the app, at its moment: a stop like any other, where its words are written.
-  const writingAt = acting.writing?.note.on?.scene === scene.name ? momentOf(acting.writing.note) : undefined;
-  const writing = writingAt !== undefined ? acting.writing : undefined;
+  // The note you're writing on it, here or in the app, at its moment, or on the whole scene, at its end: a stop like any
+  // other, where its words are written.
+  const ours = acting.writing?.note.on?.scene === scene.name ? acting.writing : undefined;
+  const writingAt = ours && momentOf(ours.note);
+  const writing = writingAt !== undefined ? ours : undefined;
   // On the steps' lines, each note's dot and each change's diamond, where they are.
   // Where a change is on the way: at its moment, a step's result counted as that step's; new steps from where the first
   // of them plays, not the result of the step before them, where they start.
@@ -108,11 +110,10 @@ export function SceneView(props: SceneViewProps) {
     while (last + 1 < scene.steps.length && together(last + 1)) last++;
     return [first, last] as const;
   };
-  // The way through it, a stop at a time: what was said about all of it, then each step, and after it what was said in
-  // it, in the order it comes, a change before what you said about it. Two or more steps in a row with nothing new are
-  // one stop, played through.
+  // The way through it, a stop at a time: each step, and after it what was said in it, in the order it comes, a change
+  // before what you said about it; then what was said about all of it, where it ends. Two or more steps in a row with
+  // nothing new are one stop, played through.
   const stops: Stop[] = [
-    ...notes.filter((note) => momentOf(note) === undefined).map((note) => ({ step: -1, id: note.id })),
     ...scene.steps.flatMap((_, i): Stop[] => {
       const [first, last] = together(i) ? run(i) : [i, i];
       if (last > first) return i === first ? [{ step: last, at: results[last]!, from: first }] : [];
@@ -124,10 +125,22 @@ export function SceneView(props: SceneViewProps) {
           .map((mark) => ({ step: i, at: mark.at, id: mark.id })),
       ];
     }),
+    ...notes.filter((note) => momentOf(note) === undefined).map((note) => ({ step: -1, id: note.id })),
+    ...(ours && !writing ? [{ step: -1, id: ours.note.id }] : []),
   ];
-  // And last, where it can be said, whether it looks good to you: the way ends in it.
-  const looksGood = standing && onLooksGood && JUDGED.includes(standing.is) ? { good: standing.is === "good", onPress: () => (onLooksGood(scene.name), standing.is !== "good" && props.onSaid()) } : undefined;
-  const last = stops.length - (looksGood ? 0 : 1);
+  // And last, its end, where anything can be said about the whole of it: whether it looks good to you, once nothing in
+  // it is still open, or else where what's open stands; and a note on the whole scene, written there.
+  const atEnd =
+    standing && onLooksGood
+      ? {
+          mark: endOf(standing),
+          // Only while nothing of yours in it is unsent or with the agent: those ask nothing more of it this round.
+          looksGood: JUDGED.includes(standing.is) && standing.asks ? { good: standing.is === "good", onPress: () => (onLooksGood(scene.name), standing.is !== "good" && props.onSaid()) } : undefined,
+          says: <span className={INK[standing.is]}>{says(standing)}</span>,
+          onNote: ours ? undefined : () => acting.onPlace({ scene: scene.name }),
+        }
+      : undefined;
+  const last = stops.length - (atEnd ? 0 : 1);
   const waiting = notes.find((note) => note.toJudge && momentOf(note) !== undefined);
   const [clock] = useState(() => new Clock(waiting ? Math.min(momentOf(waiting)!, end) : results[0]!));
   const [at, setAt] = useState(clock.at);
@@ -177,8 +190,8 @@ export function SceneView(props: SceneViewProps) {
   const opened = (id?: string) => (id && stops.some((one) => one.id === id) && setStop(stops.findIndex((one) => one.id === id)), setPicked(id));
   // A note begun is the stop you're on, as you write it; let go unsaved, you're back on the stop you were on.
   const [begun, setBegun] = useState<{ id: string; from: number }>();
-  if (writing?.note.id !== begun?.id) {
-    if (writing) (setBegun({ id: writing.note.id, from: stop }), setStop(stops.findIndex((one) => one.id === writing.note.id)));
+  if (ours?.note.id !== begun?.id) {
+    if (ours) (setBegun({ id: ours.note.id, from: stop }), setStop(stops.findIndex((one) => one.id === ours.note.id)));
     else (setBegun(undefined), begun && !stops.some((one) => one.id === begun.id) && setStop(begun.from));
   }
   // The last scene can come up to the window's top: there's a window's height under it, less its own. And its way
@@ -360,18 +373,18 @@ export function SceneView(props: SceneViewProps) {
   if (acting.opened !== saved) (setSaved(acting.opened), acting.opened && notes.some((note) => note.id === acting.opened) && opened(acting.opened));
   // Only a note being written has its card on the recording, where it was dropped; what's said is under its step.
   const open = writing ? writing.note.id : !side && pins.some((pin) => pin.id === chosen) ? chosen : undefined;
-  const [asking, setAsking] = useState<string>();
-  // At an answer waiting on you, Enter says it looks good and X that it's not quite, as its buttons say; at the way's end,
+  const [replying, setReplying] = useState<string>();
+  // At an answer waiting on you, Enter says it looks good and R replies, as its buttons say; at the way's end,
   // Enter says the scene looks good. It's heard first, on the way in, so the page's own Enter never has it too.
-  const answering = notes.find((note) => note.id === stops[stop]?.id && note.toJudge && !threads.readOnly && asking !== note.id);
-  const ending = stop === stops.length && looksGood && !looksGood.good ? looksGood : undefined;
+  const answering = notes.find((note) => note.id === stops[stop]?.id && note.toJudge && !threads.readOnly && replying !== note.id);
+  const ending = stop === stops.length && atEnd?.looksGood && !atEnd.looksGood.good ? atEnd.looksGood : undefined;
   useEffect(() => {
     if (!active || !(answering || ending) || taken || noting || acting.writing) return;
     const down = (event: KeyboardEvent) => {
       if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || (event.target as Element).closest?.("button, input, textarea, [contenteditable], [role=slider]")) return;
       if (event.key === "Enter" && ending) (event.preventDefault(), event.stopImmediatePropagation(), ending.onPress());
       else if (event.key === "Enter" && answering) (event.preventDefault(), event.stopImmediatePropagation(), threads.onJudge(answering, { note: answering.id, verdict: "looks good" }), props.onSaid());
-      else if (event.key.toLowerCase() === "x" && answering) (event.preventDefault(), event.stopImmediatePropagation(), setAsking(answering.id));
+      else if (event.key.toLowerCase() === "r" && answering) (event.preventDefault(), event.stopImmediatePropagation(), setReplying(answering.id));
     };
     addEventListener("keydown", down, true);
     return () => removeEventListener("keydown", down, true);
@@ -380,11 +393,11 @@ export function SceneView(props: SceneViewProps) {
   // What was said at a stop: a note of yours, its thread, or the one you're writing; or a change new to you, the agent's
   // words on why, or that it was made for a note of yours. Its sign on the rail is the note's number, or a diamond.
   const said = (id: string): Saying => {
-    if (id === writing?.note.id)
+    if (id === ours?.note.id)
       return {
-        sign: <span className="size-4 rounded-full bg-amber text-center text-[9px] leading-4 font-semibold text-white">{writing.number}</span>,
+        sign: <span className="size-4 rounded-full bg-amber text-center text-[9px] leading-4 font-semibold text-white">{ours.number}</span>,
         line: "Your new note",
-        whole: <div className="grid gap-2.5 pt-1 pb-1.5 text-[13px]">{writing.words}</div>,
+        whole: <div className="grid gap-2.5 pt-1 pb-1.5 text-[13px]">{ours.words}</div>,
       };
     const note = notes.find((note) => note.id === id);
     const diamond = diamonds.find((diamond) => diamond.id === id);
@@ -407,12 +420,12 @@ export function SceneView(props: SceneViewProps) {
               note={note}
               you={threads.you}
               readOnly={threads.readOnly}
-              asking={asking === note.id}
+              replying={replying === note.id}
               unfinished={threads.unfinished[note.id]}
               away={false}
-              onAsking={(on) => setAsking(on ? note.id : undefined)}
+              onReplying={(on) => setReplying(on ? note.id : undefined)}
               onUnfinished={(words) => threads.onUnfinished(note.id, words)}
-              onJudge={(verdict) => (threads.onJudge(note, verdict), verdict && props.onSaid())}
+              onJudge={(said) => (threads.onJudge(note, said), said && "verdict" in said && said.verdict === "looks good" && props.onSaid())}
               onEdit={(words) => threads.onEdit(note.id, words)}
               onShow={() => {}}
               compare={comparing}
@@ -650,7 +663,7 @@ export function SceneView(props: SceneViewProps) {
             on={Math.min(stop, last)}
             marks={onLine}
             said={said}
-            looksGood={looksGood}
+            end={atEnd}
             since={since}
             onUnfold={unfold}
             resting={taken}
@@ -747,7 +760,7 @@ export type Threads = {
   readOnly: boolean;
   unfinished: Record<string, string>;
   onUnfinished: (id: string, words: string | undefined) => void;
-  onJudge: (note: Shown, verdict: Verdict | undefined) => void;
+  onJudge: (note: Shown, said: Verdict | Replied | undefined) => void;
   onEdit: (id: string, words: string | undefined) => void;
 };
 

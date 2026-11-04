@@ -7,7 +7,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { list, time, type Turn, type Verdict } from "@playthrough/review";
 import { Answer, Compare, mac, play, Said, TakeOverHere, tick, Time } from "./Card.tsx";
 import { when, type Diamond } from "./changes.ts";
-import { ink, type Shown } from "./notes.ts";
+import { ink, type Replied, type Shown } from "./notes.ts";
 import { useNow, type Playhead } from "./playhead.ts";
 
 export const number = "size-[18px] flex-none rounded-full text-center text-[10px] leading-[18px] font-semibold";
@@ -41,9 +41,9 @@ type Props = {
   // Made in the app on an earlier round, it's checked by trying it: taken over where you were, in Compare's place, or
   // without onTakeOver, said plainly that this round's recording doesn't go there.
   whereYouWere?: { round: number; live?: "waiting" | "shown"; onTakeOver?: () => void };
-  // Not quite, being written.
-  asking: boolean;
-  // What was being written in Not quite or Edit when the card closed, until it's saved or cancelled.
+  // A reply, being written.
+  replying: boolean;
+  // What was being written in a reply or Edit when the card closed, until it's saved or cancelled.
   unfinished?: string;
   // What it's on isn't on screen: it greys and asks nothing.
   away: boolean;
@@ -54,9 +54,10 @@ type Props = {
   whole?: boolean;
   onOpen: () => void;
   onClose: () => void;
-  onAsking: (asking: boolean) => void;
+  onReplying: (replying: boolean) => void;
   onUnfinished: (words: string | undefined) => void;
-  onJudge: (verdict: Verdict | undefined) => void;
+  // Looks good on the latest answer, or a reply to it; or taking back what you said on it.
+  onJudge: (said: Verdict | Replied | undefined) => void;
   onEdit: (words: string | undefined) => void;
   // On the whole scene, the moments the agent changed something for it, each going there as its diamond on the timeline
   // does.
@@ -137,7 +138,7 @@ function exchanges(turns: Turn[]): Turn[][] {
 
 // A note's conversation, as its card holds it in the player and its thread on the page: what was said, under each
 // one's name, and the question where it waits on you.
-type ConversationProps = Pick<Props, "note" | "you" | "readOnly" | "compare" | "whereYouWere" | "asking" | "unfinished" | "away" | "whole" | "onAsking" | "onUnfinished" | "onJudge" | "onEdit" | "changedAt" | "onDiamond" | "onShow"> & {
+type ConversationProps = Pick<Props, "note" | "you" | "readOnly" | "compare" | "whereYouWere" | "replying" | "unfinished" | "away" | "whole" | "onReplying" | "onUnfinished" | "onJudge" | "onEdit" | "changedAt" | "onDiamond" | "onShow"> & {
   // Where it plays on from, once judged; none on the page, where the step loops by itself.
   onPlayOn?: () => void;
 };
@@ -145,30 +146,32 @@ type ConversationProps = Pick<Props, "note" | "you" | "readOnly" | "compare" | "
 export function Conversation(props: ConversationProps) {
   const { note, you, readOnly, compare, whereYouWere } = props;
   const draftNote = note.unsent && note.turns.length === 1;
+  // What you said on the latest answer and haven't sent: Looks good, or a reply, which judges nothing.
   const judged = note.unsent && !draftNote ? note.turns.at(-1) : undefined;
-  // What you write in Not quite or Edit is kept as a new note's words are: closing the card leaves it, opening it again
+  const replied = judged && !judged.verdict ? judged : undefined;
+  // What you write in a reply or Edit is kept as a new note's words are: closing the card leaves it, opening it again
   // finds it there, and Save or Cancel ends it. The words as they were aren't anything to keep.
   const keep = (was: string) => (words: string) => props.onUnfinished(words.trim() && words !== was ? words : undefined);
-  const asking = props.asking || (!readOnly && !draftNote && props.unfinished !== undefined);
+  const replying = props.replying || (!readOnly && !draftNote && props.unfinished !== undefined);
   // Someone's Looks good, sent, settles the latest answer for everyone, under their name; anyone can still send it back,
   // as a resolved thread is reopened.
   const answeredOn = note.turns.findLast((turn) => turn.agent)?.round;
   const settled = !judged && note.state === "settled" && answeredOn !== undefined && note.turns.findLast((turn) => turn.verdict && turn.round >= answeredOn)?.verdict === "looks good";
-  const setAsking = props.onAsking;
+  const setReplying = props.onReplying;
   const [editing, setEditing] = useState(draftNote && props.unfinished !== undefined);
   const [earlier, setEarlier] = useState(false);
   const said = judged ? note.turns.slice(0, -1) : note.turns;
   const groups = exchanges(said);
-  // The latest exchange; sent back and waiting on the agent, with the answer it sent back over it, as a Not quite reads
-  // as a reply to that answer, which folded away left "Still just Ludwig, please." on its own.
+  // The latest exchange; sent back and waiting on the agent, with the answer it sent back over it, as a reply reads as
+  // one to that answer, which folded away left "Still just Ludwig, please." on its own.
   const latest = groups.at(-1) ?? [];
   const answered = latest.some((turn) => turn.agent) ? [] : (groups.at(-2)?.filter((turn) => turn.agent).slice(-1) ?? []);
   const shown = earlier ? groups.flat() : [...answered, ...latest];
   const folded = said.filter((turn) => turn.agent).length - [...answered, ...latest].filter((turn) => turn.agent).length;
   const name = (turn: Turn) => (turn.agent || turn.by !== you ? turn.by : "You");
-  const comparing = compare && !props.whole && !asking && !editing && !props.away && <Compare {...compare} bar={quietly} />;
+  const comparing = compare && !props.whole && !replying && !editing && !props.away && <Compare {...compare} bar={quietly} />;
   const lastAgent = shown.findLastIndex((turn) => turn.agent);
-  const verdict = (turn: Turn) => turn.verdict && <span className={turn.verdict === "looks good" ? "text-green" : "text-slate"}> · {turn.verdict === "looks good" ? "Looks good" : "Not quite"}</span>;
+  const verdict = (turn: Turn) => turn.verdict && <span className="text-green"> · Looks good</span>;
   const edits = (onEdit: () => void, onRemove?: () => void) => (
     <span className={`flex gap-3 text-[11.5px] text-soft ${onRemove ? "mr-5" : ""}`}>
       <button className="hover:text-fg" onClick={onEdit}>
@@ -231,9 +234,9 @@ export function Conversation(props: ConversationProps) {
           </div>
         ))}
         {note.state === "with someone else" && !readOnly && <p className="text-xs leading-[18px] text-slate">Waiting for {list(note.waitingFor)}</p>}
-        {judged?.verdict === "not quite" && !asking && (
-          <Said who={<>You{verdict(judged)}</>} after={!readOnly && edits(() => setAsking(true))}>
-            {judged.words}
+        {replied && !replying && (
+          <Said who="You" after={!readOnly && edits(() => setReplying(true))}>
+            {replied.words}
           </Said>
         )}
       </>
@@ -249,43 +252,54 @@ export function Conversation(props: ConversationProps) {
   let answers: ReactNode;
   if (props.whole) [question, answers] = ["", undefined];
   else if (readOnly) [question, answers] = [note.state === "settled" ? "Settled" : "", undefined];
-  else if (asking && !props.away)
+  // A reply is your words back to the agent, whatever they are: what's still not right, or an answer to its question. It
+  // judges nothing, and the agent goes on from it.
+  else if (replying && !props.away)
     answers = (
       <Writing
-        words={props.unfinished ?? (judged?.verdict === "not quite" ? judged.words : "")}
-        placeholder="What’s still not right?"
-        question={<span className="text-slate">Not quite</span>}
+        words={props.unfinished ?? replied?.words ?? ""}
+        placeholder="Your reply"
+        question={<span className="text-slate">Reply</span>}
         tone="back"
-        onWords={keep(judged?.verdict === "not quite" ? (judged.words ?? "") : "")}
+        onWords={keep(replied?.words ?? "")}
         onSave={(words) => {
           props.onUnfinished(undefined);
-          props.onJudge({ note: note.id, verdict: "not quite", words });
-          setAsking(false);
+          props.onJudge({ note: note.id, words });
+          setReplying(false);
         }}
         onCancel={() => {
           props.onUnfinished(undefined);
-          setAsking(false);
+          setReplying(false);
         }}
       />
     );
-  else if ((note.toJudge || judged || settled) && !props.away)
+  // Settled, it says so, and only that: anyone can still send it back, quietly, as a resolved thread is reopened.
+  else if (settled && !props.away)
+    question = (
+      <span className="flex items-baseline gap-2">
+        <span className="text-green">Settled</span>
+        <button className="text-soft underline-offset-[3px] hover:text-fg hover:underline" onClick={() => setReplying(true)}>
+          Reply
+        </button>
+      </span>
+    );
+  else if ((note.toJudge || judged) && !props.away)
     [question, answers] = [
       "Does this fix it?",
       <>
         <Answer
-          keys={judged || settled ? undefined : "↵"}
+          keys={judged ? undefined : "↵"}
           tone="good"
-          pressed={judged?.verdict === "looks good" || settled}
+          pressed={judged?.verdict === "looks good"}
           onClick={() => {
-            if (settled) return;
             props.onJudge(judged?.verdict === "looks good" ? undefined : { note: note.id, verdict: "looks good" });
             if (judged?.verdict !== "looks good") props.onPlayOn?.();
           }}
         >
           {tick}Looks good
         </Answer>
-        <Answer keys={judged || settled ? undefined : "X"} tone="back" pressed={judged?.verdict === "not quite"} onClick={() => (judged?.verdict === "not quite" ? props.onJudge(undefined) : setAsking(true))}>
-          Not quite
+        <Answer keys={judged ? undefined : "R"} tone="back" pressed={!!replied} onClick={() => (replied ? props.onJudge(undefined) : setReplying(true))}>
+          Reply
         </Answer>
       </>,
     ];
@@ -307,7 +321,7 @@ export function Conversation(props: ConversationProps) {
     <div className={`grid gap-2.5 px-4 ${props.whole ? "py-3" : "py-2"} [&>p:first-child]:pr-5`}>
       <div className={`grid gap-2.5 transition-opacity duration-250 ease-calm ${props.away && !readOnly ? "opacity-45" : ""}`}>{words}</div>
       {/* In the app, you're already there. */}
-      {whereYouWere && whereYouWere.live !== "shown" && !asking && !editing && !props.away &&
+      {whereYouWere && whereYouWere.live !== "shown" && !replying && !editing && !props.away &&
         (whereYouWere.onTakeOver ? (
           <TakeOverHere waiting={whereYouWere.live === "waiting"} onTakeOver={whereYouWere.onTakeOver} />
         ) : (

@@ -110,9 +110,9 @@ test("two people review the same work, each from where they last looked", async 
   assert.deepEqual(newToYou(review, 2, "Ben").map(({ since }) => since), [1, 0, 1]);
   assert.deepEqual(waitingForYou(review, 2, "Ben"), []);
 
-  // Ana is happy with the answer and the first scene. Ben isn't: a Not quite from anyone sends the answer back.
+  // Ana is happy with the answer and the first scene. Ben isn't: a reply from anyone sends the answer back.
   await reviews.send(id, send("Ana", 2, { verdicts: [{ note: small.id, verdict: "looks good" }], looksGood: ["Export a quarter"] }));
-  await reviews.send(id, send("Ben", 2, { verdicts: [{ note: small.id, verdict: "not quite", words: "Cancel is still tiny on a phone." }] }));
+  await reviews.send(id, send("Ben", 2, { replies: [{ note: small.id, words: "Cancel is still tiny on a phone." }] }));
   review = await reviews.get(id);
   assert.equal(goodForYou(review, 2, "Ana", "Export a quarter"), true);
   assert.equal(readyToAccept(review, "Ana"), false);

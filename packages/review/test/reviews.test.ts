@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, test } from "node:test";
 import { folder } from "../src/folder.ts";
-import { conversation, memory, newId, Refused, Reviews, type Change, type Scene, type Round, type Send, type Storage } from "../src/index.ts";
+import { conversation, memory, toJudge, newId, Refused, Reviews, type Change, type Scene, type Round, type Send, type Storage } from "../src/index.ts";
 
 const folders: string[] = [];
 after(() => Promise.all(folders.map((path) => rm(path, { recursive: true }))));
@@ -264,13 +264,12 @@ for (const [kept, storage] of storages) {
       await assert.rejects(reviews.finish("invoice-export", 2), refused(/A reply goes in its note's scene/));
     });
 
-    test("looks good settles a note, and not quite asks again, in words", async () => {
+    test("looks good settles a note, and a reply asks again", async () => {
       const { reviews, asked } = await working();
       await reviews.saveRound("invoice-export", round(2, { replies: [{ note: asked.id, words: "It fades in now." }] }));
       await reviews.finish("invoice-export", 2);
 
-      await assert.rejects(reviews.send("invoice-export", send(2, { verdicts: [{ note: asked.id, verdict: "not quite" }] })), refused(/needs words/));
-      await reviews.send("invoice-export", send(2, { verdicts: [{ note: asked.id, verdict: "not quite", words: "Now it's too slow." }] }));
+      await reviews.send("invoice-export", send(2, { replies: [{ note: asked.id, words: "Now it's too slow." }] }));
       await reviews.take("invoice-export");
       await reviews.saveRound("invoice-export", round(3));
       await assert.rejects(reviews.finish("invoice-export", 3), refused(/needs an answer/));
@@ -287,23 +286,23 @@ for (const [kept, storage] of storages) {
       const { reviews, asked } = await working();
       await reviews.saveRound("invoice-export", round(2, { by: "Codex", replies: [{ note: asked.id, words: "It fades in now." }] }));
       await reviews.finish("invoice-export", 2);
-      await reviews.send("invoice-export", send(2, { verdicts: [{ note: asked.id, verdict: "not quite", words: "Now it's too slow." }] }));
+      await reviews.send("invoice-export", send(2, { replies: [{ note: asked.id, words: "Now it's too slow." }] }));
       await reviews.send("invoice-export", send(2, { by: "Bo", verdicts: [{ note: asked.id, verdict: "looks good" }] }));
 
       assert.deepEqual(conversation(await reviews.get("invoice-export"), asked.id), [
         { by: "Ana", agent: false, round: 1, words: "The dialog snaps in." },
         { by: "Codex", agent: true, round: 2, words: "It fades in now." },
-        { by: "Ana", agent: false, round: 2, words: "Now it's too slow.", verdict: "not quite" },
+        { by: "Ana", agent: false, round: 2, words: "Now it's too slow." },
         { by: "Bo", agent: false, round: 2, words: "", verdict: "looks good" },
       ]);
     });
 
-    test("a note has one state for everyone, so a Not quite from anyone after a Looks good sends the answer back", async () => {
+    test("a note has one state for everyone, so a reply from anyone after a Looks good sends the answer back", async () => {
       const { reviews, asked } = await working();
       await reviews.saveRound("invoice-export", round(2, { replies: [{ note: asked.id, words: "It fades in now." }] }));
       await reviews.finish("invoice-export", 2);
       await reviews.send("invoice-export", send(2, { by: "Ana", verdicts: [{ note: asked.id, verdict: "looks good" }] }));
-      await reviews.send("invoice-export", send(2, { by: "Ben", verdicts: [{ note: asked.id, verdict: "not quite", words: "Too slow." }] }));
+      await reviews.send("invoice-export", send(2, { by: "Ben", replies: [{ note: asked.id, words: "Too slow." }] }));
       assert.equal((await reviews.take("invoice-export")).length, 2);
       await reviews.saveRound("invoice-export", round(3));
       await assert.rejects(reviews.finish("invoice-export", 3), refused(/needs an answer to note/));
@@ -313,11 +312,35 @@ for (const [kept, storage] of storages) {
       const { reviews, asked } = await working();
       await reviews.saveRound("invoice-export", round(2, { replies: [{ note: asked.id, words: "It fades in now." }] }));
       await reviews.finish("invoice-export", 2);
-      await reviews.send("invoice-export", send(2, { by: "Ben", verdicts: [{ note: asked.id, verdict: "not quite", words: "Too slow." }] }));
+      await reviews.send("invoice-export", send(2, { by: "Ben", replies: [{ note: asked.id, words: "Too slow." }] }));
       await reviews.send("invoice-export", send(2, { by: "Ana", verdicts: [{ note: asked.id, verdict: "looks good", words: "It's fine, it's meant to be calm." }] }));
       await reviews.take("invoice-export");
       await reviews.saveRound("invoice-export", round(3));
       await reviews.finish("invoice-export", 3);
+    });
+
+    test("a reply to an answer judges nothing: it's in the conversation as the person's words, and asks the agent again", async () => {
+      const { reviews, asked } = await working();
+      await reviews.saveRound("invoice-export", round(2, { replies: [{ note: asked.id, words: "It fades in now. Want the toasts to fade too?" }] }));
+      await reviews.finish("invoice-export", 2);
+      await reviews.send("invoice-export", send(2, { replies: [{ note: asked.id, words: "Yes, in this change." }] }));
+
+      const review = await reviews.get("invoice-export");
+      assert.deepEqual(conversation(review, asked.id).at(-1), { by: "Ana", agent: false, round: 2, words: "Yes, in this change." });
+      assert.equal(toJudge(conversation(review, asked.id)), false, "replied to, the answer isn't waiting to be judged");
+      await reviews.take("invoice-export");
+      await reviews.saveRound("invoice-export", round(3));
+      await assert.rejects(reviews.finish("invoice-export", 3), refused(/needs an answer to note/));
+    });
+
+    test("a reply is on a note that exists, in words, and a send says one thing on a note: a verdict or a reply", async () => {
+      const { reviews, asked } = await working();
+      await reviews.saveRound("invoice-export", round(2, { replies: [{ note: asked.id, words: "It fades in now." }] }));
+      await reviews.finish("invoice-export", 2);
+      await assert.rejects(reviews.send("invoice-export", send(2, { replies: [{ note: "nobody", words: "Hm" }] })), refused(/no note nobody on round 2 to reply to/));
+      await assert.rejects(reviews.send("invoice-export", send(2, { replies: [{ note: asked.id, words: " " }] })), refused(/needs words/));
+      const both = send(2, { verdicts: [{ note: asked.id, verdict: "looks good" }], replies: [{ note: asked.id, words: "Also the toasts?" }] });
+      await assert.rejects(reviews.send("invoice-export", both), refused(/judges note .* and replies to it: say one/));
     });
 
     test("a verdict is on a note that exists, and a new note has words, not a verdict", async () => {
