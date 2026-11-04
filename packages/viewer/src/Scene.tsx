@@ -95,8 +95,6 @@ export function SceneView(props: SceneViewProps) {
     ...(writing ? [{ id: writing.note.id, at: Math.min(writingAt!, end), fill: "bg-amber", words: "Your new note" }] : []),
     ...diamonds.filter((diamond) => diamond.row && diamond.until === undefined && !unseen(diamond)).map((diamond) => ({ id: diamond.id, at: changeAt(diamond), words: diamond.name })),
   ];
-  // Steps it takes that it couldn't before, new to you: each says so on its own row, rather than being told as a change.
-  const added = new Set(diamonds.filter((diamond) => diamond.until !== undefined).flatMap((diamond) => scene.steps.flatMap((one, i) => (one.at >= diamond.at - 0.1 && one.at < diamond.until! ? [i] : []))));
   // A step's result, where it rests once it has played.
   const results = scene.steps.map((_, i) => stepEnd(scene, i) - 0.05);
   // Its steps with nothing new to you are kept together: seen on a round before, as you said something about it then,
@@ -489,25 +487,41 @@ export function SceneView(props: SceneViewProps) {
   // recording is at its moment, close on it, a part of the page at a time outlined, with Compare beside it for how it
   // was. Steps new to you start with what the agent says of them, on the first.
   const toChange = (diamond: Diamond) => go(changeAt(diamond), diamond.id);
+  // Steps new to you are one stretch, said once above its first: how many, so where it ends is plain, and why, in the
+  // agent's words, about all of them rather than under the first as if about it alone.
+  const newFrom = (step: number) => {
+    const run = diamonds.find((diamond) => diamond.until !== undefined && scene.steps.findIndex((one) => one.at >= diamond.at - 0.1) === step);
+    if (!run) return undefined;
+    const count = scene.steps.filter((one) => one.at >= run.at - 0.1 && one.at < run.until!).length;
+    const lines = linesOf(run);
+    return (
+      <li className="grid gap-1.5 pt-2 pb-3 pl-8 pr-2">
+        <span className="flex items-center gap-2.5 text-[12px] leading-4 font-medium text-soft">
+          {count > 1 ? `${count} new steps` : "New step"}
+          <i className="h-px flex-1 bg-track" />
+        </span>
+        {lines.length > 0 && <span className="text-[11.5px] leading-4 text-faint">{lines[0]!.by}</span>}
+        {lines.map((changed) => (
+          <p key={changed.line} className="text-[12.5px] leading-[18px] text-soft">
+            {changed.line}
+          </p>
+        ))}
+      </li>
+    );
+  };
   const linesOf = (diamond: Diamond) => [...new Map(diamond.changes.filter((changed) => !changed.answers && changed.line).map((changed) => [changed.line, changed])).values()];
   const changesIn = (step: number) => {
     const here = diamonds.filter((diamond) => diamond.row && diamond.until === undefined && stepOf(changeAt(diamond)) === step && !unseen(diamond));
-    const fresh = diamonds.filter((diamond) => diamond.until !== undefined && scene.steps.findIndex((one) => one.at >= diamond.at - 0.1) === step).flatMap(linesOf);
     // Made for a note in another scene, it's told by what the agent said it did for it.
     const answerTo = (diamond: Diamond) => {
       const note = diamond.changes.map((changed) => !changed.answers && changed.note && props.noteOf(changed.note)).find(Boolean) || undefined;
       return note && { note, turn: note.turns.findLast((turn) => turn.agent && turn.round <= round.number && turn.words.trim()) };
     };
-    const by = [...fresh, ...here.flatMap(linesOf)][0]?.by ?? here.map((diamond) => answerTo(diamond)?.turn?.by).find(Boolean);
-    if (!here.length && !fresh.length) return undefined;
+    const by = here.flatMap(linesOf)[0]?.by ?? here.map((diamond) => answerTo(diamond)?.turn?.by).find(Boolean);
+    if (!here.length) return undefined;
     return (
       <div className="grid gap-1.5 pt-2.5 pr-2">
         {by && <span className="text-[11.5px] leading-4 text-faint">{by}</span>}
-        {fresh.map((changed) => (
-          <p key={changed.line} className="text-[12.5px] leading-[18px] text-soft">
-            {changed.line}
-          </p>
-        ))}
         {here.length > 0 && (
           <ul className="grid gap-2.5">
             {here.map((diamond) => {
@@ -787,7 +801,7 @@ export function SceneView(props: SceneViewProps) {
               on={Math.min(stop, last)}
               marks={onLine}
               changesIn={changesIn}
-              added={(step) => added.has(step)}
+              newFrom={newFrom}
               onChange={(id) => {
                 const diamond = diamonds.find((diamond) => diamond.id === id);
                 if (diamond) toChange(diamond);

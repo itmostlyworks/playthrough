@@ -7,7 +7,7 @@
 // each change, at their moments. The others are a line each, and pressed, go there. Each stop is as tall as what's in
 // it: how far the page scrolls for it is the page's to say, the same for every stop.
 
-import { useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from "react";
+import { Fragment, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from "react";
 import type { Scene } from "@playthrough/review";
 import { Key } from "./Card.tsx";
 import { EndMark, type End } from "./Chosen.tsx";
@@ -44,8 +44,8 @@ type Props = {
   onPoint: (id?: string) => void;
   // What changed in a step, under its line; and going to one, from its diamond there.
   changesIn: (step: number) => ReactNode;
-  // Whether a step is new to you: one it takes that it couldn't before.
-  added: (step: number) => boolean;
+  // Above the first of steps new to you, ones it takes that it couldn't before: how many, and what the agent says of them.
+  newFrom: (step: number) => ReactNode;
   onChange: (id: string) => void;
   // Dragging along the line, and where it was let go.
   onScrub: (scrubbing: boolean) => void;
@@ -62,7 +62,7 @@ type Props = {
   onUnfold: (stop: number) => void;
 };
 
-export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, onPoint, onScrub, onGo, end, resting, since, onUnfold, changesIn, onChange, added }: Props) {
+export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, onPoint, onScrub, onGo, end, resting, since, onUnfold, changesIn, onChange, newFrom }: Props) {
   const looksGood = end?.looksGood;
   const stepEnd = (step: number) => scene.steps[step + 1]?.at ?? scene.length;
   const stepOf = (moment: number) => Math.max(0, scene.steps.findIndex((_, step) => stepEnd(step) >= moment - 0.05));
@@ -216,7 +216,9 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
         const i = stop.step;
         const title = scene.steps[i]!.title;
         return (
-          <li key={`step ${i}`} {...row(k)} inert={resting}>
+          <Fragment key={`step ${i}`}>
+          {newFrom(i)}
+          <li {...row(k)} inert={resting}>
             <span
               data-sign=""
               className={`absolute top-2 left-0 grid size-5 place-items-center rounded-full text-[10.5px] leading-none font-medium tabular-nums transition-colors duration-300 ease-calm ${i === current ? "bg-fg text-ground" : gone ? "bg-track text-soft" : "bg-ground text-faint shadow-[inset_0_0_0_1px_var(--track)]"}`}
@@ -225,7 +227,6 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
             </span>
             <button className={`block w-full text-left text-[14px] leading-5 text-balance outline-none hover:text-fg focus-visible:text-fg ${i === current ? "text-fg" : "text-soft"}`} onClick={() => onStop(k)}>
               {title}
-              {added(i) && <span className="text-faint"> · New</span>}
             </button>
             <div className="pt-3 pr-2 pb-1.5">
               <div
@@ -269,6 +270,7 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
             </div>
             {changesIn(i)}
           </li>
+          </Fragment>
         );
       }).concat(
         end ? (
