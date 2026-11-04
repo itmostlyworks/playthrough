@@ -142,8 +142,9 @@ export function Situation(props: SituationProps) {
   const pause = () => (setAt(clock.at), setPlaying(undefined));
   // Come to rest, played or dragged to, what was said at the stop you're on stays open.
   const stopped = (moment: number) => go(moment, stops[stop]?.id);
-  // A step plays from its start, which is the step before's result, so from just after it.
-  const startOf = (step: number) => flow.steps[step]!.at + (step ? 0.06 : 0);
+  // A step plays from its start, which is the step before's result, so from just after it; the first, from where its
+  // page has drawn itself, not the blank page before.
+  const startOf = (step: number) => (step ? flow.steps[step]!.at + 0.06 : Math.max(flow.steps[0]!.at, cut?.drawn ?? 0));
   // Gone to, a step plays into its result; what was said in one is there at its moment, still; what was said about all
   // of it, where it is. Before the first stop it rests, and past the last, it's how it ends. Passed, a step is at its
   // start, to play from there once it's stopped on.

@@ -38,13 +38,20 @@ export class Clock {
 // A situation's recording with its waiting cut short, as it plays: how long it is then, the recording's own moment at a
 // moment of it, and back. Its steps' lines run on it, so a line fills at one speed as it plays and goes where it's
 // pressed at the same speed, leaping no wait. A step's start is where a wait is cut at, so each step's is its own.
-export type Cut = { length: number; real: (at: number) => number; cut: (real: number) => number };
+// And where its page has first drawn itself: a recording starts as the page loads, blank until the app has put itself
+// on it, which it has once what it adds pauses for a beat, in its first step.
+export type Cut = { length: number; real: (at: number) => number; cut: (real: number) => number; drawn: number };
 function cutOf(events: Events, length: number, starts: number[]): Cut {
   const start = events[0]?.timestamp ?? 0;
   const happened = events.filter((event) => event.type === 3).map((event) => (event.timestamp - start) / 1000);
+  const added = events
+    .filter((event) => event.type === 3 && (event.data as { source: number; adds?: unknown[] }).source === 0 && (event.data as { adds?: unknown[] }).adds?.length)
+    .map((event) => (event.timestamp - start) / 1000);
+  const drawn = Math.min(added.find((at, i) => (added[i + 1] ?? Infinity) - at > 0.3) ?? 0, starts[1] ?? length);
   const moments = [...new Set([0, ...starts, ...happened.filter((at) => at > 0 && at < length), length])].sort((a, b) => a - b);
   const spans = moments.slice(1).map((to, i) => ({ from: moments[i]!, real: to - moments[i]!, shown: Math.min(to - moments[i]!, WAIT) }));
   return {
+    drawn,
     length: spans.reduce((sum, span) => sum + span.shown, 0),
     real(at) {
       for (const span of spans) {
