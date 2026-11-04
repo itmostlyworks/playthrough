@@ -174,6 +174,16 @@ export class Replay {
   #at = -1;
   #scrolls: Recorded["scrolls"];
   #jumpedTo = -Infinity;
+  // Until when the page's motion is finished each frame after a jump; one loop at a time does it.
+  #settlesUntil = 0;
+  #settling = false;
+  // The moment the page was last shown at rest, which showing it at rest again doesn't change.
+  #rested = NaN;
+  // Whether rrweb has changed the page since its animations were last looked at, and how it was playing then: the
+  // page's motion only changes where the page does, or the way it plays.
+  #changed = true;
+  #playing = false;
+  #speed = 1;
   #seen = new WeakSet<Animation>();
   // When each element's animations started, by name, in the recording's time. Played a little at a time, rrweb takes
   // what changed out of the page and puts it back, and anything put back starts its animation over: the who-owes-whom
@@ -202,6 +212,8 @@ export class Replay {
     // Jumping, rrweb builds the page in a copy of its own first, and the page's own scroll never reached it: played on
     // from a stop, the page sat at its first scroll for a moment, then jumped down. Built in place, it's where it was.
     this.#replayer = new Replayer(events, { root: this.host, mouseTail: false, triggerFocus: false, pauseAnimation: false, showWarning: false, useVirtualDom: false });
+    (this.#replayer as unknown as { cache: typeof styles }).cache = styles;
+    this.#replayer.on("event-cast", () => (this.#changed = true));
     // Light or dark, still or moving, as it was recorded, as the app taken over is: the page's own styles asked the
     // viewer's browser, and a site recorded light played dark in a dark viewer.
     const page = this.#replayer.iframe.contentWindow as (Window & typeof globalThis) | null;
@@ -230,6 +242,10 @@ export class Replay {
     // A page rebuilt for a jump can start its transitions a frame late, and a dialog centred by its transform slid in
     // from the side: for its first 0.15s after a jump, its motion is over, playing too.
     const settling = ms - this.#jumpedTo < 150;
+    if (moved || playing) this.#rested = NaN;
+    const looked = this.#changed || settling || playing !== this.#playing || speed !== this.#speed || (moved && !playing);
+    [this.#changed, this.#playing, this.#speed] = [false, playing, speed];
+    if (!looked) return;
     for (const animation of this.#animations()) {
       try {
         if (settling) finish(animation);
@@ -254,6 +270,8 @@ export class Replay {
   // Stopping by itself, the page is shown at rest, as after a jump: the stop can come a few hundredths of a second
   // into a dialog opening, and pausing held it there.
   rest() {
+    if (this.#rested === this.#at) return;
+    this.#rested = this.#at;
     this.#settle();
     for (const animation of this.#animations()) finish(animation);
   }
@@ -419,11 +437,13 @@ export class Replay {
   // jumped to: paused on the jump, nothing else would redraw it.
   #settle() {
     this.#jumpedTo = this.#at;
-    const until = performance.now() + 400;
+    this.#settlesUntil = performance.now() + 400;
+    if (this.#settling) return;
+    this.#settling = true;
     const tick = () => {
-      if (this.#at - this.#jumpedTo >= 150) return;
+      if (this.#at - this.#jumpedTo >= 150 || performance.now() >= this.#settlesUntil) return void (this.#settling = false);
       for (const animation of this.#animations()) if (animation.playState !== "finished") finish(animation);
-      if (performance.now() < until) requestAnimationFrame(tick);
+      requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
   }
@@ -460,6 +480,10 @@ export class Replay {
 
 // How many characters of its words a thing clicked in the app is named by, at most.
 const CUT = 80;
+
+// rrweb rewrites each of a page's stylesheets for it to show hovering, a few hundredths of a second for an app's, each
+// time it builds a page; the recordings of one app carry the same ones, so they're rewritten once, for all of them.
+const styles = { stylesWithHoverClass: new Map<string, string>() };
 
 // One that never ends can't be finished, and plays on.
 function finish(animation: Animation) {

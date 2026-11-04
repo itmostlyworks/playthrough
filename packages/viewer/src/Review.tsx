@@ -1340,6 +1340,7 @@ function OnRound({ review: kept, round, latest, newer, arrived, you, flow: inAdd
             onAllFlows={many ? () => toGrid() : undefined}
             over={arrived ? { words: `${roundName(latest.number)} is in`, take: () => toRound(latest.number) } : current ? undefined : { words: roundName(round.number) }}
             live={onGrid ? undefined : live}
+            away={onGrid}
           />
           {/* Playing, the bar stays: what you can do is there while you watch, as it is paused. */}
           <div className="absolute bottom-6 left-1/2 z-20 -translate-x-1/2 translate-y-1/2">

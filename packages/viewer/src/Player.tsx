@@ -211,8 +211,9 @@ export function Player(props: Props) {
       const unfollow = following.clock.follow(tell);
       return () => (stop(), unfollow());
     }
+    // Drawn again as it plays, Compare narrowing it, it plays on from where it's got to.
     if (playing && cut) {
-      const [from, until, since] = [cut.cut(at), cut.cut(playing.until), performance.now()];
+      const [from, until, since] = [cut.cut(clock?.at ?? at), cut.cut(playing.until), performance.now()];
       const tick = () => {
         const going = from + (performance.now() - since) / 1000;
         const moment = Math.min(cut.real(going), playing.until);

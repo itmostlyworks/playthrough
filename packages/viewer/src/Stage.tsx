@@ -91,6 +91,8 @@ type Props = {
   over?: { words: string; take?: () => void };
   // Taken over, the app itself at that moment, in the round's frame exactly where its recording is.
   live?: Live;
+  // Under the page, it's drawn nothing: its recordings aren't built or moved until it shows again.
+  away?: boolean;
   // The flow's end standing as a place: its last frame softens under the veil its name has at the start, while its card
   // stands there.
   ending?: boolean;
@@ -192,6 +194,7 @@ export function Stage(props: Props) {
   };
 
   const paint = () => {
+    if (latest.current.away) return;
     const { playhead, round, earlier, zoomed, peeking } = latest.current;
     const towards = ended.current;
     const done = clamp((performance.now() - towards.since) / 240);

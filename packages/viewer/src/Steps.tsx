@@ -91,9 +91,11 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
         return box.top + box.height / 2 - top;
       });
       const first = centres[0] ?? 0;
+      const rail = (centres.at(-1) ?? first) - first;
       way.style.setProperty("--rail-top", `${first}px`);
-      way.style.setProperty("--rail", `${(centres.at(-1) ?? first) - first}px`);
-      way.style.setProperty("--reach", `${on < 0 ? 0 : (centres[on] ?? first) - first}px`);
+      way.style.setProperty("--rail", `${rail}px`);
+      // How much of the rail is filled, as a share of it, for it to fill without laying the page out each frame.
+      way.style.setProperty("--reach", String(on < 0 || rail <= 0 ? 0 : ((centres[on] ?? first) - first) / rail));
     };
     measure();
     const watching = new ResizeObserver(measure);
@@ -146,7 +148,7 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
   return (
     <ol ref={list} aria-label={`The way through “${flow.name}”`} className="relative flex flex-col">
       <li aria-hidden className={`pointer-events-none absolute top-(--rail-top) left-[9.5px] h-(--rail) w-px bg-line transition-opacity duration-300 ease-calm phone:hidden ${resting ? "opacity-35" : ""}`}>
-        <span className="absolute inset-x-0 top-0 h-(--reach) bg-soft transition-[height] duration-300 ease-calm" />
+        <span className="absolute inset-0 origin-top bg-soft [scale:1_var(--reach,0)] transition-[scale] duration-300 ease-calm" />
       </li>
       {stops.map((stop, k) => {
         const here = k === on;
