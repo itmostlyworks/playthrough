@@ -40,14 +40,17 @@ export function partsOf(boxes: Box[], screen: Reading["screen"]): Part[] {
   });
 }
 
-// One part, before and now; with nothing before it, now alone.
-export function Difference({ part, now, before }: { part: Part; now: string; before?: string }) {
+// One part, before and now; with nothing before it, now alone. Pointed at, before is shown where the recording is too,
+// as holding C shows it, where the recording's at its moment.
+export function Difference({ part, now, before, onBefore }: { part: Part; now: string; before?: string; onBefore?: (shown: boolean) => void }) {
   return (
     <span className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 gap-y-1">
       {before && (
         <>
           <span className="text-[11px] leading-4 text-faint">Before</span>
-          <Crop src={before} part={part} />
+          <span onPointerEnter={() => onBefore?.(true)} onPointerLeave={() => onBefore?.(false)}>
+            <Crop src={before} part={part} />
+          </span>
         </>
       )}
       <span className="text-[11px] leading-4 text-faint">Now</span>

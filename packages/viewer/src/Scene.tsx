@@ -494,7 +494,7 @@ export function SceneView(props: SceneViewProps) {
                 <i className={`mt-[5.5px] size-[7px] flex-none rotate-45 ${on ? "bg-fg" : "bg-soft"}`} />
                 <span className="grid min-w-0 flex-1 gap-2">
                   {words && <span className="min-w-0">{words}</span>}
-                  {parts.map((part, i) => <Difference key={i} part={part} now={now!} before={before} />)}
+                  {parts.map((part, i) => <Difference key={i} part={part} now={now!} before={before} onBefore={on && onIt && comparable ? setPeek : undefined} />)}
                 </span>
               </button>
               {on && comparing && !parts.length && <Compare {...comparing} bar={quietly} />}
