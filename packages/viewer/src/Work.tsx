@@ -236,7 +236,8 @@ export function Work(props: Props) {
             </span>
           </div>
         </header>
-        <div className="mt-10 grid gap-12 phone:mt-7 phone:gap-9">
+        {/* Situations that look good to you, folded to their names, sit together as one list. */}
+        <div className="mt-10 flex flex-col gap-12 phone:mt-7 phone:gap-9 [&>[data-folded]+[data-folded]]:-mt-12 phone:[&>[data-folded]+[data-folded]]:-mt-9">
           {round.flows.map((flow) => (
             <Situation
               key={`${round.number} ${flow.name}`}

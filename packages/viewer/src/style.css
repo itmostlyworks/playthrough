@@ -14,6 +14,8 @@
   --soft: #6c707a;
   --faint: #a2a6ae;
   --line: #e4e5e8;
+  /* What a way runs along: the rail through a situation's stops and each step's line. */
+  --track: #d6d8dc;
   --hover: rgba(30, 34, 44, 0.045);
   --amber: #d9a23a;
   --amber-ink: #8a5f12;
@@ -33,6 +35,7 @@
     --soft: #9a9ea7;
     --faint: #666a73;
     --line: #2c2e33;
+    --track: #3a3d44;
     --hover: rgba(255, 255, 255, 0.04);
     --amber: #e2b04f;
     --amber-ink: #e9c27a;
@@ -52,6 +55,7 @@
   --color-soft: var(--soft);
   --color-faint: var(--faint);
   --color-line: var(--line);
+  --color-track: var(--track);
   --color-hover: var(--hover);
   --color-amber: var(--amber);
   --color-amber-ink: var(--amber-ink);

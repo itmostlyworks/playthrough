@@ -479,16 +479,14 @@ export function Situation(props: SituationProps) {
 
   if (folded)
     return (
-      <section className="grid">
-        <button className="flex items-baseline justify-between gap-4 px-0.5 text-left opacity-60 transition-opacity duration-150 ease-calm hover:opacity-100" onClick={() => setFolded(false)} aria-expanded={false}>
-          <h3 className="min-w-0 text-[15px] leading-[21px] font-semibold text-balance">
+      <section data-folded="" className="grid self-start">
+        <button className="-mx-2.5 flex items-center gap-3 justify-self-start rounded-lg px-2.5 py-2 text-left transition-colors duration-150 ease-calm hover:bg-surface" onClick={() => setFolded(false)} aria-expanded={false}>
+          <EndMark end="good" just={false} className="size-3.5 flex-none" />
+          <h3 className="min-w-0 text-[14px] leading-5 font-medium text-balance">
             {flow.name}
             {asWho(flow) && <span className="font-normal text-soft"> {asWho(flow)}</span>}
+            <span className="sr-only">, looks good</span>
           </h3>
-          <span className="flex flex-none items-center gap-1.5 text-xs leading-4 whitespace-nowrap text-green">
-            <EndMark end="good" just={false} className="size-3 flex-none" />
-            Looks good
-          </span>
         </button>
       </section>
     );

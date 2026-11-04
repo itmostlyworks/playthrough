@@ -135,19 +135,19 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
     addEventListener("pointercancel", up);
   };
 
-  // Every stop is laid out open, so the way never reflows under you as you go along it: the one you're on is lit, the
-  // others quieter, and a press anywhere on another goes there first, so what's pressed in it, as its Compare, is about
-  // it.
+  // Every stop is laid out open, so the way never reflows under you as you go along it: the one you're on sits on the
+  // page's surface, the others quieter, and a press anywhere on another goes there first, so what's pressed in it, as
+  // its Compare, is about it. Before you've gone along it, none is quieter: it's the map of what's ahead.
   const row = (k: number) => ({
     "data-stop": k,
     "aria-current": k === on ? ("step" as const) : undefined,
-    className: `relative min-h-24 flex-none py-2 pb-4 pl-8 phone:min-h-0 transition-opacity duration-300 ease-calm ${k === on ? "" : resting ? "opacity-35" : "opacity-55 hover:opacity-100"}`,
+    className: `relative isolate min-h-24 flex-none py-2 pb-4 pl-8 phone:min-h-0 transition-opacity duration-300 ease-calm ${SURFACE} ${k === on ? "[--under:var(--surface)] before:opacity-100" : `before:opacity-0 ${resting ? "opacity-35" : on < 0 ? "" : "opacity-60 hover:opacity-100"}`}`,
     onPointerDownCapture: () => k !== on && onStop(k),
   });
 
   return (
     <ol ref={list} aria-label={`The way through “${flow.name}”`} className="relative flex flex-col">
-      <li aria-hidden className={`pointer-events-none absolute top-(--rail-top) left-[9.5px] h-(--rail) w-px bg-line transition-opacity duration-300 ease-calm phone:hidden ${resting ? "opacity-35" : ""}`}>
+      <li aria-hidden className={`pointer-events-none absolute top-(--rail-top) left-[9.5px] h-(--rail) w-px bg-track transition-opacity duration-300 ease-calm phone:hidden ${resting ? "opacity-35" : ""}`}>
         <span className="absolute inset-0 origin-top bg-soft [scale:1_var(--reach,0)] transition-[scale] duration-300 ease-calm" />
       </li>
       {stops.map((stop, k) => {
@@ -159,7 +159,7 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
             <li key={`together ${stop.from}`} {...row(k)} inert={resting}>
               <span
                 data-sign=""
-                className={`absolute top-2 left-2.5 grid h-5 min-w-5 -translate-x-1/2 place-items-center rounded-full px-1.5 phone:left-0 phone:translate-x-0 phone:px-1 phone:text-[9.5px] text-[10.5px] leading-none font-medium whitespace-nowrap tabular-nums transition-colors duration-300 ease-calm ${here ? "bg-fg text-ground" : gone ? "bg-line text-soft" : "bg-ground text-faint shadow-[inset_0_0_0_1px_var(--line)]"}`}
+                className={`absolute top-2 left-2.5 grid h-5 min-w-5 -translate-x-1/2 place-items-center rounded-full px-1.5 phone:left-0 phone:translate-x-0 phone:px-1 phone:text-[9.5px] text-[10.5px] leading-none font-medium whitespace-nowrap tabular-nums transition-colors duration-300 ease-calm ${here ? "bg-fg text-ground" : gone ? "bg-track text-soft" : "bg-ground text-faint shadow-[inset_0_0_0_1px_var(--track)]"}`}
               >
                 {stop.from + 1}–{stop.step + 1}
               </span>
@@ -196,7 +196,7 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
           <li key={`step ${i}`} {...row(k)} inert={resting}>
             <span
               data-sign=""
-              className={`absolute top-2 left-0 grid size-5 place-items-center rounded-full text-[10.5px] leading-none font-medium tabular-nums transition-colors duration-300 ease-calm ${i === current ? "bg-fg text-ground" : gone ? "bg-line text-soft" : "bg-ground text-faint shadow-[inset_0_0_0_1px_var(--line)]"}`}
+              className={`absolute top-2 left-0 grid size-5 place-items-center rounded-full text-[10.5px] leading-none font-medium tabular-nums transition-colors duration-300 ease-calm ${i === current ? "bg-fg text-ground" : gone ? "bg-track text-soft" : "bg-ground text-faint shadow-[inset_0_0_0_1px_var(--track)]"}`}
             >
               {i + 1}
             </span>
@@ -220,7 +220,7 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
                   (event.preventDefault(), event.stopPropagation(), onGo(momentAt(i, clamp(share(i, clock.at) + (event.key === "ArrowRight" ? 0.05 : -0.05), 0, 1))))
                 }
               >
-                <span className={`absolute inset-0 overflow-hidden rounded-[1px] bg-line transition-[scale] duration-150 ease-calm group-hover/line:scale-y-200 group-focus-visible/line:scale-y-200 ${held ? "scale-y-200" : ""}`}>
+                <span className={`absolute inset-0 overflow-hidden rounded-[1px] bg-track transition-[scale] duration-150 ease-calm group-hover/line:scale-y-200 group-focus-visible/line:scale-y-200 ${held ? "scale-y-200" : ""}`}>
                   <span className="absolute inset-0 origin-left bg-soft [scale:var(--done,1)_1]" />
                 </span>
                 {marks
@@ -235,9 +235,9 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
                       onKeyDown={(event) => event.key === "Enter" && toMark(mark.id)}
                     >
                       {mark.fill ? (
-                        <i className={`size-1.5 rounded-full shadow-[0_0_0_2px_var(--ground)] transition-[scale] duration-150 ease-calm group-hover/mark:scale-140 group-focus-visible/mark:scale-140 ${mark.fill}`} />
+                        <i className={`size-1.5 rounded-full shadow-[0_0_0_2px_var(--under,var(--ground))] transition-[scale] duration-150 ease-calm group-hover/mark:scale-140 group-focus-visible/mark:scale-140 ${mark.fill}`} />
                       ) : (
-                        <i className="size-[7px] rotate-45 bg-fg shadow-[0_0_0_1.5px_var(--ground)] transition-[scale] duration-150 ease-calm group-hover/mark:scale-130 group-focus-visible/mark:scale-130" />
+                        <i className="size-[7px] rotate-45 bg-fg shadow-[0_0_0_1.5px_var(--under,var(--ground))] transition-[scale] duration-150 ease-calm group-hover/mark:scale-130 group-focus-visible/mark:scale-130" />
                       )}
                     </button>
                   ))}
@@ -269,5 +269,6 @@ export function Steps({ flow, clock, at, cut, stops, on, marks, said, onStop, on
   );
 }
 
-// The ring around the sign of the stop you're on.
+// The surface the stop you're on sits on, beside its sign on the rail; and the ring around that sign.
+const SURFACE = "before:pointer-events-none before:absolute before:inset-y-0 before:left-6 before:-right-3 before:-z-1 before:rounded-xl before:bg-surface before:transition-opacity before:duration-300 before:ease-calm before:content-['']";
 const RING = "shadow-[0_0_0_2px_var(--ground),0_0_0_3.5px_var(--fg)]";
