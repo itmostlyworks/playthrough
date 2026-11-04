@@ -250,13 +250,24 @@ export function SceneView(props: SceneViewProps) {
   const then = sceneOn(against);
   const step = stepOf(at);
   const thenStep = then?.steps.findIndex((one) => one.title === scene.steps[step]?.title) ?? -1;
+  // Within the step, click for click where both clicked as often, so each click lands as its other does; else evenly.
+  const [clicked, setClicked] = useState<{ against: number; now: number[]; then: number[] }>();
+  useEffect(() => {
+    if (!then) return;
+    let current = true;
+    Promise.all([recording(review.id, round.number, scene.recording), recording(review.id, against, then.recording)]).then(
+      ([now, before]) => current && setClicked({ against, now: recorded(now).clicks, then: recorded(before).clicks }),
+    );
+    return () => void (current = false);
+  }, [against, then?.recording, scene.recording]);
   const thenAt = (moment: number) => {
     const now = stepOf(moment);
     const there = then?.steps.findIndex((one) => one.title === scene.steps[now]?.title) ?? -1;
     if (!then || there < 0) return undefined;
-    const from = scene.steps[now]!.at;
-    const u = clamp((moment - from) / Math.max(stepEnd(scene, now) - from, 0.01), 0, 1);
-    return then.steps[there]!.at + u * (stepEnd(then, there) - then.steps[there]!.at);
+    const [from, until] = [scene.steps[now]!.at, stepEnd(scene, now)];
+    const [since, to] = [then.steps[there]!.at, stepEnd(then, there)];
+    const [here, was] = clicked?.against === against ? [clicked.now.filter((at) => at > from && at < until), clicked.then.filter((at) => at > since && at < to)] : [[], []];
+    return here.length === was.length ? along(moment, [from, ...here, until], [since, ...was, to]) : along(moment, [from, until], [since, to]);
   };
   const [side, setSide] = useState(false);
   // Before stays while it goes, as it came.

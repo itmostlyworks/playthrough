@@ -31,6 +31,8 @@ export type Recorded = {
   acted: [number, number][];
   // What was typed into, as [seconds, node].
   typed: [number, number][];
+  // What was clicked, and where the pointer was then, as [seconds, node, x, y].
+  aimed: [number, number, number, number][];
   // Where the page, or a part of it, was scrolled to, as [seconds, node, x, y].
   scrolls: [number, number, number, number][];
   // The browser's own dialogs, which aren't in the page.
@@ -51,7 +53,7 @@ export type Dialog = { from: number; until: number; type: string; host: string; 
 export function recorded(events: Events): Recorded {
   const start = events[0]?.timestamp ?? 0;
   const seconds = (timestamp: number) => (timestamp - start) / 1000;
-  const shown: Recorded = { shapes: [], loads: [], pointer: [], away: [], clicks: [], changes: [], acted: [], typed: [], scrolls: [], dialogs: [], carets: [], browser: { dark: false, still: false } };
+  const shown: Recorded = { shapes: [], loads: [], pointer: [], away: [], clicks: [], changes: [], acted: [], typed: [], aimed: [], scrolls: [], dialogs: [], carets: [], browser: { dark: false, still: false } };
   let said = false;
   let host = "";
   for (const event of events) {
@@ -82,7 +84,7 @@ export function recorded(events: Events): Recorded {
       if (data.type === MouseInteractions.Click) shown.clicks.push(seconds(event.timestamp));
       const shape = shown.shapes.at(-1);
       if (data.type === MouseInteractions.TouchStart && shape) shape.touch = true;
-      if (data.type === MouseInteractions.Click) shown.acted.push([seconds(event.timestamp), data.id]);
+      if (data.type === MouseInteractions.Click) (shown.acted.push([seconds(event.timestamp), data.id]), shown.aimed.push([seconds(event.timestamp), data.id, data.x, data.y]));
     } else if (data.source === IncrementalSource.Input) (shown.acted.push([seconds(event.timestamp), data.id]), shown.typed.push([seconds(event.timestamp), data.id]));
     else if (data.source === IncrementalSource.Scroll) shown.scrolls.push([seconds(event.timestamp), data.id, data.x, data.y]);
     const changes = [IncrementalSource.Mutation, IncrementalSource.Scroll, IncrementalSource.Input].includes(data.source);
@@ -169,6 +171,7 @@ export class Replay {
   readonly dialogs: Dialog[];
   readonly carets: Recorded["carets"];
   readonly typed: Recorded["typed"];
+  readonly aimed: Recorded["aimed"];
   #replayer: Replayer;
   // The screen the page is shown on now, which rrweb changes with it as someone else's page loads.
   #shape: Shape;
@@ -206,7 +209,7 @@ export class Replay {
       Object.defineProperty(event.data, "removes", { get: () => removes, set() {}, enumerable: true, configurable: true });
     }
     const shows = recorded(events);
-    ({ shapes: this.shapes, loads: this.loads, pointer: this.pointer, away: this.away, clicks: this.clicks, dialogs: this.dialogs, carets: this.carets, typed: this.typed, scrolls: this.#scrolls } = shows);
+    ({ shapes: this.shapes, loads: this.loads, pointer: this.pointer, away: this.away, clicks: this.clicks, dialogs: this.dialogs, carets: this.carets, typed: this.typed, aimed: this.aimed, scrolls: this.#scrolls } = shows);
     this.#drawn = Math.max(0, (events.find((event) => event.type === EventType.FullSnapshot)?.timestamp ?? start) - start + 1);
     this.host.className = "absolute top-0 left-0 origin-top-left [&_.replayer-mouse]:hidden [&_iframe]:pointer-events-none [&_iframe]:block [&_iframe]:border-0";
     this.#shape = this.shapes[0]!;
@@ -215,8 +218,6 @@ export class Replay {
     into.append(this.host);
     // Jumping, rrweb builds the page in a copy of its own first, and the page's own scroll never reached it: played on
     // from a stop, the page sat at its first scroll for a moment, then jumped down. Built in place, it's where it was.
-    // Shown smaller than it was recorded, text drawn with hinting comes out wider than the words were laid out, and drifts
-    // right of what the recording measured: the caret, outlines and pins. Drawn at its exact size, it stays where it was.
     // Recorded with no scrollbars, it's played with none, so none takes width its page didn't have.
     this.#replayer = new Replayer(events, {
       root: this.host,
@@ -226,7 +227,6 @@ export class Replay {
       showWarning: false,
       useVirtualDom: false,
       insertStyleRules: [
-        "*, ::before, ::after { text-rendering: geometricPrecision !important; }",
         "* { scrollbar-width: none !important; }",
         "::-webkit-scrollbar { display: none !important; }",
       ],
@@ -318,6 +318,39 @@ export class Replay {
   // Where the pointer is at a moment, as it moved since `since` at the earliest: until it first moves after that, where
   // it first is.
   pointerAt(at: number, since = 0): [number, number] | undefined {
+    const recorded = this.#recordedPointerAt(at, since);
+    if (!recorded) return undefined;
+    const [dx, dy] = this.#aimedAt(at);
+    return [recorded[0] + dx, recorded[1] + dy];
+  }
+
+  // Recorded, the pointer goes to the middle of what it clicks; another browser can lay that out elsewhere, as Firefox put
+  // Kan's header 42px right of Chromium. So it's moved by as far as what it clicks next, or clicked last, is from where it
+  // was then, measured on whichever of what got the click and what holds it, up to the control, it was nearest the middle
+  // of, going from one to the next between clicks; nothing where the browser lays it out as it was.
+  #aimedAt(at: number): [number, number] {
+    const off = (aimed?: Recorded["aimed"][number]): [number, number] | undefined => {
+      const node = aimed && (this.#replayer.getMirror().getNode(aimed[1]) as Element | null);
+      if (!aimed || !node?.getBoundingClientRect) return undefined;
+      const control = node.closest("button, a, input, select, textarea, label, summary, [role]") ?? node;
+      let nearest: [number, number] | undefined;
+      for (let element: Element | null = node; element; element = element === control ? null : element.parentElement) {
+        const box = element.getBoundingClientRect();
+        if (!box.width && !box.height) continue;
+        const off: [number, number] = [box.x + box.width / 2 - aimed[2], box.y + box.height / 2 - aimed[3]];
+        if (!nearest || Math.hypot(...off) < Math.hypot(...nearest)) nearest = off;
+      }
+      return nearest && Math.hypot(...nearest) < 200 ? nearest : undefined;
+    };
+    const next = this.aimed.findIndex(([when]) => when >= at);
+    const [before, after] = next < 0 ? [this.aimed.at(-1), undefined] : [this.aimed[next - 1], this.aimed[next]];
+    const [from, to] = [off(before), off(after)];
+    if (!from || !to) return from ?? to ?? [0, 0];
+    const u = (at - before![0]) / Math.max(after![0] - before![0], 0.01);
+    return [from[0] + (to[0] - from[0]) * u, from[1] + (to[1] - from[1]) * u];
+  }
+
+  #recordedPointerAt(at: number, since: number): [number, number] | undefined {
     const pointer = this.pointer;
     if (!pointer.length || at < 0 || this.away.some(([from, to]) => at >= from && at <= to)) return undefined;
     let low = 0;
