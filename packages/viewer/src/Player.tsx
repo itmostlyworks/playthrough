@@ -90,7 +90,7 @@ function within(view: Frame, section: Rect, page: { width: number; height: numbe
 // How long the view takes to glide from one part of the page to another: Compare on or off, or a step that's elsewhere;
 // and how close it comes on something, at most, against the whole page.
 const GLIDE = 0.45;
-const CLOSEST = 1.5;
+export const CLOSEST = 1.5;
 type View = { left: number; top: number; k: number };
 
 type Props = {

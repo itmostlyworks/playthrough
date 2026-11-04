@@ -20,7 +20,7 @@ import { fill, ink, type Shown, type Standing } from "./notes.ts";
 import { asWho, personAt } from "./people.ts";
 import { around, Picture, union, type Box, type Frame } from "./Picture.tsx";
 import { Pinned, type Pin } from "./Pinned.tsx";
-import { Clock, Player, useCut, type Mark, type Placed } from "./Player.tsx";
+import { Clock, CLOSEST, Player, useCut, type Mark, type Placed } from "./Player.tsx";
 import { Portal, TAG } from "./Portal.tsx";
 import { recorded, type Scrolled } from "./replay.ts";
 import { says } from "./Step.tsx";
@@ -267,7 +267,7 @@ export function Situation(props: SituationProps) {
         const done = recorded(now);
         const things = done.acted.filter(([at]) => at > app.from.at && at <= until).flatMap(([, node]) => read.flatMap((reading) => reading.things.filter((thing) => thing.node === node)).at(-1)?.box ?? []);
         const screen = read.at(-1)?.screen;
-        if (current) setTraced({ id, now: done.clicks, then: recorded(before).clicks, frame: things.length && screen ? around(union(things), screen, HALF) : undefined });
+        if (current) setTraced({ id, now: done.clicks, then: recorded(before).clicks, frame: things.length && screen ? around(union(things), screen, HALF, CLOSEST) : undefined });
       },
     );
     return () => void (current = false);
@@ -770,7 +770,7 @@ function useFrames(review: Review, round: Round, flow: Flow, readings: Reading[]
           const { width, height } = reading.screen;
           const end = stepEnd(flow, i);
           const hand = pointer.filter(([moment]) => moment >= Math.max(step.at, end - 3) && moment <= end).map(([, x, y]) => ({ x, y, width: 0, height: 0 }));
-          if (i === 0 || loads.some((load) => load > step.at && load <= end)) return around({ x: hand.at(-1)?.x ?? width / 2, y: 0, width: 0, height }, reading.screen, HALF);
+          if (i === 0 || loads.some((load) => load > step.at && load <= end)) return around({ x: hand.at(-1)?.x ?? width / 2, y: 0, width: 0, height }, reading.screen, HALF, CLOSEST);
           const worked = acted
             .filter(([moment]) => moment >= step.at && moment <= end)
             .toReversed()
@@ -778,7 +778,7 @@ function useFrames(review: Review, round: Round, flow: Flow, readings: Reading[]
             .find((thing) => thing && thing.box.width * thing.box.height < (width * height) / 8)?.box;
           const what = changedIn(i).map((on) => boxIn(reading, on)).find(Boolean) ?? worked;
           const all = [...(what ? [what] : []), ...hand];
-          return around(all.length ? union(all) : { x: width / 2, y: 0, width: 0, height }, reading.screen, HALF);
+          return around(all.length ? union(all) : { x: width / 2, y: 0, width: 0, height }, reading.screen, HALF, CLOSEST);
         });
         if (current) setFrames(found);
       });
