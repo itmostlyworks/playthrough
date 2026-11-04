@@ -114,10 +114,6 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
       way.style.setProperty("--rail", `${rail}px`);
       // How much of the rail is filled, as a share of it, for it to fill without laying the page out each frame.
       way.style.setProperty("--reach", String(on < 0 || rail <= 0 ? 0 : ((centres[on] ?? first) - first) / rail));
-      const here = way.querySelector<HTMLElement>("[aria-current=step]");
-      // The surface fits what's in the stop, with as much room under it as over it, not the room after it.
-      const fits = here && Math.max(...[...here.children].map((child) => (child as HTMLElement).offsetTop + (child as HTMLElement).offsetHeight)) + 8;
-      if (here && fits) (way.style.setProperty("--here-top", `${here.offsetTop}px`), way.style.setProperty("--here", `${fits}px`));
     };
     measure();
     const watching = new ResizeObserver(measure);
@@ -163,10 +159,12 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
   // going on in the sidebar"). The one you're on sits on the page's surface, the others' words quieter, their signs
   // still whole on the rail, and a press anywhere on another goes there. Before you've gone along it, all are folded and
   // quieter, as you're on none.
+  // Each stop has the surface under it, there while you're on it, so it opens and folds with what's on it: one surface
+  // gliding from stop to stop trailed behind them as they opened and folded.
   const row = (k: number) => ({
     "data-stop": k,
     "aria-current": k === on ? ("step" as const) : undefined,
-    className: `relative flex-none py-2 pl-8 transition-opacity duration-300 ease-calm [&>*]:transition-opacity [&>*]:duration-300 [&>*]:ease-calm ${k === on ? "[--under:var(--surface)]" : resting ? "opacity-35" : "[&>:not([data-sign])]:opacity-60 hover:[&>:not([data-sign])]:opacity-100"}`,
+    className: `relative isolate flex-none py-2 pl-8 transition-opacity duration-300 ease-calm before:absolute before:inset-y-0 before:left-6 before:-right-3 before:-z-1 before:rounded-xl before:transition-[opacity,background-color] before:duration-300 before:ease-calm phone:before:left-5 [&>*]:transition-opacity [&>*]:duration-300 [&>*]:ease-calm ${k === on && !resting ? "before:opacity-100" : "before:opacity-0"} ${k === stops.length && looksGood ? "before:bg-[color-mix(in_srgb,var(--green)_13%,var(--surface))]" : "before:bg-surface"} ${k === on ? "[--under:var(--surface)]" : resting ? "opacity-35" : "[&>:not([data-sign])]:opacity-60 hover:[&>:not([data-sign])]:opacity-100"}`,
     onPointerDownCapture: () => k !== on && onStop(k),
   });
 
@@ -175,8 +173,6 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
       <li aria-hidden className={`pointer-events-none absolute top-(--rail-top) left-[9.5px] h-(--rail) w-px bg-track transition-opacity duration-300 ease-calm phone:hidden ${resting ? "opacity-35" : ""}`}>
         <span className="absolute inset-0 origin-top bg-soft [scale:1_var(--reach,0)] transition-[scale] duration-300 ease-calm" />
       </li>
-      {/* The surface the stop you're on sits on: one, gliding along with the rail's fill as you go. */}
-      <li aria-hidden className={`pointer-events-none absolute top-0 left-6 -right-3 h-(--here) translate-y-(--here-top) rounded-xl transition-[translate,height,opacity,background-color] duration-300 ease-calm phone:left-5 ${on === stops.length && looksGood ? "bg-[color-mix(in_srgb,var(--green)_13%,var(--surface))]" : "bg-surface"} ${on < 0 || resting ? "opacity-0" : ""}`} />
       {stops.map((stop, k) => {
         const here = k === on;
         const gone = k < on;
@@ -323,10 +319,13 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
 }
 
 // What a stop says beyond its line, there while you're on it: it grows out of the line, and folds back into it.
+// It's the row's child, whose opacity the row sets; the fold is on the one inside it, so neither undoes the other's.
 function Opens({ open, className = "", children }: { open: boolean; className?: string; children: ReactNode }) {
   return (
-    <div inert={!open} className={`grid transition-[grid-template-rows,opacity] duration-300 ease-calm ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr] opacity-0"}`}>
-      <div className={`min-h-0 overflow-hidden ${className}`}>{children}</div>
+    <div inert={!open}>
+      <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-calm ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr] opacity-0"}`}>
+        <div className={`min-h-0 overflow-hidden ${className}`}>{children}</div>
+      </div>
     </div>
   );
 }
