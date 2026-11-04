@@ -148,8 +148,8 @@ export function Work(props: Props) {
     step();
   };
   const letGo = () => (cancelAnimationFrame(gliding.current!), (gliding.current = undefined), (steered.current = 0));
-  const now = useRef({ busy, move, active, letGo, settled });
-  now.current = { busy, move, active, letGo, settled };
+  const now = useRef({ busy, move, active, letGo, settled, goTo });
+  now.current = { busy, move, active, letGo, settled, goTo };
   // A verdict lands where it was said, and the way goes on from there, unless you've gone on already.
   const goOn = (flow: string) => {
     const there = () => props.room.current?.querySelector<HTMLElement>(`[data-situation="${CSS.escape(flow)}"]`)?.dataset.stop;
@@ -163,7 +163,7 @@ export function Work(props: Props) {
     // line is, and where a recording is pinned, for the situations to lay their ways out by.
     const tall = () => {
       room.style.setProperty("--room", `${room.clientHeight}px`);
-      room.style.setProperty("--line", `${Math.round(room.clientHeight * LINE)}px`);
+      room.style.setProperty("--to-line", `${Math.round(room.clientHeight * LINE)}px`);
       room.style.setProperty("--pin", `${PIN}px`);
     };
     tall();
@@ -190,13 +190,34 @@ export function Work(props: Props) {
       const left = now.current.active === undefined || now.current.active === here?.dataset.situation ? null : room.querySelector<HTMLElement>(`[data-situation="${CSS.escape(now.current.active)}"]`);
       const first = left?.querySelector("li[data-stop]")?.getBoundingClientRect().top;
       if (left && Number(left.dataset.stop) >= 0 && first !== undefined && first > line) setGo({ round: round.number, flow: left.dataset.situation!, stop: -1, passing: true });
+      if (rest === undefined) {
+        const on = here ?? left;
+        from = on && which(on.querySelector<HTMLElement>(`li[data-stop="${on.dataset.stop}"]`) ?? on);
+      }
+      clearTimeout(rest);
+      rest = window.setTimeout(() => rested(!!here), REST);
       if (!here) return void (now.current.active !== undefined && setActive(undefined));
       const flow = here.dataset.situation!;
       const stop = Number([...here.querySelectorAll<HTMLElement>("li[data-stop]")].findLast((row) => row.getBoundingClientRect().top <= line)?.dataset.stop ?? -1);
       if (flow !== now.current.active) setActive(flow);
       if (stop !== Number(here.dataset.stop)) setGo({ round: round.number, flow, stop, passing: true });
-      clearTimeout(rest);
-      rest = window.setTimeout(land, REST);
+    };
+    // Come to rest just off a stop, it's brought to the line, so each turn of the wheel goes a stop from where the last
+    // left you, rather than a little further each time until a turn goes past one: the stop at the line, just past it,
+    // or the next, just short of it, but only from the stop you were on, so a rest never goes on past one you haven't
+    // been on.
+    let from: string | undefined;
+    const which = (row: HTMLElement) => `${row.closest<HTMLElement>("[data-situation]")?.dataset.situation} ${row.dataset.stop}`;
+    const rested = (settled: boolean) => {
+      rest = undefined;
+      if (now.current.busy) return;
+      const line = lineOf(room);
+      const rows = [...room.querySelectorAll<HTMLElement>("li[data-stop]")].map((row) => ({ row, by: row.getBoundingClientRect().top - line }));
+      const [at, next] = [rows.findLast(({ by }) => by <= 0), rows.find(({ by }) => by > 0)];
+      const to = at && -at.by <= SETTLE ? at : next && next.by <= SETTLE && at && which(at.row) === from ? next : undefined;
+      const situation = to?.row.closest<HTMLElement>("[data-situation]");
+      if (situation && Math.abs(to!.by) > 1) now.current.goTo(room, situation, Number(to!.row.dataset.stop));
+      else if (settled) land();
     };
     const scrolled = () => void (reading ??= requestAnimationFrame(read));
     const handTakes = () => now.current.letGo();
@@ -301,6 +322,8 @@ export function Work(props: Props) {
 const LINE = 0.2;
 const PIN = 24;
 const REST = 180;
+// How far from the line a stop can be, in pixels, for the page to bring it there once you rest: under half a stop's room.
+const SETTLE = 40;
 // How long a verdict is seen where it was said before the way goes on, in milliseconds.
 const LANDS = 600;
 

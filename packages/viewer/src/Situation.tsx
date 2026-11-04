@@ -620,8 +620,8 @@ export function Situation(props: SituationProps) {
         {/* The way goes by beside the recording as the page scrolls: where it stands and what the agent said first, its
             first stop coming up to the line as the recording settles at the top, and room after its last for it to come
             up to the line while the recording's still there. */}
-        <div className="flex flex-col pb-[max(0px,calc(var(--block)-var(--line)+var(--pin)))] phone:pb-0">
-          <div className="grid min-h-[calc(var(--line)-var(--pin))] content-start gap-5 pb-5 phone:min-h-0">
+        <div className="flex flex-col pb-[max(0px,calc(var(--block)-var(--to-line)+var(--pin)))] phone:pb-0">
+          <div className="grid min-h-[calc(var(--to-line)-var(--pin))] content-start gap-5 pb-5 phone:min-h-0">
             {/* Where it stands, and what its recording shows when it's not the situation's own: never over the recording. */}
             <span className="flex min-h-[21px] flex-wrap items-baseline gap-x-1.5 gap-y-0.5 px-0.5 text-xs leading-[21px]">
               {redone && <span className="text-soft">Showing what you did, done again</span>}
