@@ -442,11 +442,17 @@ export function Situation(props: SituationProps) {
   // plays; and taken over, the whole page the app comes in as. Side by side, Now is close on it in its half, and Before
   // shows the same part of the page; else each is on the step's part of the page.
   const there = stops[stop];
-  const onIt = there?.id !== undefined && there.at !== undefined && !playing && !scrubbing && Math.abs(at - there.at) < 0.02;
+  // Passed on the way, or gone to while the recording's still coming into its place, a note or a change is only its
+  // moment: it closes in, and its pins come, once the recording's settled and it's stopped on, as a step plays.
+  const passing = !!props.go?.passing;
+  const onIt = there?.id !== undefined && there.at !== undefined && !playing && !scrubbing && !passing && Math.abs(at - there.at) < 0.02;
   const closeOn = !live?.shown && onIt ? pins.find((pin) => pin.id === there!.id)?.on : undefined;
   const [closed, setClosed] = useState<Frame>();
   const frame = side ? ((redone && traced?.id === redone.id && traced.frame) || frames[step]) : undefined;
   const view = `${at} ${side} ${closeOn?.join(" ") ?? ""} ${redone ? "redone" : ""}`;
+  // The pins are drawn where the recording, come to rest, found their things in the view it shows; on its way to another
+  // view, none are, rather than in the corner that's for things it didn't find.
+  const placedHere = !passing && placed?.view === view ? placed.at : undefined;
   // The app is the page the recording was made of, at its size, scrolled where the recording rests.
   const screen = readings?.find((one) => one.step === flow.steps[step]?.title)?.screen ?? { width: 1280, height: 800 };
   const scrolled = useRef<() => Scrolled>(undefined);
@@ -602,10 +608,10 @@ export function Situation(props: SituationProps) {
           {!taken && !peek && (
             <div className={`pointer-events-none absolute inset-y-0 left-0 z-1 transition-[width] duration-450 ease-calm ${side ? `${HALVES} overflow-hidden rounded-lg` : "w-full"}`}>
               <Pinned
-                pins={redone ? pins.filter((pin) => pin.id === redone.id && redone.outlined) : pins}
-                placed={placed?.view === view ? placed.at : {}}
+                pins={!placedHere ? [] : redone ? pins.filter((pin) => pin.id === redone.id && redone.outlined) : pins}
+                placed={placedHere ?? {}}
                 open={open}
-                faded={!!playing || scrubbing || (!!redone && redoing) || placed?.view !== view}
+                faded={!!playing || scrubbing || (!!redone && redoing) || !placedHere}
                 onOpen={(id) => (writing && id !== writing.note.id ? acting.onClose() : opened(id))}
               />
             </div>
