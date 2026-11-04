@@ -6,13 +6,13 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { Placed } from "./Player.tsx";
 import type { Rect } from "./replay.ts";
-import { pinLook } from "./Stage.tsx";
 
 // How far a pin sits out from its outline's corner, as in the frame.
 const OUT = 14;
 
-// A pin, on the things it's for: a note's, numbered in its colour; or a change's diamond.
-export type Pin = { id: string; on: string[]; ink: string } & ({ number: number; fill: string } | { diamond: true });
+// A pin, on the things it's for: a note's dot in its colour, as its sign on the way is; or a change's diamond. A number
+// on it stood for nothing on the page once the way's numbers were the steps'.
+export type Pin = { id: string; on: string[]; ink: string } & ({ fill: string } | { diamond: true });
 
 type Props = { pins: Pin[]; placed: Placed; open?: string; faded: boolean; onOpen: (id?: string) => void };
 
@@ -70,17 +70,13 @@ export function Pinned({ pins, placed, open, faded, onOpen }: Props) {
               );
             })}
             <button
-              aria-label={"number" in pin ? `Note ${pin.number}` : "What changed here"}
+              aria-label={"fill" in pin ? "Note" : "What changed here"}
               aria-expanded={chosen}
-              className={
-                "number" in pin
-                  ? `absolute ${pinLook} ${pin.fill}`
-                  : "pointer-events-auto absolute grid size-[18px] cursor-pointer place-items-center transition duration-150 ease-calm hover:scale-112"
-              }
+              className="pointer-events-auto absolute grid size-[18px] cursor-pointer place-items-center transition duration-150 ease-calm hover:scale-112"
               style={{ left, top }}
               onClick={() => onOpen(chosen ? undefined : pin.id)}
             >
-              {"number" in pin ? pin.number : <i className="size-2.5 rotate-45 bg-(--c) shadow-[0_0_0_2px_#fff]" />}
+              {"fill" in pin ? <i className={`size-3 rounded-full shadow-[0_0_0_2px_#fff,0_1px_4px_rgb(0_0_0/0.25)] ${pin.fill}`} /> : <i className="size-2.5 rotate-45 bg-(--c) shadow-[0_0_0_2px_#fff]" />}
             </button>
           </div>
         );

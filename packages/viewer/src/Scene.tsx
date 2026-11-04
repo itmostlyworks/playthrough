@@ -15,7 +15,7 @@ import { HOLD, Said } from "./Card.tsx";
 import { answersTo, type Diamond } from "./changes.ts";
 import { EndMark, endOf } from "./Chosen.tsx";
 import { clamp } from "./moments.ts";
-import { Conversation, quiet as quietNumber } from "./Notes.tsx";
+import { Conversation } from "./Notes.tsx";
 import { fill, ink, type Replied, type Shown, type Standing } from "./notes.ts";
 import { asWho, personAt } from "./people.ts";
 import { onPhone } from "./phone.ts";
@@ -429,9 +429,9 @@ export function SceneView(props: SceneViewProps) {
     ...(writing ? [writing.note.on?.app ? { id: writing.note.id, name: writing.note.on.element?.name } : { id: writing.note.id, node: writing.note.on?.element?.node, point: writing.note.on?.point }] : []),
   ];
   const pins: Pin[] = [
-    ...here.map((note) => ({ id: note.id, on: [note.id, ...(note.id === chosen ? answeredMarks.map((mark) => mark.id) : [])], ink: ink(note), number: note.number, fill: fill(note) })),
+    ...here.map((note) => ({ id: note.id, on: [note.id, ...(note.id === chosen ? answeredMarks.map((mark) => mark.id) : [])], ink: ink(note), fill: fill(note) })),
     ...changedHere.map((diamond) => ({ id: diamond.id, on: changedMarks(diamond).map((mark) => mark.id), ink: RECORDED_INK, diamond: true as const })),
-    ...(writing ? [{ id: writing.note.id, on: [writing.note.id], ink: "var(--amber)", number: writing.number, fill: "bg-amber" }] : []),
+    ...(writing ? [{ id: writing.note.id, on: [writing.note.id], ink: "var(--amber)", fill: "bg-amber" }] : []),
   ];
   const [placed, setPlaced] = useState<{ view: string; at: Placed }>();
   const [saved, setSaved] = useState(acting.opened);
@@ -573,14 +573,12 @@ export function SceneView(props: SceneViewProps) {
                     <i className={`mt-[5.5px] size-[7px] flex-none rotate-45 ${on ? "bg-fg" : "bg-soft"}`} />
                     <span className="min-w-0 flex-1">
                       {madeFor ? (
-                        // Its number goes with its last word, never onto a line of its own.
+                        // The note's dot goes with its last word, never onto a line of its own, its words there when pointed at.
                         <>
                           {words.slice(0, words.lastIndexOf(" ") + 1)}
                           <span className="whitespace-nowrap">
                             {words.slice(words.lastIndexOf(" ") + 1)}
-                            <span className={`ml-1 inline-block size-3.5 rounded-full text-center text-[8.5px] leading-3.5 font-semibold ${quietNumber}`} style={{ "--c": ink(madeFor) } as CSSProperties}>
-                              {madeFor.number}
-                            </span>
+                            <i title={madeFor.turns[0]?.words} className={`ml-1.5 inline-block size-1.5 -translate-y-px rounded-full ${fill(madeFor)}`} />
                           </span>
                         </>
                       ) : told.length ? (
