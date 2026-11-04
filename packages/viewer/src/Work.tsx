@@ -76,10 +76,11 @@ export function Work(props: Props) {
   const [arrivedOn] = useState(() => props.notes.some((note) => note.toJudge && round.flows.some((flow) => flow.name === note.on?.flow)));
   const begun = !!go || arrivedOn;
   const busy = acting.noting || !!acting.writing || !!acting.live?.shown;
-  // Where you are is where you've scrolled to: the stop you're on is the one come up to the line, a third of the way
-  // down the window, beside its situation's recording pinned at the top. The page scrolls as any page does, with your
-  // hand, and moves by itself only to take you to a stop you asked for. What's passed plays nothing; where you rest a
-  // moment plays. On a phone, a stop is gone to by pressing it.
+  // Where you are is where you've scrolled to: the stop you're on is the one come up to the line, a fifth of the way
+  // down the window, beside its situation's recording settled at the top. Coming up or going away, a recording is
+  // nobody's: nothing plays while it moves, and its bar waits. The page scrolls as any page does, with your hand, and
+  // moves by itself only to take you to a stop you asked for. What's passed plays nothing; where you rest a moment
+  // plays. On a phone, a stop is gone to by pressing it.
   const steered = useRef(0);
   const lineOf = (room: HTMLElement) => room.getBoundingClientRect().top + room.clientHeight * LINE;
   // Where the page is scrolled for a situation's stop to be at the line; before its first, for the situation to come
@@ -89,8 +90,20 @@ export function Work(props: Props) {
     if (row) return room.scrollTop + row.getBoundingClientRect().top - lineOf(room);
     return stop < 0 ? topOf(room, situation) - PIN : room.scrollHeight;
   };
+  // Whether a situation's recording has settled at the window's top.
+  const settled = (room: HTMLElement, situation: HTMLElement) =>
+    Math.abs((situation.querySelector("[data-block]")?.getBoundingClientRect().top ?? NaN) - room.getBoundingClientRect().top - PIN) < 1.5;
+  // There, it plays: gone to while the page glides another situation up, once that's settled.
+  const land = () => setGo((go) => (go?.passing ? { ...go, passing: false } : go));
+  const goTo = (room: HTMLElement, situation: HTMLElement, stop: number) => {
+    const flow = situation.dataset.situation!;
+    const there = settled(room, situation);
+    setActive(flow);
+    setGo({ round: round.number, flow, stop, passing: !there });
+    glide(scrollFor(room, situation, stop), there ? undefined : land);
+  };
   // With the keys, along the way a stop at a time: from a situation's last stop on to the next one's first, and back to
-  // the last of the one before. It plays at once, and the page glides it up to the line.
+  // the last of the one before. The page glides it up to the line.
   const move = (by: number) => {
     const room = props.room.current;
     const situations = [...(room?.querySelectorAll<HTMLElement>("[data-situation]") ?? [])];
@@ -104,42 +117,39 @@ export function Work(props: Props) {
     else if (stop < 0 && i > 0) [i, stop] = [i - 1, count(i - 1) - 1];
     else stop = clamp(stop, -1, count(i));
     if (i === was.i && stop === was.stop) return false;
-    const flow = situations[i]!.dataset.situation!;
-    setActive(flow);
-    setGo({ round: round.number, flow, stop });
-    glide(scrollFor(room, situations[i]!, stop));
+    goTo(room, situations[i]!, stop);
     return true;
   };
-  // A stop pressed comes up to the line; a phone's page stays put.
+  // A stop pressed comes up to the line; on a phone, where the page stays put, it's gone to where it is.
   const bringTo = (flow: string, stop: number) => {
     const room = props.room.current;
     const there = room?.querySelector<HTMLElement>(`[data-situation="${CSS.escape(flow)}"]`);
-    if (!room || !there || onPhone()) return;
-    setActive(flow);
-    glide(scrollFor(room, there, stop));
+    if (!room || !there) return;
+    if (onPhone()) return void (setActive(flow), setGo({ round: round.number, flow, stop }));
+    goTo(room, there, stop);
   };
   // The page glides where it's sent a frame at a time, rather than by the browser's smooth scroll, which another can cut
   // short; meanwhile, what it passes isn't where you are. Asked for less motion, it's there at once; your hand on the
   // wheel or the screen, it lets go.
   const gliding = useRef<number>(undefined);
-  const glide = (top: number) => {
+  const glide = (top: number, done?: () => void) => {
     const room = props.room.current;
     if (!room) return;
     cancelAnimationFrame(gliding.current!);
     const [from, to] = [room.scrollTop, clamp(top, 0, room.scrollHeight - room.clientHeight)];
-    if (Math.abs(to - from) <= 1) return;
+    if (Math.abs(to - from) <= 1) return done?.();
     const [since, takes] = [performance.now(), matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : Math.min(600, 250 + Math.abs(to - from) / 4)];
     steered.current = since + takes + 100;
     const step = () => {
       const u = takes ? Math.min(1, (performance.now() - since) / takes) : 1;
       room.scrollTop = from + (to - from) * (1 - (1 - u) ** 3);
-      gliding.current = u < 1 ? requestAnimationFrame(step) : undefined;
+      gliding.current = u < 1 ? requestAnimationFrame(step) : (done?.(), undefined);
     };
     step();
   };
   const letGo = () => (cancelAnimationFrame(gliding.current!), (gliding.current = undefined), (steered.current = 0));
-  const now = useRef({ busy, move, active, letGo });
-  now.current = { busy, move, active, letGo };
+  const now = useRef({ busy, move, active, letGo, settled });
+  now.current = { busy, move, active, letGo, settled };
   // A verdict lands where it was said, and the way goes on from there, unless you've gone on already.
   const goOn = (flow: string) => {
     const there = () => props.room.current?.querySelector<HTMLElement>(`[data-situation="${CSS.escape(flow)}"]`)?.dataset.stop;
@@ -163,24 +173,25 @@ export function Work(props: Props) {
     const waiting = round.flows.find((flow) => props.notes.some((note) => note.on?.flow === flow.name && note.toJudge && (note.on.app ? note.on.app.from.at : note.on.at) !== undefined));
     const held = waiting && room.querySelector<HTMLElement>(`[data-situation="${CSS.escape(waiting.name)}"]`);
     if (held) setActive(waiting.name);
+    // Arriving at the top, no situation's yours until one comes up.
+    else setActive(undefined);
     if (held && onPhone()) held.querySelector(`[data-stop="${held.dataset.stop}"]`)?.scrollIntoView({ block: "center" });
     else if (held) ((steered.current = performance.now() + 200), (room.scrollTop = scrollFor(room, held, Number(held.dataset.stop))));
-    // Scrolled, the stop at the line is the one you're on, passing; still a moment, it plays.
+    // Scrolled, the stop at the line beside a settled recording is the one you're on, passing; still a moment, it plays.
     let reading: number | undefined;
     let rest: number | undefined;
     const read = () => {
       reading = undefined;
       if (now.current.busy || onPhone() || performance.now() < steered.current) return;
       const line = lineOf(room);
-      const situations = [...room.querySelectorAll<HTMLElement>("[data-situation]")];
-      const here = situations.findLast((situation) => situation.getBoundingClientRect().top <= line) ?? situations[0];
-      if (!here) return;
+      const here = [...room.querySelectorAll<HTMLElement>("[data-situation]")].find((situation) => now.current.settled(room, situation));
+      if (!here) return void (now.current.active !== undefined && setActive(undefined));
       const flow = here.dataset.situation!;
       const stop = Number([...here.querySelectorAll<HTMLElement>("li[data-stop]")].findLast((row) => row.getBoundingClientRect().top <= line)?.dataset.stop ?? -1);
       if (flow !== now.current.active) setActive(flow);
       if (stop !== Number(here.dataset.stop)) setGo({ round: round.number, flow, stop, passing: true });
       clearTimeout(rest);
-      rest = window.setTimeout(() => setGo((go) => (go?.passing ? { ...go, passing: false } : go)), REST);
+      rest = window.setTimeout(land, REST);
     };
     const scrolled = () => void (reading ??= requestAnimationFrame(read));
     const handTakes = () => now.current.letGo();
@@ -281,7 +292,7 @@ export function Work(props: Props) {
 // Where the line is that the stop you're on has come up to, as a share of the window's height down from its top; how far
 // below the window's top a situation's recording is pinned, in pixels; and how long the page is still at a stop before
 // it plays, in milliseconds.
-const LINE = 0.36;
+const LINE = 0.2;
 const PIN = 24;
 const REST = 180;
 // How long a verdict is seen where it was said before the way goes on, in milliseconds.

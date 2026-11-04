@@ -53,7 +53,7 @@ type SituationProps = {
   onPointerDown: () => void;
   // A verdict said on it: an answer judged, or Looks good at the end of the way.
   onSaid: () => void;
-  // A stop on its way pressed, to come up to the line.
+  // A stop on its way pressed: it comes up to the line, and the page goes to it.
   onPressed: (stop: number) => void;
 };
 
@@ -498,7 +498,7 @@ export function Situation(props: SituationProps) {
     >
       <div className="grid grid-cols-[minmax(0,1fr)_340px] gap-8 phone:grid-cols-1">
         {/* Its name and recording stay at the window's top while its way goes by beside them. */}
-        <div ref={block} className="sticky top-(--pin) self-start phone:static">
+        <div ref={block} data-block="" className="sticky top-(--pin) self-start phone:static">
         <h3 className="mb-3 min-w-0 px-0.5 text-[15px] leading-[21px] font-semibold text-balance">
           {flow.name}
           {asWho(flow) && <span className="font-normal text-soft"> {asWho(flow)}</span>}
@@ -612,10 +612,11 @@ export function Situation(props: SituationProps) {
           )}
         </div>
         </div>
-        {/* The way goes by beside the recording as the page scrolls: where it stands and what the agent said first, then
-            its stops, and room after its last for it to come up to the line while the recording's still pinned. */}
+        {/* The way goes by beside the recording as the page scrolls: where it stands and what the agent said first, its
+            first stop coming up to the line as the recording settles at the top, and room after its last for it to come
+            up to the line while the recording's still there. */}
         <div className="flex flex-col pb-[max(0px,calc(var(--block)-var(--line)+var(--pin)))] phone:pb-0">
-          <div className="grid content-start gap-5 pb-5">
+          <div className="grid min-h-[calc(var(--line)-var(--pin))] content-start gap-5 pb-5 phone:min-h-0">
             {/* Where it stands, and what its recording shows when it's not the situation's own: never over the recording. */}
             <span className="flex min-h-[21px] flex-wrap items-baseline gap-x-1.5 gap-y-0.5 px-0.5 text-xs leading-[21px]">
               {redone && <span className="text-soft">Showing what you did, done again</span>}
@@ -644,7 +645,7 @@ export function Situation(props: SituationProps) {
             since={since}
             onUnfold={unfold}
             resting={taken}
-            onStop={(k) => (toStop(k), props.onPressed(k))}
+            onStop={props.onPressed}
             onPoint={setLit}
             onScrub={(on) => (on && ((setPlaying(undefined), setPicked(undefined))), setScrubbing(on))}
             onGo={stopped}
