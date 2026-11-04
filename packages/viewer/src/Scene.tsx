@@ -11,11 +11,11 @@ import type { Glimpse, Reading } from "@playthrough/page";
 import { accountOf, allNotes, lastLooked, type Scene, type Place, type Review, type Round, type Verdict } from "@playthrough/review";
 import { picture, readings as readingsOf, recording } from "./api.ts";
 import { Bar } from "./Bar.tsx";
-import { Compare, HOLD, Said } from "./Card.tsx";
+import { HOLD, Said } from "./Card.tsx";
 import { answersTo, type Diamond } from "./changes.ts";
 import { EndMark, endOf } from "./Chosen.tsx";
 import { clamp } from "./moments.ts";
-import { Conversation, quiet as quietNumber, quietly } from "./Notes.tsx";
+import { Conversation, quiet as quietNumber } from "./Notes.tsx";
 import { fill, ink, type Replied, type Shown, type Standing } from "./notes.ts";
 import { asWho, personAt } from "./people.ts";
 import { onPhone } from "./phone.ts";
@@ -38,12 +38,9 @@ type SceneViewProps = {
   readings?: Reading[];
   glimpsed?: Glimpse[];
   notes: Shown[];
-  // The notes whose thing this round no longer has, each by what it was on.
-  outdated: Map<string, string>;
   // Any note of yours, wherever it's on: a change here can be made for one on another scene.
   noteOf: (id: string) => Shown | undefined;
   standing?: Standing;
-  same: boolean;
   onLooksGood?: (scene: string) => void;
   threads: Threads;
   diamonds: Diamond[];
@@ -62,11 +59,15 @@ type SceneViewProps = {
 };
 
 export function SceneView(props: SceneViewProps) {
-  const { review, round, before, scene, changed, readings, notes, standing, same, onLooksGood, threads, diamonds, quiet, acting, active } = props;
+  const { review, round, before, scene, changed, readings, notes, standing, onLooksGood, threads, diamonds, quiet, acting, active } = props;
   const end = scene.length - 0.05;
   const stepOf = (at: number) => Math.max(0, scene.steps.findIndex((_, i) => stepEnd(scene, i) >= at - 0.05));
   // A note's moment: where it was made, or made in the app, where the app was taken over.
   const momentOf = (note: { on?: Place }) => (note.on?.app ? note.on.app.from.at : note.on?.at);
+  // A note is a stop on the way while it's open for you: its answer waits on you, or what you said on it isn't sent.
+  // The rest ask nothing of you, settled or with the agent, and are a line each in their step: as stops, a way three
+  // rounds on was as many settled notes as steps, each gone through.
+  const asks = (note: Shown) => note.state === "needs you" || note.unsent;
   // The note you're writing on it, here or in the app, at its moment, or on the whole scene, at its end: a stop like any
   // other, where its words are written.
   const ours = acting.writing?.note.on?.scene === scene.name ? acting.writing : undefined;
@@ -127,21 +128,21 @@ export function SceneView(props: SceneViewProps) {
     while (last + 1 < scene.steps.length && together(last + 1)) last++;
     return [first, last] as const;
   };
-  // The way through it, a stop at a time: each step, and after it what was said in it, in the order it comes, a change
-  // before what you said about it; then what was said about all of it, where it ends. Two or more steps in a row with
-  // nothing new are one stop, played through, the notes settled in them after it, each at its moment.
+  // The way through it, a stop at a time: each step, and after it each note in it that's open for you, in the order they
+  // come; then those about all of it, where it ends. Two or more steps in a row with nothing new are one stop, played
+  // through.
   const saidIn = (from: number, to: number) =>
     onLine
-      .filter((mark) => mark.fill && stepOf(mark.at) >= from && stepOf(mark.at) <= to)
-      .sort((a, b) => a.at - b.at || Number(!!a.fill) - Number(!!b.fill))
+      .filter((mark) => mark.fill && (mark.id === writing?.note.id || notes.some((note) => note.id === mark.id && asks(note))) && stepOf(mark.at) >= from && stepOf(mark.at) <= to)
+      .sort((a, b) => a.at - b.at)
       .map((mark) => ({ step: stepOf(mark.at), at: mark.at, id: mark.id }));
   const stops: Stop[] = [
     ...scene.steps.flatMap((_, i): Stop[] => {
       const [first, last] = together(i) ? run(i) : [i, i];
-      if (last > first) return i === first ? [{ step: last, at: results[last]!, from: first }, ...saidIn(first, last)] : [];
+      if (last > first) return i === first ? [{ step: last, at: results[last]!, from: first }] : [];
       return [{ step: i, at: results[i]! }, ...saidIn(i, i)];
     }),
-    ...notes.filter((note) => momentOf(note) === undefined).map((note) => ({ step: -1, id: note.id })),
+    ...notes.filter((note) => momentOf(note) === undefined && asks(note)).map((note) => ({ step: -1, id: note.id })),
     ...(ours && !writing ? [{ step: -1, id: ours.note.id }] : []),
   ];
   // And last, its end, where anything can be said about the whole of it: whether it looks good to you, once nothing in
@@ -157,7 +158,7 @@ export function SceneView(props: SceneViewProps) {
         }
       : undefined;
   const last = stops.length - (atEnd ? 0 : 1);
-  const waiting = notes.find((note) => note.toJudge && momentOf(note) !== undefined);
+  const waiting = notes.find((note) => note.state === "needs you" && momentOf(note) !== undefined);
   const [clock] = useState(() => new Clock(waiting ? Math.min(momentOf(waiting)!, end) : results[0]!));
   const [at, setAt] = useState(clock.at);
   const [playing, setPlaying] = useState<{ until: number }>();
@@ -192,15 +193,16 @@ export function SceneView(props: SceneViewProps) {
     else go(there.at, there.id);
   };
   useLayoutEffect(() => void (props.go && toStop(props.go.stop, props.go.passing)), [props.go]);
-  // Opened, steps kept together are each a stop again, walked from the first.
+  // Opened at one of them, steps kept together are each a stop again, and that one's gone to: none of them has a note
+  // open for you, so each is the next stop after the one before.
   const [unfolding, setUnfolding] = useState<number>();
-  const unfold = (k: number) => {
+  const unfold = (k: number, step: number) => {
     const there = stops[k];
     if (there?.from === undefined) return;
     setUnfolded((was) => [...was, ...scene.steps.map((_, i) => i).filter((i) => i >= there.from! && i <= there.step)]);
-    setUnfolding(k);
+    setUnfolding(k + step - there.from);
   };
-  useLayoutEffect(() => void (unfolding !== undefined && (toStop(unfolding), setUnfolding(undefined))), [unfolding]);
+  useLayoutEffect(() => void (unfolding !== undefined && (props.onPressed(unfolding), setUnfolding(undefined))), [unfolding]);
   // Opened on the recording, or just saved, what was said there is the stop you're on, there and then; closed there, it
   // isn't open.
   const opened = (id?: string) => (id && stops.some((one) => one.id === id) && setStop(stops.findIndex((one) => one.id === id)), setPicked(id));
@@ -287,10 +289,8 @@ export function SceneView(props: SceneViewProps) {
   const [peek, setPeek] = useState(false);
   const holding = useRef<number>(undefined);
   const peeked = useRef(false);
-  // Side by side with one round, a press for another turns to it rather than closing.
-  const turning = useRef(false);
   const press = (number: number, called: string) => {
-    if (number !== against) (setAgainst(number), (turning.current = side));
+    setAgainst(number);
     setNamed(called);
     if (holding.current === undefined) holding.current = window.setTimeout(() => ((peeked.current = true), setPeek(true)), HOLD);
   };
@@ -299,8 +299,7 @@ export function SceneView(props: SceneViewProps) {
     clearTimeout(holding.current);
     holding.current = undefined;
     if (peeked.current) (peeked.current = false), setPeek(false);
-    else if (!turning.current) setSide(!side);
-    turning.current = false;
+    else setSide(!side);
   };
 
   // An answer to a note made in the app is seen the way the note was found: what you did there, done again on this
@@ -349,19 +348,18 @@ export function SceneView(props: SceneViewProps) {
   const live = acting.live?.scene === scene.name ? acting.live : undefined;
   const taken = !!live?.shown;
   if (taken && side) setSide(false);
-  // Compare is how it was before the work, at the same moment, as a pull request's diff is against where it branched: on
-  // the bar and beside what changed. Beside an answer, it's the note's own then, the recording as it was when it was
+  // Compare is how it was, for what you're on, and it's on the bar alone: before the work, at the same moment, as a pull
+  // request's diff is against where it branched; at an answer, the note's own then, the recording as it was when it was
   // last said (written, sent back, or judged), as before the work often had nothing of what it's on; at an answer to a
   // note made in the app, what you did then. What's new since you last looked is marked, never compared with: a third
-  // side, Last time, counted from a different round in each scene and for each person, none of them seen.
-  const comparingWith = (number: number, named = "Before") =>
-    sceneOn(number) || redone?.then ? { on: (side || peek) && against === number, off: taken, onPress: () => press(number, named), onRelease: release } : undefined;
-  const comparing = comparingWith(0);
-  const comparable = !!comparing;
-  const saidThen = (note: Shown) => {
-    const said = note.turns.findLast((turn) => !turn.agent && turn.round < round.number);
-    return said ? comparingWith(said.round, said.by === threads.you ? "When you said it" : "When it was said") : comparing;
-  };
+  // side, Last time, counted from a different round in each scene and for each person, none of them seen. Beside each
+  // answer and each change in the way, it was a second and a third Compare, each comparing with something else.
+  const atNote = notes.find((note) => note.id === stops[stop]?.id);
+  const lastSaid = atNote?.turns.findLast((turn) => !turn.agent && turn.round < round.number);
+  const thenOf = lastSaid ? { number: lastSaid.round, named: lastSaid.by === threads.you ? "When you said it" : "When it was said" } : { number: 0, named: "Before" };
+  const comparing = sceneOn(thenOf.number) || redone?.then ? { on: side || peek, off: taken, onPress: () => press(thenOf.number, thenOf.named), onRelease: release } : undefined;
+  // Side by side, going on to what has another then turns to it.
+  if ((side || peek) && (against !== thenOf.number || named !== thenOf.named)) (setAgainst(thenOf.number), setNamed(thenOf.named));
   const noting = active && acting.noting;
   // C is the scene's you're on; in the app, it's the app's, and noting, it rests until you've chosen what it's on.
   // Gone to another, it stops.
@@ -370,7 +368,7 @@ export function SceneView(props: SceneViewProps) {
     const typing = (event: KeyboardEvent) => (event.target as Element).closest?.("input, textarea, [contenteditable]");
     const down = (event: KeyboardEvent) => {
       if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || typing(event)) return;
-      if (event.key.toLowerCase() === "c" && comparable) press(0, "Before");
+      if (event.key.toLowerCase() === "c") comparing?.onPress();
     };
     const up = (event: KeyboardEvent) => event.key.toLowerCase() === "c" && release();
     addEventListener("keydown", down);
@@ -457,62 +455,63 @@ export function SceneView(props: SceneViewProps) {
     return () => removeEventListener("keydown", down, true);
   });
 
-  // What was said at a stop: a note of yours, its thread, or the one you're writing. Its sign on the rail is the note's
-  // number. Settled and sent, a note is folded to a line, as a resolved conversation is, and opens when pressed: before,
-  // one settled on an earlier round left the page. One whose thing has gone says so over its thread, as a comment on a
-  // line that's since changed is outdated, and Compare shows the thing as it was.
+  // What was said at a stop: a note open for you, its thread, or the one you're writing. Its sign on the rail is a dot in
+  // its colour: the rail's numbers are the steps', and a note's number beside them read as one more step.
   const [reading, setReading] = useState<string[]>([]);
+  const thread = (note: Shown, onFold?: () => void) => (
+    <Conversation
+      onFold={onFold}
+      note={note}
+      you={threads.you}
+      readOnly={threads.readOnly}
+      replying={replying === note.id}
+      unfinished={threads.unfinished[note.id]}
+      away={false}
+      onReplying={(on) => setReplying(on ? note.id : undefined)}
+      onUnfinished={(words) => threads.onUnfinished(note.id, words)}
+      onJudge={(said) => (threads.onJudge(note, said), said && "verdict" in said && said.verdict === "looks good" && props.onSaid())}
+      onEdit={(words) => threads.onEdit(note.id, words)}
+      onShow={() => {}}
+    />
+  );
   const said = (id: string): Saying => {
     if (id === ours?.note.id)
       return {
-        sign: <span className="size-4 rounded-full bg-amber text-center text-[9px] leading-4 font-semibold text-white">{ours.number}</span>,
+        sign: <span className="size-2 rounded-full bg-amber" />,
         line: "Your new note",
         whole: <div className="grid gap-2.5 pt-1 pb-1.5 text-[13px]">{ours.words}</div>,
       };
     const note = notes.find((note) => note.id === id)!;
-    const sign = <span className={`size-4 rounded-full text-center text-[9px] leading-4 font-semibold text-white ${fill(note)}`}>{note.number}</span>;
-    const settled = note.state === "settled" && !note.unsent;
-    if (settled && !reading.includes(note.id))
-      return {
-        sign,
-        line: note.turns[0]?.words,
-        whole: (
-          <button className="flex w-full min-w-0 items-baseline gap-2 pr-2 text-left text-[13px] leading-5 hover:text-fg" aria-expanded={false} onClick={() => setReading([...reading, note.id])}>
-            <span className="min-w-0 flex-1 truncate">{note.turns[0]?.words}</span>
-            <span className="flex-none text-[12px] text-green">Settled</span>
-          </button>
-        ),
-      };
-    const thing = props.outdated.get(note.id);
-    return {
-      sign,
-      line: note.turns[0]?.words,
-      whole: (
-        <div className="-my-2 -ml-4">
-          {thing && <p className="pt-2 pl-4 text-[12px] leading-4 text-soft">Outdated · {thing} is gone</p>}
-          <Conversation
-            onFold={settled ? () => setReading(reading.filter((one) => one !== note.id)) : undefined}
-            note={note}
-            you={threads.you}
-            readOnly={threads.readOnly}
-            replying={replying === note.id}
-            unfinished={threads.unfinished[note.id]}
-            away={false}
-            onReplying={(on) => setReplying(on ? note.id : undefined)}
-            onUnfinished={(words) => threads.onUnfinished(note.id, words)}
-            onJudge={(said) => (threads.onJudge(note, said), said && "verdict" in said && said.verdict === "looks good" && props.onSaid())}
-            onEdit={(words) => threads.onEdit(note.id, words)}
-            onShow={() => {}}
-            compare={saidThen(note)}
-          />
-        </div>
-      ),
-    };
+    return { sign: <span className={`size-2 rounded-full ${fill(note)}`} />, line: note.turns[0]?.words, whole: <div className="-my-2 -ml-4">{thread(note)}</div> };
+  };
+  // A note that asks nothing of you is a line in its step, as a resolved conversation is: its first words and where it
+  // stands, opening when pressed and folding again from its thread.
+  const told = (note: Shown) =>
+    reading.includes(note.id) ? (
+      <div key={note.id} data-note={note.id} className="-mx-4 -mb-1">
+        {thread(note, () => setReading(reading.filter((one) => one !== note.id)))}
+      </div>
+    ) : (
+      <button
+        key={note.id}
+        data-note={note.id}
+        className="flex w-full min-w-0 items-center gap-2 pr-2 text-left text-[12.5px] leading-[18px] text-soft hover:text-fg"
+        aria-expanded={false}
+        onClick={() => setReading([...reading, note.id])}
+      >
+        <i className={`size-1.5 flex-none rounded-full ${fill(note)}`} />
+        <span className="min-w-0 flex-1 truncate">{note.turns[0]?.words}</span>
+        <span className={`flex-none text-[12px] ${note.state === "settled" ? "text-green" : "text-slate"}`}>{note.state === "settled" ? "Settled" : note.state === "with the agent" ? "With the agent" : `Waiting for ${note.waitingFor.join(" and ")}`}</span>
+      </button>
+    );
+  const quietIn = (step?: number) => {
+    const these = notes.filter((note) => !asks(note) && (step === undefined ? momentOf(note) === undefined : momentOf(note) !== undefined && stepOf(Math.min(momentOf(note)!, end)) === step));
+    return these.length ? <div className="grid gap-1.5 pt-1">{these.map(told)}</div> : undefined;
   };
 
   // What changed new to you in a step is met under its line, where its diamond is, not as a stop of its own: what the
   // agent says of it, its name once over all it says in the step, or that it was made for a note of yours. Gone to, the
-  // recording is at its moment, close on it, a part of the page at a time outlined, with Compare beside it for how it
+  // recording is at its moment, close on it, a part of the page at a time outlined, and the bar's Compare shows how it
   // was. Steps new to you start with what the agent says of them, on the first.
   const toChange = (diamond: Diamond) => go(changeAt(diamond), diamond.id);
   // Steps new to you are one stretch, marked once above its first with how many, so where it ends is plain. Why, in the
@@ -543,7 +542,7 @@ export function SceneView(props: SceneViewProps) {
     const by = [...fresh, ...here.flatMap(linesOf)][0]?.by ?? here.map((diamond) => answerTo(diamond)?.turn?.by).find(Boolean);
     if (!here.length && !fresh.length) return undefined;
     return (
-      <div className="grid gap-1.5 pt-2.5 pr-2">
+      <div className="grid gap-1.5 pt-1 pr-2">
         {by && <span className="text-[11.5px] leading-4 text-faint">{by}</span>}
         {fresh.map((changed) => (
           <p key={changed.line} className="text-[12.5px] leading-[18px] text-soft">
@@ -588,7 +587,6 @@ export function SceneView(props: SceneViewProps) {
                       )}
                     </span>
                   </button>
-                  {on && comparing && <Compare {...comparing} bar={quietly} />}
                 </li>
               );
             })}
@@ -804,15 +802,9 @@ export function SceneView(props: SceneViewProps) {
         <div ref={column} className="-mx-3 min-h-0 overflow-y-clip px-3 phone:overflow-visible">
           <div ref={way} className="transition-[translate] duration-300 ease-calm">
             <div className="grid content-start gap-5 pb-5">
-              {/* Where it stands, and what its recording shows when it's not the scene's own: never over the recording. */}
-              <span className="flex min-h-[21px] flex-wrap items-baseline gap-x-1.5 gap-y-0.5 px-0.5 text-xs leading-[21px]">
-                {redone && <span className="text-soft">Showing what you did, done again</span>}
-                {redone && standing && SAYS.includes(standing.is) && <span className="text-faint">·</span>}
-                {standing && SAYS.includes(standing.is) && <span className={INK[standing.is]}>{says(standing)}</span>}
-                {standing && SAYS.includes(standing.is) && same && <span className="text-faint">·</span>}
-                {same && <span className="text-faint">Unchanged</span>}
-                {standing?.is === "good" && <span className="text-green">Looks good</span>}
-              </span>
+              {/* What its recording shows when it's not the scene's own, beside the scene's name: never over the recording.
+                  Where the scene stands is said once, at its end; here too, it was said again over what said it. */}
+              <span className="min-h-[21px] px-0.5 text-xs leading-[21px] text-soft">{redone && "Showing what you did, done again"}</span>
               {scene.line && (
                 <div inert={taken} className={`px-0.5 text-[13px] transition-opacity duration-300 ease-calm ${taken ? "opacity-35" : ""}`}>
                   <Said who={round.by}>{scene.line}</Said>
@@ -837,6 +829,7 @@ export function SceneView(props: SceneViewProps) {
               end={atEnd}
               since={since}
               onUnfold={unfold}
+              quietIn={quietIn}
               resting={taken}
               onStop={props.onPressed}
               onPoint={setLit}
@@ -1017,8 +1010,7 @@ const FOOT = 72;
 // How far the bar under a recording reaches below it.
 const BAR = 22;
 
-// What a scene's standing says in words beside its Looks good, and when it can be judged at all.
-const SAYS: Standing["is"][] = ["not saved", "needs you", "to send", "with the agent", "looked good"];
+// When a scene can be judged at all.
 const JUDGED: Standing["is"][] = ["good", "is it good", "needs you", "looked good"];
 
 const INK: Record<Standing["is"], string> = {

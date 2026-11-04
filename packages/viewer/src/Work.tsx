@@ -9,7 +9,7 @@ import type { Note, Place, Review, Round } from "@playthrough/review";
 import { Key } from "./Card.tsx";
 import type { Diamond } from "./changes.ts";
 import { clamp } from "./moments.ts";
-import { fill, unchangedSince, type Shown, type Standing } from "./notes.ts";
+import { fill, type Shown, type Standing } from "./notes.ts";
 import { onPhone } from "./phone.ts";
 import { clock } from "./Rounds.tsx";
 import { SceneView, type Threads } from "./Scene.tsx";
@@ -33,9 +33,6 @@ type Props = {
   step?: Step;
   trouble: string[];
   acting: Acting;
-  // The notes whose thing this round no longer has, as a comment on a line that's since changed is outdated, each by
-  // what it was on.
-  outdated: Map<string, string>;
 };
 
 // What can be done on the scene you're on, from the bar across its recording's bottom edge, and how far it's got.
@@ -64,8 +61,6 @@ export function Work(props: Props) {
   // What the work changed, against Before where there is one, else against the round before.
   const work = review.comparisons.find((kept) => kept.round === round.number && kept.since === 0) ?? review.comparisons.findLast((kept) => kept.round === round.number);
   const general = props.notes.filter((note) => !note.on || !round.scenes.some((scene) => scene.name === note.on?.scene));
-  // The scenes the work left as they were, against Before.
-  const same = before ? unchangedSince(review, 0, round.number) : [];
   // The scene you're on, which the bar and the keys are for: the one gone along to, or pressed, or scrolled to the
   // window's top by its bar; and the last move along the way, which its scene goes to. Noting, writing or in the
   // app, you stay where you are, and in the app the page holds still and the rest of it rests.
@@ -132,11 +127,11 @@ export function Work(props: Props) {
     if (onPhone()) return void (setActive(scene), setGo({ round: round.number, scene, stop }));
     goTo(room, there, stop);
   };
-  // A note gone to from the line under the title: its stop on its scene's way, or where it's said at the page's end, or
-  // the scene, folded as it looks good to you.
+  // A note gone to from the line under the title: its stop on its scene's way, or the stop it's a line in, or where it's
+  // said at the page's end, or the scene, folded as it looks good to you.
   const toNote = (note: Shown) => {
     const room = props.room.current;
-    const stop = room?.querySelector<HTMLElement>(`[data-scene] [data-note="${CSS.escape(note.id)}"]`);
+    const stop = room?.querySelector<HTMLElement>(`[data-scene] [data-note="${CSS.escape(note.id)}"]`)?.closest<HTMLElement>("[data-stop]");
     const scene = stop?.closest<HTMLElement>("[data-scene]")?.dataset.scene;
     if (scene) return bringTo(scene, Number(stop!.dataset.stop));
     room?.querySelector(`[data-note="${CSS.escape(note.id)}"], [data-folded="${CSS.escape(note.on?.scene ?? "")}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -293,14 +288,12 @@ export function Work(props: Props) {
               changed={(work?.changes ?? []).flatMap((change) => change.seen.filter((on) => on.scene === scene.name).map((on) => (change.gone ? { ...on, element: undefined } : on)))}
               readings={props.read(round.number, scene.name)}
               notes={props.notes.filter((note) => note.on?.scene === scene.name)}
-              outdated={props.outdated}
               noteOf={(id) => props.notes.find((note) => note.id === id)}
               standing={props.standing(scene.name)}
               onLooksGood={props.onLooksGood}
               threads={props.threads}
               diamonds={props.diamonds.filter((diamond) => diamond.scene === scene.name)}
               quiet={props.standing(scene.name)?.is === "good"}
-              same={same.includes(scene.name)}
               glimpsed={props.read(round.number, scene.name, true)}
               acting={acting}
               active={up && active === scene.name}

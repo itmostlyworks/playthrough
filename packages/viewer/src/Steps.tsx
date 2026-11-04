@@ -57,12 +57,14 @@ type Props = {
   // over, and what you say there answers.
   resting?: boolean;
   // The round you last said something about it on, the last time, since when steps kept together have nothing new; with
-  // none, they're as they were before the work. And opening them.
+  // none, they're as they were before the work. And opening them, at one of their steps.
   since?: number;
-  onUnfold: (stop: number) => void;
+  onUnfold: (stop: number, step: number) => void;
+  // What was said in a step that asks nothing of you, a line each under it; and about the whole scene, at its end.
+  quietIn: (step?: number) => ReactNode;
 };
 
-export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, onPoint, onScrub, onGo, end, resting, since, onUnfold, changesIn, onChange, newFrom }: Props) {
+export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, onPoint, onScrub, onGo, end, resting, since, onUnfold, quietIn, changesIn, onChange, newFrom }: Props) {
   const looksGood = end?.looksGood;
   const stepEnd = (step: number) => scene.steps[step + 1]?.at ?? scene.length;
   const stepOf = (moment: number) => Math.max(0, scene.steps.findIndex((_, step) => stepEnd(step) >= moment - 0.05));
@@ -189,16 +191,17 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
               <button className={`block w-full text-left text-[14px] leading-5 outline-none hover:text-fg focus-visible:text-fg ${here ? "text-fg" : "text-soft"}`} onClick={() => onStop(k)}>
                 {since === undefined ? "Unchanged" : "Nothing new since last time"}
               </button>
+              {/* Each of them pressed is gone to, the steps kept together each a stop again from there. */}
               <ol className="grid gap-0.5 pt-1.5 text-[13px] leading-[18px] text-soft">
                 {kept.map((one, i) => (
-                  <li key={i} className="truncate">
-                    {one.title}
+                  <li key={i}>
+                    <button className="block w-full truncate text-left hover:text-fg" onClick={() => onUnfold(k, stop.from! + i)}>
+                      {one.title}
+                    </button>
+                    {quietIn(stop.from! + i)}
                   </li>
                 ))}
               </ol>
-              <button className="mt-1.5 mb-0.5 text-[12.5px] leading-[18px] text-soft underline-offset-[3px] hover:text-fg hover:underline" onClick={() => onUnfold(k)}>
-                Go through each step
-              </button>
             </li>
           );
         }
@@ -225,10 +228,13 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
             >
               {i + 1}
             </span>
+            {/* Only the step you're on has its line, just under its name, in room every step keeps, so nothing moves as it
+                comes: on every step, it was a line each to look past. */}
+            <div className="relative pb-3">
             <button className={`block w-full text-left text-[14px] leading-5 text-balance outline-none hover:text-fg focus-visible:text-fg ${i === current ? "text-fg" : "text-soft"}`} onClick={() => onStop(k)}>
               {title}
             </button>
-            <div className="pt-3 pr-2 pb-1.5">
+            <div className="absolute inset-x-0 bottom-[3px] pr-2">
               <div
                 ref={i === current ? line : undefined}
                 role="slider"
@@ -238,7 +244,7 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
                 aria-valuemax={100}
                 aria-valuenow={Math.round(share(i, at) * 100)}
                 style={i === current ? undefined : ({ "--done": i < current ? 1 : 0 } as CSSProperties)}
-                className={`group/line relative h-0.5 w-full cursor-pointer touch-none outline-none select-none before:absolute before:inset-x-0 before:-inset-y-2 before:content-[''] ${i === current ? "" : "pointer-events-none"}`}
+                className={`group/line relative h-0.5 w-full cursor-pointer touch-none outline-none select-none transition-opacity duration-300 ease-calm before:absolute before:inset-x-0 before:-inset-y-2 before:content-[''] ${i === current ? "" : "pointer-events-none opacity-0"}`}
                 onPointerDown={press}
                 onKeyDown={(event) =>
                   (event.key === "ArrowLeft" || event.key === "ArrowRight") &&
@@ -268,7 +274,9 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
                   ))}
               </div>
             </div>
+            </div>
             {changesIn(i)}
+            {quietIn(i)}
           </li>
           </Fragment>
         );
@@ -298,6 +306,7 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
                 Note on the whole scene
               </button>
             )}
+            {quietIn()}
           </li>
         ) : [],
       )}

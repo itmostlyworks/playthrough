@@ -475,8 +475,6 @@ function OnRound({ review: kept, round, latest, newer, you, scene: inAddress, on
     return note.on && !note.on.app ? { ...note, on: placeOn(review, note.id, note.on, note.written, round, read) ?? note.on } : note;
   });
   const lost = noted.filter((note, i) => note.on?.element && !note.on.app && notes[i]!.on !== note.on && !notes[i]!.on?.element).map((note) => note.id);
-  // Each lost here, by what it was on, as it was called where it was written.
-  const outdated = new Map(noted.filter((note) => lost.includes(note.id)).map((note) => [note.id, nameOf(note.on, read, note.written)]));
   // The notes whose things have left the page you're watching.
   const [gone, setGone] = useState<string[]>([]);
   const playingNotes = scene ? notes.filter((note) => note.on?.scene === scene.name && note.on.at !== undefined) : [];
@@ -1462,7 +1460,6 @@ function OnRound({ review: kept, round, latest, newer, you, scene: inAddress, on
               writing: writing ? { note: writing, number: nextNumber + draft.unsaved.indexOf(writing), words: writingWords(writing) } : undefined,
               opened: openNote?.id,
             }}
-            outdated={outdated}
           />
         )}
       </main>
