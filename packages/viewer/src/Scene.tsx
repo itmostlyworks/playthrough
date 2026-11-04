@@ -475,7 +475,12 @@ export function SceneView(props: SceneViewProps) {
   const changesIn = (step: number) => {
     const here = diamonds.filter((diamond) => diamond.row && diamond.until === undefined && stepOf(changeAt(diamond)) === step && !unseen(diamond));
     const fresh = diamonds.filter((diamond) => diamond.until !== undefined && scene.steps.findIndex((one) => one.at >= diamond.at - 0.1) === step).flatMap(linesOf);
-    const by = [...fresh, ...here.flatMap(linesOf)][0]?.by;
+    // Made for a note in another scene, it's told by what the agent said it did for it.
+    const answerTo = (diamond: Diamond) => {
+      const note = diamond.changes.map((changed) => !changed.answers && changed.note && props.noteOf(changed.note)).find(Boolean) || undefined;
+      return note && { note, turn: note.turns.findLast((turn) => turn.agent && turn.round <= round.number && turn.words.trim()) };
+    };
+    const by = [...fresh, ...here.flatMap(linesOf)][0]?.by ?? here.map((diamond) => answerTo(diamond)?.turn?.by).find(Boolean);
     if (!here.length && !fresh.length) return undefined;
     return (
       <div className="grid gap-1.5 pt-2.5 pr-2">
@@ -489,7 +494,8 @@ export function SceneView(props: SceneViewProps) {
           <ul className="grid gap-2.5">
             {here.map((diamond) => {
               const told = linesOf(diamond);
-              const madeFor = diamond.changes.map((changed) => !changed.answers && changed.note && props.noteOf(changed.note)).find(Boolean) || undefined;
+              const answered = answerTo(diamond);
+              const madeFor = answered?.note;
               const on = picked === diamond.id;
               return (
                 <li key={diamond.id} className="flex min-w-0 items-start gap-2" onPointerEnter={() => setLit(diamond.id)} onPointerLeave={() => setLit(undefined)}>
@@ -501,7 +507,7 @@ export function SceneView(props: SceneViewProps) {
                     <span className="min-w-0 flex-1">
                       {madeFor ? (
                         <>
-                          Changed for your note
+                          {answered?.turn?.words ?? "Changed for your note"}
                           <span className={`ml-1 inline-block size-3.5 rounded-full text-center text-[8.5px] leading-3.5 font-semibold ${quietNumber}`} style={{ "--c": ink(madeFor) } as CSSProperties}>
                             {madeFor.number}
                           </span>
