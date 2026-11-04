@@ -12,7 +12,7 @@ import { accountOf, allNotes, lastLooked, type Scene, type Place, type Review, t
 import { picture, readings as readingsOf, recording } from "./api.ts";
 import { Bar } from "./Bar.tsx";
 import { Compare, HOLD, Said } from "./Card.tsx";
-import { answersTo, type Diamond } from "./changes.ts";
+import { answersTo, type Changed, type Diamond } from "./changes.ts";
 import { EndMark, endOf } from "./Chosen.tsx";
 import { clamp } from "./moments.ts";
 import { Conversation, quiet as quietNumber, quietly } from "./Notes.tsx";
@@ -24,7 +24,7 @@ import { Pinned, type Pin } from "./Pinned.tsx";
 import { Clock, CLOSEST, Player, useCut, type Mark, type Placed } from "./Player.tsx";
 import { Portal, TAG } from "./Portal.tsx";
 import { recorded, type Scrolled } from "./replay.ts";
-import { Difference, partsOf, regionsOf } from "./Difference.tsx";
+import { Difference, partOf, regionsOf } from "./Difference.tsx";
 import { says } from "./Step.tsx";
 import { Steps, stepStart, type OnLine, type Saying, type Stop } from "./Steps.tsx";
 import type { Acting } from "./Work.tsx";
@@ -59,6 +59,9 @@ type SceneViewProps = {
   onPressed: (stop: number) => void;
 };
 
+// What changed at a moment, or what of it is in one part of the page: around it, on the screen its step was read on.
+type Pictured = Diamond & { around?: Box };
+
 export function SceneView(props: SceneViewProps) {
   const { review, round, before, scene, changed, readings, notes, standing, same, onLooksGood, threads, diamonds, quiet, acting, active } = props;
   const end = scene.length - 0.05;
@@ -78,18 +81,30 @@ export function SceneView(props: SceneViewProps) {
     return Math.min(first < 0 ? diamond.at : stepStart(scene, first), end);
   };
   // Where what changed is, on the screen a step's reading was made of: each thing it's on, or the part of the page.
-  const boxesOf = (changes: Diamond["changes"], reading: Reading) =>
-    changes.flatMap(({ on }) => [
-      ...[on.element, ...(on.alike ?? [])].flatMap((element) => (element?.node === undefined ? [] : reading.things.filter((thing) => thing.node === element.node).map((thing) => thing.box))),
-      ...(on.box ? [{ x: on.box.x * reading.screen.width, y: on.box.y * reading.screen.height, width: on.box.width * reading.screen.width, height: on.box.height * reading.screen.height }] : []),
+  const boxesOf = (changes: Changed[], reading: Reading) =>
+    changes.flatMap((changed) => [
+      ...[changed.on.element, ...(changed.on.alike ?? [])].flatMap((element) =>
+        element?.node === undefined ? [] : reading.things.filter((thing) => thing.node === element.node).map((thing) => ({ ...thing.box, changed })),
+      ),
+      ...(changed.on.box ? [{ x: changed.on.box.x * reading.screen.width, y: changed.on.box.y * reading.screen.height, width: changed.on.box.width * reading.screen.width, height: changed.on.box.height * reading.screen.height, changed }] : []),
     ]);
   const readingOf = (step: number) => readings?.find((one) => one.step === scene.steps[step]?.title);
   // What changed only off the screen a step was read on can't be seen in its recording, nor pictured: it isn't met here.
   const unseen = (diamond: Diamond) => {
     const reading = readingOf(stepOf(changeAt(diamond)));
     const boxes = reading ? boxesOf(diamond.changes, reading) : [];
-    return boxes.length > 0 && !partsOf(boxes, reading!.screen).length;
+    return boxes.length > 0 && !regionsOf(boxes, reading!.screen).length;
   };
+  // What changed at a moment is met a part of the page at a time: each region of it is its own row under its step, with
+  // what the agent says of what's in it, and its own outline and diamond on the recording. Where nothing of it is found
+  // on the page, it's one, in words.
+  const pictured: Pictured[] = diamonds.flatMap((diamond) => {
+    const reading = diamond.row && diamond.until === undefined ? readingOf(stepOf(changeAt(diamond))) : undefined;
+    const own = diamond.changes.filter((changed) => !changed.answers);
+    const regions = reading ? regionsOf(boxesOf(own, reading), reading.screen) : [];
+    if (!regions.length) return [diamond];
+    return regions.map((region, i) => ({ ...diamond, id: i ? `${diamond.id} ${i + 1}` : diamond.id, changes: [...new Set(region.map((box) => box.changed))], around: union(region) }));
+  });
   const onLine: OnLine[] = [
     ...notes.flatMap((note) => (momentOf(note) === undefined ? [] : [{ id: note.id, at: Math.min(momentOf(note)!, end), fill: fill(note), words: note.turns[0]?.words ?? "Your note" }])),
     ...(writing ? [{ id: writing.note.id, at: Math.min(writingAt!, end), fill: "bg-amber", words: "Your new note" }] : []),
@@ -365,7 +380,7 @@ export function SceneView(props: SceneViewProps) {
   // What's drawn is what's at this moment: in its step, the notes made there up to now, and what changed there.
   const shown = (moment: number) => stepOf(moment) === step && moment <= at + 0.05;
   const here = notes.filter((note) => momentOf(note) !== undefined && shown(momentOf(note)!));
-  const changedHere = diamonds.filter((diamond) => diamond.row && shown(Math.min(diamond.at, end)));
+  const changedHere = pictured.filter((diamond) => diamond.row && shown(Math.min(diamond.at, end)));
   // One made in the app is on its thing as it was written, found by its name: the app's nodes aren't this recording's.
   const written = (note: Shown) => review.sends.flatMap((send) => send.notes).find((kept) => kept.id === note.id)?.on ?? note.on;
   // A change is on its thing and on each thing changed alike with it, where they are.
@@ -379,13 +394,12 @@ export function SceneView(props: SceneViewProps) {
   const chosen = lit ?? picked;
   const answered = here.some((note) => note.id === chosen) ? answersTo(diamonds, chosen!) : [];
   const answeredMarks = answered.flatMap(({ on }, i) => marksOn(`${chosen} answer ${i}`, on));
-  // What changed at a moment is outlined as the regions its pictures show, where its step was read; else each thing.
-  const changedMarks = (diamond: Diamond): Mark[] => {
-    const reading = readingOf(stepOf(changeAt(diamond)));
-    const regions = reading ? regionsOf(boxesOf(diamond.changes, reading), reading.screen) : [];
-    if (!regions.length) return diamond.changes.flatMap(({ on }, i) => marksOn(`${diamond.id} ${i}`, on));
-    const { width, height } = reading!.screen;
-    return regions.map((box, i) => ({ id: `${diamond.id} ${i}`, box: { x: (box.x - 4) / width, y: (box.y - 4) / height, width: (box.width + 8) / width, height: (box.height + 8) / height } }));
+  // What changed is outlined as the part of the page its picture shows, where its step was read; else each thing.
+  const changedMarks = (diamond: Pictured): Mark[] => {
+    const screen = readingOf(stepOf(changeAt(diamond)))?.screen;
+    if (!diamond.around || !screen) return diamond.changes.flatMap(({ on }, i) => marksOn(`${diamond.id} ${i}`, on));
+    const { x, y, width, height } = diamond.around;
+    return [{ id: `${diamond.id} part`, box: { x: (x - 4) / screen.width, y: (y - 4) / screen.height, width: (width + 8) / screen.width, height: (height + 8) / screen.height } }];
   };
   const marks: Mark[] = [
     ...here.map((note) =>
@@ -456,61 +470,69 @@ export function SceneView(props: SceneViewProps) {
     };
   };
 
-  // What changed new to you in a step is met under its line, where its diamond is, not as a stop of its own: what the
-  // agent says of it under its name, or that it was made for a note of yours, and the part of the page it's on, as it
-  // was and as it is. Gone to, the recording is at its moment, close on it. Where the step's picture can't show it, off
-  // the screen it was read on, it's a line, with Compare beside it.
+  // What changed new to you in a step is met under its line, where its diamond is, not as a stop of its own: a part of
+  // the page at a time, as it was over as it is, with what the agent says of what's in it, or that it was made for a
+  // note of yours. Gone to, the recording is at its moment, close on it. Where nothing of it is found on the page, it's
+  // in words, with Compare beside it. Steps new to you start with what the agent says of them, on the first.
   const toChange = (diamond: Diamond) => go(changeAt(diamond), diamond.id);
+  const linesOf = (diamond: Diamond) => [...new Map(diamond.changes.filter((changed) => !changed.answers && changed.line).map((changed) => [changed.line, changed])).values()];
   const changesIn = (step: number) => {
     const reading = readingOf(step);
     const now = reading && picture(review.id, round.number, scene.recording, readings!.indexOf(reading));
-    const here = diamonds.filter((diamond) => diamond.row && diamond.until === undefined && stepOf(changeAt(diamond)) === step && !unseen(diamond));
-    if (!here.length) return undefined;
+    const here = pictured.filter((diamond) => diamond.row && diamond.until === undefined && stepOf(changeAt(diamond)) === step && !unseen(diamond));
+    const fresh = diamonds.filter((diamond) => diamond.until !== undefined && scene.steps.findIndex((one) => one.at >= diamond.at - 0.1) === step).flatMap(linesOf);
+    // The agent's name once, over all it says in the step.
+    const by = [...fresh, ...here.flatMap(linesOf)][0]?.by;
+    if (!here.length && !fresh.length) return undefined;
     return (
-      <ul className="grid gap-2.5 pt-2">
-        {here.map((diamond) => {
-          const own = diamond.changes.filter((changed) => !changed.answers);
-          const told = [...new Map(own.filter((changed) => changed.line).map((changed) => [changed.line, changed])).values()];
-          const madeFor = own.map((changed) => changed.note && props.noteOf(changed.note)).find(Boolean) || undefined;
-          const parts = reading ? partsOf(boxesOf(own, reading), reading.screen) : [];
-          const before = thenPicture(diamond.changes[0]?.since, step);
-          const on = picked === diamond.id;
-          const words = madeFor ? (
-            <>
-              Changed for your note
-              <span className={`ml-1 inline-block size-3.5 rounded-full text-center text-[8.5px] leading-3.5 font-semibold ${quietNumber}`} style={{ "--c": ink(madeFor) } as CSSProperties}>
-                {madeFor.number}
-              </span>
-            </>
-          ) : told.length ? (
-            <>
-              <span className="text-faint">{told[0]!.by} · </span>
-              {told.map((changed, i) => (
-                <span key={changed.line} className={i ? "block pt-1" : undefined}>
-                  {changed.line}
-                </span>
-              ))}
-            </>
-          ) : parts.length ? undefined : (
-            diamond.name
-          );
-          return (
-            <li key={diamond.id} className="flex min-w-0 items-start gap-2 pr-2" onPointerEnter={() => setLit(diamond.id)} onPointerLeave={() => setLit(undefined)}>
-              <button
-                className={`flex min-w-0 flex-1 items-start gap-2 py-0.5 text-left text-[12.5px] leading-[18px] transition-colors duration-150 ease-calm hover:text-fg ${on ? "text-fg" : "text-soft"}`}
-                onClick={() => toChange(diamond)}
-              >
-                <i className={`mt-[5.5px] size-[7px] flex-none rotate-45 ${on ? "bg-fg" : "bg-soft"}`} />
-                <span className="grid min-w-0 flex-1 gap-2">
-                  {words && <span className="min-w-0">{words}</span>}
-                  {parts.map((part, i) => <Difference key={i} part={part} now={now!} before={before} />)}
-                </span>
-              </button>
-              {on && comparing && !parts.length && <Compare {...comparing} bar={quietly} />}
-            </li>
-          );
-        })}
-      </ul>
+      <div className="grid gap-1.5 pt-2.5 pr-2">
+        {by && <span className="text-[11.5px] leading-4 text-faint">{by}</span>}
+        {fresh.map((changed) => (
+          <p key={changed.line} className="text-[12.5px] leading-[18px] text-soft">
+            {changed.line}
+          </p>
+        ))}
+        {here.length > 0 && (
+          <ul className="grid gap-3">
+            {here.map((diamond) => {
+              const told = linesOf(diamond);
+              const madeFor = diamond.changes.map((changed) => !changed.answers && changed.note && props.noteOf(changed.note)).find(Boolean) || undefined;
+              const on = picked === diamond.id;
+              const words = madeFor ? (
+                <>
+                  Changed for your note
+                  <span className={`ml-1 inline-block size-3.5 rounded-full text-center text-[8.5px] leading-3.5 font-semibold ${quietNumber}`} style={{ "--c": ink(madeFor) } as CSSProperties}>
+                    {madeFor.number}
+                  </span>
+                </>
+              ) : told.length ? (
+                told.map((changed, i) => (
+                  <span key={changed.line} className={i ? "block pt-1" : undefined}>
+                    {changed.line}
+                  </span>
+                ))
+              ) : diamond.around ? undefined : (
+                diamond.name
+              );
+              return (
+                <li key={diamond.id} className="flex min-w-0 items-start gap-2" onPointerEnter={() => setLit(diamond.id)} onPointerLeave={() => setLit(undefined)}>
+                  <button
+                    className={`flex min-w-0 flex-1 items-start gap-2 py-0.5 text-left text-[12.5px] leading-[18px] transition-colors duration-150 ease-calm hover:text-fg ${on ? "text-fg" : "text-soft"}`}
+                    onClick={() => toChange(diamond)}
+                  >
+                    <i className={`mt-[5.5px] size-[7px] flex-none rotate-45 ${on ? "bg-fg" : "bg-soft"}`} />
+                    <span className="grid min-w-0 flex-1 gap-2">
+                      {words && <span className="min-w-0">{words}</span>}
+                      {diamond.around && reading && <Difference part={partOf(diamond.around, reading.screen)} now={now!} before={thenPicture(diamond.changes[0]?.since, step)} />}
+                    </span>
+                  </button>
+                  {on && comparing && !diamond.around && <Compare {...comparing} bar={quietly} />}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
     );
   };
   // The picture the same step ended on in the round it's new since, where it had the step.
@@ -529,7 +551,7 @@ export function SceneView(props: SceneViewProps) {
   // moment: it closes in, and its pins come, once the recording's settled and it's stopped on, as a step plays.
   const passing = !!props.go?.passing;
   // What the recording rests close on: the note at the stop you're on, or the change gone to under its step.
-  const change = diamonds.find((diamond) => diamond.id === picked && diamond.row);
+  const change = pictured.find((diamond) => diamond.id === picked && diamond.row);
   const focus = there?.id !== undefined && there.at !== undefined ? { id: there.id, at: there.at } : change && { id: change.id, at: changeAt(change) };
   const onIt = !!focus && !playing && !scrubbing && !passing && Math.abs(at - focus.at) < 0.02;
   const closeOn = !live?.shown && onIt ? pins.find((pin) => pin.id === focus!.id)?.on : undefined;

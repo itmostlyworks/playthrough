@@ -19,10 +19,10 @@ const ROOM = { x: 24, y: 16 };
 const ACROSS = [320, 480] as const;
 const SHAPES = [2.4, 5] as const;
 
-// Where what changed is on a step's page, in regions top to bottom, each what's close together: what's off the screen it
-// was read on isn't in them. The recording outlines these, and each is pictured as it was and as it is.
-export function regionsOf(boxes: Box[], screen: Reading["screen"]): Box[] {
-  const groups: Box[][] = [];
+// Where what changed is on a step's page, in regions top to bottom, each the things close together: what's off the screen
+// it was read on isn't in them. Each is met on its own, outlined on the recording and pictured as it was and as it is.
+export function regionsOf<Thing extends Box>(boxes: Thing[], screen: Reading["screen"]): Thing[][] {
+  const groups: Thing[][] = [];
   const seen = boxes.filter((box) => box.x < screen.width && box.y < screen.height && box.x + box.width > 0 && box.y + box.height > 0).sort((a, b) => a.y - b.y);
   for (const box of seen) {
     const last = groups.at(-1);
@@ -30,20 +30,18 @@ export function regionsOf(boxes: Box[], screen: Reading["screen"]): Box[] {
     if (last && box.y <= bottom! + APART) last.push(box);
     else groups.push([box]);
   }
-  return groups.slice(0, PARTS).map(union);
+  return groups.slice(0, PARTS);
 }
 
-// Each region, framed for its picture.
-export function partsOf(boxes: Box[], screen: Reading["screen"]): Part[] {
-  return regionsOf(boxes, screen).map((around) => {
-    const [wide, high] = [around.width + 2 * ROOM.x, around.height + 2 * ROOM.y];
-    const shape = clamp(wide / high, ...SHAPES);
-    const width = Math.min(screen.width, ACROSS[1], Math.max(wide, high * shape, ACROSS[0]), screen.height * shape);
-    const height = width / shape;
-    const x = clamp(around.x + around.width / 2 - width / 2, 0, screen.width - width);
-    const y = clamp(around.y + around.height / 2 - height / 2, 0, screen.height - height);
-    return { frame: { x: x / screen.width, y: y / screen.height, width: width / screen.width, height: height / screen.height }, shape };
-  });
+// A region, framed for its picture.
+export function partOf(around: Box, screen: Reading["screen"]): Part {
+  const [wide, high] = [around.width + 2 * ROOM.x, around.height + 2 * ROOM.y];
+  const shape = clamp(wide / high, ...SHAPES);
+  const width = Math.min(screen.width, ACROSS[1], Math.max(wide, high * shape, ACROSS[0]), screen.height * shape);
+  const height = width / shape;
+  const x = clamp(around.x + around.width / 2 - width / 2, 0, screen.width - width);
+  const y = clamp(around.y + around.height / 2 - height / 2, 0, screen.height - height);
+  return { frame: { x: x / screen.width, y: y / screen.height, width: width / screen.width, height: height / screen.height }, shape };
 }
 
 // One part, before over now, together on a ground of their own; with nothing before it, now alone.
