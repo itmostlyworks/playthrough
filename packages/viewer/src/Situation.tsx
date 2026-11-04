@@ -756,11 +756,13 @@ function along(moment: number, here: number[], there: number[]): number {
   return there[i]! + u * (there[i + 1]! - there[i]!);
 }
 
-// Each step's part of the page, in the shape of half the picture, as side by side shows it: what changed there, the
-// first thing found, or where nothing did, what the step acted on, the last thing clicked or typed in that's still there
-// and is a thing rather than a stretch of the page clicked away on; and where the hand went to get there, in the step's
-// last few seconds, so it plays with the hand at work. The first step, and one that goes to another page, is the page's
-// full height, where the hand ends: where they are is what it's about.
+// A situation's steps side by side, each in the shape of half the picture: all the same part of the page, its whole
+// height, and across it, where the flow works. A half shows no more of the page than its height without leaving room
+// empty, and closer, a step's view cuts off what's around what it acted on, which is what the step is about; one place
+// for all its steps, nothing moves between them. Where the flow works is what changed in each step, the first thing
+// found, or where nothing did, what the step acted on, the last thing clicked or typed in that's still there and is a
+// thing rather than a stretch of the page clicked away on; and where the hand went to get there, in the step's last few
+// seconds; each with the row, panel or bar it's in. A step that goes to another page is where it went, not where it works.
 function useFrames(review: Review, round: Round, flow: Flow, readings: Reading[] | undefined, changedIn: (step: number) => Place[]): (Frame | undefined)[] {
   const [frames, setFrames] = useState<(Frame | undefined)[]>([]);
   useEffect(() => {
@@ -768,27 +770,38 @@ function useFrames(review: Review, round: Round, flow: Flow, readings: Reading[]
     if (readings)
       recording(review.id, round.number, flow.recording).then((events) => {
         const { acted, pointer, loads } = recorded(events);
-        const found = flow.steps.map((step, i) => {
-          const reading = readings.find((one) => one.step === step.title);
-          if (!reading) return undefined;
-          const { width, height } = reading.screen;
+        const found = flow.steps.map((step) => readings.find((one) => one.step === step.title));
+        const works = flow.steps.flatMap((step, i) => {
+          const reading = found[i];
           const end = stepEnd(flow, i);
+          if (!reading || i === 0 || loads.some((load) => load > step.at && load <= end)) return [];
+          const { width, height } = reading.screen;
           const hand = pointer.filter(([moment]) => moment >= Math.max(step.at, end - 3) && moment <= end).map(([, x, y]) => ({ x, y, width: 0, height: 0 }));
-          if (i === 0 || loads.some((load) => load > step.at && load <= end)) return around({ x: hand.at(-1)?.x ?? width / 2, y: 0, width: 0, height }, reading.screen, HALF, CLOSEST);
           const worked = acted
             .filter(([moment]) => moment >= step.at && moment <= end)
             .toReversed()
             .map(([, node]) => reading.things.find((thing) => thing.node === node))
             .find((thing) => thing && thing.box.width * thing.box.height < (width * height) / 8)?.box;
           const what = changedIn(i).map((on) => boxIn(reading, on)).find(Boolean) ?? worked;
-          const all = [...(what ? [what] : []), ...hand];
-          return around(all.length ? union(all) : { x: width / 2, y: 0, width: 0, height }, reading.screen, HALF, CLOSEST);
+          return [...(what ? [what] : []), ...hand].flatMap((box) => [box, panelOf(reading, box) ?? box]);
         });
-        if (current) setFrames(found);
+        const screen = found.find(Boolean)?.screen;
+        const frame = screen && around(works.length ? union(works) : { x: screen.width / 2, y: 0, width: 0, height: screen.height }, screen, HALF, 1);
+        if (current) setFrames(found.map((reading) => reading && frame));
       });
     return () => void (current = false);
   }, [review.id, round.number, flow.recording, !!readings]);
   return frames;
+}
+
+// The row, panel or bar something on a page is in, the innermost one there's room for across half the picture.
+function panelOf(reading: Reading, box: Box): Box | undefined {
+  const { width: across, height: down } = reading.screen;
+  const [x, y] = [box.x + box.width / 2, box.y + box.height / 2];
+  return [...reading.things.filter((thing) => thing.role === "box" || thing.role === "dialog"), ...(reading.items ?? [])]
+    .map((one) => one.box)
+    .filter((one) => one.width > box.width && one.width <= Math.min(down, across / HALF) * HALF && x >= one.x && x <= one.x + one.width && y >= one.y && y <= one.y + one.height)
+    .sort((a, b) => a.width * a.height - b.width * b.height)[0];
 }
 
 // Where something that changed is on a page: the things there by its role and name, or its part of the page.
