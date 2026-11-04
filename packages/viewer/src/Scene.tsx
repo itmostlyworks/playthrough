@@ -18,6 +18,7 @@ import { clamp } from "./moments.ts";
 import { Conversation, quiet as quietNumber, quietly } from "./Notes.tsx";
 import { fill, ink, type Replied, type Shown, type Standing } from "./notes.ts";
 import { asWho, personAt } from "./people.ts";
+import { onPhone } from "./phone.ts";
 import { around, Picture, union, type Box, type Frame } from "./Picture.tsx";
 import { Pinned, type Pin } from "./Pinned.tsx";
 import { Clock, CLOSEST, Player, useCut, type Mark, type Placed } from "./Player.tsx";
@@ -194,20 +195,28 @@ export function SceneView(props: SceneViewProps) {
     if (ours) (setBegun({ id: ours.note.id, from: stop }), setStop(stops.findIndex((one) => one.id === ours.note.id)));
     else (setBegun(undefined), begun && !stops.some((one) => one.id === begun.id) && setStop(begun.from));
   }
-  // The last scene can come up to the window's top: there's a window's height under it, less its own. And its way
-  // is long enough for its last stop to come up to the line while its recording is still pinned beside it.
-  const section = useRef<HTMLElement>(null);
-  const block = useRef<HTMLDivElement>(null);
+  // Held at the top, its way stays put beside the recording, but for a way longer than the room beside it: that goes up
+  // as far as it must for the stop you're on to be in view over the foot, and no further, its top first where it's
+  // taller than the room, so a stop always shows the way the same.
+  const column = useRef<HTMLDivElement>(null);
+  const way = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
-    const around = section.current;
-    if (!around) return;
-    const measure = () => (around.style.setProperty("--tall", `${around.offsetHeight}px`), around.style.setProperty("--block", `${block.current?.offsetHeight ?? 0}px`));
-    measure();
-    const watching = new ResizeObserver(measure);
-    watching.observe(around);
-    if (block.current) watching.observe(block.current);
+    const [beside, inner] = [column.current, way.current];
+    if (!beside || !inner) return;
+    const follow = () => {
+      const here = inner.querySelector<HTMLElement>("li[aria-current=step]");
+      const top = here ? here.getBoundingClientRect().top - inner.getBoundingClientRect().top : 0;
+      const raised = onPhone() ? 0 : Math.min(top, Math.max(0, top + (here?.offsetHeight ?? 0) - (beside.clientHeight - FOOT)));
+      inner.style.translate = raised ? `0 ${-raised}px` : "";
+      // What's gone up fades out under the top rather than being cut off there.
+      beside.style.maskImage = raised ? "linear-gradient(to bottom, transparent, #000 28px)" : "";
+    };
+    follow();
+    const watching = new ResizeObserver(follow);
+    watching.observe(inner);
+    watching.observe(beside);
     return () => watching.disconnect();
-  }, [folded]);
+  }, [stop, folded]);
   // Playing, a click on it pauses it. Where it can't be taken over, a click plays on into the stop you're on, and there,
   // plays into it again from its step's start; before any stop, or on what was said about all of it, the step it shows.
   const again = () => {
@@ -535,17 +544,18 @@ export function SceneView(props: SceneViewProps) {
     );
   return (
     <section
-      ref={section}
       data-scene={scene.name}
       data-stops={last + 1}
       data-stop={stop}
       inert={props.resting}
-      className={`relative pt-3 pb-8 transition-opacity duration-500 ease-calm last:mb-[max(0px,calc(var(--room)-var(--tall)-56px))] ${props.resting ? "opacity-30" : ""}`}
+      // As tall as the window, and a stop's stretch of scrolling more for each stop, gone through while it's held.
+      style={{ "--stops": last + 1 } as CSSProperties}
+      className={`relative h-[calc(var(--room)-var(--pin)+var(--stops)*var(--step))] transition-opacity duration-500 ease-calm phone:h-auto ${props.resting ? "opacity-30" : ""}`}
       onPointerDown={props.onPointerDown}
     >
-      <div className="grid grid-cols-[minmax(0,1fr)_340px] gap-8 phone:grid-cols-1">
-        {/* Its name and recording stay at the window's top while its way goes by beside them. */}
-        <div ref={block} data-block="" className="@container sticky top-(--pin) self-start phone:static">
+      {/* Its name, recording and way are held at the window's top while you go through it, and leave it together. */}
+      <div className="sticky top-(--pin) grid h-[calc(var(--room)-var(--pin))] grid-cols-[minmax(0,1fr)_340px] gap-8 phone:static phone:h-auto phone:grid-cols-1">
+        <div className="@container self-start">
         {/* A phone's sits against its way, as narrow as it is. */}
         <div className={phone ? "ml-auto transition-[width] duration-450 ease-calm" : undefined} style={phone ? { width: side ? `calc(${2 * phone} * ${high} + 16px)` : `calc(${phone} * ${high})` } : undefined}>
         {/* Over a phone, as wide as the one phone, so it never rewraps, moving the picture, as Compare brings a second. */}
@@ -665,49 +675,51 @@ export function SceneView(props: SceneViewProps) {
         </div>
         </div>
         </div>
-        {/* The way goes by beside the recording as the page scrolls: where it stands and what the agent said first, its
-            first stop coming up to the line as the recording settles at the top, and room after its last for it to come
-            up to the line while the recording's still there. */}
-        <div className="flex flex-col pb-[max(0px,calc(var(--block)-var(--to-line)+var(--pin)))] phone:pb-0">
-          <div className="grid min-h-[calc(var(--to-line)-var(--pin))] content-start gap-5 pb-5 phone:min-h-0">
-            {/* Where it stands, and what its recording shows when it's not the scene's own: never over the recording. */}
-            <span className="flex min-h-[21px] flex-wrap items-baseline gap-x-1.5 gap-y-0.5 px-0.5 text-xs leading-[21px]">
-              {redone && <span className="text-soft">Showing what you did, done again</span>}
-              {redone && standing && SAYS.includes(standing.is) && <span className="text-faint">·</span>}
-              {standing && SAYS.includes(standing.is) && <span className={INK[standing.is]}>{says(standing)}</span>}
-              {standing && SAYS.includes(standing.is) && same && <span className="text-faint">·</span>}
-              {same && <span className="text-faint">Unchanged</span>}
-              {standing?.is === "good" && <span className="text-green">Looks good</span>}
-            </span>
-            {scene.line && (
-              <div inert={taken} className={`px-0.5 text-[13px] transition-opacity duration-300 ease-calm ${taken ? "opacity-35" : ""}`}>
-                <Said who={round.by}>{scene.line}</Said>
-              </div>
-            )}
+        {/* Its way beside the recording, from where it stands and what the agent said first to its end, held still with it:
+            what moves as you go is where you are on it. A little wider than the way, so the surface the stop you're on
+            sits on, which reaches past it, fades with it. */}
+        <div ref={column} className="-mx-3 min-h-0 overflow-y-clip px-3 phone:overflow-visible">
+          <div ref={way} className="transition-[translate] duration-300 ease-calm">
+            <div className="grid content-start gap-5 pb-5">
+              {/* Where it stands, and what its recording shows when it's not the scene's own: never over the recording. */}
+              <span className="flex min-h-[21px] flex-wrap items-baseline gap-x-1.5 gap-y-0.5 px-0.5 text-xs leading-[21px]">
+                {redone && <span className="text-soft">Showing what you did, done again</span>}
+                {redone && standing && SAYS.includes(standing.is) && <span className="text-faint">·</span>}
+                {standing && SAYS.includes(standing.is) && <span className={INK[standing.is]}>{says(standing)}</span>}
+                {standing && SAYS.includes(standing.is) && same && <span className="text-faint">·</span>}
+                {same && <span className="text-faint">Unchanged</span>}
+                {standing?.is === "good" && <span className="text-green">Looks good</span>}
+              </span>
+              {scene.line && (
+                <div inert={taken} className={`px-0.5 text-[13px] transition-opacity duration-300 ease-calm ${taken ? "opacity-35" : ""}`}>
+                  <Said who={round.by}>{scene.line}</Said>
+                </div>
+              )}
+            </div>
+            <Steps
+              scene={scene}
+              clock={clock}
+              at={at}
+              cut={cut}
+              stops={stops}
+              on={Math.min(stop, last)}
+              marks={onLine}
+              changesIn={changesIn}
+              onChange={(id) => {
+                const diamond = diamonds.find((diamond) => diamond.id === id);
+                if (diamond) toChange(diamond);
+              }}
+              said={said}
+              end={atEnd}
+              since={since}
+              onUnfold={unfold}
+              resting={taken}
+              onStop={props.onPressed}
+              onPoint={setLit}
+              onScrub={(on) => (on && ((setPlaying(undefined), setPicked(undefined))), setScrubbing(on))}
+              onGo={stopped}
+            />
           </div>
-          <Steps
-            scene={scene}
-            clock={clock}
-            at={at}
-            cut={cut}
-            stops={stops}
-            on={Math.min(stop, last)}
-            marks={onLine}
-            changesIn={changesIn}
-            onChange={(id) => {
-              const diamond = diamonds.find((diamond) => diamond.id === id);
-              if (diamond) toChange(diamond);
-            }}
-            said={said}
-            end={atEnd}
-            since={since}
-            onUnfold={unfold}
-            resting={taken}
-            onStop={props.onPressed}
-            onPoint={setLit}
-            onScrub={(on) => (on && ((setPlaying(undefined), setPicked(undefined))), setScrubbing(on))}
-            onGo={stopped}
-          />
         </div>
       </div>
     </section>
@@ -875,6 +887,9 @@ function boxIn(reading: Reading, on: Place): Box | undefined {
 // A scene's picture is this wide for its height; side by side, each round has half of it, as tall as the whole.
 const WHOLE = 1.6;
 const HALF = 0.8;
+
+// How much of the window's foot the one step to take floats over, in pixels, which a way that goes up keeps clear of.
+const FOOT = 72;
 
 // What a scene's standing says in words beside its Looks good, and when it can be judged at all.
 const SAYS: Standing["is"][] = ["not saved", "needs you", "to send", "with the agent", "looked good"];

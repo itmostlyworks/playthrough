@@ -4,8 +4,8 @@
 // A rail runs down through them, filled as far as you've come, and its fill glides along as you go. The stop you're on
 // opens: what was said there, all of it; or a step, with a line of its own that fills as it plays, and dragged along,
 // goes anywhere in the step and rests where it's let go, with a dot for each note made in the step and a diamond for
-// each change, at their moments. The others are a line each, and pressed, go there. As much room as there is beside the
-// recording, the way spreads out into, up to a comfortable gap.
+// each change, at their moments. The others are a line each, and pressed, go there. Each stop is as tall as what's in
+// it: how far the page scrolls for it is the page's to say, the same for every stop.
 
 import { useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from "react";
 import type { Scene } from "@playthrough/review";
@@ -160,7 +160,7 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
   const row = (k: number) => ({
     "data-stop": k,
     "aria-current": k === on ? ("step" as const) : undefined,
-    className: `relative flex-none py-2 pb-4 pl-8 phone:min-h-0 ${k < stops.length ? "min-h-(--pitch)" : ""} transition-opacity duration-300 ease-calm [&>*]:transition-opacity [&>*]:duration-300 [&>*]:ease-calm ${k === on ? "[--under:var(--surface)]" : resting ? "opacity-35" : on < 0 ? "" : "[&>:not([data-sign])]:opacity-60 hover:[&>:not([data-sign])]:opacity-100"}`,
+    className: `relative flex-none py-2 pb-4 pl-8 transition-opacity duration-300 ease-calm [&>*]:transition-opacity [&>*]:duration-300 [&>*]:ease-calm ${k === on ? "[--under:var(--surface)]" : resting ? "opacity-35" : on < 0 ? "" : "[&>:not([data-sign])]:opacity-60 hover:[&>:not([data-sign])]:opacity-100"}`,
     onPointerDownCapture: () => k !== on && onStop(k),
   });
 

@@ -1,8 +1,8 @@
-// The work, as one page you scroll down from the top: what was asked, then each scene it meets, its recording pinned
-// at the window's top while its way through goes by beside it, its steps and what was said in them, a stop at a time:
-// the one come up to the line is the one you're on. A key goes one stop on or back. The scene you're on has the bar:
-// you note it, compare it with how it was and take it over where it is. At the end, how it got here, and the one step
-// to take.
+// The work, as one page you scroll down from the top: what was asked, then each scene it meets, held at the window's
+// top while you go through it, its recording beside its way through, its steps and what was said in them: each turn of
+// the wheel there is a stop along its way, and past its end, the page goes on to the next. A key goes one stop on or
+// back. The scene you're on has the bar: you note it, compare it with how it was and take it over where it is. At the
+// end, how it got here, and the one step to take.
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import type { Note, Place, Review, Round } from "@playthrough/review";
@@ -76,23 +76,26 @@ export function Work(props: Props) {
   const [arrivedOn] = useState(() => props.notes.some((note) => note.toJudge && round.scenes.some((scene) => scene.name === note.on?.scene)));
   const begun = !!go || arrivedOn;
   const busy = acting.noting || !!acting.writing || !!acting.live?.shown;
-  // Where you are is where you've scrolled to: the stop you're on is the one come up to the line, just under where a
-  // scene's heading ends, beside its recording settled at the top. Coming up or going away, a recording is
-  // nobody's: nothing plays while it moves, and its bar waits. The page scrolls as any page does, with your hand, and
-  // moves by itself only to take you to a stop you asked for. What's passed plays nothing; where you rest a moment
-  // plays. On a phone, a stop is gone to by pressing it.
+  // Where you are is where you've scrolled to. A scene's name, recording and way are held at the window's top while
+  // you go through it, and each stop along its way is a turn of the wheel's worth of scrolling, whatever's in it: the
+  // way itself stays put, and what moves is where you are on it. Past its end the page goes on, the scene leaving whole
+  // and the next coming up whole. Coming up or going away, a scene is nobody's: nothing plays while it moves, and its
+  // bar waits. The page scrolls as any page does, with your hand, and moves by itself only to take you to a stop you
+  // asked for. What's passed plays nothing; where you rest a moment plays. On a phone, a stop is gone to by pressing it.
   const steered = useRef(0);
-  const lineOf = (room: HTMLElement) => room.getBoundingClientRect().top + LINE;
-  // Where the page is scrolled for a scene's stop to be at the line; before its first, for the scene to come
-  // up to the window's top; past the page's last stop, its end.
-  const scrollFor = (room: HTMLElement, section: HTMLElement, stop: number) => {
-    const row = section.querySelector<HTMLElement>(`li[data-stop="${stop}"]`);
-    if (row) return room.scrollTop + row.getBoundingClientRect().top - lineOf(room);
-    return stop < 0 ? topOf(room, section) - PIN : room.scrollHeight;
+  // How far the page has scrolled since a scene came to be held at the top: none as it arrives, its stops' worth as it
+  // leaves.
+  const through = (room: HTMLElement, section: HTMLElement) => PIN - (section.getBoundingClientRect().top - room.getBoundingClientRect().top);
+  const stopsOf = (section: HTMLElement) => Number(section.dataset.stops);
+  // Where the page is scrolled for a scene's stop: the middle of its stretch, so a turn of the wheel goes one stop either
+  // way; before its first, as far again before the scene is held; past the page's last stop, its end.
+  const scrollFor = (room: HTMLElement, section: HTMLElement, stop: number) =>
+    stop >= stopsOf(section) ? room.scrollHeight : room.scrollTop - through(room, section) + (Math.max(stop, -1) + 0.5) * STEP;
+  // Whether a scene is held at the window's top.
+  const settled = (room: HTMLElement, section: HTMLElement) => {
+    const by = through(room, section);
+    return by >= -0.5 && by <= stopsOf(section) * STEP + 0.5;
   };
-  // Whether a scene's recording has settled at the window's top.
-  const settled = (room: HTMLElement, section: HTMLElement) =>
-    Math.abs((section.querySelector("[data-block]")?.getBoundingClientRect().top ?? NaN) - room.getBoundingClientRect().top - PIN) < 1.5;
   // There, it plays: gone to while the page glides another scene up, once that's settled.
   const land = () => setGo((go) => (go?.passing ? { ...go, passing: false } : go));
   const goTo = (room: HTMLElement, section: HTMLElement, stop: number) => {
@@ -100,6 +103,8 @@ export function Work(props: Props) {
     const there = settled(room, section);
     setActive(scene);
     setGo({ round: round.number, scene, stop, passing: !there });
+    // In the scene that's held, nothing on the page moves but where you are on its way, so the page is put there at once.
+    if (there && stop >= 0 && stop < stopsOf(section)) return void ((steered.current = performance.now() + 100), (room.scrollTop = scrollFor(room, section, stop)));
     glide(scrollFor(room, section, stop), there ? undefined : land);
   };
   // With the keys, along the way a stop at a time: from a scene's last stop on to the next one's first, and back to
@@ -108,7 +113,7 @@ export function Work(props: Props) {
     const room = props.room.current;
     const sections = [...(room?.querySelectorAll<HTMLElement>("[data-scene]") ?? [])];
     let i = sections.findIndex((section) => section.dataset.scene === active);
-    if (i < 0 && room) i = Math.max(0, sections.findLastIndex((section) => section.getBoundingClientRect().top <= lineOf(room)));
+    if (i < 0 && room) i = Math.max(0, sections.findLastIndex((section) => through(room, section) >= 0));
     if (!room || !sections[i]) return false;
     const count = (i: number) => Number(sections[i]!.dataset.stops);
     const was = { i, stop: Number(sections[i]!.dataset.stop) };
@@ -150,8 +155,8 @@ export function Work(props: Props) {
   const letGo = () => (cancelAnimationFrame(gliding.current!), (gliding.current = undefined), (steered.current = 0));
   // What the scroll reading, set up once, needs as it is now: the round you're looking at among it, so a step read on
   // an older round is that round's.
-  const now = useRef({ busy, move, active, letGo, settled, goTo, round: round.number });
-  now.current = { busy, move, active, letGo, settled, goTo, round: round.number };
+  const now = useRef({ busy, move, active, letGo, settled, round: round.number });
+  now.current = { busy, move, active, letGo, settled, round: round.number };
   // A verdict lands where it was said, and the way goes on from there, unless you've gone on already.
   const goOn = (scene: string) => {
     const there = () => props.room.current?.querySelector<HTMLElement>(`[data-scene="${CSS.escape(scene)}"]`)?.dataset.stop;
@@ -161,13 +166,12 @@ export function Work(props: Props) {
   useLayoutEffect(() => {
     const room = props.room.current;
     if (!room) return;
-    // The last scene can come up to the window's top: there's a window's height under it, less its own. Where the
-    // line is, and where a recording is pinned, for the scenes to lay their ways out by.
+    // How tall the window is, where a scene is held and how far a stop's stretch is, for the scenes to be as long as
+    // their stops.
     const tall = () => {
       room.style.setProperty("--room", `${room.clientHeight}px`);
-      room.style.setProperty("--to-line", `${LINE}px`);
       room.style.setProperty("--pin", `${PIN}px`);
-      room.style.setProperty("--pitch", `${PITCH}px`);
+      room.style.setProperty("--step", `${STEP}px`);
     };
     tall();
     const watching = new ResizeObserver(tall);
@@ -180,47 +184,38 @@ export function Work(props: Props) {
     else setActive(undefined);
     if (held && onPhone()) held.querySelector(`[data-stop="${held.dataset.stop}"]`)?.scrollIntoView({ block: "center" });
     else if (held) ((steered.current = performance.now() + 200), (room.scrollTop = scrollFor(room, held, Number(held.dataset.stop))));
-    // Scrolled, the stop at the line beside a settled recording is the one you're on, passing; still a moment, it plays.
+    // Scrolled, the stop whose stretch you're in, in the scene that's held, is the one you're on, passing; still a
+    // moment, it plays.
     let reading: number | undefined;
     let rest: number | undefined;
+    const atTop = () => [...room.querySelectorAll<HTMLElement>("[data-scene]")].find((section) => now.current.settled(room, section));
+    const stopIn = (section: HTMLElement) => clamp(Math.floor(through(room, section) / STEP), 0, stopsOf(section) - 1);
     const read = () => {
       reading = undefined;
       if (now.current.busy || onPhone() || performance.now() < steered.current) return;
-      const line = lineOf(room);
-      const here = [...room.querySelectorAll<HTMLElement>("[data-scene]")].find((section) => now.current.settled(room, section));
+      const here = atTop();
       // Scrolled back above the scene you were on, it's before its first stop again, as it was arrived at, however
-      // fast the page went past its first stop: what's under the line, you haven't come to.
+      // fast the page went past its first stop: what's under you, you haven't come to.
       const left = now.current.active === undefined || now.current.active === here?.dataset.scene ? null : room.querySelector<HTMLElement>(`[data-scene="${CSS.escape(now.current.active)}"]`);
-      const first = left?.querySelector("li[data-stop]")?.getBoundingClientRect().top;
-      if (left && Number(left.dataset.stop) >= 0 && first !== undefined && first > line) setGo({ round: now.current.round, scene: left.dataset.scene!, stop: -1, passing: true });
-      if (rest === undefined) {
-        const on = here ?? left;
-        from = on ? which(on.querySelector<HTMLElement>(`li[data-stop="${on.dataset.stop}"]`) ?? on) : undefined;
-      }
+      if (left && Number(left.dataset.stop) >= 0 && through(room, left) < 0) setGo({ round: now.current.round, scene: left.dataset.scene!, stop: -1, passing: true });
       clearTimeout(rest);
-      rest = window.setTimeout(() => rested(!!here), REST);
+      rest = window.setTimeout(rested, REST);
       if (!here) return void (now.current.active !== undefined && setActive(undefined));
       const scene = here.dataset.scene!;
-      const stop = Number([...here.querySelectorAll<HTMLElement>("li[data-stop]")].findLast((row) => row.getBoundingClientRect().top <= line)?.dataset.stop ?? -1);
+      const stop = stopIn(here);
       if (scene !== now.current.active) setActive(scene);
       if (stop !== Number(here.dataset.stop)) setGo({ round: now.current.round, scene, stop, passing: true });
     };
-    // Come to rest just off a stop, it's brought to the line, so each turn of the wheel goes a stop from where the last
-    // left you, rather than a little further each time until a turn goes past one: the stop at the line, just past it,
-    // or the next, just short of it, but only from the stop you were on, so a rest never goes on past one you haven't
-    // been on.
-    let from: string | undefined;
-    const which = (row: HTMLElement) => `${row.closest<HTMLElement>("[data-scene]")?.dataset.scene} ${row.dataset.stop}`;
-    const rested = (settled: boolean) => {
+    // Come to rest in a held scene, the page is put in the middle of the stop's stretch, which nothing on it shows, so
+    // the next turn of the wheel goes one stop either way, however far into a stretch the last one ended; and it plays.
+    const rested = () => {
       rest = undefined;
-      if (now.current.busy) return;
-      const line = lineOf(room);
-      const rows = [...room.querySelectorAll<HTMLElement>("li[data-stop]")].map((row) => ({ row, by: row.getBoundingClientRect().top - line }));
-      const [at, next] = [rows.findLast(({ by }) => by <= 0), rows.find(({ by }) => by > 0)];
-      const to = at && -at.by <= SETTLE ? at : next && next.by <= SETTLE && at && which(at.row) === from ? next : undefined;
-      const section = to?.row.closest<HTMLElement>("[data-scene]");
-      if (section && Math.abs(to!.by) > 1) now.current.goTo(room, section, Number(to!.row.dataset.stop));
-      else if (settled) land();
+      const here = atTop();
+      if (now.current.busy || !here) return;
+      const middle = (stopIn(here) + 0.5) * STEP;
+      const by = through(room, here);
+      if (Math.abs(by - middle) > 1) ((steered.current = performance.now() + 50), (room.scrollTop += middle - by));
+      land();
     };
     const scrolled = () => void (reading ??= requestAnimationFrame(read));
     const handTakes = () => now.current.letGo();
@@ -322,25 +317,16 @@ export function Work(props: Props) {
   );
 }
 
-// Where the line is that the stop you're on has come up to, in pixels down from the window's top: just under a scene's
-// heading where it's only where the scene stands, so its first stop comes up to it as the recording settles with no
-// room held empty over it; a longer heading, with the agent's line, has it come up a little after. A share of the window
-// held a third of a tall one empty. How far below the
-// window's top a scene's recording is pinned, in pixels; and how long the page is still at a stop before it plays, in
-// milliseconds.
-const LINE = 88;
+// How far below the window's top a scene is held, in pixels; and how long the page is still at a stop before it plays,
+// in milliseconds.
 const PIN = 24;
 const REST = 180;
-// The least room a stop has on the way, in pixels, which is how far the page scrolls past it: more than a turn of the
-// wheel (100px on Windows), so a turn never goes past one, and the next, settling, never past two.
-const PITCH = 112;
-// How far from the line a stop can be, in pixels, for the page to bring it there once you rest: under half a stop's room.
-const SETTLE = 40;
+// How far the page scrolls for each stop along a held scene's way, in pixels, whatever's in the stop: a turn of the
+// wheel (100px on Windows), so from the middle of a stop's stretch, where a rest leaves you, a turn goes one stop either
+// way, and two quick turns two.
+const STEP = 100;
 // How long a verdict is seen where it was said before the way goes on, in milliseconds.
 const LANDS = 600;
-
-// Where the page is scrolled to for a scene to be at the window's top.
-const topOf = (room: HTMLElement, section: HTMLElement) => room.scrollTop + section.getBoundingClientRect().top - room.getBoundingClientRect().top;
 
 // Each round in a line: who recorded it, what was said about it, and what came of that. Its name goes to it, as the
 // rounds at the top do.
