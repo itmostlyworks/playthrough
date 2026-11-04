@@ -487,25 +487,18 @@ export function SceneView(props: SceneViewProps) {
   // recording is at its moment, close on it, a part of the page at a time outlined, with Compare beside it for how it
   // was. Steps new to you start with what the agent says of them, on the first.
   const toChange = (diamond: Diamond) => go(changeAt(diamond), diamond.id);
-  // Steps new to you are one stretch, said once above its first: how many, so where it ends is plain, and why, in the
-  // agent's words, about all of them rather than under the first as if about it alone.
+  // Steps new to you are one stretch, marked once above its first with how many, so where it ends is plain. Why, in the
+  // agent's words, is under the first one's line, where every step's why is: between the steps on its own, it read as
+  // neither the step's nor the scene's.
+  const runFrom = (step: number) => diamonds.find((diamond) => diamond.until !== undefined && scene.steps.findIndex((one) => one.at >= diamond.at - 0.1) === step);
   const newFrom = (step: number) => {
-    const run = diamonds.find((diamond) => diamond.until !== undefined && scene.steps.findIndex((one) => one.at >= diamond.at - 0.1) === step);
+    const run = runFrom(step);
     if (!run) return undefined;
     const count = scene.steps.filter((one) => one.at >= run.at - 0.1 && one.at < run.until!).length;
-    const lines = linesOf(run);
     return (
-      <li className="grid gap-1.5 pt-2 pb-3 pl-8 pr-2">
-        <span className="flex items-center gap-2.5 text-[12px] leading-4 font-medium text-soft">
-          {count > 1 ? `${count} new steps` : "New step"}
-          <i className="h-px flex-1 bg-track" />
-        </span>
-        {lines.length > 0 && <span className="text-[11.5px] leading-4 text-faint">{lines[0]!.by}</span>}
-        {lines.map((changed) => (
-          <p key={changed.line} className="text-[12.5px] leading-[18px] text-soft">
-            {changed.line}
-          </p>
-        ))}
+      <li className="flex items-center gap-2.5 pt-1 pb-2.5 pl-8 pr-2 text-[12px] leading-4 font-medium text-soft">
+        {count > 1 ? `${count} new steps` : "New step"}
+        <i className="h-px flex-1 bg-track" />
       </li>
     );
   };
@@ -517,11 +510,18 @@ export function SceneView(props: SceneViewProps) {
       const note = diamond.changes.map((changed) => !changed.answers && changed.note && props.noteOf(changed.note)).find(Boolean) || undefined;
       return note && { note, turn: note.turns.findLast((turn) => turn.agent && turn.round <= round.number && turn.words.trim()) };
     };
-    const by = here.flatMap(linesOf)[0]?.by ?? here.map((diamond) => answerTo(diamond)?.turn?.by).find(Boolean);
-    if (!here.length) return undefined;
+    const run = runFrom(step);
+    const fresh = run ? linesOf(run) : [];
+    const by = [...fresh, ...here.flatMap(linesOf)][0]?.by ?? here.map((diamond) => answerTo(diamond)?.turn?.by).find(Boolean);
+    if (!here.length && !fresh.length) return undefined;
     return (
       <div className="grid gap-1.5 pt-2.5 pr-2">
         {by && <span className="text-[11.5px] leading-4 text-faint">{by}</span>}
+        {fresh.map((changed) => (
+          <p key={changed.line} className="text-[12.5px] leading-[18px] text-soft">
+            {changed.line}
+          </p>
+        ))}
         {here.length > 0 && (
           <ul className="grid gap-2.5">
             {here.map((diamond) => {
