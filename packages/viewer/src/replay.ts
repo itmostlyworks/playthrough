@@ -29,6 +29,8 @@ export type Recorded = {
   changes: number[];
   // What was clicked or typed into, as [seconds, node].
   acted: [number, number][];
+  // What was typed into, as [seconds, node].
+  typed: [number, number][];
   // Where the page, or a part of it, was scrolled to, as [seconds, node, x, y].
   scrolls: [number, number, number, number][];
   // The browser's own dialogs, which aren't in the page.
@@ -48,7 +50,7 @@ export type Dialog = { from: number; until: number; type: string; host: string; 
 export function recorded(events: Events): Recorded {
   const start = events[0]?.timestamp ?? 0;
   const seconds = (timestamp: number) => (timestamp - start) / 1000;
-  const shown: Recorded = { shapes: [], loads: [], pointer: [], away: [], clicks: [], changes: [], acted: [], scrolls: [], dialogs: [], carets: [], browser: { dark: false, still: false } };
+  const shown: Recorded = { shapes: [], loads: [], pointer: [], away: [], clicks: [], changes: [], acted: [], typed: [], scrolls: [], dialogs: [], carets: [], browser: { dark: false, still: false } };
   let said = false;
   let host = "";
   for (const event of events) {
@@ -80,7 +82,7 @@ export function recorded(events: Events): Recorded {
       const shape = shown.shapes.at(-1);
       if (data.type === MouseInteractions.TouchStart && shape) shape.touch = true;
       if (data.type === MouseInteractions.Click) shown.acted.push([seconds(event.timestamp), data.id]);
-    } else if (data.source === IncrementalSource.Input) shown.acted.push([seconds(event.timestamp), data.id]);
+    } else if (data.source === IncrementalSource.Input) (shown.acted.push([seconds(event.timestamp), data.id]), shown.typed.push([seconds(event.timestamp), data.id]));
     else if (data.source === IncrementalSource.Scroll) shown.scrolls.push([seconds(event.timestamp), data.id, data.x, data.y]);
     const changes = [IncrementalSource.Mutation, IncrementalSource.Scroll, IncrementalSource.Input].includes(data.source);
     if (changes || (data.source === IncrementalSource.MouseInteraction && data.type === MouseInteractions.Click)) shown.changes.push(seconds(event.timestamp) + 0.01);
@@ -165,6 +167,7 @@ export class Replay {
   readonly clicks: number[];
   readonly dialogs: Dialog[];
   readonly carets: Recorded["carets"];
+  readonly typed: Recorded["typed"];
   #replayer: Replayer;
   // The screen the page is shown on now, which rrweb changes with it as someone else's page loads.
   #shape: Shape;
@@ -202,7 +205,7 @@ export class Replay {
       Object.defineProperty(event.data, "removes", { get: () => removes, set() {}, enumerable: true, configurable: true });
     }
     const shows = recorded(events);
-    ({ shapes: this.shapes, loads: this.loads, pointer: this.pointer, away: this.away, clicks: this.clicks, dialogs: this.dialogs, carets: this.carets, scrolls: this.#scrolls } = shows);
+    ({ shapes: this.shapes, loads: this.loads, pointer: this.pointer, away: this.away, clicks: this.clicks, dialogs: this.dialogs, carets: this.carets, typed: this.typed, scrolls: this.#scrolls } = shows);
     this.#drawn = Math.max(0, (events.find((event) => event.type === EventType.FullSnapshot)?.timestamp ?? start) - start + 1);
     this.host.className = "absolute top-0 left-0 origin-top-left [&_.replayer-mouse]:hidden [&_iframe]:pointer-events-none [&_iframe]:block [&_iframe]:border-0";
     this.#shape = this.shapes[0]!;
@@ -342,6 +345,28 @@ export class Replay {
     for (let extra = 0.25; extra <= 4 && !fits(); extra += 0.25) frame.style.width = `${this.#shape.width + extra}px`;
   }
 
+  // Typing into a field, the cursor is at the end of its words as this browser lays them out, which another browser can
+  // put elsewhere than where the recording measured it: Firefox laid Kan's header out 42px to the right of Chromium.
+  #onField(at: number): [number, number, number] | undefined {
+    const caret = this.carets.findLast(([when]) => when <= at);
+    const typed = this.typed.findLast(([when]) => when <= at);
+    if (!caret?.[3] || !typed) return undefined;
+    // Into this field since the cursor last came to one.
+    const came = this.carets.findLast(([when, , , height], i) => when <= at && height && !this.carets[i - 1]?.[3])?.[0] ?? 0;
+    if (typed[0] < came - 0.05) return undefined;
+    // Of the replayed page's own window, so not one of this page's inputs: told by its name.
+    const field = this.#replayer.getMirror().getNode(typed[1]) as HTMLInputElement | null;
+    if (field?.nodeName !== "INPUT" || !field.ownerDocument.defaultView) return undefined;
+    const look = field.ownerDocument.defaultView.getComputedStyle(field);
+    const measure = field.ownerDocument.createElement("canvas").getContext("2d");
+    if (!measure) return undefined;
+    measure.font = `${look.fontStyle} ${look.fontWeight} ${look.fontSize} ${look.fontFamily}`;
+    const box = field.getBoundingClientRect();
+    const height = caret[3];
+    const x = box.left + parseFloat(look.borderLeftWidth) + parseFloat(look.paddingLeft) + measure.measureText(field.value).width - field.scrollLeft;
+    return [x, box.top + (box.height - height) / 2, height];
+  }
+
   // Where the text cursor is at a moment, as x, y and height in the page's own pixels; nothing where nothing is typed into.
   caretAt(at: number): [number, number, number] | undefined {
     const caret = this.carets.findLast(([when]) => when <= at);
@@ -351,7 +376,7 @@ export class Replay {
   // The text cursor drawn over a page shown k times its size from (left, top): as a browser draws it, one of the page's
   // pixels wide and as tall as the letters rather than the line, so it reads as the app's own and not as a mark of ours.
   placeCaret(element: HTMLElement, at: number, left: number, top: number, k: number) {
-    const caret = this.caretAt(at);
+    const caret = this.#onField(at) ?? this.caretAt(at);
     element.style.opacity = caret ? "1" : "0";
     if (!caret) return;
     const [x, y, height] = caret;
