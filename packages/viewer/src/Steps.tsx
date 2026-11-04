@@ -157,12 +157,12 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
 
   // Every stop is laid out open, so the way never reflows under you as you go along it: the one you're on sits on the
   // page's surface, the others' words quieter, their signs still whole on the rail, and a press anywhere on another goes
-  // there first, so what's pressed in it, as its Compare, is about it. Before you've gone along it, none is quieter: it's
-  // the map of what's ahead.
+  // there first, so what's pressed in it, as its Compare, is about it. Before you've gone along it, all are quieter, as
+  // you're on none: left whole then, your notes' words stood out over the steps' titles, and dimmed once you went on.
   const row = (k: number) => ({
     "data-stop": k,
     "aria-current": k === on ? ("step" as const) : undefined,
-    className: `relative flex-none py-2 pb-4 pl-8 transition-opacity duration-300 ease-calm [&>*]:transition-opacity [&>*]:duration-300 [&>*]:ease-calm ${k === on ? "[--under:var(--surface)]" : resting ? "opacity-35" : on < 0 ? "" : "[&>:not([data-sign])]:opacity-60 hover:[&>:not([data-sign])]:opacity-100"}`,
+    className: `relative flex-none py-2 pb-4 pl-8 transition-opacity duration-300 ease-calm [&>*]:transition-opacity [&>*]:duration-300 [&>*]:ease-calm ${k === on ? "[--under:var(--surface)]" : resting ? "opacity-35" : "[&>:not([data-sign])]:opacity-60 hover:[&>:not([data-sign])]:opacity-100"}`,
     onPointerDownCapture: () => k !== on && onStop(k),
   });
 
