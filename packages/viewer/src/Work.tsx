@@ -11,7 +11,7 @@ import { EndMark, endOf } from "./Chosen.tsx";
 import { fill, type Shown, type Standing } from "./notes.ts";
 import { asWho } from "./people.ts";
 import { clock } from "./Rounds.tsx";
-import { SceneView, type Threads } from "./Scene.tsx";
+import { glide, SceneView, type Threads } from "./Scene.tsx";
 import { GLIDE } from "./view.ts";
 import type { Step } from "./Step.tsx";
 import type { Read } from "./things.ts";
@@ -73,8 +73,8 @@ export function Work(props: Props) {
   const [current, setCurrent] = useState(() => (round.scenes.find(answerIn) ?? round.scenes.find(asks) ?? round.scenes[0])?.name);
   const scene = round.scenes.find((one) => one.name === current) ?? round.scenes[0];
   const i = scene ? round.scenes.indexOf(scene) : -1;
-  // A stop gone to in it from elsewhere on the page: by the keys, or a note's.
-  const [go, setGo] = useState<{ round: number; scene: string; stop?: number; note?: string }>();
+  // A stop gone to in it from elsewhere on the page: by the keys or the wheel, or a note's.
+  const [go, setGo] = useState<{ round: number; scene: string; stop?: number; note?: string; held?: boolean }>();
   // While the app is yours, the way rests: only the app, noting and going back answer.
   const busy = acting.noting || !!acting.writing || !!acting.live?.shown;
   // Gone into, another scene is at its first place, or the stop asked for. Where the page has room to, its line stays
@@ -83,7 +83,7 @@ export function Work(props: Props) {
   // top, the list moved under you.
   const held = useRef<{ name: string; tops: Map<string, number>; end?: number }>(undefined);
   const lines = () => [...(props.room.current?.querySelectorAll<HTMLElement>("[data-scene-line]") ?? [])];
-  const open = (name: string, there?: { stop?: number; note?: string }, holding = name) => {
+  const open = (name: string, there?: { stop?: number; note?: string; held?: boolean }, holding = name) => {
     if (name !== scene?.name) {
       const tops = new Map(lines().map((line) => [line.dataset.sceneLine!, line.getBoundingClientRect().top]));
       held.current = { name: holding, tops, end: props.room.current?.querySelector("[data-review-end]")?.getBoundingClientRect().top };
@@ -102,7 +102,7 @@ export function Work(props: Props) {
     const now = lines().find((line) => line.dataset.sceneLine === was.name)?.getBoundingClientRect().top;
     if (kept !== undefined && now !== undefined) room.scrollTop += now - kept;
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const glide = (element: Element | null, from: number | undefined, opens = false) => {
+    const slide = (element: Element | null, from: number | undefined, opens = false) => {
       const by = element && from !== undefined ? from - element.getBoundingClientRect().top : 0;
       if (!element || (Math.abs(by) < 1 && !opens)) return;
       // Open, it's clipped no closer than what it draws past its sides, as the stop you're on's surface does.
@@ -110,19 +110,25 @@ export function Work(props: Props) {
       const whole = opens ? { clipPath: "inset(0 -24px -24px -24px)" } : {};
       element.animate([{ translate: `0 ${by}px`, ...shut }, { translate: "0 0", ...whole }], { duration: GLIDE, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
     };
-    for (const line of room.querySelectorAll("li[data-scene-line]")) glide(line, was.tops.get((line as HTMLElement).dataset.sceneLine!));
-    glide(room.querySelector("[data-way]"), was.tops.get(current!), true);
-    glide(room.querySelector("[data-review-end]"), was.end);
+    for (const line of room.querySelectorAll("li[data-scene-line]")) slide(line, was.tops.get((line as HTMLElement).dataset.sceneLine!));
+    slide(room.querySelector("[data-way]"), was.tops.get(current!), true);
+    slide(room.querySelector("[data-review-end]"), was.end);
   }, [current]);
-  // With the keys, along the way a stop at a time: from a scene's end on to the next one's first place, and back to the
-  // end of the one before.
-  const move = (by: number) => {
-    const section = props.room.current?.querySelector<HTMLElement>("[data-scene]");
-    if (!section || !scene) return;
+  // With the keys or the wheel, along the way a stop at a time: from a scene's end on to the next one's first place,
+  // and back to the end of the one before; past the last scene's end, on down to the review's end, and before the first
+  // stop, back up to the top. Told not to go across, as a turn of the wheel that has gone a stop already is, it rests at
+  // the scene's end rather than going into the next.
+  const move = (by: number, across = true): "on" | "across" | "rests" => {
+    const room = props.room.current;
+    const section = room?.querySelector<HTMLElement>("[data-scene]");
+    if (!room || !section || !scene) return "rests";
     const to = Number(section.dataset.stop) + by;
-    if (to >= Number(section.dataset.stops)) return round.scenes[i + 1] && open(round.scenes[i + 1]!.name);
-    if (to < 0) return round.scenes[i - 1] && open(round.scenes[i - 1]!.name, { stop: Infinity }, scene.name);
-    open(scene.name, { stop: to });
+    const other = to >= Number(section.dataset.stops) ? round.scenes[i + 1] : to < 0 ? round.scenes[i - 1] : scene;
+    if (other === scene) return open(scene.name, { stop: to, held: true }), "on";
+    if (!across) return "rests";
+    if (!other) return glide(room, by > 0 ? room.scrollHeight : 0), "rests";
+    open(other.name, { stop: by > 0 ? 0 : Infinity, held: true }, by > 0 ? other.name : scene.name);
+    return "across";
   };
   const now = useRef({ busy, move, scene: scene?.name });
   now.current = { busy, move, scene: scene?.name };
@@ -138,6 +144,30 @@ export function Work(props: Props) {
     addEventListener("keydown", down);
     return () => removeEventListener("keydown", down);
   });
+  // A turn of the wheel goes a stop, as a key does: a notch, or a swipe's stride, on or back, the first at once. A long
+  // one comes to rest at the end of the scene you're on, and the next turn goes on into the next. Not in the app, nor
+  // while noting or writing, where the page scrolls as any does.
+  useEffect(() => {
+    const room = props.room.current;
+    if (!room || !up || busy) return;
+    let [gathered, last, went, rests] = [0, -Infinity, 0, false];
+    const turn = (event: WheelEvent) => {
+      if (event.ctrlKey || Math.abs(event.deltaX) > Math.abs(event.deltaY) || (event.target as Element).closest?.("input, textarea, [contenteditable]")) return;
+      event.preventDefault();
+      const by = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? event.deltaY * 33 : event.deltaY;
+      const fresh = event.timeStamp - last > TURN;
+      last = event.timeStamp;
+      if (fresh) [gathered, went, rests] = [Math.sign(by) * NOTCH, 0, false];
+      else gathered += by;
+      while (!rests && Math.abs(gathered) >= NOTCH) {
+        const way = Math.sign(gathered);
+        gathered -= way * NOTCH;
+        rests = now.current.move(way, went++ === 0) !== "on";
+      }
+    };
+    room.addEventListener("wheel", turn, { passive: false });
+    return () => room.removeEventListener("wheel", turn);
+  }, [up, busy]);
   // A verdict lands where it was said, and the way goes on from there, unless you've gone on already: an answer judged,
   // to the next stop; Looks good at a scene's end, to the next scene that asks it of you, if one's after it.
   const goOn = (name: string) => {
@@ -148,11 +178,11 @@ export function Work(props: Props) {
       if (now.current.busy || now.current.scene !== name || here?.dataset.stop !== was) return;
       if (Number(here!.dataset.stop) < Number(here!.dataset.stops) - 1) return now.current.move(1);
       const next = round.scenes.slice(round.scenes.findIndex((one) => one.name === name) + 1).find(asks);
-      if (next) open(next.name);
+      if (next) open(next.name, { held: true });
     }, LANDS);
   };
   // A note gone to from the review's end: its scene, at its stop if it's one.
-  const toNote = (note: Shown) => note.on?.scene && round.scenes.some((one) => one.name === note.on!.scene) && open(note.on.scene, { note: note.id });
+  const toNote = (note: Shown) => note.on?.scene && round.scenes.some((one) => one.name === note.on!.scene) && open(note.on.scene, { note: note.id, held: true });
   const line = (other: Scene) => <Line key={other.name} scene={other} standing={props.standing(other.name)} onOpen={() => open(other.name)} />;
   // What was asked, to the point: its title, and its words two lines long, whole once pressed. Over the scenes, how many
   // and who recorded them, as a count sits over what it counts. Whole, the words pushed the scenes half a window down.
@@ -229,6 +259,10 @@ export function Work(props: Props) {
 
 // How long a verdict is seen where it was said before the way goes on, in milliseconds.
 const LANDS = 600;
+// How far a turn of the wheel goes for a stop, in pixels: a notch on Windows. And how long the wheel rests between two
+// turns, in milliseconds: a swipe's glide after the hand has gone is still the same turn.
+const NOTCH = 100;
+const TURN = 220;
 
 // Another scene, a line in the list: its name, as who, and where it stands, as its end's square, at the line's end;
 // pressed, you're in it. The names start where the list does and the squares end it, so the column the steps' numbers

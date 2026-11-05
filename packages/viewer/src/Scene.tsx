@@ -21,6 +21,7 @@ import { Conversation } from "./Notes.tsx";
 import { fill, ink, type Replied, type Shown, type Standing } from "./notes.ts";
 import { asWho, personAt } from "./people.ts";
 import { around, Picture, union, type Box, type Frame } from "./Picture.tsx";
+import { onPhone } from "./phone.ts";
 import { Pinned, type Pin } from "./Pinned.tsx";
 import { Clock, CLOSEST, Player, useCut, type Mark, type Placed } from "./Player.tsx";
 import { Portal, TAG } from "./Portal.tsx";
@@ -28,6 +29,7 @@ import { regionsOf } from "./regions.ts";
 import { recorded, type Scrolled } from "./replay.ts";
 import { says } from "./Step.tsx";
 import { Steps, stepStart, type OnLine, type Saying, type Stop } from "./Steps.tsx";
+import { GLIDE } from "./view.ts";
 import type { Acting } from "./Work.tsx";
 
 type SceneViewProps = {
@@ -48,8 +50,9 @@ type SceneViewProps = {
   diamonds: Diamond[];
   acting: Acting;
   active: boolean;
-  // A stop gone to from elsewhere on the page: by the keys, or a note's, by its id.
-  go?: { stop?: number; note?: string };
+  // A stop gone to from elsewhere on the page: by the keys or the wheel, or a note's, by its id; held, the page scrolls
+  // to keep it where the way is gone through.
+  go?: { stop?: number; note?: string; held?: boolean };
   // In its way's column, the scenes before it and after it, a line each, and the review's end; and its own line, open,
   // over its way.
   above?: ReactNode;
@@ -157,10 +160,24 @@ export function SceneView(props: SceneViewProps) {
     if (there.at === undefined) setPicked(there.id);
     else go(there.at, there.id);
   };
+  const [holds, setHolds] = useState(0);
   useLayoutEffect(() => {
     const k = props.go?.note ? stops.findIndex((one) => one.id === props.go!.note) : props.go?.stop;
     if (k !== undefined && k >= 0) toStop(k);
+    if (props.go?.held) setHolds((times) => times + 1);
   }, [props.go]);
+  // Gone to by the keys or the wheel, the stop you're on is held a third of the way down the window, or on a phone just
+  // under the app, and the page scrolls the way by under it, a stop at a time; pressed, it stays where you pressed it.
+  const section = useRef<HTMLElement>(null);
+  const stage = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const room = section.current?.closest<HTMLElement>("[data-room]");
+    const row = section.current?.querySelector<HTMLElement>("li[aria-current=step]");
+    if (!holds || !room || !row || !stage.current) return;
+    const top = room.getBoundingClientRect().top;
+    const line = onPhone() ? stage.current.getBoundingClientRect().bottom - top + 12 : room.clientHeight / 3;
+    glide(room, room.scrollTop + row.getBoundingClientRect().top - top - line);
+  }, [holds]);
   // Opened on the recording, or just saved, what was said there is the stop you're on, there and then; closed there, it
   // isn't open.
   const opened = (id?: string) => (id && stops.some((one) => one.id === id) && setStop(stops.findIndex((one) => one.id === id)), setPicked(id));
@@ -586,11 +603,11 @@ export function SceneView(props: SceneViewProps) {
     );
 
   return (
-    <section data-scene={scene.name} data-stops={last + 1} data-stop={stop}>
+    <section ref={section} data-scene={scene.name} data-stops={last + 1} data-stop={stop}>
       {/* The app, or its recording, held at the window's top while its way and the other scenes beside it go by; on a
           phone, they go by under it. */}
       <div className="grid grid-cols-[minmax(0,1fr)_340px] items-start gap-8 phone:grid-cols-1 phone:gap-5">
-        <div className="@container sticky top-6 z-10 phone:top-0 phone:-mx-4 phone:bg-ground phone:px-4 phone:pt-2 phone:pb-7">
+        <div ref={stage} className="@container sticky top-6 z-10 phone:top-0 phone:-mx-4 phone:bg-ground phone:px-4 phone:pt-2 phone:pb-7">
         {/* A phone's sits against its way, as narrow as it is. */}
         <div className={phone ? "ml-auto transition-[width] duration-450 ease-calm" : undefined} style={phone ? { width: side ? `calc(${2 * phone} * ${high} + 16px)` : `calc(${phone} * ${high})` } : undefined}>
         {/* Its name is over its way; on a phone, where its way comes after it, it's over the app. */}
@@ -716,7 +733,8 @@ export function SceneView(props: SceneViewProps) {
           <div inert={taken} className={`transition-opacity duration-300 ease-calm ${taken ? "opacity-35" : ""}`}>
             {props.above}
           </div>
-          <div data-way="">
+          {/* The scene you're in, set apart from the others' lines: its line open, and its way, in an edge of its own. */}
+          <div data-way="" className="-mx-5 rounded-2xl px-5 pt-1.5 pb-2 shadow-[0_0_0_1px_var(--edge)] phone:-mx-3 phone:px-3">
           <div className="pb-3">
             {props.heading}
             {scene.line && (
@@ -933,3 +951,20 @@ const INK: Record<Standing["is"], string> = {
   "to send": "text-amber-ink",
   "with the agent": "text-slate",
 };
+
+// The page glides where it's sent, a frame at a time from wherever it is, so a turn of the wheel after another carries
+// on from where the last one left it.
+const gliding = new WeakMap<HTMLElement, number>();
+export function glide(room: HTMLElement, to: number) {
+  cancelAnimationFrame(gliding.get(room) ?? 0);
+  const [from, end] = [room.scrollTop, clamp(to, 0, room.scrollHeight - room.clientHeight)];
+  if (Math.abs(end - from) < 1) return;
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return void (room.scrollTop = end);
+  const since = performance.now();
+  const frame = (now: number) => {
+    const u = Math.min(1, (now - since) / GLIDE);
+    room.scrollTop = from + (end - from) * (1 - (1 - u) ** 3);
+    if (u < 1) gliding.set(room, requestAnimationFrame(frame));
+  };
+  gliding.set(room, requestAnimationFrame(frame));
+}
