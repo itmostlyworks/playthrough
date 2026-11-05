@@ -342,12 +342,17 @@ export class Replay {
       }
       return nearest && Math.hypot(...nearest) < 200 ? nearest : undefined;
     };
+    // What's clicked is measured as the page is now, which is only where it was clicked close to the click: a card
+    // clicked at the top of a list searched down to it sat lower before the search, and the pointer, pulled towards it
+    // there, went down into the table and snapped back as the list changed. So each click's measure counts only near
+    // it, fading out within AIMING of it either way.
     const next = this.aimed.findIndex(([when]) => when >= at);
     const [before, after] = next < 0 ? [this.aimed.at(-1), undefined] : [this.aimed[next - 1], this.aimed[next]];
-    const [from, to] = [off(before), off(after)];
-    if (!from || !to) return from ?? to ?? [0, 0];
-    const u = (at - before![0]) / Math.max(after![0] - before![0], 0.01);
-    return [from[0] + (to[0] - from[0]) * u, from[1] + (to[1] - from[1]) * u];
+    const near = (aimed: Recorded["aimed"][number] | undefined) => (aimed ? Math.max(0, 1 - Math.abs(at - aimed[0]) / AIMING) : 0);
+    const [from, to] = [near(before) && off(before), near(after) && off(after)];
+    const [a, b] = [from ? near(before) : 0, to ? near(after) : 0];
+    const over = Math.max(1, a + b);
+    return [((from ? from[0] * a : 0) + (to ? to[0] * b : 0)) / over, ((from ? from[1] * a : 0) + (to ? to[1] * b : 0)) / over];
   }
 
   #recordedPointerAt(at: number, since: number): [number, number] | undefined {
@@ -569,6 +574,9 @@ export class Replay {
 
 // How many characters of its words a thing clicked in the app is named by, at most.
 const CUT = 80;
+
+// How near a click, in seconds, what it clicked is still where it was clicked: the hand's glide there and its rest.
+const AIMING = 1.2;
 
 // rrweb rewrites each of a page's stylesheets for it to show hovering, a few hundredths of a second for an app's, each
 // time it builds a page; the recordings of one app carry the same ones, so they're rewritten once, for all of them.
