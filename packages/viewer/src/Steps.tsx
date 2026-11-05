@@ -83,9 +83,12 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
   // The step you're on, and how far into it it's played.
   const current = stops[on]?.step ?? -1;
   const line = useRef<HTMLDivElement>(null);
+  // Its line follows only moments in its step: going on to the next stop, the playhead goes there before this step's
+  // line has let go of it, and a step left half played filled to its end as it folded away.
   useLayoutEffect(() => {
     if (current < 0) return;
-    const follow = (moment: number) => line.current?.style.setProperty("--done", String(share(current, moment)));
+    const [element, from, until] = [line.current, stepStart(scene, current, cut), stepEnd(current)];
+    const follow = (moment: number) => moment >= from && moment < until && element?.style.setProperty("--done", String(share(current, moment)));
     follow(clock.at);
     return clock.follow(follow);
   }, [clock, scene, at, cut, current, on]);
@@ -252,7 +255,7 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
                 }
               >
                 <span className={`absolute inset-0 overflow-hidden rounded-[1px] bg-track transition-[scale] duration-150 ease-calm group-hover/line:scale-y-200 group-focus-visible/line:scale-y-200 ${held ? "scale-y-200" : ""}`}>
-                  <span className="absolute inset-0 origin-left bg-soft [scale:var(--done,1)_1]" />
+                  <span className="absolute inset-0 origin-left bg-soft [scale:var(--done,0)_1]" />
                 </span>
                 {marks
                   .filter((mark) => stepOf(mark.at) === i)
