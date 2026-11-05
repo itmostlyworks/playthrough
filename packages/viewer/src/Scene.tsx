@@ -853,7 +853,7 @@ const RECORDED_INK = "#2b2e35";
 // A recording's picture; side by side, each round's half, with room between them; and what each is, at its top left.
 const FRAMED = "absolute inset-y-0 overflow-hidden rounded-lg bg-paper shadow-frame";
 const HALVES = "w-[calc(50%-8px)]";
-const CHIP = "pointer-events-none absolute top-2.5 left-2.5 z-3 rounded-md bg-ground px-2 py-0.5 text-xs leading-4 text-soft shadow-tip";
+export const CHIP = "pointer-events-none absolute top-2.5 left-2.5 z-3 rounded-md bg-ground px-2 py-0.5 text-xs leading-4 text-soft shadow-tip";
 
 // What you did in the app, done again on this round's work as the agent recorded it, over the scene's recording: it
 // plays once from where you took the scene over to where the answer shows, and rests there.

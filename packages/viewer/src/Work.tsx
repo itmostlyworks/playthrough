@@ -13,6 +13,7 @@ import { clamp } from "./moments.ts";
 import { fill, type Shown, type Standing } from "./notes.ts";
 import { onPhone } from "./phone.ts";
 import { clock } from "./Rounds.tsx";
+import { Parts } from "./Parts.tsx";
 import { SceneView, type Threads } from "./Scene.tsx";
 import type { Step } from "./Step.tsx";
 import type { Read } from "./things.ts";
@@ -127,6 +128,13 @@ export function Work(props: Props) {
     if (!room || !there) return;
     if (onPhone()) return void (setActive(scene), setGo({ round: round.number, scene, stop }));
     goTo(room, there, stop);
+  };
+  // A step gone to from what's different: its stop, or the stop it's kept together in.
+  const toStep = (scene: string, step: number) => {
+    const room = props.room.current;
+    const stops = [...(room?.querySelectorAll<HTMLElement>(`[data-scene="${CSS.escape(scene)}"] [data-step]`) ?? [])];
+    const stop = stops.find((stop) => Number(stop.dataset.step) >= step);
+    if (stop) bringTo(scene, Number(stop.dataset.stop));
   };
   // A note gone to from the line under the title: its stop on its scene's way, or the stop it's a line in, or where it's
   // said at the page's end, or the scene, folded as it looks good to you.
@@ -281,6 +289,7 @@ export function Work(props: Props) {
             })}
           </p>
         </header>
+        {before && work?.since === 0 && <Parts review={review} round={round} before={before} changes={work.changes} onGo={toStep} />}
         {/* Scenes that look good to you, folded to their pictures, sit side by side. */}
         <div className="mt-10 flex flex-wrap gap-x-5 gap-y-12 phone:mt-7 phone:gap-y-9 [&>[data-scene]]:basis-full [&>[data-folded]+[data-folded]]:mt-0">
           {round.scenes.map((scene) => (

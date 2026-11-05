@@ -164,6 +164,7 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
   // the rail, and a press anywhere on another goes there. Before you've gone along it, all are folded and quieter.
   const row = (k: number) => ({
     "data-stop": k,
+    "data-step": stops[k]?.step,
     "aria-current": k === on ? ("step" as const) : undefined,
     className: `relative isolate flex-none py-2 pl-8 transition-opacity duration-300 ease-calm before:absolute before:inset-y-0 before:left-6 before:-right-3 before:-z-1 before:rounded-xl before:transition-[opacity,background-color] before:duration-300 before:ease-calm phone:before:left-5 [&>*]:transition-opacity [&>*]:duration-300 [&>*]:ease-calm ${k === on && !resting ? "before:opacity-100" : "before:opacity-0"} ${k === stops.length && looksGood ? "before:bg-[color-mix(in_srgb,var(--green)_13%,var(--surface))]" : "before:bg-surface"} ${k === on ? "[--under:var(--surface)]" : resting ? "opacity-35" : "[&>:not([data-sign])]:opacity-60 hover:[&>:not([data-sign])]:opacity-100"}`,
     onPointerDownCapture: () => k !== on && onStop(k),
