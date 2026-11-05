@@ -723,6 +723,8 @@ function pace(page: Page) {
   const prototype = Object.getPrototypeOf(page.locator("html"));
   if (paced.has(prototype)) return;
   paced.add(prototype);
+  // A fill typed on a recording is still one action: typed with Playwright's own typing, not the scene's, which is one too.
+  const typeIn = prototype.type;
   for (const action of actions) {
     const original = prototype[action];
     prototype[action] = async function (this: Locator, ...args: unknown[]) {
@@ -743,7 +745,7 @@ function pace(page: Page) {
       const act = typed
         ? async () => {
             await original.call(this, "", options);
-            await this.pressSequentially(typed, { ...options, delay: Math.min(KEY, TYPED / typed.length) });
+            await typeIn.call(this, typed, { ...options, delay: Math.min(KEY, TYPED / typed.length) });
           }
         : aimed
           ? // What the hand came to is what's acted on, though pointing at it changed its name, as "Marked done" turning
@@ -762,12 +764,15 @@ function pace(page: Page) {
       return result;
     };
   }
-  // Words typed into an element go a key at a time on a recording too, unless the scene said how fast.
+  // Words typed into an element go a key at a time on a recording too, unless the scene said how fast; and typing them is
+  // an action, as filling them in is, done again in your browser where the scene is taken over: Kan's card prefix, cleared
+  // and then typed a key at a time, was taken over cleared. pressSequentially is Playwright's type by a newer name, and
+  // types with it, so type alone is the action: both, Kan's prefix came back typed twice.
   for (const action of ["pressSequentially", "type"] as const) {
     const original = prototype[action];
     prototype[action] = function (this: Locator, text: string, options?: { delay?: number; timeout?: number }) {
       const paced = pointer && options?.delay === undefined ? { ...options, delay: Math.min(KEY, TYPED / Math.max(1, text.length)) } : options;
-      return original.call(this, text, paced);
+      return action === "type" ? acted("type", () => pathTo(this), () => original.call(this, text, paced), text) : original.call(this, text, paced);
     };
   }
   // The wheel scrolls a little each frame, as a person's does: left to Playwright, a page that's read jumped a screen at
@@ -786,11 +791,12 @@ function pace(page: Page) {
     await pointer.page.waitForTimeout(BEAT);
     await glimpse();
   };
-  // Typing and pressing keys are actions too, on whatever has the focus, on the page taken over.
+  // Typing and pressing keys are actions too, on whatever has the focus, on the page taken over; with nothing focused, on
+  // the page itself, which hears them there, as Kan's ⌘K opens its search: left out, its search was closed, taken over.
   const keyboard = Object.getPrototypeOf(page.keyboard);
   const focused = async (page: Page) => {
     const on = page.locator(":focus").first();
-    return (await on.count()) ? pathTo(on) : undefined;
+    return (await on.count()) ? pathTo(on) : "body";
   };
   // On a recording, keys go at a person's pace, as words filled in do: typed a key at a time, and a key pressed alone,
   // Home or Enter, with a moment either side, so where it moved the text cursor or what it did is seen.
