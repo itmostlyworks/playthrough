@@ -6,35 +6,38 @@ import type { Glimpse, Reading } from "@playthrough/page";
 import type { Review, Send } from "@playthrough/review";
 import type { Events } from "./replay.ts";
 
-// undefined while it's on its way; a refusal's words when there's no such review.
-export function useReview(id: string): Review | string[] | undefined {
+// The review, undefined while it's on its way, a refusal's words when there's no such review; and whether an agent is
+// waiting for what's sent, undefined until it's known. Both on one stream, and only while the page is in sight: a browser
+// lets six requests at a time go to one address, from all its tabs together, and a stream holds one for as long as it's
+// open. Three tabs of a review held two each, and Take over waited for one, forever. Out of sight, a tab lets its
+// stream go; back in sight, it opens it again, and everything arrives as it is now: what hasn't changed changes nothing.
+export function useReview(id: string): { review?: Review | string[]; agentWaiting?: boolean } {
   const [review, setReview] = useState<Review | string[]>();
+  const [agentWaiting, setAgentWaiting] = useState<boolean>();
   useEffect(() => {
-    const live = new EventSource(`/api/reviews/${id}/live`);
-    live.onmessage = (message) => setReview(JSON.parse(message.data));
-    // A stream that can't be reached is tried again by itself; one that was refused is closed, and asked again, says why
-    // here: no such review, or a file of it that can't be read.
-    live.onerror = async () => {
-      if (live.readyState !== EventSource.CLOSED) return;
-      const answer = await fetch(`/api/reviews/${id}/live`).catch(() => undefined);
-      if (answer?.ok) return void answer.body?.cancel();
-      const problems = await answer?.json().then((said: { problems?: string[] }) => said.problems, () => undefined);
-      if (problems) setReview(problems);
+    let live: EventSource | undefined;
+    let last = "";
+    const listen = () => {
+      if (document.hidden) return void (live?.close(), (live = undefined));
+      if (live && live.readyState !== EventSource.CLOSED) return;
+      const stream = (live = new EventSource(`/api/reviews/${id}/live`));
+      stream.onmessage = ({ data }) => data !== last && setReview(JSON.parse((last = data)));
+      stream.addEventListener("waiting", ({ data }) => setAgentWaiting(JSON.parse(data)));
+      // A stream that can't be reached is tried again by itself; one that was refused is closed, and asked again, says
+      // why here: no such review, or a file of it that can't be read.
+      stream.onerror = async () => {
+        if (stream.readyState !== EventSource.CLOSED) return;
+        const answer = await fetch(`/api/reviews/${id}/live`).catch(() => undefined);
+        if (answer?.ok) return void answer.body?.cancel();
+        const problems = await answer?.json().then((said: { problems?: string[] }) => said.problems, () => undefined);
+        if (problems) setReview(problems);
+      };
     };
-    return () => live.close();
+    listen();
+    document.addEventListener("visibilitychange", listen);
+    return () => (document.removeEventListener("visibilitychange", listen), live?.close());
   }, [id]);
-  return review;
-}
-
-// Whether an agent is waiting for what's sent, as that changes; undefined until it's known.
-export function useAgentWaiting(id: string): boolean | undefined {
-  const [waiting, setWaiting] = useState<boolean>();
-  useEffect(() => {
-    const live = new EventSource(`/api/reviews/${id}/waiting`);
-    live.onmessage = (message) => setWaiting(JSON.parse(message.data));
-    return () => live.close();
-  }, [id]);
-  return waiting;
+  return { review, agentWaiting };
 }
 
 // Every review of the app, from every copy of it, and the app's name, as its folder is called.

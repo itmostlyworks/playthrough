@@ -6,7 +6,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { elementOf } from "@playthrough/page";
 import { inStep, lastLooked, newId, readyToAccept, time, waitingForTheAgent, type Did, type Element as Thing, type Scene, type Note, type Point, type Place, type Review, type Round, type Send, type Verdict } from "@playthrough/review";
-import { accept, keepBranch, recording, send, useAgentWaiting, useReview, useYou } from "./api.ts";
+import { accept, keepBranch, recording, send, useReview, useYou } from "./api.ts";
 import { Bar } from "./Bar.tsx";
 import { Beside, clickedAt } from "./Beside.tsx";
 import { HOLD } from "./Card.tsx";
@@ -45,14 +45,14 @@ const SETTLE = 400;
 const NEAR = 0.05;
 
 export function ReviewPage({ id, scene }: { id: string; scene?: string }) {
-  const kept = useReview(id);
+  const { review: kept, agentWaiting } = useReview(id);
   const you = useYou();
   const title = Array.isArray(kept) ? undefined : kept?.title;
   useEffect(() => void (document.title = title ? `${title} · Playthrough` : "Playthrough"), [title]);
   const shown = useMemo(() => (kept && !Array.isArray(kept) ? changedFirst(seen(kept)) : undefined), [kept]);
   if (Array.isArray(kept)) return <Page><p className="m-auto text-soft">{kept[0]}</p></Page>;
   if (!shown || !you) return <Page />;
-  return <Reviewing review={shown} you={you} scene={scene} />;
+  return <Reviewing review={shown} you={you} scene={scene} agentWaiting={agentWaiting} />;
 }
 
 // What's done with the review as a whole sits at the right of the line its title is on.
@@ -75,19 +75,20 @@ export function Page({ title, actions, children }: { title?: string; actions?: R
 // scenes, never under you. Older rounds aren't places to go: what was is Before, or how it was the last time you said
 // something, beside what you're on. Looking back at a whole round showed each note as it stood then, so one note had a
 // version for every round, answered on one and not on another.
-function Reviewing({ review, you, scene }: { review: Review; you: string; scene?: string }) {
+function Reviewing({ review, you, scene, agentWaiting }: { review: Review; you: string; scene?: string; agentWaiting?: boolean }) {
   const latest = review.rounds.at(-1);
   const [viewing, setViewing] = useState(latest?.number);
   if (viewing === undefined && latest) setViewing(latest.number);
   const round = review.rounds.find((round) => round.number === viewing);
   if (!round || !latest) return <Page title={review.title}><p className="m-auto text-soft">Nothing’s been recorded yet. The first round shows here once the agent finishes it.</p></Page>;
-  return <OnRound review={review} round={round} latest={latest} newer={round === latest ? undefined : latest} you={you} scene={scene} onRound={setViewing} />;
+  return <OnRound review={review} round={round} latest={latest} newer={round === latest ? undefined : latest} you={you} scene={scene} agentWaiting={agentWaiting} onRound={setViewing} />;
 }
 
-// newer: a round that came in while you were in a scene, to follow at the next scene you go to.
-type OnRoundProps = { review: Review; round: Round; latest: Round; newer?: Round; you: string; scene?: string; onRound: (round: number) => void };
+// newer: a round that came in while you were in a scene, to follow at the next scene you go to. agentWaiting: whether
+// an agent is waiting for what's sent, undefined until it's known.
+type OnRoundProps = { review: Review; round: Round; latest: Round; newer?: Round; you: string; scene?: string; agentWaiting?: boolean; onRound: (round: number) => void };
 
-function OnRound({ review: kept, round, latest, newer, you, scene: inAddress, onRound }: OnRoundProps) {
+function OnRound({ review: kept, round, latest, newer, you, scene: inAddress, agentWaiting, onRound }: OnRoundProps) {
   // What you've just sent shows as sent until the review comes back with it.
   const [posted, setPosted] = useState<Send[]>([]);
   const notBack = posted.filter((sent) => !kept.sends.some((send) => send.id === sent.id));
@@ -415,7 +416,6 @@ function OnRound({ review: kept, round, latest, newer, you, scene: inAddress, on
   const playingOn = useNow(playhead, (now) => now.playing);
   useEffect(() => void (playingOn && setNoting(false)), [playingOn]);
   const working = workingSince(review, latest);
-  const agentWaiting = useAgentWaiting(review.id);
 
   // Left and Right step to the next moment the page changes, or a second where nothing does; with Shift, a tenth.
   const [changes, setChanges] = useState<{ scene: string; at: number[]; clicks: number[]; acted: [number, number][]; moved: Map<string, number[]> }>();

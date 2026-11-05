@@ -27,7 +27,7 @@ const LAST = 0.8;
 const MARK = 1.8;
 
 export function Video({ id, filmed }: { id: string; filmed: Filmed }) {
-  const review = useReview(id);
+  const { review } = useReview(id);
   if (!review || Array.isArray(review)) return null;
   const round = review.rounds.find((round) => round.number === filmed.round);
   const scene = round?.scenes.find((scene) => scene.name === filmed.scene);

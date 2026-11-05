@@ -109,7 +109,6 @@ async function answer(app: ReturnType<typeof everyCopy>, page: string, you: stri
   const reviews = repo.reviews;
 
   if (request.method === "GET" && rest[0] === "live") return live(repo, id, request, response);
-  if (request.method === "GET" && rest[0] === "waiting") return waiting(repo, id, request, response);
   if (request.method === "GET" && rest[0] === "rounds" && rest[2] === "files" && rest[3]) {
     // Your branches play beside the round's recordings, as if they were its own.
     const name = rest.slice(3).join("/");
@@ -138,12 +137,22 @@ async function answer(app: ReturnType<typeof everyCopy>, page: string, you: stri
   return json(response, 404, { problems: [`There's nothing at ${path}.`] });
 }
 
-// The review now, then again each time what's kept changes it, until the viewer goes away.
+// The review now, then again each time what's kept changes it, and whether an agent is waiting for what's sent, then
+// again each time that changes, until the viewer goes away: one stream for both, as a browser lets only six requests at
+// a time go to one address, from all its tabs together, and a stream holds one for as long as it's open. An agent
+// that's ended says nothing, so it's looked at every two seconds.
 async function live(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
   await repo.reviews.get(id);
   response.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-store" });
   const gone = new AbortController();
   request.on("close", () => gone.abort());
+  let waiting: boolean | undefined;
+  const look = async () => {
+    const now = await agentWaiting(repo, id);
+    if (now !== waiting && !response.writableEnded) response.write(`event: waiting\ndata: ${(waiting = now)}\n\n`);
+  };
+  void look();
+  const every = setInterval(look, 2000);
   let last = "";
   while (!gone.signal.aborted) {
     const review = await repo.reviews.wait(id, (review) => JSON.stringify(review) !== last, gone.signal).catch(() => undefined);
@@ -151,25 +160,8 @@ async function live(repo: Repo, id: string, request: IncomingMessage, response: 
     last = JSON.stringify(review);
     response.write(`data: ${last}\n\n`);
   }
+  clearInterval(every);
   response.end();
-}
-
-// Whether an agent is waiting for what's sent, then again each time that changes. One that's ended says nothing, so
-// it's looked at every two seconds.
-async function waiting(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
-  await repo.reviews.get(id);
-  response.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-store" });
-  let last: boolean | undefined;
-  const look = async () => {
-    const now = await agentWaiting(repo, id);
-    if (now !== last) response.write(`data: ${(last = now)}\n\n`);
-  };
-  await look();
-  const every = setInterval(look, 2000);
-  request.on("close", () => {
-    clearInterval(every);
-    response.end();
-  });
 }
 
 // A moment of a scene made ready to take over: the viewer asks as Take over is pressed where the playhead rests, and
