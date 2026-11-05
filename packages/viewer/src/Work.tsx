@@ -4,7 +4,7 @@
 // back. The scene you're on has the bar: you note it, compare it with how it was and take it over where it is. At the
 // end, how it got here, and the one step to take.
 
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import type { Note, Place, Review, Round } from "@playthrough/review";
 import { Key, mac } from "./Card.tsx";
 import type { Diamond } from "./changes.ts";
@@ -13,7 +13,7 @@ import { clamp } from "./moments.ts";
 import { fill, type Shown, type Standing } from "./notes.ts";
 import { onPhone } from "./phone.ts";
 import { clock } from "./Rounds.tsx";
-import { Parts } from "./Parts.tsx";
+import { beenAt, Parts, stepKey, useParts, type Part } from "./Parts.tsx";
 import { SceneView, type Threads } from "./Scene.tsx";
 import type { Step } from "./Step.tsx";
 import type { Read } from "./things.ts";
@@ -67,7 +67,8 @@ export function Work(props: Props) {
   // window's top by its bar; and the last move along the way, which its scene goes to. Noting, writing or in the
   // app, you stay where you are, and in the app the page holds still and the rest of it rests.
   const [active, setActive] = useState(round.scenes[0]?.name);
-  const [go, setGo] = useState<{ round: number; scene: string; stop: number; passing?: boolean }>();
+  // Gone to from what's different, the stop comes to that change, beside Before where Before had it.
+  const [go, setGo] = useState<{ round: number; scene: string; stop: number; passing?: boolean } & There>();
   // Begun once you've gone along, or arrived on an answer waiting on you; until then, the foot says how to begin.
   const [arrivedOn] = useState(() => props.notes.some((note) => note.toJudge && round.scenes.some((scene) => scene.name === note.on?.scene)));
   const begun = !!go || arrivedOn;
@@ -94,11 +95,11 @@ export function Work(props: Props) {
   };
   // There, it plays: gone to while the page glides another scene up, once that's settled.
   const land = () => setGo((go) => (go?.passing ? { ...go, passing: false } : go));
-  const goTo = (room: HTMLElement, section: HTMLElement, stop: number) => {
+  const goTo = (room: HTMLElement, section: HTMLElement, stop: number, at?: There) => {
     const scene = section.dataset.scene!;
     const there = settled(room, section);
     setActive(scene);
-    setGo({ round: round.number, scene, stop, passing: !there });
+    setGo({ round: round.number, scene, stop, passing: !there, ...at });
     // In the scene that's held, nothing on the page moves but where you are on its way, so the page is put there at once.
     if (there && stop >= 0 && stop < stopsOf(section)) return void ((steered.current = performance.now() + 100), (room.scrollTop = scrollFor(room, section, stop)));
     glide(scrollFor(room, section, stop), there ? undefined : land);
@@ -122,20 +123,32 @@ export function Work(props: Props) {
     return true;
   };
   // A stop pressed comes up to the line; on a phone, where the page stays put, it's gone to where it is.
-  const bringTo = (scene: string, stop: number) => {
+  const bringTo = (scene: string, stop: number, at?: There) => {
     const room = props.room.current;
     const there = room?.querySelector<HTMLElement>(`[data-scene="${CSS.escape(scene)}"]`);
     if (!room || !there) return;
-    if (onPhone()) return void (setActive(scene), setGo({ round: round.number, scene, stop }));
-    goTo(room, there, stop);
+    if (onPhone()) return void (setActive(scene), setGo({ round: round.number, scene, stop, ...at }));
+    goTo(room, there, stop, at);
   };
-  // A step gone to from what's different: its stop, or the stop it's kept together in.
-  const toStep = (scene: string, step: number) => {
-    const room = props.room.current;
-    const stops = [...(room?.querySelectorAll<HTMLElement>(`[data-scene="${CSS.escape(scene)}"] [data-step]`) ?? [])];
+  // What's different, gone to: the stop where it's seen best, or the stop that's kept together in, close on the change
+  // and beside Before; a new page, played into, as Before had nothing there.
+  const toPart = (part: Part) => {
+    const { scene, step } = part.best;
+    const stops = [...(props.room.current?.querySelectorAll<HTMLElement>(`[data-scene="${CSS.escape(scene.name)}"] [data-step]`) ?? [])];
     const stop = stops.find((stop) => Number(stop.dataset.step) >= step);
-    if (stop) bringTo(scene, Number(stop.dataset.stop));
+    const ids = new Set(part.changes.map((change) => change.id));
+    const diamond = part.isNew ? undefined : props.diamonds.find((diamond) => diamond.scene === scene.name && diamond.changes.some(({ change }) => ids.has(change.id)));
+    if (stop) bringTo(scene.name, Number(stop.dataset.stop), { change: diamond?.id, compare: !part.isNew });
   };
+  // The steps you've come to rest at this visit, which is what's different you've seen: nothing kept, said once.
+  const [been, setBeen] = useState(() => new Set<string>());
+  useEffect(() => {
+    if (!go || go.passing || go.stop < 0) return;
+    const step = props.room.current?.querySelector<HTMLElement>(`[data-scene="${CSS.escape(go.scene)}"] [data-stop="${go.stop}"]`)?.dataset.step;
+    const key = step === undefined ? undefined : stepKey(go.scene, Number(step));
+    if (key) setBeen((was) => (was.has(key) ? was : new Set(was).add(key)));
+  }, [go]);
+  const found = useParts(review, round, before, work?.since === 0 ? work.changes : undefined);
   // A note gone to from the line under the title: its stop on its scene's way, or the stop it's a line in, or where it's
   // said at the page's end, or the scene, folded as it looks good to you.
   const toNote = (note: Shown) => {
@@ -289,7 +302,7 @@ export function Work(props: Props) {
             })}
           </p>
         </header>
-        {before && work?.since === 0 && <Parts review={review} round={round} before={before} changes={work.changes} onGo={toStep} />}
+        {before && found && <Parts review={review} round={round} before={before} found={found} been={been} onGo={toPart} />}
         {/* Scenes that look good to you, folded to their pictures, sit side by side. */}
         <div className="mt-10 flex flex-wrap gap-x-5 gap-y-12 phone:mt-7 phone:gap-y-9 [&>[data-scene]]:basis-full [&>[data-folded]+[data-folded]]:mt-0">
           {round.scenes.map((scene) => (
@@ -323,7 +336,7 @@ export function Work(props: Props) {
             story. After a scene still being gone through, it comes up as far as one is held, so that scene leaves whole. */}
         <div className={`mt-14 grid max-w-[680px] content-start gap-8 empty:hidden phone:mt-9 phone:min-h-0 phone:px-4 ${ends && heldLast ? "min-h-[calc(var(--room)-var(--pin)-1rem)]" : ""}`}>
           <Story review={review} round={round} general={general} />
-          <End step={step} trouble={props.trouble} toSend={props.notes.filter((note) => note.unsent)} onNote={toNote} />
+          <End step={step} trouble={props.trouble} toSend={props.notes.filter((note) => note.unsent)} onNote={toNote} unseen={found?.parts.filter((part) => !beenAt(part, been)) ?? []} onPart={toPart} />
         </div>
         {/* Until you've begun, how to begin floats at the window's foot, over the way rather than across the recordings,
             taking no room at the page's end; with every scene looking good, there's nothing to go through. */}
@@ -362,7 +375,7 @@ const LANDS = 600;
 // pull request's review is submitted at its foot. The one step left once you've been through it (finish a note, send,
 // accept) and, sent, what the agent is doing with it, said where Send was. Under Send, the notes it sends, each going to
 // where it was written.
-function End({ step, trouble, toSend, onNote }: { step?: Step; trouble: string[]; toSend: Shown[]; onNote: (note: Shown) => void }) {
+function End({ step, trouble, toSend, onNote, unseen, onPart }: { step?: Step; trouble: string[]; toSend: Shown[]; onNote: (note: Shown) => void; unseen: Part[]; onPart: (part: Part) => void }) {
   if (step?.kind !== "go" && step?.kind !== "agent") return null;
   const sign =
     step.kind === "agent" ? (
@@ -407,6 +420,20 @@ function End({ step, trouble, toSend, onNote }: { step?: Step; trouble: string[]
             </li>
           ))}
         </ul>
+      )}
+      {/* What's different that you haven't come to, said once where you'd send, each gone to from its name. */}
+      {step.kind === "go" && unseen.length > 0 && (
+        <p className="mt-2 pl-8 text-[13px] leading-5 text-soft">
+          {unseen.length} {unseen.length === 1 ? "change" : "changes"} you haven't seen ·{" "}
+          {unseen.map((part, i) => (
+            <Fragment key={part.name}>
+              {i > 0 && ", "}
+              <button className="underline-offset-[3px] hover:text-fg hover:underline" onClick={() => onPart(part)}>
+                {part.name}
+              </button>
+            </Fragment>
+          ))}
+        </p>
       )}
       {trouble.length > 0 && <p className="mt-2 pl-8 text-[12.5px] leading-[18px] text-amber-ink">{trouble.join(" ")}</p>}
     </div>
@@ -468,3 +495,5 @@ const standsAt = (notes: Shown[]): [string, Shown[]][] =>
     ] as [string, Shown[]][]
   ).filter(([, some]) => some.length);
 
+// Where a stop gone to comes to: a change on it, and whether it's beside Before.
+type There = { change?: string; compare?: boolean };

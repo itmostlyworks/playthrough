@@ -1,5 +1,7 @@
 // What's different from Before, a part of the app at a time: where the round's changes are, each part once however many
-// scenes pass it, as a still of it now and, pointed at, as it was. A part is a page, named by its heading, or what's
+// scenes pass it, as a still of it now and, pointed at, as it was, saying how many scenes it's in. It's the review's
+// index, as a pull request lists the files it changed: pressed, a part is gone to where it's seen best, and once you've
+// been there in any scene, it's quieter, as a file marked viewed. A part is a page, named by its heading, or what's
 // around every page, the sidebar or the top bar. A page Before never reached is new, and everything seen on it is that
 // page: there's nothing it could be compared with.
 
@@ -10,41 +12,50 @@ import { picture, readings } from "./api.ts";
 import { around, Picture, union, type Box, type Frame } from "./Picture.tsx";
 import { CHIP } from "./Scene.tsx";
 
-type Seen = { scene: Scene; step: number; reading: number; boxes: Box[]; screen: Reading["screen"] };
-type Part = { name: string; isNew: boolean; changes: Change[]; seen: Seen[] };
+// Where a part is seen: a scene, the step it's seen at the end of, that step's reading, and where it is on it.
+export type Seen = { scene: Scene; step: number; reading: number; boxes: Box[]; screen: Reading["screen"] };
+// A part, and where it's seen best: on a computer's screen where it can be, so every still is the same shape, and a new
+// page where the most is on it.
+export type Part = { name: string; isNew: boolean; changes: Change[]; seen: Seen[]; best: Seen };
+type Read = { now: Map<string, Reading[]>; then: Map<string, Reading[]> };
 
 // The stills are the shape of a recording on a computer's screen.
 const SHAPE = 1.6;
 
-export function Parts(props: { review: Review; round: Round; before: Round; changes: Change[]; onGo: (scene: string, step: number) => void }) {
-  const { review, round, before } = props;
-  const [read, setRead] = useState<{ now: Map<string, Reading[]>; then: Map<string, Reading[]> }>();
+export function useParts(review: Review, round: Round, before: Round | undefined, changes: Change[] | undefined): { parts: Part[]; read: Read } | undefined {
+  const [read, setRead] = useState<Read>();
   useEffect(() => {
+    if (!before) return;
     let current = true;
     const all = (kept: Round) => Promise.all(kept.scenes.map(async (scene) => [scene.name, await readings(review.id, kept.number, scene.recording)] as const)).then((read) => new Map(read));
     Promise.all([all(round), all(before)]).then(([now, then]) => current && setRead({ now, then }));
     return () => void (current = false);
   }, [review.id, round, before]);
-  if (!read) return null;
-  const parts = partsOf(review, round, props.changes, read.now, read.then);
-  if (!parts.length) return null;
+  if (!before || !changes || !read) return undefined;
+  return { parts: partsOf(review, round, changes, read.now, read.then), read };
+}
+
+// Whether you've been at a part: at the step it's seen at, in any of its scenes.
+export const beenAt = (part: Part, been: Set<string>) => part.seen.some((seen) => been.has(stepKey(seen.scene.name, seen.step)));
+export const stepKey = (scene: string, step: number) => `${scene}\n${step}`;
+
+export function Parts(props: { review: Review; round: Round; before: Round; found: { parts: Part[]; read: Read }; been: Set<string>; onGo: (part: Part) => void }) {
+  const { review, round, before, found } = props;
+  if (!found.parts.length) return null;
   return (
     <section className="mt-9 phone:px-4">
       <p className="text-[13px] leading-5 text-soft">What's different from Before</p>
       <div className="mt-3 flex flex-wrap gap-x-5 gap-y-6">
-        {parts.map((part) => (
-          <Still key={part.name} part={part} review={review} round={round} before={before} read={read.now} thenRead={read.then} onGo={props.onGo} />
+        {found.parts.map((part) => (
+          <Still key={part.name} part={part} review={review} round={round} before={before} read={found.read.now} thenRead={found.read.then} been={beenAt(part, props.been)} onGo={props.onGo} />
         ))}
       </div>
     </section>
   );
 }
 
-function Still({ part, review, round, before, read, thenRead, onGo }: { part: Part; review: Review; round: Round; before: Round; read: Map<string, Reading[]>; thenRead: Map<string, Reading[]>; onGo: (scene: string, step: number) => void }) {
-  // Seen on a computer's screen where it can be, so every still is the same shape; a new page where most is on it.
-  const shaped = (seen: Seen) => Math.abs(seen.screen.width / seen.screen.height - SHAPE) < 0.05;
-  const fullest = (seen: Seen) => (part.isNew ? (read.get(seen.scene.name)?.[seen.reading]?.things.length ?? 0) : 0);
-  const seen = part.seen.toSorted((a, b) => Number(shaped(b)) - Number(shaped(a)) || fullest(b) - fullest(a))[0]!;
+function Still({ part, review, round, before, read, thenRead, been, onGo }: { part: Part; review: Review; round: Round; before: Round; read: Map<string, Reading[]>; thenRead: Map<string, Reading[]>; been: boolean; onGo: (part: Part) => void }) {
+  const seen = part.best;
   const box = seen.boxes.length ? union(seen.boxes) : undefined;
   // A new page is framed on what's on it, the sidebar, the top bar and what's only there to be heard left out.
   const page = part.isNew ? read.get(seen.scene.name)?.[seen.reading] : undefined;
@@ -61,8 +72,9 @@ function Still({ part, review, round, before, read, thenRead, onGo }: { part: Pa
     height: `${(box.height / seen.screen.height / frame.height) * 100}%`,
   };
   const what = part.isNew ? "A new page" : part.changes.length > 1 ? `${part.changes[0]!.words}, and ${part.changes.length - 1} more` : part.changes[0]!.words;
+  const scenes = new Set(part.seen.map((seen) => seen.scene.name)).size;
   return (
-    <button className="group flex w-[240px] flex-col text-left phone:w-[200px]" onClick={() => onGo(seen.scene.name, seen.step)}>
+    <button className={`group flex w-[240px] flex-col text-left transition-opacity duration-300 ease-calm phone:w-[200px] ${been ? "opacity-45 hover:opacity-100" : ""}`} onClick={() => onGo(part)}>
       <span className="relative block aspect-[1.6] overflow-hidden rounded-lg bg-paper shadow-frame transition-shadow duration-150 ease-calm group-hover:shadow-[0_0_0_1px_rgb(20_24_34/0.22)]">
         <Picture shot={{ src: picture(review.id, round.number, seen.scene.recording, seen.reading), frame }} />
         {outline && (
@@ -78,6 +90,9 @@ function Still({ part, review, round, before, read, thenRead, onGo }: { part: Pa
         {part.name}
       </span>
       <span className="mt-0.5 line-clamp-2 block pl-[15px] text-[13px] leading-5 text-soft">{what}</span>
+      <span className="mt-0.5 block pl-[15px] text-[12px] leading-4 text-faint">
+        {scenes === 1 ? `In “${part.seen[0]!.scene.name}”` : `In ${scenes} scenes`}
+      </span>
     </button>
   );
 }
@@ -85,8 +100,10 @@ function Still({ part, review, round, before, read, thenRead, onGo }: { part: Pa
 // Each place a change is seen goes to the part of the app it's in, a part in the order the scenes first pass it.
 function partsOf(review: Review, round: Round, changes: Change[], now: Map<string, Reading[]>, then: Map<string, Reading[]>): Part[] {
   const pagesBefore = new Set([...then.values()].flat().map(pageOf).filter(Boolean));
-  const parts = new Map<string, Part>();
-  for (const change of changes) {
+  const parts = new Map<string, Omit<Part, "best">>();
+  // A scene Before couldn't begin is new from its first step to its end, which the comparison has no change for.
+  const wholly = round.scenes.filter((scene) => !then.has(scene.name) && scene.steps.length).map((scene) => ({ id: `new ${scene.name}`, words: `New: ${scene.name}`, seen: [{ scene: scene.name, at: scene.steps[0]!.at, until: scene.length }] }) as Change);
+  for (const change of [...changes, ...wholly]) {
     const account = accountOf(review, round.number, change.id);
     if (change.gone || (account && "notReal" in account)) continue;
     for (const on of change.seen) {
@@ -108,7 +125,11 @@ function partsOf(review: Review, round: Round, changes: Change[], now: Map<strin
       parts.set(name, part);
     }
   }
-  return [...parts.values()];
+  const shaped = (seen: Seen) => Math.abs(seen.screen.width / seen.screen.height - SHAPE) < 0.05;
+  return [...parts.values()].map((part) => {
+    const fullest = (seen: Seen) => (part.isNew ? (now.get(seen.scene.name)?.[seen.reading]?.things.length ?? 0) : 0);
+    return { ...part, best: part.seen.toSorted((a, b) => Number(shaped(b)) - Number(shaped(a)) || fullest(b) - fullest(a))[0]! };
+  });
 }
 
 // A page is known by its heading: the largest one that isn't in what's around every page.

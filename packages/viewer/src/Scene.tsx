@@ -49,7 +49,7 @@ type SceneViewProps = {
   active: boolean;
   // The stop gone along to, by the wheel or the keys; passing, as a turn of the wheel goes on through it, it plays
   // nothing until the wheel's still there.
-  go?: { stop: number; passing?: boolean };
+  go?: { stop: number; passing?: boolean; change?: string; compare?: boolean };
   resting: boolean;
   onPointerDown: () => void;
   // A verdict said on it: an answer judged, or Looks good at the end of the way.
@@ -192,7 +192,14 @@ export function SceneView(props: SceneViewProps) {
     else if (there.at === undefined) setPicked(there.id);
     else go(there.at, there.id);
   };
-  useLayoutEffect(() => void (props.go && toStop(props.go.stop, props.go.passing)), [props.go]);
+  // Gone to from what's different, it comes to rest on the change, and beside Before where that's asked for.
+  useLayoutEffect(() => {
+    if (!props.go) return;
+    toStop(props.go.stop, props.go.passing);
+    const diamond = props.go.change && !props.go.passing ? diamonds.find((one) => one.id === props.go!.change) : undefined;
+    if (diamond) toChange(diamond);
+    if (props.go.compare) setSide(true);
+  }, [props.go]);
   // Opened at one of them, steps kept together are each a stop again, and that one's gone to: none of them has a note
   // open for you, so each is the next stop after the one before.
   const [unfolding, setUnfolding] = useState<number>();
