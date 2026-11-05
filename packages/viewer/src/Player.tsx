@@ -8,7 +8,7 @@ import { useEffect, useRef, useState, type MouseEvent, type RefObject } from "re
 import { elementOf, type Glimpse } from "@playthrough/page";
 import type { Element, Scene, Point } from "@playthrough/review";
 import { recording } from "./api.ts";
-import { Replay, type Events, type Rect, type Scrolled } from "./replay.ts";
+import { Replay, type Choice, type Events, type Rect, type Scrolled } from "./replay.ts";
 import { around, union, type Frame } from "./Picture.tsx";
 import { pickAt } from "./things.ts";
 
@@ -154,6 +154,7 @@ export function Player(props: Props) {
   const cursor = useRef<HTMLDivElement>(null);
   const ring = useRef<HTMLSpanElement>(null);
   const caret = useRef<HTMLSpanElement>(null);
+  const list = useRef<HTMLDivElement>(null);
   const [replay, setReplay] = useState<{ replay: Replay; events: Events }>();
   // Drawn to its width, and again as that changes: Compare on or off, the window resized.
   const [width, setWidth] = useState(0);
@@ -227,6 +228,7 @@ export function Player(props: Props) {
       replayed.host.style.transform = `translate(${-left * k}px, ${-top * k}px) scale(${k})`;
       replayed.placeCaret(caret.current!, moment, left, top, k);
       const pointer = replayed.pointerAt(moment);
+      placeList(list.current!, replayed.choices.find((choice) => moment >= choice.from && moment < choice.until + SHUTS), pointer, left, top, k);
       const hand = cursor.current!;
       hand.style.opacity = pointer ? "1" : "0";
       if (!pointer) return;
@@ -340,6 +342,8 @@ export function Player(props: Props) {
     <div ref={box} className={`absolute inset-0 overflow-hidden ${aiming ? (hover ? "cursor-pointer" : "cursor-crosshair") : ""}`} onPointerMove={aim} onPointerLeave={() => setHover(undefined)} onClick={place}>
       {hover && <div className="pointer-events-none absolute z-1 rounded-[4px] outline-1 outline-offset-4 outline-[rgba(217,162,58,0.75)] outline-solid" style={hover} />}
       <span ref={caret} className="pointer-events-none absolute top-0 left-0 z-1 bg-[#1e2330] opacity-0" />
+      {/* A dropdown's list, open as the browser drew it: not in the page, so drawn here, in Chrome's look in both themes. */}
+      <div ref={list} hidden className="pointer-events-none absolute top-0 left-0 z-1 origin-top-left overflow-hidden rounded-[3px] border border-[#767676] bg-white py-[3px] font-ui text-[13px] text-[#1e2330] shadow-[0_2px_8px_rgba(0,0,0,0.25)]" />
       <span ref={ring} className="pointer-events-none absolute top-0 left-0 z-1 -mt-3 -ml-3 size-6 rounded-full border-[1.5px] border-[rgba(40,44,54,0.5)] bg-[rgba(40,44,54,0.06)] opacity-0" />
       <div ref={cursor} data-hand className="pointer-events-none absolute top-0 left-0 z-1 size-5 opacity-0 [filter:drop-shadow(0_1px_1px_rgba(0,0,0,.3))]">
         <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden>
@@ -348,4 +352,30 @@ export function Player(props: Props) {
       </div>
     </div>
   );
+}
+
+// How long a dropdown's list stays after its choice is made, in seconds: the choice is seen lit as it closes.
+const SHUTS = 0.12;
+
+// A dropdown's list over the page shown k times its size from (left, top), its options as tall as the recording kept
+// them, the one under the pointer lit, or before it's there, the one chosen before.
+function placeList(element: HTMLElement, choice: Choice | undefined, pointer: [number, number] | undefined, left: number, top: number, k: number) {
+  element.hidden = !choice;
+  if (!choice) return;
+  if (element.dataset.from !== String(choice.from)) {
+    element.dataset.from = String(choice.from);
+    element.replaceChildren(
+      ...choice.options.map((option) => {
+        const row = document.createElement("div");
+        row.className = "truncate px-2 text-left data-lit:bg-[#1a73e8] data-lit:text-white";
+        Object.assign(row.style, { height: `${choice.row}px`, lineHeight: `${choice.row}px` });
+        row.textContent = option;
+        return row;
+      }),
+    );
+  }
+  const under = pointer && pointer[1] >= choice.y + 4 ? Math.floor((pointer[1] - choice.y - 4) / choice.row) : -1;
+  const lit = under >= 0 && under < choice.options.length ? under : choice.was;
+  [...element.children].forEach((row, i) => row.toggleAttribute("data-lit", i === lit));
+  Object.assign(element.style, { width: `${choice.width}px`, transform: `translate(${((choice.x - left) * k).toFixed(2)}px,${((choice.y - top) * k).toFixed(2)}px) scale(${k.toFixed(5)})` });
 }

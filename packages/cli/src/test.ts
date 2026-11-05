@@ -30,27 +30,12 @@ const LAPTOP = { width: 1280, height: 800 };
 // Everything it needs comes with the run (scenes.ts), so it never has to find anything for itself.
 const run: Run | undefined = process.env.PLAYTHROUGH_RUN ? JSON.parse(process.env.PLAYTHROUGH_RUN) : undefined;
 
-// On Before, what a scene expects is the finished work, which the app as it was may not show. So each expectation waits a
-// moment for it, as for a step's result, and the scene goes on either way: it stops only where the app as it was can't
-// do something, and it's recorded as far as that.
-export const expect = run?.before ? onlyWaits(playwrightExpect.configure({ timeout: 1000 })) : playwrightExpect;
-
-function onlyWaits(expect: typeof playwrightExpect): typeof playwrightExpect {
-  const checks = (matchers: object): any =>
-    new Proxy(matchers, {
-      get(target, name) {
-        const check = Reflect.get(target, name);
-        if (name === "not") return checks(check);
-        if (typeof check !== "function") return check;
-        return (...args: unknown[]) => {
-          try {
-            return Promise.resolve(check.apply(target, args)).catch(() => {});
-          } catch {}
-        };
-      },
-    });
-  return new Proxy(expect, { apply: (target, self, args) => checks(Reflect.apply(target, self, args)) });
-}
+// On Before, a step is taken only if the app as it was did what the scene expects of it, its checks too: the scene stops
+// at the first it doesn't, as at an action it can't do. Letting checks go by, a phone scene opening a page the app
+// didn't have counted its first step as taken, and only the search after it read as new ("isn't the whole thing new?").
+// A check waits a moment there, as for a step's result, rather than its usual few seconds for a page that will never
+// show it.
+export const expect = run?.before ? playwrightExpect.configure({ timeout: 1000 }) : playwrightExpect;
 
 // The page's own clock and timers are taken before anything fakes them: under a set clock, rrweb's throttle let one
 // pointer move through, timed by the gap between the set time and the real one.
@@ -173,6 +158,8 @@ const KEY = 60; // words are typed a key at a time, this far apart
 const TYPED = 1500; // and a long text no slower than this, all told
 const SAVING = 100; // taking over, how soon an action that saves or goes to another page shows it
 const HANDING = 1200; // handed on, the page left holds this long, and the new hand rests this long before acting
+const OPENED = 350; // a dropdown's list is seen open this long before the pointer goes to its choice
+const OPTION = 22; // and each of its options is this tall, in the page's pixels, as the viewer draws it
 
 let pointer: { page: Page; x: number; y: number; handed?: boolean } | undefined;
 
@@ -767,7 +754,9 @@ function pace(page: Page) {
                 .apply(aimed, args)
                 .catch((error) => (/not attached|detached/i.test(String(error)) ? original.apply(this, args) : Promise.reject(error)))
           : () => original.apply(this, args);
+      const choosing = pointer && underway && action === "selectOption" ? await opensList(this, args[0], pointer, underway) : undefined;
       const result = await acted(action, () => pathTo(this), act, args[0]);
+      if (choosing) underway!.events.push({ type: 5, data: { tag: "chose", payload: {} }, timestamp: Date.now() } as { timestamp: number });
       if (pointer) await pointer.page.waitForTimeout(BEAT);
       await glimpse();
       return result;
@@ -937,6 +926,33 @@ async function glimpse() {
   const at = seconds(Date.now() - (scene.events[0]?.timestamp ?? Date.now()));
   const read = await readPage(scene.page).catch(() => undefined);
   if (read) scene.glimpses.push({ step: scene.step ?? "", at, ...read });
+}
+
+// A dropdown's list of options is the browser's, not the page's, so rrweb never sees it open, as with a dialog: the
+// choice changed with nothing pressed ("It doesn't even click the drop down, just instantly switches it"). So it's kept
+// in the recording as a moment of its own, with where the dropdown is and its options, for the viewer to draw: it opens,
+// the pointer goes down to the option the scene chooses, and it's chosen there.
+async function opensList(target: Locator, given: unknown, at: { page: Page; x: number; y: number }, scene: Underway) {
+  const list = await target
+    .evaluate((select, given) => {
+      if (!(select instanceof HTMLSelectElement) || select.multiple || select.size > 1) return undefined;
+      const options = [...select.options];
+      const first = Array.isArray(given) ? given[0] : given;
+      const chosen = options.findIndex((option, i) =>
+        typeof first === "string" ? option.value === first || option.label === first : first && typeof first === "object" ? (first.value !== undefined ? option.value === first.value : first.label !== undefined ? option.label === first.label : first.index === i) : false,
+      );
+      const box = select.getBoundingClientRect();
+      return { x: box.left, y: box.bottom, width: box.width, options: options.map((option) => option.label), from: select.selectedIndex, chosen };
+    }, given)
+    .catch(() => undefined);
+  if (!list || list.chosen < 0) return false;
+  const { chosen, ...shown } = list;
+  scene.events.push({ type: 5, data: { tag: "choice", payload: { ...shown, row: OPTION } }, timestamp: Date.now() } as { timestamp: number });
+  await at.page.waitForTimeout(OPENED);
+  const to = { x: list.x + Math.min(list.width / 2, 60), y: list.y + 4 + OPTION * (chosen + 0.5) };
+  await glide(at, to, async () => to);
+  await at.page.waitForTimeout(REST);
+  return true;
 }
 
 // Somewhere a person types words: a text box, a text area, an editor.

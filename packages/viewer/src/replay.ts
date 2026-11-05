@@ -37,6 +37,8 @@ export type Recorded = {
   scrolls: [number, number, number, number][];
   // The browser's own dialogs, which aren't in the page.
   dialogs: Dialog[];
+  // A dropdown's list of options, the browser's too, open until its choice was made.
+  choices: Choice[];
   // Where the text cursor was, as [seconds, x, y, height, letters], from when it moved; a height of 0 when nothing was
   // typed into, and in a field, after how many of its letters. Kept by Playthrough while recording, as rrweb keeps none:
   // in an earlier recording there's none, and before 5 Nov, no letters.
@@ -50,10 +52,14 @@ export type Recorded = {
 // says, under where it came from, what a prompt held, and how it was answered.
 export type Dialog = { from: number; until: number; type: string; host: string; message: string; value?: string; yes?: boolean };
 
+// A dropdown's list, from when it opened until its choice was made: where its top left was and how wide, in the page's
+// pixels, its options and how tall each is, and the one chosen before.
+export type Choice = { from: number; until: number; x: number; y: number; width: number; options: string[]; row: number; was: number };
+
 export function recorded(events: Events): Recorded {
   const start = events[0]?.timestamp ?? 0;
   const seconds = (timestamp: number) => (timestamp - start) / 1000;
-  const shown: Recorded = { shapes: [], loads: [], pointer: [], away: [], clicks: [], changes: [], acted: [], typed: [], aimed: [], scrolls: [], dialogs: [], carets: [], browser: { dark: false, still: false } };
+  const shown: Recorded = { shapes: [], loads: [], pointer: [], away: [], clicks: [], changes: [], acted: [], typed: [], aimed: [], scrolls: [], dialogs: [], choices: [], carets: [], browser: { dark: false, still: false } };
   let said = false;
   let host = "";
   for (const event of events) {
@@ -64,6 +70,17 @@ export function recorded(events: Events): Recorded {
         shown.carets.push([seconds(event.timestamp), caret.x ?? 0, caret.y ?? 0, caret.height ?? 0, caret.letters]);
       }
       if (tag === "dialog") shown.dialogs.push({ from: seconds(event.timestamp), until: Infinity, host, ...payload });
+      // Opened and chosen from, it was pressed each time, as a click is.
+      if (tag === "choice") {
+        const { from: was, ...list } = payload as unknown as Omit<Choice, "until" | "was"> & { from: number };
+        shown.choices.push({ ...list, was, from: seconds(event.timestamp), until: Infinity });
+        shown.clicks.push(seconds(event.timestamp));
+      }
+      const choosing = shown.choices.at(-1);
+      if (tag === "chose" && choosing?.until === Infinity) {
+        choosing.until = seconds(event.timestamp);
+        shown.clicks.push(choosing.until);
+      }
       if (tag === "browser" && !said) [shown.browser, said] = [{ dark: !!(payload as unknown as Answered).dark, still: !!(payload as unknown as Answered).still }, true];
       const open = shown.dialogs.at(-1);
       if (tag === "dialog answered" && open?.until === Infinity) Object.assign(open, { until: seconds(event.timestamp), yes: payload.yes, ...(payload.value !== undefined && { value: payload.value }) });
@@ -169,6 +186,7 @@ export class Replay {
   readonly away: Recorded["away"];
   readonly clicks: number[];
   readonly dialogs: Dialog[];
+  readonly choices: Choice[];
   readonly carets: Recorded["carets"];
   readonly typed: Recorded["typed"];
   readonly aimed: Recorded["aimed"];
@@ -209,7 +227,7 @@ export class Replay {
       Object.defineProperty(event.data, "removes", { get: () => removes, set() {}, enumerable: true, configurable: true });
     }
     const shows = recorded(events);
-    ({ shapes: this.shapes, loads: this.loads, pointer: this.pointer, away: this.away, clicks: this.clicks, dialogs: this.dialogs, carets: this.carets, typed: this.typed, aimed: this.aimed, scrolls: this.#scrolls } = shows);
+    ({ shapes: this.shapes, loads: this.loads, pointer: this.pointer, away: this.away, clicks: this.clicks, dialogs: this.dialogs, choices: this.choices, carets: this.carets, typed: this.typed, aimed: this.aimed, scrolls: this.#scrolls } = shows);
     this.#drawn = Math.max(0, (events.find((event) => event.type === EventType.FullSnapshot)?.timestamp ?? start) - start + 1);
     this.host.className = "absolute top-0 left-0 origin-top-left [&_.replayer-mouse]:hidden [&_iframe]:pointer-events-none [&_iframe]:block [&_iframe]:border-0";
     this.#shape = this.shapes[0]!;
