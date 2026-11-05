@@ -1,7 +1,8 @@
-// Taking a scene over, ready before it's asked for. While the latest round plays, a run of its scene keeps up with the
-// playhead, as far as it has gone and no further, so the moment it comes to rest on is there already. The scenes run here,
-// in Playthrough, each in a window of its own, with its own cookies and storage, in one browser kept open while Playthrough runs:
-// a window opens in a moment, where a run of its own took a second and half a gigabyte.
+// Taking a scene over: a run of its scene to where it's taken over, only once that's asked for, as watching a recording
+// does nothing to the app. Once one has been, the next run starts there while the person looks, so taking it over again,
+// or further on, is quicker. The scenes run here, in Playthrough, each in a window of its own, with its own cookies and
+// storage, in one browser kept open while Playthrough runs: a window opens in a moment, where a run of its own took a
+// second and half a gigabyte.
 
 import { chromium, request as requests, type Browser } from "@playwright/test";
 import { readdir, stat } from "node:fs/promises";
@@ -14,8 +15,8 @@ import { giveBackLeft, setupIn, type Made, type Setup } from "./setup.ts";
 import type { Kept, Orders } from "./test.ts";
 
 // Runs one scene to where a person takes it over, on the app as it is now: quickly and unrecorded, from what every scene
-// starts from, so they carry on from a fresh copy of the moment rather than a picture of it. The run that has followed
-// the playhead there is there already; one that went past it, the playhead having gone back, is run again.
+// starts from, so they carry on from a fresh copy of the moment rather than a picture of it. The run waiting since the
+// last one was taken over is there already, or goes on from where it waits; one past it is run again.
 // With what the run made for it (setup.ts), which is the app the person has, theirs to give back.
 export async function runTo(repo: Repo, id: string, to: To): Promise<{ handed: Handed; made?: Made }> {
   const where = !to.step ? "its end" : to.actions ? `action ${to.actions} of ${quote(to.step)}` : `the end of ${quote(to.step)}`;
@@ -46,8 +47,8 @@ export async function runTo(repo: Repo, id: string, to: To): Promise<{ handed: H
     }
     throw new Refused([`${quote(to.scene)} didn't get to ${where}.`]);
   } finally {
-    // The next one starts there while the person looks, in case they play on; not if they have already, into another
-    // scene, whose run it would stop, nor for a scene that reaches outside the app.
+    // The next one starts there while the person looks, in case they take it over again, or further on; not if they've
+    // taken over another scene already, whose run it would stop, nor for a scene that reaches outside the app.
     const there = { scene: to.scene, step: to.step, actions: to.actions };
     void inTurn(repo, id, async () => {
       if (await reachesOutside(repo, id, to.scene)) return;
@@ -57,16 +58,8 @@ export async function runTo(repo: Repo, id: string, to: To): Promise<{ handed: H
   }
 }
 
-// While the latest round plays, a run of the scene keeps up with the playhead, as far as it has gone and no further, so
-// the moment it comes to rest on is there already.
-// Not a scene that reaches outside the app: each run would do that again.
-export const follow = (repo: Repo, id: string, to: To) =>
-  inTurn(repo, id, async () => {
-    if (!(await reachesOutside(repo, id, to.scene))) order(await followingFor(repo, id, to), to);
-  });
-
 // What the scene does outside the app, as its file says now, if it says so.
-export async function reachesOutside(repo: Repo, id: string, scene: string) {
+async function reachesOutside(repo: Repo, id: string, scene: string) {
   const { files, written } = await writtenOf(repo, id);
   return (await loadedOf(repo, id, files, written)).scenes.get(scene)?.outside;
 }
@@ -82,8 +75,7 @@ export const readyIn = (repo: Repo, id: string, to: To) =>
     const there = moments.indexOf(momentOf(to.step, to.actions));
     const here = moments.indexOf(one.passed.at(-1)!);
     if (there < 0) return undefined;
-    // One that's past it, the playhead having gone back, gives way to a new one. One waiting for the playhead goes on
-    // once it's asked, from where it is.
+    // One that's past it gives way to a new one. One waiting goes on once it's asked, from where it is.
     const fresh = here > there;
     let left = (handing.get(momentOf(to.step, to.actions)) ?? 0) - (fresh || one.orders.moved ? 0 : Date.now() - one.last.when);
     for (const moment of moments.slice(fresh ? 0 : here + 1, there + 1)) {
@@ -105,8 +97,8 @@ const asked = new Map<string, Following>();
 
 // How long the runs taken over took to get to each moment of a scene from the one before, working: going straight on, or
 // keeping what's done in the step they may be handed over in, which takes longer. And its moments in order, and how long
-// each took to hand its page over once it got there. Not a run following the playhead: it keeps everything to do again,
-// and its page settles while it waits.
+// each took to hand its page over once it got there. Not a run made ready before it's asked for: it keeps everything to
+// do again, and its page settles while it waits.
 type Took = { moments: string[]; straight: Map<string, number>; keeping: Map<string, number>; handing: Map<string, number> };
 const took = new Map<string, Took>();
 function timesOf(repo: Repo, id: string, { scene, written }: Following): Took {

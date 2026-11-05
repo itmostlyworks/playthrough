@@ -1,12 +1,12 @@
-// A scene: whose it is and what they do, where it stands, and the app, with its way through beside it. Each step is a
-// place: gone to, the recording plays into its result, and there the app comes up over it by itself, made ready while
-// it played, as who the scene is done as, yours to try. So do its end, and an answer to a note made in the app, what you
-// did there done again. A note or a change gone to is on the recording at its moment, lit, a click from being the app.
-// It arrives at the answer waiting on you, else at the first step's result. What's drawn on it, and what the bar does,
-// is about the moment it's at: the notes there, outlined, what changed there, a note made there, the app. In the app,
-// Watch it done plays the recording into where you are, and the app is back once it has. C held is how it was before
-// the work, at the same moment, in place; pressed, the two side by side, each close on the step's part of the page. At
-// an answer to a note made in the app, how it was is what you did then, played again beside what you did, done again.
+// A scene: whose it is and what they do, where it stands, and its recording, with its way through beside it. Each step
+// is a place: gone to, the recording plays into its result. A note or a change gone to is on the recording at its
+// moment, lit; an answer to a note made in the app, what you did there done again, as the agent recorded it. Watching
+// does nothing to the app: wherever it rests, the app is a press away, Take over, as who the scene is done as, made ready
+// only then, and Escape lays the recording back over it. It arrives at the answer waiting on you, else at the first
+// step's result. What's drawn on it, and what the bar does, is about the moment it's at: the notes there, outlined, what
+// changed there, a note made there, the app. C held is how it was before the work, at the same moment, in place;
+// pressed, the two side by side, each close on the step's part of the page. At an answer to a note made in the app, how
+// it was is what you did then, played again beside what you did, done again.
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import type { Glimpse, Reading } from "@playthrough/page";
@@ -136,25 +136,22 @@ export function SceneView(props: SceneViewProps) {
   const [picked, setPicked] = useState(waiting?.id);
   // Still on the stop it arrived on, or passed on the way, it's as it was found: nothing plays until you stop there.
   const [still, setStill] = useState(true);
-  // The recording moving on, from a stop or along a step's line, the app is left first: what plays is how it gets
-  // somewhere else.
-  const away = () => taken && acting.onAway();
-  const go = (moment: number, id?: string) => (Math.abs(moment - clock.at) > 0.01 && away(), clock.set(moment), setAt(moment), setPlaying(undefined), setPicked(id));
-  const playTo = (until: number, from = clock.at) => (away(), clock.set(from), setAt(from), setPicked(undefined), setPlaying({ until }));
+  const go = (moment: number, id?: string) => (clock.set(moment), setAt(moment), setPlaying(undefined), setPicked(id));
+  const playTo = (until: number, from = clock.at) => (clock.set(from), setAt(from), setPicked(undefined), setPlaying({ until }));
   const pause = () => (setAt(clock.at), setPlaying(undefined));
   // Come to rest, played or dragged to, what was said at the stop you're on stays open.
   const stopped = (moment: number) => go(moment, stops[stop]?.id);
   const startOf = (step: number) => stepStart(scene, step, cut);
-  // Gone to, a step plays into its result from its start, and the app is made ready there while it does; what was said
-  // in one is there at its moment; what was said about all of it, where it is; its end, at the last step's result.
+  // Gone to, a step plays into its result from its start; what was said in one is there at its moment; what was said
+  // about all of it, where it is; its end, at the last step's result.
   const toStop = (to: number) => {
     const k = Math.min(to, stops.length);
     setStop(k);
     setStill(false);
     const there = stops[k];
     if (!there && k < 0) return void (playing && pause());
-    if (!there) return void (go(results.at(-1)!), acting.onReady(scene.name, results.at(-1)!));
-    if (there.id === undefined) return void (playTo(there.at!, startOf(there.step)), acting.onReady(scene.name, there.at!));
+    if (!there) return void go(results.at(-1)!);
+    if (there.id === undefined) return void playTo(there.at!, startOf(there.step));
     if (there.at === undefined) setPicked(there.id);
     else go(there.at, there.id);
   };
@@ -312,22 +309,10 @@ export function SceneView(props: SceneViewProps) {
   // the way it was found, what you did done again in the app.
   const restsAt = Math.round(at * 100) / 100;
   const resting = active && !playing && !scrubbing && !taken;
-  const atStop = stops[stop];
-  const appNote = atStop?.id !== undefined && props.madeInApp(atStop.id) ? atStop.id : undefined;
+  const atStop = stops[stop]?.id;
+  const appNote = atStop !== undefined && props.madeInApp(atStop) ? atStop : undefined;
   useEffect(() => void (resting && acting.onRest(scene.name, restsAt, appNote)), [resting, restsAt, appNote]);
-  // Come to rest at a place, a step's result or its end, or a note made in the app, once what you did there done again
-  // has played where the agent ran it, the app comes there by itself, there too what you did done again. At a note on
-  // the recording, or a change, it's the recording, at its moment, a click from being the app.
-  const atPlace =
-    stop >= stops.length
-      ? !picked && Math.abs(at - results.at(-1)!) < 0.02
-      : atStop?.id === undefined
-        ? !!atStop && !picked && Math.abs(at - atStop.at!) < 0.02
-        : !!appNote && !redoing;
-  const comesBy = resting && atPlace && !noting && !acting.writing && !side && !peek;
-  useEffect(() => void (comesBy && acting.onStepIn()), [comesBy, restsAt, appNote]);
-  // And there, it's a click from being the app: pointing at it says so beside your pointer, as who it's done as. A
-  // click on another scene's makes it the one you're on.
+  // And there, it's a click from being the app: pointing at it says so beside your pointer, as who it's done as.
   const person = personAt(scene, restsAt);
   const stepIn = resting && !live?.shown && !noting && !acting.writing ? acting.onTakeOver : undefined;
   const noteHere = noting && !taken && !acting.writing;
@@ -688,7 +673,7 @@ export function SceneView(props: SceneViewProps) {
               </span>
             )}
           </button>
-          <Portal live={live} person={person} screen={screen} scrolled={() => scrolled.current?.()} calm />
+          <Portal live={live} person={person} screen={screen} scrolled={() => scrolled.current?.()} />
           {/* Beside your pointer, what a click on the recording does: note what's under it, or take it over. */}
           <span ref={pill} aria-hidden className={`pointer-events-none absolute top-0 left-0 z-30 transition-opacity duration-150 ease-calm ${(stepIn || noteHere) && aiming ? "" : "opacity-0"}`}>
             <span className={TAG}>{noteHere ? "Note on this" : person ? `Take over as ${person}` : "Take over"}</span>
@@ -703,7 +688,6 @@ export function SceneView(props: SceneViewProps) {
                   onNote={taken && !live.inApp ? undefined : acting.onNote}
                   onTakeOver={acting.onTakeOver}
                   onBack={acting.onBack}
-                  onWatch={again}
                   scene={scene.name}
                 />
               </div>
@@ -721,26 +705,21 @@ export function SceneView(props: SceneViewProps) {
             </div>
           )}
         </div>
-        {/* Where the app couldn't come, why, under the bar: the scene that reaches outside the app runs only when you take it
-            over yourself. */}
-        {live?.problems && !taken && (
-          <p className="mx-auto mt-8 max-w-[520px] px-4 text-center text-[12.5px] leading-[18px] text-amber-ink" title={live.problems.join("\n")}>
-            {live.problems[0]}
-          </p>
-        )}
         </div>
         </div>
-        {/* Its way beside the app, the scenes before it over it and the rest after it: its name, what the agent said of
-            it, and its steps. */}
+        {/* Its way beside the recording, the scenes before it over it and the rest after it: its name, what the agent said
+            of it, and its steps. While the app is yours, they rest, but for what was said where you took it over. */}
         <div className="min-w-0">
-          {props.above}
+          <div inert={taken} className={`transition-opacity duration-300 ease-calm ${taken ? "opacity-35" : ""}`}>
+            {props.above}
+          </div>
           <div className="grid content-start gap-2 pb-4">
             <h3 className="pr-0.5 pl-8 text-[15px] leading-[21px] font-semibold text-balance phone:hidden">
               {scene.name}
               {asWho(scene) && <span className="font-normal text-soft"> {asWho(scene)}</span>}
             </h3>
             {scene.line && (
-              <div className="pt-1 pr-0.5 pl-8 text-[13px]">
+              <div inert={taken} className={`pt-1 pr-0.5 pl-8 text-[13px] transition-opacity duration-300 ease-calm ${taken ? "opacity-35" : ""}`}>
                 <Said who={round.by}>{scene.line}</Said>
               </div>
             )}
@@ -762,12 +741,15 @@ export function SceneView(props: SceneViewProps) {
             said={said}
             end={atEnd}
             quietIn={quietIn}
+            resting={taken}
             onStop={toStop}
             onPoint={setLit}
             onScrub={(on) => (on && ((setPlaying(undefined), setPicked(undefined))), setScrubbing(on))}
             onGo={stopped}
           />
-          {props.below}
+          <div inert={taken} className={`transition-opacity duration-300 ease-calm ${taken ? "opacity-35" : ""}`}>
+            {props.below}
+          </div>
         </div>
       </div>
     </section>

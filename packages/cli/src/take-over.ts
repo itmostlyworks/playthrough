@@ -13,7 +13,7 @@ import { list, quote, Refused, type Did } from "@playthrough/review";
 import { keepRunning } from "./app.ts";
 import { refuseWhileAside } from "./before.ts";
 import { recorder, type Handed } from "./scenes.ts";
-import { follow, reachesOutside, runTo } from "./following.ts";
+import { runTo } from "./following.ts";
 import { listen, thisMachine } from "./open.ts";
 import { read } from "./read.ts";
 import type { App, Repo } from "./repo.ts";
@@ -38,26 +38,23 @@ Each address hands over the same copy, and the app is passed on through Playthro
 }
 
 // Runs the scene to where it's taken over and passes the app on, then says where: each moment made ready has an address
-// of its own, /take-over/<moment>, so several can wait at once. In the viewer, the moment the playhead rests on is made
-// ready while you look, and Take over turns the frame into the app there.
+// of its own, /take-over/<moment>, so several can wait at once. In the viewer, Take over makes the moment the playhead
+// rests on ready and turns the frame into the app there: nothing is run before it's asked for.
 // On a note's fork, the fork written for its notes is run after it, and what the person did there is kept on by whatever
-// they do next; on the round they made it, with no fork yet, what they did there is done again after them. Made ready ahead, as the playhead rests, before anyone has asked: not for a scene
-// that reaches outside the app, which each time would do that again. From the command line, the app is passed on to
-// this machine's networks too, for a phone on one of them; from the viewer, to this machine alone.
+// they do next; on the round they made it, with no fork yet, what they did there is done again after them. From the
+// command line, the app is passed on to this machine's networks too, for a phone on one of them; from the viewer, to this
+// machine alone.
 export async function getReady(
   repo: Repo,
   id: string,
   sceneName: string,
-  { step: stepName, actions, did, notes, ahead, network }: { step?: string; actions?: number; did?: Did[]; notes?: string[]; ahead?: boolean; network?: boolean } = {},
+  { step: stepName, actions, did, notes, network }: { step?: string; actions?: number; did?: Did[]; notes?: string[]; network?: boolean } = {},
 ): Promise<{ port: number; moment: string; seconds: string }> {
   const round = await recorded(repo, id);
   const scene = round.scenes.find((scene) => scene.name === sceneName);
   if (!scene) throw new Refused([`${id} has no scene called ${quote(sceneName)}. Its scenes: ${list(round.scenes.map((scene) => quote(scene.name)))}.`]);
   if (stepName && !scene.steps.some((step) => step.title === stepName))
     throw new Refused([`${quote(scene.name)} has no step called ${quote(stepName)}. Its steps: ${list(scene.steps.map((step) => quote(step.title)))}.`]);
-
-  const outside = ahead && (await reachesOutside(repo, id, scene.name));
-  if (outside) throw new Refused([`${quote(scene.name)} reaches outside the app (${outside}), so it's run only when it's taken over.`]);
 
   const app = await repo.app();
   refuseWhileAside(repo);
@@ -84,14 +81,6 @@ export async function getReady(
   return { port: await passing.port, moment, seconds: ((Date.now() - began) / 1000).toFixed(1) };
 }
 const ready = new Map<string, { moment: string; made?: Made }>();
-
-// While the latest round plays, its scene is run alongside, as far as the playhead has gone, so the moment it comes to
-// rest on is quick to make ready.
-export async function keepUp(repo: Repo, id: string, scene: string, step?: string, actions?: number) {
-  refuseWhileAside(repo);
-  await keepRunning(await repo.app(), repo.root, { ready: true });
-  await follow(repo, id, { scene, ...(step && { step, ...(actions && { actions }) }) });
-}
 
 // One way through to the app for as long as Playthrough runs, handing over each moment made ready, by its address.
 const passings = new Map<string, { moments: Map<string, Handed>; port: Promise<number> }>();

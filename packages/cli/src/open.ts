@@ -14,7 +14,7 @@ import { Refused, type Did, type Send } from "@playthrough/review";
 import { BEAT } from "./scenes.ts";
 import { copies, repo as copyAt, type Repo } from "./repo.ts";
 import { readyIn } from "./following.ts";
-import { getReady, keepUp } from "./take-over.ts";
+import { getReady } from "./take-over.ts";
 import { video, type Filmed } from "./video.ts";
 import { agentWaiting } from "./wait.ts";
 
@@ -124,7 +124,6 @@ async function answer(app: ReturnType<typeof everyCopy>, page: string, you: stri
   }
   if (request.method === "POST" && rest[0] === "video") return saveVideo(repo, id, request, response);
   if (request.method === "POST" && rest[0] === "take-over") return takeOver(repo, id, request, response);
-  if (request.method === "POST" && rest[0] === "follow") return followAlong(repo, id, request, response);
   if (request.method === "POST" && rest[0] === "ready-in") return readyInFor(repo, id, request, response);
   if (request.method === "POST" && rest[0] === "branches") return branch(repo, id, request, response);
   if (request.method === "POST" && rest[0] === "sends") {
@@ -173,11 +172,11 @@ async function waiting(repo: Repo, id: string, request: IncomingMessage, respons
   });
 }
 
-// A moment of a scene made ready to take over: the viewer asks while the playhead rests on it, and shows the app there,
-// through Playthrough, at the port and moment this answers with.
+// A moment of a scene made ready to take over: the viewer asks as Take over is pressed where the playhead rests, and
+// shows the app there, through Playthrough, at the port and moment this answers with.
 async function takeOver(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
-  const { scene, step, actions, did, notes, ahead } = await body<{ scene: string; step?: string; actions?: number; did?: Did[]; notes?: string[]; ahead?: boolean }>(request);
-  const { port, moment } = await getReady(repo, id, scene, { step, actions, did, notes, ahead });
+  const { scene, step, actions, did, notes } = await body<{ scene: string; step?: string; actions?: number; did?: Did[]; notes?: string[] }>(request);
+  const { port, moment } = await getReady(repo, id, scene, { step, actions, did, notes });
   json(response, 200, { port, moment });
 }
 
@@ -245,13 +244,6 @@ async function saveVideo(repo: Repo, id: string, request: IncomingMessage, respo
 async function readyInFor(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
   const { scene, step, actions } = await body<{ scene: string; step?: string; actions?: number }>(request);
   json(response, 200, { in: await readyIn(repo, id, { scene, step, actions }) });
-}
-
-// Where the playhead has got to while the latest round plays, for the scene run alongside it.
-async function followAlong(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
-  const { scene, step, actions } = await body<{ scene: string; step?: string; actions?: number }>(request);
-  await keepUp(repo, id, scene, step, actions);
-  json(response, 200, {});
 }
 
 // The viewer is one page: any address that isn't one of its files is the page, which reads the address itself.

@@ -1,7 +1,7 @@
-// The work, as the app itself: the scene you're in, which is the app wherever you come to rest along its way, as who
-// it's done as, yours to try; and beside it, what was asked and every scene it meets, a line each, the one you're in open
-// to its steps. A scene's line takes you into it. The keys go a stop at a time, from a scene's end on to the next. At the
-// list's end, how it got here, and the one step to take.
+// The work, a scene at a time: the one you're in, its recording at whichever of its places you've gone to, a press from
+// being the app there, as who it's done as; and beside it, what was asked and every scene it meets, a line each, the one
+// you're in open to its steps. A scene's line takes you into it. The keys go a stop at a time, from a scene's end on to
+// the next. At the list's end, how it got here, and the one step to take.
 
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import type { Note, Place, Review, Round, Scene } from "@playthrough/review";
@@ -42,19 +42,14 @@ export type Acting = {
   // None where no note can be made, or nothing taken over.
   onNote?: () => void;
   onTakeOver?: () => void;
-  // Come to rest at a place, the app comes there by itself; gone to one, it's made ready while the recording plays into
-  // it; and going on from it, it's left.
-  onStepIn: () => void;
-  onReady: (scene: string, at: number) => void;
-  onAway: () => void;
   onBack: () => void;
   onPlace: (on: Place) => void;
   // Where the scene you're on rests: Take over takes it over there, or at an answer to a note made in the app, where
   // the note was found, what you did there done again.
   onRest: (scene: string, at: number, again?: string) => void;
   onClose: () => void;
-  // The app: made ready unseen, being made ready as you wait, or yours; or why it couldn't be; and whether you left it.
-  live?: { scene: string; address?: string; shown: boolean; inApp: boolean; due?: number; at?: { x: number; y: number }; problems?: string[]; left?: boolean };
+  // Taken over: the app made ready unseen, being made ready as you wait, or yours.
+  live?: { scene: string; address?: string; shown: boolean; inApp: boolean; due?: number; at?: { x: number; y: number } };
   // The note you're writing on a recording: its number, and the box its words are written in.
   writing?: { note: Note; number: number; words: ReactNode };
   // The note opened last: a note saved stays open.
@@ -79,11 +74,11 @@ export function Work(props: Props) {
   const i = scene ? round.scenes.indexOf(scene) : -1;
   // A stop gone to in it from elsewhere on the page: by the keys, or a note's.
   const [go, setGo] = useState<{ round: number; scene: string; stop?: number; note?: string }>();
-  const busy = acting.noting || !!acting.writing;
-  // Going into another scene leaves the app where you were; it comes up at the other's first place, or the stop asked
-  // for, with the page back at its top.
+  // While the app is yours, the way rests: only the app, noting and going back answer.
+  const busy = acting.noting || !!acting.writing || !!acting.live?.shown;
+  // Gone into, another scene is at its first place, or the stop asked for, with the page back at its top.
   const open = (name: string, there?: { stop?: number; note?: string }) => {
-    if (name !== scene?.name) (acting.onAway(), setCurrent(name), props.room.current?.scrollTo({ top: 0 }));
+    if (name !== scene?.name) (setCurrent(name), props.room.current?.scrollTo({ top: 0 }));
     if (there) setGo({ round: round.number, scene: name, ...there });
   };
   // With the keys, along the way a stop at a time: from a scene's end on to the next one's first place, and back to the

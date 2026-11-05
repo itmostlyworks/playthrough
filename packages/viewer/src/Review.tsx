@@ -19,7 +19,7 @@ import { useUnsent } from "./draft.ts";
 import { grow, pushIn, takeOff, type Taking } from "./flight.ts";
 import type { Step } from "./Step.tsx";
 import { Work } from "./Work.tsx";
-import { follow, pausedAt, readyAt, readyIn, samePaused, takenOver, type Live, type Paused } from "./live.ts";
+import { pausedAt, readyAt, readyIn, samePaused, takenOver, type Live } from "./live.ts";
 import { along, CARD, clamp, SCENE_IN, momentAt, POSTER, type Moment } from "./moments.ts";
 import { changedFirst, draftOn, toSend, everyDraft, fill, ink, lookGood, notesOn, nothing, said, seen, sendOf, standings, takeBack, upTo, workingSince, type Draft, type Replied, type Shown } from "./notes.ts";
 import { NoteRow, number as numberLook, Writing, type Comparing } from "./Notes.tsx";
@@ -192,19 +192,9 @@ function OnRound({ review: kept, round, latest, newer, you, scene: inAddress, on
   // builds for the first time, isn't every load.
   const loading = useRef<{ since?: number; took?: number }>({});
   useEffect(() => void (live?.address && !live.settled && (loading.current.since = Date.now())), [live?.address]);
-  const passing = useNow(playhead, ({ moment, playing }) => {
-    const on = round.scenes.find((scene) => scene.name === moment.scene);
-    const paused = playing && !onGrid && on && moment.at >= 0 ? pausedAt(on, moment.at) : undefined;
-    return paused && JSON.stringify({ scene: on!.name, paused });
-  });
-  useEffect(() => {
-    if (!passing) return;
-    const { scene, paused }: { scene: string; paused: Paused } = JSON.parse(passing);
-    follow(review.id, scene, paused);
-  }, [passing, review.id]);
   const playingNow = useNow(playhead, (now) => now.playing);
-  const backToRecording = (at?: { x: number; y: number }, left = false) => {
-    setLive((now) => now && { ...now, shown: false, at, left });
+  const backToRecording = (at?: { x: number; y: number }) => {
+    setLive((now) => now && { ...now, shown: false, at });
     window.focus();
   };
   if (live?.shown && (playingNow || on !== round.number)) setLive({ ...live, shown: false });
@@ -217,7 +207,7 @@ function OnRound({ review: kept, round, latest, newer, you, scene: inAddress, on
     const kept = !onGrid && live?.shown && yours.current.address === live.address && forkList.find((fork) => fork.session === yours.current.id);
     if (kept) playhead.go({ scene: kept.name, at: kept.length });
     trying.current = undefined;
-    backToRecording(at, true);
+    backToRecording(at);
   };
   const letGoNow = useRef(letGo);
   letGoNow.current = letGo;
@@ -270,8 +260,7 @@ function OnRound({ review: kept, round, latest, newer, you, scene: inAddress, on
     starting.current = { from: { scene: scene.name, at: was.at } };
     takeOverAt(scene, was.at, was.did, [note.id]);
   };
-  // Ahead, it's the page bringing the app by itself: a scene that reaches outside the app isn't run for that.
-  const takeOverAt = (on: Scene, at: number, did?: Did[], notes?: string[], ahead = false) => {
+  const takeOverAt = (on: Scene, at: number, did?: Did[], notes?: string[]) => {
     const paused = pausedAt(on, at);
     if (at < 0 || !paused) return;
     playhead.pause();
@@ -281,45 +270,19 @@ function OnRound({ review: kept, round, latest, newer, you, scene: inAddress, on
     if (!did && live && live.scene === on.name && samePaused(live.paused, paused) && live.address) {
       takenOver(review.id, on.name, paused);
       const { since, took } = loading.current;
-      return setLive({ ...live, shown: true, at: undefined, left: undefined, due: !live.settled && since && took ? since + took : undefined });
+      return setLive({ ...live, shown: true, at: undefined, due: !live.settled && since && took ? since + took : undefined });
     }
-    // The one being made ready since you paused, if it is, and how long it will be, if the last run says.
+    // Made ready now, as you've asked, and how long it will be, if the last run says.
     setLive({ scene: on.name, paused, shown: true });
     const same = (now: Live | undefined): now is Live => now?.scene === on.name && samePaused(now.paused, paused);
-    readyAt(review.id, on.name, paused, { did, notes, ahead }).then((answer) => {
+    readyAt(review.id, on.name, paused, { did, notes }).then((answer) => {
       takenOver(review.id, on.name, paused);
       setLive((now) => (same(now) ? (typeof answer === "string" ? { ...now, address: answer } : { ...now, problems: answer, shown: false }) : now));
     });
-    if (!did && !ahead)
+    if (!did)
       void readyIn(review.id, on.name, paused).then(
         (left) => left !== undefined && setLive((now) => (same(now) && now.shown && !now.address ? { ...now, due: Date.now() + left + (loading.current.took ?? 0) } : now)),
       );
-  };
-  // On the page, the app comes by itself where you come to rest: at a step, or at an answer to a note made in the app,
-  // what you did there done again. Not where you've just left it, nor where it couldn't be made ready.
-  const stepIn = () => {
-    if (live?.shown || round.number !== latest.number) return;
-    const note = restingAt.current ? notes.find((one) => one.id === restingAt.current) : undefined;
-    const was = note && whereYouWere.get(note.id);
-    const scene = note?.on?.app ? round.scenes.find((one) => one.name === note.on!.app!.from.scene) : note ? round.scenes.find((one) => one.name === note.on?.scene) : playhead.scene;
-    const at = note?.on?.app ? note.on.app.from.at : note ? was?.at : Math.max(0, playhead.now.moment.at);
-    const paused = scene && at !== undefined ? pausedAt(scene, at) : undefined;
-    if (!scene || at === undefined || !paused || (live && live.scene === scene.name && samePaused(live.paused, paused) && (live.left || live.problems))) return;
-    if (note) return tryNote(note.id);
-    trying.current = undefined;
-    starting.current = { from: { scene: scene.name, at: Math.round(at * 100) / 100 } };
-    takeOverAt(scene, at, undefined, undefined, true);
-  };
-  // Gone to, a step's result is made ready while the recording plays into it, so the app is there about when it is.
-  const readyAhead = (scene: string, at: number) => {
-    const on = round.scenes.find((one) => one.name === scene);
-    const paused = on && at >= 0 ? pausedAt(on, at) : undefined;
-    if (!on || !paused || round.number !== latest.number || (live?.scene === scene && samePaused(live.paused, paused))) return;
-    setLive({ scene, paused, shown: false });
-    const same = (now: Live | undefined): now is Live => now?.scene === scene && samePaused(now.paused, paused);
-    readyAt(review.id, scene, paused, { ahead: true }).then((answer) =>
-      setLive((now) => (same(now) ? (typeof answer === "string" ? { ...now, address: answer } : { ...now, problems: answer, shown: false }) : now)),
-    );
   };
   // The app's pages say when they've settled, and send Escape back here, as keys there never reach the viewer.
   useEffect(() => {
@@ -1482,9 +1445,6 @@ function OnRound({ review: kept, round, latest, newer, you, scene: inAddress, on
               noting,
               onNote: readOnly ? undefined : pressNote,
               onTakeOver: takeOver,
-              onStepIn: stepIn,
-              onReady: readyAhead,
-              onAway: () => backToRecording(),
               onBack: () => letGo(),
               onPlace: (on) => (setNoting(false), write(on)),
               onRest: (scene, at, again) => {
@@ -1493,7 +1453,7 @@ function OnRound({ review: kept, round, latest, newer, you, scene: inAddress, on
                 restingAt.current = again;
               },
               onClose: () => setOpen(undefined),
-              live: live && { scene: live.scene, address: live.address, shown: live.shown, inApp, due: live.due, at: live.at, problems: live.problems, left: live.left },
+              live: live && { scene: live.scene, address: live.address, shown: live.shown, inApp, due: live.due, at: live.at },
               writing: writing ? { note: writing, number: nextNumber + draft.unsaved.indexOf(writing), words: writingWords(writing) } : undefined,
               opened: openNote?.id,
             }}

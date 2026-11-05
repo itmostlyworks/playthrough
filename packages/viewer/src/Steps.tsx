@@ -4,7 +4,7 @@
 // come, and its fill glides along as you go. The stop you're on opens: what was said there, all of it; or a step, with a
 // line of its own that fills as it plays, and dragged along, goes anywhere in the step and rests where it's let go, with
 // a dot for each note made in the step and a diamond for each change, at their moments. The others are a line each, and
-// pressed, go there, in the app or not.
+// pressed, go there. While the app is yours, they rest.
 
 import { Fragment, useLayoutEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import type { Scene } from "@playthrough/review";
@@ -53,9 +53,12 @@ type Props = {
   end?: { mark: End; looksGood?: { good: boolean; onPress: () => void }; says: ReactNode; onNote?: () => void };
   // What was said in a step that asks nothing of you, a line each under it; and about the whole scene, at its end.
   quietIn: (step?: number) => ReactNode;
+  // Taken over: the app is yours, and what plays the recording rests; the stop you're on stays lit, where you took it
+  // over, and what you say there answers.
+  resting?: boolean;
 };
 
-export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, onPoint, onScrub, onGo, end, quietIn, changesIn, onChange, newFrom }: Props) {
+export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, onPoint, onScrub, onGo, end, quietIn, resting, changesIn, onChange, newFrom }: Props) {
   const looksGood = end?.looksGood;
   const stepEnd = (step: number) => scene.steps[step + 1]?.at ?? scene.length;
   const stepOf = (moment: number) => Math.max(0, scene.steps.findIndex((_, step) => stepEnd(step) >= moment - 0.05));
@@ -159,7 +162,7 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
     "data-stop": k,
     "data-step": stops[k]?.step,
     "aria-current": k === on ? ("step" as const) : undefined,
-    className: `relative isolate flex-none py-2 pl-8 transition-opacity duration-300 ease-calm before:absolute before:inset-y-0 before:left-6 before:-right-3 before:-z-1 before:rounded-xl before:transition-[opacity,background-color] before:duration-300 before:ease-calm phone:before:left-5 [&>*]:transition-opacity [&>*]:duration-300 [&>*]:ease-calm ${k === on ? "before:opacity-100" : "before:opacity-0"} ${k === stops.length && looksGood ? "before:bg-[color-mix(in_srgb,var(--green)_13%,var(--surface))]" : "before:bg-surface"} ${k === on ? "[--under:var(--surface)]" : "[&>:not([data-sign])]:opacity-60 hover:[&>:not([data-sign])]:opacity-100"}`,
+    className: `relative isolate flex-none py-2 pl-8 transition-opacity duration-300 ease-calm before:absolute before:inset-y-0 before:left-6 before:-right-3 before:-z-1 before:rounded-xl before:transition-[opacity,background-color] before:duration-300 before:ease-calm phone:before:left-5 [&>*]:transition-opacity [&>*]:duration-300 [&>*]:ease-calm ${k === on && !resting ? "before:opacity-100" : "before:opacity-0"} ${k === stops.length && looksGood ? "before:bg-[color-mix(in_srgb,var(--green)_13%,var(--surface))]" : "before:bg-surface"} ${k === on ? "[--under:var(--surface)]" : resting ? "opacity-35" : "[&>:not([data-sign])]:opacity-60 hover:[&>:not([data-sign])]:opacity-100"}`,
     onPointerDownCapture: () => k !== on && onStop(k),
   });
 
@@ -173,7 +176,7 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
     if (stop.id !== undefined) {
       const { sign, line, whole } = said(stop.id);
       return (
-        <li key={stop.id} data-note={stop.id} {...row(k)} onPointerEnter={() => onPoint(stop.id)} onPointerLeave={() => onPoint(undefined)}>
+        <li key={stop.id} data-note={stop.id} {...row(k)} inert={resting && !here} onPointerEnter={() => onPoint(stop.id)} onPointerLeave={() => onPoint(undefined)}>
           <span data-sign="" className={`absolute top-2 left-0.5 grid size-4 translate-y-0.5 place-items-center rounded-full bg-ground transition-[box-shadow] duration-300 ease-calm ${here ? RING : ""}`}>
             {sign}
           </span>
@@ -191,7 +194,7 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
     return (
       <Fragment key={`step ${i}`}>
       {newFrom(i)}
-      <li {...row(k)}>
+      <li {...row(k)} inert={resting}>
         <span
           data-sign=""
           className={`absolute top-2 left-0 grid size-5 place-items-center rounded-full text-[10.5px] leading-none font-medium tabular-nums transition-colors duration-300 ease-calm ${i === current ? "bg-fg text-ground" : gone ? "bg-track text-soft" : "bg-ground text-faint shadow-[inset_0_0_0_1px_var(--track)]"}`}
@@ -251,12 +254,12 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
 
   return (
     <ol ref={list} aria-label={`The way through “${scene.name}”`} className="relative flex flex-col">
-      <li aria-hidden className="pointer-events-none absolute top-(--rail-top) left-[9.5px] h-(--rail) w-px bg-track phone:hidden">
+      <li aria-hidden className={`pointer-events-none absolute top-(--rail-top) left-[9.5px] h-(--rail) w-px bg-track transition-opacity duration-300 ease-calm phone:hidden ${resting ? "opacity-35" : ""}`}>
         <span className="absolute inset-0 origin-top bg-soft [scale:1_var(--reach,0)] transition-[scale] duration-300 ease-calm" />
       </li>
       {[...scene.steps.flatMap((_, i) => stopsIn(i).map(stopAt)), ...stopsIn(-1).map(stopAt)].concat(
         end ? (
-          <li key="end" {...row(stops.length)} data-end={looksGood ? "looks good" : ""}>
+          <li key="end" {...row(stops.length)} data-end={looksGood ? "looks good" : ""} inert={resting}>
             <span data-sign="" className={`absolute top-2 left-0 grid size-5 place-items-center rounded-full bg-ground transition-[scale] duration-300 ease-calm ${on === stops.length ? "scale-125" : ""}`}>
               <EndMark end={end.mark} ahead={on !== stops.length} just={false} className="size-3.5" />
             </span>
