@@ -3,7 +3,7 @@
 // you're in open to its steps. A scene's line takes you into it. The keys go a stop at a time, from a scene's end on to
 // the next. At the list's end, how it got here, and the one step to take.
 
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import type { Note, Place, Review, Round, Scene } from "@playthrough/review";
 import { Key, mac } from "./Card.tsx";
 import type { Diamond } from "./changes.ts";
@@ -12,6 +12,7 @@ import { fill, type Shown, type Standing } from "./notes.ts";
 import { asWho } from "./people.ts";
 import { clock } from "./Rounds.tsx";
 import { SceneView, type Threads } from "./Scene.tsx";
+import { GLIDE } from "./view.ts";
 import type { Step } from "./Step.tsx";
 import type { Read } from "./things.ts";
 
@@ -76,11 +77,43 @@ export function Work(props: Props) {
   const [go, setGo] = useState<{ round: number; scene: string; stop?: number; note?: string }>();
   // While the app is yours, the way rests: only the app, noting and going back answer.
   const busy = acting.noting || !!acting.writing || !!acting.live?.shown;
-  // Gone into, another scene is at its first place, or the stop asked for, with the page back at its top.
-  const open = (name: string, there?: { stop?: number; note?: string }) => {
-    if (name !== scene?.name) (setCurrent(name), props.room.current?.scrollTo({ top: 0 }));
+  // Gone into, another scene is at its first place, or the stop asked for. Where the page has room to, its line stays
+  // where it was on the screen, its way opening under it, as what folds above it goes up out of view; gone back to the
+  // end of the one before, it's the line you leave that stays, the way opening over it. With the page put back at its
+  // top, the list moved under you.
+  const held = useRef<{ name: string; tops: Map<string, number>; end?: number }>(undefined);
+  const lines = () => [...(props.room.current?.querySelectorAll<HTMLElement>("[data-scene-line]") ?? [])];
+  const open = (name: string, there?: { stop?: number; note?: string }, holding = name) => {
+    if (name !== scene?.name) {
+      const tops = new Map(lines().map((line) => [line.dataset.sceneLine!, line.getBoundingClientRect().top]));
+      held.current = { name: holding, tops, end: props.room.current?.querySelector("[data-review-end]")?.getBoundingClientRect().top };
+      setCurrent(name);
+    }
     if (there) setGo({ round: round.number, scene: name, ...there });
   };
+  // And it moves as an accordion does: each line glides from where it was to where it is, and the way of the one gone
+  // into opens down from its line, so what's under it goes on down as it does, never under it.
+  useLayoutEffect(() => {
+    const was = held.current;
+    held.current = undefined;
+    const room = props.room.current;
+    if (!was || !room) return;
+    const kept = was.tops.get(was.name);
+    const now = lines().find((line) => line.dataset.sceneLine === was.name)?.getBoundingClientRect().top;
+    if (kept !== undefined && now !== undefined) room.scrollTop += now - kept;
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const glide = (element: Element | null, from: number | undefined, opens = false) => {
+      const by = element && from !== undefined ? from - element.getBoundingClientRect().top : 0;
+      if (!element || (Math.abs(by) < 1 && !opens)) return;
+      // Open, it's clipped no closer than what it draws past its sides, as the stop you're on's surface does.
+      const shut = opens ? { clipPath: "inset(0 -24px 100% -24px)" } : {};
+      const whole = opens ? { clipPath: "inset(0 -24px -24px -24px)" } : {};
+      element.animate([{ translate: `0 ${by}px`, ...shut }, { translate: "0 0", ...whole }], { duration: GLIDE, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
+    };
+    for (const line of room.querySelectorAll("li[data-scene-line]")) glide(line, was.tops.get((line as HTMLElement).dataset.sceneLine!));
+    glide(room.querySelector("[data-way]"), was.tops.get(current!), true);
+    glide(room.querySelector("[data-review-end]"), was.end);
+  }, [current]);
   // With the keys, along the way a stop at a time: from a scene's end on to the next one's first place, and back to the
   // end of the one before.
   const move = (by: number) => {
@@ -88,7 +121,7 @@ export function Work(props: Props) {
     if (!section || !scene) return;
     const to = Number(section.dataset.stop) + by;
     if (to >= Number(section.dataset.stops)) return round.scenes[i + 1] && open(round.scenes[i + 1]!.name);
-    if (to < 0) return round.scenes[i - 1] && open(round.scenes[i - 1]!.name, { stop: Infinity });
+    if (to < 0) return round.scenes[i - 1] && open(round.scenes[i - 1]!.name, { stop: Infinity }, scene.name);
     open(scene.name, { stop: to });
   };
   const now = useRef({ busy, move, scene: scene?.name });
@@ -121,18 +154,25 @@ export function Work(props: Props) {
   // A note gone to from the review's end: its scene, at its stop if it's one.
   const toNote = (note: Shown) => note.on?.scene && round.scenes.some((one) => one.name === note.on!.scene) && open(note.on.scene, { note: note.id });
   const line = (other: Scene) => <Line key={other.name} scene={other} standing={props.standing(other.name)} onOpen={() => open(other.name)} />;
+  // What was asked, to the point: its title, and its words two lines long, whole once pressed. Over the scenes, how many
+  // and who recorded them, as a count sits over what it counts. Whole, the words pushed the scenes half a window down.
+  const [whole, setWhole] = useState(false);
   const header = (
     <header className="mb-5">
-      <h2 className="text-[20px] leading-[27px] font-semibold tracking-[-0.01em] text-balance">{review.title}</h2>
-      {review.asked && <p className="mt-2 text-[14px] leading-[22px] text-soft">{review.asked}</p>}
-      <p className="mt-2 text-[13px] leading-5 text-soft">
+      <h2 className="text-[16px] leading-[22px] font-semibold text-balance">{review.title}</h2>
+      {review.asked && (
+        <button className="mt-1 block w-full text-left text-[13px] leading-5 text-soft transition-colors duration-150 ease-calm hover:text-fg" aria-expanded={whole} onClick={() => setWhole(!whole)}>
+          <span className={whole ? undefined : "line-clamp-2"}>{review.asked}</span>
+        </button>
+      )}
+      <p className="mt-5 text-[12.5px] leading-[18px] text-soft">
         {round.scenes.length} {round.scenes.length === 1 ? "scene" : "scenes"}, recorded by {round.by}
         {props.accepted && <span className="text-green"> · Accepted</span>}
       </p>
     </header>
   );
   const end = (
-    <div className="mt-10 grid content-start gap-8 empty:hidden phone:mt-8">
+    <div data-review-end="" className="mt-10 grid content-start gap-8 empty:hidden phone:mt-8">
       <Story review={review} round={round} general={general} />
       <End step={step} trouble={props.trouble} toSend={props.notes.filter((note) => note.unsent)} onNote={toNote} />
     </div>
@@ -164,12 +204,13 @@ export function Work(props: Props) {
             above={
               <>
                 {header}
-                {i > 0 && <ul className="mb-4 grid gap-0.5">{round.scenes.slice(0, i).map(line)}</ul>}
+                {i > 0 && <ul className="mb-2 grid grid-cols-1 gap-0.5">{round.scenes.slice(0, i).map(line)}</ul>}
               </>
             }
+            heading={<Heading scene={scene} standing={props.standing(scene.name)} />}
             below={
               <>
-                {i < round.scenes.length - 1 && <ul className="mt-4 grid gap-0.5">{round.scenes.slice(i + 1).map(line)}</ul>}
+                {i < round.scenes.length - 1 && <ul className="mt-3 grid grid-cols-1 gap-0.5">{round.scenes.slice(i + 1).map(line)}</ul>}
                 {end}
               </>
             }
@@ -189,21 +230,38 @@ export function Work(props: Props) {
 // How long a verdict is seen where it was said before the way goes on, in milliseconds.
 const LANDS = 600;
 
-// Another scene, a line in the list: where it stands, as its end's square, in the column the steps' numbers are in, and
-// its name, as who; pressed, you're in it. As pictures side by side, scenes were a second row of stills under what's new
-// to you; a small picture beside each name read as a broken image.
+// Another scene, a line in the list: its name, as who, and where it stands, as its end's square, at the line's end;
+// pressed, you're in it. The names start where the list does and the squares end it, so the column the steps' numbers
+// are in is the way's alone: with the squares in it too, the scenes and the steps of the one you're in read as one list
+// ("The information hierarchy in the sidebar is a bit hard to parse, especially when you move between scenes"). As
+// pictures side by side, scenes were a second row of stills; a small picture beside each name read as a broken image.
 function Line({ scene, standing, onOpen }: { scene: Scene; standing?: Standing; onOpen: () => void }) {
   const end = standing && endOf(standing);
   return (
-    <li>
-      <button className="group relative isolate flex w-full min-w-0 items-center py-1.5 pl-8 text-left before:absolute before:inset-y-0 before:left-6 before:-right-3 before:-z-1 before:rounded-xl before:transition-colors before:duration-150 before:ease-calm hover:before:bg-hover" onClick={onOpen}>
-        <span className="absolute top-1/2 left-0 grid size-5 -translate-y-1/2 place-items-center">{end && <EndMark end={end} ahead={end === "asks"} just={false} className="size-3.5" />}</span>
-        <span className={`min-w-0 truncate text-[14px] leading-5 transition-colors duration-150 ease-calm group-hover:text-fg ${end === "good" ? "text-soft" : "text-fg"}`}>
+    <li data-scene-line={scene.name}>
+      <button className="group relative isolate flex w-full min-w-0 items-center gap-3 py-1.5 pr-1.5 text-left before:absolute before:inset-y-0 before:-right-3 before:-left-3 before:-z-1 before:rounded-xl before:transition-colors before:duration-150 before:ease-calm hover:before:bg-hover" onClick={onOpen}>
+        <span className={`min-w-0 flex-1 truncate text-[14px] leading-5 transition-colors duration-150 ease-calm group-hover:text-fg ${end === "good" ? "text-soft" : "text-fg"}`}>
           {scene.name}
           {asWho(scene) && <span className="text-soft"> {asWho(scene)}</span>}
         </span>
+        {end && <EndMark end={end} ahead={end === "asks"} just={false} className="size-3.5 flex-none" />}
       </button>
     </li>
+  );
+}
+
+// The scene you're in, its line open: its name whole and a size up, its square where the others' are, and its way under
+// it, the way's signs in their own column.
+function Heading({ scene, standing }: { scene: Scene; standing?: Standing }) {
+  const end = standing && endOf(standing);
+  return (
+    <h3 data-scene-line={scene.name} className="flex min-w-0 items-start gap-3 pt-1.5 pr-1.5 pb-1">
+      <span className="min-w-0 flex-1 text-[15px] leading-[21px] font-semibold text-balance">
+        {scene.name}
+        {asWho(scene) && <span className="font-normal text-soft"> {asWho(scene)}</span>}
+      </span>
+      {end && <EndMark end={end} ahead={end === "asks"} just={false} className="mt-[3.5px] size-3.5 flex-none" />}
+    </h3>
   );
 }
 

@@ -50,8 +50,10 @@ type SceneViewProps = {
   active: boolean;
   // A stop gone to from elsewhere on the page: by the keys, or a note's, by its id.
   go?: { stop?: number; note?: string };
-  // In its way's column, the scenes before it and after it, a line each, and the review's end.
+  // In its way's column, the scenes before it and after it, a line each, and the review's end; and its own line, open,
+  // over its way.
   above?: ReactNode;
+  heading?: ReactNode;
   below?: ReactNode;
   // A verdict said on it: an answer judged, or Looks good at the end of the way.
   onSaid: () => void;
@@ -707,17 +709,16 @@ export function SceneView(props: SceneViewProps) {
         </div>
         </div>
         </div>
-        {/* Its way beside the recording, the scenes before it over it and the rest after it: its name, what the agent said
-            of it, and its steps. While the app is yours, they rest, but for what was said where you took it over. */}
+        {/* Its way beside the recording, the scenes before it over it and the rest after it: its line, open, what the agent
+            said of it, and its steps. While the app is yours, they rest, but for its name and what was said where you
+            took it over. */}
         <div className="min-w-0">
           <div inert={taken} className={`transition-opacity duration-300 ease-calm ${taken ? "opacity-35" : ""}`}>
             {props.above}
           </div>
-          <div className="grid content-start gap-2 pb-4">
-            <h3 className="pr-0.5 pl-8 text-[15px] leading-[21px] font-semibold text-balance phone:hidden">
-              {scene.name}
-              {asWho(scene) && <span className="font-normal text-soft"> {asWho(scene)}</span>}
-            </h3>
+          <div data-way="">
+          <div className="pb-3">
+            {props.heading}
             {scene.line && (
               <div inert={taken} className={`pt-1 pr-0.5 pl-8 text-[13px] transition-opacity duration-300 ease-calm ${taken ? "opacity-35" : ""}`}>
                 <Said who={round.by}>{scene.line}</Said>
@@ -747,6 +748,7 @@ export function SceneView(props: SceneViewProps) {
             onScrub={(on) => (on && ((setPlaying(undefined), setPicked(undefined))), setScrubbing(on))}
             onGo={stopped}
           />
+          </div>
           <div inert={taken} className={`transition-opacity duration-300 ease-calm ${taken ? "opacity-35" : ""}`}>
             {props.below}
           </div>
