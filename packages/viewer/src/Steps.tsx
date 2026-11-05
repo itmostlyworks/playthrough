@@ -290,7 +290,8 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
             {looksGood ? (
               <button
                 aria-pressed={looksGood.good}
-                className={`flex w-full items-center justify-between gap-2.5 pr-2 text-left text-[14px] leading-5 transition-colors duration-300 ease-calm ${looksGood.good || on === stops.length ? "text-green" : "text-soft hover:text-fg"}`}
+                // Its square is a checkbox's box: pressed too, as the button reaches over it.
+                className={`flex w-full items-center justify-between gap-2.5 pr-2 text-left text-[14px] leading-5 transition-colors duration-300 ease-calm after:absolute after:inset-y-0 after:left-0 after:w-8 ${looksGood.good || on === stops.length ? "text-green" : "text-soft hover:text-fg"}`}
                 // Said, the way goes on, and the key that said it is the page's again, not this button's: Enter on the next
                 // scene's Looks good would otherwise press this one again and take it back.
                 onClick={(event) => (looksGood.onPress(), event.currentTarget.blur())}
