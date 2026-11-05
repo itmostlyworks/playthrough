@@ -338,7 +338,7 @@ function End({ step, trouble, toSend, onNote }: { step?: Step; trouble: string[]
         )}
       </div>
       {step.kind === "go" && step.final === "send" && toSend.length > 0 && (
-        <ul className="mt-1.5 grid gap-1 pl-8">
+        <ul className="mt-1.5 grid grid-cols-[minmax(0,1fr)] gap-1 pl-8">
           {toSend.map((note) => (
             <li key={note.id}>
               <button className="flex w-full min-w-0 items-baseline gap-2 text-left text-[13px] leading-5 text-soft hover:text-fg" onClick={() => onNote(note)}>
