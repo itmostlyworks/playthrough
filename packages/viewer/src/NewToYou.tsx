@@ -116,15 +116,18 @@ function thenOf(review: Review, round: Round, entry: Entry, you: string): { roun
   return { round: review.rounds.find((kept) => kept.number === 0 && kept.scenes.length), named: "Before" };
 }
 
-export function NewToYou(props: { review: Review; round: Round; entries: Entry[]; you: string; seen: (entry: Entry) => boolean; onGo: (entry: Entry) => void }) {
-  const { review, round, entries, you } = props;
-  // The pictures read where each is seen now, and where it was then.
+// What the stills are read from: where each is seen now, and where it was then.
+export function useStills(review: Review, round: Round, entries: Entry[], you: string): Reader {
   const wanted = entries.flatMap((entry) => {
     const then = thenOf(review, round, entry, you).round;
     const was = then?.scenes.find((scene) => scene.name === entry.scene.name);
     return [{ round: round.number, scene: entry.scene }, ...(then && was ? [{ round: then.number, scene: was }] : [])];
   });
-  const read = useRead(review, wanted);
+  return useRead(review, wanted);
+}
+
+export function NewToYou(props: { review: Review; round: Round; entries: Entry[]; read: Reader; you: string; seen: (entry: Entry) => boolean; onGo: (entry: Entry) => void }) {
+  const { review, round, entries, read, you } = props;
   // One row: as many as fit, the last place saying how many more, which opens the rest in place.
   const row = useRef<HTMLDivElement>(null);
   const [fit, setFit] = useState(entries.length);
@@ -162,10 +165,29 @@ export function NewToYou(props: { review: Review; round: Round; entries: Entry[]
 }
 
 function Still({ review, round, entry, then, read, seen, onGo }: { review: Review; round: Round; entry: Entry; then: { round?: Round; named: string }; read: Reader; seen: boolean; onGo: (entry: Entry) => void }) {
+  const where = entry.scenes > 1 ? `In ${entry.scenes} scenes` : `In “${entry.scene.name}”`;
+  return (
+    <button className={`group/still flex w-[240px] flex-none flex-col text-left transition-opacity duration-300 ease-calm phone:w-[200px] ${seen ? "opacity-45 hover:opacity-100" : ""}`} onClick={() => onGo(entry)}>
+      <Shot review={review} round={round} entry={entry} read={read} then={then} />
+      <span className="mt-2.5 flex min-w-0 items-start gap-2 text-[14px] leading-5 font-semibold">
+        <Sign entry={entry} className="mt-[6.5px]" />
+        <span className="line-clamp-2">{entry.title}</span>
+      </span>
+      <span className="mt-0.5 block truncate pl-[15px] text-[12.5px] leading-[18px] text-soft">{entry.isNew === "scene" ? "A new scene" : where}</span>
+    </button>
+  );
+}
+
+// A note's answer is its note's dot; anything else new, a diamond.
+export const Sign = ({ entry, className = "" }: { entry: Entry; className?: string }) =>
+  entry.note ? <i className={`size-[7px] flex-none rounded-full ${fill(entry.note)} ${className}`} /> : <i className={`size-[7px] flex-none rotate-45 bg-fg ${className}`} />;
+
+// What's new, on the picture its step ended on, framed on the first part of the page it's in, as its diamond's pin
+// is, and outlined; new steps and a new scene, whole. With how it was, pointing at its still shows that instead.
+export function Shot({ review, round, entry, read, then }: { review: Review; round: Round; entry: Entry; read: Reader; then?: { round?: Round; named: string } }) {
   const title = entry.scene.steps[entry.step]?.title;
   const now = read(round.number, entry.scene)?.findIndex((reading) => reading.step === title) ?? -1;
   const reading = read(round.number, entry.scene)?.[now];
-  // Framed on the first part of the page it's in, as its diamond's pin is, outlined; new steps and a new scene, whole.
   const region = reading && regionsOf(entry.places.flatMap((on) => boxesOf(on, reading)), reading.screen)[0];
   const frame = region && reading ? around(region, reading.screen, SHAPE, 2.5) : undefined;
   const outline = region && frame && reading && {
@@ -174,15 +196,14 @@ function Still({ review, round, entry, then, read, seen, onGo }: { review: Revie
     width: `${(region.width / reading.screen.width / frame.width) * 100}%`,
     height: `${(region.height / reading.screen.height / frame.height) * 100}%`,
   };
-  const was = then.round?.scenes.find((scene) => scene.name === entry.scene.name);
-  const wasAt = was ? (read(then.round!.number, was)?.findIndex((one) => one.step === title) ?? -1) : -1;
-  const where = entry.scenes > 1 ? `In ${entry.scenes} scenes` : `In “${entry.scene.name}”`;
+  const was = then?.round?.scenes.find((scene) => scene.name === entry.scene.name);
+  const wasAt = was ? (read(then!.round!.number, was)?.findIndex((one) => one.step === title) ?? -1) : -1;
   return (
-    <button className={`group flex w-[240px] flex-none flex-col text-left transition-opacity duration-300 ease-calm phone:w-[200px] ${seen ? "opacity-45 hover:opacity-100" : ""}`} onClick={() => onGo(entry)}>
-      <span className="relative block aspect-[1.6] overflow-hidden rounded-lg bg-paper shadow-frame transition-shadow duration-150 ease-calm group-hover:shadow-[0_0_0_1px_rgb(20_24_34/0.22)]">
-        {now >= 0 && <Picture shot={{ src: picture(review.id, round.number, entry.scene.recording, now), frame }} />}
-        {outline && <span className="pointer-events-none absolute -m-1 rounded-md shadow-[0_0_0_1.5px_rgb(43_46_53/0.55)] transition-opacity duration-150 ease-calm group-hover:opacity-0" style={{ ...outline, padding: 4, boxSizing: "content-box" }} />}
-        <span className="absolute inset-0 bg-paper opacity-0 transition-opacity duration-200 ease-calm group-hover:opacity-100">
+    <span className="relative block aspect-[1.6] overflow-hidden rounded-lg bg-paper shadow-frame transition-shadow duration-150 ease-calm group-hover/still:shadow-[0_0_0_1px_rgb(20_24_34/0.22)]">
+      {now >= 0 && <Picture shot={{ src: picture(review.id, round.number, entry.scene.recording, now), frame }} />}
+      {outline && <span className="pointer-events-none absolute -m-1 rounded-md shadow-[0_0_0_1.5px_rgb(43_46_53/0.55)] transition-opacity duration-150 ease-calm group-hover/still:opacity-0" style={{ ...outline, padding: 4, boxSizing: "content-box" }} />}
+      {then && (
+        <span className="absolute inset-0 bg-paper opacity-0 transition-opacity duration-200 ease-calm group-hover/still:opacity-100">
           {was && wasAt >= 0 && !entry.isNew ? (
             <Picture shot={{ src: picture(review.id, then.round!.number, was.recording, wasAt), frame }} />
           ) : (
@@ -190,17 +211,12 @@ function Still({ review, round, entry, then, read, seen, onGo }: { review: Revie
           )}
           <span className={CHIP}>{then.named}</span>
         </span>
-      </span>
-      <span className="mt-2.5 flex min-w-0 items-start gap-2 text-[14px] leading-5 font-semibold">
-        {entry.note ? <i className={`mt-[6.5px] size-[7px] flex-none rounded-full ${fill(entry.note)}`} /> : <i className="mt-[6.5px] size-[7px] flex-none rotate-45 bg-fg" />}
-        <span className="line-clamp-2">{entry.title}</span>
-      </span>
-      <span className="mt-0.5 block truncate pl-[15px] text-[12.5px] leading-[18px] text-soft">{entry.isNew === "scene" ? "A new scene" : where}</span>
-    </button>
+      )}
+    </span>
   );
 }
 
-type Reader = (round: number, scene: Scene) => Reading[] | undefined;
+export type Reader = (round: number, scene: Scene) => Reading[] | undefined;
 
 function useRead(review: Review, wanted: { round: number; scene: Scene }[]): Reader {
   const [kept, setKept] = useState(() => new Map<string, Reading[]>());

@@ -13,7 +13,7 @@ import { clamp } from "./moments.ts";
 import { fill, type Shown, type Standing } from "./notes.ts";
 import { onPhone } from "./phone.ts";
 import { clock } from "./Rounds.tsx";
-import { entriesOf, NewToYou, type Entry } from "./NewToYou.tsx";
+import { entriesOf, NewToYou, Shot, Sign, useStills, type Entry } from "./NewToYou.tsx";
 import { SceneView, type Threads } from "./Scene.tsx";
 import type { Step } from "./Step.tsx";
 import type { Read } from "./things.ts";
@@ -148,14 +148,23 @@ export function Work(props: Props) {
   // The steps and notes you've come to rest at this visit; what's new to you there you've seen, as you have in a scene
   // that looks good to you, and an answer you've judged.
   const [been, setBeen] = useState(() => new Set<string>());
+  // And where along the page you last came to rest: the scene, and the step.
+  const [rested, setRested] = useState<{ scene: number; step: number }>();
   useEffect(() => {
     if (!go || go.passing || go.stop < 0) return;
     const stop = props.room.current?.querySelector<HTMLElement>(`[data-scene="${CSS.escape(go.scene)}"] [data-stop="${go.stop}"]`);
     const keys = [stop?.dataset.step !== undefined && `${go.scene}\n${stop.dataset.step}`, stop?.dataset.note && `note ${stop.dataset.note}`].filter((key) => typeof key === "string");
     if (keys.some((key) => !been.has(key))) setBeen((was) => new Set([...was, ...keys]));
+    if (stop?.dataset.step !== undefined) setRested({ scene: round.scenes.findIndex((scene) => scene.name === go.scene), step: Number(stop.dataset.step) });
   }, [go]);
   const seen = (entry: Entry) =>
     been.has(`${entry.scene.name}\n${entry.step}`) || (entry.note ? been.has(`note ${entry.note.id}`) || !entry.note.toJudge : props.standing(entry.scene.name)?.is === "good");
+  const stills = useStills(review, round, entries, props.threads.you);
+  // What's new to you that you haven't seen, down the page; the next of it is the first past where you last came to
+  // rest, so you go on down rather than back up to the top for it.
+  const along = (entry: Entry) => round.scenes.indexOf(entry.scene) * 1e4 + entry.step;
+  const unseen = entries.filter((entry) => !seen(entry)).sort((a, b) => along(a) - along(b));
+  const next = unseen.find((entry) => !rested || along(entry) > rested.scene * 1e4 + rested.step) ?? unseen[0];
   // A note gone to from the line under the title: its stop on its scene's way, or the stop it's a line in, or where it's
   // said at the page's end, or the scene, folded as it looks good to you.
   const toNote = (note: Shown) => {
@@ -310,7 +319,7 @@ export function Work(props: Props) {
             })}
           </p>
         </header>
-        <NewToYou review={review} round={round} entries={entries} you={props.threads.you} seen={seen} onGo={toEntry} />
+        <NewToYou review={review} round={round} entries={entries} read={stills} you={props.threads.you} seen={seen} onGo={toEntry} />
         {/* Scenes that look good to you, folded to a line each, sit together as one list. */}
         <div className="mt-10 flex flex-col gap-12 phone:mt-7 phone:gap-9 [&>[data-folded]+[data-folded]]:-mt-10 phone:[&>[data-folded]+[data-folded]]:-mt-7">
           {round.scenes.map((scene) => (
@@ -344,11 +353,33 @@ export function Work(props: Props) {
             story. After a scene still being gone through, it comes up as far as one is held, so that scene leaves whole. */}
         <div className={`mt-14 grid max-w-[680px] content-start gap-8 empty:hidden phone:mt-9 phone:min-h-0 phone:px-4 ${ends && heldLast ? "min-h-[calc(var(--room)-var(--pin)-1rem)]" : ""}`}>
           <Story review={review} round={round} general={general} />
-          <End step={step} trouble={props.trouble} toSend={props.notes.filter((note) => note.unsent)} onNote={toNote} unseen={entries.filter((entry) => !seen(entry))} onEntry={toEntry} />
+          <End step={step} trouble={props.trouble} toSend={props.notes.filter((note) => note.unsent)} onNote={toNote} unseen={unseen} onEntry={toEntry} />
         </div>
         {/* Until you've begun, how to begin floats at the window's foot, over the way rather than across the recordings,
-            taking no room at the page's end; with every scene looking good, there's nothing to go through. */}
+            taking no room at the page's end; with every scene looking good, there's nothing to go through. Once you
+            have, what's next there is the next thing new to you you haven't seen, its still over it as you point at it,
+            as a pull request goes on to its next file: going back up to the top for each was "constant up and down". Not
+            on a phone, where it sat on the recording's bar. */}
         <div className="pointer-events-none sticky bottom-4 z-10 flex h-0 items-end justify-end">
+          {begun && up && !busy && next && (
+            <div className="group pointer-events-auto relative w-max max-w-full min-w-[300px] phone:hidden before:pointer-events-none before:absolute before:-inset-x-4 before:-top-8 before:-bottom-4 before:-z-10 before:bg-linear-to-b before:from-transparent before:to-ground before:to-35%">
+              <span className="pointer-events-none absolute right-0 bottom-full mb-2.5 w-[240px] translate-y-1 opacity-0 transition-[opacity,translate] duration-200 ease-calm group-hover:translate-y-0 group-hover:opacity-100 phone:hidden">
+                <Shot review={review} round={round} entry={next} read={stills} />
+              </span>
+              <button
+                className="flex h-8 w-full max-w-[440px] items-center gap-2 rounded-lg bg-surface px-3 text-xs leading-4 text-fg shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)] hover:bg-hover"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => toEntry(next)}
+              >
+                <span className="flex-none text-soft">Next</span>
+                <Sign entry={next} />
+                <span className="min-w-0 truncate">{next.title}</span>
+                <span className="ml-auto flex-none pl-3 text-soft tabular-nums">
+                  {entries.length - unseen.length + 1} of {entries.length}
+                </span>
+              </button>
+            </div>
+          )}
           {!begun && up && round.scenes.some((scene) => props.standing(scene.name)?.is !== "good") && (
             // On a plate of the page's ground fading in above it, so the way's words go under it quietly rather than through it.
             <div className="pointer-events-auto relative w-max max-w-full min-w-[300px] before:pointer-events-none before:absolute before:-inset-x-4 before:-top-8 before:-bottom-4 before:-z-10 before:bg-linear-to-b before:from-transparent before:to-ground before:to-35%">
