@@ -123,6 +123,47 @@ if (window.top === window) {
     } catch {}
   };
   for (const type of ["selectionchange", "input", "keyup", "focusin", "focusout", "scroll"]) document.addEventListener(type, () => requestAnimationFrame(sayCaret), true);
+}
+// What a page's script animates with element.animate is in no element's markup, so rrweb never saw it move: a burst of
+// confetti was its pieces sitting still where they started, then gone. Each is written into the page as well, as the CSS
+// animation it is, which the replay plays as it does the page's own. Live, the script's animation is over it, and the
+// two end together; one on an element with a CSS animation of its own is left alone, rather than replace that.
+{
+  const animate = Element.prototype.animate;
+  let count = 0;
+  const kebab = (property) => (property === "cssFloat" ? "float" : property.replace(/[A-Z]/g, (letter) => "-" + letter.toLowerCase()));
+  const write = (element, animation) => {
+    const effect = animation.effect;
+    const timing = effect?.getTiming();
+    if (!timing || !element.style || element.style.animation || getComputedStyle(element).animationName !== "none") return;
+    const name = "playthrough-animate-" + ++count;
+    const frames = effect.getKeyframes().map((frame) => {
+      const said = Object.entries(frame).filter(([property]) => !["offset", "computedOffset", "easing", "composite"].includes(property));
+      return (frame.computedOffset * 100) + "% { " + said.map(([property, value]) => kebab(property) + ": " + value + "; ").join("") + "animation-timing-function: " + frame.easing + "; }";
+    });
+    const style = document.createElement("style");
+    style.textContent = "@keyframes " + name + " { " + frames.join(" ") + " }";
+    document.head.append(style);
+    const duration = typeof timing.duration === "number" ? timing.duration : 0;
+    const iterations = timing.iterations === Infinity ? "infinite" : timing.iterations;
+    element.style.animation = [name, duration + "ms", timing.easing, timing.delay + "ms", iterations, timing.direction, timing.fill === "auto" ? "none" : timing.fill].join(" ");
+    // Ended, it's taken out, unless it holds its end; cancelled, always.
+    const end = (held) => {
+      if (held) return;
+      if (element.style.animationName === name) element.style.animation = "";
+      style.remove();
+    };
+    animation.addEventListener("finish", () => end(timing.fill === "forwards" || timing.fill === "both"));
+    animation.addEventListener("remove", () => end(false));
+    animation.addEventListener("cancel", () => end(false));
+  };
+  Element.prototype.animate = function (keyframes, options) {
+    const animation = animate.call(this, keyframes, options);
+    try {
+      write(this, animation);
+    } catch {}
+    return animation;
+  };
 }`;
 
 // Playwright acts instantly, and a recording made at that speed can't be watched.
