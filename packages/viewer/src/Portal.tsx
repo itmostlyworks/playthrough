@@ -144,8 +144,9 @@ export function Portal({ live, person, screen, scrolled }: Props) {
     shape(yours, false);
     yourHand.current = undefined;
     door.style.pointerEvents = "none";
-    const hide = () => ((door.style.opacity = "0"), (yours.style.opacity = "0"), (name.hidden = true));
-    if (still) return void hide();
+    const shut = () => (door.style.opacity = "0");
+    const hide = () => ((yours.style.opacity = "0"), (name.hidden = true));
+    if (still) return void (shut(), hide());
     // Your hand goes back to where the recording has it, its name back to whoever the scene is done as, and goes.
     const back = recorded ? tip(recorded) : tip(at);
     yours.animate([{ transform: tip(at), opacity: 1 }, { transform: tip(at), opacity: 1, offset: 0.3 }, { transform: back, opacity: recorded ? 1 : 0 }], { duration: CLOSING + HANDING, easing: PORTAL });
@@ -154,7 +155,8 @@ export function Portal({ live, person, screen, scrolled }: Props) {
     edging.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, easing: "ease-in" });
     rim.animate([{ transform: "scale(1)", opacity: 0 }, { opacity: 0.9, offset: 0.65 }, { transform: "scale(0)", opacity: 0 }], closing);
     glow.animate([{ opacity: 0 }, { opacity: 0.8 }], closing);
-    door.animate([{ clipPath: circle(reach) }, { clipPath: circle(0) }], closing).finished.then(() => setTimeout(hide, HANDING), () => {});
+    // Closed, it stays shut: its circle let go of, the app stood whole again for a moment before it went.
+    door.animate([{ clipPath: circle(reach) }, { clipPath: circle(0) }], { ...closing, fill: "forwards" }).finished.then(() => (shut(), setTimeout(hide, HANDING)), () => {});
   }, [inPortal]);
 
   // Asked for before it's ready, the edge breathes and the recording's pointer says it's being taken over, until the
