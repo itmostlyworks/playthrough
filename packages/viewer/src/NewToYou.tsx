@@ -1,10 +1,10 @@
 // What's new to you on the round, at the top of the page, each once, as a still of where it's seen: the review's index,
 // as a pull request lists the files it changed. It's what the scenes' diamonds mark, counted the same way (new since you
-// last said something about a scene it's in, or since Before), so the two never disagree: first the agent's answers to
-// your notes, each by your note's words and its dot, then each moment something else changed, in Playthrough's words, and
-// a scene Before never had. Pointed at, it's as Compare would show it there; pressed, it's gone to, close and beside
-// that; once you've been there, it's quieter, as a file marked viewed. One row of them, the rest a press away (on a
-// phone, a row that scrolls).
+// last said something about a scene it's in, or since Before), so the two never disagree, and in the order the way goes
+// through them: the agent's answers to your notes, each by your note's words and its dot, each moment something else
+// changed, in Playthrough's words, and a scene Before never had. Answers first was a second order beside the page's.
+// Pointed at, it's as Compare would show it there; pressed, it's gone to, close and beside that; once you've been there,
+// it's quieter, as a file marked viewed. One row of them, the rest a press away (on a phone, a row that scrolls).
 // Gathered by the page they were on, or the sidebar around every page, they were guessed at: Kan's card is a page
 // named by the card's title, and on the public board, by the board behind it, so all of #525 was one still.
 
@@ -12,7 +12,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Reading } from "@playthrough/page";
 import { lastLooked, type Place, type Review, type Round, type Scene } from "@playthrough/review";
 import { picture, readings } from "./api.ts";
-import type { Diamond } from "./changes.ts";
+import { clause, type Diamond } from "./changes.ts";
 import { fill, type Shown } from "./notes.ts";
 import { around, Picture, type Box } from "./Picture.tsx";
 import { onPhone } from "./phone.ts";
@@ -67,22 +67,18 @@ export function entriesOf(review: Review, round: Round, before: Round | undefine
     const own = diamond.changes.filter((changed) => !(changed.note && answered.has(changed.note)));
     if (!own.length) return [];
     const shown = own.filter((changed) => !changed.change.gone);
-    // Where its diamond is, unless nothing of it is on the screen there (a field pushed down past the window's foot):
-    // then the first scene that has it on the screen, which is where it's pictured and gone to.
-    const drawn = (on: Place) => on.element?.node !== undefined || !!on.alike?.length || !!on.box;
-    const elsewhere = diamond.until === undefined && !shown.some((changed) => drawn(changed.on)) ? shown.flatMap((changed) => changed.change.seen).find((on) => drawn(on) && on.at !== undefined && scenes.includes(on.scene)) : undefined;
-    const scene = sceneOf(elsewhere?.scene ?? diamond.scene);
-    const step = stepAt(scene, elsewhere ?? diamond);
+    const scene = sceneOf(diamond.scene);
+    const step = stepAt(scene, diamond);
     const count = diamond.until === undefined ? 0 : scene.steps.filter((one) => one.at >= diamond.at - 0.01 && one.at < diamond.until! - 0.01).length;
     return [{
       key: diamond.id,
-      title: diamond.until === undefined ? clause((shown[0] ?? own[0]!).change.words) : `${count > 1 ? `${count} new steps` : "A new step"}: “${scene.steps[step]?.title}”`,
+      title: diamond.until === undefined ? clause(own[0]!.change.words) : `${count > 1 ? `${count} new steps` : "A new step"}: “${scene.steps[step]?.title}”`,
       scene,
       step,
-      places: elsewhere ? [elsewhere] : shown.map((changed) => changed.on),
+      places: shown.map((changed) => changed.on),
       scenes: new Set(own.flatMap((changed) => changed.change.seen.map((seen) => seen.scene)).filter((name) => scenes.includes(name))).size,
       since: Math.max(...own.map((changed) => changed.since)),
-      diamond: elsewhere && elsewhere.scene !== diamond.scene ? undefined : diamond.id,
+      diamond: diamond.id,
       isNew: diamond.until === undefined ? undefined : "steps",
     }];
   });
@@ -93,20 +89,9 @@ export function entriesOf(review: Review, round: Round, before: Round | undefine
         .filter((scene) => scene.steps.length && !before.scenes.some((then) => then.name === scene.name) && !diamonds.some((diamond) => diamond.scene === scene.name) && lastLooked(review, you, scene.name, round.number) === undefined)
         .map((scene) => ({ key: `scene ${scene.name}`, title: scene.name, scene, step: scene.steps.length - 1, places: [], scenes: 1, since: 0, isNew: "scene" as const }))
     : [];
+  // In the order the page goes, as the way goes through them: answers in their place, marked by their note's dot.
   const order = (entry: Entry) => scenes.indexOf(entry.scene.name) * 1e4 + (entry.scene.steps[entry.step]?.at ?? 0);
-  return [...answers.sort((a, b) => order(a) - order(b)), ...[...others, ...wholly].sort((a, b) => order(a) - order(b))];
-}
-
-// Playthrough's words for a change, up to their first turn: “Comments tab is new”, not “…, and moved 20 things down”,
-// nor what looks different about it, which the still shows.
-function clause(words: string): string {
-  let quoted = false;
-  for (let i = 0; i < words.length; i++) {
-    if (words[i] === "“") quoted = true;
-    else if (words[i] === "”") quoted = false;
-    else if (!quoted && (words.startsWith(", ", i) || words.startsWith(": ", i))) return words.slice(0, i);
-  }
-  return words;
+  return [...answers, ...others, ...wholly].sort((a, b) => order(a) - order(b));
 }
 
 // How it was, as Compare there shows it: for an answer, when the note was last said; else Before.
@@ -184,7 +169,7 @@ export const Sign = ({ entry, className = "" }: { entry: Entry; className?: stri
 
 // What's new, on the picture its step ended on, framed on the first part of the page it's in, as its diamond's pin
 // is, and outlined; new steps and a new scene, whole. With how it was, pointing at its still shows that instead.
-export function Shot({ review, round, entry, read, then }: { review: Review; round: Round; entry: Entry; read: Reader; then?: { round?: Round; named: string } }) {
+function Shot({ review, round, entry, read, then }: { review: Review; round: Round; entry: Entry; read: Reader; then?: { round?: Round; named: string } }) {
   const title = entry.scene.steps[entry.step]?.title;
   const now = read(round.number, entry.scene)?.findIndex((reading) => reading.step === title) ?? -1;
   const reading = read(round.number, entry.scene)?.[now];

@@ -30,6 +30,13 @@ test("changes at one moment of a scene are one diamond, named by how many change
   assert.deepEqual(diamonds[0]!.changes.map(({ change }) => change.id), ["swap", "words"]);
 });
 
+test("what's new at a moment leads it, then what's gone, and last what moved or changed size: the tab that's new, not the panel it made shorter", () => {
+  const at = (id: string, words: string) => change(id, words, "See who owes whom", 0.9);
+  const changes = [at("panel", "“Comments and activity” area looks different: border, and is shorter"), at("field", "Field moved down, with 2 more things around it"), { ...at("submit", "Submit comment is gone"), gone: true as const }, at("tab", "Comments tab is new, and moved 20 things down")];
+  const diamonds = diamondsOn(review(changes), 1, "Ana");
+  assert.deepEqual(diamonds[0]!.changes.map(({ change }) => change.id), ["tab", "submit", "panel", "field"]);
+});
+
 test("new steps are a diamond of their own where they start, never folded into another change there", () => {
   const diamonds = diamondsOn(review([change("steps", "New steps: “Clear the search”", "Search the expenses", 2, 4.6), change("green", "“$…” looks different", "Search the expenses", 2)]), 1, "Ana");
   assert.deepEqual(

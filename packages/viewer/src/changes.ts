@@ -30,8 +30,9 @@ export function diamondsOn(review: Review, round: number, you: string): Diamond[
     const elsewhere = scenes.filter((scene) => scene !== shown.on.scene).flatMap((scene) => first(scene) ?? []);
     return [shown, ...elsewhere.map((on) => ({ ...shown, on }))];
   });
-  // Several at one moment, in the order their comparison found them, down the page: the first is where its pin goes.
-  const found = ({ change, since }: (typeof met)[number]) => review.comparisons.find((kept) => kept.round === round && kept.since === since)?.changes.findIndex((one) => one.id === change.id) ?? 0;
+  // Several at one moment, in the order their comparison found them, down the page; then what leads them first, which is
+  // where its pin goes.
+  const found =({ change, since }: (typeof met)[number]) => review.comparisons.find((kept) => kept.round === round && kept.since === since)?.changes.findIndex((one) => one.id === change.id) ?? 0;
   met.sort((a, b) => scenes.indexOf(a.on.scene) - scenes.indexOf(b.on.scene) || (a.on.at ?? 0) - (b.on.at ?? 0) || found(a) - found(b));
   const diamonds: Omit<Diamond, "name" | "row">[] = [];
   for (const { change, on, since } of met) {
@@ -47,9 +48,32 @@ export function diamondsOn(review: Review, round: number, you: string): Diamond[
     else diamonds.push({ id: diamonds.some((diamond) => diamond.id === change.id) ? `${change.id} ${on.scene}` : change.id, scene: on.scene, at: on.at, until: on.until, changes: [told] });
   }
   return diamonds.map((diamond) => {
-    const own = diamond.changes.filter((changed) => !changed.answers);
-    return { ...diamond, name: nameOf(own.length ? own : diamond.changes), row: own.length > 0 };
+    const changes = [...diamond.changes].sort((a, b) => leads(a) - leads(b));
+    const own = changes.filter((changed) => !changed.answers);
+    return { ...diamond, changes, name: nameOf(own.length ? own : changes), row: own.length > 0 };
   });
+}
+
+// What's new at a moment leads it, then what's gone, then what says or looks different, and last what moved or changed
+// size, which most often only made room for the rest: the Comments tab that's new, not the panel it made shorter, nor the
+// field it pushed down.
+function leads({ change }: Changed): number {
+  const said = clause(change.words);
+  if (change.gone) return 1;
+  if (/ (is|are) new$/.test(said)) return 0;
+  return / moved (up|down|left|right)\b| is (taller|shorter|wider|narrower)$/.test(said) ? 3 : 2;
+}
+
+// Playthrough's words for a change, up to their first turn: “Comments tab is new”, not “…, and moved 20 things down”,
+// nor what looks different about it, which the recording shows.
+export function clause(words: string): string {
+  let quoted = false;
+  for (let i = 0; i < words.length; i++) {
+    if (words[i] === "“") quoted = true;
+    else if (words[i] === "”") quoted = false;
+    else if (!quoted && (words.startsWith(", ", i) || words.startsWith(": ", i))) return words.slice(0, i);
+  }
+  return words;
 }
 
 // A diamond is named as its card says it: by the agent's line, or with several, how many changed. What changed isn't put

@@ -8,12 +8,12 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefO
 import type { Note, Place, Review, Round } from "@playthrough/review";
 import { Key, mac } from "./Card.tsx";
 import type { Diamond } from "./changes.ts";
-import { EndMark } from "./Chosen.tsx";
+import { EndMark, endOf } from "./Chosen.tsx";
 import { clamp } from "./moments.ts";
 import { fill, type Shown, type Standing } from "./notes.ts";
 import { onPhone } from "./phone.ts";
 import { clock } from "./Rounds.tsx";
-import { entriesOf, NewToYou, Shot, Sign, useStills, type Entry } from "./NewToYou.tsx";
+import { entriesOf, NewToYou, Sign, useStills, type Entry } from "./NewToYou.tsx";
 import { SceneView, type Threads } from "./Scene.tsx";
 import type { Step } from "./Step.tsx";
 import type { Read } from "./things.ts";
@@ -108,22 +108,25 @@ export function Work(props: Props) {
     glide(scrollFor(room, section, stop), there ? undefined : land);
   };
   // With the keys, along the way a stop at a time: from a scene's last stop on to the next one's first, and back to
-  // the last of the one before. The page glides it up to the line.
-  const move = (by: number) => {
+  // the last of the one before; past the last scene's, the review's end. The page glides it up to the line.
+  const along = (by: number) => {
     const room = props.room.current;
     const sections = [...(room?.querySelectorAll<HTMLElement>("[data-scene]") ?? [])];
     let i = sections.findIndex((section) => section.dataset.scene === active);
     if (i < 0 && room) i = Math.max(0, sections.findLastIndex((section) => through(room, section) >= 0));
-    if (!room || !sections[i]) return false;
+    if (!room || !sections[i]) return undefined;
     const count = (i: number) => Number(sections[i]!.dataset.stops);
     const was = { i, stop: Number(sections[i]!.dataset.stop) };
     let stop = was.stop + by;
     if (stop >= count(i) && i < sections.length - 1) [i, stop] = [i + 1, 0];
     else if (stop < 0 && i > 0) [i, stop] = [i - 1, count(i - 1) - 1];
     else stop = clamp(stop, -1, count(i));
-    if (i === was.i && stop === was.stop) return false;
-    goTo(room, sections[i]!, stop);
-    return true;
+    return i === was.i && stop === was.stop ? undefined : { section: sections[i]!, stop };
+  };
+  const move = (by: number) => {
+    const to = along(by);
+    if (to) goTo(props.room.current!, to.section, to.stop);
+    return !!to;
   };
   // A stop pressed comes up to the line; on a phone, where the page stays put, it's gone to where it is.
   const bringTo = (scene: string, stop: number, at?: There) => {
@@ -142,29 +145,48 @@ export function Work(props: Props) {
     if (folded) return void (!again && (folded.click(), requestAnimationFrame(() => toEntry(entry, true))));
     const stops = [...(room?.querySelectorAll<HTMLElement>(`[data-scene="${CSS.escape(entry.scene.name)}"] [data-stop]`) ?? [])];
     // An answer to a note on a moment is at the note; to one on the whole scene, where the still shows it.
-    const stop = stops.find((stop) => entry.note?.on?.at !== undefined && stop.dataset.note === entry.note.id) ?? stops.find((stop) => stop.dataset.step !== undefined && Number(stop.dataset.step) >= entry.step);
+    const stop = stops.find((stop) => entry.note?.on?.at !== undefined && stop.dataset.note === entry.note.id) ?? stops.find((stop) => stop.dataset.step !== undefined && Number(stop.dataset.step) >= entry.step) ?? stops.at(-1);
     if (stop) bringTo(entry.scene.name, Number(stop.dataset.stop), { change: entry.diamond, compare: !entry.isNew });
   };
   // The steps and notes you've come to rest at this visit; what's new to you there you've seen, as you have in a scene
   // that looks good to you, and an answer you've judged.
   const [been, setBeen] = useState(() => new Set<string>());
-  // And where along the page you last came to rest: the scene, and the step.
-  const [rested, setRested] = useState<{ scene: number; step: number }>();
   useEffect(() => {
     if (!go || go.passing || go.stop < 0) return;
     const stop = props.room.current?.querySelector<HTMLElement>(`[data-scene="${CSS.escape(go.scene)}"] [data-stop="${go.stop}"]`);
     const keys = [stop?.dataset.step !== undefined && `${go.scene}\n${stop.dataset.step}`, stop?.dataset.note && `note ${stop.dataset.note}`].filter((key) => typeof key === "string");
     if (keys.some((key) => !been.has(key))) setBeen((was) => new Set([...was, ...keys]));
-    if (stop?.dataset.step !== undefined) setRested({ scene: round.scenes.findIndex((scene) => scene.name === go.scene), step: Number(stop.dataset.step) });
   }, [go]);
   const seen = (entry: Entry) =>
     been.has(`${entry.scene.name}\n${entry.step}`) || (entry.note ? been.has(`note ${entry.note.id}`) || !entry.note.toJudge : props.standing(entry.scene.name)?.is === "good");
   const stills = useStills(review, round, entries, props.threads.you);
-  // What's new to you that you haven't seen, down the page; the next of it is the first past where you last came to
-  // rest, so you go on down rather than back up to the top for it.
-  const along = (entry: Entry) => round.scenes.indexOf(entry.scene) * 1e4 + entry.step;
-  const unseen = entries.filter((entry) => !seen(entry)).sort((a, b) => along(a) - along(b));
-  const next = unseen.find((entry) => !rested || along(entry) > rested.scene * 1e4 + rested.step) ?? unseen[0];
+  const unseen = entries.filter((entry) => !seen(entry));
+  // What ↓ goes to next, said at the window's foot: read from the page once it's drawn, as the scenes lay out their way.
+  const [ahead, setAhead] = useState<Ahead>();
+  useLayoutEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      const to = along(1);
+      const next = to && aheadOf(to.section, to.stop);
+      setAhead((was) => (was?.key === next?.key ? was : next));
+    });
+    return () => cancelAnimationFrame(frame);
+  });
+  const aheadOf = (section: HTMLElement, stop: number): Ahead | undefined => {
+    const scene = round.scenes.find((one) => one.name === section.dataset.scene);
+    if (!scene) return undefined;
+    if (stop >= Number(section.dataset.stops)) return { key: "the end" };
+    const there = section.querySelector<HTMLElement>(`[data-stop="${stop}"]`);
+    if (!there) return undefined;
+    const key = `${scene.name}\n${stop}`;
+    if (there.dataset.end !== undefined) return { key: `${key} end`, scene: scene.name, end: there.dataset.end === "looks good" ? "Looks good" : "Its end" };
+    const step = there.dataset.step === undefined ? undefined : Number(there.dataset.step);
+    const note = there.dataset.note;
+    const entry = note ? entries.find((one) => one.note?.id === note) : (entries.find((one) => one.scene === scene && one.step === step && !one.note) ?? entries.find((one) => one.scene === scene && one.step === step && one.note?.on?.at === undefined));
+    if (entry) return { key: `${key} ${entry.key}`, entry };
+    const said = note && props.notes.find((one) => one.id === note);
+    if (said) return { key: `${key} ${note}`, note: said };
+    return { key: `${key} step`, step, words: step === undefined ? undefined : scene.steps[step]?.title };
+  };
   // A note gone to from the line under the title: its stop on its scene's way, or the stop it's a line in, or where it's
   // said at the page's end, or the scene, folded as it looks good to you.
   const toNote = (note: Shown) => {
@@ -345,50 +367,65 @@ export function Work(props: Props) {
               resting={!!inApp && inApp !== scene.name}
               onPointerDown={() => !busy && setActive(scene.name)}
               onSaid={() => goOn(scene.name)}
+              opensOnAnswer={!entries.length}
               onPressed={(stop) => bringTo(scene.name, stop)}
             />
           ))}
         </div>
         {/* The page's end: how it got here, then what you've said, sent, as a pull request's review box is under its
-            story. After a scene still being gone through, it comes up as far as one is held, so that scene leaves whole. */}
-        <div className={`mt-14 grid max-w-[680px] content-start gap-8 empty:hidden phone:mt-9 phone:min-h-0 phone:px-4 ${ends && heldLast ? "min-h-[calc(var(--room)-var(--pin)-1rem)]" : ""}`}>
+            story. After a scene still being gone through, it comes up half a window, the scene's lower half staying over
+            it: come up as far as a scene is held, Send stood alone at the top of an empty window, as if the page had run
+            out. */}
+        <div className={`mt-14 grid max-w-[680px] content-start gap-8 empty:hidden phone:mt-9 phone:min-h-0 phone:px-4 ${ends && heldLast ? "min-h-[calc((var(--room)-var(--pin))/2)]" : ""}`}>
           <Story review={review} round={round} general={general} />
           <End step={step} trouble={props.trouble} toSend={props.notes.filter((note) => note.unsent)} onNote={toNote} unseen={unseen} onEntry={toEntry} />
         </div>
-        {/* Until you've begun, how to begin floats at the window's foot, over the way rather than across the recordings,
-            taking no room at the page's end; with every scene looking good, there's nothing to go through. Once you
-            have, what's next there is the next thing new to you you haven't seen, its still over it as you point at it,
-            as a pull request goes on to its next file: going back up to the top for each was "constant up and down". Not
-            on a phone, where it sat on the recording's bar. */}
+        {/* What ↓ does floats at the window's foot, over the way rather than across the recordings, taking no room at the
+            page's end: until you've begun, to go through it; then where it goes next, always, so the page has one way
+            down, as a pull request's files and their list share one order. Next to the next change beside it was a
+            second way down, in its own order. With every scene looking good, there's nothing to go through. */}
         <div className="pointer-events-none sticky bottom-4 z-10 flex h-0 items-end justify-end">
-          {begun && up && !busy && next && (
-            <div className="group pointer-events-auto relative w-max max-w-full min-w-[300px] phone:hidden before:pointer-events-none before:absolute before:-inset-x-4 before:-top-8 before:-bottom-4 before:-z-10 before:bg-linear-to-b before:from-transparent before:to-ground before:to-35%">
-              <span className="pointer-events-none absolute right-0 bottom-full mb-2.5 w-[240px] translate-y-1 opacity-0 transition-[opacity,translate] duration-200 ease-calm group-hover:translate-y-0 group-hover:opacity-100 phone:hidden">
-                <Shot review={review} round={round} entry={next} read={stills} />
-              </span>
+          {up && !busy && round.scenes.some((scene) => props.standing(scene.name)?.is !== "good") && (begun ? ahead && (ahead.key !== "the end" || step?.kind === "go") : true) && (
+            // On a plate of the page's ground fading in above it, so the way's words go under it quietly rather than through it.
+            <div className="pointer-events-auto relative w-max max-w-full min-w-[300px] phone:hidden before:pointer-events-none before:absolute before:-inset-x-4 before:-top-8 before:-bottom-4 before:-z-10 before:bg-linear-to-b before:from-transparent before:to-ground before:to-35%">
               <button
                 className="flex h-8 w-full max-w-[440px] items-center gap-2 rounded-lg bg-surface px-3 text-xs leading-4 text-fg shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)] hover:bg-hover"
                 onMouseDown={(event) => event.preventDefault()}
-                onClick={() => toEntry(next)}
-              >
-                <span className="flex-none text-soft">Next</span>
-                <Sign entry={next} />
-                <span className="min-w-0 truncate">{next.title}</span>
-                <span className="ml-auto flex-none pl-3 text-soft tabular-nums">
-                  {entries.length - unseen.length + 1} of {entries.length}
-                </span>
-              </button>
-            </div>
-          )}
-          {!begun && up && round.scenes.some((scene) => props.standing(scene.name)?.is !== "good") && (
-            // On a plate of the page's ground fading in above it, so the way's words go under it quietly rather than through it.
-            <div className="pointer-events-auto relative w-max max-w-full min-w-[300px] before:pointer-events-none before:absolute before:-inset-x-4 before:-top-8 before:-bottom-4 before:-z-10 before:bg-linear-to-b before:from-transparent before:to-ground before:to-35%">
-              <button
-                className="flex h-8 w-full items-center gap-3 rounded-lg bg-surface px-3 text-xs leading-4 text-fg shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)] phone:hidden"
-                onMouseDown={(event) => event.preventDefault()}
                 onClick={() => move(1)}
               >
-                Go through it, a step at a time
+                {!begun ? (
+                  <span className="min-w-0 truncate">Go through it</span>
+                ) : ahead!.entry ? (
+                  <>
+                    <Sign entry={ahead!.entry} />
+                    <span className="min-w-0 truncate">{ahead!.entry.title}</span>
+                    <span className="flex-none text-soft tabular-nums">
+                      {entries.findIndex((entry) => entry.key === ahead!.entry!.key) + 1} of {entries.length}
+                    </span>
+                  </>
+                ) : ahead!.note ? (
+                  <>
+                    <i className={`size-1.5 flex-none rounded-full ${fill(ahead!.note)}`} />
+                    <span className="min-w-0 truncate">{ahead!.note.turns[0]?.words}</span>
+                  </>
+                ) : ahead!.end ? (
+                  <>
+                    {props.standing(ahead!.scene!) && <EndMark end={endOf(props.standing(ahead!.scene!)!)} ahead just={false} className="size-3.5 flex-none" />}
+                    <span className="flex-none">{ahead!.end}</span>
+                    <span className="min-w-0 truncate text-soft">· {ahead!.scene}</span>
+                  </>
+                ) : ahead!.key === "the end" && step?.kind === "go" ? (
+                  <>
+                    <EndMark end={step.final === "accept" ? "good" : step.final === "send" ? "to send" : "asks"} just={false} className="size-3.5 flex-none" />
+                    <span className="flex-none">{step.words}</span>
+                    {step.what && <span className="min-w-0 truncate text-soft">· {step.what}</span>}
+                  </>
+                ) : (
+                  <>
+                    {ahead!.step !== undefined && <span className="grid size-4 flex-none place-items-center rounded-full text-[9.5px] leading-none font-medium text-soft tabular-nums shadow-[inset_0_0_0_1px_var(--track)]">{ahead!.step + 1}</span>}
+                    <span className="min-w-0 truncate">{ahead!.words}</span>
+                  </>
+                )}
                 <Key className="ml-auto">↓</Key>
               </button>
             </div>
@@ -528,3 +565,6 @@ const standsAt = (notes: Shown[]): [string, Shown[]][] =>
 
 // Where a stop gone to comes to: a change on it, and whether it's beside Before.
 type There = { change?: string; compare?: boolean };
+
+// Where ↓ goes next: something new to you, a note of yours, a scene's end, a step, or the review's end.
+type Ahead = { key: string; entry?: Entry; note?: Shown; scene?: string; end?: string; step?: number; words?: string };

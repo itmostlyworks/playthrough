@@ -27,7 +27,8 @@ export type Shown = { change: Change; on: Place; since: number };
 
 // What's new to you on a round: each change that's different from the last round you looked at any scene it's in, or
 // from Before when you've looked at none of them. It's told in the scene of the note it was made for, or else the first
-// scene that shows it, in the order the scenes joined the review. What the agent says isn't real is never told.
+// scene that shows it, in the order the scenes joined the review: the first that can point at it, where one can, so a
+// field pushed down past the window's foot is met where it's seen. What the agent says isn't real is never told.
 export function newToYou(review: Review, round: number, you: string): Shown[] {
   const recorded = review.rounds.find((kept) => kept.number === round);
   const first = review.rounds[0]?.number;
@@ -49,7 +50,9 @@ export function newToYou(review: Review, round: number, you: string): Shown[] {
     if (!change) continue; // the same as when you last looked
 
     const noted = account && "note" in account ? notes.get(account.note)?.note.on?.scene : undefined;
-    const scene = [noted, ...joined].find((name) => change.seen.some((seen) => seen.scene === name)) ?? change.seen[0]!.scene;
+    const onScreen = change.seen.filter((seen) => seen.element || seen.alike?.length || seen.box);
+    const shows = onScreen.length ? onScreen : change.seen;
+    const scene = (change.seen.some((seen) => seen.scene === noted) ? noted : joined.find((name) => shows.some((seen) => seen.scene === name))) ?? shows[0]!.scene;
     const on = change.seen.filter((seen) => seen.scene === scene).sort((a, b) => (a.at ?? 0) - (b.at ?? 0))[0]!;
     shown.push({ change, on, since });
   }

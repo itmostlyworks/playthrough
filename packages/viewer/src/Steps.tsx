@@ -1,6 +1,7 @@
-// A scene's way through, beside its recording, a stop at a time: each step the agent chose, and after it what was
-// said there, your notes and what changed new to you, in the order they come; then what was said about all of it, and
-// last, its end, where you say whether it looks good to you, once you've seen it through, or a note on the whole of it.
+// A scene's way through, beside its recording, a stop at a time: each step the agent chose with something new to you in
+// it, and after it what was said there, your notes and what changed, in the order they come; then what was said about
+// all of it, and last, its end, where you say whether it looks good to you, once you've seen it through, or a note on the
+// whole of it. The steps between are a quiet line each, played through on the way to the next stop.
 // A rail runs down through them, filled as far as you've come, and its fill glides along as you go. The stop you're on
 // opens: what was said there, all of it; or a step, with a line of its own that fills as it plays, and dragged along,
 // goes anywhere in the step and rests where it's let go, with a dot for each note made in the step and a diamond for
@@ -14,9 +15,8 @@ import { EndMark, type End } from "./Chosen.tsx";
 import { clamp } from "./moments.ts";
 import type { Clock, Cut } from "./Player.tsx";
 
-// A stop on the way: a step, at its result; steps in a row with nothing new since you last said something, from the
-// first, at the last one's result; something said in a step, a note or a change, at its moment; or something said
-// about all of it, in no step.
+// A stop on the way: a step, at its result, played from the first of the quiet steps before it; something said in a
+// step, a note, at its moment; or something said about all of it, in no step.
 export type Stop = { step: number; at?: number; id?: string; from?: number };
 
 // Where a step starts playing: its start is the step before's result, so just after it; the first, where its page has
@@ -53,18 +53,19 @@ type Props = {
   // The way's last stop, its end: how it stands, as its mark; whether it looks good to you, and saying so or taking it
   // back, once nothing in it is still open, or else what's open, in words; and a note on the whole scene.
   end?: { mark: End; looksGood?: { good: boolean; onPress: () => void }; says: ReactNode; onNote?: () => void };
+  // The first of the quiet steps its end plays through; and whether it's playing.
+  endFrom?: number;
+  playing: boolean;
   // Taken over: the app is yours, and what plays the recording rests; the stop you're on stays lit, where you took it
   // over, and what you say there answers.
   resting?: boolean;
-  // The round you last said something about it on, the last time, since when steps kept together have nothing new; with
-  // none, they're as they were before the work. And opening them, at one of their steps.
-  since?: number;
-  onUnfold: (stop: number, step: number) => void;
+  // A quiet step pressed, to be a stop of its own.
+  onUnfold: (step: number) => void;
   // What was said in a step that asks nothing of you, a line each under it; and about the whole scene, at its end.
   quietIn: (step?: number) => ReactNode;
 };
 
-export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, onPoint, onScrub, onGo, end, resting, since, onUnfold, quietIn, changesIn, onChange, newFrom }: Props) {
+export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, onPoint, onScrub, onGo, end, endFrom, playing, resting, onUnfold, quietIn, changesIn, onChange, newFrom }: Props) {
   const looksGood = end?.looksGood;
   const stepEnd = (step: number) => scene.steps[step + 1]?.at ?? scene.length;
   const stepOf = (moment: number) => Math.max(0, scene.steps.findIndex((_, step) => stepEnd(step) >= moment - 0.05));
@@ -92,6 +93,9 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
     follow(clock.at);
     return clock.follow(follow);
   }, [clock, scene, at, cut, current, on]);
+  // The quiet step it's playing through, lit as it goes.
+  const [through, setThrough] = useState<number>();
+  useLayoutEffect(() => clock.follow((moment) => setThrough(stepOf(moment))), [clock, scene]);
   // A note's dot goes to its stop; a change's diamond, to it under its step.
   const toMark = (id: string) => {
     const k = stops.findIndex((stop) => stop.id === id);
@@ -107,16 +111,18 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
     if (!way) return;
     const measure = () => {
       const top = way.getBoundingClientRect().top;
-      const centres = [...way.querySelectorAll("[data-sign]")].map((sign) => {
+      const centreOf = (sign: Element) => {
         const box = sign.getBoundingClientRect();
         return box.top + box.height / 2 - top;
-      });
+      };
+      const centres = [...way.querySelectorAll("[data-sign]")].map(centreOf);
       const first = centres[0] ?? 0;
       const rail = (centres.at(-1) ?? first) - first;
+      const reached = way.querySelector(`[data-stop="${on}"] > [data-sign]`);
       way.style.setProperty("--rail-top", `${first}px`);
       way.style.setProperty("--rail", `${rail}px`);
       // How much of the rail is filled, as a share of it, for it to fill without laying the page out each frame.
-      way.style.setProperty("--reach", String(on < 0 || rail <= 0 ? 0 : ((centres[on] ?? first) - first) / rail));
+      way.style.setProperty("--reach", String(on < 0 || rail <= 0 || !reached ? 0 : (centreOf(reached) - first) / rail));
     };
     measure();
     const watching = new ResizeObserver(measure);
@@ -170,6 +176,31 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
     onPointerDownCapture: () => k !== on && onStop(k),
   });
 
+  // The quiet steps before a stop, a line each, smaller than a stop's: the scene's story, played through on the way to it,
+  // each lit as it plays. Pressed, one's a stop of its own, and gone to.
+  const reached = on >= stops.length ? scene.steps.length : current;
+  const quietLines = (from: number | undefined, to: number) =>
+    from === undefined
+      ? []
+      : scene.steps.slice(from, to).map((one, j) => {
+          const i = from + j;
+          const lit = playing && through === i && !resting;
+          return (
+            <li key={`quiet ${i}`} className={`relative flex-none py-1.5 pl-8 transition-opacity duration-300 ease-calm ${resting ? "opacity-35" : ""}`} inert={resting}>
+              <span
+                data-sign=""
+                className={`absolute top-2 left-0.5 grid size-4 place-items-center rounded-full text-[9.5px] leading-none font-medium tabular-nums transition-colors duration-300 ease-calm ${lit ? "bg-soft text-ground" : i < reached ? "bg-track text-soft" : "bg-ground text-faint shadow-[inset_0_0_0_1px_var(--track)]"}`}
+              >
+                {i + 1}
+              </span>
+              <button className={`block w-full text-left text-[13px] leading-5 text-balance transition-colors duration-300 ease-calm outline-none hover:text-fg focus-visible:text-fg ${lit ? "text-fg" : "text-faint"}`} onClick={() => onUnfold(i)}>
+                {one.title}
+              </button>
+              {quietIn(i)}
+            </li>
+          );
+        });
+
   return (
     <ol ref={list} aria-label={`The way through “${scene.name}”`} className="relative flex flex-col">
       <li aria-hidden className={`pointer-events-none absolute top-(--rail-top) left-[9.5px] h-(--rail) w-px bg-track transition-opacity duration-300 ease-calm phone:hidden ${resting ? "opacity-35" : ""}`}>
@@ -178,35 +209,6 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
       {stops.map((stop, k) => {
         const here = k === on;
         const gone = k < on;
-        if (stop.from !== undefined) {
-          const kept = scene.steps.slice(stop.from, stop.step + 1);
-          return (
-            <li key={`together ${stop.from}`} {...row(k)} inert={resting}>
-              <span
-                data-sign=""
-                className={`absolute top-2 left-2.5 grid h-5 min-w-5 -translate-x-1/2 place-items-center rounded-full px-1.5 phone:left-0 phone:translate-x-0 phone:px-1 phone:text-[9.5px] text-[10.5px] leading-none font-medium whitespace-nowrap tabular-nums transition-colors duration-300 ease-calm ${here ? "bg-fg text-ground" : gone ? "bg-track text-soft" : "bg-ground text-faint shadow-[inset_0_0_0_1px_var(--track)]"}`}
-              >
-                {stop.from + 1}–{stop.step + 1}
-              </span>
-              <button className={`block w-full text-left text-[14px] leading-5 outline-none hover:text-fg focus-visible:text-fg ${here ? "text-fg" : "text-soft"}`} onClick={() => onStop(k)}>
-                {since === undefined ? "Unchanged" : "Nothing new since last time"}
-              </button>
-              {/* Each of them pressed is gone to, the steps kept together each a stop again from there. */}
-              <Opens open={here}>
-                <ol className="grid gap-0.5 pt-1.5 pb-1 text-[13px] leading-[18px] text-soft">
-                  {kept.map((one, i) => (
-                    <li key={i}>
-                      <button className="block w-full truncate text-left hover:text-fg" onClick={() => onUnfold(k, stop.from! + i)}>
-                        {one.title}
-                      </button>
-                      {quietIn(stop.from! + i)}
-                    </li>
-                  ))}
-                </ol>
-              </Opens>
-            </li>
-          );
-        }
         if (stop.id !== undefined) {
           const { sign, line, whole } = said(stop.id);
           return (
@@ -227,6 +229,7 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
         const title = scene.steps[i]!.title;
         return (
           <Fragment key={`step ${i}`}>
+          {quietLines(stop.from, i)}
           {newFrom(i)}
           <li {...row(k)} inert={resting}>
             <span
@@ -286,7 +289,9 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
         );
       }).concat(
         end ? (
-          <li key="end" {...row(stops.length)} inert={resting}>
+          <Fragment key="end">
+          {quietLines(endFrom, scene.steps.length)}
+          <li {...row(stops.length)} data-end={looksGood ? "looks good" : ""} inert={resting}>
             <span data-sign="" className={`absolute top-2 left-0 grid size-5 place-items-center rounded-full bg-ground transition-[scale] duration-300 ease-calm ${on === stops.length ? "scale-125" : ""}`}>
               <EndMark end={end.mark} ahead={on !== stops.length} just={false} className="size-3.5" />
             </span>
@@ -315,6 +320,7 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
               {quietIn()}
             </Opens>
           </li>
+          </Fragment>
         ) : [],
       )}
     </ol>

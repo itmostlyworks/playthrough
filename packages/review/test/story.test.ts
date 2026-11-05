@@ -170,6 +170,19 @@ test("a change seen in several scenes is told in the one that joined the review 
   assert.deepEqual(told(await reviews.get(id), 1, "Ana"), ["column in See the counts"]);
 });
 
+test("a change is told in the first scene that can point at it: a field pushed past the window's foot in one is met where it's seen", async () => {
+  const reviews = new Reviews(memory());
+  const id = "card-tabs";
+  await reviews.start(id, "Split card comments and activity into tabs");
+  await reviews.saveRound(id, round(0));
+  await reviews.finish(id, 0);
+  const field: Change = { id: "field", words: "Field moved down", seen: [{ scene: "Export a quarter", at: 2 }, { scene: "Cancel halfway", at: 3, box: { x: 0.1, y: 0.8, width: 0.5, height: 0.1 } }] };
+  await reviews.saveRound(id, round(1, { accounts: { field: { line: "The tabs push the comment box down." } } }));
+  await reviews.saveComparison(id, { round: 1, since: 0, changes: [field] });
+  await reviews.finish(id, 1);
+  assert.deepEqual(told(await reviews.get(id), 1, "Ana"), ["field in Cancel halfway"]);
+});
+
 test("the scenes are in the order they joined the review, the task's from Before first, whatever their files are called (Kan's sort, listed last)", async () => {
   const reviews = new Reviews(memory());
   const id = "sort-by-due-date";
