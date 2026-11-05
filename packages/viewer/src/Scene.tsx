@@ -1,25 +1,25 @@
-// A scene: whose it is and what they do, where it stands, and its recording, with its way through beside it. A step
-// gone to plays into its result and rests there; gone back to, it plays again. A note or a change gone to is there at its
-// moment, lit. It arrives at the answer waiting on you where nothing's new to see first, else at the first step's result.
-// What's drawn on it, and what the bar does, is about the moment it's at: the notes there, outlined, what changed there,
-// a note made there, the app taken over there. At rest, a click on it takes it over there; playing, it pauses it. C held
-// is how it was before the work, at the same moment, in place; pressed, the two side by side, each close on the step's
-// part of the page. At an answer to a note made in the app, how it was is what you did then, played again beside what
-// you did, done again.
+// A scene: whose it is and what they do, where it stands, and the app, with its way through beside it. Each step is a
+// place: gone to, the recording plays into its result, and there the app comes up over it by itself, made ready while
+// it played, as who the scene is done as, yours to try. So do its end, and an answer to a note made in the app, what you
+// did there done again. A note or a change gone to is on the recording at its moment, lit, a click from being the app.
+// It arrives at the answer waiting on you, else at the first step's result. What's drawn on it, and what the bar does,
+// is about the moment it's at: the notes there, outlined, what changed there, a note made there, the app. In the app,
+// Watch it done plays the recording into where you are, and the app is back once it has. C held is how it was before
+// the work, at the same moment, in place; pressed, the two side by side, each close on the step's part of the page. At
+// an answer to a note made in the app, how it was is what you did then, played again beside what you did, done again.
 
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import type { Glimpse, Reading } from "@playthrough/page";
-import { lastLooked, type Scene, type Place, type Review, type Round, type Verdict } from "@playthrough/review";
+import { type Scene, type Place, type Review, type Round, type Verdict } from "@playthrough/review";
 import { picture, readings as readingsOf, recording } from "./api.ts";
 import { Bar } from "./Bar.tsx";
 import { HOLD, Said } from "./Card.tsx";
 import { answersTo, type Diamond } from "./changes.ts";
-import { EndMark, endOf } from "./Chosen.tsx";
+import { endOf } from "./Chosen.tsx";
 import { clamp } from "./moments.ts";
 import { Conversation } from "./Notes.tsx";
 import { fill, ink, type Replied, type Shown, type Standing } from "./notes.ts";
 import { asWho, personAt } from "./people.ts";
-import { onPhone } from "./phone.ts";
 import { around, Picture, union, type Box, type Frame } from "./Picture.tsx";
 import { Pinned, type Pin } from "./Pinned.tsx";
 import { Clock, CLOSEST, Player, useCut, type Mark, type Placed } from "./Player.tsx";
@@ -45,24 +45,19 @@ type SceneViewProps = {
   onLooksGood?: (scene: string) => void;
   threads: Threads;
   diamonds: Diamond[];
-  quiet: boolean;
   acting: Acting;
   active: boolean;
-  // The stop gone along to, by the wheel or the keys; passing, as a turn of the wheel goes on through it, it plays
-  // nothing until the wheel's still there.
-  go?: { stop: number; passing?: boolean; change?: string; compare?: boolean };
-  resting: boolean;
-  onPointerDown: () => void;
+  // A stop gone to from elsewhere on the page: by the keys, or a note's, by its id.
+  go?: { stop?: number; note?: string };
+  // In its way's column, the scenes before it and after it, a line each, and the review's end.
+  above?: ReactNode;
+  below?: ReactNode;
   // A verdict said on it: an answer judged, or Looks good at the end of the way.
   onSaid: () => void;
-  // Whether it arrives on the answer waiting on you there.
-  opensOnAnswer: boolean;
-  // A stop on its way pressed: it comes up to the line, and the page goes to it.
-  onPressed: (stop: number) => void;
 };
 
 export function SceneView(props: SceneViewProps) {
-  const { review, round, before, scene, changed, readings, notes, standing, onLooksGood, threads, diamonds, quiet, acting, active } = props;
+  const { review, round, before, scene, changed, readings, notes, standing, onLooksGood, threads, diamonds, acting, active } = props;
   const end = scene.length - 0.05;
   const stepOf = (at: number) => Math.max(0, scene.steps.findIndex((_, i) => stepEnd(scene, i) >= at - 0.05));
   // A note's moment: where it was made, or made in the app, where the app was taken over.
@@ -103,8 +98,6 @@ export function SceneView(props: SceneViewProps) {
   ];
   // A step's result, where it rests once it has played.
   const results = scene.steps.map((_, i) => stepEnd(scene, i) - 0.05);
-  // The round you last said something about it on, if you have.
-  const since = lastLooked(review, threads.you, scene.name, round.number);
   // And last, its end, where anything can be said about the whole of it: whether it looks good to you, once nothing in
   // it is still open, or else where what's open stands; and a note on the whole scene, written there.
   const atEnd =
@@ -117,97 +110,57 @@ export function SceneView(props: SceneViewProps) {
           onNote: ours ? undefined : () => acting.onPlace({ scene: scene.name }),
         }
       : undefined;
-  // The way through it stops only where there's something for your eyes: a step with something new to you, a note
-  // that's open for you, in the order they come, then those about all of it, and its end. Every other step is a quiet
-  // line, the scene's story, which the way plays through to the next stop; pressed, one's a stop of its own. Every step
-  // a stop was a turn of the wheel for each step nothing had changed in, and an answer was two, its step's and its own.
-  // Where there's nothing to compare it with, everything in it is new, and every step is a stop.
-  const [unfolded, setUnfolded] = useState<number[]>([]);
-  const compared = since !== undefined || !!before?.scenes.some((one) => one.name === scene.name);
-  // What the agent changed for a note of yours is met with its answer: elsewhere, it's marked where it is, on the way.
-  const forNote = (diamond: Diamond) => diamond.changes.every((changed) => changed.answers || (!!changed.note && !!props.noteOf(changed.note)));
-  const holds = (step: number) =>
-    diamonds.some((diamond) => diamond.row && !forNote(diamond) && !unseen(diamond) && stepOf(changeAt(diamond)) <= step && step <= stepOf(Math.min(diamond.until ?? changeAt(diamond), end)));
+  // The way through it is every step, each a place to be, with the notes open for you in it at their moments, in the
+  // order they come; then those about all of it, and its end. Where only a step with something new to you was a stop,
+  // the steps between were the scene's story, played through on the way: here each is somewhere you'd be, and try it.
   const aboutAll = [...notes.filter((note) => momentOf(note) === undefined && asks(note)).map((note) => ({ step: -1, id: note.id })), ...(ours && !writing ? [{ step: -1, id: ours.note.id }] : [])];
-  const plain = scene.steps.map((_, i) => compared && !unfolded.includes(i) && !holds(i));
-  // The steps after the last stop play into what's said about all of it, or its end; with neither, the last is a stop.
-  if (!atEnd && !aboutAll.length && plain.length) plain[plain.length - 1] = false;
   const saidIn = (step: number) =>
     onLine
       .filter((mark) => mark.fill && (mark.id === writing?.note.id || notes.some((note) => note.id === mark.id && asks(note))) && stepOf(mark.at) === step)
       .sort((a, b) => a.at - b.at)
       .map((mark) => ({ step, at: mark.at, id: mark.id }));
-  // Each plays from where the last left off: the start of the quiet steps since, or the note before it in them. An
-  // answer to a note made in the app plays what you did there instead, from where you took it over.
   const cut = useCut(review.id, round.number, scene);
-  const stops: Stop[] = [];
-  let from: number | undefined;
-  scene.steps.forEach((_, i) => {
-    if (!plain[i]) (stops.push({ step: i, at: results[i]!, from }), (from = undefined));
-    else from ??= stepStart(scene, i, cut);
-    for (const said of saidIn(i)) {
-      const inApp = !!notes.find((note) => note.id === said.id)?.on?.app;
-      stops.push({ ...said, from: plain[i] && !inApp ? from : undefined });
-      if (plain[i]) from = said.at;
-    }
-  });
-  for (const said of aboutAll) (stops.push({ ...said, from }), (from = undefined));
-  // Its end plays the quiet steps before it first, so it's come to by watching them, never by skipping past.
-  const endFrom = from;
+  const stops: Stop[] = [...scene.steps.flatMap((_, i) => [{ step: i, at: results[i]! }, ...saidIn(i)]), ...aboutAll];
   const last = stops.length - (atEnd ? 0 : 1);
-  // Arriving, it's on the answer waiting on you, where there's nothing new to you to see first; else before its first stop.
-  const waiting = props.opensOnAnswer ? notes.find((note) => note.state === "needs you" && momentOf(note) !== undefined) : undefined;
+  // Arriving, it's on the answer waiting on you; else at its first step's result, the first place to be.
+  const waiting = notes.find((note) => note.state === "needs you" && momentOf(note) !== undefined);
   const [clock] = useState(() => new Clock(waiting ? Math.min(momentOf(waiting)!, end) : results[0]!));
   const [at, setAt] = useState(clock.at);
   const [playing, setPlaying] = useState<{ until: number }>();
   // Dragged along a step's line, it follows the line, and where it's let go, it rests.
   const [scrubbing, setScrubbing] = useState(false);
-  // The stop you're on: arriving, that answer, else none until you go along. What was said there is open
-  // beside its thing, as is what you open on the recording.
-  const [stop, setStop] = useState(() => (waiting ? stops.findIndex((one) => one.id === waiting.id) : -1));
+  // The stop you're on: arriving, that answer, else the first step. What was said there is open beside its thing, as is
+  // what you open on the recording.
+  const [stop, setStop] = useState(() => (waiting ? stops.findIndex((one) => one.id === waiting.id) : 0));
   const [picked, setPicked] = useState(waiting?.id);
   // Still on the stop it arrived on, or passed on the way, it's as it was found: nothing plays until you stop there.
   const [still, setStill] = useState(true);
-  // Good for you, as nothing's changed since you said so, it arrives folded to its name, and opens when you choose.
-  const [folded, setFolded] = useState(quiet);
-  const go = (moment: number, id?: string) => (clock.set(moment), setAt(moment), setPlaying(undefined), setPicked(id));
-  const playTo = (until: number, from = clock.at) => (clock.set(from), setAt(from), setPicked(undefined), setPlaying({ until }));
+  // The recording moving on, from a stop or along a step's line, the app is left first: what plays is how it gets
+  // somewhere else.
+  const away = () => taken && acting.onAway();
+  const go = (moment: number, id?: string) => (Math.abs(moment - clock.at) > 0.01 && away(), clock.set(moment), setAt(moment), setPlaying(undefined), setPicked(id));
+  const playTo = (until: number, from = clock.at) => (away(), clock.set(from), setAt(from), setPicked(undefined), setPlaying({ until }));
   const pause = () => (setAt(clock.at), setPlaying(undefined));
   // Come to rest, played or dragged to, what was said at the stop you're on stays open.
   const stopped = (moment: number) => go(moment, stops[stop]?.id);
   const startOf = (step: number) => stepStart(scene, step, cut);
-  // Gone to, a step plays into its result, from the quiet steps before it; what was said in one is there at its moment,
-  // played into from the quiet steps before it, where it's in one; what was said about all of it, where it is, or played
-  // into how it ends from the quiet steps before it, as its end is. Before the first stop it rests. Passed, a step is at its
-  // start, to play from there once it's stopped on.
-  const toStop = (k: number, passing = false) => {
+  // Gone to, a step plays into its result from its start, and the app is made ready there while it does; what was said
+  // in one is there at its moment; what was said about all of it, where it is; its end, at the last step's result.
+  const toStop = (to: number) => {
+    const k = Math.min(to, stops.length);
     setStop(k);
-    setStill(passing);
+    setStill(false);
     const there = stops[k];
     if (!there && k < 0) return void (playing && pause());
-    if (!there) return void (endFrom === undefined ? go(results.at(-1)!) : passing ? go(endFrom) : playTo(results.at(-1)!, endFrom));
-    if (there.id === undefined && passing) go(there.from ?? startOf(there.step));
-    else if (there.id === undefined) playTo(there.at!, there.from ?? startOf(there.step));
-    else if (there.from !== undefined && !passing) playTo(there.at ?? results.at(-1)!, there.from);
-    else if (there.at === undefined) setPicked(there.id);
+    if (!there) return void (go(results.at(-1)!), acting.onReady(scene.name, results.at(-1)!));
+    if (there.id === undefined) return void (playTo(there.at!, startOf(there.step)), acting.onReady(scene.name, there.at!));
+    if (there.at === undefined) setPicked(there.id);
     else go(there.at, there.id);
   };
-  // Gone to from what's different, it comes to rest on the change, and beside Before where that's asked for.
   useLayoutEffect(() => {
-    if (!props.go) return;
-    toStop(props.go.stop, props.go.passing);
-    const diamond = props.go.change && !props.go.passing ? diamonds.find((one) => one.id === props.go!.change) : undefined;
-    if (diamond) toChange(diamond);
-    if (props.go.compare) setSide(true);
+    const k = props.go?.note ? stops.findIndex((one) => one.id === props.go!.note) : props.go?.stop;
+    if (k !== undefined && k >= 0) toStop(k);
   }, [props.go]);
-  // A quiet step pressed is a stop of its own, and gone to.
-  const [unfolding, setUnfolding] = useState<number>();
-  const unfold = (step: number) => (setUnfolded((was) => [...was, step]), setUnfolding(step));
-  useLayoutEffect(() => {
-    if (unfolding === undefined) return;
-    props.onPressed(stops.findIndex((one) => one.id === undefined && one.step === unfolding));
-    setUnfolding(undefined);
-  }, [unfolding]);
   // Opened on the recording, or just saved, what was said there is the stop you're on, there and then; closed there, it
   // isn't open.
   const opened = (id?: string) => (id && stops.some((one) => one.id === id) && setStop(stops.findIndex((one) => one.id === id)), setPicked(id));
@@ -217,35 +170,6 @@ export function SceneView(props: SceneViewProps) {
     if (ours) (setBegun({ id: ours.note.id, from: stop }), setStop(stops.findIndex((one) => one.id === ours.note.id)));
     else (setBegun(undefined), begun && !stops.some((one) => one.id === begun.id) && setStop(begun.from));
   }
-  // Held at the top, its way stays put beside the recording, and ends where the recording does, its bar under it with it:
-  // what goes on past that fades out there, as what's gone up does under the top. A way longer than that goes up to
-  // bring the stop you're on to a fifth of the way down, as the page brings a scene up, until its end is in view. Gone
-  // up only as far as the stop needed, a stop late in a long way sat at the window's bottom ("so far down"), and run on
-  // to it, past the recording, notes went on below it.
-  const column = useRef<HTMLDivElement>(null);
-  const way = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    const [beside, inner] = [column.current, way.current];
-    if (!beside || !inner) return;
-    const follow = () => {
-      const here = inner.querySelector<HTMLElement>("li[aria-current=step]");
-      const top = here ? here.getBoundingClientRect().top - inner.getBoundingClientRect().top : 0;
-      const recorded = beside.closest(".sticky")?.firstElementChild;
-      const room = Math.min(beside.clientHeight - FOOT, recorded ? recorded.getBoundingClientRect().bottom + BAR - beside.getBoundingClientRect().top : Infinity);
-      const raised = onPhone() ? 0 : clamp(top - beside.clientHeight / 5, 0, Math.max(0, inner.offsetHeight - room));
-      inner.style.translate = raised ? `0 ${-raised}px` : "";
-      // The fade at its end is always there, so a stop opening out never shows past it before it's measured, and just
-      // past it, so the end of a way gone up as far as it goes is clear of it.
-      beside.style.maskImage = onPhone() ? "" : `linear-gradient(to bottom, ${raised ? "transparent, #000 28px" : "#000, #000"}, #000 ${room}px, transparent ${room + 28}px)`;
-    };
-    follow();
-    const watching = new ResizeObserver(follow);
-    watching.observe(inner);
-    watching.observe(beside);
-    const recorded = beside.closest(".sticky")?.firstElementChild;
-    if (recorded) watching.observe(recorded);
-    return () => watching.disconnect();
-  }, [stop, folded]);
   // Playing, a click on it pauses it. Where it can't be taken over, a click plays on into the stop you're on, and there,
   // plays into it again from its step's start; before any stop, or on what was said about all of it, the step it shows.
   const again = () => {
@@ -388,6 +312,18 @@ export function SceneView(props: SceneViewProps) {
   const restsAt = Math.round(at * 100) / 100;
   const resting = active && !playing && !scrubbing && !taken;
   useEffect(() => void (resting && acting.onRest(scene.name, restsAt, redone?.id)), [resting, restsAt, redone?.id]);
+  // Come to rest at a place, a step's result or its end, or an answer to a note made in the app once what you did there
+  // has played, the app comes there by itself. At a note or a change, it's the recording, at its moment, a click from
+  // being the app.
+  const atStop = stops[stop];
+  const atPlace =
+    stop >= stops.length
+      ? !picked && Math.abs(at - results.at(-1)!) < 0.02
+      : atStop?.id === undefined
+        ? !!atStop && !picked && Math.abs(at - atStop.at!) < 0.02
+        : !!redone && redone.id === atStop.id && !redoing;
+  const comesBy = resting && atPlace && !noting && !acting.writing && !side && !peek;
+  useEffect(() => void (comesBy && acting.onStepIn()), [comesBy, restsAt, redone?.id]);
   // And there, it's a click from being the app: pointing at it says so beside your pointer, as who it's done as. A
   // click on another scene's makes it the one you're on.
   const person = personAt(scene, restsAt);
@@ -611,13 +547,10 @@ export function SceneView(props: SceneViewProps) {
   // plays; and taken over, the whole page the app comes in as. Side by side, Now is close on it in its half, and Before
   // shows the same part of the page; else each is on the step's part of the page.
   const there = stops[stop];
-  // Passed on the way, or gone to while the recording's still coming into its place, a note or a change is only its
-  // moment: it closes in, and its pins come, once the recording's settled and it's stopped on, as a step plays.
-  const passing = !!props.go?.passing;
   // What the recording rests close on: the note at the stop you're on, or the change gone to under its step.
   const change = diamonds.find((diamond) => diamond.id === picked && diamond.row);
   const focus = there?.id !== undefined && there.at !== undefined ? { id: there.id, at: there.at } : change && { id: change.id, at: changeAt(change) };
-  const onIt = !!focus && !playing && !scrubbing && !passing && Math.abs(at - focus.at) < 0.02;
+  const onIt = !!focus && !playing && !scrubbing && Math.abs(at - focus.at) < 0.02;
   const closeOn = !live?.shown && onIt ? pins.find((pin) => pin.id === focus!.id)?.on : undefined;
   const [closed, setClosed] = useState<Frame>();
   // A phone's recording is the phone's shape, as tall as any scene's picture: side by side, a second phone comes in beside
@@ -630,7 +563,7 @@ export function SceneView(props: SceneViewProps) {
   const view = `${at} ${side} ${closeOn?.join(" ") ?? ""} ${redone ? "redone" : ""}`;
   // The pins are drawn where the recording, come to rest, found their things in the view it shows; on its way to another
   // view, none are, rather than in the corner that's for things it didn't find.
-  const placedHere = !passing && placed?.view === view ? placed.at : undefined;
+  const placedHere = placed?.view === view ? placed.at : undefined;
   // The app is the page the recording was made of, at its size, scrolled where the recording rests.
   const screen = readings?.find((one) => one.step === scene.steps[step]?.title)?.screen ?? { width: 1280, height: 800 };
   const scrolled = useRef<() => Scrolled>(undefined);
@@ -655,43 +588,15 @@ export function SceneView(props: SceneViewProps) {
       <span className="absolute inset-0 grid place-content-center bg-ground px-6 text-center text-[13px] leading-5 text-soft">{against ? `${named}, there was no such step` : then ? "Before the work, there was no such step" : "New: there was nothing like it before"}</span>
     );
 
-  // Folded, it's a line in the list of those that look good, as a pull request's viewed file folds to its name: its
-  // name as it's headed open, where it's headed open, and Looks good's square. As pictures side by side, they were a
-  // second row of stills under what's new to you, saying something else; a small picture beside each name read as a
-  // broken image.
-  if (folded)
-    return (
-      <section data-folded={scene.name}>
-        <button className="group -mx-2 flex w-fit max-w-[calc(100%+16px)] min-w-0 items-center gap-3 rounded-lg px-2 py-1.5 text-left transition-colors duration-150 ease-calm hover:bg-hover" onClick={() => setFolded(false)} aria-expanded={false}>
-          <h3 className="min-w-0 truncate text-[15px] leading-[21px] font-semibold">
-            {scene.name}
-            {asWho(scene) && <span className="font-normal text-soft"> {asWho(scene)}</span>}
-          </h3>
-          <span className="flex flex-none items-center gap-1.5 text-[13px] leading-5 text-green">
-            <EndMark end="good" just={false} className="size-3.5" />
-            <span className="phone:sr-only">Looks good</span>
-          </span>
-        </button>
-      </section>
-    );
   return (
-    <section
-      data-scene={scene.name}
-      data-stops={last + 1}
-      data-stop={stop}
-      inert={props.resting}
-      // As tall as the window, and a stop's stretch of scrolling more for each stop, gone through while it's held.
-      style={{ "--stops": last + 1 } as CSSProperties}
-      className={`relative h-[calc(var(--room)-var(--pin)+var(--stops)*var(--step))] transition-opacity duration-500 ease-calm phone:h-auto ${props.resting ? "opacity-30" : ""}`}
-      onPointerDown={props.onPointerDown}
-    >
-      {/* Its name, recording and way are held at the window's top while you go through it, and leave it together. */}
-      <div className="sticky top-(--pin) grid h-[calc(var(--room)-var(--pin))] grid-cols-[minmax(0,1fr)_340px] gap-8 phone:static phone:h-auto phone:grid-cols-1">
-        <div className="@container self-start">
+    <section data-scene={scene.name} data-stops={last + 1} data-stop={stop}>
+      {/* The app, or its recording, held at the window's top as its way and the other scenes beside it go by. */}
+      <div className="grid grid-cols-[minmax(0,1fr)_340px] items-start gap-8 phone:grid-cols-1 phone:gap-5">
+        <div className="@container sticky top-6 phone:static">
         {/* A phone's sits against its way, as narrow as it is. */}
         <div className={phone ? "ml-auto transition-[width] duration-450 ease-calm" : undefined} style={phone ? { width: side ? `calc(${2 * phone} * ${high} + 16px)` : `calc(${phone} * ${high})` } : undefined}>
-        {/* Over a phone, as wide as the one phone, so it never rewraps, moving the picture, as Compare brings a second. */}
-        <h3 className="mb-3 min-w-0 px-0.5 text-[15px] leading-[21px] font-semibold text-balance" style={phone ? { width: `calc(${phone} * ${high})` } : undefined}>
+        {/* Its name is over its way; on a phone, where its way comes after it, it's over the app. */}
+        <h3 className="mb-3 hidden min-w-0 px-0.5 text-[15px] leading-[21px] font-semibold text-balance phone:block">
           {scene.name}
           {asWho(scene) && <span className="font-normal text-soft"> {asWho(scene)}</span>}
         </h3>
@@ -772,7 +677,7 @@ export function SceneView(props: SceneViewProps) {
               </span>
             )}
           </button>
-          <Portal live={live} person={person} screen={screen} scrolled={() => scrolled.current?.()} />
+          <Portal live={live} person={person} screen={screen} scrolled={() => scrolled.current?.()} calm />
           {/* Beside your pointer, what a click on the recording does: note what's under it, or take it over. */}
           <span ref={pill} aria-hidden className={`pointer-events-none absolute top-0 left-0 z-30 transition-opacity duration-150 ease-calm ${(stepIn || noteHere) && aiming ? "" : "opacity-0"}`}>
             <span className={TAG}>{noteHere ? "Note on this" : person ? `Take over as ${person}` : "Take over"}</span>
@@ -787,6 +692,7 @@ export function SceneView(props: SceneViewProps) {
                   onNote={taken && !live.inApp ? undefined : acting.onNote}
                   onTakeOver={acting.onTakeOver}
                   onBack={acting.onBack}
+                  onWatch={again}
                   scene={scene.name}
                 />
               </div>
@@ -804,50 +710,55 @@ export function SceneView(props: SceneViewProps) {
             </div>
           )}
         </div>
+        {/* Where the app couldn't come, why, under the bar: the scene that reaches outside the app runs only when you take it
+            over yourself. */}
+        {live?.problems && !taken && (
+          <p className="mx-auto mt-8 max-w-[520px] px-4 text-center text-[12.5px] leading-[18px] text-amber-ink" title={live.problems.join("\n")}>
+            {live.problems[0]}
+          </p>
+        )}
         </div>
         </div>
-        {/* Its way beside the recording, from where it stands and what the agent said first to its end, held still with it:
-            what moves as you go is where you are on it. A little wider than the way, so the surface the stop you're on
-            sits on, which reaches past it, fades with it. */}
-        <div ref={column} className="-mx-3 min-h-0 overflow-y-clip px-3 phone:overflow-visible">
-          <div ref={way} className="transition-[translate] duration-300 ease-calm">
-            <div className="grid content-start gap-5 pb-5">
-              {/* What its recording shows when it's not the scene's own, beside the scene's name: never over the recording.
-                  Where the scene stands is said once, at its end; here too, it was said again over what said it. */}
-              <span className="min-h-[21px] px-0.5 text-xs leading-[21px] text-soft">{redone && "Showing what you did, done again"}</span>
-              {scene.line && (
-                <div inert={taken} className={`px-0.5 text-[13px] transition-opacity duration-300 ease-calm ${taken ? "opacity-35" : ""}`}>
-                  <Said who={round.by}>{scene.line}</Said>
-                </div>
-              )}
-            </div>
-            <Steps
-              scene={scene}
-              clock={clock}
-              at={at}
-              cut={cut}
-              stops={stops}
-              on={Math.min(stop, last)}
-              marks={onLine}
-              changesIn={changesIn}
-              newFrom={newFrom}
-              onChange={(id) => {
-                const diamond = diamonds.find((diamond) => diamond.id === id);
-                if (diamond) toChange(diamond);
-              }}
-              said={said}
-              end={atEnd}
-              quiet={plain}
-              playing={!!playing}
-              onUnfold={unfold}
-              quietIn={quietIn}
-              resting={taken}
-              onStop={props.onPressed}
-              onPoint={setLit}
-              onScrub={(on) => (on && ((setPlaying(undefined), setPicked(undefined))), setScrubbing(on))}
-              onGo={stopped}
-            />
+        {/* Its way beside the app, the scenes before it over it and the rest after it: its name, what the agent said of
+            it, and its steps. What the recording shows when it's not the scene's own is said there too, never over it:
+            where a note was made in the app, there's room kept for it, so the way never moves as it comes and goes. */}
+        <div className="min-w-0">
+          {props.above}
+          <div className="grid content-start gap-2 pb-4">
+            <h3 className="pr-0.5 pl-8 text-[15px] leading-[21px] font-semibold text-balance phone:hidden">
+              {scene.name}
+              {asWho(scene) && <span className="font-normal text-soft"> {asWho(scene)}</span>}
+            </h3>
+            {notes.some((note) => note.on?.app) && <span className="min-h-4 pr-0.5 pl-8 text-xs leading-4 text-soft">{redone && "Showing what you did, done again"}</span>}
+            {scene.line && (
+              <div className="pt-1 pr-0.5 pl-8 text-[13px]">
+                <Said who={round.by}>{scene.line}</Said>
+              </div>
+            )}
           </div>
+          <Steps
+            scene={scene}
+            clock={clock}
+            at={at}
+            cut={cut}
+            stops={stops}
+            on={Math.min(stop, last)}
+            marks={onLine}
+            changesIn={changesIn}
+            newFrom={newFrom}
+            onChange={(id) => {
+              const diamond = diamonds.find((diamond) => diamond.id === id);
+              if (diamond) toChange(diamond);
+            }}
+            said={said}
+            end={atEnd}
+            quietIn={quietIn}
+            onStop={toStop}
+            onPoint={setLit}
+            onScrub={(on) => (on && ((setPlaying(undefined), setPicked(undefined))), setScrubbing(on))}
+            onGo={stopped}
+          />
+          {props.below}
         </div>
       </div>
     </section>
@@ -1015,11 +926,6 @@ function boxIn(reading: Reading, on: Place): Box | undefined {
 // A scene's picture is this wide for its height; side by side, each round has half of it, as tall as the whole.
 const WHOLE = 1.6;
 const HALF = 0.8;
-
-// How much of the window's foot the one step to take floats over, in pixels, which a way that goes up keeps clear of.
-const FOOT = 72;
-// How far the bar under a recording reaches below it.
-const BAR = 22;
 
 // When a scene can be judged at all.
 const JUDGED: Standing["is"][] = ["good", "is it good", "needs you", "looked good"];

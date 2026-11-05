@@ -19,6 +19,9 @@ type Props = {
   // None on a fork run again: a fork is taken over from its scene, never from another fork.
   onTakeOver?: () => void;
   onBack: () => void;
+  // On the page, where the app is what you're on, how it got there is the way out of it: the recording plays into
+  // where you are, and the app is back once it has.
+  onWatch?: () => void;
   scene: string;
   // On the page, a scene's notes are on its recording and its steps, and there's no list.
   list?: {
@@ -91,7 +94,11 @@ export function Bar(props: Props) {
           Note <Key>N</Key>
         </button>
         {!inApp && props.compare && <Compare {...props.compare} bar={item} />}
-        {inApp ? (
+        {inApp && props.onWatch ? (
+          <button className={item} onClick={props.onWatch}>
+            Watch it done
+          </button>
+        ) : inApp ? (
           <button className={item} onClick={props.onBack}>
             Back to the recording <Key>Esc</Key>
           </button>

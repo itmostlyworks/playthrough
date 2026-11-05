@@ -2,7 +2,9 @@
 // breathes and the recording's pointer says it's being taken over, counting down when it's known how long. Once it's
 // there, the recording's pointer comes to yours, and the app opens from where they meet, a ring going out to the
 // picture's edges; your name goes with your pointer, as whoever the scene is done as. Given back, it closes on where
-// your pointer was in the app, and the pointer goes back to where the recording has it.
+// your pointer was in the app, and the pointer goes back to where the recording has it. Calm, as where the app comes by
+// itself wherever you come to rest, the picture stays as it is while it waits, and the app comes up over it as it
+// settles, your name on the pointer: the same every time, as arriving somewhere should be.
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Scrolled } from "./replay.ts";
@@ -15,9 +17,15 @@ type Props = {
   // The page the recording was made of, at its size.
   screen: { width: number; height: number };
   scrolled: () => Scrolled | undefined;
+  calm?: boolean;
 };
 
-export function Portal({ live, person, screen, scrolled }: Props) {
+// Gone somewhere with the keys, the app that comes there by itself leaves the keyboard where it is, so the keys go on.
+let keyed = false;
+addEventListener("keydown", (event) => void (!/^(Shift|Control|Alt|Meta)$/.test(event.key) && (keyed = true)), true);
+addEventListener("pointerdown", () => void (keyed = false), true);
+
+export function Portal({ live, person, screen, scrolled, calm }: Props) {
   const room = useRef<HTMLDivElement>(null);
   const app = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLIFrameElement>(null);
@@ -83,7 +91,18 @@ export function Portal({ live, person, screen, scrolled }: Props) {
   // Opening into the app, and closing it again.
   useLayoutEffect(() => {
     const [box, door, glow, rim, edging, yours, name, said] = [room.current, app.current, sheen.current, ring.current, edge.current, hand.current, tag.current, words.current];
-    if (!box || !door || !glow || !rim || !edging || !yours || !name || !said || inPortal === open.current) return;
+    if (!box || !rim || !edging || !yours || !name || !said || inPortal === open.current) return;
+    // Gone from under it already, as the next moment is made ready, the app is closed: only what was drawn over it goes,
+    // so the next one opens as the first did.
+    if (!door || !glow) {
+      open.current = false;
+      edging.style.opacity = "0";
+      yours.removeAttribute("data-yours");
+      Object.assign(yours.style, { opacity: "0" });
+      yourHand.current = undefined;
+      name.hidden = true;
+      return;
+    }
     handing.current.forEach(clearTimeout);
     handing.current = [];
     // Waited for, the edge is already glowing, and the opening carries on from there.
@@ -111,6 +130,31 @@ export function Portal({ live, person, screen, scrolled }: Props) {
       frame.current?.contentWindow?.postMessage({ playthrough: "yours", yours: handed }, "*");
     };
 
+    if (calm && inPortal) {
+      frame.current?.contentWindow?.postMessage({ playthrough: "scroll", ...scrolled() }, "*");
+      Object.assign(door.style, { opacity: "1", pointerEvents: "auto" });
+      if (!keyed) frame.current?.focus();
+      edging.style.opacity = "1";
+      // Your name is on your pointer once it's in the app, not where the recording's was.
+      yourHand.current = onIt;
+      Object.assign(yours.style, { transform: tip(onIt ?? at), opacity: onIt ? "1" : "0" });
+      name.hidden = false;
+      real(true);
+      say(name, said, person ? `You, as ${person}` : "You", true, false);
+      if (!still) for (const part of onIt ? [door, edging, yours] : [door, edging]) part.animate([{ opacity: 0 }, { opacity: 1 }], { duration: CALM, easing: PORTAL });
+      return;
+    }
+    if (calm) {
+      edging.style.opacity = "0";
+      real(false);
+      shape(yours, false);
+      yourHand.current = undefined;
+      Object.assign(door.style, { opacity: "0", pointerEvents: "none" });
+      Object.assign(yours.style, { opacity: "0" });
+      name.hidden = true;
+      if (!still) door.animate([{ opacity: 1 }, { opacity: 0 }], { duration: CALM / 2, easing: "ease-in" });
+      return;
+    }
     if (inPortal) {
       frame.current?.contentWindow?.postMessage({ playthrough: "scroll", ...scrolled() }, "*");
       Object.assign(door.style, { opacity: "1", pointerEvents: "auto" });
@@ -165,6 +209,7 @@ export function Portal({ live, person, screen, scrolled }: Props) {
     const [edging, yours, name, said] = [edge.current, hand.current, tag.current, words.current];
     if (!edging || !yours || !name || !said || waiting === taking.current) return;
     taking.current = waiting;
+    if (waiting && calm) return;
     if (waiting) {
       const recorded = theirs();
       if (recorded) Object.assign(yours.style, { transform: tip(recorded), opacity: "1" });
@@ -270,6 +315,8 @@ export const HANDING = 420;
 export const BREATH = "inset 0 0 0 3px rgba(236,170,50,1), inset 0 0 70px 6px rgba(226,160,50,0.55)";
 export const OPENING = 1050;
 export const CLOSING = 560;
+// Calm, it comes up as a page does.
+const CALM = 320;
 export const PORTAL = "cubic-bezier(0.22, 0.8, 0.24, 1)";
 // Taking over in less than this, there's no counting: it opens as soon as it would be read.
 export const COUNTED = 1500;
