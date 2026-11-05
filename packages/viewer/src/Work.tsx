@@ -6,14 +6,15 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import type { Note, Place, Review, Round } from "@playthrough/review";
-import { Key } from "./Card.tsx";
+import { Key, mac } from "./Card.tsx";
 import type { Diamond } from "./changes.ts";
+import { EndMark } from "./Chosen.tsx";
 import { clamp } from "./moments.ts";
 import { fill, type Shown, type Standing } from "./notes.ts";
 import { onPhone } from "./phone.ts";
 import { clock } from "./Rounds.tsx";
 import { SceneView, type Threads } from "./Scene.tsx";
-import { Agent, Go, type Step } from "./Step.tsx";
+import type { Step } from "./Step.tsx";
 import type { Read } from "./things.ts";
 
 type Props = {
@@ -158,10 +159,11 @@ export function Work(props: Props) {
   const letGo = () => (cancelAnimationFrame(gliding.current!), (gliding.current = undefined), (steered.current = 0));
   // What the scroll reading, set up once, needs as it is now: the round you're looking at among it, so a step read on
   // an older round is that round's.
-  const now = useRef({ busy, move, active, letGo, settled, round: round.number });
-  now.current = { busy, move, active, letGo, settled, round: round.number };
-  // A verdict lands where it was said, and the way goes on from there, unless you've gone on already.
-  // On the last scene's last stop there's nothing on to go to: it stays, rather than scrolling past how it ends.
+  const ends = step?.kind === "go" || step?.kind === "agent";
+  const now = useRef({ busy, move, active, letGo, settled, round: round.number, ends });
+  now.current = { busy, move, active, letGo, settled, round: round.number, ends };
+  // A verdict lands where it was said, and the way goes on from there, unless you've gone on already: from the last
+  // scene's last stop, to the review's end. With nothing there, it stays, rather than scrolling past how it ends.
   const goOn = (scene: string) => {
     const section = () => props.room.current?.querySelector<HTMLElement>(`[data-scene="${CSS.escape(scene)}"]`);
     const was = section()?.dataset.stop;
@@ -169,7 +171,7 @@ export function Work(props: Props) {
       const here = section();
       return !!here && [...props.room.current!.querySelectorAll("[data-scene]")].at(-1) === here && Number(here.dataset.stop) >= Number(here.dataset.stops) - 1;
     };
-    window.setTimeout(() => !now.current.busy && now.current.active === scene && section()?.dataset.stop === was && !lastOfAll() && now.current.move(1), LANDS);
+    window.setTimeout(() => !now.current.busy && now.current.active === scene && section()?.dataset.stop === was && (now.current.ends || !lastOfAll()) && now.current.move(1), LANDS);
   };
   useLayoutEffect(() => {
     const room = props.room.current;
@@ -305,14 +307,26 @@ export function Work(props: Props) {
             />
           ))}
         </div>
-        <Story review={review} round={round} general={general} />
-        {/* The one step to take floats at the window's foot, over the way rather than across the recordings. */}
-        <div className="pointer-events-none sticky bottom-0 z-10 mt-6 flex min-h-8 justify-end py-4">
-          {/* As wide as what it says, and on a plate of the page's ground fading in above it, so the way's words go under
-              it quietly rather than through it. */}
-          <div className="pointer-events-auto relative w-max max-w-full min-w-[300px] empty:hidden before:pointer-events-none before:absolute before:-inset-x-4 before:-top-8 before:-bottom-4 before:-z-10 before:bg-linear-to-b before:from-transparent before:to-ground before:to-35%">
-            {step?.kind === "go" && <Go step={step} className="w-full gap-3 bg-surface! shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]!" />}
-            {!step && !begun && up && (
+        {/* The page's end, held at the window's top as a scene is once you've gone to it, and closing it as it opened:
+            what was asked, so what you send is read against it, and how it got here. */}
+        <div className={`mt-14 grid grid-cols-[minmax(0,1fr)_340px] gap-8 phone:mt-9 phone:min-h-0 phone:grid-cols-1 ${ends ? "min-h-[calc(var(--room)-var(--pin)-1rem)]" : ""}`}>
+          <div className="col-start-1 row-start-1 grid max-w-[680px] gap-6 self-start empty:hidden phone:row-start-auto phone:mx-4">
+            {ends && (
+              <header>
+                <h3 className="px-0.5 text-[15px] leading-[21px] font-semibold text-balance">{review.title}</h3>
+                {review.asked && <p className="mt-1.5 px-0.5 text-[14px] leading-[22px] text-soft">{review.asked}</p>}
+              </header>
+            )}
+            <Story review={review} round={round} general={general} />
+          </div>
+          <End step={step} trouble={props.trouble} toSend={props.notes.filter((note) => note.unsent)} onNote={toNote} />
+        </div>
+        {/* Until you've begun, how to begin floats at the window's foot, over the way rather than across the recordings,
+            taking no room at the page's end. */}
+        <div className="pointer-events-none sticky bottom-4 z-10 flex h-0 items-end justify-end">
+          {!begun && up && (
+            // On a plate of the page's ground fading in above it, so the way's words go under it quietly rather than through it.
+            <div className="pointer-events-auto relative w-max max-w-full min-w-[300px] before:pointer-events-none before:absolute before:-inset-x-4 before:-top-8 before:-bottom-4 before:-z-10 before:bg-linear-to-b before:from-transparent before:to-ground before:to-35%">
               <button
                 className="flex h-8 w-full items-center gap-3 rounded-lg bg-surface px-3 text-xs leading-4 text-fg shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)] phone:hidden"
                 onMouseDown={(event) => event.preventDefault()}
@@ -321,11 +335,8 @@ export function Work(props: Props) {
                 Go through it, a step at a time
                 <Key className="ml-auto">↓</Key>
               </button>
-            )}
-            {/* Sent, what the agent does with it is said where Send was, rather than the foot going quiet. */}
-            {step?.kind === "agent" && <Agent step={step} className="rounded-lg bg-surface px-3 shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]" />}
-            {props.trouble.length > 0 && <p className="mt-2 rounded-lg bg-surface px-3 py-2 text-xs leading-[18px] text-amber-ink shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]">{props.trouble.join(" ")}</p>}
-          </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -343,6 +354,61 @@ const STEP = 100;
 // How long a verdict is seen where it was said before the way goes on, in milliseconds.
 const LANDS = 600;
 
+// The review's end, the way's last stop, under the last scene's: where what you've said goes, all of it at once, as a
+// pull request's review is submitted at its foot. The one step left once you've been through it (finish a note, send,
+// accept) and, sent, what the agent is doing with it, said where Send was. Under Send, the notes it sends, each going to
+// where it was written.
+function End({ step, trouble, toSend, onNote }: { step?: Step; trouble: string[]; toSend: Shown[]; onNote: (note: Shown) => void }) {
+  if (step?.kind !== "go" && step?.kind !== "agent") return null;
+  const sign =
+    step.kind === "agent" ? (
+      <i className={`size-1.5 rounded-full bg-slate ${step.busy ? "animate-breathe" : "opacity-45"}`} />
+    ) : (
+      <EndMark end={step.final === "accept" ? "good" : step.final === "send" ? "to send" : "asks"} just={false} className="size-3.5" />
+    );
+  const words = (
+    <>
+      <span className="flex-none">{step.words}</span>
+      {step.what && <span className="min-w-0 truncate text-soft">· {step.what}</span>}
+    </>
+  );
+  return (
+    <div className="col-start-2 row-start-1 self-start phone:col-start-1 phone:row-start-auto phone:px-4">
+      <div className="relative py-2 pl-8">
+        <span className="absolute top-2 left-0 grid size-5 place-items-center">{sign}</span>
+        {step.kind === "go" ? (
+          <button
+            className="flex w-full min-w-0 items-center gap-1.5 pr-2 text-left text-[14px] leading-5 font-medium before:absolute before:inset-y-0 before:left-6 before:-right-3 before:-z-1 before:rounded-xl before:bg-surface before:shadow-[0_0_0_1px_var(--edge)] hover:before:bg-hover"
+            aria-keyshortcuts={step.final === "accept" ? undefined : step.final ? (mac ? "Meta+Enter" : "Control+Enter") : "Enter"}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={step.take}
+          >
+            {words}
+            {step.final !== "accept" && <Key className="ml-auto">{step.final ? (mac ? "⌘↵" : "Ctrl ↵") : "↵"}</Key>}
+          </button>
+        ) : (
+          <p key={step.words} className="flex min-w-0 animate-arrive items-center gap-1.5 text-[14px] leading-5 font-medium" role="status">
+            {words}
+          </p>
+        )}
+      </div>
+      {step.kind === "go" && step.final === "send" && toSend.length > 0 && (
+        <ul className="mt-1.5 grid gap-1 pl-8">
+          {toSend.map((note) => (
+            <li key={note.id}>
+              <button className="flex w-full min-w-0 items-baseline gap-2 text-left text-[13px] leading-5 text-soft hover:text-fg" onClick={() => onNote(note)}>
+                <i className={`size-1.5 flex-none translate-y-[-1px] rounded-full ${fill(note)}`} />
+                <span className="truncate">{note.turns[0]?.words}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {trouble.length > 0 && <p className="mt-2 pl-8 text-[12.5px] leading-[18px] text-amber-ink">{trouble.join(" ")}</p>}
+    </div>
+  );
+}
+
 // How it got here, a line each time the agent recorded it: by whom and when, what it answered, and what was sent back,
 // as a pull request's pushes are told among its comments. A round is the agent's turn, not a place to go. Then the
 // notes on scenes this round doesn't have, outdated as their scene is gone.
@@ -350,7 +416,7 @@ function Story({ review, round, general }: { review: Review; round: Round; gener
   const rounds = review.rounds.filter((kept) => kept.number > 0 && kept.number <= round.number);
   if (rounds.length < 2 && !general.length) return null;
   return (
-    <section className="mt-14 max-w-[680px] border-t border-line pt-6">
+    <section className="border-t border-line pt-6">
       <h3 className="text-[13px] leading-5 font-semibold">How it got here</h3>
       <ol className="mt-2 grid gap-1 text-[13px] leading-5 text-soft">
         {rounds.map((kept, i) => {
