@@ -657,22 +657,22 @@ export function SceneView(props: SceneViewProps) {
       <span className="absolute inset-0 grid place-content-center bg-ground px-6 text-center text-[13px] leading-5 text-soft">{against ? `${named}, there was no such step` : then ? "Before the work, there was no such step" : "New: there was nothing like it before"}</span>
     );
 
-  // Folded, it's the picture it ends on, small, with its name under it, beside the others that look good.
+  // Folded, it's a line in the list of those that look good, as a pull request's viewed file folds to its name: its
+  // name as it's headed open, where it's headed open, and Looks good's square. As pictures side by side, they were a
+  // second row of stills under what's new to you, saying something else; a small picture beside each name read as a
+  // broken image.
   if (folded)
     return (
-      <section data-folded="" className="w-[232px] phone:w-[calc(50%-10px)]">
-        <button className="group grid w-full gap-2.5 text-left" onClick={() => setFolded(false)} aria-expanded={false}>
-          <span className="relative block aspect-[16/10] overflow-hidden rounded-[10px] bg-surface shadow-[0_0_0_1px_var(--edge)] transition-shadow duration-150 ease-calm group-hover:shadow-[0_0_0_1px_var(--edge),0_6px_18px_var(--drop)]">
-            <img src={picture(review.id, round.number, scene.recording, scene.steps.length - 1)} alt="" className="size-full object-cover object-top" />
-          </span>
-          <h3 className="flex min-w-0 gap-2 px-0.5 text-[13px] leading-[18px] font-medium text-balance">
-            <EndMark end="good" just={false} className="mt-0.5 size-3.5 flex-none" />
-            <span className="min-w-0">
+      <section data-folded={scene.name}>
+        <button className="group -mx-2 flex w-fit max-w-[calc(100%+16px)] min-w-0 items-center gap-3 rounded-lg px-2 py-1.5 text-left transition-colors duration-150 ease-calm hover:bg-hover" onClick={() => setFolded(false)} aria-expanded={false}>
+          <h3 className="min-w-0 truncate text-[15px] leading-[21px] font-semibold">
             {scene.name}
             {asWho(scene) && <span className="font-normal text-soft"> {asWho(scene)}</span>}
-            <span className="sr-only">, looks good</span>
-            </span>
           </h3>
+          <span className="flex flex-none items-center gap-1.5 text-[13px] leading-5 text-green">
+            <EndMark end="good" just={false} className="size-3.5" />
+            <span className="phone:sr-only">Looks good</span>
+          </span>
         </button>
       </section>
     );

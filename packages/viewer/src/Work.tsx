@@ -4,7 +4,7 @@
 // back. The scene you're on has the bar: you note it, compare it with how it was and take it over where it is. At the
 // end, how it got here, and the one step to take.
 
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import type { Note, Place, Review, Round } from "@playthrough/review";
 import { Key, mac } from "./Card.tsx";
 import type { Diamond } from "./changes.ts";
@@ -13,7 +13,7 @@ import { clamp } from "./moments.ts";
 import { fill, type Shown, type Standing } from "./notes.ts";
 import { onPhone } from "./phone.ts";
 import { clock } from "./Rounds.tsx";
-import { beenAt, Parts, stepKey, useParts, type Part } from "./Parts.tsx";
+import { entriesOf, NewToYou, type Entry } from "./NewToYou.tsx";
 import { SceneView, type Threads } from "./Scene.tsx";
 import type { Step } from "./Step.tsx";
 import type { Read } from "./things.ts";
@@ -62,6 +62,8 @@ export function Work(props: Props) {
   const before = review.rounds.find((kept) => kept.number === 0 && kept.scenes.length && round.number > 0);
   // What the work changed, against Before where there is one, else against the round before.
   const work = review.comparisons.find((kept) => kept.round === round.number && kept.since === 0) ?? review.comparisons.findLast((kept) => kept.round === round.number);
+  // What's new to you, the page's index, which you arrive at the top with.
+  const entries = entriesOf(review, round, before, props.diamonds, props.notes, props.threads.you);
   const general = props.notes.filter((note) => !note.on || !round.scenes.some((scene) => scene.name === note.on?.scene));
   // The scene you're on, which the bar and the keys are for: the one gone along to, or pressed, or scrolled to the
   // window's top by its bar; and the last move along the way, which its scene goes to. Noting, writing or in the
@@ -69,8 +71,9 @@ export function Work(props: Props) {
   const [active, setActive] = useState(round.scenes[0]?.name);
   // Gone to from what's different, the stop comes to that change, beside Before where Before had it.
   const [go, setGo] = useState<{ round: number; scene: string; stop: number; passing?: boolean } & There>();
-  // Begun once you've gone along, or arrived on an answer waiting on you; until then, the foot says how to begin.
-  const [arrivedOn] = useState(() => props.notes.some((note) => note.toJudge && round.scenes.some((scene) => scene.name === note.on?.scene)));
+  // Begun once you've gone along, or arrived on an answer waiting on you, where there's nothing new to you to see first;
+  // until then, the foot says how to begin.
+  const [arrivedOn] = useState(() => !entries.length && props.notes.some((note) => note.toJudge && round.scenes.some((scene) => scene.name === note.on?.scene)));
   const begun = !!go || arrivedOn;
   const busy = acting.noting || !!acting.writing || !!acting.live?.shown;
   // Where you are is where you've scrolled to. A scene's name, recording and way are held at the window's top while
@@ -130,25 +133,29 @@ export function Work(props: Props) {
     if (onPhone()) return void (setActive(scene), setGo({ round: round.number, scene, stop, ...at }));
     goTo(room, there, stop, at);
   };
-  // What's different, gone to: the stop where it's seen best, or the stop that's kept together in, close on the change
-  // and beside Before; a new page, played into, as Before had nothing there.
-  const toPart = (part: Part) => {
-    const { scene, step } = part.best;
-    const stops = [...(props.room.current?.querySelectorAll<HTMLElement>(`[data-scene="${CSS.escape(scene.name)}"] [data-step]`) ?? [])];
-    const stop = stops.find((stop) => Number(stop.dataset.step) >= step);
-    const ids = new Set(part.changes.map((change) => change.id));
-    const diamond = part.isNew ? undefined : props.diamonds.find((diamond) => diamond.scene === scene.name && diamond.changes.some(({ change }) => ids.has(change.id)));
-    if (stop) bringTo(scene.name, Number(stop.dataset.stop), { change: diamond?.id, compare: !part.isNew });
+  // What's new to you, gone to: an answer at its note, anything else at the stop it's seen at, or the stop that's kept
+  // together in, close on it and beside how it was; new steps or a new scene, played into, as there was nothing before.
+  // In a scene that looks good to you, the scene opens first.
+  const toEntry = (entry: Entry, again = false) => {
+    const room = props.room.current;
+    const folded = room?.querySelector<HTMLElement>(`[data-folded="${CSS.escape(entry.scene.name)}"] button`);
+    if (folded) return void (!again && (folded.click(), requestAnimationFrame(() => toEntry(entry, true))));
+    const stops = [...(room?.querySelectorAll<HTMLElement>(`[data-scene="${CSS.escape(entry.scene.name)}"] [data-stop]`) ?? [])];
+    // An answer to a note on a moment is at the note; to one on the whole scene, where the still shows it.
+    const stop = stops.find((stop) => entry.note?.on?.at !== undefined && stop.dataset.note === entry.note.id) ?? stops.find((stop) => stop.dataset.step !== undefined && Number(stop.dataset.step) >= entry.step);
+    if (stop) bringTo(entry.scene.name, Number(stop.dataset.stop), { change: entry.diamond, compare: !entry.isNew });
   };
-  // The steps you've come to rest at this visit, which is what's different you've seen: nothing kept, said once.
+  // The steps and notes you've come to rest at this visit; what's new to you there you've seen, as you have in a scene
+  // that looks good to you, and an answer you've judged.
   const [been, setBeen] = useState(() => new Set<string>());
   useEffect(() => {
     if (!go || go.passing || go.stop < 0) return;
-    const step = props.room.current?.querySelector<HTMLElement>(`[data-scene="${CSS.escape(go.scene)}"] [data-stop="${go.stop}"]`)?.dataset.step;
-    const key = step === undefined ? undefined : stepKey(go.scene, Number(step));
-    if (key) setBeen((was) => (was.has(key) ? was : new Set(was).add(key)));
+    const stop = props.room.current?.querySelector<HTMLElement>(`[data-scene="${CSS.escape(go.scene)}"] [data-stop="${go.stop}"]`);
+    const keys = [stop?.dataset.step !== undefined && `${go.scene}\n${stop.dataset.step}`, stop?.dataset.note && `note ${stop.dataset.note}`].filter((key) => typeof key === "string");
+    if (keys.some((key) => !been.has(key))) setBeen((was) => new Set([...was, ...keys]));
   }, [go]);
-  const found = useParts(review, round, before, work?.since === 0 ? work.changes : undefined);
+  const seen = (entry: Entry) =>
+    been.has(`${entry.scene.name}\n${entry.step}`) || (entry.note ? been.has(`note ${entry.note.id}`) || !entry.note.toJudge : props.standing(entry.scene.name)?.is === "good");
   // A note gone to from the line under the title: its stop on its scene's way, or the stop it's a line in, or where it's
   // said at the page's end, or the scene, folded as it looks good to you.
   const toNote = (note: Shown) => {
@@ -210,8 +217,9 @@ export function Work(props: Props) {
     tall();
     const watching = new ResizeObserver(tall);
     watching.observe(room);
-    // Arriving with an answer waiting on you, you're on it, at the line.
-    const waiting = round.scenes.find((scene) => props.notes.some((note) => note.on?.scene === scene.name && note.toJudge && (note.on.app ? note.on.app.from.at : note.on.at) !== undefined));
+    // Arriving with an answer waiting on you, you're on it, at the line, unless what's new to you is at the top: the
+    // answers are first there, and the rest is seen with them.
+    const waiting = !entries.length && round.scenes.find((scene) => props.notes.some((note) => note.on?.scene === scene.name && note.toJudge && (note.on.app ? note.on.app.from.at : note.on.at) !== undefined));
     const held = waiting && room.querySelector<HTMLElement>(`[data-scene="${CSS.escape(waiting.name)}"]`);
     if (held) setActive(waiting.name);
     // Arriving at the top, no scene's yours until one comes up.
@@ -302,9 +310,9 @@ export function Work(props: Props) {
             })}
           </p>
         </header>
-        {before && found && <Parts review={review} round={round} before={before} found={found} been={been} onGo={toPart} />}
-        {/* Scenes that look good to you, folded to their pictures, sit side by side. */}
-        <div className="mt-10 flex flex-wrap gap-x-5 gap-y-12 phone:mt-7 phone:gap-y-9 [&>[data-scene]]:basis-full [&>[data-folded]+[data-folded]]:mt-0">
+        <NewToYou review={review} round={round} entries={entries} you={props.threads.you} seen={seen} onGo={toEntry} />
+        {/* Scenes that look good to you, folded to a line each, sit together as one list. */}
+        <div className="mt-10 flex flex-col gap-12 phone:mt-7 phone:gap-9 [&>[data-folded]+[data-folded]]:-mt-10 phone:[&>[data-folded]+[data-folded]]:-mt-7">
           {round.scenes.map((scene) => (
             <SceneView
               key={`${round.number} ${scene.name}`}
@@ -336,7 +344,7 @@ export function Work(props: Props) {
             story. After a scene still being gone through, it comes up as far as one is held, so that scene leaves whole. */}
         <div className={`mt-14 grid max-w-[680px] content-start gap-8 empty:hidden phone:mt-9 phone:min-h-0 phone:px-4 ${ends && heldLast ? "min-h-[calc(var(--room)-var(--pin)-1rem)]" : ""}`}>
           <Story review={review} round={round} general={general} />
-          <End step={step} trouble={props.trouble} toSend={props.notes.filter((note) => note.unsent)} onNote={toNote} unseen={found?.parts.filter((part) => !beenAt(part, been)) ?? []} onPart={toPart} />
+          <End step={step} trouble={props.trouble} toSend={props.notes.filter((note) => note.unsent)} onNote={toNote} unseen={entries.filter((entry) => !seen(entry))} onEntry={toEntry} />
         </div>
         {/* Until you've begun, how to begin floats at the window's foot, over the way rather than across the recordings,
             taking no room at the page's end; with every scene looking good, there's nothing to go through. */}
@@ -375,7 +383,7 @@ const LANDS = 600;
 // pull request's review is submitted at its foot. The one step left once you've been through it (finish a note, send,
 // accept) and, sent, what the agent is doing with it, said where Send was. Under Send, the notes it sends, each going to
 // where it was written.
-function End({ step, trouble, toSend, onNote, unseen, onPart }: { step?: Step; trouble: string[]; toSend: Shown[]; onNote: (note: Shown) => void; unseen: Part[]; onPart: (part: Part) => void }) {
+function End({ step, trouble, toSend, onNote, unseen, onEntry }: { step?: Step; trouble: string[]; toSend: Shown[]; onNote: (note: Shown) => void; unseen: Entry[]; onEntry: (entry: Entry) => void }) {
   if (step?.kind !== "go" && step?.kind !== "agent") return null;
   const sign =
     step.kind === "agent" ? (
@@ -421,19 +429,11 @@ function End({ step, trouble, toSend, onNote, unseen, onPart }: { step?: Step; t
           ))}
         </ul>
       )}
-      {/* What's different that you haven't come to, said once where you'd send, each gone to from its name. */}
+      {/* What's new to you that you haven't come to, said once where you'd send, going to the first of it. */}
       {step.kind === "go" && unseen.length > 0 && (
-        <p className="mt-2 pl-8 text-[13px] leading-5 text-soft">
-          {unseen.length} {unseen.length === 1 ? "change" : "changes"} you haven't seen ·{" "}
-          {unseen.map((part, i) => (
-            <Fragment key={part.name}>
-              {i > 0 && ", "}
-              <button className="underline-offset-[3px] hover:text-fg hover:underline" onClick={() => onPart(part)}>
-                {part.name}
-              </button>
-            </Fragment>
-          ))}
-        </p>
+        <button className="mt-2 ml-8 block text-left text-[13px] leading-5 text-soft underline-offset-[3px] hover:text-fg hover:underline" onClick={() => onEntry(unseen[0]!)}>
+          {unseen.length} {unseen.length === 1 ? "change" : "changes"} you haven't seen
+        </button>
       )}
       {trouble.length > 0 && <p className="mt-2 pl-8 text-[12.5px] leading-[18px] text-amber-ink">{trouble.join(" ")}</p>}
     </div>
