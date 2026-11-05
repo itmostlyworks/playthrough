@@ -117,38 +117,43 @@ export function SceneView(props: SceneViewProps) {
           onNote: ours ? undefined : () => acting.onPlace({ scene: scene.name }),
         }
       : undefined;
-  // The way through it stops only where there's something for your eyes: a step with something new to you, a note in
-  // it that's open for you, in the order they come, then those about all of it, and its end. The steps between are a
-  // quiet line each, the scene's story, which the way plays through to the next stop; pressed, one's a stop of its own.
-  // Every step a stop was a turn of the wheel for each step nothing had changed in. Where there's nothing to compare it
-  // with, everything in it is new, and every step is a stop.
+  // The way through it stops only where there's something for your eyes: a step with something new to you, a note
+  // that's open for you, in the order they come, then those about all of it, and its end. Every other step is a quiet
+  // line, the scene's story, which the way plays through to the next stop; pressed, one's a stop of its own. Every step
+  // a stop was a turn of the wheel for each step nothing had changed in, and an answer was two, its step's and its own.
+  // Where there's nothing to compare it with, everything in it is new, and every step is a stop.
   const [unfolded, setUnfolded] = useState<number[]>([]);
   const compared = since !== undefined || !!before?.scenes.some((one) => one.name === scene.name);
   // What the agent changed for a note of yours is met with its answer: elsewhere, it's marked where it is, on the way.
   const forNote = (diamond: Diamond) => diamond.changes.every((changed) => changed.answers || (!!changed.note && !!props.noteOf(changed.note)));
   const holds = (step: number) =>
     diamonds.some((diamond) => diamond.row && !forNote(diamond) && !unseen(diamond) && stepOf(changeAt(diamond)) <= step && step <= stepOf(Math.min(diamond.until ?? changeAt(diamond), end)));
-  const asked = (step: number) =>
-    notes.some((note) => momentOf(note) !== undefined && stepOf(Math.min(momentOf(note)!, end)) === step && (note.toJudge || note.unsent || note.state !== "settled")) ||
-    (writingAt !== undefined && stepOf(Math.min(writingAt, end)) === step);
   const aboutAll = [...notes.filter((note) => momentOf(note) === undefined && asks(note)).map((note) => ({ step: -1, id: note.id })), ...(ours && !writing ? [{ step: -1, id: ours.note.id }] : [])];
-  const plain = scene.steps.map((_, i) => compared && !unfolded.includes(i) && !holds(i) && !asked(i));
-  // The steps after the last stop play into its end, where that comes straight after them; else the last is a stop.
-  if ((!atEnd || aboutAll.length) && plain.length) plain[plain.length - 1] = false;
-  // A stop plays from the first of the quiet steps before it.
-  const quietFrom = (step: number) => {
-    let first = step;
-    while (first > 0 && plain[first - 1]) first--;
-    return first < step ? first : undefined;
-  };
+  const plain = scene.steps.map((_, i) => compared && !unfolded.includes(i) && !holds(i));
+  // The steps after the last stop play into what's said about all of it, or its end; with neither, the last is a stop.
+  if (!atEnd && !aboutAll.length && plain.length) plain[plain.length - 1] = false;
   const saidIn = (step: number) =>
     onLine
       .filter((mark) => mark.fill && (mark.id === writing?.note.id || notes.some((note) => note.id === mark.id && asks(note))) && stepOf(mark.at) === step)
       .sort((a, b) => a.at - b.at)
       .map((mark) => ({ step, at: mark.at, id: mark.id }));
-  const stops: Stop[] = [...scene.steps.flatMap((_, i): Stop[] => (plain[i] ? [] : [{ step: i, at: results[i]!, from: quietFrom(i) }, ...saidIn(i)])), ...aboutAll];
+  // Each plays from where the last left off: the start of the quiet steps since, or the note before it in them. An
+  // answer to a note made in the app plays what you did there instead, from where you took it over.
+  const cut = useCut(review.id, round.number, scene);
+  const stops: Stop[] = [];
+  let from: number | undefined;
+  scene.steps.forEach((_, i) => {
+    if (!plain[i]) (stops.push({ step: i, at: results[i]!, from }), (from = undefined));
+    else from ??= stepStart(scene, i, cut);
+    for (const said of saidIn(i)) {
+      const inApp = !!notes.find((note) => note.id === said.id)?.on?.app;
+      stops.push({ ...said, from: plain[i] && !inApp ? from : undefined });
+      if (plain[i]) from = said.at;
+    }
+  });
+  for (const said of aboutAll) (stops.push({ ...said, from }), (from = undefined));
   // Its end plays the quiet steps before it first, so it's come to by watching them, never by skipping past.
-  const endFrom = quietFrom(scene.steps.length);
+  const endFrom = from;
   const last = stops.length - (atEnd ? 0 : 1);
   // Arriving, it's on the answer waiting on you, where there's nothing new to you to see first; else before its first stop.
   const waiting = props.opensOnAnswer ? notes.find((note) => note.state === "needs you" && momentOf(note) !== undefined) : undefined;
@@ -157,7 +162,6 @@ export function SceneView(props: SceneViewProps) {
   const [playing, setPlaying] = useState<{ until: number }>();
   // Dragged along a step's line, it follows the line, and where it's let go, it rests.
   const [scrubbing, setScrubbing] = useState(false);
-  const cut = useCut(review.id, round.number, scene);
   // The stop you're on: arriving, that answer, else none until you go along. What was said there is open
   // beside its thing, as is what you open on the recording.
   const [stop, setStop] = useState(() => (waiting ? stops.findIndex((one) => one.id === waiting.id) : -1));
@@ -173,16 +177,18 @@ export function SceneView(props: SceneViewProps) {
   const stopped = (moment: number) => go(moment, stops[stop]?.id);
   const startOf = (step: number) => stepStart(scene, step, cut);
   // Gone to, a step plays into its result, from the quiet steps before it; what was said in one is there at its moment,
-  // still; what was said about all of it, where it is. Before the first stop it rests, and its end plays the quiet steps
-  // before it into how it ends. Passed, a step is at its start, to play from there once it's stopped on.
+  // played into from the quiet steps before it, where it's in one; what was said about all of it, where it is, or played
+  // into how it ends from the quiet steps before it, as its end is. Before the first stop it rests. Passed, a step is at its
+  // start, to play from there once it's stopped on.
   const toStop = (k: number, passing = false) => {
     setStop(k);
     setStill(passing);
     const there = stops[k];
     if (!there && k < 0) return void (playing && pause());
-    if (!there) return void (endFrom === undefined ? go(results.at(-1)!) : passing ? go(startOf(endFrom)) : playTo(results.at(-1)!, startOf(endFrom)));
-    if (there.id === undefined && passing) go(startOf(there.from ?? there.step));
-    else if (there.id === undefined) playTo(there.at!, startOf(there.from ?? there.step));
+    if (!there) return void (endFrom === undefined ? go(results.at(-1)!) : passing ? go(endFrom) : playTo(results.at(-1)!, endFrom));
+    if (there.id === undefined && passing) go(there.from ?? startOf(there.step));
+    else if (there.id === undefined) playTo(there.at!, there.from ?? startOf(there.step));
+    else if (there.from !== undefined && !passing) playTo(there.at ?? results.at(-1)!, there.from);
     else if (there.at === undefined) setPicked(there.id);
     else go(there.at, there.id);
   };
@@ -831,7 +837,7 @@ export function SceneView(props: SceneViewProps) {
               }}
               said={said}
               end={atEnd}
-              endFrom={endFrom}
+              quiet={plain}
               playing={!!playing}
               onUnfold={unfold}
               quietIn={quietIn}

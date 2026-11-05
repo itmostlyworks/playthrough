@@ -15,8 +15,8 @@ import { EndMark, type End } from "./Chosen.tsx";
 import { clamp } from "./moments.ts";
 import type { Clock, Cut } from "./Player.tsx";
 
-// A stop on the way: a step, at its result, played from the first of the quiet steps before it; something said in a
-// step, a note, at its moment; or something said about all of it, in no step.
+// A stop on the way: a step, at its result; something said in a step, a note, at its moment; or something said about
+// all of it, in no step. And the moment it plays from, where quiet steps come before it.
 export type Stop = { step: number; at?: number; id?: string; from?: number };
 
 // Where a step starts playing: its start is the step before's result, so just after it; the first, where its page has
@@ -53,8 +53,8 @@ type Props = {
   // The way's last stop, its end: how it stands, as its mark; whether it looks good to you, and saying so or taking it
   // back, once nothing in it is still open, or else what's open, in words; and a note on the whole scene.
   end?: { mark: End; looksGood?: { good: boolean; onPress: () => void }; says: ReactNode; onNote?: () => void };
-  // The first of the quiet steps its end plays through; and whether it's playing.
-  endFrom?: number;
+  // The steps that are quiet lines, not stops; and whether it's playing.
+  quiet: boolean[];
   playing: boolean;
   // Taken over: the app is yours, and what plays the recording rests; the stop you're on stays lit, where you took it
   // over, and what you say there answers.
@@ -65,7 +65,7 @@ type Props = {
   quietIn: (step?: number) => ReactNode;
 };
 
-export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, onPoint, onScrub, onGo, end, endFrom, playing, resting, onUnfold, quietIn, changesIn, onChange, newFrom }: Props) {
+export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, onPoint, onScrub, onGo, end, quiet, playing, resting, onUnfold, quietIn, changesIn, onChange, newFrom }: Props) {
   const looksGood = end?.looksGood;
   const stepEnd = (step: number) => scene.steps[step + 1]?.at ?? scene.length;
   const stepOf = (moment: number) => Math.max(0, scene.steps.findIndex((_, step) => stepEnd(step) >= moment - 0.05));
@@ -176,122 +176,120 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
     onPointerDownCapture: () => k !== on && onStop(k),
   });
 
-  // The quiet steps before a stop, a line each, smaller than a stop's: the scene's story, played through on the way to it,
-  // each lit as it plays. Pressed, one's a stop of its own, and gone to.
+  // A quiet step, a line smaller than a stop's: the scene's story, played through on the way to the next stop, lit as it
+  // plays. Pressed, it's a stop of its own, and gone to.
   const reached = on >= stops.length ? scene.steps.length : current;
-  const quietLines = (from: number | undefined, to: number) =>
-    from === undefined
-      ? []
-      : scene.steps.slice(from, to).map((one, j) => {
-          const i = from + j;
-          const lit = playing && through === i && !resting;
-          return (
-            <li key={`quiet ${i}`} className={`relative flex-none py-1.5 pl-8 transition-opacity duration-300 ease-calm ${resting ? "opacity-35" : ""}`} inert={resting}>
-              <span
-                data-sign=""
-                className={`absolute top-2 left-0.5 grid size-4 place-items-center rounded-full text-[9.5px] leading-none font-medium tabular-nums transition-colors duration-300 ease-calm ${lit ? "bg-soft text-ground" : i < reached ? "bg-track text-soft" : "bg-ground text-faint shadow-[inset_0_0_0_1px_var(--track)]"}`}
-              >
-                {i + 1}
-              </span>
-              <button className={`block w-full text-left text-[13px] leading-5 text-balance transition-colors duration-300 ease-calm outline-none hover:text-fg focus-visible:text-fg ${lit ? "text-fg" : "text-faint"}`} onClick={() => onUnfold(i)}>
-                {one.title}
-              </button>
-              {quietIn(i)}
-            </li>
-          );
-        });
+  const quietLine = (i: number) => {
+    const lit = playing && through === i && !resting;
+    return (
+      <li key={`quiet ${i}`} className={`relative flex-none py-1.5 pl-8 transition-opacity duration-300 ease-calm ${resting ? "opacity-35" : ""}`} inert={resting}>
+        <span
+          data-sign=""
+          className={`absolute top-2 left-0.5 grid size-4 place-items-center rounded-full text-[9.5px] leading-none font-medium tabular-nums transition-colors duration-300 ease-calm ${lit ? "bg-soft text-ground" : i < reached ? "bg-track text-soft" : "bg-ground text-faint shadow-[inset_0_0_0_1px_var(--track)]"}`}
+        >
+          {i + 1}
+        </span>
+        <button className={`block w-full text-left text-[13px] leading-5 text-balance transition-colors duration-300 ease-calm outline-none hover:text-fg focus-visible:text-fg ${lit ? "text-fg" : "text-faint"}`} onClick={() => onUnfold(i)}>
+          {scene.steps[i]!.title}
+        </button>
+        {quietIn(i)}
+      </li>
+    );
+  };
+  // Step by step, each a stop or a quiet line, and after it the notes in it that are stops; then those about all of it.
+  const stopsIn = (step: number) => stops.flatMap((stop, k) => (stop.step === step ? [k] : []));
+
+  const stopAt = (k: number) => {
+    const stop = stops[k]!;
+    const here = k === on;
+    const gone = k < on;
+    if (stop.id !== undefined) {
+      const { sign, line, whole } = said(stop.id);
+      return (
+        <li key={stop.id} data-note={stop.id} {...row(k)} inert={resting && !here} onPointerEnter={() => onPoint(stop.id)} onPointerLeave={() => onPoint(undefined)}>
+          <span data-sign="" className={`absolute top-2 left-0.5 grid size-4 translate-y-0.5 place-items-center rounded-full bg-ground transition-[box-shadow] duration-300 ease-calm ${here ? RING : ""}`}>
+            {sign}
+          </span>
+          {/* Folded, its first words and where it stands; open, the whole of it, which starts with them, its thread's own
+              room at its left kept in what it opens in. */}
+          <Opens open={!here}>{line}</Opens>
+          <Opens open={here} className="-ml-4 pl-4">
+            <div className="text-[13px]">{whole}</div>
+          </Opens>
+        </li>
+      );
+    }
+    const i = stop.step;
+    const title = scene.steps[i]!.title;
+    return (
+      <Fragment key={`step ${i}`}>
+      {newFrom(i)}
+      <li {...row(k)} inert={resting}>
+        <span
+          data-sign=""
+          className={`absolute top-2 left-0 grid size-5 place-items-center rounded-full text-[10.5px] leading-none font-medium tabular-nums transition-colors duration-300 ease-calm ${i === current ? "bg-fg text-ground" : gone ? "bg-track text-soft" : "bg-ground text-faint shadow-[inset_0_0_0_1px_var(--track)]"}`}
+        >
+          {i + 1}
+        </span>
+        <button className={`block w-full text-left text-[14px] leading-5 text-balance outline-none hover:text-fg focus-visible:text-fg ${i === current ? "text-fg" : "text-soft"}`} onClick={() => onStop(k)}>
+          {title}
+        </button>
+        <Opens open={here}>
+        <div className="pt-[11px] pr-2 pb-[3px]">
+          <div
+            ref={here ? line : undefined}
+            role="slider"
+            tabIndex={here ? 0 : -1}
+            aria-label={`Where in “${title}”`}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(share(i, at) * 100)}
+            className="group/line relative h-0.5 w-full cursor-pointer touch-none outline-none select-none before:absolute before:inset-x-0 before:-inset-y-2 before:content-['']"
+            onPointerDown={press}
+            onKeyDown={(event) =>
+              (event.key === "ArrowLeft" || event.key === "ArrowRight") &&
+              (event.preventDefault(), event.stopPropagation(), onGo(momentAt(i, clamp(share(i, clock.at) + (event.key === "ArrowRight" ? 0.05 : -0.05), 0, 1))))
+            }
+          >
+            <span className={`absolute inset-0 overflow-hidden rounded-[1px] bg-track transition-[scale] duration-150 ease-calm group-hover/line:scale-y-200 group-focus-visible/line:scale-y-200 ${held ? "scale-y-200" : ""}`}>
+              <span className="absolute inset-0 origin-left bg-soft [scale:var(--done,0)_1]" />
+            </span>
+            {marks
+              .filter((mark) => stepOf(mark.at) === i)
+              .map((mark) => (
+                <button
+                  key={mark.id}
+                  data-mark={mark.id}
+                  aria-label={mark.words}
+                  className="group/mark absolute top-1/2 z-3 grid size-3.5 -translate-x-1/2 -translate-y-1/2 place-items-center outline-none"
+                  style={{ left: `${share(i, mark.at) * 100}%` }}
+                  onKeyDown={(event) => event.key === "Enter" && toMark(mark.id)}
+                >
+                  {mark.fill ? (
+                    <i className={`size-1.5 rounded-full shadow-[0_0_0_2px_var(--under,var(--ground))] transition-[scale] duration-150 ease-calm group-hover/mark:scale-140 group-focus-visible/mark:scale-140 ${mark.fill}`} />
+                  ) : (
+                    <i className="size-[7px] rotate-45 bg-fg shadow-[0_0_0_1.5px_var(--under,var(--ground))] transition-[scale] duration-150 ease-calm group-hover/mark:scale-130 group-focus-visible/mark:scale-130" />
+                  )}
+                </button>
+              ))}
+          </div>
+        </div>
+        {changesIn(i)}
+        {quietIn(i)}
+        </Opens>
+      </li>
+      </Fragment>
+    );
+  };
 
   return (
     <ol ref={list} aria-label={`The way through “${scene.name}”`} className="relative flex flex-col">
       <li aria-hidden className={`pointer-events-none absolute top-(--rail-top) left-[9.5px] h-(--rail) w-px bg-track transition-opacity duration-300 ease-calm phone:hidden ${resting ? "opacity-35" : ""}`}>
         <span className="absolute inset-0 origin-top bg-soft [scale:1_var(--reach,0)] transition-[scale] duration-300 ease-calm" />
       </li>
-      {stops.map((stop, k) => {
-        const here = k === on;
-        const gone = k < on;
-        if (stop.id !== undefined) {
-          const { sign, line, whole } = said(stop.id);
-          return (
-            <li key={stop.id} data-note={stop.id} {...row(k)} inert={resting && !here} onPointerEnter={() => onPoint(stop.id)} onPointerLeave={() => onPoint(undefined)}>
-              <span data-sign="" className={`absolute top-2 left-0.5 grid size-4 translate-y-0.5 place-items-center rounded-full bg-ground transition-[box-shadow] duration-300 ease-calm ${here ? RING : ""}`}>
-                {sign}
-              </span>
-              {/* Folded, its first words and where it stands; open, the whole of it, which starts with them, its thread's own
-                  room at its left kept in what it opens in. */}
-              <Opens open={!here}>{line}</Opens>
-              <Opens open={here} className="-ml-4 pl-4">
-                <div className="text-[13px]">{whole}</div>
-              </Opens>
-            </li>
-          );
-        }
-        const i = stop.step;
-        const title = scene.steps[i]!.title;
-        return (
-          <Fragment key={`step ${i}`}>
-          {quietLines(stop.from, i)}
-          {newFrom(i)}
-          <li {...row(k)} inert={resting}>
-            <span
-              data-sign=""
-              className={`absolute top-2 left-0 grid size-5 place-items-center rounded-full text-[10.5px] leading-none font-medium tabular-nums transition-colors duration-300 ease-calm ${i === current ? "bg-fg text-ground" : gone ? "bg-track text-soft" : "bg-ground text-faint shadow-[inset_0_0_0_1px_var(--track)]"}`}
-            >
-              {i + 1}
-            </span>
-            <button className={`block w-full text-left text-[14px] leading-5 text-balance outline-none hover:text-fg focus-visible:text-fg ${i === current ? "text-fg" : "text-soft"}`} onClick={() => onStop(k)}>
-              {title}
-            </button>
-            <Opens open={here}>
-            <div className="pt-[11px] pr-2 pb-[3px]">
-              <div
-                ref={here ? line : undefined}
-                role="slider"
-                tabIndex={here ? 0 : -1}
-                aria-label={`Where in “${title}”`}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={Math.round(share(i, at) * 100)}
-                className="group/line relative h-0.5 w-full cursor-pointer touch-none outline-none select-none before:absolute before:inset-x-0 before:-inset-y-2 before:content-['']"
-                onPointerDown={press}
-                onKeyDown={(event) =>
-                  (event.key === "ArrowLeft" || event.key === "ArrowRight") &&
-                  (event.preventDefault(), event.stopPropagation(), onGo(momentAt(i, clamp(share(i, clock.at) + (event.key === "ArrowRight" ? 0.05 : -0.05), 0, 1))))
-                }
-              >
-                <span className={`absolute inset-0 overflow-hidden rounded-[1px] bg-track transition-[scale] duration-150 ease-calm group-hover/line:scale-y-200 group-focus-visible/line:scale-y-200 ${held ? "scale-y-200" : ""}`}>
-                  <span className="absolute inset-0 origin-left bg-soft [scale:var(--done,0)_1]" />
-                </span>
-                {marks
-                  .filter((mark) => stepOf(mark.at) === i)
-                  .map((mark) => (
-                    <button
-                      key={mark.id}
-                      data-mark={mark.id}
-                      aria-label={mark.words}
-                      className="group/mark absolute top-1/2 z-3 grid size-3.5 -translate-x-1/2 -translate-y-1/2 place-items-center outline-none"
-                      style={{ left: `${share(i, mark.at) * 100}%` }}
-                      onKeyDown={(event) => event.key === "Enter" && toMark(mark.id)}
-                    >
-                      {mark.fill ? (
-                        <i className={`size-1.5 rounded-full shadow-[0_0_0_2px_var(--under,var(--ground))] transition-[scale] duration-150 ease-calm group-hover/mark:scale-140 group-focus-visible/mark:scale-140 ${mark.fill}`} />
-                      ) : (
-                        <i className="size-[7px] rotate-45 bg-fg shadow-[0_0_0_1.5px_var(--under,var(--ground))] transition-[scale] duration-150 ease-calm group-hover/mark:scale-130 group-focus-visible/mark:scale-130" />
-                      )}
-                    </button>
-                  ))}
-              </div>
-            </div>
-            {changesIn(i)}
-            {quietIn(i)}
-            </Opens>
-          </li>
-          </Fragment>
-        );
-      }).concat(
+      {[...scene.steps.flatMap((_, i) => [...(quiet[i] ? [quietLine(i)] : []), ...stopsIn(i).map(stopAt)]), ...stopsIn(-1).map(stopAt)].concat(
         end ? (
-          <Fragment key="end">
-          {quietLines(endFrom, scene.steps.length)}
-          <li {...row(stops.length)} data-end={looksGood ? "looks good" : ""} inert={resting}>
+          <li key="end" {...row(stops.length)} data-end={looksGood ? "looks good" : ""} inert={resting}>
             <span data-sign="" className={`absolute top-2 left-0 grid size-5 place-items-center rounded-full bg-ground transition-[scale] duration-300 ease-calm ${on === stops.length ? "scale-125" : ""}`}>
               <EndMark end={end.mark} ahead={on !== stops.length} just={false} className="size-3.5" />
             </span>
@@ -320,7 +318,6 @@ export function Steps({ scene, clock, at, cut, stops, on, marks, said, onStop, o
               {quietIn()}
             </Opens>
           </li>
-          </Fragment>
         ) : [],
       )}
     </ol>
