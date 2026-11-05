@@ -81,10 +81,13 @@ export function Bar(props: Props) {
           {!count && <p className="px-2.5 py-[7px] text-[13px] text-soft">No notes on this scene yet.</p>}
         </div>
       </div>}
+      {/* Pressed, a button here gives the keyboard back to the page, as Looks good does: Back to the recording turns into
+          Take over where it is, and the next Enter, Looks good at a scene's end, took the app over again. */}
       <div
         role="toolbar"
         aria-label="This moment"
         data-bar=""
+        onClick={(event) => (event.target as Element).closest("button")?.blur()}
         className={`flex gap-0.5 rounded-xl bg-surface p-1 text-[13px] select-none [&_kbd]:text-[color-mix(in_srgb,var(--faint)_55%,var(--soft))] ${inApp ? "shadow-[0_0_0_1.5px_rgba(236,178,72,0.95),0_6px_20px_rgba(20,24,34,0.12)]" : "shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]"}`}
       >
         <button className={item} disabled={!props.onNote} aria-pressed={props.noting} onClick={props.onNote}>
