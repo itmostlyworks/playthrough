@@ -229,7 +229,7 @@ function OnRound({ review: kept, round, latest, newer, you, scene: inAddress, on
   const takeOver = () => {
     if (live?.shown) return letGo();
     if (forkOfFork) return;
-    if (onGrid && restingAt.current) return tryAgain(restingAt.current);
+    if (onGrid && restingAt.current) return tryNote(restingAt.current);
     if (openNote && whereYouWere.get(openNote.id)?.at !== undefined && openNote.on?.scene === watching) return tryWhereYouWere(openNote);
     trying.current = undefined;
     const base = onFork && round.scenes.find((scene) => scene.name === onFork.from.scene);
@@ -241,9 +241,15 @@ function OnRound({ review: kept, round, latest, newer, you, scene: inAddress, on
     // While its name is up, the scene is at its start.
     takeOverAt(playhead.scene, Math.max(0, playhead.now.moment.at));
   };
-  // On the page, the answer to a note made in the app you rest at: where you took its scene over, what you did there
-  // done again on this round's work, the note's pin on what it's on.
+  // On the page, a note made in the app you rest at: where you took its scene over, what you did there done again on
+  // this round's work, the note's pin on what it's on; answered with a fork run again on this round, from that run,
+  // else as you did it.
   const restingAt = useRef<string>(undefined);
+  const tryNote = (id: string) => {
+    const note = notes.find((one) => one.id === id);
+    if (note?.on?.app) return tryAgain(id);
+    if (note && whereYouWere.has(id)) return tryWhereYouWere(note);
+  };
   const tryAgain = (id: string) => {
     const app = notes.find((note) => note.id === id)?.on?.app;
     const scene = app && round.scenes.find((one) => one.name === app.from.scene);
@@ -292,13 +298,14 @@ function OnRound({ review: kept, round, latest, newer, you, scene: inAddress, on
   // On the page, the app comes by itself where you come to rest: at a step, or at an answer to a note made in the app,
   // what you did there done again. Not where you've just left it, nor where it couldn't be made ready.
   const stepIn = () => {
-    if (live?.shown || round !== latest) return;
-    const app = restingAt.current ? notes.find((note) => note.id === restingAt.current)?.on?.app : undefined;
-    const scene = app ? round.scenes.find((one) => one.name === app.from.scene) : playhead.scene;
-    const at = app ? app.from.at : Math.max(0, playhead.now.moment.at);
-    const paused = scene && pausedAt(scene, at);
-    if (!scene || !paused || (live && live.scene === scene.name && samePaused(live.paused, paused) && (live.left || live.problems))) return;
-    if (app) return tryAgain(restingAt.current!);
+    if (live?.shown || round.number !== latest.number) return;
+    const note = restingAt.current ? notes.find((one) => one.id === restingAt.current) : undefined;
+    const was = note && whereYouWere.get(note.id);
+    const scene = note?.on?.app ? round.scenes.find((one) => one.name === note.on!.app!.from.scene) : note ? round.scenes.find((one) => one.name === note.on?.scene) : playhead.scene;
+    const at = note?.on?.app ? note.on.app.from.at : note ? was?.at : Math.max(0, playhead.now.moment.at);
+    const paused = scene && at !== undefined ? pausedAt(scene, at) : undefined;
+    if (!scene || at === undefined || !paused || (live && live.scene === scene.name && samePaused(live.paused, paused) && (live.left || live.problems))) return;
+    if (note) return tryNote(note.id);
     trying.current = undefined;
     starting.current = { from: { scene: scene.name, at: Math.round(at * 100) / 100 } };
     takeOverAt(scene, at, undefined, undefined, true);
@@ -307,7 +314,7 @@ function OnRound({ review: kept, round, latest, newer, you, scene: inAddress, on
   const readyAhead = (scene: string, at: number) => {
     const on = round.scenes.find((one) => one.name === scene);
     const paused = on && at >= 0 ? pausedAt(on, at) : undefined;
-    if (!on || !paused || round !== latest || (live?.scene === scene && samePaused(live.paused, paused))) return;
+    if (!on || !paused || round.number !== latest.number || (live?.scene === scene && samePaused(live.paused, paused))) return;
     setLive({ scene, paused, shown: false });
     const same = (now: Live | undefined): now is Live => now?.scene === scene && samePaused(now.paused, paused);
     readyAt(review.id, scene, paused, { ahead: true }).then((answer) =>
@@ -1463,6 +1470,7 @@ function OnRound({ review: kept, round, latest, newer, you, scene: inAddress, on
             up={onGrid}
             read={read}
             notes={notes}
+            madeInApp={(id) => !!noted.find((note) => note.id === id)?.on?.app}
             standing={(name) => standing?.get(name)}
             onLooksGood={readOnly ? undefined : lookingGood}
             threads={{ you, readOnly, unfinished, onUnfinished: keepUnfinished, onJudge: judge, onEdit: editNote }}

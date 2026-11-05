@@ -41,6 +41,7 @@ type SceneViewProps = {
   notes: Shown[];
   // Any note of yours, wherever it's on: a change here can be made for one on another scene.
   noteOf: (id: string) => Shown | undefined;
+  madeInApp: (id: string) => boolean;
   standing?: Standing;
   onLooksGood?: (scene: string) => void;
   threads: Threads;
@@ -307,23 +308,24 @@ export function SceneView(props: SceneViewProps) {
   useEffect(() => void (!active && playing && pause()), [active]);
   // Noting, it stops where it is: a note is made on the moment it's at; in the app, on what you click there.
   useEffect(() => void (noting && playing && pause()), [noting]);
-  // At rest on the scene you're on, that's where Take over takes it over; at such an answer, it's taken over the
-  // way it was found, what you did done again in the app.
+  // At rest on the scene you're on, that's where Take over takes it over; at a note made in the app, it's taken over
+  // the way it was found, what you did done again in the app.
   const restsAt = Math.round(at * 100) / 100;
   const resting = active && !playing && !scrubbing && !taken;
-  useEffect(() => void (resting && acting.onRest(scene.name, restsAt, redone?.id)), [resting, restsAt, redone?.id]);
-  // Come to rest at a place, a step's result or its end, or an answer to a note made in the app once what you did there
-  // has played, the app comes there by itself. At a note or a change, it's the recording, at its moment, a click from
-  // being the app.
   const atStop = stops[stop];
+  const appNote = atStop?.id !== undefined && props.madeInApp(atStop.id) ? atStop.id : undefined;
+  useEffect(() => void (resting && acting.onRest(scene.name, restsAt, appNote)), [resting, restsAt, appNote]);
+  // Come to rest at a place, a step's result or its end, or a note made in the app, once what you did there done again
+  // has played where the agent ran it, the app comes there by itself, there too what you did done again. At a note on
+  // the recording, or a change, it's the recording, at its moment, a click from being the app.
   const atPlace =
     stop >= stops.length
       ? !picked && Math.abs(at - results.at(-1)!) < 0.02
       : atStop?.id === undefined
         ? !!atStop && !picked && Math.abs(at - atStop.at!) < 0.02
-        : !!redone && redone.id === atStop.id && !redoing;
+        : !!appNote && !redoing;
   const comesBy = resting && atPlace && !noting && !acting.writing && !side && !peek;
-  useEffect(() => void (comesBy && acting.onStepIn()), [comesBy, restsAt, redone?.id]);
+  useEffect(() => void (comesBy && acting.onStepIn()), [comesBy, restsAt, appNote]);
   // And there, it's a click from being the app: pointing at it says so beside your pointer, as who it's done as. A
   // click on another scene's makes it the one you're on.
   const person = personAt(scene, restsAt);

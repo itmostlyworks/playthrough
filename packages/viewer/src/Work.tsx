@@ -22,6 +22,8 @@ type Props = {
   up: boolean;
   read: Read;
   notes: Shown[];
+  // Whether a note was made in the app, on whichever round: shown where this round has its thing, it's tried as it was found.
+  madeInApp: (id: string) => boolean;
   standing: (scene: string) => Standing | undefined;
   // Saying a scene looks good, or taking it back; none where nothing can be said.
   onLooksGood?: (scene: string) => void;
@@ -155,6 +157,7 @@ export function Work(props: Props) {
             readings={props.read(round.number, scene.name)}
             notes={props.notes.filter((note) => note.on?.scene === scene.name)}
             noteOf={(id) => props.notes.find((note) => note.id === id)}
+            madeInApp={props.madeInApp}
             standing={props.standing(scene.name)}
             onLooksGood={props.onLooksGood}
             threads={props.threads}
