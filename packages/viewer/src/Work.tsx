@@ -323,7 +323,7 @@ export function Work(props: Props) {
               </button>
             )}
             {/* Sent, what the agent does with it is said where Send was, rather than the foot going quiet. */}
-            {step?.kind === "agent" && <Agent step={step} className="justify-end rounded-lg bg-surface px-3 shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]" />}
+            {step?.kind === "agent" && <Agent step={step} className="rounded-lg bg-surface px-3 shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]" />}
             {props.trouble.length > 0 && <p className="mt-2 rounded-lg bg-surface px-3 py-2 text-xs leading-[18px] text-amber-ink shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]">{props.trouble.join(" ")}</p>}
           </div>
         </div>
