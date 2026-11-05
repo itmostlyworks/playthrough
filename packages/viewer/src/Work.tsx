@@ -160,6 +160,9 @@ export function Work(props: Props) {
   // What the scroll reading, set up once, needs as it is now: the round you're looking at among it, so a step read on
   // an older round is that round's.
   const ends = step?.kind === "go" || step?.kind === "agent";
+  // Whether the last scene is gone through held at the window's top, or looks good to you and is folded to its picture.
+  const last = round.scenes.at(-1);
+  const heldLast = !!last && props.standing(last.name)?.is !== "good";
   const now = useRef({ busy, move, active, letGo, settled, round: round.number, ends });
   now.current = { busy, move, active, letGo, settled, round: round.number, ends };
   // A verdict lands where it was said, and the way goes on from there, unless you've gone on already: from the last
@@ -307,24 +310,16 @@ export function Work(props: Props) {
             />
           ))}
         </div>
-        {/* The page's end, held at the window's top as a scene is once you've gone to it, and closing it as it opened:
-            what was asked, so what you send is read against it, and how it got here. */}
-        <div className={`mt-14 grid grid-cols-[minmax(0,1fr)_340px] gap-8 phone:mt-9 phone:min-h-0 phone:grid-cols-1 ${ends ? "min-h-[calc(var(--room)-var(--pin)-1rem)]" : ""}`}>
-          <div className="col-start-1 row-start-1 grid max-w-[680px] gap-6 self-start empty:hidden phone:row-start-auto phone:mx-4">
-            {ends && (
-              <header>
-                <h3 className="px-0.5 text-[15px] leading-[21px] font-semibold text-balance">{review.title}</h3>
-                {review.asked && <p className="mt-1.5 px-0.5 text-[14px] leading-[22px] text-soft">{review.asked}</p>}
-              </header>
-            )}
-            <Story review={review} round={round} general={general} />
-          </div>
+        {/* The page's end: how it got here, then what you've said, sent, as a pull request's review box is under its
+            story. After a scene still being gone through, it comes up as far as one is held, so that scene leaves whole. */}
+        <div className={`mt-14 grid max-w-[680px] content-start gap-8 empty:hidden phone:mt-9 phone:min-h-0 phone:px-4 ${ends && heldLast ? "min-h-[calc(var(--room)-var(--pin)-1rem)]" : ""}`}>
+          <Story review={review} round={round} general={general} />
           <End step={step} trouble={props.trouble} toSend={props.notes.filter((note) => note.unsent)} onNote={toNote} />
         </div>
         {/* Until you've begun, how to begin floats at the window's foot, over the way rather than across the recordings,
-            taking no room at the page's end. */}
+            taking no room at the page's end; with every scene looking good, there's nothing to go through. */}
         <div className="pointer-events-none sticky bottom-4 z-10 flex h-0 items-end justify-end">
-          {!begun && up && (
+          {!begun && up && round.scenes.some((scene) => props.standing(scene.name)?.is !== "good") && (
             // On a plate of the page's ground fading in above it, so the way's words go under it quietly rather than through it.
             <div className="pointer-events-auto relative w-max max-w-full min-w-[300px] before:pointer-events-none before:absolute before:-inset-x-4 before:-top-8 before:-bottom-4 before:-z-10 before:bg-linear-to-b before:from-transparent before:to-ground before:to-35%">
               <button
@@ -373,7 +368,7 @@ function End({ step, trouble, toSend, onNote }: { step?: Step; trouble: string[]
     </>
   );
   return (
-    <div className="col-start-2 row-start-1 self-start phone:col-start-1 phone:row-start-auto phone:px-4">
+    <div className="w-max max-w-full min-w-[340px]">
       <div className="relative py-2 pl-8">
         <span className="absolute top-2 left-0 grid size-5 place-items-center">{sign}</span>
         {step.kind === "go" ? (
