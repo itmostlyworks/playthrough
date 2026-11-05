@@ -430,7 +430,15 @@ export function SceneView(props: SceneViewProps) {
         whole: <div className="grid gap-2.5 pt-1 pb-1.5 text-[13px]">{ours.words}</div>,
       };
     const note = notes.find((note) => note.id === id)!;
-    return { sign: <span className={`size-2 rounded-full ${fill(note)}`} />, line: lineOf(note.turns[0]?.words, note.unsent ? "To send" : "To check"), whole: <div className="-my-2 -ml-4">{thread(note)}</div> };
+    // At an answer to a note made in the app, what the frame shows is what you did, done again, said where you are,
+    // never over it.
+    const whole = (
+      <>
+        {redone?.id === id && <p className="pb-2 text-xs leading-4 text-soft">Showing what you did, done again</p>}
+        <div className="-my-2 -ml-4">{thread(note)}</div>
+      </>
+    );
+    return { sign: <span className={`size-2 rounded-full ${fill(note)}`} />, line: lineOf(note.turns[0]?.words, note.unsent ? "To send" : "To check"), whole };
   };
   // A note that asks nothing of you is a line in its step, as a resolved conversation is: its first words and where it
   // stands, opening when pressed and folding again from its thread.
@@ -590,9 +598,10 @@ export function SceneView(props: SceneViewProps) {
 
   return (
     <section data-scene={scene.name} data-stops={last + 1} data-stop={stop}>
-      {/* The app, or its recording, held at the window's top as its way and the other scenes beside it go by. */}
+      {/* The app, or its recording, held at the window's top while its way and the other scenes beside it go by; on a
+          phone, they go by under it. */}
       <div className="grid grid-cols-[minmax(0,1fr)_340px] items-start gap-8 phone:grid-cols-1 phone:gap-5">
-        <div className="@container sticky top-6 phone:static">
+        <div className="@container sticky top-6 z-10 phone:top-0 phone:-mx-4 phone:bg-ground phone:px-4 phone:pt-2 phone:pb-7">
         {/* A phone's sits against its way, as narrow as it is. */}
         <div className={phone ? "ml-auto transition-[width] duration-450 ease-calm" : undefined} style={phone ? { width: side ? `calc(${2 * phone} * ${high} + 16px)` : `calc(${phone} * ${high})` } : undefined}>
         {/* Its name is over its way; on a phone, where its way comes after it, it's over the app. */}
@@ -720,8 +729,7 @@ export function SceneView(props: SceneViewProps) {
         </div>
         </div>
         {/* Its way beside the app, the scenes before it over it and the rest after it: its name, what the agent said of
-            it, and its steps. What the recording shows when it's not the scene's own is said there too, never over it:
-            where a note was made in the app, there's room kept for it, so the way never moves as it comes and goes. */}
+            it, and its steps. */}
         <div className="min-w-0">
           {props.above}
           <div className="grid content-start gap-2 pb-4">
@@ -729,7 +737,6 @@ export function SceneView(props: SceneViewProps) {
               {scene.name}
               {asWho(scene) && <span className="font-normal text-soft"> {asWho(scene)}</span>}
             </h3>
-            {notes.some((note) => note.on?.app) && <span className="min-h-4 pr-0.5 pl-8 text-xs leading-4 text-soft">{redone && "Showing what you did, done again"}</span>}
             {scene.line && (
               <div className="pt-1 pr-0.5 pl-8 text-[13px]">
                 <Said who={round.by}>{scene.line}</Said>
