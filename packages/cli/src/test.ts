@@ -563,7 +563,7 @@ async function kept(page: Page, rest: () => Promise<void>): Promise<Handed> {
     session: { ...sessionStorage },
     scroll: { x: scrollX, y: scrollY },
     clock: Date.now(),
-    browser: { dark: matchMedia("(prefers-color-scheme: dark)").matches, still: matchMedia("(prefers-reduced-motion: reduce)").matches, languages: [...navigator.languages] },
+    browser: { dark: matchMedia("(prefers-color-scheme: dark)").matches, still: matchMedia("(prefers-reduced-motion: reduce)").matches, languages: [...navigator.languages], touch: navigator.maxTouchPoints > 0 },
   }));
   return { url: page.url(), cookies: await page.context().cookies(), ...kept, clock: kept.clock - Date.now() };
 }

@@ -51,7 +51,7 @@ export type To = { scene: string; step?: string; actions?: number; rests?: boole
 // memory. Taken over on a person's branch, what they did there, done again after them.
 export type Handed = { url: string; cookies: Cookie[]; local: Record<string, string>; session: Record<string, string>; scroll: { x: number; y: number }; clock: number; browser: Browser; again?: Action[]; did?: Did[] };
 // Whether it asked for dark and for little motion, and the languages it read in.
-export type Browser = { dark: boolean; still: boolean; languages: string[] };
+export type Browser = { dark: boolean; still: boolean; languages: string[]; touch?: boolean };
 // An action of the scene's, done again in the person's browser: what it did, on the element at that path, with what.
 export type Action = { does: string; on: string; with?: string | boolean | string[] };
 export type Cookie = { name: string; value: string; path: string; expires: number; httpOnly: boolean };

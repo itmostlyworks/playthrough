@@ -297,6 +297,96 @@ const SAYS = `<script>(() => {
     }, 150);
   };
   addEventListener("keydown", leave, true);
+  // A scene on a phone is a finger's: there, a mouse drag is a swipe. What's under it follows the pointer, and let go, it
+  // glides on as a fling does, to the column it snaps to if it snaps, as Kan's board does; a wheel or a trackpad only
+  // jumped it a column at a time ("It just jumps from one column to the next"). Pressed and held first, it's the app's
+  // own drag, as a long press is on a phone, as a card is dragged on Kan's board; a click is still a click.
+  if (browser?.touch) {
+    let press;
+    const scrolls = (element, axis) => {
+      const look = getComputedStyle(element);
+      return /auto|scroll/.test(axis === "x" ? look.overflowX : look.overflowY) && (axis === "x" ? element.scrollWidth > element.clientWidth : element.scrollHeight > element.clientHeight);
+    };
+    const scrollerOf = (element, axis) => {
+      for (; element && element !== document.body && element !== document.documentElement; element = element.parentElement) if (scrolls(element, axis)) return element;
+      return document.scrollingElement;
+    };
+    const at = (scroller, axis) => (axis === "x" ? scroller.scrollLeft : scroller.scrollTop);
+    // Where it rests at each thing in it that snaps, as the browser would put it: not those in a part of it that scrolls
+    // on its own, which snap to that.
+    const snaps = (scroller, axis) => {
+      const look = getComputedStyle(scroller);
+      const box = scroller.getBoundingClientRect();
+      const [start, size, room, padStart, padEnd] = axis === "x" ? ["left", "width", scroller.clientWidth, look.scrollPaddingLeft, look.scrollPaddingRight] : ["top", "height", scroller.clientHeight, look.scrollPaddingTop, look.scrollPaddingBottom];
+      const origin = (scroller === document.scrollingElement ? 0 : box[start]) - at(scroller, axis);
+      const own = (element) => {
+        for (let up = element.parentElement; up && up !== scroller; up = up.parentElement) if (scrolls(up, "x") || scrolls(up, "y")) return false;
+        return true;
+      };
+      return [...scroller.querySelectorAll("*")].flatMap((element) => {
+        const align = getComputedStyle(element).scrollSnapAlign.split(" ");
+        const how = axis === "x" ? align.at(-1) : align[0];
+        if (how === "none" || !own(element)) return [];
+        const rect = element.getBoundingClientRect();
+        const from = rect[start] - origin;
+        return [how === "start" ? from - (parseFloat(padStart) || 0) : how === "end" ? from + rect[size] - room + (parseFloat(padEnd) || 0) : from + rect[size] / 2 - room / 2];
+      });
+    };
+    const swallow = (e) => (e.stopImmediatePropagation(), e.preventDefault());
+    addEventListener("pointerdown", (e) => {
+      if (e.pointerType === "mouse" && e.button === 0 && !typing(e.target)) press = { x: e.clientX, y: e.clientY, since: performance.now(), on: e.target, went: [] };
+    }, true);
+    const drag = (e) => {
+      if (!press || press.held || (e.pointerType && e.pointerType !== "mouse")) return;
+      const [dx, dy] = [e.clientX - press.x, e.clientY - press.y];
+      if (!press.scroller) {
+        if (Math.hypot(dx, dy) < 6) return;
+        if (performance.now() - press.since > 400) return void (press.held = true);
+        press.axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+        press.scroller = scrollerOf(press.on, press.axis);
+        press.snapped = press.scroller.style.scrollSnapType;
+        press.snaps = getComputedStyle(press.scroller).scrollSnapType !== "none";
+        press.scroller.style.scrollSnapType = "none";
+        press.from = at(press.scroller, press.axis);
+        document.documentElement.style.userSelect = "none";
+        getSelection()?.removeAllRanges();
+      }
+      swallow(e);
+      const by = press.axis === "x" ? dx : dy;
+      press.scroller.scrollTo({ [press.axis === "x" ? "left" : "top"]: press.from - by, behavior: "instant" });
+      press.went.push([performance.now(), by]);
+    };
+    addEventListener("pointermove", drag, true);
+    addEventListener("mousemove", drag, true);
+    const letGo = (e) => {
+      const was = press;
+      if (e.type === "pointerup" || !was?.scroller) press = undefined;
+      if (!was?.scroller) return;
+      swallow(e);
+      if (e.type !== "pointerup") return;
+      // What the swipe let go of isn't clicked.
+      const unclicked = (click) => swallow(click);
+      addEventListener("click", unclicked, true);
+      setTimeout(() => removeEventListener("click", unclicked, true));
+      document.documentElement.style.userSelect = "";
+      const { scroller, axis, snapped, snaps: snapping, went } = was;
+      // How fast it was going over the last tenth of a second, and on as far as a fling goes at that speed.
+      const now = performance.now();
+      const recent = went.filter(([when]) => now - when < 100);
+      const [first, last] = [recent[0], recent.at(-1)];
+      const speed = first && last && last[0] > first[0] ? (last[1] - first[1]) / (last[0] - first[0]) : 0;
+      const here = at(scroller, axis);
+      const flung = here - speed * 250;
+      const points = snapping ? snaps(scroller, axis) : [];
+      const to = points.length ? points.reduce((best, point) => (Math.abs(point - flung) < Math.abs(best - flung) ? point : best)) : flung;
+      scroller.scrollTo({ [axis === "x" ? "left" : "top"]: to, behavior: "smooth" });
+      const settle = () => (scroller.style.scrollSnapType = snapped);
+      scroller.addEventListener("scrollend", settle, { once: true });
+      setTimeout(settle, 900);
+    };
+    addEventListener("pointerup", letGo, true);
+    addEventListener("mouseup", letGo, true);
+  }
   // What a thing is called, and the path back to it, so a note says what it's on, and taking your branch over does what you did again.
   // Something you can press or type into, or else the nearest thing with words of its own: inside a dialog, what's in
   // it, not the dialog. Something you press that holds others isn't one control but what holds them, as on a recording:
