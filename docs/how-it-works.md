@@ -54,8 +54,7 @@ it knows each action by its place only (the second of four). `together` (`packag
 on the longest run both did in order, steps by title, actions by step and name: each pair begins and ends together,
 each side scaled to its own pace between; what one did alone plays while the other holds before what's next. The page
 plays along that, now's waiting cut short; `inStep`, which the older page uses, is the same pairing read one way. Each
-side closes in on the moment's thing as its still finds it (`aboutIn`), in its own reading, on one region around it:
-all either has beside it, placed from each side's own thing, so where nothing moved the two are the same view.
+side closes in on the moment's thing as its still does (`closeOn`), found in its own reading, both at the wider scale.
 
 **What's kept where.** In the app's copy, `.playthrough/change.json` (the change meant), `port.json` (the app's port),
 `browser.json` (what `as` did), and a folder per change: `scenes/<words>.ts` (each moment's way), `rounds/<n>/` (each

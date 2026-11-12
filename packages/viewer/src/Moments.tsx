@@ -607,18 +607,18 @@ function fadeOf(frame: Frame): React.CSSProperties {
   return { maskImage: mask, WebkitMaskImage: mask, maskComposite: "intersect", WebkitMaskComposite: "source-in" };
 }
 
+// A part of the page made this wide, the same shape, around the same middle, and never past the page's edges.
+function widened(frame: Frame, width: number): Frame {
+  const height = (frame.height * width) / frame.width;
+  const middle = (at: number, size: number, to: number) => clamp(at + size / 2 - to / 2, 0, 1 - to);
+  return { x: middle(frame.x, frame.width, width), y: middle(frame.y, frame.height, height), width, height };
+}
+
 // The part of a moment's page that shows what it's about, this wide for its height: closed in on it with enough around
 // it to know where you are, its nearest words with it, as a field's label and the line under it. Nothing, where it
 // names nothing on the page.
 const STILL = 1.6;
 function closeOn(reading: Reading | undefined, about: { role: string; name: string } | undefined, shape: number): Frame | undefined {
-  const found = aboutIn(reading, about);
-  return found && reading && around(found.around, reading.screen, shape, 3);
-}
-
-// What a moment is about on its page, and it with its nearest words: the part of the page closing in on it shows.
-type Found = { thing: { x: number; y: number; width: number; height: number }; around: { x: number; y: number; width: number; height: number } };
-function aboutIn(reading: Reading | undefined, about: { role: string; name: string } | undefined): Found | undefined {
   // Of several the same, the one in view, as the moment was kept with.
   const alike = about ? (reading?.things ?? []).filter((one) => one.role === about.role && one.name === about.name) : [];
   const inView = (box: { x: number; y: number; width: number; height: number }) => box.y + box.height > 0 && box.y < reading!.screen.height && box.x + box.width > 0 && box.x < reading!.screen.width;
@@ -639,7 +639,7 @@ function aboutIn(reading: Reading | undefined, about: { role: string; name: stri
   // A line of words is laid out across its whole column: it's as wide as its words, as near as can be told.
   const wordsOf = (one: (typeof near)[number]) =>
     one.words && /^(text|heading)$/.test(one.role) ? { ...one.box, width: Math.min(one.box.width, one.words.length * parseFloat(one.look.size) * 0.55) } : one.box;
-  return { thing: thing.box, around: union([thing.box, ...near.map(wordsOf)]) };
+  return around(union([thing.box, ...near.map(wordsOf)]), reading.screen, shape, 3);
 }
 
 // A moment's still: the app at its point, closed in on what it's about, or where it names nothing, on the last thing
@@ -782,14 +782,11 @@ function MomentView(props: {
     return () => void (current = false);
   }, [then?.scene.recording]);
   const sides = useMemo(() => {
-    // The same part of the page around the thing on both: all either has beside it, from each one's own thing.
-    const [ours, theirs] = [aboutIn(readings?.at(-1), closeTo), aboutIn(thenRead?.at(-1), closeTo)];
-    const beside = (found: Found) => ({ x: found.around.x - found.thing.x, y: found.around.y - found.thing.y, width: found.around.width, height: found.around.height });
-    const each = [ours, theirs].flatMap((found) => (found ? [beside(found)] : []));
-    if (!each.length) return {};
-    const region = union(each);
-    const on = (found: Found) => around({ ...region, x: found.thing.x + region.x, y: found.thing.y + region.y }, screen, screen.width / screen.height, 3);
-    return { then: on(theirs ?? ours!), now: on(ours ?? theirs!) };
+    const shape = screen.width / screen.height;
+    const [ours, theirs] = [closeOn(readings?.at(-1), closeTo, shape), closeOn(thenRead?.at(-1), closeTo, shape)];
+    const width = Math.max(ours?.width ?? 0, theirs?.width ?? 0);
+    const scaled = (frame: Frame | undefined) => frame && widened(frame, width);
+    return { then: scaled(theirs ?? ours), now: scaled(ours ?? theirs) };
   }, [readings, thenRead, closeTo?.role, closeTo?.name]);
   const both = useMemo(() => then && cut && playedTogether(cut, together(scene, then.scene)), [cut, then?.scene.recording, scene.recording]);
   const [bothOf] = useState(() => new Clock(0));
