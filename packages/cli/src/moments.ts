@@ -142,8 +142,9 @@ async function aboutOn(page: Page, words: string, named?: string): Promise<{ abo
       // Named, and no button, field or heading is called that: words on the page that say it, the innermost, as a
       // field's own words, which the page names nothing.
       const own = (element: Element) => ((element as HTMLElement).innerText ?? "").trim().replace(/\s+/g, " ");
-      const text = named && !found ? [...document.querySelectorAll("body *")].filter((element) => own(element).toLowerCase() === said && ![...element.children].some((child) => own(child).toLowerCase() === said)).at(0) : undefined;
-      if (text) return { near, about: { role: "text", name: own(text), disabled: false } };
+      const saying = named && !found ? [...document.querySelectorAll("body *")].filter((element) => own(element).toLowerCase() === said && ![...element.children].some((child) => own(child).toLowerCase() === said)) : [];
+      const [text] = saying;
+      if (text) return { near, about: { role: "text", name: own(text), disabled: false, ...(saying.length > 1 && { nth: 0 }) } };
       if (!found) return { near };
       const element = found.element as HTMLInputElement;
       const field = "value" in element && ["INPUT", "TEXTAREA", "SELECT"].includes(element.tagName);

@@ -5,12 +5,13 @@ import { differences, type Reading } from "@playthrough/page";
 import { quote } from "@playthrough/review";
 
 // What was done, as take-over keeps a person's, and what it was done on as getByRole finds it: its role and name, and
-// which of those alike it was, where it isn't the only one. By its path only where it has no role and name.
-export type Done = { does: string; on: string; with?: string; what?: string; role?: string; name?: string; nth?: number };
+// which of those alike it was, where it isn't the only one; with no role, by its words; by its path only where it has
+// neither.
+export type Done = { does: string; on: string; with?: string; what?: string; role?: string; name?: string; text?: string; nth?: number };
 
 // What a moment is about, read where the agent is: one thing on the page, by its role and name, with what can be
-// checked of it again; or words with no role of their own (role "text"), by what they say.
-export type About = { role: string; name: string; value?: string; disabled: boolean; checked?: boolean };
+// checked of it again; or words with no role of their own (role "text"), by what they say, the first that does.
+export type About = { role: string; name: string; value?: string; disabled: boolean; checked?: boolean; nth?: number };
 
 // A moment's file, by its words: the same words are the same moment, marked again in its place.
 export const fileOf = (words: string) => `${words.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "moment"}.ts`;
@@ -27,8 +28,15 @@ export function wordsIn(file: string): string | undefined {
 export function sceneOf({ words, person, did, setup, about, tried = false }: { words: string; person: string; did: Done[]; setup: Record<string, unknown>; about?: About; tried?: boolean }): string {
   const lines = did.map((done) => {
     const nth = done.nth !== undefined ? `.nth(${done.nth})` : "";
-    const at = done.role && done.name ? `getByRole(${JSON.stringify(done.role)}, { name: ${JSON.stringify(done.name)}, exact: true })${nth}` : done.role ? `getByRole(${JSON.stringify(done.role)})${nth}` : `locator(${JSON.stringify(done.on)})`;
-    const what = done.what && !done.role ? ` // ${done.what.replace(/\n/g, " ")}` : "";
+    const at =
+      done.role && done.name
+        ? `getByRole(${JSON.stringify(done.role)}, { name: ${JSON.stringify(done.name)}, exact: true })${nth}`
+        : done.role
+          ? `getByRole(${JSON.stringify(done.role)})${nth}`
+          : done.text
+            ? `getByText(${JSON.stringify(done.text)}, { exact: true })${nth}`
+            : `locator(${JSON.stringify(done.on)})`;
+    const what = done.what && !done.role && !done.text ? ` // ${done.what.replace(/\n/g, " ")}` : "";
     const given = JSON.stringify(done.with ?? "");
     if (done.does === "goto") {
       const address = "`${baseURL}" + madeBySetup(String(done.with), setup) + "`";
@@ -36,12 +44,14 @@ export function sceneOf({ words, person, did, setup, about, tried = false }: { w
       return `    await page.waitForURL(${address}, { timeout: 3000 }).catch(() => page.goto(${address}));`;
     }
     if (done.does === "fill") return `    await page.${at}.fill(${given});${what}`;
-    if (done.does === "type") return `    await page.${at}.pressSequentially(${given});`;
+    // Keys on what has no role go where the focus is, as they went: focusing words that can't take it would let it go.
+    const keyboard = !done.role || done.on === "body";
+    if (done.does === "type") return keyboard ? `    await page.keyboard.type(${given});` : `    await page.${at}.pressSequentially(${given});`;
     if (done.does === "selectOption") return `    await page.${at}.selectOption(${given});${what}`;
-    if (done.does === "press") return done.on === "body" ? `    await page.keyboard.press(${given});` : `    await page.${at}.press(${given});${what}`;
+    if (done.does === "press") return keyboard ? `    await page.keyboard.press(${given});` : `    await page.${at}.press(${given});`;
     return `    await page.${at}.click();${what}`;
   });
-  const thing = about && (about.role === "text" ? `page.getByText(${JSON.stringify(about.name)}, { exact: true })` : `page.getByRole(${JSON.stringify(about.role)}, { name: ${JSON.stringify(about.name)}, exact: true })`);
+  const thing = about && (about.role === "text" ? `page.getByText(${JSON.stringify(about.name)}, { exact: true })${about.nth !== undefined ? `.nth(${about.nth})` : ""}` : `page.getByRole(${JSON.stringify(about.role)}, { name: ${JSON.stringify(about.name)}, exact: true })`);
   const checks = !about
     ? []
     : about.role === "text"

@@ -35,15 +35,17 @@ describe("the way to a moment", () => {
     { does: "fill", on: "#__next input", role: "textbox", name: "Card prefix", with: "WEB" },
     { does: "click", on: "#__next button", role: "button", name: "Save", nth: 1 },
     { does: "click", on: "#__next > div > span", what: "Saved" },
+    { does: "click", on: "#__next > form p", text: "post on Monday", nth: 1 },
     { does: "press", on: "body", with: "Meta+k" },
   ];
   const way = sceneOf({ words: "Cards now say WEB-1", person: "Maja", did, setup: { board: "qiaa4o4hklar" } });
 
-  test("is written as a person would say each step: by role and name, which one where several share them, and by its place only where nothing names it", () => {
+  test("is written as a person would say each step: by role and name, which one where several share them, by its words where nothing names it, and by its place only where it says nothing", () => {
     assert.match(way, /await page\.getByRole\("link", \{ name: "Settings", exact: true \}\)\.click\(\);/);
     assert.match(way, /await page\.getByRole\("textbox", \{ name: "Card prefix", exact: true \}\)\.fill\("WEB"\);/);
     assert.match(way, /getByRole\("button", \{ name: "Save", exact: true \}\)\.nth\(1\)\.click\(\);/);
     assert.match(way, /await page\.locator\("#__next > div > span"\)\.click\(\); \/\/ Saved/);
+    assert.match(way, /await page\.getByText\("post on Monday", \{ exact: true \}\)\.nth\(1\)\.click\(\);/);
     assert.match(way, /await page\.keyboard\.press\("Meta\+k"\);/);
   });
 
@@ -60,6 +62,8 @@ describe("the way to a moment", () => {
       about: { role: "text", name: "Draft and post on Monday", disabled: false },
     });
     assert.match(typed, /await page\.getByRole\("textbox"\)\.nth\(1\)\.fill\("post on Monday"\);\n    await page\.getByRole\("textbox"\)\.nth\(1\)\.press\("Home"\);\n    await page\.getByRole\("textbox"\)\.nth\(1\)\.pressSequentially\("Draft and "\);/);
+    const inWords = sceneOf({ words: "Here", person: "Maja", did: [{ does: "press", on: "#__next p", text: "post on Monday", with: "Home" }, { does: "type", on: "#__next p", text: "post on Monday", with: "Draft and " }], setup: {} });
+    assert.match(inWords, /await page\.keyboard\.press\("Home"\);\n    await page\.keyboard\.type\("Draft and "\);/, "keys on words with no role go where the focus is");
     assert.match(typed, /await expect\(page\.getByText\("Draft and post on Monday", \{ exact: true \}\)\)\.toBeVisible\(\);\n  \}\);/, "words are checked only for being there");
   });
 

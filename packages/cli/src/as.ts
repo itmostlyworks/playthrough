@@ -77,6 +77,7 @@ const NOTING = `(() => {
   };
   // Named as the page shows it with nothing pointed at: Kan's links add their shortcut ("Settings G S") on hover.
   const hovering = ${hovering};
+  const own = (element) => (element.innerText ?? "").trim().replace(/\\s+/g, " ");
   const on = (element) => {
     hovering(false);
     try {
@@ -84,6 +85,16 @@ const NOTING = `(() => {
       for (let at = element; at && at !== document.body; at = at.parentElement) {
         const found = named(at);
         if (found.role) return { on: path(at), ...found };
+      }
+      // Nothing named holds it: by its words, as getByText finds them, the innermost that says them; and by its place
+      // only where it says nothing, as a place moves whenever the page around it does.
+      const said = own(element);
+      if (said && said.length <= 80) {
+        let inner = element;
+        for (let child; (child = [...inner.children].find((one) => own(one) === said)); ) inner = child;
+        const alike = [...document.body.querySelectorAll("*")].filter((one) => own(one) === said && ![...one.children].some((child) => own(child) === said));
+        const nth = alike.indexOf(inner);
+        return { on: path(element), text: said, ...(alike.length > 1 && nth >= 0 && { nth }) };
       }
       return { on: path(element) };
     } finally {
@@ -101,7 +112,7 @@ const NOTING = `(() => {
   }, true);
   // Words typed where the caret was put, not at the end, are kept as typed there, and what's typed after them too:
   // what a fix to where the caret goes is about. Anywhere else, the field's words once typed are what's kept.
-  let typing = false;
+  let typing = false, typingAt;
   addEventListener("beforeinput", (e) => {
     const target = e.target;
     const text = target.isContentEditable ? target.innerText.replace(/\\n$/, "") : target.value ?? "";
@@ -111,21 +122,25 @@ const NOTING = `(() => {
       ? selection.toString().replace(/\\n$/, "") === text || (selection.isCollapsed && !!selection.focusNode && (() => { const range = document.createRange(); range.selectNodeContents(target); range.setStart(selection.focusNode, selection.focusOffset); return range.toString().replace(/\\n$/, "") === ""; })())
       : (target.selectionStart === 0 && target.selectionEnd === text.length) || (target.selectionStart === text.length && target.selectionEnd === text.length);
     typing = e.inputType === "insertText" && !!e.data && (typedIn === target || (!!text && !whole));
+    // Found as it is before the words change it.
+    if (typing && typedIn !== target) typingAt = on(target);
   }, true);
   addEventListener("input", (e) => {
     const target = e.target;
     if (!target.matches?.("input, textarea, select, [contenteditable]")) return;
     if (target.tagName === "SELECT") keep({ does: "selectOption", ...on(target), with: target.value, what: words(target) });
     else if (typing) {
-      keep({ does: "type", ...on(target), with: e.data });
+      keep({ does: "type", ...typingAt, with: e.data });
       typedIn = target;
     }
     else if (!["checkbox", "radio"].includes(target.type)) keep({ does: "fill", ...on(target), with: target.isContentEditable ? target.innerText : target.value, what: target.getAttribute("aria-label") || target.placeholder || "" });
   }, true);
   addEventListener("keydown", (e) => {
     if (e.key === "Enter" && e.target.matches?.("input")) keep({ does: "press", ...on(e.target), with: "Enter", what: words(e.target) });
-    // What moves the caret in a field, so what's typed next goes where it went.
-    else if (["Home", "End", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key) && e.target.matches?.("input, textarea, [contenteditable]")) keep({ does: "press", ...on(e.target), with: e.key });
+    // What moves the caret in a field, so what's typed next goes where it went; and Tab, which leaves it, as a field
+    // may save on leaving.
+    else if ((["Home", "End", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key) && e.target.matches?.("input, textarea, [contenteditable]")) || (e.key === "Tab" && !e.ctrlKey && !e.metaKey))
+      keep({ does: "press", ...(e.target === document.body ? { on: "body" } : on(e.target)), with: e.shiftKey && e.key === "Tab" ? "Shift+Tab" : e.key });
     else if ((e.metaKey || e.ctrlKey || e.key === "Escape") && !["Meta", "Control", "Shift", "Alt"].includes(e.key)) {
       const key = [e.ctrlKey && "Control", e.metaKey && "Meta", e.altKey && "Alt", e.shiftKey && "Shift", e.key].filter(Boolean).join("+");
       const focused = document.activeElement && document.activeElement !== document.body ? on(document.activeElement) : { on: "body" };
