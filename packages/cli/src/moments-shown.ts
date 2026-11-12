@@ -3,12 +3,33 @@
 // a moment can be stepped into as a scene is taken over.
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { basename, join, relative } from "node:path";
 import type { Repo } from "./repo.ts";
 
 export type Shown = { words: string; about?: { role: string; name: string } };
 
-export function momentsOf(repo: Repo, id: string): Shown[] {
+// The app by its name, and its people as the list says them: "Sam, a member", from setup.ts's own words for them
+// ("…: a member of the workspace, not an admin"), read as text, where it says one is "a" something; else just the name.
+export function momentsPage(repo: Repo, id: string) {
+  const named = (() => {
+    try {
+      return String(JSON.parse(readFileSync(join(repo.root, "package.json"), "utf8")).name ?? "").replace(/^@[^/]+\//, "");
+    } catch {
+      return "";
+    }
+  })() || basename(repo.root);
+  const setup = existsSync(repo.setup) ? readFileSync(repo.setup, "utf8") : "";
+  const listed = setup.match(/export const people\s*=\s*\{([\s\S]*?)\n\s*\}/)?.[1] ?? "";
+  const people = Object.fromEntries(
+    [...listed.matchAll(/(\w+)\s*:\s*"([^"]*)"/g)].map(([, name, words]) => {
+      const role = words!.split(":")[1]?.split(/[,.]| of /)[0]?.trim();
+      return [name!, role && /^an? /.test(role) ? `${name}, ${role}` : name!];
+    }),
+  );
+  return { app: named.charAt(0).toUpperCase() + named.slice(1), people, moments: momentsOf(repo, id) };
+}
+
+function momentsOf(repo: Repo, id: string): Shown[] {
   const kept = join(repo.root, ".playthrough", "moments");
   const scenes = repo.scenes(id);
   const each = existsSync(kept) ? readdirSync(kept, { withFileTypes: true }).filter((entry) => entry.isDirectory()) : [];

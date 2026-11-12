@@ -3,7 +3,7 @@
 // recorded as a scene is, to see it lands in the same place.
 //
 //   playthrough as <person>           starts the app and a browser signed in as them, open to the agent's own tool
-//   playthrough moment "<words>" ["<what it's about>"]
+//   playthrough moment "<what's there>" ["<what it's about>"]
 //                                     keeps the way there since `as`, and runs it again from a fresh start
 
 import { chromium, request as requests, type Page } from "@playwright/test";
@@ -233,6 +233,11 @@ type About = { role: string; name: string; value?: string; disabled: boolean; ch
 export async function moment(repo: Repo, words: string, onWords?: string) {
   if (!existsSync(liveFile(repo))) throw new Refused(["There's no browser to keep a moment from. Start one: playthrough as <person>"]);
   const live: Live = JSON.parse(readFileSync(liveFile(repo), "utf8"));
+  // Who and where, the person sees from the moment itself: the words say only what's there, short enough to sit under
+  // a picture of it.
+  const counted = words.trim().split(/\s+/).length;
+  if (counted > 10)
+    throw new Refused([`That's ${counted} words. Say only what's there, in under eight (“Cards now say WEB-1 to WEB-5”): the person already sees who it is and where.`]);
   const began = Date.now();
 
   // Where the agent is now, as the page is read at a step's end.
@@ -248,7 +253,7 @@ export async function moment(repo: Repo, words: string, onWords?: string) {
 
   // The way there, as a scene, run from a fresh start as the same person and recorded as record records one: tried in
   // a folder of its own, and kept only if it lands, in place of one kept before by the same words.
-  const slug = words.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "moment";
+  const slug = `${live.person} ${words}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "moment";
   const keptIn = join(folder(repo), slug);
   const scenes = join(folder(repo), "trying", slug);
   rmSync(scenes, { recursive: true, force: true });

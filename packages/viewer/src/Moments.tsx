@@ -1,23 +1,23 @@
 // A rough try at moments: what's waiting on you, each change by its title with its moments under it, a line each in the
 // agent's words; and a moment opened, the app at the point that matters, still and as large as the window allows. From
 // there: look (play the few seconds that led here), step in (the real app there, as that person), or say something (a
-// note on what you click). Going on to the next moment is the yes. What you said goes to the agent when you leave the
-// change, back to the list. Its own address, /moments, beside the page; the recording, the pointer, the pins and
+// note on what you click). Going on to the next moment is the yes. What you said goes to the agent by the change's one
+// button on the list: Send, or Done with nothing to say. Its own address, /moments, beside the page; the recording, the pointer, the pins and
 // stepping in are the page's own.
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Glimpse, Reading } from "@playthrough/page";
-import { newId, pausedAt, type Did, type Note, type Place, type Review, type Round, type Scene } from "@playthrough/review";
-import { glimpses, keepBranch, picture, readings as readingsOf, recording, send, useReview, useYou } from "./api.ts";
+import { newId, pausedAt, waitingForTheAgent, type Did, type Note, type Place, type Review, type Round, type Scene } from "@playthrough/review";
+import { accept, glimpses, keepBranch, picture, readings as readingsOf, recording, send, useReview, useYou } from "./api.ts";
 import { Key } from "./Card.tsx";
-import { Picture } from "./Picture.tsx";
+import { around, Picture, type Frame } from "./Picture.tsx";
+import { workingSince } from "./notes.ts";
 import { Pinned, type Pin } from "./Pinned.tsx";
 import { Clock, Player, useCut, type Mark, type Placed } from "./Player.tsx";
 import { Portal, TAG } from "./Portal.tsx";
 import { readyAt } from "./live.ts";
 import { clamp } from "./moments.ts";
 import type { Scrolled } from "./replay.ts";
-import { clock } from "./Rounds.tsx";
 
 // Where you are: the list, or a change's moment, by its place in the list from 1.
 type Where = { review?: string; moment?: number };
@@ -43,7 +43,7 @@ export function MomentsPage() {
   return where.review ? <Change key={where.review} id={where.review} moment={where.moment ?? 1} go={go} /> : <List onOpen={(review, moment) => go({ review, moment })} />;
 }
 
-// Your notes on a change not yet sent, kept in this browser until you leave it.
+// Your notes on a change not yet sent, kept in this browser until you send them.
 const unsentKey = (review: string) => `playthrough:moments:${review}`;
 function unsentOf(review: string): Note[] {
   try {
@@ -58,96 +58,247 @@ function keepUnsent(review: string, notes: Note[]) {
     else localStorage.removeItem(unsentKey(review));
   } catch {}
 }
-
-// What's waiting on you: a change has a finished recording of moments and isn't accepted.
-const latestOf = (review: Review): Round | undefined => review.rounds.findLast((round) => round.number > 0 && !!round.finished && round.scenes.length > 0);
-const sentBy = (review: Review, you: string) => review.sends.filter((one) => one.by === you);
-
-// Leaving a change sends what you said on it, all at once, as Send does.
-async function sendUnsent(review: Review, you: string): Promise<string[]> {
-  const notes = unsentOf(review.id);
-  const round = latestOf(review);
-  if (!notes.length || !round) return [];
-  const problems = await send(review.id, { id: newId(), round: round.number, by: you, sent: new Date().toISOString(), notes, verdicts: [], looksGood: [] });
-  if (!problems.length) keepUnsent(review.id, []);
-  return problems;
+// The moments you've opened, by change and by you, in this browser: seen, they're quieter on the list.
+const seenKey = (review: string, you: string) => `playthrough:moments-seen:${review}:${you}`;
+function seenOf(review: string, you: string): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(seenKey(review, you)) ?? "[]");
+  } catch {
+    return [];
+  }
+}
+function markSeen(review: string, you: string, scene: string) {
+  const seen = seenOf(review, you);
+  if (seen.includes(scene)) return;
+  try {
+    localStorage.setItem(seenKey(review, you), JSON.stringify([...seen, scene]));
+  } catch {}
 }
 
+// A change has moments when its latest round is finished with some in it.
+const latestOf = (review: Review): Round | undefined => review.rounds.findLast((round) => round.number > 0 && !!round.finished && round.scenes.length > 0);
+const sentBy = (review: Review, you: string) => review.sends.filter((one) => one.by === you);
+// Waiting on you until you've sent something on its latest moments, or said Done; then it's with your agents.
+const sentOn = (review: Review, you: string) => {
+  const round = latestOf(review);
+  return round ? sentBy(review, you).filter((one) => one.round === round.number) : [];
+};
+
+// What the moments page knows beside the review: the app's name, its people as the list says them, what each moment is
+// about.
+export type Shown = { app?: string; people: Record<string, string>; moments: About[] };
+function useShown(id: string): Shown {
+  const [shown, setShown] = useState<Shown>({ people: {}, moments: [] });
+  useEffect(() => {
+    let current = true;
+    fetch(`/api/reviews/${encodeURIComponent(id)}/moments`)
+      .then((answer) => (answer.ok ? answer.json() : []), () => [])
+      // A viewer started before it said more than the moments says only those.
+      .then((said: Shown | About[]) => current && setShown(Array.isArray(said) ? { people: {}, moments: said } : said));
+    return () => void (current = false);
+  }, [id]);
+  return shown;
+}
+const whoIn = (shown: Shown, scene: Scene) => (scene.person ? (shown.people[scene.person] ?? scene.person) : "");
+
+// How long ago, as a person says it.
+function ago(iso: string, now: number): string {
+  const minutes = Math.floor((now - Date.parse(iso)) / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  return hours < 24 ? `${hours} h ago` : new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+const notesSaid = (count: number) => `${count} ${count === 1 ? "note" : "notes"}`;
+
+// What's waiting on you: each change by its title, its moments as stills you can judge at a glance; and under them, the
+// changes with your agents, a line each. A change leaves the first for the second by its one button: Send, with what
+// you said, or Done, with nothing to say.
 function List({ onOpen }: { onOpen: (review: string, moment: number) => void }) {
   const you = useYou();
   const [reviews, setReviews] = useState<Review[]>();
-  // What couldn't be sent, by change: kept, and said so.
-  const [unsent, setUnsent] = useState<Record<string, string[]>>({});
-  useEffect(() => {
-    if (!you) return;
-    let current = true;
-    const load = () => fetch("/api/reviews").then((answer) => answer.json() as Promise<Review[]>);
-    load()
-      .then(async (all) => {
-        const tried = await Promise.all(all.map(async (review) => [review.id, await sendUnsent(review, you)] as const));
-        const failed = Object.fromEntries(tried.filter(([, problems]) => problems.length));
-        const sent = tried.some(([id, problems]) => !problems.length && all.some((review) => review.id === id));
-        return { all: sent ? await load() : all, failed };
-      })
-      .then(({ all, failed }) => current && (setReviews(all), setUnsent(failed)));
-    return () => void (current = false);
-  }, [you]);
-  const waiting = (reviews ?? []).filter((review) => !review.accepted && latestOf(review));
+  // What you ended here, this visit: a change sent stays its line with your agents, one you said Done to a muted line
+  // where it was, gone on your next visit.
+  const [ended, setEnded] = useState<Record<string, { done: true } | { sent: number }>>({});
+  const load = () => fetch("/api/reviews").then((answer) => answer.json() as Promise<Review[]>).then(setReviews);
+  useEffect(() => void load(), []);
+  const now = Date.now();
+  if (!reviews || !you) return <div className="min-h-dvh bg-ground" />;
+  const open = reviews.filter((review) => latestOf(review) && (!review.accepted || ended[review.id]));
+  const waiting = open.filter((review) => !review.accepted && !sentOn(review, you).length);
+  const done = open.filter((review) => review.accepted && ended[review.id]);
+  // Ctrl+Enter sends the first change with something to send, as a page's send sends its one review.
+  const keyed = waiting.find((review) => unsentOf(review.id).length)?.id;
+  const withAgents = open.filter((review) => !review.accepted && sentOn(review, you).length).sort((a, b) => Number(!!ended[b.id]) - Number(!!ended[a.id]));
   return (
     <div className="min-h-dvh bg-ground">
-      <main className="mx-auto max-w-[680px] px-6 pt-14 pb-24 phone:px-4 phone:pt-8">
-        <h1 className="px-3 text-[13px] leading-5 font-semibold text-soft">Waiting on you</h1>
-        {reviews && !waiting.length && <p className="mt-6 text-soft">Nothing is waiting on you.</p>}
-        {waiting.map((review) => (
-          <ChangeInList key={review.id} review={review} you={you ?? ""} problems={unsent[review.id]} onOpen={(moment) => onOpen(review.id, moment)} />
-        ))}
+      <main className="mx-auto max-w-[1040px] px-8 pt-12 pb-24 phone:px-4 phone:pt-6">
+        <h1 className="text-[13px] leading-5 font-semibold text-soft">Waiting on you</h1>
+        {!waiting.length && !done.length && <p className="mt-4 text-[15px] leading-[22px] text-fg">Nothing's waiting on you.</p>}
+        {[...waiting, ...done]
+          .sort((a, b) => reviews.indexOf(a) - reviews.indexOf(b))
+          .map((review) => (
+              <ChangeInList
+                key={review.id}
+                review={review}
+                you={you}
+                now={now}
+                keyed={keyed === review.id}
+                onOpen={(moment) => onOpen(review.id, moment)}
+                onEnded={(how) => (setEnded((all) => ({ ...all, [review.id]: how })), void load())}
+              />
+          ))}
+        {withAgents.length > 0 && (
+          <>
+            <h2 className="mt-14 text-[13px] leading-5 font-semibold text-soft">With your agents</h2>
+            <ul className="mt-3">
+              {withAgents.map((review) => (
+                <WithAgent key={review.id} review={review} you={you} now={now} fresh={!!ended[review.id]} />
+              ))}
+            </ul>
+          </>
+        )}
       </main>
     </div>
   );
 }
 
-function ChangeInList({ review, you, problems, onOpen }: { review: Review; you: string; problems?: string[]; onOpen: (moment: number) => void }) {
+function ChangeInList({ review, you, now, keyed, onOpen, onEnded }: { review: Review; you: string; now: number; keyed: boolean; onOpen: (moment: number) => void; onEnded: (how: { done: true } | { sent: number }) => void }) {
   const round = latestOf(review)!;
-  const sent = sentBy(review, you);
-  const kept = unsentOf(review.id);
-  const last = sent.at(-1);
-  const taken = last && review.taken.some((one) => one.send === last.id);
+  const shown = useShown(review.id);
+  const [notes, setNotes] = useState(() => unsentOf(review.id));
+  const [seen] = useState(() => seenOf(review.id, you));
+  const [problems, setProblems] = useState<string[]>();
+  const [busy, setBusy] = useState(false);
+  // Sent, it folds away where it was and takes its place as a line with your agents; Done, it settles to its title,
+  // muted, where it was.
+  const [leaving, setLeaving] = useState<"sent" | "done" | undefined>(review.accepted ? "done" : undefined);
+  const leave = (how: { done: true } | { sent: number }) => {
+    setLeaving("done" in how ? "done" : "sent");
+    setTimeout(() => onEnded(how), "done" in how || matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : LEAVING);
+  };
+  const folded = (fold: boolean) => `grid transition-[grid-template-rows,opacity] ease-calm ${fold ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr]"}`;
+  const timed = { transitionDuration: `${LEAVING}ms` };
+  const sendNow = async () => {
+    if (busy || leaving || !notes.length) return;
+    setBusy(true);
+    const said = await send(review.id, { id: newId(), round: round.number, by: you, sent: new Date().toISOString(), notes, verdicts: [], looksGood: [] });
+    setBusy(false);
+    if (said.length) return setProblems(said);
+    keepUnsent(review.id, []);
+    leave({ sent: notes.length });
+  };
+  const doneNow = async () => {
+    if (busy || leaving) return;
+    setBusy(true);
+    const said = await accept(review.id, you);
+    setBusy(false);
+    if (said.length) return setProblems(said);
+    leave({ done: true });
+  };
+  // Ctrl+Enter sends, as on the page; never a plain Enter, and never Done.
+  const keys = useRef(sendNow);
+  keys.current = () => (keyed ? sendNow() : Promise.resolve());
+  useEffect(() => {
+    const down = (event: KeyboardEvent) => event.key === "Enter" && (event.ctrlKey || event.metaKey) && (event.preventDefault(), void keys.current());
+    addEventListener("keydown", down);
+    return () => removeEventListener("keydown", down);
+  }, []);
   return (
-    <section className="mt-6 first-of-type:mt-5">
-      <h2 className="px-3 text-[15px] leading-[22px] font-semibold text-fg">{review.title}</h2>
-      <p className="mt-0.5 min-h-5 px-3 text-[13px] leading-5 text-soft">
-        {problems?.length ? (
-          <span className="text-amber-ink">Kept, not sent yet: {problems[0]}</span>
-        ) : kept.length ? (
-          <span>Kept, not sent yet</span>
-        ) : last ? (
-          <span>{taken ? `The agent has your notes, sent at ${clock(last.sent)}` : `Your notes went to the agent at ${clock(last.sent)}`}</span>
-        ) : (
-          <span>{round.scenes.length === 1 ? "One moment" : `${round.scenes.length} moments`}</span>
-        )}
-      </p>
-      <ol className="mt-2">
-        {round.scenes.map((scene, i) => {
-          const said = [...sent.flatMap((one) => one.notes.filter((note) => note.on?.scene === scene.name)).map((note) => ({ note, sent: true })), ...kept.filter((note) => note.on?.scene === scene.name).map((note) => ({ note, sent: false }))];
-          return (
-            <li key={scene.name}>
-              <button onClick={() => onOpen(i + 1)} className="grid w-full grid-cols-[16px_minmax(0,1fr)] gap-x-2 rounded-lg px-3 py-2 text-left transition-colors duration-150 ease-calm hover:bg-hover focus-visible:bg-hover">
-                <span className="pt-[7px] text-center">
-                  <i className="block size-1.5 justify-self-center rounded-full bg-track" />
-                </span>
-                <span className="text-[14px] leading-[21px] text-fg">{scene.name}</span>
-                {said.map(({ note, sent }) => (
-                  <span key={note.id} className="col-start-2 mt-1 flex items-baseline gap-2 text-[13px] leading-5 text-soft">
-                    <i className={`size-1.5 flex-none translate-y-[-1px] rounded-full ${sent ? "bg-slate" : "bg-amber"}`} />
-                    <span className="min-w-0">{note.words}</span>
-                  </span>
-                ))}
-              </button>
-            </li>
-          );
-        })}
-      </ol>
+    <section className={`${folded(leaving === "sent")} transition-[grid-template-rows,opacity,margin] ${leaving === "sent" ? "mt-0" : "mt-12 first-of-type:mt-6"}`} style={timed}>
+      <div className={`min-h-0 ${leaving === "sent" ? "overflow-hidden" : ""}`}>
+        <div className="flex items-start gap-4">
+          <div className="min-w-0 flex-1">
+            <h2 className={`text-[15px] leading-[22px] font-semibold transition-colors ease-calm ${leaving === "done" ? "text-faint" : "text-fg"}`} style={timed}>
+              {review.title}
+              {leaving === "done" && <span className="animate-arrive"> · Done</span>}
+            </h2>
+            <div className={folded(leaving === "done")} style={timed}>
+              <p className="min-h-0 overflow-hidden text-[13px] leading-5 text-soft">
+                {[shown.app, ago(round.finished!, now)].filter(Boolean).join(" · ")}
+                {problems && <span className="text-amber-ink"> · Not sent: {problems[0]}</span>}
+              </p>
+            </div>
+          </div>
+          <button
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={notes.length ? sendNow : doneNow}
+            disabled={busy || !!leaving}
+            className={`flex h-8 flex-none items-center gap-2 rounded-lg bg-surface px-3 text-[13px] font-medium whitespace-nowrap text-fg shadow-[0_0_0_1px_var(--edge),0_1px_2px_var(--drop)] transition-[background-color,opacity] duration-150 ease-calm enabled:hover:bg-hover ${leaving === "done" ? "pointer-events-none opacity-0" : ""}`}
+          >
+            {notes.length ? <>Send {notesSaid(notes.length)} <Key>Ctrl ↵</Key></> : "Done"}
+          </button>
+        </div>
+        <div className={folded(leaving === "done")} style={timed}>
+          <div className={`min-h-0 ${leaving === "done" ? "overflow-hidden" : ""}`}>
+            <ol className="mt-4 grid grid-cols-3 gap-x-5 gap-y-6 phone:grid-cols-1 [@media(min-width:821px)_and_(max-width:1000px)]:grid-cols-2">
+              {round.scenes.map((scene, i) => (
+                <li key={scene.name}>
+                  <button onClick={() => onOpen(i + 1)} className="group block w-full text-left">
+                    <Still review={review} round={round} scene={scene} about={shown.moments.find((one) => one.words === scene.name)?.about} seen={seen.includes(scene.name)} />
+                    <span className={`mt-2.5 block text-[13px] leading-5 ${seen.includes(scene.name) ? "text-faint" : "text-soft"}`}>{whoIn(shown, scene)}</span>
+                    <span className={`block text-[14px] leading-5 ${seen.includes(scene.name) ? "text-soft" : "text-fg"}`}>{scene.name}</span>
+                  </button>
+                  {notes
+                    .filter((note) => note.on?.scene === scene.name)
+                    .map((note) => (
+                      <p key={note.id} className="mt-1.5 flex items-baseline gap-2 text-[13px] leading-5 text-soft">
+                        <i className="size-1.5 flex-none translate-y-[-1px] rounded-full bg-amber" />
+                        <span className="line-clamp-2 min-w-0">{note.words}</span>
+                      </p>
+                    ))}
+                </li>
+              ))}
+            </ol>
+          </div>
+        </div>
+      </div>
     </section>
+  );
+}
+
+const LEAVING = 380;
+
+// A moment's still: the app at its point, closed in on what it's about with enough around it to know where you are; the
+// whole screen where it names nothing. Seen, it's quieter.
+const STILL = 1.6;
+function Still({ review, round, scene, about, seen }: { review: Review; round: Round; scene: Scene; about?: { role: string; name: string }; seen: boolean }) {
+  const [frame, setFrame] = useState<Frame>();
+  useEffect(() => {
+    let current = true;
+    readingsOf(review.id, round.number, scene.recording).then((read) => {
+      const last = read.at(-1);
+      const thing = about && last?.things.find((one) => one.role === about.role && one.name === about.name);
+      if (current && last && thing) setFrame(around(thing.box, last.screen, STILL, 2.2));
+    });
+    return () => void (current = false);
+  }, [scene.recording, about?.name]);
+  return (
+    <span className={`relative block aspect-[1.6] overflow-hidden rounded-lg bg-paper shadow-frame transition-[filter,opacity] duration-200 ease-calm group-hover:opacity-100 group-hover:grayscale-0 ${seen ? "opacity-60 grayscale" : ""}`}>
+      <Picture shot={{ src: picture(review.id, round.number, scene.recording, Math.max(0, scene.steps.length - 1)), frame }} />
+    </span>
+  );
+}
+
+// A change with your agents, a line: what you sent and when, and what the agent is doing with it, in the page's words.
+function WithAgent({ review, you, now, fresh }: { review: Review; you: string; now: number; fresh: boolean }) {
+  const { review: live, agentWaiting } = useReview(review.id);
+  const kept = live && !Array.isArray(live) ? live : review;
+  const sends = sentOn(kept, you);
+  const last = sends.at(-1)!;
+  const count = sends.reduce((sum, one) => sum + one.notes.length, 0);
+  const latest = latestOf(kept)!;
+  const working = workingSince(kept, latest);
+  const agent = working ? "the agent is working" : waitingForTheAgent(kept).length ? (agentWaiting === false ? "no agent is waiting, tell your agent" : "waiting for the agent") : undefined;
+  return (
+    <li className={`py-1 text-[14px] leading-[22px] ${fresh ? "animate-arrive" : ""}`}>
+      <span className="text-fg">{review.title}</span>
+      <span className="text-soft">
+        {" · "}
+        {count ? `${notesSaid(count)} sent ${ago(last.sent, now)}` : `sent ${ago(last.sent, now)}`}
+        {agent && ` · ${agent}`}
+      </span>
+    </li>
   );
 }
 
@@ -157,8 +308,7 @@ type About = { words: string; about?: { role: string; name: string } };
 function Change({ id, moment, go }: { id: string; moment: number; go: (to: Where, replace?: boolean) => void }) {
   const { review } = useReview(id);
   const you = useYou();
-  const [abouts, setAbouts] = useState<About[]>([]);
-  useEffect(() => void fetch(`/api/reviews/${encodeURIComponent(id)}/moments`).then((answer) => (answer.ok ? answer.json() : []), () => []).then(setAbouts), [id]);
+  const shown = useShown(id);
   const [notes, setNotesNow] = useState(() => unsentOf(id));
   const setNotes = (change: (notes: Note[]) => Note[]) =>
     setNotesNow((now) => {
@@ -170,6 +320,8 @@ function Change({ id, moment, go }: { id: string; moment: number; go: (to: Where
   const round = latestOf(review);
   if (!round) return <div className="grid h-dvh place-items-center bg-ground text-soft">Nothing is waiting on you here.</div>;
   const n = Math.min(moment, round.scenes.length);
+  const scene = round.scenes[n - 1]!;
+  markSeen(id, you, scene.name);
   const sent = sentBy(review, you).flatMap((one) => one.notes);
   return (
     <MomentView
@@ -177,7 +329,8 @@ function Change({ id, moment, go }: { id: string; moment: number; go: (to: Where
       review={review}
       round={round}
       n={n}
-      about={abouts.find((one) => one.words === round.scenes[n - 1]!.name)?.about}
+      about={shown.moments.find((one) => one.words === scene.name)?.about}
+      who={whoIn(shown, scene)}
       notes={notes}
       sent={sent}
       setNotes={setNotes}
@@ -195,13 +348,14 @@ function MomentView(props: {
   round: Round;
   n: number;
   about?: { role: string; name: string };
+  who: string;
   notes: Note[];
   sent: Note[];
   setNotes: (change: (notes: Note[]) => Note[]) => void;
   onMoment: (n: number) => void;
   onLeave: () => void;
 }) {
-  const { review, round, n, about, notes, sent, setNotes, onMoment, onLeave } = props;
+  const { review, round, n, about, who, notes, sent, setNotes, onMoment, onLeave } = props;
   const scene = round.scenes[n - 1]!;
   const count = round.scenes.length;
   const end = Math.max(0, scene.length - 0.05);
@@ -437,12 +591,13 @@ function MomentView(props: {
           <span className="truncate">{review.title}</span>
         </button>
         <button onClick={() => next(1)} disabled={!!live?.shown || !!writing} className="-mr-2 ml-auto flex flex-none items-center gap-1.5 rounded-lg px-2 py-1 text-soft transition-colors duration-150 ease-calm enabled:hover:bg-hover enabled:hover:text-fg disabled:opacity-50">
-          {n < count ? "Next" : "Done"}
+          {n < count ? "Next" : "To the list"}
           <Key>↓</Key>
         </button>
       </header>
       {/* Who and where, in the agent's words: room for two lines, three on a phone, so nothing under it moves. */}
       <p className="line-clamp-2 h-[44px] text-[15px] leading-[22px] text-fg phone:line-clamp-3 phone:h-[66px]" title={scene.name}>
+        {who && <span className="text-soft">{who} · </span>}
         {scene.name}
       </p>
       <div className="relative mt-2 grid min-h-0 place-items-center [container-type:size]">

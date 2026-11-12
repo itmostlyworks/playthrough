@@ -31,7 +31,7 @@ const takes = {
   forks: [0, "playthrough forks <review>"],
   open: [0, "playthrough open [<review>]"],
   as: [0, "playthrough as <person>"],
-  moment: [1, `playthrough moment "<who, where, what's there>" ["<what it's about, as the page names it>"]`],
+  moment: [1, `playthrough moment "<what's there, in under eight words>" ["<what it's about, as the page names it>"]`],
   "take-over": [2, `playthrough take-over <review> "<scene>" ["<step>"]`],
 } satisfies Record<string, [number, string]>;
 const limit = Object.hasOwn(takes, command ?? "") ? takes[command as keyof typeof takes] : undefined;
