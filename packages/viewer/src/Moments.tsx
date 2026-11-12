@@ -263,6 +263,12 @@ function List({ changes, you, onOpen }: { changes?: Listed[]; you?: string; onOp
       removeEventListener("scroll", look);
     };
   }, []);
+  // How long each has waited is said again each minute, as the page stays open.
+  const [, aMinute] = useState(0);
+  useEffect(() => {
+    const every = setInterval(() => aMinute((n) => n + 1), 60000);
+    return () => clearInterval(every);
+  }, []);
   const now = Date.now();
   if (!shown || !you) return <div className="min-h-dvh bg-ground" />;
   const all = shown.filter(({ review }) => latestOf(review)).map((listed) => ({ listed, standing: standingOf(listed.review, you) }));
