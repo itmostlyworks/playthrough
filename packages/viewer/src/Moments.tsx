@@ -6,7 +6,7 @@
 // /moments/<its change's address>/<n>; the recording, the pointer, the pins and stepping in are the page's own.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { Glimpse, Reading } from "@playthrough/page";
+import type { Glimpse, Reading, Thing } from "@playthrough/page";
 import { allNotes, conversation, newId, pausedAt, waitingForTheAgent, type Turn, type Did, type Note, type Place, type Review, type Round, type Scene } from "@playthrough/review";
 import { glimpses, keepBranch, picture, readings as readingsOf, recording, send, useChanges, useYou, type Listed } from "./api.ts";
 import { Key } from "./Card.tsx";
@@ -602,8 +602,16 @@ function closeOn(reading: Reading | undefined, about: { role: string; name: stri
   const thing = alike.find((one) => inView(one.box)) ?? alike[0];
   if (!reading || !thing) return undefined;
   const gap = (a: number, aSize: number, b: number, bSize: number) => Math.max(0, Math.max(a, b) - Math.min(a + aSize, b + bSize));
+  // What holds it, as a list whose header its menu sits in, isn't near it: it's around it.
+  const holds = (one: Thing) =>
+    one !== thing && one.box.x <= thing.box.x && one.box.y <= thing.box.y && one.box.x + one.box.width >= thing.box.x + thing.box.width && one.box.y + one.box.height >= thing.box.y + thing.box.height;
   const near = reading.things.filter(
-    (one) => one.role !== "box" && one.holder === thing.holder && gap(one.box.y, one.box.height, thing.box.y, thing.box.height) <= 40 && gap(one.box.x, one.box.width, thing.box.x, thing.box.width) <= 24,
+    (one) =>
+      one.role !== "box" &&
+      one.holder === thing.holder &&
+      !holds(one) &&
+      gap(one.box.y, one.box.height, thing.box.y, thing.box.height) <= 40 &&
+      gap(one.box.x, one.box.width, thing.box.x, thing.box.width) <= 24,
   );
   // A line of words is laid out across its whole column: it's as wide as its words, as near as can be told.
   const wordsOf = (one: (typeof near)[number]) =>
