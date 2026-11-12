@@ -12,6 +12,47 @@ Its parts:
 
 On npm it's one package, `playthrough`, which an app installs as a dev dependency so its scenes can import `playthrough/test`: what `playthrough` prints tells the agent to add it the first time, with Playwright's Chromium, so a person only asks for the change, and a run in an app without it says to install it. The repo is a skill too, `skills/playthrough/SKILL.md`, which says only when to reach for Playthrough and to run `npx playthrough`, so what the agent reads stays in one place, matched to the version the app has: `npx skills add itmostlyworks/playthrough` gives it to most coding agents, and in Claude Code the repo is a plugin as well, from its own marketplace (`.claude-plugin/`). `npm run build` makes it in `packages/cli/release` (`packages/cli/build.ts`): Node runs TypeScript from a checkout but not from inside an installed package, so there the command is JavaScript, with the review and the page inside it, beside the viewer it serves, the types scenes are written against and what it prints. Every push to main is checked, tested and built (`check.yml`), so main says whether it's ready long before a release. It's released from GitHub: in the Actions tab, Release, Run workflow, with the version. That sets the version, the package's and the plugin's, checks, tests and builds it, tries it installed in an empty app, publishes it as a trusted publisher (no token kept anywhere), and tags the version on main with a release. It releases main as it is: a run re-run later, on the commit it started on, stops before anything, saying to start a new one. The command's file is named without “./”, which npm would otherwise take out as it publishes.
 
+## Moments (on this branch)
+
+On the branch `marked-moments`, Playthrough is moments, and the rest of this page, from The loop on, is the older way: its
+commands aren't offered or run any more, and its page opens only at a review's old address (`/<review>`), while the store,
+the recordings, the readings, the comparing and taking a scene over are what moments are built on.
+
+**The words.** A *change* is one piece of work an agent does in one copy of an app: a title, as a pull request's (a
+commit's `feat:` left off), and what was asked, in the person's words. A *moment* is a few seconds of the app ending
+where the change shows: a few words saying what's there, who it's done as, and the one thing it's about. A *person* is
+one of the app's people, named in `playthrough/setup.ts` with who they are (`people = { Sam: "a member" }`). A *note* is
+what the person says on a moment, and a *reply* the agent's answer. *Handing back* gives the person the moments as they
+are now.
+
+**The agent's side** (`packages/cli`; `playthrough` alone prints `MOMENTS.md`, all a fresh agent is told). `change`
+names the change, and every command in that copy means it until another is named. `as <person>` starts the app and a
+Chromium signed in as them, on a debugging port the agent's own browser tool attaches to, and keeps what's done there
+(`as.ts`). `moment "<what's there>"` reads where that browser is, writes the way there as a scene, runs it from a fresh
+start, and keeps it only if it lands: the same page read, the same address, and what it's about there, saying the same
+(`moments.ts`, `way.ts`). Steps are kept by role and name, words typed where the caret was put as typed, keys that move
+it too. The recording keeps the pointer, the text cursor and each key that does something (Escape, Enter, Tab, arrows,
+shortcuts), never letters typed; and hides a dev server's own badge (Next's), never touching the app. `again` runs every
+moment on the code as it is now and says each is the same, different, new, or couldn't get there. `wait` hands back,
+stops the `as` browser, and prints each note on its moment with how to stand there; `reply` answers one. When the
+person says Done, `wait` ends.
+
+**The person's side** (`packages/viewer/src/Moments.tsx`). `playthrough open` serves one list for the whole machine at
+http://localhost:5790/: every change in every copy of every app a `playthrough` command has run in
+(`~/.playthrough/apps.json`, or `PLAYTHROUGH_HOME`). What's waiting on you is each change's title and its moments as
+stills, closed in on what each is about (or, naming nothing, on the last thing done); then those with your agents and
+those done, a line each. The list keeps itself current, but never moves what's under your pointer: one that arrives
+there says at once where it stands and moves when the pointer leaves. A moment opens at
+`/moments/<copy>/<change>/<n>`: Play, Step in (the real app, as that person, started afresh each time; a link out of
+it opens in a tab of your own), Note (on the recording or in the app), Compare with what it was when it was handed
+back before. Send says your notes; Done says every moment looks good. Neither locks.
+
+**What's kept where.** In the app's copy, `.playthrough/change.json` (the change meant), `port.json` (the app's port),
+`browser.json` (what `as` did), and a folder per change: `scenes/<words>.ts` (each moment's way), `rounds/<n>/` (each
+hand-back: the moments with what each is about, their recordings, readings and stills), `sends/` (what the person
+said), `seen.json`. Underneath, a change is a review, a moment a scene with one step, a hand-back a round: none of those
+words reach the agent or the person.
+
 ## The loop
 
 ```bash
