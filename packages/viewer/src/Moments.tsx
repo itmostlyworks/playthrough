@@ -20,18 +20,19 @@ import { readyAt } from "./live.ts";
 import { clamp } from "./moments.ts";
 import type { Scrolled } from "./replay.ts";
 
-// Where you are: the list, or a change's moment, by its place in the list from 1.
-type Where = { review?: string; moment?: number };
-const whereFrom = (path: string): Where => {
+// Where you are: the list, or a change's moment, by its place in the list from 1, and a note open by its pin.
+type Where = { review?: string; moment?: number; note?: string };
+const whereFrom = (path: string, search = ""): Where => {
   const [, review, moment] = path.split("/").filter(Boolean).map(decodeURIComponent);
-  return review ? { review, moment: Math.max(1, Number(moment) || 1) } : {};
+  const note = new URLSearchParams(search).get("note") ?? undefined;
+  return review ? { review, moment: Math.max(1, Number(moment) || 1), ...(note && { note }) } : {};
 };
-const pathOf = ({ review, moment }: Where) => (review ? `/moments/${encodeURIComponent(review)}/${moment ?? 1}` : "/moments");
+const pathOf = ({ review, moment, note }: Where) => (review ? `/moments/${encodeURIComponent(review)}/${moment ?? 1}${note ? `?note=${encodeURIComponent(note)}` : ""}` : "/moments");
 
 export function MomentsPage() {
-  const [where, setWhere] = useState(() => whereFrom(location.pathname));
+  const [where, setWhere] = useState(() => whereFrom(location.pathname, location.search));
   useEffect(() => {
-    const back = () => setWhere(whereFrom(location.pathname));
+    const back = () => setWhere(whereFrom(location.pathname, location.search));
     addEventListener("popstate", back);
     return () => removeEventListener("popstate", back);
   }, []);
@@ -41,7 +42,7 @@ export function MomentsPage() {
     setWhere(to);
   };
   useEffect(() => void (document.title = "Moments · Playthrough"), []);
-  return where.review ? <Change key={where.review} id={where.review} moment={where.moment ?? 1} go={go} /> : <List onOpen={(review, moment) => go({ review, moment })} />;
+  return where.review ? <Change key={where.review} id={where.review} moment={where.moment ?? 1} note={where.note} go={go} /> : <List onOpen={(review, moment, note) => go({ review, moment, note })} />;
 }
 
 // Your notes on a change not yet sent, kept in this browser until you send them.
@@ -177,7 +178,7 @@ const LATEST = 5;
 // What's waiting on you: each change by its title, its moments as stills you can judge at a glance. Under them, those
 // with your agents and those done, a quiet line each that opens to the same stills. A change moves by its one button:
 // Send, with what you said, or Done, with nothing to say.
-function List({ onOpen }: { onOpen: (review: string, moment: number) => void }) {
+function List({ onOpen }: { onOpen: (review: string, moment: number, note?: string) => void }) {
   const you = useYou();
   const [reviews, setReviews] = useState<Review[]>();
   const [opened, setOpened] = useState(openedLines);
@@ -211,7 +212,7 @@ function List({ onOpen }: { onOpen: (review: string, moment: number) => void }) 
       arrived={moved.includes(review.id)}
       keyed={keyed === review.id}
       onToggle={() => toggle(review.id)}
-      onOpen={(moment) => onOpen(review.id, moment)}
+      onOpen={(moment, note) => onOpen(review.id, moment, note)}
       onMoved={() => (setMoved((ids) => [...ids, review.id]), void load())}
     />
   );
@@ -277,7 +278,7 @@ function ChangeInList(props: {
   arrived: boolean;
   keyed: boolean;
   onToggle: () => void;
-  onOpen: (moment: number) => void;
+  onOpen: (moment: number, note?: string) => void;
   onMoved: () => void;
 }) {
   const { review, standing, you, now, open, arrived, keyed, onToggle, onOpen, onMoved } = props;
@@ -379,18 +380,24 @@ function ChangeInList(props: {
                     )}
                   </button>
                   {(() => {
-                    // Each note a block of its own, set apart by more room than its turns; with several, each turn
-                    // shorter, so the column stays a glance.
+                    // A line a note: your latest words, and where it stands. Its conversation is by its pin.
                     const unsentHere = notes.filter((note) => note.on?.scene === scene.name);
-                    const threads = talk.length + unsentHere.length;
-                    const lines = threads > 1 ? 2 : 3;
-                    return threads > 0 && (
-                      <div className="mt-4 grid gap-5">
-                        {talk.map(([id]) => (
-                          <Turns key={id} you={you} turns={conversation(review, id)} replied={replies.find((one) => one.note === id)?.words} lines={lines} />
-                        ))}
-                        {unsentHere.map((note) => (
-                          <Turns key={note.id} you={you} turns={[]} unsent={note.words} lines={lines} />
+                    const seenHere = seen.includes(takingOf(round, scene.name));
+                    const lines = [
+                      ...talk.map(([id]) => {
+                        const turns = conversation(review, id);
+                        const replied = replies.find((one) => one.note === id)?.words;
+                        const last = turns.at(-1);
+                        const yours = replied ?? turns.findLast((turn) => !turn.agent)?.words ?? "";
+                        const stands = replied ? "not sent yet" : last?.agent ? "answered" : "sent";
+                        return { id, words: yours, stands, fresh: stands === "answered" && !seenHere };
+                      }),
+                      ...unsentHere.map((note) => ({ id: note.id, words: note.words, stands: "not sent yet", fresh: false })),
+                    ];
+                    return lines.length > 0 && (
+                      <div className="mt-3 grid">
+                        {lines.map((line) => (
+                          <NoteLine key={line.id} {...line} onOpen={() => onOpen(i + 1, line.id)} />
                         ))}
                       </div>
                     );
@@ -405,24 +412,13 @@ function ChangeInList(props: {
   );
 }
 
-// A note and what's been said on it since, a turn each, as the page's cards say them: who speaks on a small line of its
-// own, you by your dot, the agent by its name, and the words under it as readable as the note's. By the pin, all of it;
-// at a glance, on the list, only the latest exchange (your latest words, and the agent's latest answer to them), each
-// turn fading after so many lines, and only where it's really cut.
-function Turns({ you, turns, replied, unsent, lines }: { you: string; turns: Turn[]; replied?: string; unsent?: string; lines?: number }) {
-  const sent = turns.map((turn) => ({ agent: turn.agent, mine: !turn.agent && turn.by === you, by: turn.agent || turn.by !== you ? turn.by : "You", words: turn.words, sent: true }));
-  const yours = [replied, unsent].filter((words): words is string => !!words).map((words) => ({ agent: false, mine: true, by: "You", words, sent: false }));
-  const lastAgent = sent.findLastIndex((turn) => turn.agent);
-  const latest = (): typeof sent => {
-    // Not answered yet: only your part. Answered: what it answered, and the answer; with a reply you haven't sent, the
-    // answer and your reply.
-    if (lastAgent < 0) return [sent.at(-1)!].filter(Boolean);
-    if (lastAgent < sent.length - 1) return [sent.at(-1)!];
-    if (yours.length) return [sent[lastAgent]!];
-    const asked = sent.slice(0, lastAgent).findLast((turn) => !turn.agent);
-    return asked ? [asked, sent[lastAgent]!] : [sent[lastAgent]!];
-  };
-  const all = [...(lines ? latest() : sent), ...yours];
+// A note and what's been said on it since, by its pin, a turn each, as the page's cards say them: who speaks on a small
+// line of its own, you by your dot, the agent by its name, and the words under it as readable as the note's.
+function Turns({ you, turns, unsent }: { you: string; turns: Turn[]; unsent?: string }) {
+  const all = [
+    ...turns.map((turn) => ({ mine: !turn.agent && turn.by === you, by: turn.agent || turn.by !== you ? turn.by : "You", words: turn.words, sent: true })),
+    ...(unsent ? [{ mine: true, by: "You", words: unsent, sent: false }] : []),
+  ];
   return (
     <div className="grid gap-2">
       {all.map((turn, i) => (
@@ -432,34 +428,36 @@ function Turns({ you, turns, replied, unsent, lines }: { you: string; turns: Tur
             {turn.by}
             {!turn.sent && <span>· not sent yet</span>}
           </span>
-          <Words lines={lines}>{turn.words}</Words>
+          <p className="text-[13px] leading-5 whitespace-pre-wrap text-fg">{turn.words}</p>
         </div>
       ))}
     </div>
   );
 }
 
-// Words up to so many lines, fading over the last only when there's more than fits.
-function Words({ lines, children }: { lines?: number; children: string }) {
-  const box = useRef<HTMLParagraphElement>(null);
+// A note on the list: its dot, your latest words on one line, fading only where they're cut, and where it stands at
+// the line's end, always in the same place. Answered since you last looked, it's in full colour.
+function NoteLine({ words, stands, fresh, onOpen }: { words: string; stands: string; fresh: boolean; onOpen: () => void }) {
+  const box = useRef<HTMLSpanElement>(null);
   const [cut, setCut] = useState(false);
   useLayoutEffect(() => {
-    const words = box.current;
-    if (!words || !lines) return;
-    const measure = () => setCut(words.scrollHeight > words.clientHeight + 1);
+    const line = box.current;
+    if (!line) return;
+    const measure = () => setCut(line.scrollWidth > line.clientWidth + 1);
     measure();
     const watching = new ResizeObserver(measure);
-    watching.observe(words);
+    watching.observe(line);
     return () => watching.disconnect();
-  }, [lines, children]);
+  }, [words]);
+  const fade = cut ? { maskImage: "linear-gradient(to right, #000 calc(100% - 28px), transparent)", WebkitMaskImage: "linear-gradient(to right, #000 calc(100% - 28px), transparent)" } : undefined;
   return (
-    <p
-      ref={box}
-      className={`text-[13px] leading-5 whitespace-pre-wrap text-fg ${lines ? "overflow-hidden" : ""}`}
-      style={lines ? { maxHeight: lines * 20, ...(cut && { maskImage: `linear-gradient(to bottom, #000 ${lines * 20 - 16}px, transparent)`, WebkitMaskImage: `linear-gradient(to bottom, #000 ${lines * 20 - 16}px, transparent)` }) } : undefined}
-    >
-      {children}
-    </p>
+    <button onClick={onOpen} className="-mx-1.5 flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-left text-[13px] leading-5 transition-colors duration-150 ease-calm hover:bg-hover">
+      <i className={`size-1.5 flex-none rounded-full ${stands === "not sent yet" ? "bg-amber" : "bg-slate"}`} />
+      <span ref={box} className={`min-w-0 flex-1 overflow-hidden whitespace-nowrap ${fresh || stands === "not sent yet" ? "text-fg" : "text-soft"}`} style={fade}>
+        {words}
+      </span>
+      <span className={`w-[76px] flex-none text-right text-xs ${fresh ? "text-fg" : "text-faint"}`}>{stands}</span>
+    </button>
   );
 }
 
@@ -523,7 +521,7 @@ function Still({ review, round, scene, about, seen }: { review: Review; round: R
 // Each moment's thing it's about, as `playthrough moment` keeps it, by its words.
 type About = { words: string; about?: { role: string; name: string } };
 
-function Change({ id, moment, go }: { id: string; moment: number; go: (to: Where, replace?: boolean) => void }) {
+function Change({ id, moment, note, go }: { id: string; moment: number; note?: string; go: (to: Where, replace?: boolean) => void }) {
   const { review } = useReview(id);
   const you = useYou();
   // Back on the list, the change you were in is open, wherever it stands.
@@ -564,6 +562,7 @@ function Change({ id, moment, go }: { id: string; moment: number; go: (to: Where
       replies={replies}
       setReplies={setReplies}
       you={you}
+      opening={note}
       onMoment={(to) => go({ review: id, moment: to }, true)}
       onLeave={() => go({})}
     />
@@ -585,6 +584,8 @@ function MomentView(props: {
   replies: Replied[];
   setReplies: (change: (replies: Replied[]) => Replied[]) => void;
   you: string;
+  // A note to open by its pin as the moment opens, pressed on the list.
+  opening?: string;
   onMoment: (n: number) => void;
   onLeave: () => void;
 }) {
@@ -644,12 +645,14 @@ function MomentView(props: {
   // What you did in the app, recorded from when it was handed to you, for a note made there to be on.
   const session = useRef<{ id: string; events: { timestamp: number }[]; did: Did[]; kept: number }>({ id: newId(), events: [], did: [], kept: 0 });
 
-  // Going to another moment, everything about this one is let go of.
+  // Going to another moment, everything about this one is let go of; arriving from a note's line, it's open.
+  const arriving = useRef(props.opening);
   useEffect(() => {
     setPlaying(undefined);
     setNoting(false);
     setWriting(undefined);
-    setOpen(undefined);
+    setOpen(arriving.current);
+    arriving.current = undefined;
     setPlaced({});
     setLive(undefined);
     setScrubbing(false);
