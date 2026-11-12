@@ -1,7 +1,7 @@
 // The way to a moment: what the agent did in its browser, written as a scene Playthrough runs again from a fresh start,
 // and whether running it again landed where the agent was.
 
-import { differences, type Reading } from "@playthrough/page";
+import { differences, type Reading, type Thing } from "@playthrough/page";
 import { quote } from "@playthrough/review";
 
 // What was done, as take-over keeps a person's, and what it was done on as getByRole finds it: its role and name, and
@@ -126,8 +126,13 @@ export function sameAddress(here: string, again: string): string | undefined {
 
 // Where the agent was, and where running the way again ended: what differs, each in a line, and what was left out as a
 // message that comes and goes by itself, as a toast, there or not by how long ago it came. Nothing differs: it landed.
+// What's out of sight where the moment ends, as a page's top is from its footer, isn't what's there: a pin that drops a
+// while after the page lands, up out of sight, doesn't keep a moment at its footer from landing.
 export function whatDiffers(here: { url: string; reading: Reading }, again: { url: string; reading: Reading }): { differ: string[]; passing: string[]; address?: string } {
-  const all = differences(here.reading, again.reading).differences;
+  const inSight = ({ box }: Thing, { width, height }: Reading["screen"]) => box.y + box.height > 0 && box.y < height && box.x + box.width > 0 && box.x < width;
+  const all = differences(here.reading, again.reading).differences.filter(
+    (one) => ("then" in one && inSight(one.then, here.reading.screen)) || ("now" in one && inSight(one.now, again.reading.screen)),
+  );
   const passes = (one: (typeof all)[number]) => ("now" in one ? one.now : one.then).live;
   const address = sameAddress(here.url, again.url);
   return {
