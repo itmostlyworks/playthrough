@@ -13,7 +13,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { sameWords, type Glimpse, type Reading } from "@playthrough/page";
 import { keepAssets, type Assets } from "./assets.ts";
 import type { Did } from "@playthrough/review";
-import { ALONGSIDE, BEAT, REACHES_OUTSIDE, FORK_RAN, type Action, type DoneOn, type Handed, type On, type Run, type ForkRan, type ForkRun, type To } from "./scenes.ts";
+import { ALONGSIDE, BEAT, QUIET_DEV_CHROME, REACHES_OUTSIDE, FORK_RAN, type Action, type DoneOn, type Handed, type On, type Run, type ForkRan, type ForkRun, type To } from "./scenes.ts";
 import { readPage, unhovered } from "./read.ts";
 import { repo } from "./repo.ts";
 import { ACTIONS, ASSETS, DONE_ON, firstLine, GLIMPSES, HANDS, HOLD, PERSON, PICTURE, READINGS, RECORDING, seconds, WROTE, type Failed, type Hand } from "./reporter.ts";
@@ -39,7 +39,8 @@ export const expect = run?.before ? playwrightExpect.configure({ timeout: 1000 }
 
 // The page's own clock and timers are taken before anything fakes them: under a set clock, rrweb's throttle let one
 // pointer move through, timed by the gap between the set time and the real one.
-const recorder = (rrweb: string) => `;((Date, setTimeout, clearTimeout, requestAnimationFrame, cancelAnimationFrame) => {
+const recorder = (rrweb: string) => `${QUIET_DEV_CHROME}
+;((Date, setTimeout, clearTimeout, requestAnimationFrame, cancelAnimationFrame) => {
 ${readFileSync(rrweb, "utf8")}
 })(Date, setTimeout, clearTimeout, requestAnimationFrame, cancelAnimationFrame);
 // With each page taken whole, whether its browser was light or dark, still or moving, for it to be played back as it

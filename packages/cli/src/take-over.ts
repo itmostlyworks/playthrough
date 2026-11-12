@@ -12,7 +12,7 @@ import { answerAs, asRecorded, pathTo } from "@playthrough/page";
 import { list, quote, Refused, type Did } from "@playthrough/review";
 import { keepRunning } from "./app.ts";
 import { refuseWhileAside } from "./before.ts";
-import { recorder, type Handed } from "./scenes.ts";
+import { QUIET_DEV_CHROME, recorder, type Handed } from "./scenes.ts";
 import { runTo } from "./following.ts";
 import { listen, thisMachine } from "./open.ts";
 import { read } from "./read.ts";
@@ -178,6 +178,7 @@ let RECORDER: string | undefined;
 
 const SAYS = `<script>(() => {
   if (window.parent === window) return;
+  ${QUIET_DEV_CHROME}
   // On the recordings' clock, so what the page says about time reads as it did there.
   const ahead = Number(sessionStorage.getItem("playthrough:clock")) || 0;
   if (ahead) {

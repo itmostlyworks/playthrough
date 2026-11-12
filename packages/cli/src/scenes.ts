@@ -40,6 +40,15 @@ export type ForkRun = { scene: string; step: string; actions?: number; notes: st
 export type ForkRan = { from: number; fork?: string; steps: { title: string; at: number }[]; failed?: { at?: string; why: string } };
 export const FORK_RAN = "fork.json";
 
+// What a dev server draws over the app of its own, as Next's "N" badge, isn't the app: it's hidden in every page a scene
+// records and every page of the app taken over, never in the app itself. A sheet the page adopts, not an element in it,
+// so nothing the app renders is changed.
+export const QUIET_DEV_CHROME = `{
+  const quiet = new CSSStyleSheet();
+  quiet.replaceSync("nextjs-portal { display: none !important; }");
+  document.adoptedStyleSheets = [...document.adoptedStyleSheets, quiet];
+}`;
+
 // Where a person takes a scene over: the end of one of its steps, or of the whole scene, or within a step, after as many of
 // its actions. Followed, it's as far as the run may go, and the playhead rests there once it's to be handed over. Taken
 // over on a note's fork, the fork written for those notes, run before it's handed over, and what they did there, kept;
