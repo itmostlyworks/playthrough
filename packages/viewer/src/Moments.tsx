@@ -80,7 +80,7 @@ function keepReplies(review: string, replies: Replied[]) {
 const toSend = (notes: number, replies: number) =>
   [notes && `${notes} ${notes === 1 ? "note" : "notes"}`, replies && `${replies} ${replies === 1 ? "reply" : "replies"}`].filter(Boolean).join(" and ");
 // Each moment's taking: seen per taking, so one that's different since asks for you again, once.
-const takingOf = (round: Round, scene: string) => `${round.number}:${scene}`;
+const takingOf = (round: number, scene: string) => `${round}:${scene}`;
 // The moments that look different since the taking before, by Playthrough's own comparison, with its words.
 function differentSince(review: Review, round: Round): Map<string, string[]> {
   const before = review.rounds.findLast((one) => one.number < round.number && one.number > 0 && one.finished);
@@ -90,21 +90,33 @@ function differentSince(review: Review, round: Round): Map<string, string[]> {
   return different;
 }
 
-// The moments you've opened, by change and by you, in this browser: seen, they're quieter on the list.
+// The moments you've opened, kept with the change for you, so they're seen from every browser, each as it was handed
+// back: one handed back again, different, asks for you again. Those this browser kept before they were kept with the
+// change are carried over to it once.
 const seenKey = (review: string, you: string) => `playthrough:moments-seen:${review}:${you}`;
-function seenOf(review: string, you: string): string[] {
+function seenOf(review: Review, you: string): string[] {
+  let here: string[] = [];
   try {
-    return JSON.parse(localStorage.getItem(seenKey(review, you)) ?? "[]");
-  } catch {
-    return [];
-  }
-}
-function markSeen(review: string, you: string, scene: string) {
-  const seen = seenOf(review, you);
-  if (seen.includes(scene)) return;
-  try {
-    localStorage.setItem(seenKey(review, you), JSON.stringify([...seen, scene]));
+    here = JSON.parse(localStorage.getItem(seenKey(review.id, you)) ?? "[]");
   } catch {}
+  return [...new Set([...(review.seen?.[you] ?? []).map((one) => takingOf(one.round, one.scene)), ...here])];
+}
+// Once each: the page asks again as it draws until the change comes back with it.
+const telling = new Set<string>();
+function markSeen(review: Review, you: string, takings: string[]) {
+  const kept = new Set((review.seen?.[you] ?? []).map((one) => takingOf(one.round, one.scene)));
+  const moments = takings
+    .filter((taking) => !kept.has(taking) && !telling.has(`${review.id}:${taking}`))
+    .map((taking) => ({ round: Number(taking.slice(0, taking.indexOf(":"))), scene: taking.slice(taking.indexOf(":") + 1) }))
+    .filter(({ round, scene }) => review.rounds.some((one) => one.number === round && one.finished && one.scenes.some((kept) => kept.name === scene)));
+  if (!moments.length) return;
+  for (const one of moments) telling.add(`${review.id}:${takingOf(one.round, one.scene)}`);
+  void fetch(`/api/reviews/${encodeURIComponent(review.id)}/seen`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ by: you, moments }) }).then((answer) => {
+    if (!answer.ok) return;
+    try {
+      localStorage.removeItem(seenKey(review.id, you));
+    } catch {}
+  });
 }
 
 // A change has moments when its latest round is finished with some in it.
@@ -116,17 +128,15 @@ const sentOn = (review: Review, you: string) => {
   return round ? sentBy(review, you).filter((one) => one.round === round.number) : [];
 };
 
-// What the moments page knows beside the review: the app's name, its people as the list says them, what each moment is
-// about.
-export type Shown = { app?: string; people: Record<string, string>; moments: About[] };
+// What the moments page knows beside the review: the app's name, and its people as the list says them ("Sam, a member").
+export type Shown = { app?: string; people: Record<string, string> };
 function useShown(id: string): Shown {
-  const [shown, setShown] = useState<Shown>({ people: {}, moments: [] });
+  const [shown, setShown] = useState<Shown>({ people: {} });
   useEffect(() => {
     let current = true;
-    fetch(`/api/reviews/${encodeURIComponent(id)}/moments`)
-      .then((answer) => (answer.ok ? answer.json() : []), () => [])
-      // A viewer started before it said more than the moments says only those.
-      .then((said: Shown | About[]) => current && setShown(Array.isArray(said) ? { people: {}, moments: said } : said));
+    fetch(`/api/reviews/${encodeURIComponent(id)}/shown`)
+      .then((answer) => (answer.ok ? answer.json() : { people: {} }), () => ({ people: {} }))
+      .then((said: Shown) => current && setShown(said));
     return () => void (current = false);
   }, [id]);
   return shown;
@@ -286,7 +296,9 @@ function ChangeInList(props: {
   const shown = useShown(review.id);
   const [notes] = useState(() => unsentOf(review.id));
   const [replies] = useState(() => repliesOf(review.id));
-  const [seen] = useState(() => seenOf(review.id, you));
+  const [seen] = useState(() => seenOf(review, you));
+  // What this browser kept before it was kept with the change goes to it.
+  useEffect(() => markSeen(review, you, seen), []);
   const different = differentSince(review, round);
   const said = notes.length + replies.length;
   const [problems, setProblems] = useState<string[]>();
@@ -366,12 +378,12 @@ function ChangeInList(props: {
             {round.scenes.map((scene, i) => {
               // Seen in this taking, or the same as one seen before, it's quieter; different since, it asks again.
               const seenBefore = seen.some((one) => one === scene.name || one.endsWith(`:${scene.name}`));
-              const quiet = !waiting || seen.includes(takingOf(round, scene.name)) || (seenBefore && !different.has(scene.name));
+              const quiet = !waiting || seen.includes(takingOf(round.number, scene.name)) || (seenBefore && !different.has(scene.name));
               const talk = [...allNotes(review)].filter(([, kept]) => (kept.note.on?.app?.from.scene ?? kept.note.on?.scene) === scene.name);
               return (
                 <li key={scene.name}>
                   <button onClick={() => onOpen(i + 1)} className="group block w-full text-left">
-                    <Still review={review} round={round} scene={scene} about={shown.moments.find((one) => one.words === scene.name)?.about} seen={quiet} />
+                    <Still review={review} round={round} scene={scene} about={scene.about} seen={quiet} />
                     <span className={`mt-2.5 block text-[13px] leading-5 ${quiet ? "text-faint" : "text-soft"}`}>{whoIn(shown, scene)}</span>
                     <span className={`block text-[14px] leading-5 ${quiet ? "text-soft" : "text-fg"}`}>{scene.name}</span>
                     {/* Said once: where someone spoke on it, the reply says what changed. */}
@@ -382,7 +394,7 @@ function ChangeInList(props: {
                   {(() => {
                     // A line a note: your latest words, and where it stands. Its conversation is by its pin.
                     const unsentHere = notes.filter((note) => note.on?.scene === scene.name);
-                    const seenHere = seen.includes(takingOf(round, scene.name));
+                    const seenHere = seen.includes(takingOf(round.number, scene.name));
                     const lines = [
                       ...talk.map(([id]) => {
                         const turns = conversation(review, id);
@@ -518,9 +530,6 @@ function Still({ review, round, scene, about, seen }: { review: Review; round: R
   );
 }
 
-// Each moment's thing it's about, as `playthrough moment` keeps it, by its words.
-type About = { words: string; about?: { role: string; name: string } };
-
 function Change({ id, moment, note, go }: { id: string; moment: number; note?: string; go: (to: Where, replace?: boolean) => void }) {
   const { review } = useReview(id);
   const you = useYou();
@@ -546,7 +555,7 @@ function Change({ id, moment, note, go }: { id: string; moment: number; note?: s
   if (!round) return <div className="grid h-dvh place-items-center bg-ground text-soft">Nothing is waiting on you here.</div>;
   const n = Math.min(moment, round.scenes.length);
   const scene = round.scenes[n - 1]!;
-  markSeen(id, you, takingOf(round, scene.name));
+  markSeen(review, you, [...seenOf(review, you), takingOf(round.number, scene.name)]);
   const sent = sentBy(review, you).flatMap((one) => one.notes);
   return (
     <MomentView
@@ -554,7 +563,7 @@ function Change({ id, moment, note, go }: { id: string; moment: number; note?: s
       review={review}
       round={round}
       n={n}
-      about={shown.moments.find((one) => one.words === scene.name)?.about}
+      about={scene.about}
       who={whoIn(shown, scene)}
       notes={notes}
       sent={sent}
