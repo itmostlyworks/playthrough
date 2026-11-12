@@ -213,8 +213,10 @@ function List({ changes, you, onOpen }: { changes?: Listed[]; you?: string; onOp
   const before = useRef<Listed[]>(undefined);
   // Those that have moved since the list was first shown: each grows into its place.
   const moved = useRef(new Set<string>());
-  // Those folding away after your Send or Done, which stay where they were until they're gone.
+  // Those folding away after your Send or Done, which stay where they were until they're gone, and then go where they
+  // go wherever the pointer is: you moved them.
   const leaving = useRef(new Set<string>());
+  const sent = useRef(new Set<string>());
   // What's waiting, in the order it came: the longest waiting first, and one that comes later at the foot.
   const order = useRef<string[]>([]);
   const foot = useRef<HTMLDivElement>(null);
@@ -234,7 +236,8 @@ function List({ changes, you, onOpen }: { changes?: Listed[]; you?: string; onOp
       const gone = !changes.includes(now);
       const [from, to] = [sectionOf(then), gone ? undefined : sectionOf(now)];
       if (from === to) return gone ? [] : [now];
-      if (leaving.current.has(now.review.id) || ((from === "waiting" || to === "waiting") && underPointer)) return (held = true), then ? [then] : [];
+      const yours = sent.current.delete(now.review.id);
+      if (leaving.current.has(now.review.id) || (!yours && (from === "waiting" || to === "waiting") && underPointer)) return (held = true), then ? [then] : [];
       if (to) moved.current.add(now.review.id);
       return gone ? [] : [now];
     });
@@ -289,7 +292,12 @@ function List({ changes, you, onOpen }: { changes?: Listed[]; you?: string; onOp
       keyed={keyed === listed.review.id}
       onToggle={() => toggle(listed.review.id)}
       onOpen={(moment, note) => onOpen(listed.review.id, moment, note)}
-      onLeaving={(going) => (going ? leaving.current.add(listed.review.id) : leaving.current.delete(listed.review.id), going || lookAgain((n) => n + 1))}
+      onLeaving={(going, moved) => {
+        if (going) return void leaving.current.add(listed.review.id);
+        leaving.current.delete(listed.review.id);
+        if (moved) sent.current.add(listed.review.id);
+        lookAgain((n) => n + 1);
+      }}
     />
   );
   return (
@@ -363,8 +371,8 @@ function ChangeInList(props: {
   keyed: boolean;
   onToggle: () => void;
   onOpen: (moment: number, note?: string) => void;
-  // Going as you send or say Done, and gone, or staying where it is, as the send wasn't kept.
-  onLeaving: (going: boolean) => void;
+  // Going as you send or say Done; then gone, or staying where it is, as the send wasn't kept.
+  onLeaving: (going: boolean, moved?: boolean) => void;
 }) {
   const { listed, standing, you, now, open, arrived, keyed, onToggle, onOpen, onLeaving } = props;
   const { review } = listed;
@@ -397,7 +405,7 @@ function ChangeInList(props: {
     keepUnsent(review.id, []);
     keepReplies(review.id, []);
     setLeaving(true);
-    setTimeout(() => onLeaving(false), matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : LEAVING);
+    setTimeout(() => onLeaving(false, true), matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : LEAVING);
   };
   const sendNow = () => (said ? say({ notes, ...(replies.length && { replies }), looksGood: [] }) : Promise.resolve());
   // Done says every moment looks good to you, and that you've nothing more to say: the agent hears it as it hears a
