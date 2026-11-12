@@ -28,7 +28,7 @@ import { readingsOf, type Failed } from "./reporter.ts";
 import { markUnsteady, recorder, runOnce } from "./scenes.ts";
 import { setupIn } from "./setup.ts";
 import { listening } from "./wait.ts";
-import { aboutSaid, ENDED, fileOf, sceneOf, whatDiffers, type About } from "./way.ts";
+import { aboutSaid, ENDED, fileOf, sceneOf, whatDiffers, type About, type Done } from "./way.ts";
 
 // What a moment says is what's there, short enough to sit under a picture of it: who and where, the person sees.
 const MOST_WORDS = 10;
@@ -96,7 +96,8 @@ export async function moment(repo: Repo, words: string, named?: string) {
   writeFileSync(join(repo.scenes(id), "package.json"), `{ "type": "module" }\n`);
   writeFileSync(join(repo.scenes(id), file), sceneOf(way));
   rmSync(trying, { recursive: true, force: true });
-  const scene: Scene = { ...recorded.scene, ...(there.about && { about: { role: there.about.role, name: there.about.name } }) };
+  const acted = lastActedOn(browser.did, readings.at(-1)!);
+  const scene: Scene = { ...recorded.scene, ...(there.about && { about: { role: there.about.role, name: there.about.name } }), ...(acted && { acted }) };
   const number = Math.max(1, roundInProgress(review));
   for (const { name, bytes } of recorded.files) await repo.reviews.saveFile(id, number, name, bytes);
   const kept = review.rounds.find((round) => round.number === number);
@@ -110,6 +111,17 @@ export async function moment(repo: Repo, words: string, named?: string) {
   console.log(`Compared: what's read on the page, and the address with the ids each run made set aside (${address}, the same).`);
   if (passing.length) console.log(`Left out, as messages that pass by themselves: ${passing.join("; ")}.`);
   console.log(`The person sees it once you hand back: playthrough wait, in the background.`);
+}
+
+// The last thing done something to on the way that's still on the page at its end, as the page's reading has it (a
+// table's cell is read as its words): where a moment names nothing, its still closes in there, as that's where the
+// person's eye would be.
+function lastActedOn(did: Done[], end: Reading): { role: string; name: string } | undefined {
+  for (const { role, name } of did.toReversed()) {
+    const named = name ? end.things.filter((thing) => thing.name === name) : [];
+    const thing = named.find((one) => one.role === role) ?? named[0];
+    if (thing) return { role: thing.role, name: thing.name };
+  }
 }
 
 // The page as a step's end reads it, with nothing pointed at, and the picture left out.
@@ -190,8 +202,13 @@ export async function again(repo: Repo) {
   for (const { files } of ran.recorded) for (const { name, bytes } of files) await repo.reviews.saveFile(id, number, name, bytes);
   // In the order they were handed back, what each is about as it was marked; one new since, after them.
   const order = (scene: Scene) => handedBack.scenes.findIndex((one) => one.name === scene.name) >>> 0;
-  const aboutOf = (name: string) => review.rounds.findLast((round) => round.scenes.some((scene) => scene.name === name && scene.about))?.scenes.find((scene) => scene.name === name)?.about;
-  const scenes = ran.recorded.map(({ scene }) => ({ ...scene, ...(aboutOf(scene.name) && { about: aboutOf(scene.name) }) })).sort((a, b) => order(a) - order(b));
+  const marked = (name: string) => review.rounds.findLast((round) => round.scenes.some((scene) => scene.name === name))?.scenes.find((scene) => scene.name === name);
+  const scenes = ran.recorded
+    .map(({ scene }) => {
+      const { about, acted } = marked(scene.name) ?? {};
+      return { ...scene, ...(about && { about }), ...(acted && { acted }) };
+    })
+    .sort((a, b) => order(a) - order(b));
   const kept = review.rounds.find((round) => round.number === number);
   await repo.reviews.saveRound(id, { number, by: agent(kept?.by), scenes, replies: kept?.replies ?? [], accounts: {} });
   const comparisons = await compareAll(repo, id, number, scenes);

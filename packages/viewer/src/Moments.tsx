@@ -479,7 +479,7 @@ function ChangeInList(props: {
               return (
                 <li key={scene.name}>
                   <button onClick={() => onOpen(i + 1)} className="group block w-full text-left">
-                    <Still review={review} round={round} scene={scene} about={scene.about} seen={quiet} />
+                    <Still review={review} round={round} scene={scene} about={scene.about ?? scene.acted} seen={quiet} />
                     <span className={`mt-2.5 block text-[13px] leading-5 ${quiet ? "text-faint" : "text-soft"}`}>{whoIn(listed, scene)}</span>
                     <span className={`block text-[14px] leading-5 ${quiet ? "text-soft" : "text-fg"}`}>{scene.name}</span>
                     {/* Said once: where someone spoke on it, the reply says what changed. */}
@@ -608,8 +608,9 @@ function closeOn(reading: Reading | undefined, about: { role: string; name: stri
   return around(union([thing.box, ...near.map(wordsOf)]), reading.screen, shape, 3);
 }
 
-// A moment's still: the app at its point, closed in on what it's about; the whole screen where it names nothing. What
-// runs off an edge the page goes on past fades there rather than being cut. Seen, it's quieter.
+// A moment's still: the app at its point, closed in on what it's about, or where it names nothing, on the last thing
+// done on the way that's still there; the whole screen where there's neither. What runs off an edge the page goes on
+// past fades there rather than being cut. Seen, it's quieter.
 const FADE = 20;
 function Still({ review, round, scene, about, seen }: { review: Review; round: Round; scene: Scene; about?: { role: string; name: string }; seen: boolean }) {
   const [frame, setFrame] = useState<Frame>();
@@ -722,7 +723,8 @@ function MomentView(props: {
   const screen = readings?.at(-1)?.screen ?? { width: 1280, height: 800 };
   // On a phone, the whole screen is too small to read: it's closed in on what the moment is about, as its still is.
   const phone = usePhone();
-  const closer = useMemo(() => (phone ? closeOn(readings?.at(-1), about, screen.width / screen.height) : undefined), [phone, readings, about?.role, about?.name]);
+  const closeTo = about ?? scene.acted;
+  const closer = useMemo(() => (phone ? closeOn(readings?.at(-1), closeTo, screen.width / screen.height) : undefined), [phone, readings, closeTo?.role, closeTo?.name]);
   const cut = useCut(review.id, round.number, scene);
   const [clockOf] = useState(() => new Clock(end));
   const [playing, setPlaying] = useState<{ until: number }>();
