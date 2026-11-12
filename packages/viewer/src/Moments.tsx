@@ -1,14 +1,14 @@
-// A rough try at moments: what's waiting on you, each change by its title with its moments under it, a line each in the
-// agent's words; and a moment opened, the app at the point that matters, still and as large as the window allows. From
-// there: look (play the few seconds that led here), step in (the real app there, as that person), or say something (a
-// note on what you click). Going on to the next moment is the yes. What you said goes to the agent by the change's one
-// button on the list: Send, or Done with nothing to say. Its own address, /moments, beside the page; the recording, the pointer, the pins and
-// stepping in are the page's own.
+// What's waiting on you from every app on this machine, each change by its title with its moments under it, a still
+// each in the agent's words; and a moment opened, the app at the point that matters, still and as large as the window
+// allows. From there: look (play the few seconds that led here), step in (the real app there, as that person), or say
+// something (a note on what you click). Going on to the next moment is the yes. What you said goes to the agent by the
+// change's one button on the list: Send, or Done with nothing to say. The list is at /, each moment at
+// /moments/<its change's address>/<n>; the recording, the pointer, the pins and stepping in are the page's own.
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { Glimpse, Reading } from "@playthrough/page";
 import { allNotes, conversation, newId, pausedAt, waitingForTheAgent, type Turn, type Did, type Note, type Place, type Review, type Round, type Scene } from "@playthrough/review";
-import { glimpses, keepBranch, picture, readings as readingsOf, recording, send, useReview, useYou } from "./api.ts";
+import { glimpses, keepBranch, picture, readings as readingsOf, recording, send, useChanges, useYou, type Listed } from "./api.ts";
 import { Key } from "./Card.tsx";
 import { around, Picture, union, type Frame } from "./Picture.tsx";
 import { workingSince } from "./notes.ts";
@@ -20,14 +20,18 @@ import { readyAt } from "./live.ts";
 import { clamp } from "./moments.ts";
 import type { Scrolled } from "./replay.ts";
 
-// Where you are: the list, or a change's moment, by its place in the list from 1, and a note open by its pin.
+// Where you are: the list, or a change's moment, by the change's address and the moment's place in it from 1, and a
+// note open by its pin.
 type Where = { review?: string; moment?: number; note?: string };
 const whereFrom = (path: string, search = ""): Where => {
-  const [, review, moment] = path.split("/").filter(Boolean).map(decodeURIComponent);
+  const [first, ...parts] = path.split("/").filter(Boolean).map(decodeURIComponent);
+  if (first !== "moments" || !parts.length) return {};
+  const moment = parts.length > 1 && /^\d+$/.test(parts.at(-1)!) ? Number(parts.pop()) : 1;
   const note = new URLSearchParams(search).get("note") ?? undefined;
-  return review ? { review, moment: Math.max(1, Number(moment) || 1), ...(note && { note }) } : {};
+  return { review: parts.join("/"), moment: Math.max(1, moment), ...(note && { note }) };
 };
-const pathOf = ({ review, moment, note }: Where) => (review ? `/moments/${encodeURIComponent(review)}/${moment ?? 1}${note ? `?note=${encodeURIComponent(note)}` : ""}` : "/moments");
+const pathOf = ({ review, moment, note }: Where) =>
+  review ? `/moments/${review.split("/").map(encodeURIComponent).join("/")}/${moment ?? 1}${note ? `?note=${encodeURIComponent(note)}` : ""}` : "/";
 
 export function MomentsPage() {
   const [where, setWhere] = useState(() => whereFrom(location.pathname, location.search));
@@ -41,15 +45,38 @@ export function MomentsPage() {
     history[replace ? "replaceState" : "pushState"](null, "", pathOf(to));
     setWhere(to);
   };
-  useEffect(() => void (document.title = "Moments · Playthrough"), []);
-  return where.review ? <Change key={where.review} id={where.review} moment={where.moment ?? 1} note={where.note} go={go} /> : <List onOpen={(review, moment, note) => go({ review, moment, note })} />;
+  const changes = useChanges();
+  const you = useYou();
+  // The tab says how many changes wait on you, so it's seen from any other.
+  const waiting = changes && you ? changes.filter(({ review }) => latestOf(review) && standingOf(review, you).is === "waiting").length : 0;
+  useEffect(() => void (document.title = waiting ? `${waiting} waiting · Playthrough` : "Playthrough"), [waiting]);
+  // A change by its own name alone, as addresses were before every app's were listed, is the first with that name.
+  const listed = where.review ? changes?.find(({ review }) => review.id === where.review || review.id.endsWith(`/${where.review}`)) : undefined;
+  useEffect(() => void (listed && listed.review.id !== where.review && go({ ...where, review: listed.review.id }, true)), [listed?.review.id]);
+  if (where.review) {
+    if (!changes || !you || (listed && listed.review.id !== where.review)) return <div className="h-dvh bg-ground" />;
+    if (!listed) return <div className="grid h-dvh place-items-center bg-ground text-soft">There's no change here.</div>;
+    return <Change key={where.review} listed={listed} you={you} moment={where.moment ?? 1} note={where.note} go={go} />;
+  }
+  return <List changes={changes} you={you} onOpen={(review, moment, note) => go({ review, moment, note })} />;
+}
+
+// What this browser keeps for a change, by its address. What it kept by the change's own name alone, before every app's
+// changes were listed, comes over to the address once.
+function stored(key: (review: string) => string, review: string): string | null {
+  const now = localStorage.getItem(key(review));
+  const own = review.slice(review.indexOf("/") + 1);
+  if (now !== null || own === review) return now;
+  const before = localStorage.getItem(key(own));
+  if (before !== null) (localStorage.setItem(key(review), before), localStorage.removeItem(key(own)));
+  return before;
 }
 
 // Your notes on a change not yet sent, kept in this browser until you send them.
 const unsentKey = (review: string) => `playthrough:moments:${review}`;
 function unsentOf(review: string): Note[] {
   try {
-    return JSON.parse(localStorage.getItem(unsentKey(review)) ?? "[]");
+    return JSON.parse(stored(unsentKey, review) ?? "[]");
   } catch {
     return [];
   }
@@ -65,7 +92,7 @@ type Replied = { note: string; words: string };
 const repliesKey = (review: string) => `playthrough:moments-replies:${review}`;
 function repliesOf(review: string): Replied[] {
   try {
-    return JSON.parse(localStorage.getItem(repliesKey(review)) ?? "[]");
+    return JSON.parse(stored(repliesKey, review) ?? "[]");
   } catch {
     return [];
   }
@@ -97,7 +124,7 @@ const seenKey = (review: string, you: string) => `playthrough:moments-seen:${rev
 function seenOf(review: Review, you: string): string[] {
   let here: string[] = [];
   try {
-    here = JSON.parse(localStorage.getItem(seenKey(review.id, you)) ?? "[]");
+    here = JSON.parse(stored((id) => seenKey(id, you), review.id) ?? "[]");
   } catch {}
   return [...new Set([...(review.seen?.[you] ?? []).map((one) => takingOf(one.round, one.scene)), ...here])];
 }
@@ -128,20 +155,8 @@ const sentOn = (review: Review, you: string) => {
   return round ? sentBy(review, you).filter((one) => one.round === round.number) : [];
 };
 
-// What the moments page knows beside the review: the app's name, and its people as the list says them ("Sam, a member").
-export type Shown = { app?: string; people: Record<string, string> };
-function useShown(id: string): Shown {
-  const [shown, setShown] = useState<Shown>({ people: {} });
-  useEffect(() => {
-    let current = true;
-    fetch(`/api/reviews/${encodeURIComponent(id)}/shown`)
-      .then((answer) => (answer.ok ? answer.json() : { people: {} }), () => ({ people: {} }))
-      .then((said: Shown) => current && setShown(said));
-    return () => void (current = false);
-  }, [id]);
-  return shown;
-}
-const whoIn = (shown: Shown, scene: Scene) => (scene.person ? (shown.people[scene.person] ?? scene.person) : "");
+// Who a moment is done as, as the list says them ("Sam, a member").
+const whoIn = (listed: Listed, scene: Scene) => (scene.person ? (listed.people[scene.person] ?? scene.person) : "");
 
 // How long ago, as a person says it.
 function ago(iso: string, now: number): string {
@@ -185,53 +200,110 @@ function keepOpened(ids: string[]) {
 // So many done changes show; the rest wait behind one line.
 const LATEST = 5;
 
-// What's waiting on you: each change by its title, its moments as stills you can judge at a glance. Under them, those
-// with your agents and those done, a quiet line each that opens to the same stills. A change moves by its one button:
-// Send, with what you said, or Done, with nothing to say.
-function List({ onOpen }: { onOpen: (review: string, moment: number, note?: string) => void }) {
-  const you = useYou();
-  const [reviews, setReviews] = useState<Review[]>();
+// What's waiting on you, from every app on this machine: each change by its title, its moments as stills you can judge
+// at a glance, the longest waiting first. Under them, those with your agents and those done, a quiet line each that
+// opens to the same stills. A change moves by its one button: Send, with what you said, or Done, with nothing to say.
+// The list keeps itself as it is on disk, but calmly: one you sent folds away before it goes, and one handed over, or
+// handed back, joins what's waiting at its foot only while nothing it would move is under your pointer.
+function List({ changes, you, onOpen }: { changes?: Listed[]; you?: string; onOpen: (review: string, moment: number, note?: string) => void }) {
   const [opened, setOpened] = useState(openedLines);
   const [earlier, setEarlier] = useState(false);
-  // What moved this visit arrives where it goes, gently.
-  const [moved, setMoved] = useState<string[]>([]);
-  const load = () => fetch("/api/reviews").then((answer) => answer.json() as Promise<Review[]>).then(setReviews);
-  useEffect(() => void load(), []);
+  const [shown, setShown] = useState<Listed[]>();
+  const before = useRef<Listed[]>(undefined);
+  // Those that have moved since the list was first shown: each grows into its place.
+  const moved = useRef(new Set<string>());
+  // Those folding away after your Send or Done, which stay where they were until they're gone.
+  const leaving = useRef(new Set<string>());
+  // What's waiting, in the order it came: the longest waiting first, and one that comes later at the foot.
+  const order = useRef<string[]>([]);
+  const foot = useRef<HTMLDivElement>(null);
+  const pointer = useRef<number>(undefined);
+  const holding = useRef(false);
+  const [looked, lookAgain] = useState(0);
+  const sectionOf = (listed?: Listed) => (listed && you && latestOf(listed.review) ? standingOf(listed.review, you).is : undefined);
+  useEffect(() => {
+    if (!changes || !you) return;
+    const was = before.current;
+    if (!was) return void setShown((before.current = changes));
+    const top = foot.current?.getBoundingClientRect().top;
+    const underPointer = pointer.current !== undefined && top !== undefined && pointer.current >= top;
+    let held = false;
+    const settled = [...changes, ...was.filter((one) => !changes.some((now) => now.review.id === one.review.id))].flatMap((now) => {
+      const then = was.find((one) => one.review.id === now.review.id);
+      const gone = !changes.includes(now);
+      const [from, to] = [sectionOf(then), gone ? undefined : sectionOf(now)];
+      if (from === to) return gone ? [] : [now];
+      if (leaving.current.has(now.review.id) || ((from === "waiting" || to === "waiting") && underPointer)) return (held = true), then ? [then] : [];
+      if (to) moved.current.add(now.review.id);
+      return gone ? [] : [now];
+    });
+    holding.current = held;
+    setShown((before.current = settled));
+  }, [changes, you, looked]);
+  // Held, it's looked at again as the pointer moves, leaves or the list scrolls.
+  useEffect(() => {
+    const look = () => holding.current && lookAgain((n) => n + 1);
+    const moving = (event: PointerEvent) => ((pointer.current = event.pointerType === "touch" ? undefined : event.clientY), look());
+    const out = () => ((pointer.current = undefined), look());
+    const lifted = (event: PointerEvent) => event.pointerType === "touch" && out();
+    addEventListener("pointermove", moving);
+    addEventListener("pointerup", lifted);
+    document.documentElement.addEventListener("pointerleave", out);
+    addEventListener("blur", out);
+    addEventListener("scroll", look, { passive: true });
+    return () => {
+      removeEventListener("pointermove", moving);
+      removeEventListener("pointerup", lifted);
+      document.documentElement.removeEventListener("pointerleave", out);
+      removeEventListener("blur", out);
+      removeEventListener("scroll", look);
+    };
+  }, []);
   const now = Date.now();
-  if (!reviews || !you) return <div className="min-h-dvh bg-ground" />;
-  const all = reviews.filter((review) => latestOf(review)).map((review) => ({ review, standing: standingOf(review, you) }));
+  if (!shown || !you) return <div className="min-h-dvh bg-ground" />;
+  const all = shown.filter(({ review }) => latestOf(review)).map((listed) => ({ listed, standing: standingOf(listed.review, you) }));
   const newest = (a: (typeof all)[number], b: (typeof all)[number]) => ("at" in b.standing ? b.standing.at : "").localeCompare("at" in a.standing ? a.standing.at : "");
-  const waiting = all.filter((one) => one.standing.is === "waiting");
+  const longest = (a: (typeof all)[number], b: (typeof all)[number]) => latestOf(a.listed.review)!.finished!.localeCompare(latestOf(b.listed.review)!.finished!);
+  const waiting = all.filter((one) => one.standing.is === "waiting").sort(longest);
+  order.current = [...order.current.filter((id) => waiting.some(({ listed }) => listed.review.id === id)), ...waiting.map(({ listed }) => listed.review.id).filter((id) => !order.current.includes(id))];
+  waiting.sort((a, b) => order.current.indexOf(a.listed.review.id) - order.current.indexOf(b.listed.review.id));
   const withAgents = all.filter((one) => one.standing.is === "sent").sort(newest);
   const done = all.filter((one) => one.standing.is === "done").sort(newest);
   // Ctrl+Enter sends the first change with something to send, as a page's send sends its one review.
-  const keyed = [...waiting, ...withAgents, ...done].find(({ review }) => unsentOf(review.id).length)?.review.id;
+  const keyed = [...waiting, ...withAgents, ...done].find(({ listed }) => unsentOf(listed.review.id).length)?.listed.review.id;
   const toggle = (id: string) => {
     const next = opened.includes(id) ? opened.filter((one) => one !== id) : [...opened, id];
     setOpened(next);
     keepOpened(next);
   };
-  const change = ({ review, standing }: (typeof all)[number]) => (
+  const change = ({ listed, standing }: (typeof all)[number]) => (
     <ChangeInList
-      key={review.id}
-      review={review}
+      key={listed.review.id}
+      listed={listed}
       standing={standing}
       you={you}
       now={now}
-      open={standing.is === "waiting" || opened.includes(review.id)}
-      arrived={moved.includes(review.id)}
-      keyed={keyed === review.id}
-      onToggle={() => toggle(review.id)}
-      onOpen={(moment, note) => onOpen(review.id, moment, note)}
-      onMoved={() => (setMoved((ids) => [...ids, review.id]), void load())}
+      open={standing.is === "waiting" || opened.includes(listed.review.id)}
+      arrived={moved.current.has(listed.review.id)}
+      keyed={keyed === listed.review.id}
+      onToggle={() => toggle(listed.review.id)}
+      onOpen={(moment, note) => onOpen(listed.review.id, moment, note)}
+      onLeaving={(going) => (going ? leaving.current.add(listed.review.id) : leaving.current.delete(listed.review.id), going || lookAgain((n) => n + 1))}
     />
   );
   return (
     <div className="min-h-dvh bg-ground">
       <main className="mx-auto max-w-[1040px] px-8 pt-12 pb-24 phone:px-4 phone:pt-6">
         <h1 className="text-[13px] leading-5 font-semibold text-soft">Waiting on you</h1>
-        {!waiting.length && <p className="mt-4 animate-arrive text-[15px] leading-[22px] text-fg">Nothing's waiting on you.</p>}
+        {!waiting.length && (
+          <div className="mt-4 animate-arrive text-[15px] leading-[22px]">
+            <p className="text-fg">Nothing's waiting on you.</p>
+            {/* Never anything here: how the first one comes. */}
+            {!all.length && <p className="text-soft">To see an agent's work here, tell it: “Show me this change with npx playthrough.”</p>}
+          </div>
+        )}
         {waiting.map(change)}
+        <div ref={foot} />
         {withAgents.length > 0 && (
           <section className="mt-14">
             <h2 className="text-[13px] leading-5 font-semibold text-soft">With your agents</h2>
@@ -277,10 +349,11 @@ function Chevron({ open }: { open: boolean }) {
   );
 }
 
-// A change on the list, as it stands: waiting, its title and its stills, with Done or Send; with your agents or done, a quiet line
-// that opens to the same stills, muted, with Send once you've said something on it.
+// A change on the list, as it stands: waiting, its title and its stills, with Done or Send; with your agents or done, a
+// quiet line that opens to the same stills, muted, with Send once you've said something on it. Arriving, it grows into
+// its place, and leaving, it folds away, so what's around it glides rather than jumps.
 function ChangeInList(props: {
-  review: Review;
+  listed: Listed;
   standing: Standing;
   you: string;
   now: number;
@@ -289,11 +362,18 @@ function ChangeInList(props: {
   keyed: boolean;
   onToggle: () => void;
   onOpen: (moment: number, note?: string) => void;
-  onMoved: () => void;
+  // Going as you send or say Done, and gone, or staying where it is, as the send wasn't kept.
+  onLeaving: (going: boolean) => void;
 }) {
-  const { review, standing, you, now, open, arrived, keyed, onToggle, onOpen, onMoved } = props;
+  const { listed, standing, you, now, open, arrived, keyed, onToggle, onOpen, onLeaving } = props;
+  const { review } = listed;
   const round = latestOf(review)!;
-  const shown = useShown(review.id);
+  const [grown, setGrown] = useState(!arrived);
+  useEffect(() => {
+    if (grown) return;
+    const frame = requestAnimationFrame(() => requestAnimationFrame(() => setGrown(true)));
+    return () => cancelAnimationFrame(frame);
+  }, []);
   const [notes] = useState(() => unsentOf(review.id));
   const [replies] = useState(() => repliesOf(review.id));
   const [seen] = useState(() => seenOf(review, you));
@@ -309,13 +389,14 @@ function ChangeInList(props: {
   const say = async (what: { notes: Note[]; replies?: Replied[]; looksGood: string[] }) => {
     if (busy || leaving) return;
     setBusy(true);
+    onLeaving(true);
     const said = await send(review.id, { id: newId(), round: round.number, by: you, sent: new Date().toISOString(), verdicts: [], ...what });
     setBusy(false);
-    if (said.length) return setProblems(said);
+    if (said.length) return (onLeaving(false), setProblems(said));
     keepUnsent(review.id, []);
     keepReplies(review.id, []);
     setLeaving(true);
-    setTimeout(onMoved, matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : LEAVING);
+    setTimeout(() => onLeaving(false), matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : LEAVING);
   };
   const sendNow = () => (said ? say({ notes, ...(replies.length && { replies }), looksGood: [] }) : Promise.resolve());
   // Done says every moment looks good to you, and that you've nothing more to say: the agent hears it as it hears a
@@ -342,16 +423,16 @@ function ChangeInList(props: {
   const not = problems && <span className="text-amber-ink"> · Not sent: {problems[0]}</span>;
   return (
     <div
-      className={`grid transition-[grid-template-rows,opacity,margin] ease-calm ${leaving ? "mt-0 grid-rows-[0fr] opacity-0" : `grid-rows-[1fr] ${waiting ? "mt-12 first-of-type:mt-6" : ""}`} ${arrived ? "animate-arrive" : ""}`}
+      className={`grid transition-[grid-template-rows,opacity,margin] ease-calm ${leaving || !grown ? "mt-0 grid-rows-[0fr] opacity-0" : `grid-rows-[1fr] ${waiting ? "mt-12 first-of-type:mt-6" : ""}`}`}
       style={{ transitionDuration: `${LEAVING}ms` }}
     >
-      <div className={`min-h-0 ${leaving ? "overflow-hidden" : ""}`}>
+      <div className={`min-h-0 ${leaving || !grown ? "overflow-hidden" : ""}`}>
         {waiting ? (
           <div className="flex items-start gap-4">
             <div className="min-w-0 flex-1">
               <h2 className="text-[15px] leading-[22px] font-semibold text-fg">{review.title}</h2>
               <p className="text-[13px] leading-5 text-soft">
-                {[shown.app, ago(round.finished!, now)].filter(Boolean).join(" · ")}
+                {listed.app} · {ago(round.finished!, now)}
                 {not}
               </p>
             </div>
@@ -365,7 +446,7 @@ function ChangeInList(props: {
                 <span className="text-fg">{review.title}</span>
                 <span className="text-soft">
                   {" · "}
-                  {standing.is === "done" ? `Done ${ago(standing.at, now)}` : <Sent review={review} you={you} now={now} standing={standing} />}
+                  {standing.is === "done" ? `Done ${ago(standing.at, now)}` : <Sent listed={listed} now={now} standing={standing} />}
                 </span>
                 {not}
               </span>
@@ -384,7 +465,7 @@ function ChangeInList(props: {
                 <li key={scene.name}>
                   <button onClick={() => onOpen(i + 1)} className="group block w-full text-left">
                     <Still review={review} round={round} scene={scene} about={scene.about} seen={quiet} />
-                    <span className={`mt-2.5 block text-[13px] leading-5 ${quiet ? "text-faint" : "text-soft"}`}>{whoIn(shown, scene)}</span>
+                    <span className={`mt-2.5 block text-[13px] leading-5 ${quiet ? "text-faint" : "text-soft"}`}>{whoIn(listed, scene)}</span>
                     <span className={`block text-[14px] leading-5 ${quiet ? "text-soft" : "text-fg"}`}>{scene.name}</span>
                     {/* Said once: where someone spoke on it, the reply says what changed. */}
                     {waiting && !quiet && seenBefore && different.has(scene.name) && !talk.length && !notes.some((note) => note.on?.scene === scene.name) && (
@@ -474,12 +555,10 @@ function NoteLine({ words, stands, fresh, onOpen }: { words: string; stands: str
 }
 
 // What you sent and when, and what the agent is doing with it, in the page's words.
-function Sent({ review, you, now, standing }: { review: Review; you: string; now: number; standing: Extract<Standing, { is: "sent" }> }) {
-  const { review: live, agentWaiting } = useReview(review.id);
-  const kept = live && !Array.isArray(live) ? live : review;
-  const working = workingSince(kept, latestOf(kept)!);
-  const agent = working ? "the agent is working" : waitingForTheAgent(kept).length ? (agentWaiting === false ? "no agent is waiting, tell your agent" : "waiting for the agent") : undefined;
-  void you;
+function Sent({ listed, now, standing }: { listed: Listed; now: number; standing: Extract<Standing, { is: "sent" }> }) {
+  const { review, agentWaiting } = listed;
+  const working = workingSince(review, latestOf(review)!);
+  const agent = working ? "the agent is working" : waitingForTheAgent(review).length ? (agentWaiting ? "waiting for the agent" : "no agent is waiting, tell your agent") : undefined;
   return (
     <>
       {standing.notes + standing.replies ? `${toSend(standing.notes, standing.replies)} sent ${ago(standing.at, now)}` : `sent ${ago(standing.at, now)}`}
@@ -497,28 +576,31 @@ function fadeOf(frame: Frame): React.CSSProperties {
   return { maskImage: mask, WebkitMaskImage: mask, maskComposite: "intersect", WebkitMaskComposite: "source-in" };
 }
 
-// A moment's still: the app at its point, closed in on what it's about with enough around it to know where you are; the
-// whole screen where it names nothing. Its nearest words come with it, as a field's label and the line under it, where
-// they fit; what runs off an edge the page goes on past fades there rather than being cut. Seen, it's quieter.
+// The part of a moment's page that shows what it's about, this wide for its height: closed in on it with enough around
+// it to know where you are, its nearest words with it, as a field's label and the line under it. Nothing, where it
+// names nothing on the page.
 const STILL = 1.6;
+function closeOn(reading: Reading | undefined, about: { role: string; name: string } | undefined, shape: number): Frame | undefined {
+  const thing = about && reading?.things.find((one) => one.role === about.role && one.name === about.name);
+  if (!reading || !thing) return undefined;
+  const gap = (a: number, aSize: number, b: number, bSize: number) => Math.max(0, Math.max(a, b) - Math.min(a + aSize, b + bSize));
+  const near = reading.things.filter(
+    (one) => one.role !== "box" && one.holder === thing.holder && gap(one.box.y, one.box.height, thing.box.y, thing.box.height) <= 40 && gap(one.box.x, one.box.width, thing.box.x, thing.box.width) <= 24,
+  );
+  // A line of words is laid out across its whole column: it's as wide as its words, as near as can be told.
+  const wordsOf = (one: (typeof near)[number]) =>
+    one.words && /^(text|heading)$/.test(one.role) ? { ...one.box, width: Math.min(one.box.width, one.words.length * parseFloat(one.look.size) * 0.55) } : one.box;
+  return around(union([thing.box, ...near.map(wordsOf)]), reading.screen, shape, 3);
+}
+
+// A moment's still: the app at its point, closed in on what it's about; the whole screen where it names nothing. What
+// runs off an edge the page goes on past fades there rather than being cut. Seen, it's quieter.
 const FADE = 20;
 function Still({ review, round, scene, about, seen }: { review: Review; round: Round; scene: Scene; about?: { role: string; name: string }; seen: boolean }) {
   const [frame, setFrame] = useState<Frame>();
   useEffect(() => {
     let current = true;
-    readingsOf(review.id, round.number, scene.recording).then((read) => {
-      const last = read.at(-1);
-      const thing = about && last?.things.find((one) => one.role === about.role && one.name === about.name);
-      if (!current || !last || !thing) return;
-      const gap = (a: number, aSize: number, b: number, bSize: number) => Math.max(0, Math.max(a, b) - Math.min(a + aSize, b + bSize));
-      const near = last.things.filter(
-        (one) => one.role !== "box" && one.holder === thing.holder && gap(one.box.y, one.box.height, thing.box.y, thing.box.height) <= 40 && gap(one.box.x, one.box.width, thing.box.x, thing.box.width) <= 24,
-      );
-      // A line of words is laid out across its whole column: it's as wide as its words, as near as can be told.
-      const wordsOf = (one: (typeof near)[number]) =>
-        one.words && /^(text|heading)$/.test(one.role) ? { ...one.box, width: Math.min(one.box.width, one.words.length * parseFloat(one.look.size) * 0.55) } : one.box;
-      setFrame(around(union([thing.box, ...near.map(wordsOf)]), last.screen, STILL, 3));
-    });
+    readingsOf(review.id, round.number, scene.recording).then((read) => current && setFrame(closeOn(read.at(-1), about, STILL)));
     return () => void (current = false);
   }, [scene.recording, about?.name]);
   return (
@@ -530,12 +612,13 @@ function Still({ review, round, scene, about, seen }: { review: Review; round: R
   );
 }
 
-function Change({ id, moment, note, go }: { id: string; moment: number; note?: string; go: (to: Where, replace?: boolean) => void }) {
-  const { review } = useReview(id);
-  const you = useYou();
+// A change's moments, one at a time. What the agent hands back while you're on one waits until you go to another, so
+// nothing changes under you.
+function Change({ listed, you, moment, note, go }: { listed: Listed; you: string; moment: number; note?: string; go: (to: Where, replace?: boolean) => void }) {
+  const { review } = listed;
+  const id = review.id;
   // Back on the list, the change you were in is open, wherever it stands.
   useEffect(() => void (openedLines().includes(id) || keepOpened([...openedLines(), id])), [id]);
-  const shown = useShown(id);
   const [notes, setNotesNow] = useState(() => unsentOf(id));
   const setNotes = (change: (notes: Note[]) => Note[]) =>
     setNotesNow((now) => {
@@ -550,8 +633,10 @@ function Change({ id, moment, note, go }: { id: string; moment: number; note?: s
       keepReplies(id, next);
       return next;
     });
-  if (!review || Array.isArray(review) || !you) return <div className="h-dvh bg-ground" />;
-  const round = latestOf(review);
+  const latest = latestOf(review);
+  const at = useRef<{ moment: number; round?: number }>(undefined);
+  if (at.current?.moment !== moment) at.current = { moment, round: latest?.number };
+  const round = review.rounds.find((one) => one.number === at.current!.round);
   if (!round) return <div className="grid h-dvh place-items-center bg-ground text-soft">Nothing is waiting on you here.</div>;
   const n = Math.min(moment, round.scenes.length);
   const scene = round.scenes[n - 1]!;
@@ -564,7 +649,7 @@ function Change({ id, moment, note, go }: { id: string; moment: number; note?: s
       round={round}
       n={n}
       about={scene.about}
-      who={whoIn(shown, scene)}
+      who={whoIn(listed, scene)}
       notes={notes}
       sent={sent}
       setNotes={setNotes}

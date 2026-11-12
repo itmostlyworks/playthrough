@@ -1,19 +1,21 @@
-// Opens the viewer on this machine: its page, and the reviews in .playthrough/ for it to read and send to, in every copy
-// of the app, as git's worktrees are, so one viewer from anywhere in the repo has them all. Each review the viewer shows
-// streams to it as it's kept, so a new round or a send from elsewhere arrives without asking.
+// Opens Playthrough on this machine: one page, at one address, listing what's waiting on you from every app it's known in
+// and every copy of each, as git's worktrees are. Each change is read from the copy it's kept in, and the list arrives
+// again whenever any of them changes, so a change handed over from anywhere shows by itself.
 
 import { asRecorded } from "@playthrough/page";
 import { execFileSync } from "node:child_process";
+import { watch, type FSWatcher } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { userInfo } from "node:os";
 import { basename, extname, join, normalize, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Reading } from "@playthrough/page";
-import { Refused, type Did, type Seen, type Send } from "@playthrough/review";
+import { Refused, type Did, type Review, type Seen, type Send } from "@playthrough/review";
 import { BEAT } from "./scenes.ts";
-import { copies, repo as copyAt, type Repo } from "./repo.ts";
+import { repo as copyAt, type Repo } from "./repo.ts";
 import { readyIn } from "./following.ts";
+import { everyCopy, machine } from "./machine.ts";
 import { getReady } from "./take-over.ts";
 import { setupIn } from "./setup.ts";
 import { video, type Filmed } from "./video.ts";
@@ -38,78 +40,147 @@ const TYPES: Record<string, string> = {
   ".otf": "font/otf",
 };
 
-export async function open(here: Repo, id?: string) {
-  const app = everyCopy(here);
-  if (id) await (await app.holding(id)).reviews.get(id);
-  // One for each app: open already, from this copy or another, it's that one.
-  const already = await openAlready(app.folder);
-  if (already) return console.log(`Playthrough is already open at http://localhost:${already}/moments${id ? `/${id}` : ""}`);
+export async function open() {
+  // One for the machine: open already, it's that one.
+  const already = await openAlready(machine());
+  if (already) return console.log(`Playthrough is already open at http://localhost:${already}/`);
   const page = fileURLToPath(new URL("../viewer", import.meta.url));
   if (!(await readFile(join(page, "index.html")).catch(() => undefined)))
     throw new Refused(["The viewer isn't built yet. Build it from core with npm run build."]);
-  const you = whoYouAre(here.root);
-
+  const you = whoYouAre();
+  const here = onThisMachine();
   const server = createServer((request, response) => {
-    answer(app, page, you, request, response).catch((error) => {
+    answer(here, page, you, request, response).catch((error) => {
       if (response.headersSent) return response.end();
       const problems = error instanceof Refused ? error.problems : [String(error?.message ?? error)];
       json(response, error instanceof Refused ? 400 : 500, { problems });
     });
   });
   const port = await listen(server, PORT);
-  console.log(`Playthrough is open at http://localhost:${port}/moments${id ? `/${id}` : ""}`);
+  console.log(`Playthrough is open at http://localhost:${port}/`);
 }
 
-// The app in every copy of it, and where each review is kept: an agent working in a worktree keeps its own there.
-function everyCopy(here: Repo) {
-  const all = () => copies(here.root).map((root) => (root === here.root ? here : copyAt(root)));
-  const found = new Map<string, Repo>();
+// A change as the page has it: the review, by an address of the machine's (its copy's name, then its own), the app's
+// name and its people as the person sees them ("Sam, a member"), and whether an agent is waiting for what's sent.
+export type Listed = { review: Review; app: string; people: Record<string, string>; agentWaiting: boolean };
+
+// Every copy on the machine, each read where it's kept, and the list of every change in them, arriving again to whoever
+// asks each time it changes.
+function onThisMachine() {
+  const repos = new Map<string, Repo>();
+  const copiesNow = () => everyCopy().map(({ name, root }) => ({ name, repo: repos.get(root) ?? repos.set(root, copyAt(root)).get(root)! }));
+
+  // A change by the parts of its address: its copy's name and its own, then what's asked of it; or, from the page
+  // before, its own alone, found in whichever copy has it first.
+  async function holding([first, second, ...rest]: string[]): Promise<{ repo: Repo; id: string; address: string; rest: string[] }> {
+    const copies = copiesNow();
+    const copy = second !== undefined && copies.find((one) => one.name === first);
+    if (copy) return { repo: copy.repo, id: second!, address: `${first}/${second}`, rest };
+    for (const { repo } of copies) if ((await repo.reviews.list()).includes(first!)) return { repo, id: first!, address: first!, rest: second === undefined ? rest : [second, ...rest] };
+    throw new Refused([`There's no change at ${first} on this machine.`]);
+  }
+
+  // One that can't be read is left out, and says why when it's opened.
+  async function list(): Promise<Listed[]> {
+    const each = await Promise.all(
+      copiesNow().map(async ({ name, repo }) => {
+        const shown = await shownOf(repo);
+        const reviews = await Promise.all((await repo.reviews.list()).map((id) => repo.reviews.get(id).catch(() => undefined)));
+        return Promise.all(
+          reviews.filter((review) => !!review).map(async (review) => ({ review: { ...review, id: `${name}/${review.id}` }, ...shown, agentWaiting: await agentWaiting(repo, review.id) })),
+        );
+      }),
+    );
+    return each.flat();
+  }
+
+  // Looked at again soon after anything in a copy's folder changes, and every two seconds, as an agent that's ended
+  // says nothing and a copy can be made anywhere; said only when it's different.
+  const listening = new Set<(said: string) => void>();
+  const watching = new Map<string, FSWatcher>();
+  let said = "";
+  let looking: Promise<void> | undefined;
+  let again = false;
+  let soon: ReturnType<typeof setTimeout> | undefined;
+  let every: ReturnType<typeof setInterval> | undefined;
+  const look = () => {
+    if (looking) return void (again = true);
+    looking = (async () => {
+      do {
+        again = false;
+        const now = JSON.stringify(await list().catch(() => undefined));
+        if (now && now !== said) for (const tell of listening) tell((said = now));
+        const roots = new Set(copiesNow().map(({ repo }) => join(repo.root, ".playthrough")));
+        for (const [folder, watcher] of watching) if (!roots.has(folder)) (watcher.close(), watching.delete(folder));
+        for (const folder of roots)
+          if (!watching.has(folder))
+            try {
+              const watcher = watch(folder, { recursive: true }, () => (clearTimeout(soon), (soon = setTimeout(look, 150))));
+              watcher.on("error", () => (watcher.close(), watching.delete(folder)));
+              watching.set(folder, watcher);
+            } catch {
+              // gone already: the next look leaves it out
+            }
+      } while (again);
+    })().finally(() => (looking = undefined));
+  };
+
   return {
-    all,
-    // The same from every copy: the main one's folder, as git lists it first.
-    folder: all()[0]?.root ?? here.root,
-    // Found once, a review stays where it was found; one in no copy is this one's to say isn't there.
-    async holding(id: string): Promise<Repo> {
-      if (!found.has(id)) for (const copy of all()) if ((await copy.reviews.list()).includes(id) && !found.has(id)) found.set(id, copy);
-      return found.get(id) ?? here;
+    holding,
+    list,
+    // The list now, then each time it changes, until stopped.
+    follow(tell: (said: string) => void): () => void {
+      listening.add(tell);
+      if (said) tell(said);
+      if (!every) (look(), (every = setInterval(look, 2000)));
+      return () => {
+        listening.delete(tell);
+        if (listening.size) return;
+        clearInterval(every);
+        every = undefined;
+        for (const watcher of watching.values()) watcher.close();
+        watching.clear();
+        said = "";
+      };
     },
   };
 }
+type Machine = ReturnType<typeof onThisMachine>;
 
-// The port of the viewer already open for this app, if one is: each says which app's it is.
-async function openAlready(folder: string): Promise<number | undefined> {
+// The port of Playthrough already open for this machine, if one is: each says whose it is.
+async function openAlready(home: string): Promise<number | undefined> {
   const ports = Array.from({ length: 21 }, (_, i) => PORT + i);
   const asked = (port: number) =>
     fetch(`http://127.0.0.1:${port}/api/app`, { signal: AbortSignal.timeout(1000) })
       .then((answer) => answer.json())
-      .then((said: { folder?: string }) => (said.folder === folder ? port : undefined), () => undefined);
+      .then((said: { machine?: string }) => (said.machine === home ? port : undefined), () => undefined);
   return (await Promise.all(ports.map(asked))).find((port) => port !== undefined);
 }
 
-async function answer(app: ReturnType<typeof everyCopy>, page: string, you: string, request: IncomingMessage, response: ServerResponse) {
+async function answer(here: Machine, page: string, you: string, request: IncomingMessage, response: ServerResponse) {
   const stranger = fromElsewhere(request);
   if (stranger) return json(response, 403, { problems: [stranger] });
-  const path = decodeURIComponent(new URL(request.url ?? "/", "http://localhost").pathname);
-  const [api, collection, id, ...rest] = path.split("/").filter(Boolean);
+  const asked = new URL(request.url ?? "/", "http://localhost");
+  const path = decodeURIComponent(asked.pathname);
+  const [api, collection, ...parts] = path.split("/").filter(Boolean);
   if (api !== "api") return serve(page, path, response);
 
   if (request.method === "GET" && collection === "you") return json(response, 200, { name: you });
-  if (request.method === "GET" && collection === "app") return json(response, 200, { folder: app.folder });
+  if (request.method === "GET" && collection === "app") return json(response, 200, { machine: machine() });
   if (collection !== "reviews") return json(response, 404, { problems: [`There's nothing at ${path}.`] });
 
-  if (request.method === "GET" && !id) {
-    // One that can't be read says why when it's opened, and leaves the rest to be listed; a name in two copies is the
-    // first's, as its address opens.
-    const read = async (copy: Repo) => Promise.all((await copy.reviews.list()).map((id) => copy.reviews.get(id).catch(() => undefined)));
-    const every = (await Promise.all(app.all().map(read))).flat();
-    // Whole, as the viewer works out where each stands for you from what's kept in your browser, as a review's page does.
-    return json(response, 200, every.filter((review, i) => review && every.findIndex((first) => first?.id === review.id) === i));
+  if (request.method === "GET" && !parts.length) {
+    if (!asked.searchParams.has("live")) return json(response, 200, await here.list());
+    // The list now, then again each time it changes, for as long as the page is open.
+    response.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-store" });
+    const stop = here.follow((said) => response.write(`data: ${said}\n\n`));
+    return void request.on("close", stop);
   }
-  if (!id) return json(response, 404, { problems: [`There's nothing at ${path}.`] });
-  const repo = await app.holding(id);
+  if (!parts.length) return json(response, 404, { problems: [`There's nothing at ${path}.`] });
+  const { repo, id, address, rest } = await here.holding(parts);
   const reviews = repo.reviews;
 
-  if (request.method === "GET" && rest[0] === "live") return live(repo, id, request, response);
+  if (request.method === "GET" && rest[0] === "live") return live(repo, id, address, request, response);
   if (request.method === "GET" && rest[0] === "rounds" && rest[2] === "files" && rest[3]) {
     // Your branches play beside the round's recordings, as if they were its own.
     const name = rest.slice(3).join("/");
@@ -118,12 +189,11 @@ async function answer(app: ReturnType<typeof everyCopy>, page: string, you: stri
     if (!bytes) return json(response, 404, { problems: [`Round ${rest[1]} of ${id} has no file called “${rest.slice(3).join("/")}”.`] });
     response.writeHead(200, { "content-type": TYPES[extname(path)] ?? "application/octet-stream", "cache-control": "max-age=31536000, immutable" });
     // An SVG asks for light or dark itself: asked for as recorded (?as=dark,still), it's answered that way.
-    const as = new URL(request.url ?? "/", "http://localhost").searchParams.get("as");
+    const as = asked.searchParams.get("as");
     if (as !== null && extname(path) === ".svg") return response.end(asRecorded(Buffer.from(bytes).toString("utf8"), { dark: as.includes("dark"), still: as.includes("still") }));
     return response.end(bytes);
   }
   if (request.method === "POST" && rest[0] === "video") return saveVideo(repo, id, request, response);
-  if (request.method === "GET" && rest[0] === "shown") return json(response, 200, await shownOf(repo));
   if (request.method === "POST" && rest[0] === "seen") {
     const { by, moments } = await body<{ by: string; moments: Seen[] }>(request);
     await reviews.see(id, by, moments);
@@ -157,7 +227,7 @@ async function shownOf(repo: Repo): Promise<{ app: string; people: Record<string
 // again each time that changes, until the viewer goes away: one stream for both, as a browser lets only six requests at
 // a time go to one address, from all its tabs together, and a stream holds one for as long as it's open. An agent
 // that's ended says nothing, so it's looked at every two seconds.
-async function live(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
+async function live(repo: Repo, id: string, address: string, request: IncomingMessage, response: ServerResponse) {
   await repo.reviews.get(id);
   response.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-store" });
   const gone = new AbortController();
@@ -171,9 +241,10 @@ async function live(repo: Repo, id: string, request: IncomingMessage, response: 
   const every = setInterval(look, 2000);
   let last = "";
   while (!gone.signal.aborted) {
-    const review = await repo.reviews.wait(id, (review) => JSON.stringify(review) !== last, gone.signal).catch(() => undefined);
+    const kept = (review: Review) => JSON.stringify({ ...review, id: address });
+    const review = await repo.reviews.wait(id, (review) => kept(review) !== last, gone.signal).catch(() => undefined);
     if (!review) break;
-    last = JSON.stringify(review);
+    last = kept(review);
     response.write(`data: ${last}\n\n`);
   }
   clearInterval(every);
@@ -294,10 +365,10 @@ function json(response: ServerResponse, status: number, value: unknown) {
   response.end(JSON.stringify(value));
 }
 
-// Locally, whoever runs the viewer is the one sending: by the name git knows them by, or their name on this machine.
-function whoYouAre(root: string): string {
+// Locally, whoever runs Playthrough is the one sending: by the name git knows them by, or their name on this machine.
+function whoYouAre(): string {
   try {
-    return execFileSync("git", ["config", "user.name"], { cwd: root, encoding: "utf8" }).trim() || userInfo().username;
+    return execFileSync("git", ["config", "--global", "user.name"], { encoding: "utf8" }).trim() || userInfo().username;
   } catch {
     return userInfo().username;
   }

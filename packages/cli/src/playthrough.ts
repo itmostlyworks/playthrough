@@ -10,6 +10,7 @@ import { Refused } from "@playthrough/review";
 import { as } from "./as.ts";
 import { change } from "./change.ts";
 import { again, drop, moment, reply, wait } from "./moments.ts";
+import { know } from "./machine.ts";
 import { open } from "./open.ts";
 import { repo } from "./repo.ts";
 
@@ -26,10 +27,12 @@ const commands = {
   again: [0, 0, "playthrough again", () => again(repo())],
   reply: [2, 2, `playthrough reply <note> "<what you did, in a line>"`, ([note, words]) => reply(repo(), note!, words)],
   wait: [0, 0, "playthrough wait", () => wait(repo())],
-  open: [0, 0, "playthrough open", () => open(repo())],
+  open: [0, 0, "playthrough open", () => open()],
 } satisfies Record<string, [number, number, string, (words: string[]) => Promise<unknown>]>;
 
 const [command, ...words] = process.argv.slice(2);
+// The app this is run in is known to the machine's one page from now on, as soon as Playthrough has a folder in it.
+know(repo().root);
 try {
   // Asked for help anywhere, as by reflex after a command, it's the help, never the command.
   if (!command || command === "help" || words.some((word) => ["--help", "-h"].includes(word))) console.log(HELP);
@@ -39,6 +42,7 @@ try {
     if (words.length > most) throw new Refused([`That's more than it takes: ${said}`]);
     if (words.length < least) throw new Refused([`That needs more: ${said}`]);
     await run(words);
+    know(repo().root);
   }
 } catch (error) {
   if (!(error instanceof Refused)) throw error;

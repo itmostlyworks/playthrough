@@ -40,15 +40,34 @@ export function useReview(id: string): { review?: Review | string[]; agentWaitin
   return { review, agentWaiting };
 }
 
-// Every review of the app, from every copy of it, and the app's name, as its folder is called.
-export function useReviews(): { app: string; reviews: Review[] } | undefined {
-  const [reviews, setReviews] = useState<{ app: string; reviews: Review[] }>();
+// A change as the list has it: the review, at its address on this machine, the app's name and its people as the person
+// sees them ("Sam, a member"), and whether an agent is waiting for what's sent.
+export type Listed = { review: Review; app: string; people: Record<string, string>; agentWaiting: boolean };
+
+// Every change on this machine, from every app and every copy of each, arriving again whenever any of them changes,
+// undefined until it's first come. One stream, while the page is in sight: a browser lets six requests at a time go to
+// one address, from all its tabs together. Out of sight, the list is asked for now and then instead, so the tab's
+// title still says what's waiting.
+export function useChanges(): Listed[] | undefined {
+  const [changes, setChanges] = useState<Listed[]>();
   useEffect(() => {
-    Promise.all([get<{ folder: string }>("/api/app"), get<Review[]>("/api/reviews")]).then(([{ folder }, reviews]) =>
-      setReviews({ app: folder.split(/[\\/]/).at(-1) ?? folder, reviews }),
-    );
+    let live: EventSource | undefined;
+    let every = 0;
+    let last = "";
+    const take = (data: string) => data !== last && setChanges(JSON.parse((last = data)));
+    const ask = () => fetch("/api/reviews").then((answer) => (answer.ok ? answer.text() : undefined), () => undefined).then((data) => data && take(data));
+    const listen = () => {
+      clearInterval(every);
+      if (document.hidden) return void (live?.close(), (live = undefined), (every = window.setInterval(ask, 5000)));
+      if (live && live.readyState !== EventSource.CLOSED) return;
+      live = new EventSource("/api/reviews?live");
+      live.onmessage = ({ data }) => take(data);
+    };
+    listen();
+    document.addEventListener("visibilitychange", listen);
+    return () => (document.removeEventListener("visibilitychange", listen), clearInterval(every), live?.close());
   }, []);
-  return reviews;
+  return changes;
 }
 
 export function useYou(): string | undefined {
