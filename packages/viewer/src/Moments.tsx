@@ -596,7 +596,10 @@ function fadeOf(frame: Frame): React.CSSProperties {
 // names nothing on the page.
 const STILL = 1.6;
 function closeOn(reading: Reading | undefined, about: { role: string; name: string } | undefined, shape: number): Frame | undefined {
-  const thing = about && reading?.things.find((one) => one.role === about.role && one.name === about.name);
+  // Of several the same, the one in view, as the moment was kept with.
+  const alike = about ? (reading?.things ?? []).filter((one) => one.role === about.role && one.name === about.name) : [];
+  const inView = (box: { x: number; y: number; width: number; height: number }) => box.y + box.height > 0 && box.y < reading!.screen.height && box.x + box.width > 0 && box.x < reading!.screen.width;
+  const thing = alike.find((one) => inView(one.box)) ?? alike[0];
   if (!reading || !thing) return undefined;
   const gap = (a: number, aSize: number, b: number, bSize: number) => Math.max(0, Math.max(a, b) - Math.min(a + aSize, b + bSize));
   const near = reading.things.filter(

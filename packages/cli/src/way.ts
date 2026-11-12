@@ -51,7 +51,8 @@ export function sceneOf({ words, person, did, setup, about, tried = false }: { w
     if (done.does === "press") return keyboard ? `    await page.keyboard.press(${given});` : `    await page.${at}.press(${given});`;
     return `    await page.${at}.click();${what}`;
   });
-  const thing = about && (about.role === "text" ? `page.getByText(${JSON.stringify(about.name)}, { exact: true })${about.nth !== undefined ? `.nth(${about.nth})` : ""}` : `page.getByRole(${JSON.stringify(about.role)}, { name: ${JSON.stringify(about.name)}, exact: true })`);
+  const which = about?.nth !== undefined ? `.nth(${about.nth})` : "";
+  const thing = about && (about.role === "text" ? `page.getByText(${JSON.stringify(about.name)}, { exact: true })${which}` : `page.getByRole(${JSON.stringify(about.role)}, { name: ${JSON.stringify(about.name)}, exact: true })${which}`);
   const checks = !about
     ? []
     : about.role === "text"

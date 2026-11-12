@@ -155,16 +155,33 @@ async function aboutOn(page: Page, words: string, named?: string): Promise<{ abo
       // field's own words, which the page names nothing.
       const own = (element: Element) => ((element as HTMLElement).innerText ?? "").trim().replace(/\s+/g, " ");
       const saying = named && !found ? [...document.querySelectorAll("body *")].filter((element) => own(element).toLowerCase() === said && ![...element.children].some((child) => own(child).toLowerCase() === said)) : [];
-      const [text] = saying;
-      if (text) return { near, about: { role: "text", name: own(text), disabled: false, ...(saying.length > 1 && { nth: 0 }) } };
+      // Of several the same, as a Docs link in the header and another in the footer, the one in view, by which of them
+      // it is.
+      const inView = (element: Element) => {
+        const box = element.getBoundingClientRect();
+        return box.bottom > 0 && box.top < innerHeight && box.right > 0 && box.left < innerWidth;
+      };
+      const which = (alike: Element[], first: Element) => {
+        const element = alike.find(inView) ?? first;
+        return { element, ...(alike.length > 1 && { nth: alike.indexOf(element) }) };
+      };
+      if (saying.length) {
+        const { element, nth } = which(saying, saying[0]!);
+        return { near, about: { role: "text", name: own(element), disabled: false, ...(nth !== undefined && { nth }) } };
+      }
       if (!found) return { near };
-      const element = found.element as HTMLInputElement;
+      const { element: chosen, nth } = which(
+        all.filter((one) => one.role === found.role && one.name === found.name).map((one) => one.element),
+        found.element,
+      );
+      const element = chosen as HTMLInputElement;
       const field = "value" in element && ["INPUT", "TEXTAREA", "SELECT"].includes(element.tagName);
       return {
         near,
         about: {
           role: found.role,
           name: found.name,
+          ...(nth !== undefined && { nth }),
           ...(field && { value: element.value }),
           disabled: element.matches(":disabled") || element.getAttribute("aria-disabled") === "true" || element.readOnly === true,
           ...(["checkbox", "radio"].includes(element.type) && { checked: element.checked }),
