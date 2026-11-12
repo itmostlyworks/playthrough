@@ -229,7 +229,8 @@ export async function moment(repo: Repo, words: string, onWords?: string) {
   const ended: { url: string } = JSON.parse(readFileSync(join(scenes, "ended.json"), "utf8"));
   const endedAt = ended.url;
   // Each run makes its own board and cards, so addresses are compared with their ids set aside.
-  const sameAddress = idless(there.url) === idless(endedAt);
+  const address = addressOf(there.url, endedAt);
+  const sameAddress = address !== undefined;
   // A message that comes and goes by itself, as a toast, is there or not by how long ago it came.
   const passing = (one: (typeof all)[number]) => ("now" in one ? one.now : one.then).live;
   const { differences: all } = differences(there.reading, again);
@@ -238,9 +239,12 @@ export async function moment(repo: Repo, words: string, onWords?: string) {
   if (all.length > differ.length) console.log(`Left out, as messages that pass: ${all.filter(passing).map(said).join("; ")}.`);
   writeFileSync(join(scenes, "moment.json"), JSON.stringify({ ...kept, landed, again: { url: endedAt, length: recorded.scene.length }, differences: differ.map(said) }, null, 2));
   console.log(`\nKept ${quote(words)} in ${repo.show(scenes)}, ${took.toFixed(1)}s, ${((Date.now() - live.began) / 1000).toFixed(0)}s since playthrough as.`);
-  console.log(`Run again from a fresh start, it ${landed ? "landed where you are" : `ended somewhere else: ${differ.length} ${differ.length > 1 ? "things differ" : "thing differs"}:\n${differ.slice(0, 12).map((one) => `  ${said(one)}`).join("\n")}`}.`);
+  const elsewhere = differ.length
+    ? `${differ.length} ${differ.length > 1 ? "things differ" : "thing differs"}:\n${differ.slice(0, 12).map((one) => `  ${said(one)}`).join("\n")}`
+    : `the page reads the same, but the address isn't: ${new URL(there.url).pathname} here, ${new URL(endedAt).pathname} again`;
+  console.log(`Run again from a fresh start, it ${landed ? "landed where you are" : `ended somewhere else: ${elsewhere}. Don't show the person this moment until it lands`}.`);
   if (there.about) console.log(`It's about ${aboutSaid(there.about)}, checked again on the way: it held.`);
-  console.log(`Compared: what's read on the page, and the address with its ids set aside (${idless(there.url)}${sameAddress ? ", the same" : `, here; ${idless(endedAt)}, again`}).`);
+  if (sameAddress) console.log(`Compared: what's read on the page, and the address with the ids each run made set aside (${address}, the same).`);
 }
 
 // Each moment, as a scene of one review, "marked", in its one round, so the page shows it as it shows a scene: a try.
@@ -265,12 +269,16 @@ async function readAt(page: Page): Promise<Reading> {
   return { step: "here", at: 0, picture: "", ...(await unhovered(page, () => readPage(page))) };
 }
 
-// An address with every id in it set aside: a part with letters and numbers, as Kan's ids are, or a number.
-const idless = (address: string) =>
-  new URL(address).pathname
-    .split("/")
-    .map((part) => (/^\d+$/.test(part) || (part.length >= 8 && /\d/.test(part) && /[a-z]/i.test(part)) ? "…" : part))
-    .join("/");
+// Two addresses, part by part, with the ids in them set aside: where they differ, a part that's a number in both, or
+// letters and digits of one length, as Kan's ids are (qiaa4o4hklar, galeikvcthwn), is an id each run made for itself.
+// Said as the address with those parts as "…", or nothing where they aren't the same.
+function addressOf(here: string, again: string): string | undefined {
+  const [these, those] = [new URL(here).pathname.split("/"), new URL(again).pathname.split("/")];
+  if (these.length !== those.length) return undefined;
+  const id = (one: string, other: string) => /^\d+$/.test(one + other) || (one.length === other.length && one.length >= 8 && /^[a-z0-9_-]+$/i.test(one + other));
+  const parts = these.map((part, i) => (part === those[i] ? part : id(part, those[i]!) ? "…" : undefined));
+  return parts.includes(undefined) ? undefined : parts.join("/");
+}
 
 // What the moment is about: the thing named, or else the thing on the page whose name its words say, the longest, a
 // field before a heading. Worked out, only a name of two words or more: one word, as a person's name, says too little.
