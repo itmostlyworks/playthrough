@@ -2,8 +2,7 @@
 // Each returns what's wrong in plain words, saying what to do about it, and nothing when all is well.
 
 import type { z } from "zod";
-import { Comparison, fileName, Round, Send, type Account, type Change, type Scene, type Note, type Place, type Reply, type Review, type Verdict } from "./model.ts";
-import { stepAt } from "./steps.ts";
+import { Comparison, fileName, Round, Seen, Send, type Account, type Change, type Scene, type Note, type Place, type Reply, type Review, type Verdict } from "./model.ts";
 import { list, quote } from "./words.ts";
 
 // The round the agent is working on: the last one until it's finished, then the next.
@@ -194,8 +193,8 @@ export function problemsWithComparison(review: Review, comparison: Comparison): 
   return problems;
 }
 
-// A round is handed over once its file is in the right shape, every note it took is answered, it's compared with every
-// round before it, and the agent has said why each change new since the round before that Playthrough can name is there.
+// A round is handed over once its file is in the right shape, every note it took is answered, and it's compared with every
+// round before it.
 // The most a scene's line can say.
 export const LONGEST_LINE = 140;
 
@@ -266,12 +265,9 @@ export function problemsFinishing(review: Review, number: number): string[] {
   if (comparisons.length)
     for (const earlier of review.rounds.filter((earlier) => earlier.number < number && !comparisons.some((comparison) => comparison.since === earlier.number)))
       problems.push(`${at} isn't compared with ${roundName(earlier.number)} yet, so it can't be handed over. Record it again.`);
+  // What changed is shown to the person as it is: the agent's why is its answer to a note, so nothing asks it to say
+  // why of each change. What it does say has to be about one of them.
   const changes = new Map(comparisons.flatMap((comparison) => comparison.changes.map((change) => [change.id, change])));
-  for (const step of stepsToAccountFor(review, number))
-    if (!step.changes.some((change) => round.accounts[change.id]))
-      problems.push(
-        `${at}: say why ${placeOf(step, round)} changed (${step.changes.map((change) => change.words).join("; ")}), in one account under ${step.id}: its line, the id of the note it was made for, or why nothing really changed.`,
-      );
   for (const [id, account] of Object.entries(round.accounts)) {
     const change = changes.get(id);
     if (!change) problems.push(`${at} says something about the change ${id}, which isn't one of this round's changes.`);
@@ -337,6 +333,17 @@ export function problemsWithSend(review: Review, send: Send): string[] {
   for (const scene of [...send.looksGood, ...takenBack].filter((scene) => !round.scenes.some((recorded) => recorded.name === scene)))
     problems.push(`Round ${send.round} has no scene called “${scene}”.`);
   return problems;
+}
+
+// What's seen is a moment handed back: a scene of a finished round.
+export function problemsSeeing(review: Review, by: string, moments: Seen[]): string[] {
+  if (!isText(by)) return ["Seeing needs to say who saw it."];
+  return moments.flatMap((moment) => {
+    const shape = problemsWithShape(Seen, moment, "What's seen");
+    if (shape.length) return shape;
+    const round = review.rounds.find((round) => round.number === moment.round && round.finished);
+    return round?.scenes.some((scene) => scene.name === moment.scene) ? [] : [`Round ${moment.round} hands back no ${quote(moment.scene)} to see.`];
+  });
 }
 
 // Accepting ends the review, so it waits until the agent has answered every note that asks for something.
@@ -414,12 +421,5 @@ function duplicates(values: string[], problem: (value: string) => string): strin
 
 const roundName = (number: number) => (number === 0 ? "Before" : `round ${number}`);
 const describe = (change: Change) => `the change ${change.id} (${cut(change.words)})`;
-// Where the agent's own steps put it: “Export the quarter” in “Export a quarter”; new steps, or a scene that's gone, are
-// the scene's.
-function placeOf({ scene, at, until }: StepToAccountFor, round: Round): string {
-  const recorded = round.scenes.find((one) => one.name === scene);
-  const step = recorded && at !== undefined && until === undefined ? stepAt(recorded, at) : undefined;
-  return step ? `${quote(step.title)} in ${quote(scene)}` : quote(scene);
-}
 const cut = (words: string) => (words.length > 48 ? `${words.slice(0, 47).trimEnd()}…` : words);
 const isText = (value: unknown): value is string => typeof value === "string" && value.trim() !== "";

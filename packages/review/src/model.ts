@@ -98,6 +98,7 @@ export const Scene = z.strictObject({
   person: text("needs the name of who it acts as, or no person")
     .optional()
     .describe("Who the scene is done as, as its file or the app's setup names them: the name on the recorded pointer, handed to you when you take over"),
+  about: Element.optional().describe("A moment's: the one thing that shows it, as the page names it, which the person sees it closed in on"),
   unsteady: z
     .array(text("needs the ids of the changes it makes by itself"))
     .optional()
@@ -196,6 +197,9 @@ export const Send = z.strictObject({
 // The agent took a send, and answers it in this round.
 export const Taken = z.strictObject({ send: z.string(), round: z.number().int(), at: z.iso.datetime() });
 
+// A moment someone has opened, as it was handed back in one round: one handed back again, different, asks to be seen again.
+export const Seen = z.strictObject({ round: z.number().int().min(1), scene: text("needs the scene it's of") });
+
 // Final: no rounds or sends come after it.
 export const Accepted = z.strictObject({ by: z.string(), at: z.iso.datetime() });
 
@@ -209,6 +213,7 @@ export const Review = z.strictObject({
   sends: z.array(Send),
   taken: z.array(Taken),
   accepted: Accepted.optional(),
+  seen: z.record(z.string(), z.array(Seen)).optional().describe("What each person has opened, by their name"),
 });
 
 export type Element = z.infer<typeof Element>;
@@ -228,6 +233,7 @@ export type Verdict = z.infer<typeof Verdict>;
 export type Send = z.infer<typeof Send>;
 export type Taken = z.infer<typeof Taken>;
 export type Accepted = z.infer<typeof Accepted>;
+export type Seen = z.infer<typeof Seen>;
 export type Review = z.infer<typeof Review>;
 
 // Ids are made where the thing is made, by whoever makes it, so nobody has to ask anyone for one.

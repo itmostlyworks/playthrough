@@ -11,7 +11,6 @@ import {
   newToYou,
   notesToAnswer,
   readyToAccept,
-  Refused,
   Reviews,
   waitingForYou,
   type Change,
@@ -62,10 +61,9 @@ test("two people review the same work, each from where they last looked", async 
   await reviews.saveRound(id, round(0));
   await reviews.finish(id, 0);
 
-  // Round 1: the work, against Before. It's handed over once the agent has said why each change is there.
+  // Round 1: the work, against Before, with what the agent says of each change.
   await reviews.saveRound(id, round(1));
   await reviews.saveComparison(id, { round: 1, since: 0, changes: [dialog, format, keep] });
-  await assert.rejects(reviews.finish(id, 1), (error: unknown) => error instanceof Refused && error.problems.length === 3);
   const lines = { line: "Exporting starts from the invoices you're looking at." };
   await reviews.saveRound(id, round(1, { accounts: { dialog: lines, format: { line: "CSV first: it's what accountants ask for." }, keep: { line: "A way back without losing your choices." } } }));
   await reviews.finish(id, 1);

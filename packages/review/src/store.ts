@@ -1,7 +1,7 @@
 // The review store: the steps of the loop, each checked against the rules before anything is kept.
 // Where things are kept is a Storage, so a folder, memory and later a hosted store all keep reviews the same way.
 
-import type { Accepted, Comparison, Scene, Review, Round, Send, Taken } from "./model.ts";
+import type { Accepted, Comparison, Scene, Review, Round, Seen, Send, Taken } from "./model.ts";
 import {
   problemsAccepting,
   problemsAddingToBefore,
@@ -13,6 +13,7 @@ import {
   problemsWithId,
   problemsWithRound,
   problemsWithSend,
+  problemsSeeing,
   roundInProgress,
   stepsToAccountFor,
   withInBefore,
@@ -44,6 +45,7 @@ export class Refused extends Error {
 //   <review>/sends/<id>.json             whoever sent it
 //   <review>/taken.json                  the agent
 //   <review>/accepted.json               whoever accepted
+//   <review>/seen.json                   each person, through the page, as they open a moment
 export class Reviews {
   storage: Storage;
   #queues = new Map<string, Promise<unknown>>();
@@ -78,6 +80,7 @@ export class Reviews {
     const names = (await this.storage.list(`${id}/sends`)).filter((name) => name.endsWith(".json"));
     const sends = await Promise.all(names.map((name) => this.#readJson<Send>(`${id}/sends/${name}`)));
     const accepted = await this.#readJson<Accepted>(`${id}/accepted.json`);
+    const seen = await this.#readJson<Record<string, Seen[]>>(`${id}/seen.json`);
 
     return {
       id,
@@ -89,6 +92,7 @@ export class Reviews {
       sends: sends.filter((send) => send !== undefined).sort((a, b) => a.sent.localeCompare(b.sent) || a.id.localeCompare(b.id)),
       taken: (await this.#readJson<Taken[]>(`${id}/taken.json`)) ?? [],
       ...(accepted && { accepted }),
+      ...(seen && { seen }),
     };
   }
 
@@ -158,11 +162,12 @@ export class Reviews {
       if (saved?.finished) return;
       const problems = problemsFinishing(review, round);
       if (problems.length || !saved) throw new Refused(problems);
-      // What the agent said once for a step is what it says of each change there, kept so: it's read a change at a time.
+      // What the agent said once for a step, where it said anything, is what it says of each change there, kept so: it's read
+      // a change at a time.
       const accounts = { ...saved.accounts };
       for (const step of stepsToAccountFor(review, round)) {
-        const said = step.changes.map((change) => saved.accounts[change.id]).find(Boolean)!;
-        for (const change of step.changes) accounts[change.id] ??= said;
+        const said = step.changes.map((change) => saved.accounts[change.id]).find(Boolean);
+        if (said) for (const change of step.changes) accounts[change.id] ??= said;
       }
       await this.#writeJson(`${id}/rounds/${round}/round.json`, { ...saved, accounts, finished: now() });
     });
@@ -221,6 +226,18 @@ export class Reviews {
       const problems = problemsAccepting(review, by);
       if (problems.length) throw new Refused(problems);
       await this.#writeJson(`${id}/accepted.json`, { by, at: now() });
+    });
+  }
+
+  // Kept with the review, so it holds in every browser they look from.
+  async see(id: string, by: string, moments: Seen[]): Promise<void> {
+    return this.#one(id, async () => {
+      const review = await this.get(id);
+      const problems = problemsSeeing(review, by, moments);
+      if (problems.length) throw new Refused(problems);
+      const theirs = review.seen?.[by] ?? [];
+      const fresh = moments.filter((one) => !theirs.some((kept) => kept.round === one.round && kept.scene === one.scene));
+      if (fresh.length) await this.#writeJson(`${id}/seen.json`, { ...review.seen, [by]: [...theirs, ...fresh] });
     });
   }
 
