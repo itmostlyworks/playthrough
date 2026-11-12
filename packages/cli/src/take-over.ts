@@ -484,7 +484,7 @@ const SAYS = `<script>(() => {
   requestAnimationFrame(function place() {
     const at = {};
     for (const [id, pin] of pins) {
-      const on = pin.dataset.css && document.querySelector(pin.dataset.css);
+      const on = pin.dataset.css ? document.querySelector(pin.dataset.css) : null;
       const box = on?.getBoundingClientRect();
       const spot = box?.width ? { x: box.right, y: box.top } : pin.dataset.x !== "" && !pin.dataset.css ? { x: pin.dataset.x * innerWidth, y: pin.dataset.y * innerHeight } : undefined;
       pin.style.display = spot ? "block" : "none";
