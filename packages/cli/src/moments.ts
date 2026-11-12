@@ -56,7 +56,7 @@ export async function moment(repo: Repo, words: string, named?: string) {
   const there = { url: here.url(), reading: await readAt(here), ...(await aboutOn(here, words, named)) };
   await open.close();
   if (named && !there.about)
-    throw new Refused([`Nothing on the page is called ${quote(named)}, as a button, a field, a link or a heading is.${there.near.length ? ` Near it: ${list(there.near.map(quote))}.` : ""} Say it as the page names it, or leave it out.`]);
+    throw new Refused([`Nothing on the page is called ${quote(named)}, as a button, a field, a link or a heading is, or says it.${there.near.length ? ` Near it: ${list(there.near.map(quote))}.` : ""} Say it as the page names it, or leave it out.`]);
 
   // The way there, run from a fresh start as the same person and recorded: tried in a folder of its own, and kept only
   // if it lands, in place of one with the same words.
@@ -139,6 +139,11 @@ async function aboutOn(page: Page, words: string, named?: string): Promise<{ abo
         ? (all.filter((one) => lower(one) === said).sort(headingLast)[0] ?? all.filter((one) => lower(one).includes(said)).sort((a, b) => a.name.length - b.name.length || headingLast(a, b))[0])
         : all.filter((one) => /\s/.test(one.name) && said.includes(lower(one))).sort((a, b) => b.name.length - a.name.length || headingLast(a, b))[0];
       const near = [...new Set(all.filter((one) => said.split(/\s+/).some((word) => word.length > 3 && lower(one).includes(word))).map((one) => one.name))].slice(0, 5);
+      // Named, and no button, field or heading is called that: words on the page that say it, the innermost, as a
+      // field's own words, which the page names nothing.
+      const own = (element: Element) => ((element as HTMLElement).innerText ?? "").trim().replace(/\s+/g, " ");
+      const text = named && !found ? [...document.querySelectorAll("body *")].filter((element) => own(element).toLowerCase() === said && ![...element.children].some((child) => own(child).toLowerCase() === said)).at(0) : undefined;
+      if (text) return { near, about: { role: "text", name: own(text), disabled: false } };
       if (!found) return { near };
       const element = found.element as HTMLInputElement;
       const field = "value" in element && ["INPUT", "TEXTAREA", "SELECT"].includes(element.tagName);

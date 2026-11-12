@@ -47,6 +47,22 @@ describe("the way to a moment", () => {
     assert.match(way, /await page\.keyboard\.press\("Meta\+k"\);/);
   });
 
+  test("types where the caret was put, as it was typed there, and finds a field the page gives no name by which of its kind it is", () => {
+    const typed = sceneOf({
+      words: "Words typed at the start stay there",
+      person: "Maja",
+      did: [
+        { does: "fill", on: "#__next form div", role: "textbox", nth: 1, with: "post on Monday" },
+        { does: "press", on: "#__next form div", role: "textbox", nth: 1, with: "Home" },
+        { does: "type", on: "#__next form div", role: "textbox", nth: 1, with: "Draft and " },
+      ],
+      setup: {},
+      about: { role: "text", name: "Draft and post on Monday", disabled: false },
+    });
+    assert.match(typed, /await page\.getByRole\("textbox"\)\.nth\(1\)\.fill\("post on Monday"\);\n    await page\.getByRole\("textbox"\)\.nth\(1\)\.press\("Home"\);\n    await page\.getByRole\("textbox"\)\.nth\(1\)\.pressSequentially\("Draft and "\);/);
+    assert.match(typed, /await expect\(page\.getByText\("Draft and post on Monday", \{ exact: true \}\)\)\.toBeVisible\(\);\n  \}\);/, "words are checked only for being there");
+  });
+
   test("goes to what setup made for this run, not the one the agent's browser had, and only where a click hasn't taken it already", () => {
     assert.match(way, /waitForURL\(`\$\{baseURL\}\/boards\/\$\{setup\.board\}`, \{ timeout: 3000 \}\)\.catch\(\(\) => page\.goto\(`\$\{baseURL\}\/boards\/\$\{setup\.board\}`\)\)/);
   });

@@ -49,7 +49,12 @@ const seeded = `(() => {
 // from a script.
 const NOTING = `(() => {
   if (window.top !== window) return;
-  const keep = (done) => window.__playthroughDid?.(done);
+  // The field being typed in at its caret, until something else is done.
+  let typedIn;
+  const keep = (done) => {
+    if (done.does !== "type") typedIn = undefined;
+    window.__playthroughDid?.(done);
+  };
   const pressable = "a, button, input, select, textarea, label, summary, [role=button], [role=link], [role=checkbox], [role=radio], [role=switch], [role=tab], [role=menuitem], [role=option], [role=combobox], [role=textbox], [contenteditable=''], [contenteditable=true]";
   const words = (element) => (element.innerText?.trim() || element.getAttribute?.("aria-label") || element.value || element.placeholder || "").trim().replace(/\\s+/g, " ").slice(0, 80);
   const thing = (target) => {
@@ -59,13 +64,16 @@ const NOTING = `(() => {
     return pressed ?? target;
   };
   const path = ${pathTo};
-  // As getByRole finds it, from Chrome's own accessibility tree (ComputedAccessibilityInfo, switched on at launch).
+  // As getByRole finds it, from Chrome's own accessibility tree (ComputedAccessibilityInfo, switched on at launch): by
+  // its role and name, and a field the page gives no name by its role alone, which of them it is.
+  const nameOf = (element) => (element.computedName || "").trim().replace(/\\s+/g, " ");
   const named = (element) => {
-    const role = element.computedRole, name = (element.computedName || "").trim().replace(/\\s+/g, " ");
-    if (!role || !name || ["generic", "none", "presentation", "StaticText", "paragraph", "group"].includes(role)) return {};
-    const alike = [...document.querySelectorAll(element.tagName + ", [role]")].filter((other) => other.computedRole === role && (other.computedName || "").trim().replace(/\\s+/g, " ") === name);
+    const role = element.computedRole, name = nameOf(element);
+    const field = ["textbox", "searchbox", "combobox", "spinbutton"].includes(role);
+    if (!role || (!name && !field) || ["generic", "none", "presentation", "StaticText", "paragraph", "group"].includes(role)) return {};
+    const alike = [...document.querySelectorAll("*")].filter((other) => other.computedRole === role && (!name || nameOf(other) === name));
     const nth = alike.indexOf(element);
-    return { role, name, ...(alike.length > 1 && nth >= 0 && { nth }) };
+    return { role, ...(name && { name }), ...((alike.length > 1 || !name) && nth >= 0 && { nth }) };
   };
   // Named as the page shows it with nothing pointed at: Kan's links add their shortcut ("Settings G S") on hover.
   const hovering = ${hovering};
@@ -91,14 +99,33 @@ const NOTING = `(() => {
     const target = thing(e.target);
     if (!target.matches?.("input:not([type=checkbox]):not([type=radio]), textarea, select")) keep({ does: "click", ...on(target), what: words(target) });
   }, true);
+  // Words typed where the caret was put, not at the end, are kept as typed there, and what's typed after them too:
+  // what a fix to where the caret goes is about. Anywhere else, the field's words once typed are what's kept.
+  let typing = false;
+  addEventListener("beforeinput", (e) => {
+    const target = e.target;
+    const text = target.isContentEditable ? target.innerText.replace(/\\n$/, "") : target.value ?? "";
+    const selection = target.isContentEditable ? getSelection() : undefined;
+    // At the end, or over all of it, what's typed makes the field's words whole, as filling it does.
+    const whole = selection
+      ? selection.toString().replace(/\\n$/, "") === text || (selection.isCollapsed && !!selection.focusNode && (() => { const range = document.createRange(); range.selectNodeContents(target); range.setStart(selection.focusNode, selection.focusOffset); return range.toString().replace(/\\n$/, "") === ""; })())
+      : (target.selectionStart === 0 && target.selectionEnd === text.length) || (target.selectionStart === text.length && target.selectionEnd === text.length);
+    typing = e.inputType === "insertText" && !!e.data && (typedIn === target || (!!text && !whole));
+  }, true);
   addEventListener("input", (e) => {
     const target = e.target;
     if (!target.matches?.("input, textarea, select, [contenteditable]")) return;
     if (target.tagName === "SELECT") keep({ does: "selectOption", ...on(target), with: target.value, what: words(target) });
+    else if (typing) {
+      keep({ does: "type", ...on(target), with: e.data });
+      typedIn = target;
+    }
     else if (!["checkbox", "radio"].includes(target.type)) keep({ does: "fill", ...on(target), with: target.isContentEditable ? target.innerText : target.value, what: target.getAttribute("aria-label") || target.placeholder || "" });
   }, true);
   addEventListener("keydown", (e) => {
     if (e.key === "Enter" && e.target.matches?.("input")) keep({ does: "press", ...on(e.target), with: "Enter", what: words(e.target) });
+    // What moves the caret in a field, so what's typed next goes where it went.
+    else if (["Home", "End", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key) && e.target.matches?.("input, textarea, [contenteditable]")) keep({ does: "press", ...on(e.target), with: e.key });
     else if ((e.metaKey || e.ctrlKey || e.key === "Escape") && !["Meta", "Control", "Shift", "Alt"].includes(e.key)) {
       const key = [e.ctrlKey && "Control", e.metaKey && "Meta", e.altKey && "Alt", e.shiftKey && "Shift", e.key].filter(Boolean).join("+");
       const focused = document.activeElement && document.activeElement !== document.body ? on(document.activeElement) : { on: "body" };
@@ -176,8 +203,10 @@ export async function as(repo: Repo, person: string, at?: string) {
   });
   await context.exposeBinding("__playthroughDid", (_source, done: Done) => {
     const last = live.did.at(-1);
+    // A field's words, typed a key at a time, are what it says once typed; and what's typed at the caret, one run of it.
     if (done.does === "fill" && last?.does === "fill" && last.on === done.on) live.did.pop();
-    live.did.push(done);
+    if (done.does === "type" && last?.does === "type" && last.on === done.on) last.with = `${last.with}${done.with}`;
+    else live.did.push(done);
     save();
   });
   await context.addInitScript({ content: NOTING });

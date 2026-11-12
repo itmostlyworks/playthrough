@@ -9,7 +9,7 @@ import { quote } from "@playthrough/review";
 export type Done = { does: string; on: string; with?: string; what?: string; role?: string; name?: string; nth?: number };
 
 // What a moment is about, read where the agent is: one thing on the page, by its role and name, with what can be
-// checked of it again.
+// checked of it again; or words with no role of their own (role "text"), by what they say.
 export type About = { role: string; name: string; value?: string; disabled: boolean; checked?: boolean };
 
 // A moment's file, by its words: the same words are the same moment, marked again in its place.
@@ -26,8 +26,9 @@ export function wordsIn(file: string): string | undefined {
 // beside itself, as no reading says the address.
 export function sceneOf({ words, person, did, setup, about, tried = false }: { words: string; person: string; did: Done[]; setup: Record<string, unknown>; about?: About; tried?: boolean }): string {
   const lines = did.map((done) => {
-    const at = done.role && done.name ? `getByRole(${JSON.stringify(done.role)}, { name: ${JSON.stringify(done.name)}, exact: true })${done.nth !== undefined ? `.nth(${done.nth})` : ""}` : `locator(${JSON.stringify(done.on)})`;
-    const what = done.what && !done.name ? ` // ${done.what.replace(/\n/g, " ")}` : "";
+    const nth = done.nth !== undefined ? `.nth(${done.nth})` : "";
+    const at = done.role && done.name ? `getByRole(${JSON.stringify(done.role)}, { name: ${JSON.stringify(done.name)}, exact: true })${nth}` : done.role ? `getByRole(${JSON.stringify(done.role)})${nth}` : `locator(${JSON.stringify(done.on)})`;
+    const what = done.what && !done.role ? ` // ${done.what.replace(/\n/g, " ")}` : "";
     const given = JSON.stringify(done.with ?? "");
     if (done.does === "goto") {
       const address = "`${baseURL}" + madeBySetup(String(done.with), setup) + "`";
@@ -35,13 +36,16 @@ export function sceneOf({ words, person, did, setup, about, tried = false }: { w
       return `    await page.waitForURL(${address}, { timeout: 3000 }).catch(() => page.goto(${address}));`;
     }
     if (done.does === "fill") return `    await page.${at}.fill(${given});${what}`;
+    if (done.does === "type") return `    await page.${at}.pressSequentially(${given});`;
     if (done.does === "selectOption") return `    await page.${at}.selectOption(${given});${what}`;
     if (done.does === "press") return done.on === "body" ? `    await page.keyboard.press(${given});` : `    await page.${at}.press(${given});${what}`;
     return `    await page.${at}.click();${what}`;
   });
-  const thing = about && `page.getByRole(${JSON.stringify(about.role)}, { name: ${JSON.stringify(about.name)}, exact: true })`;
+  const thing = about && (about.role === "text" ? `page.getByText(${JSON.stringify(about.name)}, { exact: true })` : `page.getByRole(${JSON.stringify(about.role)}, { name: ${JSON.stringify(about.name)}, exact: true })`);
   const checks = !about
     ? []
+    : about.role === "text"
+      ? [`    await expect(${thing}).toBeVisible();`]
     : [
         `    await expect(${thing}).toBeVisible();`,
         ...(about.value !== undefined ? [`    await expect(${thing}).toHaveValue(${JSON.stringify(about.value)});`] : []),
@@ -112,4 +116,4 @@ const said = (one: ReturnType<typeof differences>["differences"][number]) =>
   "now" in one && "then" in one ? `${one.what}: ${one.then.role} ${quote(one.then.name)} → ${quote(one.now.name)}` : one.what === "new" ? `only run again: ${one.now.role} ${quote(one.now.name)}` : `only where you are: ${one.then.role} ${quote(one.then.name)}`;
 
 export const aboutSaid = (about: About) =>
-  `${about.role} ${quote(about.name)}${about.value !== undefined ? `, saying ${quote(about.value)}` : ""}${about.disabled ? ", which can't be changed" : ""}${about.checked !== undefined ? (about.checked ? ", checked" : ", not checked") : ""}`;
+  `${about.role === "text" ? "words" : about.role} ${quote(about.name)}${about.value !== undefined ? `, saying ${quote(about.value)}` : ""}${about.disabled ? ", which can't be changed" : ""}${about.checked !== undefined ? (about.checked ? ", checked" : ", not checked") : ""}`;
