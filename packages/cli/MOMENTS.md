@@ -56,7 +56,8 @@ EACH CHANGE
    command after it means this change, until you name another.
 2. Change the app as asked.
 3. Check it as someone would use it: run playthrough as <person> in the background, and drive that browser with your
-   own tool, attached to it, never a browser of your own:
+   own tool, attached to it, never a browser of your own, at the port it says (9333, unless another copy's browser
+   has that):
      agent-browser --cdp 9333 <command>
      Playwright MCP: --cdp-endpoint http://localhost:9333
      a script: chromium.connectOverCDP("http://localhost:9333"), then the page already open there

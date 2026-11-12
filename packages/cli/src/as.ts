@@ -7,7 +7,8 @@
 
 import { chromium, request as requests, type Page } from "@playwright/test";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathTo } from "@playthrough/page";
@@ -19,12 +20,13 @@ import type { Repo } from "./repo.ts";
 import { giveBackLeft, make, personIn, problemsWithPeople, setupIn } from "./setup.ts";
 import { wayIn, type Done } from "./way.ts";
 
+// The debugging port a browser here is reached at: this one, unless another copy's browser has it.
 const DEBUGGING = 9333;
 const LAPTOP = { width: 1280, height: 800 };
 
 // What the browser keeps while the agent works, for `moment` to read: who it's signed in as, what setup made for them,
 // and what's been done since it started.
-export type Browser = { pid: number; person: string; started: string; setup: Record<string, unknown>; url: string; debugging: number; did: Done[]; began: number };
+export type Browser = { pid: number; person: string; started: string; setup: Record<string, unknown>; url: string; debugging: number; profile: string; did: Done[]; began: number };
 export const browserFile = (repo: Repo) => join(repo.root, ".playthrough", "browser.json");
 // Asked to start again, as whom, and where to: written by the next `as`, read by the one running.
 const againFile = (repo: Repo) => join(repo.root, ".playthrough", "browser-again.json");
@@ -159,18 +161,19 @@ export async function as(repo: Repo, person: string, at?: string) {
   const began = Date.now();
   // A browser open already starts again from a fresh start, as this person, rather than a new one starting.
   if (await startAgain(repo, person, began, to?.words)) return;
-  await clearEarlier();
+  await clearEarlier(repo);
   // Stopped, by Ctrl+C or a kill, what setup made is given back by app.ts's own handling, which this sets up; stopped
   // so that nothing runs after it, the next one gives it back here.
   await keepRunning(app, repo.root);
   await giveBackLeft(setup, repo.borrowed);
   const profile = mkdtempSync(join(tmpdir(), "playthrough-as-"));
+  const debugging = await freeFrom(DEBUGGING);
   process.once("exit", () => rmSync(profile, { recursive: true, force: true }));
   // The browser's own first window, rather than one of Playwright's: a tool attaching over the debugging port finds the
   // pages there, signed in, with what's set up here on them, and any page it opens there gets the same.
   const context = await chromium.launchPersistentContext(profile, {
     headless: !process.env.PLAYTHROUGH_HEADED,
-    args: [`--remote-debugging-port=${DEBUGGING}`, "--enable-blink-features=ComputedAccessibilityInfo"],
+    args: [`--remote-debugging-port=${debugging}`, "--enable-blink-features=ComputedAccessibilityInfo"],
     ...setup.use,
     baseURL: app.url,
     locale: "en-US",
@@ -189,7 +192,7 @@ export async function as(repo: Repo, person: string, at?: string) {
   let made = await make(setup, repo.borrowed, { page, request, baseURL: app.url, person });
   await setup.signIn?.({ page, person, setup: made.setup });
 
-  const live: Browser = { pid: process.pid, person, started, setup: made.setup, url: app.url, debugging: DEBUGGING, did: [], began };
+  const live: Browser = { pid: process.pid, person, started, setup: made.setup, url: app.url, debugging, profile, did: [], began };
   mkdirSync(join(repo.root, ".playthrough"), { recursive: true });
   const save = () => writeFileSync(browserFile(repo), JSON.stringify(live, null, 2));
   // Asked to start again (startAgain): what was made is given back, the browser forgets who it was signed in as, and
@@ -230,10 +233,10 @@ export async function as(repo: Repo, person: string, at?: string) {
   save();
   console.log(`Ready in ${((Date.now() - began) / 1000).toFixed(1)}s: a browser signed in as ${person}, on ${app.url}, what they start from made by playthrough/setup.ts:
   ${JSON.stringify(made.setup)}
-Drive it with your own tool over its debugging port, http://localhost:${DEBUGGING}:
-  agent-browser --cdp ${DEBUGGING} snapshot
-  or Playwright: chromium.connectOverCDP("http://localhost:${DEBUGGING}"), then its first context's page
-  or Playwright MCP: --cdp-endpoint http://localhost:${DEBUGGING}
+Drive it with your own tool over its debugging port, http://localhost:${debugging}${debugging === DEBUGGING ? "" : `, as another copy's browser has ${DEBUGGING}`}:
+  agent-browser --cdp ${debugging} snapshot
+  or Playwright: chromium.connectOverCDP("http://localhost:${debugging}"), then its first context's page
+  or Playwright MCP: --cdp-endpoint http://localhost:${debugging}
 ${went ? `${went}\n` : ""}When you're looking at what was asked for: playthrough moment "<what's there>"
 Ctrl+C ends it, and gives back what was made. playthrough as again starts this browser again from a fresh start.`);
   await new Promise(() => {});
@@ -267,14 +270,30 @@ ${again.went ? `${again.went}\n` : ""}Your tool stays attached at http://localho
   throw new Refused([`The browser open already didn't start again within two minutes. Stop it (Ctrl+C), then run this again.`]);
 }
 
-// What a browser stopped so that nothing ran after it left (TaskStop, a kill -9): the browser itself, still holding the
-// port, and its profile. What it made is given back once the app is there (giveBackLeft).
-async function clearEarlier() {
+// What this copy's browser left when it was stopped so that nothing ran after it (TaskStop, a kill -9): the browser
+// itself, still holding its port, and its profile; another copy's browser is left as it is. What it made is given back
+// once the app is there (giveBackLeft).
+async function clearEarlier(repo: Repo) {
+  let profile: string | undefined;
   try {
-    execFileSync("pkill", ["-f", `playthrough-as-.*remote-debugging-port=${DEBUGGING}|remote-debugging-port=${DEBUGGING}.*playthrough-as-`]);
+    profile = (JSON.parse(readFileSync(browserFile(repo), "utf8")) as Browser).profile;
+  } catch {}
+  if (!profile?.startsWith(join(tmpdir(), "playthrough-as-"))) return;
+  try {
+    execFileSync("pkill", ["-f", `user-data-dir=${profile}`]);
     await new Promise((resolve) => setTimeout(resolve, 1000));
   } catch {}
-  for (const name of readdirSync(tmpdir())) if (name.startsWith("playthrough-as-")) rmSync(join(tmpdir(), name), { recursive: true, force: true });
+  rmSync(profile, { recursive: true, force: true });
+}
+
+// The port asked for, or the next that nothing is listening on.
+async function freeFrom(port: number): Promise<number> {
+  const free = await new Promise<boolean>((resolve) => {
+    const server = createServer();
+    server.once("error", () => resolve(false));
+    server.listen(port, "127.0.0.1", () => server.close(() => resolve(true)));
+  });
+  return free ? port : freeFrom(port + 1);
 }
 
 // Done in the browser as the moment's way there does it, on what setup made for this browser, as far as it goes; and
