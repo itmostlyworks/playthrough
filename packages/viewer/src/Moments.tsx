@@ -205,12 +205,15 @@ const LATEST = 5;
 // at a glance, the longest waiting first. Under them, those with your agents and those done, a quiet line each that
 // opens to the same stills. A change moves by its one button: Send, with what you said, or Done, with nothing to say.
 // The list keeps itself as it is on disk, but calmly: one you sent folds away before it goes, and one handed over, or
-// handed back, joins what's waiting at its foot only while nothing it would move is under your pointer.
+// handed back, joins what's waiting at its foot only while nothing it would move is under your pointer. Held, only the
+// move waits: its line says at once where it stands now.
 function List({ changes, you, onOpen }: { changes?: Listed[]; you?: string; onOpen: (review: string, moment: number, note?: string) => void }) {
   const [opened, setOpened] = useState(openedLines);
   const [earlier, setEarlier] = useState(false);
   const [shown, setShown] = useState<Listed[]>();
   const before = useRef<Listed[]>(undefined);
+  // Each change as it is on disk, which a held one's line speaks from while it stays where it was.
+  const latest = useRef(new Map<string, Listed>());
   // Those that have moved since the list was first shown: each grows into its place.
   const moved = useRef(new Set<string>());
   // Those folding away after your Send or Done, which stay where they were until they're gone, and then go where they
@@ -226,6 +229,7 @@ function List({ changes, you, onOpen }: { changes?: Listed[]; you?: string; onOp
   const sectionOf = (listed?: Listed) => (listed && you && latestOf(listed.review) ? standingOf(listed.review, you).is : undefined);
   useEffect(() => {
     if (!changes || !you) return;
+    latest.current = new Map(changes.map((one) => [one.review.id, one]));
     const was = before.current;
     if (!was) return void setShown((before.current = changes));
     const top = foot.current?.getBoundingClientRect().top;
@@ -291,6 +295,7 @@ function List({ changes, you, onOpen }: { changes?: Listed[]; you?: string; onOp
       key={listed.review.id}
       listed={listed}
       standing={standing}
+      told={latest.current.get(listed.review.id) ?? listed}
       you={you}
       now={now}
       open={standing.is === "waiting" || opened.includes(listed.review.id)}
@@ -370,6 +375,8 @@ function Chevron({ open }: { open: boolean }) {
 function ChangeInList(props: {
   listed: Listed;
   standing: Standing;
+  // The change as it is now, which may have moved on while it's held where it was: what its line says.
+  told: Listed;
   you: string;
   now: number;
   open: boolean;
@@ -380,7 +387,8 @@ function ChangeInList(props: {
   // Going as you send or say Done; then gone, or staying where it is, as the send wasn't kept.
   onLeaving: (going: boolean, moved?: boolean) => void;
 }) {
-  const { listed, standing, you, now, open, arrived, keyed, onToggle, onOpen, onLeaving } = props;
+  const { listed, standing, told, you, now, open, arrived, keyed, onToggle, onOpen, onLeaving } = props;
+  const stands = told === listed ? standing : standingOf(told.review, you);
   const { review } = listed;
   const round = latestOf(review)!;
   const [grown, setGrown] = useState(!arrived);
@@ -448,6 +456,7 @@ function ChangeInList(props: {
               <h2 className="text-[15px] leading-[22px] font-semibold text-fg">{review.title}</h2>
               <p className="text-[13px] leading-5 text-soft">
                 {listed.app} · {ago(round.finished!, now)}
+                {stands.is !== "waiting" && <> · <StandsNow listed={told} standing={stands} now={now} /></>}
                 {not}
               </p>
             </div>
@@ -461,7 +470,7 @@ function ChangeInList(props: {
                 <span className="text-fg">{review.title}</span>
                 <span className="text-soft">
                   {" · "}
-                  {standing.is === "done" ? `Done ${ago(standing.at, now)}` : <Sent listed={listed} now={now} standing={standing} />}
+                  <StandsNow listed={told} standing={stands} now={now} />
                 </span>
                 {not}
               </span>
@@ -570,6 +579,13 @@ function NoteLine({ words, stands, fresh, onOpen }: { words: string; stands: str
 }
 
 // What you sent and when, and what the agent is doing with it, in the page's words.
+// Where a change stands, said on its line.
+function StandsNow({ listed, standing, now }: { listed: Listed; standing: Standing; now: number }) {
+  if (standing.is === "waiting") return <>back {ago(latestOf(listed.review)?.finished ?? new Date(now).toISOString(), now)}, waiting on you</>;
+  if (standing.is === "done") return <>Done {ago(standing.at, now)}</>;
+  return <Sent listed={listed} now={now} standing={standing} />;
+}
+
 function Sent({ listed, now, standing }: { listed: Listed; now: number; standing: Extract<Standing, { is: "sent" }> }) {
   const { review, agentWaiting } = listed;
   const working = workingSince(review, latestOf(review)!);
