@@ -7,7 +7,8 @@
 //                                     keeps the way there since `as`, and runs it again from a fresh start
 
 import { chromium, request as requests, type Page } from "@playwright/test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { differences, pathTo, type Reading } from "@playthrough/page";
@@ -17,7 +18,7 @@ import { hovering, readPage, unhovered } from "./read.ts";
 import type { Repo } from "./repo.ts";
 import { readingsOf } from "./reporter.ts";
 import { recorder, runOnce, type Ran } from "./scenes.ts";
-import { make, personIn, setupIn } from "./setup.ts";
+import { giveBackLeft, make, personIn, setupIn } from "./setup.ts";
 
 const DEBUGGING = 9333;
 const LAPTOP = { width: 1280, height: 800 };
@@ -29,6 +30,7 @@ type Done = { does: string; on: string; with?: string; what?: string; role?: str
 type Live = { pid: number; person: string; started: string; setup: Record<string, unknown>; url: string; debugging: number; did: Done[]; began: number };
 const folder = (repo: Repo) => join(repo.root, ".playthrough", "moments");
 const liveFile = (repo: Repo) => join(folder(repo), "live.json");
+const againFile = (repo: Repo) => join(folder(repo), "again.json");
 
 // Copied from test.ts, which can't be imported here without becoming a test file.
 const DAY = 24 * 60 * 60 * 1000;
@@ -113,9 +115,13 @@ export async function as(repo: Repo, person: string) {
   personIn(setup, person);
   const app = await repo.app();
   const began = Date.now();
-  await stopEarlier(repo);
-  // Stopped, by Ctrl+C or a kill, what setup made is given back by app.ts's own handling, which this sets up.
+  // A browser open already starts again from a fresh start, as this person, rather than a new one starting.
+  if (await startAgain(repo, person, began)) return;
+  await clearEarlier();
+  // Stopped, by Ctrl+C or a kill, what setup made is given back by app.ts's own handling, which this sets up; stopped
+  // so that nothing runs after it, the next one gives it back here.
   await keepRunning(app, repo.root);
+  await giveBackLeft(setup, repo.borrowed);
   const profile = mkdtempSync(join(tmpdir(), "playthrough-as-"));
   process.once("exit", () => rmSync(profile, { recursive: true, force: true }));
   // The browser's own first window, rather than one of Playwright's: a tool attaching over the debugging port finds the
@@ -137,12 +143,32 @@ export async function as(repo: Repo, person: string) {
   await context.addInitScript({ content: seeded });
   const page = context.pages()[0] ?? (await context.newPage());
   const request = await requests.newContext({ baseURL: app.url });
-  const made = await make(setup, repo.borrowed, { page, request, baseURL: app.url, person });
+  let made = await make(setup, repo.borrowed, { page, request, baseURL: app.url, person });
   await setup.signIn?.({ page, person, setup: made.setup });
 
   const live: Live = { pid: process.pid, person, started, setup: made.setup, url: app.url, debugging: DEBUGGING, did: [], began };
   mkdirSync(folder(repo), { recursive: true });
   const save = () => writeFileSync(liveFile(repo), JSON.stringify(live, null, 2));
+  // Asked to start again (startAgain): what was made is given back, the browser forgets who it was signed in as, and
+  // what every scene starts from is made again, for whoever's asked for; the way there starts again from the app's start.
+  process.on("SIGUSR1", async () => {
+    try {
+      const { person: next } = JSON.parse(readFileSync(againFile(repo), "utf8"));
+      personIn(setup, next);
+      await made.giveBack();
+      await context.clearCookies();
+      for (const open of context.pages().slice(1)) await open.close();
+      await page.goto(app.url);
+      await page.evaluate(() => (localStorage.clear(), sessionStorage.clear()));
+      made = await make(setup, repo.borrowed, { page, request, baseURL: app.url, person: next });
+      await setup.signIn?.({ page, person: next, setup: made.setup });
+      Object.assign(live, { person: next, setup: made.setup, did: [], began: Date.now() });
+      await page.goto(app.url);
+      save();
+    } catch (error) {
+      writeFileSync(againFile(repo), JSON.stringify({ failed: String((error as Error)?.message ?? error) }));
+    }
+  });
   await context.exposeBinding("__playthroughDid", (_source, done: Done) => {
     const last = live.did.at(-1);
     if (done.does === "fill" && last?.does === "fill" && last.on === done.on) live.did.pop();
@@ -159,27 +185,46 @@ Drive it with your own tool over its debugging port, http://localhost:${DEBUGGIN
   or Playwright: chromium.connectOverCDP("http://localhost:${DEBUGGING}"), then its first context's page
   or Playwright MCP: --cdp-endpoint http://localhost:${DEBUGGING}
 When you're looking at what was asked for: playthrough moment "<who, where, what's there>"
-Ctrl+C ends it, and gives back what was made; so does playthrough as again.`);
+Ctrl+C ends it, and gives back what was made. playthrough as again starts this browser again from a fresh start.`);
   await new Promise(() => {});
 }
 
-// One browser at a time: the one before is stopped, and gives back what it made, before this one takes the port.
-async function stopEarlier(repo: Repo) {
-  let pid: number | undefined;
+// The browser open already, told to start again as this person, and said ready once it has: in a few seconds, where a
+// new one takes ten.
+async function startAgain(repo: Repo, person: string, began: number): Promise<boolean> {
+  let live: Live;
   try {
-    pid = JSON.parse(readFileSync(liveFile(repo), "utf8")).pid;
-    process.kill(pid!, "SIGTERM");
+    live = JSON.parse(readFileSync(liveFile(repo), "utf8"));
+    process.kill(live.pid, 0);
   } catch {
-    return;
+    return false;
   }
-  for (let waited = 0; waited < 15_000; waited += 250) {
-    try {
-      process.kill(pid!, 0);
-    } catch {
-      return;
-    }
+  writeFileSync(againFile(repo), JSON.stringify({ person }));
+  process.kill(live.pid, "SIGUSR1");
+  for (let waited = 0; waited < 120_000; waited += 250) {
     await new Promise((resolve) => setTimeout(resolve, 250));
+    const again = JSON.parse(readFileSync(againFile(repo), "utf8"));
+    if (again.failed) throw new Refused([`The browser open already couldn't start again as ${person}: ${again.failed}. Stop it (Ctrl+C), then run this again.`]);
+    const now: Live = JSON.parse(readFileSync(liveFile(repo), "utf8"));
+    if (now.began > began)
+      return (
+        console.log(`Started again in ${((Date.now() - began) / 1000).toFixed(1)}s, in the browser open already: signed in as ${person}, on ${now.url}, from a fresh start made by playthrough/setup.ts:
+  ${JSON.stringify(now.setup)}
+Your tool stays attached at http://localhost:${now.debugging}. When you're looking at what was asked for: playthrough moment "<who, where, what's there>"`),
+        true
+      );
   }
+  throw new Refused([`The browser open already didn't start again within two minutes. Stop it (Ctrl+C), then run this again.`]);
+}
+
+// What a browser stopped so that nothing ran after it left (TaskStop, a kill -9): the browser itself, still holding the
+// port, and its profile. What it made is given back once the app is there (giveBackLeft).
+async function clearEarlier() {
+  try {
+    execFileSync("pkill", ["-f", `playthrough-as-.*remote-debugging-port=${DEBUGGING}|remote-debugging-port=${DEBUGGING}.*playthrough-as-`]);
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  } catch {}
+  for (const name of readdirSync(tmpdir())) if (name.startsWith("playthrough-as-")) rmSync(join(tmpdir(), name), { recursive: true, force: true });
 }
 
 // What a moment is about, read live: one thing on the page, by its role and name, with what can be checked of it again.
@@ -201,9 +246,12 @@ export async function moment(repo: Repo, words: string, onWords?: string) {
   if (onWords && !there.about) throw new Refused([`Nothing on the page is called ${quote(onWords)}, as a button, a field or a heading is. Say it as the page names it, or leave it out.`]);
   await browser.close();
 
-  // The way there, as a scene, run from a fresh start as the same person and recorded as record records one.
+  // The way there, as a scene, run from a fresh start as the same person and recorded as record records one: tried in
+  // a folder of its own, and kept only if it lands, in place of one kept before by the same words.
   const slug = words.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "moment";
-  const scenes = join(folder(repo), slug);
+  const keptIn = join(folder(repo), slug);
+  const scenes = join(folder(repo), "trying", slug);
+  rmSync(scenes, { recursive: true, force: true });
   mkdirSync(scenes, { recursive: true });
   writeFileSync(join(scenes, "package.json"), `{ "type": "module" }\n`);
   writeFileSync(join(scenes, "scene.ts"), sceneOf(words, live, there.about));
@@ -212,39 +260,42 @@ export async function moment(repo: Repo, words: string, onWords?: string) {
   const ran = await runOnce({ scenes, only: [words], app, root: repo.root, recorder, before: false, taken: [], started: live.started });
   const recorded = ran.recorded[0];
   const failed = ran.failed[0];
-  const took = (Date.now() - began) / 1000;
-  const kept = { words, person: live.person, about: there.about, did: live.did, live: { url: there.url, setup: live.setup }, took, sinceAs: (Date.now() - live.began) / 1000 };
+  const notKept = (why: string) => {
+    rmSync(scenes, { recursive: true, force: true });
+    return new Refused([`Not kept: run again from a fresh start, ${why}`, "Tell the person only about moments that landed. Fix what's said, or get there another way, and mark it again."]);
+  };
   if (!recorded) {
-    writeFileSync(join(scenes, "moment.json"), JSON.stringify({ ...kept, landed: false, failed }, null, 2));
-    if (there.about && failed?.why?.includes("expect(")) throw new Refused([`It got there again, but ${aboutSaid(there.about)} wasn't so: ${failed.why}`, `The way there is in ${repo.show(join(scenes, "scene.ts"))}.`]);
-    throw new Refused([`It didn't get there again${failed ? `: ${failed.at ? `at ${quote(failed.at)}, ` : ""}${failed.why ?? ""}` : "."}`, `The way there is in ${repo.show(join(scenes, "scene.ts"))}.`]);
+    if (there.about && failed?.why?.includes("expect(")) throw notKept(`it got there, but ${aboutSaid(there.about)} wasn't so: ${failed.why}`);
+    throw notKept(`it didn't get there${failed ? `: ${failed.at ? `at ${quote(failed.at)}, ` : ""}${failed.why ?? ""}` : "."}`);
   }
-  for (const { name, bytes } of recorded.files) {
-    mkdirSync(join(scenes, "recording", name, ".."), { recursive: true });
-    writeFileSync(join(scenes, "recording", name), bytes);
-  }
-  await onThePage(repo, recorded).catch((error) => console.log(`It isn't on the page: ${error?.problems?.join(" ") ?? error}`));
   const readings: Reading[] = JSON.parse(recorded.files.find((file) => file.name === readingsOf(recorded.scene))!.bytes.toString());
   const again = readings.at(-1)!;
-  const ended: { url: string } = JSON.parse(readFileSync(join(scenes, "ended.json"), "utf8"));
-  const endedAt = ended.url;
+  const endedAt: string = JSON.parse(readFileSync(join(scenes, "ended.json"), "utf8")).url;
   // Each run makes its own board and cards, so addresses are compared with their ids set aside.
   const address = addressOf(there.url, endedAt);
-  const sameAddress = address !== undefined;
   // A message that comes and goes by itself, as a toast, is there or not by how long ago it came.
   const passing = (one: (typeof all)[number]) => ("now" in one ? one.now : one.then).live;
   const { differences: all } = differences(there.reading, again);
   const differ = all.filter((one) => !passing(one));
-  const landed = !differ.length && sameAddress;
-  if (all.length > differ.length) console.log(`Left out, as messages that pass: ${all.filter(passing).map(said).join("; ")}.`);
-  writeFileSync(join(scenes, "moment.json"), JSON.stringify({ ...kept, landed, again: { url: endedAt, length: recorded.scene.length }, differences: differ.map(said) }, null, 2));
-  console.log(`\nKept ${quote(words)} in ${repo.show(scenes)}, ${took.toFixed(1)}s, ${((Date.now() - live.began) / 1000).toFixed(0)}s since playthrough as.`);
-  const elsewhere = differ.length
-    ? `${differ.length} ${differ.length > 1 ? "things differ" : "thing differs"}:\n${differ.slice(0, 12).map((one) => `  ${said(one)}`).join("\n")}`
-    : `the page reads the same, but the address isn't: ${new URL(there.url).pathname} here, ${new URL(endedAt).pathname} again`;
-  console.log(`Run again from a fresh start, it ${landed ? "landed where you are" : `ended somewhere else: ${elsewhere}. Don't show the person this moment until it lands`}.`);
+  const unlike = [
+    ...differ.slice(0, 12).map((one) => `  ${said(one)}`),
+    ...(address === undefined ? [`  the address: ${new URL(there.url).pathname} here, ${new URL(endedAt).pathname} again`] : []),
+  ];
+  if (unlike.length) throw notKept(`it ended somewhere else. What differs from where you are:\n${unlike.join("\n")}`);
+
+  for (const { name, bytes } of recorded.files) {
+    mkdirSync(join(scenes, "recording", name, ".."), { recursive: true });
+    writeFileSync(join(scenes, "recording", name), bytes);
+  }
+  const took = (Date.now() - began) / 1000;
+  writeFileSync(join(scenes, "moment.json"), JSON.stringify({ words, person: live.person, about: there.about, did: live.did, live: { url: there.url, setup: live.setup }, took, landed: true, again: { url: endedAt, length: recorded.scene.length } }, null, 2));
+  rmSync(keptIn, { recursive: true, force: true });
+  renameSync(scenes, keptIn);
+  await onThePage(repo, recorded).catch((error) => console.log(`It isn't on the page: ${error?.problems?.join(" ") ?? error}`));
+  if (all.length) console.log(`Left out, as messages that pass: ${all.map(said).join("; ")}.`);
+  console.log(`\nKept ${quote(words)} in ${repo.show(keptIn)}, ${took.toFixed(1)}s: run again from a fresh start, it landed where you are.`);
   if (there.about) console.log(`It's about ${aboutSaid(there.about)}, checked again on the way: it held.`);
-  if (sameAddress) console.log(`Compared: what's read on the page, and the address with the ids each run made set aside (${address}, the same).`);
+  console.log(`Compared: what's read on the page, and the address with the ids each run made set aside (${address}, the same).`);
 }
 
 // Each moment, as a scene of one review, "marked", in its one round, so the page shows it as it shows a scene: a try.

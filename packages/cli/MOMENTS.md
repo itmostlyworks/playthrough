@@ -14,8 +14,9 @@ a few seconds of the app getting there. You mark them while you check your own w
    Click and type as a person would. Going to an address directly is fine.
 3. When you're looking at what was asked for, say so: playthrough moment "<who, where, what's there>". Add, as the page
    names it, the one thing it's about ("Card prefix"), so what it says, and whether it can be changed, is checked again.
-   Playthrough runs the way there again from a fresh start, records it, and says whether it landed where you are. If it
-   didn't, it says why: fix that and mark it again.
+   Playthrough runs the way there again from a fresh start, records it, and keeps it only if it lands where you are.
+   If it doesn't, it says what differed and keeps nothing: read why, fix it, and mark it again.
 4. A few moments per change: one for each person or situation the change treats differently (an admin and a member;
-   what's accepted and what's refused). Run playthrough as again for each: it starts them fresh, and stops the one before.
-5. Then tell the person their moments are ready, one line each, in your words. Stop playthrough as.
+   what's accepted and what's refused). Run playthrough as again for each: the same browser starts again, fresh.
+5. Then tell the person their moments are ready, one line each, in your words: only moments that were kept. Stop
+   playthrough as.
