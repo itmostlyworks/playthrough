@@ -5,7 +5,7 @@
 // button on the list: Send, or Done with nothing to say. Its own address, /moments, beside the page; the recording, the pointer, the pins and
 // stepping in are the page's own.
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Glimpse, Reading } from "@playthrough/page";
 import { allNotes, conversation, newId, pausedAt, waitingForTheAgent, type Turn, type Did, type Note, type Place, type Review, type Round, type Scene } from "@playthrough/review";
 import { glimpses, keepBranch, picture, readings as readingsOf, recording, send, useReview, useYou } from "./api.ts";
@@ -373,19 +373,23 @@ function ChangeInList(props: {
                     <Still review={review} round={round} scene={scene} about={shown.moments.find((one) => one.words === scene.name)?.about} seen={quiet} />
                     <span className={`mt-2.5 block text-[13px] leading-5 ${quiet ? "text-faint" : "text-soft"}`}>{whoIn(shown, scene)}</span>
                     <span className={`block text-[14px] leading-5 ${quiet ? "text-soft" : "text-fg"}`}>{scene.name}</span>
-                    {waiting && !quiet && seenBefore && different.has(scene.name) && <span className="mt-0.5 block text-[13px] leading-5 text-amber-ink">Different since you saw it</span>}
+                    {/* Said once: where someone spoke on it, the reply says what changed. */}
+                    {waiting && !quiet && seenBefore && different.has(scene.name) && !talk.length && !notes.some((note) => note.on?.scene === scene.name) && (
+                      <span className="mt-0.5 block text-[13px] leading-5 text-amber-ink">Different since you saw it</span>
+                    )}
                   </button>
-                  {talk.map(([id]) => (
-                    <Talk key={id} turns={conversation(review, id)} replied={replies.find((one) => one.note === id)?.words} />
-                  ))}
-                  {notes
-                    .filter((note) => note.on?.scene === scene.name)
-                    .map((note) => (
-                      <p key={note.id} className="mt-1.5 flex items-baseline gap-2 text-[13px] leading-5 text-soft">
-                        <i className="size-1.5 flex-none translate-y-[-1px] rounded-full bg-amber" />
-                        <span className="line-clamp-2 min-w-0">{note.words}</span>
-                      </p>
-                    ))}
+                  {(talk.length > 0 || notes.some((note) => note.on?.scene === scene.name)) && (
+                    <div className="mt-4 grid gap-4">
+                      {talk.map(([id]) => (
+                        <Turns key={id} you={you} turns={conversation(review, id)} replied={replies.find((one) => one.note === id)?.words} glance />
+                      ))}
+                      {notes
+                        .filter((note) => note.on?.scene === scene.name)
+                        .map((note) => (
+                          <Turns key={note.id} you={you} turns={[]} unsent={note.words} glance />
+                        ))}
+                    </div>
+                  )}
                 </li>
               );
             })}
@@ -396,24 +400,37 @@ function ChangeInList(props: {
   );
 }
 
-// A note and what's been said on it since, a line each: yours with its dot, the agent's under its name.
-function Talk({ turns, replied }: { turns: Turn[]; replied?: string }) {
-  const lines = [...turns.map((turn) => ({ by: turn.agent ? turn.by : undefined, words: turn.words })), ...(replied ? [{ by: undefined, words: replied, unsent: true }] : [])];
+// A note and what's been said on it since, a turn each, as the page's cards say them: who speaks on a small line of its
+// own, you by your dot, the agent by its name, and the words under it as readable as the note's. At a glance, on the
+// list, a long turn fades after three lines; by the pin, it's whole.
+function Turns({ you, turns, replied, unsent, glance = false }: { you: string; turns: Turn[]; replied?: string; unsent?: string; glance?: boolean }) {
+  const sent = turns.map((turn) => ({ mine: !turn.agent && turn.by === you, by: turn.agent || turn.by !== you ? turn.by : "You", words: turn.words, sent: true }));
+  // At a glance: what the note asked, the latest said since, and what you haven't sent; the turns between fold away, as
+  // a card's earlier answers do.
+  const between = glance ? Math.max(0, sent.length - 2) : 0;
+  const all = [
+    ...(between ? [sent[0]!, ...sent.slice(-1)] : sent),
+    ...[replied, unsent].filter((words): words is string => !!words).map((words) => ({ mine: true, by: "You", words, sent: false })),
+  ];
   return (
-    <div className="mt-1.5">
-      {lines.map((line, i) =>
-        line.by ? (
-          <p key={i} className="mt-1 ml-3.5 text-[13px] leading-5 text-soft">
-            <span className="text-faint">{line.by}: </span>
-            <span className="line-clamp-2 inline">{line.words}</span>
+    <div className="grid gap-2.5">
+      {all.map((turn, i) => (
+        <Fragment key={i}>
+          {between > 0 && i === 1 && <span className="text-[11.5px] leading-4 text-faint">{between} earlier</span>}
+        <div className="grid gap-px">
+          <span className="flex items-center gap-1.5 text-[11.5px] leading-4 text-faint">
+            {turn.mine && <i className={`size-1.5 rounded-full ${turn.sent ? "bg-slate" : "bg-amber"}`} />}
+            {turn.by}
+            {!turn.sent && <span>· not sent yet</span>}
+          </span>
+          <p
+            className={`text-[13px] leading-5 whitespace-pre-wrap text-fg ${glance && turn.words.length > 110 ? "max-h-[60px] overflow-hidden [mask-image:linear-gradient(to_bottom,#000_36px,transparent)]" : ""}`}
+          >
+            {turn.words}
           </p>
-        ) : (
-          <p key={i} className="mt-1 flex items-baseline gap-2 text-[13px] leading-5 text-soft">
-            <i className={`size-1.5 flex-none translate-y-[-1px] rounded-full ${"unsent" in line ? "bg-amber" : "bg-slate"}`} />
-            <span className="line-clamp-2 min-w-0">{line.words}</span>
-          </p>
-        ),
-      )}
+        </div>
+        </Fragment>
+      ))}
     </div>
   );
 }
@@ -518,6 +535,7 @@ function Change({ id, moment, go }: { id: string; moment: number; go: (to: Where
       setNotes={setNotes}
       replies={replies}
       setReplies={setReplies}
+      you={you}
       onMoment={(to) => go({ review: id, moment: to }, true)}
       onLeave={() => go({})}
     />
@@ -538,10 +556,11 @@ function MomentView(props: {
   setNotes: (change: (notes: Note[]) => Note[]) => void;
   replies: Replied[];
   setReplies: (change: (replies: Replied[]) => Replied[]) => void;
+  you: string;
   onMoment: (n: number) => void;
   onLeave: () => void;
 }) {
-  const { review, round, n, about, who, notes, sent, setNotes, replies, setReplies, onMoment, onLeave } = props;
+  const { review, round, n, about, who, notes, sent, setNotes, replies, setReplies, you, onMoment, onLeave } = props;
   const scene = round.scenes[n - 1]!;
   const count = round.scenes.length;
   const end = Math.max(0, scene.length - 0.05);
@@ -881,18 +900,13 @@ function MomentView(props: {
           {writing && <NoteCard at={(!writing.note.on?.app && pinOf(placed[writing.note.id])) || writing.spot} frame={frame}><Write onSave={save} onDrop={() => setWriting(undefined)} /></NoteCard>}
           {!writing && openNote && (
             <NoteCard at={pinOf(placed[openNote.note.id]) ?? { x: 24, y: 24 }} frame={frame}>
-              {openNote.sent ? (
-                <div className="px-1">
-                  {conversation(review, openNote.note.id).map((turn, i) => (
-                    <p key={i} className={`text-[13px] leading-5 whitespace-pre-wrap ${i ? "mt-2" : ""} ${turn.agent ? "text-soft" : "text-fg"}`}>
-                      {turn.agent && <span className="block text-xs text-faint">{turn.by}</span>}
-                      {turn.words}
-                    </p>
-                  ))}
-                </div>
-              ) : (
-                <p className="px-1 text-[13px] leading-5 whitespace-pre-wrap text-fg">{openNote.note.words}</p>
-              )}
+              <div className="min-h-0 flex-1 overflow-y-auto px-1">
+                {openNote.sent ? (
+                  <Turns you={you} turns={conversation(review, openNote.note.id)} />
+                ) : (
+                  <Turns you={you} turns={[]} unsent={openNote.note.words} />
+                )}
+              </div>
               {openNote.sent && (
                 <div className="mt-2 border-t border-line pt-2">
                   <Write
@@ -1007,8 +1021,11 @@ function NoteCard({ at, frame, children }: { at: { x: number; y: number }; frame
   const wide = frame.current?.clientWidth ?? 0;
   const width = Math.min(280, wide - 16);
   const left = at.x + 18 + width <= wide ? at.x + 18 : Math.max(8, at.x - 18 - width);
+  // In the frame's lower half, it grows upward from the pin, so it never runs off under the bar.
+  const high = frame.current?.clientHeight ?? 0;
+  const place = at.y > high / 2 ? { bottom: Math.max(8, high - at.y - 12) } : { top: Math.max(8, at.y - 12) };
   return (
-    <div className="absolute z-40 animate-arrive rounded-xl bg-surface p-2 shadow-float" style={{ left, top: Math.max(8, at.y - 12), width }} onClick={(event) => event.stopPropagation()}>
+    <div className="absolute z-40 flex max-h-[min(70vh,calc(100%-16px))] animate-arrive flex-col rounded-xl bg-surface p-2 shadow-float" style={{ left, ...place, width }} onClick={(event) => event.stopPropagation()}>
       {children}
     </div>
   );
@@ -1020,7 +1037,7 @@ function Write({ onSave, onDrop, placeholder = "What's right or wrong here?", ro
   return (
     <div>
       <textarea
-        autoFocus
+        ref={(area) => void (area && !area.dataset.focused && ((area.dataset.focused = "1"), area.focus({ preventScroll: true })))}
         rows={rows}
         value={words}
         placeholder={placeholder}
