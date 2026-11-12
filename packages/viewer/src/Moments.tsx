@@ -5,7 +5,7 @@
 // change's one button on the list: Send, or Done with nothing to say. The list is at /, each moment at
 // /moments/<its change's address>/<n>; the recording, the pointer, the pins and stepping in are the page's own.
 
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Glimpse, Reading } from "@playthrough/page";
 import { allNotes, conversation, newId, pausedAt, waitingForTheAgent, type Turn, type Did, type Note, type Place, type Review, type Round, type Scene } from "@playthrough/review";
 import { glimpses, keepBranch, picture, readings as readingsOf, recording, send, useChanges, useYou, type Listed } from "./api.ts";
@@ -17,6 +17,7 @@ import { Clock, Player, useCut, type Mark, type Placed } from "./Player.tsx";
 import { Portal, TAG } from "./Portal.tsx";
 import { CHIP } from "./Scene.tsx";
 import { readyAt } from "./live.ts";
+import { usePhone } from "./phone.ts";
 import { clamp } from "./moments.ts";
 import type { Scrolled } from "./replay.ts";
 
@@ -705,6 +706,9 @@ function MomentView(props: {
     }
   }, [round]);
   const screen = readings?.at(-1)?.screen ?? { width: 1280, height: 800 };
+  // On a phone, the whole screen is too small to read: it's closed in on what the moment is about, as its still is.
+  const phone = usePhone();
+  const closer = useMemo(() => (phone ? closeOn(readings?.at(-1), about, screen.width / screen.height) : undefined), [phone, readings, about?.role, about?.name]);
   const cut = useCut(review.id, round.number, scene);
   const [clockOf] = useState(() => new Clock(end));
   const [playing, setPlaying] = useState<{ until: number }>();
@@ -953,11 +957,12 @@ function MomentView(props: {
           onPointerLeave={() => setAiming(false)}
         >
           <div key={scene.recording} className="absolute inset-0 animate-arrive overflow-hidden rounded-lg bg-paper shadow-frame" onClick={(event) => onFrame && !noting && !(event.target as Element).closest("button") && stepIn()}>
-            <Picture shot={{ src: picture(review.id, round.number, scene.recording, Math.max(0, scene.steps.length - 1)) }} />
+            {(!phone || readings) && <Picture shot={{ src: picture(review.id, round.number, scene.recording, Math.max(0, scene.steps.length - 1)), frame: closer }} />}
             <Player
               review={review.id}
               round={round.number}
               recording={scene.recording}
+              frame={closer}
               at={at}
               playing={playing}
               following={scrubbing ? { clock: clockOf, at: (moment) => moment } : undefined}
@@ -991,7 +996,7 @@ function MomentView(props: {
                 ].map((side) => (
                   <div key={side.label} className="flex flex-1 items-center">
                     <div className="relative w-full overflow-hidden rounded-lg bg-paper shadow-frame" style={{ aspectRatio: `${screen.width} / ${screen.height}` }}>
-                      <Player review={review.id} round={side.round} recording={side.recording} at={side.at} />
+                      <Player review={review.id} round={side.round} recording={side.recording} at={side.at} frame={closer} />
                       <span className={CHIP}>{side.label}</span>
                     </div>
                   </div>
