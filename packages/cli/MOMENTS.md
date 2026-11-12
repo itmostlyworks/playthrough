@@ -15,7 +15,8 @@ a few seconds of the app getting there. You mark them while you check your own w
 3. When you're looking at what was asked for, say so: playthrough moment "<what's there>", in under eight words
    ("Cards now say WEB-1 to WEB-5", "The prefix shows but can't be changed"). The person sees who it is and where from
    the moment itself: don't say it again. Add, as the page names it, the one thing it's about ("Card prefix"): the
-   person sees the moment closed in on it, and what it says, and whether it can be changed, is checked again.
+   person sees the moment closed in on it, and what it says, and whether it can be changed, is checked again. Name the
+   smallest thing that shows it: a card, not the board it's on ("WEB-1 Write the launch post").
    Playthrough runs the way there again from a fresh start, records it, and keeps it only if it lands where you are.
    If it doesn't, it says what differed and keeps nothing: read why, fix it, and mark it again.
 4. A few moments per change: one for each person or situation the change treats differently (an admin and a member;
