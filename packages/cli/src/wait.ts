@@ -89,7 +89,7 @@ export async function wait(repo: Repo, id: string) {
 // While it waits, it says so beside the review, so the person can be told when nobody is: an agent's command in the
 // background can be ended by the agent's own time limit, and what's sent then sits until it's run again. Ended by a
 // signal, it leaves its file behind, so an agent counts as waiting only while its process runs.
-async function listening(repo: Repo, id: string): Promise<() => void> {
+export async function listening(repo: Repo, id: string): Promise<() => void> {
   const file = join(repo.waiting(id), String(process.pid));
   await mkdir(repo.waiting(id), { recursive: true });
   await writeFile(file, "");

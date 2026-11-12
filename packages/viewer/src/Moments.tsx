@@ -7,7 +7,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Glimpse, Reading } from "@playthrough/page";
-import { newId, pausedAt, waitingForTheAgent, type Did, type Note, type Place, type Review, type Round, type Scene } from "@playthrough/review";
+import { allNotes, conversation, newId, pausedAt, waitingForTheAgent, type Turn, type Did, type Note, type Place, type Review, type Round, type Scene } from "@playthrough/review";
 import { glimpses, keepBranch, picture, readings as readingsOf, recording, send, useReview, useYou } from "./api.ts";
 import { Key } from "./Card.tsx";
 import { around, Picture, union, type Frame } from "./Picture.tsx";
@@ -15,6 +15,7 @@ import { workingSince } from "./notes.ts";
 import { Pinned, type Pin } from "./Pinned.tsx";
 import { Clock, Player, useCut, type Mark, type Placed } from "./Player.tsx";
 import { Portal, TAG } from "./Portal.tsx";
+import { CHIP } from "./Scene.tsx";
 import { readyAt } from "./live.ts";
 import { clamp } from "./moments.ts";
 import type { Scrolled } from "./replay.ts";
@@ -58,6 +59,36 @@ function keepUnsent(review: string, notes: Note[]) {
     else localStorage.removeItem(unsentKey(review));
   } catch {}
 }
+// Your replies on notes already sent, kept in this browser until you send them, by note.
+type Replied = { note: string; words: string };
+const repliesKey = (review: string) => `playthrough:moments-replies:${review}`;
+function repliesOf(review: string): Replied[] {
+  try {
+    return JSON.parse(localStorage.getItem(repliesKey(review)) ?? "[]");
+  } catch {
+    return [];
+  }
+}
+function keepReplies(review: string, replies: Replied[]) {
+  try {
+    if (replies.length) localStorage.setItem(repliesKey(review), JSON.stringify(replies));
+    else localStorage.removeItem(repliesKey(review));
+  } catch {}
+}
+// What Send says it sends: notes and replies, by their count.
+const toSend = (notes: number, replies: number) =>
+  [notes && `${notes} ${notes === 1 ? "note" : "notes"}`, replies && `${replies} ${replies === 1 ? "reply" : "replies"}`].filter(Boolean).join(" and ");
+// Each moment's taking: seen per taking, so one that's different since asks for you again, once.
+const takingOf = (round: Round, scene: string) => `${round.number}:${scene}`;
+// The moments that look different since the taking before, by Playthrough's own comparison, with its words.
+function differentSince(review: Review, round: Round): Map<string, string[]> {
+  const before = review.rounds.findLast((one) => one.number < round.number && one.number > 0 && one.finished);
+  const compared = before && review.comparisons.find((one) => one.round === round.number && one.since === before.number);
+  const different = new Map<string, string[]>();
+  for (const change of compared?.changes ?? []) for (const seen of change.seen) different.set(seen.scene, [...(different.get(seen.scene) ?? []), change.words]);
+  return different;
+}
+
 // The moments you've opened, by change and by you, in this browser: seen, they're quieter on the list.
 const seenKey = (review: string, you: string) => `playthrough:moments-seen:${review}:${you}`;
 function seenOf(review: string, you: string): string[] {
@@ -253,23 +284,27 @@ function ChangeInList(props: {
   const round = latestOf(review)!;
   const shown = useShown(review.id);
   const [notes] = useState(() => unsentOf(review.id));
+  const [replies] = useState(() => repliesOf(review.id));
   const [seen] = useState(() => seenOf(review.id, you));
+  const different = differentSince(review, round);
+  const said = notes.length + replies.length;
   const [problems, setProblems] = useState<string[]>();
   const [busy, setBusy] = useState(false);
   // Sent or done, it folds away where it was and arrives as its line where it goes.
   const [leaving, setLeaving] = useState(false);
   const waiting = standing.is === "waiting";
-  const say = async (what: { notes: Note[]; looksGood: string[] }) => {
+  const say = async (what: { notes: Note[]; replies?: Replied[]; looksGood: string[] }) => {
     if (busy || leaving) return;
     setBusy(true);
     const said = await send(review.id, { id: newId(), round: round.number, by: you, sent: new Date().toISOString(), verdicts: [], ...what });
     setBusy(false);
     if (said.length) return setProblems(said);
     keepUnsent(review.id, []);
+    keepReplies(review.id, []);
     setLeaving(true);
     setTimeout(onMoved, matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : LEAVING);
   };
-  const sendNow = () => say({ notes, looksGood: [] });
+  const sendNow = () => (said ? say({ notes, ...(replies.length && { replies }), looksGood: [] }) : Promise.resolve());
   // Done says every moment looks good to you, and that you've nothing more to say: the agent hears it as it hears a
   // send, and the change can still take a note later.
   const doneNow = () => say({ notes: [], looksGood: round.scenes.map((scene) => scene.name) });
@@ -281,14 +316,14 @@ function ChangeInList(props: {
     addEventListener("keydown", down);
     return () => removeEventListener("keydown", down);
   }, []);
-  const button = (notes.length || waiting) && (
+  const button = (said || waiting) && (
     <button
       onMouseDown={(event) => event.preventDefault()}
-      onClick={notes.length ? sendNow : doneNow}
+      onClick={said ? sendNow : doneNow}
       disabled={busy || leaving}
       className="flex h-8 flex-none items-center gap-2 self-start rounded-lg bg-surface px-3 text-[13px] font-medium whitespace-nowrap text-fg shadow-[0_0_0_1px_var(--edge),0_1px_2px_var(--drop)] transition-[background-color,opacity] duration-150 ease-calm enabled:hover:bg-hover"
     >
-      {notes.length ? <>Send {notesSaid(notes.length)} <Key>Ctrl ↵</Key></> : "Done"}
+      {said ? <>Send {toSend(notes.length, replies.length)} <Key>Ctrl ↵</Key></> : "Done"}
     </button>
   );
   const not = problems && <span className="text-amber-ink"> · Not sent: {problems[0]}</span>;
@@ -328,14 +363,21 @@ function ChangeInList(props: {
         <Fold open={open}>
           <ol className={`grid grid-cols-3 gap-x-5 gap-y-6 phone:grid-cols-1 [@media(min-width:821px)_and_(max-width:1000px)]:grid-cols-2 ${waiting ? "mt-4" : "mt-3 mb-6"}`}>
             {round.scenes.map((scene, i) => {
-              const quiet = !waiting || seen.includes(scene.name);
+              // Seen in this taking, or the same as one seen before, it's quieter; different since, it asks again.
+              const seenBefore = seen.some((one) => one === scene.name || one.endsWith(`:${scene.name}`));
+              const quiet = !waiting || seen.includes(takingOf(round, scene.name)) || (seenBefore && !different.has(scene.name));
+              const talk = [...allNotes(review)].filter(([, kept]) => (kept.note.on?.app?.from.scene ?? kept.note.on?.scene) === scene.name);
               return (
                 <li key={scene.name}>
                   <button onClick={() => onOpen(i + 1)} className="group block w-full text-left">
                     <Still review={review} round={round} scene={scene} about={shown.moments.find((one) => one.words === scene.name)?.about} seen={quiet} />
                     <span className={`mt-2.5 block text-[13px] leading-5 ${quiet ? "text-faint" : "text-soft"}`}>{whoIn(shown, scene)}</span>
                     <span className={`block text-[14px] leading-5 ${quiet ? "text-soft" : "text-fg"}`}>{scene.name}</span>
+                    {waiting && !quiet && seenBefore && different.has(scene.name) && <span className="mt-0.5 block text-[13px] leading-5 text-amber-ink">Different since you saw it</span>}
                   </button>
+                  {talk.map(([id]) => (
+                    <Talk key={id} turns={conversation(review, id)} replied={replies.find((one) => one.note === id)?.words} />
+                  ))}
                   {notes
                     .filter((note) => note.on?.scene === scene.name)
                     .map((note) => (
@@ -350,6 +392,28 @@ function ChangeInList(props: {
           </ol>
         </Fold>
       </div>
+    </div>
+  );
+}
+
+// A note and what's been said on it since, a line each: yours with its dot, the agent's under its name.
+function Talk({ turns, replied }: { turns: Turn[]; replied?: string }) {
+  const lines = [...turns.map((turn) => ({ by: turn.agent ? turn.by : undefined, words: turn.words })), ...(replied ? [{ by: undefined, words: replied, unsent: true }] : [])];
+  return (
+    <div className="mt-1.5">
+      {lines.map((line, i) =>
+        line.by ? (
+          <p key={i} className="mt-1 ml-3.5 text-[13px] leading-5 text-soft">
+            <span className="text-faint">{line.by}: </span>
+            <span className="line-clamp-2 inline">{line.words}</span>
+          </p>
+        ) : (
+          <p key={i} className="mt-1 flex items-baseline gap-2 text-[13px] leading-5 text-soft">
+            <i className={`size-1.5 flex-none translate-y-[-1px] rounded-full ${"unsent" in line ? "bg-amber" : "bg-slate"}`} />
+            <span className="line-clamp-2 min-w-0">{line.words}</span>
+          </p>
+        ),
+      )}
     </div>
   );
 }
@@ -427,12 +491,19 @@ function Change({ id, moment, go }: { id: string; moment: number; go: (to: Where
       keepUnsent(id, next);
       return next;
     });
+  const [replies, setRepliesNow] = useState(() => repliesOf(id));
+  const setReplies = (change: (replies: Replied[]) => Replied[]) =>
+    setRepliesNow((now) => {
+      const next = change(now);
+      keepReplies(id, next);
+      return next;
+    });
   if (!review || Array.isArray(review) || !you) return <div className="h-dvh bg-ground" />;
   const round = latestOf(review);
   if (!round) return <div className="grid h-dvh place-items-center bg-ground text-soft">Nothing is waiting on you here.</div>;
   const n = Math.min(moment, round.scenes.length);
   const scene = round.scenes[n - 1]!;
-  markSeen(id, you, scene.name);
+  markSeen(id, you, takingOf(round, scene.name));
   const sent = sentBy(review, you).flatMap((one) => one.notes);
   return (
     <MomentView
@@ -445,6 +516,8 @@ function Change({ id, moment, go }: { id: string; moment: number; go: (to: Where
       notes={notes}
       sent={sent}
       setNotes={setNotes}
+      replies={replies}
+      setReplies={setReplies}
       onMoment={(to) => go({ review: id, moment: to }, true)}
       onLeave={() => go({})}
     />
@@ -463,10 +536,12 @@ function MomentView(props: {
   notes: Note[];
   sent: Note[];
   setNotes: (change: (notes: Note[]) => Note[]) => void;
+  replies: Replied[];
+  setReplies: (change: (replies: Replied[]) => Replied[]) => void;
   onMoment: (n: number) => void;
   onLeave: () => void;
 }) {
-  const { review, round, n, about, who, notes, sent, setNotes, onMoment, onLeave } = props;
+  const { review, round, n, about, who, notes, sent, setNotes, replies, setReplies, onMoment, onLeave } = props;
   const scene = round.scenes[n - 1]!;
   const count = round.scenes.length;
   const end = Math.max(0, scene.length - 0.05);
@@ -502,6 +577,14 @@ function MomentView(props: {
   const shareOf = (moment: number) => (cut ? clamp((cut.cut(moment) - cut.cut(start)) / Math.max(0.01, cut.cut(end) - cut.cut(start))) : 1);
   const momentOf = (share: number) => (cut ? Math.min(end, cut.real(cut.cut(start) + share * (cut.cut(end) - cut.cut(start)))) : end);
   const [noting, setNoting] = useState(false);
+  // Compare: this moment as it was when it was last handed back, beside how it is now.
+  const then = (() => {
+    const earlier = review.rounds.findLast((one) => one.number > 0 && one.number < round.number && one.finished && one.scenes.some((kept) => kept.name === scene.name));
+    const kept = earlier?.scenes.find((one) => one.name === scene.name);
+    return earlier && kept ? { round: earlier, scene: kept } : undefined;
+  })();
+  const [comparing, setComparing] = useState(false);
+  const compare = () => then && !live?.shown && (setPlaying(undefined), setOpen(undefined), setNoting(false), setComparing((now) => !now));
   const [writing, setWriting] = useState<Writing>();
   const [open, setOpen] = useState<string>();
   const [placed, setPlaced] = useState<Placed>({});
@@ -523,6 +606,7 @@ function MomentView(props: {
     setPlaced({});
     setLive(undefined);
     setScrubbing(false);
+    setComparing(false);
     clockOf.set(end);
   }, [n]);
 
@@ -531,7 +615,7 @@ function MomentView(props: {
   const person = scene.person;
 
   const play = () => {
-    if (live?.shown || writing) return;
+    if (live?.shown || writing || comparing) return;
     setOpen(undefined);
     setNoting(false);
     if (!cut) return;
@@ -544,6 +628,7 @@ function MomentView(props: {
     if (live?.shown) return back();
     const paused = pausedAt(scene, at);
     if (!paused || writing) return;
+    setComparing(false);
     setPlaying(undefined);
     setOpen(undefined);
     setNoting(false);
@@ -630,12 +715,13 @@ function MomentView(props: {
     const key = event.key.toLowerCase();
     if (key === "escape") {
       if (open) setOpen(undefined);
+      else if (comparing) setComparing(false);
       else if (noting) setNoting(false);
       else if (live?.shown) back();
       return;
     }
     if (live?.shown && !/^(t|n)$/.test(key)) return;
-    const did = { " ": play, t: stepIn, n: note, arrowdown: () => next(1), arrowright: () => next(1), j: () => next(1), arrowup: () => next(-1), arrowleft: () => next(-1), k: () => next(-1) }[key];
+    const did = { " ": play, t: stepIn, n: note, c: compare, arrowdown: () => next(1), arrowright: () => next(1), j: () => next(1), arrowup: () => next(-1), arrowleft: () => next(-1), k: () => next(-1) }[key];
     if (!did || event.repeat) return;
     event.preventDefault();
     did();
@@ -673,7 +759,8 @@ function MomentView(props: {
   const markOf = (note: Note): Mark => {
     const on = note.on;
     const element = on?.element;
-    const node = on?.app ? nodeOf(element) : element?.node;
+    // Made in the app, or on an earlier taking of the moment, its thing is found here by its role and name.
+    const node = on?.app || !mine.includes(note) ? nodeOf(element) : element?.node;
     return { id: note.id, ...(element && { name: element.name, ...(node !== undefined && { node }) }), ...(on?.point && { point: on.point }) };
   };
   const aboutNode = nodeOf(about);
@@ -684,7 +771,7 @@ function MomentView(props: {
   const openNote = shownNotes.find(({ note }) => note.id === open);
 
   // Beside your pointer, what a click on the moment does: note what's under it, or step in.
-  const onFrame = !playing && !scrubbing && !live?.shown && !writing && !open;
+  const onFrame = !playing && !scrubbing && !live?.shown && !writing && !open && !comparing;
   const movePill = (event: React.PointerEvent) => {
     const box = frame.current?.getBoundingClientRect();
     if (!box) return;
@@ -750,6 +837,21 @@ function MomentView(props: {
                 style={{ left: aboutAt.left, top: aboutAt.top, width: aboutAt.width, height: aboutAt.height }}
               />
             )}
+            {comparing && then && (
+              <div className="absolute inset-0 z-[5] flex animate-arrive gap-3 bg-ground">
+                {[
+                  { label: "When you last saw it", round: then.round.number, recording: then.scene.recording, at: Math.max(0, then.scene.length - 0.05) },
+                  { label: "Now", round: round.number, recording: scene.recording, at: end },
+                ].map((side) => (
+                  <div key={side.label} className="flex flex-1 items-center">
+                    <div className="relative w-full overflow-hidden rounded-lg bg-paper shadow-frame" style={{ aspectRatio: `${screen.width} / ${screen.height}` }}>
+                      <Player review={review.id} round={side.round} recording={side.recording} at={side.at} />
+                      <span className={CHIP}>{side.label}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
             <Pinned pins={pins} placed={placed} open={open ?? writing?.note.id} faded={!!playing || scrubbing || !!live?.shown} onOpen={(id) => (setNoting(false), setOpen(id))} />
           </div>
           <Progress
@@ -777,9 +879,32 @@ function MomentView(props: {
           {writing && <NoteCard at={(!writing.note.on?.app && pinOf(placed[writing.note.id])) || writing.spot} frame={frame}><Write onSave={save} onDrop={() => setWriting(undefined)} /></NoteCard>}
           {!writing && openNote && (
             <NoteCard at={pinOf(placed[openNote.note.id]) ?? { x: 24, y: 24 }} frame={frame}>
-              <p className="px-1 text-[13px] leading-5 whitespace-pre-wrap text-fg">{openNote.note.words}</p>
+              {openNote.sent ? (
+                <div className="px-1">
+                  {conversation(review, openNote.note.id).map((turn, i) => (
+                    <p key={i} className={`text-[13px] leading-5 whitespace-pre-wrap ${i ? "mt-2" : ""} ${turn.agent ? "text-soft" : "text-fg"}`}>
+                      {turn.agent && <span className="block text-xs text-faint">{turn.by}</span>}
+                      {turn.words}
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                <p className="px-1 text-[13px] leading-5 whitespace-pre-wrap text-fg">{openNote.note.words}</p>
+              )}
+              {openNote.sent && (
+                <div className="mt-2 border-t border-line pt-2">
+                  <Write
+                    key={openNote.note.id}
+                    placeholder="Reply"
+                    rows={2}
+                    start={replies.find((one) => one.note === openNote.note.id)?.words ?? ""}
+                    onSave={(words) => (setReplies((all) => [...all.filter((one) => one.note !== openNote.note.id), { note: openNote.note.id, words }]), setOpen(undefined))}
+                    onDrop={() => setOpen(undefined)}
+                  />
+                </div>
+              )}
               <div className="mt-2 flex items-center gap-2 px-1 text-xs text-soft">
-                <span>{openNote.sent ? "Sent to the agent" : "Sent when you leave"}</span>
+                <span>{openNote.sent ? "" : "Sent with Send on the list"}</span>
                 {!openNote.sent && (
                   <button className="ml-auto rounded-md px-1.5 py-0.5 hover:bg-hover hover:text-fg" onClick={() => (setNotes((all) => all.filter((one) => one.id !== openNote.note.id)), setOpen(undefined))}>
                     Remove
@@ -793,15 +918,20 @@ function MomentView(props: {
       </div>
       <div className="flex h-16 items-center justify-center">
         <div role="toolbar" aria-label="This moment" onClick={(event) => (event.target as Element).closest("button")?.blur()} className={`flex gap-0.5 rounded-xl bg-surface p-1 text-[13px] select-none ${inApp ? "shadow-[0_0_0_1.5px_rgba(236,178,72,0.95),0_6px_20px_rgba(20,24,34,0.12)]" : "shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]"}`}>
-          <button className={`${ITEM} w-[96px]`} disabled={!!live?.shown || !cut} onClick={play}>
+          <button className={`${ITEM} w-[96px]`} disabled={!!live?.shown || !cut || comparing} onClick={play}>
             <span className="w-9 text-left">{playing ? "Pause" : "Play"}</span> <Key className="min-w-9">Space</Key>
           </button>
           <button className={`${ITEM} w-[116px]`} disabled={!!writing} aria-pressed={stepping} onClick={stepIn}>
             {inApp ? "Back" : stepping ? "Stepping in…" : "Step in"} {!stepping && <Key>{inApp ? "Esc" : "T"}</Key>}
           </button>
-          <button className={`${ITEM}`} disabled={stepping || !!writing} aria-pressed={noting} onClick={note}>
+          <button className={`${ITEM}`} disabled={stepping || !!writing || comparing} aria-pressed={noting} onClick={note}>
             Note <Key>N</Key>
           </button>
+          {then && (
+            <button className={`${ITEM}`} disabled={!!live?.shown || !!writing} aria-pressed={comparing} onClick={compare}>
+              Compare <Key>C</Key>
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -883,15 +1013,15 @@ function NoteCard({ at, frame, children }: { at: { x: number; y: number }; frame
 }
 
 // Writing a note: Enter keeps it, Shift+Enter is a new line, Escape lets it go.
-function Write({ onSave, onDrop }: { onSave: (words: string) => void; onDrop: () => void }) {
-  const [words, setWords] = useState("");
+function Write({ onSave, onDrop, placeholder = "What's right or wrong here?", rows = 3, start = "" }: { onSave: (words: string) => void; onDrop: () => void; placeholder?: string; rows?: number; start?: string }) {
+  const [words, setWords] = useState(start);
   return (
     <div>
       <textarea
         autoFocus
-        rows={3}
+        rows={rows}
         value={words}
-        placeholder="What's right or wrong here?"
+        placeholder={placeholder}
         className="block w-full resize-none rounded-lg bg-transparent px-1 py-0.5 text-[13px] leading-5 text-fg outline-none placeholder:text-faint"
         onChange={(event) => setWords(event.target.value)}
         onKeyDown={(event) => {

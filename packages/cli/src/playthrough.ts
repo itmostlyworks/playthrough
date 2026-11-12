@@ -5,7 +5,8 @@
 // from a moment of a scene by hand. When one stops, it says why and what to do.
 
 import "./node.ts";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { Refused } from "@playthrough/review";
 import { putBack, refuseWhileAside } from "./before.ts";
 import { open } from "./open.ts";
@@ -15,7 +16,9 @@ import { start } from "./start.ts";
 import { takeOver } from "./take-over.ts";
 import { wait } from "./wait.ts";
 import { forks } from "./forks.ts";
-import { as, moment } from "./moments.ts";
+import { again, as, moment, reply, waitForNotes } from "./moments.ts";
+
+const hasMoments = () => existsSync(join(repo().root, ".playthrough", "moments"));
 
 // Everything an agent needs to know, read once: bare, the command says it.
 const HELP = readFileSync(new URL("../MOMENTS.md", import.meta.url), "utf8").trimEnd();
@@ -30,7 +33,9 @@ const takes = {
   wait: [0, "playthrough wait <review>"],
   forks: [0, "playthrough forks <review>"],
   open: [0, "playthrough open [<review>]"],
-  as: [0, "playthrough as <person>"],
+  as: [1, `playthrough as <person> ["<moment>"]`],
+  again: [0, "playthrough again"],
+  reply: [1, `playthrough reply <note> "<words>"`],
   moment: [1, `playthrough moment "<what's there, in under eight words>" ["<what it's about, as the page names it>"]`],
   "take-over": [2, `playthrough take-over <review> "<scene>" ["<step>"]`],
 } satisfies Record<string, [number, string]>;
@@ -42,7 +47,8 @@ try {
   else if (!limit) throw new Refused([`There's no command “${command}”. Run playthrough alone for what each one does.`]);
   else if (words.length > limit[0]) throw new Refused([`That's more than it takes: ${limit[1]}`]);
   // Every command but open is about one review.
-  else if (!review && command !== "open") throw new Refused([`That needs more: ${limit[1]}`]);
+  // Moments are one review, never named: wait and again need nothing more.
+  else if (!review && command !== "open" && command !== "again" && !(command === "wait" && hasMoments())) throw new Refused([`That needs more: ${limit[1]}`]);
   else {
     // A command stopped while scenes recorded on Before left the agent's work set aside: it's put back before anything else.
     await putBack(repo());
@@ -51,9 +57,11 @@ try {
     if (command === "open") await open(repo(), review);
     else if (command === "start") await start(repo(), review!, words[0], words[1]);
     else if (command === "record") await record(repo(), review!);
-    else if (command === "wait") await wait(repo(), review!);
+    else if (command === "wait") await (review ? wait(repo(), review) : waitForNotes(repo()));
+    else if (command === "again") await again(repo());
+    else if (command === "reply") await reply(repo(), review!, words[0]!);
     else if (command === "forks") await forks(repo(), review!);
-    else if (command === "as") await as(repo(), review!);
+    else if (command === "as") await as(repo(), review!, words[0]);
     else if (command === "moment") await moment(repo(), review!, words[0]);
     else if (command === "take-over") await takeOver(repo(), review!, words[0], words[1]);
   }

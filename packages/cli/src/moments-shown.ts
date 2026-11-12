@@ -2,8 +2,8 @@
 // `playthrough moment` keeps it, by its words; and the way to each, where stepping in looks for a review's scenes, so
 // a moment can be stepped into as a scene is taken over.
 
-import { existsSync, mkdirSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
-import { basename, join, relative } from "node:path";
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { basename, join } from "node:path";
 import type { Repo } from "./repo.ts";
 
 export type Shown = { words: string; about?: { role: string; name: string } };
@@ -29,7 +29,7 @@ export function momentsPage(repo: Repo, id: string) {
   return { app: named.charAt(0).toUpperCase() + named.slice(1), people, moments: momentsOf(repo, id) };
 }
 
-function momentsOf(repo: Repo, id: string): Shown[] {
+export function momentsOf(repo: Repo, id: string): Shown[] {
   const kept = join(repo.root, ".playthrough", "moments");
   const scenes = repo.scenes(id);
   const each = existsSync(kept) ? readdirSync(kept, { withFileTypes: true }).filter((entry) => entry.isDirectory()) : [];
@@ -44,8 +44,13 @@ function momentsOf(repo: Repo, id: string): Shown[] {
     } catch {
       return [];
     }
-    const linked = join(scenes, `${entry.name}.ts`);
-    if (existsSync(join(folder, "scene.ts")) && !existsSync(linked)) symlinkSync(relative(scenes, join(folder, "scene.ts")), linked);
+    // A copy, kept the same as the moment's: Playwright finds no test in a link to a file outside its folder.
+    const copied = join(scenes, `${entry.name}.ts`);
+    const way = existsSync(join(folder, "scene.ts")) ? readFileSync(join(folder, "scene.ts"), "utf8") : undefined;
+    if (way !== undefined && (lstatSync(copied, { throwIfNoEntry: false })?.isSymbolicLink() || readFileSync(copied, { encoding: "utf8", flag: "a+" }) !== way)) {
+      rmSync(copied, { force: true });
+      writeFileSync(copied, way);
+    }
     return [{ words: moment.words, ...(moment.about && { about: { role: moment.about.role, name: moment.about.name } }) }];
   });
 }

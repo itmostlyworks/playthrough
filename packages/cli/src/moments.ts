@@ -2,9 +2,16 @@
 // someone, and says "here". Playthrough keeps the way there, as it was done, and runs it again from a fresh start,
 // recorded as a scene is, to see it lands in the same place.
 //
-//   playthrough as <person>           starts the app and a browser signed in as them, open to the agent's own tool
+//   playthrough as <person> ["<moment>"]  starts the app and a browser signed in as them, open to the agent's own tool,
+//                                     and taken to a kept moment by its way there, if one's named
 //   playthrough moment "<what's there>" ["<what it's about>"]
 //                                     keeps the way there since `as`, and runs it again from a fresh start
+//   playthrough wait                  hands back what's been done, and waits for the person's notes
+//   playthrough again                 runs every kept moment again on the code as it is now, and says what's different
+//   playthrough reply <note> "<words>" answers a note
+//
+// Underneath, the moments are a review, "marked", each moment a scene of it and each hand-back a round: none of those
+// words reach the agent or the person.
 
 import { chromium, request as requests, type Page } from "@playwright/test";
 import { execFileSync } from "node:child_process";
@@ -12,12 +19,18 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSy
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { differences, pathTo, type Reading } from "@playthrough/page";
-import { quote, Refused } from "@playthrough/review";
+import { allNotes, conversation, notesToAnswer, problemsFinishing, quote, Refused, roundInProgress } from "@playthrough/review";
+import { agent } from "./agent.ts";
+import { compareWithEarlier } from "./compare.ts";
+import { momentsOf } from "./moments-shown.ts";
+import { pictureNotes } from "./noted.ts";
+import { listening } from "./wait.ts";
+import { writtenNow } from "./try-setup.ts";
 import { keepRunning } from "./app.ts";
 import { hovering, readPage, unhovered } from "./read.ts";
 import type { Repo } from "./repo.ts";
 import { readingsOf } from "./reporter.ts";
-import { recorder, runOnce, type Ran } from "./scenes.ts";
+import { recorder, runOnce, runScenes, type Ran } from "./scenes.ts";
 import { giveBackLeft, make, personIn, setupIn } from "./setup.ts";
 
 const DEBUGGING = 9333;
@@ -110,13 +123,14 @@ const NOTING = `(() => {
   }, true);
 })();`;
 
-export async function as(repo: Repo, person: string) {
+export async function as(repo: Repo, person: string, at?: string) {
+  const to = at === undefined ? undefined : keptMoment(repo, at);
   const setup = await setupIn(repo.setup);
   personIn(setup, person);
   const app = await repo.app();
   const began = Date.now();
   // A browser open already starts again from a fresh start, as this person, rather than a new one starting.
-  if (await startAgain(repo, person, began)) return;
+  if (await startAgain(repo, person, began, to?.words)) return;
   await clearEarlier();
   // Stopped, by Ctrl+C or a kill, what setup made is given back by app.ts's own handling, which this sets up; stopped
   // so that nothing runs after it, the next one gives it back here.
@@ -153,7 +167,7 @@ export async function as(repo: Repo, person: string) {
   // what every scene starts from is made again, for whoever's asked for; the way there starts again from the app's start.
   process.on("SIGUSR1", async () => {
     try {
-      const { person: next } = JSON.parse(readFileSync(againFile(repo), "utf8"));
+      const { person: next, at: there } = JSON.parse(readFileSync(againFile(repo), "utf8"));
       personIn(setup, next);
       await made.giveBack();
       await context.clearCookies();
@@ -164,6 +178,7 @@ export async function as(repo: Repo, person: string) {
       await setup.signIn?.({ page, person: next, setup: made.setup });
       Object.assign(live, { person: next, setup: made.setup, did: [], began: Date.now() });
       await page.goto(app.url);
+      if (there) await takeTo(page, keptMoment(repo, there), made.setup, app.url);
       save();
     } catch (error) {
       writeFileSync(againFile(repo), JSON.stringify({ failed: String((error as Error)?.message ?? error) }));
@@ -177,6 +192,7 @@ export async function as(repo: Repo, person: string) {
   });
   await context.addInitScript({ content: NOTING });
   await page.goto(app.url);
+  if (to) await takeTo(page, to, made.setup, app.url);
   save();
   console.log(`Ready in ${((Date.now() - began) / 1000).toFixed(1)}s: a browser signed in as ${person}, on ${app.url}, what they start from made by playthrough/setup.ts:
   ${JSON.stringify(made.setup)}
@@ -184,14 +200,14 @@ Drive it with your own tool over its debugging port, http://localhost:${DEBUGGIN
   agent-browser --cdp ${DEBUGGING} snapshot
   or Playwright: chromium.connectOverCDP("http://localhost:${DEBUGGING}"), then its first context's page
   or Playwright MCP: --cdp-endpoint http://localhost:${DEBUGGING}
-When you're looking at what was asked for: playthrough moment "<who, where, what's there>"
+${to ? `It's at the moment ${quote(to.words)}, by the way the person's moment got there.\n` : ""}When you're looking at what was asked for: playthrough moment "<what's there>"
 Ctrl+C ends it, and gives back what was made. playthrough as again starts this browser again from a fresh start.`);
   await new Promise(() => {});
 }
 
 // The browser open already, told to start again as this person, and said ready once it has: in a few seconds, where a
 // new one takes ten.
-async function startAgain(repo: Repo, person: string, began: number): Promise<boolean> {
+async function startAgain(repo: Repo, person: string, began: number, at?: string): Promise<boolean> {
   let live: Live;
   try {
     live = JSON.parse(readFileSync(liveFile(repo), "utf8"));
@@ -199,7 +215,7 @@ async function startAgain(repo: Repo, person: string, began: number): Promise<bo
   } catch {
     return false;
   }
-  writeFileSync(againFile(repo), JSON.stringify({ person }));
+  writeFileSync(againFile(repo), JSON.stringify({ person, at }));
   process.kill(live.pid, "SIGUSR1");
   for (let waited = 0; waited < 120_000; waited += 250) {
     await new Promise((resolve) => setTimeout(resolve, 250));
@@ -210,7 +226,7 @@ async function startAgain(repo: Repo, person: string, began: number): Promise<bo
       return (
         console.log(`Started again in ${((Date.now() - began) / 1000).toFixed(1)}s, in the browser open already: signed in as ${person}, on ${now.url}, from a fresh start made by playthrough/setup.ts:
   ${JSON.stringify(now.setup)}
-Your tool stays attached at http://localhost:${now.debugging}. When you're looking at what was asked for: playthrough moment "<who, where, what's there>"`),
+${at ? `It's at the moment ${quote(at)}, by the way the person's moment got there.\n` : ""}Your tool stays attached at http://localhost:${now.debugging}. When you're looking at what was asked for: playthrough moment "<what's there>"`),
         true
       );
   }
@@ -306,9 +322,18 @@ export async function moment(repo: Repo, words: string, onWords?: string) {
 // Each moment, as a scene of one review, "marked", in its one round, so the page shows it as it shows a scene: a try.
 // playthrough open marked shows them.
 async function onThePage(repo: Repo, recorded: Ran["recorded"][number]) {
-  const id = "marked";
+  const id = MOMENTS;
   if (!(await repo.reviews.list()).includes(id)) await repo.reviews.start(id, "Moments marked", "What the agent marked as it checked its work");
-  const round = (await repo.reviews.get(id)).rounds.find((round) => round.number === 1);
+  const review = await repo.reviews.get(id);
+  const latest = review.rounds.at(-1);
+  // Once the person has said something, the moments being worked on are the ones `again` keeps: one marked by hand goes
+  // in with them, and is seen when they're handed back.
+  if (latest && (latest.number > 1 || review.sends.length)) {
+    if (latest.finished || latest.number === 1) return console.log("The person sees it once you've run playthrough again, then handed back.");
+    for (const { name, bytes } of recorded.files) await repo.reviews.saveFile(id, latest.number, name, bytes);
+    return repo.reviews.saveRound(id, { ...latest, scenes: [...latest.scenes.filter((scene) => scene.name !== recorded.scene.name), recorded.scene] });
+  }
+  const round = review.rounds.find((round) => round.number === 1);
   rmSync(join(repo.root, ".playthrough", id, "rounds", "1", "round.json"), { force: true });
   for (const { name, bytes } of recorded.files) await repo.reviews.saveFile(id, 1, name, bytes);
   const scenes = [...(round?.scenes ?? []).filter((scene) => scene.name !== recorded.scene.name), recorded.scene];
@@ -422,4 +447,142 @@ ${[...lines, ...checks].join("\n")}
   writeFileSync(new URL("./ended.json", import.meta.url), JSON.stringify({ url: page.url() }));
 });
 `;
+}
+
+// The review the moments are kept as.
+const MOMENTS = "marked";
+
+// A moment kept, by its words as the agent said them, and its way there as a scene's step says it.
+function keptMoment(repo: Repo, words: string): { words: string; way: string } {
+  const each = existsSync(folder(repo)) ? readdirSync(folder(repo)).filter((name) => existsSync(join(folder(repo), name, "moment.json"))) : [];
+  const kept = each.map((name) => ({ name, said: JSON.parse(readFileSync(join(folder(repo), name, "moment.json"), "utf8")).words as string }));
+  const found = kept.find((one) => one.said.trim().toLowerCase() === words.trim().toLowerCase());
+  if (!found) throw new Refused([`There's no moment ${quote(words)}. The moments: ${kept.map((one) => quote(one.said)).join(", ")}.`]);
+  const scene = readFileSync(join(folder(repo), found.name, "scene.ts"), "utf8");
+  const lines = scene.split("\n");
+  const from = lines.findIndex((line) => line.includes("await test.step("));
+  const until = lines.findIndex((line, i) => i > from && line === "  });");
+  // What it checks of the thing it's about is for running it again; here it only goes there.
+  const way = lines.slice(from + 1, until).filter((line) => !line.trim().startsWith("await expect(")).join("\n");
+  return { words: found.said, way };
+}
+
+// Done in the browser as the moment's way there does it, on what setup made for this browser.
+async function takeTo(page: Page, to: { words: string; way: string }, setup: Record<string, unknown>, baseURL: string) {
+  const going = new Function("page", "setup", "baseURL", `return (async () => {\n${to.way}\n})();`) as (page: Page, setup: unknown, baseURL: string) => Promise<void>;
+  await going(page, setup, baseURL).catch((error) => console.log(`It couldn't get all the way to ${quote(to.words)}: ${String(error?.message ?? error).split("\n")[0]}. Go on from there by hand.`));
+}
+
+// Every kept moment again, on the code as it is now, by its kept way there: recorded, compared with how it was last
+// handed back, and said, each as the same, different, or not reached.
+export async function again(repo: Repo) {
+  const id = MOMENTS;
+  if (!(await repo.reviews.list()).includes(id)) throw new Refused(["There are no moments yet. Mark one first: playthrough as <person>, then playthrough moment \"<what's there>\""]);
+  momentsOf(repo, id);
+  const review = await repo.reviews.get(id);
+  const number = roundInProgress(review);
+  const before = review.rounds.findLast((round) => round.number < number && round.finished);
+  console.log("Running every moment again on the code as it is now…");
+  // Setup has been tried already, by every moment kept: it isn't tried on its own first, as recording a review's is.
+  mkdirSync(repo.tried, { recursive: true });
+  writeFileSync(join(repo.tried, "tried.json"), JSON.stringify({ written: await writtenNow(repo) }));
+  const ran = await runScenes(repo, id, number, { saying: "" });
+  const { recorded, failed } = ran;
+  const kept = (await repo.reviews.get(id)).rounds.find((round) => round.number === number);
+  for (const { files } of recorded) for (const { name, bytes } of files) await repo.reviews.saveFile(id, number, name, bytes);
+  const scenes = recorded.map(({ scene }) => scene);
+  const comparisons = scenes.length ? await compareWithEarlier(repo.reviews, id, number, scenes) : [];
+  const since = comparisons.find((comparison) => comparison.since === before?.number);
+  // Why each part changed is the agent's account on the page; here what changed is the moment's, and a note's where
+  // one is on it.
+  const asked = notesToAnswer(review, number);
+  const notes = allNotes(review);
+  const accounts = Object.fromEntries(
+    (since?.changes ?? []).map((change) => {
+      const note = asked.find((one) => change.seen.some((seen) => seen.scene === (notes.get(one)?.note.on?.app?.from.scene ?? notes.get(one)?.note.on?.scene)));
+      return [change.id, note ? { note } : { line: "Different on running it again." }];
+    }),
+  );
+  await repo.reviews.saveRound(id, { number, by: agent(kept?.by), scenes, replies: kept?.replies ?? [], accounts });
+  for (const comparison of comparisons) await repo.reviews.saveComparison(id, comparison);
+
+  console.log("");
+  for (const scene of scenes) {
+    const changed = (since?.changes ?? []).filter((change) => change.seen.some((seen) => seen.scene === scene.name));
+    const fresh = before && !before.scenes.some((one) => one.name === scene.name);
+    console.log(`${quote(scene.name)}: ${fresh ? "new" : changed.length ? `different: ${changed.map((change) => change.words).join("; ")}` : "the same"}.`);
+  }
+  for (const one of failed)
+    console.log(`${quote(one.scene)}: couldn't get there${one.at ? "" : ""}${one.why ? `, where the way stopped: “${one.why.split("\n")[0]}”` : ""}. Get there by hand (playthrough as <person> "${one.scene}" goes as far as it can), and mark it again in its place with the same words.`);
+  const unanswered = asked.filter((note) => !(kept?.replies ?? []).some((reply) => reply.note === note && reply.words.trim()));
+  console.log(
+    `\n${unanswered.length ? `Answer ${unanswered.length > 1 ? "each note" : "the note"}: ${unanswered.map((note) => `playthrough reply ${note} "<what you did, in a line>"`).join("; ")}. ` : ""}Then hand back, in the background, so you hear when the person answers: playthrough wait`,
+  );
+}
+
+// A note answered, in a line, under the agent's name, in what's handed back next.
+export async function reply(repo: Repo, note: string, words: string) {
+  const id = MOMENTS;
+  const review = await repo.reviews.get(id);
+  const number = roundInProgress(review);
+  const kept = review.rounds.find((round) => round.number === number);
+  if (!kept) throw new Refused(["Run playthrough again first: the answer goes with the moments as they are now."]);
+  if (!notesToAnswer(review, number).includes(note)) throw new Refused([`There's no note ${note} waiting for an answer. The notes: ${notesToAnswer(review, number).join(", ") || "none"}.`]);
+  if (!words?.trim()) throw new Refused([`Say it: playthrough reply ${note} "<what you did, in a line>"`]);
+  await repo.reviews.saveRound(id, { ...kept, replies: [...kept.replies.filter((one) => one.note !== note), { note, words: words.trim() }] });
+  console.log(`Answered ${note}.`);
+}
+
+// Hands back what's been done since the person last spoke, then waits for what they say next, and says it: each note,
+// on its moment, with a picture, and how to stand where they stood.
+export async function waitForNotes(repo: Repo) {
+  const id = MOMENTS;
+  const reviews = repo.reviews;
+  let review = await reviews.get(id);
+  const last = review.rounds.at(-1);
+  if (!last) throw new Refused(["There are no moments yet. Mark one first: playthrough as <person>, then playthrough moment \"<what's there>\""]);
+  if (!last.finished) {
+    const left = problemsFinishing(review, last.number);
+    const unanswered = notesToAnswer(review, last.number).filter((note) => !last.replies.some((reply) => reply.note === note && reply.words.trim()));
+    if (unanswered.length) throw new Refused([`Answer each note first: ${unanswered.map((note) => `playthrough reply ${note} "<what you did, in a line>"`).join("; ")}`]);
+    if (left.length) throw new Refused(["It can't be handed back yet. Run playthrough again, then this."]);
+    await reviews.finish(id, last.number);
+    console.log("Handed back: the person sees each moment as it is now, and your answers.");
+  }
+  console.log("Waiting for the person…");
+  for (;;) {
+    // While it waits, the person's page says an agent is listening.
+    const done = await listening(repo, id);
+    review = await reviews.wait(id, (review) => review.sends.some((send) => !review.taken.some((taken) => taken.send === send.id))).finally(done);
+    const taken = await reviews.take(id);
+    review = await reviews.get(id);
+    const number = roundInProgress(review);
+    const asking = notesToAnswer(review, number);
+    const good = taken.flatMap((send) => send.looksGood);
+    if (good.length && !asking.length) {
+      console.log(`\n${taken[0]!.by} looked and says every moment is fine. Nothing to do; this waits on.`);
+      continue;
+    }
+    if (!asking.length) continue;
+    const notes = allNotes(review);
+    const pictures = await pictureNotes(repo, review, number, asking);
+    const said = (one: string) => JSON.parse(readFileSync(join(folder(repo), one, "moment.json"), "utf8"));
+    const moments = existsSync(folder(repo)) ? readdirSync(folder(repo)).filter((name) => existsSync(join(folder(repo), name, "moment.json"))).map(said) : [];
+    console.log(`\n${taken[0]?.by ?? "The person"} said:`);
+    for (const note of asking) {
+      const kept = notes.get(note)!;
+      const on = kept.note.on;
+      const name = on?.app?.from.scene ?? on?.scene;
+      const moment = moments.find((one: { words: string }) => one.words === name);
+      const thing = on?.element ? `, on the ${on.element.role} ${quote(on.element.name)}` : "";
+      console.log(`\n  ${note}  on the moment ${name ? quote(name) : "as a whole"}${moment ? `, as ${moment.person}` : ""}${thing}`);
+      for (const turn of conversation(review, note)) console.log(`    ${turn.agent ? `You` : turn.by}: ${turn.words}`);
+      if (pictures.get(note)) console.log(`    As they saw it: ${pictures.get(note)}`);
+      if (moment) console.log(`    To be there: playthrough as ${moment.person} ${JSON.stringify(moment.words)}`);
+      if (on?.app?.did.length)
+        console.log(`    They stepped into the app there, then: ${on.app.did.map((did) => `${did.does}${did.what ? ` ${quote(did.what)}` : ""}${typeof did.with === "string" && did.does !== "click" ? ` ${quote(did.with)}` : ""}`).join(", then ")}.`);
+    }
+    console.log(`\nChange the app. Then: playthrough again, which runs every moment again and says what's different; playthrough reply <note> "<what you did, in a line>" for each; then hand back with playthrough wait, in the background.`);
+    return;
+  }
 }

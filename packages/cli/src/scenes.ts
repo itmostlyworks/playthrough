@@ -122,7 +122,7 @@ export async function runScenes(
   repo: Repo,
   id: string,
   round: number,
-  { before, first = () => false }: { before?: { scenes: string[]; taken: string[]; doneInRound: Record<string, DoneOn> }; first?: (scene: string) => boolean },
+  { before, first = () => false, saying }: { before?: { scenes: string[]; taken: string[]; doneInRound: Record<string, DoneOn> }; first?: (scene: string) => boolean; saying?: string },
 ): Promise<Ran> {
   const scenes = await scenesOf(repo, id);
   const app = await repo.app();
@@ -155,7 +155,8 @@ export async function runScenes(
     console.log(`\n${last.length > 1 ? (gone ? "They aren't scenes any more" : "They pass now") : gone ? "It isn't a scene any more" : "It passes now"}, so every scene is recorded.\n`);
   }
 
-  console.log(`Recording round ${round} of ${id}…`);
+  // Moments say it in their own words.
+  if (saying === undefined) console.log(`Recording round ${round} of ${id}…`);
   const once = await run(undefined, repo.failed(id));
   await keepFailed(repo, id, once.failed);
   const again = once.recorded.filter(({ scene }) => first(scene.name));

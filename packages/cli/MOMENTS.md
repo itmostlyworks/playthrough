@@ -1,8 +1,12 @@
 Playthrough: a person reviews your work on a web app by looking at moments of it: someone, at the point that matters,
 a few seconds of the app getting there. You mark them while you check your own work. Read this once.
 
-  playthrough as <person>                 a browser on the app, signed in as one of the app's people, run in the background
+  playthrough as <person> ["<moment>"]    a browser on the app, signed in as one of the app's people, run in the background;
+                                          named, taken to that moment the way it got there
   playthrough moment "<words>" ["<what>"] here: keep where you are, and the way here, as a moment
+  playthrough wait                        hand back, and wait for the person's notes, run in the background
+  playthrough again                       run every moment again on the code as it is now: the same, or what's different
+  playthrough reply <note> "<words>"      answer a note, in a line
 
 1. Change the app as asked.
 2. Check it as someone would use it: run playthrough as <person> in the background (the people are named in
@@ -22,4 +26,13 @@ a few seconds of the app getting there. You mark them while you check your own w
 4. A few moments per change: one for each person or situation the change treats differently (an admin and a member;
    what's accepted and what's refused). Run playthrough as again for each: the same browser starts again, fresh.
 5. Then tell the person their moments are ready, one line each, in your words: only moments that were kept. Stop
-   playthrough as.
+   playthrough as, and run playthrough wait in the background: it tells you when the person has said something.
+
+When the person sends notes, wait prints each one on its moment, with a picture and how to stand where they stood
+(playthrough as <person> "<moment>"). Then:
+6. Change the app.
+7. playthrough again: every moment runs again on the code as it is now, and each is the same, different (what), or
+   couldn't get there. Get to one that couldn't by hand (playthrough as <person> "<moment>" goes as far as it can) and
+   mark it again with the same words. A moment nobody spoke on that's now different is worth a look too.
+8. playthrough reply <note> "<what you did, in a line>" for each note.
+9. playthrough wait, in the background, again: it hands back, and tells you when the person answers.
