@@ -15,6 +15,7 @@ import { BEAT } from "./scenes.ts";
 import { copies, repo as copyAt, type Repo } from "./repo.ts";
 import { readyIn } from "./following.ts";
 import { getReady } from "./take-over.ts";
+import { momentsOf } from "./moments-shown.ts";
 import { video, type Filmed } from "./video.ts";
 import { agentWaiting } from "./wait.ts";
 
@@ -122,6 +123,7 @@ async function answer(app: ReturnType<typeof everyCopy>, page: string, you: stri
     return response.end(bytes);
   }
   if (request.method === "POST" && rest[0] === "video") return saveVideo(repo, id, request, response);
+  if (request.method === "GET" && rest[0] === "moments") return json(response, 200, momentsOf(repo, id));
   if (request.method === "POST" && rest[0] === "take-over") return takeOver(repo, id, request, response);
   if (request.method === "POST" && rest[0] === "ready-in") return readyInFor(repo, id, request, response);
   if (request.method === "POST" && rest[0] === "branches") return branch(repo, id, request, response);

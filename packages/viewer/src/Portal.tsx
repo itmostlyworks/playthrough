@@ -15,9 +15,11 @@ type Props = {
   // The page the recording was made of, at its size.
   screen: { width: number; height: number };
   scrolled: () => Scrolled | undefined;
+  // What the pointer says while it's made ready.
+  waiting?: string;
 };
 
-export function Portal({ live, person, screen, scrolled }: Props) {
+export function Portal({ live, person, screen, scrolled, waiting: waitingWords = "Taking over…" }: Props) {
   const room = useRef<HTMLDivElement>(null);
   const app = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLIFrameElement>(null);
@@ -133,7 +135,7 @@ export function Portal({ live, person, screen, scrolled }: Props) {
       name.hidden = false;
       if (still) return void (real(true), say(name, said, person ? `You, as ${person}` : "You", true, false));
       if (!waited) say(name, said, person ?? "You are in control", !person, false);
-      else if (said.textContent !== "Taking over…") say(name, said, "Taking over…", false);
+      else if (said.textContent !== waitingWords) say(name, said, waitingWords, false);
       // It goes from where the recording had it to your hand, and the portal opens from where they meet.
       const handed = recorded && onIt && Math.hypot(onIt.x - recorded.x, onIt.y - recorded.y) > 4 ? HANDING : 0;
       if (handed) yours.animate([{ translate: `${recorded!.x - at.x}px ${recorded!.y - at.y}px` }, { translate: "0px 0px" }], { duration: handed, easing: PORTAL });
@@ -180,7 +182,7 @@ export function Portal({ live, person, screen, scrolled }: Props) {
       const recorded = theirs();
       if (recorded) Object.assign(yours.style, { transform: tip(recorded), opacity: "1" });
       name.hidden = false;
-      say(name, said, "Taking over…", false);
+      say(name, said, waitingWords, false);
       if (matchMedia("(prefers-reduced-motion: reduce)").matches) return void (edging.style.opacity = "1");
       edging.animate([{ opacity: 0.25 }, { opacity: 1, boxShadow: BREATH }], { duration: 1000, easing: "ease-in-out", direction: "alternate", iterations: Infinity });
       return;
@@ -203,7 +205,7 @@ export function Portal({ live, person, screen, scrolled }: Props) {
       const seconds = (due - Date.now()) / 1000;
       const left = shown ? Math.min(shown, Math.ceil(seconds)) : Math.ceil(seconds - 0.5);
       if (left === shown) return;
-      if (left < 1) return void (clearInterval(ticking), say(name, said, "Taking over…", false));
+      if (left < 1) return void (clearInterval(ticking), say(name, said, waitingWords, false));
       const from = !shown && name.getBoundingClientRect().width;
       const number = document.createElement("span");
       number.className = "inline-block";
