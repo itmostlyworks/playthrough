@@ -43,6 +43,9 @@ export type Recorded = {
   // typed into, and in a field, after how many of its letters. Kept by Playthrough while recording, as rrweb keeps none:
   // in an earlier recording there's none, and before 5 Nov, no letters.
   carets: [number, number, number, number, number?][];
+  // The keys pressed that do something, as Escape or Enter, never letters typed, and the field each went to, if one did;
+  // kept by Playthrough while recording, from 13 Nov.
+  keys: Pressed[];
   // Whether the browser it was recorded in was dark, and asked for no motion; light and moving, in a recording that
   // doesn't say, as Playwright's browser is.
   browser: Answered;
@@ -54,12 +57,14 @@ export type Dialog = { from: number; until: number; type: string; host: string; 
 
 // A dropdown's list, from when it opened until its choice was made: where its top left was and how wide, in the page's
 // pixels, its options and how tall each is, and the one chosen before.
+export type Pressed = { at: number; key: string; field?: { x: number; y: number; width: number; height: number } };
+
 export type Choice = { from: number; until: number; x: number; y: number; width: number; options: string[]; row: number; was: number };
 
 export function recorded(events: Events): Recorded {
   const start = events[0]?.timestamp ?? 0;
   const seconds = (timestamp: number) => (timestamp - start) / 1000;
-  const shown: Recorded = { shapes: [], loads: [], pointer: [], away: [], clicks: [], changes: [], acted: [], typed: [], aimed: [], scrolls: [], dialogs: [], choices: [], carets: [], browser: { dark: false, still: false } };
+  const shown: Recorded = { shapes: [], loads: [], pointer: [], away: [], clicks: [], changes: [], acted: [], typed: [], aimed: [], scrolls: [], dialogs: [], choices: [], carets: [], keys: [], browser: { dark: false, still: false } };
   let said = false;
   let host = "";
   for (const event of events) {
@@ -69,6 +74,7 @@ export function recorded(events: Events): Recorded {
         const caret = payload as unknown as { x?: number; y?: number; height?: number; letters?: number };
         shown.carets.push([seconds(event.timestamp), caret.x ?? 0, caret.y ?? 0, caret.height ?? 0, caret.letters]);
       }
+      if (tag === "key") shown.keys.push({ at: seconds(event.timestamp), ...(payload as unknown as Omit<Pressed, "at">) });
       if (tag === "dialog") shown.dialogs.push({ from: seconds(event.timestamp), until: Infinity, host, ...payload });
       // Opened and chosen from, it was pressed each time, as a click is.
       if (tag === "choice") {
@@ -188,6 +194,7 @@ export class Replay {
   readonly dialogs: Dialog[];
   readonly choices: Choice[];
   readonly carets: Recorded["carets"];
+  readonly keys: Pressed[];
   readonly typed: Recorded["typed"];
   readonly aimed: Recorded["aimed"];
   #replayer: Replayer;
@@ -227,7 +234,7 @@ export class Replay {
       Object.defineProperty(event.data, "removes", { get: () => removes, set() {}, enumerable: true, configurable: true });
     }
     const shows = recorded(events);
-    ({ shapes: this.shapes, loads: this.loads, pointer: this.pointer, away: this.away, clicks: this.clicks, dialogs: this.dialogs, choices: this.choices, carets: this.carets, typed: this.typed, aimed: this.aimed, scrolls: this.#scrolls } = shows);
+    ({ shapes: this.shapes, loads: this.loads, pointer: this.pointer, away: this.away, clicks: this.clicks, dialogs: this.dialogs, choices: this.choices, carets: this.carets, keys: this.keys, typed: this.typed, aimed: this.aimed, scrolls: this.#scrolls } = shows);
     this.#drawn = Math.max(0, (events.find((event) => event.type === EventType.FullSnapshot)?.timestamp ?? start) - start + 1);
     this.host.className = "absolute top-0 left-0 origin-top-left [&_.replayer-mouse]:hidden [&_iframe]:pointer-events-none [&_iframe]:block [&_iframe]:border-0";
     this.#shape = this.shapes[0]!;

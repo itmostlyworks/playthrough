@@ -108,6 +108,23 @@ if (window.top === window) {
     } catch {}
   };
   for (const type of ["selectionchange", "input", "keyup", "focusin", "focusout", "scroll"]) document.addEventListener(type, () => requestAnimationFrame(sayCaret), true);
+  // A key that does something, which rrweb doesn't keep either: Escape closing a panel looks like the × being pressed
+  // without it. Never a letter typed, whose words appearing say it; said where the keyboard was, in the field it went
+  // to, else by the pointer.
+  const named = { Escape: "Esc", Enter: "Enter", Tab: "Tab", ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→" };
+  document.addEventListener("keydown", (event) => {
+    if (!event.isTrusted || event.repeat) return;
+    const held = [event.ctrlKey && "Ctrl", event.metaKey && "Cmd", event.altKey && "Alt"].filter(Boolean);
+    const key = named[event.key] ?? (held.length && event.key.length === 1 ? event.key.toUpperCase() : undefined);
+    if (!key) return;
+    if (event.shiftKey && (held.length || key === "Tab" || key === "Enter")) held.push("Shift");
+    const active = document.activeElement;
+    const box = active && (active.isContentEditable || active.matches("input, textarea, select")) && active.getBoundingClientRect();
+    const field = box && { x: Math.round(box.left), y: Math.round(box.top), width: Math.round(box.width), height: Math.round(box.height) };
+    try {
+      window.rrwebRecord.record.addCustomEvent("key", { key: [...held, key].join(" "), ...(field && { field }) });
+    } catch {}
+  }, true);
 }
 // What a page's script animates with element.animate is in no element's markup, so rrweb never saw it move: a burst of
 // confetti was its pieces sitting still where they started, then gone. Each is written into the page as well, as the CSS

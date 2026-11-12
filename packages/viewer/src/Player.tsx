@@ -8,7 +8,7 @@ import { useEffect, useRef, useState, type MouseEvent, type RefObject } from "re
 import { elementOf, type Glimpse } from "@playthrough/page";
 import type { Element, Scene, Point } from "@playthrough/review";
 import { recording } from "./api.ts";
-import { Replay, type Choice, type Events, type Rect, type Scrolled } from "./replay.ts";
+import { Replay, type Choice, type Events, type Pressed, type Rect, type Scrolled } from "./replay.ts";
 import { around, union, type Frame } from "./Picture.tsx";
 import { pickAt } from "./things.ts";
 
@@ -155,6 +155,7 @@ export function Player(props: Props) {
   const ring = useRef<HTMLSpanElement>(null);
   const caret = useRef<HTMLSpanElement>(null);
   const list = useRef<HTMLDivElement>(null);
+  const pressed = useRef<HTMLElement>(null);
   const [replay, setReplay] = useState<{ replay: Replay; events: Events }>();
   // Drawn to its width, and again as that changes: Compare on or off, the window resized.
   const [width, setWidth] = useState(0);
@@ -229,6 +230,7 @@ export function Player(props: Props) {
       replayed.placeCaret(caret.current!, moment, left, top, k);
       const pointer = replayed.pointerAt(moment);
       placeList(list.current!, replayed.choices.find((choice) => moment >= choice.from && moment < choice.until + SHUTS), pointer, left, top, k);
+      placeKey(pressed.current!, moving ? replayed.keys.findLast((one) => moment >= one.at && moment - one.at < KEY_SHOWN) : undefined, moment, pointer, shape, left, top, k);
       const hand = cursor.current!;
       hand.style.opacity = pointer ? "1" : "0";
       if (!pointer) return;
@@ -345,6 +347,7 @@ export function Player(props: Props) {
       {/* A dropdown's list, open as the browser drew it: not in the page, so drawn here, in Chrome's look in both themes. */}
       <div ref={list} hidden className="pointer-events-none absolute top-0 left-0 z-1 origin-top-left overflow-hidden rounded-[3px] border border-[#767676] bg-white py-[3px] font-ui text-[13px] text-[#1e2330] shadow-[0_2px_8px_rgba(0,0,0,0.25)]" />
       <span ref={ring} className="pointer-events-none absolute top-0 left-0 z-1 -mt-3 -ml-3 size-6 rounded-full border-[1.5px] border-[rgba(40,44,54,0.5)] bg-[rgba(40,44,54,0.06)] opacity-0" />
+      <kbd ref={pressed} className="pointer-events-none absolute top-0 left-0 z-1 rounded-[4px] bg-white px-[5px] font-ui text-[11px] leading-[17px] whitespace-nowrap text-[#1E2330] opacity-0 shadow-[0_0_0_1px_rgba(30,35,48,0.22),0_1px_2px_rgba(0,0,0,0.12)]" />
       <div ref={cursor} data-hand className="pointer-events-none absolute top-0 left-0 z-1 size-5 opacity-0 [filter:drop-shadow(0_1px_1px_rgba(0,0,0,.3))]">
         <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden>
           <path d="M3 2l13 7.5-5.6 1.3L7.6 16z" fill="#FFFFFF" stroke="#1E2330" strokeWidth="1.3" strokeLinejoin="round" />
@@ -352,6 +355,23 @@ export function Player(props: Props) {
       </div>
     </div>
   );
+}
+
+// A key pressed shows this long, in seconds of the recording, and fades over its last part.
+const KEY_SHOWN = 0.9;
+const KEY_FADES = 0.3;
+
+// A key pressed, small and quiet, beside what it went to and never over it: right of the field it was pressed in, or
+// under it where the screen ends first; else just below and right of the pointer, where a name tag would sit. Shown as
+// the recording plays, never at rest.
+function placeKey(element: HTMLElement, pressed: Pressed | undefined, moment: number, pointer: [number, number] | undefined, shape: { width: number }, left: number, top: number, k: number) {
+  const by = pressed?.field ?? (pointer && { x: pointer[0] + 10, y: pointer[1] + 16, width: 0, height: 0 });
+  if (!pressed || !by) return void (element.style.opacity = "0");
+  if (element.textContent !== pressed.key) element.textContent = pressed.key;
+  const wide = element.offsetWidth / k;
+  const [x, y] = !pressed.field ? [by.x, by.y] : by.x + by.width + 8 + wide <= shape.width ? [by.x + by.width + 8, by.y + by.height / 2 - 8.5 / k] : [by.x, by.y + by.height + 6];
+  element.style.opacity = String(0.9 * Math.min(1, (KEY_SHOWN - (moment - pressed.at)) / KEY_FADES));
+  element.style.transform = `translate(${((x - left) * k).toFixed(1)}px, ${((y - top) * k).toFixed(1)}px)`;
 }
 
 // How long a dropdown's list stays after its choice is made, in seconds: the choice is seen lit as it closes.
