@@ -53,7 +53,7 @@ export async function moment(repo: Repo, words: string, named?: string) {
     .filter((page) => page.url().startsWith(browser.url))
     .at(-1);
   if (!here) throw new Refused([`No page in the browser is on the app (${browser.url}).`]);
-  const there = { url: here.url(), reading: await readAt(here), ...(await aboutOn(here, words, named)) };
+  const there = { url: here.url(), reading: await readAt(here), scrolled: await here.evaluate(() => ({ x: scrollX, y: scrollY })), ...(await aboutOn(here, words, named)) };
   await open.close();
   if (named && !there.about)
     throw new Refused([`Nothing on the page is called ${quote(named)}, as a button, a field, a link or a heading is, or says it.${there.near.length ? ` Near it: ${list(there.near.map(quote))}.` : ""} Say it as the page names it, or leave it out.`]);
@@ -66,7 +66,7 @@ export async function moment(repo: Repo, words: string, named?: string) {
   rmSync(trying, { recursive: true, force: true });
   mkdirSync(trying, { recursive: true });
   writeFileSync(join(trying, "package.json"), `{ "type": "module" }\n`);
-  const way = { words, person: browser.person, did: browser.did, setup: browser.setup, about: there.about };
+  const way = { words, person: browser.person, did: browser.did, setup: browser.setup, about: there.about, scrolled: there.scrolled };
   writeFileSync(join(trying, file), sceneOf({ ...way, tried: true }));
   console.log(`Running the way there again, from a fresh start, as ${browser.person}…`);
   const ran = await runOnce({ scenes: trying, only: [words], app: await repo.app(), root: repo.root, recorder, before: false, taken: [], started: review.started });

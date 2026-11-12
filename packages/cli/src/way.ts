@@ -23,9 +23,25 @@ export function wordsIn(file: string): string | undefined {
 }
 
 // The way there, written as a scene: each page gone to, and what was done on each, as getByRole finds it, or by its path
-// where it has no role and name; then what it's about, as it was, checked again. Tried, it also writes where it ended,
-// beside itself, as no reading says the address.
-export function sceneOf({ words, person, did, setup, about, tried = false }: { words: string; person: string; did: Done[]; setup: Record<string, unknown>; about?: About; tried?: boolean }): string {
+// where it has no role and name; scrolled where the page was, as a footer is only seen there; then what it's about, as
+// it was, checked again. Tried, it also writes where it ended, beside itself, as no reading says the address.
+export function sceneOf({
+  words,
+  person,
+  did,
+  setup,
+  about,
+  scrolled,
+  tried = false,
+}: {
+  words: string;
+  person: string;
+  did: Done[];
+  setup: Record<string, unknown>;
+  about?: About;
+  scrolled?: { x: number; y: number };
+  tried?: boolean;
+}): string {
   const lines = did.map((done) => {
     const nth = done.nth !== undefined ? `.nth(${done.nth})` : "";
     const at =
@@ -51,6 +67,7 @@ export function sceneOf({ words, person, did, setup, about, tried = false }: { w
     if (done.does === "press") return keyboard ? `    await page.keyboard.press(${given});` : `    await page.${at}.press(${given});`;
     return `    await page.${at}.click();${what}`;
   });
+  const scrolling = scrolled && (scrolled.x || scrolled.y) ? [`    await page.evaluate(([x, y]) => window.scrollTo(x, y), [${Math.round(scrolled.x)}, ${Math.round(scrolled.y)}]);`] : [];
   const which = about?.nth !== undefined ? `.nth(${about.nth})` : "";
   const thing = about && (about.role === "text" ? `page.getByText(${JSON.stringify(about.name)}, { exact: true })${which}` : `page.getByRole(${JSON.stringify(about.role)}, { name: ${JSON.stringify(about.name)}, exact: true })${which}`);
   const checks = !about
@@ -71,7 +88,7 @@ test.use({ person: ${JSON.stringify(person)} });
 
 test(${JSON.stringify(words)}, async ({ page, setup, baseURL }) => {
   await test.step(${JSON.stringify(words)}, async () => {
-${[...lines, ...checks].join("\n")}
+${[...lines, ...scrolling, ...checks].join("\n")}
   });${tried ? `\n  writeFileSync(new URL("./${ENDED}", import.meta.url), JSON.stringify({ url: page.url() }));` : ""}
 });
 `;
