@@ -122,7 +122,7 @@ export async function runScenes(
   repo: Repo,
   id: string,
   round: number,
-  { before, first = () => false, saying }: { before?: { scenes: string[]; taken: string[]; doneInRound: Record<string, DoneOn> }; first?: (scene: string) => boolean; saying?: string },
+  { before, first = () => false }: { before?: { scenes: string[]; taken: string[]; doneInRound: Record<string, DoneOn> }; first?: (scene: string) => boolean },
 ): Promise<Ran> {
   const scenes = await scenesOf(repo, id);
   const app = await repo.app();
@@ -155,8 +155,7 @@ export async function runScenes(
     console.log(`\n${last.length > 1 ? (gone ? "They aren't scenes any more" : "They pass now") : gone ? "It isn't a scene any more" : "It passes now"}, so every scene is recorded.\n`);
   }
 
-  // Moments say it in their own words.
-  if (saying === undefined) console.log(`Recording round ${round} of ${id}…`);
+  console.log(`Recording round ${round} of ${id}…`);
   const once = await run(undefined, repo.failed(id));
   await keepFailed(repo, id, once.failed);
   const again = once.recorded.filter(({ scene }) => first(scene.name));
@@ -243,7 +242,7 @@ export async function runOnce(run: Omit<Run, "folder">): Promise<Ran> {
     const ran = await playwright({ ...run, folder });
     const text = await readFile(join(folder, "scenes.json"), "utf8").catch(() => undefined);
     const { recorded, failed, written }: { recorded: Recorded[]; failed: Failed[]; written: Record<string, Written> } = text ? JSON.parse(text) : { recorded: [], failed: [], written: {} };
-    if (!ran && !failed.length) throw new Refused(["\nThe scenes didn't run, for the reason Playwright gives above. Fix that and run this again."]);
+    if (!ran && !failed.length) throw new Refused(["\nIt didn't run, for the reason Playwright gives above. Fix that and run this again."]);
     const withFiles = ({ files, ...recorded }: Recorded) => Promise.all(files.map(async (name) => ({ name, bytes: await readFile(join(folder, name)) }))).then((files) => ({ ...recorded, files }));
     return { recorded: await Promise.all(recorded.map(withFiles)), failed, written };
   } finally {
@@ -282,7 +281,7 @@ async function playwright(run: Run): Promise<boolean> {
   try {
     createRequire(join(run.root, "package.json")).resolve("playthrough/test");
   } catch {
-    throw new Refused(["Playthrough isn't installed in this app, so its scenes can't import playthrough/test. Install it as a dev dependency (npm install --save-dev playthrough), then run this again."]);
+    throw new Refused(["Playthrough isn't installed in this app. Install it as a dev dependency, with the app's own package manager (npm install --save-dev playthrough), then run this again."]);
   }
   await keepRunning(run.app, run.root);
   // What an earlier command made and didn't give back, it gives back first, now the app is there to take it.

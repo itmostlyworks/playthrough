@@ -1,0 +1,195 @@
+// What moments promise: the way to one is kept as a person would say it and run again from a fresh start, a moment is
+// kept only where that lands, the change a command means is the one named last in that copy of the app, and running
+// every moment again says of each whether it's the same.
+
+import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { after, describe, test } from "node:test";
+import type { Reading, Thing } from "@playthrough/page";
+import { Refused, type Round, type Scene } from "@playthrough/review";
+import { change, changeHere, idOf, momentNamed, momentsOf } from "../src/change.ts";
+import { howEachWent } from "../src/moments.ts";
+import { repo } from "../src/repo.ts";
+import { problemsWithPeople } from "../src/setup.ts";
+import { fileOf, sameAddress, sceneOf, wayIn, whatDiffers, wordsIn, type Done } from "../src/way.ts";
+
+const folders: string[] = [];
+after(() => Promise.all(folders.map((folder) => rm(folder, { recursive: true, force: true }))));
+const quietly = async <T>(run: () => Promise<T>) => {
+  const log = console.log;
+  console.log = () => {};
+  try {
+    return await run();
+  } finally {
+    console.log = log;
+  }
+};
+
+describe("the way to a moment", () => {
+  const did: Done[] = [
+    { does: "goto", on: "page", with: "/boards/qiaa4o4hklar" },
+    { does: "click", on: "#__next > div:nth-of-type(2) > a", role: "link", name: "Settings" },
+    { does: "fill", on: "#__next input", role: "textbox", name: "Card prefix", with: "WEB" },
+    { does: "click", on: "#__next button", role: "button", name: "Save", nth: 1 },
+    { does: "click", on: "#__next > div > span", what: "Saved" },
+    { does: "press", on: "body", with: "Meta+k" },
+  ];
+  const way = sceneOf({ words: "Cards now say WEB-1", person: "Maja", did, setup: { board: "qiaa4o4hklar" } });
+
+  test("is written as a person would say each step: by role and name, which one where several share them, and by its place only where nothing names it", () => {
+    assert.match(way, /await page\.getByRole\("link", \{ name: "Settings", exact: true \}\)\.click\(\);/);
+    assert.match(way, /await page\.getByRole\("textbox", \{ name: "Card prefix", exact: true \}\)\.fill\("WEB"\);/);
+    assert.match(way, /getByRole\("button", \{ name: "Save", exact: true \}\)\.nth\(1\)\.click\(\);/);
+    assert.match(way, /await page\.locator\("#__next > div > span"\)\.click\(\); \/\/ Saved/);
+    assert.match(way, /await page\.keyboard\.press\("Meta\+k"\);/);
+  });
+
+  test("goes to what setup made for this run, not the one the agent's browser had, and only where a click hasn't taken it already", () => {
+    assert.match(way, /waitForURL\(`\$\{baseURL\}\/boards\/\$\{setup\.board\}`, \{ timeout: 3000 \}\)\.catch\(\(\) => page\.goto\(`\$\{baseURL\}\/boards\/\$\{setup\.board\}`\)\)/);
+  });
+
+  test("is done as the person the agent was, and named by the moment's words, which its file is named by too", () => {
+    assert.match(way, /test\.use\(\{ person: "Maja" \}\);/);
+    assert.equal(wordsIn(way), "Cards now say WEB-1");
+    assert.equal(fileOf("Cards now say WEB-1"), "cards-now-say-web-1.ts");
+    assert.equal(wordsIn(sceneOf({ words: 'The "Save" button is gone', person: "Sam", did: [], setup: {} })), 'The "Save" button is gone');
+  });
+
+  test("checks again what the moment is about: that it's there, what it says, and whether it can be changed", () => {
+    const about = { role: "textbox", name: "Card prefix", value: "BS", disabled: true };
+    const checked = sceneOf({ words: "The prefix can't be changed", person: "Sam", did: [], setup: {}, about });
+    assert.match(checked, /await expect\(page\.getByRole\("textbox", \{ name: "Card prefix", exact: true \}\)\)\.toBeVisible\(\);/);
+    assert.match(checked, /\.toHaveValue\("BS"\);/);
+    assert.match(checked, /\.not\.toBeEditable\(\);/);
+    assert.doesNotMatch(wayIn(checked), /expect\(/, "going there by hand, nothing's checked");
+  });
+
+  test("writes where it ended only while it's tried, never in the moment that's kept", () => {
+    assert.match(sceneOf({ words: "Here", person: "Maja", did, setup: {}, tried: true }), /writeFileSync\(new URL\("\.\/ended\.json"/);
+    assert.doesNotMatch(way, /writeFileSync|ended\.json/);
+  });
+});
+
+describe("a moment run again", () => {
+  const thing = (role: string, name: string, x = 10, parts: Partial<Thing> = {}): Thing => ({
+    role,
+    name,
+    words: name,
+    box: { x, y: 10, width: 80, height: 20 },
+    page: { x, y: 10 },
+    look: { color: "rgb(0, 0, 0)", background: "rgba(0, 0, 0, 0)", size: "14px", weight: "400", border: "" },
+    ...parts,
+  });
+  const reading = (...things: Thing[]): Reading => ({ step: "here", at: 0, screen: { width: 1280, height: 800 }, picture: "", things });
+  const board = reading(thing("heading", "Website launch"), thing("link", "WEB-1 Write the launch post", 10, { words: "WEB-1 Write the launch post" }));
+
+  test("lands where the page reads the same and the address is the same but for the ids each run made", () => {
+    const landed = whatDiffers({ url: "http://localhost:3110/boards/qiaa4o4hklar", reading: board }, { url: "http://localhost:3110/boards/galeikvcthwn", reading: board });
+    assert.deepEqual(landed, { differ: [], passing: [], address: "/boards/…" });
+  });
+
+  test("doesn't land where what's on the page differs, and says what", () => {
+    const elsewhere = reading(thing("heading", "Website launch"), thing("link", "BS-1 Write the launch post", 10, { words: "BS-1 Write the launch post" }));
+    const { differ } = whatDiffers({ url: "http://localhost:3110/boards/1", reading: board }, { url: "http://localhost:3110/boards/2", reading: elsewhere });
+    assert.ok(differ.length && differ.every((line) => /launch post/.test(line)), differ.join("\n"));
+  });
+
+  test("leaves out a message that passes by itself, as a toast, there in one and gone in the other", () => {
+    const toasted = reading(...board.things, thing("status", "Card prefix updated", 600, { live: true }));
+    const { differ, passing } = whatDiffers({ url: "http://localhost:3110/boards/1", reading: toasted }, { url: "http://localhost:3110/boards/1", reading: board });
+    assert.deepEqual(differ, []);
+    assert.equal(passing.length, 1);
+  });
+
+  test("sets aside a number, or letters and digits of the same length, as an id; anything else in an address is a different place", () => {
+    assert.equal(sameAddress("http://a/cards/kqtz12ab34cd", "http://a/cards/jywz98yx76wv"), "/cards/…");
+    assert.equal(sameAddress("http://a/boards/12/cards/3", "http://a/boards/40/cards/7"), "/boards/…/cards/…");
+    assert.equal(sameAddress("http://a/settings/workspace", "http://a/settings/account"), undefined);
+    assert.equal(sameAddress("http://a/boards", "http://a/boards/qiaa4o4hklar"), undefined);
+    assert.equal(sameAddress("http://a/cards/short", "http://a/cards/other"), undefined);
+  });
+});
+
+describe("the change a command means", () => {
+  const copy = async () => {
+    const root = await mkdtemp(join(tmpdir(), "playthrough-change-"));
+    folders.push(root);
+    return repo(root);
+  };
+
+  test("is none until the agent names one, and says how", async () => {
+    await assert.rejects(changeHere(await copy()), (error: unknown) => error instanceof Refused && /^Say what the change is first, once: playthrough change "/.test(error.message));
+  });
+
+  test("is the one named last in this copy of the app, and naming one again by its title goes back to it", async () => {
+    const here = await copy();
+    await quietly(() => change(here, "Let admins change the card prefix", "Admins should be able to change the card prefix."));
+    assert.equal(await changeHere(here), "let-admins-change-the-card-prefix");
+    await quietly(() => change(here, "Keep the cursor in a checklist item", "The cursor jumps to the end."));
+    assert.equal(await changeHere(here), "keep-the-cursor-in-a-checklist-item");
+    await quietly(() => change(here, "Let admins change the card prefix", "Asked again, in other words."));
+    assert.equal(await changeHere(here), "let-admins-change-the-card-prefix");
+    const kept = await here.reviews.get("let-admins-change-the-card-prefix");
+    assert.deepEqual([kept.title, kept.asked], ["Let admins change the card prefix", "Admins should be able to change the card prefix."], "what was asked first stands");
+  });
+
+  test("is another copy's own: an agent in each of two worktrees works on its own", async () => {
+    const [one, other] = [await copy(), await copy()];
+    await quietly(() => change(one, "Comments and activity in tabs", "Put them in tabs."));
+    await quietly(() => change(other, "Keep the cursor in a checklist item", "The cursor jumps."));
+    assert.equal(await changeHere(one), "comments-and-activity-in-tabs");
+    assert.equal(await changeHere(other), "keep-the-cursor-in-a-checklist-item");
+  });
+
+  test("needs both a title, as short as a pull request's, and what was asked", async () => {
+    const here = await copy();
+    await assert.rejects(change(here, "Fix it", undefined), /A change needs both/);
+    await assert.rejects(change(here, "Fix the cursor that jumps to the end of a checklist item while you type in it", "It jumps."), /That title is 17 words/);
+    assert.equal(idOf("Café: “Smörgås” tabs!"), "cafe-smorgas-tabs");
+  });
+
+  test("has its moments by their words, found whatever their case", async () => {
+    const here = await copy();
+    await quietly(() => change(here, "Comments and activity in tabs", "Put them in tabs."));
+    const id = await changeHere(here);
+    mkdirSync(here.scenes(id), { recursive: true });
+    writeFileSync(join(here.scenes(id), fileOf("Activity is its own tab")), sceneOf({ words: "Activity is its own tab", person: "Maja", did: [], setup: {} }));
+    writeFileSync(join(here.scenes(id), "package.json"), "{}");
+    assert.deepEqual(momentsOf(here, id).map((one) => one.words), ["Activity is its own tab"]);
+    assert.equal(momentNamed(here, id, "activity is its own TAB").words, "Activity is its own tab");
+    assert.throws(() => momentNamed(here, id, "Comments first"), /There's no moment “Comments first”\. The moments: “Activity is its own tab”\./);
+  });
+});
+
+describe("every moment run again", () => {
+  const scene = (name: string, person = "Maja"): Scene => ({ name, length: 5, steps: [{ title: name, at: 0 }], recording: `${fileOf(name)}.json`, person });
+  const handedBack: Round = { number: 1, by: "Claude Code", scenes: [scene("Cards say WEB-1"), scene("The prefix can't be changed", "Sam")], replies: [], accounts: {}, finished: "2026-11-12T10:00:00.000Z" };
+
+  test("says of each that it's the same, different and how, or new since it was handed back", () => {
+    const changes = [{ id: "c1", words: "“Card prefix” is new", seen: [{ scene: "The prefix can't be changed", at: 4 }] }];
+    assert.deepEqual(howEachWent([scene("Cards say WEB-1"), scene("The prefix can't be changed", "Sam"), scene("A hint says what's allowed")], [], handedBack, changes), [
+      "“Cards say WEB-1”: the same.",
+      "“The prefix can't be changed”: different: “Card prefix” is new.",
+      "“A hint says what's allowed”: new.",
+    ]);
+  });
+
+  test("says where one couldn't get there stopped, and how to get it back as whoever it was", () => {
+    const [stopped] = howEachWent([], [{ scene: "The prefix can't be changed", why: "Timeout 10000ms exceeded, waiting for getByRole('link', { name: 'Settings' })" }], handedBack, []);
+    assert.equal(
+      stopped,
+      `“The prefix can't be changed”: couldn't get there, where the way stopped: “Timeout 10000ms exceeded, waiting for getByRole('link', { name: 'Settings' })”. Get there by hand (playthrough as Sam "The prefix can't be changed" goes as far as it can) and mark it again with the same words, or leave it out: playthrough drop "The prefix can't be changed"`,
+    );
+  });
+});
+
+describe("the app's people", () => {
+  test("say who each is in a few words, as the person reviewing sees it beside their name", () => {
+    assert.deepEqual(problemsWithPeople({ people: { Maja: "the admin", Sam: "a member" } }), []);
+    const [problem] = problemsWithPeople({ people: { Maja: "the admin", Sam: "Designs for Bright Studio: a member of the workspace, not an admin. On a laptop." } });
+    assert.match(problem!, /in 6 words at most, as \{ Maja: "the admin", Sam: "a member" \}\. Say “Sam” so/);
+  });
+});

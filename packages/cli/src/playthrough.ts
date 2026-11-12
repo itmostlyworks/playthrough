@@ -1,69 +1,44 @@
 #!/usr/bin/env -S node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
-// An app's playthrough/setup.ts is loaded here to take scenes over, and Node would say each time that an app not written as
-// modules has one: nothing anyone need act on.
-// The command line: the commands an agent runs to have a person review its work, and take-over, for a person to carry on
-// from a moment of a scene by hand. When one stops, it says why and what to do.
+// An app's playthrough/setup.ts is loaded here, and Node would say each time that an app not written as modules has one:
+// nothing anyone need act on.
+// The command line: what an agent runs to show a person its work as moments, and `open`, for the person to look at them.
+// When one stops, it says why and what to do.
 
 import "./node.ts";
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
 import { Refused } from "@playthrough/review";
-import { putBack, refuseWhileAside } from "./before.ts";
+import { as } from "./as.ts";
+import { change } from "./change.ts";
+import { again, drop, moment, reply, wait } from "./moments.ts";
 import { open } from "./open.ts";
-import { record } from "./record.ts";
 import { repo } from "./repo.ts";
-import { start } from "./start.ts";
-import { takeOver } from "./take-over.ts";
-import { wait } from "./wait.ts";
-import { forks } from "./forks.ts";
-import { again, as, moment, reply, waitForNotes } from "./moments.ts";
-
-const hasMoments = () => existsSync(join(repo().root, ".playthrough", "moments"));
 
 // Everything an agent needs to know, read once: bare, the command says it.
 const HELP = readFileSync(new URL("../MOMENTS.md", import.meta.url), "utf8").trimEnd();
 
-const given = process.argv.slice(2);
-const [command, review, ...words] = given;
-// How many words each command takes after the review's name: anything more is refused rather than ignored, so a stray
-// word never starts something that wasn't meant.
-const takes = {
-  start: [2, `playthrough start <review> "<title>" "<what was asked>"`],
-  record: [0, "playthrough record <review>"],
-  wait: [0, "playthrough wait <review>"],
-  forks: [0, "playthrough forks <review>"],
-  open: [0, "playthrough open [<review>]"],
-  as: [1, `playthrough as <person> ["<moment>"]`],
-  again: [0, "playthrough again"],
-  reply: [1, `playthrough reply <note> "<words>"`],
-  moment: [1, `playthrough moment "<what's there, in under eight words>" ["<what it's about, as the page names it>"]`],
-  "take-over": [2, `playthrough take-over <review> "<scene>" ["<step>"]`],
-} satisfies Record<string, [number, string]>;
-const limit = Object.hasOwn(takes, command ?? "") ? takes[command as keyof typeof takes] : undefined;
+// Each command, how many words it takes after its name, at least and at most, and how it's said: anything more is
+// refused rather than ignored, so a stray word never starts something that wasn't meant.
+const commands = {
+  change: [2, 2, `playthrough change "<a title, as a pull request's>" "<what you were asked, in the person's words>"`, ([title, asked]) => change(repo(), title, asked)],
+  as: [1, 2, `playthrough as <person> ["<moment>"]`, ([person, at]) => as(repo(), person!, at)],
+  moment: [1, 2, `playthrough moment "<what's there, in under eight words>" ["<what it's about, as the page names it>"]`, ([words, named]) => moment(repo(), words!, named)],
+  drop: [1, 1, `playthrough drop "<moment>"`, ([words]) => drop(repo(), words!)],
+  again: [0, 0, "playthrough again", () => again(repo())],
+  reply: [2, 2, `playthrough reply <note> "<what you did, in a line>"`, ([note, words]) => reply(repo(), note!, words)],
+  wait: [0, 0, "playthrough wait", () => wait(repo())],
+  open: [0, 0, "playthrough open", () => open(repo())],
+} satisfies Record<string, [number, number, string, (words: string[]) => Promise<unknown>]>;
 
+const [command, ...words] = process.argv.slice(2);
 try {
   // Asked for help anywhere, as by reflex after a command, it's the help, never the command.
-  if (!command || command === "help" || given.some((word) => ["--help", "-h"].includes(word))) console.log(HELP);
-  else if (!limit) throw new Refused([`There's no command “${command}”. Run playthrough alone for what each one does.`]);
-  else if (words.length > limit[0]) throw new Refused([`That's more than it takes: ${limit[1]}`]);
-  // Every command but open is about one review.
-  // Moments are one review, never named: wait and again need nothing more.
-  else if (!review && command !== "open" && command !== "again" && !(command === "wait" && hasMoments())) throw new Refused([`That needs more: ${limit[1]}`]);
+  if (!command || command === "help" || words.some((word) => ["--help", "-h"].includes(word))) console.log(HELP);
+  else if (!Object.hasOwn(commands, command)) throw new Refused([`There's no command “${command}”. Run playthrough alone for what each one does.`]);
   else {
-    // A command stopped while scenes recorded on Before left the agent's work set aside: it's put back before anything else.
-    await putBack(repo());
-    // Each of the others runs the app or keeps it, which can't wait while another has the app as it was in place.
-    if (command !== "open" && command !== "wait") refuseWhileAside(repo());
-    if (command === "open") await open(repo(), review);
-    else if (command === "start") await start(repo(), review!, words[0], words[1]);
-    else if (command === "record") await record(repo(), review!);
-    else if (command === "wait") await (review ? wait(repo(), review) : waitForNotes(repo()));
-    else if (command === "again") await again(repo());
-    else if (command === "reply") await reply(repo(), review!, words[0]!);
-    else if (command === "forks") await forks(repo(), review!);
-    else if (command === "as") await as(repo(), review!, words[0]);
-    else if (command === "moment") await moment(repo(), review!, words[0]);
-    else if (command === "take-over") await takeOver(repo(), review!, words[0], words[1]);
+    const [least, most, said, run] = commands[command as keyof typeof commands];
+    if (words.length > most) throw new Refused([`That's more than it takes: ${said}`]);
+    if (words.length < least) throw new Refused([`That needs more: ${said}`]);
+    await run(words);
   }
 } catch (error) {
   if (!(error instanceof Refused)) throw error;

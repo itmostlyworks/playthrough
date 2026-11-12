@@ -7,15 +7,15 @@ import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { userInfo } from "node:os";
-import { extname, join, normalize, sep } from "node:path";
+import { basename, extname, join, normalize, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Reading } from "@playthrough/page";
-import { Refused, type Did, type Send } from "@playthrough/review";
+import { Refused, type Did, type Seen, type Send } from "@playthrough/review";
 import { BEAT } from "./scenes.ts";
 import { copies, repo as copyAt, type Repo } from "./repo.ts";
 import { readyIn } from "./following.ts";
 import { getReady } from "./take-over.ts";
-import { momentsPage } from "./moments-shown.ts";
+import { setupIn } from "./setup.ts";
 import { video, type Filmed } from "./video.ts";
 import { agentWaiting } from "./wait.ts";
 
@@ -43,7 +43,7 @@ export async function open(here: Repo, id?: string) {
   if (id) await (await app.holding(id)).reviews.get(id);
   // One for each app: open already, from this copy or another, it's that one.
   const already = await openAlready(app.folder);
-  if (already) return console.log(`Playthrough is already open at http://localhost:${already}/${id ?? ""}`);
+  if (already) return console.log(`Playthrough is already open at http://localhost:${already}/moments${id ? `/${id}` : ""}`);
   const page = fileURLToPath(new URL("../viewer", import.meta.url));
   if (!(await readFile(join(page, "index.html")).catch(() => undefined)))
     throw new Refused(["The viewer isn't built yet. Build it from core with npm run build."]);
@@ -57,7 +57,7 @@ export async function open(here: Repo, id?: string) {
     });
   });
   const port = await listen(server, PORT);
-  console.log(`Playthrough is open at http://localhost:${port}/${id ?? ""}`);
+  console.log(`Playthrough is open at http://localhost:${port}/moments${id ? `/${id}` : ""}`);
 }
 
 // The app in every copy of it, and where each review is kept: an agent working in a worktree keeps its own there.
@@ -123,7 +123,12 @@ async function answer(app: ReturnType<typeof everyCopy>, page: string, you: stri
     return response.end(bytes);
   }
   if (request.method === "POST" && rest[0] === "video") return saveVideo(repo, id, request, response);
-  if (request.method === "GET" && rest[0] === "moments") return json(response, 200, momentsPage(repo, id));
+  if (request.method === "GET" && rest[0] === "shown") return json(response, 200, await shownOf(repo));
+  if (request.method === "POST" && rest[0] === "seen") {
+    const { by, moments } = await body<{ by: string; moments: Seen[] }>(request);
+    await reviews.see(id, by, moments);
+    return json(response, 200, {});
+  }
   if (request.method === "POST" && rest[0] === "take-over") return takeOver(repo, id, request, response);
   if (request.method === "POST" && rest[0] === "ready-in") return readyInFor(repo, id, request, response);
   if (request.method === "POST" && rest[0] === "branches") return branch(repo, id, request, response);
@@ -137,6 +142,15 @@ async function answer(app: ReturnType<typeof everyCopy>, page: string, you: stri
     return json(response, 200, {});
   }
   return json(response, 404, { problems: [`There's nothing at ${path}.`] });
+}
+
+// How the person sees the app and its people: the app by its package's name, and each person by their name and who they
+// are, as setup.ts says it ("Sam, a member").
+async function shownOf(repo: Repo): Promise<{ app: string; people: Record<string, string> }> {
+  const named = await readFile(join(repo.root, "package.json"), "utf8").then((text) => String(JSON.parse(text).name ?? ""), () => "");
+  const app = named.replace(/^@[^/]+\//, "") || basename(repo.root);
+  const { people } = await setupIn(repo.setup).catch(() => ({ people: undefined }));
+  return { app: app.charAt(0).toUpperCase() + app.slice(1), people: Object.fromEntries(Object.entries(people ?? {}).map(([name, who]) => [name, `${name}, ${who}`])) };
 }
 
 // The review now, then again each time what's kept changes it, and whether an agent is waiting for what's sent, then

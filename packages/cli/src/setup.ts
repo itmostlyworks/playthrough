@@ -22,8 +22,10 @@ type Make = (given: { page: Page; request: APIRequestContext; baseURL?: string; 
 // setup returned is all it knows of what was made.
 type After = (given: { request: APIRequestContext; baseURL: string; setup: Record<string, any> }) => unknown;
 type SignIn = (given: { page: Page; person: string; setup: Record<string, any> }) => unknown;
-// Each of the app's people, by name, in the team's words: for the agent to read, never shown.
+// Each of the app's people, by name, and who they are in a few words, as the person reviewing sees them beside the name:
+// "Sam, a member".
 export type People = Record<string, string>;
+const FEWEST_WORDS = 6;
 export type Setup = { make?: Make; after?: After; signIn?: SignIn; people?: People; use?: BrowserContextOptions };
 
 // What Playthrough keeps the same for every scene, or a scene says with test.use, isn't the setup's to set for them all.
@@ -43,7 +45,7 @@ export async function setupIn(file: string, written?: number): Promise<Setup> {
   const use = module.use ?? inner?.use;
   const ours = Object.keys(use ?? {}).filter((option) => OURS.includes(option));
   if (ours.length)
-    throw new Refused([`playthrough/setup.ts's use sets ${list(ours)}, which Playthrough keeps the same for every scene, or a scene sets with test.use, like its screen. Take ${ours.length > 1 ? "them" : "it"} out of use.`]);
+    throw new Refused([`playthrough/setup.ts's use sets ${list(ours)}, which Playthrough keeps the same everywhere, like the screen. Take ${ours.length > 1 ? "them" : "it"} out of use.`]);
   return {
     make: typeof module.default === "function" ? module.default : inner?.default,
     after: module.after ?? inner?.after,
@@ -102,7 +104,16 @@ export const firstOf = ({ people }: Setup) => Object.keys(people ?? {})[0];
 // Someone the app names, or anyone at all where it names nobody; one it doesn't name stops the scene before anything is made.
 export function personIn({ people }: Setup, person: string) {
   if (people && !(person in people))
-    throw new Error(`playthrough/setup.ts names no one called ${quote(person)}. Its people: ${list(Object.keys(people).map(quote))}. Add them there, or do the scene as one of them.`);
+    throw new Error(`playthrough/setup.ts names no one called ${quote(person)}. Its people: ${list(Object.keys(people).map(quote))}. Add them there, or go as one of them.`);
+}
+
+// Who each is, said in a few words, as it's shown beside their name.
+export function problemsWithPeople({ people }: Setup): string[] {
+  const long = Object.entries(people ?? {}).filter(([, who]) => typeof who !== "string" || !who.trim() || who.trim().split(/\s+/).length > FEWEST_WORDS);
+  if (!long.length) return [];
+  return [
+    `playthrough/setup.ts's people say who each is as the person reviewing sees it, beside their name (“Sam, a member”): in ${FEWEST_WORDS} words at most, as { Maja: "the admin", Sam: "a member" }. Say ${long.map(([name]) => quote(name)).join(" and ")} so, then run this again.`,
+  ];
 }
 
 // Made for one run, and written down in .playthrough/borrowed/ until it's given back, by the process it's made for, named

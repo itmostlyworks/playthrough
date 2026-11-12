@@ -54,7 +54,7 @@ export function repo(root = home(process.cwd())) {
     async app(): Promise<App> {
       const how = `Say how to start the app in playthrough/app.json: ${PORTED}, or with the address it always has where it can't be given a port.`;
       const text = await readFile(appFile, "utf8").catch(() => undefined);
-      if (text === undefined) throw new Refused([`Playthrough needs to start the app to record it. ${how}`]);
+      if (text === undefined) throw new Refused([`Playthrough needs to start the app. ${how}`]);
       let app: Partial<App>;
       try {
         app = JSON.parse(text);
