@@ -21,7 +21,7 @@ export async function unhovered<T>(page: Page, look: () => Promise<T>): Promise<
   }
 }
 
-function hovering(on: boolean) {
+export function hovering(on: boolean) {
   const kept = window as unknown as { __playthroughHover?: [CSSStyleRule, string][] };
   if (on) {
     for (const [rule, selector] of kept.__playthroughHover ?? []) rule.selectorText = selector;

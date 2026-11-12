@@ -18,7 +18,7 @@ import { forks } from "./forks.ts";
 import { as, moment } from "./moments.ts";
 
 // Everything an agent needs to know, read once: bare, the command says it.
-const HELP = readFileSync(new URL("../INSTRUCTIONS.md", import.meta.url), "utf8").trimEnd();
+const HELP = readFileSync(new URL("../MOMENTS.md", import.meta.url), "utf8").trimEnd();
 
 const given = process.argv.slice(2);
 const [command, review, ...words] = given;
@@ -31,7 +31,7 @@ const takes = {
   forks: [0, "playthrough forks <review>"],
   open: [0, "playthrough open [<review>]"],
   as: [0, "playthrough as <person>"],
-  moment: [0, `playthrough moment "<who, where, what's there>"`],
+  moment: [1, `playthrough moment "<who, where, what's there>" ["<what it's about, as the page names it>"]`],
   "take-over": [2, `playthrough take-over <review> "<scene>" ["<step>"]`],
 } satisfies Record<string, [number, string]>;
 const limit = Object.hasOwn(takes, command ?? "") ? takes[command as keyof typeof takes] : undefined;
@@ -54,7 +54,7 @@ try {
     else if (command === "wait") await wait(repo(), review!);
     else if (command === "forks") await forks(repo(), review!);
     else if (command === "as") await as(repo(), review!);
-    else if (command === "moment") await moment(repo(), review!);
+    else if (command === "moment") await moment(repo(), review!, words[0]);
     else if (command === "take-over") await takeOver(repo(), review!, words[0], words[1]);
   }
 } catch (error) {
