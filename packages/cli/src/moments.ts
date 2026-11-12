@@ -18,7 +18,7 @@ import { join } from "node:path";
 import type { Reading } from "@playthrough/page";
 import { allNotes, conversation, list, notesToAnswer, quote, Refused, roundInProgress, toAccountFor, type Change, type Review, type Round, type Scene } from "@playthrough/review";
 import { agent } from "./agent.ts";
-import { browserFile, type Browser } from "./as.ts";
+import { browserFile, stopBrowser, type Browser } from "./as.ts";
 import { changeHere, momentNamed, momentsOf } from "./change.ts";
 import { compareWithEarlier } from "./compare.ts";
 import { pictureNotes } from "./noted.ts";
@@ -293,6 +293,7 @@ export async function wait(repo: Repo) {
       ]);
     await reviews.finish(id, last.number);
     console.log(`Handed back: the person sees ${last.scenes.length > 1 ? `the ${last.scenes.length} moments` : "the moment"} as they are now${last.replies.length ? ", and your answers" : ""}.`);
+    if (await stopBrowser(repo)) console.log("The browser from playthrough as is stopped: it starts again when you need it.");
   } else {
     // Notes taken by a wait that stopped before they were answered are said again.
     const asking = notesToAnswer(review, last.number + 1);

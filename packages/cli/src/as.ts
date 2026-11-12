@@ -242,6 +242,27 @@ Ctrl+C ends it, and gives back what was made. playthrough as again starts this b
   await new Promise(() => {});
 }
 
+// This copy's browser, stopped as Ctrl+C stops it, giving back what was made, once the agent hands back: it was for
+// checking the work, and left running it holds the app and its port. Says whether there was one.
+export async function stopBrowser(repo: Repo): Promise<boolean> {
+  let live: Browser;
+  try {
+    live = JSON.parse(readFileSync(browserFile(repo), "utf8"));
+    process.kill(live.pid, "SIGINT");
+  } catch {
+    return false;
+  }
+  for (let waited = 0; waited < 15_000; waited += 250) {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    try {
+      process.kill(live.pid, 0);
+    } catch {
+      break;
+    }
+  }
+  return true;
+}
+
 // The browser open already, told to start again as this person, and said ready once it has: in a few seconds, where a
 // new one takes ten.
 async function startAgain(repo: Repo, person: string, began: number, at?: string): Promise<boolean> {
