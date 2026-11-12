@@ -176,11 +176,10 @@ export async function runScenes(
           : `Scenes run several at once on the one app, so what one makes, another can meet: make what every scene starts from in playthrough/setup.ts, the same each time and new for each run. Where a page shows what every run made, as a blog's index lists every post, say "oneAtATime": true in playthrough/app.json instead. Then run this again.`
       }`,
     ]);
-  const byThemselves = await changesByThemselves(inMemory(round, again), inMemory(round, twice.recorded.filter(({ scene }) => first(scene.name))));
+  const byThemselves = await markUnsteady(round, again, twice.recorded.filter(({ scene }) => first(scene.name)));
   for (const { scene } of again) {
     const unsteady = byThemselves.filter((change) => change.seen.some((place) => place.scene === scene.name));
     if (!unsteady.length) continue;
-    scene.unsteady = [...new Set(unsteady.flatMap((change) => change.pieces))];
     // A part of a picture known only by where it is is left out only here (compare.ts).
     const here = unsteady.filter((change) => change.pieces.every((piece) => piece.startsWith(HERE)));
     const everywhere = unsteady.filter((change) => !here.includes(change));
@@ -190,6 +189,17 @@ export async function runScenes(
     console.log("If it can be made the same each time, in playthrough/setup.ts, do that and record again: a real change to it won't be seen.");
   }
   return once;
+}
+
+// The same scenes recorded twice on the same app: what differs between the two changes by itself, and is kept on each
+// scene it's in as unsteady, so it's left out of every comparison. Said, a change at a time.
+export async function markUnsteady(round: number, once: Ran["recorded"], twice: Ran["recorded"]) {
+  const byThemselves = await changesByThemselves(inMemory(round, once), inMemory(round, twice));
+  for (const { scene } of once) {
+    const pieces = byThemselves.filter((change) => change.seen.some((place) => place.scene === scene.name)).flatMap((change) => change.pieces);
+    if (pieces.length) scene.unsteady = [...new Set(pieces)];
+  }
+  return byThemselves;
 }
 
 // How a scene went in one run: to its end, or where it stopped, in Playwright's words.

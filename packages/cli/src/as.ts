@@ -163,9 +163,12 @@ export async function as(repo: Repo, person: string, at?: string) {
       await page.evaluate(() => (localStorage.clear(), sessionStorage.clear()));
       made = await make(setup, repo.borrowed, { page, request, baseURL: app.url, person: next });
       await setup.signIn?.({ page, person: next, setup: made.setup });
-      Object.assign(live, { person: next, setup: made.setup, did: [], began: Date.now() });
+      Object.assign(live, { person: next, setup: made.setup, did: [] });
       await page.goto(app.url);
-      if (there) await takeTo(page, await momentNamed(repo, await changeHere(repo), there), made.setup, app.url);
+      const went = there ? await takeTo(page, await momentNamed(repo, await changeHere(repo), there), made.setup, app.url) : undefined;
+      writeFileSync(againFile(repo), JSON.stringify({ went }));
+      // Ready only now: what's kept as it goes there is saved on the way, and the one waiting goes by this.
+      live.began = Date.now();
       save();
     } catch (error) {
       writeFileSync(againFile(repo), JSON.stringify({ failed: String((error as Error)?.message ?? error) }));
@@ -179,7 +182,7 @@ export async function as(repo: Repo, person: string, at?: string) {
   });
   await context.addInitScript({ content: NOTING });
   await page.goto(app.url);
-  if (to) await takeTo(page, to, made.setup, app.url);
+  const went = to && (await takeTo(page, to, made.setup, app.url));
   save();
   console.log(`Ready in ${((Date.now() - began) / 1000).toFixed(1)}s: a browser signed in as ${person}, on ${app.url}, what they start from made by playthrough/setup.ts:
   ${JSON.stringify(made.setup)}
@@ -187,7 +190,7 @@ Drive it with your own tool over its debugging port, http://localhost:${DEBUGGIN
   agent-browser --cdp ${DEBUGGING} snapshot
   or Playwright: chromium.connectOverCDP("http://localhost:${DEBUGGING}"), then its first context's page
   or Playwright MCP: --cdp-endpoint http://localhost:${DEBUGGING}
-${to ? `It's at the moment ${quote(to.words)}, by the way the person's moment got there.\n` : ""}When you're looking at what was asked for: playthrough moment "<what's there>"
+${went ? `${went}\n` : ""}When you're looking at what was asked for: playthrough moment "<what's there>"
 Ctrl+C ends it, and gives back what was made. playthrough as again starts this browser again from a fresh start.`);
   await new Promise(() => {});
 }
@@ -206,14 +209,14 @@ async function startAgain(repo: Repo, person: string, began: number, at?: string
   process.kill(live.pid, "SIGUSR1");
   for (let waited = 0; waited < 120_000; waited += 250) {
     await new Promise((resolve) => setTimeout(resolve, 250));
+    const now: Browser = JSON.parse(readFileSync(browserFile(repo), "utf8"));
     const again = JSON.parse(readFileSync(againFile(repo), "utf8"));
     if (again.failed) throw new Refused([`The browser open already couldn't start again as ${person}: ${again.failed}. Stop it (Ctrl+C), then run this again.`]);
-    const now: Browser = JSON.parse(readFileSync(browserFile(repo), "utf8"));
     if (now.began > began)
       return (
         console.log(`Started again in ${((Date.now() - began) / 1000).toFixed(1)}s, in the browser open already: signed in as ${person}, on ${now.url}, from a fresh start made by playthrough/setup.ts:
   ${JSON.stringify(now.setup)}
-${at ? `It's at the moment ${quote(at)}, by the way the person's moment got there.\n` : ""}Your tool stays attached at http://localhost:${now.debugging}. When you're looking at what was asked for: playthrough moment "<what's there>"`),
+${again.went ? `${again.went}\n` : ""}Your tool stays attached at http://localhost:${now.debugging}. When you're looking at what was asked for: playthrough moment "<what's there>"`),
         true
       );
   }
@@ -230,8 +233,12 @@ async function clearEarlier() {
   for (const name of readdirSync(tmpdir())) if (name.startsWith("playthrough-as-")) rmSync(join(tmpdir(), name), { recursive: true, force: true });
 }
 
-// Done in the browser as the moment's way there does it, on what setup made for this browser; as far as it goes.
-async function takeTo(page: Page, to: { words: string; file: string }, setup: Record<string, unknown>, baseURL: string) {
+// Done in the browser as the moment's way there does it, on what setup made for this browser, as far as it goes; and
+// said, where it got.
+async function takeTo(page: Page, to: { words: string; file: string }, setup: Record<string, unknown>, baseURL: string): Promise<string> {
   const going = new Function("page", "setup", "baseURL", `return (async () => {\n${wayIn(readFileSync(to.file, "utf8"))}\n})();`) as (page: Page, setup: unknown, baseURL: string) => Promise<void>;
-  await going(page, setup, baseURL).catch((error) => console.log(`It couldn't get all the way to ${quote(to.words)}: ${String(error?.message ?? error).split("\n")[0]}. Go on from there by hand.`));
+  return going(page, setup, baseURL).then(
+    () => `It's at the moment ${quote(to.words)}, by the way the moment got there.`,
+    (error) => `It couldn't get all the way to ${quote(to.words)}: ${String(error?.message ?? error).split("\n")[0]}. Go on from there by hand.`,
+  );
 }

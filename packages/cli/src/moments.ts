@@ -16,7 +16,7 @@ import { chromium, type Page } from "@playwright/test";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Reading } from "@playthrough/page";
-import { allNotes, conversation, list, notesToAnswer, quote, Refused, roundInProgress, type Change, type Review, type Round, type Scene } from "@playthrough/review";
+import { allNotes, conversation, list, notesToAnswer, quote, Refused, roundInProgress, toAccountFor, type Change, type Review, type Round, type Scene } from "@playthrough/review";
 import { agent } from "./agent.ts";
 import { browserFile, type Browser } from "./as.ts";
 import { changeHere, momentNamed, momentsOf } from "./change.ts";
@@ -25,7 +25,7 @@ import { pictureNotes } from "./noted.ts";
 import { readPage, unhovered } from "./read.ts";
 import type { Repo } from "./repo.ts";
 import { readingsOf, type Failed } from "./reporter.ts";
-import { recorder, runOnce } from "./scenes.ts";
+import { markUnsteady, recorder, runOnce } from "./scenes.ts";
 import { setupIn } from "./setup.ts";
 import { listening } from "./wait.ts";
 import { aboutSaid, ENDED, fileOf, sceneOf, whatDiffers, type About } from "./way.ts";
@@ -84,6 +84,13 @@ export async function moment(repo: Repo, words: string, named?: string) {
   const ended: string = JSON.parse(readFileSync(join(trying, ENDED), "utf8")).url;
   const { differ, passing, address } = whatDiffers(there, { url: ended, reading: readings.at(-1)! });
   if (differ.length) throw notKept(`it ended somewhere else. What differs from where you are:\n${differ.map((one) => `  ${one}`).join("\n")}`);
+
+  // Run once more, what changes by itself, as a caret blinking or a time the server stamps, is known, and left out
+  // whenever it's compared again.
+  console.log("Running it once more, to see what changes by itself…");
+  const twice = await runOnce({ scenes: trying, only: [words], app: await repo.app(), root: repo.root, recorder, before: false, taken: [], started: review.started });
+  if (!twice.recorded.length) throw notKept(`it got there once, but not a second time${twice.failed[0]?.why ? `: ${twice.failed[0].why}` : ""}. Make what it starts from the same each time, in playthrough/setup.ts.`);
+  await markUnsteady(Math.max(1, roundInProgress(review)), ran.recorded, twice.recorded);
 
   mkdirSync(repo.scenes(id), { recursive: true });
   writeFileSync(join(repo.scenes(id), "package.json"), `{ "type": "module" }\n`);
@@ -184,7 +191,8 @@ export async function again(repo: Repo) {
   const comparisons = await compareAll(repo, id, number, scenes);
   const since = comparisons.find((comparison) => comparison.since === handedBack.number);
 
-  console.log(`\n${howEachWent(scenes, ran.failed, handedBack, since?.changes ?? []).join("\n")}`);
+  // What only the pictures show is the person's to look at: the agent can't see more of it than Playthrough did.
+  console.log(`\n${howEachWent(scenes, ran.failed, handedBack, toAccountFor(since)).join("\n")}`);
   const unanswered = notesToAnswer(review, number).filter((note) => !kept?.replies.some((reply) => reply.note === note && reply.words.trim()));
   console.log(
     `\n${unanswered.length ? `Answer ${unanswered.length > 1 ? "each note" : "the note"}: ${unanswered.map((note) => `playthrough reply ${note} "<what you did, in a line>"`).join("; ")}. Then hand` : "Hand"} back, in the background, so you hear when the person answers: playthrough wait`,
