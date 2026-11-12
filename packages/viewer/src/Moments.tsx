@@ -1086,10 +1086,10 @@ function MomentView(props: {
       </div>
       <div className="flex h-16 items-center justify-center">
         <div role="toolbar" aria-label="This moment" onClick={(event) => (event.target as Element).closest("button")?.blur()} className={`flex gap-0.5 rounded-xl bg-surface p-1 text-[13px] select-none ${inApp ? "shadow-[0_0_0_1.5px_rgba(236,178,72,0.95),0_6px_20px_rgba(20,24,34,0.12)]" : "shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]"}`}>
-          <button className={`${ITEM} w-[96px]`} disabled={!!live?.shown || !cut || comparing} onClick={play}>
+          <button className={`${ITEM} w-[96px] phone:w-[64px]`} disabled={!!live?.shown || !cut || comparing} onClick={play}>
             <span className="w-9 text-left">{playing ? "Pause" : "Play"}</span> <Key className="min-w-9">Space</Key>
           </button>
-          <button className={`${ITEM} w-[116px]`} disabled={!!writing} aria-pressed={stepping} onClick={stepIn}>
+          <button className={`${ITEM} w-[116px] phone:w-[104px]`} disabled={!!writing} aria-pressed={stepping} onClick={stepIn}>
             {inApp ? "Back" : stepping ? "Stepping in…" : "Step in"} {!stepping && <Key>{inApp ? "Esc" : "T"}</Key>}
           </button>
           <button className={`${ITEM}`} disabled={stepping || !!writing || comparing} aria-pressed={noting} onClick={note}>
@@ -1106,8 +1106,9 @@ function MomentView(props: {
   );
 }
 
+// On a phone, the keys go, so the bar fits with all four.
 const ITEM =
-  "inline-flex items-center justify-center gap-2 rounded-lg px-2.5 py-1.5 whitespace-nowrap text-fg transition-colors duration-150 ease-calm enabled:hover:bg-hover disabled:cursor-default disabled:opacity-50 aria-pressed:bg-hover [&_kbd]:text-[color-mix(in_srgb,var(--faint)_55%,var(--soft))]";
+  "phone:[&_kbd]:hidden inline-flex items-center justify-center gap-2 rounded-lg px-2.5 py-1.5 whitespace-nowrap text-fg transition-colors duration-150 ease-calm enabled:hover:bg-hover disabled:cursor-default disabled:opacity-50 aria-pressed:bg-hover [&_kbd]:text-[color-mix(in_srgb,var(--faint)_55%,var(--soft))]";
 // How many seconds of a moment Play shows, waiting cut short.
 const LEADING = 7;
 const ABOUT = "about";
