@@ -897,6 +897,17 @@ function MomentView(props: {
   const mine = notes.filter((one) => one.on?.scene === scene.name);
   const theirs = sent.filter((one) => one.on?.scene === scene.name);
   const said = [...theirs.map((note) => ({ note, sent: true })), ...mine.map((note) => ({ note, sent: false }))];
+  // Where each note made in the app is there, as the page was read as it was made: its part of the screen.
+  const [spots, setSpots] = useState<Record<string, Frame>>({});
+  const fromApp = said.flatMap(({ note }) => (note.on?.app && note.on.element?.node !== undefined && !spots[note.id] ? [note] : []));
+  useEffect(() => {
+    for (const note of fromApp)
+      readingsOf(review.id, round.number, note.on!.app!.recording).then((read) => {
+        const kept = read.findLast((reading) => reading.things.some((thing) => thing.node === note.on!.element!.node));
+        const box = kept?.things.find((thing) => thing.node === note.on!.element!.node)?.box;
+        if (kept && box) setSpots((all) => ({ ...all, [note.id]: { x: box.x / kept.screen.width, y: box.y / kept.screen.height, width: box.width / kept.screen.width, height: box.height / kept.screen.height } }));
+      });
+  }, [fromApp.map((note) => note.id).join(" ")]);
   // A note is at its moment: made in the app, where the app was stepped into. Its pin shows only while it rests there.
   // One made on an earlier taking is about the point, wherever it was on that recording.
   const made = allNotes(review);
@@ -909,8 +920,11 @@ function MomentView(props: {
   const markOf = (note: Note): Mark => {
     const on = note.on;
     const element = on?.element;
-    // Made in the app, or on an earlier taking of the moment, its thing is found here by its role and name.
+    // Made in the app, or on an earlier taking of the moment, its thing is found here by its role and name. Made in the
+    // app on what isn't here, as what was done there changed the page, it's where it was in the app, never on whatever
+    // here says the same words.
     const node = on?.app || !mine.includes(note) ? nodeOf(element) : element?.node;
+    if (on?.app && node === undefined) return { id: note.id, ...(spots[note.id] ? { box: spots[note.id] } : on.point && { point: on.point }) };
     return { id: note.id, ...(element && { name: element.name, ...(node !== undefined && { node }) }), ...(on?.point && { point: on.point }) };
   };
   const aboutNode = nodeOf(about);

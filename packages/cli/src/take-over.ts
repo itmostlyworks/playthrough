@@ -455,9 +455,10 @@ const SAYS = `<script>(() => {
       send();
       const node = window.rrwebRecord?.record?.mirror?.getId(on);
       // Named as the page is read for every scene, so a later round's scene finds it by the same name: a reminder's
-      // message box is "Message" there, where its own words named it here.
+      // message box is "Message" there, where its own words named it here. What the page's reading doesn't count as a
+      // thing, as the part of a panel around what's in it, is the spot, never the words of everything in it.
       const known = node > 0 && recording ? read().things.find((thing) => thing.node === node) : undefined;
-      const [kind, name] = known ? [known.role, known.name] : [role(on), words(on)];
+      const [kind, name] = known ? [known.role, known.name] : recording ? [] : [role(on), words(on)];
       parent.postMessage({ playthrough: "noted", ...(name ? { element: { role: kind, name, css: path(on), ...(node > 0 && { node }) } } : { point: { x: e.clientX / innerWidth, y: e.clientY / innerHeight } }), did, x: e.clientX, y: e.clientY }, "*");
       noting = false;
       swallowing = true;
