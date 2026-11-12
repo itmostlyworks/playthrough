@@ -15,6 +15,7 @@ import { Pinned, type Pin } from "./Pinned.tsx";
 import { Clock, Player, useCut, type Mark, type Placed } from "./Player.tsx";
 import { Portal, TAG } from "./Portal.tsx";
 import { readyAt } from "./live.ts";
+import { clamp } from "./moments.ts";
 import type { Scrolled } from "./replay.ts";
 import { clock } from "./Rounds.tsx";
 
@@ -186,7 +187,7 @@ function Change({ id, moment, go }: { id: string; moment: number; go: (to: Where
   );
 }
 
-type Live = { scene: string; address?: string; shown: boolean; settled?: boolean; problems?: string[]; at?: { x: number; y: number } };
+type Live = { scene: string; from: number; address?: string; shown: boolean; settled?: boolean; problems?: string[]; at?: { x: number; y: number } };
 type Writing = { note: Note; spot: { x: number; y: number } };
 
 function MomentView(props: {
@@ -225,6 +226,16 @@ function MomentView(props: {
   const cut = useCut(review.id, round.number, scene);
   const [clockOf] = useState(() => new Clock(end));
   const [playing, setPlaying] = useState<{ until: number }>();
+  // Where it rests: the point, as it opens, or wherever it was paused or let go. Another moment opens at its own point.
+  const [rest, setRest] = useState({ scene: scene.name, at: end });
+  const at = rest.scene === scene.name ? rest.at : end;
+  const restAt = (moment: number) => (clockOf.set(moment), setRest({ scene: scene.name, at: moment }));
+  const [scrubbing, setScrubbing] = useState(false);
+  const atPoint = !playing && !scrubbing && at >= end - 0.02;
+  // The few seconds Play shows, waiting cut short, as the line along the recording counts them.
+  const start = cut ? cut.real(Math.max(0, cut.length - LEADING)) : 0;
+  const shareOf = (moment: number) => (cut ? clamp((cut.cut(moment) - cut.cut(start)) / Math.max(0.01, cut.cut(end) - cut.cut(start))) : 1);
+  const momentOf = (share: number) => (cut ? Math.min(end, cut.real(cut.cut(start) + share * (cut.cut(end) - cut.cut(start)))) : end);
   const [noting, setNoting] = useState(false);
   const [writing, setWriting] = useState<Writing>();
   const [open, setOpen] = useState<string>();
@@ -246,6 +257,7 @@ function MomentView(props: {
     setOpen(undefined);
     setPlaced({});
     setLive(undefined);
+    setScrubbing(false);
     clockOf.set(end);
   }, [n]);
 
@@ -257,23 +269,24 @@ function MomentView(props: {
     if (live?.shown || writing) return;
     setOpen(undefined);
     setNoting(false);
-    if (playing || !cut) return setPlaying(undefined);
-    // The few seconds that led here, with waiting cut short, and it rests where it was.
-    clockOf.set(cut.real(Math.max(0, cut.length - LEADING)));
+    if (!cut) return;
+    // Paused, it stays where it is; played, it carries on from there, or from the start of the few seconds at the point.
+    if (playing) return (setPlaying(undefined), restAt(clockOf.at));
+    clockOf.set(atPoint || at < start ? start : at);
     setPlaying({ until: end });
   };
   const stepIn = () => {
     if (live?.shown) return back();
-    const paused = pausedAt(scene, end);
+    const paused = pausedAt(scene, at);
     if (!paused || writing) return;
     setPlaying(undefined);
     setOpen(undefined);
     setNoting(false);
-    if (live?.address && live.scene === scene.name) return setLive({ ...live, shown: true, at: undefined });
+    if (live?.address && live.scene === scene.name && live.from === at) return setLive({ ...live, shown: true, at: undefined });
     session.current = { id: newId(), events: [], did: [], kept: 0 };
-    setLive({ scene: scene.name, shown: true });
+    setLive({ scene: scene.name, from: at, shown: true });
     readyAt(review.id, scene.name, paused).then((answer) =>
-      setLive((now) => (now?.scene !== scene.name ? now : typeof answer === "string" ? { ...now, address: answer } : { ...now, problems: answer, shown: false })),
+      setLive((now) => (now?.scene !== scene.name || now.from !== at ? now : typeof answer === "string" ? { ...now, address: answer } : { ...now, problems: answer, shown: false })),
     );
   };
   const back = (at?: { x: number; y: number }) => {
@@ -314,7 +327,7 @@ function MomentView(props: {
       const kept = session.current;
       if (!iframe || !box || !shown || !kept.events.length) return;
       kept.did = data.did;
-      const from = { scene: scene.name, at: Math.round(end * 100) / 100 };
+      const from = { scene: scene.name, at: Math.round((live?.from ?? end) * 100) / 100 };
       const file = `${kept.id}-${++kept.kept}.json`;
       const now = { type: 5, data: { tag: "now", payload: {} }, timestamp: kept.events.at(-1)!.timestamp };
       const length = await keepBranch(review.id, round.number, from, [...kept.events, now], file);
@@ -384,7 +397,11 @@ function MomentView(props: {
   // What you said on this moment, unsent and sent, each a pin on what it's on; and the thing the moment is about.
   const mine = notes.filter((one) => one.on?.scene === scene.name);
   const theirs = sent.filter((one) => one.on?.scene === scene.name);
-  const shownNotes = [...theirs.map((note) => ({ note, sent: true })), ...mine.map((note) => ({ note, sent: false })), ...(writing ? [{ note: writing.note, sent: false }] : [])];
+  const said = [...theirs.map((note) => ({ note, sent: true })), ...mine.map((note) => ({ note, sent: false }))];
+  // A note is at its moment: made in the app, where the app was stepped into. Its pin shows only while it rests there.
+  const noteAt = (note: Note) => (note.on?.app ? note.on.app.from.at : (note.on?.at ?? end));
+  const restingAt = (note: Note) => !playing && !scrubbing && Math.abs(noteAt(note) - at) < 0.06;
+  const shownNotes = [...said.filter(({ note }) => restingAt(note)), ...(writing ? [{ note: writing.note, sent: false }] : [])];
   // A thing on the moment's page by its role and name, as it was read there: what it's about, or what a note made in
   // the app is on, as the app numbers its things anew.
   const nodeOf = (named?: { role: string; name: string }) => named && readings?.at(-1)?.things.find((thing) => thing.role === named.role && thing.name === named.name)?.node;
@@ -397,11 +414,12 @@ function MomentView(props: {
   const aboutNode = nodeOf(about);
   const marks: Mark[] = [...(aboutNode !== undefined ? [{ id: ABOUT, node: aboutNode }] : []), ...shownNotes.map(({ note }) => markOf(note))];
   const pins: Pin[] = shownNotes.map(({ note, sent }) => ({ id: note.id, on: [note.id], ink: sent ? "var(--slate)" : "var(--amber)", fill: sent ? "bg-slate" : "bg-amber" }));
-  const aboutAt = !playing && !live?.shown ? placed[ABOUT] : undefined;
+  // What it's about is outlined only at the point: midway, it may not be there yet.
+  const aboutAt = atPoint && !live?.shown ? placed[ABOUT] : undefined;
   const openNote = shownNotes.find(({ note }) => note.id === open);
 
   // Beside your pointer, what a click on the moment does: note what's under it, or step in.
-  const onFrame = !playing && !live?.shown && !writing && !open;
+  const onFrame = !playing && !scrubbing && !live?.shown && !writing && !open;
   const movePill = (event: React.PointerEvent) => {
     const box = frame.current?.getBoundingClientRect();
     if (!box) return;
@@ -431,8 +449,8 @@ function MomentView(props: {
         <div
           ref={frame}
           className="relative overflow-visible rounded-lg"
-          style={{ aspectRatio: `${screen.width} / ${screen.height}`, width: `min(100cqw, calc(100cqh * ${screen.width / screen.height}))` }}
-          onPointerMove={(event) => (movePill(event), aiming || setAiming(true))}
+          style={{ aspectRatio: `${screen.width} / ${screen.height}`, width: `min(100cqw, calc((100cqh - ${LINE}px) * ${screen.width / screen.height}))`, marginBottom: LINE }}
+          onPointerMove={(event) => (movePill(event), setAiming(!(event.target as Element).closest("[data-line]")))}
           onPointerLeave={() => setAiming(false)}
         >
           <div key={scene.recording} className="absolute inset-0 animate-arrive overflow-hidden rounded-lg bg-paper shadow-frame" onClick={(event) => onFrame && !noting && !(event.target as Element).closest("button") && stepIn()}>
@@ -441,11 +459,12 @@ function MomentView(props: {
               review={review.id}
               round={round.number}
               recording={scene.recording}
-              at={end}
+              at={at}
               playing={playing}
+              following={scrubbing ? { clock: clockOf, at: (moment) => moment } : undefined}
               cut={cut}
               clock={clockOf}
-              onStop={() => setPlaying(undefined)}
+              onStop={() => (setPlaying(undefined), restAt(end))}
               marks={marks}
               onMarks={setPlaced}
               things={noting && !live?.shown && !writing ? glimpsed : undefined}
@@ -453,7 +472,7 @@ function MomentView(props: {
                 noting && !live?.shown && !writing
                   ? (on) => {
                       setNoting(false);
-                      setWriting({ note: { id: newId(), on: { scene: scene.name, at: end, ...on }, words: "" }, spot: { ...pointer.current } });
+                      setWriting({ note: { id: newId(), on: { scene: scene.name, at, ...on }, words: "" }, spot: { ...pointer.current } });
                     }
                   : undefined
               }
@@ -465,8 +484,26 @@ function MomentView(props: {
                 style={{ left: aboutAt.left, top: aboutAt.top, width: aboutAt.width, height: aboutAt.height }}
               />
             )}
-            <Pinned pins={pins} placed={placed} open={open ?? writing?.note.id} faded={!!playing || !!live?.shown} onOpen={(id) => (setNoting(false), setOpen(id))} />
+            <Pinned pins={pins} placed={placed} open={open ?? writing?.note.id} faded={!!playing || scrubbing || !!live?.shown} onOpen={(id) => (setNoting(false), setOpen(id))} />
           </div>
+          <Progress
+            clock={clockOf}
+            share={shareOf(at)}
+            shareOf={shareOf}
+            moving={!!playing || scrubbing}
+            playing={!!playing}
+            dots={said.map(({ note, sent }) => ({ id: note.id, share: shareOf(noteAt(note)), fill: sent ? "bg-slate" : "bg-amber" }))}
+            onScrub={
+              live?.shown || writing || !cut
+                ? undefined
+                : (share, phase) => {
+                    if (phase === "down") (setPlaying(undefined), setOpen(undefined), setNoting(false), setScrubbing(true));
+                    if (phase !== "up") return clockOf.set(momentOf(share));
+                    setScrubbing(false);
+                    restAt(share >= 0.995 ? end : momentOf(share));
+                  }
+            }
+          />
           <Portal live={live && { ...live, inApp }} person={person} screen={screen} scrolled={() => scrolled.current?.()} waiting="Stepping in…" />
           <span ref={pill} aria-hidden className={`pointer-events-none absolute top-0 left-0 z-30 transition-opacity duration-150 ease-calm ${onFrame && aiming ? "" : "opacity-0"}`}>
             <span className={TAG}>{noting ? "Note on this" : person ? `Step in as ${person}` : "Step in"}</span>
@@ -490,8 +527,8 @@ function MomentView(props: {
       </div>
       <div className="flex h-16 items-center justify-center">
         <div role="toolbar" aria-label="This moment" onClick={(event) => (event.target as Element).closest("button")?.blur()} className={`flex gap-0.5 rounded-xl bg-surface p-1 text-[13px] select-none ${inApp ? "shadow-[0_0_0_1.5px_rgba(236,178,72,0.95),0_6px_20px_rgba(20,24,34,0.12)]" : "shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]"}`}>
-          <button className={`${ITEM}`} disabled={!!live?.shown || !cut} aria-pressed={!!playing} onClick={play}>
-            Play <Key className="min-w-9">Space</Key>
+          <button className={`${ITEM} w-[96px]`} disabled={!!live?.shown || !cut} onClick={play}>
+            <span className="w-9 text-left">{playing ? "Pause" : "Play"}</span> <Key className="min-w-9">Space</Key>
           </button>
           <button className={`${ITEM} w-[116px]`} disabled={!!writing} aria-pressed={stepping} onClick={stepIn}>
             {inApp ? "Back" : stepping ? "Stepping in…" : "Step in"} {!stepping && <Key>{inApp ? "Esc" : "T"}</Key>}
@@ -510,6 +547,59 @@ const ITEM =
 // How many seconds of a moment Play shows, waiting cut short.
 const LEADING = 7;
 const ABOUT = "about";
+// The room under the recording the line along it takes, pointer and all.
+const LINE = 14;
+
+// How far through the few seconds Play shows it is, along the recording's bottom edge: always there, full at the point,
+// filling as it plays. Pressed or dragged, the recording follows; let go at its end, it's at the point.
+function Progress(props: {
+  clock: Clock;
+  share: number;
+  shareOf: (moment: number) => number;
+  moving: boolean;
+  playing: boolean;
+  dots: { id: string; share: number; fill: string }[];
+  onScrub?: (share: number, phase: "down" | "move" | "up") => void;
+}) {
+  const { clock, share, shareOf, moving, playing, dots, onScrub } = props;
+  const fill = useRef<HTMLDivElement>(null);
+  const told = useRef(shareOf);
+  told.current = shareOf;
+  useEffect(() => {
+    const show = (to: number) => fill.current && (fill.current.style.width = `${(to * 100).toFixed(3)}%`);
+    if (!moving) return void show(share);
+    show(told.current(clock.at));
+    return clock.follow((moment) => show(told.current(moment)));
+  }, [moving, share]);
+  const along = (event: React.PointerEvent<HTMLDivElement>) => {
+    const box = event.currentTarget.getBoundingClientRect();
+    return clamp((event.clientX - box.left) / box.width);
+  };
+  const [held, setHeld] = useState(false);
+  return (
+    <div
+      data-line
+      className={`group absolute inset-x-0 top-full touch-none ${onScrub ? "cursor-pointer" : ""}`}
+      style={{ height: LINE }}
+      onPointerDown={(event) => {
+        if (!onScrub || event.button !== 0) return;
+        event.currentTarget.setPointerCapture(event.pointerId);
+        setHeld(true);
+        onScrub(along(event), "down");
+      }}
+      onPointerMove={(event) => held && onScrub?.(along(event), "move")}
+      onPointerUp={(event) => held && (setHeld(false), onScrub?.(along(event), "up"))}
+      onPointerCancel={(event) => held && (setHeld(false), onScrub?.(along(event), "up"))}
+    >
+      <div className={`absolute inset-x-0 top-[6px] rounded-full bg-line transition-[height,top] duration-150 ease-calm ${held ? "top-[5px] h-1" : "h-0.5"} ${onScrub ? "group-hover:top-[5px] group-hover:h-1" : ""}`}>
+        <div ref={fill} className={`h-full rounded-full transition-colors duration-150 ease-calm ${held ? "bg-fg" : playing ? "bg-soft" : "bg-faint"} ${onScrub ? "group-hover:bg-fg" : ""}`} />
+        {dots.map((dot) => (
+          <i key={dot.id} className={`absolute top-1/2 size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full ${dot.fill}`} style={{ left: `${dot.share * 100}%` }} />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 // Where a note's pin is on what it's on, as Pinned puts it: just outside its top right corner.
 const pinOf = (thing: Placed[string]) => thing && { x: thing.left + thing.width + 14, y: thing.top - 14 };
