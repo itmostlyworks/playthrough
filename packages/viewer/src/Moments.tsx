@@ -7,13 +7,13 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Glimpse, Reading, Thing } from "@playthrough/page";
-import { allNotes, conversation, newId, pausedAt, waitingForTheAgent, type Turn, type Did, type Note, type Place, type Review, type Round, type Scene } from "@playthrough/review";
+import { allNotes, conversation, newId, pausedAt, together, waitingForTheAgent, type Turn, type Did, type Note, type Place, type Review, type Round, type Scene } from "@playthrough/review";
 import { glimpses, keepBranch, picture, readings as readingsOf, recording, send, useChanges, useYou, type Listed } from "./api.ts";
 import { Key } from "./Card.tsx";
 import { around, Picture, union, type Frame } from "./Picture.tsx";
 import { workingSince } from "./notes.ts";
 import { Pinned, type Pin } from "./Pinned.tsx";
-import { Clock, Player, useCut, type Mark, type Placed } from "./Player.tsx";
+import { Clock, Player, useCut, type Cut, type Mark, type Placed } from "./Player.tsx";
 import { Portal, TAG } from "./Portal.tsx";
 import { CHIP } from "./Scene.tsx";
 import { readyAt } from "./live.ts";
@@ -756,9 +756,20 @@ function MomentView(props: {
   const [clockOf] = useState(() => new Clock(end));
   const [playing, setPlaying] = useState<{ until: number }>();
   // Where it rests: the point, as it opens, or wherever it was paused or let go. Another moment opens at its own point.
-  const [rest, setRest] = useState({ scene: scene.name, at: end });
+  const [rest, setRest] = useState<{ scene: string; at: number; along?: number }>({ scene: scene.name, at: end });
   const at = rest.scene === scene.name ? rest.at : end;
-  const restAt = (moment: number) => (clockOf.set(moment), setRest({ scene: scene.name, at: moment }));
+  // Compare: this moment as it was when it was last handed back, beside how it is now, played together.
+  const then = (() => {
+    const earlier = review.rounds.findLast((one) => one.number > 0 && one.number < round.number && one.finished && one.scenes.some((kept) => kept.name === scene.name));
+    const kept = earlier?.scenes.find((one) => one.name === scene.name);
+    return earlier && kept ? { round: earlier, scene: kept } : undefined;
+  })();
+  const [comparing, setComparing] = useState(false);
+  const both = useMemo(() => then && cut && playedTogether(cut, together(scene, then.scene)), [cut, then?.scene.recording, scene.recording]);
+  const [bothOf] = useState(() => new Clock(0));
+  // How far along both it rests: where now first is, or where it was let go, as now held while the other went on.
+  const along = (both && (rest.scene === scene.name ? rest.along : undefined)) ?? both?.of(at) ?? 0;
+  const restAt = (moment: number, along?: number) => (clockOf.set(moment), setRest({ scene: scene.name, at: moment, along }));
   const [scrubbing, setScrubbing] = useState(false);
   const atPoint = !playing && !scrubbing && at >= end - 0.02;
   // The few seconds Play shows, waiting cut short, as the line along the recording counts them.
@@ -766,14 +777,29 @@ function MomentView(props: {
   const shareOf = (moment: number) => (cut ? clamp((cut.cut(moment) - cut.cut(start)) / Math.max(0.01, cut.cut(end) - cut.cut(start))) : 1);
   const momentOf = (share: number) => (cut ? Math.min(end, cut.real(cut.cut(start) + share * (cut.cut(end) - cut.cut(start)))) : end);
   const [noting, setNoting] = useState(false);
-  // Compare: this moment as it was when it was last handed back, beside how it is now.
-  const then = (() => {
-    const earlier = review.rounds.findLast((one) => one.number > 0 && one.number < round.number && one.finished && one.scenes.some((kept) => kept.name === scene.name));
-    const kept = earlier?.scenes.find((one) => one.name === scene.name);
-    return earlier && kept ? { round: earlier, scene: kept } : undefined;
-  })();
-  const [comparing, setComparing] = useState(false);
-  const compare = () => then && !live?.shown && (setPlaying(undefined), setOpen(undefined), setNoting(false), setComparing((now) => !now));
+  // Opened or closed, it stops where it's got to.
+  const compare = () => {
+    if (!then || live?.shown) return;
+    if (playing) (setPlaying(undefined), restAt(clockOf.at, comparing ? bothOf.at : undefined));
+    setOpen(undefined);
+    setNoting(false);
+    setComparing((now) => !now);
+  };
+  // Played compared, both sides go together, each as far as the other along what both did; the line is now's.
+  useEffect(() => {
+    if (!comparing || !playing || !both) return;
+    const [from, until, since] = [clockOf.at === at ? along : both.of(clockOf.at), both.of(playing.until), performance.now()];
+    let frameId = 0;
+    const tick = () => {
+      const going = Math.min(until, from + (performance.now() - since) / 1000);
+      bothOf.set(going);
+      clockOf.set(both.at(going)[0]);
+      if (going >= until) return (setPlaying(undefined), restAt(playing.until, until));
+      frameId = requestAnimationFrame(tick);
+    };
+    tick();
+    return () => cancelAnimationFrame(frameId);
+  }, [comparing, playing, both]);
   const [writing, setWriting] = useState<Writing>();
   const [open, setOpen] = useState<string>();
   const [placed, setPlaced] = useState<Placed>({});
@@ -806,12 +832,12 @@ function MomentView(props: {
   const person = scene.person;
 
   const play = () => {
-    if (live?.shown || writing || comparing) return;
+    if (live?.shown || writing) return;
     setOpen(undefined);
     setNoting(false);
     if (!cut) return;
     // Paused, it stays where it is; played, it carries on from there, or from the start of the few seconds at the point.
-    if (playing) return (setPlaying(undefined), restAt(clockOf.at));
+    if (playing) return (setPlaying(undefined), restAt(clockOf.at, comparing ? bothOf.at : undefined));
     clockOf.set(atPoint || at < start ? start : at);
     setPlaying({ until: end });
   };
@@ -905,7 +931,7 @@ function MomentView(props: {
     const key = event.key.toLowerCase();
     if (key === "escape") {
       if (open) setOpen(undefined);
-      else if (comparing) setComparing(false);
+      else if (comparing) compare();
       else if (noting) setNoting(false);
       else if (live?.shown) back();
       return;
@@ -1025,7 +1051,7 @@ function MomentView(props: {
               recording={scene.recording}
               frame={closer}
               at={at}
-              playing={playing}
+              playing={comparing ? undefined : playing}
               following={scrubbing ? { clock: clockOf, at: (moment) => moment } : undefined}
               cut={cut}
               clock={clockOf}
@@ -1049,15 +1075,22 @@ function MomentView(props: {
                 style={{ left: aboutAt.left, top: aboutAt.top, width: aboutAt.width, height: aboutAt.height }}
               />
             )}
-            {comparing && then && (
+            {comparing && then && both && (
               <div className="absolute inset-0 z-[5] flex animate-arrive gap-3 bg-ground">
                 {[
-                  { label: "When you last saw it", round: then.round.number, recording: then.scene.recording, at: Math.max(0, then.scene.length - 0.05) },
-                  { label: "Now", round: round.number, recording: scene.recording, at: end },
+                  { label: "When you last saw it", round: then.round.number, recording: then.scene.recording, side: 1 },
+                  { label: "Now", round: round.number, recording: scene.recording, side: 0 },
                 ].map((side) => (
                   <div key={side.label} className="flex flex-1 items-center">
                     <div className="relative w-full overflow-hidden rounded-lg bg-paper shadow-frame" style={{ aspectRatio: `${screen.width} / ${screen.height}` }}>
-                      <Player review={review.id} round={side.round} recording={side.recording} at={side.at} frame={closer} />
+                      <Player
+                        review={review.id}
+                        round={side.round}
+                        recording={side.recording}
+                        at={both.at(along)[side.side]!}
+                        following={playing || scrubbing ? { clock: bothOf, at: (along) => both.at(along)[side.side]! } : undefined}
+                        frame={closer}
+                      />
                       <span className={CHIP}>{side.label}</span>
                     </div>
                   </div>
@@ -1078,7 +1111,7 @@ function MomentView(props: {
                 ? undefined
                 : (share, phase) => {
                     if (phase === "down") (setPlaying(undefined), setOpen(undefined), setNoting(false), setScrubbing(true));
-                    if (phase !== "up") return clockOf.set(momentOf(share));
+                    if (phase !== "up") return (clockOf.set(momentOf(share)), both && bothOf.set(both.of(momentOf(share))));
                     setScrubbing(false);
                     restAt(share >= 0.995 ? end : momentOf(share));
                   }
@@ -1125,7 +1158,7 @@ function MomentView(props: {
       </div>
       <div className="flex h-16 items-center justify-center">
         <div role="toolbar" aria-label="This moment" onClick={(event) => (event.target as Element).closest("button")?.blur()} className={`flex gap-0.5 rounded-xl bg-surface p-1 text-[13px] select-none ${inApp ? "shadow-[0_0_0_1.5px_rgba(236,178,72,0.95),0_6px_20px_rgba(20,24,34,0.12)]" : "shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]"}`}>
-          <button className={`${ITEM} w-[96px] phone:w-[64px]`} disabled={!!live?.shown || !cut || comparing} onClick={play}>
+          <button className={`${ITEM} w-[96px] phone:w-[64px]`} disabled={!!live?.shown || !cut} onClick={play}>
             <span className="w-9 text-left">{playing ? "Pause" : "Play"}</span> <Key className="min-w-9">Space</Key>
           </button>
           <button className={`${ITEM} w-[116px] phone:w-[104px]`} disabled={!!writing} aria-pressed={stepping} onClick={stepIn}>
@@ -1143,6 +1176,30 @@ function MomentView(props: {
       </div>
     </div>
   );
+}
+
+// Two recordings of a moment played together, from the moments both pass together: now with its waiting cut short, as
+// it plays alone, and where only the other moves, as long as that takes there. Along it, where each is; and where now's
+// moment first is along it.
+type Together = { at: (along: number) => [number, number]; of: (moment: number) => number };
+function playedTogether(cut: Cut, [now, then]: [number[], number[]]): Together {
+  const spans = now.slice(1).map((to, i) => (to > now[i]! ? cut.cut(to) - cut.cut(now[i]!) : then[i + 1]! - then[i]!));
+  const starts = spans.map((_, i) => spans.slice(0, i).reduce((sum, span) => sum + span, 0));
+  return {
+    at(along) {
+      const i = Math.max(0, starts.findLastIndex((start) => start <= along));
+      const into = Math.min(Math.max(0, along - starts[i]!), spans[i] ?? 0);
+      if (now[i + 1] === undefined) return [now[i]!, then[i]!];
+      if (now[i + 1] === now[i]) return [now[i]!, then[i]! + into];
+      const moment = cut.real(cut.cut(now[i]!) + into);
+      return [moment, then[i]! + ((then[i + 1]! - then[i]!) * (moment - now[i]!)) / (now[i + 1]! - now[i]!)];
+    },
+    of(moment) {
+      const i = now.findIndex((to, k) => k > 0 && to >= moment && to > now[k - 1]!) - 1;
+      if (i < 0) return moment <= 0 ? 0 : starts.at(-1)! + spans.at(-1)!;
+      return starts[i]! + cut.cut(Math.max(moment, now[i]!)) - cut.cut(now[i]!);
+    },
+  };
 }
 
 // On a phone, the keys go, so the bar fits with all four.

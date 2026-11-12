@@ -55,6 +55,9 @@ const BROKEN = /Page crashed|Target crashed|Target page, context or browser has 
 export type Recorded = { scene: Scene; files: string[]; wrote?: string; doneOn?: DoneOn };
 // The scene handed on to someone else, on this machine's clock.
 export type Hand = { at: number; person: string };
+// An action as it was done: what it was, as another recording of the scene knows the same action, and when it began and
+// was done, by this machine's clock.
+export type Acted = { action: string; began: number; at: number };
 // The file a scene is written in, in the review's scenes folder, and a hash of what it said as the scene ran: Before runs a
 // scene again once its file has changed.
 export type Written = { file: string; hash: string };
@@ -139,15 +142,15 @@ export default class Scenes implements Reporter {
 
   // A scene cut short ends where it stopped, held as long as any scene's end, with the same last event (rrweb's custom
   // events are type 5). The step it stopped at left nothing to read.
-  #scene(name: string, recording: Buffer, read: { readings: Omit<Reading, "picture">[]; glimpses: Glimpse[]; pictures: Buffer[]; assets: Assets; actions: number[]; hands: Hand[] }, steps: TestStep[], until?: number): Recorded {
+  #scene(name: string, recording: Buffer, read: { readings: Omit<Reading, "picture">[]; glimpses: Glimpse[]; pictures: Buffer[]; assets: Assets; actions: Acted[]; hands: Hand[] }, steps: TestStep[], until?: number): Recorded {
     let events: Event[] = JSON.parse(recording.toString());
     if (until !== undefined) events = [...events.filter((event) => event.timestamp < until), { type: 5, data: { tag: "end", payload: {} }, timestamp: until + HOLD }];
     const start = events[0]!.timestamp;
     const length = seconds(events.at(-1)!.timestamp - start);
     // A step's start and the recording's events are both read from this machine's clock.
     // Each action is the step's it was done in.
-    const actionsIn = (step: TestStep, next?: TestStep) =>
-      read.actions.filter((done) => done >= step.startTime.getTime() && done < (next?.startTime.getTime() ?? until ?? Infinity)).map((done) => Math.min(length, seconds(done - start)));
+    const actionsIn = (step: TestStep, next?: TestStep) => read.actions.filter((done) => done.at >= step.startTime.getTime() && done.at < (next?.startTime.getTime() ?? until ?? Infinity));
+    const since = (moment: number) => Math.min(length, seconds(moment - start));
     const scene: Scene = {
       name,
       length,
@@ -155,7 +158,8 @@ export default class Scenes implements Reporter {
         const actions = actionsIn(step, steps[i + 1]);
         // Whoever the scene was last handed to before the step began does it.
         const person = read.hands.filter((hand) => hand.at <= step.startTime.getTime()).at(-1)?.person;
-        return { title: step.title, at: Math.min(length, seconds(step.startTime.getTime() - start)), ...(actions.length && { actions }), ...(person && { person }) };
+        const done = actions.length ? { actions: actions.map((one) => since(one.at)), began: actions.map((one) => ({ action: one.action, at: since(one.began) })) } : {};
+        return { title: step.title, at: since(step.startTime.getTime()), ...done, ...(person && { person }) };
       }),
       recording: this.#fileFor(name),
     };

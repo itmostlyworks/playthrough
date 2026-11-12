@@ -47,6 +47,14 @@ there says at once where it stands and moves when the pointer leaves. A moment o
 it opens in a tab of your own), Note (on the recording or in the app), Compare with what it was when it was handed
 back before. Send says your notes; Done says every moment looks good. Neither locks.
 
+**Compare plays both together.** Play and the line drive both sides, at the same action at the same instant. Each
+recording keeps, per action, what it was and when it began (`began` beside `actions` on a step: `click button
+“Update”`, `type textbox “Card prefix”`, never the words, `press Escape`), named as it's done (`test.ts`); one without
+it knows each action by its place only (the second of four). `together` (`packages/review/src/steps.ts`) lines two up
+on the longest run both did in order, steps by title, actions by step and name: each pair begins and ends together,
+each side scaled to its own pace between; what one did alone plays while the other holds before what's next. The page
+plays along that, now's waiting cut short; `inStep`, which the older page uses, is the same pairing read one way.
+
 **What's kept where.** In the app's copy, `.playthrough/change.json` (the change meant), `port.json` (the app's port),
 `browser.json` (what `as` did), and a folder per change: `scenes/<words>.ts` (each moment's way), `rounds/<n>/` (each
 hand-back: the moments with what each is about, their recordings, readings and stills), `sends/` (what the person

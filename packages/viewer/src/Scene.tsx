@@ -10,7 +10,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import type { Glimpse, Reading } from "@playthrough/page";
-import { type Scene, type Place, type Review, type Round, type Verdict } from "@playthrough/review";
+import { inStep, type Scene, type Place, type Review, type Round, type Verdict } from "@playthrough/review";
 import { picture, readings as readingsOf, recording } from "./api.ts";
 import { Bar } from "./Bar.tsx";
 import { HOLD, Said } from "./Card.tsx";
@@ -205,25 +205,8 @@ export function SceneView(props: SceneViewProps) {
   const then = sceneOn(against);
   const step = stepOf(at);
   const thenStep = then?.steps.findIndex((one) => one.title === scene.steps[step]?.title) ?? -1;
-  // Within the step, click for click where both clicked as often, so each click lands as its other does; else evenly.
-  const [clicked, setClicked] = useState<{ against: number; now: number[]; then: number[] }>();
-  useEffect(() => {
-    if (!then) return;
-    let current = true;
-    Promise.all([recording(review.id, round.number, scene.recording), recording(review.id, against, then.recording)]).then(
-      ([now, before]) => current && setClicked({ against, now: recorded(now).clicks, then: recorded(before).clicks }),
-    );
-    return () => void (current = false);
-  }, [against, then?.recording, scene.recording]);
-  const thenAt = (moment: number) => {
-    const now = stepOf(moment);
-    const there = then?.steps.findIndex((one) => one.title === scene.steps[now]?.title) ?? -1;
-    if (!then || there < 0) return undefined;
-    const [from, until] = [scene.steps[now]!.at, stepEnd(scene, now)];
-    const [since, to] = [then.steps[there]!.at, stepEnd(then, there)];
-    const [here, was] = clicked?.against === against ? [clicked.now.filter((at) => at > from && at < until), clicked.then.filter((at) => at > since && at < to)] : [[], []];
-    return here.length === was.length ? along(moment, [from, ...here, until], [since, ...was, to]) : along(moment, [from, until], [since, to]);
-  };
+  // In the step of the same name, at the same action, as every Compare pairs the two: by what both did there.
+  const thenAt = (moment: number) => (then?.steps.some((one) => one.title === scene.steps[stepOf(moment)]?.title) ? inStep(moment, scene, then) : undefined);
   const [side, setSide] = useState(false);
   // Before stays while it goes, as it came.
   const [beside, setBeside] = useState(false);

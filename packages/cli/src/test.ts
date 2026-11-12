@@ -16,7 +16,7 @@ import type { Did } from "@playthrough/review";
 import { ALONGSIDE, BEAT, QUIET_DEV_CHROME, REACHES_OUTSIDE, FORK_RAN, type Action, type DoneOn, type Handed, type On, type Run, type ForkRan, type ForkRun, type To } from "./scenes.ts";
 import { readPage, unhovered } from "./read.ts";
 import { repo } from "./repo.ts";
-import { ACTIONS, ASSETS, DONE_ON, firstLine, GLIMPSES, HANDS, HOLD, PERSON, PICTURE, READINGS, RECORDING, seconds, WROTE, type Failed, type Hand } from "./reporter.ts";
+import { ACTIONS, ASSETS, DONE_ON, firstLine, GLIMPSES, HANDS, HOLD, PERSON, PICTURE, READINGS, RECORDING, seconds, WROTE, type Failed, type Acted, type Hand } from "./reporter.ts";
 import { watchRest } from "./rest.ts";
 import { changes, firstOf, make, personIn, setupIn, type Made, type Setup } from "./setup.ts";
 
@@ -187,7 +187,7 @@ let pointer: { page: Page; x: number; y: number; handed?: boolean } | undefined;
 // the browser's own dialog shown during the action being done, until it's answered; what each action was done on, by
 // its step; what Playwright gave the scene, for a fork to carry on with; and running a note's fork, once it has begun, how
 // far it got.
-type Underway = { page: Page; events: { timestamp: number }[]; rest: () => Promise<void>; depth: number; readings: Omit<Reading, "picture">[]; glimpses: Glimpse[]; pictures: Buffer[]; actions: number[]; step?: string; inStep: number; hands: Hand[]; assets: (() => Promise<Assets>)[]; wrote?: string; dialog?: Promise<void>; doneOn: DoneOn; given?: Parameters<Body>[0]; forked?: ForkRan };
+type Underway = { page: Page; events: { timestamp: number }[]; rest: () => Promise<void>; depth: number; readings: Omit<Reading, "picture">[]; glimpses: Glimpse[]; pictures: Buffer[]; actions: Acted[]; step?: string; inStep: number; hands: Hand[]; assets: (() => Promise<Assets>)[]; wrote?: string; dialog?: Promise<void>; doneOn: DoneOn; given?: Parameters<Body>[0]; forked?: ForkRan };
 let underway: Underway | undefined;
 
 // What every scene starts from (setup.ts), loaded once a run.
@@ -755,7 +755,7 @@ function pace(page: Page) {
       // As long as the scene said to wait, where it said.
       const timeout = args.findLast((arg): arg is { timeout: number } => !!arg && typeof arg === "object" && typeof (arg as { timeout?: unknown }).timeout === "number")?.timeout;
       const aimed = pointer ? await approach(this, pointer, timeout).catch((error) => Promise.reject(asAction(error, action))) : undefined;
-      if (underway?.depth) await follow(underway, this);
+      const on = underway?.depth ? await follow(underway, this) : undefined;
       // Filled in on a recording, words are typed as a person types them, where they're typed: a date or a number is
       // set as it is, as typing it can come out otherwise.
       const [text, options] = args as [unknown, { timeout?: number } | undefined];
@@ -775,7 +775,7 @@ function pace(page: Page) {
                 .catch((error) => (/not attached|detached/i.test(String(error)) ? original.apply(this, args) : Promise.reject(error)))
           : () => original.apply(this, args);
       const choosing = pointer && underway && action === "selectOption" ? await opensList(this, args[0], pointer, underway) : undefined;
-      const result = await acted(action, () => pathTo(this), act, args[0]);
+      const result = await acted(action, () => pathTo(this), act, args[0], nameOf(action, on, args[0]));
       if (choosing) underway!.events.push({ type: 5, data: { tag: "chose", payload: {} }, timestamp: Date.now() } as { timestamp: number });
       if (pointer) await pointer.page.waitForTimeout(BEAT);
       await glimpse();
@@ -790,7 +790,8 @@ function pace(page: Page) {
     const original = prototype[action];
     prototype[action] = function (this: Locator, text: string, options?: { delay?: number; timeout?: number }) {
       const paced = pointer && options?.delay === undefined ? { ...options, delay: Math.min(KEY, TYPED / Math.max(1, text.length)) } : options;
-      return action === "type" ? acted("type", () => pathTo(this), () => original.call(this, text, paced), text) : original.call(this, text, paced);
+      if (action !== "type") return original.call(this, text, paced);
+      return (async () => acted("type", () => pathTo(this), () => original.call(this, text, paced), text, nameOf("type", underway && (await doneOn(this)), text)))();
     };
   }
   // The wheel scrolls a little each frame, as a person's does: left to Playwright, a page that's read jumped a screen at
@@ -830,14 +831,15 @@ function pace(page: Page) {
             : action === "type"
               ? () => original.call(this, given, { ...options, delay: Math.min(KEY, TYPED / Math.max(1, given.length)) })
               : () => original.apply(this, args);
-      return acted(does, focused, act, args[0]);
+      const on = underway && (await focusedOn(underway.page));
+      return acted(does, focused, act, args[0], nameOf(does, on, given));
     };
   }
 }
 
 // An action is done, and when, and kept to be done again in the person's browser if it only changed what's on the page;
 // the scene is handed over once it's done as many as the recording had.
-async function acted(does: string, target: (page: Page) => Promise<string | undefined>, act: () => Promise<unknown>, given: unknown) {
+async function acted(does: string, target: (page: Page) => Promise<string | undefined>, act: () => Promise<unknown>, given: unknown, action: string) {
   const taken = taking.getStore();
   const keeping = taken?.depth || taken?.forking ? taken : undefined;
   let on: string | undefined, address: string | undefined;
@@ -850,12 +852,13 @@ async function acted(does: string, target: (page: Page) => Promise<string | unde
   // A dialog the browser shows holds the action up until it's answered, read first, which can be longer than it waits:
   // the action went through, as the dialog it opened shows, and goes on once it's answered.
   if (underway) underway.dialog = undefined;
+  const began = Date.now();
   const result = await act().catch(async (error) => {
     const dialog = underway?.dialog;
     if (!dialog) throw error;
     await dialog;
   });
-  underway?.actions.push(Date.now());
+  underway?.actions.push({ action, began, at: Date.now() });
   // Running a note's fork, it leaves the scene where the person did, after as many of the step's actions.
   const fork = run?.fork;
   if (fork && underway?.depth && !underway.forked && fork.step === underway.step && fork.actions === ++underway.inStep) {
@@ -877,12 +880,27 @@ async function acted(does: string, target: (page: Page) => Promise<string | unde
 // What each action is done on is noted by its step. On Before, an action the round did on something else stops the scene
 // there: a scene is written for the work, and in the app as it was, what it looks for can find another thing, as a card
 // for a list's menu. What it did there isn't how the app was, and nobody should have to tell the two apart.
-async function follow(scene: Underway, target: Locator) {
+async function follow(scene: Underway, target: Locator): Promise<On | undefined> {
   const on = await doneOn(target);
   const done = (scene.doneOn[scene.step ?? ""] ??= []);
   const inRound = run?.before && run.doneInRound?.[base.info().title]?.[scene.step ?? ""]?.[done.length];
   done.push(on ?? null);
   if (on && inRound && !alike(on, inRound)) throw new Error(`The app as it was has ${on.role} “${on.name}” here, where the round has ${inRound.role} “${inRound.name}”.`);
+  return on;
+}
+
+// An action as another recording of the scene knows the same one: what it does, and to what, as a person points at it.
+// Words going in are typing, however they went in, and never the words, which may be just what changed; a key is which
+// key it is, as Escape.
+function nameOf(does: string, on: On | undefined, given: unknown): string {
+  const kind = does === "press" ? `press ${given}` : /^(fill|type|insertText)$/.test(does) ? "type" : does;
+  return on ? `${kind} ${on.role}${on.name ? ` “${on.name}”` : ""}` : kind;
+}
+
+// What has the focus, as keys pressed go to it; nothing, where nothing has.
+async function focusedOn(page: Page): Promise<On | undefined> {
+  const on = page.locator(":focus").first();
+  return (await on.count()) ? doneOn(on) : undefined;
 }
 
 // What an action is done on, as a person points at it: its role and name, as getByRole finds it, without the state it's

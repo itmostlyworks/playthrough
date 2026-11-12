@@ -255,8 +255,7 @@ export function Stage(props: Props) {
       const pane = panes.get(shown.number)!;
       if (!frame) continue;
       const its = shown === round ? scene : shown.scenes.find((other) => other.name === scene.name);
-      const clicks = its && its !== scene && { from: replayOf(round, scene)?.clicks ?? [], to: replayOf(shown, its)?.clicks ?? [] };
-      const at = !its || its === scene ? moment.at : inStep(moment.at, scene, its, clicks || undefined);
+      const at = !its || its === scene ? moment.at : inStep(moment.at, scene, its);
       const shape = its ? shapeAt(shown, its, at) : shapeAt(round, scene, moment.at);
       const room = { width: pane.width, height: pane.height - CAPTION };
       const box = zoomed && earlier ? { width: Math.floor(Math.min(room.width, shape.width)), height: Math.floor(Math.min(room.height, shape.height)) } : fit(room, shape);

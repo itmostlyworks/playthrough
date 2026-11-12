@@ -81,6 +81,15 @@ export const Step = z.strictObject({
     .array(seconds("needs the moment each of its actions was done, in seconds"))
     .optional()
     .describe("When each of its actions was done: between them the page rests, and a person can take the scene over there"),
+  began: z
+    .array(
+      z.strictObject({
+        action: text("needs what the action was"),
+        at: seconds("needs the moment the action began, in seconds"),
+      }),
+    )
+    .optional()
+    .describe("Each of its actions as it began, in the order of actions: what it was, as another recording of the scene knows the same action, and when. Two recordings are lined up by these"),
   person: text("needs the name of who does it, or no person")
     .optional()
     .describe("Who does it, once the scene has changed hands: someone other than who the scene is done as"),
