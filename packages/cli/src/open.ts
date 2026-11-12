@@ -80,18 +80,25 @@ function onThisMachine() {
     throw new Refused([`There's no change at ${first} on this machine.`]);
   }
 
-  // One that can't be read is left out, and says why when it's opened.
+  // One that can't be read is left out, and says why when it's opened. Where two copies' changes share the app's name,
+  // as two copies of Kan do, each says which copy it's in.
   async function list(): Promise<Listed[]> {
     const each = await Promise.all(
       copiesNow().map(async ({ name, repo }) => {
         const shown = await shownOf(repo);
         const reviews = await Promise.all((await repo.reviews.list()).map((id) => repo.reviews.get(id).catch(() => undefined)));
-        return Promise.all(
-          reviews.filter((review) => !!review).map(async (review) => ({ review: { ...review, id: `${name}/${review.id}` }, ...shown, agentWaiting: await agentWaiting(repo, review.id) })),
-        );
+        return {
+          name,
+          shown,
+          changes: await Promise.all(
+            reviews.filter((review) => !!review).map(async (review) => ({ review: { ...review, id: `${name}/${review.id}` }, ...shown, agentWaiting: await agentWaiting(repo, review.id) })),
+          ),
+        };
       }),
     );
-    return each.flat();
+    const listing = each.filter(({ changes }) => changes.length);
+    const shared = (app: string) => listing.filter(({ shown }) => shown.app === app).length > 1;
+    return listing.flatMap(({ name, shown, changes }) => (shared(shown.app) ? changes.map((change) => ({ ...change, app: `${shown.app} in ${name}` })) : changes));
   }
 
   // Looked at again soon after anything in a copy's folder changes, and every two seconds, as an agent that's ended
