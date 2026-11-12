@@ -939,20 +939,23 @@ function MomentView(props: {
   const mine = notes.filter((one) => one.on?.scene === scene.name);
   const theirs = sent.filter((one) => one.on?.scene === scene.name);
   const said = [...theirs.map((note) => ({ note, sent: true })), ...mine.map((note) => ({ note, sent: false }))];
-  // Where each note made in the app is there, as the page was read as it was made: its part of the screen.
+  // Where each note's thing was, as the page was read where the note was made, in the app or on an earlier taking: its
+  // part of the screen, where it's pinned when the thing isn't here any more.
+  const made = allNotes(review);
+  const madeIn = (note: Note) => made.get(note.id)?.round ?? round.number;
+  const madeOn = (note: Note) => note.on?.app?.recording ?? (madeIn(note) < round.number ? review.rounds.find((one) => one.number === madeIn(note))?.scenes.find((one) => one.name === scene.name)?.recording : undefined);
   const [spots, setSpots] = useState<Record<string, Frame>>({});
-  const fromApp = said.flatMap(({ note }) => (note.on?.app && note.on.element?.node !== undefined && !spots[note.id] ? [note] : []));
+  const elsewhere = said.flatMap(({ note }) => (madeOn(note) && note.on?.element?.node !== undefined && !spots[note.id] ? [note] : []));
   useEffect(() => {
-    for (const note of fromApp)
-      readingsOf(review.id, round.number, note.on!.app!.recording).then((read) => {
+    for (const note of elsewhere)
+      readingsOf(review.id, madeIn(note), madeOn(note)!).then((read) => {
         const kept = read.findLast((reading) => reading.things.some((thing) => thing.node === note.on!.element!.node));
         const box = kept?.things.find((thing) => thing.node === note.on!.element!.node)?.box;
         if (kept && box) setSpots((all) => ({ ...all, [note.id]: { x: box.x / kept.screen.width, y: box.y / kept.screen.height, width: box.width / kept.screen.width, height: box.height / kept.screen.height } }));
       });
-  }, [fromApp.map((note) => note.id).join(" ")]);
+  }, [elsewhere.map((note) => note.id).join(" ")]);
   // A note is at its moment: made in the app, where the app was stepped into. Its pin shows only while it rests there.
   // One made on an earlier taking is about the point, wherever it was on that recording.
-  const made = allNotes(review);
   const noteAt = (note: Note) => ((made.get(note.id)?.round ?? round.number) < round.number ? end : note.on?.app ? note.on.app.from.at : (note.on?.at ?? end));
   const restingAt = (note: Note) => !playing && !scrubbing && Math.abs(noteAt(note) - at) < 0.06;
   const shownNotes = [...said.filter(({ note }) => restingAt(note)), ...(writing ? [{ note: writing.note, sent: false }] : [])];
@@ -962,11 +965,13 @@ function MomentView(props: {
   const markOf = (note: Note): Mark => {
     const on = note.on;
     const element = on?.element;
-    // Made in the app, or on an earlier taking of the moment, its thing is found here by its role and name. Made in the
-    // app on what isn't here, as what was done there changed the page, it's where it was in the app, never on whatever
-    // here says the same words.
+    // Made in the app, or on an earlier taking of the moment, its thing is found here by its role and name. Made on what
+    // isn't here, as what was done in the app changed the page, or the next taking took it away, it's where it was when
+    // the note was made, never on whatever here says the same words.
     const node = on?.app || !mine.includes(note) ? nodeOf(element) : element?.node;
-    if (on?.app && node === undefined) return { id: note.id, ...(spots[note.id] ? { box: spots[note.id] } : on.point && { point: on.point }) };
+    // Pinned there, a dot at its corner, with nothing outlined: what's there now isn't what the note is on.
+    const spot = spots[note.id];
+    if (madeOn(note) && node === undefined) return { id: note.id, ...(spot ? { point: { x: spot.x + spot.width, y: spot.y } } : on?.point && { point: on.point }) };
     return { id: note.id, ...(element && { name: element.name, ...(node !== undefined && { node }) }), ...(on?.point && { point: on.point }) };
   };
   const aboutNode = nodeOf(about);

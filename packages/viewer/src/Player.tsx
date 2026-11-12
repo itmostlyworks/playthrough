@@ -188,7 +188,8 @@ export function Player(props: Props) {
   if (props.scrolled) props.scrolled.current = replay && (() => replay.replay.scrolled());
 
   const { at, playing, cut, clock, following, frame, marks, closeOn } = props;
-  const marked = marks?.map((mark) => mark.id).join(" ");
+  // Each mark as it is, so one found later, as a note's spot read from where it was made, is placed again.
+  const marked = JSON.stringify(marks);
   const closeKey = closeOn ? `${closeOn.on.join(" ")} ${closeOn.shape}` : "";
   const close = useRef<{ on: string; found?: boolean; frame?: Frame }>({ on: "" });
   if (close.current.on !== closeKey) close.current = { on: closeKey };
@@ -278,11 +279,11 @@ export function Player(props: Props) {
     // What's noted here, where it is on the page as it rests.
     const shape = replayed.shapeAt(at);
     const { left, top, k } = view.current!;
-    const found = (mark: Mark): Rect | undefined =>
-      (mark.node !== undefined ? replayed.markOf(mark.node) : undefined) ??
-      (mark.name ? replayed.named(mark.name) : undefined) ??
+    const thingOf = (mark: Mark): Rect | undefined => (mark.node !== undefined ? replayed.markOf(mark.node) : undefined) ?? (mark.name ? replayed.named(mark.name) : undefined);
+    const spotOf = (mark: Mark): Rect | undefined =>
       (mark.box && { left: mark.box.x * shape.width, top: mark.box.y * shape.height, width: mark.box.width * shape.width, height: mark.box.height * shape.height }) ??
       (mark.point && { left: mark.point.x * shape.width, top: mark.point.y * shape.height, width: 0, height: 0 });
+    const found = (mark: Mark): Rect | undefined => thingOf(mark) ?? spotOf(mark);
     // Close on something, it's framed in what it sits in: kept inside a panel bigger than the view, and a smaller one
     // whole, so it's seen with its edges rather than alone in the middle.
     if (closing && !close.current.found) {
@@ -305,9 +306,17 @@ export function Player(props: Props) {
         (marks ?? []).map((mark) => {
           // Off the screen, as a board's columns past a phone's edge are, it's not on the frame: the screen beside the
           // picture's edge no longer hides it.
-          const thing = found(mark);
+          const thing = thingOf(mark);
           const onScreen = thing && thing.left < shape.width && thing.top < shape.height && thing.left + thing.width > 0 && thing.top + thing.height > 0;
-          return [mark.id, onScreen ? { left: (thing.left - left) * k, top: (thing.top - top) * k, width: thing.width * k, height: thing.height * k } : undefined];
+          if (onScreen) return [mark.id, { left: (thing.left - left) * k, top: (thing.top - top) * k, width: thing.width * k, height: thing.height * k }];
+          // On a spot, where its thing was, it's always on the frame: out of it, at the edge nearest to where it was.
+          const spot = !thing && spotOf(mark);
+          if (!spot) return [mark.id, undefined];
+          const placed = { left: (spot.left - left) * k, top: (spot.top - top) * k, width: spot.width * k, height: spot.height * k };
+          const [wide, high] = [box.current!.clientWidth, box.current!.clientHeight];
+          const inFrame = placed.left >= 0 && placed.top >= 0 && placed.left + placed.width <= wide && placed.top + placed.height <= high;
+          const edge = (at: number, size: number, all: number) => Math.min(Math.max(at + size / 2, EDGE), all - EDGE);
+          return [mark.id, inFrame ? placed : { left: edge(placed.left, placed.width, wide), top: edge(placed.top, placed.height, high), width: 0, height: 0 }];
         }),
       ),
     );
@@ -356,6 +365,9 @@ export function Player(props: Props) {
     </div>
   );
 }
+
+// How far inside the frame's edge a spot that's out of it is pinned: a pin's half and a little.
+const EDGE = 14;
 
 // A key pressed shows this long, in seconds of the recording, and fades over its last part.
 const KEY_SHOWN = 0.9;
