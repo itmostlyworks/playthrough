@@ -5,7 +5,7 @@
 // button on the list: Send, or Done with nothing to say. Its own address, /moments, beside the page; the recording, the pointer, the pins and
 // stepping in are the page's own.
 
-import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { Glimpse, Reading } from "@playthrough/page";
 import { allNotes, conversation, newId, pausedAt, waitingForTheAgent, type Turn, type Did, type Note, type Place, type Review, type Round, type Scene } from "@playthrough/review";
 import { glimpses, keepBranch, picture, readings as readingsOf, recording, send, useReview, useYou } from "./api.ts";
@@ -378,18 +378,23 @@ function ChangeInList(props: {
                       <span className="mt-0.5 block text-[13px] leading-5 text-amber-ink">Different since you saw it</span>
                     )}
                   </button>
-                  {(talk.length > 0 || notes.some((note) => note.on?.scene === scene.name)) && (
-                    <div className="mt-4 grid gap-4">
-                      {talk.map(([id]) => (
-                        <Turns key={id} you={you} turns={conversation(review, id)} replied={replies.find((one) => one.note === id)?.words} glance />
-                      ))}
-                      {notes
-                        .filter((note) => note.on?.scene === scene.name)
-                        .map((note) => (
-                          <Turns key={note.id} you={you} turns={[]} unsent={note.words} glance />
+                  {(() => {
+                    // Each note a block of its own, set apart by more room than its turns; with several, each turn
+                    // shorter, so the column stays a glance.
+                    const unsentHere = notes.filter((note) => note.on?.scene === scene.name);
+                    const threads = talk.length + unsentHere.length;
+                    const lines = threads > 1 ? 2 : 3;
+                    return threads > 0 && (
+                      <div className="mt-4 grid gap-5">
+                        {talk.map(([id]) => (
+                          <Turns key={id} you={you} turns={conversation(review, id)} replied={replies.find((one) => one.note === id)?.words} lines={lines} />
                         ))}
-                    </div>
-                  )}
+                        {unsentHere.map((note) => (
+                          <Turns key={note.id} you={you} turns={[]} unsent={note.words} lines={lines} />
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </li>
               );
             })}
@@ -401,37 +406,60 @@ function ChangeInList(props: {
 }
 
 // A note and what's been said on it since, a turn each, as the page's cards say them: who speaks on a small line of its
-// own, you by your dot, the agent by its name, and the words under it as readable as the note's. At a glance, on the
-// list, a long turn fades after three lines; by the pin, it's whole.
-function Turns({ you, turns, replied, unsent, glance = false }: { you: string; turns: Turn[]; replied?: string; unsent?: string; glance?: boolean }) {
-  const sent = turns.map((turn) => ({ mine: !turn.agent && turn.by === you, by: turn.agent || turn.by !== you ? turn.by : "You", words: turn.words, sent: true }));
-  // At a glance: what the note asked, the latest said since, and what you haven't sent; the turns between fold away, as
-  // a card's earlier answers do.
-  const between = glance ? Math.max(0, sent.length - 2) : 0;
-  const all = [
-    ...(between ? [sent[0]!, ...sent.slice(-1)] : sent),
-    ...[replied, unsent].filter((words): words is string => !!words).map((words) => ({ mine: true, by: "You", words, sent: false })),
-  ];
+// own, you by your dot, the agent by its name, and the words under it as readable as the note's. By the pin, all of it;
+// at a glance, on the list, only the latest exchange (your latest words, and the agent's latest answer to them), each
+// turn fading after so many lines, and only where it's really cut.
+function Turns({ you, turns, replied, unsent, lines }: { you: string; turns: Turn[]; replied?: string; unsent?: string; lines?: number }) {
+  const sent = turns.map((turn) => ({ agent: turn.agent, mine: !turn.agent && turn.by === you, by: turn.agent || turn.by !== you ? turn.by : "You", words: turn.words, sent: true }));
+  const yours = [replied, unsent].filter((words): words is string => !!words).map((words) => ({ agent: false, mine: true, by: "You", words, sent: false }));
+  const lastAgent = sent.findLastIndex((turn) => turn.agent);
+  const latest = (): typeof sent => {
+    // Not answered yet: only your part. Answered: what it answered, and the answer; with a reply you haven't sent, the
+    // answer and your reply.
+    if (lastAgent < 0) return [sent.at(-1)!].filter(Boolean);
+    if (lastAgent < sent.length - 1) return [sent.at(-1)!];
+    if (yours.length) return [sent[lastAgent]!];
+    const asked = sent.slice(0, lastAgent).findLast((turn) => !turn.agent);
+    return asked ? [asked, sent[lastAgent]!] : [sent[lastAgent]!];
+  };
+  const all = [...(lines ? latest() : sent), ...yours];
   return (
-    <div className="grid gap-2.5">
+    <div className="grid gap-2">
       {all.map((turn, i) => (
-        <Fragment key={i}>
-          {between > 0 && i === 1 && <span className="text-[11.5px] leading-4 text-faint">{between} earlier</span>}
-        <div className="grid gap-px">
+        <div key={i} className="grid gap-px">
           <span className="flex items-center gap-1.5 text-[11.5px] leading-4 text-faint">
             {turn.mine && <i className={`size-1.5 rounded-full ${turn.sent ? "bg-slate" : "bg-amber"}`} />}
             {turn.by}
             {!turn.sent && <span>· not sent yet</span>}
           </span>
-          <p
-            className={`text-[13px] leading-5 whitespace-pre-wrap text-fg ${glance && turn.words.length > 110 ? "max-h-[60px] overflow-hidden [mask-image:linear-gradient(to_bottom,#000_36px,transparent)]" : ""}`}
-          >
-            {turn.words}
-          </p>
+          <Words lines={lines}>{turn.words}</Words>
         </div>
-        </Fragment>
       ))}
     </div>
+  );
+}
+
+// Words up to so many lines, fading over the last only when there's more than fits.
+function Words({ lines, children }: { lines?: number; children: string }) {
+  const box = useRef<HTMLParagraphElement>(null);
+  const [cut, setCut] = useState(false);
+  useLayoutEffect(() => {
+    const words = box.current;
+    if (!words || !lines) return;
+    const measure = () => setCut(words.scrollHeight > words.clientHeight + 1);
+    measure();
+    const watching = new ResizeObserver(measure);
+    watching.observe(words);
+    return () => watching.disconnect();
+  }, [lines, children]);
+  return (
+    <p
+      ref={box}
+      className={`text-[13px] leading-5 whitespace-pre-wrap text-fg ${lines ? "overflow-hidden" : ""}`}
+      style={lines ? { maxHeight: lines * 20, ...(cut && { maskImage: `linear-gradient(to bottom, #000 ${lines * 20 - 16}px, transparent)`, WebkitMaskImage: `linear-gradient(to bottom, #000 ${lines * 20 - 16}px, transparent)` }) } : undefined}
+    >
+      {children}
+    </p>
   );
 }
 
