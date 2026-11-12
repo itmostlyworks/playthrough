@@ -823,7 +823,6 @@ function MomentView(props: {
     setPlaying(undefined);
     setOpen(undefined);
     setNoting(false);
-    if (live?.address && live.scene === scene.name && live.from === at) return setLive({ ...live, shown: true, at: undefined });
     session.current = { id: newId(), events: [], did: [], kept: 0 };
     setLive({ scene: scene.name, from: at, shown: true });
     readyAt(review.id, scene.name, paused).then((answer) =>

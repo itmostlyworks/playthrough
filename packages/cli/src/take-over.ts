@@ -269,6 +269,13 @@ const SAYS = `<script>(() => {
   let x = innerWidth / 2, y = innerHeight / 2;
   const moved = (e) => { x = e.clientX; y = e.clientY; parent.postMessage({ playthrough: "pointer", x, y, inside: true, text: typing(e.target) }, "*"); };
   addEventListener("pointermove", moved, true);
+  // The app stays on its own address: a link out of it, where nothing could be noted, opens in a tab of your own.
+  addEventListener("click", (e) => {
+    const link = e.defaultPrevented || e.button !== 0 ? undefined : e.target?.closest?.("a[href]");
+    if (!link || !/^https?:$/.test(link.protocol) || link.origin === location.origin) return;
+    e.preventDefault();
+    window.open(link.href, "_blank", "noopener");
+  });
   // A click here is a click elsewhere, to what the viewer has open.
   addEventListener("pointerdown", (e) => e.isTrusted && parent.postMessage({ playthrough: "down" }, "*"), true);
   document.addEventListener("pointerleave", () => parent.postMessage({ playthrough: "pointer", x, y, inside: false }, "*"));
