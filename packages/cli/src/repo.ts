@@ -64,7 +64,7 @@ export function repo(root = home(process.cwd())) {
       if (!app || typeof app !== "object" || !isText(app.start) || !isText(app.url)) throw new Refused([`playthrough/app.json needs both “start” and “url”. ${how}`]);
       const saying = [app.start, app.url].filter((said) => said.includes("{port}")).length;
       if (saying === 1) throw new Refused([`playthrough/app.json says {port} in only one of “start” and “url”. Say it in both, so the app is started on the port Playthrough gives it and found there: ${PORTED}.`]);
-      // One port for each copy for as long as Playthrough runs, so everything that asks finds the app at the same address.
+      // One port for each copy, so every command run there finds the app at the same address.
       const port = saying ? await portFor(root) : undefined;
       const given = (said: string) => (port === undefined ? said : said.replaceAll("{port}", String(port)));
       const url = given(app.url);
@@ -90,7 +90,20 @@ function home(here: string): string {
 export const PORTED = `{ "start": "npm run dev -- --port {port}", "url": "http://localhost:{port}" }`;
 
 const ports = new Map<string, Promise<number>>();
-const portFor = (root: string) => ports.get(root) ?? ports.set(root, free()).get(root)!;
+const portFor = (root: string) => ports.get(root) ?? ports.set(root, keptPort(root)).get(root)!;
+
+// A copy's port, kept in its .playthrough folder: the browser playthrough as keeps open runs the app there, and a moment
+// marked meanwhile runs its way there on that same app, as a dev server like Next's won't start twice in one folder.
+async function keptPort(root: string): Promise<number> {
+  const file = join(root, ".playthrough", "port.json");
+  const kept: unknown = await readFile(file, "utf8").then((text) => JSON.parse(text).port, () => undefined);
+  if (Number.isInteger(kept) && (kept as number) > 0) return kept as number;
+  const port = await free();
+  await mkdir(dirname(file), { recursive: true });
+  await writeFile(join(dirname(file), ".gitignore"), "*\n");
+  await writeFile(file, `${JSON.stringify({ port })}\n`);
+  return port;
+}
 
 // One nothing is using now, as the machine hands them out.
 const free = () =>
