@@ -607,13 +607,6 @@ function fadeOf(frame: Frame): React.CSSProperties {
   return { maskImage: mask, WebkitMaskImage: mask, maskComposite: "intersect", WebkitMaskComposite: "source-in" };
 }
 
-// A part of the page made this wide, the same shape, around the same middle, and never past the page's edges.
-function widened(frame: Frame, width: number): Frame {
-  const height = (frame.height * width) / frame.width;
-  const middle = (at: number, size: number, to: number) => clamp(at + size / 2 - to / 2, 0, 1 - to);
-  return { x: middle(frame.x, frame.width, width), y: middle(frame.y, frame.height, height), width, height };
-}
-
 // The part of a moment's page that shows what it's about, this wide for its height: closed in on it with enough around
 // it to know where you are, its nearest words with it, as a field's label and the line under it. Nothing, where it
 // names nothing on the page.
@@ -772,22 +765,6 @@ function MomentView(props: {
     return earlier && kept ? { round: earlier, scene: kept } : undefined;
   })();
   const [comparing, setComparing] = useState(false);
-  // Compared, each side closes in on the moment's thing as its still does, found in its own reading, so it's seen where
-  // it was then too; both at one scale, the wider, so the two read alike. A side without it looks where the other does.
-  const [thenRead, setThenRead] = useState<Reading[]>();
-  useEffect(() => {
-    let current = true;
-    setThenRead(undefined);
-    if (then) readingsOf(review.id, then.round.number, then.scene.recording).then((read) => current && setThenRead(read));
-    return () => void (current = false);
-  }, [then?.scene.recording]);
-  const sides = useMemo(() => {
-    const shape = screen.width / screen.height;
-    const [ours, theirs] = [closeOn(readings?.at(-1), closeTo, shape), closeOn(thenRead?.at(-1), closeTo, shape)];
-    const width = Math.max(ours?.width ?? 0, theirs?.width ?? 0);
-    const scaled = (frame: Frame | undefined) => frame && widened(frame, width);
-    return { then: scaled(theirs ?? ours), now: scaled(ours ?? theirs) };
-  }, [readings, thenRead, closeTo?.role, closeTo?.name]);
   const both = useMemo(() => then && cut && playedTogether(cut, together(scene, then.scene)), [cut, then?.scene.recording, scene.recording]);
   const [bothOf] = useState(() => new Clock(0));
   // How far along both it rests: where now first is, or where it was let go, as now held while the other went on.
@@ -1101,8 +1078,8 @@ function MomentView(props: {
             {comparing && then && both && (
               <div className="absolute inset-0 z-[5] flex animate-arrive gap-3 bg-ground">
                 {[
-                  { label: "When you last saw it", round: then.round.number, recording: then.scene.recording, side: 1, frame: sides.then },
-                  { label: "Now", round: round.number, recording: scene.recording, side: 0, frame: sides.now },
+                  { label: "When you last saw it", round: then.round.number, recording: then.scene.recording, side: 1 },
+                  { label: "Now", round: round.number, recording: scene.recording, side: 0 },
                 ].map((side) => (
                   <div key={side.label} className="flex flex-1 items-center">
                     <div className="relative w-full overflow-hidden rounded-lg bg-paper shadow-frame" style={{ aspectRatio: `${screen.width} / ${screen.height}` }}>
@@ -1112,7 +1089,7 @@ function MomentView(props: {
                         recording={side.recording}
                         at={both.at(along)[side.side]!}
                         following={playing || scrubbing ? { clock: bothOf, at: (along) => both.at(along)[side.side]! } : undefined}
-                        frame={side.frame}
+                        frame={closer}
                       />
                       <span className={CHIP}>{side.label}</span>
                     </div>
