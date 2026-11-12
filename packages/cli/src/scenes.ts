@@ -236,7 +236,7 @@ function inMemory(number: number, recorded: Ran["recorded"]): Compared {
 // What a run recorded, what failed, and the file each scene is written in, as it was when it ran, by the scene's name.
 export type Ran = { recorded: { scene: Scene; files: { name: string; bytes: Buffer }[]; wrote?: string; doneOn?: DoneOn }[]; failed: Failed[]; written: Record<string, Written> };
 
-async function runOnce(run: Omit<Run, "folder">): Promise<Ran> {
+export async function runOnce(run: Omit<Run, "folder">): Promise<Ran> {
   const folder = await mkdtemp(join(tmpdir(), "playthrough-"));
   try {
     const ran = await playwright({ ...run, folder });
