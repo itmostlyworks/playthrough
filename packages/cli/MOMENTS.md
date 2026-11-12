@@ -68,7 +68,8 @@ EACH CHANGE
    not the board it's on ("Write the launch post"). The person sees the moment closed in on it, and what it says, and
    whether it can be changed, is checked each time it's run again. Playthrough runs the way there again from a fresh
    start, and keeps the moment only if it lands where you are. If it doesn't, it says what differed: fix that, or get
-   there another way, and mark it again.
+   there another way, and mark it again. Never change the app to suit Playthrough: if a moment won't land after a
+   couple of tries, tell the person so, rather than work round it.
 5. A few moments per change: one for each person or situation the change treats differently (an owner and a member;
    what's accepted and what's refused). Run playthrough as again for each: the same browser starts again, fresh.
 6. Hand back: playthrough wait, in the background. It stops the browser playthrough as keeps. Then tell the person

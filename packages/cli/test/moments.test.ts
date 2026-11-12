@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { after, describe, test } from "node:test";
 import type { Reading, Thing } from "@playthrough/page";
 import { Refused, type Round, type Scene } from "@playthrough/review";
-import { change, changeHere, idOf, momentNamed, momentsOf } from "../src/change.ts";
+import { change, changeHere, idOf, momentNamed, titleOf, momentsOf } from "../src/change.ts";
 import { howEachWent } from "../src/moments.ts";
 import { repo } from "../src/repo.ts";
 import { problemsWithPeople } from "../src/setup.ts";
@@ -169,6 +169,15 @@ describe("the change a command means", () => {
     await assert.rejects(change(here, "Fix it", undefined), /A change needs both/);
     await assert.rejects(change(here, "Fix the cursor that jumps to the end of a checklist item while you type in it", "It jumps."), /That title is 17 words/);
     assert.equal(idOf("Café: “Smörgås” tabs!"), "cafe-smorgas-tabs");
+  });
+
+  test("is titled as a person says it, without a commit's prefix", async () => {
+    const here = await copy();
+    await quietly(() => change(here, "feat: sort cards in a list by due date", "Let me sort the cards."));
+    assert.equal(await changeHere(here), "sort-cards-in-a-list-by-due-date");
+    assert.equal((await here.reviews.get("sort-cards-in-a-list-by-due-date")).title, "Sort cards in a list by due date");
+    assert.equal(titleOf("fix(board)!: keep the cursor"), "Keep the cursor");
+    assert.equal(titleOf("Search: show matches"), "Search: show matches");
   });
 
   test("has its moments by their words, found whatever their case", async () => {

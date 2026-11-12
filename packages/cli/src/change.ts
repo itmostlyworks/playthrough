@@ -29,14 +29,18 @@ export const idOf = (title: string) =>
     .slice(0, 60)
     .replace(/-$/, "") || "change";
 
-export async function change(repo: Repo, title: string | undefined, asked: string | undefined) {
-  if (!title?.trim() || !asked?.trim()) throw new Refused([`A change needs both: ${HOW}`]);
-  const words = title.trim().split(/\s+/).length;
+// A commit's prefix ("feat: ", "fix(board): ") isn't how a person says a change: the title is read without it.
+export const titleOf = (title: string) => title.trim().replace(/^[a-z]+(\([^)]*\))?!?:\s+(.)/, (_, _scope, first: string) => first.toUpperCase());
+
+export async function change(repo: Repo, said: string | undefined, asked: string | undefined) {
+  if (!said?.trim() || !asked?.trim()) throw new Refused([`A change needs both: ${HOW}`]);
+  const title = titleOf(said);
+  const words = title.split(/\s+/).length;
   if (words > LONGEST_TITLE) throw new Refused([`That title is ${words} words. Say the change in under ${LONGEST_TITLE}, as a pull request's title (“Let admins change the card prefix”): what was asked goes after it.`]);
   const id = idOf(title);
   await repo.keepOutOfGit();
   const known = (await repo.reviews.list()).includes(id);
-  if (!known) await repo.reviews.start(id, title.trim(), asked.trim());
+  if (!known) await repo.reviews.start(id, title, asked.trim());
   await writeFile(meantIn(repo), `${JSON.stringify({ change: id })}\n`);
   const { title: kept } = await repo.reviews.get(id);
   const moments = momentsOf(repo, id).length;
