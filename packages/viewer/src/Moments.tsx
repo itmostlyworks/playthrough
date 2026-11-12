@@ -145,7 +145,7 @@ const notesSaid = (count: number) => `${count} ${count === 1 ? "note" : "notes"}
 // Where a change stands for you: waiting on you; with your agents, once you've sent notes on its latest moments; or
 // done, once you said Done, which sends that every moment looks good. Nothing about Done is final: a note later sends
 // as any other, and the change is with your agents again.
-type Standing = { is: "waiting" } | { is: "sent"; at: string; count: number } | { is: "done"; at: string };
+type Standing = { is: "waiting" } | { is: "sent"; at: string; notes: number; replies: number } | { is: "done"; at: string };
 function standingOf(review: Review, you: string): Standing {
   if (review.accepted) return { is: "done", at: review.accepted.at };
   const sends = sentOn(review, you);
@@ -154,7 +154,7 @@ function standingOf(review: Review, you: string): Standing {
   const saidNothing = (one: Review["sends"][number]) => !one.notes.length && !one.verdicts.length && !one.replies?.length;
   if (saidNothing(last)) return { is: "done", at: last.sent };
   const since = sends.slice(sends.findLastIndex(saidNothing) + 1);
-  return { is: "sent", at: last.sent, count: since.reduce((sum, one) => sum + one.notes.length, 0) };
+  return { is: "sent", at: last.sent, notes: since.reduce((sum, one) => sum + one.notes.length, 0), replies: since.reduce((sum, one) => sum + (one.replies?.length ?? 0), 0) };
 }
 
 // The quiet lines you've opened, kept while you go to a moment and back.
@@ -427,7 +427,7 @@ function Sent({ review, you, now, standing }: { review: Review; you: string; now
   void you;
   return (
     <>
-      {standing.count ? `${notesSaid(standing.count)} sent ${ago(standing.at, now)}` : `sent ${ago(standing.at, now)}`}
+      {standing.notes + standing.replies ? `${toSend(standing.notes, standing.replies)} sent ${ago(standing.at, now)}` : `sent ${ago(standing.at, now)}`}
       {agent && ` · ${agent}`}
     </>
   );
@@ -750,7 +750,9 @@ function MomentView(props: {
   const theirs = sent.filter((one) => one.on?.scene === scene.name);
   const said = [...theirs.map((note) => ({ note, sent: true })), ...mine.map((note) => ({ note, sent: false }))];
   // A note is at its moment: made in the app, where the app was stepped into. Its pin shows only while it rests there.
-  const noteAt = (note: Note) => (note.on?.app ? note.on.app.from.at : (note.on?.at ?? end));
+  // One made on an earlier taking is about the point, wherever it was on that recording.
+  const made = allNotes(review);
+  const noteAt = (note: Note) => ((made.get(note.id)?.round ?? round.number) < round.number ? end : note.on?.app ? note.on.app.from.at : (note.on?.at ?? end));
   const restingAt = (note: Note) => !playing && !scrubbing && Math.abs(noteAt(note) - at) < 0.06;
   const shownNotes = [...said.filter(({ note }) => restingAt(note)), ...(writing ? [{ note: writing.note, sent: false }] : [])];
   // A thing on the moment's page by its role and name, as it was read there: what it's about, or what a note made in
