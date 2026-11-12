@@ -42,6 +42,15 @@ export function ahead(replay: Replay, at: number, length: number): Point {
   return count ? [sum[0] / count, sum[1] / count] : [replay.shapeAt(at).width / 2, 0];
 }
 
+// At actual size, a window onto the page around where it's held, else where the recorded pointer is going.
+export function following(replay: Replay | undefined, at: number, length: number, frame: Size, page: Size, held?: { centre: Point; k: number }): View {
+  return around(frame, page, held?.centre ?? (replay ? ahead(replay, at, length) : [page.width / 2, 0]), held?.k ?? 1);
+}
+
+// Two windows at actual size onto the same part of the page, side by side: the one that leads says where, the other
+// shows the same, so nothing shifts between them that didn't move.
+export type Together = { centre?: Point };
+
 // A held view moved by the pointer or the wheel, kept so the page never leaves the frame.
 export function moved(centre: Point, frame: Size, page: Size, k: number): Point {
   const width = frame.width / k;

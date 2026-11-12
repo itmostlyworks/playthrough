@@ -20,7 +20,7 @@ import type { Live } from "./live.ts";
 import { roundName } from "./Rounds.tsx";
 import { holdersOf, pickAt, type Read } from "./things.ts";
 import { BREATH, CLOSING, COUNTED, HANDING, OPENING, PORTAL, say, shape, TAG } from "./Portal.tsx";
-import { ahead, around, between, centreOf, fitted, GLIDE, moved, type Held, type Size, type View } from "./view.ts";
+import { around, between, centreOf, fitted, following, GLIDE, moved, type Held, type Size, type View } from "./view.ts";
 
 // What Playthrough draws on a round's recording, each on its thing, by its node in that round's recording, or on a spot or
 // a part of the screen: a note's pin and the outline of what it's on, in its colour; a change's diamond and outline in
@@ -294,7 +294,7 @@ export function Stage(props: Props) {
       } else {
         const hold = held.current?.scene === scene.name ? held.current : undefined;
         const chosen = hold || !replay ? undefined : focusOn(replay, page, box);
-        view = around(box, page, hold?.centre ?? chosen?.centre ?? (replay ? ahead(replay, at, its.length) : [page.width / 2, 0]), hold?.k ?? chosen?.k ?? 1);
+        view = following(replay, at, its.length, box, page, hold ?? chosen);
       }
       if (shown === round) {
         lead = { view, box, chosen: replay && chosenOn(round.number, replay, page)?.centre };

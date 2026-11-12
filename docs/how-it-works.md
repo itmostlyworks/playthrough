@@ -53,7 +53,9 @@ recording keeps, per action, what it was and when it began (`began` beside `acti
 it knows each action by its place only (the second of four). `together` (`packages/review/src/steps.ts`) lines two up
 on the longest run both did in order, steps by title, actions by step and name: each pair begins and ends together,
 each side scaled to its own pace between; what one did alone plays while the other holds before what's next. The page
-plays along that, now's waiting cut short; `inStep`, which the older page uses, is the same pairing read one way.
+plays along that, now's waiting cut short; `inStep`, which the older page uses, is the same pairing read one way. Each
+side is its half of the recording's room at actual size, a window following now's pointer, both onto the same part of
+the page: `following` in `view.ts`, as the older page's Compare.
 
 **What's kept where.** In the app's copy, `.playthrough/change.json` (the change meant), `port.json` (the app's port),
 `browser.json` (what `as` did), and a folder per change: `scenes/<words>.ts` (each moment's way), `rounds/<n>/` (each

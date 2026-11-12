@@ -14,6 +14,7 @@ import { around, Picture, union, type Frame } from "./Picture.tsx";
 import { workingSince } from "./notes.ts";
 import { Pinned, type Pin } from "./Pinned.tsx";
 import { Clock, Player, useCut, type Cut, type Mark, type Placed } from "./Player.tsx";
+import type { Together } from "./view.ts";
 import { Portal, TAG } from "./Portal.tsx";
 import { CHIP } from "./Scene.tsx";
 import { readyAt } from "./live.ts";
@@ -767,6 +768,11 @@ function MomentView(props: {
   const [comparing, setComparing] = useState(false);
   const both = useMemo(() => then && cut && playedTogether(cut, together(scene, then.scene)), [cut, then?.scene.recording, scene.recording]);
   const [bothOf] = useState(() => new Clock(0));
+  // Each side at actual size, a window onto the same part of the page, following now's pointer, as the older page's are.
+  const [{ leading, beside }] = useState(() => {
+    const samePart: Together = {};
+    return { leading: { together: samePart, leads: true }, beside: { together: samePart, leads: false } };
+  });
   // How far along both it rests: where now first is, or where it was let go, as now held while the other went on.
   const along = (both && (rest.scene === scene.name ? rest.along : undefined)) ?? both?.of(at) ?? 0;
   const restAt = (moment: number, along?: number) => (clockOf.set(moment), setRest({ scene: scene.name, at: moment, along }));
@@ -783,6 +789,7 @@ function MomentView(props: {
     if (playing) (setPlaying(undefined), restAt(clockOf.at, comparing ? bothOf.at : undefined));
     setOpen(undefined);
     setNoting(false);
+    leading.together.centre = undefined;
     setComparing((now) => !now);
   };
   // Played compared, both sides go together, each as far as the other along what both did; the line is now's.
@@ -1076,20 +1083,21 @@ function MomentView(props: {
               />
             )}
             {comparing && then && both && (
-              <div className="absolute inset-0 z-[5] flex animate-arrive gap-3 bg-ground">
+              // Now leads, so it's drawn first, on the right.
+              <div className="absolute inset-0 z-[5] flex animate-arrive flex-row-reverse gap-3 bg-ground">
                 {[
-                  { label: "When you last saw it", round: then.round.number, recording: then.scene.recording, side: 1 },
-                  { label: "Now", round: round.number, recording: scene.recording, side: 0 },
+                  { label: "Now", round: round.number, recording: scene.recording, side: 0, actualSize: leading },
+                  { label: "When you last saw it", round: then.round.number, recording: then.scene.recording, side: 1, actualSize: beside },
                 ].map((side) => (
-                  <div key={side.label} className="flex flex-1 items-center">
-                    <div className="relative w-full overflow-hidden rounded-lg bg-paper shadow-frame" style={{ aspectRatio: `${screen.width} / ${screen.height}` }}>
+                  <div key={side.label} className="relative min-w-0 flex-1">
+                    <div className="absolute inset-0 overflow-hidden rounded-lg bg-paper shadow-frame">
                       <Player
                         review={review.id}
                         round={side.round}
                         recording={side.recording}
                         at={both.at(along)[side.side]!}
                         following={playing || scrubbing ? { clock: bothOf, at: (along) => both.at(along)[side.side]! } : undefined}
-                        frame={closer}
+                        actualSize={side.actualSize}
                       />
                       <span className={CHIP}>{side.label}</span>
                     </div>
@@ -1181,8 +1189,8 @@ function MomentView(props: {
 // Two recordings of a moment played together, from the moments both pass together: now with its waiting cut short, as
 // it plays alone, and where only the other moves, as long as that takes there. Along it, where each is; and where now's
 // moment first is along it.
-type Together = { at: (along: number) => [number, number]; of: (moment: number) => number };
-function playedTogether(cut: Cut, [now, then]: [number[], number[]]): Together {
+type Played = { at: (along: number) => [number, number]; of: (moment: number) => number };
+function playedTogether(cut: Cut, [now, then]: [number[], number[]]): Played {
   const spans = now.slice(1).map((to, i) => (to > now[i]! ? cut.cut(to) - cut.cut(now[i]!) : then[i + 1]! - then[i]!));
   const starts = spans.map((_, i) => spans.slice(0, i).reduce((sum, span) => sum + span, 0));
   return {

@@ -11,6 +11,7 @@ import { recording } from "./api.ts";
 import { Replay, type Choice, type Events, type Pressed, type Rect, type Scrolled } from "./replay.ts";
 import { around, union, type Frame } from "./Picture.tsx";
 import { pickAt } from "./things.ts";
+import { around as aroundCentre, centreOf, following as followingPointer, type Together } from "./view.ts";
 
 // Nothing happening for longer than this is waiting, and is played as this long.
 const WAIT = 0.7;
@@ -130,6 +131,9 @@ type Props = {
   // Another round's, it follows the clock while the one it's beside plays, at the matching moment.
   following?: { clock: Clock; at: (at: number) => number };
   frame?: Frame;
+  // At actual size, a window onto the page that follows the pointer, beside another onto the same part of it: the one
+  // that leads says where, as the older page's Compare does.
+  actualSize?: { together: Together; leads: boolean };
   // The notes on what's at this moment: at rest, where each one's thing is on the page, in the player's own pixels.
   marks?: Mark[];
   onMarks?: (placed: Placed) => void;
@@ -187,7 +191,7 @@ export function Player(props: Props) {
   }, [props.review, props.round, props.recording]);
   if (props.scrolled) props.scrolled.current = replay && (() => replay.replay.scrolled());
 
-  const { at, playing, cut, clock, following, frame, marks, closeOn } = props;
+  const { at, playing, cut, clock, following, frame, marks, closeOn, actualSize } = props;
   // Each mark as it is, so one found later, as a note's spot read from where it was made, is placed again.
   const marked = JSON.stringify(marks);
   const closeKey = closeOn ? `${closeOn.on.join(" ")} ${closeOn.shape}` : "";
@@ -202,6 +206,7 @@ export function Player(props: Props) {
   useEffect(() => {
     if (!replay || !box.current?.clientWidth) return;
     const replayed = replay.replay;
+    const length = ((replay.events.at(-1)?.timestamp ?? 0) - (replay.events[0]?.timestamp ?? 0)) / 1000;
     const closing = !!closeKey && !playing && !following;
     const shown = closing ? (close.current.found ? close.current.frame : glide.current.frame) : frame;
     if (shown !== glide.current.frame) glide.current = { frame: shown, from: view.current, set: frameTime() };
@@ -216,7 +221,13 @@ export function Player(props: Props) {
       const whole = Math.max(shape.width, (shape.height * box.current.clientWidth) / box.current.clientHeight);
       let [left, top, across] = part ? [part.x * shape.width, part.y * shape.height, part.width * shape.width] : [(shape.width - whole) / 2, 0, whole];
       const { from } = glide.current;
-      if (from && gliding()) {
+      if (actualSize) {
+        const room = { width: box.current.clientWidth, height: box.current.clientHeight };
+        const { together, leads } = actualSize;
+        const view = leads || !together.centre ? followingPointer(replayed, moment, length, room, shape) : aroundCentre(room, shape, together.centre);
+        if (leads) together.centre = centreOf(view, room);
+        [left, top, across] = [view.x, view.y, room.width / view.k];
+      } else if (from && gliding()) {
         const now = frameTime();
         // The picture narrowing or widening around it, it starts when that did, to the frame.
         const resizing = box.current.parentElement?.getAnimations().find((one) => one instanceof CSSTransition && one.transitionProperty === "width");
@@ -320,7 +331,7 @@ export function Player(props: Props) {
         }),
       ),
     );
-  }, [replay, at, playing?.until, cut, following, frame, marked, width, glided, closeKey]);
+  }, [replay, at, playing?.until, cut, following, frame, marked, width, glided, closeKey, actualSize]);
 
   // What's under the pointer on the page at rest, in its own pixels, and what a click there would note.
   const [hover, setHover] = useState<Rect>();
