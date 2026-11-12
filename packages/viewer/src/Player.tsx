@@ -11,7 +11,7 @@ import { recording } from "./api.ts";
 import { Replay, type Choice, type Events, type Pressed, type Rect, type Scrolled } from "./replay.ts";
 import { around, union, type Frame } from "./Picture.tsx";
 import { pickAt } from "./things.ts";
-import { around as aroundCentre, centreOf, following as followingPointer, type Together } from "./view.ts";
+import { around as aroundCentre, centreOf, following as followingPointer, holding, type Together } from "./view.ts";
 
 // Nothing happening for longer than this is waiting, and is played as this long.
 const WAIT = 0.7;
@@ -132,8 +132,9 @@ type Props = {
   following?: { clock: Clock; at: (at: number) => number };
   frame?: Frame;
   // At actual size, a window onto the page that follows the pointer, beside another onto the same part of it: the one
-  // that leads says where, as the older page's Compare does.
-  actualSize?: { together: Together; leads: boolean };
+  // that leads says where, as the older page's Compare does. Holding something, at rest, it's in view whole, the view
+  // gliding there: both sides are told, so both glide.
+  actualSize?: { together: Together; leads: boolean; holds?: Mark };
   // The notes on what's at this moment: at rest, where each one's thing is on the page, in the player's own pixels.
   marks?: Mark[];
   onMarks?: (placed: Placed) => void;
@@ -202,14 +203,16 @@ export function Player(props: Props) {
   // is: that's the picture's width over it, so a picture still narrowing is never aimed past where it ends. Close on
   // something, it stays where it was until that's found, and glides there at once. It keeps the browser's frame clock,
   // as the narrowing does, from when the narrowing started, or else from the frame after it's set.
-  const glide = useRef<{ frame?: Frame; from?: View; set: number; since?: number }>({ frame, set: 0 });
+  const glide = useRef<{ frame?: Frame; holds?: string; from?: View; set: number; since?: number }>({ frame, set: 0 });
   useEffect(() => {
     if (!replay || !box.current?.clientWidth) return;
     const replayed = replay.replay;
     const length = ((replay.events.at(-1)?.timestamp ?? 0) - (replay.events[0]?.timestamp ?? 0)) / 1000;
     const closing = !!closeKey && !playing && !following;
     const shown = closing ? (close.current.found ? close.current.frame : glide.current.frame) : frame;
-    if (shown !== glide.current.frame) glide.current = { frame: shown, from: view.current, set: frameTime() };
+    const holds = actualSize?.holds && !playing && !following ? JSON.stringify(actualSize.holds) : undefined;
+    if (shown !== glide.current.frame || holds !== glide.current.holds) glide.current = { frame: shown, holds, from: view.current, set: frameTime() };
+    const thingOf = (mark: Mark): Rect | undefined => (mark.node !== undefined ? replayed.markOf(mark.node) : undefined) ?? (mark.name ? replayed.named(mark.name) : undefined);
     const gliding = () => !!glide.current.from && frameTime() - (glide.current.since ?? frameTime()) < GLIDE * 1000;
     const draw = (moment: number, moving: boolean) => {
       // Gone, as Before is once Compare's let go, it's told nothing more.
@@ -224,10 +227,13 @@ export function Player(props: Props) {
       if (actualSize) {
         const room = { width: box.current.clientWidth, height: box.current.clientHeight };
         const { together, leads } = actualSize;
-        const view = leads || !together.centre ? followingPointer(replayed, moment, length, room, shape) : aroundCentre(room, shape, together.centre);
-        if (leads) together.centre = centreOf(view, room);
+        let view = leads || !together.centre ? followingPointer(replayed, moment, length, room, shape) : aroundCentre(room, shape, together.centre, together.k);
+        const thing = leads && holds && actualSize.holds && thingOf(actualSize.holds);
+        if (thing) view = holding(view, room, shape, thing);
+        if (leads) Object.assign(together, { centre: centreOf(view, room), k: view.k });
         [left, top, across] = [view.x, view.y, room.width / view.k];
-      } else if (from && gliding()) {
+      }
+      if (from && gliding()) {
         const now = frameTime();
         // The picture narrowing or widening around it, it starts when that did, to the frame.
         const resizing = box.current.parentElement?.getAnimations().find((one) => one instanceof CSSTransition && one.transitionProperty === "width");
@@ -290,7 +296,6 @@ export function Player(props: Props) {
     // What's noted here, where it is on the page as it rests.
     const shape = replayed.shapeAt(at);
     const { left, top, k } = view.current!;
-    const thingOf = (mark: Mark): Rect | undefined => (mark.node !== undefined ? replayed.markOf(mark.node) : undefined) ?? (mark.name ? replayed.named(mark.name) : undefined);
     const spotOf = (mark: Mark): Rect | undefined =>
       (mark.box && { left: mark.box.x * shape.width, top: mark.box.y * shape.height, width: mark.box.width * shape.width, height: mark.box.height * shape.height }) ??
       (mark.point && { left: mark.point.x * shape.width, top: mark.point.y * shape.height, width: 0, height: 0 });
@@ -331,7 +336,7 @@ export function Player(props: Props) {
         }),
       ),
     );
-  }, [replay, at, playing?.until, cut, following, frame, marked, width, glided, closeKey, actualSize]);
+  }, [replay, at, playing?.until, cut, following, frame, marked, width, glided, closeKey, actualSize?.together, actualSize?.holds && JSON.stringify(actualSize.holds)]);
 
   // What's under the pointer on the page at rest, in its own pixels, and what a click there would note.
   const [hover, setHover] = useState<Rect>();

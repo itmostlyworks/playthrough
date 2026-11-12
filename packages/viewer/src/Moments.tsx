@@ -1008,6 +1008,9 @@ function MomentView(props: {
     return { id: note.id, ...(element && { name: element.name, ...(node !== undefined && { node }) }), ...(on?.point && { point: on.point }) };
   };
   const aboutNode = nodeOf(about);
+  // Compared, at the point, what the moment is about (else the last thing done) is in view whole, as on the older page.
+  const closeNode = nodeOf(closeTo);
+  const holdsAt = atPoint && closeNode !== undefined ? { id: ABOUT, node: closeNode } : undefined;
   const marks: Mark[] = [...(aboutNode !== undefined ? [{ id: ABOUT, node: aboutNode }] : []), ...shownNotes.map(({ note }) => markOf(note))];
   const pins: Pin[] = shownNotes.map(({ note, sent }) => ({ id: note.id, on: [note.id], ink: sent ? "var(--slate)" : "var(--amber)", fill: sent ? "bg-slate" : "bg-amber" }));
   // What it's about is outlined only at the point: midway, it may not be there yet.
@@ -1086,8 +1089,8 @@ function MomentView(props: {
               // Now leads, so it's drawn first, on the right.
               <div className="absolute inset-0 z-[5] flex animate-arrive flex-row-reverse gap-3 bg-ground">
                 {[
-                  { label: "Now", round: round.number, recording: scene.recording, side: 0, actualSize: leading },
-                  { label: "When you last saw it", round: then.round.number, recording: then.scene.recording, side: 1, actualSize: beside },
+                  { label: "Now", round: round.number, recording: scene.recording, side: 0, actualSize: { ...leading, holds: holdsAt } },
+                  { label: "When you last saw it", round: then.round.number, recording: then.scene.recording, side: 1, actualSize: { ...beside, holds: holdsAt } },
                 ].map((side) => (
                   <div key={side.label} className="relative min-w-0 flex-1">
                     <div className="absolute inset-0 overflow-hidden rounded-lg bg-paper shadow-frame">

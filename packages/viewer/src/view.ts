@@ -47,9 +47,23 @@ export function following(replay: Replay | undefined, at: number, length: number
   return around(frame, page, held?.centre ?? (replay ? ahead(replay, at, length) : [page.width / 2, 0]), held?.k ?? 1);
 }
 
+// How large something shows whole: at 100% where it fits, else zoomed out just enough, with room around it.
+export const wholeAt = (frame: Size, thing: Size) => Math.min(1, frame.width / (thing.width + 48), frame.height / (thing.height + 48));
+
+// A view moved the least it needs for something to show whole in it, with room around it, so what was in view stays
+// where both fit; where it doesn't fit as large, zoomed out around it.
+export function holding(view: View, frame: Size, page: Size, thing: { left: number; top: number; width: number; height: number }): View {
+  const k = Math.min(view.k, wholeAt(frame, thing));
+  if (k < view.k) return around(frame, page, [thing.left + thing.width / 2, thing.top + thing.height / 2], k);
+  const [width, height] = [frame.width / k, frame.height / k];
+  const x = clamp(view.x, thing.left + thing.width + 24 - width, thing.left - 24);
+  const y = clamp(view.y, thing.top + thing.height + 24 - height, thing.top - 24);
+  return around(frame, page, [x + width / 2, y + height / 2], k);
+}
+
 // Two windows at actual size onto the same part of the page, side by side: the one that leads says where, the other
 // shows the same, so nothing shifts between them that didn't move.
-export type Together = { centre?: Point };
+export type Together = { centre?: Point; k?: number };
 
 // A held view moved by the pointer or the wheel, kept so the page never leaves the frame.
 export function moved(centre: Point, frame: Size, page: Size, k: number): Point {
