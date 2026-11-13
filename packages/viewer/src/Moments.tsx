@@ -1049,8 +1049,8 @@ function MomentView(props: {
         <div
           ref={frame}
           className="relative overflow-visible rounded-lg"
-          style={{ aspectRatio: `${screen.width} / ${screen.height}`, width: `min(100cqw, calc((100cqh - ${LINE}px) * ${screen.width / screen.height}))`, marginBottom: LINE }}
-          onPointerMove={(event) => (movePill(event), setAiming(!(event.target as Element).closest("[data-line]")))}
+          style={{ aspectRatio: `${screen.width} / ${screen.height}`, width: `min(100cqw, calc((100cqh - ${UNDER}px) * ${screen.width / screen.height}))`, marginBottom: UNDER }}
+          onPointerMove={(event) => (movePill(event), setAiming(!(event.target as Element).closest("[data-line], [role=toolbar]")))}
           onPointerLeave={() => setAiming(false)}
         >
           <div key={scene.recording} className="absolute inset-0 animate-arrive overflow-hidden rounded-lg bg-paper shadow-frame" onClick={(event) => onFrame && !noting && !(event.target as Element).closest("button") && stepIn()}>
@@ -1164,11 +1164,14 @@ function MomentView(props: {
               </div>
             </NoteCard>
           )}
-        </div>
-        {live?.problems && <p className="absolute bottom-0 left-1/2 max-w-[90%] -translate-x-1/2 translate-y-full rounded-md bg-surface px-3 py-1.5 text-xs text-amber-ink shadow-tip">{live.problems.join(" ")}</p>}
-      </div>
-      <div className="flex h-16 items-center justify-center">
-        <div role="toolbar" aria-label="This moment" onClick={(event) => (event.target as Element).closest("button")?.blur()} className={`flex gap-0.5 rounded-xl bg-surface p-1 text-[13px] select-none ${inApp ? "shadow-[0_0_0_1.5px_rgba(236,178,72,0.95),0_6px_20px_rgba(20,24,34,0.12)]" : "shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]"}`}>
+          {/* What you can do here, across the recording's bottom edge, as on the older page, with the line under it. */}
+          <div
+            role="toolbar"
+            aria-label="This moment"
+            onClick={(event) => (event.target as Element).closest("button")?.blur()}
+            className={`absolute top-full left-1/2 z-20 flex -translate-x-1/2 -translate-y-1/2 gap-0.5 rounded-xl bg-surface p-1 text-[13px] select-none ${inApp ? "shadow-[0_0_0_1.5px_rgba(236,178,72,0.95),0_6px_20px_rgba(20,24,34,0.12)]" : "shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]"}`}
+            style={{ height: BAR }}
+          >
           <button className={`${ITEM} w-[96px] phone:w-[64px]`} disabled={!!live?.shown || !cut} onClick={play}>
             <span className="w-9 text-left">{playing ? "Pause" : "Play"}</span> <Key className="min-w-9">Space</Key>
           </button>
@@ -1183,8 +1186,11 @@ function MomentView(props: {
               Compare <Key>C</Key>
             </button>
           )}
+          </div>
         </div>
+        {live?.problems && <p className="absolute bottom-0 left-1/2 max-w-[90%] -translate-x-1/2 translate-y-full rounded-md bg-surface px-3 py-1.5 text-xs text-amber-ink shadow-tip">{live.problems.join(" ")}</p>}
       </div>
+      <div className="h-10" />
     </div>
   );
 }
@@ -1219,10 +1225,13 @@ const ITEM =
 // How many seconds of a moment Play shows, waiting cut short.
 const LEADING = 7;
 const ABOUT = "about";
-// The room under the recording the line along it takes, pointer and all.
+// The line along the recording takes this much room, pointer and all, under the bar, whose lower half hangs below the
+// recording's edge.
 const LINE = 14;
+const BAR = 40;
+const UNDER = BAR / 2 + 6 + LINE;
 
-// How far through the few seconds Play shows it is, along the recording's bottom edge: always there, full at the point,
+// How far through the few seconds Play shows it is, under the bar, as wide as the recording: always there, full at the point,
 // filling as it plays. Pressed or dragged, the recording follows; let go at its end, it's at the point.
 function Progress(props: {
   clock: Clock;
@@ -1251,8 +1260,8 @@ function Progress(props: {
   return (
     <div
       data-line
-      className={`group absolute inset-x-0 top-full touch-none ${onScrub ? "cursor-pointer" : ""}`}
-      style={{ height: LINE }}
+      className={`group absolute inset-x-0 touch-none ${onScrub ? "cursor-pointer" : ""}`}
+      style={{ top: `calc(100% + ${UNDER - LINE}px)`, height: LINE }}
       onPointerDown={(event) => {
         if (!onScrub || event.button !== 0) return;
         event.currentTarget.setPointerCapture(event.pointerId);
