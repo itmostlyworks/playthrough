@@ -1017,8 +1017,8 @@ function MomentView(props: {
   const aboutAt = atPoint && !live?.shown ? placed[ABOUT] : undefined;
   const openNote = shownNotes.find(({ note }) => note.id === open);
 
-  // Beside your pointer, what a click on the moment does: note what's under it, or step in.
-  const onFrame = !playing && !scrubbing && !live?.shown && !writing && !open && !comparing;
+  // A click on the moment plays and pauses it, as Space does; noting, it's on what's under the pointer, said beside it.
+  const aimingNote = noting && !scrubbing && !live?.shown && !writing;
   const movePill = (event: React.PointerEvent) => {
     const box = frame.current?.getBoundingClientRect();
     if (!box) return;
@@ -1053,7 +1053,7 @@ function MomentView(props: {
           onPointerMove={(event) => (movePill(event), setAiming(!(event.target as Element).closest("[data-line], [role=toolbar]")))}
           onPointerLeave={() => setAiming(false)}
         >
-          <div key={scene.recording} className="absolute inset-0 animate-arrive overflow-hidden rounded-lg bg-paper shadow-frame" onClick={(event) => onFrame && !noting && !(event.target as Element).closest("button") && stepIn()}>
+          <div key={scene.recording} className="absolute inset-0 animate-arrive overflow-hidden rounded-lg bg-paper shadow-frame" onClick={(event) => !noting && !(event.target as Element).closest("button") && play()}>
             {(!phone || readings) && <Picture shot={{ src: picture(review.id, round.number, scene.recording, Math.max(0, scene.steps.length - 1)), frame: closer }} />}
             <Player
               review={review.id}
@@ -1129,8 +1129,8 @@ function MomentView(props: {
             }
           />
           <Portal live={live && { ...live, inApp }} person={person} screen={screen} scrolled={() => scrolled.current?.()} waiting="Stepping in…" />
-          <span ref={pill} aria-hidden className={`pointer-events-none absolute top-0 left-0 z-30 transition-opacity duration-150 ease-calm ${onFrame && aiming ? "" : "opacity-0"}`}>
-            <span className={TAG}>{noting ? "Note on this" : person ? `Step in as ${person}` : "Step in"}</span>
+          <span ref={pill} aria-hidden className={`pointer-events-none absolute top-0 left-0 z-30 transition-opacity duration-150 ease-calm ${aimingNote && aiming ? "" : "opacity-0"}`}>
+            <span className={TAG}>Note on this</span>
           </span>
           {writing && <NoteCard at={(!writing.note.on?.app && pinOf(placed[writing.note.id])) || writing.spot} frame={frame}><Write onSave={save} onDrop={() => setWriting(undefined)} /></NoteCard>}
           {!writing && openNote && (

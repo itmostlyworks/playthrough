@@ -46,7 +46,8 @@ there says at once where it stands and moves when the pointer leaves. A moment o
 `/moments/<copy>/<change>/<n>`: Play, Step in (the real app, as that person, started afresh each time; a link out of
 it opens in a tab of your own), Note (on the recording or in the app), Compare with what it was when it was handed
 back before. They're on a bar across the recording's bottom edge, as on the older page, and the line Play fills and
-you drag is under the bar. Send says your notes; Done says every moment looks good. Neither locks.
+you drag is under the bar. A click on the recording plays and pauses it, as Space does and as a video's does, in
+Compare too; stepping in is T or the bar's Step in. Send says your notes; Done says every moment looks good. Neither locks.
 
 **Compare plays both together.** Play and the line drive both sides, at the same action at the same instant. Each
 recording keeps, per action, what it was and when it began (`began` beside `actions` on a step: `click button
