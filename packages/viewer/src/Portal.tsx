@@ -4,12 +4,12 @@
 // picture's edges; your name goes with your pointer, as whoever the scene is done as. Given back, it closes on where
 // your pointer was in the app, and the pointer goes back to where the recording has it.
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { Scrolled } from "./replay.ts";
 
 type Props = {
   // The app: made ready unseen, being made ready while you wait, or yours; and where your pointer was in it as you left.
-  live?: { address?: string; shown: boolean; inApp: boolean; due?: number; at?: { x: number; y: number } };
+  live?: { address?: string; from?: number; shown: boolean; inApp: boolean; due?: number; at?: { x: number; y: number } };
   // Who the scene is done as, there.
   person?: string;
   // The page the recording was made of, at its size.
@@ -17,9 +17,11 @@ type Props = {
   scrolled: () => Scrolled | undefined;
   // What the pointer says while it's made ready.
   waiting?: string;
+  // In place of the app, what it opens onto: your own recording of it, stepped back into. Your pointer isn't in it.
+  children?: ReactNode;
 };
 
-export function Portal({ live, person, screen, scrolled, waiting: waitingWords = "Taking over…" }: Props) {
+export function Portal({ live, person, screen, scrolled, waiting: waitingWords = "Taking over…", children }: Props) {
   const room = useRef<HTMLDivElement>(null);
   const app = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLIFrameElement>(null);
@@ -129,6 +131,18 @@ export function Portal({ live, person, screen, scrolled, waiting: waitingWords =
       Object.assign(door.style, { opacity: "1", pointerEvents: "auto" });
       frame.current?.focus();
       edging.style.opacity = "1";
+      // Opening onto a recording, its own pointer is the one there: yours isn't handed anything.
+      if (!live?.address) {
+        name.hidden = true;
+        yours.style.opacity = "0";
+        if (still) return;
+        const after = { easing: PORTAL, fill: "backwards" as const };
+        door.animate([{ clipPath: circle(0) }, { clipPath: circle(reach) }], { ...after, duration: OPENING });
+        glow.animate([{ opacity: 1 }, { opacity: 0 }], { ...after, duration: OPENING + 240 });
+        rim.animate([{ transform: "scale(0)", opacity: 0 }, { opacity: 1, offset: 0.1 }, { opacity: 0.85, offset: 0.7 }, { transform: "scale(1)", opacity: 0 }], { ...after, duration: OPENING });
+        edging.animate([glowing, { ...glowing, offset: 0.5 }, { opacity: 1, boxShadow: "inset 0 0 0 2px rgba(236,178,72,0.95), inset 0 0 40px rgba(255,214,150,0.45)", offset: 0.75 }, { opacity: 1 }], { ...after, duration: OPENING + 500 });
+        return;
+      }
       // The recording's pointer becomes yours: where your hand is, its name changing hands with it.
       yourHand.current = at;
       Object.assign(yours.style, { transform: tip(at), opacity: "1" });
@@ -223,17 +237,22 @@ export function Portal({ live, person, screen, scrolled, waiting: waitingWords =
   return (
     <div ref={room} className="pointer-events-none absolute inset-0 z-10 overflow-hidden rounded-lg">
       {/* See-through rather than hidden until it's yours, as a hidden frame from another address never settles. */}
-      {live?.address && (
-        <div ref={app} data-live className="pointer-events-none absolute inset-0 overflow-hidden opacity-0">
+      {(live?.address || children) && (
+        // A recording opened from another place is a door of its own, as each app is a frame of its own.
+        <div ref={app} key={live?.address ? "app" : live?.from} data-live className="pointer-events-none absolute inset-0 overflow-hidden opacity-0">
           <div ref={sheen} className="pointer-events-none absolute inset-0 z-1 opacity-0 [background:radial-gradient(circle_at_var(--x)_var(--y),rgba(255,232,190,0.15),rgba(255,214,150,0.5))]" />
-          <iframe
-            ref={frame}
-            key={live.address}
-            src={live.address}
-            title="The app, taken over"
-            className="absolute top-0 left-0 origin-top-left border-0 bg-paper"
-            style={{ width: screen.width, height: screen.height, transform: `scale(${k})` }}
-          />
+          {live?.address ? (
+            <iframe
+              ref={frame}
+              key={live.address}
+              src={live.address}
+              title="The app, taken over"
+              className="absolute top-0 left-0 origin-top-left border-0 bg-paper"
+              style={{ width: screen.width, height: screen.height, transform: `scale(${k})` }}
+            />
+          ) : (
+            children
+          )}
         </div>
       )}
       <div ref={ring} className="pointer-events-none absolute top-0 left-0 rounded-full opacity-0 [border:2.5px_solid_rgba(236,178,72,0.95)] [box-shadow:0_0_40px_14px_rgba(226,170,70,0.38),inset_0_0_36px_10px_rgba(255,214,150,0.4)]" />
