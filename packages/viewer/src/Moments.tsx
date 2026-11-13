@@ -935,6 +935,8 @@ function MomentView(props: {
   const keys = useRef<(event: KeyboardEvent) => void>(() => {});
   keys.current = (event) => {
     const typing = event.target instanceof HTMLElement && event.target.closest("textarea, input, [contenteditable]");
+    // A note's mark with the keyboard on it opens with Enter or Space, as any button does.
+    if (event.target instanceof HTMLElement && event.target.closest("[data-note-mark]") && /^( |enter)$/i.test(event.key)) return;
     if (typing || event.ctrlKey || event.metaKey || event.altKey) return;
     const key = event.key.toLowerCase();
     if (key === "escape") {
@@ -1190,9 +1192,13 @@ function MomentView(props: {
             shareOf={shareOf}
             moving={!!playing || scrubbing}
             playing={!!playing}
-            dots={said.filter(({ note }) => !afterSteppingIn(note)).map(({ note, sent }) => ({ id: note.id, share: shareOf(noteAt(note)), fill: sent ? "bg-slate" : "bg-amber" }))}
-            onDot={(id) => (setNoting(false), setPlaying(undefined), restAt(noteAt(said.find(({ note }) => note.id === id)!.note)), setOpen(id))}
-            lifted={places.flatMap(({ point, notes }) => notes.map(({ note, sent }) => ({ id: note.id, share: shareOf(point), fill: sent ? "bg-slate" : "bg-amber", chosen: yours?.note.id === note.id })))}
+            dots={said
+              .filter(({ note }) => !afterSteppingIn(note))
+              .map(({ note, sent }) => ({ id: note.id, share: shareOf(noteAt(note)), sent, chosen: open === note.id, words: note.words }))}
+            onDot={(id) =>
+              open === id ? setOpen(undefined) : (setNoting(false), setPlaying(undefined), restAt(noteAt(said.find(({ note }) => note.id === id)!.note)), setOpen(id))
+            }
+            lifted={places.flatMap(({ point, notes }) => notes.map(({ note, sent }) => ({ id: note.id, share: shareOf(point), sent, chosen: yours?.note.id === note.id, words: note.words })))}
             onLift={openLifted}
             onScrub={
               live?.shown || writing || !cut
@@ -1325,11 +1331,12 @@ function Progress(props: {
   shareOf: (moment: number) => number;
   moving: boolean;
   playing: boolean;
-  dots: { id: string; share: number; fill: string }[];
+  // A dot on the line for each note on the recording, at its moment.
+  dots: Marked[];
   onDot: (id: string) => void;
-  // Over the line, a mark lifted on a stem for each note made after stepping in and doing something, standing over the
-  // place you stepped in from; the one shown, chosen.
-  lifted: { id: string; share: number; fill: string; chosen: boolean }[];
+  // Over the line, a pin for each note made after stepping in and doing something, its point on the place you stepped
+  // in from.
+  lifted: Marked[];
   onLift: (id: string) => void;
   onScrub?: (share: number, phase: "down" | "move" | "up") => void;
 }) {
@@ -1348,65 +1355,152 @@ function Progress(props: {
     return clamp((event.clientX - box.left) / box.width);
   };
   const [held, setHeld] = useState(false);
+  // What's there now, so a mark that wasn't grows in, and not those there as the page opened.
+  const known = useRef<Set<string>>(undefined);
+  const arrived = known.current;
+  useEffect(() => void (known.current = new Set([...dots, ...lifted].map(({ id }) => id))));
+  // At one place pins stand side by side, in the order made, inwards from it (leftwards at the line's end), and never
+  // on a note's dot on the line there; always inside the line's ends.
+  const taken = new Map<string, number>();
+  for (const dot of dots) taken.set(dot.share.toFixed(3), 1);
+  const pins = lifted.map((mark) => {
+    const place = mark.share.toFixed(3);
+    const i = taken.get(place) ?? 0;
+    taken.set(place, i + 1);
+    return { ...mark, by: (mark.share > 0.5 ? -i : i) * LIFTED };
+  });
+  const at = (mark: { share: number; by?: number }) => `clamp(${PIN / 2}px, calc(${mark.share * 100}% + ${mark.by ?? 0}px), calc(100% - ${PIN / 2}px))`;
+  // Rested on, a mark says its note's words under the line.
+  const [tip, setTip] = useState<{ id: string; words: string; left: string }>();
+  const resting = useRef(0);
+  const tipBox = useRef<HTMLDivElement>(null);
+  const room = useRef<HTMLDivElement>(null);
+  const aim = (mark: Marked & { by?: number }) => (event: React.PointerEvent) => {
+    clearTimeout(resting.current);
+    if (event.pointerType === "touch" || mark.chosen || !mark.words) return;
+    resting.current = window.setTimeout(() => setTip({ id: mark.id, words: mark.words, left: at(mark) }), TIP);
+  };
+  const away = () => (clearTimeout(resting.current), setTip(undefined));
+  useEffect(() => () => clearTimeout(resting.current), []);
+  // Centred under its mark, and kept inside the line's ends.
+  useLayoutEffect(() => {
+    const [box, line] = [tipBox.current, room.current];
+    if (!box || !line) return;
+    box.style.transform = "";
+    const [own, ends] = [box.getBoundingClientRect(), line.getBoundingClientRect()];
+    const shift = Math.max(ends.left - own.left, Math.min(0, ends.right - own.right));
+    box.style.transform = `translateX(${shift}px)`;
+  }, [tip]);
+  const press = (open: (id: string) => void) => (id: string) => (event: React.MouseEvent<HTMLButtonElement>) => {
+    away();
+    // Pressed with the pointer, the keys go back to the page, so Space plays; with the keyboard, it stays.
+    if (event.detail) event.currentTarget.blur();
+    open(id);
+  };
   return (
-    <div
-      data-line
-      className={`group absolute inset-x-0 touch-none ${onScrub ? "cursor-pointer" : ""}`}
-      style={{ top: `calc(100% + ${UNDER - LINE}px)`, height: LINE }}
-      onPointerDown={(event) => {
-        if (!onScrub || event.button !== 0) return;
-        event.currentTarget.setPointerCapture(event.pointerId);
-        setHeld(true);
-        onScrub(along(event), "down");
-      }}
-      onPointerMove={(event) => held && onScrub?.(along(event), "move")}
-      onPointerUp={(event) => held && (setHeld(false), onScrub?.(along(event), "up"))}
-      onPointerCancel={(event) => held && (setHeld(false), onScrub?.(along(event), "up"))}
-    >
+    <div ref={room} data-line className="absolute inset-x-0" style={{ top: `calc(100% + ${UNDER - LINE}px)`, height: LINE }}>
+      {/* The line answers only where it's the line, as dragging it is; never under a mark. */}
       <div
-        className={`absolute inset-x-0 top-[6px] rounded-full bg-line transition-[height,top] duration-150 ease-calm ${held ? "top-[5px] h-1" : "h-0.5"} ${onScrub ? "group-hover:top-[5px] group-hover:h-1" : ""}`}
+        className={`group/line absolute inset-0 touch-none ${onScrub ? "cursor-pointer" : ""}`}
+        onPointerDown={(event) => {
+          if (!onScrub || event.button !== 0) return;
+          event.currentTarget.setPointerCapture(event.pointerId);
+          setHeld(true);
+          onScrub(along(event), "down");
+        }}
+        onPointerMove={(event) => held && onScrub?.(along(event), "move")}
+        onPointerUp={(event) => held && (setHeld(false), onScrub?.(along(event), "up"))}
+        onPointerCancel={(event) => held && (setHeld(false), onScrub?.(along(event), "up"))}
       >
-        <div ref={fill} className={`h-full rounded-full transition-colors duration-150 ease-calm ${held ? "bg-fg" : playing ? "bg-soft" : "bg-faint"} ${onScrub ? "group-hover:bg-fg" : ""}`} />
-        {dots.map((dot) => (
-          <i
-            key={dot.id}
-            className="absolute top-1/2 grid -translate-x-1/2 -translate-y-1/2 cursor-pointer place-items-center"
-            style={{ left: `${dot.share * 100}%`, width: DOT, height: 18 }}
-            onPointerDown={(event) => (event.stopPropagation(), onDot(dot.id))}
-          >
-            <i className={`size-2 rounded-full shadow-[0_0_0_1.5px_var(--ground)] ${dot.fill}`} />
-          </i>
-        ))}
+        <div
+          className={`absolute inset-x-0 top-[6px] rounded-full bg-line transition-[height,top] duration-150 ease-calm ${held ? "top-[5px] h-1" : "h-0.5"} ${onScrub ? "group-hover/line:top-[5px] group-hover/line:h-1" : ""}`}
+        >
+          <div ref={fill} className={`h-full rounded-full transition-colors duration-150 ease-calm ${held ? "bg-fg" : playing ? "bg-soft" : "bg-faint"} ${onScrub ? "group-hover/line:bg-fg" : ""}`} />
+        </div>
       </div>
-      {(() => {
-        // At one place they stand side by side, in the order made, inwards from it (leftwards at the line's end), and
-        // never on a note's dot on the line there; always inside the line's ends.
-        const taken = new Map<string, number>();
-        for (const dot of dots) taken.set(dot.share.toFixed(3), 1);
-        return lifted.map((mark) => {
-          const place = mark.share.toFixed(3);
-          const i = taken.get(place) ?? 0;
-          taken.set(place, i + 1);
-          const by = (mark.share > 0.5 ? -i : i) * LIFTED;
-          return (
-            <button
-              key={mark.id}
-              aria-label="Note made after stepping in"
-              aria-pressed={mark.chosen}
-              className="group/lift absolute bottom-[calc(100%-7px)] flex h-[18px] w-3 -translate-x-1/2 cursor-pointer flex-col items-center"
-              style={{ left: `clamp(4px, calc(${mark.share * 100}% + ${by}px), calc(100% - 4px))` }}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => (event.currentTarget.blur(), onLift(mark.id))}
-            >
-              <i className={`flex-none rounded-full shadow-[0_0_0_1.5px_var(--ground)] transition-[width,height] duration-150 ease-calm ${mark.fill} ${mark.chosen ? "size-2.5" : "size-2 group-hover/lift:size-2.5"}`} />
-              <i className={`w-0.5 flex-1 ${mark.fill}`} />
-            </button>
-          );
-        });
-      })()}
+      {dots.map((dot) => (
+        <NoteMark key={dot.id} mark={dot} shape="dot" arriving={!!arrived && !arrived.has(dot.id)} left={`${dot.share * 100}%`} onPress={press(onDot)(dot.id)} onAim={aim(dot)} onAway={away} />
+      ))}
+      {pins.map((pin) => (
+        <NoteMark key={pin.id} mark={pin} shape="pin" arriving={!!arrived && !arrived.has(pin.id)} left={at(pin)} onPress={press(onLift)(pin.id)} onAim={aim(pin)} onAway={away} />
+      ))}
+      {tip && (
+        <div ref={tipBox} className="pointer-events-none absolute top-[calc(100%+4px)] z-30 w-max -translate-x-1/2" style={{ left: tip.left }}>
+          <p className="max-w-[240px] animate-arrive truncate rounded-md bg-surface px-2 py-1 text-xs text-fg shadow-tip">{tip.words}</p>
+        </div>
+      )}
     </div>
   );
 }
+
+// A note's mark by the line, with what it says.
+type Marked = { id: string; share: number; sent: boolean; chosen: boolean; words: string };
+
+// A note's mark: a dot on the line for a note on the recording, a pin standing on it for one made somewhere you went
+// from there. Both answer alike: a little larger under the pointer, smaller pressed, larger still with a soft halo while
+// its note is open; all by scaling from where it stands, so nothing around it moves. One that's new grows in from its
+// point.
+function NoteMark({ mark, shape, arriving, left, onPress, onAim, onAway }: {
+  mark: Marked;
+  shape: "dot" | "pin";
+  arriving: boolean;
+  left: string;
+  onPress: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  onAim: (event: React.PointerEvent) => void;
+  onAway: () => void;
+}) {
+  const grown = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!arriving || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    grown.current?.animate([{ transform: "scale(0)" }, { transform: "scale(1.08)", offset: 0.7 }, { transform: "scale(1)" }], { duration: 220, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
+  }, []);
+  const ink = mark.sent ? "text-slate" : "text-amber";
+  const states = mark.chosen
+    ? "scale-130 group-active/mark:scale-122"
+    : `${shape === "pin" ? "group-hover/mark:scale-115" : "group-hover/mark:scale-125"} group-active/mark:scale-94 group-active/mark:duration-75`;
+  const halo = `motion-safe:transition-transform motion-safe:duration-160 ease-calm ${mark.chosen ? "scale-100" : "scale-0"}`;
+  return (
+    <button
+      data-note-mark
+      aria-label={mark.words || "Note"}
+      aria-pressed={mark.chosen}
+      // The keyboard's ring is the page's own, drawn round the mark itself rather than the room it's pressed in.
+      className={`group/mark absolute z-10 -translate-x-1/2 cursor-pointer focus-visible:outline-none ${shape === "pin" ? "bottom-full" : "top-1/2 -translate-y-1/2"}`}
+      style={{ left, width: shape === "pin" ? LIFTED : DOT, height: shape === "pin" ? PIN_ROOM : 18 }}
+      onClick={onPress}
+      onPointerDown={onAway}
+      onPointerEnter={onAim}
+      onPointerLeave={onAway}
+    >
+      {shape === "pin" ? (
+        // Its point on the line, its head in the gap over it.
+        <span ref={grown} className={`pointer-events-none absolute -bottom-[7px] left-1/2 block origin-[50%_100%] ${ink}`} style={{ width: PIN, height: PIN_HIGH, marginLeft: -PIN / 2 }}>
+          <svg viewBox={`0 0 ${PIN} ${PIN_HIGH}`} width={PIN} height={PIN_HIGH} overflow="visible" className={`block origin-[50%_100%] motion-safe:transition-transform motion-safe:duration-120 ease-calm ${states}`}>
+            <circle cx={PIN / 2} cy={PIN / 2} r="7" fill="currentColor" opacity="0.22" className={`origin-center [transform-box:fill-box] ${halo}`} />
+            {/* Ringed in the page's ground around its head, as a dot is, and not at its point, which meets the line. */}
+            {/* Chosen, the halo is its edge instead. */}
+            <circle cx={PIN / 2} cy={PIN / 2} r={PIN / 2} fill="none" stroke="var(--ground)" strokeWidth="3" className={mark.chosen ? "opacity-0" : ""} />
+            <path d={PIN_PATH} fill="currentColor" />
+            <circle cx={PIN / 2} cy={PIN / 2} r={PIN / 2 + 3} fill="none" stroke="var(--amber)" strokeWidth="2" className="opacity-0 group-focus-visible/mark:opacity-100" />
+          </svg>
+        </span>
+      ) : (
+        <span ref={grown} className={`pointer-events-none absolute inset-0 grid place-items-center ${ink}`}>
+          <span className={`absolute size-[14px] rounded-full bg-current opacity-22 ${halo}`} />
+          <span className={`size-2 rounded-full bg-current outline-offset-2 outline-amber group-focus-visible/mark:outline-2 motion-safe:transition-transform motion-safe:duration-120 ease-calm ${mark.chosen ? "" : "shadow-[0_0_0_1.5px_var(--ground)]"} ${states}`} />
+        </span>
+      )}
+    </button>
+  );
+}
+// A pin: its head as wide as a dot, its point where it stands.
+const PIN = 8;
+const PIN_HIGH = 11;
+const PIN_PATH = "M4 11C4 11 0 7.2 0 4a4 4 0 1 1 8 0c0 3.2-4 7-4 7Z";
+// The room a pin takes to be pressed: the gap from the bar's underside to the line.
+const PIN_ROOM = 16;
+// How long the pointer rests on a mark before it says its note.
+const TIP = 150;
 
 // Where a note's pin is on what it's on, as Pinned puts it: just outside its top right corner.
 const pinOf = (thing: Placed[string]) => thing && { x: thing.left + thing.width + 14, y: thing.top - 14 };

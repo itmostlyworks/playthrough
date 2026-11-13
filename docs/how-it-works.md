@@ -53,13 +53,16 @@ that isn't there is pinned where it was; in the app, its pin goes while it's gon
 onto what took its place, as the next card does once one is deleted (`take-over.ts`, by the page's own reading).
 **A note made after stepping in shows the frame you made it on.** One made in the app after doing something there (its
 `did` not empty) is pinned on the moment's picture only where its thing is there too, by role and name. Over the line,
-in the gap under the bar, each such note is a dot lifted on its own stem over the place you stepped in from, in its own
-colour (amber unsent, slate sent); those from one place stand side by side in the order made, inwards (leftwards at the
-line's end), never on a note's dot on the line there and always within the line's ends; dots on the line stay notes on
-the recording. Pressed (or such
+in the gap under the bar, each such note is a small pin whose point stands on the place you stepped in from, its head as wide
+as a dot on the line, in its own colour (amber unsent, slate sent); those from one place stand side by side in the
+order made, inwards (leftwards at the line's end), never on a note's dot on the line there and always within the line's
+ends; dots on the line stay notes on the recording. Pins and dots answer alike, all by scaling from where they stand:
+larger under the pointer, smaller pressed, larger with a soft halo while their note is open, a new one growing in from
+its point; resting on one says its note's words under the line; the line itself thickens only under the pointer on the
+line, never on a mark; Tab reaches them, with the page's amber ring round the mark. Pressed (or such
 a pin, or `?note=`), the playhead glides to the place under it and the frame cross-fades to that note's frame of your
 kept recording (`app.recording`, from `keepBranch`, so on a later version too), at rest, with its pin on its thing and
-its card, no pointer drawn, nothing played; its mark grows a little, and nothing else on the line changes. Another mark
+its card, no pointer drawn, nothing played; its mark is chosen, and nothing else on the line changes. Another mark
 shows its note instead, ← → go to the mark that way, and the chosen one again closes it. Escape, the mark again, or a press off the frame and card
 fades back to the moment where it was; Space, a click on it, the line, T, C or another moment act on the moment and close
 it first; Note is off. A note made as you stepped in, before doing anything, is an ordinary note, and Back after noting
