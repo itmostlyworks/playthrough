@@ -1392,16 +1392,23 @@ function Progress(props: {
               aria-pressed={!!mark.open}
               className="group/lift relative flex h-[18px] w-4 cursor-pointer flex-col items-center justify-start"
               onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => (event.currentTarget.blur(), onLift(mark.id))}
+              // Open on several, the mark is the first of them: pressed, it shows that one, or closes when it's shown.
+              onClick={(event) => (event.currentTarget.blur(), mark.open && mark.open.shown !== mark.id ? onLiftNote(mark.id) : onLift(mark.id))}
             >
-              <i className={`rounded-full shadow-[0_0_0_1.5px_var(--ground)] transition-[width,height] duration-150 ease-calm ${mark.fill} ${mark.open ? "size-2.5" : "size-2 group-hover/lift:size-2.5"}`} />
-              <i className={`w-px flex-1 ${mark.fill} opacity-60`} />
+              <i
+                className={`rounded-full transition-[width,height] duration-150 ease-calm ${
+                  mark.open && mark.open.shown !== mark.id
+                    ? `my-[1px] size-2 bg-ground shadow-[inset_0_0_0_1.5px_currentColor] ${mark.open.notes[0]!.fill === "bg-amber" ? "text-amber" : "text-slate"}`
+                    : `shadow-[0_0_0_1.5px_var(--ground)] ${mark.open ? `size-2.5 ${mark.open.notes[0]!.fill}` : `size-2 group-hover/lift:size-2.5 ${mark.fill}`}`
+                }`}
+              />
+              <i className={`w-0.5 flex-1 ${mark.fill}`} />
             </button>
             {mark.open && mark.open.notes.length > 1 && (
               <div className="absolute top-0 flex animate-arrive gap-0" style={{ [inwards > 0 ? "left" : "right"]: "100%", flexDirection: inwards > 0 ? "row" : "row-reverse" }}>
-                {mark.open.notes.map((one) => (
+                {mark.open.notes.slice(1).map((one) => (
                   <button key={one.id} aria-label="Another note made there" className="grid h-3.5 w-3.5 cursor-pointer place-items-center" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => (event.currentTarget.blur(), onLiftNote(one.id))}>
-                    <i className={`size-1.5 rounded-full ${one.id === mark.open!.shown ? one.fill : `shadow-[inset_0_0_0_1.5px_currentColor] ${one.fill === "bg-amber" ? "text-amber" : "text-slate"}`}`} />
+                    <i className={`rounded-full ${one.id === mark.open!.shown ? `size-2.5 ${one.fill}` : `size-2 shadow-[inset_0_0_0_1.5px_currentColor] ${one.fill === "bg-amber" ? "text-amber" : "text-slate"}`}`} />
                   </button>
                 ))}
               </div>
