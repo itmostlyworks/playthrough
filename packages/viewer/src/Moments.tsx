@@ -983,7 +983,7 @@ function MomentView(props: {
   // A note made in the app after doing something there is about what you saw then. Opened, the frame is your own
   // recording at its end, the pin on its thing, and the line plays how you got there, from where you stepped in. One made
   // as you stepped in, before doing anything, is on the moment as any note is; and while you're in the app, it's the app.
-  const yoursOpen = live?.shown ? undefined : said.find(({ note }) => note.id === open && !!note.on?.app?.did.length);
+  const yoursOpen = live?.shown ? undefined : said.find(({ note }) => note.id === open && afterSteppingIn(note));
   const yours = useMemo(() => {
     const app = yoursOpen?.note.on?.app;
     if (!yoursOpen || !app) return undefined;
@@ -1020,12 +1020,10 @@ function MomentView(props: {
     setYoursAt(to);
     setYoursScrubbing(false);
   };
-  // On what you did, its pin is where it was on the moment, so it doesn't move as the picture changes under it: pinned
-  // where its thing was, it stays there; on a thing the moment shows too, it's on that thing in your recording.
+  // On what you did, its pin is on its thing there, by the app's own numbering, which your recording keeps.
   const yoursMark = (note: Note): Mark => {
-    const onMoment = markOf(note);
     const node = note.on?.element?.node;
-    return onMoment.node === undefined || node === undefined ? onMoment : { id: note.id, node };
+    return { id: note.id, ...(node !== undefined ? { node } : note.on?.point && { point: note.on.point }) };
   };
   // Shown until it has faded out, once the note is closed.
   const [yoursShown, setYoursShown] = useState(yours);
@@ -1040,9 +1038,11 @@ function MomentView(props: {
     const one = said.find(({ note }) => note.id === id);
     if (!one || writing || live?.shown) return;
     setNoting(false);
-    if (!one.note.on?.app?.did.length) (setPlaying(undefined), restAt(noteAt(one.note)));
+    if (!afterSteppingIn(one.note)) (setPlaying(undefined), restAt(noteAt(one.note)));
     setOpen(id);
   };
+  // Resting where you stepped in, the line says in words how many notes you made there after doing something.
+  const afterHere = said.filter(({ note }) => afterSteppingIn(note) && restingAt(note));
   const shownNotes = yours
     ? yoursAtEnd ? [yoursOpen!] : []
     : [...said.filter(({ note }) => restingAt(note)), ...(writing ? [{ note: writing.note, sent: false }] : [])];
@@ -1057,6 +1057,9 @@ function MomentView(props: {
     // page, or the next taking took it away, it's where it was when the note was made, never on whatever here says the
     // same words.
     const node = on?.app || madeIn(note) < round.number ? nodeOf(element) : element?.node;
+    // Made after doing something in the app, its thing is often somewhere the moment never goes: then it isn't on the
+    // moment's picture at all, as a pin there would be on something it isn't about. The line says where it is.
+    if (afterSteppingIn(note) && node === undefined) return { id: note.id };
     // Pinned there, a dot at its corner, with nothing outlined: what's there now isn't what the note is on.
     const spot = spots[note.id];
     const where = spot ? { x: spot.x + spot.width, y: spot.y } : on?.point;
@@ -1207,6 +1210,11 @@ function MomentView(props: {
             yours={!!yours}
             dots={yours ? [] : said.map(({ note, sent }) => ({ id: note.id, share: shareOf(noteAt(note)), fill: sent ? "bg-slate" : "bg-amber" }))}
             onDot={openFromLine}
+            under={
+              !yours && !live?.shown && !writing && afterHere.length
+                ? { share: shareOf(at), words: `${afterHere.length} ${afterHere.length === 1 ? "note" : "notes"} after stepping in`, onOpen: () => openFromLine(afterHere[0]!.note.id) }
+                : undefined
+            }
             onScrub={
               yours
                 ? yoursCut && scrubYours
@@ -1317,11 +1325,15 @@ const ITEM =
 // How many seconds of a moment Play shows, waiting cut short.
 const LEADING = 7;
 const ABOUT = "about";
+// A note made in the app after doing something there, so about what you saw then, not the moment's page.
+const afterSteppingIn = (note: Note) => !!note.on?.app?.did.length;
 // The line along the recording takes this much room, pointer and all, under the bar, whose lower half hangs below the
 // recording's edge.
 const LINE = 14;
 const BAR = 40;
 const UNDER = BAR / 2 + 6 + LINE;
+// The room a note's dot on the line takes, side by side with others at its time.
+const DOT = 14;
 
 // How far through the few seconds Play shows it is, under the bar, as wide as the recording: always there, full at the point,
 // filling as it plays. Pressed or dragged, the recording follows; let go at its end, it's at the point.
@@ -1335,9 +1347,20 @@ function Progress(props: {
   yours: boolean;
   dots: { id: string; share: number; fill: string }[];
   onDot: (id: string) => void;
+  // Words under the line where it rests, saying what's there that the picture can't show.
+  under?: { share: number; words: string; onOpen: () => void };
   onScrub?: (share: number, phase: "down" | "move" | "up") => void;
 }) {
-  const { clock, share, shareOf, moving, playing, yours, dots, onDot, onScrub } = props;
+  const { clock, share, shareOf, moving, playing, yours, dots, onDot, under, onScrub } = props;
+  // Notes at the same time sit side by side, each its own, from where they are inwards: at the end, leftwards.
+  const beside = new Map<string, number>();
+  const at = dots.map((dot) => {
+    const key = dot.share.toFixed(3);
+    const i = beside.get(key) ?? 0;
+    beside.set(key, i + 1);
+    return { ...dot, by: (dot.share > 0.5 ? -i : i) * DOT };
+  });
+  const inward = (to: number) => (to > 0.5 ? "right" : "left");
   const fill = useRef<HTMLDivElement>(null);
   const told = useRef(shareOf);
   told.current = shareOf;
@@ -1371,17 +1394,27 @@ function Progress(props: {
         className={`absolute inset-x-0 top-[6px] rounded-full transition-[height,top] duration-150 ease-calm ${yours ? "bg-[color-mix(in_srgb,var(--amber)_28%,transparent)]" : "bg-line"} ${held ? "top-[5px] h-1" : "h-0.5"} ${onScrub ? "group-hover:top-[5px] group-hover:h-1" : ""}`}
       >
         <div ref={fill} className={`h-full rounded-full transition-colors duration-150 ease-calm ${yours ? "bg-amber" : `${held ? "bg-fg" : playing ? "bg-soft" : "bg-faint"} ${onScrub ? "group-hover:bg-fg" : ""}`}`} />
-        {dots.map((dot) => (
+        {at.map((dot) => (
           <i
             key={dot.id}
-            className="absolute top-1/2 grid size-3.5 -translate-x-1/2 -translate-y-1/2 cursor-pointer place-items-center"
-            style={{ left: `${dot.share * 100}%` }}
+            className="absolute top-1/2 grid -translate-x-1/2 -translate-y-1/2 cursor-pointer place-items-center"
+            style={{ left: `calc(${dot.share * 100}% + ${dot.by}px)`, width: DOT, height: 18 }}
             onPointerDown={(event) => (event.stopPropagation(), onDot(dot.id))}
           >
-            <i className={`size-1.5 rounded-full ${dot.fill}`} />
+            <i className={`size-2 rounded-full shadow-[0_0_0_1.5px_var(--ground)] ${dot.fill}`} />
           </i>
         ))}
       </div>
+      {under && (
+        <button
+          className={`absolute top-full mt-0.5 cursor-pointer text-xs leading-4 whitespace-nowrap text-soft transition-[opacity,color] duration-250 ease-calm hover:text-fg ${moving ? "pointer-events-none opacity-0" : ""}`}
+          style={{ [inward(under.share)]: `max(0px, calc(${(inward(under.share) === "left" ? under.share : 1 - under.share) * 100}% - ${DOT / 2}px))` }}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={under.onOpen}
+        >
+          {under.words}
+        </button>
+      )}
     </div>
   );
 }

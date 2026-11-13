@@ -52,14 +52,16 @@ Compare too; stepping in is T or the bar's Step in. A note is on the thing it wa
 that isn't there is pinned where it was; in the app, its pin goes while it's gone and comes back with it, never moving
 onto what took its place, as the next card does once one is deleted (`take-over.ts`, by the page's own reading).
 **Open a note and you see what you saw when you made it.** One made in the app after doing something there (its `did`
-not empty) opens on your own recording of it (`app.recording`, kept by `keepBranch` on the round it was made on, so on
+not empty) is pinned on the moment's picture only where its thing is there too, by role and name; elsewhere it has no
+pin there, as one would be on something it isn't about. The line is where it's found: each note's dot is its own, those
+at one time side by side (from the line's end, leftwards), in its pin's colour, pressed to open it; and resting where
+you stepped in, the words under them say "3 notes after stepping in", pressed to open the first. Opened, it's on your own recording of it (`app.recording`, kept by `keepBranch` on the round it was made on, so on
 a later version too): it fades in over the frame in place, edged in your amber, “What you did after stepping in” where
 Compare names its sides, at its end with the pin on the thing and the card beside it; the line under the bar is yours,
 amber, from where you stepped in to the note, and Space, a click or a drag play it, waits cut short as the moment's are.
-A pin that was where its thing was on the moment stays put as the picture changes under it. Escape, clicking off the
+Its pin is on its thing there, outlined as any open note's. Escape, clicking off the
 frame or another moment closes it, fading back; Step in, Note and Compare are off meanwhile. A note made as you stepped
-in, before doing anything, is an ordinary note, and Back after noting in the app is the moment. A note's dot on the
-line opens it too. Send says your notes; Done says every moment looks good. Neither locks.
+in, before doing anything, is an ordinary note, and Back after noting in the app is the moment, the words under your dot saying where the note went. Send says your notes; Done says every moment looks good. Neither locks.
 
 **Compare plays both together.** Play and the line drive both sides, at the same action at the same instant. Each
 recording keeps, per action, what it was and when it began (`began` beside `actions` on a step: `click button
