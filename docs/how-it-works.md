@@ -47,7 +47,10 @@ there says at once where it stands and moves when the pointer leaves. A moment o
 it opens in a tab of your own), Note (on the recording or in the app), Compare with what it was when it was handed
 back before. They're on a bar across the recording's bottom edge, as on the older page, and the line Play fills and
 you drag is under the bar. A click on the recording plays and pauses it, as Space does and as a video's does, in
-Compare too; stepping in is T or the bar's Step in. Send says your notes; Done says every moment looks good. Neither locks.
+Compare too; stepping in is T or the bar's Step in. A note is on the thing it was made on; the same thing drawn again
+(the same role and name, as when the app draws it anew) still counts, and nothing else does. On the recording, a thing
+that isn't there is pinned where it was; in the app, its pin goes while it's gone and comes back with it, never moving
+onto what took its place, as the next card does once one is deleted (`take-over.ts`, by the page's own reading). Send says your notes; Done says every moment looks good. Neither locks.
 
 **Compare plays both together.** Play and the line drive both sides, at the same action at the same instant. Each
 recording keeps, per action, what it was and when it began (`began` beside `actions` on a step: `click button

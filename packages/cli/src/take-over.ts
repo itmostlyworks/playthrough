@@ -467,6 +467,7 @@ const SAYS = `<script>(() => {
       // thing, as the part of a panel around what's in it, is the spot, never the words of everything in it.
       const known = node > 0 && recording ? read().things.find((thing) => thing.node === node) : undefined;
       const [kind, name] = known ? [known.role, known.name] : recording ? [] : [role(on), words(on)];
+      noted = on;
       parent.postMessage({ playthrough: "noted", ...(name ? { element: { role: kind, name, css: path(on), ...(node > 0 && { node }) } } : { point: { x: e.clientX / innerWidth, y: e.clientY / innerHeight } }), did, x: e.clientX, y: e.clientY }, "*");
       noting = false;
       swallowing = true;
@@ -475,26 +476,44 @@ const SAYS = `<script>(() => {
     if (e.type === "click") swallowing = false;
   };
   for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup", "click"]) addEventListener(type, swallow, true);
-  // A note's pin, on what it's on, and where it is, for its card to sit by.
+  // A note's pin, on what it's on, and where it is, for its card to sit by. It's on the thing itself, as it was noted:
+  // drawn again by the app, the same role and name, it's still that thing; gone, the pin goes until it's back, and never
+  // moves onto whatever sits where it was, as the next card does once one is deleted. A note on a spot stays there.
+  let noted;
   const pins = new Map();
   addEventListener("message", ({ source, data }) => {
     if (source !== parent || data?.playthrough !== "pin") return;
-    const pin = pins.get(data.id) ?? document.createElement("div");
-    pin.textContent = data.number;
-    pin.style.cssText = "position:fixed;z-index:2147483646;pointer-events:none;display:none;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;background:#e0a33a;color:#fff;font:600 11px/18px system-ui,sans-serif;text-align:center;box-shadow:0 0 0 2px #fff";
-    pin.dataset.css = data.css || "";
-    pin.dataset.x = data.point?.x ?? "";
-    pin.dataset.y = data.point?.y ?? "";
-    marks.appendChild(pin);
+    const pin = pins.get(data.id) ?? { mark: document.createElement("div") };
+    pin.mark.textContent = data.number;
+    pin.mark.style.cssText = "position:fixed;z-index:2147483646;pointer-events:none;display:none;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;background:#e0a33a;color:#fff;font:600 11px/18px system-ui,sans-serif;text-align:center;box-shadow:0 0 0 2px #fff";
+    Object.assign(pin, data.thing ? { named: data.thing, on: noted } : { point: data.point });
+    marks.appendChild(pin.mark);
     pins.set(data.id, pin);
   });
+  // As the page changes, each pin's thing is looked for again by the page's own reading, a few times a second at most.
+  let pageChanged = false, looked = 0;
+  new MutationObserver(() => (pageChanged = true)).observe(document.documentElement, { subtree: true, childList: true, characterData: true, attributes: true });
+  const lookAgain = () => {
+    const mirror = window.rrwebRecord?.record?.mirror;
+    if (!recording || !mirror) return;
+    const things = read().things;
+    const same = (one, named) => one.role === named.role && one.name === named.name;
+    for (const pin of pins.values()) {
+      if (!pin.named) continue;
+      const node = pin.on?.isConnected ? mirror.getId(pin.on) : undefined;
+      if (things.some((one) => one.node === node && same(one, pin.named))) continue;
+      // Of several, as a card and the part of its list its words come first in, the smallest, as on a recording.
+      const again = things.filter((one) => one.node > 0 && same(one, pin.named)).sort((a, b) => a.box.width * a.box.height - b.box.width * b.box.height)[0];
+      pin.on = again ? mirror.getNode(again.node) : undefined;
+    }
+  };
   let told = "";
   requestAnimationFrame(function place() {
+    if (pageChanged && pins.size && performance.now() - looked > 250) (pageChanged = false, (looked = performance.now()), lookAgain());
     const at = {};
-    for (const [id, pin] of pins) {
-      const on = pin.dataset.css ? document.querySelector(pin.dataset.css) : null;
-      const box = on?.getBoundingClientRect();
-      const spot = box?.width ? { x: box.right, y: box.top } : pin.dataset.x !== "" && !pin.dataset.css ? { x: pin.dataset.x * innerWidth, y: pin.dataset.y * innerHeight } : undefined;
+    for (const [id, { mark: pin, on, point }] of pins) {
+      const box = on?.isConnected ? on.getBoundingClientRect() : undefined;
+      const spot = box?.width ? { x: box.right, y: box.top } : point ? { x: point.x * innerWidth, y: point.y * innerHeight } : undefined;
       pin.style.display = spot ? "block" : "none";
       if (!spot) continue;
       Object.assign(pin.style, { left: spot.x + "px", top: spot.y + "px" });

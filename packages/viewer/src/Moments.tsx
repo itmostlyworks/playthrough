@@ -921,7 +921,7 @@ function MomentView(props: {
 
   // Saved, a note made in the app shows there as a pin on what it's on.
   const pinInApp = (note: Note, number: number) =>
-    document.querySelector<HTMLIFrameElement>("[data-live] iframe")?.contentWindow?.postMessage({ playthrough: "pin", id: note.id, number, css: note.on?.element?.css, point: note.on?.point }, "*");
+    document.querySelector<HTMLIFrameElement>("[data-live] iframe")?.contentWindow?.postMessage({ playthrough: "pin", id: note.id, number, thing: note.on?.element && { role: note.on.element.role, name: note.on.element.name }, point: note.on?.point }, "*");
   const save = (words: string) => {
     if (!writing) return;
     const kept = { ...writing.note, words };
@@ -985,14 +985,16 @@ function MomentView(props: {
   const markOf = (note: Note): Mark => {
     const on = note.on;
     const element = on?.element;
-    // Made in the app, or on an earlier taking of the moment, its thing is found here by its role and name. Made on what
-    // isn't here, as what was done in the app changed the page, or the next taking took it away, it's where it was when
-    // the note was made, never on whatever here says the same words.
-    const node = on?.app || !mine.includes(note) ? nodeOf(element) : element?.node;
+    // A note is on the thing it was made on: made on this taking, that very thing; made in the app, or on an earlier
+    // taking, the same thing drawn here, found by its role and name. Not here, as what was done in the app changed the
+    // page, or the next taking took it away, it's where it was when the note was made, never on whatever here says the
+    // same words.
+    const node = on?.app || madeIn(note) < round.number ? nodeOf(element) : element?.node;
     // Pinned there, a dot at its corner, with nothing outlined: what's there now isn't what the note is on.
     const spot = spots[note.id];
-    if (madeOn(note) && node === undefined) return { id: note.id, ...(spot ? { point: { x: spot.x + spot.width, y: spot.y } } : on?.point && { point: on.point }) };
-    return { id: note.id, ...(element && { name: element.name, ...(node !== undefined && { node }) }), ...(on?.point && { point: on.point }) };
+    const where = spot ? { x: spot.x + spot.width, y: spot.y } : on?.point;
+    if (madeOn(note) && node === undefined) return { id: note.id, ...(where && { point: where }) };
+    return { id: note.id, ...(node !== undefined && { node }), ...(where && { point: where }) };
   };
   const aboutNode = nodeOf(about);
   // Compared, at the point, what the moment is about (else the last thing done) is in view whole, as on the older page.
