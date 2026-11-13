@@ -945,10 +945,11 @@ function MomentView(props: {
       return;
     }
     if (live?.shown && !/^(t|n)$/.test(key)) return;
-    // Open on a place's notes, ← and → go between them.
+    // Open on a place's notes, ← and → go to the mark that way, as they stand: in the order made, leftwards at the end.
     if (placeOpen && placeOpen.notes.length > 1 && (key === "arrowleft" || key === "arrowright")) {
       const i = placeOpen.notes.findIndex(({ note }) => note.id === yours!.note.id);
-      const to = placeOpen.notes[Math.min(placeOpen.notes.length - 1, Math.max(0, i + (key === "arrowright" ? 1 : -1)))]!;
+      const step = (key === "arrowright" ? 1 : -1) * (shareOf(placeOpen.point) > 0.5 ? -1 : 1);
+      const to = placeOpen.notes[Math.min(placeOpen.notes.length - 1, Math.max(0, i + step))]!;
       return (event.preventDefault(), setOpen(to.note.id));
     }
     const did = { " ": play, t: stepIn, n: note, c: compare, arrowdown: () => next(1), arrowright: () => next(1), j: () => next(1), arrowup: () => next(-1), arrowleft: () => next(-1), k: () => next(-1) }[key];
@@ -986,7 +987,7 @@ function MomentView(props: {
   const noteAt = (note: Note) => ((made.get(note.id)?.round ?? round.number) < round.number ? end : note.on?.app ? note.on.app.from.at : (note.on?.at ?? end));
   const restingAt = (note: Note) => !playing && !scrubbing && Math.abs(noteAt(note) - at) < 0.06;
   // A note made in the app after doing something there is about a page the moment may never show. It's marked over the
-  // line, lifted above the place you stepped in from, one mark for all made there; opened, the frame is the frame you
+  // line, lifted above the place you stepped in from, a mark each; opened, the frame is the frame you
   // made the note on, from your own recording, and nothing more. One made as you stepped in, before doing anything, is
   // on the moment as any note is; and while you're in the app, it's the app.
   const yoursOpen = live?.shown ? undefined : said.find(({ note }) => note.id === open && afterSteppingIn(note));
@@ -1035,15 +1036,15 @@ function MomentView(props: {
   // Each place you stepped in from, with the notes made there after doing something, in the order made.
   const places = [...new Set(said.filter(({ note }) => afterSteppingIn(note)).map(({ note }) => noteAt(note)))].map((point) => {
     const here = said.filter(({ note }) => afterSteppingIn(note) && noteAt(note) === point);
-    return { point, notes: here, fill: here.some(({ sent }) => !sent) ? "bg-amber" : "bg-slate" };
+    return { point, notes: here };
   });
   const placeOpen = yours && places.find(({ notes }) => notes.some(({ note }) => note.id === yours.note.id));
-  // Pressed, a place's mark opens its first note, or closes what's open there.
-  const openPlace = (id: string) => {
+  // Pressed, a mark shows its note's frame, or closes it when it's the one shown.
+  const openLifted = (id: string) => {
     if (writing || live?.shown) return;
     setNoting(false);
     setComparing(false);
-    setOpen((now) => (placeOpen?.notes[0]?.note.id === id && now && placeOpen.notes.some(({ note }) => note.id === now) ? undefined : id));
+    setOpen((now) => (now === id ? undefined : id));
   };
   const shownNotes = yours ? [yoursOpen!] : [...said.filter(({ note }) => restingAt(note)), ...(writing ? [{ note: writing.note, sent: false }] : [])];
   // A thing on the moment's page by its role and name, as it was read there: what it's about, or what a note made in
@@ -1191,14 +1192,8 @@ function MomentView(props: {
             playing={!!playing}
             dots={said.filter(({ note }) => !afterSteppingIn(note)).map(({ note, sent }) => ({ id: note.id, share: shareOf(noteAt(note)), fill: sent ? "bg-slate" : "bg-amber" }))}
             onDot={(id) => (setNoting(false), setPlaying(undefined), restAt(noteAt(said.find(({ note }) => note.id === id)!.note)), setOpen(id))}
-            lifted={places.map(({ point, notes, fill }) => ({
-              id: notes[0]!.note.id,
-              share: shareOf(point),
-              fill,
-              ...(placeOpen?.point === point && { open: { shown: yours!.note.id, notes: notes.map(({ note, sent }) => ({ id: note.id, fill: sent ? "bg-slate" : "bg-amber" })) } }),
-            }))}
-            onLift={openPlace}
-            onLiftNote={setOpen}
+            lifted={places.flatMap(({ point, notes }) => notes.map(({ note, sent }) => ({ id: note.id, share: shareOf(point), fill: sent ? "bg-slate" : "bg-amber", chosen: yours?.note.id === note.id })))}
+            onLift={openLifted}
             onScrub={
               live?.shown || writing || !cut
                 ? undefined
@@ -1317,6 +1312,8 @@ const BAR = 40;
 const UNDER = BAR / 2 + 16 + LINE;
 // The room a note's dot on the line takes to be pressed.
 const DOT = 14;
+// How far apart marks lifted at one place stand.
+const LIFTED = 12;
 // The playhead glides to where you stepped in in this, in milliseconds.
 const GLIDING = 400;
 
@@ -1330,14 +1327,13 @@ function Progress(props: {
   playing: boolean;
   dots: { id: string; share: number; fill: string }[];
   onDot: (id: string) => void;
-  // Over the line, a mark lifted on a stem for each place you stepped in from and noted after doing something; open,
-  // a dot beside it for each of its notes, the one shown filled.
-  lifted: { id: string; share: number; fill: string; open?: { shown: string; notes: { id: string; fill: string }[] } }[];
+  // Over the line, a mark lifted on a stem for each note made after stepping in and doing something, standing over the
+  // place you stepped in from; the one shown, chosen.
+  lifted: { id: string; share: number; fill: string; chosen: boolean }[];
   onLift: (id: string) => void;
-  onLiftNote: (id: string) => void;
   onScrub?: (share: number, phase: "down" | "move" | "up") => void;
 }) {
-  const { clock, share, shareOf, moving, playing, dots, onDot, lifted, onLift, onLiftNote, onScrub } = props;
+  const { clock, share, shareOf, moving, playing, dots, onDot, lifted, onLift, onScrub } = props;
   const fill = useRef<HTMLDivElement>(null);
   const told = useRef(shareOf);
   told.current = shareOf;
@@ -1382,40 +1378,32 @@ function Progress(props: {
           </i>
         ))}
       </div>
-      {lifted.map((mark) => {
-        // Beside it, its notes run inwards: leftwards at the line's end.
-        const inwards = mark.share > 0.5 ? -1 : 1;
-        return (
-          <div key={mark.id} className="absolute bottom-[calc(100%-7px)] -translate-x-1/2" style={{ left: `${mark.share * 100}%` }}>
+      {(() => {
+        // At one place they stand side by side, in the order made, inwards from it (leftwards at the line's end), and
+        // never on a note's dot on the line there; always inside the line's ends.
+        const taken = new Map<string, number>();
+        for (const dot of dots) taken.set(dot.share.toFixed(3), 1);
+        return lifted.map((mark) => {
+          const place = mark.share.toFixed(3);
+          const i = taken.get(place) ?? 0;
+          taken.set(place, i + 1);
+          const by = (mark.share > 0.5 ? -i : i) * LIFTED;
+          return (
             <button
+              key={mark.id}
               aria-label="Note made after stepping in"
-              aria-pressed={!!mark.open}
-              className="group/lift relative flex h-[18px] w-4 cursor-pointer flex-col items-center justify-start"
+              aria-pressed={mark.chosen}
+              className="group/lift absolute bottom-[calc(100%-7px)] flex h-[18px] w-3 -translate-x-1/2 cursor-pointer flex-col items-center"
+              style={{ left: `clamp(4px, calc(${mark.share * 100}% + ${by}px), calc(100% - 4px))` }}
               onPointerDown={(event) => event.stopPropagation()}
-              // Open on several, the mark is the first of them: pressed, it shows that one, or closes when it's shown.
-              onClick={(event) => (event.currentTarget.blur(), mark.open && mark.open.shown !== mark.id ? onLiftNote(mark.id) : onLift(mark.id))}
+              onClick={(event) => (event.currentTarget.blur(), onLift(mark.id))}
             >
-              <i
-                className={`rounded-full transition-[width,height] duration-150 ease-calm ${
-                  mark.open && mark.open.shown !== mark.id
-                    ? `my-[1px] size-2 bg-ground shadow-[inset_0_0_0_1.5px_currentColor] ${mark.open.notes[0]!.fill === "bg-amber" ? "text-amber" : "text-slate"}`
-                    : `shadow-[0_0_0_1.5px_var(--ground)] ${mark.open ? `size-2.5 ${mark.open.notes[0]!.fill}` : `size-2 group-hover/lift:size-2.5 ${mark.fill}`}`
-                }`}
-              />
+              <i className={`flex-none rounded-full shadow-[0_0_0_1.5px_var(--ground)] transition-[width,height] duration-150 ease-calm ${mark.fill} ${mark.chosen ? "size-2.5" : "size-2 group-hover/lift:size-2.5"}`} />
               <i className={`w-0.5 flex-1 ${mark.fill}`} />
             </button>
-            {mark.open && mark.open.notes.length > 1 && (
-              <div className="absolute top-0 flex animate-arrive gap-0" style={{ [inwards > 0 ? "left" : "right"]: "100%", flexDirection: inwards > 0 ? "row" : "row-reverse" }}>
-                {mark.open.notes.slice(1).map((one) => (
-                  <button key={one.id} aria-label="Another note made there" className="grid h-3.5 w-3.5 cursor-pointer place-items-center" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => (event.currentTarget.blur(), onLiftNote(one.id))}>
-                    <i className={`rounded-full ${one.id === mark.open!.shown ? `size-2.5 ${one.fill}` : `size-2 shadow-[inset_0_0_0_1.5px_currentColor] ${one.fill === "bg-amber" ? "text-amber" : "text-slate"}`}`} />
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-      })}
+          );
+        });
+      })()}
     </div>
   );
 }
