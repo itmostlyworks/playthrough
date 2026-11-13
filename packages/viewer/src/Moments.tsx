@@ -168,7 +168,6 @@ function ago(iso: string, now: number): string {
   const hours = Math.floor(minutes / 60);
   return hours < 24 ? `${hours} h ago` : new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
-const notesSaid = (count: number) => `${count} ${count === 1 ? "note" : "notes"}`;
 
 // Where a change stands for you: waiting on you; with your agents, once you've sent notes on its latest moments; or
 // done, once you said Done, which sends that every moment looks good. Nothing about Done is final: a note later sends
