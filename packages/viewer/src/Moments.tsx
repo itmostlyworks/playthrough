@@ -599,6 +599,8 @@ function Sent({ listed, now, standing }: { listed: Listed; now: number; standing
 }
 
 const LEAVING = 380;
+// How long what you did takes to fade out, back to the moment.
+const FADING = 300;
 
 // Each edge of a part of the page that isn't the page's own edge fades out.
 function fadeOf(frame: Frame): React.CSSProperties {
@@ -784,7 +786,7 @@ function MomentView(props: {
   const [noting, setNoting] = useState(false);
   // Opened or closed, it stops where it's got to.
   const compare = () => {
-    if (!then || live?.shown) return;
+    if (!then || live?.shown || yours) return;
     if (playing) (setPlaying(undefined), restAt(clockOf.at, comparing ? bothOf.at : undefined));
     setOpen(undefined);
     setNoting(false);
@@ -839,6 +841,7 @@ function MomentView(props: {
 
   const play = () => {
     if (live?.shown || writing) return;
+    if (yours) return playYours();
     setOpen(undefined);
     setNoting(false);
     if (!cut) return;
@@ -850,7 +853,7 @@ function MomentView(props: {
   const stepIn = () => {
     if (live?.shown) return back();
     const paused = pausedAt(scene, at);
-    if (!paused || writing) return;
+    if (!paused || writing || yours) return;
     setComparing(false);
     setPlaying(undefined);
     setOpen(undefined);
@@ -867,7 +870,7 @@ function MomentView(props: {
     window.focus();
   };
   const note = () => {
-    if (writing || stepping) return;
+    if (writing || stepping || yours) return;
     setPlaying(undefined);
     setOpen(undefined);
     setNoting((now) => !now);
@@ -977,7 +980,72 @@ function MomentView(props: {
   // One made on an earlier taking is about the point, wherever it was on that recording.
   const noteAt = (note: Note) => ((made.get(note.id)?.round ?? round.number) < round.number ? end : note.on?.app ? note.on.app.from.at : (note.on?.at ?? end));
   const restingAt = (note: Note) => !playing && !scrubbing && Math.abs(noteAt(note) - at) < 0.06;
-  const shownNotes = [...said.filter(({ note }) => restingAt(note)), ...(writing ? [{ note: writing.note, sent: false }] : [])];
+  // A note made in the app after doing something there is about what you saw then. Opened, the frame is your own
+  // recording at its end, the pin on its thing, and the line plays how you got there, from where you stepped in. One made
+  // as you stepped in, before doing anything, is on the moment as any note is; and while you're in the app, it's the app.
+  const yoursOpen = live?.shown ? undefined : said.find(({ note }) => note.id === open && !!note.on?.app?.did.length);
+  const yours = useMemo(() => {
+    const app = yoursOpen?.note.on?.app;
+    if (!yoursOpen || !app) return undefined;
+    const { note } = yoursOpen;
+    return { note, round: madeIn(note), scene: { ...scene, recording: app.recording, length: app.length, steps: [] }, from: app.from.at, end: Math.min(app.length, note.on?.at ?? app.length) };
+  }, [yoursOpen?.note.id]);
+  const yoursCut = useCut(review.id, yours?.round ?? round.number, yours?.scene ?? scene);
+  const [yoursClock] = useState(() => new Clock(0));
+  const [yoursAt, setYoursAt] = useState(0);
+  const [yoursPlaying, setYoursPlaying] = useState<{ until: number }>();
+  const [yoursScrubbing, setYoursScrubbing] = useState(false);
+  // Opened, it's at its end, where you noted, from its first frame.
+  useLayoutEffect(() => {
+    setYoursPlaying(undefined);
+    setYoursScrubbing(false);
+    if (yours) (yoursClock.set(yours.end), setYoursAt(yours.end));
+  }, [yours]);
+  const yoursAtEnd = !!yours && !yoursPlaying && !yoursScrubbing && yoursAt >= yours.end - 0.06;
+  const yoursCutOk = yours && yoursCut;
+  const yoursShareOf = (moment: number) => (yours && yoursCutOk ? clamp((yoursCutOk.cut(moment) - yoursCutOk.cut(yours.from)) / Math.max(0.01, yoursCutOk.cut(yours.end) - yoursCutOk.cut(yours.from))) : 1);
+  const yoursMomentOf = (share: number) => (yours && yoursCutOk ? Math.min(yours.end, yoursCutOk.real(yoursCutOk.cut(yours.from) + share * (yoursCutOk.cut(yours.end) - yoursCutOk.cut(yours.from)))) : (yours?.end ?? 0));
+  const playYours = () => {
+    if (!yours || !yoursCut) return;
+    if (yoursPlaying) return (setYoursPlaying(undefined), setYoursAt(yoursClock.at));
+    yoursClock.set(yoursAtEnd || yoursAt < yours.from ? yours.from : yoursAt);
+    setYoursPlaying({ until: yours.end });
+  };
+  const scrubYours = (share: number, phase: "down" | "move" | "up") => {
+    if (!yours) return;
+    if (phase === "down") (setYoursPlaying(undefined), setYoursScrubbing(true));
+    if (phase !== "up") return yoursClock.set(yoursMomentOf(share));
+    const to = share >= 0.995 ? yours.end : yoursMomentOf(share);
+    yoursClock.set(to);
+    setYoursAt(to);
+    setYoursScrubbing(false);
+  };
+  // On what you did, its pin is where it was on the moment, so it doesn't move as the picture changes under it: pinned
+  // where its thing was, it stays there; on a thing the moment shows too, it's on that thing in your recording.
+  const yoursMark = (note: Note): Mark => {
+    const onMoment = markOf(note);
+    const node = note.on?.element?.node;
+    return onMoment.node === undefined || node === undefined ? onMoment : { id: note.id, node };
+  };
+  // Shown until it has faded out, once the note is closed.
+  const [yoursShown, setYoursShown] = useState(yours);
+  if (yours && yours !== yoursShown) setYoursShown(yours);
+  useEffect(() => {
+    if (yours || !yoursShown) return;
+    const gone = setTimeout(() => setYoursShown(undefined), matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : FADING);
+    return () => clearTimeout(gone);
+  }, [yours]);
+  // A note's dot on the line opens it, where it is: on the moment where it rests, or what you did, for one of those.
+  const openFromLine = (id: string) => {
+    const one = said.find(({ note }) => note.id === id);
+    if (!one || writing || live?.shown) return;
+    setNoting(false);
+    if (!one.note.on?.app?.did.length) (setPlaying(undefined), restAt(noteAt(one.note)));
+    setOpen(id);
+  };
+  const shownNotes = yours
+    ? yoursAtEnd ? [yoursOpen!] : []
+    : [...said.filter(({ note }) => restingAt(note)), ...(writing ? [{ note: writing.note, sent: false }] : [])];
   // A thing on the moment's page by its role and name, as it was read there: what it's about, or what a note made in
   // the app is on, as the app numbers its things anew.
   const nodeOf = (named?: { role: string; name: string }) => named && readings?.at(-1)?.things.find((thing) => thing.role === named.role && thing.name === named.name)?.node;
@@ -1002,7 +1070,7 @@ function MomentView(props: {
   const marks: Mark[] = [...(aboutNode !== undefined ? [{ id: ABOUT, node: aboutNode }] : []), ...shownNotes.map(({ note }) => markOf(note))];
   const pins: Pin[] = shownNotes.map(({ note, sent }) => ({ id: note.id, on: [note.id], ink: sent ? "var(--slate)" : "var(--amber)", fill: sent ? "bg-slate" : "bg-amber" }));
   // What it's about is outlined only at the point: midway, it may not be there yet.
-  const aboutAt = atPoint && !live?.shown ? placed[ABOUT] : undefined;
+  const aboutAt = atPoint && !live?.shown && !yours ? placed[ABOUT] : undefined;
   const openNote = shownNotes.find(({ note }) => note.id === open);
 
   // A click on the moment plays and pauses it, as Space does; noting, it's on what's under the pointer, said beside it.
@@ -1015,7 +1083,10 @@ function MomentView(props: {
   };
 
   return (
-    <div className="grid h-dvh grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-hidden bg-ground px-6 phone:px-4">
+    <div
+      className="grid h-dvh grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-hidden bg-ground px-6 phone:px-4"
+      onPointerDown={(event) => yours && !frame.current?.contains(event.target as Node) && setOpen(undefined)}
+    >
       <header className="flex h-12 min-w-0 items-center gap-3">
         <button onClick={onLeave} className="-ml-2 flex min-w-0 items-center gap-1.5 rounded-lg px-2 py-1 text-soft transition-colors duration-150 ease-calm hover:bg-hover hover:text-fg">
           <svg viewBox="0 0 12 12" className="size-3 flex-none" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -1054,8 +1125,8 @@ function MomentView(props: {
               cut={cut}
               clock={clockOf}
               onStop={() => (setPlaying(undefined), restAt(end))}
-              marks={marks}
-              onMarks={setPlaced}
+              marks={yours ? [] : marks}
+              onMarks={yours ? undefined : setPlaced}
               things={noting && !live?.shown && !writing ? glimpsed : undefined}
               onPlace={
                 noting && !live?.shown && !writing
@@ -1096,17 +1167,50 @@ function MomentView(props: {
                 ))}
               </div>
             )}
-            <Pinned pins={pins} placed={placed} open={open ?? writing?.note.id} faded={!!playing || scrubbing || !!live?.shown} onOpen={(id) => (setNoting(false), setOpen(id))} />
+            {yoursShown && (
+              // What you saw when you made the note, over the moment, edged in your amber, fading in and out in place.
+              <div
+                className={`absolute inset-0 z-[5] bg-ground transition-opacity ease-calm ${yours ? "animate-arrive" : "pointer-events-none opacity-0"}`}
+                style={{ transitionDuration: `${FADING}ms` }}
+              >
+                <div className="absolute inset-0 overflow-hidden rounded-lg bg-paper">
+                  <Player
+                    review={review.id}
+                    round={yoursShown.round}
+                    recording={yoursShown.scene.recording}
+                    at={yoursAt}
+                    playing={yours ? yoursPlaying : undefined}
+                    following={yoursScrubbing ? { clock: yoursClock, at: (moment) => moment } : undefined}
+                    cut={yours ? yoursCut : undefined}
+                    clock={yoursClock}
+                    onStop={() => (setYoursPlaying(undefined), setYoursAt(yoursShown.end))}
+                    marks={yours ? [yoursMark(yours.note)] : []}
+                    onMarks={yours ? setPlaced : undefined}
+                  />
+                  <div className="pointer-events-none absolute inset-0 rounded-lg shadow-[inset_0_0_0_1.5px_rgba(236,178,72,0.95)]" />
+                  <span className={CHIP}>What you did after stepping in</span>
+                </div>
+              </div>
+            )}
+            {/* Over what you did too, where its pin is on its thing. */}
+            <div className={`pointer-events-none absolute inset-0 ${yoursShown ? "z-[6]" : ""}`}>
+              <Pinned pins={pins} placed={placed} open={open ?? writing?.note.id} faded={!!playing || scrubbing || !!live?.shown || !!yoursPlaying || yoursScrubbing} onOpen={(id) => (setNoting(false), setOpen(id))} />
+            </div>
           </div>
           <Progress
-            clock={clockOf}
-            share={shareOf(at)}
-            shareOf={shareOf}
-            moving={!!playing || scrubbing}
-            playing={!!playing}
-            dots={said.map(({ note, sent }) => ({ id: note.id, share: shareOf(noteAt(note)), fill: sent ? "bg-slate" : "bg-amber" }))}
+            key={yours ? "yours" : "moment"}
+            clock={yours ? yoursClock : clockOf}
+            share={yours ? yoursShareOf(yoursAt) : shareOf(at)}
+            shareOf={yours ? yoursShareOf : shareOf}
+            moving={yours ? !!yoursPlaying || yoursScrubbing : !!playing || scrubbing}
+            playing={yours ? !!yoursPlaying : !!playing}
+            yours={!!yours}
+            dots={yours ? [] : said.map(({ note, sent }) => ({ id: note.id, share: shareOf(noteAt(note)), fill: sent ? "bg-slate" : "bg-amber" }))}
+            onDot={openFromLine}
             onScrub={
-              live?.shown || writing || !cut
+              yours
+                ? yoursCut && scrubYours
+                : live?.shown || writing || !cut
                 ? undefined
                 : (share, phase) => {
                     if (phase === "down") (setPlaying(undefined), setOpen(undefined), setNoting(false), setScrubbing(true));
@@ -1160,17 +1264,17 @@ function MomentView(props: {
             className={`absolute top-full left-1/2 z-20 flex -translate-x-1/2 -translate-y-1/2 gap-0.5 rounded-xl bg-surface p-1 text-[13px] select-none ${inApp ? "shadow-[0_0_0_1.5px_rgba(236,178,72,0.95),0_6px_20px_rgba(20,24,34,0.12)]" : "shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]"}`}
             style={{ height: BAR }}
           >
-          <button className={`${ITEM} w-[96px] phone:w-[64px]`} disabled={!!live?.shown || !cut} onClick={play}>
-            <span className="w-9 text-left">{playing ? "Pause" : "Play"}</span> <Key className="min-w-9">Space</Key>
+          <button className={`${ITEM} w-[96px] phone:w-[64px]`} disabled={!!live?.shown || !(yours ? yoursCut : cut)} onClick={play}>
+            <span className="w-9 text-left">{(yours ? yoursPlaying : playing) ? "Pause" : "Play"}</span> <Key className="min-w-9">Space</Key>
           </button>
-          <button className={`${ITEM} w-[116px] phone:w-[104px]`} disabled={!!writing} aria-pressed={stepping} onClick={stepIn}>
+          <button className={`${ITEM} w-[116px] phone:w-[104px]`} disabled={!!writing || !!yours} aria-pressed={stepping} onClick={stepIn}>
             {inApp ? "Back" : stepping ? "Stepping in…" : "Step in"} {!stepping && <Key>{inApp ? "Esc" : "T"}</Key>}
           </button>
-          <button className={`${ITEM}`} disabled={stepping || !!writing || comparing} aria-pressed={noting} onClick={note}>
+          <button className={`${ITEM}`} disabled={stepping || !!writing || comparing || !!yours} aria-pressed={noting} onClick={note}>
             Note <Key>N</Key>
           </button>
           {then && (
-            <button className={`${ITEM}`} disabled={!!live?.shown || !!writing} aria-pressed={comparing} onClick={compare}>
+            <button className={`${ITEM}`} disabled={!!live?.shown || !!writing || !!yours} aria-pressed={comparing} onClick={compare}>
               Compare <Key>C</Key>
             </button>
           )}
@@ -1227,10 +1331,13 @@ function Progress(props: {
   shareOf: (moment: number) => number;
   moving: boolean;
   playing: boolean;
+  // Your own recording, from where you stepped in to your note, in your amber.
+  yours: boolean;
   dots: { id: string; share: number; fill: string }[];
+  onDot: (id: string) => void;
   onScrub?: (share: number, phase: "down" | "move" | "up") => void;
 }) {
-  const { clock, share, shareOf, moving, playing, dots, onScrub } = props;
+  const { clock, share, shareOf, moving, playing, yours, dots, onDot, onScrub } = props;
   const fill = useRef<HTMLDivElement>(null);
   const told = useRef(shareOf);
   told.current = shareOf;
@@ -1260,10 +1367,19 @@ function Progress(props: {
       onPointerUp={(event) => held && (setHeld(false), onScrub?.(along(event), "up"))}
       onPointerCancel={(event) => held && (setHeld(false), onScrub?.(along(event), "up"))}
     >
-      <div className={`absolute inset-x-0 top-[6px] rounded-full bg-line transition-[height,top] duration-150 ease-calm ${held ? "top-[5px] h-1" : "h-0.5"} ${onScrub ? "group-hover:top-[5px] group-hover:h-1" : ""}`}>
-        <div ref={fill} className={`h-full rounded-full transition-colors duration-150 ease-calm ${held ? "bg-fg" : playing ? "bg-soft" : "bg-faint"} ${onScrub ? "group-hover:bg-fg" : ""}`} />
+      <div
+        className={`absolute inset-x-0 top-[6px] rounded-full transition-[height,top] duration-150 ease-calm ${yours ? "bg-[color-mix(in_srgb,var(--amber)_28%,transparent)]" : "bg-line"} ${held ? "top-[5px] h-1" : "h-0.5"} ${onScrub ? "group-hover:top-[5px] group-hover:h-1" : ""}`}
+      >
+        <div ref={fill} className={`h-full rounded-full transition-colors duration-150 ease-calm ${yours ? "bg-amber" : `${held ? "bg-fg" : playing ? "bg-soft" : "bg-faint"} ${onScrub ? "group-hover:bg-fg" : ""}`}`} />
         {dots.map((dot) => (
-          <i key={dot.id} className={`absolute top-1/2 size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full ${dot.fill}`} style={{ left: `${dot.share * 100}%` }} />
+          <i
+            key={dot.id}
+            className="absolute top-1/2 grid size-3.5 -translate-x-1/2 -translate-y-1/2 cursor-pointer place-items-center"
+            style={{ left: `${dot.share * 100}%` }}
+            onPointerDown={(event) => (event.stopPropagation(), onDot(dot.id))}
+          >
+            <i className={`size-1.5 rounded-full ${dot.fill}`} />
+          </i>
         ))}
       </div>
     </div>

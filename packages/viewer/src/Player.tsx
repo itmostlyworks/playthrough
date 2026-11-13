@@ -76,6 +76,8 @@ export function useCut(review: string, round: number, scene: Scene): Cut | undef
   const [kept, setKept] = useState<Cut>();
   useEffect(() => {
     let current = true;
+    // Another recording's isn't this one's while it comes.
+    setKept(undefined);
     recording(review, round, scene.recording).then((events) => current && setKept(cutOf(events, scene.length, scene.steps.map((step) => step.at))));
     return () => void (current = false);
   }, [review, round, scene.recording]);

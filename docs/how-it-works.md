@@ -50,7 +50,16 @@ you drag is under the bar. A click on the recording plays and pauses it, as Spac
 Compare too; stepping in is T or the bar's Step in. A note is on the thing it was made on; the same thing drawn again
 (the same role and name, as when the app draws it anew) still counts, and nothing else does. On the recording, a thing
 that isn't there is pinned where it was; in the app, its pin goes while it's gone and comes back with it, never moving
-onto what took its place, as the next card does once one is deleted (`take-over.ts`, by the page's own reading). Send says your notes; Done says every moment looks good. Neither locks.
+onto what took its place, as the next card does once one is deleted (`take-over.ts`, by the page's own reading).
+**Open a note and you see what you saw when you made it.** One made in the app after doing something there (its `did`
+not empty) opens on your own recording of it (`app.recording`, kept by `keepBranch` on the round it was made on, so on
+a later version too): it fades in over the frame in place, edged in your amber, “What you did after stepping in” where
+Compare names its sides, at its end with the pin on the thing and the card beside it; the line under the bar is yours,
+amber, from where you stepped in to the note, and Space, a click or a drag play it, waits cut short as the moment's are.
+A pin that was where its thing was on the moment stays put as the picture changes under it. Escape, clicking off the
+frame or another moment closes it, fading back; Step in, Note and Compare are off meanwhile. A note made as you stepped
+in, before doing anything, is an ordinary note, and Back after noting in the app is the moment. A note's dot on the
+line opens it too. Send says your notes; Done says every moment looks good. Neither locks.
 
 **Compare plays both together.** Play and the line drive both sides, at the same action at the same instant. Each
 recording keeps, per action, what it was and when it began (`began` beside `actions` on a step: `click button
