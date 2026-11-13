@@ -51,17 +51,17 @@ Compare too; stepping in is T or the bar's Step in. A note is on the thing it wa
 (the same role and name, as when the app draws it anew) still counts, and nothing else does. On the recording, a thing
 that isn't there is pinned where it was; in the app, its pin goes while it's gone and comes back with it, never moving
 onto what took its place, as the next card does once one is deleted (`take-over.ts`, by the page's own reading).
-**Open a note and you see what you saw when you made it.** One made in the app after doing something there (its `did`
-not empty) is pinned on the moment's picture only where its thing is there too, by role and name; elsewhere it has no
-pin there, as one would be on something it isn't about. The line is where it's found: each note's dot is its own, those
-at one time side by side (from the line's end, leftwards), in its pin's colour, pressed to open it; and resting where
-you stepped in, the words under them say "3 notes after stepping in", pressed to open the first. Opened, it's on your own recording of it (`app.recording`, kept by `keepBranch` on the round it was made on, so on
-a later version too): it fades in over the frame in place, edged in your amber, “What you did after stepping in” where
-Compare names its sides, at its end with the pin on the thing and the card beside it; the line under the bar is yours,
-amber, from where you stepped in to the note, and Space, a click or a drag play it, waits cut short as the moment's are.
-Its pin is on its thing there, outlined as any open note's. Escape, clicking off the
-frame or another moment closes it, fading back; Step in, Note and Compare are off meanwhile. A note made as you stepped
-in, before doing anything, is an ordinary note, and Back after noting in the app is the moment, the words under your dot saying where the note went. Send says your notes; Done says every moment looks good. Neither locks.
+**A note made after stepping in shows the frame you made it on.** One made in the app after doing something there (its
+`did` not empty) is pinned on the moment's picture only where its thing is there too, by role and name. Over the line,
+in the gap under the bar, a dot lifted on a short stem marks each place you stepped in from, one for all the notes made
+there after doing something (amber while any is unsent); dots on the line stay notes on the recording. Pressed (or such
+a pin, or `?note=`), the playhead glides to the place under it and the frame cross-fades to that note's frame of your
+kept recording (`app.recording`, from `keepBranch`, so on a later version too), at rest, with its pin on its thing and
+its card, no pointer drawn, nothing played; the mark grows a little. With several, a small dot each sits beside the mark
+(the shown one filled), pressed or ← → to go between them. Escape, the mark again, or a press off the frame and card
+fades back to the moment where it was; Space, a click on it, the line, T, C or another moment act on the moment and close
+it first; Note is off. A note made as you stepped in, before doing anything, is an ordinary note, and Back after noting
+in the app is the moment. Send says your notes; Done says every moment looks good. Neither locks.
 
 **Compare plays both together.** Play and the line drive both sides, at the same action at the same instant. Each
 recording keeps, per action, what it was and when it began (`began` beside `actions` on a step: `click button
