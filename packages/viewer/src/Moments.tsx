@@ -954,19 +954,6 @@ function MomentView(props: {
     addEventListener("keydown", down);
     return () => removeEventListener("keydown", down);
   }, []);
-  // The wheel goes a moment at a time: one turn, a notch or a swipe, is one moment, and the next waits for it to end.
-  const wheel = useRef({ sum: 0, quiet: 0, spent: false });
-  const onWheel = (event: React.WheelEvent) => {
-    if (writing || live?.shown) return;
-    const it = wheel.current;
-    clearTimeout(it.quiet);
-    it.quiet = window.setTimeout(() => (wheel.current = { sum: 0, quiet: 0, spent: false }), 220);
-    if (it.spent) return;
-    it.sum += event.deltaY;
-    if (Math.abs(it.sum) < 30) return;
-    it.spent = true;
-    next(it.sum > 0 ? 1 : -1);
-  };
 
   // What you said on this moment, unsent and sent, each a pin on what it's on; and the thing the moment is about.
   const mine = notes.filter((one) => one.on?.scene === scene.name);
@@ -1027,7 +1014,7 @@ function MomentView(props: {
   };
 
   return (
-    <div className="grid h-dvh grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-hidden bg-ground px-6 phone:px-4" onWheel={onWheel}>
+    <div className="grid h-dvh grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-hidden bg-ground px-6 phone:px-4">
       <header className="flex h-12 min-w-0 items-center gap-3">
         <button onClick={onLeave} className="-ml-2 flex min-w-0 items-center gap-1.5 rounded-lg px-2 py-1 text-soft transition-colors duration-150 ease-calm hover:bg-hover hover:text-fg">
           <svg viewBox="0 0 12 12" className="size-3 flex-none" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
