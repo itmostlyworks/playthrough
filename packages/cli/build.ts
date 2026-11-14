@@ -50,7 +50,7 @@ for (const file of readdirSync(types, { recursive: true, encoding: "utf8" }).fil
 }
 
 cpSync(join(cli, "viewer"), join(release, "viewer"), { recursive: true });
-cpSync(join(cli, "INSTRUCTIONS.md"), join(release, "INSTRUCTIONS.md"));
+cpSync(join(cli, "MOMENTS.md"), join(release, "MOMENTS.md"));
 cpSync(join(packages, "../LICENSE"), join(release, "LICENSE"));
 // On npm, the README's links lead to the repo, and of a picture GitHub shows in its own light or dark theme, only the
 // light one stays: npm has no themes, so it would show both.

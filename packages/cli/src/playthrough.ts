@@ -39,7 +39,7 @@ const words = lastAt < 0 ? given : given.toSpliced(lastAt, given[lastAt]!.includ
 know(repo().root);
 try {
   // Asked for help anywhere, as by reflex after a command, it's the help, never the command.
-  if (!command || command === "help" || words.some((word) => ["--help", "-h"].includes(word))) console.log(HELP);
+  if (!command || ["help", "--help", "-h"].includes(command) || words.some((word) => ["--help", "-h"].includes(word))) console.log(HELP);
   else if (!Object.hasOwn(commands, command)) throw new Refused([`There's no command “${command}”. Run playthrough alone for what each one does.`]);
   else {
     const [least, most, said, run] = commands[command as keyof typeof commands];
