@@ -2,7 +2,7 @@
 // what it kept of what you'd seen before that was kept with the change; and, for this tab, where the list was
 // scrolled and which of its quiet lines you'd opened.
 
-import type { Note } from "@playthrough/review";
+import type { Note, Send } from "@playthrough/review";
 
 // What this browser keeps for a change, by its address. What it kept by the change's own name alone, before every app's
 // changes were listed, comes over to the address once.
@@ -33,12 +33,12 @@ export function keepUnsent(review: string, notes: Note[]) {
   } catch {}
 }
 
-// Your replies on notes already sent, kept in this browser until you send them, by note.
-export type Replied = { note: string; words: string };
+// Your replies on notes already sent, kept in this browser until you send them, by note: each as Send takes it.
+export type YourReply = NonNullable<Send["replies"]>[number];
 
 const repliesKey = (review: string) => `playthrough:moments-replies:${review}`;
 
-export function repliesOf(review: string): Replied[] {
+export function repliesOf(review: string): YourReply[] {
   try {
     return JSON.parse(stored(repliesKey, review) ?? "[]");
   } catch {
@@ -46,7 +46,7 @@ export function repliesOf(review: string): Replied[] {
   }
 }
 
-export function keepReplies(review: string, replies: Replied[]) {
+export function keepReplies(review: string, replies: YourReply[]) {
   try {
     if (replies.length) localStorage.setItem(repliesKey(review), JSON.stringify(replies));
     else localStorage.removeItem(repliesKey(review));

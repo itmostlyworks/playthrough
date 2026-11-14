@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 import type { Reading, Thing } from "@playthrough/page";
 import type { Review, Round, Scene } from "@playthrough/review";
 import { fineStill, picture, readings as readingsOf } from "./api.ts";
-import { around, Picture, union, type Frame } from "./Picture.tsx";
+import { around, Picture, union, type Crop } from "./Picture.tsx";
 
 // Each edge of a part of the page that isn't the page's own edge fades out.
-function fadeOf(frame: Frame): React.CSSProperties {
-  const [left, right, top, bottom] = [frame.x > 0.001, frame.x + frame.width < 0.999, frame.y > 0.001, frame.y + frame.height < 0.999].map((cut) => (cut ? FADE : 0));
+function fadeOf(crop: Crop): React.CSSProperties {
+  const [left, right, top, bottom] = [crop.x > 0.001, crop.x + crop.width < 0.999, crop.y > 0.001, crop.y + crop.height < 0.999].map((cut) => (cut ? FADE : 0));
   const mask = `linear-gradient(to right, transparent, #000 ${left}px, #000 calc(100% - ${right}px), transparent), linear-gradient(to bottom, transparent, #000 ${top}px, #000 calc(100% - ${bottom}px), transparent)`;
   return { maskImage: mask, WebkitMaskImage: mask, maskComposite: "intersect", WebkitMaskComposite: "source-in" };
 }
@@ -18,7 +18,7 @@ function fadeOf(frame: Frame): React.CSSProperties {
 // names nothing on the page.
 const STILL = 1.6;
 
-export function closeOn(reading: Reading | undefined, about: { role: string; name: string } | undefined, shape: number): Frame | undefined {
+export function closeOn(reading: Reading | undefined, about: { role: string; name: string } | undefined, shape: number): Crop | undefined {
   const shown = reading && aboutBox(reading, about);
   return shown && around(shown, reading.screen, shape, 3);
 }
@@ -67,13 +67,13 @@ export function Still({ review, round, scene, about, seen }: { review: Review; r
 
 // The still's picture alone, for whatever holds it: the list, or a moment's edge.
 export function StillPicture({ review, round, scene, about }: { review: Review; round: Round; scene: Scene; about?: { role: string; name: string } }) {
-  const [frame, setFrame] = useState<Frame>();
+  const [crop, setCrop] = useState<Crop>();
   // Closed in, the picture kept as it was recorded is shown larger than it was taken on a screen of twice the dots: there,
   // it's drawn twice as fine, and the kept one shows until that's in.
   const [sharp, setSharp] = useState<string>();
   useEffect(() => {
     let current = true;
-    readingsOf(review.id, round.number, scene.recording).then((read) => current && setFrame(closeOn(read.at(-1), about, STILL)));
+    readingsOf(review.id, round.number, scene.recording).then((read) => current && setCrop(closeOn(read.at(-1), about, STILL)));
     if (devicePixelRatio > 1)
       void fineStill(review.id, round.number, scene.recording, scene.length).then((src) => {
         if (!src || !current) return;
@@ -84,8 +84,8 @@ export function StillPicture({ review, round, scene, about }: { review: Review; 
     return () => void (current = false);
   }, [scene.recording, about?.name]);
   return (
-    <span className="absolute inset-0" style={frame && fadeOf(frame)}>
-      <Picture shot={{ src: sharp ?? picture(review.id, round.number, scene.recording, Math.max(0, scene.steps.length - 1)), frame }} />
+    <span className="absolute inset-0" style={crop && fadeOf(crop)}>
+      <Picture shot={{ src: sharp ?? picture(review.id, round.number, scene.recording, Math.max(0, scene.steps.length - 1)), crop }} />
     </span>
   );
 }

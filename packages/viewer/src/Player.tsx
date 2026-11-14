@@ -9,7 +9,7 @@ import { elementOf, type Glimpse } from "@playthrough/page";
 import type { Element, Scene, Point } from "@playthrough/review";
 import { recording } from "./api.ts";
 import { Replay, type Choice, type Events, type Pressed, type Rect, type Scrolled } from "./replay.ts";
-import type { Frame } from "./Picture.tsx";
+import type { Crop } from "./Picture.tsx";
 import { pickAt } from "./things.ts";
 import { around as aroundCentre, centreOf, following as followingPointer, holding, type Together } from "./view.ts";
 
@@ -117,7 +117,7 @@ type Props = {
   onStop?: (at: number) => void;
   // Another round's, it follows the clock while the one it's beside plays, at the matching moment.
   following?: { clock: Clock; at: (at: number) => number };
-  frame?: Frame;
+  crop?: Crop;
   // At actual size, a window onto the page that follows the pointer, beside another onto the same part of it: the one
   // that leads says where, as the older page's Compare does. Holding something, at rest, it's in view whole, the view
   // gliding there: both sides are told, so both glide.
@@ -175,27 +175,27 @@ export function Player(props: Props) {
   }, [props.review, props.round, props.recording]);
   if (props.scrolled) props.scrolled.current = replay && (() => replay.replay.scrolled());
 
-  const { at, playing, cut, clock, following, frame, marks, actualSize } = props;
+  const { at, playing, cut, clock, following, crop, marks, actualSize } = props;
   // Each mark as it is, so one found later, as a note's spot read from where it was made, is placed again.
   const marked = JSON.stringify(marks);
   // Another part of the page to show, the view glides there from where it was, whatever else changes meanwhile: the
   // picture narrowing for Compare redraws it all the way. What glides is the part of the page shown, never how close it
   // is: that's the picture's width over it, so a picture still narrowing is never aimed past where it ends. It keeps the
   // browser's frame clock, as the narrowing does, from when the narrowing started, or else from the frame after it's set.
-  const glide = useRef<{ frame?: Frame; holds?: string; from?: View; set: number; since?: number }>({ frame, set: 0 });
+  const glide = useRef<{ crop?: Crop; holds?: string; from?: View; set: number; since?: number }>({ crop, set: 0 });
   useEffect(() => {
     if (!replay || !box.current?.clientWidth) return;
     const replayed = replay.replay;
     const length = ((replay.events.at(-1)?.timestamp ?? 0) - (replay.events[0]?.timestamp ?? 0)) / 1000;
     const holds = actualSize?.holds && !playing && !following ? JSON.stringify(actualSize.holds) : undefined;
-    if (frame !== glide.current.frame || holds !== glide.current.holds) glide.current = { frame, holds, from: view.current, set: frameTime() };
+    if (crop !== glide.current.crop || holds !== glide.current.holds) glide.current = { crop, holds, from: view.current, set: frameTime() };
     const thingOf = (mark: Mark): Rect | undefined => (mark.node !== undefined ? replayed.markOf(mark.node) : undefined) ?? (mark.name ? replayed.named(mark.name) : undefined);
     const gliding = () => !!glide.current.from && frameTime() - (glide.current.since ?? frameTime()) < GLIDE * 1000;
     const draw = (moment: number, moving: boolean) => {
       // Gone, as Before is once Compare's let go, it's told nothing more.
       if (!box.current) return;
       const shape = replayed.shapeAt(moment);
-      const part = glide.current.frame;
+      const part = glide.current.crop;
       // On no part of it, it's the whole screen, as its picture is: a phone's, narrower than the picture, whole and in
       // the middle, rather than across the picture's width and cut off below its top.
       const whole = Math.max(shape.width, (shape.height * box.current.clientWidth) / box.current.clientHeight);
@@ -289,12 +289,12 @@ export function Player(props: Props) {
     told.current?.(
       Object.fromEntries(
         (marks ?? []).map((mark) => {
-          // Off the screen, as a board's columns past a phone's edge are, it's not on the frame: the screen beside the
+          // Off the screen, as a board's columns past a phone's edge are, it's not in the picture: the screen beside the
           // picture's edge no longer hides it.
           const thing = thingOf(mark);
           const onScreen = thing && thing.left < shape.width && thing.top < shape.height && thing.left + thing.width > 0 && thing.top + thing.height > 0;
           if (onScreen) return [mark.id, { left: (thing.left - left) * k, top: (thing.top - top) * k, width: thing.width * k, height: thing.height * k }];
-          // On a spot, where its thing was, it's always on the frame: out of it, at the edge nearest to where it was.
+          // On a spot, where its thing was, it's always in the picture: out of it, at the edge nearest to where it was.
           const spot = !thing && spotOf(mark);
           if (!spot) return [mark.id, undefined];
           const placed = { left: (spot.left - left) * k, top: (spot.top - top) * k, width: spot.width * k, height: spot.height * k };
@@ -305,7 +305,7 @@ export function Player(props: Props) {
         }),
       ),
     );
-  }, [replay, at, playing?.until, cut, following, frame, marked, width, glided, actualSize?.together, actualSize?.holds && JSON.stringify(actualSize.holds)]);
+  }, [replay, at, playing?.until, cut, following, crop, marked, width, glided, actualSize?.together, actualSize?.holds && JSON.stringify(actualSize.holds)]);
 
   // What's under the pointer on the page at rest, in its own pixels, and what a click there would note.
   const [hover, setHover] = useState<Rect>();
@@ -351,7 +351,7 @@ export function Player(props: Props) {
   );
 }
 
-// How far inside the frame's edge a spot that's out of it is pinned: a pin's half and a little.
+// How far inside the picture's edge a spot that's out of it is pinned: a pin's half and a little.
 const EDGE = 14;
 
 // A key pressed shows this long, in seconds of the recording, and fades over its last part.

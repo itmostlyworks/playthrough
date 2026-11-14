@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Note } from "@playthrough/review";
 import { useChanges, useYou, type Listed } from "./api.ts";
-import { unsentOf, keepUnsent, repliesOf, keepReplies, keepScroll, openedLines, keepOpened, type Replied } from "./kept.ts";
+import { unsentOf, keepUnsent, repliesOf, keepReplies, keepScroll, openedLines, keepOpened, type YourReply } from "./kept.ts";
 import { List } from "./List.tsx";
 import { MomentView } from "./Moment.tsx";
 import { takingOf, seenOf, markSeen, latestOf, sentBy, whoIn, standingOf } from "./standing.ts";
@@ -69,7 +69,7 @@ function Change({ listed, you, moment, note, go }: { listed: Listed; you: string
       return next;
     });
   const [replies, setRepliesNow] = useState(() => repliesOf(id));
-  const setReplies = (change: (replies: Replied[]) => Replied[]) =>
+  const setReplies = (change: (replies: YourReply[]) => YourReply[]) =>
     setRepliesNow((now) => {
       const next = change(now);
       keepReplies(id, next);

@@ -28,7 +28,7 @@ export function Edge(props: {
   side: "left" | "right";
   label: string;
   // The recording, which the edge sits beside.
-  frame: RefObject<HTMLDivElement | null>;
+  stage: RefObject<HTMLDivElement | null>;
   // Stepped in: what drives the recording rests.
   quiet: boolean;
   phone: boolean;
@@ -38,10 +38,10 @@ export function Edge(props: {
   arrived?: string;
   children: (forward: boolean) => ReactNode;
 }) {
-  const { side, label, frame, quiet, phone, showing, arrived, children } = props;
+  const { side, label, stage, quiet, phone, showing, arrived, children } = props;
   const [room, setRoom] = useState<Room>();
   useLayoutEffect(() => {
-    const shown = frame.current;
+    const shown = stage.current;
     if (!shown || phone) return;
     const measure = () => {
       const box = shown.getBoundingClientRect();

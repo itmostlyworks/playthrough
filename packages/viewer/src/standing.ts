@@ -3,7 +3,7 @@
 
 import { conversation, notesToAnswer, type Note, type Review, type Round, type Scene } from "@playthrough/review";
 import type { Listed } from "./api.ts";
-import { stored, seenKey, type Replied } from "./kept.ts";
+import { stored, seenKey, type YourReply } from "./kept.ts";
 
 // What Send says it sends: notes and replies, by their count.
 export const toSend = (notes: number, replies: number) =>
@@ -12,7 +12,7 @@ export const toSend = (notes: number, replies: number) =>
 // What a note says wherever it's shown, a line on the list, its picture's words or its pin pointed at: your latest
 // words, and where it stands. An answer is new if it came back after you last opened the moment it's on, as what you've
 // opened is kept with the change (`seen`), so it's the same on every device you look from.
-export function noteSays(review: Review, you: string, note: Note, sent: boolean, replies: Replied[]) {
+export function noteSays(review: Review, you: string, note: Note, sent: boolean, replies: YourReply[]) {
   if (!sent) return { words: note.words, stands: "not sent yet", fresh: false };
   const turns = conversation(review, note.id);
   const replied = replies.find((one) => one.note === note.id)?.words;

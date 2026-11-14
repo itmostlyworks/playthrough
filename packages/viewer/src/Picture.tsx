@@ -5,9 +5,9 @@ import { useState } from "react";
 import { clamp } from "./clamp.ts";
 
 // A part of the page, as shares of it.
-export type Frame = { x: number; y: number; width: number; height: number };
-// Without a frame, the whole page, as large as fits.
-export type Shot = { src: string; frame?: Frame };
+export type Crop = { x: number; y: number; width: number; height: number };
+// Without a crop, the whole page, as large as fits.
+export type Shot = { src: string; crop?: Crop };
 // A part of the page, in its pixels.
 export type Box = { x: number; y: number; width: number; height: number };
 
@@ -20,7 +20,7 @@ export const union = (boxes: Box[]): Box => {
 
 // A part of the page with room around a box on it, this wide for its height, at most so many times as close as the
 // page's full height.
-export function around(box: Box, page: { width: number; height: number }, shape: number, closest = 2): Frame {
+export function around(box: Box, page: { width: number; height: number }, shape: number, closest = 2): Crop {
   const { width: across, height: down } = page;
   const [left, top, right, bottom] = [box.x, box.y, box.x + box.width, box.y + box.height];
   const height = Math.min(down, across / shape, Math.max((right - left + across * 0.08) / shape, bottom - top + down * 0.25, down / closest));
@@ -32,11 +32,11 @@ export function around(box: Box, page: { width: number; height: number }, shape:
 
 // A picture that isn't there leaves its place empty.
 export function Picture({ shot }: { shot: Shot }) {
-  const { src, frame } = shot;
+  const { src, crop } = shot;
   const [missing, setMissing] = useState<string>();
   if (missing === src) return null;
   const lost = () => setMissing(src);
-  if (!frame) return <img src={src} alt="" draggable={false} className="pointer-events-none absolute inset-0 size-full object-contain" onError={lost} />;
+  if (!crop) return <img src={src} alt="" draggable={false} className="pointer-events-none absolute inset-0 size-full object-contain" onError={lost} />;
   return (
     <img
       src={src}
@@ -44,7 +44,7 @@ export function Picture({ shot }: { shot: Shot }) {
       draggable={false}
       onError={lost}
       className="pointer-events-none absolute max-w-none"
-      style={{ width: `${100 / frame.width}%`, height: `${100 / frame.height}%`, left: `${(-frame.x / frame.width) * 100}%`, top: `${(-frame.y / frame.height) * 100}%` }}
+      style={{ width: `${100 / crop.width}%`, height: `${100 / crop.height}%`, left: `${(-crop.x / crop.width) * 100}%`, top: `${(-crop.y / crop.height) * 100}%` }}
     />
   );
 }

@@ -25,7 +25,7 @@ type Props = {
 export function Portal({ live, person, screen, scrolled, waiting: waitingWords = "Taking over…", named = true }: Props) {
   const room = useRef<HTMLDivElement>(null);
   const app = useRef<HTMLDivElement>(null);
-  const frame = useRef<HTMLIFrameElement>(null);
+  const iframe = useRef<HTMLIFrameElement>(null);
   const sheen = useRef<HTMLDivElement>(null);
   const ring = useRef<HTMLDivElement>(null);
   const edge = useRef<HTMLDivElement>(null);
@@ -102,7 +102,7 @@ export function Portal({ live, person, screen, scrolled, waiting: waitingWords =
     };
     // In the app, your name goes where your pointer is, and leaves the picture with it.
     const told = ({ data, source }: MessageEvent) => {
-      if (data?.playthrough === "pointer" && open.current && source === frame.current?.contentWindow) handTo({ x: data.x * k, y: data.y * k }, data.inside, !!data.text);
+      if (data?.playthrough === "pointer" && open.current && source === iframe.current?.contentWindow) handTo({ x: data.x * k, y: data.y * k }, data.inside, !!data.text);
     };
     addEventListener("pointermove", aimed, true);
     addEventListener("pointerdown", aimed, true);
@@ -161,13 +161,13 @@ export function Portal({ live, person, screen, scrolled, waiting: waitingWords =
     // name goes with it.
     const real = (handed: boolean) => {
       yours.toggleAttribute("data-yours", handed);
-      frame.current?.contentWindow?.postMessage({ playthrough: "yours", yours: handed }, "*");
+      iframe.current?.contentWindow?.postMessage({ playthrough: "yours", yours: handed }, "*");
     };
 
     if (inPortal) {
-      frame.current?.contentWindow?.postMessage({ playthrough: "scroll", ...scrolled() }, "*");
+      iframe.current?.contentWindow?.postMessage({ playthrough: "scroll", ...scrolled() }, "*");
       Object.assign(door.style, { opacity: "1", pointerEvents: "auto" });
-      frame.current?.focus();
+      iframe.current?.focus();
       edging.style.opacity = "1";
       // The recording's pointer becomes yours: where your hand is, its name changing hands with it.
       yourHand.current = at;
@@ -289,7 +289,7 @@ export function Portal({ live, person, screen, scrolled, waiting: waitingWords =
         <div ref={app} data-live className="pointer-events-none absolute inset-0 overflow-hidden opacity-0">
           <div ref={sheen} className="pointer-events-none absolute inset-0 z-1 opacity-0 [background:radial-gradient(circle_at_var(--x)_var(--y),rgba(255,232,190,0.15),rgba(255,214,150,0.5))]" />
           <iframe
-            ref={frame}
+            ref={iframe}
             key={live.address}
             src={live.address}
             title="The app, taken over"

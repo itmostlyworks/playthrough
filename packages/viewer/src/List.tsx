@@ -6,7 +6,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { allNotes, newId, waitingForTheAgent, type Note } from "@playthrough/review";
 import { send, type Listed } from "./api.ts";
-import { unsentOf, keepUnsent, repliesOf, keepReplies, scrolledBack, openedLines, keepOpened, type Replied } from "./kept.ts";
+import { unsentOf, keepUnsent, repliesOf, keepReplies, scrolledBack, openedLines, keepOpened, type YourReply } from "./kept.ts";
 import { Key } from "./Key.tsx";
 import { SendButton, tick, FILLED_KEY, SAID } from "./Send.tsx";
 import { toSend, noteSays, takingOf, differentSince, seenOf, markSeen, latestOf, workingSince, whoIn, ago, standingOf, type Standing } from "./standing.ts";
@@ -248,7 +248,7 @@ function ChangeInList(props: {
   // Sent, it says so where you pressed, and only then goes.
   const [sentNow, setSentNow] = useState(false);
   const waiting = standing.is === "waiting";
-  const say = async (what: { notes: Note[]; replies?: Replied[]; looksGood: string[] }) => {
+  const say = async (what: { notes: Note[]; replies?: YourReply[]; looksGood: string[] }) => {
     if (busy || leaving) return;
     setBusy(true);
     onLeaving(true);

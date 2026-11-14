@@ -9,7 +9,7 @@ import { glimpses, keepBranch, picture, readings as readingsOf, recording, send 
 import { clamp } from "./clamp.ts";
 import { CHIP, playedTogether } from "./compare.ts";
 import { Edge, Tile } from "./Edge.tsx";
-import type { Replied } from "./kept.ts";
+import type { YourReply } from "./kept.ts";
 import { Key } from "./Key.tsx";
 import { readyAt, readyIn } from "./live.ts";
 import { Progress, Getting, ITEM, BAR } from "./MomentBar.tsx";
@@ -29,7 +29,7 @@ import type { Together } from "./view.ts";
 const FADING = 300;
 
 // Stepping in: since when, and when it should be there, if that can be known.
-type Live = { scene: string; from: number; address?: string; shown: boolean; settled?: boolean; problems?: string[]; at?: { x: number; y: number }; since: number; due?: number };
+type StepIn = { scene: string; from: number; address?: string; shown: boolean; settled?: boolean; problems?: string[]; at?: { x: number; y: number }; since: number; due?: number };
 
 // Where it was asked for: the spot, and the thing there where the app said where it is, in the recording's pixels.
 type Writing = { note: Note; spot: { x: number; y: number }; box?: Rect };
@@ -46,8 +46,8 @@ export function MomentView(props: {
   notes: Note[];
   sent: Note[];
   setNotes: (change: (notes: Note[]) => Note[]) => void;
-  replies: Replied[];
-  setReplies: (change: (replies: Replied[]) => Replied[]) => void;
+  replies: YourReply[];
+  setReplies: (change: (replies: YourReply[]) => YourReply[]) => void;
   you: string;
   // A note to open as the moment opens, pressed on the list.
   opening?: string;
@@ -146,7 +146,7 @@ export function MomentView(props: {
   const [writing, setWriting] = useState<Writing>();
   const [open, setOpen] = useState<string>();
   const [placed, setPlaced] = useState<Placed>({});
-  const [live, setLive] = useState<Live>();
+  const [live, setLive] = useState<StepIn>();
   // A note's pin on the recording and its picture on the edge are one thing: pointing at either lights both. A pin
   // pointed at says its note right there, as its picture does, after a breath, so passing over one says nothing.
   const [pointed, setPointed] = useState<string>();
@@ -183,7 +183,7 @@ export function MomentView(props: {
     return () => cancelAnimationFrame(frameId);
   }, [comparing, playing, both]);
   const scrolled = useRef<(() => Scrolled) | undefined>(undefined);
-  const frame = useRef<HTMLDivElement>(null);
+  const stage = useRef<HTMLDivElement>(null);
   const pointer = useRef({ x: 0, y: 0 });
   const pill = useRef<HTMLSpanElement>(null);
   const toolbar = useRef<HTMLDivElement>(null);
@@ -282,7 +282,7 @@ export function MomentView(props: {
     if (data.playthrough === "noted") {
       setNoting(false);
       const iframe = document.querySelector<HTMLIFrameElement>("[data-live] iframe");
-      const shown = frame.current?.getBoundingClientRect();
+      const shown = stage.current?.getBoundingClientRect();
       const box = iframe?.getBoundingClientRect();
       const kept = session.current;
       if (!iframe || !box || !shown || !kept.events.length) return;
@@ -435,7 +435,7 @@ export function MomentView(props: {
   }, [layers.length > 0]);
   const pictured = shownOpen && frames[shownOpen.note.id];
   const onPicture = ((): Placed | undefined => {
-    const shown = frame.current;
+    const shown = stage.current;
     if (!shownOpen || !pictured?.box || !shown) return undefined;
     const { screen, box } = pictured;
     const k = Math.min(shown.clientWidth / screen.width, shown.clientHeight / screen.height);
@@ -450,7 +450,7 @@ export function MomentView(props: {
   // moment, still in the middle, and that's all.
   const openThing = opened && (openNow ? placed[opened.note.id] : openAt[opened.note.id]);
   const kept = (() => {
-    const shown = frame.current;
+    const shown = stage.current;
     const end = readings?.at(-1);
     if (!shown || !end || closer) return [];
     const k = Math.min(shown.clientWidth / end.screen.width, shown.clientHeight / end.screen.height);
@@ -462,7 +462,7 @@ export function MomentView(props: {
   // Until this moment's reading has come, the bar stays where it was; on the page's first moment, it waits unseen.
   const lastClear = useRef<{ x: number; y: number }>(undefined);
   const clear = !readings && !openThing ? lastClear.current : (lastClear.current = (() => {
-    const [wide, high, barWide] = [frame.current?.clientWidth ?? 0, frame.current?.clientHeight ?? 0, toolbar.current?.offsetWidth ?? 0];
+    const [wide, high, barWide] = [stage.current?.clientWidth ?? 0, stage.current?.clientHeight ?? 0, toolbar.current?.offsetWidth ?? 0];
     const [left, right] = [(wide - barWide) / 2, (wide + barWide) / 2];
     const under = (openThing ? [openThing] : live?.shown || comparing ? [] : kept).filter((one) => one.top + one.height > high - BAR / 2 - 12);
     const covers = under.some((one) => one.left < right + 12 && one.left + one.width > left - 12);
@@ -479,7 +479,7 @@ export function MomentView(props: {
   const aboutAt = atPoint && !live?.shown && !opened ? placed[ABOUT] : undefined;
 
   // Pressing away from what's open, anywhere but its card and its picture on the edge, closes it.
-  const pressAway = (event: React.PointerEvent) => opened && !(event.target as Element).closest("[data-note-card], [data-tile]") && !frame.current?.contains(event.target as Node) && setOpen(undefined);
+  const pressAway = (event: React.PointerEvent) => opened && !(event.target as Element).closest("[data-note-card], [data-tile]") && !stage.current?.contains(event.target as Node) && setOpen(undefined);
 
   // The keys: Space plays, T steps in and back, N notes, C compares, ↑ and ↓ go a moment back and on, ← and → open this
   // moment's notes one after another, Escape lets go.
@@ -529,7 +529,7 @@ export function MomentView(props: {
   // under the pointer, said beside it.
   const aimingNote = noting && !live?.shown && !writing;
   const movePill = (event: React.PointerEvent) => {
-    const box = frame.current?.getBoundingClientRect();
+    const box = stage.current?.getBoundingClientRect();
     if (!box) return;
     pointer.current = { x: event.clientX - box.left, y: event.clientY - box.top };
     if (pill.current) pill.current.style.transform = `translate(${pointer.current.x - 3}px, ${pointer.current.y - 2}px)`;
@@ -603,10 +603,10 @@ export function MomentView(props: {
   // What's said by a pin: the note being written, or the one open. On a phone, under the bar, where there's room.
   const cards = (
     <>
-          {writing && <NoteCard by={(!writing.note.on?.app && placed[writing.note.id]) || writing.box || spotAt(writing.spot)} frame={frame} under={phone}><Write onSave={save} onDrop={() => setWriting(undefined)} /></NoteCard>}
+          {writing && <NoteCard by={(!writing.note.on?.app && placed[writing.note.id]) || writing.box || spotAt(writing.spot)} stage={stage} under={phone}><Write onSave={save} onDrop={() => setWriting(undefined)} /></NoteCard>}
           {/* Closing, it fades where it stood; under the bar on a phone, it goes at once, so it never holds its room. */}
           {!writing && carded && cardBy && (
-            <NoteCard key={carded.note.id} by={cardBy} frame={frame} closing={!opened} under={phone}>
+            <NoteCard key={carded.note.id} by={cardBy} stage={stage} closing={!opened} under={phone}>
               <div className="min-h-0 flex-1 overflow-y-auto px-1">
                 {carded.sent ? <Turns you={you} turns={conversation(review, carded.note.id)} /> : <Turns you={you} turns={[]} unsent={carded.note.words} />}
               </div>
@@ -637,7 +637,7 @@ export function MomentView(props: {
   );
 
   const momentsEdge = (
-    <Edge side="left" label="Moments" frame={frame} quiet={!!live?.shown} phone={phone} showing={scene.name}>
+    <Edge side="left" label="Moments" stage={stage} quiet={!!live?.shown} phone={phone} showing={scene.name}>
       {momentTiles}
     </Edge>
   );
@@ -671,7 +671,7 @@ export function MomentView(props: {
       {/* The recording, as large as the room beside the edges lets it be: the same size from one moment to the next. */}
       <div className="relative mt-2 grid min-h-0 place-items-center [container-type:size] phone:[container-type:inline-size]">
         <div
-          ref={frame}
+          ref={stage}
           className="relative overflow-visible rounded-lg"
           style={{
             aspectRatio: `${screen.width} / ${screen.height}`,
@@ -687,12 +687,12 @@ export function MomentView(props: {
           >
             {behind && <img src={behind} alt="" draggable={false} className="pointer-events-none absolute inset-0 size-full object-contain" />}
             <div key={scene.recording} className="absolute inset-0 animate-arrive" onAnimationEnd={(event) => event.target === event.currentTarget && setBehind(undefined)}>
-              {(!phone || readings) && <Picture shot={{ src: picture(review.id, round.number, scene.recording, Math.max(0, scene.steps.length - 1)), frame: closer }} />}
+              {(!phone || readings) && <Picture shot={{ src: picture(review.id, round.number, scene.recording, Math.max(0, scene.steps.length - 1)), crop: closer }} />}
               <Player
                 review={review.id}
                 round={round.number}
                 recording={scene.recording}
-                frame={closer}
+                crop={closer}
                 at={at}
                 playing={comparing ? undefined : playing}
                 cut={cut}
@@ -779,7 +779,7 @@ export function MomentView(props: {
             if (!one || !thing) return null;
             const said = says(one.note, one.sent);
             // Beside its pin, which stands just outside the thing's top right corner, on whichever side has room.
-            const [x, y, wide] = [thing.left + thing.width + (thing.width || thing.height ? 14 : 0), thing.top - (thing.width || thing.height ? 14 : 0), frame.current?.clientWidth ?? 0];
+            const [x, y, wide] = [thing.left + thing.width + (thing.width || thing.height ? 14 : 0), thing.top - (thing.width || thing.height ? 14 : 0), stage.current?.clientWidth ?? 0];
             const left = x + 16 + 220 <= wide ? x + 16 : Math.max(8, x - 16 - 220);
             return (
               <div aria-hidden className="pointer-events-none absolute z-30 w-[220px] animate-arrive rounded-lg bg-surface px-2 pt-1.5 pb-[7px] shadow-float" style={{ left, top: Math.max(8, y - 10) }}>
@@ -854,7 +854,7 @@ export function MomentView(props: {
         {/* Tab reaches them as they read, left to right; on a phone, the notes come first, nearest what they're on. */}
         {!phone && momentsEdge}
         {(!phone || onEdge.length > 0) && (
-          <Edge side="right" label="Notes" frame={frame} quiet={!!live?.shown} phone={phone} showing={open ?? lastArrived} arrived={lastArrived}>
+          <Edge side="right" label="Notes" stage={stage} quiet={!!live?.shown} phone={phone} showing={open ?? lastArrived} arrived={lastArrived}>
             {noteTiles}
           </Edge>
         )}

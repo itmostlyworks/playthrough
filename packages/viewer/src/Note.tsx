@@ -7,7 +7,7 @@ import { clamp } from "./clamp.ts";
 import { TILE } from "./Edge.tsx";
 import { Key } from "./Key.tsx";
 import { BAR } from "./MomentBar.tsx";
-import { Picture, type Frame } from "./Picture.tsx";
+import { Picture, type Crop } from "./Picture.tsx";
 import type { Rect } from "./replay.ts";
 
 // A note and what's been said on it since, by its pin, a turn each, as the page's cards say them: who speaks on a small
@@ -106,7 +106,7 @@ export function NotePicture({ frame, sent, focus }: { frame?: NoteFrame; sent: b
   const pin = box && (roomAbove ? { x: shownRight!, y: (box.y - part.y) / part.height, dx: spot ? 10 : 6, dy: spot ? -15 : -6 } : { x: shownRight!, y: (box.y + box.height / 2 - part.y) / part.height, dx: spot ? 12 : 10, dy: 0 });
   return (
     <span className="absolute inset-0 animate-arrive">
-      <Picture shot={{ src: frame.src, frame: part }} />
+      <Picture shot={{ src: frame.src, crop: part }} />
       {pin && (
         <i
           className={`absolute size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full shadow-[0_0_0_2px_#fff,0_1px_3px_rgb(0_0_0/0.25)] ${sent ? "bg-slate" : "bg-amber"}`}
@@ -128,7 +128,7 @@ const STRIP = 3.8;
 // Too large to show whole in a strip at a size that reads.
 const tooLarge = (thing: { width: number; height: number }) => thing.width + 40 > TILE * 1.6 || (thing.height + 16) * STRIP > TILE * 1.6;
 
-function stripOf(screen: { width: number; height: number }, thing?: { x: number; y: number; width: number; height: number }): Frame {
+function stripOf(screen: { width: number; height: number }, thing?: { x: number; y: number; width: number; height: number }): Crop {
   const [round, widest, around] = [TILE, TILE * 1.6, 20];
   const spot = !thing || (!thing.width && !thing.height);
   let width = spot ? round * 1.5 : Math.min(widest, Math.max(round, thing.width + 2 * around, (thing.height + 16) * STRIP));
@@ -146,9 +146,9 @@ function stripOf(screen: { width: number; height: number }, thing?: { x: number;
   };
 }
 
-// A note's card by its thing: beside it where there's room, else under or over it, never on it, nor past the frame.
+// A note's card by its thing: beside it where there's room, else under or over it, never on it, nor past the recording's edge.
 // Under: in the page's flow, as wide as it is, as on a phone.
-export function NoteCard({ by, frame, closing, under, children }: { by: Rect; frame: React.RefObject<HTMLDivElement | null>; closing?: boolean; under?: boolean; children: ReactNode }) {
+export function NoteCard({ by, stage, closing, under, children }: { by: Rect; stage: React.RefObject<HTMLDivElement | null>; closing?: boolean; under?: boolean; children: ReactNode }) {
   const own = useRef<HTMLDivElement>(null);
   // Its own height, as it grows with its words, so it's always placed whole.
   const [tall, setTall] = useState(140);
@@ -161,7 +161,7 @@ export function NoteCard({ by, frame, closing, under, children }: { by: Rect; fr
     watching.observe(card);
     return () => watching.disconnect();
   }, [under]);
-  const [wide, high] = [frame.current?.clientWidth ?? 0, frame.current?.clientHeight ?? 0];
+  const [wide, high] = [stage.current?.clientWidth ?? 0, stage.current?.clientHeight ?? 0];
   const width = Math.min(280, wide - 16);
   const [right, bottom] = [by.left + by.width, by.top + by.height];
   // Its pin stands just outside the thing's top right corner: beside it on the right means past the pin too. It stays
