@@ -8,7 +8,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Glimpse, Reading, Thing } from "@playthrough/page";
 import { allNotes, conversation, newId, pausedAt, shownFrom, together, waitingForTheAgent, type Turn, type Did, type Note, type Place, type Review, type Round, type Scene } from "@playthrough/review";
-import { glimpses, keepBranch, noteFrame, picture, readings as readingsOf, recording, send, useChanges, useYou, type Listed, type NoteFrame } from "./api.ts";
+import { fineStill, glimpses, keepBranch, noteFrame, picture, readings as readingsOf, recording, send, useChanges, useYou, type Listed, type NoteFrame } from "./api.ts";
 import { Edge, Tile } from "./Edge.tsx";
 import { Key, tick } from "./Card.tsx";
 import { around, Picture, union, type Frame } from "./Picture.tsx";
@@ -494,14 +494,9 @@ function ChangeInList(props: {
     return () => removeEventListener("keydown", down);
   }, []);
   const button = (said || waiting) && (
-    <button
-      onMouseDown={(event) => event.preventDefault()}
-      onClick={said ? sendNow : doneNow}
-      disabled={busy || leaving || sentNow}
-      className="flex h-8 flex-none items-center gap-2 self-start rounded-lg bg-surface px-3 text-[13px] font-medium whitespace-nowrap text-fg shadow-[0_0_0_1px_var(--edge),0_1px_2px_var(--drop)] transition-[background-color,opacity] duration-150 ease-calm enabled:hover:bg-hover"
-    >
-      {sentNow ? <>{tick}{said ? "Sent" : "Done"}</> : said ? <>Send {toSend(notes.length, replies.length)} <Key>Ctrl ↵</Key></> : "Done"}
-    </button>
+    <SendButton className="self-start" filled={!!said && !sentNow} onClick={said ? sendNow : doneNow} disabled={busy || leaving || sentNow}>
+      {sentNow ? <>{tick}{said ? "Sent" : "Done"}</> : said ? <>Send {toSend(notes.length, replies.length)} <Key className={FILLED_KEY}>Ctrl ↵</Key></> : "Done"}
+    </SendButton>
   );
   const not = problems && <span className="text-amber-ink"> · Not sent: {problems[0]}</span>;
   return (
@@ -631,6 +626,28 @@ function NoteLine({ words, stands, fresh, onOpen }: { words: string; stands: str
   );
 }
 
+// Send, the one filled button there is, while something is unsent; else plain, as Done is. Arriving, as the first note
+// is kept, it comes in with the note landing on the edge, so it's seen.
+function SendButton({ filled, arrives, className = "", children, ...rest }: { filled: boolean; arrives?: boolean; className?: string; children: ReactNode; onClick: () => void; disabled: boolean }) {
+  const own = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!arrives || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    own.current?.animate([{ opacity: 0, scale: 0.92 }, { opacity: 1, scale: 1.04, offset: 0.6 }, { opacity: 1, scale: 1 }], { duration: 520, delay: 120, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)", fill: "backwards" });
+  }, []);
+  return (
+    <button
+      ref={own}
+      onMouseDown={(event) => event.preventDefault()}
+      {...rest}
+      className={`flex h-8 flex-none items-center gap-2 rounded-lg px-3 text-[13px] font-medium whitespace-nowrap transition-[background-color,color,box-shadow,opacity] duration-200 ease-calm ${filled ? "bg-fg text-ground shadow-[0_1px_2px_var(--drop)] enabled:hover:bg-[color-mix(in_srgb,var(--fg)_86%,var(--ground))]" : "bg-surface text-fg shadow-[0_0_0_1px_var(--edge),0_1px_2px_var(--drop)] enabled:hover:bg-hover"} ${className}`}
+    >
+      {children}
+    </button>
+  );
+}
+// A key's cap on the filled button, in its words' colour.
+const FILLED_KEY = "text-[inherit]! opacity-70 shadow-[0_0_0_1px_color-mix(in_srgb,currentColor_45%,transparent)]!";
+
 // What you sent and when, and what the agent is doing with it, in the page's words.
 // Where a change stands, said on its line.
 function StandsNow({ listed, standing, now }: { listed: Listed; standing: Standing; now: number }) {
@@ -716,14 +733,24 @@ function Still({ review, round, scene, about, seen }: { review: Review; round: R
 // The still's picture alone, for whatever holds it: the list, or a moment's edge.
 function StillPicture({ review, round, scene, about }: { review: Review; round: Round; scene: Scene; about?: { role: string; name: string } }) {
   const [frame, setFrame] = useState<Frame>();
+  // Closed in, the picture kept as it was recorded is shown larger than it was taken on a screen of twice the dots: there,
+  // it's drawn twice as fine, and the kept one shows until that's in.
+  const [sharp, setSharp] = useState<string>();
   useEffect(() => {
     let current = true;
     readingsOf(review.id, round.number, scene.recording).then((read) => current && setFrame(closeOn(read.at(-1), about, STILL)));
+    if (devicePixelRatio > 1)
+      void fineStill(review.id, round.number, scene.recording, scene.length).then((src) => {
+        if (!src || !current) return;
+        const loaded = new Image();
+        loaded.onload = () => current && setSharp(src);
+        loaded.src = src;
+      });
     return () => void (current = false);
   }, [scene.recording, about?.name]);
   return (
     <span className="absolute inset-0" style={frame && fadeOf(frame)}>
-      <Picture shot={{ src: picture(review.id, round.number, scene.recording, Math.max(0, scene.steps.length - 1)), frame }} />
+      <Picture shot={{ src: sharp ?? picture(review.id, round.number, scene.recording, Math.max(0, scene.steps.length - 1)), frame }} />
     </span>
   );
 }
@@ -1190,8 +1217,8 @@ function MomentView(props: {
   const openAt = pictured ? (onPicture ?? {}) : openPlaced;
   // What the bar must never cover: an open note's thing while it's open; else, from the first frame shown to the last,
   // what the moment is about and the last thing done in it, where the page has them at its end, known from its reading
-  // before anything is drawn. Over one, the bar moves along the recording's edge to the side with room, or where that
-  // can't clear it, down off the edge; it stays put for the whole moment, and moves calmly from one moment to the next.
+  // before anything is drawn. The bar is one place: over one of them, it drops just below the recording's edge for that
+  // moment, still in the middle, and that's all.
   const openThing = opened && (openNow ? placed[opened.note.id] : openAt[opened.note.id]);
   const kept = (() => {
     const shown = frame.current;
@@ -1209,13 +1236,8 @@ function MomentView(props: {
     const [wide, high, barWide] = [frame.current?.clientWidth ?? 0, frame.current?.clientHeight ?? 0, toolbar.current?.offsetWidth ?? 0];
     const [left, right] = [(wide - barWide) / 2, (wide + barWide) / 2];
     const under = (openThing ? [openThing] : live?.shown || comparing ? [] : kept).filter((one) => one.top + one.height > high - BAR / 2 - 12);
-    const covers = (by: number) => under.some((one) => one.left < right + by + 12 && one.left + one.width > left + by - 12);
-    if (!covers(0)) return { x: 0, y: 0 };
-    const moves = under
-      .flatMap((one) => [one.left - 12 - right, one.left + one.width + 12 - left])
-      .filter((by) => left + by >= 8 && right + by <= wide - 8 && !covers(by))
-      .sort((a, b) => Math.abs(a) - Math.abs(b));
-    return moves.length ? { x: moves[0]!, y: 0 } : { x: 0, y: BAR / 2 };
+    const covers = under.some((one) => one.left < right + 12 && one.left + one.width > left - 12);
+    return { x: 0, y: covers ? BAR / 2 : 0 };
   })());
   // The note whose card shows: open on the moment as it is now, or on the frame it was made on, until that has faded.
   const carded = opened && openNow ? opened : shownOpen && (opened ? shownOpen.note.id === opened.note.id && shownOpen : !phone && shownOpen);
@@ -1386,7 +1408,8 @@ function MomentView(props: {
   );
 
   return (
-    <div className="grid h-dvh grid-rows-[auto_auto_minmax(0,1fr)] overflow-hidden bg-ground phone:grid-rows-[auto_auto_auto_minmax(0,1fr)]" onPointerDown={pressAway}>
+    // Clipped, never scrolled: a caret put in a note's box can't move the page under you.
+    <div className="grid h-dvh grid-rows-[auto_auto_minmax(0,1fr)] overflow-clip bg-ground phone:grid-rows-[auto_auto_auto_minmax(0,1fr)]" onPointerDown={pressAway}>
       <header className="flex h-12 min-w-0 items-center gap-3 px-6 phone:px-4">
         <button onClick={onLeave} className="-ml-2 flex min-w-0 items-center gap-1.5 rounded-lg px-2 py-1 text-soft transition-colors duration-150 ease-calm hover:bg-hover hover:text-fg">
           <svg viewBox="0 0 12 12" className="size-3 flex-none" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -1395,14 +1418,9 @@ function MomentView(props: {
           <span className="truncate">{review.title}</span>
         </button>
         {(unsent > 0 || sending) && (
-          <button
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => void sendNow()}
-            disabled={sending === "sending" || sending === "sent"}
-            className="ml-auto flex h-8 flex-none animate-arrive items-center gap-2 rounded-lg bg-surface px-3 text-[13px] font-medium whitespace-nowrap text-fg shadow-[0_0_0_1px_var(--edge),0_1px_2px_var(--drop)] transition-[background-color,opacity] duration-150 ease-calm enabled:hover:bg-hover"
-          >
-            {sending === "sent" ? <>{tick}Sent</> : sending === "sending" ? "Sending…" : <>Send {toSend(notes.length, replies.length)} <Key>Ctrl ↵</Key></>}
-          </button>
+          <SendButton className="ml-auto" filled={unsent > 0 && sending !== "sent"} arrives onClick={() => void sendNow()} disabled={sending === "sending" || sending === "sent"}>
+            {sending === "sent" ? <>{tick}Sent</> : sending === "sending" ? "Sending…" : <>Send {toSend(notes.length, replies.length)} <Key className={FILLED_KEY}>Ctrl ↵</Key></>}
+          </SendButton>
         )}
         {Array.isArray(sending) && <span className="text-[13px] text-amber-ink">Not sent: {sending[0]}</span>}
         <button onClick={onward} disabled={!!live?.shown || !!writing} className={`-mr-2 flex flex-none items-center gap-1.5 rounded-lg px-2 py-1 text-soft transition-colors duration-150 ease-calm enabled:hover:bg-hover enabled:hover:text-fg disabled:opacity-50 ${unsent > 0 || sending ? "" : "ml-auto"}`}>
@@ -1764,25 +1782,43 @@ const spotAt = ({ x, y }: { x: number; y: number }): Rect => ({ left: x, top: y,
 // A note's card by its thing: beside it where there's room, else under or over it, never on it, nor past the frame.
 // Under: in the page's flow, as wide as it is, as on a phone.
 function NoteCard({ by, frame, closing, under, children }: { by: Rect; frame: React.RefObject<HTMLDivElement | null>; closing?: boolean; under?: boolean; children: ReactNode }) {
+  const own = useRef<HTMLDivElement>(null);
+  // Its own height, as it grows with its words, so it's always placed whole.
+  const [tall, setTall] = useState(140);
+  useLayoutEffect(() => {
+    const card = own.current;
+    if (!card || under) return;
+    const measure = () => setTall(card.offsetHeight);
+    measure();
+    const watching = new ResizeObserver(measure);
+    watching.observe(card);
+    return () => watching.disconnect();
+  }, [under]);
   const [wide, high] = [frame.current?.clientWidth ?? 0, frame.current?.clientHeight ?? 0];
   const width = Math.min(280, wide - 16);
   const [right, bottom] = [by.left + by.width, by.top + by.height];
-  // Its pin stands just outside the thing's top right corner: beside it on the right means past the pin too.
-  const [pastPin, gap, edge] = [32, 14, 8];
-  // In the frame's lower half it grows upward, so it never runs off under the bar.
-  const low = by.top + by.height / 2 > high / 2;
+  // Its pin stands just outside the thing's top right corner: beside it on the right means past the pin too. It stays
+  // clear of the bar across the recording's foot.
+  const [pastPin, gap, edge, foot] = [32, 14, 8, high - BAR / 2 - 8];
+  const within = (top: number) => Math.min(Math.max(edge, top), foot - tall);
+  const fits = (top: number) => top >= edge && top + tall <= foot;
   const place =
     by.width && right + pastPin + width <= wide - edge
-      ? { left: right + pastPin, ...(low ? { bottom: Math.max(edge, high - bottom - 12) } : { top: Math.max(edge, by.top - 12) }) }
+      ? { left: right + pastPin, top: within(by.top - 12) }
       : by.width && by.left - gap - width >= edge
-        ? { left: by.left - gap - width, ...(low ? { bottom: Math.max(edge, high - bottom - 12) } : { top: Math.max(edge, by.top - 12) }) }
-        : // Too wide to stand beside, or a spot on a line: under it, or over it in the lower half, never on it.
-          { left: Math.min(Math.max(edge, by.left - (by.width ? 0 : 24)), wide - width - edge), ...(low ? { bottom: high - by.top + gap } : { top: bottom + gap }) };
+        ? { left: by.left - gap - width, top: within(by.top - 12) }
+        : // Too wide to stand beside, or a spot on a line: under it, else over it; a thing taller than there's room
+          // around, inside it near its top.
+          {
+            left: Math.min(Math.max(edge, by.left - (by.width ? 0 : 24)), wide - width - edge),
+            top: fits(bottom + gap) ? bottom + gap : fits(by.top - gap - tall) ? by.top - gap - tall : within(by.top + 12),
+          };
   return (
     <div
+      ref={own}
       data-note-card
-      className={`${under ? "relative" : "absolute z-40 max-h-[min(70vh,calc(100%-16px))]"} flex animate-arrive flex-col rounded-xl bg-surface p-2 shadow-float transition-opacity duration-300 ease-calm ${closing ? "pointer-events-none opacity-0" : ""}`}
-      style={under ? undefined : { ...place, width }}
+      className={`${under ? "relative" : "absolute z-40"} flex animate-arrive flex-col rounded-xl bg-surface p-2 shadow-float transition-opacity duration-300 ease-calm ${closing ? "pointer-events-none opacity-0" : ""}`}
+      style={under ? undefined : { ...place, width, maxHeight: foot - edge }}
       onClick={(event) => event.stopPropagation()}
     >
       {children}

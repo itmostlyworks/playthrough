@@ -25,7 +25,7 @@ export async function frameOf(repo: Repo, id: string, address: string, note: str
   const kept = await repo.reviews.branch(id, `${name}.json`);
   if (kept) return JSON.parse(Buffer.from(kept).toString("utf8"));
   const shape = await shapeAt(repo, id, framed);
-  const drawn = drawing.then(() => draw(port, address, framed, shape));
+  const drawn = drawing.then(() => draw(port, address, framed, shape, 1));
   drawing = drawn.catch(() => {});
   const { png, box } = await drawn;
   const frame: Frame = { picture: `branches/${name}.png`, screen: shape, ...(box && { box }) };
@@ -45,10 +45,22 @@ async function shapeAt(repo: Repo, id: string, { round, recording, at }: Framed)
   return { width: sized?.data.width ?? 1280, height: sized?.data.height ?? 800 };
 }
 
-async function draw(port: number, address: string, framed: Framed, shape: { width: number; height: number }) {
+// A moment's still, its recording at its end drawn twice as fine as the picture kept as it was recorded, which a list
+// closing in on what it's about shows larger than it was taken on a screen of twice the dots: drawn once and kept.
+export async function stillOf(repo: Repo, id: string, address: string, framed: Framed, port: number): Promise<string> {
+  const name = `stills/${framed.round}-${framed.recording.replace(/^branches\//, "").replace(/\.json$/, "")}.png`;
+  if (await repo.reviews.branch(id, name)) return `branches/${name}`;
+  const shape = await shapeAt(repo, id, framed);
+  const drawn = drawing.then(() => draw(port, address, framed, shape, 2));
+  drawing = drawn.catch(() => {});
+  await repo.reviews.saveBranch(id, name, (await drawn).png);
+  return `branches/${name}`;
+}
+
+async function draw(port: number, address: string, framed: Framed, shape: { width: number; height: number }, scale: number) {
   clearTimeout(resting);
   browser ??= chromium.launch();
-  const page = await (await browser).newPage({ viewport: shape });
+  const page = await (await browser).newPage({ viewport: shape, deviceScaleFactor: scale });
   try {
     await page.goto(`http://localhost:${port}/?frame=${encodeURIComponent(JSON.stringify({ review: address, ...framed }))}`);
     await page.waitForFunction(() => "framed" in window, undefined, { timeout: 20_000 });

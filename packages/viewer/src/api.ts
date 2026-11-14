@@ -205,6 +205,20 @@ export function noteFrame(review: string, note: string, framed: { round: number;
   return made;
 }
 
+// A moment's still drawn twice as fine, for screens with twice the dots, by `playthrough open` and kept (frames.ts): its
+// address once it's drawn. Asked for once a page.
+const fine = new Map<string, Promise<string | undefined>>();
+export function fineStill(review: string, round: number, recording: string, at: number): Promise<string | undefined> {
+  const key = `${review} ${round} ${recording}`;
+  const asked = fine.get(key);
+  if (asked) return asked;
+  const made = posted<{ picture: string }>(`/api/reviews/${review}/stills`, { round, recording, at }).then((done) =>
+    "problems" in done ? undefined : `/api/reviews/${review}/rounds/${round}/files/${done.answer.picture}`,
+  );
+  fine.set(key, made);
+  return made;
+}
+
 // What you did in the app, kept as your branch off the scene you took over: its length, in seconds, once it's kept, or
 // what's wrong in plain words.
 export async function keepBranch(review: string, round: number, from: { scene: string; at: number }, events: unknown[], recording: string): Promise<number | string[]> {
