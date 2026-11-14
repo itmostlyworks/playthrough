@@ -58,9 +58,9 @@ plays and pauses it, as Space does.
 the order said. Each is a picture of one size (176 by 110), one after another, at rest beside the recording and never
 over it, 16px from it, running past the screen's edge and fading into it. Pointed at (after a breath, 70ms; going back
 after 220ms), or reached with Tab, an edge comes forward: it slides until its pictures are 16px from the screen's edge,
-a little over the recording, each a card with its words: a moment's who and words, a note's latest words and where it
-stands ("not sent yet", "sent", "answered"). A touch brings it forward first. Many scroll in their own column, fading
-where they're cut; the moment you're on, a note open or one arriving is scrolled into view. A moment's picture is the
+a little over the recording, each a card whose words come up over its picture's lower part: a moment's who by name and
+its words, a note's latest words in up to three lines and where it stands ("not sent yet", "sent", "answered"). A touch brings it forward first. Many scroll in their own column, under the wheel, their cut end
+fading over 64px; the moment you're on, a note open or one arriving is scrolled into view. A moment's picture is the
 list's still, the others' quieter than the one you're on, with its notes' dots; pressed, the moment changes in place.
 A note's picture is the frame it was made on closed in on its thing, a little toward the recording, with its pin: a
 kept picture, never a recording played (`useFrames`): one made at a taking's end is that taking's own picture; any
@@ -76,8 +76,10 @@ cross-fades to that note's kept picture, whichever recording it was made on (the
 taking, or yours after stepping in: they're all alike), with its pin on its thing and its card, and nothing more; its
 picture on the edge stays strong. Escape, its picture again, or a press anywhere but its card or the edges closes it,
 fading where it was; Space, T and C act on the moment and close it first; Note is off. A reply waits to be clicked
-into, so ← → go on through the notes. A note just saved arrives at the foot of the edge, coming in from past the
-screen's edge; one made in the app joins the edge, and its moment's dots, once you're back. While you're in the app the
+into, so ← → go on through the notes. A note just saved arrives at the foot of the edge, coming in from past the screen's edge, the edge forward with
+its words for 1.4 s; one made in the app joins the edge, and its moment's dots, the same way once you're back. What you
+did in the app is kept with the fonts, pictures and stylesheets its pages named (`keepNamed`, `assets.ts`), so its
+picture keeps the app's own face. While you're in the app the
 edges rest, quieter, and can't be pressed. Keys: Space, T, N, C; ↑ ↓ (and K, J) the moment before and next; ← → this
 moment's notes, opening each; Escape closes what's open. Reduced motion: nothing slides or fades.
 **On a phone** (820px or less) there's no room beside the recording: under the bar, the notes and then the moments are
