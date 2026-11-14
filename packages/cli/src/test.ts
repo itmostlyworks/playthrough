@@ -494,8 +494,9 @@ export function scenesIn(file: string, written: number): Promise<Map<string, Kep
 // step it's in, with how many of its actions are done.
 // What's only in the page's memory, like a search typed or a form opened, wouldn't survive loading it in the person's
 // browser. So it's handed over as it was before the actions that only changed what's on it (`from`), however many steps
-// back, and they're done again there. One that wrote something, or went to another address, isn't, nor anything before
-// it: a fresh load of the page has those already. `address` is where the last of them left the page.
+// back or on the way to the first, and they're done again there. One that wrote something, or went to another address,
+// isn't, nor anything before it: a fresh load of the page has those already. `address` is where the last of them left
+// the page.
 // The steps it has finished say how far it has got, against how far the playhead has. Several run at once, one for each
 // review open, each in its own window, and each knows its own by what it was called from. And how long it has worked,
 // not counting waiting for the playhead, which it says as it gets to each place to take it over: on the same app, the
@@ -907,7 +908,9 @@ function pace(page: Page) {
 // the scene is handed over once it's done as many as the recording had.
 async function acted(does: string, target: (page: Page) => Promise<string | undefined>, act: () => Promise<unknown>, given: unknown, action: string) {
   const taken = taking.getStore();
-  const keeping = taken?.depth || taken?.forking ? taken : undefined;
+  // The scene's own actions, on its way to a step as in one: a panel the way opened is part of the moment it leads to.
+  // What made the app and signed in before it isn't the scene's.
+  const keeping = taken?.given ? taken : undefined;
   let on: string | undefined, address: string | undefined;
   if (keeping) {
     if (!holds(keeping)) Object.assign(keeping, { from: undefined, again: [] });
@@ -939,7 +942,7 @@ async function acted(does: string, target: (page: Page) => Promise<string | unde
     if (on && !keeping.wrote && keeping.page.url() === address) Object.assign(keeping, { address }).again.push({ does, on, ...(plain && { with: given }) });
     else Object.assign(keeping, { from: undefined, again: [] });
   }
-  if (keeping && !keeping.forking) await reached(keeping, keeping.step, ++keeping.actions);
+  if (keeping?.depth && !keeping.forking) await reached(keeping, keeping.step, ++keeping.actions);
   return result;
 }
 
