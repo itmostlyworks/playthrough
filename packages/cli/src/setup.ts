@@ -2,8 +2,8 @@
 // export is given the page, Playwright's request and who the scene is done as, and what it returns is each scene's
 // “setup”. Each run makes its own, so no two start from what another left, and gives it back once it's over: setup's
 // `after`, if it has one, is given what was made, and takes it away, so the app, shared or not, isn't left with a world
-// for every run. The app's people, if it names them, are who a scene can be done as: `signIn` makes a page theirs, the
-// scene's own and any it's handed to on the way. And `use`, if it says, is how every page of the app is opened, as
+// for every run. The app's people, if it names them, are who a scene can be done as: `signIn` makes a page theirs. And
+// `use`, if it says, is how every page of the app is opened, as
 // Playwright's test.use would: an app that serves a test its own way, told by the browser's user agent, say.
 
 import { request as requests, type APIRequestContext, type BrowserContextOptions, type Page } from "@playwright/test";

@@ -1,8 +1,9 @@
-// What every scene imports in place of "@playwright/test". While `playthrough record` runs, it records each scene the way a person
-// would watch it: rrweb in every page, the pointer gliding to what it acts on, and a beat after each action so its result can
-// be seen. Each step ends once the page is at rest, and the page it left is read there, with a picture of it: what the
-// comparison compares. Run as plain tests, it does nothing. Each recording and its readings go to the reporter, which makes
-// them a scene (reporter.ts). Taken over, a scene runs in Playthrough itself instead (following.ts), on the same pace and steps.
+// What every moment's file imports in place of "@playwright/test". Run by `moment` and `again`, it records the way there and
+// the step the way a person would watch it: rrweb in every page, the pointer gliding to what it acts on, and a beat after
+// each action so its result can be seen. The step ends once the page is at rest, and the page it left is read there, with
+// a picture of it: what the comparison compares. Run as plain tests, it does nothing. Each recording and its readings go
+// to the reporter, which makes them a scene (reporter.ts). Stepped into, a moment runs in Playthrough itself instead
+// (following.ts), on the same pace and steps.
 
 import { test as base, expect as playwrightExpect, type APIRequestContext, type Browser, type BrowserContext, type BrowserContextOptions, type Dialog, type Locator, type Page } from "@playwright/test";
 import { AsyncLocalStorage } from "node:async_hooks";
