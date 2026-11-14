@@ -6,7 +6,7 @@
 import { chromium, request as requests, type Browser } from "@playwright/test";
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { list, quote, Refused } from "@playthrough/review";
+import { quote, Refused } from "@playthrough/review";
 import { ALONGSIDE, isScene, type Handed, type To } from "./scenes.ts";
 import { firstLine } from "./reporter.ts";
 import type { Repo } from "./repo.ts";
@@ -14,14 +14,14 @@ import { giveBackLeft, setupIn, type Made, type Setup } from "./setup.ts";
 import type { Kept, Orders } from "./test.ts";
 
 // Runs one scene to where a person steps in, on the app as it is now: quickly and unrecorded, from what every scene
-// starts from, so they carry on from a fresh copy of the moment rather than a picture of it. Never longer than a
-// minute, and stopped once nobody's waiting for it.
+// starts from, so they carry on from a fresh copy of the moment rather than a picture of it. Never past `until`, and
+// stopped once nobody's waiting for it.
 // With what the run made for it (setup.ts), which is the app the person has, theirs to give back; and where the
 // moment's own checks at its end don't hold now, what they say.
-export async function runTo(repo: Repo, id: string, to: To, waiting?: AbortSignal): Promise<{ handed: Handed; made?: Made; checked?: string }> {
+export async function runTo(repo: Repo, id: string, to: To, until: number, waiting?: AbortSignal): Promise<{ handed: Handed; made?: Made; checked?: string }> {
   const { files, written } = await writtenOf(repo, id);
   const began = Date.now();
-  const { handed, stopped, made, checked, late } = await run(repo, id, to, files, written, waiting);
+  const { handed, stopped, made, checked, late } = await run(repo, id, to, files, written, until, waiting);
   if (handed && !waiting?.aborted) {
     took.set(timeOf(repo, id, to, written), Date.now() - began);
     return { handed, made, checked };
@@ -31,8 +31,9 @@ export async function runTo(repo: Repo, id: string, to: To, waiting?: AbortSigna
   if (late) throw new Refused([`This moment didn't open within ${LONGEST / 1000} seconds: the app was still on its way there. Step in again; if it's as slow again, the app may be stuck, so look at what it says where it runs.`]);
   throw new Refused([`This moment can't be opened on the app as it is now: ${stopped ? stoppedAt(stopped) : "its way there ended before it got there."} Say so in a note, so the agent marks it again.`]);
 }
-// From the run's start: Kan's longest way there takes ten seconds, and its first, while Next compiles its pages, twenty.
-const LONGEST = 60_000;
+// From the step in's start, the app started if it wasn't running: Kan's longest way there takes ten seconds, and its
+// first, while Next starts and compiles its pages, twenty. The viewer waits a little longer than this for the answer.
+export const LONGEST = 60_000;
 
 // How long until a moment asked for is ready, in milliseconds: as long as the last run to it took, for scenes and a
 // setup written as they are now. Nothing until one has got there.
@@ -44,13 +45,13 @@ const took = new Map<string, number>();
 const timeOf = (repo: Repo, id: string, { scene, step, actions }: To, written: number) => JSON.stringify([repo.root, id, scene, step, actions, written]);
 const key = (repo: Repo, id: string) => `${repo.root}\n${id}`;
 
-async function run(repo: Repo, id: string, to: To, files: string[], written: number, waiting?: AbortSignal) {
+async function run(repo: Repo, id: string, to: To, files: string[], written: number, until: number, waiting?: AbortSignal) {
   const app = await repo.app();
   const { started } = await repo.reviews.get(id);
   const { runAlongside, pageFor } = await alongside();
   const { scenes, setup } = await loadedOf(repo, id, files, written);
   const kept = scenes.get(to.scene);
-  if (!kept) throw new Refused([`${id} has no scene called ${quote(to.scene)} any more. Its scenes: ${list([...scenes.keys()].map(quote))}.`]);
+  if (!kept) throw new Refused([`${quote(to.scene)} isn't among this change's moments in ${repo.show(repo.scenes(id))} any more: the agent may be marking them again. Once it has handed them back, step in again.`]);
   // As the scene is recorded: in the window its file asks for with test.use, like a phone's screen and touch, where an
   // action that can't happen fails in seconds. What else the file says with test.use, Playwright leaves aside.
   const { context, page } = await pageFor(await browser(), app.url, kept.use, setup.use);
@@ -60,8 +61,10 @@ async function run(repo: Repo, id: string, to: To, files: string[], written: num
   const request = await requests.newContext({ baseURL: app.url });
   const orders: Orders = { to };
   let late = false;
-  const stop = () => ((orders.stopped = true), void context.close().catch(() => {}));
-  const limit = setTimeout(() => ((late = true), stop()), LONGEST);
+  const close = () => void context.close().catch(() => {});
+  // Nobody waiting, it stops at once, unless the app's setup is still making its world: then once that's made (test.ts).
+  const stop = () => ((orders.stopped = true), orders.made && close());
+  const limit = setTimeout(() => ((late = true), (orders.stopped = true), close()), until - Date.now());
   if (waiting?.aborted) stop();
   else waiting?.addEventListener("abort", stop, { once: true });
   try {
@@ -122,7 +125,7 @@ function loadedOf(repo: Repo, id: string, files: string[], written: number) {
   const load = <T>(file: string, by: (file: string, written: number) => Promise<T>) =>
     by(file, written).catch((error) => {
       if (error instanceof Refused) throw error;
-      throw new Refused([`${repo.show(file)} couldn't be loaded, because Node says “${firstLine(String(error?.message ?? error))}”, so no scene of ${id} can be taken over. Fix it, then take the scene over again.`]);
+      throw new Refused([`${repo.show(file)} couldn't be loaded, because Node says “${firstLine(String(error?.message ?? error))}”, so no moment of this change can be stepped into. Say so in a note, so the agent fixes it.`]);
     });
   const scenes = alongside().then(({ scenesIn }) => Promise.all([Promise.all(files.map((file) => load(file, scenesIn))), load(repo.setup, setupIn)])).then(
     ([each, setup]) => {

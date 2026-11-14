@@ -382,7 +382,9 @@ function foundAsPlaywright(specifier: string, context: modules.ResolveHookContex
 
 // Stepped into, a scene runs in Playthrough (following.ts), unrecorded, on the recordings' clock, which the person carries
 // on with: told where to hand its page over, and to stop, once it's no longer wanted.
-export type Orders = { to: To; stopped?: boolean };
+// Stopped while the app's setup is making its world, it goes on until that's made, so what it made can be given back
+// whole: `made` says it is.
+export type Orders = { to: To; stopped?: boolean; made?: boolean };
 // A scene, as its file gives it to test(): with the page, what Playwright gives every test besides, and the setup.
 export type Body = (given: { page: Page; context: BrowserContext; request: APIRequestContext; baseURL: string; setup: Record<string, any> }) => Promise<unknown>;
 
@@ -446,7 +448,10 @@ export async function runAlongside(
       // Who the scene is done as, as when it was recorded: who its file names, or else the first the app names.
       const who = person ?? firstOf(appSetup);
       if (who) personIn(appSetup, who);
+      if (orders.stopped) throw new Stopped();
       made = await make(appSetup, borrowed, { page, request, baseURL, person: who });
+      orders.made = true;
+      if (orders.stopped) throw new Stopped();
       if (who) await appSetup.signIn?.({ page, person: who, setup: made.setup });
       scene.given = { page, context: page.context(), request, baseURL, setup: made.setup };
       await body(scene.given);

@@ -11,7 +11,7 @@ import { answerAs, asRecorded, pathTo } from "@playthrough/page";
 import { list, quote, Refused } from "@playthrough/review";
 import { running, using } from "./app.ts";
 import { QUIET_DEV_CHROME, recorder, type Handed, type To } from "./scenes.ts";
-import { runTo } from "./following.ts";
+import { LONGEST, runTo } from "./following.ts";
 import { listen, thisMachine } from "./open.ts";
 import { read } from "./read.ts";
 import type { App, Repo } from "./repo.ts";
@@ -32,7 +32,7 @@ export async function getReady(
 ): Promise<{ port: number; moment: string; checked?: string }> {
   const round = await recorded(repo, id);
   const scene = round.scenes.find((scene) => scene.name === sceneName);
-  if (!scene) throw new Refused([`${id} has no scene called ${quote(sceneName)}. Its scenes: ${list(round.scenes.map((scene) => quote(scene.name)))}.`]);
+  if (!scene) throw new Refused([`${quote(sceneName)} isn't among the moments the agent last handed back: they've changed since this page was loaded. Reload it, then step in again.`]);
   if (stepName && !scene.steps.some((step) => step.title === stepName))
     throw new Refused([`${quote(scene.name)} has no step called ${quote(stepName)}. Its steps: ${list(scene.steps.map((step) => quote(step.title)))}.`]);
 
@@ -57,15 +57,30 @@ export async function getReady(
 
 // The app made for a step in: the copy's app running, used while the scene runs there, and then for as long as what it
 // made is the person's.
+// Within one limit, starting the app included, and stopped once nobody's waiting for it.
 async function madeFor(repo: Repo, id: string, to: To, waiting?: AbortSignal) {
+  const until = Date.now() + LONGEST;
   const done = using(repo.root);
   try {
-    await running(await repo.app(), repo.root);
-    const made = await runTo(repo, id, to, waiting);
+    const app = await repo.app();
+    await inTime(running(app, repo.root), until, waiting, [
+      `The app hadn't answered at ${app.url} within ${LONGEST / 1000} seconds of being asked for: it may still be starting. Step in again in a moment; if it's as slow again, look at .playthrough/app.log for why.`,
+    ]);
+    const made = await runTo(repo, id, to, until, waiting);
     return { ...made, done: using(repo.root) };
   } finally {
     done();
   }
+}
+
+// What's started goes on by itself (the app keeps starting for whoever asks next); only the waiting for it ends.
+function inTime<T>(started: Promise<T>, until: number, waiting: AbortSignal | undefined, late: string[]): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const limit = setTimeout(() => reject(new Refused(late)), until - Date.now());
+    const away = () => reject(new Refused(["Nobody's waiting for it any more."]));
+    waiting?.addEventListener("abort", away, { once: true });
+    started.then(resolve, reject).finally(() => (clearTimeout(limit), waiting?.removeEventListener("abort", away)));
+  });
 }
 
 // Each step in, by its address: where it's to, what its run handed over and what it made, whether its page has been
@@ -715,7 +730,7 @@ function handOver(moment: string, handed: Handed, response: ServerResponse) {
   );
   const keep = JSON.stringify({ moment, local, session, scroll, clock, browser, again, to: pathname + search + hash }).replace(/</g, "\\u003c");
   response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "set-cookie": setCookies });
-  response.end(`<!doctype html><meta name="viewport" content="width=device-width"><title>Taking over…</title>
+  response.end(`<!doctype html><meta name="viewport" content="width=device-width"><title>Stepping in…</title>
 <script>
 const { moment, local, session, scroll, clock, browser, again, to } = ${keep};
 for (const [key, value] of Object.entries(local)) localStorage.setItem(key, value);
@@ -738,7 +753,7 @@ export function waitedFor(response: ServerResponse): AbortSignal {
   return waiting.signal;
 }
 
-const GONE = "Playthrough was started again since this moment was stepped into, so its app is gone. Reload this page, then step in again.";
+const GONE = "Playthrough was started again since this moment was stepped into, so the app made for it is gone. Press Esc, then step in again.";
 
 function notAnswering(response: ServerResponse, app: App, page: boolean) {
   if (response.headersSent) return response.end();
