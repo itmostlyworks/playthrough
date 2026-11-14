@@ -11,8 +11,9 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefO
 export const TILE = 176;
 const GAP = 16;
 const DRAWER = TILE + 2 * GAP;
-// How wide the screen's edge fades.
-const VEIL = 64;
+// How wide the screen's edge fades, at most; and how, eased, so a picture leaves rather than greys.
+const VEIL = 40;
+const EASED = ["8%", "22%", "42%", "68%", "100%"].map((alpha, i) => `color-mix(in srgb, var(--ground) ${alpha}, transparent) ${25 + i * 18.75}%`).join(", ");
 // From the edge's top to its first picture's: the list's padding and the card's, so the first picture's top is the
 // recording's.
 const INSET = 8 + 6;
@@ -115,6 +116,8 @@ export function Edge(props: {
   const right = side === "right";
   // Forward, it's all on the screen, its pictures as far from the screen's edge as from the recording at rest.
   const shift = right ? Math.max(0, room.inner + DRAWER - room.screen) : Math.max(0, DRAWER - room.inner);
+  // How far its pictures run past the screen's edge at rest.
+  const cutBy = right ? room.inner + GAP + TILE - room.screen : TILE + GAP - room.inner;
   const fade = (to: string) => `linear-gradient(${to}, ${cut.above ? "transparent" : "#000"}, #000 ${cut.above ? MORE : 0}px, #000 calc(100% - ${cut.below ? MORE : 0}px), ${cut.below ? "transparent" : "#000"})`;
   return (
     <>
@@ -148,12 +151,15 @@ export function Edge(props: {
           <div className="grid grid-cols-[minmax(0,1fr)] gap-1.5">{children(forward)}</div>
         </div>
       </div>
-      {/* The screen's edge, fading what runs past it at rest. */}
-      <div
-        aria-hidden
-        className={`pointer-events-none fixed z-30 transition-opacity duration-300 ease-calm ${forward ? "opacity-0" : ""}`}
-        style={{ top: room.top - INSET, height: room.height + 2 * INSET, width: VEIL, [right ? "right" : "left"]: 0, background: `linear-gradient(to ${right ? "right" : "left"}, transparent, var(--ground) 92%)` }}
-      />
+      {/* The screen's edge, at rest, only where the pictures run past it: they leave over its last few pixels, quickly at
+          the very edge, rather than a long grey band over pictures wholly on the screen. */}
+      {cutBy > 0 && (
+        <div
+          aria-hidden
+          className={`pointer-events-none fixed z-30 transition-opacity duration-300 ease-calm ${forward ? "opacity-0" : ""}`}
+          style={{ top: room.top - INSET, height: room.height + 2 * INSET, width: Math.min(VEIL, cutBy + 24), [right ? "right" : "left"]: 0, background: `linear-gradient(to ${right ? "right" : "left"}, transparent, ${EASED})` }}
+        />
+      )}
     </>
   );
 }
