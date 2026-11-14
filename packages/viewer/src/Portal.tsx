@@ -234,7 +234,9 @@ export function Portal({ live, person, screen, scrolled, waiting: waitingWords =
             src={live.address}
             title="The app, taken over"
             className="absolute top-0 left-0 origin-top-left border-0 bg-paper"
-            style={{ width: screen.width, height: screen.height, transform: `scale(${k})` }}
+            // Drawn at its own size and scaled as a picture is, as the recording is: scaled as it's drawn, its words are
+            // set at one size and drawn at another, the spaces between them lost ("BrightStudio").
+            style={{ width: screen.width, height: screen.height, transform: `scale(${k})`, willChange: "transform" }}
           />
         </div>
       )}
