@@ -16,6 +16,7 @@ import { BEAT } from "./scenes.ts";
 import { repo as copyAt, type Repo } from "./repo.ts";
 import { readyIn } from "./following.ts";
 import { everyCopy, machine } from "./machine.ts";
+import { keepNamed, type Assets } from "./assets.ts";
 import { frameOf, type Framed } from "./frames.ts";
 import { getReady } from "./take-over.ts";
 import { setupIn } from "./setup.ts";
@@ -291,8 +292,13 @@ async function branch(repo: Repo, id: string, request: IncomingMessage, response
   // anew, so the scene's readings from before would name the wrong things.
   const readings = yours.filter(readingOf).map((event) => ({ step: "In the app", at: (event.timestamp - start) / 1000, ...readingOf(event)! }));
   await repo.reviews.saveBranch(id, `readings/${recording}`, Buffer.from(JSON.stringify(readings)));
+  // What the moment's recording kept, and what yours names besides, as fonts of a page the moment never showed.
   const kept = await repo.reviews.file(id, round, `assets/${scene.recording}`);
-  if (kept) await repo.reviews.saveBranch(id, `assets/${recording}`, kept);
+  const theirs: Assets = kept ? JSON.parse(Buffer.from(kept).toString("utf8")) : {};
+  const all = await keepNamed(JSON.stringify(yours), theirs, (await repo.app()).url, (file, bytes) => repo.reviews.saveBranch(id, file, bytes));
+  // Read from the round's files, a branch's own are under branches/.
+  const named = Object.fromEntries(Object.entries(all).map(([address, file]) => [address, address in theirs ? file : `branches/${file}`]));
+  if (Object.keys(named).length) await repo.reviews.saveBranch(id, `assets/${recording}`, Buffer.from(JSON.stringify(named)));
   json(response, 200, { length: (joined.at(-1)!.timestamp - start) / 1000 });
 }
 

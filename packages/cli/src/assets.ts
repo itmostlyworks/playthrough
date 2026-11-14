@@ -55,3 +55,27 @@ export function keepAssets(page: Page, folder: string): () => Promise<Assets> {
     return Object.fromEntries(Object.entries(kept).filter(([, file]) => file));
   };
 }
+
+// What a recording made outside Playthrough's own browser names (yours, stepping into the app), kept as a recording's
+// are: each font, image and stylesheet it names that isn't kept already, fetched from where it was, or from the app at
+// the same path once that's gone, as the address it was seen at stops answering once you've left the app.
+const NAMED = /\.(woff2?|ttf|otf|png|jpe?g|gif|webp|avif|svg|ico|css)(\?[^"'\s()\\]*)?$/i;
+export async function keepNamed(recorded: string, kept: Assets, app: string, save: (file: string, bytes: Uint8Array) => Promise<void>): Promise<Assets> {
+  const addresses = [...new Set(recorded.match(/https?:\/\/[^\s"'()\\]+/g) ?? [])].filter((address) => !(address in kept) && NAMED.test(new URL(address).pathname));
+  const found = await Promise.all(
+    addresses.map(async (address): Promise<[string, string] | undefined> => {
+      const { pathname, search } = new URL(address);
+      for (const from of [address, new URL(pathname + search, app).href]) {
+        const answer = await fetch(from, { signal: AbortSignal.timeout(5000) }).catch(() => undefined);
+        const type = answer?.ok ? (answer.headers.get("content-type")?.split(";")[0]?.trim() ?? "") : "";
+        if (!answer || !(type in ENDINGS)) continue;
+        const bytes = new Uint8Array(await answer.arrayBuffer());
+        const file = `assets/${createHash("sha256").update(bytes).digest("hex").slice(0, 16)}${ENDINGS[type]}`;
+        await save(file, bytes);
+        return [address, file];
+      }
+      return undefined;
+    }),
+  );
+  return { ...kept, ...Object.fromEntries(found.filter((one) => one !== undefined)) };
+}
