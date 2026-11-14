@@ -14,9 +14,10 @@ const OUT = 14;
 // on it stood for nothing on the page once the way's numbers were the steps'.
 export type Pin = { id: string; on: string[]; ink: string } & ({ fill: string } | { diamond: true });
 
-type Props = { pins: Pin[]; placed: Placed; open?: string; faded: boolean; onOpen: (id?: string) => void };
+// Lit: what's drawn for it elsewhere, as a note's picture on the moment's edge, is pointed at; pointed at here, it says so.
+type Props = { pins: Pin[]; placed: Placed; open?: string; faded: boolean; onOpen: (id?: string) => void; lit?: string; onPoint?: (id?: string) => void };
 
-export function Pinned({ pins, placed, open, faded, onOpen }: Props) {
+export function Pinned({ pins, placed, open, faded, onOpen, lit, onPoint }: Props) {
   const room = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   useEffect(() => {
@@ -63,7 +64,7 @@ export function Pinned({ pins, placed, open, faded, onOpen }: Props) {
                 (thing.width > 0 || thing.height > 0) && (
                   <div
                     key={id}
-                    className={`absolute rounded-[4px] outline-offset-4 outline-solid ${chosen ? "outline-[1.5px] outline-(--c)" : "outline-1 outline-[color-mix(in_srgb,var(--c)_50%,transparent)]"}`}
+                    className={`absolute rounded-[4px] outline-offset-4 outline-solid transition-[outline-color] duration-150 ease-calm ${chosen || lit === pin.id ? "outline-[1.5px] outline-(--c)" : "outline-1 outline-[color-mix(in_srgb,var(--c)_50%,transparent)]"}`}
                     style={{ left: thing.left, top: thing.top, width: thing.width, height: thing.height }}
                   />
                 )
@@ -72,9 +73,11 @@ export function Pinned({ pins, placed, open, faded, onOpen }: Props) {
             <button
               aria-label={"fill" in pin ? "Note" : "What changed here"}
               aria-expanded={chosen}
-              className="pointer-events-auto absolute grid size-[18px] cursor-pointer place-items-center transition duration-150 ease-calm hover:scale-112"
+              className={`pointer-events-auto absolute grid size-[18px] cursor-pointer place-items-center transition duration-150 ease-calm hover:scale-112 ${lit === pin.id ? "scale-112" : ""}`}
               style={{ left, top }}
               onClick={() => onOpen(chosen ? undefined : pin.id)}
+              onPointerEnter={() => onPoint?.(pin.id)}
+              onPointerLeave={() => onPoint?.(undefined)}
             >
               {"fill" in pin ? <i className={`size-3 rounded-full shadow-[0_0_0_2px_#fff,0_1px_4px_rgb(0_0_0/0.25)] ${pin.fill}`} /> : <i className="size-2.5 rotate-45 bg-(--c) shadow-[0_0_0_2px_#fff]" />}
             </button>
