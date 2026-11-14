@@ -494,14 +494,9 @@ function ChangeInList(props: {
     return () => removeEventListener("keydown", down);
   }, []);
   const button = (said || waiting) && (
-    <button
-      onMouseDown={(event) => event.preventDefault()}
-      onClick={said ? sendNow : doneNow}
-      disabled={busy || leaving || sentNow}
-      className="flex h-8 flex-none items-center gap-2 self-start rounded-lg bg-surface px-3 text-[13px] font-medium whitespace-nowrap text-fg shadow-[0_0_0_1px_var(--edge),0_1px_2px_var(--drop)] transition-[background-color,opacity] duration-150 ease-calm enabled:hover:bg-hover"
-    >
-      {sentNow ? <>{tick}{said ? "Sent" : "Done"}</> : said ? <>Send {toSend(notes.length, replies.length)} <Key>Ctrl ↵</Key></> : "Done"}
-    </button>
+    <SendButton className="self-start" filled={!!said && !sentNow} onClick={said ? sendNow : doneNow} disabled={busy || leaving || sentNow}>
+      {sentNow ? <>{tick}{said ? "Sent" : "Done"}</> : said ? <>Send {toSend(notes.length, replies.length)} <Key className={FILLED_KEY}>Ctrl ↵</Key></> : "Done"}
+    </SendButton>
   );
   const not = problems && <span className="text-amber-ink"> · Not sent: {problems[0]}</span>;
   return (
@@ -630,6 +625,28 @@ function NoteLine({ words, stands, fresh, onOpen }: { words: string; stands: str
     </button>
   );
 }
+
+// Send, the one filled button there is, while something is unsent; else plain, as Done is. Arriving, as the first note
+// is kept, it comes in with the note landing on the edge, so it's seen.
+function SendButton({ filled, arrives, className = "", children, ...rest }: { filled: boolean; arrives?: boolean; className?: string; children: ReactNode; onClick: () => void; disabled: boolean }) {
+  const own = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!arrives || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    own.current?.animate([{ opacity: 0, scale: 0.92 }, { opacity: 1, scale: 1.04, offset: 0.6 }, { opacity: 1, scale: 1 }], { duration: 520, delay: 120, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)", fill: "backwards" });
+  }, []);
+  return (
+    <button
+      ref={own}
+      onMouseDown={(event) => event.preventDefault()}
+      {...rest}
+      className={`flex h-8 flex-none items-center gap-2 rounded-lg px-3 text-[13px] font-medium whitespace-nowrap transition-[background-color,color,box-shadow,opacity] duration-200 ease-calm ${filled ? "bg-fg text-ground shadow-[0_1px_2px_var(--drop)] enabled:hover:bg-[color-mix(in_srgb,var(--fg)_86%,var(--ground))]" : "bg-surface text-fg shadow-[0_0_0_1px_var(--edge),0_1px_2px_var(--drop)] enabled:hover:bg-hover"} ${className}`}
+    >
+      {children}
+    </button>
+  );
+}
+// A key's cap on the filled button, in its words' colour.
+const FILLED_KEY = "text-[inherit]! opacity-70 shadow-[0_0_0_1px_color-mix(in_srgb,currentColor_45%,transparent)]!";
 
 // What you sent and when, and what the agent is doing with it, in the page's words.
 // Where a change stands, said on its line.
@@ -1396,14 +1413,9 @@ function MomentView(props: {
           <span className="truncate">{review.title}</span>
         </button>
         {(unsent > 0 || sending) && (
-          <button
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => void sendNow()}
-            disabled={sending === "sending" || sending === "sent"}
-            className="ml-auto flex h-8 flex-none animate-arrive items-center gap-2 rounded-lg bg-surface px-3 text-[13px] font-medium whitespace-nowrap text-fg shadow-[0_0_0_1px_var(--edge),0_1px_2px_var(--drop)] transition-[background-color,opacity] duration-150 ease-calm enabled:hover:bg-hover"
-          >
-            {sending === "sent" ? <>{tick}Sent</> : sending === "sending" ? "Sending…" : <>Send {toSend(notes.length, replies.length)} <Key>Ctrl ↵</Key></>}
-          </button>
+          <SendButton className="ml-auto" filled={unsent > 0 && sending !== "sent"} arrives onClick={() => void sendNow()} disabled={sending === "sending" || sending === "sent"}>
+            {sending === "sent" ? <>{tick}Sent</> : sending === "sending" ? "Sending…" : <>Send {toSend(notes.length, replies.length)} <Key className={FILLED_KEY}>Ctrl ↵</Key></>}
+          </SendButton>
         )}
         {Array.isArray(sending) && <span className="text-[13px] text-amber-ink">Not sent: {sending[0]}</span>}
         <button onClick={onward} disabled={!!live?.shown || !!writing} className={`-mr-2 flex flex-none items-center gap-1.5 rounded-lg px-2 py-1 text-soft transition-colors duration-150 ease-calm enabled:hover:bg-hover enabled:hover:text-fg disabled:opacity-50 ${unsent > 0 || sending ? "" : "ml-auto"}`}>
