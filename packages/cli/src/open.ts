@@ -23,7 +23,7 @@ import { setupIn } from "./setup.ts";
 import { video, type Filmed } from "./video.ts";
 import { agentWaiting } from "./wait.ts";
 
-const PORT = 5790;
+export const PORT = 5790;
 const TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -157,7 +157,7 @@ function onThisMachine() {
 type Machine = ReturnType<typeof onThisMachine>;
 
 // The port of Playthrough already open for this machine, if one is: each says whose it is.
-async function openAlready(home: string): Promise<number | undefined> {
+export async function openAlready(home: string): Promise<number | undefined> {
   const ports = Array.from({ length: 21 }, (_, i) => PORT + i);
   const asked = (port: number) =>
     fetch(`http://127.0.0.1:${port}/api/app`, { signal: AbortSignal.timeout(1000) })

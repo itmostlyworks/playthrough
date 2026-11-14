@@ -15,14 +15,16 @@
 
 import { chromium, type Page } from "@playwright/test";
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import type { Glimpse, Reading } from "@playthrough/page";
 import { allNotes, conversation, list, MOST_SHOWN, notesToAnswer, shownFrom, quote, Refused, roundInProgress, startOf, toAccountFor, type Change, type Review, type Round, type Scene } from "@playthrough/review";
 import { agent } from "./agent.ts";
 import { browserFile, stopBrowser, type Browser } from "./as.ts";
 import { changeHere, momentNamed, momentsOf } from "./change.ts";
 import { compareWithEarlier } from "./compare.ts";
+import { everyCopy, machine } from "./machine.ts";
 import { pictureNotes } from "./noted.ts";
+import { openAlready, PORT } from "./open.ts";
 import { readPage, unhovered } from "./read.ts";
 import type { Repo } from "./repo.ts";
 import { frameOf, glimpsesOf, readingsOf, type Failed } from "./reporter.ts";
@@ -434,6 +436,7 @@ export async function wait(repo: Repo) {
     await reviews.finish(id, last.number);
     console.log(`Handed back: the person sees ${last.scenes.length > 1 ? `the ${last.scenes.length} moments` : "the moment"} as they are now${last.replies.length ? ", and your answers" : ""}.`);
     if (await stopBrowser(repo)) console.log("The browser from playthrough as is stopped: it starts again when you need it.");
+    console.log(await addressOf(repo, id));
   } else {
     // Notes taken by a wait that stopped before they were answered are said again.
     const asking = notesToAnswer(review, last.number + 1);
@@ -451,6 +454,14 @@ export async function wait(repo: Repo) {
     if (asking.length) return sayNotes(repo, review, number, asking, taken[0]?.by);
     if (taken.some((send) => send.looksGood.length)) return console.log(`\n${taken[0]!.by} says every moment looks good: the change is done. Nothing more to do.`);
   }
+}
+
+// The change's own page on the person's list, its first moment, to give them rather than the list to find it in.
+async function addressOf(repo: Repo, id: string): Promise<string> {
+  const copy = everyCopy().find((one) => one.root === repo.root)?.name ?? basename(repo.root);
+  const port = await openAlready(machine());
+  const address = `http://localhost:${port ?? PORT}/moments/${[copy, id].map(encodeURIComponent).join("/")}/1`;
+  return port ? `Give the person its own page: ${address}` : `Give the person its own page, open once playthrough open runs: ${address}`;
 }
 
 async function sayNotes(repo: Repo, review: Review, number: number, asking: string[], by = "The person") {

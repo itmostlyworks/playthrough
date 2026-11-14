@@ -77,7 +77,8 @@ EACH CHANGE
 5. A few moments per change: one for each person or situation the change treats differently (an owner and a member;
    what's accepted and what's refused). Run playthrough as again for each: the same browser starts again, fresh.
 6. Hand back: playthrough wait, in the background. It stops the browser playthrough as keeps. Then tell the person
-   their moments are ready, one line each, in your words, and that playthrough open shows them. Wait tells you when
+   their moments are ready, one line each, in your words, and give them the page wait prints for this change (playthrough
+   open, if it isn't open yet): their change, not a list to find it in. Wait tells you when
    the person has spoken. If it's stopped before then, as a long wait can be, run it again: nothing is lost.
 
 WHEN THE PERSON SPEAKS
