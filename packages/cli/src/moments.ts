@@ -106,6 +106,8 @@ export async function moment(repo: Repo, words: string, named?: string, last?: n
 
   mkdirSync(repo.scenes(id), { recursive: true });
   writeFileSync(join(repo.scenes(id), "package.json"), `{ "type": "module" }\n`);
+  // Marked again with the same words, it's the same moment, in whatever file it was kept before.
+  for (const one of momentsOf(repo, id)) if (one.words === words && one.file !== join(repo.scenes(id), file)) rmSync(one.file);
   writeFileSync(join(repo.scenes(id), file), sceneOf(way));
   rmSync(trying, { recursive: true, force: true });
   const acted = lastActedOn(done, readings.at(-1)!);
