@@ -61,7 +61,7 @@ export const Place = z
     point: Point.optional().describe("Empty space"),
   })
   .refine(onOneThing, { error: ONE_THING })
-  .refine(atSomeMoment, { error: "is on something but at no moment. Give it one" });
+  .refine(atSomeMoment, { error: "is on something but at no time. Give it one" });
 
 // Where a note is: on a moment as it was handed back, or on what was there after stepping into the app from one. Either
 // way it names the hand-back and the moment, so which moment a note is on is always its `moment`, and the recording its
@@ -77,7 +77,7 @@ export const OnMoment = z
     point: Point.optional().describe("Empty space"),
   })
   .refine(onOneThing, { error: ONE_THING })
-  .refine(atSomeMoment, { error: "is on something but at no moment. Give it one" });
+  .refine(atSomeMoment, { error: "is on something but at no time. Give it one" });
 export const InApp = z
   .strictObject({
     handBack: handBackNumber,

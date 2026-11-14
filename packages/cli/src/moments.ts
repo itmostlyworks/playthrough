@@ -304,7 +304,7 @@ export async function drop(repo: Repo, words: string) {
   const on = notesOn(change, way.words);
   if (on.length && !markedSinceNotes(repo, change, on, way.words).length)
     throw new Refused([
-      `${on.length > 1 ? `Notes ${list(on)} are` : `Note ${on[0]} is`} on ${quote(way.words)}: the person sees what you did about ${on.length > 1 ? "them" : "it"} in a way, not only in your answer. Mark one that shows it first, a still where it was if it's gone (playthrough way "<what's there now>"); then drop this one, if what it showed no longer exists.`,
+      `${on.length > 1 ? `Notes ${list(on)} are` : `Note ${on[0]} is`} on ${quote(way.words)}: the person sees what you did about ${on.length > 1 ? "them" : "it"} in a moment, not only in your answer. Mark one that shows it first, a still where it was if it's gone (playthrough way "<what's there now>"); then drop this one, if what it showed no longer exists.`,
     ]);
   rmSync(way.file);
   const last = change.handBacks.at(-1);
@@ -337,9 +337,9 @@ export async function again(repo: Repo) {
   if (!handedBack)
     throw new Refused(["Nothing's been handed back yet, so there's nothing to run them again against: each moment was run again from a fresh start as you marked it. Hand back with playthrough wait, in the background."]);
   const ways = momentsOf(repo, id);
-  if (!ways.length) throw new Refused(["There are no ways to run again. Mark one: playthrough as <person>, then playthrough moment \"<what's there>\""]);
+  if (!ways.length) throw new Refused(["There are no moments to run again. Mark one: playthrough as <person>, then playthrough moment \"<what's there>\""]);
   const number = handBackInProgress(change);
-  console.log(`Running ${ways.length > 1 ? `the ${ways.length} ways` : "the moment"} again, on the code as it is now…`);
+  console.log(`Running ${ways.length > 1 ? `the ${ways.length} moments` : "the moment"} again, on the code as it is now…`);
   const ran = await runOnce({ moments: repo.moments(id), app: await repo.app(), root: repo.root, recorder, started: change.started });
   for (const { files } of ran.recorded) for (const { name, bytes } of files) await repo.changes.saveFile(id, number, name, bytes);
   // In the order they were handed back, what each is about as it was marked; one new since, after them.

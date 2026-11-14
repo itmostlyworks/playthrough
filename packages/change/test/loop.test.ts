@@ -228,7 +228,7 @@ async function everything(storage: Storage, folder: string): Promise<string[]> {
 }
 
 describe("a change kept the older way", () => {
-  test("reads once it's been brought along, as it showed: each moment with where it starts, its way before its step", async () => {
+  test("reads once it's been brought along, as it showed: each moment with where it starts and what it did as one list, its way before its step, everything kept by its name now", async () => {
     const storage = memory();
     await keptTheOlderWay(storage);
     const change = await new Changes(storage).get(CHANGE);
