@@ -1011,7 +1011,9 @@ function MomentView(props: {
   const stepIn = () => {
     if (live?.shown) return back();
     const paused = pausedAt(scene, at);
-    if (!paused || writing) return;
+    // A note open on a frame of its own shows somewhere the app can't be taken to: stepping in from it would swap the
+    // picture for the moment's and open the app there. Closed, Step in answers again.
+    if (!paused || writing || elsewhere) return;
     setComparing(false);
     setPlaying(undefined);
     setOpen(undefined);
@@ -1166,6 +1168,8 @@ function MomentView(props: {
   const openMade = opened && shownAt(opened.note);
   // Its thing is in the moment's picture now: the moment, at its end, is where it's shown.
   const openNow = isNow(openMade);
+  // Open on a frame of its own, not on the moment as it is now.
+  const elsewhere = !!opened && !openNow;
   // Shown as it was before the agent last handed the moment back, the bar says so where Play would be.
   const asItWas = !!opened && !openNow && !!openMade && openMade.round < round.number;
   const openNote = (id: string) => {
@@ -1600,7 +1604,7 @@ function MomentView(props: {
                 <Progress clock={clockOf} share={shareOf(at)} shareOf={shareOf} moving={!!playing} shown={!atPoint && !live?.shown} />
               </button>
             )}
-            <button className={`${ITEM} relative w-[116px] phone:w-[104px]`} disabled={!!writing} aria-pressed={stepping} onClick={stepIn}>
+            <button className={`${ITEM} relative w-[116px] phone:w-[104px]`} disabled={!!writing || elsewhere} aria-pressed={stepping} onClick={stepIn}>
               {inApp ? "Back" : stepping ? "Stepping in…" : "Step in"} {!stepping && <Key>{inApp ? "Esc" : "T"}</Key>}
               {stepping && live && <Getting since={live.since} due={live.due} />}
             </button>
