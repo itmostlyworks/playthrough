@@ -1120,6 +1120,9 @@ function MomentView(props: {
   // Opened, its answer is no longer new.
   const [, answered] = useState(0);
   useEffect(() => void (opened?.sent && (openAnswer(review, you, opened.note.id), answered((n) => n + 1))), [opened?.note.id]);
+  // Next goes through this moment's answers you haven't opened, one by one, before it goes on to the next moment.
+  const nextAnswer = !live?.shown && !writing ? onEdge.find(({ note, sent }) => note.id !== open && noteSays(review, you, note, sent, replies).fresh) : undefined;
+  const onward = () => (nextAnswer ? openNote(nextAnswer.note.id) : next(1));
   const [layers, setLayers] = useState<{ note: Note; sent: boolean; made: Made }[]>([]);
   const [openPlaced, setOpenPlaced] = useState<Placed>({});
   const shut = useRef<HTMLDivElement>(null);
@@ -1190,7 +1193,7 @@ function MomentView(props: {
       event.preventDefault();
       return void (onEdge[to]!.note.id !== open && openNote(onEdge[to]!.note.id));
     }
-    const did = { " ": play, t: stepIn, n: note, c: compare, arrowdown: () => next(1), j: () => next(1), arrowup: () => next(-1), k: () => next(-1) }[key];
+    const did = { " ": play, t: stepIn, n: note, c: compare, arrowdown: onward, j: onward, arrowup: () => next(-1), k: () => next(-1) }[key];
     if (!did || event.repeat) return;
     event.preventDefault();
     did();
@@ -1271,6 +1274,8 @@ function MomentView(props: {
           picture={
             <>
               <NotePicture frame={frames[note.id]} sent={isSent} />
+              {/* On the side toward the recording, which the screen's edge never fades. */}
+              {fresh && <span className="absolute top-1.5 left-1.5 rounded-full bg-fg px-1.5 text-[10.5px] leading-4 font-medium text-ground">New</span>}
             </>
           }
           words={<NoteWords words={words} stands={stands} fresh={fresh} />}
@@ -1342,8 +1347,8 @@ function MomentView(props: {
           </button>
         )}
         {Array.isArray(sending) && <span className="text-[13px] text-amber-ink">Not sent: {sending[0]}</span>}
-        <button onClick={() => next(1)} disabled={!!live?.shown || !!writing} className={`-mr-2 flex flex-none items-center gap-1.5 rounded-lg px-2 py-1 text-soft transition-colors duration-150 ease-calm enabled:hover:bg-hover enabled:hover:text-fg disabled:opacity-50 ${unsent > 0 || sending ? "" : "ml-auto"}`}>
-          {n < count ? "Next" : "To the list"}
+        <button onClick={onward} disabled={!!live?.shown || !!writing} className={`-mr-2 flex flex-none items-center gap-1.5 rounded-lg px-2 py-1 text-soft transition-colors duration-150 ease-calm enabled:hover:bg-hover enabled:hover:text-fg disabled:opacity-50 ${unsent > 0 || sending ? "" : "ml-auto"}`}>
+          {nextAnswer ? "Next answer" : n < count ? "Next" : "To the list"}
           <Key>↓</Key>
         </button>
       </header>
