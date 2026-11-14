@@ -351,7 +351,7 @@ and `app.log` (the app), `borrowed/` (worlds not yet given back), and a folder p
 was asked, when it started, and the format it's kept in), `scenes/<words>.ts` (each moment's way there, then its step),
 `rounds/<n>/` (each hand-back:
 `round.json` with its moments and replies, `files/` with their recordings, readings and pictures, `since/<k>.json`
-compared with hand-back k), `sends/<id>.json` (what the person sent, never written again), `taken.json` (what the agent
+compared with hand-back k), `sends/<id>.json` (what the person sent, never written again but once, to bring it to a newer format), `taken.json` (what the agent
 has taken of it), `seen.json` (what each person has opened), `branches/` (what the person did in the app, and notes'
 frames), `waiting/<pid>` (an agent listening). On the machine: `~/.playthrough/apps.json` and `open.json` (the list
 running).

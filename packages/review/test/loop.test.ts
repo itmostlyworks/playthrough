@@ -4,7 +4,7 @@
 
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { allNotes, conversation, memory, newId, notesToAnswer, Refused, Reviews, roundInProgress, saidDone, standingOf, waitingForTheAgent, type Note, type Round, type Scene, type Send, type Storage } from "../src/index.ts";
+import { allNotes, conversation, isStill, memory, newId, notesToAnswer, Refused, Reviews, roundInProgress, saidDone, standingOf, waitingForTheAgent, type Note, type Round, type Scene, type Send, type Storage } from "../src/index.ts";
 
 const CHANGE = "change-the-card-prefix";
 
@@ -58,6 +58,14 @@ describe("the loop", () => {
     const [round] = (await reviews.get(CHANGE)).rounds;
     assert.deepEqual([round?.scenes, !!round?.finished], [[PREFIX], true]);
     await assert.rejects(reviews.saveRound(CHANGE, { ...round!, scenes: [] }), /Round 1 is finished/);
+  });
+
+  test("a moment always has where it starts, the one value everything that shows it reads", async () => {
+    const reviews = await named();
+    const startless = { ...PREFIX, from: undefined } as unknown as Scene;
+    await assert.rejects(reviews.saveRound(CHANGE, { number: 1, by: "Claude Code", scenes: [startless], replies: [] }), /the scene “Cards now say WEB-1” needs where the moment starts, in seconds/);
+    assert.equal(isStill(STILL), true, "nothing done from its start: a still");
+    assert.equal(isStill(PREFIX), false);
   });
 
   test("a still is kept and handed back as any moment is, with nothing done in it", async () => {
