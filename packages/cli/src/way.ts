@@ -119,6 +119,14 @@ ${[...shown, ...(still.length ? [] : scrolling), ...checks].join("\n")}
 }
 export const ENDED = "ended.json";
 
+// Whether a moment's file does its way there before its step, as every one marked since moments had a start does (a page
+// is always arrived at first); one kept before does everything in its step.
+export function wayBefore(file: string): boolean {
+  const lines = file.split("\n");
+  const from = lines.findIndex((line) => line.startsWith("test("));
+  return lines.findIndex((line) => line.includes("await test.step(")) > from + 1;
+}
+
 // The way there of a moment's file, and what the moment does, without what it checks: for going there by hand, not for
 // proving it.
 export function wayIn(file: string): string {

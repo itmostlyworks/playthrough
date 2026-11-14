@@ -14,7 +14,7 @@ import { change, changeHere, idOf, momentNamed, titleOf, momentsOf } from "../sr
 import { howEachWent } from "../src/moments.ts";
 import { repo } from "../src/repo.ts";
 import { problemsWithPeople } from "../src/setup.ts";
-import { fileOf, sameAddress, sceneOf, wayIn, whatDiffers, wordsIn, type Done } from "../src/way.ts";
+import { fileOf, sameAddress, sceneOf, wayBefore, wayIn, whatDiffers, wordsIn, type Done } from "../src/way.ts";
 
 const folders: string[] = [];
 after(() => Promise.all(folders.map((folder) => rm(folder, { recursive: true, force: true }))));
@@ -107,6 +107,12 @@ describe("the way to a moment", () => {
     assert.match(step!, /waitForFunction[\s\S]*\[0, 600\], \{ timeout: 3000 \}\)\.catch/);
     const still = sceneOf({ words: "The footer", person: "Maja", did: footer.slice(0, 2), setup: {}, from: 2, scrolled: { x: 0, y: 1200 } });
     assert.match(still.split("await test.step(")[0]!, /window\.scrollTo\(x, y\), \[0, 1200\]\);/, "a still's first frame is where the agent is");
+  });
+
+  test("knows a moment kept before moments had a start, which does everything in its step, from one marked since", () => {
+    assert.equal(wayBefore(sceneOf({ words: "Here", person: "Maja", did, setup: {} })), false);
+    assert.equal(wayBefore(sceneOf({ words: "Here", person: "Maja", did, setup: {}, from: 1 })), true);
+    assert.equal(wayBefore(sceneOf({ words: "Here", person: "Maja", did, setup: {}, from: did.length })), true, "a still too");
   });
 
   test("a right click is done again as one, as a card's menu opens", () => {

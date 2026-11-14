@@ -43,7 +43,9 @@ export function shownFrom(scene: Scene): number {
   const step = scene.steps.at(-1);
   const began = step?.began ?? [];
   const ended = step?.actions ?? [];
-  if (!began.length || began.length !== ended.length) return 0;
+  // Nothing done at all, it's a still where its end holds.
+  if (!began.length) return Math.max(0, scene.length - HELD);
+  if (began.length !== ended.length) return 0;
   const { at } = startOf(began.map(({ action }) => doneIn(action)));
   // Nothing done on the page it ends on: a still, from where its end holds, settled, and after the last thing done.
   if (at >= began.length) return Math.min(scene.length, Math.max(ended.at(-1)! + 0.1, scene.length - HELD));
