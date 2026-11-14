@@ -17,6 +17,8 @@ const VEIL = 64;
 const INSET = 8 + 6;
 // How long an edge stays forward with what just arrived on it, in milliseconds.
 const SHOWN = 1400;
+// Where more runs on past the edge's top or foot, it fades over this much, so it reads as more to come.
+const MORE = 64;
 
 type Room = { top: number; height: number; inner: number; screen: number };
 
@@ -112,7 +114,7 @@ export function Edge(props: {
   const right = side === "right";
   // Forward, it's all on the screen, its pictures as far from the screen's edge as from the recording at rest.
   const shift = right ? Math.max(0, room.inner + DRAWER - room.screen) : Math.max(0, DRAWER - room.inner);
-  const fade = (to: string) => `linear-gradient(${to}, transparent, #000 ${cut.above ? 28 : 0}px, #000 calc(100% - ${cut.below ? 28 : 0}px), transparent)`;
+  const fade = (to: string) => `linear-gradient(${to}, ${cut.above ? "transparent" : "#000"}, #000 ${cut.above ? MORE : 0}px, #000 calc(100% - ${cut.below ? MORE : 0}px), ${cut.below ? "transparent" : "#000"})`;
   return (
     <>
       <div
