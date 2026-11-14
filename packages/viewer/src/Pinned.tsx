@@ -14,7 +14,7 @@ export type Pin = { id: string; on: string[]; ink: string; fill: string };
 // Lit: what's drawn for it elsewhere, as a note's picture on the moment's edge, is pointed at; pointed at here, it says so.
 // Quiet, a pin's thing is outlined only while it's open or lit, so many notes on one picture are many pins, not a page of
 // boxes.
-type Props = { pins: Pin[]; placed: Placed; open?: string; faded: boolean; onOpen: (id?: string) => void; lit?: string; onPoint?: (id?: string) => void; quiet?: boolean };
+type Props = { pins: Pin[]; placed: Placed | undefined; open?: string; faded: boolean; onOpen: (id?: string) => void; lit?: string; onPoint?: (id?: string) => void; quiet?: boolean };
 
 export function Pinned({ pins, placed, open, faded, onOpen, lit, onPoint, quiet }: Props) {
   const room = useRef<HTMLDivElement>(null);
@@ -27,7 +27,7 @@ export function Pinned({ pins, placed, open, faded, onOpen, lit, onPoint, quiet 
   }, []);
   // A pin is on the first of its things that's found. With none on this frame, as a note made in the app on what the
   // recording never shows, there's no pin: in a corner it covered the app, and what's said is in the way beside it.
-  const spotOf = (pin: Pin): Rect | undefined => pin.on.map((id) => placed[id]).find(Boolean);
+  const spotOf = (pin: Pin): Rect | undefined => pin.on.map((id) => placed?.[id]).find(Boolean);
   // On a thing, its pin is just outside the top right corner; at the bottom right where the top is out of view, and
   // pulled in where the right or the bottom is, so it's never cut off. On a spot, it's the spot.
   const pinOf = (spot: Rect): Rect => {
@@ -57,7 +57,7 @@ export function Pinned({ pins, placed, open, faded, onOpen, lit, onPoint, quiet 
         return (
           <div key={pin.id} style={{ "--c": pin.ink } as CSSProperties}>
             {pin.on.map((id) => {
-              const thing = placed[id];
+              const thing = placed?.[id];
               return (
                 thing &&
                 (thing.width > 0 || thing.height > 0) &&

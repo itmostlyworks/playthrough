@@ -139,7 +139,8 @@ export function MomentView(props: {
   const [noting, setNoting] = useState(false);
   const [writing, setWriting] = useState<Writing>();
   const [open, setOpen] = useState<string>();
-  const [placed, setPlaced] = useState<Placed>({});
+  // Where the moment's marks are on it, once its recording has said.
+  const [placed, setPlaced] = useState<Placed>();
   const [live, setLive] = useState<StepIn>();
   // A note's pin on the recording and its picture on the edge are one thing: pointing at either lights both. A pin
   // pointed at says its note right there, as its picture does, after a breath, so passing over one says nothing.
@@ -193,7 +194,7 @@ export function MomentView(props: {
     setWriting(undefined);
     setOpen(arriving.current);
     arriving.current = undefined;
-    setPlaced({});
+    setPlaced(undefined);
     setLive(undefined);
     setComparing(false);
     clockOf.set(end);
@@ -400,8 +401,8 @@ export function MomentView(props: {
   const nextAnswer = !live?.shown && !writing ? onEdge.find(({ note, sent }) => note.id !== open && says(note, sent).fresh) : undefined;
   const onward = () => (nextAnswer ? openNote(nextAnswer.note.id) : next(1));
   const [layers, setLayers] = useState<{ note: Note; sent: boolean; made: Made }[]>([]);
-  // Where the recording has the open note's thing on its own frame, once it has said, and for which note.
-  const [openPlaced, setOpenPlaced] = useState<{ note: string; at: Placed }>();
+  // Where the recording on the open note's own frame has its thing, once it has said, and for which note.
+  const [onFrame, setOnFrame] = useState<{ note: string; at?: Placed }>();
   const shut = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (opened && openNow && at < end - 0.02) restAt(end);
@@ -415,7 +416,7 @@ export function MomentView(props: {
     const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
     const fading = calm ? undefined : shut.current?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: FADING, easing: "ease", fill: "forwards" });
     let current = true;
-    void (fading?.finished ?? Promise.resolve()).then(() => current && (setLayers([]), setOpenPlaced(undefined)), () => {});
+    void (fading?.finished ?? Promise.resolve()).then(() => current && (setLayers([]), setOnFrame(undefined)), () => {});
     return () => void ((current = false), fading?.cancel());
   }, [opened?.note.id, openNow]);
   const shownOpen = layers.at(-1);
@@ -430,19 +431,22 @@ export function MomentView(props: {
   const pictured = shownOpen && frames[shownOpen.note.id];
   const onPicture = ((): Placed | undefined => {
     const shown = stage.current;
-    if (!shownOpen || !pictured?.box || !shown) return undefined;
+    if (!shownOpen || !pictured || !shown) return undefined;
     const { screen, box } = pictured;
+    if (!box) return {};
     const k = Math.min(shown.clientWidth / screen.width, shown.clientHeight / screen.height);
     const [left, top] = [(shown.clientWidth - screen.width * k) / 2, (shown.clientHeight - screen.height * k) / 2];
     return { [shownOpen.note.id]: { left: left + box.x * screen.width * k, top: top + box.y * screen.height * k, width: box.width * screen.width * k, height: box.height * screen.height * k } };
   })();
-  const told = shownOpen && openPlaced?.note === shownOpen.note.id ? openPlaced.at : undefined;
-  const openAt = pictured ? (onPicture ?? {}) : (told ?? {});
+  // Where the open note's thing is, one answer however it's found, and none until it's known: on the moment as it is
+  // now, by the recording; on its own frame, by its kept picture, or the recording there until that's drawn. Known,
+  // and not there, it's on nothing.
+  const openAt = opened && openNow ? placed : pictured ? onPicture : shownOpen && onFrame?.note === shownOpen.note.id ? onFrame.at : undefined;
   // What the bar must never cover: an open note's thing while it's open; else, from the first frame shown to the last,
   // what the moment is about and the last thing done in it, where the page has them at its end, known from its reading
   // before anything is drawn. The bar is one place: over one of them, it drops just below the recording's edge for that
   // moment, still in the middle, and that's all.
-  const openThing = opened && (openNow ? placed[opened.note.id] : openAt[opened.note.id]);
+  const openThing = opened && openAt?.[opened.note.id];
   const kept = (() => {
     const shown = stage.current;
     const end = readings?.at(-1);
@@ -464,13 +468,12 @@ export function MomentView(props: {
   })());
   // The note whose card shows: open on the moment as it is now, or on the frame it was made on, until that has faded.
   const carded = opened && openNow ? opened : shownOpen && (opened ? shownOpen.note.id === opened.note.id && shownOpen : !phone && shownOpen);
-  // Its card comes in by its thing, so it waits until where that is has been said: on the moment as it is now, by the
-  // recording; on its own frame, by its kept picture, or the recording there until that's drawn. It never stands
-  // somewhere else first and moves. Only a note that turns out to be on nothing stands in the corner.
+  // Its card comes in by its thing, so it waits until where that is is known: it never stands somewhere else first and
+  // moves. Only a note that turns out to be on nothing stands in the corner.
   const corner = spotAt({ x: 24, y: 24 });
-  const cardBy = !carded ? undefined : phone ? corner : openNow ? placed[carded.note.id] : pictured || told ? (openAt[carded.note.id] ?? corner) : undefined;
+  const cardBy = !carded ? undefined : phone ? corner : openAt && (openAt[carded.note.id] ?? corner);
   // What it's about is outlined only at the point: midway, it may not be there yet.
-  const aboutAt = atPoint && !live?.shown && !opened ? placed[ABOUT] : undefined;
+  const aboutAt = atPoint && !live?.shown && !opened ? placed?.[ABOUT] : undefined;
 
   // Pressing away from what's open, anywhere but its card and its picture on the edge, closes it.
   const pressAway = (event: React.PointerEvent) => opened && !(event.target as Element).closest("[data-note-card], [data-tile]") && !stage.current?.contains(event.target as Node) && setOpen(undefined);
@@ -597,7 +600,7 @@ export function MomentView(props: {
   // What's said by a pin: the note being written, or the one open. On a phone, under the bar, where there's room.
   const cards = (
     <>
-          {writing && <NoteCard by={(!writing.note.on?.app && placed[writing.note.id]) || writing.box || spotAt(writing.spot)} stage={stage} under={phone}><Write onSave={save} onDrop={() => setWriting(undefined)} /></NoteCard>}
+          {writing && <NoteCard by={(!writing.note.on?.app && placed?.[writing.note.id]) || writing.box || spotAt(writing.spot)} stage={stage} under={phone}><Write onSave={save} onDrop={() => setWriting(undefined)} /></NoteCard>}
           {/* Closing, it fades where it stood; under the bar on a phone, it goes at once, so it never holds its room. */}
           {!writing && carded && cardBy && (
             <NoteCard key={carded.note.id} by={cardBy} stage={stage} closing={!opened} under={phone}>
@@ -751,7 +754,7 @@ export function MomentView(props: {
                         recording={made.recording}
                         at={made.at}
                         marks={[{ id: note.id, ...(made.node !== undefined ? { node: made.node } : made.point && { point: made.point }) }]}
-                        onMarks={note.id === shownOpen?.note.id ? (at) => setOpenPlaced({ note: note.id, at }) : undefined}
+                        onMarks={note.id === shownOpen?.note.id ? (at) => setOnFrame({ note: note.id, at }) : undefined}
                       />
                     )}
                   </div>
@@ -769,7 +772,7 @@ export function MomentView(props: {
           <Portal live={live && { ...live, inApp }} person={person} screen={screen} scrolled={() => scrolled.current?.()} waiting="Stepping in…" named={false} />
           {(() => {
             const one = saying && !opened && !writing && !playing && !live?.shown ? onEdge.find(({ note }) => note.id === saying) : undefined;
-            const thing = one && placed[one.note.id];
+            const thing = one && placed?.[one.note.id];
             if (!one || !thing) return null;
             const said = says(one.note, one.sent);
             // Beside its pin, which stands just outside the thing's top right corner, on whichever side has room.

@@ -122,9 +122,10 @@ type Props = {
   // that leads says where, as the older page's Compare does. Holding something, at rest, it's in view whole, the view
   // gliding there: both sides are told, so both glide.
   actualSize?: { together: Together; leads: boolean; holds?: Mark };
-  // The notes on what's at this moment: at rest, where each one's thing is on the page, in the player's own pixels.
+  // The notes on what's at this moment: at rest, where each one's thing is on the page, in the player's own pixels;
+  // nothing while it's on its way there, so nothing is placed where its thing was on the way.
   marks?: Mark[];
-  onMarks?: (placed: Placed) => void;
+  onMarks?: (placed: Placed | undefined) => void;
   // Noting, at rest: what a click would note is outlined, and a click notes it, or else the spot, by what was read there.
   things?: Glimpse[];
   onPlace?: (on: { element: Element } | { point: Point }) => void;
@@ -135,6 +136,7 @@ type Props = {
 // A thing marked, by its node in this recording, else by its name, as one made in the app names it; or its spot, or
 // its part of the screen.
 export type Mark = { id: string; node?: number; name?: string; point?: { x: number; y: number }; box?: { x: number; y: number; width: number; height: number } };
+// Where each mark's thing is, once that's known; one it looked for and didn't find, undefined.
 export type Placed = Record<string, Rect | undefined>;
 
 export function Player(props: Props) {
@@ -275,7 +277,7 @@ export function Player(props: Props) {
     // Nothing is placed on it until it has come to rest there: an outline or a pin drawn sooner is drawn where its
     // thing was on its way, not where it is.
     if (settled.current.replay !== replayed || settled.current.at !== at) {
-      told.current?.({});
+      told.current?.(undefined);
       let current = true;
       void replayed.settled().then(() => current && ((settled.current = { replay: replayed, at }), setGlided((done) => done + 1)));
       return () => void (current = false);

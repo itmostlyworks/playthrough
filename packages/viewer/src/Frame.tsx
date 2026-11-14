@@ -20,7 +20,7 @@ export function FramePage({ framed }: { framed: Framed }) {
         marks={[{ id: "note", ...(node !== undefined ? { node } : point && { point }) }]}
         onMarks={(placed) => {
           // Told once the page has come to rest, with the note's thing there or not; nothing before.
-          if (!("note" in placed)) return;
+          if (!placed) return;
           const { note } = placed;
           const { clientWidth: wide, clientHeight: high } = room.current!;
           Object.assign(window, { framed: note && { x: note.left / wide, y: note.top / high, width: note.width / wide, height: note.height / high } });
