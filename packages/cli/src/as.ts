@@ -189,6 +189,8 @@ export async function as(repo: Repo, person: string, at?: string) {
   const context = await chromium.launchPersistentContext(profile, {
     headless: !process.env.PLAYTHROUGH_HEADED,
     args: [`--remote-debugging-port=${debugging}`, "--enable-blink-features=ComputedAccessibilityInfo"],
+    // As a recording's, the clipboard is the page's to write to (test.ts).
+    permissions: ["clipboard-read", "clipboard-write"],
     ...setup.use,
     baseURL: app.url,
     locale: "en-US",

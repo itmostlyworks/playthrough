@@ -26,6 +26,7 @@ export type Screen = Pick<BrowserContextOptions, "viewport" | "isMobile" | "hasT
 export const phone: Screen = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
 export const tablet: Screen = { viewport: { width: 820, height: 1180 }, isMobile: true, hasTouch: true };
 const LAPTOP = { width: 1280, height: 800 };
+const CLIPBOARD = ["clipboard-read", "clipboard-write"];
 
 // Everything it needs comes with the run (scenes.ts), so it never has to find anything for itself.
 const run: Run | undefined = process.env.PLAYTHROUGH_RUN ? JSON.parse(process.env.PLAYTHROUGH_RUN) : undefined;
@@ -218,7 +219,9 @@ const recorded = base.extend<{ person: string | undefined; rest: () => Promise<v
   // In one language and time zone wherever it's recorded, and opened as the app's setup says, under what the file says.
   locale: "en-US",
   timezoneId: "UTC",
-  contextOptions: async ({ contextOptions }, use) => use({ ...(await setupOf()).use, ...contextOptions }),
+  // The clipboard is the page's to write to, as a person's browser lets a click copy: headless, it's refused, and Copy never
+  // says Copied.
+  contextOptions: async ({ contextOptions }, use) => use({ permissions: CLIPBOARD, ...(await setupOf()).use, ...contextOptions }),
   // Who the scene is done as: one of the app's people (setup.ts), named by its file with test.use, or else the first.
   person: [async ({}, use) => use(firstOf(await setupOf())), { option: true }],
   // What waits for the page to come to rest, watching it from before setup sets its clock (rest.ts).
