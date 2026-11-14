@@ -18,7 +18,7 @@ import { readyIn } from "./following.ts";
 import { everyCopy, machine } from "./machine.ts";
 import { keepNamed, type Assets } from "./assets.ts";
 import { frameOf, stillOf, type Framed } from "./frames.ts";
-import { getReady, placeOf, waitedFor } from "./take-over.ts";
+import { getReady, placeOf, waitedFor } from "./step-in.ts";
 import { setupIn } from "./setup.ts";
 import { agentWaiting } from "./wait.ts";
 import { openFile, stopUnused, UNUSED } from "./app.ts";
@@ -220,7 +220,7 @@ async function answer(here: Machine, page: string, you: string, request: Incomin
     await changes.see(id, by, moments);
     return json(response, 200, {});
   }
-  if (request.method === "POST" && rest[0] === "take-over") return takeOver(repo, id, request, response);
+  if (request.method === "POST" && rest[0] === "step-in") return stepInto(repo, id, request, response);
   if (request.method === "POST" && rest[0] === "ready-in") return readyInFor(repo, id, request, response);
   if (request.method === "POST" && rest[0] === "branches") return branch(repo, id, request, response);
   if (request.method === "POST" && rest[0] === "stills") return json(response, 200, { picture: await stillOf(repo, id, address, await body<Framed>(request), request.socket.localPort!) });
@@ -248,13 +248,13 @@ async function shownOf(repo: Repo): Promise<{ app: string; people: Record<string
 // A moment stepped into: the viewer asks as Step in is pressed where the playhead rests, and shows the app there, through
 // Playthrough, at the port and moment this answers with; and where the moment's checks at its end don't hold on the app
 // as it is now, what they say. A tab closed or reloaded meanwhile stops it.
-async function takeOver(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
+async function stepInto(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
   const { moment, after } = await body<{ moment: string; after?: number }>(request);
   const { port, name, checked } = await getReady(repo, id, await placeOf(repo, id, moment, after), waitedFor(response));
   json(response, 200, { port, name, ...(checked && { checked }) });
 }
 
-// What a person did in the app, taken over, kept as a recording of its own: the moment as it was recorded up to where they
+// What a person did in the app, stepped into, kept as a recording of its own: the moment as it was recorded up to where they
 // took it over, then theirs, going on from there. It plays like any moment, with what the moment's recording kept of the
 // app's files, and a note on it is on what they saw. Each time it's kept, it's kept whole, under a new name, as what
 // the viewer has fetched once it keeps.

@@ -40,7 +40,7 @@ after(() => rm(folder, { recursive: true }));
 const phone = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
 const swedish = { locale: "sv-SE", timezoneId: "Europe/Stockholm" };
 
-test("taken over, a moment is kept with what its file says with test.use, before the moment or after it", () => {
+test("stepped into, a moment is kept with what its file says with test.use, before the moment or after it", () => {
   assert.deepEqual(windows["Pay on a phone"], phone);
 });
 

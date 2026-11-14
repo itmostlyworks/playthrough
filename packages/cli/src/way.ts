@@ -4,7 +4,7 @@
 import { differences, type Reading, type Thing } from "@playthrough/page";
 import { quote } from "@playthrough/change";
 
-// What was done, as take-over keeps a person's, and what it was done on as getByRole finds it: its role and name, and
+// What was done, as stepping in keeps a person's, and what it was done on as getByRole finds it: its role and name, and
 // which of those alike it was, where it isn't the only one; with no role, by its words; by its path only where it has
 // neither.
 // And the address it was done at; a page loaded, whether something done on the page before led there (a link followed, a

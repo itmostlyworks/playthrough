@@ -170,7 +170,7 @@ const FRAME = 16; // a move each frame while gliding or scrolling
 const REST = 140; // the pointer rests on its target before acting
 const KEY = 60; // words are typed a key at a time, this far apart
 const TYPED = 1500; // and a long text no slower than this, all told
-const SAVING = 100; // taking over, how soon an action that saves or goes to another page shows it
+const SAVING = 100; // stepping in, how soon an action that saves or goes to another page shows it
 const OPENED = 350; // a dropdown's list is seen open this long before the pointer goes to its choice
 const OPTION = 22; // and each of its options is this tall, in the page's pixels, as the viewer draws it
 
@@ -347,7 +347,7 @@ function answers(dialog: Dialog) {
 }
 
 // A moment can import a module of its own as Playwright finds it, without its ending (“../history”) or by its .js name, so
-// the moments that record can be taken over: Node, which loads them here, finds a module only by its whole name. And it's
+// the moments that record can be stepped into: Node, which loads them here, finds a module only by its whole name. And it's
 // loaded again whenever the moments are, as an agent changes it with them: Node keeps a module by its address, so it's
 // asked for at the moments' time (`?written`). Each is kept in `imported`, whose times say when the moments were written too.
 export const imported = new Set<string>();
@@ -495,7 +495,7 @@ async function reached(stepping: SteppingIn) {
 // A check's failure, as expect throws it, rather than an action's.
 const isCheck = (error: unknown) => !!error && typeof error === "object" && "matcherResult" in error;
 
-// The page as it is once it's at rest, as each step's is read, for the person to carry on from (take-over.ts).
+// The page as it is once it's at rest, as each step's is read, for the person to carry on from (step-in.ts).
 // Straight after its last action, it was still on its way to the next page.
 async function kept(page: Page, rest: () => Promise<void>): Promise<Handed> {
   await rest();
@@ -659,7 +659,7 @@ async function inView(target: Locator, { offScreen = false } = {}) {
   }
 }
 
-// Every action on an element glides there first and pauses after, and once it's done is a place to take the moment over.
+// Every action on an element glides there first and pauses after, and once it's done is a place to step into the moment.
 // Patched once in each worker, for every locator.
 const actions = ["click", "dblclick", "check", "uncheck", "setChecked", "hover", "tap", "fill", "selectOption", "press"] as const;
 const paced = new WeakSet<object>();
@@ -706,8 +706,8 @@ function pace(page: Page) {
     };
   }
   // Words typed into an element go a key at a time on a recording too, unless the moment said how fast; and typing them is
-  // an action, as filling them in is, done again in your browser where the moment is taken over: Kan's card prefix, cleared
-  // and then typed a key at a time, was taken over cleared. pressSequentially is Playwright's type by a newer name, and
+  // an action, as filling them in is, done again in your browser where the moment is stepped into: Kan's card prefix, cleared
+  // and then typed a key at a time, was stepped into cleared. pressSequentially is Playwright's type by a newer name, and
   // types with it, so type alone is the action: both, Kan's prefix came back typed twice.
   for (const action of ["pressSequentially", "type"] as const) {
     const original = prototype[action];
@@ -733,8 +733,8 @@ function pace(page: Page) {
     await pointer.page.waitForTimeout(BEAT);
     await glimpse();
   };
-  // Typing and pressing keys are actions too, on whatever has the focus, on the page taken over; with nothing focused, on
-  // the page itself, which hears them there, as Kan's ⌘K opens its search: left out, its search was closed, taken over.
+  // Typing and pressing keys are actions too, on whatever has the focus, on the page stepped into; with nothing focused, on
+  // the page itself, which hears them there, as Kan's ⌘K opens its search: left out, its search was closed, stepped into.
   const keyboard = Object.getPrototypeOf(page.keyboard);
   const focused = async (page: Page) => {
     const on = page.locator(":focus").first();
@@ -788,7 +788,7 @@ async function acted(does: string, target: (page: Page) => Promise<string | unde
   });
   underway?.actions.push({ action, began, at: Date.now() });
   if (keeping) {
-    // Done again where the person takes over, it needn't wait for the page to be still here: only to see whether it
+    // Done again where the person steps in, it needn't wait for the page to be still here: only to see whether it
     // saved something or went to another page, which shows at once. The next action's page is waited for as it's taken.
     await keeping.page.waitForTimeout(SAVING);
     const plain = typeof given === "string" || typeof given === "boolean" || (Array.isArray(given) && given.every((one) => typeof one === "string"));

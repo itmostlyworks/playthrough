@@ -142,14 +142,14 @@ const readyIn = (change: string, moment: string, after: number | undefined, aske
 // check at the end says where it doesn't hold now; or what stops it.
 async function readyAt(change: string, moment: string, after: number | undefined, asked: AbortSignal): Promise<{ address: string; checked?: string } | { problems: string[] }> {
   try {
-    const answer = await fetch(`/api/changes/${encodeURIComponent(change)}/take-over`, {
+    const answer = await fetch(`/api/changes/${encodeURIComponent(change)}/step-in`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ moment, after }),
       signal: AbortSignal.any([asked, AbortSignal.timeout(ANSWERED)]),
     });
     const said = await answer.json().catch(() => ({}));
-    if (answer.ok) return { address: `${location.protocol}//${location.hostname}:${said.port}/take-over/${said.name}`, checked: said.checked };
+    if (answer.ok) return { address: `${location.protocol}//${location.hostname}:${said.port}/step-in/${said.name}`, checked: said.checked };
     return { problems: said.problems ?? [`Playthrough couldn't open the app here: it answered ${answer.status}. Step in again; if it says so again, start Playthrough again with playthrough open.`] };
   } catch (error) {
     if ((error as Error)?.name === "TimeoutError")

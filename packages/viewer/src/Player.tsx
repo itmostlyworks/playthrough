@@ -129,7 +129,7 @@ type Props = {
   // Noting, at rest: what a click would note is outlined, and a click notes it, or else the spot, by what was read there.
   things?: Glimpse[];
   onPlace?: (on: { element: Element } | { point: Point }) => void;
-  // Where its page and each part of it that scrolls on its own is scrolled, as it rests: the app taken over there is too.
+  // Where its page and each part of it that scrolls on its own is scrolled, as it rests: the app stepped into there is too.
   scrolled?: RefObject<(() => Scrolled) | undefined>;
   // Whether its pointer is drawn: not on a note's own frame, nor while the app's pointer stands in for it. And where it
   // draws it, in its own pixels, if it does: where the app's comes from.

@@ -107,7 +107,7 @@ export const Moment = z.strictObject({
   recording: fileName("needs its recording: the name of a file in the hand-back"),
   person: text("needs the name of who it acts as, or no person")
     .optional()
-    .describe("Who the moment is done as, as its file or the app's setup names them: the name on the recorded pointer, handed to you when you take over"),
+    .describe("Who the moment is done as, as its file or the app's setup names them: the name on the recorded pointer, handed to you when you step in"),
   about: Element.optional().describe("A moment's: the one thing that shows it, as the page names it, which the person sees it closed in on"),
   acted: Element.optional().describe("A moment's: the last thing done something to on the way that's still there at its point, which its still closes in on where it's about nothing"),
   from: seconds("needs where the moment starts, in seconds").describe(

@@ -1,7 +1,7 @@
 // Stepping in: runs the moment's moment to where it's stepped into on the app as it is now, then hands the page as it was
 // there to the person, in their own browser, to carry on from. It's the real app under their hands, a fresh copy of the
 // moment made the way every moment starts, not a picture of it. Playthrough passes everything on to the app, and at
-// /take-over gives the browser what the moment's page had: its address, its cookies, and what the app kept in the browser.
+// /step-in gives the browser what the moment's page had: its address, its cookies, and what the app kept in the browser.
 
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -21,7 +21,7 @@ import type { Made } from "./setup.ts";
 const PORT = 5830;
 
 // Runs the moment to where it's stepped into and passes the app on, then says where: each step in has an address of its
-// own, /take-over/<moment>, with the app made for it, so two tabs, or a reload, never share one or take one from the
+// own, /step-in/<moment>, with the app made for it, so two tabs, or a reload, never share one or take one from the
 // other. In the viewer, Step in asks for it where the playhead rests and turns the frame into the app there: nothing is
 // run before it's asked for.
 export async function getReady(repo: Repo, id: string, to: To, waiting?: AbortSignal): Promise<{ port: number; name: string; checked?: string }> {
@@ -149,7 +149,7 @@ async function recorded(repo: Repo, id: string) {
   return handBack;
 }
 
-// Everything that isn't /take-over goes to the app as it is, answers and live connections both, as if the browser
+// Everything that isn't /step-in goes to the app as it is, answers and live connections both, as if the browser
 // were talking to it directly, so the app sees nothing unusual: its own address, and its own address as where a
 // request came from. Only to this machine.
 function passOn(app: App): Promise<number> {
@@ -157,7 +157,7 @@ function passOn(app: App): Promise<number> {
   const server = createServer((request, response) => {
     if (!named(request)) return turnAway(response);
     const [first, second, name] = new URL(request.url ?? "/", "http://playthrough").pathname.split("/").filter(Boolean);
-    if (first === "take-over")
+    if (first === "step-in")
       return void opening(second ?? "", waitedFor(response)).then(
         (handed) => (handed ? handOver(second ?? "", handed, response) : said(response, 404, GONE)),
         (error) => said(response, 500, error instanceof Refused ? error.problems.join(" ") : String((error as Error)?.message ?? error)),
@@ -660,7 +660,7 @@ const SAYS = `<script>(() => {
   };
   // Once it's yours, what you do is recorded, as a moment is, from the page as it was handed over: a note you make here
   // is on your own recording. Each page records itself, from its own first frame, or made ready unseen, from when you
-  // take it over, where your recording starts.
+  // step into it, where your recording starts.
   let recorded = [];
   const send = () => recorded.length && (parent.postMessage({ playthrough: "recorded", events: recorded }, "*"), (recorded = []));
   const record = () =>
