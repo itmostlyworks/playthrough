@@ -1,8 +1,9 @@
 // Taking a scene over, the app opens in its picture like a portal. Asked for before it's ready, the picture's edge
 // breathes and the recording's pointer says it's being taken over, counting down when it's known how long. Once it's
-// there, the recording's pointer comes to yours, and the app opens from where they meet, a ring going out to the
-// picture's edges; your name goes with your pointer, as whoever the scene is done as. Given back, it closes on where
-// your pointer was in the app, and the pointer goes back to where the recording has it.
+// there, the recording's pointer comes to yours, wherever yours has gone meanwhile and goes on the way, and the app
+// opens from where they meet, a ring going out to the picture's edges; your name goes with your pointer, as whoever the
+// scene is done as. Given back, it closes on where your pointer was in the app, and the pointer goes back to where the
+// recording has it.
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Scrolled } from "./replay.ts";
@@ -50,18 +51,47 @@ export function Portal({ live, person, screen, scrolled, waiting: waitingWords =
   const tip = (point: { x: number; y: number }) => `translate(${(point.x - 3).toFixed(1)}px,${(point.y - 2).toFixed(1)}px)`;
   // Where the recording draws its pointer, in the picture, if it does.
   const theirs = () => {
-    const drawn = room.current?.parentElement?.querySelector<HTMLElement>("[data-hand]");
+    const drawn = theirOwn();
     if (!drawn || drawn.style.opacity === "0") return undefined;
     const [box, at] = [room.current!.getBoundingClientRect(), drawn.getBoundingClientRect()];
     return { x: at.left - box.left + 3, y: at.top - box.top + 2 };
   };
+  // The recording's pointer, in the app, until it has come to yours: where it stands, and what follows once it's there.
+  const theirHand = useRef<{ from: { x: number; y: number }; then: () => void; coming?: Animation }>(undefined);
+  // On its way to yours, it's as far along from where it stood to where yours is now: homing in, wherever yours goes.
+  const onItsWay = () => {
+    const [yours, their, to] = [hand.current!, theirHand.current, yourHand.current];
+    const along = their?.coming?.playState === "running" ? their.coming.effect?.getComputedTiming().progress : undefined;
+    const still = their && to && along != null;
+    yours.style.translate = still ? `${((their.from.x - to.x) * (1 - along)).toFixed(1)}px ${((their.from.y - to.y) * (1 - along)).toFixed(1)}px` : "";
+    return still;
+  };
+  const homing = () => void (onItsWay() && requestAnimationFrame(homing));
+  const come = () => {
+    const their = theirHand.current!;
+    their.coming = hand.current!.animate([], { duration: HANDING, easing: PORTAL });
+    their.coming.onfinish = () => {
+      theirHand.current = undefined;
+      onItsWay();
+      their.then();
+    };
+    homing();
+  };
+  // The pointer here stands in for the recording's own from when it's stepped into until it's given back, and the
+  // recording's isn't drawn meanwhile: there's one pointer, never one left where it was.
+  const theirOwn = () => room.current?.parentElement?.querySelector<HTMLElement>("[data-hand]");
+  const standIn = (on: boolean) => theirOwn()?.style.setProperty("visibility", on ? "hidden" : "");
   const handTo = (at: { x: number; y: number }, inside: boolean, text: boolean) => {
+    const their = theirHand.current;
+    // Yours not in the picture yet, the recording's waits where it is, and comes once yours is.
+    if (their && !their.coming && !inside) return;
     yourHand.current = at;
-    Object.assign(hand.current!.style, { transform: tip(at), opacity: inside ? "1" : "0" });
-    shape(hand.current!, text);
+    Object.assign(hand.current!.style, { transform: tip(at), opacity: inside || their ? "1" : "0" });
+    shape(hand.current!, text && !their);
+    if (their && !their.coming) come();
+    else if (their) onItsWay();
   };
   useEffect(() => {
-    if (!live?.address) return;
     const aimed = (event: PointerEvent) => {
       pointed.current = { x: event.clientX, y: event.clientY };
       // In the app, outside the part it has opened so far, the hand still follows yours.
@@ -82,7 +112,7 @@ export function Portal({ live, person, screen, scrolled, waiting: waitingWords =
       removeEventListener("pointerdown", aimed, true);
       removeEventListener("message", told);
     };
-  }, [live?.address, k]);
+  }, [k]);
 
   // Opening into the app, and closing it again.
   useLayoutEffect(() => {
@@ -92,6 +122,7 @@ export function Portal({ live, person, screen, scrolled, waiting: waitingWords =
     // so the next one opens as the first did.
     if (!door || !glow) {
       open.current = false;
+      standIn(false);
       edging.style.opacity = "0";
       yours.removeAttribute("data-yours");
       Object.assign(yours.style, { opacity: "0" });
@@ -105,17 +136,24 @@ export function Portal({ live, person, screen, scrolled, waiting: waitingWords =
     const glowing = { opacity: getComputedStyle(edging).opacity, boxShadow: getComputedStyle(edging).boxShadow };
     const waited = taking.current;
     for (const part of [door, glow, rim, edging, yours, name, said]) part.getAnimations().forEach((animation) => animation.cancel());
+    theirHand.current = undefined;
+    yours.style.translate = door.style.clipPath = "";
     const { width, height, left: x0, top: y0 } = box.getBoundingClientRect();
     const mine = pointed.current && { x: pointed.current.x - x0, y: pointed.current.y - y0 };
     const onIt = mine && mine.x >= 0 && mine.y >= 0 && mine.x <= width && mine.y <= height ? mine : undefined;
     const recorded = theirs();
     const left = live?.at && { x: live.at.x * k, y: live.at.y * k };
     const at = (inPortal ? (onIt ?? recorded) : (yourHand.current ?? left ?? onIt)) ?? { x: width / 2, y: height / 2 };
-    const reach = Math.max(...[[0, 0], [width, 0], [0, height], [width, height]].map(([x, y]) => Math.hypot(x! - at.x, y! - at.y)));
-    const circle = (r: number) => `circle(${r.toFixed(1)}px at ${at.x.toFixed(1)}px ${at.y.toFixed(1)}px)`;
-    Object.assign(rim.style, { left: `${at.x - reach}px`, top: `${at.y - reach}px`, width: `${reach * 2}px`, height: `${reach * 2}px` });
-    glow.style.setProperty("--x", `${at.x}px`);
-    glow.style.setProperty("--y", `${at.y}px`);
+    // The ring and the glow set around a point, and the circle the app shows through, from nothing out to the picture's
+    // farthest corner.
+    const around = (at: { x: number; y: number }) => {
+      const reach = Math.max(...[[0, 0], [width, 0], [0, height], [width, height]].map(([x, y]) => Math.hypot(x! - at.x, y! - at.y)));
+      Object.assign(rim.style, { left: `${at.x - reach}px`, top: `${at.y - reach}px`, width: `${reach * 2}px`, height: `${reach * 2}px` });
+      glow.style.setProperty("--x", `${at.x}px`);
+      glow.style.setProperty("--y", `${at.y}px`);
+      const circle = (r: number) => `circle(${r.toFixed(1)}px at ${at.x.toFixed(1)}px ${at.y.toFixed(1)}px)`;
+      return [circle(0), circle(reach)];
+    };
     const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
     open.current = inPortal;
     door.toggleAttribute("data-yours", inPortal);
@@ -134,23 +172,40 @@ export function Portal({ live, person, screen, scrolled, waiting: waitingWords =
       // The recording's pointer becomes yours: where your hand is, its name changing hands with it.
       yourHand.current = at;
       Object.assign(yours.style, { transform: tip(at), opacity: "1" });
+      standIn(true);
       name.hidden = false;
       if (still) return void (real(true), say(name, said, person ? `You, as ${person}` : "You", true, false));
       if (!waited) say(name, said, person ?? "You are in control", !person, false);
       else if (said.textContent !== waitingWords) say(name, said, waitingWords, false);
-      // It goes from where the recording had it to your hand, and the portal opens from where they meet.
-      const handed = recorded && onIt && Math.hypot(onIt.x - recorded.x, onIt.y - recorded.y) > 4 ? HANDING : 0;
-      if (handed) yours.animate([{ translate: `${recorded!.x - at.x}px ${recorded!.y - at.y}px` }, { translate: "0px 0px" }], { duration: handed, easing: PORTAL });
-      else if (!recorded) yours.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200 });
-      handingOver(() => real(true), handed);
-      const told = handed + (person || waited ? 240 : 0);
-      if (person || waited) handingOver(() => say(name, said, "You are in control"), told);
-      handingOver(() => say(name, said, person ? `You, as ${person}` : "You"), told + 1700);
-      const after = { delay: handed, easing: PORTAL, fill: "backwards" as const };
-      door.animate([{ clipPath: circle(0) }, { clipPath: circle(reach) }], { ...after, duration: OPENING });
-      glow.animate([{ opacity: 1 }, { opacity: 0 }], { ...after, duration: OPENING + 240 });
-      rim.animate([{ transform: "scale(0)", opacity: 0 }, { opacity: 1, offset: 0.1 }, { opacity: 0.85, offset: 0.7 }, { transform: "scale(1)", opacity: 0 }], { ...after, duration: OPENING });
-      edging.animate([glowing, { ...glowing, offset: 0.5 }, { opacity: 1, boxShadow: "inset 0 0 0 2px rgba(236,178,72,0.95), inset 0 0 40px rgba(255,214,150,0.45)", offset: 0.75 }, { opacity: 1 }], { ...after, duration: OPENING + 500 });
+      const opening = (at: { x: number; y: number }) => {
+        const [shut, whole] = around(at);
+        const eased = { easing: PORTAL, fill: "backwards" as const };
+        door.style.clipPath = "";
+        door.animate([{ clipPath: shut }, { clipPath: whole }], { ...eased, duration: OPENING });
+        glow.animate([{ opacity: 1 }, { opacity: 0 }], { ...eased, duration: OPENING + 240 });
+        rim.animate([{ transform: "scale(0)", opacity: 0 }, { opacity: 1, offset: 0.1 }, { opacity: 0.85, offset: 0.7 }, { transform: "scale(1)", opacity: 0 }], { ...eased, duration: OPENING });
+        edging.animate([glowing, { ...glowing, offset: 0.5 }, { opacity: 1, boxShadow: "inset 0 0 0 2px rgba(236,178,72,0.95), inset 0 0 40px rgba(255,214,150,0.45)", offset: 0.75 }, { opacity: 1 }], { ...eased, duration: OPENING + 500 });
+      };
+      const naming = (after: number) => {
+        const told = after + (person || waited ? 240 : 0);
+        if (person || waited) handingOver(() => say(name, said, "You are in control"), told);
+        handingOver(() => say(name, said, person ? `You, as ${person}` : "You"), told + 1700);
+      };
+      // Yours on the picture, the recording's comes to it and the portal opens from where they meet, wherever that turns
+      // out to be. Yours elsewhere, it opens from the recording's, which waits there for yours.
+      const apart = recorded && (!onIt || Math.hypot(onIt.x - recorded.x, onIt.y - recorded.y) > 4);
+      if (apart && onIt) {
+        door.style.clipPath = around(at)[0]!;
+        theirHand.current = { from: recorded, then: () => (real(true), opening(yourHand.current ?? at)) };
+        come();
+        naming(HANDING);
+      } else {
+        if (apart) theirHand.current = { from: recorded, then: () => real(true) };
+        else if (!recorded) yours.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200 });
+        if (!apart) real(true);
+        opening(at);
+        naming(0);
+      }
       return;
     }
 
@@ -160,18 +215,22 @@ export function Portal({ live, person, screen, scrolled, waiting: waitingWords =
     yourHand.current = undefined;
     door.style.pointerEvents = "none";
     const shut = () => (door.style.opacity = "0");
-    const hide = () => ((yours.style.opacity = "0"), (name.hidden = true));
+    const hide = () => ((yours.style.opacity = "0"), (name.hidden = true), standIn(false));
     if (still) return void (shut(), hide());
     // Your hand goes back to where the recording has it, its name back to whoever the scene is done as, and goes.
+    const [gone, whole] = around(at);
     const back = recorded ? tip(recorded) : tip(at);
-    yours.animate([{ transform: tip(at), opacity: 1 }, { transform: tip(at), opacity: 1, offset: 0.3 }, { transform: back, opacity: recorded ? 1 : 0 }], { duration: CLOSING + HANDING, easing: PORTAL });
+    // It rests where it's going, so once there it never shows where it was; and it goes as the recording's own is drawn
+    // again, in its place.
+    Object.assign(yours.style, { transform: back, opacity: recorded ? "1" : "0" });
+    yours.animate([{ transform: tip(at), opacity: 1 }, { transform: tip(at), opacity: 1, offset: 0.3 }, { transform: back, opacity: recorded ? 1 : 0 }], { duration: CLOSING + HANDING, easing: PORTAL }).finished.then(hide, () => {});
     if (person) say(name, said, person, false);
     const closing = { duration: CLOSING, easing: "cubic-bezier(0.55, 0, 0.7, 0.2)" };
     edging.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, easing: "ease-in" });
     rim.animate([{ transform: "scale(1)", opacity: 0 }, { opacity: 0.9, offset: 0.65 }, { transform: "scale(0)", opacity: 0 }], closing);
     glow.animate([{ opacity: 0 }, { opacity: 0.8 }], closing);
     // Closed, it stays shut: its circle let go of, the app stood whole again for a moment before it went.
-    door.animate([{ clipPath: circle(reach) }, { clipPath: circle(0) }], { ...closing, fill: "forwards" }).finished.then(() => (shut(), setTimeout(hide, HANDING)), () => {});
+    door.animate([{ clipPath: whole }, { clipPath: gone }], { ...closing, fill: "forwards" }).finished.then(shut, () => {});
   }, [inPortal]);
 
   // Asked for before it's ready, the edge breathes and the recording's pointer says it's being taken over, until the
@@ -182,7 +241,7 @@ export function Portal({ live, person, screen, scrolled, waiting: waitingWords =
     taking.current = waiting;
     if (waiting) {
       const recorded = theirs();
-      if (recorded) Object.assign(yours.style, { transform: tip(recorded), opacity: "1" });
+      if (recorded) (Object.assign(yours.style, { transform: tip(recorded), opacity: "1" }), standIn(true));
       name.hidden = false;
       say(name, said, waitingWords, false);
       if (matchMedia("(prefers-reduced-motion: reduce)").matches) return void (edging.style.opacity = "1");
@@ -193,6 +252,7 @@ export function Portal({ live, person, screen, scrolled, waiting: waitingWords =
     edging.getAnimations().forEach((animation) => animation.cancel());
     Object.assign(edging.style, { opacity: "0" });
     Object.assign(yours.style, { opacity: "0" });
+    standIn(false);
     name.hidden = true;
   }, [waiting]);
   // Known how long it will be, and more than a moment, the pointer counts down to it a second at a time, only the number
