@@ -1188,18 +1188,35 @@ function MomentView(props: {
     return { [shownOpen.note.id]: { left: left + box.x * screen.width * k, top: top + box.y * screen.height * k, width: box.width * screen.width * k, height: box.height * screen.height * k } };
   })();
   const openAt = pictured ? (onPicture ?? {}) : openPlaced;
-  // An open note's thing under the bar: while it's open, the bar moves along the recording's edge to the side of it with
-  // room, or where it's too wide for that, down off the edge, so its thing is never under it.
+  // What the bar must never cover: an open note's thing while it's open; else, from the first frame shown to the last,
+  // what the moment is about and the last thing done in it, where the page has them at its end, known from its reading
+  // before anything is drawn. Over one, the bar moves along the recording's edge to the side with room, or where that
+  // can't clear it, down off the edge; it stays put for the whole moment, and moves calmly from one moment to the next.
   const openThing = opened && (openNow ? placed[opened.note.id] : openAt[opened.note.id]);
-  const clear = (() => {
-    const [wide, high, barWide] = [frame.current?.clientWidth ?? 0, frame.current?.clientHeight ?? 0, toolbar.current?.offsetWidth ?? 0];
-    if (!openThing || openThing.top + openThing.height <= high - BAR / 2 - 8) return { x: 0, y: 0 };
-    const [left, right] = [(wide - barWide) / 2, (wide + barWide) / 2];
-    if (openThing.left > right + 8 || openThing.left + openThing.width < left - 8) return { x: 0, y: 0 };
-    const moves = [openThing.left - 12 - right, openThing.left + openThing.width + 12 - left].filter((by) => left + by >= 8 && right + by <= wide - 8);
-    const by = moves.sort((a, b) => Math.abs(a) - Math.abs(b))[0];
-    return by === undefined ? { x: 0, y: BAR / 2 } : { x: by, y: 0 };
+  const kept = (() => {
+    const shown = frame.current;
+    const end = readings?.at(-1);
+    if (!shown || !end || closer) return [];
+    const k = Math.min(shown.clientWidth / end.screen.width, shown.clientHeight / end.screen.height);
+    return [about, scene.acted].flatMap((named) => {
+      const thing = named && end.things.find((one) => one.role === named.role && one.name === named.name);
+      return thing ? [{ left: thing.box.x * k, top: thing.box.y * k, width: thing.box.width * k, height: thing.box.height * k }] : [];
+    });
   })();
+  // Until this moment's reading has come, the bar stays where it was; on the page's first moment, it waits unseen.
+  const lastClear = useRef<{ x: number; y: number }>(undefined);
+  const clear = !readings && !openThing ? lastClear.current : (lastClear.current = (() => {
+    const [wide, high, barWide] = [frame.current?.clientWidth ?? 0, frame.current?.clientHeight ?? 0, toolbar.current?.offsetWidth ?? 0];
+    const [left, right] = [(wide - barWide) / 2, (wide + barWide) / 2];
+    const under = (openThing ? [openThing] : live?.shown || comparing ? [] : kept).filter((one) => one.top + one.height > high - BAR / 2 - 12);
+    const covers = (by: number) => under.some((one) => one.left < right + by + 12 && one.left + one.width > left + by - 12);
+    if (!covers(0)) return { x: 0, y: 0 };
+    const moves = under
+      .flatMap((one) => [one.left - 12 - right, one.left + one.width + 12 - left])
+      .filter((by) => left + by >= 8 && right + by <= wide - 8 && !covers(by))
+      .sort((a, b) => Math.abs(a) - Math.abs(b));
+    return moves.length ? { x: moves[0]!, y: 0 } : { x: 0, y: BAR / 2 };
+  })());
   // The note whose card shows: open on the moment as it is now, or on the frame it was made on, until that has faded.
   const carded = opened && openNow ? opened : shownOpen && (opened ? shownOpen.note.id === opened.note.id && shownOpen : !phone && shownOpen);
   // What it's about is outlined only at the point: midway, it may not be there yet.
@@ -1526,9 +1543,9 @@ function MomentView(props: {
             role="toolbar"
             aria-label="This moment"
             onClick={(event) => (event.target as Element).closest("button")?.blur()}
-            className={`absolute top-full left-1/2 z-20 flex gap-0.5 rounded-xl transition-[translate] duration-300 ease-calm bg-surface p-1 text-[13px] select-none ${inApp ? "shadow-[0_0_0_1.5px_rgba(236,178,72,0.95),0_6px_20px_rgba(20,24,34,0.12)]" : "shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]"}`}
+            className={`absolute top-full left-1/2 z-20 flex gap-0.5 rounded-xl transition-[translate,opacity] duration-300 ease-calm bg-surface p-1 text-[13px] select-none ${inApp ? "shadow-[0_0_0_1.5px_rgba(236,178,72,0.95),0_6px_20px_rgba(20,24,34,0.12)]" : "shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]"}`}
             ref={toolbar}
-            style={{ height: BAR, translate: `calc(-50% + ${clear.x}px) calc(-50% + ${clear.y}px)` }}
+            style={{ height: BAR, translate: `calc(-50% + ${clear?.x ?? 0}px) calc(-50% + ${clear?.y ?? 0}px)`, opacity: clear ? 1 : 0 }}
           >
             {/* Noting, the bar says what to do and how to leave, over what it holds, at its width. */}
             {noting && (
