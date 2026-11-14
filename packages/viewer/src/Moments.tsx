@@ -1386,7 +1386,8 @@ function MomentView(props: {
   );
 
   return (
-    <div className="grid h-dvh grid-rows-[auto_auto_minmax(0,1fr)] overflow-hidden bg-ground phone:grid-rows-[auto_auto_auto_minmax(0,1fr)]" onPointerDown={pressAway}>
+    // Clipped, never scrolled: a caret put in a note's box can't move the page under you.
+    <div className="grid h-dvh grid-rows-[auto_auto_minmax(0,1fr)] overflow-clip bg-ground phone:grid-rows-[auto_auto_auto_minmax(0,1fr)]" onPointerDown={pressAway}>
       <header className="flex h-12 min-w-0 items-center gap-3 px-6 phone:px-4">
         <button onClick={onLeave} className="-ml-2 flex min-w-0 items-center gap-1.5 rounded-lg px-2 py-1 text-soft transition-colors duration-150 ease-calm hover:bg-hover hover:text-fg">
           <svg viewBox="0 0 12 12" className="size-3 flex-none" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -1764,25 +1765,43 @@ const spotAt = ({ x, y }: { x: number; y: number }): Rect => ({ left: x, top: y,
 // A note's card by its thing: beside it where there's room, else under or over it, never on it, nor past the frame.
 // Under: in the page's flow, as wide as it is, as on a phone.
 function NoteCard({ by, frame, closing, under, children }: { by: Rect; frame: React.RefObject<HTMLDivElement | null>; closing?: boolean; under?: boolean; children: ReactNode }) {
+  const own = useRef<HTMLDivElement>(null);
+  // Its own height, as it grows with its words, so it's always placed whole.
+  const [tall, setTall] = useState(140);
+  useLayoutEffect(() => {
+    const card = own.current;
+    if (!card || under) return;
+    const measure = () => setTall(card.offsetHeight);
+    measure();
+    const watching = new ResizeObserver(measure);
+    watching.observe(card);
+    return () => watching.disconnect();
+  }, [under]);
   const [wide, high] = [frame.current?.clientWidth ?? 0, frame.current?.clientHeight ?? 0];
   const width = Math.min(280, wide - 16);
   const [right, bottom] = [by.left + by.width, by.top + by.height];
-  // Its pin stands just outside the thing's top right corner: beside it on the right means past the pin too.
-  const [pastPin, gap, edge] = [32, 14, 8];
-  // In the frame's lower half it grows upward, so it never runs off under the bar.
-  const low = by.top + by.height / 2 > high / 2;
+  // Its pin stands just outside the thing's top right corner: beside it on the right means past the pin too. It stays
+  // clear of the bar across the recording's foot.
+  const [pastPin, gap, edge, foot] = [32, 14, 8, high - BAR / 2 - 8];
+  const within = (top: number) => Math.min(Math.max(edge, top), foot - tall);
+  const fits = (top: number) => top >= edge && top + tall <= foot;
   const place =
     by.width && right + pastPin + width <= wide - edge
-      ? { left: right + pastPin, ...(low ? { bottom: Math.max(edge, high - bottom - 12) } : { top: Math.max(edge, by.top - 12) }) }
+      ? { left: right + pastPin, top: within(by.top - 12) }
       : by.width && by.left - gap - width >= edge
-        ? { left: by.left - gap - width, ...(low ? { bottom: Math.max(edge, high - bottom - 12) } : { top: Math.max(edge, by.top - 12) }) }
-        : // Too wide to stand beside, or a spot on a line: under it, or over it in the lower half, never on it.
-          { left: Math.min(Math.max(edge, by.left - (by.width ? 0 : 24)), wide - width - edge), ...(low ? { bottom: high - by.top + gap } : { top: bottom + gap }) };
+        ? { left: by.left - gap - width, top: within(by.top - 12) }
+        : // Too wide to stand beside, or a spot on a line: under it, else over it; a thing taller than there's room
+          // around, inside it near its top.
+          {
+            left: Math.min(Math.max(edge, by.left - (by.width ? 0 : 24)), wide - width - edge),
+            top: fits(bottom + gap) ? bottom + gap : fits(by.top - gap - tall) ? by.top - gap - tall : within(by.top + 12),
+          };
   return (
     <div
+      ref={own}
       data-note-card
-      className={`${under ? "relative" : "absolute z-40 max-h-[min(70vh,calc(100%-16px))]"} flex animate-arrive flex-col rounded-xl bg-surface p-2 shadow-float transition-opacity duration-300 ease-calm ${closing ? "pointer-events-none opacity-0" : ""}`}
-      style={under ? undefined : { ...place, width }}
+      className={`${under ? "relative" : "absolute z-40"} flex animate-arrive flex-col rounded-xl bg-surface p-2 shadow-float transition-opacity duration-300 ease-calm ${closing ? "pointer-events-none opacity-0" : ""}`}
+      style={under ? undefined : { ...place, width, maxHeight: foot - edge }}
       onClick={(event) => event.stopPropagation()}
     >
       {children}
