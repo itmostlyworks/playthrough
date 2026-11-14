@@ -1364,6 +1364,16 @@ function MomentView(props: {
             className={`absolute top-full left-1/2 z-20 flex -translate-x-1/2 -translate-y-1/2 gap-0.5 rounded-xl bg-surface p-1 text-[13px] select-none ${inApp ? "shadow-[0_0_0_1.5px_rgba(236,178,72,0.95),0_6px_20px_rgba(20,24,34,0.12)]" : "shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]"}`}
             style={{ height: BAR }}
           >
+            {/* Noting, the bar says what to do and how to leave, over what it holds, at its width. */}
+            {noting && (
+              <div className="absolute inset-1 z-1 flex animate-arrive items-center justify-between gap-2 rounded-lg bg-surface pl-2.5">
+                <span className="truncate text-soft">Point at what it's about</span>
+                <button className={ITEM} onClick={() => setNoting(false)}>
+                  Cancel <Key>Esc</Key>
+                </button>
+              </div>
+            )}
+            <div className="contents" inert={noting}>
             {asItWas ? (
               // What's shown is from before the agent last handed it back.
               <span className={`${ITEM} w-[96px] cursor-default text-faint! phone:w-[64px]`}>As it was</span>
@@ -1387,6 +1397,7 @@ function MomentView(props: {
                 Compare <Key>C</Key>
               </button>
             )}
+            </div>
           </div>
         </div>
         {live?.problems && <p className="absolute bottom-0 left-1/2 max-w-[90%] -translate-x-1/2 translate-y-full rounded-md bg-surface px-3 py-1.5 text-xs text-amber-ink shadow-tip">{live.problems.join(" ")}</p>}
