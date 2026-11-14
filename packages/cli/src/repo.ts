@@ -26,8 +26,6 @@ export function repo(root = home(process.cwd())) {
     round: (review: string, round: number) => join(reviews, review, "rounds", String(round), "round.json"),
     // A file for each agent waiting for what's sent, named by its process.
     waiting: (review: string) => join(reviews, review, "waiting"),
-    // Whose turn it is to run the app here: a command that runs scenes, or the viewer, keeping it ready for taking over.
-    turn: join(reviews, "turn.json"),
     // How to start the app, committed.
     appFile,
     // What every scene of the app starts from, committed beside app.json.

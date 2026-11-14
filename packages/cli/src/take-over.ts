@@ -10,7 +10,7 @@ import { connect } from "node:net";
 import { networkInterfaces } from "node:os";
 import { answerAs, asRecorded, pathTo } from "@playthrough/page";
 import { list, quote, Refused, type Did } from "@playthrough/review";
-import { keepRunning } from "./app.ts";
+import { running, using } from "./app.ts";
 import { QUIET_DEV_CHROME, recorder, type Handed, type To } from "./scenes.ts";
 import { runTo } from "./following.ts";
 import { listen, thisMachine } from "./open.ts";
@@ -59,33 +59,41 @@ export async function getReady(
   const app = await repo.app();
   const began = Date.now();
   const to: To = { scene: scene.name, ...(stepName && { step: stepName, ...(actions !== undefined && { actions }) }), ...(did?.length && { did }), ...(notes?.length && { notes }) };
-  const { handed, made, checked } = await madeFor(repo, id, to, waiting);
+  const { handed, made, checked, done } = await madeFor(repo, id, to, waiting);
   // One way through for each copy of the app, as each answers at an address of its own.
   if (!passings.has(app.url)) passings.set(app.url, passOn(app, network));
   const port = await passings.get(app.url)!.catch((error) => {
     passings.delete(app.url);
     void made?.giveBack();
+    done();
     throw error;
   });
   // Not counted, as on a network a moment's address is the way in to the app: it can't be guessed.
   const moment = randomBytes(12).toString("base64url");
-  steppedIn.set(moment, { repo, id, to, handed, ...(did?.length && { did }), made, opened: false, holding: 0 });
+  steppedIn.set(moment, { repo, id, to, handed, ...(did?.length && { did }), made, done, opened: false, holding: 0 });
   // Never opened, as when the tab closed before the app was there, it's given back a minute on.
   letGoSoon(moment, UNOPENED);
   return { port, moment, seconds: ((Date.now() - began) / 1000).toFixed(1), ...(checked && { checked }) };
 }
 
-// The app made for a step in: the app's running, then the scene run there.
+// The app made for a step in: the copy's app running, used while the scene runs there, and then for as long as what it
+// made is the person's.
 async function madeFor(repo: Repo, id: string, to: To, waiting?: AbortSignal) {
-  await keepRunning(await repo.app(), repo.root, { ready: true });
-  return runTo(repo, id, to, waiting);
+  const done = using(repo.root);
+  try {
+    await running(await repo.app(), repo.root);
+    const made = await runTo(repo, id, to, waiting);
+    return { ...made, done: using(repo.root) };
+  } finally {
+    done();
+  }
 }
 
 // Each step in, by its address: where it's to, what its run handed over and what it made, whether its page has been
 // opened, and how many of its pages hold it now. What it made is the app the person has: given back once no page holds
 // it for a while, as when its tab is closed, reloaded, or stepped in elsewhere, and never while one does, as one
 // waiting under the recording after Back. Its address is kept, so opened again it's made afresh, never missing.
-type SteppedIn = { repo: Repo; id: string; to: To; handed?: Handed; did?: Did[]; made?: Made; opened: boolean; holding: number; letGo?: ReturnType<typeof setTimeout>; opening?: Promise<void> };
+type SteppedIn = { repo: Repo; id: string; to: To; handed?: Handed; did?: Did[]; made?: Made; done?: () => void; opened: boolean; holding: number; letGo?: ReturnType<typeof setTimeout>; opening?: Promise<void> };
 const steppedIn = new Map<string, SteppedIn>();
 // Long enough for a page of the app to load the next, which holds it again.
 const LEFT = 15_000;
@@ -98,7 +106,8 @@ function letGoSoon(moment: string, after: number) {
   one.letGo = setTimeout(() => {
     if (one.holding) return;
     void one.made?.giveBack();
-    Object.assign(one, { handed: undefined, made: undefined });
+    one.done?.();
+    Object.assign(one, { handed: undefined, made: undefined, done: undefined });
   }, after);
   one.letGo.unref();
 }
@@ -123,9 +132,10 @@ async function opening(moment: string, waiting: AbortSignal): Promise<Handed | u
   clearTimeout(one.letGo);
   const opened = (one.opening ?? Promise.resolve()).then(async () => {
     if (one.opened || !one.handed) {
-      const { handed, made } = await madeFor(one.repo, one.id, one.to, waiting);
+      const { handed, made, done } = await madeFor(one.repo, one.id, one.to, waiting);
       void one.made?.giveBack();
-      Object.assign(one, { handed, made });
+      one.done?.();
+      Object.assign(one, { handed, made, done });
     }
     one.opened = true;
   });

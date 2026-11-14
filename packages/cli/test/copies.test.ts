@@ -1,15 +1,16 @@
 // Each of git's worktrees is a copy of the app: its reviews are found from any of them, it runs on a port of its own where
-// app.json gives one, and at the address the app always has, what answers in a worktree is never taken for its own.
+// app.json gives one, and at the address the app always has, what answers in a worktree is never taken for its own. And
+// each copy's app is one, shared by everyone using it.
 
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
 import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 import { Refused } from "@playthrough/review";
-import { keepRunning, serves, stopApp } from "../src/app.ts";
+import { answers, keepRunning, openFile, running, stopUnused, UNUSED, using } from "../src/app.ts";
 import { thisCommand } from "../src/command.ts";
 import { copies, inWorktree, repo } from "../src/repo.ts";
 
@@ -72,26 +73,56 @@ test("at the address the app always has, what answers is the app in the main fol
   }
 });
 
-test("the app the viewer keeps ready gives way to a command that runs scenes, and the viewer waits while one does", async () => {
+// What a copy's app answers with, a moment after it may have been stopped.
+const answering = async (url: string, expected: boolean) => {
+  for (let tries = 0; tries < 50 && (await answers(url)) !== expected; tries++) await new Promise((resolve) => setTimeout(resolve, 100));
+  return answers(url);
+};
+// Someone else using the app: another process, as a command or Playthrough open is.
+const someoneElse = async (file: string) => {
+  const other = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"]);
+  await mkdir(dirname(file), { recursive: true });
+  await writeFile(file, JSON.stringify({ ...thisCommand(), by: other.pid }));
+  return other;
+};
+
+test("a copy's app is one, started by whoever wants it first, used as it is by everyone else, and stopped only once nobody is using it", async () => {
+  process.env.PLAYTHROUGH_HOME = join(main, "home");
   await writeFile(join(main, "serve.mjs"), `import { createServer } from "node:http"; createServer((_, response) => response.end("the app")).listen(Number(process.argv[2]), "127.0.0.1");`);
-  const [readyPort, ownPort] = [await free(), await free()];
-  const [readyUrl, ownUrl] = [`http://127.0.0.1:${readyPort}`, `http://127.0.0.1:${ownPort}`];
-  // Another command, the viewer, and the app it keeps ready, as a group of its own as Playthrough starts one.
-  const viewer = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"]);
-  const ready = spawn(process.execPath, ["serve.mjs", String(readyPort)], { cwd: main, detached: true });
-  const turn = (them: object) => writeFile(repo(main).turn, JSON.stringify({ ...thisCommand(), by: viewer.pid, ...them }));
+  const url = `http://127.0.0.1:${await free()}`;
+  const app = { start: `node serve.mjs ${new URL(url).port}`, url };
+  const agent = await someoneElse(join(main, ".playthrough", "using", "agent"));
   try {
-    await repo(main).keepOutOfGit();
-    while (!(await serves(readyUrl))) await new Promise((resolve) => setTimeout(resolve, 50));
-    await turn({ ready: true, app: ready.pid, url: readyUrl });
-    await keepRunning({ start: `node serve.mjs ${ownPort}`, url: ownUrl }, main);
-    assert.equal(await serves(readyUrl), false);
-    assert.equal(await serves(ownUrl), true);
-    await turn({ ready: false });
-    await assert.rejects(keepRunning({ start: `node serve.mjs ${readyPort}`, url: readyUrl }, main, { ready: true }), (error: Refused) => error instanceof Refused && /runs the app just now/.test(error.problems[0]!));
+    const done = using(main);
+    assert.equal(typeof (await running(app, main)), "number");
+    assert.equal(await running(app, main), undefined);
+    done();
+    assert.equal(await answers(url), true);
+    agent.kill();
+    await new Promise((resolve) => agent.once("exit", resolve));
+    stopUnused(main, 0);
+    assert.equal(await answering(url, false), false);
   } finally {
-    viewer.kill();
-    ready.kill();
-    await stopApp(ownUrl);
+    agent.kill();
+    stopUnused(main, 0);
+  }
+});
+
+test("with Playthrough open, an app nobody is using is kept until it has gone unused for fifteen minutes", async () => {
+  process.env.PLAYTHROUGH_HOME = join(main, "home");
+  await writeFile(join(main, "serve.mjs"), `import { createServer } from "node:http"; createServer((_, response) => response.end("the app")).listen(Number(process.argv[2]), "127.0.0.1");`);
+  const url = `http://127.0.0.1:${await free()}`;
+  const open = await someoneElse(openFile());
+  try {
+    const done = using(main);
+    await running({ start: `node serve.mjs ${new URL(url).port}`, url }, main);
+    done();
+    stopUnused(main, UNUSED);
+    assert.equal(await answers(url), true);
+    stopUnused(main, 0);
+    assert.equal(await answering(url, false), false);
+  } finally {
+    open.kill();
+    stopUnused(main, 0);
   }
 });

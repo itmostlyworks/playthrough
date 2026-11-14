@@ -4,7 +4,7 @@
 
 import { asRecorded } from "@playthrough/page";
 import { execFileSync } from "node:child_process";
-import { watch, type FSWatcher } from "node:fs";
+import { rmSync, watch, writeFileSync, type FSWatcher } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { userInfo } from "node:os";
@@ -21,6 +21,8 @@ import { frameOf, stillOf, type Framed } from "./frames.ts";
 import { getReady, waitedFor } from "./take-over.ts";
 import { setupIn } from "./setup.ts";
 import { agentWaiting } from "./wait.ts";
+import { openFile, stopUnused, UNUSED } from "./app.ts";
+import { thisCommand } from "./command.ts";
 
 export const PORT = 5790;
 const TYPES: Record<string, string> = {
@@ -58,7 +60,20 @@ export async function open() {
     });
   });
   const port = await listen(server, PORT);
+  keepsApps();
   console.log(`Playthrough is open at http://localhost:${port}/`);
+}
+
+// Open, Playthrough keeps each copy's app once it's running, whoever started it, until nobody has used it for a while:
+// stepping in again, or the agent's next command, finds it there. Closed, it lets go of those nobody is using.
+function keepsApps() {
+  writeFileSync(openFile(), JSON.stringify(thisCommand()));
+  const look = (unused: number) => everyCopy().forEach(({ root }) => stopUnused(root, unused));
+  setInterval(() => look(UNUSED), 60_000).unref();
+  process.once("exit", () => {
+    rmSync(openFile(), { force: true });
+    look(0);
+  });
 }
 
 // A change as the page has it: the review, by an address of the machine's (its copy's name, then its own), the app's
