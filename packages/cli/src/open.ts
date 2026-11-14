@@ -203,7 +203,6 @@ async function answer(here: Machine, page: string, you: string, request: Incomin
   const { repo, id, address, rest } = await here.holding(parts);
   const reviews = repo.reviews;
 
-  if (request.method === "GET" && rest[0] === "live") return live(repo, id, address, request, response);
   if (request.method === "GET" && rest[0] === "rounds" && rest[2] === "files" && rest[3]) {
     // Your branches play beside the round's recordings, as if they were its own.
     const name = rest.slice(3).join("/");
@@ -245,33 +244,6 @@ async function shownOf(repo: Repo): Promise<{ app: string; people: Record<string
   return { app: app.charAt(0).toUpperCase() + app.slice(1), people: Object.fromEntries(Object.entries(people ?? {}).map(([name, who]) => [name, `${name}, ${who}`])) };
 }
 
-// The review now, then again each time what's kept changes it, and whether an agent is waiting for what's sent, then
-// again each time that changes, until the viewer goes away: one stream for both, as a browser lets only six requests at
-// a time go to one address, from all its tabs together, and a stream holds one for as long as it's open. An agent
-// that's ended says nothing, so it's looked at every two seconds.
-async function live(repo: Repo, id: string, address: string, request: IncomingMessage, response: ServerResponse) {
-  await repo.reviews.get(id);
-  response.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-store" });
-  const gone = new AbortController();
-  request.on("close", () => gone.abort());
-  let waiting: boolean | undefined;
-  const look = async () => {
-    const now = await agentWaiting(repo, id);
-    if (now !== waiting && !response.writableEnded) response.write(`event: waiting\ndata: ${(waiting = now)}\n\n`);
-  };
-  void look();
-  const every = setInterval(look, 2000);
-  let last = "";
-  while (!gone.signal.aborted) {
-    const kept = (review: Review) => JSON.stringify({ ...review, id: address });
-    const review = await repo.reviews.wait(id, (review) => kept(review) !== last, gone.signal).catch(() => undefined);
-    if (!review) break;
-    last = kept(review);
-    response.write(`data: ${last}\n\n`);
-  }
-  clearInterval(every);
-  response.end();
-}
 
 // A moment stepped into: the viewer asks as Step in is pressed where the playhead rests, and shows the app there, through
 // Playthrough, at the port and moment this answers with; and where the moment's checks at its end don't hold on the app

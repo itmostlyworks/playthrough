@@ -1,6 +1,6 @@
 // One scene's recording, replayed by rrweb in a page of its own and moved to the moment the playhead says: forward a
-// little at a time, or rebuilt from its first frame to go back. The page's own motion follows the playback speed, holds
-// where you pause, and is already over where you jump to. Its pointer and clicks are read from the recording's own
+// little at a time, or rebuilt from its first frame to go back. The page's own motion plays as it plays, holds where
+// you pause, and is already over where you jump to. Its pointer and clicks are read from the recording's own
 // events, for Playthrough to draw over it.
 
 import { answerAs, pathTo, type Answered } from "@playthrough/page";
@@ -61,7 +61,7 @@ export type Pressed = { at: number; key: string; field?: { x: number; y: number;
 
 export type Choice = { from: number; until: number; x: number; y: number; width: number; options: string[]; row: number; was: number };
 
-export function recorded(events: Events): Recorded {
+function recorded(events: Events): Recorded {
   const start = events[0]?.timestamp ?? 0;
   const seconds = (timestamp: number) => (timestamp - start) / 1000;
   const shown: Recorded = { shapes: [], loads: [], pointer: [], away: [], clicks: [], changes: [], acted: [], typed: [], aimed: [], scrolls: [], dialogs: [], choices: [], carets: [], keys: [], browser: { dark: false, still: false } };
@@ -120,32 +120,7 @@ export function recorded(events: Events): Recorded {
 }
 
 // The screen it's on at a moment.
-export const shapeOf = (shapes: Shape[], at: number): Shape => shapes.findLast((shape) => shape.from <= at) ?? shapes[0]!;
-
-// The moments one part of the page changes, by its node in the recording: it, or anything in it. What moved somewhere
-// else on the page, such as a menu opening over it, isn't its change.
-type Serialized = { id: number; childNodes?: Serialized[] };
-export function changesIn(events: Events, node: number): number[] {
-  const start = events[0]?.timestamp ?? 0;
-  const inside = new Set<number>();
-  // Moved in or out, a node is put down again where it now is.
-  const put = (added: Serialized, within: boolean) => {
-    const here = within || added.id === node;
-    if (here) inside.add(added.id);
-    else inside.delete(added.id);
-    for (const child of added.childNodes ?? []) put(child, here);
-  };
-  const changes: number[] = [];
-  for (const event of events) {
-    if (event.type === EventType.FullSnapshot) put(event.data.node, false);
-    if (event.type !== EventType.IncrementalSnapshot || event.data.source !== IncrementalSource.Mutation) continue;
-    const { adds, removes, texts, attributes } = event.data;
-    for (const added of adds) put(added.node, inside.has(added.parentId));
-    const touched = [...adds.map((added) => added.parentId), ...removes.map((removed) => removed.parentId), ...texts.map((text) => text.id), ...attributes.map((changed) => changed.id)];
-    if (touched.some((id) => inside.has(id))) changes.push((event.timestamp - start) / 1000);
-  }
-  return changes;
-}
+const shapeOf = (shapes: Shape[], at: number): Shape => shapes.findLast((shape) => shape.from <= at) ?? shapes[0]!;
 
 // The hand leaves the app at its edge, or where the pointer is gone a while and comes back by an edge. It's away from
 // where it rushed or wandered to that edge, to where it's come in from it again, so neither the dash out nor the dash
@@ -218,7 +193,6 @@ export class Replay {
   // page's motion only changes where the page does, or the way it plays.
   #changed = true;
   #playing = false;
-  #speed = 1;
   #seen = new WeakSet<Animation>();
   // When each element's animations started, by name, in the recording's time. Played a little at a time, rrweb takes
   // what changed out of the page and puts it back, and anything put back starts its animation over: the who-owes-whom
@@ -270,7 +244,7 @@ export class Replay {
   }
 
   // The page at a moment of its recording, in seconds. Before its start, while the scene's name is up, its first frame.
-  show(at: number, playing: boolean, speed: number) {
+  show(at: number, playing: boolean) {
     const ms = Math.max(Math.round(Math.max(0, at) * 1000), this.#drawn);
     const moved = ms !== this.#at;
     if (moved) {
@@ -292,8 +266,8 @@ export class Replay {
     // from the side: for its first 0.15s after a jump, its motion is over, playing too.
     const settling = ms - this.#jumpedTo < 150;
     if (moved || playing) this.#rested = NaN;
-    const looked = this.#changed || settling || playing !== this.#playing || speed !== this.#speed || (moved && !playing);
-    [this.#changed, this.#playing, this.#speed] = [false, playing, speed];
+    const looked = this.#changed || settling || playing !== this.#playing || (moved && !playing);
+    [this.#changed, this.#playing] = [false, playing];
     if (!looked) return;
     for (const animation of this.#animations()) {
       try {
@@ -302,7 +276,6 @@ export class Replay {
           // carried on to where it had got to
         }
         else if (playing) {
-          if (animation.playbackRate !== speed) animation.playbackRate = speed;
           if (animation.playState === "paused") animation.play();
         }
         // One that first shows while paused, or that the pause caught on its first frame, is shown at its end: a fade-in
@@ -473,17 +446,6 @@ export class Replay {
     return { x: page?.scrollX ?? 0, y: page?.scrollY ?? 0, parts: parts.map((part) => ({ path: pathTo(part), x: part.scrollLeft, y: part.scrollTop })) };
   }
 
-  // The page's own background, as red, green and blue, where the page or its body paints one: what a veil over it is
-  // made of. Nothing where neither does.
-  ground(): [number, number, number] | undefined {
-    const page = this.#replayer.iframe.contentDocument;
-    for (const element of [page?.body, page?.documentElement]) {
-      const colour = element && getComputedStyle(element).backgroundColor.match(/[\d.]+/g)?.map(Number);
-      if (colour && colour.length >= 3 && (colour[3] ?? 1) > 0.5) return [colour[0]!, colour[1]!, colour[2]!];
-    }
-    return undefined;
-  }
-
   // Where one of the page's elements is now, in the page's own pixels, by its node in the recording; nothing while it
   // isn't on the page.
   boxOf(node: number): Rect | undefined {
@@ -504,18 +466,6 @@ export class Replay {
     const inside = element.ownerDocument.createRange();
     inside.selectNodeContents(element);
     return rectOf(inside.getBoundingClientRect()) ?? rectOf(element.getBoundingClientRect());
-  }
-
-  // The part of the page something sits in, as shown now: the nearest thing around it that draws itself, a panel, a card
-  // or a box, several times its size. Nothing where only the page does.
-  sectionOf(rect: Rect): Rect | undefined {
-    const page = this.#replayer.iframe.contentDocument;
-    const least = 4 * Math.max(rect.width * rect.height, 400);
-    for (let element = page?.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2) ?? null; element && element !== page?.body; element = element.parentElement) {
-      const box = element.getBoundingClientRect();
-      if (box.width * box.height >= least && drawsItself(element)) return rectOf(box);
-    }
-    return undefined;
   }
 
   // Where a thing is on the page as shown now, by its name alone: the words it says, or what it's labelled, or waits for

@@ -7,20 +7,18 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Glimpse, Reading, Thing } from "@playthrough/page";
-import { allNotes, conversation, newId, pausedAt, shownFrom, together, waitingForTheAgent, type Turn, type Did, type Note, type Place, type Review, type Round, type Scene } from "@playthrough/review";
+import { allNotes, conversation, newId, notesToAnswer, pausedAt, shownFrom, together, waitingForTheAgent, type Turn, type Did, type Note, type Place, type Review, type Round, type Scene } from "@playthrough/review";
 import { fineStill, glimpses, keepBranch, noteFrame, picture, readings as readingsOf, recording, send, useChanges, useYou, type Listed, type NoteFrame } from "./api.ts";
 import { Edge, TILE, Tile } from "./Edge.tsx";
-import { Key, tick } from "./Card.tsx";
+import { Key } from "./Key.tsx";
 import { around, Picture, union, type Frame } from "./Picture.tsx";
-import { workingSince } from "./notes.ts";
 import { Pinned, type Pin } from "./Pinned.tsx";
 import { Clock, Player, useCut, type Cut, type Mark, type Placed } from "./Player.tsx";
 import type { Together } from "./view.ts";
 import { Portal, TAG } from "./Portal.tsx";
-import { CHIP } from "./Scene.tsx";
 import { readyAt, readyIn } from "./live.ts";
 import { usePhone } from "./phone.ts";
-import { clamp } from "./moments.ts";
+import { clamp } from "./clamp.ts";
 import type { Rect, Scrolled } from "./replay.ts";
 
 // Where you are: the list, or a change's moment, by the change's address and the moment's place in it from 1, and a
@@ -172,6 +170,11 @@ const sentOn = (review: Review, you: string) => {
   const round = latestOf(review);
   return round ? sentBy(review, you).filter((one) => one.round === round.number) : [];
 };
+
+// Since when the agent has been working on what was sent, for the round after the latest: only on what asks it
+// something, as a send that only says things look good asks for no next round.
+const workingSince = (review: Review, latest: Round) =>
+  review.accepted ? undefined : review.taken.find((taken) => taken.round > latest.number && notesToAnswer(review, taken.round).length > 0)?.at;
 
 // Who a moment is done as, as the list says them ("Sam, a member").
 const whoIn = (listed: Listed, scene: Scene) => (scene.person ? (listed.people[scene.person] ?? scene.person) : "");
@@ -645,6 +648,12 @@ function SendButton({ filled, arrives, className = "", children, ...rest }: { fi
     </button>
   );
 }
+// Sent or done: said with a tick.
+const tick = (
+  <svg viewBox="0 0 12 12" className="mr-1 size-3 text-green in-aria-pressed:text-inherit" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M2.8 6.2l2.2 2.2 4.2-4.6" />
+  </svg>
+);
 // A key's cap on the filled button, in its words' colour.
 const FILLED_KEY = "text-[inherit]! opacity-70 shadow-[0_0_0_1px_color-mix(in_srgb,currentColor_45%,transparent)]!";
 
@@ -1807,6 +1816,8 @@ const UNPLAYED = "bg-[color-mix(in_srgb,var(--soft)_32%,transparent)]";
 // it plays alone, and where only the other moves, as long as that takes there. Along it, where each is; and where now's
 // moment first is along it.
 type Played = { at: (along: number) => [number, number]; of: (moment: number) => number };
+// What each side is, at its top left.
+const CHIP = "pointer-events-none absolute top-2.5 left-2.5 z-3 rounded-md bg-ground px-2 py-0.5 text-xs leading-4 text-soft shadow-tip";
 function playedTogether(cut: Cut, [now, then]: [number[], number[]]): Played {
   const spans = now.slice(1).map((to, i) => (to > now[i]! ? cut.cut(to) - cut.cut(now[i]!) : then[i + 1]! - then[i]!));
   const starts = spans.map((_, i) => spans.slice(0, i).reduce((sum, span) => sum + span, 0));

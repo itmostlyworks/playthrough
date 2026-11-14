@@ -1,44 +1,10 @@
-// The viewer's side of `playthrough open`: the review as it's kept, arriving again whenever it changes, its recordings,
-// and what a person sends.
+// The viewer's side of `playthrough open`: every change as it's kept, arriving again whenever one changes, their
+// recordings, and what a person sends.
 
 import { useEffect, useState } from "react";
 import type { Glimpse, Reading } from "@playthrough/page";
 import type { Review, Send } from "@playthrough/review";
 import type { Events } from "./replay.ts";
-
-// The review, undefined while it's on its way, a refusal's words when there's no such review; and whether an agent is
-// waiting for what's sent, undefined until it's known. Both on one stream, and only while the page is in sight: a browser
-// lets six requests at a time go to one address, from all its tabs together, and a stream holds one for as long as it's
-// open. Three tabs of a review held two each, and Take over waited for one, forever. Out of sight, a tab lets its
-// stream go; back in sight, it opens it again, and everything arrives as it is now: what hasn't changed changes nothing.
-export function useReview(id: string): { review?: Review | string[]; agentWaiting?: boolean } {
-  const [review, setReview] = useState<Review | string[]>();
-  const [agentWaiting, setAgentWaiting] = useState<boolean>();
-  useEffect(() => {
-    let live: EventSource | undefined;
-    let last = "";
-    const listen = () => {
-      if (document.hidden) return void (live?.close(), (live = undefined));
-      if (live && live.readyState !== EventSource.CLOSED) return;
-      const stream = (live = new EventSource(`/api/reviews/${id}/live`));
-      stream.onmessage = ({ data }) => data !== last && setReview(JSON.parse((last = data)));
-      stream.addEventListener("waiting", ({ data }) => setAgentWaiting(JSON.parse(data)));
-      // A stream that can't be reached is tried again by itself; one that was refused is closed, and asked again, says
-      // why here: no such review, or a file of it that can't be read.
-      stream.onerror = async () => {
-        if (stream.readyState !== EventSource.CLOSED) return;
-        const answer = await fetch(`/api/reviews/${id}/live`).catch(() => undefined);
-        if (answer?.ok) return void answer.body?.cancel();
-        const problems = await answer?.json().then((said: { problems?: string[] }) => said.problems, () => undefined);
-        if (problems) setReview(problems);
-      };
-    };
-    listen();
-    document.addEventListener("visibilitychange", listen);
-    return () => (document.removeEventListener("visibilitychange", listen), live?.close());
-  }, [id]);
-  return { review, agentWaiting };
-}
 
 // A change as the list has it: the review, at its address on this machine, the app's name and its people as the person
 // sees them ("Sam, a member"), and whether an agent is waiting for what's sent.
@@ -131,41 +97,6 @@ export const picture = (review: string, round: number, recording: string, readin
 // What's wrong in plain words, or nothing once it's kept.
 export async function send(review: string, send: Send): Promise<string[]> {
   return post(`/api/reviews/${review}/sends`, send);
-}
-
-export async function accept(review: string, by: string): Promise<string[]> {
-  return post(`/api/reviews/${review}/accept`, { by });
-}
-
-// A scene as a video, alone or beside the round Compare shows, downloaded by your browser, telling the seconds it has
-// left as it's made; what's wrong in plain words, or nothing once it's downloaded.
-export async function downloadVideo(review: string, filmed: { round: number; scene: string; beside?: number; dark: boolean }, name: string, onLeft: (seconds: number) => void): Promise<string[]> {
-  try {
-    const answer = await fetch(`/api/reviews/${review}/video`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(filmed) });
-    if (!answer.ok || !answer.body) return (await answer.json()).problems ?? [`It wasn't made (${answer.status}).`];
-    let said = "";
-    for await (const part of answer.body.pipeThrough(new TextDecoderStream())) {
-      said += part;
-      const lines = said.split("\n");
-      said = lines.pop()!;
-      for (const line of lines) {
-        const told: { left?: number; video?: string; problems?: string[] } = JSON.parse(line);
-        if (told.left !== undefined) onLeft(told.left);
-        if (told.problems) return told.problems;
-        if (told.video) {
-          const link = document.createElement("a");
-          link.href = URL.createObjectURL(await (await fetch(`data:video/mp4;base64,${told.video}`)).blob());
-          link.download = `${name}.mp4`;
-          link.click();
-          setTimeout(() => URL.revokeObjectURL(link.href), 1000);
-          return [];
-        }
-      }
-    }
-    return ["The video stopped before it was made. Try again."];
-  } catch {
-    return ["Playthrough isn't running here any more. Start it again with playthrough open, then try again."];
-  }
 }
 
 async function get<T>(path: string): Promise<T> {

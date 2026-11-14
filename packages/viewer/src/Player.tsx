@@ -9,7 +9,7 @@ import { elementOf, type Glimpse } from "@playthrough/page";
 import type { Element, Scene, Point } from "@playthrough/review";
 import { recording } from "./api.ts";
 import { Replay, type Choice, type Events, type Pressed, type Rect, type Scrolled } from "./replay.ts";
-import { around, union, type Frame } from "./Picture.tsx";
+import type { Frame } from "./Picture.tsx";
 import { pickAt } from "./things.ts";
 import { around as aroundCentre, centreOf, following as followingPointer, holding, type Together } from "./view.ts";
 
@@ -84,23 +84,8 @@ export function useCut(review: string, round: number, scene: Scene): Cut | undef
   return kept;
 }
 
-// A view moved to sit in a part of the page: inside it where it's bigger than the view, the whole of it where it's not,
-// and never past the page's edges.
-function within(view: Frame, section: Rect, page: { width: number; height: number }): Frame {
-  const [width, height] = [view.width * page.width, view.height * page.height];
-  const fit = (at: number, size: number, from: number, length: number, all: number) =>
-    Math.min(Math.max(size >= length ? from + length / 2 - size / 2 : Math.min(Math.max(at, from), from + length - size), 0), all - size);
-  return {
-    ...view,
-    x: fit(view.x * page.width, width, section.left, section.width, page.width) / page.width,
-    y: fit(view.y * page.height, height, section.top, section.height, page.height) / page.height,
-  };
-}
-
-// How long the view takes to glide from one part of the page to another: Compare on or off, or a step that's elsewhere;
-// and how close it comes on something, at most, against the whole page.
+// How long the view takes to glide from one part of the page to another: Compare on or off, or a step that's elsewhere.
 const GLIDE = 0.45;
-export const CLOSEST = 1.5;
 // Where on the page the view is, how much of the page it shows across, and how much that's grown to fit the picture.
 type View = { left: number; top: number; across: number; k: number };
 
@@ -140,10 +125,6 @@ type Props = {
   // The notes on what's at this moment: at rest, where each one's thing is on the page, in the player's own pixels.
   marks?: Mark[];
   onMarks?: (placed: Placed) => void;
-  // At rest, close on some of them: the part of the page around them, once they're found there, in the shape the player
-  // is settling into, this wide for its height, as Compare narrows or widens it after; and that part, once it's found.
-  closeOn?: { on: string[]; shape: number };
-  onClosed?: (frame: Frame | undefined) => void;
   // Noting, at rest: what a click would note is outlined, and a click notes it, or else the spot, by what was read there.
   things?: Glimpse[];
   onPlace?: (on: { element: Element } | { point: Point }) => void;
@@ -173,8 +154,6 @@ export function Player(props: Props) {
   }, []);
   const told = useRef(props.onMarks);
   told.current = props.onMarks;
-  const closed = useRef(props.onClosed);
-  closed.current = props.onClosed;
   const stopped = useRef(props.onStop);
   stopped.current = props.onStop;
   // Where the page is shown from, at the moment drawn last.
@@ -196,26 +175,20 @@ export function Player(props: Props) {
   }, [props.review, props.round, props.recording]);
   if (props.scrolled) props.scrolled.current = replay && (() => replay.replay.scrolled());
 
-  const { at, playing, cut, clock, following, frame, marks, closeOn, actualSize } = props;
+  const { at, playing, cut, clock, following, frame, marks, actualSize } = props;
   // Each mark as it is, so one found later, as a note's spot read from where it was made, is placed again.
   const marked = JSON.stringify(marks);
-  const closeKey = closeOn ? `${closeOn.on.join(" ")} ${closeOn.shape}` : "";
-  const close = useRef<{ on: string; found?: boolean; frame?: Frame }>({ on: "" });
-  if (close.current.on !== closeKey) close.current = { on: closeKey };
   // Another part of the page to show, the view glides there from where it was, whatever else changes meanwhile: the
   // picture narrowing for Compare redraws it all the way. What glides is the part of the page shown, never how close it
-  // is: that's the picture's width over it, so a picture still narrowing is never aimed past where it ends. Close on
-  // something, it stays where it was until that's found, and glides there at once. It keeps the browser's frame clock,
-  // as the narrowing does, from when the narrowing started, or else from the frame after it's set.
+  // is: that's the picture's width over it, so a picture still narrowing is never aimed past where it ends. It keeps the
+  // browser's frame clock, as the narrowing does, from when the narrowing started, or else from the frame after it's set.
   const glide = useRef<{ frame?: Frame; holds?: string; from?: View; set: number; since?: number }>({ frame, set: 0 });
   useEffect(() => {
     if (!replay || !box.current?.clientWidth) return;
     const replayed = replay.replay;
     const length = ((replay.events.at(-1)?.timestamp ?? 0) - (replay.events[0]?.timestamp ?? 0)) / 1000;
-    const closing = !!closeKey && !playing && !following;
-    const shown = closing ? (close.current.found ? close.current.frame : glide.current.frame) : frame;
     const holds = actualSize?.holds && !playing && !following ? JSON.stringify(actualSize.holds) : undefined;
-    if (shown !== glide.current.frame || holds !== glide.current.holds) glide.current = { frame: shown, holds, from: view.current, set: frameTime() };
+    if (frame !== glide.current.frame || holds !== glide.current.holds) glide.current = { frame, holds, from: view.current, set: frameTime() };
     const thingOf = (mark: Mark): Rect | undefined => (mark.node !== undefined ? replayed.markOf(mark.node) : undefined) ?? (mark.name ? replayed.named(mark.name) : undefined);
     const gliding = () => !!glide.current.from && frameTime() - (glide.current.since ?? frameTime()) < GLIDE * 1000;
     const draw = (moment: number, moving: boolean) => {
@@ -249,7 +222,7 @@ export function Player(props: Props) {
       }
       const k = box.current.clientWidth / across;
       view.current = { left, top, across, k };
-      replayed.show(moment, moving, 1);
+      replayed.show(moment, moving);
       replayed.host.style.transform = `translate(${-left * k}px, ${-top * k}px) scale(${k})`;
       replayed.placeCaret(caret.current!, moment, left, top, k);
       const pointer = replayed.pointerAt(moment);
@@ -313,24 +286,6 @@ export function Player(props: Props) {
     const spotOf = (mark: Mark): Rect | undefined =>
       (mark.box && { left: mark.box.x * shape.width, top: mark.box.y * shape.height, width: mark.box.width * shape.width, height: mark.box.height * shape.height }) ??
       (mark.point && { left: mark.point.x * shape.width, top: mark.point.y * shape.height, width: 0, height: 0 });
-    const found = (mark: Mark): Rect | undefined => thingOf(mark) ?? spotOf(mark);
-    // Close on something, it's framed in what it sits in: kept inside a panel bigger than the view, and a smaller one
-    // whole, so it's seen with its edges rather than alone in the middle.
-    if (closing && !close.current.found) {
-      const things = (marks ?? []).filter((mark) => closeOn!.on.includes(mark.id)).flatMap((mark) => found(mark) ?? []);
-      const thing = things.length ? union(things.map((one) => ({ x: one.left, y: one.top, width: one.width, height: one.height }))) : undefined;
-      const section = thing && replayed.sectionOf({ left: thing.x, top: thing.y, width: thing.width, height: thing.height });
-      // Closer where the picture is small, as on a phone, so what it's on can be read: at most three times as close.
-      const wide = box.current.clientHeight * closeOn!.shape;
-      const closest = Math.min(3, Math.max(CLOSEST, (0.75 * shape.width) / wide));
-      const part = thing && around(thing, shape, wide / box.current.clientHeight, closest);
-      close.current = { on: closeKey, found: true, frame: part && section ? within(part, section, shape) : (part ?? frame) };
-      closed.current?.(part && close.current.frame);
-      if (close.current.frame !== glide.current.frame) {
-        glide.current = { frame: close.current.frame, from: view.current, set: frameTime() };
-        return glideOn();
-      }
-    }
     told.current?.(
       Object.fromEntries(
         (marks ?? []).map((mark) => {
@@ -350,7 +305,7 @@ export function Player(props: Props) {
         }),
       ),
     );
-  }, [replay, at, playing?.until, cut, following, frame, marked, width, glided, closeKey, actualSize?.together, actualSize?.holds && JSON.stringify(actualSize.holds)]);
+  }, [replay, at, playing?.until, cut, following, frame, marked, width, glided, actualSize?.together, actualSize?.holds && JSON.stringify(actualSize.holds)]);
 
   // What's under the pointer on the page at rest, in its own pixels, and what a click there would note.
   const [hover, setHover] = useState<Rect>();

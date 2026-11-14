@@ -1,41 +1,7 @@
-// What a click on the recording notes, and where a note is on every round. The page each step left was read as the
-// comparison reads it, so a click notes what a person would call the thing under it, named as Playthrough names every
-// change, and a note sits on its thing in every round, found the way the agent's answer to it was placed.
+// What a click on the recording notes. The page each step left was read as the comparison reads it, so a click notes
+// what a person would call the thing under it, named as Playthrough names every change.
 
-import { useEffect, useState } from "react";
-import { called, HOLDING, holdsControls, nearTo, placeIn, type Glimpse, type Reading, type Thing } from "@playthrough/page";
-import type { Element, Place, Review, Round } from "@playthrough/review";
-import { glimpses, readings } from "./api.ts";
-import type { Rect } from "./replay.ts";
-
-// What was read on a round's scene, once it's here: the page each step left, or, for what a note can be on, with what
-// was glimpsed after each action among them.
-export type Read = {
-  (round: number, scene: string): Reading[] | undefined;
-  (round: number, scene: string, glimpsed: true): Glimpse[] | undefined;
-};
-
-// Every scene's readings on these rounds, as they arrive, your forks' with them.
-export function useReadings(review: Review, rounds: Round[]): Read {
-  const [kept, setKept] = useState(() => new Map<string, { readings: Reading[]; seen: Glimpse[] }>());
-  const wanted = rounds.flatMap((round) => round.scenes.map((scene) => ({ round: round.number, scene })));
-  const key = wanted.map(({ round, scene }) => `${round}/${scene.name}/${scene.recording}`).join("\n");
-  useEffect(() => {
-    let current = true;
-    for (const { round, scene } of wanted)
-      Promise.all([readings(review.id, round, scene.recording), glimpses(review.id, round, scene.recording)]).then(([read, glimpsed]) => {
-        const seen = [...read, ...glimpsed].sort((a, b) => a.at - b.at);
-        if (current) setKept((kept) => (kept.has(`${round}/${scene.recording}`) ? kept : new Map(kept).set(`${round}/${scene.recording}`, { readings: read, seen })));
-      });
-    return () => void (current = false);
-  }, [review.id, key]);
-  // A fork is kept again, longer, under a new recording, and read again with it.
-  return ((round: number, name: string, glimpsed?: true) => {
-    const scene = wanted.find((wanted) => wanted.round === round && wanted.scene.name === name)?.scene;
-    const read = scene && kept.get(`${round}/${scene.recording}`);
-    return glimpsed ? read?.seen : read?.readings;
-  }) as Read;
-}
+import { HOLDING, holdsControls, type Glimpse, type Thing } from "@playthrough/page";
 
 // A node is one element for as long as it's on the page, so it's read as it was at the step nearest the moment.
 const byNode = new WeakMap<Glimpse[], Map<number, { at: number; thing: Thing }[]>>();
@@ -66,75 +32,4 @@ export function pickAt(outwards: number[], read: Glimpse[], at: number): Thing |
     near ??= thing;
   }
   return near;
-}
-
-// What holds a pick, nearest first, as far as most of the page: each bigger than the one before, since a holder the
-// size of what it holds is the same thing to the eye. Alt and the wheel widen a pick to these, a notch a step.
-export function holdersOf(outwards: number[], read: Glimpse[], at: number, pick: Thing, boxOf: (node: number) => Rect | undefined, page: { width: number; height: number }): Thing[] {
-  const same = (a: Rect, b: Rect) => Math.abs(a.left - b.left) <= 2 && Math.abs(a.top - b.top) <= 2 && Math.abs(a.width - b.width) <= 2 && Math.abs(a.height - b.height) <= 2;
-  const holders: Thing[] = [];
-  let last = boxOf(pick.node!);
-  for (const node of outwards.slice(outwards.indexOf(pick.node!) + 1)) {
-    const thing = thingAt(read, node, at);
-    const box = thing?.name ? boxOf(node) : undefined;
-    if (!thing || !box || (last && same(box, last))) continue;
-    if (box.width * box.height > 0.9 * page.width * page.height) break;
-    holders.push(thing);
-    last = box;
-  }
-  return holders;
-}
-
-// What a note says it's on, as Playthrough calls things: “Settle up button”, “$600.00”, the “Who owes whom” area; a spot,
-// by what's near it.
-export function placeName(on: Place | undefined, read: Read, round: number): string {
-  if (!on) return "New note";
-  if (on.at === undefined) return "The whole scene";
-  const seen = read(round, on.scene, true);
-  if (on.element) return calledBy(on.element, seen, on.at);
-  const near = on.point && seen && nearTo(seen, on.at, on.point);
-  return near ? `Near ${called(near)}` : "This moment";
-}
-
-const calledBy = (element: Element, seen: Glimpse[] | undefined, at: number) =>
-  called((element.node !== undefined && seen && thingAt(seen, element.node, at)) || { ...element, words: element.name });
-
-// Where a note is on a round: where it was written, on its own thing; where the agent answered it, where Playthrough placed
-// the answer; on any other round, found from the readings, once they're here. Nothing where that round has no scene of
-// its name.
-export function placeOn(review: Review, id: string, on: Place, written: number, round: Round, read: Read): Place | undefined {
-  if (round.number === written) return on;
-  const answered = round.replies.find((reply) => reply.note === id)?.on;
-  return answered ?? placeFrom(review, on, written, round, read);
-}
-
-// An answer that moves is watched in the step its reply names, from a breath before the action that set what it's on
-// moving, to the next step, while the note stays where it was written. That's the first of the step's actions before
-// the note (or the step's end) that what it's on changed after (`changed`, the moments it did, from the recording):
-// cards arriving, then leaving, are both the answer. Until the recording says, it's the last.
-const BREATH = 1;
-export function watchedIn(round: Round, id: string, changed: number[] = []): { scene: string; at: number; until: number } | undefined {
-  const reply = round.replies.find((reply) => reply.note === id);
-  const scene = reply?.watch ? round.scenes.find((scene) => scene.name === reply.on?.scene) : undefined;
-  const index = scene?.steps.findIndex((step) => step.title === reply!.watch) ?? -1;
-  if (!scene || index < 0) return undefined;
-  const step = scene.steps[index]!;
-  const until = scene.steps[index + 1]?.at ?? scene.length;
-  const before = Math.min(reply!.on?.at ?? until, until);
-  const actions = step.actions?.filter((action) => action <= before) ?? [];
-  const moving = actions.find((action, i) => changed.some((at) => at > action && at <= (actions[i + 1] ?? before))) ?? actions.at(-1) ?? step.at;
-  return { scene: scene.name, at: Math.max(0, Math.round((moving - BREATH) * 100) / 100), until };
-}
-
-// A place on one round, found on another.
-const found = new Map<string, Place | undefined>();
-export function placeFrom(review: Review, on: Place, from: number, round: Round, read: Read): Place | undefined {
-  const then = review.rounds.find((kept) => kept.number === from)?.scenes.find((scene) => scene.name === on.scene);
-  const now = round.scenes.find((scene) => scene.name === on.scene);
-  const was = read(from, on.scene);
-  const is = read(round.number, on.scene);
-  if (!then || !now || !was || !is) return undefined;
-  const key = JSON.stringify([review.id, from, round.number, on]);
-  if (!found.has(key)) found.set(key, placeIn(on, { scene: then, readings: was }, { scene: now, readings: is }));
-  return found.get(key);
 }

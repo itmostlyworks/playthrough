@@ -322,13 +322,13 @@ export function Portal({ live, person, screen, scrolled, waiting: waitingWords =
 }
 
 // The pointer's shape: the arrow, or the text cursor over words you can type into.
-export function shape(hand: HTMLElement, text: boolean) {
+function shape(hand: HTMLElement, text: boolean) {
   hand.querySelector<SVGElement>("[data-arrow]")!.style.display = text ? "none" : "";
   hand.querySelector<SVGElement>("[data-beam]")!.style.display = text ? "" : "none";
 }
 
 // A name changes in place: its pill grows or shrinks to the new words as they come in, warm once they're yours.
-export function say(tag: HTMLElement, words: HTMLElement, said: string, mine = true, gently = true) {
+function say(tag: HTMLElement, words: HTMLElement, said: string, mine = true, gently = true) {
   const from = tag.getBoundingClientRect().width;
   words.textContent = said;
   if (mine) tag.dataset.mine = "";
@@ -344,11 +344,11 @@ export const TAG = "absolute top-[17px] left-[13px] overflow-hidden rounded-full
 
 // Opening into the app takes a breath, after the agent's pointer has come to yours; leaving it is quicker, as stepping
 // out is.
-export const HANDING = 420;
+const HANDING = 420;
 // The edge at the top of a breath, while it waits: deeper than while you're in the app, to be seen over any page.
-export const BREATH = "inset 0 0 0 3px rgba(236,170,50,1), inset 0 0 70px 6px rgba(226,160,50,0.55)";
-export const OPENING = 1050;
-export const CLOSING = 560;
-export const PORTAL = "cubic-bezier(0.22, 0.8, 0.24, 1)";
+const BREATH = "inset 0 0 0 3px rgba(236,170,50,1), inset 0 0 70px 6px rgba(226,160,50,0.55)";
+const OPENING = 1050;
+const CLOSING = 560;
+const PORTAL = "cubic-bezier(0.22, 0.8, 0.24, 1)";
 // Taking over in less than this, there's no counting: it opens as soon as it would be read.
-export const COUNTED = 1500;
+const COUNTED = 1500;
