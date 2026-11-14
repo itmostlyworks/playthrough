@@ -39,7 +39,10 @@ export function startOf(done: Done[], since = 0): Start {
 // where it went: a link followed is taken to go somewhere, and nothing else to. Where the rule can't tell, it shows the
 // button that brought you, and all of a long one.
 export function shownFrom(scene: Scene): number {
-  if (scene.from !== undefined) return scene.from;
+  return scene.from ?? Math.round(startedBy(scene) * 1000) / 1000;
+}
+
+function startedBy(scene: Scene): number {
   const step = scene.steps.at(-1);
   const began = step?.began ?? [];
   const ended = step?.actions ?? [];
