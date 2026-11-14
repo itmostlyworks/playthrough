@@ -83,8 +83,8 @@ export function pausedAt(scene: Scene, at: number): Paused | undefined {
   const done = actions.filter((action) => action <= at).length;
   if (done === actions.length) return { step: step.title };
   if (done) return { step: step.title, actions: done };
-  // Before its first action, the page is as the step before left it; a moment's, as its way there left it; any other
-  // first step's, after it.
+  // Before its first action, the page is as the step before left it; a moment's, as its way there left it, where its
+  // step starts after that way; any other first step's, after it: a step that starts its recording has no page yet.
   const before = scene.steps[scene.steps.indexOf(step) - 1];
-  return before ? { step: before.title } : scene.from !== undefined ? { step: step.title, actions: 0 } : { step: step.title, actions: 1 };
+  return before ? { step: before.title } : scene.from !== undefined && step.at > 0 ? { step: step.title, actions: 0 } : { step: step.title, actions: 1 };
 }

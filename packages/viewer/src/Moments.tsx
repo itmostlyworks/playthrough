@@ -1010,20 +1010,23 @@ function MomentView(props: {
   };
   const stepIn = () => {
     if (live?.shown) return back();
-    const paused = pausedAt(scene, at);
+    // Pressed while it plays, it's where the recording has got to that's stepped into, and it stops there: `at` is
+    // only where it last rested.
+    const where = playing ? clockOf.at : at;
+    const paused = pausedAt(scene, where);
     // A note open on a frame of its own shows somewhere the app can't be taken to: stepping in from it would swap the
     // picture for the moment's and open the app there. Closed, Step in answers again.
     if (!paused || writing || elsewhere) return;
     setComparing(false);
-    setPlaying(undefined);
+    if (playing) (setPlaying(undefined), restAt(where));
     setOpen(undefined);
     setNoting(false);
     session.current = { id: newId(), events: [], did: [], kept: 0 };
     const since = Date.now();
-    setLive({ scene: scene.name, from: at, shown: true, since });
+    setLive({ scene: scene.name, from: where, shown: true, since });
     readyIn(review.id, scene.name, paused).then((left) => left && setLive((now) => (now?.since === since ? { ...now, due: since + left } : now)));
     readyAt(review.id, scene.name, paused).then((answer) =>
-      setLive((now) => (now?.scene !== scene.name || now.from !== at ? now : typeof answer === "string" ? { ...now, address: answer } : { ...now, problems: answer, shown: false })),
+      setLive((now) => (now?.scene !== scene.name || now.from !== where ? now : typeof answer === "string" ? { ...now, address: answer } : { ...now, problems: answer, shown: false })),
     );
   };
   const back = (at?: { x: number; y: number }) => {
@@ -1033,7 +1036,8 @@ function MomentView(props: {
   };
   const note = () => {
     if (writing || stepping || open) return;
-    setPlaying(undefined);
+    // Stopped where it has got to, not back where it last rested.
+    if (playing) (setPlaying(undefined), restAt(clockOf.at));
     setNoting((now) => !now);
   };
   const next = (by: number) => {
