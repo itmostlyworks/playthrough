@@ -4,7 +4,7 @@
 // storage, in one browser kept open while Playthrough runs: a window opens in a moment, where a run of its own took a
 // second and half a gigabyte.
 
-import { chromium, request as requests, type Browser } from "@playwright/test";
+import { chromium, request as requests, type Browser, type Page } from "@playwright/test";
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { list, quote, Refused } from "@playthrough/review";
@@ -132,6 +132,7 @@ async function start(repo: Repo, id: string, to: To, files: string[], written: n
   const { context, page } = await pageFor(await browser(), app.url, kept.use, setup.use);
   context.setDefaultTimeout(10_000);
   context.setDefaultNavigationTimeout(0);
+  quickArrivals(page);
   const request = await requests.newContext({ baseURL: app.url });
   const close = () => void Promise.all([context.close(), request.dispose()]).catch(() => {});
   const orders: Orders = { to };
@@ -155,6 +156,17 @@ async function start(repo: Repo, id: string, to: To, files: string[], written: n
   page.on("crash", one.stop);
   return one;
 }
+
+// The way there, written as “wait to be there, else go” (way.ts), waits three seconds for an address the page may never
+// reach by itself. Stepping in, nobody sees the way: on a page nothing has loaded in yet, nothing done can lead anywhere,
+// so it goes at once; anywhere else, it waits a second for where it's led, then goes. Going is always to the same
+// address, so the next thing done finds the page it needs either way: only the waiting is cut.
+function quickArrivals(page: Page) {
+  const waitFor = page.waitForURL.bind(page);
+  page.waitForURL = (url, options) =>
+    page.url() === "about:blank" ? Promise.reject(new Error("Nothing has loaded yet.")) : waitFor(url, { ...options, timeout: Math.min(options?.timeout ?? WAITED, WAITED) });
+}
+const WAITED = 1000;
 
 function order({ orders, last }: Following, to: To) {
   // A run waiting has done nothing since its last moment: it sets off from there now, as it's told now.
