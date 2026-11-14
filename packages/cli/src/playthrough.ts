@@ -22,15 +22,19 @@ const HELP = readFileSync(new URL("../MOMENTS.md", import.meta.url), "utf8").tri
 const commands = {
   change: [2, 2, `playthrough change "<a title, as a pull request's>" "<what you were asked, in the person's words>"`, ([title, asked]) => change(repo(), title, asked)],
   as: [1, 2, `playthrough as <person> ["<moment>"]`, ([person, at]) => as(repo(), person!, at)],
-  moment: [1, 2, `playthrough moment "<what's there, in under eight words>" ["<what it's about, as the page names it>"]`, ([words, named]) => moment(repo(), words!, named)],
+  moment: [1, 2, `playthrough moment "<what's there, in under eight words>" ["<what it's about, as the page names it>"] [--last N]`, ([words, named], last) => moment(repo(), words!, named, last)],
   drop: [1, 1, `playthrough drop "<moment>"`, ([words]) => drop(repo(), words!)],
   again: [0, 0, "playthrough again", () => again(repo())],
   reply: [2, 2, `playthrough reply <note> "<what you did, in a line>"`, ([note, words]) => reply(repo(), note!, words)],
   wait: [0, 0, "playthrough wait", () => wait(repo())],
   open: [0, 0, "playthrough open", () => open()],
-} satisfies Record<string, [number, number, string, (words: string[]) => Promise<unknown>]>;
+} satisfies Record<string, [number, number, string, (words: string[], last?: number) => Promise<unknown>]>;
 
-const [command, ...words] = process.argv.slice(2);
+const [command, ...given] = process.argv.slice(2);
+// --last N, which only moment takes: how many of the last things done the moment shows.
+const lastAt = given.findIndex((word) => word === "--last" || word.startsWith("--last="));
+const lastSaid = lastAt < 0 ? undefined : given[lastAt]!.includes("=") ? given[lastAt]!.split("=")[1] : given[lastAt + 1];
+const words = lastAt < 0 ? given : given.toSpliced(lastAt, given[lastAt]!.includes("=") ? 1 : 2);
 // The app this is run in is known to the machine's one page from now on, as soon as Playthrough has a folder in it.
 know(repo().root);
 try {
@@ -41,7 +45,9 @@ try {
     const [least, most, said, run] = commands[command as keyof typeof commands];
     if (words.length > most) throw new Refused([`That's more than it takes: ${said}`]);
     if (words.length < least) throw new Refused([`That needs more: ${said}`]);
-    await run(words);
+    if (lastAt >= 0 && command !== "moment") throw new Refused([`Only playthrough moment takes --last: ${said}`]);
+    if (lastAt >= 0 && !/^\d+$/.test(lastSaid ?? "")) throw new Refused([`--last takes how many of the last things done the moment shows, 0 for a still: ${said}`]);
+    await run(words, lastAt < 0 ? undefined : Number(lastSaid));
     know(repo().root);
   }
 } catch (error) {

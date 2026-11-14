@@ -19,8 +19,9 @@ commands aren't offered or run any more, and its page opens only at a review's o
 the recordings, the readings, the comparing and taking a scene over are what moments are built on.
 
 **The words.** A *change* is one piece of work an agent does in one copy of an app: a title, as a pull request's (a
-commit's `feat:` left off), and what was asked, in the person's words. A *moment* is a few seconds of the app ending
-where the change shows: a few words saying what's there, who it's done as, and the one thing it's about. A *person* is
+commit's `feat:` left off), and what was asked, in the person's words. A *moment* is one thing happening in the app (typing
+and pressing Update), and nothing more, or a *still*, where nothing does: a few words saying what's there, who it's done
+as, and the one thing it's about. Cause and effect are two moments. A *person* is
 one of the app's people, named in `playthrough/setup.ts` with who they are (`people = { Sam: "a member" }`). A *note* is
 what the person says on a moment, and a *reply* the agent's answer. *Handing back* gives the person the moments as they
 are now.
@@ -28,9 +29,35 @@ are now.
 **The agent's side** (`packages/cli`; `playthrough` alone prints `MOMENTS.md`, all a fresh agent is told). `change`
 names the change, and every command in that copy means it until another is named. `as <person>` starts the app and a
 Chromium signed in as them, on a debugging port the agent's own browser tool attaches to, and keeps what's done there
-(`as.ts`). `moment "<what's there>"` reads where that browser is, writes the way there as a scene, runs it from a fresh
-start, and keeps it only if it lands: the same page read, the same address, and what it's about there, saying the same
-(`moments.ts`, `way.ts`). Steps are kept by role and name, words typed where the caret was put as typed, keys that move
+(`as.ts`), each with the address it was done at and where the page was scrolled, and each page loaded with whether
+something done before led there. The way scrolls at once to where the moment's first thing was done (or, for a still,
+where the agent is), so the first frame is where the agent was looking; between the moment's things it scrolls
+smoothly, as a person would; and it ends where the agent is, waiting first for the page to get there by itself (Back to
+top's smooth scroll).
+`moment "<what's there>" ["<thing>"] [--last N]` reads where that browser is, writes the way there as a scene, runs it
+from a fresh start, and keeps it only if it lands: the same page read, the same address, and what it's about there,
+saying the same (`moments.ts`, `way.ts`).
+
+**Where a moment starts** (`packages/review/src/shown.ts`, `startOf`). Its file does the way there first and then its one
+step, which is what's shown: what was done since arriving on the page it ends on, or since the moment before in this
+browser if that came later. A link followed or an address gone to is the way; a button that took you to a new page is
+doing something and stays in. Nothing done since is a still. Where it can't tell, it isn't kept and lists the things
+done counting back for `--last N`: over four (a moment is one thing happening), or a button that brought you here with
+nothing done since (pressing it, or a still). The step begins once the page has settled (a second still, nothing
+loading, what moves by itself left out), is pictured there (`first.png`, beside the step's pictures), and holds a beat
+before the pointer moves; it ends once the page rests after the last thing done, and an end that changed while it held
+(a late message, a debounced search) is read again once it rests. A scene's `from` is its step's start, set by `moment`
+and by `again`, so the window survives every round. Something changing every frame for good (a bar slid along by a
+script) is learned as moving by itself once a rest has waited its longest, five seconds, and left out from then on.
+Step in at a moment's start stands where its way left the page (`pausedAt`). A moment kept before this has no `from`:
+`shownFrom(scene)` starts it by the same rule from what its recording says of each action (a link followed goes
+somewhere), and a still where its end holds.
+
+**The read-back.** Kept, `moment` says its length (or that it's a still) and what it's about; `shows`, the things done,
+in plain words (`type “BS-WEB” in Card prefix → click Update`); `before`, the last of the way (kept, never shown); the
+paths of its first and last frames; a line for each click, key or choice after which nothing read on the page changed
+but how something looks or where it's scrolled (`nothing you can see changed. Fine if that's the point`); and how to mark it again with `--last N`. Marked again with the
+same words, it replaces the moment, whatever file it was in. Steps are kept by role and name, a right click as one, words typed where the caret was put as typed, keys that move
 it too. The recording keeps the pointer, the text cursor and each key that does something (Escape, Enter, Tab, arrows,
 shortcuts), never letters typed; and hides a dev server's own badge (Next's), never touching the app. `again` runs every
 moment on the code as it is now and says each is the same, different, new, or couldn't get there. `wait` hands back,

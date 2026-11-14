@@ -2,8 +2,9 @@
 // prove it lands, and hands what it kept back to the person; runs every one again on the next version, and says what's
 // different; and brings back what the person says on each.
 //
-//   playthrough moment "<what's there>" ["<what it's about>"]
-//                                       keeps where the browser is, and the way there, if it lands run again
+//   playthrough moment "<what's there>" ["<what it's about>"] [--last N]
+//                                       keeps where the browser is, and the way there, if it lands run again: the
+//                                       moment is what was done since arriving on this page, or the last N things
 //   playthrough drop "<moment>"         a moment that's no longer wanted: not run again, or handed back
 //   playthrough again                   every moment again, on the code as it is now: the same, different, or not reached
 //   playthrough reply <note> "<words>"  answers a note
@@ -14,9 +15,9 @@
 
 import { chromium, type Page } from "@playwright/test";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-import type { Reading } from "@playthrough/page";
-import { allNotes, conversation, list, notesToAnswer, quote, Refused, roundInProgress, toAccountFor, type Change, type Review, type Round, type Scene } from "@playthrough/review";
+import { dirname, join } from "node:path";
+import { differences, type Glimpse, type Reading } from "@playthrough/page";
+import { allNotes, conversation, list, MOST_SHOWN, notesToAnswer, quote, Refused, roundInProgress, startOf, toAccountFor, type Change, type Review, type Round, type Scene } from "@playthrough/review";
 import { agent } from "./agent.ts";
 import { browserFile, stopBrowser, type Browser } from "./as.ts";
 import { changeHere, momentNamed, momentsOf } from "./change.ts";
@@ -24,7 +25,7 @@ import { compareWithEarlier } from "./compare.ts";
 import { pictureNotes } from "./noted.ts";
 import { readPage, unhovered } from "./read.ts";
 import type { Repo } from "./repo.ts";
-import { readingsOf, type Failed } from "./reporter.ts";
+import { glimpsesOf, openingOf, readingsOf, type Failed } from "./reporter.ts";
 import { markUnsteady, recorder, runOnce } from "./scenes.ts";
 import { setupIn } from "./setup.ts";
 import { listening } from "./wait.ts";
@@ -33,7 +34,7 @@ import { aboutSaid, ENDED, fileOf, sceneOf, whatDiffers, type About, type Done }
 // What a moment says is what's there, short enough to sit under a picture of it: who and where, the person sees.
 const MOST_WORDS = 10;
 
-export async function moment(repo: Repo, words: string, named?: string) {
+export async function moment(repo: Repo, words: string, named?: string, last?: number) {
   const id = await changeHere(repo);
   if (!existsSync(browserFile(repo))) throw new Refused(["There's no browser to keep a moment from. Start one, in the background: playthrough as <person>"]);
   const browser: Browser = JSON.parse(readFileSync(browserFile(repo), "utf8"));
@@ -42,6 +43,7 @@ export async function moment(repo: Repo, words: string, named?: string) {
   const people = Object.keys((await setupIn(repo.setup)).people ?? {}).filter((name) => new RegExp(`(^|\\W)${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\W|$)`, "i").test(words));
   if (people.length) throw new Refused([`The person sees who it is beside the moment: leave ${list(people.map(quote))} out of its words, and say only what's there.`]);
   const began = Date.now();
+  const markAgain = `playthrough moment ${JSON.stringify(words)}${named ? ` ${JSON.stringify(named)}` : ""}`;
 
   // Where the agent is now, as the page is read at a step's end.
   const open = await chromium.connectOverCDP(`http://localhost:${browser.debugging}`).catch(() => {
@@ -58,6 +60,16 @@ export async function moment(repo: Repo, words: string, named?: string) {
   if (named && !there.about)
     throw new Refused([`Nothing on the page is called ${quote(named)}, as a button, a field, a link or a heading is, or says it.${there.near.length ? ` Near it: ${list(there.near.map(quote))}.` : ""} Say it as the page names it, or leave it out.`]);
 
+  // Where the moment starts: what was done since arriving on this page, or since the moment before; or the last N things.
+  const done = browser.did;
+  const since = markedSince(repo, browser);
+  const actions = done.flatMap((one, i) => (one.does === "goto" ? [] : [i]));
+  if (last !== undefined && last > actions.length)
+    throw new Refused([`Only ${actions.length} thing${actions.length === 1 ? " was" : "s were"} done in this browser: ${markAgain} --last ${actions.length} at most.`]);
+  const start = last !== undefined ? { at: last ? actions.at(-last)! : done.length } : startOf(onTheWay(done, new URL(there.url).pathname), since);
+  if ("unclear" in start && start.unclear) throw new Refused(unclear(done, start.at, start.unclear, markAgain));
+  const from = start.at;
+
   // The way there, run from a fresh start as the same person and recorded: tried in a folder of its own, and kept only
   // if it lands, in place of one with the same words.
   const review = await repo.reviews.get(id);
@@ -66,7 +78,7 @@ export async function moment(repo: Repo, words: string, named?: string) {
   rmSync(trying, { recursive: true, force: true });
   mkdirSync(trying, { recursive: true });
   writeFileSync(join(trying, "package.json"), `{ "type": "module" }\n`);
-  const way = { words, person: browser.person, did: browser.did, setup: browser.setup, about: there.about, scrolled: there.scrolled };
+  const way = { words, person: browser.person, did: done, setup: browser.setup, about: there.about, scrolled: there.scrolled, from };
   writeFileSync(join(trying, file), sceneOf({ ...way, tried: true }));
   console.log(`Running the way there again, from a fresh start, as ${browser.person}…`);
   const ran = await runOnce({ scenes: trying, only: [words], app: await repo.app(), root: repo.root, recorder, before: false, taken: [], started: review.started });
@@ -82,7 +94,7 @@ export async function moment(repo: Repo, words: string, named?: string) {
   }
   const readings: Reading[] = JSON.parse(recorded.files.find((one) => one.name === readingsOf(recorded.scene))!.bytes.toString());
   const ended: string = JSON.parse(readFileSync(join(trying, ENDED), "utf8")).url;
-  const { differ, passing, address } = whatDiffers(there, { url: ended, reading: readings.at(-1)! });
+  const { differ } = whatDiffers(there, { url: ended, reading: readings.at(-1)! });
   if (differ.length) throw notKept(`it ended somewhere else. What differs from where you are:\n${differ.map((one) => `  ${one}`).join("\n")}`);
 
   // Run once more, what changes by itself, as a caret blinking or a time the server stamps, is known, and left out
@@ -94,23 +106,108 @@ export async function moment(repo: Repo, words: string, named?: string) {
 
   mkdirSync(repo.scenes(id), { recursive: true });
   writeFileSync(join(repo.scenes(id), "package.json"), `{ "type": "module" }\n`);
+  // Marked again with the same words, it's the same moment, in whatever file it was kept before.
+  for (const one of momentsOf(repo, id)) if (one.words === words && one.file !== join(repo.scenes(id), file)) rmSync(one.file);
   writeFileSync(join(repo.scenes(id), file), sceneOf(way));
   rmSync(trying, { recursive: true, force: true });
-  const acted = lastActedOn(browser.did, readings.at(-1)!);
-  const scene: Scene = { ...recorded.scene, ...(there.about && { about: { role: there.about.role, name: there.about.name } }), ...(acted && { acted }) };
+  const acted = lastActedOn(done, readings.at(-1)!);
+  const step = recorded.scene.steps[0];
+  const scene: Scene = { ...recorded.scene, ...(there.about && { about: { role: there.about.role, name: there.about.name } }), ...(acted && { acted }), ...(step && { from: step.at }) };
   const number = Math.max(1, roundInProgress(review));
   for (const { name, bytes } of recorded.files) await repo.reviews.saveFile(id, number, name, bytes);
   const kept = review.rounds.find((round) => round.number === number);
   const scenes = kept?.scenes.some((one) => one.name === scene.name) ? kept.scenes.map((one) => (one.name === scene.name ? scene : one)) : [...(kept?.scenes ?? []), scene];
   await repo.reviews.saveRound(id, { number, by: agent(kept?.by), scenes, replies: kept?.replies ?? [], accounts: kept?.accounts ?? {} });
+  writeFileSync(markedFile(repo), JSON.stringify({ began: browser.began, at: done.length }));
   // Marked again after running them all again, it's compared again with what the person saw, with the rest.
   if (review.comparisons.some((comparison) => comparison.round === number)) await compareAll(repo, id, number, scenes);
 
-  console.log(`\nKept ${quote(words)}, in ${((Date.now() - began) / 1000).toFixed(1)}s: run again from a fresh start, it landed where you are.`);
-  if (there.about) console.log(`It's about the ${aboutSaid(there.about)}: checked again on the way, it held.`);
-  console.log(`Compared: what's read on the page, and the address with the ids each run made set aside (${address}, the same).`);
-  if (passing.length) console.log(`Left out, as messages that pass by themselves: ${passing.join("; ")}.`);
-  console.log(`The person sees it once you hand back: playthrough wait, in the background.`);
+  // What the moment shows, read back: the agent reads this, not the scene file.
+  const shownAt = (name: string) => repo.show(join(dirname(repo.round(id, number)), "files", name));
+  const glimpses: Glimpse[] = JSON.parse(recorded.files.find((one) => one.name === glimpsesOf(recorded.scene))?.bytes.toString() ?? "[]");
+  const shown = done.slice(from).filter((one) => one.does !== "goto");
+  const before = done.slice(0, from).filter((one) => !(one.does === "goto" && one.led));
+  const still = !shown.length;
+  const length = scene.length - (scene.from ?? 0);
+  console.log(`\nKept ${/[“"]/.test(words) ? words : quote(words)}${still ? ", a still: nothing happens in it" : `, ${length.toFixed(1)} s`}${there.about ? `, about the ${aboutSaid(there.about)}` : ""}.`);
+  if (!still) console.log(`  shows    ${shown.map(saidOf).join(" → ")}`);
+  if (before.length) console.log(`  before   ${before.length > 3 ? "… " : ""}${before.slice(-3).map(saidOf).join(" → ")}   (kept, never shown)`);
+  if (step && !still) console.log(`  first    ${shownAt(openingOf(recorded.scene))}`);
+  console.log(`  ${still ? "picture" : "last   "}  ${shownAt(readings.at(-1)!.picture)}`);
+  for (const i of unseen(shown, step, glimpses, readings.at(-1)!)) {
+    const alike = shown.filter((one) => saidOf(one) === saidOf(shown[i]!));
+    const which = alike.length > 1 ? ` (the ${["first", "second", "third", "fourth"][alike.indexOf(shown[i]!)] ?? "last"})` : "";
+    console.log(`  After ${saidOf(shown[i]!)}${which}, nothing you can see changed. Fine if that's the point; if not, it isn't this moment's.`);
+  }
+  console.log(`Not what you meant? Mark it again with --last N, the last N things done (0 is a still).`);
+}
+
+// What the agent did, as the rule for where a moment starts reads it: what took it to another page went, by the address
+// each thing was done at, a page loaded after it that it led to, or where the browser is now. A page gone to directly
+// is arriving of its own.
+function onTheWay(done: Done[], here: string) {
+  return done.map((one, i) => {
+    if (one.does === "goto") return { does: one.does, went: !one.led || done[i - 1]?.does === "goto" || i === 0 };
+    const next = done[i + 1];
+    const went = !!one.address && (next ? (next.does === "goto" ? !!next.led : !!next.address && next.address !== one.address) : here !== one.address);
+    return { does: one.does, ...(one.role && { role: one.role }), went };
+  });
+}
+
+// The moment before, marked in this browser since it started: what's done after it is this one's.
+const markedFile = (repo: Repo) => join(repo.root, ".playthrough", "browser-marked.json");
+function markedSince(repo: Repo, browser: Browser): number {
+  try {
+    const marked = JSON.parse(readFileSync(markedFile(repo), "utf8"));
+    return marked.began === browser.began ? Math.min(marked.at, browser.did.length) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+// Where it can't be told where a moment starts: the things done, counting back, for the agent to say how many it shows.
+function unclear(done: Done[], at: number, why: "long" | "brought", again: string): string[] {
+  const actions = done.filter((one) => one.does !== "goto");
+  const counted = actions.slice(-Math.max(MOST_SHOWN + 2, done.slice(at).filter((one) => one.does !== "goto").length + 1)).toReversed();
+  return [
+    why === "long"
+      ? `Not kept: it would show ${done.slice(at).filter((one) => one.does !== "goto").length} things done since you arrived on this page, and a moment is one thing happening. The last things done, counting back:`
+      : `Not kept: a button brought you to this page, and nothing's been done here since. Is the moment pressing it (1), or what's here, a still (0)? The last things done, counting back:`,
+    ...counted.map((one, i) => `  ${String(i + 1).padStart(2)}  ${saidOf(one)}`),
+    `Mark it again with how many of them it shows: ${again} --last N`,
+  ];
+}
+
+// A thing done, as a person would say it: “type “BS-WEB” in Card prefix”, “click Update”.
+function saidOf(one: Done): string {
+  const on = one.name ?? one.text ?? one.what ?? "";
+  const into = on ? ` in ${on}` : "";
+  if (one.does === "goto") return `go to ${one.with}`;
+  if (one.does === "fill" || one.does === "type") return `type ${quote(one.with ?? "")}${into}`;
+  if (one.does === "selectOption") return `choose ${quote(one.with ?? "")}${into}`;
+  if (one.does === "press") return `press ${one.with}${into}`;
+  return `${one.button === "right" ? "right-click" : "click"} ${on || "the page"}`;
+}
+
+// Where a page read is scrolled to, from where its first thing is on the page and on the screen.
+const scrollOf = ({ things: [first] }: Glimpse) => (first ? `${first.page.x - first.box.x},${first.page.y - first.box.y}` : "");
+
+// What the moment shows that changed nothing you can see: each click, key or choice, the page read before it against
+// after it (the moment's first frame, what was glimpsed after each, and the page at rest at its end). Words typed show as
+// they go in. Only the look of something, as the pointer over it, isn't a change.
+function unseen(shown: Done[], step: Scene["steps"][number] | undefined, glimpses: Glimpse[], end: Reading): number[] {
+  const began = step?.began ?? [];
+  const ended = step?.actions ?? [];
+  if (began.length !== shown.length || !step) return [];
+  const at = (time: number) => glimpses.findLast((one) => one.at <= time + 0.01);
+  return shown.flatMap((one, i) => {
+    if (one.does === "fill" || one.does === "type") return [];
+    const before = at(began[i]!.at);
+    const after = i === shown.length - 1 ? end : glimpses.find((glimpse) => glimpse.at >= ended[i]! - 0.01);
+    if (!before || !after) return [];
+    if (scrollOf(before) !== scrollOf(after)) return [];
+    return differences({ ...before, picture: "" }, { ...after, picture: "" }).differences.some((difference) => difference.what !== "looks different") ? [] : [i];
+  });
 }
 
 // The last thing done something to on the way that's still on the page at its end, as the page's reading has it (a
@@ -222,8 +319,9 @@ export async function again(repo: Repo) {
   const marked = (name: string) => review.rounds.findLast((round) => round.scenes.some((scene) => scene.name === name))?.scenes.find((scene) => scene.name === name);
   const scenes = ran.recorded
     .map(({ scene }) => {
-      const { about, acted } = marked(scene.name) ?? {};
-      return { ...scene, ...(about && { about }), ...(acted && { acted }) };
+      // A moment with a start keeps it: its file has the way there before its step, which begins where it's shown from.
+      const { about, acted, from } = marked(scene.name) ?? {};
+      return { ...scene, ...(about && { about }), ...(acted && { acted }), ...(from !== undefined && scene.steps[0] && { from: scene.steps[0].at }) };
     })
     .sort((a, b) => order(a) - order(b));
   const kept = review.rounds.find((round) => round.number === number);

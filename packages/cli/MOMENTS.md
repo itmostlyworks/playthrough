@@ -1,12 +1,12 @@
-Playthrough: a person reviews your work on a web app by looking at moments of it: someone, at the point that matters,
-a few seconds of the app getting there. You mark them while you check your own work, in a browser Playthrough gives you.
+Playthrough: a person reviews your work on a web app by looking at moments of it: one thing happening in the app, as
+someone, and nothing more; or a still. You mark them while you check your own work, in a browser Playthrough gives you.
 Read this once, to its end.
 
   playthrough change "<title>" "<what was asked>"   name the change you're making, once: a title, as a pull request's,
                                                      and what you were asked, in the person's words
   playthrough as <person> ["<moment>"]              a browser on the app, signed in as one of its people, run in the
                                                      background; given a moment, it goes there the way the moment did
-  playthrough moment "<what's there>" ["<thing>"]   here: keep where the browser is, and the way here, as a moment
+  playthrough moment "<what's there>" ["<thing>"]   keep what you just did here as a moment, and read back what it shows
   playthrough wait                                   hand back, and wait for what the person says, run in the background
   playthrough again                                  every moment again on the code as it is now: the same, or what's different
   playthrough reply <note> "<words>"                answer one of the person's notes, in a line
@@ -63,14 +63,17 @@ EACH CHANGE
      Playwright MCP: --cdp-endpoint http://localhost:9333
      a script: chromium.connectOverCDP("http://localhost:9333"), then the page already open there
    Click and type as a person would. Going to an address directly is fine.
-4. When you're looking at what was asked for, say so: playthrough moment "<what's there>", in under eight words
-   ("Cards now say WEB-1 to WEB-5", "The prefix shows but can't be changed"). The person sees who it is and where:
-   don't say it. Add the one thing it's about, as the page names it ("Card prefix"), the smallest that shows it: a card,
-   not the board it's on ("Write the launch post"). The person sees the moment closed in on it, and what it says, and
-   whether it can be changed, is checked each time it's run again. Playthrough runs the way there again from a fresh
-   start, and keeps the moment only if it lands where you are. If it doesn't, it says what differed: fix that, or get
-   there another way, and mark it again. Never change the app to suit Playthrough: if a moment won't land after a
-   couple of tries, tell the person so, rather than work round it.
+4. When you've just done what shows the change, say so: playthrough moment "<what's there>", in under eight words.
+   Add the one thing it's about, as the page names it ("Card prefix"), the smallest that shows it. The moment is what
+   you did on this page since you arrived (or since your last moment), and nothing of the way here: typing in a field
+   and pressing Update is a moment; a page you only looked at is a still, and a still is fine. Cause and effect are two
+   moments: "The prefix changes to WEB", then, on the board, "Cards now say WEB-1 to WEB-5". So do the thing, mark it,
+   then go and look at what it did, and mark that.
+   Playthrough runs the way here again from a fresh start, keeps the moment only if it lands where you are, and reads
+   back what it shows, what came before (kept, never shown) and pictures of its first and last frames. Read it, look at
+   them: if it's not the moment you meant, mark it again with --last N, the last N things you did (0 is a still). If it
+   wasn't kept, it says what differed: fix that, or get there another way. Never change the app to suit Playthrough: if
+   a moment won't land after a couple of tries, tell the person so, rather than work round it.
 5. A few moments per change: one for each person or situation the change treats differently (an owner and a member;
    what's accepted and what's refused). Run playthrough as again for each: the same browser starts again, fresh.
 6. Hand back: playthrough wait, in the background. It stops the browser playthrough as keeps. Then tell the person

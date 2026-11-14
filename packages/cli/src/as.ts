@@ -53,9 +53,11 @@ const NOTING = `(() => {
   if (window.top !== window) return;
   // The field being typed in at its caret, until something else is done.
   let typedIn;
+  // Where it was done, so what took the agent to another page is known, however the page got there; and where the page
+  // was scrolled, as scrolling is done by no listener here, and a moment starts where the agent was looking.
   const keep = (done) => {
     if (done.does !== "type") typedIn = undefined;
-    window.__playthroughDid?.(done);
+    window.__playthroughDid?.({ ...done, address: location.pathname, scrolled: { x: Math.round(scrollX), y: Math.round(scrollY) } });
   };
   const pressable = "a, button, input, select, textarea, label, summary, [role=button], [role=link], [role=checkbox], [role=radio], [role=switch], [role=tab], [role=menuitem], [role=option], [role=combobox], [role=textbox], [contenteditable=''], [contenteditable=true]";
   const words = (element) => (element.innerText?.trim() || element.getAttribute?.("aria-label") || element.value || element.placeholder || "").trim().replace(/\\s+/g, " ").slice(0, 80);
@@ -105,12 +107,25 @@ const NOTING = `(() => {
   };
   window.__playthroughNamed = named;
   window.__playthroughHovering = hovering;
-  const arrived = () => keep({ does: "goto", on: "page", with: location.pathname + location.search + location.hash });
+  // A page loaded from another of the app's, by a link followed or a form sent, was led there; one gone to directly wasn't.
+  const led = (() => {
+    try {
+      return new URL(document.referrer).origin === location.origin;
+    } catch {
+      return false;
+    }
+  })();
+  const arrived = () => keep({ does: "goto", on: "page", with: location.pathname + location.search + location.hash, ...(led && { led }) });
   if (document.readyState === "loading") addEventListener("DOMContentLoaded", arrived, { once: true });
   else arrived();
   addEventListener("click", (e) => {
     const target = thing(e.target);
     if (!target.matches?.("input:not([type=checkbox]):not([type=radio]), textarea, select")) keep({ does: "click", ...on(target), what: words(target) });
+  }, true);
+  // A right click, as a card's menu opens on a board.
+  addEventListener("contextmenu", (e) => {
+    const target = thing(e.target);
+    keep({ does: "click", ...on(target), what: words(target), button: "right" });
   }, true);
   // Words typed where the caret was put, not at the end, are kept as typed there, and what's typed after them too:
   // what a fix to where the caret goes is about. Anywhere else, the field's words once typed are what's kept.
@@ -237,8 +252,8 @@ Drive it with your own tool over its debugging port, http://localhost:${debuggin
   agent-browser --cdp ${debugging} snapshot
   or Playwright: chromium.connectOverCDP("http://localhost:${debugging}"), then its first context's page
   or Playwright MCP: --cdp-endpoint http://localhost:${debugging}
-${went ? `${went}\n` : ""}When you're looking at what was asked for: playthrough moment "<what's there>"
-Ctrl+C ends it, and gives back what was made. playthrough as again starts this browser again from a fresh start.`);
+${went ? `${went}\n` : ""}When you've just done what shows the change: playthrough moment "<what's there>"
+Leave it running: playthrough wait stops it when you hand back, and playthrough as again starts it again, fresh.`);
   await new Promise(() => {});
 }
 
@@ -284,7 +299,7 @@ async function startAgain(repo: Repo, person: string, began: number, at?: string
       return (
         console.log(`Started again in ${((Date.now() - began) / 1000).toFixed(1)}s, in the browser open already: signed in as ${person}, on ${now.url}, from a fresh start made by playthrough/setup.ts:
   ${JSON.stringify(now.setup)}
-${again.went ? `${again.went}\n` : ""}Your tool stays attached at http://localhost:${now.debugging}. When you're looking at what was asked for: playthrough moment "<what's there>"`),
+${again.went ? `${again.went}\n` : ""}Your tool stays attached at http://localhost:${now.debugging}. When you've just done what shows the change: playthrough moment "<what's there>"`),
         true
       );
   }
