@@ -7,10 +7,10 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { Refused, type Did, type Scene } from "@playthrough/review";
+import { Refused, type Scene } from "@playthrough/review";
 import { changesByThemselves, type Recorded as Compared } from "./compare.ts";
 import { keepRunning } from "./app.ts";
-import { glimpsesOf, readingsOf, type Failed, type Recorded, type Written } from "./reporter.ts";
+import { glimpsesOf, readingsOf, type Failed, type Recorded } from "./reporter.ts";
 import { repo, type App } from "./repo.ts";
 import { giveBackLeft, setupIn } from "./setup.ts";
 
@@ -18,24 +18,12 @@ import { giveBackLeft, setupIn } from "./setup.ts";
 export const recorder = join(dirname(createRequire(import.meta.url).resolve("@rrweb/record")), "record.umd.min.cjs");
 
 // What the run needs to know, passed to Playwright whole: where the scenes are and which of them to run, the folder the
-// recordings go to, the app, rrweb's recorder, which goes into every page, whether it's Before, and the recordings the
-// round has already, so a scene added to it is named apart from them. And when the review started, which every round's
-// clock starts from, where Playwright writes what it keeps of a failed scene, when it's for the agent to see, and on
-// Before, what each scene's actions were done on in the round it's recorded with, by the scene's name.
-export type Run = { scenes: string; only?: string[]; longest?: string[]; folder: string; results?: string; app: App; root: string; recorder: string; before: boolean; taken: string[]; started: string; fork?: ForkRun; doneInRound?: Record<string, DoneOn> };
+// recordings go to, the app, rrweb's recorder, which goes into every page, and when the change started, which every
+// hand-back's clock starts from.
+export type Run = { scenes: string; only?: string[]; folder: string; app: App; root: string; recorder: string; started: string };
 
 // What an action was done on, as a person points at it: its role and name, as getByRole finds it.
 export type On = { role: string; name: string };
-// What a scene's actions were done on, in order, by the step they're in: nothing, for something with no role or name.
-export type DoneOn = Record<string, (On | null)[]>;
-
-// A note made in the app run again on the app as it is now: the scene recorded to where the person took it over (a step,
-// and how far into it), then the fork the agent wrote of what they did there, for those notes (test.fork).
-export type ForkRun = { scene: string; step: string; actions?: number; notes: string[] };
-// How far it got, in seconds of its recording: when the fork began, and each of its steps' start; the fork's name, or
-// none where the agent hasn't written one; and where it failed, in Playwright's words.
-export type ForkRan = { from: number; fork?: string; steps: { title: string; at: number }[]; failed?: { at?: string; why: string } };
-export const FORK_RAN = "fork.json";
 
 // What a dev server draws over the app of its own, as Next's "N" badge, isn't the app: it's hidden in every page a scene
 // records and every page of the app taken over, never in the app itself. A sheet the page adopts, not an element in it,
@@ -46,16 +34,14 @@ export const QUIET_DEV_CHROME = `{
   document.adoptedStyleSheets = [...document.adoptedStyleSheets, quiet];
 }`;
 
-// Where a person takes a scene over: the end of one of its steps, or of the whole scene, or within a step, after as many of
-// its actions. Taken
-// over on a note's fork, the fork written for those notes, run before it's handed over, and what they did there, kept;
-// where they were on the round they made it, with no fork yet, what they did there, done before it's handed over.
-export type To = { scene: string; step?: string; actions?: number; did?: Did[]; notes?: string[] };
+// Where a person steps into a scene: the end of one of its steps, or of the whole scene, or within a step, after as many
+// of its actions.
+export type To = { scene: string; step?: string; actions?: number };
 // The scene's page there, as a browser keeps it: its address, its cookies, what the app kept in the browser, how far it
 // was scrolled, how far its clock, the recordings', is ahead of the real one, in milliseconds, and what its browser said
 // of itself. And partway through a step, the actions to do again there, which changed only what was in the page's
-// memory. Taken over on a person's branch, what they did there, done again after them.
-export type Handed = { url: string; cookies: Cookie[]; local: Record<string, string>; session: Record<string, string>; scroll: { x: number; y: number }; clock: number; browser: Browser; again?: Action[]; did?: Did[] };
+// memory.
+export type Handed = { url: string; cookies: Cookie[]; local: Record<string, string>; session: Record<string, string>; scroll: { x: number; y: number }; clock: number; browser: Browser; again?: Action[] };
 // Whether it asked for dark and for little motion, and the languages it read in.
 export type Browser = { dark: boolean; still: boolean; languages: string[]; touch?: boolean };
 // An action of the scene's, done again in the person's browser: what it did, on the element at that path, with what.
@@ -63,14 +49,10 @@ export type Action = { does: string; on: string; with?: string | boolean | strin
 export type Cookie = { name: string; value: string; path: string; expires: number; httpOnly: boolean };
 // Set in Playthrough before it loads what scenes import, so test() there keeps each scene to take over (following.ts).
 export const ALONGSIDE = Symbol.for("playthrough: scenes taken over here");
-// What a scene's file says, as a Playwright annotation, when its steps do something outside the app that running it again
-// would do again: test("Invite Sam", { annotation: { type: "reaches outside", description: "sends Sam an email" } }, …).
-export const REACHES_OUTSIDE = "reaches outside";
 // A scene pauses this long after each action, so its result can be seen: the pace every recording is watched at.
 export const BEAT = 650;
-// How long an action waits for what it acts on. On Before, a scene that shows what's new stops at the first thing the app
-// as it was doesn't have, so that's given up on in seconds, rather than waited for as a slow page is.
-export const waitsFor = ({ before }: Pick<Run, "before">) => (before ? 3000 : 10_000);
+// How long an action waits for what it acts on.
+export const WAITS = 10_000;
 
 export const isScene = (name: string) => /\.[cm]?[jt]s$/.test(name);
 
@@ -96,18 +78,18 @@ function inMemory(number: number, recorded: Ran["recorded"]): Compared {
   return { number, scenes, readings: async (scene) => JSON.parse(file(readingsOf(scene)).toString()), glimpses, picture: async (name) => file(name) };
 }
 
-// What a run recorded, what failed, and the file each scene is written in, as it was when it ran, by the scene's name.
-export type Ran = { recorded: { scene: Scene; files: { name: string; bytes: Buffer }[]; wrote?: string; doneOn?: DoneOn }[]; failed: Failed[]; written: Record<string, Written> };
+// What a run recorded, and what failed.
+export type Ran = { recorded: { scene: Scene; files: { name: string; bytes: Buffer }[] }[]; failed: Failed[] };
 
 export async function runOnce(run: Omit<Run, "folder">): Promise<Ran> {
   const folder = await mkdtemp(join(tmpdir(), "playthrough-"));
   try {
     const ran = await playwright({ ...run, folder });
     const text = await readFile(join(folder, "scenes.json"), "utf8").catch(() => undefined);
-    const { recorded, failed, written }: { recorded: Recorded[]; failed: Failed[]; written: Record<string, Written> } = text ? JSON.parse(text) : { recorded: [], failed: [], written: {} };
+    const { recorded, failed }: { recorded: Recorded[]; failed: Failed[] } = text ? JSON.parse(text) : { recorded: [], failed: [] };
     if (!ran && !failed.length) throw new Refused(["\nIt didn't run, for the reason Playwright gives above. Fix that and run this again."]);
     const withFiles = ({ files, ...recorded }: Recorded) => Promise.all(files.map(async (name) => ({ name, bytes: await readFile(join(folder, name)) }))).then((files) => ({ ...recorded, files }));
-    return { recorded: await Promise.all(recorded.map(withFiles)), failed, written };
+    return { recorded: await Promise.all(recorded.map(withFiles)), failed };
   } finally {
     await rm(folder, { recursive: true });
   }

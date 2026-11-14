@@ -1,16 +1,14 @@
 // Turns each recorded test into a scene: its name, where each step starts in the recording, and how long it is, with what
 // was read at the end of each step; and names each one that failed and the step it failed at. It runs inside Playwright,
-// so it writes them down, in the folder the run gave it, and says how each went as it ends, in a line of its own: Playwright's
-// list ticked a scene whose checks Before let go by, and printed a stack for one that stopped where it should.
+// so it writes them down, in the folder the run gave it, and says how each went as it ends, in a line of its own, where
+// Playwright's list printed a stack.
 
-import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import type { Reporter, TestCase, TestError, TestResult, TestStep } from "@playwright/test/reporter";
 import type { Glimpse, Reading } from "@playthrough/page";
 import { quote, type Scene, type Reviews } from "@playthrough/review";
 import { assetsOf, type Assets } from "./assets.ts";
-import type { DoneOn } from "./scenes.ts";
 
 export const RECORDING = "playthrough recording";
 export const READINGS = "playthrough readings";
@@ -20,10 +18,7 @@ export const PICTURE = "playthrough picture";
 export const PICTURED = "playthrough frame";
 export const ASSETS = "playthrough assets";
 export const PERSON = "playthrough person";
-export const HANDS = "playthrough hands";
 export const ACTIONS = "playthrough actions";
-export const WROTE = "playthrough wrote";
-export const DONE_ON = "playthrough done on";
 export const HOLD = 1500; // the end of a scene holds, so its last state can be seen
 
 // A scene's readings go beside the round's recordings, under the same name, each picture in a folder of its own.
@@ -55,36 +50,18 @@ export function firstLine(said: string) {
 export type Failed = { scene: string; at?: string; why?: string; broken?: true };
 // What Playwright says when the browser stops a scene, not the app: the page crashed or closed, or the app stopped answering.
 const BROKEN = /Page crashed|Target crashed|Target page, context or browser has been closed|net::ERR_CONNECTION_REFUSED/;
-// And the first request it sent the app that changes what it holds, as its method and path, and what each of its actions
-// was done on, for Before to follow.
-export type Recorded = { scene: Scene; files: string[]; wrote?: string; doneOn?: DoneOn };
-// The scene handed on to someone else, on this machine's clock.
-export type Hand = { at: number; person: string };
+export type Recorded = { scene: Scene; files: string[] };
 // An action as it was done: what it was, as another recording of the scene knows the same action, and when it began and
 // was done, by this machine's clock.
 export type Acted = { action: string; began: number; at: number };
-// The file a scene is written in, in the review's scenes folder, and a hash of what it said as the scene ran: Before runs a
-// scene again once its file has changed.
-export type Written = { file: string; hash: string };
-const hashOf = (file: string) => {
-  try {
-    return createHash("sha256").update(readFileSync(file)).digest("hex");
-  } catch {
-    return undefined;
-  }
-};
 type Event = { timestamp: number; [field: string]: unknown };
 
 export default class Scenes implements Reporter {
   #folder: string;
-  #scenes: string;
-  #taken: string[];
   #ran: { file: string; line: number; recorded?: Recorded; failed?: Failed }[] = [];
 
-  constructor({ folder, scenes, taken }: { folder: string; scenes: string; taken: string[] }) {
+  constructor({ folder }: { folder: string }) {
     this.#folder = folder;
-    this.#scenes = scenes;
-    this.#taken = taken;
   }
 
   onTestEnd(test: TestCase, result: TestResult) {
@@ -101,13 +78,9 @@ export default class Scenes implements Reporter {
     };
     const steps = result.steps.filter((step) => step.category === "test.step");
     const person = result.attachments.find((attachment) => attachment.name === PERSON)?.body?.toString();
-    const wrote = result.attachments.find((attachment) => attachment.name === WROTE)?.body?.toString();
-    const doneOn = result.attachments.find((attachment) => attachment.name === DONE_ON)?.body?.toString();
     // Who it's done as, if its file or the app's setup said.
     const as = (made: Recorded) => {
       if (person) made.scene.person = person;
-      if (wrote) made.wrote = wrote;
-      if (doneOn) made.doneOn = JSON.parse(doneOn);
       return made;
     };
     const went = (how: string) => console.log(`  ${quote(test.title)}: ${how}`);
@@ -168,12 +141,7 @@ export default class Scenes implements Reporter {
 
   onEnd() {
     const ran = this.#ran.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line);
-    const written: Record<string, Written> = {};
-    for (const { file, recorded, failed } of ran) {
-      const hash = hashOf(file);
-      if (hash) written[recorded?.scene.name ?? failed!.scene] = { file: relative(this.#scenes, file), hash };
-    }
-    writeFileSync(join(this.#folder, "scenes.json"), JSON.stringify({ recorded: ran.flatMap((run) => run.recorded ?? []), failed: ran.flatMap((run) => run.failed ?? []), written }));
+    writeFileSync(join(this.#folder, "scenes.json"), JSON.stringify({ recorded: ran.flatMap((run) => run.recorded ?? []), failed: ran.flatMap((run) => run.failed ?? []) }));
   }
 
   printsToStdio() {
@@ -183,7 +151,7 @@ export default class Scenes implements Reporter {
   // Named after the scene, so the files read as what they are.
   #fileFor(name: string): string {
     const base = name.toLowerCase().normalize("NFKD").replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "scene";
-    const taken = new Set([...this.#taken, ...this.#ran.map((run) => run.recorded?.scene.recording)]);
+    const taken = new Set(this.#ran.map((run) => run.recorded?.scene.recording));
     for (let n = 1; ; n++) {
       const file = n === 1 ? `${base}.json` : `${base}-${n}.json`;
       if (!taken.has(file)) return file;

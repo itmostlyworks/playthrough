@@ -65,7 +65,7 @@ async function run(repo: Repo, id: string, to: To, files: string[], written: num
   if (waiting?.aborted) stop();
   else waiting?.addEventListener("abort", stop, { once: true });
   try {
-    const ran = await runAlongside(page, { request, baseURL: app.url, started, setup, borrowed: repo.borrowed, person: kept.use.person }, kept.body, orders, kept.forks).catch(
+    const ran = await runAlongside(page, { request, baseURL: app.url, started, setup, borrowed: repo.borrowed, person: kept.use.person }, kept.body, orders).catch(
       (error) => ({ stopped: { why: firstLine(String(error?.message ?? error)) } }) as Awaited<ReturnType<typeof runAlongside>>,
     );
     return { ...ran, late };

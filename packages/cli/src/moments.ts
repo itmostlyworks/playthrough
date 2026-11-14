@@ -83,7 +83,7 @@ export async function moment(repo: Repo, words: string, named?: string, last?: n
   const way = { words, person: browser.person, did: done, setup: browser.setup, about: there.about, scrolled: there.scrolled, from };
   writeFileSync(join(trying, file), sceneOf({ ...way, tried: true }));
   console.log(`Running the way there again, from a fresh start, as ${browser.person}…`);
-  const ran = await runOnce({ scenes: trying, only: [words], app: await repo.app(), root: repo.root, recorder, before: false, taken: [], started: review.started });
+  const ran = await runOnce({ scenes: trying, only: [words], app: await repo.app(), root: repo.root, recorder, started: review.started });
   const notKept = (why: string) => {
     rmSync(trying, { recursive: true, force: true });
     return new Refused([`Not kept: run again from a fresh start, ${why}`, "Tell the person only about moments that were kept. Fix what's said, or get there another way, and mark it again."]);
@@ -105,7 +105,7 @@ export async function moment(repo: Repo, words: string, named?: string, last?: n
   // Run once more, what changes by itself, as a caret blinking or a time the server stamps, is known, and left out
   // whenever it's compared again.
   console.log("Running it once more, to see what changes by itself…");
-  const twice = await runOnce({ scenes: trying, only: [words], app: await repo.app(), root: repo.root, recorder, before: false, taken: [], started: review.started });
+  const twice = await runOnce({ scenes: trying, only: [words], app: await repo.app(), root: repo.root, recorder, started: review.started });
   if (!twice.recorded.length) throw notKept(`it got there once, but not a second time${twice.failed[0]?.why ? `: ${twice.failed[0].why}` : ""}. Make what it starts from the same each time, in playthrough/setup.ts.`);
   await markUnsteady(roundInProgress(review), ran.recorded, twice.recorded);
   // Its first and last frames, in both runs, for whether it changes anything you can see.
@@ -344,7 +344,7 @@ export async function again(repo: Repo) {
   if (!moments.length) throw new Refused(["There are no moments to run again. Mark one: playthrough as <person>, then playthrough moment \"<what's there>\""]);
   const number = roundInProgress(review);
   console.log(`Running ${moments.length > 1 ? `the ${moments.length} moments` : "the moment"} again, on the code as it is now…`);
-  const ran = await runOnce({ scenes: repo.scenes(id), app: await repo.app(), root: repo.root, recorder, before: false, taken: [], started: review.started });
+  const ran = await runOnce({ scenes: repo.scenes(id), app: await repo.app(), root: repo.root, recorder, started: review.started });
   for (const { files } of ran.recorded) for (const { name, bytes } of files) await repo.reviews.saveFile(id, number, name, bytes);
   // In the order they were handed back, what each is about as it was marked; one new since, after them.
   const order = (scene: Scene) => handedBack.scenes.findIndex((one) => one.name === scene.name) >>> 0;
