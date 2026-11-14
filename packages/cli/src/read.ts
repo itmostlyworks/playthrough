@@ -127,8 +127,27 @@ export function read() {
   function called(element: Element): { role: string; name: string } | undefined {
     const role = roleOf(element);
     if (!role || !ROLES.test(role)) return undefined;
-    const name = nameOf(element, role);
+    const name = nameOf(element, role) || (UNLABELLED.test(role) ? beside(element) : "");
     return /group$/.test(role) && !name ? undefined : { role, name };
+  }
+
+  // A switch, box to tick or field the page gives no name, called by the title of the setting it's under, as a person
+  // calls it “the Card numbers switch”: the nearest heading or label before it, or else the nearest words. So it can be
+  // pointed at and noted on, rather than what holds it.
+  const UNLABELLED = /^(switch|checkbox|radio|slider|textbox|searchbox|combobox|spinbutton)$/;
+  const TITLES = "h1, h2, h3, h4, h5, h6, [role=heading], label, legend, dt";
+  function beside(element: Element): string {
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    walker.currentNode = element;
+    let nearest = "";
+    for (let node: Node | null, seen = 0; (node = walker.previousNode()) && seen < 6; ) {
+      const words = plain(node.textContent ?? "");
+      if (!words) continue;
+      seen++;
+      nearest ||= words;
+      if (node.parentElement?.closest(TITLES)) return cut(words, 60);
+    }
+    return cut(nearest, 60);
   }
 
   // A part of the page that names itself, a section or side panel with a label of its own, drawn or not (Spliit's “Who
