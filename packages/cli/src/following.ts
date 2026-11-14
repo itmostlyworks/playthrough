@@ -11,23 +11,28 @@ import { ALONGSIDE, isScene, type Handed, type To } from "./scenes.ts";
 import { firstLine } from "./reporter.ts";
 import type { Repo } from "./repo.ts";
 import { giveBackLeft, setupIn, type Made, type Setup } from "./setup.ts";
-import type { Kept } from "./test.ts";
+import type { Kept, Orders } from "./test.ts";
 
 // Runs one scene to where a person steps in, on the app as it is now: quickly and unrecorded, from what every scene
-// starts from, so they carry on from a fresh copy of the moment rather than a picture of it.
-// With what the run made for it (setup.ts), which is the app the person has, theirs to give back.
-export async function runTo(repo: Repo, id: string, to: To): Promise<{ handed: Handed; made?: Made }> {
-  const where = !to.step ? "its end" : to.actions ? `action ${to.actions} of ${quote(to.step)}` : to.actions === 0 ? `the start of ${quote(to.step)}` : `the end of ${quote(to.step)}`;
+// starts from, so they carry on from a fresh copy of the moment rather than a picture of it. Never longer than a
+// minute, and stopped once nobody's waiting for it.
+// With what the run made for it (setup.ts), which is the app the person has, theirs to give back; and where the
+// moment's own checks at its end don't hold now, what they say.
+export async function runTo(repo: Repo, id: string, to: To, waiting?: AbortSignal): Promise<{ handed: Handed; made?: Made; checked?: string }> {
   const { files, written } = await writtenOf(repo, id);
   const began = Date.now();
-  const { handed, stopped, made } = await run(repo, id, to, files, written);
-  if (handed) {
+  const { handed, stopped, made, checked, late } = await run(repo, id, to, files, written, waiting);
+  if (handed && !waiting?.aborted) {
     took.set(timeOf(repo, id, to, written), Date.now() - began);
-    return { handed, made };
+    return { handed, made, checked };
   }
   void made?.giveBack();
-  throw new Refused([`${quote(to.scene)} didn't get to ${where}${stopped ? `: ${stoppedAt(stopped)}` : "."}`]);
+  if (waiting?.aborted) throw new Refused(["Nobody's waiting for it any more."]);
+  if (late) throw new Refused([`This moment didn't open within ${LONGEST / 1000} seconds: the app was still on its way there. Step in again; if it's as slow again, the app may be stuck, so look at what it says where it runs.`]);
+  throw new Refused([`This moment can't be opened on the app as it is now: ${stopped ? stoppedAt(stopped) : "its way there ended before it got there."} Say so in a note, so the agent marks it again.`]);
 }
+// From the run's start: Kan's longest way there takes ten seconds, and its first, while Next compiles its pages, twenty.
+const LONGEST = 60_000;
 
 // How long until a moment asked for is ready, in milliseconds: as long as the last run to it took, for scenes and a
 // setup written as they are now. Nothing until one has got there.
@@ -39,7 +44,7 @@ const took = new Map<string, number>();
 const timeOf = (repo: Repo, id: string, { scene, step, actions }: To, written: number) => JSON.stringify([repo.root, id, scene, step, actions, written]);
 const key = (repo: Repo, id: string) => `${repo.root}\n${id}`;
 
-async function run(repo: Repo, id: string, to: To, files: string[], written: number) {
+async function run(repo: Repo, id: string, to: To, files: string[], written: number, waiting?: AbortSignal) {
   const app = await repo.app();
   const { started } = await repo.reviews.get(id);
   const { runAlongside, pageFor } = await alongside();
@@ -50,16 +55,23 @@ async function run(repo: Repo, id: string, to: To, files: string[], written: num
   // action that can't happen fails in seconds. What else the file says with test.use, Playwright leaves aside.
   const { context, page } = await pageFor(await browser(), app.url, kept.use, setup.use);
   context.setDefaultTimeout(10_000);
-  context.setDefaultNavigationTimeout(0);
+  context.setDefaultNavigationTimeout(30_000);
   quickArrivals(page);
   const request = await requests.newContext({ baseURL: app.url });
+  const orders: Orders = { to };
+  let late = false;
+  const stop = () => ((orders.stopped = true), void context.close().catch(() => {}));
+  const limit = setTimeout(() => ((late = true), stop()), LONGEST);
+  if (waiting?.aborted) stop();
+  else waiting?.addEventListener("abort", stop, { once: true });
   try {
-    return await runAlongside(page, { request, baseURL: app.url, started, setup, borrowed: repo.borrowed, person: kept.use.person }, kept.body, { to }, kept.forks).catch((error) => ({
-      stopped: { why: firstLine(String(error?.message ?? error)) },
-      handed: undefined,
-      made: undefined,
-    }));
+    const ran = await runAlongside(page, { request, baseURL: app.url, started, setup, borrowed: repo.borrowed, person: kept.use.person }, kept.body, orders, kept.forks).catch(
+      (error) => ({ stopped: { why: firstLine(String(error?.message ?? error)) } }) as Awaited<ReturnType<typeof runAlongside>>,
+    );
+    return { ...ran, late };
   } finally {
+    clearTimeout(limit);
+    waiting?.removeEventListener("abort", stop);
     void Promise.all([context.close(), request.dispose()]).catch(() => {});
   }
 }
@@ -129,6 +141,6 @@ function loadedOf(repo: Repo, id: string, files: string[], written: number) {
 
 const sweptFor = new Set<string>();
 
-// Where a scene taken over stopped, and why, in Playwright's words: read in the viewer too, where there's no terminal
-// above it to point to.
+// Where the way there stopped, and why, in Playwright's words: read in the viewer, where there's no terminal above it to
+// point to.
 const stoppedAt = ({ at, why }: { at?: string; why?: string }) => `it stopped${at ? ` at ${quote(at)}` : ""}${why ? `, where Playwright says “${why}”` : ""}.`;

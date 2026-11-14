@@ -18,7 +18,7 @@ import { readyIn } from "./following.ts";
 import { everyCopy, machine } from "./machine.ts";
 import { keepNamed, type Assets } from "./assets.ts";
 import { frameOf, stillOf, type Framed } from "./frames.ts";
-import { getReady } from "./take-over.ts";
+import { getReady, waitedFor } from "./take-over.ts";
 import { setupIn } from "./setup.ts";
 import { agentWaiting } from "./wait.ts";
 
@@ -258,12 +258,13 @@ async function live(repo: Repo, id: string, address: string, request: IncomingMe
   response.end();
 }
 
-// A moment of a scene made ready to take over: the viewer asks as Take over is pressed where the playhead rests, and
-// shows the app there, through Playthrough, at the port and moment this answers with.
+// A moment stepped into: the viewer asks as Step in is pressed where the playhead rests, and shows the app there, through
+// Playthrough, at the port and moment this answers with; and where the moment's checks at its end don't hold on the app
+// as it is now, what they say. A tab closed or reloaded meanwhile stops it.
 async function takeOver(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
   const { scene, step, actions, did, notes } = await body<{ scene: string; step?: string; actions?: number; did?: Did[]; notes?: string[] }>(request);
-  const { port, moment } = await getReady(repo, id, scene, { step, actions, did, notes });
-  json(response, 200, { port, moment });
+  const { port, moment, checked } = await getReady(repo, id, scene, { step, actions, did, notes, waiting: waitedFor(response) });
+  json(response, 200, { port, moment, ...(checked && { checked }) });
 }
 
 // What a person did in the app, taken over, kept as a recording of its own: the scene as it was recorded up to where they

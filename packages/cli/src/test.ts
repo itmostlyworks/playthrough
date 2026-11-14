@@ -513,7 +513,7 @@ export async function runAlongside(
   body: Body,
   orders: Orders,
   forks: Forked[] = [],
-): Promise<{ handed?: Handed; stopped?: Pick<Failed, "at" | "why">; made?: Made }> {
+): Promise<{ handed?: Handed; stopped?: Pick<Failed, "at" | "why">; made?: Made; checked?: string }> {
   // Each page the run goes on, readied as the scene's was when it was recorded, and what it writes noted.
   const readied = async (page: Page) => {
     const rest = await watchRest(page);
@@ -551,7 +551,15 @@ export async function runAlongside(
       return { handed: scene.handed, made };
     } catch (error) {
       if (error instanceof Stopped || orders.stopped) return { handed: scene.handed, made };
-      return { stopped: { at: scene.step, why: firstLine(String((error as Error)?.message ?? error)) }, made };
+      const why = firstLine(String((error as Error)?.message ?? error));
+      // Everything the moment does is done, and only a check of how it ended fails: that's the place a person steps in
+      // to look at, so it's handed over as it is, with what didn't hold.
+      const { to } = orders;
+      if (isCheck(error) && scene.step && to.actions === undefined && (!to.step || to.step === scene.step)) {
+        await handOver(scene, to);
+        return { handed: scene.handed, made, checked: why };
+      }
+      return { stopped: { at: scene.step, why }, made };
     } finally {
       for (const context of opened) await context.close().catch(() => {});
     }
@@ -568,6 +576,9 @@ async function reached(scene: Taking, step?: string, actions?: number) {
   if (where === "here") await handOver(scene, to);
   if (step) throw new Stopped();
 }
+
+// A check's failure, as expect throws it, rather than an action's.
+const isCheck = (error: unknown) => !!error && typeof error === "object" && "matcherResult" in error;
 
 function against(passed: string[], step: string | undefined, actions: number | undefined, to: To): "on" | "here" | "past" {
   if (!step) return to.step ? "past" : "here";
