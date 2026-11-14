@@ -69,6 +69,17 @@ export function waitingForTheAgent(review: Review): string[] {
   return asking(review.sends.filter((send) => !answered(send)));
 }
 
+// The send that said the change is done, while it stands: done is the person's latest word, on the moments as last handed
+// back, saying every one of them looks good and nothing more. Whatever comes after it opens the change again: a note or a
+// reply sent, or the moments handed back anew. Asked about one person, it's their latest word.
+export function saidDone(review: Review, by?: string): Send | undefined {
+  const handedBack = review.rounds.findLast((round) => round.finished);
+  const last = review.sends.filter((send) => by === undefined || send.by === by).at(-1);
+  if (!handedBack || last?.round !== handedBack.number) return undefined;
+  const nothingMore = !last.notes.length && !last.verdicts.length && !last.replies?.length && !last.takenBack?.length;
+  return nothingMore && handedBack.scenes.every((scene) => last.looksGood.includes(scene.name)) ? last : undefined;
+}
+
 // What asks for an answer in some sends: a new note, or one whose answer was last replied to rather than said to look
 // good. A note has one state for everyone, so the last word on it decides, whoever said it.
 function asking(sends: Send[]): string[] {

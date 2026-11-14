@@ -17,7 +17,7 @@ import { chromium, type Page } from "@playwright/test";
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import type { Glimpse, Reading } from "@playthrough/page";
-import { allNotes, conversation, list, MOST_SHOWN, notesToAnswer, shownFrom, quote, Refused, roundInProgress, startOf, toAccountFor, type Change, type Review, type Round, type Scene } from "@playthrough/review";
+import { allNotes, conversation, list, MOST_SHOWN, notesToAnswer, saidDone, shownFrom, quote, Refused, roundInProgress, startOf, toAccountFor, type Change, type Review, type Round, type Scene } from "@playthrough/review";
 import { agent } from "./agent.ts";
 import { browserFile, stopBrowser, type Browser } from "./as.ts";
 import { changeHere, momentNamed, momentsOf } from "./change.ts";
@@ -445,14 +445,15 @@ export async function wait(repo: Repo) {
   console.log("Waiting for the person…");
   for (;;) {
     // While it waits, the person's page says an agent is listening.
-    const done = await listening(repo, id);
-    review = await reviews.wait(id, (review) => review.sends.some((send) => !review.taken.some((taken) => taken.send === send.id))).finally(done);
+    const heard = await listening(repo, id);
+    review = await reviews.wait(id, (review) => review.sends.some((send) => !review.taken.some((taken) => taken.send === send.id))).finally(heard);
     const taken = await reviews.take(id);
     review = await reviews.get(id);
     const number = roundInProgress(review);
     const asking = notesToAnswer(review, number);
     if (asking.length) return sayNotes(repo, review, number, asking, taken[0]?.by);
-    if (taken.some((send) => send.looksGood.length)) return console.log(`\n${taken[0]!.by} says every moment looks good: the change is done. Nothing more to do.`);
+    const done = saidDone(review);
+    if (done) return console.log(`\n${done.by} says every moment looks good: the change is done. Nothing more to do.`);
   }
 }
 
