@@ -1325,7 +1325,8 @@ function MomentView(props: {
             <>
               <NotePicture frame={frames[note.id]} sent={isSent} />
               {/* On the side toward the recording, which the screen's edge never fades. */}
-              {fresh && <span className="absolute top-1.5 left-1.5 rounded-full bg-fg px-1.5 text-[10.5px] leading-4 font-medium text-ground">New</span>}
+              {/* At rest; come forward, its words say it. */}
+              {fresh && <span className={`absolute top-1.5 left-1.5 rounded-full bg-fg px-1.5 text-[10.5px] leading-4 font-medium text-ground transition-opacity duration-200 ease-calm ${forward ? "opacity-0" : ""}`}>New</span>}
             </>
           }
           words={<NoteWords words={words} stands={stands} fresh={fresh} />}
