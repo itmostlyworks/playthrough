@@ -1168,6 +1168,41 @@ function MomentView(props: {
       );
     });
 
+  // What's said by a pin: the note being written, or the one open. On a phone, under the bar, where there's room.
+  const cards = (
+    <>
+          {writing && <NoteCard at={(!writing.note.on?.app && pinOf(placed[writing.note.id])) || writing.spot} frame={frame} under={phone}><Write onSave={save} onDrop={() => setWriting(undefined)} /></NoteCard>}
+          {!writing && shownOpen && (!opened || shownOpen.note.id === opened.note.id) && (
+            <NoteCard key={shownOpen.note.id} at={pinOf(openAt[shownOpen.note.id]) ?? { x: 24, y: 24 }} frame={frame} closing={!opened} under={phone}>
+              <div className="min-h-0 flex-1 overflow-y-auto px-1">
+                {shownOpen.sent ? <Turns you={you} turns={conversation(review, shownOpen.note.id)} /> : <Turns you={you} turns={[]} unsent={shownOpen.note.words} />}
+              </div>
+              {shownOpen.sent && (
+                <div className="mt-2 border-t border-line pt-2">
+                  <Write
+                    key={shownOpen.note.id}
+                    placeholder="Reply"
+                    rows={2}
+                    focus={false}
+                    start={replies.find((one) => one.note === shownOpen.note.id)?.words ?? ""}
+                    onSave={(words) => (setReplies((all) => [...all.filter((one) => one.note !== shownOpen.note.id), { note: shownOpen.note.id, words }]), setOpen(undefined))}
+                    onDrop={() => setOpen(undefined)}
+                  />
+                </div>
+              )}
+              {!shownOpen.sent && (
+                <div className="mt-2 flex items-center gap-2 px-1 text-xs text-soft">
+                  <span>Sent with Send on the list</span>
+                  <button className="ml-auto rounded-md px-1.5 py-0.5 hover:bg-hover hover:text-fg" onClick={() => (setNotes((all) => all.filter((one) => one.id !== shownOpen.note.id)), setOpen(undefined))}>
+                    Remove
+                  </button>
+                </div>
+              )}
+            </NoteCard>
+          )}
+    </>
+  );
+
   const momentsEdge = (
     <Edge side="left" label="Moments" frame={frame} quiet={!!live?.shown} phone={phone} showing={scene.name}>
       {momentTiles}
@@ -1300,35 +1335,7 @@ function MomentView(props: {
           <span ref={pill} aria-hidden className={`pointer-events-none absolute top-0 left-0 z-30 transition-opacity duration-150 ease-calm ${aimingNote && aiming ? "" : "opacity-0"}`}>
             <span className={TAG}>Note on this</span>
           </span>
-          {writing && <NoteCard at={(!writing.note.on?.app && pinOf(placed[writing.note.id])) || writing.spot} frame={frame}><Write onSave={save} onDrop={() => setWriting(undefined)} /></NoteCard>}
-          {!writing && shownOpen && (!opened || shownOpen.note.id === opened.note.id) && (
-            <NoteCard key={shownOpen.note.id} at={pinOf(openAt[shownOpen.note.id]) ?? { x: 24, y: 24 }} frame={frame} closing={!opened}>
-              <div className="min-h-0 flex-1 overflow-y-auto px-1">
-                {shownOpen.sent ? <Turns you={you} turns={conversation(review, shownOpen.note.id)} /> : <Turns you={you} turns={[]} unsent={shownOpen.note.words} />}
-              </div>
-              {shownOpen.sent && (
-                <div className="mt-2 border-t border-line pt-2">
-                  <Write
-                    key={shownOpen.note.id}
-                    placeholder="Reply"
-                    rows={2}
-                    focus={false}
-                    start={replies.find((one) => one.note === shownOpen.note.id)?.words ?? ""}
-                    onSave={(words) => (setReplies((all) => [...all.filter((one) => one.note !== shownOpen.note.id), { note: shownOpen.note.id, words }]), setOpen(undefined))}
-                    onDrop={() => setOpen(undefined)}
-                  />
-                </div>
-              )}
-              {!shownOpen.sent && (
-                <div className="mt-2 flex items-center gap-2 px-1 text-xs text-soft">
-                  <span>Sent with Send on the list</span>
-                  <button className="ml-auto rounded-md px-1.5 py-0.5 hover:bg-hover hover:text-fg" onClick={() => (setNotes((all) => all.filter((one) => one.id !== shownOpen.note.id)), setOpen(undefined))}>
-                    Remove
-                  </button>
-                </div>
-              )}
-            </NoteCard>
-          )}
+          {!phone && cards}
           {/* What you can do here, across the recording's bottom edge, as on the older page. */}
           <div
             role="toolbar"
@@ -1362,7 +1369,8 @@ function MomentView(props: {
         {live?.problems && <p className="absolute bottom-0 left-1/2 max-w-[90%] -translate-x-1/2 translate-y-full rounded-md bg-surface px-3 py-1.5 text-xs text-amber-ink shadow-tip">{live.problems.join(" ")}</p>}
       </div>
       {/* Beside the recording, or under it on a phone: the change's moments, and this one's notes. */}
-      <div className={phone ? "grid min-h-0 content-start gap-6 overflow-y-auto px-4 pt-6 pb-8" : "contents"}>
+      <div className={phone ? "grid min-h-0 grid-cols-[minmax(0,1fr)] content-start gap-6 overflow-y-auto px-4 pt-6 pb-8" : "contents"}>
+        {phone && cards}
         {/* Tab reaches them as they read, left to right; on a phone, the notes come first, nearest what they're on. */}
         {!phone && momentsEdge}
         {(!phone || onEdge.length > 0) && (
@@ -1487,7 +1495,8 @@ const SIDE = "clamp(104px, 10vw, 160px)";
 const pinOf = (thing: Placed[string]) => thing && { x: thing.left + thing.width + 14, y: thing.top - 14 };
 
 // A card by a spot on the moment: beside it where there's room, never past the frame's sides.
-function NoteCard({ at, frame, closing, children }: { at: { x: number; y: number }; frame: React.RefObject<HTMLDivElement | null>; closing?: boolean; children: ReactNode }) {
+// Under: in the page's flow, as wide as it is, as on a phone.
+function NoteCard({ at, frame, closing, under, children }: { at: { x: number; y: number }; frame: React.RefObject<HTMLDivElement | null>; closing?: boolean; under?: boolean; children: ReactNode }) {
   const wide = frame.current?.clientWidth ?? 0;
   const width = Math.min(280, wide - 16);
   const left = at.x + 18 + width <= wide ? at.x + 18 : Math.max(8, at.x - 18 - width);
@@ -1497,8 +1506,8 @@ function NoteCard({ at, frame, closing, children }: { at: { x: number; y: number
   return (
     <div
       data-note-card
-      className={`absolute z-40 flex max-h-[min(70vh,calc(100%-16px))] animate-arrive flex-col rounded-xl bg-surface p-2 shadow-float transition-opacity duration-300 ease-calm ${closing ? "pointer-events-none opacity-0" : ""}`}
-      style={{ left, ...place, width }}
+      className={`${under ? "relative" : "absolute z-40 max-h-[min(70vh,calc(100%-16px))]"} flex animate-arrive flex-col rounded-xl bg-surface p-2 shadow-float transition-opacity duration-300 ease-calm ${closing ? "pointer-events-none opacity-0" : ""}`}
+      style={under ? undefined : { left, ...place, width }}
       onClick={(event) => event.stopPropagation()}
     >
       {children}
