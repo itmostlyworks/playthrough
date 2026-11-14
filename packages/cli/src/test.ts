@@ -16,8 +16,8 @@ import type { Did } from "@playthrough/review";
 import { ALONGSIDE, BEAT, QUIET_DEV_CHROME, REACHES_OUTSIDE, FORK_RAN, type Action, type DoneOn, type Handed, type On, type Run, type ForkRan, type ForkRun, type To } from "./scenes.ts";
 import { readPage, unhovered } from "./read.ts";
 import { repo } from "./repo.ts";
-import { ACTIONS, ASSETS, DONE_ON, firstLine, GLIMPSES, HANDS, HOLD, PERSON, PICTURE, READINGS, RECORDING, seconds, WROTE, type Failed, type Acted, type Hand } from "./reporter.ts";
-import { watchRest } from "./rest.ts";
+import { ACTIONS, ASSETS, DONE_ON, firstLine, GLIMPSES, HANDS, HOLD, OPENING, PERSON, PICTURE, READINGS, RECORDING, seconds, WROTE, type Failed, type Acted, type Hand } from "./reporter.ts";
+import { SETTLED, stillFor, watchRest } from "./rest.ts";
 import { changes, firstOf, make, personIn, setupIn, type Made, type Setup } from "./setup.ts";
 
 // The screens besides the laptop every scene is on unless it says otherwise: a phone, tapped, and a tablet. A scene takes
@@ -187,7 +187,7 @@ let pointer: { page: Page; x: number; y: number; handed?: boolean } | undefined;
 // the browser's own dialog shown during the action being done, until it's answered; what each action was done on, by
 // its step; what Playwright gave the scene, for a fork to carry on with; and running a note's fork, once it has begun, how
 // far it got.
-type Underway = { page: Page; events: { timestamp: number }[]; rest: () => Promise<void>; depth: number; readings: Omit<Reading, "picture">[]; glimpses: Glimpse[]; pictures: Buffer[]; actions: Acted[]; step?: string; inStep: number; hands: Hand[]; assets: (() => Promise<Assets>)[]; wrote?: string; dialog?: Promise<void>; doneOn: DoneOn; given?: Parameters<Body>[0]; forked?: ForkRan };
+type Underway = { page: Page; events: { timestamp: number }[]; rest: (still?: number) => Promise<void>; depth: number; readings: Omit<Reading, "picture">[]; glimpses: Glimpse[]; pictures: Buffer[]; opening?: Buffer; actions: Acted[]; step?: string; inStep: number; hands: Hand[]; assets: (() => Promise<Assets>)[]; wrote?: string; dialog?: Promise<void>; doneOn: DoneOn; given?: Parameters<Body>[0]; forked?: ForkRan };
 let underway: Underway | undefined;
 
 // What every scene starts from (setup.ts), loaded once a run.
@@ -297,6 +297,18 @@ const recorded = base.extend<{ person: string | undefined; rest: () => Promise<v
       if (!ended && !run.before) return;
       if (ended) {
         await last.waitForTimeout(HOLD);
+        // Changed while its end held, by what was done arriving late (a debounced search, a delayed message), it wasn't at
+        // rest: it ends once it is, read again there.
+        if ((await stillFor(last)) < HOLD - 100 && scene.readings.length) {
+          await scene.rest();
+          const at = seconds(Date.now() - (scene.events[0]?.timestamp ?? Date.now()));
+          await unhovered(last, async () => {
+            const { screen, things, items } = await readPage(last);
+            scene.readings.splice(-1, 1, { step: scene.readings.at(-1)!.step, at, screen, things, items });
+            scene.pictures.splice(-1, 1, await last.screenshot({ animations: "disabled", caret: "hide" }));
+          });
+          await last.waitForTimeout(HOLD);
+        }
         // Nothing changes while the end holds, so a last event makes the recording long enough to include it.
         await last.evaluate(() => (window as any).rrwebRecord.record.addCustomEvent("end", {}));
         await last.waitForTimeout(100);
@@ -313,6 +325,7 @@ const recorded = base.extend<{ person: string | undefined; rest: () => Promise<v
       if (scene.wrote) await testInfo.attach(WROTE, { body: scene.wrote, contentType: "text/plain" });
       await testInfo.attach(DONE_ON, { body: JSON.stringify(scene.doneOn), contentType: "application/json" });
       for (const picture of pictures) await testInfo.attach(PICTURE, { body: picture, contentType: "image/png" });
+      if (scene.opening) await testInfo.attach(OPENING, { body: scene.opening, contentType: "image/png" });
     },
     { auto: true },
   ],
@@ -638,6 +651,8 @@ const step = Object.assign(async (title: string, body: (info: unknown) => unknow
   if (taken) {
     const own = !taken.depth;
     if (own) Object.assign(taken, { step: title, actions: 0 });
+    // A moment's way there done, the person can take it over where it starts, before anything it shows is done.
+    if (own) await reached(taken, title, 0);
     taken.depth++;
     let done: unknown;
     try {
@@ -653,9 +668,22 @@ const step = Object.assign(async (title: string, body: (info: unknown) => unknow
   }
   const scene = underway;
   if (!scene || scene.depth) return playwrightStep(title, body, options);
+  // A step begins with the page at rest, so what was done before it, a moment's way there, has settled before what the
+  // step shows; and the scene's first step is pictured and glimpsed there, as the moment's first frame, then holds a beat
+  // before anything moves.
+  await scene.rest(scene.readings.length ? undefined : SETTLED);
   return playwrightStep(
     title,
     async (info) => {
+      if (!scene.readings.length && !scene.opening) {
+        const at = seconds(Date.now() - (scene.events[0]?.timestamp ?? Date.now()));
+        await unhovered(scene.page, async () => {
+          const { screen, things, items } = await readPage(scene.page);
+          scene.glimpses.push({ step: title, at, screen, things, items });
+          scene.opening = await scene.page.screenshot({ animations: "disabled", caret: "hide" });
+        });
+        if (pointer) await scene.page.waitForTimeout(BEAT);
+      }
       Object.assign(scene, { step: title, inStep: 0 });
       scene.forked?.steps.push({ title, at: seconds(Date.now() - (scene.events[0]?.timestamp ?? Date.now())) });
       scene.depth++;
