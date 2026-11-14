@@ -47,13 +47,18 @@ export function sceneOf({
   from?: number;
   tried?: boolean;
 }): string {
-  const written = did.map((done) => {
+  const written = did.map((done, i) => {
     const at = locatorOf(done);
+    // An address left before anything was done there, for another, is only the way the agent went: gone to, it was a
+    // page loaded for nothing, as Kan's sign-in before the board.
+    if (done.does === "goto" && did[i + 1]?.does === "goto") return "";
     const what = done.what && !done.role && !done.text ? ` // ${done.what.replace(/\n/g, " ")}` : "";
     const given = JSON.stringify(done.with ?? "");
     if (done.does === "goto") {
       const address = "`${baseURL}" + madeBySetup(String(done.with), setup) + "`";
-      // Gone to where an action led already, it's there; gone to directly, it goes.
+      // Where something done led, it's waited for, there by the time it's needed, or gone to; gone to directly, as the
+      // agent typed an address, it's gone to at once: waited for, it was three seconds of nothing.
+      if (!done.led) return `    await page.goto(${address});`;
       return `    await page.waitForURL(${address}, { timeout: 3000 }).catch(() => page.goto(${address}));`;
     }
     if (done.does === "fill") return `    await page.${at}.fill(${given});${what}`;
@@ -102,8 +107,8 @@ export function sceneOf({
   // The moment's first frame has what it does first, or for a still what it's about, comfortably in view.
   const first = did[from];
   const firstInView = first && first.does !== "goto" && first.on !== "body" && (first.role || first.text) ? [`    await test.inView(page.${locatorOf(first)}, { offScreen: true });`] : [];
-  const way = [...lines.slice(0, placed), ...still, ...(isStill ? comfortable : firstInView)].map((line) => line.slice(2));
-  const shown = lines.slice(placed);
+  const way = [...lines.slice(0, placed), ...still, ...(isStill ? comfortable : firstInView)].filter(Boolean).map((line) => line.slice(2));
+  const shown = lines.slice(placed).filter(Boolean);
   return `${tried ? `import { writeFileSync } from "node:fs";\n` : ""}import { expect, test } from "playthrough/test";
 
 test.use({ person: ${JSON.stringify(person)} });

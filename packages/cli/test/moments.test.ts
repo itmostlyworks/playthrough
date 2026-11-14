@@ -68,8 +68,12 @@ describe("the way to a moment", () => {
     assert.match(typed, /await expect\(page\.getByText\("Draft and post on Monday", \{ exact: true \}\)\)\.toBeVisible\(\);\n  \}\);/, "words are checked only for being there");
   });
 
-  test("goes to what setup made for this run, not the one the agent's browser had, and only where a click hasn't taken it already", () => {
-    assert.match(way, /waitForURL\(`\$\{baseURL\}\/boards\/\$\{setup\.board\}`, \{ timeout: 3000 \}\)\.catch\(\(\) => page\.goto\(`\$\{baseURL\}\/boards\/\$\{setup\.board\}`\)\)/);
+  test("goes to what setup made for this run, not the one the agent's browser had: at once where the agent went there directly, and only where a click hasn't taken it already where one led there", () => {
+    assert.match(way, /\n    await page\.goto\(`\$\{baseURL\}\/boards\/\$\{setup\.board\}`\);/);
+    const passing = sceneOf({ words: "Here", person: "Maja", did: [{ does: "goto", on: "page", with: "/login" }, ...did], setup: { board: "qiaa4o4hklar" } });
+    assert.doesNotMatch(passing, /login/, "an address left for another before anything was done there isn't gone to");
+    const led = sceneOf({ words: "Here", person: "Maja", did: [...did, { does: "goto", on: "page", with: "/cards/qiaa4o4hklar", led: true }], setup: { board: "qiaa4o4hklar" } });
+    assert.match(led, /waitForURL\(`\$\{baseURL\}\/cards\/\$\{setup\.board\}`, \{ timeout: 3000 \}\)\.catch\(\(\) => page\.goto\(`\$\{baseURL\}\/cards\/\$\{setup\.board\}`\)\)/);
   });
 
   test("is done as the person the agent was, and named by the moment's words, which its file is named by too", () => {

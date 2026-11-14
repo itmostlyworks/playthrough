@@ -76,10 +76,11 @@ async function run(repo: Repo, id: string, to: To, files: string[], written: num
   }
 }
 
-// The way there, written as “wait to be there, else go” (way.ts), waits three seconds for an address the page may never
-// reach by itself. Stepping in, nobody sees the way: on a page nothing has loaded in yet, nothing done can lead anywhere,
-// so it goes at once; anywhere else, it waits a second for where it's led, then goes. Going is always to the same
-// address, so the next thing done finds the page it needs either way: only the waiting is cut.
+// A way there written as “wait to be there, else go” (way.ts) waits three seconds for an address the page may never
+// reach by itself, as every one did before moments knew whether something done led there. Stepping in, nobody sees the
+// way: on a page nothing has loaded in yet, nothing done can lead anywhere, so it goes at once; anywhere else, it waits
+// a second for where it's led, then goes. Going is always to the same address, so the next thing done finds the page it
+// needs either way: only the waiting is cut.
 function quickArrivals(page: import("@playwright/test").Page) {
   const waitFor = page.waitForURL.bind(page);
   page.waitForURL = (url, options) =>
