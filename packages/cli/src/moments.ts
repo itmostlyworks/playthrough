@@ -189,6 +189,9 @@ function saidOf(one: Done): string {
   return `click ${on || "the page"}`;
 }
 
+// Where a page read is scrolled to, from where its first thing is on the page and on the screen.
+const scrollOf = ({ things: [first] }: Glimpse) => (first ? `${first.page.x - first.box.x},${first.page.y - first.box.y}` : "");
+
 // What the moment shows that changed nothing you can see: each click, key or choice, the page read before it against
 // after it (the moment's first frame, what was glimpsed after each, and the page at rest at its end). Words typed show as
 // they go in. Only the look of something, as the pointer over it, isn't a change.
@@ -202,6 +205,7 @@ function unseen(shown: Done[], step: Scene["steps"][number] | undefined, glimpse
     const before = at(began[i]!.at);
     const after = i === shown.length - 1 ? end : glimpses.find((glimpse) => glimpse.at >= ended[i]! - 0.01);
     if (!before || !after) return [];
+    if (scrollOf(before) !== scrollOf(after)) return [];
     return differences({ ...before, picture: "" }, { ...after, picture: "" }).differences.some((difference) => difference.what !== "looks different") ? [] : [i];
   });
 }

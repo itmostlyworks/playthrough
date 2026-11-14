@@ -53,10 +53,11 @@ const NOTING = `(() => {
   if (window.top !== window) return;
   // The field being typed in at its caret, until something else is done.
   let typedIn;
-  // Where it was done, so what took the agent to another page is known, however the page got there.
+  // Where it was done, so what took the agent to another page is known, however the page got there; and where the page
+  // was scrolled, as scrolling is done by no listener here, and a moment starts where the agent was looking.
   const keep = (done) => {
     if (done.does !== "type") typedIn = undefined;
-    window.__playthroughDid?.({ ...done, address: location.pathname });
+    window.__playthroughDid?.({ ...done, address: location.pathname, scrolled: { x: Math.round(scrollX), y: Math.round(scrollY) } });
   };
   const pressable = "a, button, input, select, textarea, label, summary, [role=button], [role=link], [role=checkbox], [role=radio], [role=switch], [role=tab], [role=menuitem], [role=option], [role=combobox], [role=textbox], [contenteditable=''], [contenteditable=true]";
   const words = (element) => (element.innerText?.trim() || element.getAttribute?.("aria-label") || element.value || element.placeholder || "").trim().replace(/\\s+/g, " ").slice(0, 80);

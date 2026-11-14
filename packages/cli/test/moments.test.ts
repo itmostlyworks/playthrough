@@ -88,14 +88,25 @@ describe("the way to a moment", () => {
   });
 
   test("does the way there before the moment's step, and only what the moment shows in it; going there by hand does both", () => {
-    const shown = sceneOf({ words: "The prefix is WEB", person: "Maja", did: did.slice(0, 4), setup: { board: "qiaa4o4hklar" }, from: 2, scrolled: { x: 0, y: 400 } });
+    const shown = sceneOf({ words: "The prefix is WEB", person: "Maja", did: did.slice(0, 4), setup: { board: "qiaa4o4hklar" }, from: 2 });
     const [way, step] = shown.split('await test.step("The prefix is WEB"');
     assert.match(way!, /^  await page\.getByRole\("link", \{ name: "Settings", exact: true \}\)\.click\(\);$/m);
-    assert.match(way!, /window\.scrollTo/, "its first frame is where the page was scrolled");
     assert.doesNotMatch(step!, /Settings/);
-    assert.match(step!, /fill\("WEB"\)[\s\S]*name: "Save"[\s\S]*window\.scrollTo/);
+    assert.match(step!, /fill\("WEB"\)[\s\S]*name: "Save"/);
     assert.match(wayIn(shown), /Settings[\s\S]*fill\("WEB"\)[\s\S]*Save/);
     assert.doesNotMatch(wayIn(shown), /test\.step/);
+  });
+
+  test("scrolls where the agent had before each thing it did: the way at once, ending where the moment's first is done; the moment as a person scrolls; and ends where the agent is", () => {
+    const scrolled = (y: number, done: Done): Done => ({ ...done, scrolled: { x: 0, y } });
+    const footer = [did[0]!, scrolled(0, did[1]!), scrolled(1200, did[3]!), scrolled(0, did[2]!)];
+    const shown = sceneOf({ words: "Back to top", person: "Maja", did: footer, setup: {}, from: 2, scrolled: { x: 0, y: 600 } });
+    const [way, step] = shown.split('await test.step("Back to top"');
+    assert.match(way!, /window\.scrollTo\(x, y\), \[0, 1200\]\);\n  await test\.step|window\.scrollTo\(x, y\), \[0, 1200\]\);$/m);
+    assert.match(step!, /name: "Save"[\s\S]*behavior: "smooth" \}\), \[0, 0\]\);\n.*fill\("WEB"\)/);
+    assert.match(step!, /waitForFunction[\s\S]*\[0, 600\], \{ timeout: 3000 \}\)\.catch/);
+    const still = sceneOf({ words: "The footer", person: "Maja", did: footer.slice(0, 2), setup: {}, from: 2, scrolled: { x: 0, y: 1200 } });
+    assert.match(still.split("await test.step(")[0]!, /window\.scrollTo\(x, y\), \[0, 1200\]\);/, "a still's first frame is where the agent is");
   });
 
   test("writes where it ended only while it's tried, never in the moment that's kept", () => {

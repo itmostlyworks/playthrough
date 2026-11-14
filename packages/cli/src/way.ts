@@ -9,7 +9,7 @@ import { quote } from "@playthrough/review";
 // neither.
 // And the address it was done at; a page loaded, whether something done on the page before led there (a link followed, a
 // form sent) or it was gone to directly.
-export type Done = { does: string; on: string; with?: string; what?: string; role?: string; name?: string; text?: string; nth?: number; address?: string; led?: boolean };
+export type Done = { does: string; on: string; with?: string; what?: string; role?: string; name?: string; text?: string; nth?: number; address?: string; led?: boolean; scrolled?: { x: number; y: number } };
 
 // What a moment is about, read where the agent is: one thing on the page, by its role and name, with what can be
 // checked of it again; or words with no role of their own (role "text"), by what they say, the first that does.
@@ -47,7 +47,7 @@ export function sceneOf({
   from?: number;
   tried?: boolean;
 }): string {
-  const lines = did.map((done) => {
+  const written = did.map((done) => {
     const nth = done.nth !== undefined ? `.nth(${done.nth})` : "";
     const at =
       done.role && done.name
@@ -72,7 +72,21 @@ export function sceneOf({
     if (done.does === "press") return keyboard ? `    await page.keyboard.press(${given});` : `    await page.${at}.press(${given});`;
     return `    await page.${at}.click();${what}`;
   });
-  const scrolling = scrolled && (scrolled.x || scrolled.y) ? [`    await page.evaluate(([x, y]) => window.scrollTo(x, y), [${Math.round(scrolled.x)}, ${Math.round(scrolled.y)}]);`] : [];
+  // Scrolled where the agent had scrolled before each thing done there: on the way, at once; in what the moment shows, as
+  // a person scrolls. A page loaded starts at its top.
+  const xy = ({ x, y }: { x: number; y: number }) => `[${Math.round(x)}, ${Math.round(y)}]`;
+  let at = { x: 0, y: 0 };
+  const before = did.map((done, i) => {
+    if (done.does === "goto") return void (at = { x: 0, y: 0 });
+    const there = done.scrolled;
+    if (!there || (Math.abs(there.x - at.x) < 2 && Math.abs(there.y - at.y) < 2)) return;
+    at = there;
+    return i <= from ? `    await page.evaluate(([x, y]) => window.scrollTo(x, y), ${xy(there)});` : `    await page.evaluate(([x, y]) => window.scrollTo({ left: x, top: y, behavior: "smooth" }), ${xy(there)});`;
+  });
+  const lines = written.flatMap((line, i) => (before[i] ? [before[i]!, line] : [line]));
+  const placed = written.slice(0, from).reduce((count, _, i) => count + (before[i] ? 2 : 1), 0) + (before[from] ? 1 : 0);
+  // Where the agent is at the end: gone there by itself (a smooth scroll still under way), or else scrolled there.
+  const scrolling = scrolled && (Math.abs(scrolled.x - at.x) >= 2 || Math.abs(scrolled.y - at.y) >= 2) ? [`    await page.waitForFunction(([x, y]) => Math.abs(scrollX - x) < 2 && Math.abs(scrollY - y) < 2, ${xy(scrolled)}, { timeout: 3000 }).catch(() => page.evaluate(([x, y]) => window.scrollTo(x, y), ${xy(scrolled)}));`] : [];
   const which = about?.nth !== undefined ? `.nth(${about.nth})` : "";
   const thing = about && (about.role === "text" ? `page.getByText(${JSON.stringify(about.name)}, { exact: true })${which}` : `page.getByRole(${JSON.stringify(about.role)}, { name: ${JSON.stringify(about.name)}, exact: true })${which}`);
   const checks = !about
@@ -87,17 +101,18 @@ export function sceneOf({
           : []),
         ...(about.checked !== undefined ? [`    await expect(${thing}).toBeChecked({ checked: ${about.checked} });`] : []),
       ];
-  // Scrolled where the page was before the moment, so its first frame is there too; and again after what it shows, as
-  // that may have scrolled the page.
-  const way = [...lines.slice(0, from), ...(from ? scrolling : [])].map((line) => line.slice(2));
-  const shown = lines.slice(from);
+  // The way ends scrolled where the moment's first thing was done, or for a still, where the agent is: its first frame is
+  // there. What the moment shows ends where the agent is.
+  const still = from >= did.length && from > 0 && scrolled && (scrolled.x || scrolled.y) ? [`    await page.evaluate(([x, y]) => window.scrollTo(x, y), ${xy(scrolled)});`] : [];
+  const way = [...lines.slice(0, placed), ...still].map((line) => line.slice(2));
+  const shown = lines.slice(placed);
   return `${tried ? `import { writeFileSync } from "node:fs";\n` : ""}import { expect, test } from "playthrough/test";
 
 test.use({ person: ${JSON.stringify(person)} });
 
 test(${JSON.stringify(words)}, async ({ page, setup, baseURL }) => {
 ${way.map((line) => `${line}\n`).join("")}  await test.step(${JSON.stringify(words)}, async () => {
-${[...shown, ...(shown.length || !from ? scrolling : []), ...checks].join("\n")}
+${[...shown, ...(still.length ? [] : scrolling), ...checks].join("\n")}
   });${tried ? `\n  writeFileSync(new URL("./${ENDED}", import.meta.url), JSON.stringify({ url: page.url() }));` : ""}
 });
 `;
