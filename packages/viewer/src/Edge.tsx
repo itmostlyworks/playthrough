@@ -144,9 +144,8 @@ export function Edge(props: {
           className="h-full overflow-x-clip overflow-y-auto overscroll-contain px-2.5 py-2 [scrollbar-width:none]"
           style={{ maskImage: fade("to bottom"), WebkitMaskImage: fade("to bottom") }}
         >
-          {/* Forward, the stack of cards stands on one plate of the page's ground, no taller or wider than they are, so
-              the recording never shows between them; edged, with no shadow, so nothing else of it is hidden. */}
-          <div className={`grid grid-cols-[minmax(0,1fr)] gap-0.5 rounded-xl transition-colors duration-300 ease-calm ${forward ? "bg-ground shadow-[0_0_0_1px_var(--edge),0_1px_2px_var(--edge)]" : ""}`}>{children(forward)}</div>
+          {/* The cards stand on nothing of their own: forward, each is its own card over the recording. */}
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-1.5">{children(forward)}</div>
         </div>
       </div>
       {/* The screen's edge, fading what runs past it at rest. */}
