@@ -557,7 +557,8 @@ export async function runAlongside(
       const { to } = orders;
       if (isCheck(error) && scene.step && to.actions === undefined && (!to.step || to.step === scene.step)) {
         await handOver(scene, to);
-        return { handed: scene.handed, made, checked: why };
+        const on = String((error as { message?: string }).message).match(/^Locator: (.*)$/m)?.[1];
+        return { handed: scene.handed, made, checked: `This moment's check of how it ends doesn't hold on the app as it is now: Playwright says “${why}”${on ? ` of ${on}` : ""}.` };
       }
       return { stopped: { at: scene.step, why }, made };
     } finally {
