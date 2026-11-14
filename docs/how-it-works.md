@@ -102,8 +102,9 @@ in two lines and where it stands ("not sent yet", "sent", "answered", "new answe
 fading over 64px; the moment you're on, a note open or one arriving is scrolled into view. A moment's picture is the
 list's still, the others' quieter than the one you're on, with its notes' dots; pressed, the moment changes in place.
 A note's strip is cut for its own shape (`stripOf`) around its thing, with its pin by the thing's top right corner:
-a small thing (a switch, a button) at the size it was recorded, with what's beside it; a wide line or something far
-larger than the strip (a heading, a pane) from its start or top left, a little smaller at most, so it reads; a spot
+a small thing (a switch, a button) at the size it was recorded, with what's beside it; a wide line (a heading) from its
+start, a little smaller at most, so it reads; something far larger than the strip (a pane) closed in on what its moment
+is about where that's inside it, else from its top left; a spot
 with no thing, around the spot; never larger than recorded, always inside the screen, and two fifths in from the
 recording's side, which the screen's edge never fades. It's cut from the frame its thing is shown on: a
 kept picture, never a recording played (`useFrames`): one made at a taking's end is that taking's own picture; any

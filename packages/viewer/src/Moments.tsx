@@ -1338,6 +1338,13 @@ function MomentView(props: {
         />
       );
     });
+  // What the moment is about on its end's picture, as shares of the screen: where a note's strip closes in when the
+  // note is on something too large to show, that holds it.
+  const aboutHere = (() => {
+    const end = readings?.at(-1);
+    const thing = end && closeTo && end.things.find((one) => one.role === closeTo.role && one.name === closeTo.name)?.box;
+    return thing && { x: thing.x / end.screen.width, y: thing.y / end.screen.height, width: thing.width / end.screen.width, height: thing.height / end.screen.height };
+  })();
   const noteTiles = (forward: boolean) =>
     onEdge.map(({ note, sent: isSent }) => {
       const { words, stands, fresh } = says(note, isSent);
@@ -1351,7 +1358,7 @@ function MomentView(props: {
           lit={pointed === note.id}
           arriving={before && !before.has(note.id) ? "right" : undefined}
           strip
-          picture={<NotePicture frame={frames[note.id]} sent={isSent} />}
+          picture={<NotePicture frame={frames[note.id]} sent={isSent} focus={isNow(shownAt(note)) ? aboutHere : undefined} />}
           words={<NoteWords words={words} stands={stands} fresh={fresh} short />}
           onPress={() => openNote(note.id)}
           onPoint={(now) => setPointed(now ? note.id : undefined)}
@@ -1668,10 +1675,16 @@ function NoteWords({ words, stands, fresh, short }: { words: string; stands: str
 // you see, with its pin where it sits on the recording. The thing whole where it can be, a little of what's around it,
 // never drawn larger than it was recorded nor much smaller, where its words stop being read; toward the
 // recording, as the screen's edge fades the other side at rest.
-function NotePicture({ frame, sent }: { frame?: NoteFrame; sent: boolean }) {
+function NotePicture({ frame, sent, focus }: { frame?: NoteFrame; sent: boolean; focus?: NoteFrame["box"] }) {
   if (!frame) return null;
   const { screen, box } = frame;
-  const part = stripOf(screen, box && { x: box.x * screen.width, y: box.y * screen.height, width: box.width * screen.width, height: box.height * screen.height });
+  const px = (one?: NoteFrame["box"]) => one && { x: one.x * screen.width, y: one.y * screen.height, width: one.width * screen.width, height: one.height * screen.height };
+  const [thing, about] = [px(box), px(focus)];
+  // On something too large to show whole at a size that reads, a note is most likely about what its moment is about,
+  // where that's inside it: the strip closes in on that, as on any small thing. A note keeps what it's on, not where
+  // in it you pointed.
+  const inside = !!thing && !!about && about.x >= thing.x && about.y >= thing.y && about.x + about.width <= thing.x + thing.width && about.y + about.height <= thing.y + thing.height;
+  const part = stripOf(screen, thing && about && inside && tooLarge(thing) ? about : thing);
   // Its pin, as on the recording: just outside its thing's top right corner, or on its spot; always whole in the strip.
   const out = box && box.width ? 6 : 0;
   const pin = box && { x: (box.x + box.width - part.x) / part.width, y: (box.y - part.y) / part.height };
@@ -1695,6 +1708,8 @@ function NotePicture({ frame, sent }: { frame?: NoteFrame; sent: boolean }) {
 // - a spot with no thing, around the spot at the size it was recorded;
 // - all of it inside the screen, so a thing at the screen's edge sits at the strip's.
 const STRIP = 3.8;
+// Too large to show whole in a strip at a size that reads.
+const tooLarge = (thing: { width: number; height: number }) => thing.width + 40 > TILE * 1.6 || (thing.height + 16) * STRIP > TILE * 1.6;
 function stripOf(screen: { width: number; height: number }, thing?: { x: number; y: number; width: number; height: number }): Frame {
   const [round, widest, around] = [TILE, TILE * 1.6, 20];
   const spot = !thing || (!thing.width && !thing.height);
