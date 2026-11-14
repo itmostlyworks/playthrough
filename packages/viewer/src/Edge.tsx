@@ -15,6 +15,8 @@ const VEIL = 64;
 // From the edge's top to its first picture's: the list's padding and the card's, so the first picture's top is the
 // recording's.
 const INSET = 8 + 6;
+// How long an edge stays forward with what just arrived on it, in milliseconds.
+const SHOWN = 1400;
 
 type Room = { top: number; height: number; inner: number; screen: number };
 
@@ -28,9 +30,11 @@ export function Edge(props: {
   phone: boolean;
   // The tile to keep in view, by its data-tile: the moment you're on, a note opened or arriving.
   showing?: string;
+  // A tile just arrived: the edge comes forward with it, words and all, for a moment, then rests.
+  arrived?: string;
   children: (forward: boolean) => ReactNode;
 }) {
-  const { side, label, frame, quiet, phone, showing, children } = props;
+  const { side, label, frame, quiet, phone, showing, arrived, children } = props;
   const [room, setRoom] = useState<Room>();
   useLayoutEffect(() => {
     const shown = frame.current;
@@ -59,6 +63,11 @@ export function Edge(props: {
   };
   useEffect(() => () => clearTimeout(timer.current), []);
   useEffect(() => void (quiet && (clearTimeout(timer.current), setForward(false))), [quiet]);
+  useEffect(() => {
+    if (!arrived || quiet) return;
+    setForward(true);
+    if (!under.current) toward(false, SHOWN);
+  }, [arrived, quiet]);
   // A touch elsewhere sends it back.
   useEffect(() => {
     if (!forward) return;

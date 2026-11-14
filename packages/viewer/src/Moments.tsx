@@ -1375,7 +1375,7 @@ function MomentView(props: {
         {/* Tab reaches them as they read, left to right; on a phone, the notes come first, nearest what they're on. */}
         {!phone && momentsEdge}
         {(!phone || onEdge.length > 0) && (
-          <Edge side="right" label="Notes" frame={frame} quiet={!!live?.shown} phone={phone} showing={open ?? lastArrived}>
+          <Edge side="right" label="Notes" frame={frame} quiet={!!live?.shown} phone={phone} showing={open ?? lastArrived} arrived={lastArrived}>
             {noteTiles}
           </Edge>
         )}
