@@ -282,13 +282,16 @@ http://localhost:5830/ that hands your browser the run's page (its address, cook
 and passes everything else on to the app, answering only this machine's names. What a step in makes is that step in's:
 held by the app's pages while they're open, Back included, and given back 15 s after the last one goes (tab closed,
 reload, another moment), or a minute after it was made if never opened; so two tabs, a reload or another moment never
-hand one person the app another is using. Opened again, as Step in again on the same moment does, it runs afresh, never
-the world left behind, nor a missing page. **Every wait ends in words.** The run stops after a minute ("This moment didn't
-open within 60 seconds…"), each page load on the way after 30 s, and as soon as the asking request closes; a moment that
-can't get there says where it stopped, in Playwright's words, and to say so in a note so the agent marks it again; one
-whose check of how it ends doesn't hold on the code as it is now opens where it got to, with that said (`checked`); an
-app that won't start says what it said last and to check `app.json`; a moment stepped into before the list restarted
-says to reload. A page in the frame that never says it has loaded settles after ten seconds.
+hand one person the app another is using. Every Step in asks afresh, so Step in again on the same moment is the app made
+again, never the world left behind; an address opened again (by hand) runs afresh too, never a missing page. **Every wait
+ends in words.** A step in has a minute from its asking, the app's start included ("The app hadn't answered … it may still
+be starting", "This moment didn't open within 60 seconds…"), each page load on the way 30 s, and it stops as soon as the
+asking request closes, though a setup already making its world finishes first, so what it made is given back whole; a
+moment that can't get there says where it stopped, in Playwright's words, and to say so in a note so the agent marks it
+again; one whose check of how it ends doesn't hold on the code as it is now opens where it got to, with that said
+(`checked`); an app that won't start says what it said last and to check `app.json`; a moment that's gone from the
+change says to reload, or to wait for the agent to hand back; a page of a step in from before the list restarted says so
+in the frame, and Escape. A page in the frame that never says it has loaded settles after ten seconds.
 
 **One app per copy** (`app.ts`), shared by the person stepping in, the agent's browser and every moment run, each in a
 world of its own, as the app always runs the working copy as it is now. Whoever wants it first starts it, on its own,
@@ -298,8 +301,13 @@ most, then it says so, pointing at `app.log`). Nobody stops it under anyone: onc
 once, or with `playthrough open` running, which keeps every copy's app, once it's gone fifteen minutes unused; closing
 `open` stops those nobody is using.
 
-**In your browser** (`stepIn.ts`, `Portal.tsx`). While it's getting there, a line inside Step in fills as it goes and
-the recording's pointer counts down where the time is known; the app opens in the recording's place, at the same size,
+**In your browser** (`stepIn.ts`, `Portal.tsx`). While it's getting there, a line inside Step in fills as it goes, at
+the pace of the last run where that's known, the picture's edge breathes and the recording's pointer waits. Escape, or
+going to another moment, calls it off: the request ends, which stops the run, and a page of the app already opening
+unseen goes with it; the bar is at rest at once. The page waits 70 s for the answer (the server always gives one within a
+minute) and 30 s for the app's page to settle, then says so under the bar, with what to do; so does Playthrough no longer
+running. Whatever stopped it is said under the bar in the server's words; in the app, so is a check at the end that
+doesn't hold now. The app opens in the recording's place, at the same size,
 and the recording's pointer comes to yours wherever yours has gone, and gives way to it. In the app the bar says "You,
 as …" beside Back; Escape, in the app or out of it, goes back, but it's the app's first: if the app does something with
 it, closing a menu or a dialog, that's all it does. A link out of it opens in a tab of your own. The app is drawn with

@@ -688,13 +688,10 @@ export function MomentView(props: {
           </div>
           <Portal
             {...stepIn.portal}
-            person={person}
             screen={screen}
             scrolled={() => scrolled.current?.()}
             theirs={() => drawn.current?.()}
             onStandIn={setStandIn}
-            waiting="Stepping in…"
-            named={false}
           />
           {(() => {
             const one = saying && !opened && !writing && !playing && !away ? onEdge.find(({ note }) => note.id === saying) : undefined;
@@ -769,7 +766,7 @@ export function MomentView(props: {
             </div>
           </div>
         </div>
-        {stepIn.problems && <p className="absolute bottom-0 left-1/2 max-w-[90%] -translate-x-1/2 translate-y-full rounded-md bg-surface px-3 py-1.5 text-xs text-amber-ink shadow-tip">{stepIn.problems.join(" ")}</p>}
+        {stepIn.said && <p className="absolute bottom-0 left-1/2 max-w-[90%] -translate-x-1/2 translate-y-full animate-arrive rounded-md bg-surface px-3 py-1.5 text-xs text-amber-ink shadow-tip">{stepIn.said}</p>}
       </div>
       {/* Beside the recording, or under it on a phone: the change's moments, and this one's notes. */}
       <div className={phone ? "grid min-h-0 grid-cols-[minmax(0,1fr)] content-start gap-6 overflow-y-auto px-4 pt-6 pb-8" : "contents"}>
