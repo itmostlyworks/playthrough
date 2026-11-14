@@ -233,6 +233,8 @@ export function Portal({ live, person, screen, scrolled, waiting: waitingWords =
             key={live.address}
             src={live.address}
             title="The app, taken over"
+            // As in a recording, a click there may copy, the app being yours.
+            allow="clipboard-read; clipboard-write"
             className="absolute top-0 left-0 origin-top-left border-0 bg-paper"
             // Drawn at its own size and scaled as a picture is, as the recording is: scaled as it's drawn, its words are
             // set at one size and drawn at another, the spaces between them lost ("BrightStudio").

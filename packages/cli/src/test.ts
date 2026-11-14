@@ -354,7 +354,8 @@ async function readied(page: Page, run: Run) {
 // A window of its own, in one language and time zone as every scene is, on the laptop unless it's on another screen, and
 // opened as the app's setup says.
 export async function pageFor(browser: Browser, baseURL: string, screen: Screen, use?: BrowserContextOptions) {
-  const context = await browser.newContext({ ...use, baseURL, locale: "en-US", timezoneId: "UTC", viewport: LAPTOP, ...screen });
+  // Stepping in, the clipboard is the page's to write to, as it is in a recording.
+  const context = await browser.newContext({ permissions: CLIPBOARD, ...use, baseURL, locale: "en-US", timezoneId: "UTC", viewport: LAPTOP, ...screen });
   return { context, page: await context.newPage() };
 }
 
