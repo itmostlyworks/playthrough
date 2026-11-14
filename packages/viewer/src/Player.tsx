@@ -180,6 +180,8 @@ export function Player(props: Props) {
   // Where the page is shown from, at the moment drawn last.
   const view = useRef<View>(undefined);
   const [glided, setGlided] = useState(0);
+  // The page and moment it last came to rest at, where what's placed on it can be read.
+  const settled = useRef<{ replay?: Replay; at?: number }>({});
   useEffect(() => {
     let current = true;
     let made: Replay | undefined;
@@ -297,6 +299,14 @@ export function Player(props: Props) {
     if (gliding()) return glideOn();
     draw(at, false);
     replayed.rest();
+    // Nothing is placed on it until it has come to rest there: an outline or a pin drawn sooner is drawn where its
+    // thing was on its way, not where it is.
+    if (settled.current.replay !== replayed || settled.current.at !== at) {
+      told.current?.({});
+      let current = true;
+      void replayed.settled().then(() => current && ((settled.current = { replay: replayed, at }), setGlided((done) => done + 1)));
+      return () => void (current = false);
+    }
     // What's noted here, where it is on the page as it rests.
     const shape = replayed.shapeAt(at);
     const { left, top, k } = view.current!;

@@ -184,6 +184,9 @@ function awayFrom({ pointer, shapes }: Recorded): [number, number][] {
   return spans;
 }
 
+// How long a page shown at rest is given to come to rest, at most, in milliseconds.
+const SETTLING = 1500;
+
 export class Replay {
   readonly host = document.createElement("div");
   readonly shapes: Shape[];
@@ -320,6 +323,20 @@ export class Replay {
     this.#rested = this.#at;
     this.#settle();
     for (const animation of this.#animations()) finish(animation);
+  }
+
+  // Once it has come to rest where it's shown: what its jump set moving finished, its fonts and pictures in. Where its
+  // things are is read only then, or an outline is drawn where its thing was on its way there.
+  async settled(): Promise<void> {
+    const frame = () => new Promise<void>((done) => requestAnimationFrame(() => done()));
+    const until = performance.now() + SETTLING;
+    await frame();
+    while (this.#settling && performance.now() < until) await frame();
+    const page = this.#replayer.iframe.contentDocument;
+    const pictures = [...(page?.images ?? [])].filter((picture) => !picture.complete).map((picture) => new Promise((done) => (picture.addEventListener("load", done, { once: true }), picture.addEventListener("error", done, { once: true }))));
+    await Promise.race([Promise.all([page?.fonts.ready, ...pictures]), new Promise((done) => setTimeout(done, Math.max(0, until - performance.now())))]);
+    await frame();
+    await frame();
   }
 
   shapeAt(at: number): Shape {
