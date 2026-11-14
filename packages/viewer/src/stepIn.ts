@@ -5,7 +5,7 @@
 // there.
 
 import { useEffect, useRef, useState } from "react";
-import { newId, pausedAt, type Did, type Note, type Paused, type Place, type Scene } from "@playthrough/review";
+import { doneAt, newId, type Did, type Note, type Place, type Scene } from "@playthrough/review";
 import { keepBranch } from "./api.ts";
 import { isPlaying, type Action, type Page } from "./mode.ts";
 import type { Clock } from "./Player.tsx";
@@ -36,8 +36,7 @@ export function useStepIn({ review, round, scene, page, clock, act, pointing }: 
   // asks afresh: the app is made for this step in, whatever was made for one before.
   const stepIn = () => {
     const where = isPlaying(mode) ? clock.at : page.at;
-    const paused = pausedAt(scene, where);
-    if (!paused) return;
+    const after = doneAt(scene, where);
     session.current = { id: newId(), events: [], did: [], kept: 0 };
     const since = Date.now();
     act({ type: "step in", since });
@@ -45,8 +44,8 @@ export function useStepIn({ review, round, scene, page, clock, act, pointing }: 
     asking.current?.abort();
     const asked = (asking.current = new AbortController());
     const ours = (change: (run: Run) => Run) => setRun((now) => (now?.since === since ? change(now) : now));
-    readyIn(review, scene.name, paused, asked.signal).then((left) => left && ours((now) => ({ ...now, due: since + left })));
-    readyAt(review, scene.name, paused, asked.signal).then((answer) => {
+    readyIn(review, scene.name, after, asked.signal).then((left) => left && ours((now) => ({ ...now, due: since + left })));
+    readyAt(review, scene.name, after, asked.signal).then((answer) => {
       if (asked.signal.aborted) return;
       if ("address" in answer) return ours((now) => ({ ...now, address: answer.address, checked: answer.checked }));
       ours((now) => ({ ...now, problems: answer.problems }));
@@ -134,19 +133,19 @@ const SETTLING = 30_000;
 
 // How long until a moment asked for is ready, in milliseconds, as long as the last run took to get there; nothing when
 // that can't be known yet.
-const readyIn = (review: string, scene: string, paused: Paused, asked: AbortSignal): Promise<number | undefined> =>
-  fetch(`/api/reviews/${encodeURIComponent(review)}/ready-in`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ scene, ...paused }), signal: asked })
+const readyIn = (review: string, scene: string, after: number | undefined, asked: AbortSignal): Promise<number | undefined> =>
+  fetch(`/api/reviews/${encodeURIComponent(review)}/ready-in`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ scene, after }), signal: asked })
     .then((answer) => answer.json())
     .then((said) => said.in ?? undefined, () => undefined);
 
 // Where the app is at that moment, through Playthrough, on the same machine name the viewer was reached by, and what its
 // check at the end says where it doesn't hold now; or what stops it.
-async function readyAt(review: string, scene: string, paused: Paused, asked: AbortSignal): Promise<{ address: string; checked?: string } | { problems: string[] }> {
+async function readyAt(review: string, scene: string, after: number | undefined, asked: AbortSignal): Promise<{ address: string; checked?: string } | { problems: string[] }> {
   try {
     const answer = await fetch(`/api/reviews/${encodeURIComponent(review)}/take-over`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ scene, ...paused }),
+      body: JSON.stringify({ scene, after }),
       signal: AbortSignal.any([asked, AbortSignal.timeout(ANSWERED)]),
     });
     const said = await answer.json().catch(() => ({}));

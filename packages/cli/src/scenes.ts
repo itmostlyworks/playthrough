@@ -34,9 +34,9 @@ export const QUIET_DEV_CHROME = `{
   document.adoptedStyleSheets = [...document.adoptedStyleSheets, quiet];
 }`;
 
-// Where a person steps into a scene: the end of one of its steps, or of the whole scene, or within a step, after as many
-// of its actions.
-export type To = { scene: string; step?: string; actions?: number };
+// Where a person steps into a moment: after so many things done in its step, counting those of its way there that the
+// step does (doneAt, doneBefore); or, with none said, at its end, everything done.
+export type To = { scene: string; after?: number };
 // The scene's page there, as a browser keeps it: its address, its cookies, what the app kept in the browser, how far it
 // was scrolled, how far its clock, the recordings', is ahead of the real one, in milliseconds, and what its browser said
 // of itself. And partway through a step, the actions to do again there, which changed only what was in the page's

@@ -1,7 +1,8 @@
-// Each round is its own recording of a moment, so two are played together, and a moment stepped into, through what
+// Each hand-back is its own recording of a moment, so two are played together, and a moment stepped into, through what
 // each did there.
 
 import type { Scene } from "./model.ts";
+import { shownFrom } from "./shown.ts";
 
 // The moments two recordings of a scene pass together, in order, each in its own recording's time. Each recording is
 // what it did, in order: each step as it starts, each action in it, and the end. The two are lined up on the longest run
@@ -60,19 +61,18 @@ function shared(ours: Done[], others: Done[]): [Done, Done][] {
   return pairs;
 }
 
-// Where a scene is taken over, as the recording was at a moment: after as many of a step's actions as it had done, or at
-// the step's end, as the page rests between them. The same place on every round that takes that step that far.
-export type Paused = { step: string; actions?: number };
-
-export function pausedAt(scene: Scene, at: number): Paused | undefined {
-  const step = scene.steps.findLast((step) => step.at <= at + 0.05) ?? scene.steps[0];
-  if (!step) return undefined;
-  const actions = step.actions ?? [];
-  const done = actions.filter((action) => action <= at).length;
-  if (done === actions.length) return { step: step.title };
-  if (done) return { step: step.title, actions: done };
-  // Before its first action, the page is as the step before left it; a moment's, as its way there left it, where its
-  // step starts after that way; any other first step's, after it: a step that starts its recording has no page yet.
-  const before = scene.steps[scene.steps.indexOf(step) - 1];
-  return before ? { step: before.title } : scene.from !== undefined && step.at > 0 ? { step: step.title, actions: 0 } : { step: step.title, actions: 1 };
+// Where a moment is stepped into, as its recording is at a moment: after so many of the things it shows done, as the
+// page rests after each; at its end, everything done and checked, nothing. The way there comes before them, done
+// whole, and the run never stops on a page with nothing loaded yet: it goes on to the first thing that loads one
+// (test.ts).
+export function doneAt(scene: Scene, at: number): number | undefined {
+  const shown = actionsOf(scene).filter((action) => action >= shownFrom(scene));
+  const done = shown.filter((action) => action <= at).length;
+  return done === shown.length ? undefined : done;
 }
+
+// The things done on the way there that the run counts with what's shown, as a file kept before moments had a start does
+// its way inside the moment's step.
+export const doneBefore = (scene: Scene) => actionsOf(scene).filter((action) => action < shownFrom(scene)).length;
+
+const actionsOf = (scene: Scene) => scene.steps.flatMap((step) => step.actions ?? []);

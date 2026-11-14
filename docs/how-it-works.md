@@ -271,10 +271,18 @@ the moment's person, signed in, a fresh copy made the way every moment starts. N
 nothing is made ready in the background while you watch: each step in is the app made fresh, and its speed comes from
 not doing work twice and not waiting on nothing.
 
-**On the server** (`take-over.ts`, `following.ts`). The page POSTs `take-over` with where it stands (`pausedAt`,
-`packages/review/src/steps.ts`), and asks `ready-in` how long it should take: as long as the last run to that point took.
-The moment's file runs, in one headless Chromium Playthrough keeps open while it runs, each run a window of its own with
-its own cookies and storage, to where it's stepped into; what the way and the step did only in the page's memory (a
+**Where it stands is one count.** The page says how many of the things the moment shows are done where the recording
+rests (`doneAt`, `packages/review/src/steps.ts`): none at its start, one after the first, nothing at all at its end or once
+the last is done, or on a still; pressed while it plays, where it has got to. The run is handed over after that many
+things done in the moment's step, its way there done whole before them (a file kept with its way inside its step counts
+the way's too, `doneBefore`), or, with no count, once everything is done; never on a page with nothing loaded: a step
+that starts on a blank page goes on to the first page it goes to (`reached`, `test.ts`). Done fewer things now than it
+showed, it's handed over at its end.
+
+**On the server** (`take-over.ts`, `following.ts`). The page POSTs `take-over` with the moment and its count, and asks
+`ready-in` how long it should take: as long as the last run to that point took. The moment's file runs, in one headless
+Chromium Playthrough keeps open while it runs, each run a window of its own with its own cookies and storage, to where
+it's stepped into; what the way and the step did only in the page's memory (a
 field typed into, a panel opened, a key pressed with nothing focused) is done again in your browser before it shows,
 while what saved something or went to another address isn't done twice, and the page is scrolled where the recording
 was. Each step in has an address of its own, `/take-over/<moment>`, a name nobody could guess, on a pass-through at

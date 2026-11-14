@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { createServer, request as ask, type IncomingMessage, type ServerResponse } from "node:http";
 import { connect } from "node:net";
 import { answerAs, asRecorded, pathTo } from "@playthrough/page";
-import { list, quote, Refused } from "@playthrough/review";
+import { doneBefore, quote, Refused } from "@playthrough/review";
 import { running, using } from "./app.ts";
 import { QUIET_DEV_CHROME, recorder, type Handed, type To } from "./scenes.ts";
 import { LONGEST, runTo } from "./following.ts";
@@ -24,20 +24,8 @@ const PORT = 5830;
 // own, /take-over/<moment>, with the app made for it, so two tabs, or a reload, never share one or take one from the
 // other. In the viewer, Step in asks for it where the playhead rests and turns the frame into the app there: nothing is
 // run before it's asked for.
-export async function getReady(
-  repo: Repo,
-  id: string,
-  sceneName: string,
-  { step: stepName, actions, waiting }: { step?: string; actions?: number; waiting?: AbortSignal } = {},
-): Promise<{ port: number; moment: string; checked?: string }> {
-  const round = await recorded(repo, id);
-  const scene = round.scenes.find((scene) => scene.name === sceneName);
-  if (!scene) throw new Refused([`${quote(sceneName)} isn't among the moments the agent last handed back: they've changed since this page was loaded. Reload it, then step in again.`]);
-  if (stepName && !scene.steps.some((step) => step.title === stepName))
-    throw new Refused([`${quote(scene.name)} has no step called ${quote(stepName)}. Its steps: ${list(scene.steps.map((step) => quote(step.title)))}.`]);
-
+export async function getReady(repo: Repo, id: string, to: To, waiting?: AbortSignal): Promise<{ port: number; moment: string; checked?: string }> {
   const app = await repo.app();
-  const to: To = { scene: scene.name, ...(stepName && { step: stepName, ...(actions !== undefined && { actions }) }) };
   const { handed, made, checked, done } = await madeFor(repo, id, to, waiting);
   // One way through for each copy of the app, as each answers at an address of its own.
   if (!passings.has(app.url)) passings.set(app.url, passOn(app));
@@ -53,6 +41,15 @@ export async function getReady(
   // Never opened, as when the tab closed before the app was there, it's given back a minute on.
   letGoSoon(moment, UNOPENED);
   return { port, moment, ...(checked && { checked }) };
+}
+
+// Where the page says it stands, as the run counts it: after so many of what the moment shows, the way there counted
+// with them where the moment's file does it inside its step.
+export async function placeOf(repo: Repo, id: string, scene: string, after?: number): Promise<To> {
+  const round = await recorded(repo, id);
+  const moment = round.scenes.find((one) => one.name === scene);
+  if (!moment) throw new Refused([`${quote(scene)} isn't among the moments the agent last handed back: they've changed since this page was loaded. Reload it, then step in again.`]);
+  return { scene, ...(after !== undefined && { after: doneBefore(moment) + after }) };
 }
 
 // The app made for a step in: the copy's app running, used while the scene runs there, and then for as long as what it

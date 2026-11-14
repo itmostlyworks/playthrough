@@ -18,7 +18,7 @@ import { readyIn } from "./following.ts";
 import { everyCopy, machine } from "./machine.ts";
 import { keepNamed, type Assets } from "./assets.ts";
 import { frameOf, stillOf, type Framed } from "./frames.ts";
-import { getReady, waitedFor } from "./take-over.ts";
+import { getReady, placeOf, waitedFor } from "./take-over.ts";
 import { setupIn } from "./setup.ts";
 import { agentWaiting } from "./wait.ts";
 import { openFile, stopUnused, UNUSED } from "./app.ts";
@@ -249,8 +249,8 @@ async function shownOf(repo: Repo): Promise<{ app: string; people: Record<string
 // Playthrough, at the port and moment this answers with; and where the moment's checks at its end don't hold on the app
 // as it is now, what they say. A tab closed or reloaded meanwhile stops it.
 async function takeOver(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
-  const { scene, step, actions } = await body<{ scene: string; step?: string; actions?: number }>(request);
-  const { port, moment, checked } = await getReady(repo, id, scene, { step, actions, waiting: waitedFor(response) });
+  const { scene, after } = await body<{ scene: string; after?: number }>(request);
+  const { port, moment, checked } = await getReady(repo, id, await placeOf(repo, id, scene, after), waitedFor(response));
   json(response, 200, { port, moment, ...(checked && { checked }) });
 }
 
@@ -298,8 +298,9 @@ const readingOf = (event: Event) => (event.type === 5 && event.data?.tag === "re
 
 // How long until a moment asked for is ready, for the viewer to count down to, if it can be known.
 async function readyInFor(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
-  const { scene, step, actions } = await body<{ scene: string; step?: string; actions?: number }>(request);
-  json(response, 200, { in: await readyIn(repo, id, { scene, step, actions }) });
+  const { scene, after } = await body<{ scene: string; after?: number }>(request);
+  const to = await placeOf(repo, id, scene, after).catch(() => undefined);
+  json(response, 200, { in: to && (await readyIn(repo, id, to)) });
 }
 
 // The viewer is one page: any address that isn't one of its files is the page, which reads the address itself.

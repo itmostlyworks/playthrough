@@ -412,16 +412,15 @@ export function scenesIn(file: string, written: number): Promise<Map<string, Kep
   return loaded;
 }
 
-// The scene being taken over, how deep in its steps it is, as only its own steps are places to take it over, and the
-// step it's in, with how many of its actions are done.
+// The scene being stepped into: whether its own run has begun, past the app's setup and signing in; how deep in its
+// steps it is, as only what's done in its own steps is counted; the step it's in; and how many things it has done there.
 // What's only in the page's memory, like a search typed or a form opened, wouldn't survive loading it in the person's
 // browser. So it's handed over as it was before the actions that only changed what's on it (`from`), however many steps
 // back or on the way to the first, and they're done again there. One that wrote something, or went to another address,
 // isn't, nor anything before it: a fresh load of the page has those already. `address` is where the last of them left
 // the page.
-// The steps it has finished say how far it has got. Several run at once, one for each step in, each in its own window,
-// and each knows its own by what it was called from.
-type Taking = { page: Page; given?: Parameters<Body>[0]; depth: number; rest: () => Promise<void>; step?: string; actions: number; from?: Handed; again: Action[]; address?: string; wrote: boolean; passed: string[]; orders: Orders; handed?: Handed };
+// Several run at once, one for each step in, each in its own window, and each knows its own by what it was called from.
+type Taking = { page: Page; going: boolean; depth: number; rest: () => Promise<void>; step?: string; done: number; from?: Handed; again: Action[]; address?: string; wrote: boolean; orders: Orders; handed?: Handed };
 const taking = new AsyncLocalStorage<Taking>();
 
 // What's kept to do again holds while the page is still where the last of it left it, and nothing has been saved since.
@@ -437,11 +436,18 @@ export async function runAlongside(
   orders: Orders,
 ): Promise<{ handed?: Handed; stopped?: Pick<Failed, "at" | "why">; made?: Made; checked?: string }> {
   // The page, readied as the scene's was when it was recorded, and what it writes noted.
-  const scene: Taking = { page, depth: 0, rest: await watchRest(page), actions: 0, again: [], wrote: false, passed: [], orders };
+  const scene: Taking = { page, going: false, depth: 0, rest: await watchRest(page), done: 0, again: [], wrote: false, orders };
   await page.clock.setSystemTime(onReviewDay(started));
   await page.addInitScript({ content: seeded });
   page.on("request", (request) => void (["GET", "HEAD", "OPTIONS"].includes(request.method()) || (scene.wrote = true)));
   pace(page);
+  // A page gone to in a step is the first place a step that starts on a blank page can be stepped into.
+  const goto = page.goto.bind(page);
+  page.goto = async (...args) => {
+    const went = await goto(...args);
+    if (scene.depth) await reached(scene);
+    return went;
+  };
   return taking.run(scene, async () => {
     let made: Made | undefined;
     try {
@@ -453,17 +459,18 @@ export async function runAlongside(
       orders.made = true;
       if (orders.stopped) throw new Stopped();
       if (who) await appSetup.signIn?.({ page, person: who, setup: made.setup });
-      scene.given = { page, context: page.context(), request, baseURL, setup: made.setup };
-      await body(scene.given);
-      await reached(scene);
+      scene.going = true;
+      await body({ page, context: page.context(), request, baseURL, setup: made.setup });
+      // Done everything, or fewer things than it showed, it's handed over at its end.
+      if (orders.stopped) throw new Stopped();
+      await handOver(scene);
       return { handed: scene.handed, made };
     } catch (error) {
       if (error instanceof Stopped || orders.stopped) return { handed: scene.handed, made };
       const why = firstLine(String((error as Error)?.message ?? error));
       // Everything the moment does is done, and only a check of how it ended fails: that's the place a person steps in
       // to look at, so it's handed over as it is, with what didn't hold.
-      const { to } = orders;
-      if (isCheck(error) && scene.step && to.actions === undefined && (!to.step || to.step === scene.step)) {
+      if (isCheck(error) && scene.step) {
         await handOver(scene);
         const on = String((error as { message?: string }).message).match(/^Locator: (.*)$/m)?.[1];
         return { handed: scene.handed, made, checked: `This moment's check of how it ends doesn't hold on the app as it is now: Playwright says “${why}”${on ? ` of ${on}` : ""}.` };
@@ -473,28 +480,20 @@ export async function runAlongside(
   });
 }
 
-// After an action, at a step's end, or at the scene's end (no step): it goes on until it's where it's handed over, hands
-// over there, and goes no further.
-async function reached(scene: Taking, step?: string, actions?: number) {
+// As a step starts, after each thing done in it, and after each page gone to there: once it has done as many as it's stepped in after, on a page with
+// something loaded, it's handed over there and goes no further. On a page with nothing loaded yet, as a moment's step
+// that starts its recording begins, it goes on to the first page gone to, or thing done, that loads one. Stepped in at
+// the end, it's handed over once it's done everything (runAlongside).
+async function reached(scene: Taking) {
   const { to, stopped } = scene.orders;
   if (stopped) throw new Stopped();
-  const where = against(scene.passed, step, actions, to);
-  if (where === "on") return;
-  if (where === "here") await handOver(scene);
-  if (step) throw new Stopped();
+  if (to.after === undefined || scene.done < to.after || scene.page.url() === "about:blank") return;
+  await handOver(scene);
+  throw new Stopped();
 }
 
 // A check's failure, as expect throws it, rather than an action's.
 const isCheck = (error: unknown) => !!error && typeof error === "object" && "matcherResult" in error;
-
-function against(passed: string[], step: string | undefined, actions: number | undefined, to: To): "on" | "here" | "past" {
-  if (!step) return to.step ? "past" : "here";
-  if (!to.step) return "on";
-  if (passed.includes(to.step)) return "past";
-  if (to.step !== step) return "on";
-  if (actions === undefined) return to.actions === undefined ? "here" : "past";
-  return to.actions === undefined || to.actions > actions ? "on" : to.actions === actions ? "here" : "past";
-}
 
 // The page as it is once it's at rest, as each step's is read, for the person to carry on from (take-over.ts).
 // Straight after its last action, it was still on its way to the next page.
@@ -542,22 +541,17 @@ const playwrightStep = base.step;
 const step = Object.assign(async (title: string, body: (info: unknown) => unknown, options?: object) => {
   const taken = taking.getStore();
   if (taken) {
-    const own = !taken.depth;
-    if (own) Object.assign(taken, { step: title, actions: 0 });
-    // A moment's way there done, the person can take it over where it starts, before anything it shows is done.
-    if (own) await reached(taken, title, 0);
+    // A moment's way there done, it can be stepped into where its step starts, before anything it shows is done.
+    if (!taken.depth) {
+      taken.step = title;
+      await reached(taken);
+    }
     taken.depth++;
-    let done: unknown;
     try {
-      done = await body(undefined);
+      return await body(undefined);
     } finally {
       taken.depth--;
     }
-    if (own) {
-      await reached(taken, title);
-      taken.passed.push(title);
-    }
-    return done;
   }
   const scene = underway;
   if (!scene || scene.depth) return playwrightStep(title, body, options);
@@ -772,7 +766,7 @@ async function acted(does: string, target: (page: Page) => Promise<string | unde
   const taken = taking.getStore();
   // The scene's own actions, on its way to a step as in one: a panel the way opened is part of the moment it leads to.
   // What made the app and signed in before it isn't the scene's.
-  const keeping = taken?.given ? taken : undefined;
+  const keeping = taken?.going ? taken : undefined;
   let on: string | undefined, address: string | undefined;
   if (keeping) {
     if (!holds(keeping)) Object.assign(keeping, { from: undefined, again: [] });
@@ -801,7 +795,10 @@ async function acted(does: string, target: (page: Page) => Promise<string | unde
     if (on && !keeping.wrote && keeping.page.url() === address) Object.assign(keeping, { address }).again.push({ does, on, ...(plain && { with: given }) });
     else Object.assign(keeping, { from: undefined, again: [] });
   }
-  if (keeping?.depth) await reached(keeping, keeping.step, ++keeping.actions);
+  if (keeping?.depth) {
+    keeping.done++;
+    await reached(keeping);
+  }
   return result;
 }
 

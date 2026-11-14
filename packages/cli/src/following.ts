@@ -42,7 +42,7 @@ export async function readyIn(repo: Repo, id: string, to: To) {
   return took.get(timeOf(repo, id, to, written));
 }
 const took = new Map<string, number>();
-const timeOf = (repo: Repo, id: string, { scene, step, actions }: To, written: number) => JSON.stringify([repo.root, id, scene, step, actions, written]);
+const timeOf = (repo: Repo, id: string, { scene, after }: To, written: number) => JSON.stringify([repo.root, id, scene, after, written]);
 const key = (repo: Repo, id: string) => `${repo.root}\n${id}`;
 
 async function run(repo: Repo, id: string, to: To, files: string[], written: number, until: number, waiting?: AbortSignal) {
