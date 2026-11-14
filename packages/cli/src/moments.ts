@@ -17,7 +17,7 @@ import { chromium, type Page } from "@playwright/test";
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import type { Glimpse, Reading } from "@playthrough/page";
-import { allNotes, conversation, list, madeInApp, MOST_SHOWN, notesToAnswer, saidDone, quote, Refused, roundInProgress, startOf, toAccountFor, type Change, type Review, type Round, type Scene } from "@playthrough/review";
+import { allNotes, conversation, list, madeInApp, MOST_SHOWN, notesToAnswer, saidDone, quote, Refused, roundInProgress, startOf, toAccountFor, type Finding, type Review, type Round, type Scene } from "@playthrough/review";
 import { agent } from "./agent.ts";
 import { browserFile, stopBrowser, type Browser } from "./as.ts";
 import { changeHere, momentNamed, momentsOf } from "./change.ts";
@@ -373,11 +373,11 @@ async function compareAll(repo: Repo, id: string, number: number, scenes: Scene[
 
 // Each moment run again, in a line: new since it was last handed back, the same, different and how, as Playthrough
 // says it; or where its way stopped, with how to get it back.
-export function howEachWent(scenes: Scene[], failed: Failed[], handedBack: Round, changes: Change[]): string[] {
+export function howEachWent(scenes: Scene[], failed: Failed[], handedBack: Round, findings: Finding[]): string[] {
   const went = scenes.map((scene) => {
-    const different = changes.filter((change) => change.seen.some((seen) => seen.scene === scene.name));
+    const different = findings.filter((finding) => finding.seen.some((seen) => seen.scene === scene.name));
     const fresh = !handedBack.scenes.some((one) => one.name === scene.name);
-    return `${quote(scene.name)}: ${fresh ? "new" : different.length ? `different: ${different.map((change) => change.words).join("; ")}` : "the same"}.`;
+    return `${quote(scene.name)}: ${fresh ? "new" : different.length ? `different: ${different.map((finding) => finding.words).join("; ")}` : "the same"}.`;
   });
   const stopped = failed.map((one) => {
     const person = handedBack.scenes.find((scene) => scene.name === one.scene)?.person;

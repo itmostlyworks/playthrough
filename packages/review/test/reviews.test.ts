@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, test } from "node:test";
 import { folder } from "../src/folder.ts";
-import { conversation, memory, newId, Refused, Reviews, type Change, type Scene, type Round, type Send, type Storage } from "../src/index.ts";
+import { conversation, memory, newId, Refused, Reviews, type Finding, type Scene, type Round, type Send, type Storage } from "../src/index.ts";
 
 const folders: string[] = [];
 after(() => Promise.all(folders.map((path) => rm(path, { recursive: true }))));
@@ -35,7 +35,7 @@ const round = (number: number, parts: Partial<Round> = {}): Round => ({
   ...parts,
 });
 
-const change = (id: string, words: string, at = 2, scene = "Export a quarter"): Change => ({ id, words, seen: [{ scene, at }] });
+const change = (id: string, words: string, at = 2, scene = "Export a quarter"): Finding => ({ id, words, seen: [{ scene, at }] });
 
 let clock = Date.parse("2026-10-22T09:00:00Z");
 const send = (round: number, parts: Partial<Send> = {}): Send => ({

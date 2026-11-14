@@ -33,7 +33,7 @@ const MOST_INSIDE = 5; // changes inside one table or list told one by one; past
 
 // Each rule in turn. What only follows from another comes out first; then each change left is told, with what came with it,
 // but for what changes by itself, which isn't a change at all, nor counted in one.
-export function changesAt(then: Reading, now: Reading, unsteady = new Set<string>(), shown: Shown = { then: [], now: [] }): Found[] {
+export function findingsAt(then: Reading, now: Reading, unsteady = new Set<string>(), shown: Shown = { then: [], now: [] }): Found[] {
   const moment = new Moment(then, now, shown);
   const { follows, carried } = followingHolders(moment);
   const own = moment.differences.filter((difference) => !follows.has(difference));

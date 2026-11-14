@@ -131,7 +131,7 @@ export const Scene = z.strictObject({
 });
 
 // Something different on screen between two rounds, found by Playthrough and said in its fixed words.
-export const Change = z.strictObject({
+export const Finding = z.strictObject({
   id: text("needs an id").describe("Its thing and its kind of change, so it keeps its id in every round while it's the same change"),
   words: text("needs its words").describe("What changed, for the agent: “Download CSV and Cancel have swapped places”"),
   reworded: text("needs the words that read differently")
@@ -153,7 +153,7 @@ export const Change = z.strictObject({
 export const Comparison = z.strictObject({
   round: z.number({ error: "needs its round" }).int().min(1, { error: "needs its round, from 1" }),
   since: z.number({ error: "needs the round it's compared with" }).int().min(1, { error: "needs the round it's compared with, from 1" }),
-  changes: z.array(Change, { error: "needs its changes, a list, even if it's empty" }),
+  changes: z.array(Finding, { error: "needs its changes, a list, even if it's empty" }),
 });
 
 export const Reply = z.strictObject({
@@ -222,7 +222,7 @@ export type OnMoment = z.infer<typeof OnMoment>;
 export type InApp = z.infer<typeof InApp>;
 export type Step = z.infer<typeof Step>;
 export type Scene = z.infer<typeof Scene>;
-export type Change = z.infer<typeof Change>;
+export type Finding = z.infer<typeof Finding>;
 export type Comparison = z.infer<typeof Comparison>;
 export type Reply = z.infer<typeof Reply>;
 export type Note = z.infer<typeof Note>;

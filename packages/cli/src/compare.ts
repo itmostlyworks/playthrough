@@ -4,8 +4,8 @@
 // several scenes, or at several steps, is one change, seen in each scene where it first shows there.
 
 import { chromium, type Page } from "@playwright/test";
-import { list, quote, Refused, type Change, type Comparison, type Scene, type Place, type Reviews, type Step } from "@playthrough/review";
-import { changesAt, idOf } from "./changes.ts";
+import { list, quote, Refused, type Finding, type Comparison, type Scene, type Place, type Reviews, type Step } from "@playthrough/review";
+import { findingsAt, idOf } from "./findings.ts";
 import { HERE, picturesAt } from "./pictures.ts";
 import type { Glimpse, Reading } from "@playthrough/page";
 import { glimpsesOf, readingsOf } from "./reporter.ts";
@@ -35,11 +35,11 @@ export async function compareWithEarlier(reviews: Reviews, id: string, number: n
 // The same scenes recorded twice on the same app: whatever differs between the two changes by itself, like a time the
 // server stamps, so it's left out of every comparison from then on, in every scene: each change as the ids of what it
 // stands for, so the email that changes in a row of the members table is left out, and not the table.
-export async function changesByThemselves(first: Recorded, second: Recorded): Promise<(Change & { pieces: string[] })[]> {
+export async function findingsByThemselves(first: Recorded, second: Recorded): Promise<(Finding & { pieces: string[] })[]> {
   const browser = await chromium.launch();
   try {
-    const { changes, pieces } = await comparing(await browser.newPage(), first, second);
-    return changes.map((change) => ({ ...change, pieces: [...pieces.get(change.id)!] }));
+    const { changes: findings, pieces } = await comparing(await browser.newPage(), first, second);
+    return findings.map((finding) => ({ ...finding, pieces: [...pieces.get(finding.id)!] }));
   } finally {
     await browser.close();
   }
@@ -77,17 +77,17 @@ export function unsteadyIn(scenes: Scene[]): Unsteady {
 }
 
 async function comparing(page: Page, earlier: Recorded, round: Recorded, unsteady: Unsteady = () => new Set()): Promise<Comparison & { pieces: Map<string, Set<string>> }> {
-  const changes = new Map<string, Change>();
+  const findings = new Map<string, Finding>();
   const pieces = new Map<string, Set<string>>();
   const see = ({ id, words, place, of = [id], reworded, gone, pictureOnly }: Sighting) => {
     if (unsteady(place.scene).has(id)) return;
-    const change = changes.get(id);
+    const finding = findings.get(id);
     for (const piece of of) (pieces.get(id) ?? pieces.set(id, new Set()).get(id)!).add(piece);
-    if (!change) changes.set(id, { id, words, seen: [place], ...(reworded && { reworded }), ...(gone && { gone }), ...(pictureOnly && { pictureOnly }) });
+    if (!finding) findings.set(id, { id, words, seen: [place], ...(reworded && { reworded }), ...(gone && { gone }), ...(pictureOnly && { pictureOnly }) });
     else {
-      if (!change.seen.some((seen) => seen.scene === place.scene)) change.seen.push(place);
-      // Read anywhere, it's a change Playthrough can name.
-      if (!pictureOnly) delete change.pictureOnly;
+      if (!finding.seen.some((seen) => seen.scene === place.scene)) finding.seen.push(place);
+      // Read anywhere, it's a finding Playthrough can name.
+      if (!pictureOnly) delete finding.pictureOnly;
     }
   };
   for (const scene of round.scenes) {
@@ -95,10 +95,10 @@ async function comparing(page: Page, earlier: Recorded, round: Recorded, unstead
     const before = earlier.scenes.find((kept) => kept.name === scene.name);
     if (before) for (const sighting of await compareScene(page, earlier, before, round, scene, unsteady(scene.name))) see(sighting);
   }
-  // A scene the agent took away is a change too: what it showed isn't shown any more.
+  // A scene the agent took away is a finding too: what it showed isn't shown any more.
   for (const gone of earlier.scenes.filter((scene) => !round.scenes.some((kept) => kept.name === scene.name)))
     see({ id: idOf(`scene:${gone.name}`, "gone"), words: `${quote(gone.name)} isn't a scene any more`, place: { scene: gone.name } });
-  return { round: round.number, since: earlier.number, changes: [...changes.values()], pieces };
+  return { round: round.number, since: earlier.number, changes: [...findings.values()], pieces };
 }
 
 // A change where it's seen in one scene, what it stands for, and whether only the pictures show it there.
@@ -119,7 +119,7 @@ async function compareScene(page: Page, earlier: Recorded, before: Scene, round:
     const shown = { then: around(glimpsed.then, before, was.step), now: around(glimpsed.now, scene, reading.step) };
     const pictured = await picturesAt(page, was, reading, pictures);
     // Top to bottom, as the screen reads, whether read or pictured.
-    for (const found of [...changesAt(was, reading, unsteady, shown), ...pictured].sort((a, b) => (a.top ?? 0) - (b.top ?? 0))) {
+    for (const found of [...findingsAt(was, reading, unsteady, shown), ...pictured].sort((a, b) => (a.top ?? 0) - (b.top ?? 0))) {
       const on = found.element ? { element: found.element, ...(found.alike && { alike: found.alike }) } : found.box ? { box: found.box } : {};
       sightings.push({ id: found.id, words: found.words, place: { scene: scene.name, at: reading.at, ...on }, of: found.pieces, ...(found.reworded && { reworded: found.reworded }), ...(found.gone && { gone: true as const }), ...(pictured.includes(found) && { pictureOnly: true as const }), ...(found.offScreen && { offScreen: true as const }) });
     }

@@ -6,7 +6,7 @@
 
 import type { Page } from "@playwright/test";
 import { bare, called, differences, HOLDS, holderOf, identity, sentence, the, wayOf, type Reading, type Thing } from "@playthrough/page";
-import { idOf, onScreen, type Found } from "./changes.ts";
+import { idOf, onScreen, type Found } from "./findings.ts";
 
 // Where two pictures differ: a patch of the screen, in pixels; whether it's the same picture nudged up to 2px, which only
 // follows from what else changed; or moved further, up to 24px, along or across.

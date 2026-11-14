@@ -2,7 +2,7 @@
 // Each returns what's wrong in plain words, saying what to do about it, and nothing when all is well.
 
 import type { z } from "zod";
-import { Comparison, fileName, madeInApp, Round, Seen, Send, type Change, type InApp, type Note, type OnMoment, type Review, type Scene } from "./model.ts";
+import { Comparison, fileName, madeInApp, Round, Seen, Send, type Finding, type InApp, type Note, type OnMoment, type Review, type Scene } from "./model.ts";
 import { quote } from "./words.ts";
 
 // The round the agent is working on: the last one until it's finished, then the next; the first is 1.
@@ -146,17 +146,17 @@ export function problemsWithComparison(review: Review, comparison: Comparison): 
   if (comparison.since >= comparison.round) return [`${at}: a round is only compared with a round before it.`];
   if (!earlier) return [`${at}: there's no round ${comparison.since} to compare it with.`];
 
-  const problems = duplicates(comparison.changes.map((change) => change.id), (id) => `${at} has two changes with the id ${id}.`);
-  for (const change of comparison.changes)
-    for (const seen of change.seen) {
+  const problems = duplicates(comparison.changes.map((finding) => finding.id), (id) => `${at} has two changes with the id ${id}.`);
+  for (const finding of comparison.changes)
+    for (const seen of finding.seen) {
       const gone = seen.at === undefined && !round.scenes.some((scene) => scene.name === seen.scene);
-      problems.push(...problemsWithPlace(seen, gone ? earlier.scenes : round.scenes, `${at}: ${describe(change)}`));
+      problems.push(...problemsWithPlace(seen, gone ? earlier.scenes : round.scenes, `${at}: ${describe(finding)}`));
     }
   return problems;
 }
 
 // The changes the agent is told of: those Playthrough can name. One only the pictures show is the person's to look at.
-export const toAccountFor = (comparison?: Comparison) => (comparison?.changes ?? []).filter((change) => !change.pictureOnly);
+export const toAccountFor = (comparison?: Comparison) => (comparison?.changes ?? []).filter((finding) => !finding.pictureOnly);
 
 // A round is handed back once its file is in the right shape, every note it took is answered, and, compared at all, it's
 // compared with every round before it.
@@ -310,6 +310,6 @@ function duplicates(values: string[], problem: (value: string) => string): strin
   return [...twice].map(problem);
 }
 
-const describe = (change: Change) => `the change ${change.id} (${cut(change.words)})`;
+const describe = (finding: Finding) => `the change ${finding.id} (${cut(finding.words)})`;
 const cut = (words: string) => (words.length > 48 ? `${words.slice(0, 47).trimEnd()}…` : words);
 const isText = (value: unknown): value is string => typeof value === "string" && value.trim() !== "";

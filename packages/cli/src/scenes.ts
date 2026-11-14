@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Refused, type Scene } from "@playthrough/review";
-import { changesByThemselves, type Recorded as Compared } from "./compare.ts";
+import { findingsByThemselves, type Recorded as Compared } from "./compare.ts";
 import { keepRunning } from "./app.ts";
 import { glimpsesOf, readingsOf, type Failed, type Recorded } from "./reporter.ts";
 import { repo, type App } from "./repo.ts";
@@ -59,9 +59,9 @@ export const isScene = (name: string) => /\.[cm]?[jt]s$/.test(name);
 // The same scenes recorded twice on the same app: what differs between the two changes by itself, and is kept on each
 // scene it's in as unsteady, so it's left out of every comparison. Said, a change at a time.
 export async function markUnsteady(round: number, once: Ran["recorded"], twice: Ran["recorded"]) {
-  const byThemselves = await changesByThemselves(inMemory(round, once), inMemory(round, twice));
+  const byThemselves = await findingsByThemselves(inMemory(round, once), inMemory(round, twice));
   for (const { scene } of once) {
-    const pieces = byThemselves.filter((change) => change.seen.some((place) => place.scene === scene.name)).flatMap((change) => change.pieces);
+    const pieces = byThemselves.filter((finding) => finding.seen.some((place) => place.scene === scene.name)).flatMap((finding) => finding.pieces);
     if (pieces.length) scene.unsteady = [...new Set(pieces)];
   }
   return byThemselves;

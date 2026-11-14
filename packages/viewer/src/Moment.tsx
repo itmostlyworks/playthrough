@@ -141,7 +141,7 @@ export function MomentView(props: {
   const anyLook = round.scenes.some((one) => lastLook(one));
   const looking = lastLook(scene);
   const compared = looking && review.comparisons.find((one) => one.round === round.number && one.since === looking.round.number);
-  const unchanged = !!compared && !compared.changes.some((change) => change.seen.some((seen) => seen.scene === scene.name));
+  const unchanged = !!compared && !compared.changes.some((finding) => finding.seen.some((seen) => seen.scene === scene.name));
   const then = unchanged ? undefined : looking;
   const both = useMemo(() => then && cut && playedTogether(cut, together(scene, then.scene)), [cut, then?.scene.recording, scene.recording]);
   // Each side at actual size, a window onto the same part of the page, following now's pointer, as the older page's are.

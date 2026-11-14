@@ -32,7 +32,7 @@ export function differentSince(review: Review, round: Round): Map<string, string
   const before = review.rounds.findLast((one) => one.number < round.number && one.finished);
   const compared = before && review.comparisons.find((one) => one.round === round.number && one.since === before.number);
   const different = new Map<string, string[]>();
-  for (const change of compared?.changes ?? []) for (const seen of change.seen) different.set(seen.scene, [...(different.get(seen.scene) ?? []), change.words]);
+  for (const finding of compared?.changes ?? []) for (const seen of finding.seen) different.set(seen.scene, [...(different.get(seen.scene) ?? []), finding.words]);
   return different;
 }
 

@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
 import { chromium, type Browser, type Page } from "@playwright/test";
 import type { Reading } from "@playthrough/page";
-import { changesAt } from "../src/changes.ts";
+import { findingsAt } from "../src/findings.ts";
 import { readPage } from "../src/read.ts";
 
 let browser: Browser;
@@ -21,8 +21,8 @@ async function reading(html: string, scrolled = 0): Promise<Reading> {
   if (scrolled) await page.evaluate((y) => scrollTo(0, y), scrolled);
   return { step: "Open the invoices", at: 1, picture: "", ...(await readPage(page)) };
 }
-const changes = async (then: string, now: string) => changesAt(await reading(then), await reading(now));
-const said = async (then: string, now: string) => (await changes(then, now)).map((change) => change.words);
+const changes = async (then: string, now: string) => findingsAt(await reading(then), await reading(now));
+const said = async (then: string, now: string) => (await changes(then, now)).map((finding) => finding.words);
 
 const rows = (names: string[], cell = (name: string) => `<td>${name}</td>`) => `<table>${names.map((name) => `<tr>${cell(name)}</tr>`).join("")}</table>`;
 const dialog = (inside: string) => `<h1>Invoices</h1><div role="dialog" aria-label="Export" class="panel">${inside}</div>`;
@@ -194,7 +194,7 @@ describe("What changed at a moment", () => {
     const then = `<h1>Playthrough</h1><p>Open source, on your machine, with any web app and any agent.</p>`;
     const now = `<h1>Playthrough</h1><section style="height: 300px"></section><p>Free for teams of three, with every review kept in your repository.</p>`;
     const found = await changes(then, now);
-    assert.deepEqual(found.map((change) => change.words), ["“Open source, on your machine, with any web app and any agen…” is gone", "“Free for teams of three, with every review kept in your rep…” is new"]);
+    assert.deepEqual(found.map((finding) => finding.words), ["“Open source, on your machine, with any web app and any agen…” is gone", "“Free for teams of three, with every review kept in your rep…” is new"]);
   });
 
   test("an item whose words changed in more than one piece says what it says now, and the same change in each item is one change (the polls app's shares)", async () => {
@@ -205,7 +205,7 @@ describe("What changed at a moment", () => {
     const now = `<h1>Favourite fruit?</h1><ul style="width: 512px">${votes.map(share).join("")}</ul><a href="/vote">Vote again?</a>`;
     const found = await changes(then, now);
     // Vote again? moved down only as the items above it grew: that belongs to them.
-    assert.deepEqual(found.map((change) => change.words), ["“Apples -- 12 votes” now says “Apples 57% 12 votes”, in 3 places"]);
+    assert.deepEqual(found.map((finding) => finding.words), ["“Apples -- 12 votes” now says “Apples 57% 12 votes”, in 3 places"]);
     assert.deepEqual([found[0]!.element?.role, found[0]!.alike?.length], ["listitem", 2], "it's on the first item, and the others are changed alike");
   });
 
@@ -222,10 +222,10 @@ describe("What changed at a moment", () => {
     const members = (...rows: string[]) => `<h2>Members</h2><table><tr><th>User</th><th>Email</th><th>Role</th></tr>${rows.join("")}</table>`;
     const before = await reading(members(member("Sam", "mvx2tlwpr561", "Admin"), member("Maya", "mvx2tlwpr561", "Member"), member("Maya", "mvx2tlwpr561", "Member")));
     const again = await reading(members(member("Sam", "mvx2q8aaz9k1", "Admin"), member("Maya", "mvx2q8aaz9k1", "Member"), member("Maya", "mvx2q8aaz9k1", "Member")));
-    const unsteady = new Set(changesAt(before, again).flatMap((change) => change.pieces));
+    const unsteady = new Set(findingsAt(before, again).flatMap((finding) => finding.pieces));
     const now = await reading(members(member("Sam", "mvx2v2nyte2u", "Owner"), member("Maya", "mvx2v2nyte2u", "Member")));
     assert.deepEqual(
-      changesAt(before, now, unsteady).map((change) => change.words),
+      findingsAt(before, now, unsteady).map((finding) => finding.words),
       ["“Admin” now says “Owner”", "“Maya maya-mvx2tlwpr561@kan-test.local Member” is gone"],
     );
   });
@@ -272,11 +272,11 @@ describe("What changed at a moment", () => {
     const announced = toast(`aria-live="assertive"`);
     const glimpse = async (html: string) => { const { picture: _, ...glimpse } = await reading(html); return glimpse; };
     const shownNow = { then: [], now: [await glimpse(page(announced))] };
-    assert.deepEqual((changesAt(await reading(page(announced)), await reading(page("")), undefined, shownNow)).map((change) => change.words), []);
-    assert.deepEqual((changesAt(await reading(page(announced)), await reading(page("")))).map((change) => change.words), ["“Added to favorites” message is gone"]);
+    assert.deepEqual((findingsAt(await reading(page(announced)), await reading(page("")), undefined, shownNow)).map((finding) => finding.words), []);
+    assert.deepEqual((findingsAt(await reading(page(announced)), await reading(page("")))).map((finding) => finding.words), ["“Added to favorites” message is gone"]);
     // A panel that isn't a message, like a dialog that now closes, is gone however briefly it was there.
     const panel = toast("");
-    assert.deepEqual((changesAt(await reading(page(panel)), await reading(page("")), undefined, { then: [], now: [await glimpse(page(panel))] })).map((change) => change.words), ["“Added to favorites” area is gone"]);
+    assert.deepEqual((findingsAt(await reading(page(panel)), await reading(page("")), undefined, { then: [], now: [await glimpse(page(panel))] })).map((finding) => finding.words), ["“Added to favorites” area is gone"]);
   });
 
   test("a control that gained words inside it is the same control, and the words are what's new", async () => {
@@ -294,7 +294,7 @@ describe("What changed at a moment", () => {
 
   test("a page scrolled further hasn't moved what's on it", async () => {
     const page = `<h1>Invoices</h1><p style="margin-top: 1500px">INV-1043</p>`;
-    assert.deepEqual(changesAt(await reading(page), await reading(page, 600)).map((change) => change.words), []);
+    assert.deepEqual(findingsAt(await reading(page), await reading(page, 600)).map((finding) => finding.words), []);
   });
 });
 
