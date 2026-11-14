@@ -958,6 +958,7 @@ function MomentView(props: {
   const frame = useRef<HTMLDivElement>(null);
   const pointer = useRef({ x: 0, y: 0 });
   const pill = useRef<HTMLSpanElement>(null);
+  const toolbar = useRef<HTMLDivElement>(null);
   const [aiming, setAiming] = useState(false);
   // What you did in the app, recorded from when it was handed to you, for a note made there to be on.
   const session = useRef<{ id: string; events: { timestamp: number }[]; did: Did[]; kept: number }>({ id: newId(), events: [], did: [], kept: 0 });
@@ -1197,6 +1198,18 @@ function MomentView(props: {
     return { [shownOpen.note.id]: { left: left + box.x * screen.width * k, top: top + box.y * screen.height * k, width: box.width * screen.width * k, height: box.height * screen.height * k } };
   })();
   const openAt = pictured ? (onPicture ?? {}) : openPlaced;
+  // An open note's thing under the bar: while it's open, the bar moves along the recording's edge to the side of it with
+  // room, or where it's too wide for that, down off the edge, so its thing is never under it.
+  const openThing = opened && (openNow ? placed[opened.note.id] : openAt[opened.note.id]);
+  const clear = (() => {
+    const [wide, high, barWide] = [frame.current?.clientWidth ?? 0, frame.current?.clientHeight ?? 0, toolbar.current?.offsetWidth ?? 0];
+    if (!openThing || openThing.top + openThing.height <= high - BAR / 2 - 8) return { x: 0, y: 0 };
+    const [left, right] = [(wide - barWide) / 2, (wide + barWide) / 2];
+    if (openThing.left > right + 8 || openThing.left + openThing.width < left - 8) return { x: 0, y: 0 };
+    const moves = [openThing.left - 12 - right, openThing.left + openThing.width + 12 - left].filter((by) => left + by >= 8 && right + by <= wide - 8);
+    const by = moves.sort((a, b) => Math.abs(a) - Math.abs(b))[0];
+    return by === undefined ? { x: 0, y: BAR / 2 } : { x: by, y: 0 };
+  })();
   // The note whose card shows: open on the moment as it is now, or on the frame it was made on, until that has faded.
   const carded = opened && openNow ? opened : shownOpen && (opened ? shownOpen.note.id === opened.note.id && shownOpen : !phone && shownOpen);
   // What it's about is outlined only at the point: midway, it may not be there yet.
@@ -1522,8 +1535,9 @@ function MomentView(props: {
             role="toolbar"
             aria-label="This moment"
             onClick={(event) => (event.target as Element).closest("button")?.blur()}
-            className={`absolute top-full left-1/2 z-20 flex -translate-x-1/2 -translate-y-1/2 gap-0.5 rounded-xl bg-surface p-1 text-[13px] select-none ${inApp ? "shadow-[0_0_0_1.5px_rgba(236,178,72,0.95),0_6px_20px_rgba(20,24,34,0.12)]" : "shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]"}`}
-            style={{ height: BAR }}
+            className={`absolute top-full left-1/2 z-20 flex gap-0.5 rounded-xl transition-[translate] duration-300 ease-calm bg-surface p-1 text-[13px] select-none ${inApp ? "shadow-[0_0_0_1.5px_rgba(236,178,72,0.95),0_6px_20px_rgba(20,24,34,0.12)]" : "shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]"}`}
+            ref={toolbar}
+            style={{ height: BAR, translate: `calc(-50% + ${clear.x}px) calc(-50% + ${clear.y}px)` }}
           >
             {/* Noting, the bar says what to do and how to leave, over what it holds, at its width. */}
             {noting && (
