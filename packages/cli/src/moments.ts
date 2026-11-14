@@ -14,7 +14,7 @@
 // what's kept of it, its recording and what it's about, is in the round being worked on, until it's handed back.
 
 import { chromium, type Page } from "@playwright/test";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { Glimpse, Reading } from "@playthrough/page";
 import { allNotes, conversation, list, MOST_SHOWN, notesToAnswer, shownFrom, quote, Refused, roundInProgress, startOf, toAccountFor, type Change, type Review, type Round, type Scene } from "@playthrough/review";
@@ -300,9 +300,9 @@ export async function drop(repo: Repo, words: string) {
   const moment = momentNamed(repo, id, words);
   const review = await repo.reviews.get(id);
   // A moment a note is on is where the person sees what was done about it: dropped, they'd have nowhere to look, unless a
-  // moment marked since shows it.
+  // moment marked since the note came shows it.
   const on = notesOn(review, moment.words);
-  if (on.length && !newSinceHandedBack(review).length)
+  if (on.length && !markedSinceNotes(repo, review, on, moment.words).length)
     throw new Refused([
       `${on.length > 1 ? `Notes ${list(on)} are` : `Note ${on[0]} is`} on ${quote(moment.words)}: the person sees what you did about ${on.length > 1 ? "them" : "it"} in a moment, not only in your answer. Mark one that shows it first, a still where it was if it's gone (playthrough moment "<what's there now>"); then drop this one, if what it showed no longer exists.`,
     ]);
@@ -321,11 +321,14 @@ function notesOn(review: Review, moment: string): string[] {
   });
 }
 
-// The moments marked since the person last saw them, in what's to be handed back.
-function newSinceHandedBack(review: Review): string[] {
-  const handedBack = review.rounds.findLast((round) => round.finished);
-  const kept = review.rounds.find((round) => round.number === roundInProgress(review));
-  return (kept?.scenes ?? []).filter((scene) => !handedBack?.scenes.some((one) => one.name === scene.name)).map((scene) => scene.name);
+// The moments marked since the person's notes reached the agent, other than the one they're on: where what was done about
+// them can be seen.
+function markedSinceNotes(repo: Repo, review: Review, notes: string[], besides?: string): string[] {
+  const sent = review.sends.filter((send) => send.notes.some((note) => notes.includes(note.id)));
+  const reached = Math.max(0, ...review.taken.filter((taken) => sent.some((send) => send.id === taken.send)).map((taken) => Date.parse(taken.at)));
+  return momentsOf(repo, review.id)
+    .filter((moment) => moment.words !== besides && statSync(moment.file).mtimeMs > reached)
+    .map((moment) => moment.words);
 }
 
 // Every moment again, on the code as it is now, by its way there: recorded, compared with what was last handed back, and
@@ -404,7 +407,7 @@ export async function reply(repo: Repo, note: string, words: string | undefined)
   // with nothing to see it in.
   const on = allNotes(review).get(note)?.note.on;
   const moment = on?.app?.from.scene ?? on?.scene;
-  if (moment && !kept.scenes.some((scene) => scene.name === moment) && !newSinceHandedBack(review).length)
+  if (moment && !kept.scenes.some((scene) => scene.name === moment) && !markedSinceNotes(repo, review, [note]).length)
     throw new Refused([
       `Note ${note} is on ${quote(moment)}, which isn't in what you'd hand back: the person would read your answer with nothing to see it in. Mark a moment that shows what you did (playthrough moment "<what's there>"), or get ${quote(moment)} there again and mark it with the same words; then answer.`,
     ]);
