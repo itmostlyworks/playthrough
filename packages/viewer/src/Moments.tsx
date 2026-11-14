@@ -109,6 +109,39 @@ function keepReplies(review: string, replies: Replied[]) {
 // What Send says it sends: notes and replies, by their count.
 const toSend = (notes: number, replies: number) =>
   [notes && `${notes} ${notes === 1 ? "note" : "notes"}`, replies && `${replies} ${replies === 1 ? "reply" : "replies"}`].filter(Boolean).join(" and ");
+// The answers you've opened, kept in this browser, each by its note and how far its conversation had got: one answered
+// again is new again.
+const answersKey = (review: string, you: string) => `playthrough:moments-answers:${review}:${you}`;
+function answersOpened(review: string, you: string): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(answersKey(review, you)) ?? "[]");
+  } catch {
+    return [];
+  }
+}
+function openAnswer(review: Review, you: string, note: string) {
+  const turns = conversation(review, note);
+  if (!turns.at(-1)?.agent) return;
+  const opened = answersOpened(review.id, you);
+  const taken = `${note}:${turns.length}`;
+  if (opened.includes(taken)) return;
+  try {
+    localStorage.setItem(answersKey(review.id, you), JSON.stringify([...opened, taken]));
+  } catch {}
+}
+// What a note says wherever it's shown, a line on the list, its picture's words or its pin pointed at: your latest
+// words, and where it stands; an answer you haven't opened yet is new until you do.
+function noteSays(review: Review, you: string, note: { id: string; words: string }, sent: boolean, replies: Replied[]) {
+  if (!sent) return { words: note.words, stands: "not sent yet", fresh: false };
+  const turns = conversation(review, note.id);
+  const replied = replies.find((one) => one.note === note.id)?.words;
+  const words = replied ?? turns.findLast((turn) => !turn.agent)?.words ?? note.words;
+  if (replied) return { words, stands: "reply not sent yet", fresh: false };
+  if (!turns.at(-1)?.agent) return { words, stands: "sent", fresh: false };
+  const fresh = !answersOpened(review.id, you).includes(`${note.id}:${turns.length}`);
+  return { words, stands: fresh ? "new answer" : "answered", fresh };
+}
+
 // Each moment's taking: seen per taking, so one that's different since asks for you again, once.
 const takingOf = (round: number, scene: string) => `${round}:${scene}`;
 // The moments that look different since the taking before, by Playthrough's own comparison, with its words.
@@ -520,16 +553,8 @@ function ChangeInList(props: {
                   {(() => {
                     // A line a note: your latest words, and where it stands. Its conversation is by its pin.
                     const unsentHere = notes.filter((note) => note.on?.scene === scene.name);
-                    const seenHere = seen.includes(takingOf(round.number, scene.name));
                     const lines = [
-                      ...talk.map(([id]) => {
-                        const turns = conversation(review, id);
-                        const replied = replies.find((one) => one.note === id)?.words;
-                        const last = turns.at(-1);
-                        const yours = replied ?? turns.findLast((turn) => !turn.agent)?.words ?? "";
-                        const stands = replied ? "not sent yet" : last?.agent ? "answered" : "sent";
-                        return { id, words: yours, stands, fresh: stands === "answered" && !seenHere };
-                      }),
+                      ...talk.map(([id, kept]) => ({ id, ...noteSays(review, you, { id, words: kept.note.words }, true, replies) })),
                       ...unsentHere.map((note) => ({ id: note.id, words: note.words, stands: "not sent yet", fresh: false })),
                     ];
                     return lines.length > 0 && (
@@ -594,7 +619,7 @@ function NoteLine({ words, stands, fresh, onOpen }: { words: string; stands: str
       <span ref={box} className={`min-w-0 flex-1 overflow-hidden whitespace-nowrap ${fresh || stands === "not sent yet" ? "text-fg" : "text-soft"}`} style={fade}>
         {words}
       </span>
-      <span className={`w-[76px] flex-none text-right text-xs ${fresh ? "text-fg" : "text-faint"}`}>{stands}</span>
+      <span className={`w-[100px] flex-none text-right text-xs ${fresh ? "font-medium text-fg" : "text-faint"}`}>{stands}</span>
     </button>
   );
 }
@@ -863,8 +888,17 @@ function MomentView(props: {
   const [open, setOpen] = useState<string>();
   const [placed, setPlaced] = useState<Placed>({});
   const [live, setLive] = useState<Live>();
-  // A note's pin on the recording and its picture on the edge are one thing: pointing at either lights both.
+  // A note's pin on the recording and its picture on the edge are one thing: pointing at either lights both. A pin
+  // pointed at says its note right there, as its picture does, after a breath, so passing over one says nothing.
   const [pointed, setPointed] = useState<string>();
+  const [saying, setSaying] = useState<string>();
+  const sayingAfter = useRef(0);
+  const pointPin = (id?: string) => {
+    setPointed(id);
+    clearTimeout(sayingAfter.current);
+    if (!id) return setSaying(undefined);
+    sayingAfter.current = window.setTimeout(() => setSaying(id), 120);
+  };
   // Opened or closed, it stops where it's got to.
   const compare = () => {
     if (!then || live?.shown) return;
@@ -1083,6 +1117,9 @@ function MomentView(props: {
     if (playing) (setPlaying(undefined), restAt(clockOf.at));
     setOpen((now) => (now === id ? undefined : id));
   };
+  // Opened, its answer is no longer new.
+  const [, answered] = useState(0);
+  useEffect(() => void (opened?.sent && (openAnswer(review, you, opened.note.id), answered((n) => n + 1))), [opened?.note.id]);
   const [layers, setLayers] = useState<{ note: Note; sent: boolean; made: Made }[]>([]);
   const [openPlaced, setOpenPlaced] = useState<Placed>({});
   const shut = useRef<HTMLDivElement>(null);
@@ -1221,10 +1258,7 @@ function MomentView(props: {
     });
   const noteTiles = (forward: boolean) =>
     onEdge.map(({ note, sent: isSent }) => {
-      const turns = isSent ? conversation(review, note.id) : [];
-      const replied = replies.find((one) => one.note === note.id)?.words;
-      const words = replied ?? turns.findLast((turn) => !turn.agent)?.words ?? note.words;
-      const stands = !isSent ? "not sent yet" : replied ? "reply not sent yet" : turns.at(-1)?.agent ? "answered" : "sent";
+      const { words, stands, fresh } = noteSays(review, you, note, isSent, replies);
       return (
         <Tile
           key={note.id}
@@ -1234,13 +1268,12 @@ function MomentView(props: {
           strong={open === note.id}
           lit={pointed === note.id}
           arriving={before && !before.has(note.id) ? "right" : undefined}
-          picture={<NotePicture frame={frames[note.id]} sent={isSent} />}
-          words={
+          picture={
             <>
-              <span className="line-clamp-3 text-[12.5px] leading-[17px] text-fg">{words}</span>
-              <span className={`block text-[11.5px] leading-4 ${stands === "answered" ? "text-soft" : "text-faint"}`}>{stands}</span>
+              <NotePicture frame={frames[note.id]} sent={isSent} />
             </>
           }
+          words={<NoteWords words={words} stands={stands} fresh={fresh} />}
           onPress={() => openNote(note.id)}
           onPoint={(now) => setPointed(now ? note.id : undefined)}
         />
@@ -1418,11 +1451,25 @@ function MomentView(props: {
               {shownOpen && !openNow ? (
                 <Pinned pins={[pinFor(shownOpen)]} placed={openAt} open={shownOpen.note.id} faded={!opened} onOpen={() => setOpen(undefined)} />
               ) : (
-                <Pinned pins={(opened && openNow ? [opened] : pinned).map(pinFor)} placed={placed} open={writing?.note.id ?? (openNow ? opened?.note.id : undefined)} faded={!!playing || !!live?.shown} lit={pointed} onPoint={setPointed} onOpen={(id) => id && openNote(id)} quiet />
+                <Pinned pins={(opened && openNow ? [opened] : pinned).map(pinFor)} placed={placed} open={writing?.note.id ?? (openNow ? opened?.note.id : undefined)} faded={!!playing || !!live?.shown} lit={pointed} onPoint={pointPin} onOpen={(id) => id && openNote(id)} quiet />
               )}
             </div>
           </div>
           <Portal live={live && { ...live, inApp }} person={person} screen={screen} scrolled={() => scrolled.current?.()} waiting="Stepping in…" named={false} />
+          {(() => {
+            const one = saying && !opened && !writing && !playing && !live?.shown ? onEdge.find(({ note }) => note.id === saying) : undefined;
+            const thing = one && placed[one.note.id];
+            if (!one || !thing) return null;
+            const said = noteSays(review, you, one.note, one.sent, replies);
+            // Beside its pin, which stands just outside the thing's top right corner, on whichever side has room.
+            const [x, y, wide] = [thing.left + thing.width + (thing.width || thing.height ? 14 : 0), thing.top - (thing.width || thing.height ? 14 : 0), frame.current?.clientWidth ?? 0];
+            const left = x + 16 + 220 <= wide ? x + 16 : Math.max(8, x - 16 - 220);
+            return (
+              <div aria-hidden className="pointer-events-none absolute z-30 w-[220px] animate-arrive rounded-lg bg-surface px-2 pt-1.5 pb-[7px] shadow-float" style={{ left, top: Math.max(8, y - 10) }}>
+                <NoteWords {...said} />
+              </div>
+            );
+          })()}
           <span ref={pill} aria-hidden className={`pointer-events-none absolute top-0 left-0 z-30 transition-opacity duration-150 ease-calm ${aimingNote && aiming ? "" : "opacity-0"}`}>
             <span className={TAG}>Note on this</span>
           </span>
@@ -1527,6 +1574,16 @@ function useFrames(review: Review, notes: { note: Note; shown?: Made }[]): Recor
     }
   }, [wanted.map(({ note, shown }) => `${note.id}:${shown && keyOf(shown)}`).join(" ")]);
   return frames;
+}
+
+// A note's words, as its picture on the edge says them and its pin does pointed at.
+function NoteWords({ words, stands, fresh }: { words: string; stands: string; fresh: boolean }) {
+  return (
+    <>
+      <span className="line-clamp-3 text-[12.5px] leading-[17px] text-fg">{words}</span>
+      <span className={`block text-[11.5px] leading-4 ${fresh ? "font-medium text-fg" : stands === "answered" ? "text-soft" : "text-faint"}`}>{stands}</span>
+    </>
+  );
 }
 
 // A note's picture on the edge: its frame closed in on what it's on, as a moment's still is, with its pin there.
