@@ -2,6 +2,7 @@
 // a review at its own address.
 
 import { createRoot } from "react-dom/client";
+import { FramePage, type Framed } from "./Frame.tsx";
 import { MomentsPage } from "./Moments.tsx";
 import { ReviewPage } from "./Review.tsx";
 import { Video, type Filmed } from "./Video.tsx";
@@ -11,4 +12,8 @@ import "./style.css";
 // video.
 const [id, scene] = location.pathname.slice(1).split("/").map(decodeURIComponent);
 const filmed = new URLSearchParams(location.search).get("video");
-createRoot(document.getElementById("root")!).render(!id || id === "moments" ? <MomentsPage /> : filmed ? <Video id={id} filmed={JSON.parse(filmed) as Filmed} /> : <ReviewPage id={id} scene={scene} />);
+// Drawn into a picture, a note's frame alone.
+const framed = new URLSearchParams(location.search).get("frame");
+createRoot(document.getElementById("root")!).render(
+  framed ? <FramePage framed={JSON.parse(framed) as Framed} /> : !id || id === "moments" ? <MomentsPage /> : filmed ? <Video id={id} filmed={JSON.parse(filmed) as Filmed} /> : <ReviewPage id={id} scene={scene} />,
+);

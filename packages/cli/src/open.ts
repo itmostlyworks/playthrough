@@ -16,6 +16,7 @@ import { BEAT } from "./scenes.ts";
 import { repo as copyAt, type Repo } from "./repo.ts";
 import { readyIn } from "./following.ts";
 import { everyCopy, machine } from "./machine.ts";
+import { frameOf, type Framed } from "./frames.ts";
 import { getReady } from "./take-over.ts";
 import { setupIn } from "./setup.ts";
 import { video, type Filmed } from "./video.ts";
@@ -209,6 +210,10 @@ async function answer(here: Machine, page: string, you: string, request: Incomin
   if (request.method === "POST" && rest[0] === "take-over") return takeOver(repo, id, request, response);
   if (request.method === "POST" && rest[0] === "ready-in") return readyInFor(repo, id, request, response);
   if (request.method === "POST" && rest[0] === "branches") return branch(repo, id, request, response);
+  if (request.method === "POST" && rest[0] === "frames") {
+    const { note, ...framed } = await body<Framed & { note: string }>(request);
+    return json(response, 200, await frameOf(repo, id, address, note, framed, request.socket.localPort!));
+  }
   if (request.method === "POST" && rest[0] === "sends") {
     await reviews.send(id, await body<Send>(request));
     return json(response, 200, {});

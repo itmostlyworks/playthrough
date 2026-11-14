@@ -189,6 +189,22 @@ async function posted<T>(path: string, body: unknown): Promise<{ answer: T } | {
   }
 }
 
+// A note's frame as a picture, drawn once by `playthrough open` and kept (frames.ts): its address, and where the note's
+// thing is on it, as shares of the screen. Asked for once a page.
+export type NoteFrame = { src: string; screen: { width: number; height: number }; box?: { x: number; y: number; width: number; height: number } };
+const framing = new Map<string, Promise<NoteFrame | undefined>>();
+export function noteFrame(review: string, note: string, framed: { round: number; recording: string; at: number; node?: number; point?: { x: number; y: number } }): Promise<NoteFrame | undefined> {
+  const asked = framing.get(note);
+  if (asked) return asked;
+  const made = posted<{ picture: string; screen: NoteFrame["screen"]; box?: NoteFrame["box"] }>(`/api/reviews/${review}/frames`, { note, ...framed }).then((done) => {
+    // Not drawn, it's asked for again next time.
+    if ("problems" in done) return void framing.delete(note);
+    return { src: `/api/reviews/${review}/rounds/${framed.round}/files/${done.answer.picture}`, screen: done.answer.screen, ...(done.answer.box && { box: done.answer.box }) };
+  });
+  framing.set(note, made);
+  return made;
+}
+
 // What you did in the app, kept as your branch off the scene you took over: its length, in seconds, once it's kept, or
 // what's wrong in plain words.
 export async function keepBranch(review: string, round: number, from: { scene: string; at: number }, events: unknown[], recording: string): Promise<number | string[]> {
