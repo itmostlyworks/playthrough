@@ -150,19 +150,17 @@ function pairSteps(then: Step[], now: Step[]): Map<number, number> {
   return pairs;
 }
 
-// Steps next to each other that only the newer scene takes are one stretch of New steps, to the next step it shares or its
-// end: what it does that the app couldn't, or the earlier round didn't. On a Before that stopped short, everything from
-// the step it couldn't take.
+// Steps next to each other that only the newer scene takes are New steps, seen where the first of them starts: what it
+// does that the earlier round didn't.
 function newSteps(scene: Scene, pairs: Map<number, number>): Sighting[] {
   return runs(scene.steps.length, (i) => !pairs.has(i)).map(([first, last]) => {
     const titles = scene.steps.slice(first, last + 1).map((step) => step.title);
     const at = scene.steps[first]!.at;
-    const until = scene.steps[last + 1]?.at ?? scene.length;
     return {
       id: idOf(`steps in ${scene.name}: ${titles.join(" · ")}`, "new steps"),
       // Named as far as a line can: past two, by the first and how many.
       words: titles.length > 2 ? `${titles.length} new steps, from ${quote(titles[0]!)}` : `New steps: ${list(titles.map(quote))}`,
-      place: { scene: scene.name, at, ...(until > at && { until }) },
+      place: { scene: scene.name, at },
     };
   });
 }

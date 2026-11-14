@@ -44,25 +44,14 @@ const withExport = `${invoices}<button>Export</button>`;
 const dialog = `${withExport}<div role="dialog" aria-label="Export"><button>Download</button></div>`;
 
 describe("A round compared with one before it", { timeout: 60_000 }, () => {
-  test("steps only the newer scene takes are New steps, one stretch to the next step both take", async () => {
-    const then = await round(0, { "Export them": [["Open the invoices", invoices], ["Export", invoices]] });
-    const now = await round(1, { "Export them": [["Open the invoices", invoices], ["Choose a format", invoices], ["Download", invoices], ["Export", invoices]] });
+  test("steps only the newer scene takes are New steps, seen where the first of them starts", async () => {
+    const then = await round(1, { "Export them": [["Open the invoices", invoices], ["Export", invoices]] });
+    const now = await round(2, { "Export them": [["Open the invoices", invoices], ["Choose a format", invoices], ["Download", invoices], ["Export", invoices]] });
     const { changes } = await compare(comparing, then, now);
     assert.deepEqual(
       changes.map((change) => [change.words, change.seen]),
-      [["New steps: “Choose a format” and “Download”", [{ scene: "Export them", at: 1, until: 3 }]]],
+      [["New steps: “Choose a format” and “Download”", [{ scene: "Export them", at: 1 }]]],
     );
-  });
-
-  test("a scene Before took only part of is compared as far as it went, and the rest is New steps", async () => {
-    const then = await round(0, { "Export them": [["Open the invoices", invoices]] });
-    const now = await round(1, { "Export them": [["Open the invoices", withExport], ["Export", dialog]] });
-    const { changes } = await compare(comparing, then, now);
-    assert.deepEqual(
-      changes.map((change) => change.words),
-      ["Export button is new", "New steps: “Export”"],
-    );
-    assert.deepEqual(changes[1]?.seen, [{ scene: "Export them", at: 1, until: 3 }]);
   });
 
   test("a step the scene doesn't take any more is gone, where it was", async () => {
@@ -86,10 +75,10 @@ describe("A round compared with one before it", { timeout: 60_000 }, () => {
   });
 
   test("the same change in several scenes, or at several steps, is one change, seen in each scene where it first shows", async () => {
-    const then = await round(0, { "See what's overdue": [["Open the invoices", invoices], ["Show the overdue ones", invoices]], "Export them": [["Open the invoices", invoices]] });
-    const now = await round(1, { "See what's overdue": [["Open the invoices", invoices], ["Show the overdue ones", withExport]], "Export them": [["Open the invoices", withExport]] });
+    const then = await round(1, { "See what's overdue": [["Open the invoices", invoices], ["Show the overdue ones", invoices]], "Export them": [["Open the invoices", invoices]] });
+    const now = await round(2, { "See what's overdue": [["Open the invoices", invoices], ["Show the overdue ones", withExport]], "Export them": [["Open the invoices", withExport]] });
     const { round: number, since, changes } = await compare(comparing, then, now);
-    assert.deepEqual([number, since], [1, 0]);
+    assert.deepEqual([number, since], [2, 1]);
     assert.deepEqual(
       changes.map((change) => [change.words, change.seen.map((seen) => [seen.scene, seen.at])]),
       [["Export button is new", [["See what's overdue", 1.9], ["Export them", 0.9]]]],
@@ -102,8 +91,8 @@ describe("A round compared with one before it", { timeout: 60_000 }, () => {
       ["Read what it is", `${page(end, lower)}<script>scrollTo(0, 0)</script>`],
       ["Read how to try it", `${page(end, lower)}<script>scrollTo(0, document.body.scrollHeight)</script>`],
     ] as [string, string][];
-    const then = await round(0, { "Read the page": read("<p>Open source.</p>", false), "Glance at the top": read("<p>Open source.</p>", false).slice(0, 1) });
-    const now = await round(1, { "Read the page": read("<p>Open source, on your machine.</p>", true), "Glance at the top": read("<p>Open source, on your machine.</p>", true).slice(0, 1) });
+    const then = await round(1, { "Read the page": read("<p>Open source.</p>", false), "Glance at the top": read("<p>Open source.</p>", false).slice(0, 1) });
+    const now = await round(2, { "Read the page": read("<p>Open source, on your machine.</p>", true), "Glance at the top": read("<p>Open source, on your machine.</p>", true).slice(0, 1) });
     const { changes } = await compare(comparing, then, now);
     assert.deepEqual(
       changes.map((change) => [change.words, change.seen.map((seen) => [seen.scene, seen.at])]),
@@ -116,20 +105,20 @@ describe("A round compared with one before it", { timeout: 60_000 }, () => {
 
   test("a change only the pictures show, with nothing read there changed, says so: it's the person's to look at, and one Playthrough can name is the agent's to say why of", async () => {
     const shape = (colour: string) => `<div style="width: 300px; height: 120px; background: ${colour}"></div>`;
-    const then = await round(0, { "Look at the chart": [["Open the chart", `${shape("#c33")}${invoices}`]] });
-    const now = await round(1, { "Look at the chart": [["Open the chart", `${shape("#33c")}${withExport}`]] });
+    const then = await round(1, { "Look at the chart": [["Open the chart", `${shape("#c33")}${invoices}`]] });
+    const now = await round(2, { "Look at the chart": [["Open the chart", `${shape("#33c")}${withExport}`]] });
     const { changes } = await compare(comparing, then, now);
     assert.deepEqual(changes.map((change) => [change.words, !!change.pictureOnly]).sort(), [["Export button is new", false], ["Something near the Invoices heading looks different", true]]);
   });
 
   test("what changes by itself is left out in every scene, but a part of a picture known only by where it is only in its own: elsewhere the same place is another thing (Kan's invite page)", async () => {
     const shape = (colour: string) => `<h1>Invoices</h1><div style="width: 300px; height: 120px; background: ${colour}"></div>`;
-    const first = await round(0, { "Look at the chart": [["Open the chart", shape("#c33")]] });
-    const byItself = await changesByThemselves(first, await round(0, { "Look at the chart": [["Open the chart", shape("#3a3")]] }));
+    const first = await round(1, { "Look at the chart": [["Open the chart", shape("#c33")]] });
+    const byItself = await changesByThemselves(first, await round(1, { "Look at the chart": [["Open the chart", shape("#3a3")]] }));
     const unsteady = byItself.flatMap((change) => change.pieces);
     assert.ok(unsteady.length && unsteady.every((piece) => piece.startsWith("here:")), "it's known only by where it is");
-    const then = await round(0, { "Look at the chart": [["Open the chart", shape("#c33")]], "Print the chart": [["Open the chart", shape("#c33")]] });
-    const now = await round(1, { "Look at the chart": [["Open the chart", shape("#33c")]], "Print the chart": [["Open the chart", shape("#33c")]] });
+    const then = await round(1, { "Look at the chart": [["Open the chart", shape("#c33")]], "Print the chart": [["Open the chart", shape("#c33")]] });
+    const now = await round(2, { "Look at the chart": [["Open the chart", shape("#33c")]], "Print the chart": [["Open the chart", shape("#33c")]] });
     const { changes } = await compare(comparing, then, now, unsteadyIn([{ ...then.scenes[0]!, unsteady }, then.scenes[1]!]));
     assert.deepEqual(changes.map((change) => change.seen.map((seen) => seen.scene)), [["Print the chart"]]);
   });
