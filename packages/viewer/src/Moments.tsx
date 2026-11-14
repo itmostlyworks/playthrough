@@ -109,36 +109,18 @@ function keepReplies(review: string, replies: Replied[]) {
 // What Send says it sends: notes and replies, by their count.
 const toSend = (notes: number, replies: number) =>
   [notes && `${notes} ${notes === 1 ? "note" : "notes"}`, replies && `${replies} ${replies === 1 ? "reply" : "replies"}`].filter(Boolean).join(" and ");
-// The answers you've opened, kept in this browser, each by its note and how far its conversation had got: one answered
-// again is new again.
-const answersKey = (review: string, you: string) => `playthrough:moments-answers:${review}:${you}`;
-function answersOpened(review: string, you: string): string[] {
-  try {
-    return JSON.parse(localStorage.getItem(answersKey(review, you)) ?? "[]");
-  } catch {
-    return [];
-  }
-}
-function openAnswer(review: Review, you: string, note: string) {
-  const turns = conversation(review, note);
-  if (!turns.at(-1)?.agent) return;
-  const opened = answersOpened(review.id, you);
-  const taken = `${note}:${turns.length}`;
-  if (opened.includes(taken)) return;
-  try {
-    localStorage.setItem(answersKey(review.id, you), JSON.stringify([...opened, taken]));
-  } catch {}
-}
 // What a note says wherever it's shown, a line on the list, its picture's words or its pin pointed at: your latest
-// words, and where it stands; an answer you haven't opened yet is new until you do.
-function noteSays(review: Review, you: string, note: { id: string; words: string }, sent: boolean, replies: Replied[]) {
+// words, and where it stands. An answer is new if it came back after you last opened the moment it's on, as what you've
+// opened is kept with the change (`seen`), so it's the same on every device you look from.
+function noteSays(review: Review, you: string, note: Note, sent: boolean, replies: Replied[]) {
   if (!sent) return { words: note.words, stands: "not sent yet", fresh: false };
   const turns = conversation(review, note.id);
   const replied = replies.find((one) => one.note === note.id)?.words;
   const words = replied ?? turns.findLast((turn) => !turn.agent)?.words ?? note.words;
   if (replied) return { words, stands: "reply not sent yet", fresh: false };
   if (!turns.at(-1)?.agent) return { words, stands: "sent", fresh: false };
-  const fresh = !answersOpened(review.id, you).includes(`${note.id}:${turns.length}`);
+  const [round, on] = [turns.at(-1)!.round, note.on?.app?.from.scene ?? note.on?.scene];
+  const fresh = !seenOf(review, you).some((taking) => Number(taking.slice(0, taking.indexOf(":"))) >= round && taking.slice(taking.indexOf(":") + 1) === on);
   return { words, stands: fresh ? "new answer" : "answered", fresh };
 }
 
@@ -579,7 +561,7 @@ function ChangeInList(props: {
                     // A line a note: your latest words, and where it stands. Its conversation is by its pin.
                     const unsentHere = notes.filter((note) => note.on?.scene === scene.name);
                     const lines = [
-                      ...talk.map(([id, kept]) => ({ id, ...noteSays(review, you, { id, words: kept.note.words }, true, replies) })),
+                      ...talk.map(([id, kept]) => ({ id, ...noteSays(review, you, kept.note, true, replies) })),
                       ...unsentHere.map((note) => ({ id: note.id, words: note.words, stands: "not sent yet", fresh: false })),
                     ];
                     return lines.length > 0 && (
@@ -1093,6 +1075,17 @@ function MomentView(props: {
   // Made in the app while you're there, a note joins the edge once you're back.
   const madeThere = useRef(new Set<string>());
   const onEdge = said.filter(({ note }) => !(live?.shown && madeThere.current.has(note.id)));
+  // What was new as you came to this moment stays new here until you open it: coming counts as seeing it, for the list
+  // and for next time.
+  const newAsYouCame = useRef(new Map<string, Set<string>>());
+  if (!newAsYouCame.current.has(scene.name)) newAsYouCame.current.set(scene.name, new Set(said.filter(({ note, sent }) => noteSays(review, you, note, sent, replies).fresh).map(({ note }) => note.id)));
+  const [openedHere, setOpenedHere] = useState<string[]>([]);
+  useEffect(() => void (open && !openedHere.includes(open) && setOpenedHere((now) => [...now, open])), [open]);
+  const says = (note: Note, sent: boolean) => {
+    const said = noteSays(review, you, note, sent, replies);
+    const fresh = sent && said.stands !== "sent" && said.stands !== "reply not sent yet" && !!newAsYouCame.current.get(scene.name)?.has(note.id) && !openedHere.includes(note.id);
+    return { ...said, fresh, stands: said.stands === "new answer" || said.stands === "answered" ? (fresh ? "new answer" : "answered") : said.stands };
+  };
   const made = allNotes(review);
   const madeIn = (note: Note) => made.get(note.id)?.round ?? round.number;
   const madeAt = (note: Note): Made | undefined => {
@@ -1155,11 +1148,8 @@ function MomentView(props: {
     if (playing) (setPlaying(undefined), restAt(clockOf.at));
     setOpen((now) => (now === id ? undefined : id));
   };
-  // Opened, its answer is no longer new.
-  const [, answered] = useState(0);
-  useEffect(() => void (opened?.sent && (openAnswer(review, you, opened.note.id), answered((n) => n + 1))), [opened?.note.id]);
-  // Next goes through this moment's answers you haven't opened, one by one, before it goes on to the next moment.
-  const nextAnswer = !live?.shown && !writing ? onEdge.find(({ note, sent }) => note.id !== open && noteSays(review, you, note, sent, replies).fresh) : undefined;
+  // Next goes through this moment's answers that were new as you came to it, one by one, before it goes on.
+  const nextAnswer = !live?.shown && !writing ? onEdge.find(({ note, sent }) => note.id !== open && says(note, sent).fresh) : undefined;
   const onward = () => (nextAnswer ? openNote(nextAnswer.note.id) : next(1));
   const [layers, setLayers] = useState<{ note: Note; sent: boolean; made: Made }[]>([]);
   const [openPlaced, setOpenPlaced] = useState<Placed>({});
@@ -1311,7 +1301,7 @@ function MomentView(props: {
     });
   const noteTiles = (forward: boolean) =>
     onEdge.map(({ note, sent: isSent }) => {
-      const { words, stands, fresh } = noteSays(review, you, note, isSent, replies);
+      const { words, stands, fresh } = says(note, isSent);
       return (
         <Tile
           key={note.id}
@@ -1517,7 +1507,7 @@ function MomentView(props: {
             const one = saying && !opened && !writing && !playing && !live?.shown ? onEdge.find(({ note }) => note.id === saying) : undefined;
             const thing = one && placed[one.note.id];
             if (!one || !thing) return null;
-            const said = noteSays(review, you, one.note, one.sent, replies);
+            const said = says(one.note, one.sent);
             // Beside its pin, which stands just outside the thing's top right corner, on whichever side has room.
             const [x, y, wide] = [thing.left + thing.width + (thing.width || thing.height ? 14 : 0), thing.top - (thing.width || thing.height ? 14 : 0), frame.current?.clientWidth ?? 0];
             const left = x + 16 + 220 <= wide ? x + 16 : Math.max(8, x - 16 - 220);
