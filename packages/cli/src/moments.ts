@@ -17,7 +17,7 @@ import { chromium, type Page } from "@playwright/test";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { Glimpse, Reading } from "@playthrough/page";
-import { allNotes, conversation, list, MOST_SHOWN, notesToAnswer, quote, Refused, roundInProgress, startOf, toAccountFor, type Change, type Review, type Round, type Scene } from "@playthrough/review";
+import { allNotes, conversation, list, MOST_SHOWN, notesToAnswer, shownFrom, quote, Refused, roundInProgress, startOf, toAccountFor, type Change, type Review, type Round, type Scene } from "@playthrough/review";
 import { agent } from "./agent.ts";
 import { browserFile, stopBrowser, type Browser } from "./as.ts";
 import { changeHere, momentNamed, momentsOf } from "./change.ts";
@@ -30,7 +30,7 @@ import { markUnsteady, recorder, runOnce } from "./scenes.ts";
 import { seenChanging, SQUARE, squaresOf, type Square } from "./seen.ts";
 import { setupIn } from "./setup.ts";
 import { listening } from "./wait.ts";
-import { aboutSaid, ENDED, fileOf, sceneOf, TIMED, whatDiffers, type About, type Done } from "./way.ts";
+import { aboutSaid, ENDED, fileOf, sceneOf, TIMED, wayBefore, whatDiffers, type About, type Done } from "./way.ts";
 
 // What a moment says is what's there, short enough to sit under a picture of it: who and where, the person sees.
 const MOST_WORDS = 10;
@@ -298,10 +298,34 @@ async function aboutOn(page: Page, words: string, named?: string): Promise<{ abo
 export async function drop(repo: Repo, words: string) {
   const id = await changeHere(repo);
   const moment = momentNamed(repo, id, words);
+  const review = await repo.reviews.get(id);
+  // A moment a note is on is where the person sees what was done about it: dropped, they'd have nowhere to look, unless a
+  // moment marked since shows it.
+  const on = notesOn(review, moment.words);
+  if (on.length && !newSinceHandedBack(review).length)
+    throw new Refused([
+      `${on.length > 1 ? `Notes ${list(on)} are` : `Note ${on[0]} is`} on ${quote(moment.words)}: the person sees what you did about ${on.length > 1 ? "them" : "it"} in a moment, not only in your answer. Mark one that shows it first, a still where it was if it's gone (playthrough moment "<what's there now>"); then drop this one, if what it showed no longer exists.`,
+    ]);
   rmSync(moment.file);
-  const last = (await repo.reviews.get(id)).rounds.at(-1);
+  const last = review.rounds.at(-1);
   if (last && !last.finished) await repo.reviews.saveRound(id, { ...last, scenes: last.scenes.filter((scene) => scene.name !== moment.words) });
   console.log(`Dropped ${quote(moment.words)}: it isn't run again, or handed back.`);
+}
+
+// The notes waiting for an answer on a moment.
+function notesOn(review: Review, moment: string): string[] {
+  const notes = allNotes(review);
+  return notesToAnswer(review, roundInProgress(review)).filter((id) => {
+    const on = notes.get(id)?.note.on;
+    return (on?.app?.from.scene ?? on?.scene) === moment;
+  });
+}
+
+// The moments marked since the person last saw them, in what's to be handed back.
+function newSinceHandedBack(review: Review): string[] {
+  const handedBack = review.rounds.findLast((round) => round.finished);
+  const kept = review.rounds.find((round) => round.number === roundInProgress(review));
+  return (kept?.scenes ?? []).filter((scene) => !handedBack?.scenes.some((one) => one.name === scene.name)).map((scene) => scene.name);
 }
 
 // Every moment again, on the code as it is now, by its way there: recorded, compared with what was last handed back, and
@@ -323,9 +347,12 @@ export async function again(repo: Repo) {
   const marked = (name: string) => review.rounds.findLast((round) => round.scenes.some((scene) => scene.name === name))?.scenes.find((scene) => scene.name === name);
   const scenes = ran.recorded
     .map(({ scene }) => {
-      // A moment with a start keeps it: its file has the way there before its step, which begins where it's shown from.
-      const { about, acted, from } = marked(scene.name) ?? {};
-      return { ...scene, ...(about && { about }), ...(acted && { acted }), ...(from !== undefined && scene.steps[0] && { from: scene.steps[0].at }) };
+      // Its start: where its step begins, its file doing the way there before it; or, kept before moments had a start,
+      // where the rule starts it in what was recorded, as the page would show it.
+      const { about, acted } = marked(scene.name) ?? {};
+      const file = moments.find((one) => one.words === scene.name)?.file;
+      const from = file && wayBefore(readFileSync(file, "utf8")) && scene.steps[0] ? scene.steps[0].at : shownFrom({ ...scene, from: undefined });
+      return { ...scene, ...(about && { about }), ...(acted && { acted }), from };
     })
     .sort((a, b) => order(a) - order(b));
   const kept = review.rounds.find((round) => round.number === number);
@@ -373,6 +400,14 @@ export async function reply(repo: Repo, note: string, words: string | undefined)
   if (!words?.trim()) throw new Refused([`Say it: playthrough reply ${note} "<what you did, in a line>"`]);
   const kept = review.rounds.find((round) => round.number === number);
   if (!kept) throw new Refused(["Run playthrough again first: the answer goes with the moments as they are now."]);
+  // Answered on a moment that won't be handed back (dropped, or it couldn't get there), the person would read what you did
+  // with nothing to see it in.
+  const on = allNotes(review).get(note)?.note.on;
+  const moment = on?.app?.from.scene ?? on?.scene;
+  if (moment && !kept.scenes.some((scene) => scene.name === moment) && !newSinceHandedBack(review).length)
+    throw new Refused([
+      `Note ${note} is on ${quote(moment)}, which isn't in what you'd hand back: the person would read your answer with nothing to see it in. Mark a moment that shows what you did (playthrough moment "<what's there>"), or get ${quote(moment)} there again and mark it with the same words; then answer.`,
+    ]);
   await repo.reviews.saveRound(id, { ...kept, replies: [...kept.replies.filter((one) => one.note !== note), { note, words: words.trim() }] });
   console.log(`Answered ${note}.`);
 }
