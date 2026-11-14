@@ -130,12 +130,13 @@ function stop(root: string) {
   rmSync(runningFile(root), { force: true });
 }
 
-// Playthrough open on this machine, which keeps every copy's app until it's been unused a while.
+// Playthrough open on this machine, which keeps every copy's app until it's been unused a while: its own step ins let go
+// of too, as stopping it at once would make the next one start it again.
 export const openFile = () => join(machine(), "open.json");
 function keptOpen(): boolean {
   try {
     const open: Command = JSON.parse(readFileSync(openFile(), "utf8"));
-    return open.by !== process.pid && stillAt(open);
+    return stillAt(open);
   } catch {
     return false;
   }
