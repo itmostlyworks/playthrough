@@ -17,9 +17,11 @@ type Props = {
   scrolled: () => Scrolled | undefined;
   // What the pointer says while it's made ready.
   waiting?: string;
+  // Whether your name goes with your pointer; where the page says who you are elsewhere, it doesn't.
+  named?: boolean;
 };
 
-export function Portal({ live, person, screen, scrolled, waiting: waitingWords = "Taking over…" }: Props) {
+export function Portal({ live, person, screen, scrolled, waiting: waitingWords = "Taking over…", named = true }: Props) {
   const room = useRef<HTMLDivElement>(null);
   const app = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLIFrameElement>(null);
@@ -247,7 +249,7 @@ export function Portal({ live, person, screen, scrolled, waiting: waitingWords =
           <path d="M7 3.5h6M10 3.5v13M7 16.5h6" fill="none" stroke="#FFFFFF" strokeWidth="3.2" strokeLinecap="round" />
           <path d="M7 3.5h6M10 3.5v13M7 16.5h6" fill="none" stroke="#1E2330" strokeWidth="1.4" strokeLinecap="round" />
         </svg>
-        <span ref={tag} hidden className={`${TAG} transition-[background-color,color] duration-300 ease-calm data-mine:bg-[#EDB654] data-mine:text-[#3B2A07]`}>
+        <span ref={tag} hidden className={`${TAG} transition-[background-color,color] duration-300 ease-calm data-mine:bg-[#EDB654] data-mine:text-[#3B2A07] ${named ? "" : "hidden!"}`}>
           <span ref={words} />
         </span>
       </div>

@@ -18,7 +18,7 @@ import { Clock, Player, useCut, type Cut, type Mark, type Placed } from "./Playe
 import type { Together } from "./view.ts";
 import { Portal, TAG } from "./Portal.tsx";
 import { CHIP } from "./Scene.tsx";
-import { readyAt } from "./live.ts";
+import { readyAt, readyIn } from "./live.ts";
 import { usePhone } from "./phone.ts";
 import { clamp } from "./moments.ts";
 import type { Rect, Scrolled } from "./replay.ts";
@@ -716,7 +716,8 @@ function Change({ listed, you, moment, note, go }: { listed: Listed; you: string
   );
 }
 
-type Live = { scene: string; from: number; address?: string; shown: boolean; settled?: boolean; problems?: string[]; at?: { x: number; y: number } };
+// Stepping in: since when, and when it should be there, if that can be known.
+type Live = { scene: string; from: number; address?: string; shown: boolean; settled?: boolean; problems?: string[]; at?: { x: number; y: number }; since: number; due?: number };
 // Where it was asked for: the spot, and the thing there where the app said where it is, in the recording's pixels.
 type Writing = { note: Note; spot: { x: number; y: number }; box?: Rect };
 
@@ -889,7 +890,9 @@ function MomentView(props: {
     setOpen(undefined);
     setNoting(false);
     session.current = { id: newId(), events: [], did: [], kept: 0 };
-    setLive({ scene: scene.name, from: at, shown: true });
+    const since = Date.now();
+    setLive({ scene: scene.name, from: at, shown: true, since });
+    readyIn(review.id, scene.name, paused).then((left) => left && setLive((now) => (now?.since === since ? { ...now, due: since + left } : now)));
     readyAt(review.id, scene.name, paused).then((answer) =>
       setLive((now) => (now?.scene !== scene.name || now.from !== at ? now : typeof answer === "string" ? { ...now, address: answer } : { ...now, problems: answer, shown: false })),
     );
@@ -1354,7 +1357,7 @@ function MomentView(props: {
               )}
             </div>
           </div>
-          <Portal live={live && { ...live, inApp }} person={person} screen={screen} scrolled={() => scrolled.current?.()} waiting="Stepping in…" />
+          <Portal live={live && { ...live, inApp }} person={person} screen={screen} scrolled={() => scrolled.current?.()} waiting="Stepping in…" named={false} />
           <span ref={pill} aria-hidden className={`pointer-events-none absolute top-0 left-0 z-30 transition-opacity duration-150 ease-calm ${aimingNote && aiming ? "" : "opacity-0"}`}>
             <span className={TAG}>Note on this</span>
           </span>
@@ -1377,7 +1380,12 @@ function MomentView(props: {
               </div>
             )}
             <div className="contents" inert={noting}>
-            {asItWas ? (
+            {inApp ? (
+              // In the app, who you are there, beside Back.
+              <span className={`${ITEM} w-[96px] cursor-default px-1! phone:w-[64px]`}>
+                <span className="truncate rounded-full bg-[#EDB654] px-[7px] text-[11.5px] leading-[19px] text-[#3B2A07]">{person ? `You, as ${person}` : "You"}</span>
+              </span>
+            ) : asItWas ? (
               // What's shown is from before the agent last handed it back.
               <span className={`${ITEM} w-[96px] cursor-default text-faint! phone:w-[64px]`}>As it was</span>
             ) : still ? (
@@ -1389,8 +1397,9 @@ function MomentView(props: {
                 <Progress clock={clockOf} share={shareOf(at)} shareOf={shareOf} moving={!!playing} shown={!atPoint && !live?.shown} />
               </button>
             )}
-            <button className={`${ITEM} w-[116px] phone:w-[104px]`} disabled={!!writing} aria-pressed={stepping} onClick={stepIn}>
+            <button className={`${ITEM} relative w-[116px] phone:w-[104px]`} disabled={!!writing} aria-pressed={stepping} onClick={stepIn}>
               {inApp ? "Back" : stepping ? "Stepping in…" : "Step in"} {!stepping && <Key>{inApp ? "Esc" : "T"}</Key>}
+              {stepping && live && <Getting since={live.since} due={live.due} />}
             </button>
             <button className={`${ITEM}`} disabled={stepping || !!writing || comparing || !!opened} aria-pressed={noting} onClick={note}>
               Note <Key>N</Key>
@@ -1497,6 +1506,29 @@ function Progress({ clock, share, shareOf, moving, shown }: { clock: Clock; shar
   return (
     <span aria-hidden className={`pointer-events-none absolute inset-x-2.5 bottom-[3px] h-0.5 overflow-hidden rounded-full bg-line transition-opacity duration-300 ease-calm ${shown ? "" : "opacity-0"}`}>
       <span ref={fill} className="block h-full origin-left rounded-full bg-soft" />
+    </span>
+  );
+}
+
+// How far the app is on its way, a slim line inside Step in as Play's is inside Play: by how long it took the last
+// time, where that's known, else easing on towards its end; never quite there until it is, and never still.
+function Getting({ since, due }: { since: number; due?: number }) {
+  const fill = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    let frameId = 0;
+    const tick = () => {
+      const gone = Date.now() - since;
+      const known = due && due > since ? due - since : undefined;
+      const share = known ? (gone < known ? 0.9 * (gone / known) : 0.9 + 0.08 * (1 - Math.exp(-(gone - known) / 4000))) : 0.96 * (1 - Math.exp(-gone / 7000));
+      if (fill.current) fill.current.style.transform = `scaleX(${share.toFixed(4)})`;
+      frameId = requestAnimationFrame(tick);
+    };
+    tick();
+    return () => cancelAnimationFrame(frameId);
+  }, [since, due]);
+  return (
+    <span aria-hidden className="pointer-events-none absolute inset-x-2.5 bottom-[3px] h-0.5 animate-arrive overflow-hidden rounded-full bg-line">
+      <span ref={fill} className="block h-full origin-left rounded-full bg-amber" />
     </span>
   );
 }
