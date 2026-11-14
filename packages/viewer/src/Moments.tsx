@@ -1090,7 +1090,8 @@ function MomentView(props: {
 
   const momentTiles = (forward: boolean) =>
     round.scenes.map((other, i) => {
-      const talk = [...sent, ...notes].filter((one) => one.on?.scene === other.name);
+      // Its notes' dots, as its edge has them: one made in the app joins once you're back.
+      const talk = other === scene ? onEdge.map(({ note }) => note) : [...sent, ...notes].filter((one) => one.on?.scene === other.name);
       return (
         <Tile
           key={other.name}
@@ -1264,7 +1265,7 @@ function MomentView(props: {
               {shownOpen ? (
                 <Pinned pins={[pinFor(shownOpen)]} placed={openPlaced} open={shownOpen.note.id} faded={!opened} onOpen={() => setOpen(undefined)} />
               ) : (
-                <Pinned pins={pinned.map(pinFor)} placed={placed} open={writing?.note.id} faded={!!playing || !!live?.shown} lit={pointed} onPoint={setPointed} onOpen={(id) => id && openNote(id)} />
+                <Pinned pins={pinned.map(pinFor)} placed={placed} open={writing?.note.id} faded={!!playing || !!live?.shown} lit={pointed} onPoint={setPointed} onOpen={(id) => id && openNote(id)} quiet />
               )}
             </div>
           </div>
@@ -1284,6 +1285,7 @@ function MomentView(props: {
                     key={shownOpen.note.id}
                     placeholder="Reply"
                     rows={2}
+                    focus={false}
                     start={replies.find((one) => one.note === shownOpen.note.id)?.words ?? ""}
                     onSave={(words) => (setReplies((all) => [...all.filter((one) => one.note !== shownOpen.note.id), { note: shownOpen.note.id, words }]), setOpen(undefined))}
                     onDrop={() => setOpen(undefined)}
@@ -1380,7 +1382,9 @@ function NotePicture({ frame, sent }: { frame?: NoteFrame; sent: boolean }) {
   if (!frame) return null;
   const { screen, box } = frame;
   const thing = box && { x: box.x * screen.width, y: box.y * screen.height, width: box.width * screen.width, height: box.height * screen.height };
-  const part = thing && around(thing, screen, STILL, 3);
+  // Closed in with its thing a little toward the recording, as the edge fades away on its other side.
+  const centred = thing && around(thing, screen, STILL, 3);
+  const part = centred && { ...centred, x: clamp(centred.x + centred.width * 0.14, 0, 1 - centred.width) };
   // Its pin, as on the recording: just outside its thing's top right corner, or on its spot.
   const pin = box && part && { x: (box.x + box.width - part.x) / part.width, y: (box.y - part.y) / part.height };
   const out = box && box.width ? 9 : 0;
@@ -1476,12 +1480,13 @@ function NoteCard({ at, frame, closing, children }: { at: { x: number; y: number
 }
 
 // Writing a note: Enter keeps it, Shift+Enter is a new line, Escape lets it go.
-function Write({ onSave, onDrop, placeholder = "What's right or wrong here?", rows = 3, start = "" }: { onSave: (words: string) => void; onDrop: () => void; placeholder?: string; rows?: number; start?: string }) {
+// A reply waits to be clicked into, so the keys stay the page's while a note is open (← → go on through the notes).
+function Write({ onSave, onDrop, placeholder = "What's right or wrong here?", rows = 3, start = "", focus = true }: { onSave: (words: string) => void; onDrop: () => void; placeholder?: string; rows?: number; start?: string; focus?: boolean }) {
   const [words, setWords] = useState(start);
   return (
     <div>
       <textarea
-        ref={(area) => void (area && !area.dataset.focused && ((area.dataset.focused = "1"), area.focus({ preventScroll: true })))}
+        ref={(area) => void (focus && area && !area.dataset.focused && ((area.dataset.focused = "1"), area.focus({ preventScroll: true })))}
         rows={rows}
         value={words}
         placeholder={placeholder}
