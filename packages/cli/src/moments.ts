@@ -199,12 +199,12 @@ function unclear(done: Done[], at: number, why: "long" | "brought", again: strin
 // A thing done, as a person would say it: “type “BS-WEB” in Card prefix”, “click Update”.
 function saidOf(one: Done): string {
   const on = one.name ?? one.text ?? one.what ?? "";
-  const into = on ? ` in ${on}` : "";
+  const into = on ? ` in ${on}` : one.role ? ` in a ${one.role} with no name` : "";
   if (one.does === "goto") return `go to ${one.with}`;
   if (one.does === "fill" || one.does === "type") return `type ${quote(one.with ?? "")}${into}`;
   if (one.does === "selectOption") return `choose ${quote(one.with ?? "")}${into}`;
   if (one.does === "press") return `press ${one.with}${into}`;
-  return `${one.button === "right" ? "right-click" : "click"} ${on || "the page"}`;
+  return `${one.button === "right" ? "right-click" : "click"} ${on || (one.role ? `a ${one.role} with no name` : "the page")}`;
 }
 
 // What moves by itself, said by the smallest things named there in the moment's first frame, a few at most.
