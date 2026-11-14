@@ -10,7 +10,7 @@ import type { Glimpse, Reading, Thing } from "@playthrough/page";
 import { allNotes, conversation, newId, pausedAt, together, waitingForTheAgent, type Turn, type Did, type Note, type Place, type Review, type Round, type Scene } from "@playthrough/review";
 import { glimpses, keepBranch, noteFrame, picture, readings as readingsOf, recording, send, useChanges, useYou, type Listed, type NoteFrame } from "./api.ts";
 import { Edge, Tile } from "./Edge.tsx";
-import { Key } from "./Card.tsx";
+import { Key, tick } from "./Card.tsx";
 import { around, Picture, union, type Frame } from "./Picture.tsx";
 import { workingSince } from "./notes.ts";
 import { Pinned, type Pin } from "./Pinned.tsx";
@@ -221,6 +221,8 @@ function List({ changes, you, onOpen }: { changes?: Listed[]; you?: string; onOp
   // go wherever the pointer is: you moved them.
   const leaving = useRef(new Set<string>());
   const sent = useRef(new Set<string>());
+  // Those you sent, landing where they go: each is brought into view there, and glows as it lands.
+  const landing = useRef(new Set<string>());
   // What's waiting, in the order it came: the longest waiting first, and one that comes later at the foot.
   const order = useRef<string[]>([]);
   const foot = useRef<HTMLDivElement>(null);
@@ -242,6 +244,7 @@ function List({ changes, you, onOpen }: { changes?: Listed[]; you?: string; onOp
       const [from, to] = [sectionOf(then), gone ? undefined : sectionOf(now)];
       if (from === to) return gone ? [] : [now];
       const yours = sent.current.delete(now.review.id);
+      if (yours && to) landing.current.add(now.review.id);
       if (leaving.current.has(now.review.id) || (!yours && (from === "waiting" || to === "waiting") && underPointer)) return (held = true), then ? [then] : [];
       if (to) moved.current.add(now.review.id);
       return gone ? [] : [now];
@@ -301,6 +304,7 @@ function List({ changes, you, onOpen }: { changes?: Listed[]; you?: string; onOp
       now={now}
       open={standing.is === "waiting" || opened.includes(listed.review.id)}
       arrived={moved.current.has(listed.review.id)}
+      landing={landing.current.delete(listed.review.id)}
       keyed={keyed === listed.review.id}
       onToggle={() => toggle(listed.review.id)}
       onOpen={(moment, note) => onOpen(listed.review.id, moment, note)}
@@ -382,21 +386,32 @@ function ChangeInList(props: {
   now: number;
   open: boolean;
   arrived: boolean;
+  // Sent from here, it's arriving where it goes.
+  landing?: boolean;
   keyed: boolean;
   onToggle: () => void;
   onOpen: (moment: number, note?: string) => void;
   // Going as you send or say Done; then gone, or staying where it is, as the send wasn't kept.
   onLeaving: (going: boolean, moved?: boolean) => void;
 }) {
-  const { listed, standing, told, you, now, open, arrived, keyed, onToggle, onOpen, onLeaving } = props;
+  const { listed, standing, told, you, now, open, arrived, landing, keyed, onToggle, onOpen, onLeaving } = props;
   const stands = told === listed ? standing : standingOf(told.review, you);
   const { review } = listed;
   const round = latestOf(review)!;
   const [grown, setGrown] = useState(!arrived);
+  const own = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (grown) return;
     const frame = requestAnimationFrame(() => requestAnimationFrame(() => setGrown(true)));
     return () => cancelAnimationFrame(frame);
+  }, []);
+  // Landed where you sent it, it's brought into view and glows a moment, so you see where it went.
+  const [glowing] = useState(!!landing);
+  useEffect(() => {
+    if (!landing) return;
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const shown = setTimeout(() => own.current?.scrollIntoView({ block: "nearest", behavior: still ? "auto" : "smooth" }), still ? 0 : LEAVING);
+    return () => clearTimeout(shown);
   }, []);
   const [notes] = useState(() => unsentOf(review.id));
   const [replies] = useState(() => repliesOf(review.id));
@@ -409,6 +424,8 @@ function ChangeInList(props: {
   const [busy, setBusy] = useState(false);
   // Sent or done, it folds away where it was and arrives as its line where it goes.
   const [leaving, setLeaving] = useState(false);
+  // Sent, it says so where you pressed, and only then goes.
+  const [sentNow, setSentNow] = useState(false);
   const waiting = standing.is === "waiting";
   const say = async (what: { notes: Note[]; replies?: Replied[]; looksGood: string[] }) => {
     if (busy || leaving) return;
@@ -419,6 +436,8 @@ function ChangeInList(props: {
     if (said.length) return (onLeaving(false), setProblems(said));
     keepUnsent(review.id, []);
     keepReplies(review.id, []);
+    setSentNow(true);
+    await new Promise((done) => setTimeout(done, matchMedia("(prefers-reduced-motion: reduce)").matches ? 900 : SAID));
     setLeaving(true);
     setTimeout(() => onLeaving(false, true), matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : LEAVING);
   };
@@ -438,16 +457,17 @@ function ChangeInList(props: {
     <button
       onMouseDown={(event) => event.preventDefault()}
       onClick={said ? sendNow : doneNow}
-      disabled={busy || leaving}
+      disabled={busy || leaving || sentNow}
       className="flex h-8 flex-none items-center gap-2 self-start rounded-lg bg-surface px-3 text-[13px] font-medium whitespace-nowrap text-fg shadow-[0_0_0_1px_var(--edge),0_1px_2px_var(--drop)] transition-[background-color,opacity] duration-150 ease-calm enabled:hover:bg-hover"
     >
-      {said ? <>Send {toSend(notes.length, replies.length)} <Key>Ctrl ↵</Key></> : "Done"}
+      {sentNow ? <>{tick}{said ? "Sent" : "Done"}</> : said ? <>Send {toSend(notes.length, replies.length)} <Key>Ctrl ↵</Key></> : "Done"}
     </button>
   );
   const not = problems && <span className="text-amber-ink"> · Not sent: {problems[0]}</span>;
   return (
     <div
-      className={`grid transition-[grid-template-rows,opacity,margin] ease-calm ${leaving || !grown ? "mt-0 grid-rows-[0fr] opacity-0" : `grid-rows-[1fr] ${waiting ? "mt-12 first-of-type:mt-6" : ""}`}`}
+      ref={own}
+      className={`grid transition-[grid-template-rows,opacity,margin] ease-calm ${glowing ? "[&>div]:animate-glow [&>div]:rounded-lg" : ""} ${leaving || !grown ? "mt-0 grid-rows-[0fr] opacity-0" : `grid-rows-[1fr] ${waiting ? "mt-12 first-of-type:mt-6" : ""}`}`}
       style={{ transitionDuration: `${LEAVING}ms` }}
     >
       <div className={`min-h-0 ${leaving || !grown ? "overflow-hidden" : ""}`}>
@@ -600,6 +620,8 @@ function Sent({ listed, now, standing }: { listed: Listed; now: number; standing
 }
 
 const LEAVING = 380;
+// How long what you sent says so where you pressed, before it goes where it goes.
+const SAID = 1400;
 // How long what you did takes to fade out, back to the moment.
 const FADING = 300;
 
@@ -748,7 +770,29 @@ function MomentView(props: {
   onMoment: (n: number) => void;
   onLeave: () => void;
 }) {
-  const { review, round, n, about, who, notes, sent, setNotes, replies, setReplies, you, onMoment, onLeave } = props;
+  const { review, round, n, about, who, notes, setNotes, replies, setReplies, you, onMoment, onLeave } = props;
+  // Send, here as on the list: everything unsent on the change goes. Sent, it says so where you pressed, and what was
+  // sent is drawn as sent at once, as the change comes back with it.
+  const [sending, setSending] = useState<"sending" | "sent" | string[]>();
+  const [justSent, setJustSent] = useState<Note[]>([]);
+  const sent = [...props.sent, ...justSent.filter((note) => !props.sent.some((one) => one.id === note.id))];
+  const unsent = notes.length + replies.length;
+  const sendNow = async () => {
+    if (!unsent || sending === "sending") return;
+    setSending("sending");
+    const [goingNotes, goingReplies] = [notes, replies];
+    const problems = await send(review.id, { id: newId(), round: round.number, by: you, sent: new Date().toISOString(), verdicts: [], notes: goingNotes, ...(goingReplies.length && { replies: goingReplies }), looksGood: [] });
+    if (problems.length) return setSending(problems);
+    setJustSent((now) => [...now, ...goingNotes]);
+    setNotes(() => []);
+    setReplies(() => []);
+    setSending("sent");
+  };
+  useEffect(() => {
+    if (sending !== "sent") return;
+    const done = setTimeout(() => setSending(undefined), SAID + 1000);
+    return () => clearTimeout(done);
+  }, [sending]);
   const scene = round.scenes[n - 1]!;
   const count = round.scenes.length;
   const end = Math.max(0, scene.length - 0.05);
@@ -1083,6 +1127,8 @@ function MomentView(props: {
     const typing = event.target instanceof HTMLElement && event.target.closest("textarea, input, [contenteditable]");
     // A picture on an edge with the keyboard on it is pressed with Enter or Space, as any button is.
     if (event.target instanceof HTMLElement && event.target.closest("[data-tile]") && /^( |enter)$/i.test(event.key)) return;
+    // Ctrl+Enter sends, as on the list.
+    if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !writing) return (event.preventDefault(), void sendNow());
     if (typing || event.ctrlKey || event.metaKey || event.altKey) return;
     const key = event.key.toLowerCase();
     if (key === "escape") {
@@ -1244,7 +1290,18 @@ function MomentView(props: {
           </svg>
           <span className="truncate">{review.title}</span>
         </button>
-        <button onClick={() => next(1)} disabled={!!live?.shown || !!writing} className="-mr-2 ml-auto flex flex-none items-center gap-1.5 rounded-lg px-2 py-1 text-soft transition-colors duration-150 ease-calm enabled:hover:bg-hover enabled:hover:text-fg disabled:opacity-50">
+        {(unsent > 0 || sending) && (
+          <button
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => void sendNow()}
+            disabled={sending === "sending" || sending === "sent"}
+            className="ml-auto flex h-8 flex-none animate-arrive items-center gap-2 rounded-lg bg-surface px-3 text-[13px] font-medium whitespace-nowrap text-fg shadow-[0_0_0_1px_var(--edge),0_1px_2px_var(--drop)] transition-[background-color,opacity] duration-150 ease-calm enabled:hover:bg-hover"
+          >
+            {sending === "sent" ? <>{tick}Sent</> : sending === "sending" ? "Sending…" : <>Send {toSend(notes.length, replies.length)} <Key>Ctrl ↵</Key></>}
+          </button>
+        )}
+        {Array.isArray(sending) && <span className="text-[13px] text-amber-ink">Not sent: {sending[0]}</span>}
+        <button onClick={() => next(1)} disabled={!!live?.shown || !!writing} className={`-mr-2 flex flex-none items-center gap-1.5 rounded-lg px-2 py-1 text-soft transition-colors duration-150 ease-calm enabled:hover:bg-hover enabled:hover:text-fg disabled:opacity-50 ${unsent > 0 || sending ? "" : "ml-auto"}`}>
           {n < count ? "Next" : "To the list"}
           <Key>↓</Key>
         </button>
