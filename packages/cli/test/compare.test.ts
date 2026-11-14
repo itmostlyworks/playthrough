@@ -1,5 +1,5 @@
-// A hand-back compared with one before it, moment by moment and step by step. Each step's page is a small page, read and
-// pictured in Chromium as a step would leave it.
+// A hand-back compared with one before it, moment by moment. Each page a moment's file reads is a small page, read and
+// pictured in Chromium as a moment would leave it.
 
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";

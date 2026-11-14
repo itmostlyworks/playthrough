@@ -9,7 +9,7 @@ Its parts:
   hand-back, finish it, take what was sent, send, mark what's been seen, wait) and refuses anything that breaks a rule,
   saying what's wrong in plain words (`rules.ts`). It keeps changes in memory (`memory.ts`, for tests) or in a folder
   (`folder.ts`). Where a moment's recording starts (`shown.ts`), how two recordings of one moment play together
-  (`steps.ts`), when a change is done (`saidDone`, `rules.ts`) and where it stands for someone (`standingOf`) are each
+  (`takings.ts`), when a change is done (`saidDone`, `rules.ts`) and where it stands for someone (`standingOf`) are each
   one rule here, which the commands and the page both call.
 - **`packages/page`**: what's on a page, as a person would name it, and the same thing found again. A reading is the
   page as a moment left it, everything on it named in Playthrough's fixed words (`names.ts`); two readings of one moment
@@ -257,7 +257,7 @@ kept with the change, per moment as handed back (`seen.json`), so a moment hande
 **Compare** (`compare.ts`, `view.ts`) is offered where you've opened this moment on an earlier hand-back and something
 differs since: the moment as it is now beside how it was when you last saw it, both playing their shown parts together.
 Play and the line drive both sides, at the same action at the same instant: `together`
-(`packages/change/src/steps.ts`) lines two recordings up on the longest run both did in order, actions by name (one
+(`packages/change/src/takings.ts`) lines two recordings up on the longest run both did in order, actions by name (one
 recorded before actions were named knows each by its place only); each pair begins and ends together, each side scaled
 to its own pace between, and what one did alone plays while the other holds before what's next. Each side is its half of
 the recording's room at actual size, a window following now's pointer, both onto the same part of the page
@@ -279,7 +279,7 @@ nothing is made ready in the background while you watch: each step in is the app
 not doing work twice and not waiting on nothing.
 
 **Where it stands is one count.** The page says how many of the things the moment shows are done where the recording
-rests (`doneAt`, `packages/change/src/steps.ts`): none at its start, one after the first, nothing at all at its end or once
+rests (`doneAt`, `packages/change/src/takings.ts`): none at its start, one after the first, nothing at all at its end or once
 the last is done, or on a still; pressed while it plays, where it has got to. The run is handed over after that many
 things done in the moment's step, its way there done whole before them (a file kept with its way inside its step counts
 the way's too, `doneBefore`), or, with no count, once everything is done; never on a page with nothing loaded: a step

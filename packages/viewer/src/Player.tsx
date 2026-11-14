@@ -1,4 +1,4 @@
-// A moment's recording at a moment, and played on from it, with the hand that does it: what a still can't say, where
+// A moment's recording at a time in it, and played on from it, with the hand that does it: what a still can't say, where
 // they clicked and what the page did. Waiting, for a page to load or an app to answer, is cut short as it plays, so
 // nothing is spent watching nothing happen. Another hand-back's recording follows the clock of the one that plays, at the
 // matching moment, so the two stay in step. At rest, what's noted there is found on the page, and noting, what a click
@@ -16,7 +16,7 @@ import { around as aroundCentre, centreOf, following as followingPointer, holdin
 // Nothing happening for longer than this is waiting, and is played as this long.
 const WAIT = 0.7;
 
-// The moment a moment is at as it plays: what plays it sets it each frame, and what follows it is told.
+// The time a moment is at as it plays: what plays it sets it each frame, and what follows it is told.
 export class Clock {
   #at: number;
   #told = new Set<(at: number) => void>();
@@ -36,11 +36,11 @@ export class Clock {
   }
 }
 
-// A moment's recording with its waiting cut short, as it plays: how long it is then, the recording's own moment at a
-// moment of it, and back. Its steps' lines run on it, so a line fills at one speed as it plays and goes where it's
-// pressed at the same speed, leaping no wait. A step's start is where a wait is cut at, so each step's is its own.
+// A moment's recording with its waiting cut short, as it plays: how long it is then, the recording's own time at a
+// time of it, and back. Play's line runs on it, so it fills at one speed as it plays and goes where it's pressed at the
+// same speed, leaping no wait. Where the moment starts is where a wait is cut at, so what's shown starts there.
 // And where its page has first drawn itself: a recording starts as the page loads, blank until the app has put itself
-// on it, which it has once what it adds pauses for a beat, in its first step.
+// on it, which it has once what it adds pauses for a beat.
 export type Cut = { length: number; real: (at: number) => number; cut: (real: number) => number; drawn: number };
 function cutOf(events: Events, length: number, starts: number[]): Cut {
   const start = events[0]?.timestamp ?? 0;

@@ -257,7 +257,7 @@ const plainly: z.core.$ZodErrorMap = (issue) => {
 };
 const KINDS: Record<string, string> = { string: "text", number: "a number", array: "a list", object: "an object", boolean: "true or false" };
 
-// Names what a problem is on, innermost first: “Hand-back 2: the step “Open” in the moment “Export a quarter””.
+// Names what a problem is on, innermost first: “Hand-back 2: action 1 in the moment “Export a quarter””.
 function whose(subject: string, path: PropertyKey[], value: unknown): string {
   const things: string[] = [];
   let here = value;

@@ -1,4 +1,4 @@
-// Each hand-back is its own recording of a moment, so two are played together, and a moment stepped into, through what
+// Each hand-back is its own taking of a moment, so two takings are played together, and a moment stepped into, through what
 // each did there.
 
 import type { Moment } from "./model.ts";
@@ -55,7 +55,7 @@ function shared(ours: Done[], others: Done[]): [Done, Done][] {
   return pairs;
 }
 
-// Where a moment is stepped into, as its recording is at a moment: after so many of the things it shows done, as the
+// Where a moment is stepped into, as its recording is at a time: after so many of the things it shows done, as the
 // page rests after each; at its end, everything done and checked, nothing. The way there comes before them, done
 // whole, and the run never stops on a page with nothing loaded yet: it goes on to the first thing that loads one
 // (test.ts).

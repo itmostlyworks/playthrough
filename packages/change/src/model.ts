@@ -54,7 +54,7 @@ export const Did = z.strictObject({
 export const Place = z
   .strictObject({
     moment: text("needs the moment it's on"),
-    at: seconds("needs its moment, in seconds").optional().describe("Without it, the whole moment"),
+    at: seconds("needs its time, in seconds").optional().describe("Without it, the whole moment"),
     element: Element.optional(),
     alike: z.array(Element).optional().describe("The other things changed alike with its element, each where it is"),
     box: Box.optional().describe("Something with no words of its own, or where only the pixels changed"),
@@ -71,7 +71,7 @@ export const OnMoment = z
   .strictObject({
     handBack: handBackNumber,
     moment: text("needs the moment it's on"),
-    at: seconds("needs its moment, in seconds").optional().describe("Seconds into the moment's recording on that hand-back; without it, the whole moment"),
+    at: seconds("needs its time, in seconds").optional().describe("Seconds into the moment's recording on that hand-back; without it, the whole moment"),
     element: Element.optional().describe("Its node is in the moment's recording on that hand-back"),
     box: Box.optional().describe("Something with no words of its own"),
     point: Point.optional().describe("Empty space"),
@@ -86,7 +86,7 @@ export const InApp = z
     did: z.array(Did, { error: "needs what they did there, a list, even if it's empty" }).describe("What the person did there, in order"),
     recording: fileName("needs its recording: the name of one of the person's own files").describe("The moment up to where they stepped in, then what they did"),
     length: z.number({ error: "needs its length, in seconds" }).positive({ error: "needs its length, in seconds" }),
-    at: seconds("needs its moment, in seconds").describe("Seconds into the person's own recording"),
+    at: seconds("needs its time, in seconds").describe("Seconds into the person's own recording"),
     element: Element.optional().describe("Its node is in the person's own recording"),
     box: Box.optional().describe("Something with no words of its own"),
     point: Point.optional().describe("Empty space"),
@@ -130,8 +130,8 @@ export const Finding = z.strictObject({
   gone: z.literal(true).optional().describe("Not on the newer hand-back: where it was, on the hand-back before, is where it's seen, with Compare"),
   seen: z
     .array(Place, { error: "needs where it's seen, a list" })
-    .min(1, { error: "needs where it's seen: each moment, at its moment there" })
-    .describe("Each moment it's seen in, at its moment there; a moment that's gone, with no moment"),
+    .min(1, { error: "needs where it's seen: each moment, at its time there" })
+    .describe("Each moment it's seen in, at its time there; a moment that's gone, with no time"),
   pictureOnly: z
     .literal(true)
     .optional()

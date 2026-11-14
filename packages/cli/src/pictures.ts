@@ -24,7 +24,7 @@ export async function picturesAt(page: Page, then: Reading, now: Reading, pictur
   const explained = found.flatMap((difference) => ["then" in difference ? difference.then.box : [], "now" in difference ? difference.now.box : []].flat());
   const patches = await page.evaluate(differ, { then: pictures.then.toString("base64"), now: pictures.now.toString("base64"), explained });
 
-  // What changed inside something at this moment: a patch moved inside it is that change's doing (the columns beside a wider one).
+  // What changed inside something at this time: a patch moved inside it is that change's doing (the columns beside a wider one).
   const changedInside = new Set(found.flatMap((difference) => (difference.what === "gone" ? [] : holdersOf(now, difference.now))));
   // Each change, and whether it's known only by where it is: nothing read is there, or only near it.
   const told = new Map<string, { words: string; patch: Area; here: boolean }>();
@@ -48,7 +48,7 @@ export async function picturesAt(page: Page, then: Reading, now: Reading, pictur
   });
 }
 
-// What a patch is on: the smallest named thing or words hand-back all of it; under a heading of a table the page marks as
+// What a patch is on: the smallest named thing or words round all of it; under a heading of a table the page marks as
 // one, that column; else what's nearest it, as a person points at a spot (“Something near “-60.00””); else just where it
 // is. Something named only by data is known by where it is.
 function whatsThere(reading: Reading, patch: Area): { called: string; identity?: string } {
@@ -100,7 +100,7 @@ async function differ({ then, now, explained }: { then: string; now: string; exp
   const SQUARE = 16; // differences are counted in squares this size,
   const DOTS = 4; // and a square differs with at least this many different dots in it
   const GAP = 3; // squares within this many of each other are one patch
-  const AROUND = 8; // pixels hand-back what the reading found that are its doing too
+  const AROUND = 8; // pixels round what the reading found that are its doing too
   const NUDGE = 2; // the same picture moved this far, in quarter pixels, is nudged
   const FARTHEST = 24; // and this far, along or across, moved
 

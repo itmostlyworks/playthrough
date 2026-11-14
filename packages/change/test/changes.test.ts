@@ -183,7 +183,7 @@ for (const [kept, storage] of storages) {
       await assert.rejects(changes.send("invoice-export", send(0, { notes: [note("Hm")] })), Refused);
     });
 
-    test("a note's place is on a moment in its hand-back, at a moment within it", async () => {
+    test("a note's place is on a moment in its hand-back, at a time within it", async () => {
       const changes = await recorded();
       const elsewhere = { id: newId(), on: { handBack: 1, moment: "Pay an invoice", at: 1 }, words: "Hm" };
       await assert.rejects(changes.send("invoice-export", send(1, { notes: [elsewhere] })), refused(/“Pay an invoice”, which isn't there/));

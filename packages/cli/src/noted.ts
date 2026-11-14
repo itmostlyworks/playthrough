@@ -1,4 +1,4 @@
-// Each note the agent is asked to answer, pictured as it was made: the page its step left at its moment, or for one
+// Each note the agent is asked to answer, pictured as it was made: the page its moment left at its time, or for one
 // made in the app, the frame the person's page drew of it, with what it's on outlined in the notes' amber, or a ring on
 // its spot. The agent looks before changing anything, so what “this” means is never a guess. A picture that can't be
 // made never holds up the notes.

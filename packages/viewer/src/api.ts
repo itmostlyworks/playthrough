@@ -87,7 +87,7 @@ export function fromKept(events: string, kept: Record<string, string>, files: st
     .replace(/https?:\/\/[^\s"'()\\]+/g, (address) => (address in kept ? files + kept[address] + (/\.svg$/.test(kept[address]!) ? `?as=${as}` : "") : address));
 }
 
-// What was on the page at each step of a moment, read as it was recorded, and its picture then.
+// What was on the page where a moment's file read it, as it was recorded, and its picture then.
 const readingsName = (recording: string) => `readings/${recording.replace(/\.json$/, "")}`;
 export const readings = (change: string, handBack: number, recording: string) => file<Reading[]>(change, handBack, `${readingsName(recording)}.json`).catch((): Reading[] => []);
 // None for a hand-back recorded before Playthrough glimpsed the page after each action.

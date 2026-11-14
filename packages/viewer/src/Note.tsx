@@ -129,9 +129,9 @@ const STRIP = 3.8;
 const tooLarge = (thing: { width: number; height: number }) => thing.width + 40 > TILE * 1.6 || (thing.height + 16) * STRIP > TILE * 1.6;
 
 function stripOf(screen: { width: number; height: number }, thing?: { x: number; y: number; width: number; height: number }): Crop {
-  const [handBack, widest, around] = [TILE, TILE * 1.6, 20];
+  const [narrowest, widest, around] = [TILE, TILE * 1.6, 20];
   const spot = !thing || (!thing.width && !thing.height);
-  let width = spot ? handBack * 1.5 : Math.min(widest, Math.max(handBack, thing.width + 2 * around, (thing.height + 16) * STRIP));
+  let width = spot ? narrowest * 1.5 : Math.min(widest, Math.max(narrowest, thing.width + 2 * around, (thing.height + 16) * STRIP));
   width = Math.min(width, screen.width, screen.height * STRIP);
   const height = width / STRIP;
   const [middle, centre] = thing ? [thing.x + thing.width / 2, thing.y + thing.height / 2] : [screen.width / 2, screen.height / 2];

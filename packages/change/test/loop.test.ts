@@ -1,6 +1,5 @@
 // What the loop promises, from a change named to Done, as the store keeps it: what a person and an agent can count on
-// whatever page or command they use. A change is kept as a change, a moment as a moment with one step, a hand-back as a
-// hand-back.
+// whatever page or command they use.
 
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
