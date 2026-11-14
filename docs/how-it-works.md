@@ -122,6 +122,11 @@ right, once something's unsent; sending says Sent where you pressed it, and on t
 Compare is offered only where you've looked before; else "Unchanged" or "New" in its place, one bar width per change.
 The list's stills ring under the pointer.
 
+**Fourth pass.** A pin pointed at says its note beside it as its picture does. An answer you haven't opened is new
+(on its picture and its line on the list) until you open it, and Next says Next answer and opens those first. The list
+keeps its scroll. The app stepped into is drawn with `will-change: transform`, so its words keep their spaces. Compare's
+sides end above the bar and hold what the moment is about with its nearest words. An edge forward stands on the ground.
+
 **Compare plays both together.** Play and the line drive both sides, at the same action at the same instant. Each
 recording keeps, per action, what it was and when it began (`began` beside `actions` on a step: `click button
 “Update”`, `type textbox “Card prefix”`, never the words, `press Escape`), named as it's done (`test.ts`); one without
