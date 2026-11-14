@@ -358,7 +358,8 @@ the next time it's read and one already brought along is never touched; one kept
 saying to update. Format 2: every moment has its `from` (one kept without, or given 0 by an older `again`, gets where
 it was shown from), and every way does its way there before its step (what was done before `from` moves out of the
 step), so running it again starts it where its step does; a send that said Done by naming every moment of its round as
-looking good, and nothing more, says Done.
+looking good, and nothing more, says Done; and what nothing reads any more is left behind (an older round's `accounts`, a
+send's `verdicts` and `looksGood`).
 
 Underneath, the code still uses older names: a change is kept as a review, a hand-back as a round, a moment as a scene
 with one step, and stepping in is `take-over`. None of those words reach the agent or the person, and they're due to

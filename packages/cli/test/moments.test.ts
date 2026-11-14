@@ -255,7 +255,7 @@ describe("the change a command means", () => {
 
 describe("every moment run again", () => {
   const scene = (name: string, person = "Maja"): Scene => ({ name, length: 5, steps: [{ title: name, at: 0 }], recording: `${fileOf(name)}.json`, person, from: 0 });
-  const handedBack: Round = { number: 1, by: "Claude Code", scenes: [scene("Cards say WEB-1"), scene("The prefix can't be changed", "Sam")], replies: [], accounts: {}, finished: "2026-11-12T10:00:00.000Z" };
+  const handedBack: Round = { number: 1, by: "Claude Code", scenes: [scene("Cards say WEB-1"), scene("The prefix can't be changed", "Sam")], replies: [], finished: "2026-11-12T10:00:00.000Z" };
 
   test("says of each that it's the same, different and how, or new since it was handed back", () => {
     const changes = [{ id: "c1", words: "“Card prefix” is new", seen: [{ scene: "The prefix can't be changed", at: 4 }] }];

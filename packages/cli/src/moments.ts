@@ -133,7 +133,7 @@ export async function moment(repo: Repo, words: string, named?: string, last?: n
   for (const { name, bytes } of recorded.files) await repo.reviews.saveFile(id, number, name, bytes);
   const kept = review.rounds.find((round) => round.number === number);
   const scenes = kept?.scenes.some((one) => one.name === scene.name) ? kept.scenes.map((one) => (one.name === scene.name ? scene : one)) : [...(kept?.scenes ?? []), scene];
-  await repo.reviews.saveRound(id, { number, by: agent(kept?.by), scenes, replies: kept?.replies ?? [], accounts: kept?.accounts ?? {} });
+  await repo.reviews.saveRound(id, { number, by: agent(kept?.by), scenes, replies: kept?.replies ?? [] });
   writeFileSync(markedFile(repo), JSON.stringify({ began: browser.began, at: done.length }));
   // Marked again after running them all again, it's compared again with what the person saw, with the rest.
   if (review.comparisons.some((comparison) => comparison.round === number)) await compareAll(repo, id, number, scenes);
@@ -355,7 +355,7 @@ export async function again(repo: Repo) {
     })
     .sort((a, b) => order(a) - order(b));
   const kept = review.rounds.find((round) => round.number === number);
-  await repo.reviews.saveRound(id, { number, by: agent(kept?.by), scenes, replies: kept?.replies ?? [], accounts: {} });
+  await repo.reviews.saveRound(id, { number, by: agent(kept?.by), scenes, replies: kept?.replies ?? [] });
   const comparisons = await compareAll(repo, id, number, scenes);
   const since = comparisons.find((comparison) => comparison.since === handedBack.number);
 

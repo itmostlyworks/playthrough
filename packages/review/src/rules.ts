@@ -202,7 +202,6 @@ export function problemsWithSend(review: Review, send: Send): string[] {
   const shape = problemsWithShape(Send, send, "This send");
   if (shape.length) return shape;
   if (review.sends.some((other) => other.id === send.id)) return [`Something else was already sent as ${send.id}. Send this with a new id.`];
-  if (send.verdicts.length) return ["A note's answer isn't judged any more: say what's still not right in a reply."];
   const replies = send.replies ?? [];
   if (!send.notes.length && !replies.length && !send.done) return ["There's nothing in this send."];
   if (send.done && (send.notes.length || replies.length)) return ["Done says every moment looks good, and nothing more: send the notes and replies on their own."];

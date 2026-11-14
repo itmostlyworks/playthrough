@@ -19,7 +19,7 @@ export function useSend(review: string, round: number, you: string) {
   const send = async (saying: Saying, sent?: () => void) => {
     setSending("sending");
     setWent(saying);
-    const problems = await post(review, { id: newId(), round, by: you, sent: new Date().toISOString(), verdicts: [], notes: saying.notes, ...(saying.replies.length && { replies: saying.replies }), ...(saying.done && { done: true }) });
+    const problems = await post(review, { id: newId(), round, by: you, sent: new Date().toISOString(), notes: saying.notes, ...(saying.replies.length && { replies: saying.replies }), ...(saying.done && { done: true }) });
     if (problems.length) return (setSending(problems), false);
     sent?.();
     keepUnsent(review, (now) => ({

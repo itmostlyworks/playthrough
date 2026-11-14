@@ -129,16 +129,6 @@ export const Comparison = z.strictObject({
   changes: z.array(Change, { error: "needs its changes, a list, even if it's empty" }),
 });
 
-// What the agent once said about a change, kept in older rounds: nothing writes one now.
-export const Account = z.union(
-  [
-    z.strictObject({ line: text("needs words in its line") }).describe("Why it's there, in the agent's voice: what it meant or chose"),
-    z.strictObject({ note: text("needs the id of the note it was made for") }).describe("Made for that note: the reply on the note says why"),
-    z.strictObject({ notReal: text("needs to say why nothing really changed") }).describe("Nothing really changed; nobody is shown it"),
-  ],
-  { error: "says one of { line }, { note } or { notReal }" },
-);
-
 export const Reply = z.strictObject({
   note: text("needs the note it answers"),
   words: z.string({ error: "needs its words, even if empty until it's answered" }),
@@ -158,15 +148,7 @@ export const Round = z.strictObject({
   by: text("needs to say which agent recorded it").describe("By the name it goes by, “Claude Code” or “Codex”: one review can pass between agents"),
   scenes: z.array(Scene),
   replies: z.array(Reply).describe("The agent's answer to each note that asks for one"),
-  accounts: z.record(z.string(), Account).describe("Kept in older rounds, and empty in every round since"),
   finished: z.iso.datetime().optional(),
-});
-
-// An answer once judged to fix what its note asked for. Nothing judges one now: a send's verdicts are always none.
-export const Verdict = z.strictObject({
-  note: text("needs the note it's on"),
-  verdict: z.literal("looks good", { error: "is “looks good”: one that isn't gets a reply" }),
-  words: z.string().optional(),
 });
 
 // What one person sent about one round, at once: notes and replies, or Done. Once sent, it never changes.
@@ -176,7 +158,6 @@ export const Send = z.strictObject({
   by: text("needs to say who sent it"),
   sent: z.iso.datetime({ error: "needs to say when it was sent, as an ISO date" }),
   notes: z.array(Note).describe("New ones"),
-  verdicts: z.array(Verdict),
   replies: z
     .array(z.strictObject({ note: text("needs the note it's on"), words: text("needs words") }))
     .optional()
@@ -190,9 +171,6 @@ export const Taken = z.strictObject({ send: z.string(), round: z.number().int(),
 // A moment someone has opened, as it was handed back in one round: one handed back again, different, asks to be seen again.
 export const Seen = z.strictObject({ round: z.number().int().min(1), scene: text("needs the scene it's of") });
 
-// Kept by the older page; nothing accepts a review now, and the store reads none.
-export const Accepted = z.strictObject({ by: z.string(), at: z.iso.datetime() });
-
 export const Review = z.strictObject({
   id: z.string(),
   title: z.string().describe("A few words for the change, as a pull request's title"),
@@ -202,7 +180,6 @@ export const Review = z.strictObject({
   comparisons: z.array(Comparison),
   sends: z.array(Send),
   taken: z.array(Taken),
-  accepted: Accepted.optional(),
   seen: z.record(z.string(), z.array(Seen)).optional().describe("What each person has opened, by their name"),
 });
 
@@ -215,14 +192,11 @@ export type Step = z.infer<typeof Step>;
 export type Scene = z.infer<typeof Scene>;
 export type Change = z.infer<typeof Change>;
 export type Comparison = z.infer<typeof Comparison>;
-export type Account = z.infer<typeof Account>;
 export type Reply = z.infer<typeof Reply>;
 export type Note = z.infer<typeof Note>;
 export type Round = z.infer<typeof Round>;
-export type Verdict = z.infer<typeof Verdict>;
 export type Send = z.infer<typeof Send>;
 export type Taken = z.infer<typeof Taken>;
-export type Accepted = z.infer<typeof Accepted>;
 export type Seen = z.infer<typeof Seen>;
 export type Review = z.infer<typeof Review>;
 

@@ -32,7 +32,6 @@ const round = (number: number, parts: Partial<Round> = {}): Round => ({
   by: "Claude Code",
   scenes: [scene("Export a quarter"), scene("Cancel halfway")],
   replies: [],
-  accounts: {},
   ...parts,
 });
 
@@ -45,7 +44,6 @@ const send = (round: number, parts: Partial<Send> = {}): Send => ({
   by: "Ana",
   sent: new Date((clock += 1000)).toISOString(),
   notes: [],
-  verdicts: [],
   ...parts,
 });
 
@@ -237,7 +235,6 @@ for (const [kept, storage] of storages) {
       await reviews.finish("invoice-export", 2);
       await assert.rejects(reviews.send("invoice-export", send(2, { replies: [{ note: "nobody", words: "Hm" }] })), refused(/no note nobody on round 2 to reply to/));
       await assert.rejects(reviews.send("invoice-export", send(2, { replies: [{ note: asked.id, words: " " }] })), refused(/needs words/));
-      await assert.rejects(reviews.send("invoice-export", send(2, { verdicts: [{ note: asked.id, verdict: "looks good" }] })), refused(/say what's still not right in a reply/));
     });
 
     test("Done says nothing more, and a send says something", async () => {

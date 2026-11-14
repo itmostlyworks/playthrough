@@ -4,15 +4,20 @@
 // stopped half-way, changes nothing more.
 //
 // Format 2: every moment kept with where it starts, and every moment's way doing its way there before its step; Done
-// kept as said.
+// kept as said; and nothing kept that nothing reads: an older round's accounts, a send's verdicts.
 
-import type { Scene, Send } from "./model.ts";
+import type { Round, Scene, Send } from "./model.ts";
 import { startOf, type Done } from "./shown.ts";
 
 export const FORMAT = 2;
 
 // A moment kept before moments had a start is given the one it was shown from: where the rule starts it in what was
 // recorded. One an older `again` gave 0, by its step starting the recording, is given it too.
+// A round, its moments each given where it starts, and the accounts older rounds kept of their changes left behind.
+export function roundNow({ accounts: _, ...round }: Round & { accounts?: unknown }): Round {
+  return { ...round, scenes: round.scenes.map(sceneNow) };
+}
+
 export function sceneNow(scene: Older): Scene {
   const step = scene.steps[0];
   const wronglyAtZero = scene.from === 0 && step?.at === 0 && !!step.actions?.length;
@@ -73,8 +78,8 @@ export function wayNow(file: string, scene: Scene): string {
 }
 
 // A send that said Done said every moment of its round looks good, by name, and nothing more; now it says Done.
-type OlderSend = Send & { looksGood?: string[] };
-export function sendNow({ looksGood, ...send }: OlderSend, scenes: Scene[]): Send {
+type OlderSend = Send & { looksGood?: string[]; verdicts?: unknown; takenBack?: unknown };
+export function sendNow({ looksGood, verdicts: _, takenBack: __, ...send }: OlderSend, scenes: Scene[]): Send {
   const saidDone = !!looksGood?.length && !send.notes.length && !send.replies?.length && scenes.every((scene) => looksGood.includes(scene.name));
   return { ...send, ...(saidDone && { done: true as const }) };
 }

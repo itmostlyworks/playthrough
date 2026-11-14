@@ -22,13 +22,13 @@ const STILL = moment("Sam can't change the prefix", []);
 
 const handBack = async (reviews: Reviews, scenes: Scene[], replies: Round["replies"] = []) => {
   const number = roundInProgress(await reviews.get(CHANGE));
-  await reviews.saveRound(CHANGE, { number, by: "Claude Code", scenes, replies, accounts: {} });
+  await reviews.saveRound(CHANGE, { number, by: "Claude Code", scenes, replies });
   await reviews.finish(CHANGE, number);
   return number;
 };
 
 let clock = Date.parse("2026-11-14T09:00:00Z");
-const said = (round: number, parts: Partial<Send>): Send => ({ id: newId(), round, by: "Ludwig", sent: new Date((clock += 1000)).toISOString(), notes: [], verdicts: [], ...parts });
+const said = (round: number, parts: Partial<Send>): Send => ({ id: newId(), round, by: "Ludwig", sent: new Date((clock += 1000)).toISOString(), notes: [], ...parts });
 const onThing = (words: string, scene = PREFIX.name): Note => ({ id: newId(), words, on: { scene, at: 5, element: { role: "textbox", name: "Card prefix" } } });
 const done = (round: number) => said(round, { done: true });
 
@@ -52,7 +52,7 @@ describe("the loop", () => {
 
   test("a moment kept is the person's only once it's handed back, and then never changes", async () => {
     const reviews = await named();
-    await reviews.saveRound(CHANGE, { number: 1, by: "Claude Code", scenes: [PREFIX], replies: [], accounts: {} });
+    await reviews.saveRound(CHANGE, { number: 1, by: "Claude Code", scenes: [PREFIX], replies: [] });
     await assert.rejects(reviews.send(CHANGE, said(1, { notes: [onThing("Hm")] })), /isn't finished/);
     await reviews.finish(CHANGE, 1);
     const [round] = (await reviews.get(CHANGE)).rounds;
@@ -122,7 +122,7 @@ describe("the loop", () => {
   test("a moment handed back again is unseen again, and what's different in it since is kept against the hand-back seen", async () => {
     const reviews = await handedBack();
     await reviews.see(CHANGE, "Ludwig", [{ round: 1, scene: PREFIX.name }]);
-    await reviews.saveRound(CHANGE, { number: 2, by: "Claude Code", scenes: [PREFIX, STILL], replies: [], accounts: {} });
+    await reviews.saveRound(CHANGE, { number: 2, by: "Claude Code", scenes: [PREFIX, STILL], replies: [] });
     const different = { id: "hint", words: "“Use up to 10 letters” is new", seen: [{ scene: PREFIX.name, at: 5 }] };
     await reviews.saveComparison(CHANGE, { round: 2, since: 1, changes: [different] });
     await reviews.finish(CHANGE, 2);
@@ -187,9 +187,9 @@ async function keptTheOlderWay(storage: Storage) {
   const began = [{ action: "click link “Settings”", at: 2.5 }, { action: "click link “Workspace”", at: 3.5 }];
   const older = { ...PREFIX, steps: [{ ...PREFIX.steps[0]!, at: 0, began }], from: undefined };
   await write("review.json", { format: 1, id: CHANGE, title: "Change the card prefix", started: "2026-11-12T09:00:00.000Z" });
-  await write("rounds/1/round.json", { number: 1, by: "Agent", scenes: [older], replies: [], accounts: {}, finished: "2026-11-12T10:00:00.000Z" });
+  await write("rounds/1/round.json", { number: 1, by: "Agent", scenes: [older], replies: [], finished: "2026-11-12T10:00:00.000Z" });
   await write("scenes/cards-now-say-web-1.ts", OLDER_WAY);
-  await write("sends/d0ne.json", { id: "d0ne", round: 1, by: "Ludwig", sent: "2026-11-12T11:00:00.000Z", notes: [], verdicts: [], looksGood: [PREFIX.name] });
+  await write("sends/d0ne.json", { id: "d0ne", round: 1, by: "Ludwig", sent: "2026-11-12T11:00:00.000Z", notes: [], looksGood: [PREFIX.name] });
 }
 const text = async (storage: Storage, path: string) => new TextDecoder().decode((await storage.read(`${CHANGE}/${path}`))!);
 
@@ -201,7 +201,8 @@ describe("a change kept the older way", () => {
     assert.equal(review.rounds[0]?.scenes[0]?.from, 4.5, "a still, where its end holds");
     assert.match(await text(storage, "scenes/cards-now-say-web-1.ts"), /click\(\);\n {2}await test\.step\("Cards now say WEB-1", async \(\) => \{\n {4}await expect/);
     assert.equal(saidDone(review)?.id, "d0ne", "Done said by naming every moment is Done");
-    assert.deepEqual(JSON.parse(await text(storage, "sends/d0ne.json")).done, true);
+    assert.deepEqual(JSON.parse(await text(storage, "sends/d0ne.json")), { id: "d0ne", round: 1, by: "Ludwig", sent: "2026-11-12T11:00:00.000Z", notes: [], done: true }, "and says nothing else");
+    assert.equal("accounts" in JSON.parse(await text(storage, "rounds/1/round.json")), false, "what nothing reads is left behind");
     assert.equal(JSON.parse(await text(storage, "review.json")).format, 2);
   });
 
