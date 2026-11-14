@@ -222,6 +222,16 @@ describe("the change a command means", () => {
     assert.equal(idOf("Café: “Smörgås” tabs!"), "cafe-smorgas-tabs");
   });
 
+  test("is never kept in a folder Playthrough keeps for itself, nor taken for another change whose title makes the same name", async () => {
+    const here = await copy();
+    await assert.rejects(change(here, "Borrowed", "Lend it."), /would be kept in \.playthrough\/borrowed, a folder Playthrough keeps for itself/);
+    mkdirSync(join(here.root, ".playthrough", "tried"), { recursive: true });
+    await assert.rejects(change(here, "Tried", "Try it."), /\.playthrough\/tried, a folder Playthrough keeps for itself/);
+    await quietly(() => change(here, "Sort cards by date", "Sort them."));
+    await assert.rejects(change(here, "Sort cards by: date", "Sort them otherwise."), /“Sort cards by: date” would be the change “Sort cards by date”, which is here already/);
+    assert.equal((await here.reviews.get("sort-cards-by-date")).asked, "Sort them.");
+  });
+
   test("is titled as a person says it, without a commit's prefix", async () => {
     const here = await copy();
     await quietly(() => change(here, "feat: sort cards in a list by due date", "Let me sort the cards."));

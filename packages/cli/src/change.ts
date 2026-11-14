@@ -7,7 +7,7 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { list, quote, Refused } from "@playthrough/review";
 import type { Repo } from "./repo.ts";
 import { wordsIn } from "./way.ts";
@@ -40,9 +40,15 @@ export async function change(repo: Repo, said: string | undefined, asked: string
   const id = idOf(title);
   await repo.keepOutOfGit();
   const known = (await repo.reviews.list()).includes(id);
+  // Beside its changes, Playthrough keeps folders of its own in .playthrough/, and one kept by an older version may be
+  // there still: a change is never put in one.
+  if (!known && (id === basename(repo.borrowed) || existsSync(join(repo.root, ".playthrough", id))))
+    throw new Refused([`A change titled ${quote(title)} would be kept in .playthrough/${id}, a folder Playthrough keeps for itself. Give it another title.`]);
   if (!known) await repo.reviews.start(id, title, asked.trim());
-  await writeFile(meantIn(repo), `${JSON.stringify({ change: id })}\n`);
   const { title: kept } = await repo.reviews.get(id);
+  // Two titles can make the same name: the second would carry on the first, and what was asked of it would be lost.
+  if (kept !== title) throw new Refused([`${quote(title)} would be the change ${quote(kept)}, which is here already. To carry that one on, name it by its own title; for another change, give this one a title of its own.`]);
+  await writeFile(meantIn(repo), `${JSON.stringify({ change: id })}\n`);
   const moments = momentsOf(repo, id).length;
   console.log(
     known
