@@ -137,14 +137,15 @@ export function Edge(props: {
         onFocus={() => toward(true, 0)}
         onBlur={(event) => !under.current && !event.currentTarget.contains(event.relatedTarget as Node) && toward(false, 0)}
       >
-        {/* Forward, it stands on the page's own ground, so the recording never shows between its cards. */}
         <div
           ref={list}
           onScroll={look}
-          className={`grid h-full grid-cols-[minmax(0,1fr)] content-start gap-0.5 overflow-x-clip overflow-y-auto overscroll-contain px-2.5 py-2 transition-colors duration-300 ease-calm [scrollbar-width:none] ${forward ? `bg-ground ${right ? "rounded-l-xl" : "rounded-r-xl"}` : ""}`}
+          className="h-full overflow-x-clip overflow-y-auto overscroll-contain px-2.5 py-2 [scrollbar-width:none]"
           style={{ maskImage: fade("to bottom"), WebkitMaskImage: fade("to bottom") }}
         >
-          {children(forward)}
+          {/* Forward, the stack of cards stands on one plate of the page's ground, no taller or wider than they are, so
+              the recording never shows between them and nothing else of it is hidden. */}
+          <div className={`grid grid-cols-[minmax(0,1fr)] gap-0.5 rounded-xl transition-colors duration-300 ease-calm ${forward ? "bg-ground" : ""}`}>{children(forward)}</div>
         </div>
       </div>
       {/* The screen's edge, fading what runs past it at rest. */}
