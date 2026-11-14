@@ -87,21 +87,23 @@ the scene's `from` (seconds in; the way there before it is kept and never shown;
 Play would be, the bar says "A still". The recording sits in the middle, as large as the room beside its edges lets it
 be (`SIDE`, a tenth of the window, 104 to 160px each side), and never moves or changes size: not as an edge comes
 forward, a note opens or the moment changes (its shape is kept until the next one's is known, and the one you were on
-stays under the new one until it has faded in). The bar across its bottom edge: Play (Space), whose slim line inside it
-fills as it plays, there only once the moment has left its end; Step in (T; the real app, as that person, started
+stays under the new one until it has faded in). The bar across its bottom edge: Play (Space), whose slim line along its own
+bottom edge, end to end, fills as it plays, there only once the moment has left its end; Step in (T; the real app, as that person, started
 afresh each time; a link out of it opens in a tab of your own); Note (N, on the recording or in the app); Compare (C)
 with what it was when it was last handed back, both sides playing their shown parts together. A click on the recording
 plays and pauses it, as Space does.
 **The edges** (`Edge.tsx`). On the left, the change's moments; on the right, this moment's notes, sent then unsent, in
 the order said. Each is a picture of one size (176 by 110), one after another, at rest beside the recording and never
-over it, 16px from it, running past the screen's edge and fading into it. Pointed at (after a breath, 70ms; going back
+over it, 16px from it, running past the screen's edge where the window is too
+narrow for them, fading out over its last few pixels (never over pictures wholly on the screen). Pointed at (after a breath, 70ms; going back
 after 220ms), or reached with Tab, an edge comes forward: it slides until its pictures are 16px from the screen's edge,
 a little over the recording. A moment's card's words, who by name and its words, come up over its picture's lower part.
 A note's card is the same at rest and forward, nothing in it moving: a slim strip of its picture over its latest words
 in two lines and where it stands ("not sent yet", "sent", "answered", "new answer"). A touch brings it forward first. Many scroll in their own column, under the wheel, their cut end
 fading over 64px; the moment you're on, a note open or one arriving is scrolled into view. A moment's picture is the
 list's still, the others' quieter than the one you're on, with its notes' dots; pressed, the moment changes in place.
-A note's strip is cut for its own shape (`stripOf`) around its thing, with its pin by the thing's top right corner:
+A note's strip is cut for its own shape (`stripOf`) around its thing, with its pin by the top right corner of what's
+shown of its thing (a line of words as wide as its words), beside it where there's no room above, never on it:
 a small thing (a switch, a button) at the size it was recorded, with what's beside it; a wide line (a heading) from its
 start, a little smaller at most, so it reads; something far larger than the strip (a pane) closed in on what its moment
 is about where that's inside it, else from its top left; a spot
@@ -142,7 +144,7 @@ The list's stills ring under the pointer.
 **Fourth pass.** A pin pointed at says its note beside it as its picture does. An answer you haven't opened is new
 (on its picture and its line on the list) until you open it, and Next says Next answer and opens those first. The list
 keeps its scroll. The app stepped into is drawn with `will-change: transform`, so its words keep their spaces. Compare's
-sides end above the bar and hold what the moment is about with its nearest words. An edge forward stands on the ground.
+sides end above the bar and hold what the moment is about with its nearest words. An edge forward is its cards alone, each a little apart, on nothing of their own.
 
 **Last stretch.** A new answer's New mark shows on the edge at rest, its words carrying it forward. An open note's
 thing is never under the bar: the bar moves along the recording's edge, or down off it. Stepping in, the clipboard is
