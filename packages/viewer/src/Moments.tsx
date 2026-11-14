@@ -1179,7 +1179,8 @@ function MomentView(props: {
   const nextAnswer = !live?.shown && !writing ? onEdge.find(({ note, sent }) => note.id !== open && says(note, sent).fresh) : undefined;
   const onward = () => (nextAnswer ? openNote(nextAnswer.note.id) : next(1));
   const [layers, setLayers] = useState<{ note: Note; sent: boolean; made: Made }[]>([]);
-  const [openPlaced, setOpenPlaced] = useState<Placed>({});
+  // Where the recording has the open note's thing on its own frame, once it has said, and for which note.
+  const [openPlaced, setOpenPlaced] = useState<{ note: string; at: Placed }>();
   const shut = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (opened && openNow && at < end - 0.02) restAt(end);
@@ -1193,7 +1194,7 @@ function MomentView(props: {
     const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
     const fading = calm ? undefined : shut.current?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: FADING, easing: "ease", fill: "forwards" });
     let current = true;
-    void (fading?.finished ?? Promise.resolve()).then(() => current && (setLayers([]), setOpenPlaced({})), () => {});
+    void (fading?.finished ?? Promise.resolve()).then(() => current && (setLayers([]), setOpenPlaced(undefined)), () => {});
     return () => void ((current = false), fading?.cancel());
   }, [opened?.note.id, openNow]);
   const shownOpen = layers.at(-1);
@@ -1214,7 +1215,8 @@ function MomentView(props: {
     const [left, top] = [(shown.clientWidth - screen.width * k) / 2, (shown.clientHeight - screen.height * k) / 2];
     return { [shownOpen.note.id]: { left: left + box.x * screen.width * k, top: top + box.y * screen.height * k, width: box.width * screen.width * k, height: box.height * screen.height * k } };
   })();
-  const openAt = pictured ? (onPicture ?? {}) : openPlaced;
+  const told = shownOpen && openPlaced?.note === shownOpen.note.id ? openPlaced.at : undefined;
+  const openAt = pictured ? (onPicture ?? {}) : (told ?? {});
   // What the bar must never cover: an open note's thing while it's open; else, from the first frame shown to the last,
   // what the moment is about and the last thing done in it, where the page has them at its end, known from its reading
   // before anything is drawn. The bar is one place: over one of them, it drops just below the recording's edge for that
@@ -1241,6 +1243,11 @@ function MomentView(props: {
   })());
   // The note whose card shows: open on the moment as it is now, or on the frame it was made on, until that has faded.
   const carded = opened && openNow ? opened : shownOpen && (opened ? shownOpen.note.id === opened.note.id && shownOpen : !phone && shownOpen);
+  // Its card comes in by its thing, so it waits until where that is has been said: on the moment as it is now, by the
+  // recording; on its own frame, by its kept picture, or the recording there until that's drawn. It never stands
+  // somewhere else first and moves. Only a note that turns out to be on nothing stands in the corner.
+  const corner = spotAt({ x: 24, y: 24 });
+  const cardBy = !carded ? undefined : phone ? corner : openNow ? placed[carded.note.id] : pictured || told ? (openAt[carded.note.id] ?? corner) : undefined;
   // What it's about is outlined only at the point: midway, it may not be there yet.
   const aboutAt = atPoint && !live?.shown && !opened ? placed[ABOUT] : undefined;
 
@@ -1371,8 +1378,8 @@ function MomentView(props: {
     <>
           {writing && <NoteCard by={(!writing.note.on?.app && placed[writing.note.id]) || writing.box || spotAt(writing.spot)} frame={frame} under={phone}><Write onSave={save} onDrop={() => setWriting(undefined)} /></NoteCard>}
           {/* Closing, it fades where it stood; under the bar on a phone, it goes at once, so it never holds its room. */}
-          {!writing && carded && (
-            <NoteCard key={carded.note.id} by={(openNow ? placed[carded.note.id] : openAt[carded.note.id]) ?? spotAt({ x: 24, y: 24 })} frame={frame} closing={!opened} under={phone}>
+          {!writing && carded && cardBy && (
+            <NoteCard key={carded.note.id} by={cardBy} frame={frame} closing={!opened} under={phone}>
               <div className="min-h-0 flex-1 overflow-y-auto px-1">
                 {carded.sent ? <Turns you={you} turns={conversation(review, carded.note.id)} /> : <Turns you={you} turns={[]} unsent={carded.note.words} />}
               </div>
@@ -1523,7 +1530,7 @@ function MomentView(props: {
                         recording={made.recording}
                         at={made.at}
                         marks={[{ id: note.id, ...(made.node !== undefined ? { node: made.node } : made.point && { point: made.point }) }]}
-                        onMarks={note.id === shownOpen?.note.id ? setOpenPlaced : undefined}
+                        onMarks={note.id === shownOpen?.note.id ? (at) => setOpenPlaced({ note: note.id, at }) : undefined}
                       />
                     )}
                   </div>
