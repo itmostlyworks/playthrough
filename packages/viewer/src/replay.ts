@@ -220,7 +220,9 @@ export class Replay {
     into.append(this.host);
     // Jumping, rrweb builds the page in a copy of its own first, and the page's own scroll never reached it: played on
     // from a stop, the page sat at its first scroll for a moment, then jumped down. Built in place, it's where it was.
-    // Recorded with no scrollbars, it's played with none, so none takes width its page didn't have.
+    // Recorded with no scrollbars, it's played with none, so none takes width its page didn't have. And it's scrolled
+    // only where the recording says: the browser's own keeping of what's in view, as the page settles in its first
+    // frame, moved Kan's settings pane a pixel off it on some loads and not others.
     this.#replayer = new Replayer(events, {
       root: this.host,
       mouseTail: false,
@@ -231,6 +233,7 @@ export class Replay {
       insertStyleRules: [
         "* { scrollbar-width: none !important; }",
         "::-webkit-scrollbar { display: none !important; }",
+        "* { overflow-anchor: none !important; }",
       ],
     });
     (this.#replayer as unknown as { cache: typeof styles }).cache = styles;
