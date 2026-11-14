@@ -13,19 +13,22 @@ export type Square = { x: number; y: number };
 export const SQUARE = 16;
 
 // What changed from the first frame, after anything done or at the end, in both runs, but for what moves by itself; what
-// moves by itself (with the squares of words that tell the time, which a beat may not see change); and what was still changing, in both runs, once the end had held.
+// was seen moving with nothing done (with the squares of words that tell the time, which a beat may not see change); and what was still changing, in both runs, once the end had held.
 export async function seenChanging([one, two]: [Frames, Frames], timed: Square[] = []): Promise<{ changed: Square[]; moving: Square[]; unsettled: Square[] }> {
   const browser = await chromium.launch();
   try {
     const page = await browser.newPage();
     const differing = (a: Buffer, b: Buffer) => squaresDiffering(page, a, b);
-    const moving = new Set([...timed.map(({ x, y }) => `${x},${y}`), ...(await Promise.all([[one.first, one.later], [two.first, two.later], [one.first, two.first], [one.last, two.last]].map(([a, b]) => differing(a!, b!)))).flat()]);
+    // Seen moving with nothing done, in a run; and different between the runs, at either end, which may be no more than
+    // timing, so it's left out but not said.
+    const restless = new Set((await Promise.all([differing(one.first, one.later), differing(two.first, two.later)])).flat());
+    const moving = new Set([...timed.map(({ x, y }) => `${x},${y}`), ...restless, ...(await Promise.all([differing(one.first, two.first), differing(one.last, two.last)])).flat()]);
     const fromFirst = async ({ first, after, last }: Frames) => new Set((await Promise.all([...after, last].map((frame) => differing(first, frame)))).flat());
     const both = (a: Set<string> | string[], b: Set<string> | string[]) => [...a].filter((square) => new Set(b).has(square) && !moving.has(square));
     const changed = both(await fromFirst(one), await fromFirst(two));
     const unsettled = one.held && two.held ? both(await differing(one.last, one.held), await differing(two.last, two.held)) : [];
     const asSquare = (key: string) => ({ x: Number(key.split(",")[0]), y: Number(key.split(",")[1]) });
-    return { changed: changed.map(asSquare), moving: [...moving].map(asSquare), unsettled: unsettled.map(asSquare) };
+    return { changed: changed.map(asSquare), moving: [...restless].map(asSquare), unsettled: unsettled.map(asSquare) };
   } finally {
     await browser.close();
   }
