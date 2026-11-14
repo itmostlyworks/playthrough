@@ -109,6 +109,9 @@ export const Scene = z.strictObject({
     .describe("Who the scene is done as, as its file or the app's setup names them: the name on the recorded pointer, handed to you when you take over"),
   about: Element.optional().describe("A moment's: the one thing that shows it, as the page names it, which the person sees it closed in on"),
   acted: Element.optional().describe("A moment's: the last thing done something to on the way that's still there at its point, which its still closes in on where it's about nothing"),
+  from: seconds("needs where the moment starts, in seconds")
+    .optional()
+    .describe("A moment's: where what's shown of its recording starts, the way there before it kept and never shown; with nothing done from there on, the moment is a still"),
   unsteady: z
     .array(text("needs the ids of the changes it makes by itself"))
     .optional()
