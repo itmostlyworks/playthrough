@@ -135,7 +135,7 @@ describe("a moment run again", () => {
 
   test("lands where the page reads the same and the address is the same but for the ids each run made", () => {
     const landed = whatDiffers({ url: "http://localhost:3110/boards/qiaa4o4hklar", reading: board }, { url: "http://localhost:3110/boards/galeikvcthwn", reading: board });
-    assert.deepEqual(landed, { differ: [], passing: [], address: "/boards/…" });
+    assert.deepEqual(landed, { differ: [], passing: [], timely: [], address: "/boards/…" });
   });
 
   test("doesn't land where what's on the page differs, and says what", () => {
@@ -149,6 +149,13 @@ describe("a moment run again", () => {
     const { differ, passing } = whatDiffers({ url: "http://localhost:3110/boards/1", reading: toasted }, { url: "http://localhost:3110/boards/1", reading: board });
     assert.deepEqual(differ, []);
     assert.equal(passing.length, 1);
+  });
+
+  test("leaves out words that tell the time, changed only in their numbers, and never other numbers", () => {
+    const at = (synced: string, card: string) => reading(thing("text", synced, 600, { words: synced }), thing("link", card, 10, { words: card }));
+    const { differ, timely } = whatDiffers({ url: "http://localhost/boards", reading: at("Synced 3 s ago", "WEB-1 Write") }, { url: "http://localhost/boards", reading: at("Synced 7 s ago", "WEB-1 Write") });
+    assert.deepEqual([differ, timely], [[], ["Synced 7 s ago"]]);
+    assert.equal(whatDiffers({ url: "http://localhost/boards", reading: at("Synced 3 s ago", "WEB-1 Write") }, { url: "http://localhost/boards", reading: at("Synced 3 s ago", "WEB-2 Write") }).differ.length, 1);
   });
 
   test("sets aside a number, or letters and digits of the same length, as an id; anything else in an address is a different place", () => {
