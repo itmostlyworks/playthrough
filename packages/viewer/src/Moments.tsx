@@ -1207,8 +1207,8 @@ function MomentView(props: {
   const openAt = pictured ? (onPicture ?? {}) : openPlaced;
   // What the bar must never cover: an open note's thing while it's open; else, from the first frame shown to the last,
   // what the moment is about and the last thing done in it, where the page has them at its end, known from its reading
-  // before anything is drawn. Over one, the bar moves along the recording's edge to the side with room, or where that
-  // can't clear it, down off the edge; it stays put for the whole moment, and moves calmly from one moment to the next.
+  // before anything is drawn. The bar is one place: over one of them, it drops just below the recording's edge for that
+  // moment, still in the middle, and that's all.
   const openThing = opened && (openNow ? placed[opened.note.id] : openAt[opened.note.id]);
   const kept = (() => {
     const shown = frame.current;
@@ -1226,13 +1226,8 @@ function MomentView(props: {
     const [wide, high, barWide] = [frame.current?.clientWidth ?? 0, frame.current?.clientHeight ?? 0, toolbar.current?.offsetWidth ?? 0];
     const [left, right] = [(wide - barWide) / 2, (wide + barWide) / 2];
     const under = (openThing ? [openThing] : live?.shown || comparing ? [] : kept).filter((one) => one.top + one.height > high - BAR / 2 - 12);
-    const covers = (by: number) => under.some((one) => one.left < right + by + 12 && one.left + one.width > left + by - 12);
-    if (!covers(0)) return { x: 0, y: 0 };
-    const moves = under
-      .flatMap((one) => [one.left - 12 - right, one.left + one.width + 12 - left])
-      .filter((by) => left + by >= 8 && right + by <= wide - 8 && !covers(by))
-      .sort((a, b) => Math.abs(a) - Math.abs(b));
-    return moves.length ? { x: moves[0]!, y: 0 } : { x: 0, y: BAR / 2 };
+    const covers = under.some((one) => one.left < right + 12 && one.left + one.width > left - 12);
+    return { x: 0, y: covers ? BAR / 2 : 0 };
   })());
   // The note whose card shows: open on the moment as it is now, or on the frame it was made on, until that has faded.
   const carded = opened && openNow ? opened : shownOpen && (opened ? shownOpen.note.id === opened.note.id && shownOpen : !phone && shownOpen);
