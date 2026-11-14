@@ -768,7 +768,33 @@ const keeping: object = Object.assign(
 type Forked = { name: string; notes: string[]; body: Body };
 const forks: Forked[] = [];
 const fork = (name: string, { notes }: { notes: string[] }, body: Body) => void forks.push({ name, notes: notes.map(String), body });
-export const test = ((globalThis as Record<symbol, unknown>)[ALONGSIDE] ? Object.assign(keeping, { fork: (name: string, { notes }: { notes: string[] }, body: Body) => void collectingForks.push({ name, notes: notes.map(String), body }) }) : Object.assign(withSteps(recorded), { fork })) as typeof recorded & { fork: typeof fork };
+export const test = ((globalThis as Record<symbol, unknown>)[ALONGSIDE] ? Object.assign(keeping, { inView, fork: (name: string, { notes }: { notes: string[] }, body: Body) => void collectingForks.push({ name, notes: notes.map(String), body }) }) : Object.assign(withSteps(recorded), { inView, fork })) as typeof recorded & { fork: typeof fork; inView: typeof inView };
+
+// Something near the screen's top or bottom edge, or with offScreen, out of sight, scrolled smoothly to the middle, as a
+// person would to look at it or do something to it, and the page left to come to rest: a recording has nothing past
+// what the browser showed. Already comfortably in view, too tall to be, or out of sight without offScreen, it stays.
+const EDGE = 0.15;
+async function inView(target: Locator, { offScreen = false } = {}) {
+  const moved = await target
+    .first()
+    .evaluate(
+      (element, { offScreen, edge }) => {
+        const box = element.getBoundingClientRect();
+        const band = innerHeight * edge;
+        const seen = box.bottom > 0 && box.top < innerHeight;
+        if ((!seen && !offScreen) || (seen && box.top >= band && box.bottom <= innerHeight - band) || box.height > innerHeight - 2 * band) return false;
+        element.scrollIntoView({ block: "center", behavior: "smooth" });
+        return true;
+      },
+      { offScreen, edge: EDGE },
+      { timeout: 3000 },
+    )
+    .catch(() => false);
+  if (moved && underway) {
+    await underway.page.waitForTimeout(100);
+    await underway.rest();
+  }
+}
 
 // Every action on an element glides there first and pauses after, and once it's done is a place to take the scene over.
 // Patched once in each worker, for every locator.
@@ -792,6 +818,8 @@ function pace(page: Page) {
       }
       // As long as the scene said to wait, where it said.
       const timeout = args.findLast((arg): arg is { timeout: number } => !!arg && typeof arg === "object" && typeof (arg as { timeout?: unknown }).timeout === "number")?.timeout;
+      // In what a moment shows, what's about to be done is brought comfortably into view first, as a person scrolls to it.
+      if (pointer && underway?.depth && underway.frames.size && !underway.readings.length) await inView(this, { offScreen: true });
       const aimed = pointer ? await approach(this, pointer, timeout).catch((error) => Promise.reject(asAction(error, action))) : undefined;
       const on = underway?.depth ? await follow(underway, this) : undefined;
       // Filled in on a recording, words are typed as a person types them, where they're typed: a date or a number is

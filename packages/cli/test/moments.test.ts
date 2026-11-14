@@ -115,6 +115,17 @@ describe("the way to a moment", () => {
     assert.equal(wayBefore(sceneOf({ words: "Here", person: "Maja", did, setup: {}, from: did.length })), true, "a still too");
   });
 
+  test("brings what the moment first does comfortably into view before it starts, and what it's about before it's checked; a still's on the way; never going there by hand", () => {
+    const about = { role: "textbox", name: "Card prefix", value: "WEB", disabled: false };
+    const moment = sceneOf({ words: "The prefix is WEB", person: "Maja", did: did.slice(0, 4), setup: {}, from: 2, about });
+    const [way, step] = moment.split('await test.step("The prefix is WEB"');
+    assert.match(way!, /await test\.inView\(page\.getByRole\("textbox", \{ name: "Card prefix", exact: true \}\), \{ offScreen: true \}\);\n\s*$/);
+    assert.match(step!, /name: "Save"[\s\S]*await test\.inView\(page\.getByRole\("textbox", \{ name: "Card prefix", exact: true \}\)\);\n.*expect/);
+    const still = sceneOf({ words: "The prefix", person: "Sam", did: did.slice(0, 2), setup: {}, from: 2, about });
+    assert.match(still.split("await test.step(")[0]!, /await test\.inView\(page\.getByRole\("textbox"/);
+    assert.doesNotMatch(wayIn(moment), /inView/);
+  });
+
   test("a right click is done again as one, as a card's menu opens", () => {
     const menu = sceneOf({ words: "The card's menu", person: "Maja", did: [{ does: "click", on: "#card", role: "link", name: "Write the launch post", button: "right" }], setup: {} });
     assert.match(menu, /getByRole\("link", \{ name: "Write the launch post", exact: true \}\)\.click\(\{ button: "right" \}\);/);

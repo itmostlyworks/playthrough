@@ -48,15 +48,7 @@ export function sceneOf({
   tried?: boolean;
 }): string {
   const written = did.map((done) => {
-    const nth = done.nth !== undefined ? `.nth(${done.nth})` : "";
-    const at =
-      done.role && done.name
-        ? `getByRole(${JSON.stringify(done.role)}, { name: ${JSON.stringify(done.name)}, exact: true })${nth}`
-        : done.role
-          ? `getByRole(${JSON.stringify(done.role)})${nth}`
-          : done.text
-            ? `getByText(${JSON.stringify(done.text)}, { exact: true })${nth}`
-            : `locator(${JSON.stringify(done.on)})`;
+    const at = locatorOf(done);
     const what = done.what && !done.role && !done.text ? ` // ${done.what.replace(/\n/g, " ")}` : "";
     const given = JSON.stringify(done.with ?? "");
     if (done.does === "goto") {
@@ -104,7 +96,13 @@ export function sceneOf({
   // The way ends scrolled where the moment's first thing was done, or for a still, where the agent is: its first frame is
   // there. What the moment shows ends where the agent is.
   const still = from >= did.length && from > 0 && scrolled && (scrolled.x || scrolled.y) ? [`    await page.evaluate(([x, y]) => window.scrollTo(x, y), ${xy(scrolled)});`] : [];
-  const way = [...lines.slice(0, placed), ...still].map((line) => line.slice(2));
+  const comfortable = thing ? [`    await test.inView(${thing});`] : [];
+  // A still's first frame is its only one: what it's about is brought into view on the way.
+  const isStill = from >= did.length && from > 0;
+  // The moment's first frame has what it does first, or for a still what it's about, comfortably in view.
+  const first = did[from];
+  const firstInView = first && first.does !== "goto" && first.on !== "body" && (first.role || first.text) ? [`    await test.inView(page.${locatorOf(first)}, { offScreen: true });`] : [];
+  const way = [...lines.slice(0, placed), ...still, ...(isStill ? comfortable : firstInView)].map((line) => line.slice(2));
   const shown = lines.slice(placed);
   return `${tried ? `import { writeFileSync } from "node:fs";\n` : ""}import { expect, test } from "playthrough/test";
 
@@ -112,7 +110,7 @@ test.use({ person: ${JSON.stringify(person)} });
 
 test(${JSON.stringify(words)}, async ({ page, setup, baseURL }) => {
 ${way.map((line) => `${line}\n`).join("")}  await test.step(${JSON.stringify(words)}, async () => {
-${[...shown, ...(still.length ? [] : scrolling), ...checks].join("\n")}
+${[...shown, ...(still.length ? [] : scrolling), ...(isStill ? [] : comfortable), ...checks].join("\n")}
   });${tried ? `\n  writeFileSync(new URL("./${ENDED}", import.meta.url), JSON.stringify({ url: page.url() }));` : ""}
 });
 `;
@@ -127,6 +125,15 @@ export function wayBefore(file: string): boolean {
   return lines.findIndex((line) => line.includes("await test.step(")) > from + 1;
 }
 
+// What a thing was done on, as getByRole finds it, by its words where it has no role, by its path where it has neither.
+function locatorOf(done: Done): string {
+  const nth = done.nth !== undefined ? `.nth(${done.nth})` : "";
+  if (done.role && done.name) return `getByRole(${JSON.stringify(done.role)}, { name: ${JSON.stringify(done.name)}, exact: true })${nth}`;
+  if (done.role) return `getByRole(${JSON.stringify(done.role)})${nth}`;
+  if (done.text) return `getByText(${JSON.stringify(done.text)}, { exact: true })${nth}`;
+  return `locator(${JSON.stringify(done.on)})`;
+}
+
 // The way there of a moment's file, and what the moment does, without what it checks: for going there by hand, not for
 // proving it.
 export function wayIn(file: string): string {
@@ -135,7 +142,7 @@ export function wayIn(file: string): string {
   const until = lines.findIndex((line, i) => i > from && line === "  });");
   return lines
     .slice(from + 1, until)
-    .filter((line) => !line.trim().startsWith("await expect(") && !line.includes("await test.step("))
+    .filter((line) => !line.trim().startsWith("await expect(") && !line.includes("await test.step(") && !line.includes("await test.inView("))
     .join("\n");
 }
 
@@ -163,8 +170,10 @@ export function sameAddress(here: string, again: string): string | undefined {
 // while after the page lands, up out of sight, doesn't keep a moment at its footer from landing.
 export function whatDiffers(here: { url: string; reading: Reading }, again: { url: string; reading: Reading }): { differ: string[]; passing: string[]; timely: string[]; address?: string } {
   const inSight = ({ box }: Thing, { width, height }: Reading["screen"]) => box.y + box.height > 0 && box.y < height && box.x + box.width > 0 && box.x < width;
+  // Playthrough scrolls what's shown into view itself, so the same place is the same things saying the same, wherever
+  // they sit on the screen: something moved isn't somewhere else.
   const all = differences(here.reading, again.reading).differences.filter(
-    (one) => ("then" in one && inSight(one.then, here.reading.screen)) || ("now" in one && inSight(one.now, again.reading.screen)),
+    (one) => one.what !== "moved" && (("then" in one && inSight(one.then, here.reading.screen)) || ("now" in one && inSight(one.now, again.reading.screen))),
   );
   // Words that say a time, reworded only in their numbers (“Synced 3 s ago”, “12:04”), change with time, not with the work.
   const timely = (one: (typeof all)[number]) =>
