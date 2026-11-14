@@ -86,6 +86,15 @@ moment's notes, opening each; Escape closes what's open. Reduced motion: nothing
 rows of the same pictures, words always under them, scrolled sideways.
 Send says your notes; Done says every moment looks good. Neither locks.
 
+**Third pass.** A note opens on its thing as it is now wherever that thing is in the moment's
+picture now (its picture on the edge alike), else on the frame it was made on, the bar saying "As it was" where that's
+from before the last hand-back. Noting, the bar says "Point at what it's about" and "Cancel Esc". The note box grows
+with its words and sits beside its thing, never on it (the app now says where the noted thing is). Stepping in, a line
+inside Step in fills as the app gets there; in the app the bar says "You, as …". Send is on the moment page too, top
+right, once something's unsent; sending says Sent where you pressed it, and on the list the change lands in view.
+Compare is offered only where you've looked before; else "Unchanged" or "New" in its place, one bar width per change.
+The list's stills ring under the pointer.
+
 **Compare plays both together.** Play and the line drive both sides, at the same action at the same instant. Each
 recording keeps, per action, what it was and when it began (`began` beside `actions` on a step: `click button
 “Update”`, `type textbox “Card prefix”`, never the words, `press Escape`), named as it's done (`test.ts`); one without
