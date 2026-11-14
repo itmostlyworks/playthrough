@@ -61,7 +61,7 @@ export function MomentsPage() {
     if (!listed) return <div className="grid h-dvh place-items-center bg-ground text-soft">There's no change here.</div>;
     return <Change key={where.review} listed={listed} you={you} moment={where.moment ?? 1} note={where.note} go={go} />;
   }
-  return <List changes={changes} you={you} onOpen={(review, moment, note) => go({ review, moment, note })} />;
+  return <List changes={changes} you={you} onOpen={(review, moment, note) => (keepScroll(), go({ review, moment, note }))} />;
 }
 
 // What this browser keeps for a change, by its address. What it kept by the change's own name alone, before every app's
@@ -218,6 +218,23 @@ function standingOf(review: Review, you: string): Standing {
   return { is: "sent", at: last.sent, notes: since.reduce((sum, one) => sum + one.notes.length, 0), replies: since.reduce((sum, one) => sum + (one.replies?.length ?? 0), 0) };
 }
 
+// Where the list was scrolled as you went to a moment, for coming back to it there.
+const scrollKey = "playthrough:moments-scroll";
+const keepScroll = () => {
+  try {
+    sessionStorage.setItem(scrollKey, String(scrollY));
+  } catch {}
+};
+function scrolledBack() {
+  try {
+    const kept = Number(sessionStorage.getItem(scrollKey) ?? 0);
+    sessionStorage.removeItem(scrollKey);
+    return kept;
+  } catch {
+    return 0;
+  }
+}
+
 // The quiet lines you've opened, kept while you go to a moment and back.
 const openKey = "playthrough:moments-open";
 function openedLines(): string[] {
@@ -310,6 +327,14 @@ function List({ changes, you, onOpen }: { changes?: Listed[]; you?: string; onOp
     const every = setInterval(() => aMinute((n) => n + 1), 60000);
     return () => clearInterval(every);
   }, []);
+  // Come back from a moment, it's where you left it.
+  const placedBack = useRef(false);
+  useLayoutEffect(() => {
+    if (placedBack.current || !shown || !you) return;
+    placedBack.current = true;
+    const kept = scrolledBack();
+    if (kept) scrollTo(0, kept);
+  }, [shown, you]);
   const now = Date.now();
   if (!shown || !you) return <div className="min-h-dvh bg-ground" />;
   const all = shown.filter(({ review }) => latestOf(review)).map((listed) => ({ listed, standing: standingOf(listed.review, you) }));
