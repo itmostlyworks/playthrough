@@ -18,7 +18,7 @@ import { usePhone } from "./phone.ts";
 import { Picture } from "./Picture.tsx";
 import { Pinned, type Pin } from "./Pinned.tsx";
 import { Clock, Player, useCut, type Mark, type Placed } from "./Player.tsx";
-import { Portal, TAG } from "./Portal.tsx";
+import { Portal, TAG, type App, type Heard } from "./Portal.tsx";
 import type { Rect, Scrolled } from "./replay.ts";
 import { SendButton, tick, FILLED_KEY, SAID, useSend } from "./Send.tsx";
 import { toSend, noteSays, takingOf, seenOf } from "./standing.ts";
@@ -178,6 +178,9 @@ export function MomentView(props: {
     return () => cancelAnimationFrame(frameId);
   }, [comparing, playing, both]);
   const scrolled = useRef<(() => Scrolled) | undefined>(undefined);
+  // The recording's pointer, and whether the app's stands in for it.
+  const drawn = useRef<(() => { x: number; y: number } | undefined) | undefined>(undefined);
+  const [standIn, setStandIn] = useState(false);
   const stage = useRef<HTMLDivElement>(null);
   const pointer = useRef({ x: 0, y: 0 });
   const pill = useRef<HTMLSpanElement>(null);
@@ -264,11 +267,9 @@ export function MomentView(props: {
   const toMoment = (to: number) => !writing && !live?.shown && to !== n && onMoment(to);
 
   // In the app, noting goes there: it rings what's under the pointer and tells what's clicked.
-  useEffect(() => {
-    document.querySelector<HTMLIFrameElement>("[data-live] iframe")?.contentWindow?.postMessage({ playthrough: "noting", on: noting && inApp }, "*");
-  }, [noting, inApp]);
-  const heard = useRef<(data: any) => void>(() => {});
-  heard.current = async (data) => {
+  const app = useRef<App>(null);
+  useEffect(() => app.current?.post({ playthrough: "noting", on: noting && inApp }), [noting, inApp]);
+  const heard: Heard = async (data, at) => {
     if (data.playthrough === "settled") setLive((now) => now && { ...now, settled: true });
     if (data.playthrough === "escape") noting ? setNoting(false) : back({ x: data.x, y: data.y });
     if (data.playthrough === "note") note();
@@ -276,36 +277,23 @@ export function MomentView(props: {
     if (data.playthrough === "did") session.current.did = data.did;
     if (data.playthrough === "noted") {
       setNoting(false);
-      const iframe = document.querySelector<HTMLIFrameElement>("[data-live] iframe");
-      const shown = stage.current?.getBoundingClientRect();
-      const box = iframe?.getBoundingClientRect();
       const kept = session.current;
-      if (!iframe || !box || !shown || !kept.events.length) return;
+      if (!kept.events.length) return;
       kept.did = data.did;
       const from = { scene: scene.name, at: Math.round((live?.from ?? end) * 100) / 100 };
       const file = `${kept.id}-${++kept.kept}.json`;
       const now = { type: 5, data: { tag: "now", payload: {} }, timestamp: kept.events.at(-1)!.timestamp };
       const length = await keepBranch(review.id, round.number, from, [...kept.events, now], file);
       if (typeof length !== "number") return setLive((live) => live && { ...live, problems: length });
-      const spot = { x: box.left - shown.left + (data.x * box.width) / iframe.offsetWidth, y: box.top - shown.top + (data.y * box.height) / iframe.offsetHeight };
       const on: Place = { scene: scene.name, at: Math.floor(length * 100) / 100, ...(data.element ? { element: data.element } : data.point && { point: data.point }), app: { from, did: data.did, recording: `branches/${file}`, length } };
-      const scale = (x: number, y: number) => ({ x: box.left - shown.left + (x * box.width) / iframe.offsetWidth, y: box.top - shown.top + (y * box.height) / iframe.offsetHeight });
-      const thing = data.box && { ...scale(data.box.x, data.box.y), right: scale(data.box.x + data.box.width, data.box.y + data.box.height) };
-      setWriting({ note: { id: newId(), on, words: "" }, spot, ...(thing && { box: { left: thing.x, top: thing.y, width: thing.right.x - thing.x, height: thing.right.y - thing.y } }) });
+      const [corner, far] = data.box ? [at(data.box.x, data.box.y), at(data.box.x + data.box.width, data.box.y + data.box.height)] : [];
+      setWriting({ note: { id: newId(), on, words: "" }, spot: at(data.x, data.y), ...(corner && far && { box: { left: corner.x, top: corner.y, width: far.x - corner.x, height: far.y - corner.y } }) });
     }
   };
-  useEffect(() => {
-    const told = ({ data, source }: MessageEvent) => {
-      const app = document.querySelector<HTMLIFrameElement>("[data-live] iframe")?.contentWindow;
-      if (data?.playthrough && source === app) heard.current(data);
-    };
-    addEventListener("message", told);
-    return () => removeEventListener("message", told);
-  }, []);
 
   // Saved, a note made in the app shows there as a pin on what it's on.
   const pinInApp = (note: Note, number: number) =>
-    document.querySelector<HTMLIFrameElement>("[data-live] iframe")?.contentWindow?.postMessage({ playthrough: "pin", id: note.id, number, thing: note.on?.element && { role: note.on.element.role, name: note.on.element.name }, point: note.on?.point }, "*");
+    app.current?.post({ playthrough: "pin", id: note.id, number, thing: note.on?.element && { role: note.on.element.role, name: note.on.element.name }, point: note.on?.point });
   const save = (words: string) => {
     if (!writing) return;
     const kept = { ...writing.note, words };
@@ -707,6 +695,8 @@ export function MomentView(props: {
                     : undefined
                 }
                 scrolled={scrolled}
+                hand={!standIn}
+                drawn={drawn}
               />
             </div>
             {aboutAt && (
@@ -742,7 +732,7 @@ export function MomentView(props: {
             {layers.length > 0 && (
               // The frame the open note was made on, over the moment: its kept picture, the same one its edge shows, or the
               // recording there until that's drawn, with no pointer and nothing played.
-              <div ref={shut} className={`absolute inset-0 z-[5] [&_[data-hand]]:hidden ${opened ? "" : "pointer-events-none"}`}>
+              <div ref={shut} className={`absolute inset-0 z-[5] ${opened ? "" : "pointer-events-none"}`}>
                 {layers.map(({ note, made }) => (
                   <div key={note.id} className="absolute inset-0 animate-arrive overflow-hidden bg-paper">
                     {frames[note.id] ? (
@@ -753,6 +743,7 @@ export function MomentView(props: {
                         round={made.round}
                         recording={made.recording}
                         at={made.at}
+                        hand={false}
                         marks={[{ id: note.id, ...(made.node !== undefined ? { node: made.node } : made.point && { point: made.point }) }]}
                         onMarks={note.id === shownOpen?.note.id ? (at) => setOnFrame({ note: note.id, at }) : undefined}
                       />
@@ -769,7 +760,18 @@ export function MomentView(props: {
               )}
             </div>
           </div>
-          <Portal live={live && { ...live, inApp }} person={person} screen={screen} scrolled={() => scrolled.current?.()} waiting="Stepping in…" named={false} />
+          <Portal
+            live={live && { ...live, inApp }}
+            person={person}
+            screen={screen}
+            scrolled={() => scrolled.current?.()}
+            theirs={() => drawn.current?.()}
+            onStandIn={setStandIn}
+            app={app}
+            onHeard={heard}
+            waiting="Stepping in…"
+            named={false}
+          />
           {(() => {
             const one = saying && !opened && !writing && !playing && !live?.shown ? onEdge.find(({ note }) => note.id === saying) : undefined;
             const thing = one && placed?.[one.note.id];

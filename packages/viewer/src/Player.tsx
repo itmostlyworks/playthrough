@@ -131,6 +131,10 @@ type Props = {
   onPlace?: (on: { element: Element } | { point: Point }) => void;
   // Where its page and each part of it that scrolls on its own is scrolled, as it rests: the app taken over there is too.
   scrolled?: RefObject<(() => Scrolled) | undefined>;
+  // Whether its pointer is drawn: not on a note's own frame, nor while the app's pointer stands in for it. And where it
+  // draws it, in its own pixels, if it does: where the app's comes from.
+  hand?: boolean;
+  drawn?: RefObject<(() => { x: number; y: number } | undefined) | undefined>;
 };
 
 // A thing marked, by its node in this recording, else by its name, as one made in the app names it; or its spot, or
@@ -175,7 +179,9 @@ export function Player(props: Props) {
     });
     return () => void ((current = false), made?.destroy());
   }, [props.review, props.round, props.recording]);
-  if (props.scrolled) props.scrolled.current = replay && (() => replay.replay.scrolled());
+  useEffect(() => void (props.scrolled && (props.scrolled.current = replay && (() => replay.replay.scrolled()))), [replay]);
+  const handAt = useRef<{ x: number; y: number }>(undefined);
+  useEffect(() => void (props.drawn && (props.drawn.current = () => handAt.current)), []);
 
   const { at, playing, cut, clock, following, crop, marks, actualSize } = props;
   // Each mark as it is, so one found later, as a note's spot read from where it was made, is placed again.
@@ -231,9 +237,10 @@ export function Player(props: Props) {
       placeList(list.current!, replayed.choices.find((choice) => moment >= choice.from && moment < choice.until + SHUTS), pointer, left, top, k);
       placeKey(pressed.current!, moving ? replayed.keys.findLast((one) => moment >= one.at && moment - one.at < KEY_SHOWN) : undefined, moment, pointer, shape, left, top, k);
       const hand = cursor.current!;
+      handAt.current = pointer && { x: (pointer[0] - left) * k, y: (pointer[1] - top) * k };
       hand.style.opacity = pointer ? "1" : "0";
-      if (!pointer) return;
-      const [x, y] = [(pointer[0] - left) * k, (pointer[1] - top) * k];
+      if (!handAt.current) return;
+      const { x, y } = handAt.current;
       hand.style.transform = `translate(${x - 3}px, ${y - 2}px)`;
       // A click rings out over half a second of the recording.
       const click = replayed.clicks.find((click) => moment >= click && moment - click < 0.5);
@@ -344,7 +351,7 @@ export function Player(props: Props) {
       <div ref={list} hidden className="pointer-events-none absolute top-0 left-0 z-1 origin-top-left overflow-hidden rounded-[3px] border border-[#767676] bg-white py-[3px] font-ui text-[13px] text-[#1e2330] shadow-[0_2px_8px_rgba(0,0,0,0.25)]" />
       <span ref={ring} className="pointer-events-none absolute top-0 left-0 z-1 -mt-3 -ml-3 size-6 rounded-full border-[1.5px] border-[rgba(40,44,54,0.5)] bg-[rgba(40,44,54,0.06)] opacity-0" />
       <kbd ref={pressed} className="pointer-events-none absolute top-0 left-0 z-1 rounded-[4px] bg-white px-[5px] font-ui text-[11px] leading-[17px] whitespace-nowrap text-[#1E2330] opacity-0 shadow-[0_0_0_1px_rgba(30,35,48,0.22),0_1px_2px_rgba(0,0,0,0.12)]" />
-      <div ref={cursor} data-hand className="pointer-events-none absolute top-0 left-0 z-1 size-5 opacity-0 [filter:drop-shadow(0_1px_1px_rgba(0,0,0,.3))]">
+      <div ref={cursor} data-hand style={props.hand === false ? { visibility: "hidden" } : undefined} className="pointer-events-none absolute top-0 left-0 z-1 size-5 opacity-0 [filter:drop-shadow(0_1px_1px_rgba(0,0,0,.3))]">
         <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden>
           <path d="M3 2l13 7.5-5.6 1.3L7.6 16z" fill="#FFFFFF" stroke="#1E2330" strokeWidth="1.3" strokeLinejoin="round" />
         </svg>

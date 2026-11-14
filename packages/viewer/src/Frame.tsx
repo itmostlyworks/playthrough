@@ -11,12 +11,13 @@ export function FramePage({ framed }: { framed: Framed }) {
   const room = useRef<HTMLDivElement>(null);
   const { review, round, recording, at, node, point } = framed;
   return (
-    <div ref={room} className="fixed inset-0 bg-paper [&_[data-hand]]:hidden">
+    <div ref={room} className="fixed inset-0 bg-paper">
       <Player
         review={review}
         round={round}
         recording={recording}
         at={at}
+        hand={false}
         marks={[{ id: "note", ...(node !== undefined ? { node } : point && { point }) }]}
         onMarks={(placed) => {
           // Told once the page has come to rest, with the note's thing there or not; nothing before.
