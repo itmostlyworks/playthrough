@@ -4,7 +4,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Glimpse, Reading } from "@playthrough/page";
-import { allNotes, conversation, isStill, newId, together, type Note, type Review, type Round, type Scene } from "@playthrough/review";
+import { conversation, isStill, madeInApp, newId, together, type Note, type Review, type Round, type Scene } from "@playthrough/review";
 import { glimpses, picture, readings as readingsOf, recording } from "./api.ts";
 import { clamp } from "./clamp.ts";
 import { CHIP, playedTogether } from "./compare.ts";
@@ -220,21 +220,21 @@ export function MomentView(props: {
     const fresh = sent && said.stands !== "sent" && said.stands !== "reply not sent yet" && !!newAsYouCame.current.get(scene.name)?.has(note.id) && !openedHere.includes(note.id);
     return { ...said, fresh, stands: said.stands === "new answer" || said.stands === "answered" ? (fresh ? "new answer" : "answered") : said.stands };
   };
-  const made = allNotes(review);
-  const madeIn = (note: Note) => made.get(note.id)?.round ?? round.number;
-  const madeAt = (note: Note): Made | undefined => {
-    const on = note.on;
-    const thing = on?.element?.node !== undefined ? { node: on.element.node } : on?.point && { point: on.point };
-    if (on?.app) return { round: madeIn(note), recording: on.app.recording, at: Math.min(on.app.length, on.at ?? on.app.length), ...thing };
-    const taking = review.rounds.find((one) => one.number === madeIn(note))?.scenes.find((one) => one.name === on?.scene);
-    return taking && { round: madeIn(note), recording: taking.recording, at: on?.at ?? taking.length, ...thing };
+  const madeAt = ({ on }: Note): Made | undefined => {
+    if (!on) return undefined;
+    const thing = on.element?.node !== undefined ? { node: on.element.node } : on.point && { point: on.point };
+    if (madeInApp(on)) return { round: on.round, recording: on.recording, at: Math.min(on.length, on.at), ...thing };
+    const taking = review.rounds.find((one) => one.number === on.round)?.scenes.find((one) => one.name === on.scene);
+    return taking && { round: on.round, recording: taking.recording, at: on.at ?? taking.length, ...thing };
   };
+  // A note's element number is good only in the recording it was read from: this taking's, where it was made on it.
+  const onThisTaking = (on: Note["on"]) => !!on && !madeInApp(on) && on.round === round.number;
   // A thing on the moment's page by its role and name, as it was read at its end.
   const nodeOf = (named?: { role: string; name: string }) => named && readings?.at(-1)?.things.find((thing) => thing.role === named.role && thing.name === named.name)?.node;
   // A note is shown on its thing as it is now wherever that thing is in the moment's picture now, found as its pin is;
   // only otherwise on the frame it was made on. Its picture on the edge and the note open both go by this.
   const nowOn = (note: Note) => {
-    const node = note.on?.app || madeIn(note) < round.number ? nodeOf(note.on?.element) : note.on?.element?.node;
+    const node = onThisTaking(note.on) ? note.on?.element?.node : nodeOf(note.on?.element);
     return node !== undefined && readings?.at(-1)?.things.some((thing) => thing.node === node) ? node : undefined;
   };
   const shownAt = (note: Note): Made | undefined => {
@@ -248,9 +248,9 @@ export function MomentView(props: {
   // picture only where it was made.
   const markOf = (note: Note): Mark => {
     const on = note.on;
-    const node = on?.app || madeIn(note) < round.number ? nodeOf(on?.element) : on?.element?.node;
+    const node = onThisTaking(on) ? on?.element?.node : nodeOf(on?.element);
     if (node !== undefined) return { id: note.id, node };
-    if (!on?.app && madeIn(note) === round.number && on?.point && Math.abs((on.at ?? end) - at) < 0.06) return { id: note.id, point: on.point };
+    if (onThisTaking(on) && on?.point && Math.abs((on.at ?? end) - at) < 0.06) return { id: note.id, point: on.point };
     return { id: note.id };
   };
   const aboutNode = nodeOf(about);
@@ -518,7 +518,7 @@ export function MomentView(props: {
   // What's said by a pin: the note being written, or the one open. On a phone, under the bar, where there's room.
   const cards = (
     <>
-          {writing && <NoteCard by={(!writing.note.on?.app && placed?.[writing.note.id]) || writing.box || spotAt(writing.spot)} stage={stage} under={phone}><Write onSave={save} onDrop={() => act({ type: "written" })} /></NoteCard>}
+          {writing && <NoteCard by={(!(writing.note.on && madeInApp(writing.note.on)) && placed?.[writing.note.id]) || writing.box || spotAt(writing.spot)} stage={stage} under={phone}><Write onSave={save} onDrop={() => act({ type: "written" })} /></NoteCard>}
           {/* Closing, it fades where it stood; under the bar on a phone, it goes at once, so it never holds its room. */}
           {!writing && carded && cardBy && (
             <NoteCard key={carded.note.id} by={cardBy} stage={stage} closing={!opened} under={phone}>
@@ -616,7 +616,7 @@ export function MomentView(props: {
                 marks={marks}
                 onMarks={(placed) => setPlaced({ recording: scene.recording, placed })}
                 things={aimingNote ? glimpsed : undefined}
-                onPlace={aimingNote ? (on) => act({ type: "pointed", writing: { note: { id: newId(), on: { scene: scene.name, at, ...on }, words: "" }, spot: { ...pointer.current } } }) : undefined}
+                onPlace={aimingNote ? (on) => act({ type: "pointed", writing: { note: { id: newId(), on: { round: round.number, scene: scene.name, at, ...on }, words: "" }, spot: { ...pointer.current } } }) : undefined}
                 scrolled={scrolled}
                 hand={!standIn}
                 drawn={drawn}

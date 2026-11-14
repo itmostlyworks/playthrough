@@ -22,7 +22,7 @@ export function useSend(review: string, round: number, you: string) {
     const problems = await post(review, { id: newId(), round, by: you, sent: new Date().toISOString(), notes: saying.notes, ...(saying.replies.length && { replies: saying.replies }), ...(saying.done && { done: true }) });
     if (problems.length) return (setSending(problems), false);
     sent?.();
-    keepUnsent(review, (now) => ({
+    keepUnsent(review, round, (now) => ({
       notes: now.notes.filter((note) => !saying.notes.some((one) => one.id === note.id)),
       replies: now.replies.filter((reply) => !saying.replies.some((one) => one.note === reply.note && one.words === reply.words)),
     }));

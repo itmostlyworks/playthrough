@@ -19,7 +19,7 @@ export function noteSays(review: Review, you: string, note: Note, sent: boolean,
   const words = replied ?? turns.findLast((turn) => !turn.agent)?.words ?? note.words;
   if (replied) return { words, stands: "reply not sent yet", fresh: false };
   if (!turns.at(-1)?.agent) return { words, stands: "sent", fresh: false };
-  const [round, on] = [turns.at(-1)!.round, note.on?.app?.from.scene ?? note.on?.scene];
+  const [round, on] = [turns.at(-1)!.round, note.on?.scene];
   const fresh = !seenOf(review, you).some((taking) => Number(taking.slice(0, taking.indexOf(":"))) >= round && taking.slice(taking.indexOf(":") + 1) === on);
   return { words, stands: fresh ? "new answer" : "answered", fresh };
 }

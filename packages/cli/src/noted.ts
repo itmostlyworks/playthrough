@@ -6,7 +6,7 @@
 import { dirname, join } from "node:path";
 import { chromium, type Browser } from "@playwright/test";
 import { shownAt } from "@playthrough/page";
-import { allNotes, type Review } from "@playthrough/review";
+import { allNotes, madeInApp, type InApp, type OnMoment, type Review } from "@playthrough/review";
 import type { Frame } from "./frames.ts";
 import type { Repo } from "./repo.ts";
 import { readingsOn } from "./reporter.ts";
@@ -20,7 +20,8 @@ export async function pictureNotes(repo: Repo, review: Review, round: number, no
   let browser: Browser | undefined;
   try {
     for (const id of notes) {
-      const found = await (allNotes(review).get(id)?.note.on?.app ? whereMade : whereSeen)(repo, review, id).catch(() => undefined);
+      const on = allNotes(review).get(id)?.note.on;
+      const found = on && (await (madeInApp(on) ? whereMade(repo, review, id, on) : whereSeen(repo, review, on)).catch(() => undefined));
       const picture = found?.picture;
       if (!found || !picture) continue;
       browser ??= await chromium.launch();
@@ -45,16 +46,14 @@ export async function pictureNotes(repo: Repo, review: Review, round: number, no
   return shown;
 }
 
-// The picture of the step the note was made at, on the round it was sent on, and where on it: what it's on, or its spot
+// The picture of the step the note was made at, on the hand-back it's on, and where on it: what it's on, or its spot
 // or part of the screen. One on the whole moment was made at its end, so it's the page the moment left, with nothing
 // marked.
-async function whereSeen(repo: Repo, review: Review, id: string) {
-  const seen = allNotes(review).get(id);
-  const on = seen?.note.on;
-  const scene = seen && on && review.rounds.find((round) => round.number === seen.round)?.scenes.find((scene) => scene.name === on.scene);
-  if (!seen || !on || !scene) return undefined;
-  const readings = await readingsOn(repo.reviews, review.id, seen.round, scene);
-  const file = (name: string) => repo.reviews.file(review.id, seen.round, name);
+async function whereSeen(repo: Repo, review: Review, on: OnMoment) {
+  const scene = review.rounds.find((round) => round.number === on.round)?.scenes.find((scene) => scene.name === on.scene);
+  if (!scene) return undefined;
+  const readings = await readingsOn(repo.reviews, review.id, on.round, scene);
+  const file = (name: string) => repo.reviews.file(review.id, on.round, name);
   if (on.at === undefined) {
     const end = readings.at(-1);
     return end && { picture: await file(end.picture), width: end.screen.width, height: end.screen.height };
@@ -71,10 +70,9 @@ async function whereSeen(repo: Repo, review: Review, id: string) {
 
 // One made in the app is on what was there, which no recording of the moment shows: the frame the person's page drew of
 // it, as it shows the note, kept with what they did. Not drawn yet, it goes without.
-async function whereMade(repo: Repo, review: Review, id: string) {
-  const on = allNotes(review).get(id)?.note.on;
+async function whereMade(repo: Repo, review: Review, id: string, on: InApp) {
   const kept = await repo.reviews.branch(review.id, `frames/${id}.json`);
-  if (!on || !kept) return undefined;
+  if (!kept) return undefined;
   const frame: Frame = JSON.parse(Buffer.from(kept).toString("utf8"));
   const { width, height } = frame.screen;
   const share = frame.box ?? on.box;

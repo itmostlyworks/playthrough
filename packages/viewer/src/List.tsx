@@ -109,7 +109,7 @@ export function List({ changes, you, onOpen }: { changes?: Listed[]; you?: strin
   const withAgents = all.filter((one) => one.standing.is === "sent").sort(newest);
   const done = all.filter((one) => one.standing.is === "done").sort(newest);
   // Ctrl+Enter sends the first change with something to send, as a page's send sends its one review.
-  const keyed = [...waiting, ...withAgents, ...done].find(({ listed }) => unsentOf(listed.review.id).notes.length)?.listed.review.id;
+  const keyed = [...waiting, ...withAgents, ...done].find(({ listed }) => unsentOf(listed.review.id, latestOf(listed.review)?.number ?? 1).notes.length)?.listed.review.id;
   const toggle = (id: string) => {
     const next = opened.includes(id) ? opened.filter((one) => one !== id) : [...opened, id];
     setOpened(next);
@@ -234,7 +234,7 @@ function ChangeInList(props: {
     const shown = setTimeout(() => own.current?.scrollIntoView({ block: "nearest", behavior: still ? "auto" : "smooth" }), still ? 0 : LEAVING);
     return () => clearTimeout(shown);
   }, []);
-  const unsent = useUnsent(review.id);
+  const unsent = useUnsent(review.id, round.number);
   const [seen] = useState(() => seenOf(review, you));
   // What this browser kept before it was kept with the change goes to it.
   useEffect(() => markSeen(review, you, []), []);
@@ -315,7 +315,7 @@ function ChangeInList(props: {
               // Seen in this taking, or the same as one seen before, it's quieter; different since, it asks again.
               const seenBefore = seen.some((one) => one === scene.name || one.endsWith(`:${scene.name}`));
               const quiet = !waiting || seen.includes(takingOf(round.number, scene.name)) || (seenBefore && !different.has(scene.name));
-              const talk = [...allNotes(review)].filter(([, kept]) => (kept.note.on?.app?.from.scene ?? kept.note.on?.scene) === scene.name);
+              const talk = [...allNotes(review)].filter(([, kept]) => kept.note.on?.scene === scene.name);
               return (
                 <li key={scene.name}>
                   <button onClick={() => onOpen(i + 1)} className="group block w-full text-left focus-visible:outline-none">

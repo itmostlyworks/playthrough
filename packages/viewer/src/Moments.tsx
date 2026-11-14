@@ -61,10 +61,10 @@ function Change({ listed, you, moment, note, go }: { listed: Listed; you: string
   const id = review.id;
   // Back on the list, the change you were in is open, wherever it stands.
   useEffect(() => void (openedLines().includes(id) || keepOpened([...openedLines(), id])), [id]);
-  const { notes, replies } = useUnsent(id);
-  const setNotes = (change: (notes: Note[]) => Note[]) => keepUnsent(id, (now) => ({ ...now, notes: change(now.notes) }));
-  const setReplies = (change: (replies: YourReply[]) => YourReply[]) => keepUnsent(id, (now) => ({ ...now, replies: change(now.replies) }));
   const latest = latestOf(review);
+  const { notes, replies } = useUnsent(id, latest?.number ?? 1);
+  const setNotes = (change: (notes: Note[]) => Note[]) => keepUnsent(id, latest?.number ?? 1, (now) => ({ ...now, notes: change(now.notes) }));
+  const setReplies = (change: (replies: YourReply[]) => YourReply[]) => keepUnsent(id, latest?.number ?? 1, (now) => ({ ...now, replies: change(now.replies) }));
   const at = useRef<{ moment: number; round?: number }>(undefined);
   if (at.current?.moment !== moment) at.current = { moment, round: latest?.number };
   const round = review.rounds.find((one) => one.number === at.current!.round);

@@ -29,7 +29,7 @@ const handBack = async (reviews: Reviews, scenes: Scene[], replies: Round["repli
 
 let clock = Date.parse("2026-11-14T09:00:00Z");
 const said = (round: number, parts: Partial<Send>): Send => ({ id: newId(), round, by: "Ludwig", sent: new Date((clock += 1000)).toISOString(), notes: [], ...parts });
-const onThing = (words: string, scene = PREFIX.name): Note => ({ id: newId(), words, on: { scene, at: 5, element: { role: "textbox", name: "Card prefix" } } });
+const onThing = (words: string, round = 1): Note => ({ id: newId(), words, on: { round, scene: PREFIX.name, at: 5, element: { role: "textbox", name: "Card prefix" } } });
 const done = (round: number) => said(round, { done: true });
 
 async function named() {
@@ -73,7 +73,7 @@ describe("the loop", () => {
     assert.equal((await reviews.take(CHANGE)).length, 1);
     const review = await reviews.get(CHANGE);
     assert.deepEqual(notesToAnswer(review, 2), [note.id]);
-    assert.deepEqual(allNotes(review).get(note.id)?.note.on?.element, { role: "textbox", name: "Card prefix" });
+    assert.deepEqual(allNotes(review).get(note.id)?.note.on, { round: 1, scene: PREFIX.name, at: 5, element: { role: "textbox", name: "Card prefix" } }, "on that moment as handed back");
     await assert.rejects(handBack(reviews, [PREFIX, STILL]), (error: unknown) => error instanceof Refused && new RegExp(`needs an answer to note ${note.id}, “Say what the prefix is for”`).test(error.message));
   });
 
@@ -82,13 +82,25 @@ describe("the loop", () => {
     const there: Note = {
       id: newId(),
       words: "The field should turn red too",
-      on: { scene: PREFIX.name, at: 47.6, element: { role: "textbox", name: "Card prefix", node: 112 }, app: { from: { scene: PREFIX.name, at: 5 }, did: [{ does: "fill", on: "#prefix", with: "BS-WEB", what: "Card prefix" }], recording: "branches/m4bcdc6n-1.json", length: 52 } },
+      on: { round: 1, scene: PREFIX.name, steppedIn: 5, did: [{ does: "fill", on: "#prefix", with: "BS-WEB", what: "Card prefix" }], recording: "branches/m4bcdc6n-1.json", length: 52, at: 47.6, element: { role: "textbox", name: "Card prefix", node: 112 } },
     };
     await reviews.send(CHANGE, said(1, { notes: [there] }));
     await reviews.take(CHANGE);
-    assert.deepEqual(notesToAnswer(await reviews.get(CHANGE), 2), [there.id]);
-    const elsewhere = { ...there, id: newId(), on: { ...there.on!, app: { ...there.on!.app!, from: { scene: "Gone", at: 1 } } } };
-    await assert.rejects(reviews.send(CHANGE, said(1, { notes: [elsewhere] })), /on the scene “Gone”, which isn't there/);
+    const review = await reviews.get(CHANGE);
+    assert.deepEqual(notesToAnswer(review, 2), [there.id]);
+    assert.equal(allNotes(review).get(there.id)?.note.on?.scene, PREFIX.name, "on the moment it was stepped into");
+    const elsewhere = (on: Partial<Extract<Note["on"], { steppedIn: number }>>) => ({ ...there, id: newId(), on: { ...(there.on as Extract<Note["on"], { steppedIn: number }>), ...on } });
+    await assert.rejects(reviews.send(CHANGE, said(1, { notes: [elsewhere({ scene: "Gone" })] })), /on the scene “Gone”, which isn't there/);
+    await assert.rejects(reviews.send(CHANGE, said(1, { notes: [elsewhere({ steppedIn: 9 })] })), /s step in is at 9s, but “Cards now say WEB-1” is 6s long/);
+    await assert.rejects(reviews.send(CHANGE, said(1, { notes: [elsewhere({ at: 60 })] })), /is at 60s, but the person's own recording is 52s long/);
+    await assert.rejects(reviews.send(CHANGE, said(1, { notes: [elsewhere({ recording: "cards.json" })] })), /its recording is one of the person's own/);
+  });
+
+  test("a note is on a moment as handed back or made in the app, never both, and on a hand-back the person has", async () => {
+    const reviews = await handedBack();
+    const both = { ...onThing("Hm"), on: { ...onThing("Hm").on!, steppedIn: 1 } } as unknown as Note;
+    await assert.rejects(reviews.send(CHANGE, said(1, { notes: [both] })), /has “steppedIn”, which isn't one of its fields/);
+    await assert.rejects(reviews.send(CHANGE, said(1, { notes: [onThing("Hm", 2)] })), /is on round 2, which hasn't been handed back/);
   });
 
   test("the agent's reply comes back with the next hand-back, under its name, and the person's reply to it asks again", async () => {
@@ -189,6 +201,11 @@ async function keptTheOlderWay(storage: Storage) {
   await write("review.json", { format: 1, id: CHANGE, title: "Change the card prefix", started: "2026-11-12T09:00:00.000Z" });
   await write("rounds/1/round.json", { number: 1, by: "Agent", scenes: [older], replies: [], finished: "2026-11-12T10:00:00.000Z" });
   await write("scenes/cards-now-say-web-1.ts", OLDER_WAY);
+  const app = { from: { scene: PREFIX.name, at: 5 }, did: [], recording: "branches/k33p-1.json", length: 9 };
+  await write("sends/n0tes.json", { id: "n0tes", round: 1, by: "Ludwig", sent: "2026-11-12T10:30:00.000Z", notes: [
+    { id: "0nit", words: "Hm", on: { scene: PREFIX.name, at: 5, element: { role: "textbox", name: "Card prefix", node: 7 } } },
+    { id: "1napp", words: "And here", on: { scene: PREFIX.name, at: 8.5, point: { x: 0.5, y: 0.5 }, app } },
+  ], verdicts: [], looksGood: [] });
   await write("sends/d0ne.json", { id: "d0ne", round: 1, by: "Ludwig", sent: "2026-11-12T11:00:00.000Z", notes: [], looksGood: [PREFIX.name] });
 }
 const text = async (storage: Storage, path: string) => new TextDecoder().decode((await storage.read(`${CHANGE}/${path}`))!);
@@ -201,6 +218,14 @@ describe("a change kept the older way", () => {
     assert.equal(review.rounds[0]?.scenes[0]?.from, 4.5, "a still, where its end holds");
     assert.match(await text(storage, "scenes/cards-now-say-web-1.ts"), /click\(\);\n {2}await test\.step\("Cards now say WEB-1", async \(\) => \{\n {4}await expect/);
     assert.equal(saidDone(review)?.id, "d0ne", "Done said by naming every moment is Done");
+    assert.deepEqual(
+      review.sends[0]?.notes.map((note) => note.on),
+      [
+        { round: 1, scene: PREFIX.name, at: 5, element: { role: "textbox", name: "Card prefix", node: 7 } },
+        { round: 1, scene: PREFIX.name, steppedIn: 5, did: [], recording: "branches/k33p-1.json", length: 9, at: 8.5, point: { x: 0.5, y: 0.5 } },
+      ],
+      "each note on the moment it was on, with its thing, on the hand-back it was sent on or in the app",
+    );
     assert.deepEqual(JSON.parse(await text(storage, "sends/d0ne.json")), { id: "d0ne", round: 1, by: "Ludwig", sent: "2026-11-12T11:00:00.000Z", notes: [], done: true }, "and says nothing else");
     assert.equal("accounts" in JSON.parse(await text(storage, "rounds/1/round.json")), false, "what nothing reads is left behind");
     assert.equal(JSON.parse(await text(storage, "review.json")).format, 2);

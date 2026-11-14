@@ -2,7 +2,7 @@
 // Each returns what's wrong in plain words, saying what to do about it, and nothing when all is well.
 
 import type { z } from "zod";
-import { Comparison, fileName, Round, Seen, Send, type Change, type Scene, type Note, type Place, type Review } from "./model.ts";
+import { Comparison, fileName, madeInApp, Round, Seen, Send, type Change, type InApp, type Note, type OnMoment, type Review, type Scene } from "./model.ts";
 import { quote } from "./words.ts";
 
 // The round the agent is working on: the last one until it's finished, then the next; the first is 1.
@@ -214,8 +214,7 @@ export function problemsWithSend(review: Review, send: Send): string[] {
   problems.push(...duplicates(send.notes.map((note) => note.id), (id) => `This send has two notes with the id ${id}.`));
   for (const note of send.notes) {
     if (notes.has(note.id)) problems.push(`The id ${note.id} is already a note's. Make a new one.`);
-    // One in the app is on the person's own recording, which branches off a scene of the round.
-    if (note.on) problems.push(...problemsWithPlace(note.on.app ? { scene: note.on.app.from.scene } : note.on, round.scenes, `Note ${note.id}`));
+    if (note.on) problems.push(...problemsWithNotePlace(review, send, note.id, note.on));
   }
 
   problems.push(...duplicates(replies.map((reply) => reply.note), (id) => `This send has two replies on note ${id}. Say it all in one.`));
@@ -286,7 +285,20 @@ function nameOf(list: string, item: Record<string, unknown> | undefined, index: 
   return named[list] || `${singular[list] ?? list} ${index + 1}`;
 }
 
-function problemsWithPlace(place: Place, scenes: Scene[], what: string): string[] {
+// A note is on a moment of a hand-back the person could see: on it, within its recording; or in the app, stepped into
+// within it, and within the person's own recording, which is one of their own files.
+function problemsWithNotePlace(review: Review, send: Send, id: string, on: OnMoment | InApp): string[] {
+  const handedBack = review.rounds.find((round) => round.number === on.round && round.finished);
+  if (!handedBack) return [`Note ${id} is on round ${on.round}, which hasn't been handed back.`];
+  if (on.round > send.round) return [`Note ${id} is on round ${on.round}, but it's sent on round ${send.round}.`];
+  if (!madeInApp(on)) return problemsWithPlace(on, handedBack.scenes, `Note ${id}`);
+  const problems = problemsWithPlace({ scene: on.scene, at: on.steppedIn }, handedBack.scenes, `Note ${id}'s step in`);
+  if (!on.recording.startsWith("branches/")) problems.push(`Note ${id} is in the app, so its recording is one of the person's own, “branches/…”, not “${on.recording}”.`);
+  if (on.at > on.length) problems.push(`Note ${id} is at ${on.at}s, but the person's own recording is ${on.length}s long.`);
+  return problems;
+}
+
+function problemsWithPlace(place: { scene: string; at?: number }, scenes: Scene[], what: string): string[] {
   const scene = scenes.find((scene) => scene.name === place.scene);
   if (!scene) return [`${what} is on the scene “${place.scene}”, which isn't there.`];
   return (place.at ?? 0) <= scene.length ? [] : [`${what} is at ${place.at}s, but “${scene.name}” is ${scene.length}s long.`];

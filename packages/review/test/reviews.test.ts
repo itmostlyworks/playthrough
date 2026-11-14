@@ -47,7 +47,7 @@ const send = (round: number, parts: Partial<Send> = {}): Send => ({
   ...parts,
 });
 
-const note = (words: string, at = 3) => ({ id: newId(), on: { scene: "Export a quarter", at }, words });
+const note = (words: string, at = 3, round = 1) => ({ id: newId(), on: { round, scene: "Export a quarter", at }, words });
 
 const refused = (pattern: RegExp) => (error: unknown) => {
   assert.ok(error instanceof Refused, `expected a refusal, got ${error}`);
@@ -188,10 +188,10 @@ for (const [kept, storage] of storages) {
 
     test("a note's place is on a scene in its round, at a moment within it", async () => {
       const reviews = await recorded();
-      const elsewhere = { id: newId(), on: { scene: "Pay an invoice", at: 1 }, words: "Hm" };
+      const elsewhere = { id: newId(), on: { round: 1, scene: "Pay an invoice", at: 1 }, words: "Hm" };
       await assert.rejects(reviews.send("invoice-export", send(1, { notes: [elsewhere] })), refused(/“Pay an invoice”, which isn't there/));
       await assert.rejects(reviews.send("invoice-export", send(1, { notes: [note("Hm", 9)] })), refused(/is at 9s, but “Export a quarter” is 6s long/));
-      const twice = { ...note("Hm"), on: { scene: "Export a quarter", at: 1, point: { x: 0.5, y: 0.5 }, box: { x: 0, y: 0, width: 1, height: 1 } } };
+      const twice = { ...note("Hm"), on: { round: 1, scene: "Export a quarter", at: 1, point: { x: 0.5, y: 0.5 }, box: { x: 0, y: 0, width: 1, height: 1 } } };
       await assert.rejects(reviews.send("invoice-export", send(1, { notes: [twice] })), refused(/more than one thing/));
     });
 

@@ -3,7 +3,7 @@
 // scrolled and which of its quiet lines you'd opened.
 
 import { useEffect, useState } from "react";
-import type { Note, Send } from "@playthrough/review";
+import { noteNow, type Note, type Send } from "@playthrough/review";
 
 // What this browser keeps for a change, by its address. What it kept by the change's own name alone, before every app's
 // changes were listed, comes over to the address once.
@@ -32,12 +32,13 @@ function read<T>(key: (review: string) => string, review: string): T[] {
   }
 }
 
-export const unsentOf = (review: string): Unsent => ({ notes: read(unsentKey, review), replies: read(repliesKey, review) });
+// Kept by a Playthrough before notes said which hand-back they're on, a note not yet sent is on the latest.
+export const unsentOf = (review: string, latest: number): Unsent => ({ notes: read<Note>(unsentKey, review).map((note) => noteNow(note, latest)), replies: read(repliesKey, review) });
 
 // Changed as it is kept now, not as this tab last read it, so two tabs on one change each add to what the other kept
 // rather than the last one's whole list winning; and every tab, this one too, hears of it.
-export function keepUnsent(review: string, change: (now: Unsent) => Unsent) {
-  const next = change(unsentOf(review));
+export function keepUnsent(review: string, latest: number, change: (now: Unsent) => Unsent) {
+  const next = change(unsentOf(review, latest));
   try {
     for (const [key, list] of [[unsentKey, next.notes], [repliesKey, next.replies]] as const)
       if (list.length) localStorage.setItem(key(review), JSON.stringify(list));
@@ -49,18 +50,18 @@ export function keepUnsent(review: string, change: (now: Unsent) => Unsent) {
 const CHANGED = "playthrough:unsent";
 
 // What's unsent on a change, as kept now: again whenever this tab or another changes it.
-export function useUnsent(review: string): Unsent {
-  const [unsent, setUnsent] = useState(() => unsentOf(review));
+export function useUnsent(review: string, latest: number): Unsent {
+  const [unsent, setUnsent] = useState(() => unsentOf(review, latest));
   useEffect(() => {
     const again = () => setUnsent((was) => {
-      const now = unsentOf(review);
+      const now = unsentOf(review, latest);
       return JSON.stringify(now) === JSON.stringify(was) ? was : now;
     });
     again();
     addEventListener(CHANGED, again);
     addEventListener("storage", again);
     return () => (removeEventListener(CHANGED, again), removeEventListener("storage", again));
-  }, [review]);
+  }, [review, latest]);
   return unsent;
 }
 

@@ -245,7 +245,12 @@ Space, T and C act on the moment and close it first. An open note's thing is nev
 the recording's edge, or down off it. A reply waits to be clicked into, so ← → go on through the notes. A note just saved
 arrives at the foot of the edge, the edge forward with its words for 1.4 s; one made in the app joins the edge the same
 way once you're back. An answer you haven't opened is new, on its picture and its line on the list, until you open it.
-Notes and replies not yet sent are kept in this browser (`kept.ts`), by the change, until Send; what you've opened is
+A note is kept in one of two places (`model.ts`): on a moment as handed back (its hand-back `round`, the moment's `scene`,
+`at` in its recording, and its thing: an element, a box or a spot), or made in the app after stepping in (`round` and
+`scene` again, `steppedIn` where in the moment, `did`, the person's own `recording` and its `length`, `at` in that, and
+its thing there); an element's number is only ever read against the one recording it was read from. Which moment a note
+is on is its `scene`, either way. Notes and replies not yet sent are kept in this browser (`kept.ts`), by the change,
+until Send; what you've opened is
 kept with the change, per moment as handed back (`seen.json`), so a moment handed back again is unseen again.
 
 **Compare** (`compare.ts`, `view.ts`) is offered where you've opened this moment on an earlier hand-back and something
@@ -359,7 +364,8 @@ saying to update. Format 2: every moment has its `from` (one kept without, or gi
 it was shown from), and every way does its way there before its step (what was done before `from` moves out of the
 step), so running it again starts it where its step does; a send that said Done by naming every moment of its round as
 looking good, and nothing more, says Done; and what nothing reads any more is left behind (an older round's `accounts`, a
-send's `verdicts` and `looksGood`).
+send's `verdicts` and `looksGood`); and each note sent says which of its two places it's in and on which hand-back
+(the one it was sent on), as a note not yet sent in a browser says the latest when it's read there.
 
 Underneath, the code still uses older names: a change is kept as a review, a hand-back as a round, a moment as a scene
 with one step, and stepping in is `take-over`. None of those words reach the agent or the person, and they're due to

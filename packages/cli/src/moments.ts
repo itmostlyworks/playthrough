@@ -17,7 +17,7 @@ import { chromium, type Page } from "@playwright/test";
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import type { Glimpse, Reading } from "@playthrough/page";
-import { allNotes, conversation, list, MOST_SHOWN, notesToAnswer, saidDone, quote, Refused, roundInProgress, startOf, toAccountFor, type Change, type Review, type Round, type Scene } from "@playthrough/review";
+import { allNotes, conversation, list, madeInApp, MOST_SHOWN, notesToAnswer, saidDone, quote, Refused, roundInProgress, startOf, toAccountFor, type Change, type Review, type Round, type Scene } from "@playthrough/review";
 import { agent } from "./agent.ts";
 import { browserFile, stopBrowser, type Browser } from "./as.ts";
 import { changeHere, momentNamed, momentsOf } from "./change.ts";
@@ -315,10 +315,7 @@ export async function drop(repo: Repo, words: string) {
 // The notes waiting for an answer on a moment.
 function notesOn(review: Review, moment: string): string[] {
   const notes = allNotes(review);
-  return notesToAnswer(review, roundInProgress(review)).filter((id) => {
-    const on = notes.get(id)?.note.on;
-    return (on?.app?.from.scene ?? on?.scene) === moment;
-  });
+  return notesToAnswer(review, roundInProgress(review)).filter((id) => notes.get(id)?.note.on?.scene === moment);
 }
 
 // The moments marked since the person's notes reached the agent, other than the one they're on: where what was done about
@@ -401,8 +398,7 @@ export async function reply(repo: Repo, note: string, words: string | undefined)
   if (!kept) throw new Refused(["Run playthrough again first: the answer goes with the moments as they are now."]);
   // Answered on a moment that won't be handed back (dropped, or it couldn't get there), the person would read what you did
   // with nothing to see it in.
-  const on = allNotes(review).get(note)?.note.on;
-  const moment = on?.app?.from.scene ?? on?.scene;
+  const moment = allNotes(review).get(note)?.note.on?.scene;
   if (moment && !kept.scenes.some((scene) => scene.name === moment) && !markedSinceNotes(repo, review, [note]).length)
     throw new Refused([
       `Note ${note} is on ${quote(moment)}, which isn't in what you'd hand back: the person would read your answer with nothing to see it in. Mark a moment that shows what you did (playthrough moment "<what's there>"), or get ${quote(moment)} there again and mark it with the same words; then answer.`,
@@ -466,15 +462,15 @@ async function sayNotes(repo: Repo, review: Review, number: number, asking: stri
   console.log(`\n${by} said:`);
   for (const note of asking) {
     const on = notes.get(note)!.note.on;
-    const name = on?.app?.from.scene ?? on?.scene;
+    const name = on?.scene;
     const scene = handedBack?.scenes.find((one) => one.name === name);
     const thing = on?.element ? `, on the ${on.element.role} ${quote(on.element.name)}` : "";
     console.log(`\n  ${note}  on ${name ? `the moment ${quote(name)}` : "the change as a whole"}${scene?.person ? `, as ${scene.person}` : ""}${thing}`);
     for (const turn of conversation(review, note)) console.log(`    ${turn.agent ? "You" : turn.by}: ${turn.words}`);
     if (pictures.get(note)) console.log(`    As they saw it: ${pictures.get(note)}`);
     if (scene?.person) console.log(`    To be there: playthrough as ${scene.person} ${JSON.stringify(scene.name)}`);
-    if (on?.app?.did.length)
-      console.log(`    They stepped into the app there, then: ${on.app.did.map((did) => `${did.does}${did.what ? ` ${quote(did.what)}` : ""}${typeof did.with === "string" && did.does !== "click" ? ` ${quote(did.with)}` : ""}`).join(", then ")}.`);
+    if (on && madeInApp(on) && on.did.length)
+      console.log(`    They stepped into the app there, then: ${on.did.map((did) => `${did.does}${did.what ? ` ${quote(did.what)}` : ""}${typeof did.with === "string" && did.does !== "click" ? ` ${quote(did.with)}` : ""}`).join(", then ")}.`);
   }
   console.log(`\nChange the app. Then: playthrough again, which runs every moment again and says what's different; playthrough reply <note> "<what you did, in a line>" for each; then hand back with playthrough wait, in the background.`);
 }

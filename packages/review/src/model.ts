@@ -23,7 +23,7 @@ export const Element = z.strictObject({
   role: text("needs its role").describe("As getByRole takes it, or text, row or box for something with no role of its own"),
   name: text("needs its name"),
   css: z.string().optional(),
-  node: z.number().int().optional().describe("The element in that round's recording"),
+  node: z.number().int().optional().describe("The element in the one recording it was read from: no other's"),
 });
 
 // Shares of the screen, from 0 to 1, so they hold at any size.
@@ -33,7 +33,15 @@ export const Box = z
   .refine((box) => box.x + box.width <= 1 && box.y + box.height <= 1, { error: onScreen });
 export const Point = z.strictObject({ x: share(onScreen), y: share(onScreen) });
 
-// Something a person did in the app, taken over: what, on the element at that path, with what, and its words.
+const ONE_THING = "is on more than one thing. Choose an element, a box or a point";
+function onOneThing(place: { element?: unknown; box?: unknown; point?: unknown }) {
+  return [place.element, place.box, place.point].filter((thing) => thing).length <= 1;
+}
+function atSomeMoment(place: { at?: number; element?: unknown; box?: unknown; point?: unknown }) {
+  return place.at !== undefined || !(place.element || place.box || place.point);
+}
+
+// Something a person did in the app, stepped into: what, on the element at that path, with what, and its words.
 export const Did = z.strictObject({
   does: text("needs what it did"),
   on: text("needs the path to what it was done on"),
@@ -41,6 +49,8 @@ export const Did = z.strictObject({
   what: z.string().optional().describe("The words of what it was done on"),
 });
 
+// Where Playthrough saw a change: a moment, at a time in its recording, on a thing there. Without a time, the whole
+// moment, as one that's gone.
 export const Place = z
   .strictObject({
     scene: text("needs the scene it's on"),
@@ -49,22 +59,39 @@ export const Place = z
     alike: z.array(Element).optional().describe("The other things changed alike with its element, each where it is"),
     box: Box.optional().describe("Something with no words of its own, or where only the pixels changed"),
     point: Point.optional().describe("Empty space"),
-    app: z
-      .strictObject({
-        from: z.strictObject({ scene: text("needs the scene it was taken over in"), at: seconds("needs the moment it was taken over at, in seconds") }),
-        did: z.array(Did).describe("What the person did there, in order"),
-        recording: fileName("needs its recording: the name of a file in the round").describe("The scene up to where it was taken over, then the person's own steps"),
-        length: z.number({ error: "needs its length, in seconds" }).positive({ error: "needs its length, in seconds" }),
-      })
-      .optional()
-      .describe("In the app: on the person's own recording, which branches off a scene where they took it over. Its scene names the branch"),
   })
-  .refine((place) => [place.element, place.box, place.point].filter((thing) => thing).length <= 1, {
-    error: "is on more than one thing. Choose an element, a box or a point",
+  .refine(onOneThing, { error: ONE_THING })
+  .refine(atSomeMoment, { error: "is on something but at no moment. Give it one" });
+
+// Where a note is: on a moment as it was handed back, or on what was there after stepping into the app from one. Either
+// way it names the hand-back and the moment, so which moment a note is on is always its `scene`, and the recording its
+// thing's element number belongs to is said outright.
+const handBack = z.number({ error: "needs the hand-back it's on" }).int().min(1, { error: "needs the hand-back it's on, from 1" });
+export const OnMoment = z
+  .strictObject({
+    round: handBack,
+    scene: text("needs the moment it's on"),
+    at: seconds("needs its moment, in seconds").optional().describe("Seconds into the moment's recording on that hand-back; without it, the whole moment"),
+    element: Element.optional().describe("Its node is in the moment's recording on that hand-back"),
+    box: Box.optional().describe("Something with no words of its own"),
+    point: Point.optional().describe("Empty space"),
   })
-  .refine((place) => place.at !== undefined || !(place.element || place.box || place.point), {
-    error: "is on something but at no moment. Give it one",
-  });
+  .refine(onOneThing, { error: ONE_THING })
+  .refine(atSomeMoment, { error: "is on something but at no moment. Give it one" });
+export const InApp = z
+  .strictObject({
+    round: handBack,
+    scene: text("needs the moment it was stepped into"),
+    steppedIn: seconds("needs where they stepped in, in seconds").describe("Seconds into the moment's recording on that hand-back"),
+    did: z.array(Did, { error: "needs what they did there, a list, even if it's empty" }).describe("What the person did there, in order"),
+    recording: fileName("needs its recording: the name of one of the person's own files").describe("The moment up to where they stepped in, then what they did"),
+    length: z.number({ error: "needs its length, in seconds" }).positive({ error: "needs its length, in seconds" }),
+    at: seconds("needs its moment, in seconds").describe("Seconds into the person's own recording"),
+    element: Element.optional().describe("Its node is in the person's own recording"),
+    box: Box.optional().describe("Something with no words of its own"),
+    point: Point.optional().describe("Empty space"),
+  })
+  .refine(onOneThing, { error: ONE_THING });
 
 export const Step = z.strictObject({
   title: text("needs a title").describe("Steps are matched across rounds by their title"),
@@ -138,7 +165,10 @@ export const Reply = z.strictObject({
 // take turns on it.
 export const Note = z.strictObject({
   id: id("needs an id of letters, digits and dashes"),
-  on: Place.optional().describe("Without it, about the work in general"),
+  on: z
+    .union([OnMoment, InApp], { error: "is on a moment as handed back (its round, scene and at) or in the app (its round, scene, steppedIn, did, recording, length and at)" })
+    .optional()
+    .describe("Without it, about the work in general"),
   words: text("needs words"),
 });
 
@@ -188,6 +218,8 @@ export type Box = z.infer<typeof Box>;
 export type Point = z.infer<typeof Point>;
 export type Did = z.infer<typeof Did>;
 export type Place = z.infer<typeof Place>;
+export type OnMoment = z.infer<typeof OnMoment>;
+export type InApp = z.infer<typeof InApp>;
 export type Step = z.infer<typeof Step>;
 export type Scene = z.infer<typeof Scene>;
 export type Change = z.infer<typeof Change>;
@@ -199,6 +231,9 @@ export type Send = z.infer<typeof Send>;
 export type Taken = z.infer<typeof Taken>;
 export type Seen = z.infer<typeof Seen>;
 export type Review = z.infer<typeof Review>;
+
+// A note made in the app after stepping in, rather than on a moment as handed back.
+export const madeInApp = (on: OnMoment | InApp): on is InApp => "recording" in on;
 
 // Ids are made where the thing is made, by whoever makes it, so nobody has to ask anyone for one.
 export function newId(): string {

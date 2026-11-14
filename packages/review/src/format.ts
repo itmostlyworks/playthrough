@@ -4,9 +4,10 @@
 // stopped half-way, changes nothing more.
 //
 // Format 2: every moment kept with where it starts, and every moment's way doing its way there before its step; Done
-// kept as said; and nothing kept that nothing reads: an older round's accounts, a send's verdicts.
+// kept as said; a note on a moment as handed back, or in the app, each saying which hand-back; and nothing kept that
+// nothing reads: an older round's accounts, a send's verdicts.
 
-import type { Round, Scene, Send } from "./model.ts";
+import type { InApp, Note, OnMoment, Round, Scene, Send } from "./model.ts";
 import { startOf, type Done } from "./shown.ts";
 
 export const FORMAT = 2;
@@ -81,5 +82,17 @@ export function wayNow(file: string, scene: Scene): string {
 type OlderSend = Send & { looksGood?: string[]; verdicts?: unknown; takenBack?: unknown };
 export function sendNow({ looksGood, verdicts: _, takenBack: __, ...send }: OlderSend, scenes: Scene[]): Send {
   const saidDone = !!looksGood?.length && !send.notes.length && !send.replies?.length && scenes.every((scene) => looksGood.includes(scene.name));
-  return { ...send, ...(saidDone && { done: true as const }) };
+  return { ...send, notes: send.notes.map((note) => noteNow(note, send.round)), ...(saidDone && { done: true as const }) };
+}
+
+// An older note's place said one in the app by an `app` beside its scene, its `at` then in the person's own recording;
+// and named no hand-back: it was on the one it was sent on, or, not yet sent, the latest.
+type OnBefore = { scene: string; at?: number; element?: OnMoment["element"]; box?: OnMoment["box"]; point?: OnMoment["point"]; app?: { from: { scene: string; at: number }; did: InApp["did"]; recording: string; length: number } };
+export function noteNow(note: Note, round: number): Note {
+  const on = note.on as OnMoment | InApp | OnBefore | undefined;
+  if (!on || "round" in on) return note;
+  const { app, scene, at, element, box, point } = on;
+  const thing = { ...(element && { element }), ...(box && { box }), ...(point && { point }) };
+  if (!app) return { ...note, on: { round, scene, ...(at !== undefined && { at }), ...thing } };
+  return { ...note, on: { round, scene: app.from.scene, steppedIn: app.from.at, did: app.did, recording: app.recording, length: app.length, at: at ?? app.length, ...thing } };
 }
