@@ -15,9 +15,11 @@ const OUT = 14;
 export type Pin = { id: string; on: string[]; ink: string } & ({ fill: string } | { diamond: true });
 
 // Lit: what's drawn for it elsewhere, as a note's picture on the moment's edge, is pointed at; pointed at here, it says so.
-type Props = { pins: Pin[]; placed: Placed; open?: string; faded: boolean; onOpen: (id?: string) => void; lit?: string; onPoint?: (id?: string) => void };
+// Quiet, a pin's thing is outlined only while it's open or lit, so many notes on one picture are many pins, not a page of
+// boxes.
+type Props = { pins: Pin[]; placed: Placed; open?: string; faded: boolean; onOpen: (id?: string) => void; lit?: string; onPoint?: (id?: string) => void; quiet?: boolean };
 
-export function Pinned({ pins, placed, open, faded, onOpen, lit, onPoint }: Props) {
+export function Pinned({ pins, placed, open, faded, onOpen, lit, onPoint, quiet }: Props) {
   const room = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   useEffect(() => {
@@ -61,10 +63,11 @@ export function Pinned({ pins, placed, open, faded, onOpen, lit, onPoint }: Prop
               const thing = placed[id];
               return (
                 thing &&
-                (thing.width > 0 || thing.height > 0) && (
+                (thing.width > 0 || thing.height > 0) &&
+                (!quiet || chosen || lit === pin.id) && (
                   <div
                     key={id}
-                    className={`absolute rounded-[4px] outline-offset-4 outline-solid transition-[outline-color] duration-150 ease-calm ${chosen || lit === pin.id ? "outline-[1.5px] outline-(--c)" : "outline-1 outline-[color-mix(in_srgb,var(--c)_50%,transparent)]"}`}
+                    className={`absolute animate-arrive rounded-[4px] outline-offset-4 outline-solid transition-[outline-color] duration-150 ease-calm ${chosen || lit === pin.id ? "outline-[1.5px] outline-(--c)" : "outline-1 outline-[color-mix(in_srgb,var(--c)_50%,transparent)]"}`}
                     style={{ left: thing.left, top: thing.top, width: thing.width, height: thing.height }}
                   />
                 )
