@@ -594,6 +594,11 @@ function against(passed: string[], step: string | undefined, actions: number | u
 // Straight after its last action, it was still on its way to the next page.
 async function kept(page: Page, rest: () => Promise<void>): Promise<Handed> {
   await rest();
+  return asItIs(page);
+}
+
+// The page as it is now, as a browser keeps it.
+async function asItIs(page: Page): Promise<Handed> {
   const kept = await page.evaluate(() => ({
     local: { ...localStorage },
     session: { ...sessionStorage },
@@ -911,7 +916,10 @@ async function acted(does: string, target: (page: Page) => Promise<string | unde
   let on: string | undefined, address: string | undefined;
   if (keeping) {
     if (!holds(keeping)) Object.assign(keeping, { from: undefined, again: [] });
-    keeping.from ??= await kept(keeping.page, keeping.rest);
+    // Not waited for to rest: it's kept only while nothing after it saves or goes elsewhere, so it's the page as loaded,
+    // which the person's browser loads afresh; caught on its way to another, it isn't kept. Waited for, it was a third of
+    // a second or more before each action.
+    keeping.from ??= await asItIs(keeping.page).catch(() => undefined);
     keeping.wrote = false;
     [on, address] = [await target(keeping.page), keeping.page.url()];
   }
