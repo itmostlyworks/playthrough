@@ -87,6 +87,17 @@ describe("the way to a moment", () => {
     assert.doesNotMatch(wayIn(checked), /expect\(/, "going there by hand, nothing's checked");
   });
 
+  test("does the way there before the moment's step, and only what the moment shows in it; going there by hand does both", () => {
+    const shown = sceneOf({ words: "The prefix is WEB", person: "Maja", did: did.slice(0, 4), setup: { board: "qiaa4o4hklar" }, from: 2, scrolled: { x: 0, y: 400 } });
+    const [way, step] = shown.split('await test.step("The prefix is WEB"');
+    assert.match(way!, /^  await page\.getByRole\("link", \{ name: "Settings", exact: true \}\)\.click\(\);$/m);
+    assert.match(way!, /window\.scrollTo/, "its first frame is where the page was scrolled");
+    assert.doesNotMatch(step!, /Settings/);
+    assert.match(step!, /fill\("WEB"\)[\s\S]*name: "Save"[\s\S]*window\.scrollTo/);
+    assert.match(wayIn(shown), /Settings[\s\S]*fill\("WEB"\)[\s\S]*Save/);
+    assert.doesNotMatch(wayIn(shown), /test\.step/);
+  });
+
   test("writes where it ended only while it's tried, never in the moment that's kept", () => {
     assert.match(sceneOf({ words: "Here", person: "Maja", did, setup: {}, tried: true }), /writeFileSync\(new URL\("\.\/ended\.json"/);
     assert.doesNotMatch(way, /writeFileSync|ended\.json/);

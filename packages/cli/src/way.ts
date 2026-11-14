@@ -7,7 +7,9 @@ import { quote } from "@playthrough/review";
 // What was done, as take-over keeps a person's, and what it was done on as getByRole finds it: its role and name, and
 // which of those alike it was, where it isn't the only one; with no role, by its words; by its path only where it has
 // neither.
-export type Done = { does: string; on: string; with?: string; what?: string; role?: string; name?: string; text?: string; nth?: number };
+// And the address it was done at; a page loaded, whether something done on the page before led there (a link followed, a
+// form sent) or it was gone to directly.
+export type Done = { does: string; on: string; with?: string; what?: string; role?: string; name?: string; text?: string; nth?: number; address?: string; led?: boolean };
 
 // What a moment is about, read where the agent is: one thing on the page, by its role and name, with what can be
 // checked of it again; or words with no role of their own (role "text"), by what they say, the first that does.
@@ -24,7 +26,8 @@ export function wordsIn(file: string): string | undefined {
 
 // The way there, written as a scene: each page gone to, and what was done on each, as getByRole finds it, or by its path
 // where it has no role and name; scrolled where the page was, as a footer is only seen there; then what it's about, as
-// it was, checked again. Tried, it also writes where it ended, beside itself, as no reading says the address.
+// it was, checked again. What's done from `from` on is the scene's step, the moment itself; what's done before it is the
+// way there, kept and never shown. Tried, it also writes where it ended, beside itself, as no reading says the address.
 export function sceneOf({
   words,
   person,
@@ -32,6 +35,7 @@ export function sceneOf({
   setup,
   about,
   scrolled,
+  from = 0,
   tried = false,
 }: {
   words: string;
@@ -40,6 +44,7 @@ export function sceneOf({
   setup: Record<string, unknown>;
   about?: About;
   scrolled?: { x: number; y: number };
+  from?: number;
   tried?: boolean;
 }): string {
   const lines = did.map((done) => {
@@ -82,27 +87,32 @@ export function sceneOf({
           : []),
         ...(about.checked !== undefined ? [`    await expect(${thing}).toBeChecked({ checked: ${about.checked} });`] : []),
       ];
+  // Scrolled where the page was before the moment, so its first frame is there too; and again after what it shows, as
+  // that may have scrolled the page.
+  const way = [...lines.slice(0, from), ...(from ? scrolling : [])].map((line) => line.slice(2));
+  const shown = lines.slice(from);
   return `${tried ? `import { writeFileSync } from "node:fs";\n` : ""}import { expect, test } from "playthrough/test";
 
 test.use({ person: ${JSON.stringify(person)} });
 
 test(${JSON.stringify(words)}, async ({ page, setup, baseURL }) => {
-  await test.step(${JSON.stringify(words)}, async () => {
-${[...lines, ...scrolling, ...checks].join("\n")}
+${way.map((line) => `${line}\n`).join("")}  await test.step(${JSON.stringify(words)}, async () => {
+${[...shown, ...(shown.length || !from ? scrolling : []), ...checks].join("\n")}
   });${tried ? `\n  writeFileSync(new URL("./${ENDED}", import.meta.url), JSON.stringify({ url: page.url() }));` : ""}
 });
 `;
 }
 export const ENDED = "ended.json";
 
-// The way there of a moment's file, without what it checks: for going there by hand, not for proving it.
+// The way there of a moment's file, and what the moment does, without what it checks: for going there by hand, not for
+// proving it.
 export function wayIn(file: string): string {
   const lines = file.split("\n");
-  const from = lines.findIndex((line) => line.includes("await test.step("));
+  const from = lines.findIndex((line) => line.startsWith("test("));
   const until = lines.findIndex((line, i) => i > from && line === "  });");
   return lines
     .slice(from + 1, until)
-    .filter((line) => !line.trim().startsWith("await expect("))
+    .filter((line) => !line.trim().startsWith("await expect(") && !line.includes("await test.step("))
     .join("\n");
 }
 

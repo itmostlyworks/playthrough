@@ -53,9 +53,10 @@ const NOTING = `(() => {
   if (window.top !== window) return;
   // The field being typed in at its caret, until something else is done.
   let typedIn;
+  // Where it was done, so what took the agent to another page is known, however the page got there.
   const keep = (done) => {
     if (done.does !== "type") typedIn = undefined;
-    window.__playthroughDid?.(done);
+    window.__playthroughDid?.({ ...done, address: location.pathname });
   };
   const pressable = "a, button, input, select, textarea, label, summary, [role=button], [role=link], [role=checkbox], [role=radio], [role=switch], [role=tab], [role=menuitem], [role=option], [role=combobox], [role=textbox], [contenteditable=''], [contenteditable=true]";
   const words = (element) => (element.innerText?.trim() || element.getAttribute?.("aria-label") || element.value || element.placeholder || "").trim().replace(/\\s+/g, " ").slice(0, 80);
@@ -105,7 +106,15 @@ const NOTING = `(() => {
   };
   window.__playthroughNamed = named;
   window.__playthroughHovering = hovering;
-  const arrived = () => keep({ does: "goto", on: "page", with: location.pathname + location.search + location.hash });
+  // A page loaded from another of the app's, by a link followed or a form sent, was led there; one gone to directly wasn't.
+  const led = (() => {
+    try {
+      return new URL(document.referrer).origin === location.origin;
+    } catch {
+      return false;
+    }
+  })();
+  const arrived = () => keep({ does: "goto", on: "page", with: location.pathname + location.search + location.hash, ...(led && { led }) });
   if (document.readyState === "loading") addEventListener("DOMContentLoaded", arrived, { once: true });
   else arrived();
   addEventListener("click", (e) => {
