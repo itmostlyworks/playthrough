@@ -137,7 +137,7 @@ export async function moment(repo: Repo, words: string, named?: string, last?: n
   for (const i of unseen(shown, step, glimpses, readings.at(-1)!)) {
     const alike = shown.filter((one) => saidOf(one) === saidOf(shown[i]!));
     const which = alike.length > 1 ? ` (the ${["first", "second", "third", "fourth"][alike.indexOf(shown[i]!)] ?? "last"})` : "";
-    console.log(`  ${saidOf(shown[i]!)}${which} changed nothing you can see: leave it out, or do what shows it.`);
+    console.log(`  After ${saidOf(shown[i]!)}${which}, nothing you can see changed. Fine if that's the point; if not, it isn't this moment's.`);
   }
   console.log(`Not what you meant? Mark it again with --last N, the last N things done (0 is a still).`);
 }

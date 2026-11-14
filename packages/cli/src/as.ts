@@ -247,8 +247,8 @@ Drive it with your own tool over its debugging port, http://localhost:${debuggin
   agent-browser --cdp ${debugging} snapshot
   or Playwright: chromium.connectOverCDP("http://localhost:${debugging}"), then its first context's page
   or Playwright MCP: --cdp-endpoint http://localhost:${debugging}
-${went ? `${went}\n` : ""}When you're looking at what was asked for: playthrough moment "<what's there>"
-Ctrl+C ends it, and gives back what was made. playthrough as again starts this browser again from a fresh start.`);
+${went ? `${went}\n` : ""}When you've just done what shows the change: playthrough moment "<what's there>"
+Leave it running: playthrough wait stops it when you hand back, and playthrough as again starts it again, fresh.`);
   await new Promise(() => {});
 }
 
@@ -294,7 +294,7 @@ async function startAgain(repo: Repo, person: string, began: number, at?: string
       return (
         console.log(`Started again in ${((Date.now() - began) / 1000).toFixed(1)}s, in the browser open already: signed in as ${person}, on ${now.url}, from a fresh start made by playthrough/setup.ts:
   ${JSON.stringify(now.setup)}
-${again.went ? `${again.went}\n` : ""}Your tool stays attached at http://localhost:${now.debugging}. When you're looking at what was asked for: playthrough moment "<what's there>"`),
+${again.went ? `${again.went}\n` : ""}Your tool stays attached at http://localhost:${now.debugging}. When you've just done what shows the change: playthrough moment "<what's there>"`),
         true
       );
   }
