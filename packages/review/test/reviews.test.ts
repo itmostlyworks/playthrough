@@ -24,6 +24,7 @@ const scene = (name: string, length = 6): Scene => ({
     { title: "Export the quarter", at: 2 },
   ],
   recording: `${name.toLowerCase().replaceAll(" ", "-")}.json`,
+  from: 2,
 });
 
 const round = (number: number, parts: Partial<Round> = {}): Round => ({
@@ -261,6 +262,7 @@ for (const [kept, storage] of storages) {
           "Round 2: scene 2 needs a name.",
           "Round 2: scene 2 needs its steps, a list, even if it's empty.",
           "Round 2: scene 2 needs its recording: the name of a file in the round.",
+          "Round 2: scene 2 needs where the moment starts, in seconds.",
         ]);
         return true;
       });

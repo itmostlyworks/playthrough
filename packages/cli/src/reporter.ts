@@ -114,16 +114,13 @@ export default class Scenes implements Reporter {
     // Each action is the step's it was done in.
     const actionsIn = (step: TestStep, next?: TestStep) => read.actions.filter((done) => done.at >= step.startTime.getTime() && done.at < (next?.startTime.getTime() ?? Infinity));
     const since = (moment: number) => Math.min(length, seconds(moment - start));
-    const scene: Scene = {
-      name,
-      length,
-      steps: steps.map((step, i) => {
-        const actions = actionsIn(step, steps[i + 1]);
-        const done = actions.length ? { actions: actions.map((one) => since(one.at)), began: actions.map((one) => ({ action: one.action, at: since(one.began) })) } : {};
-        return { title: step.title, at: since(step.startTime.getTime()), ...done };
-      }),
-      recording: this.#fileFor(name),
-    };
+    const taken = steps.map((step, i) => {
+      const actions = actionsIn(step, steps[i + 1]);
+      const done = actions.length ? { actions: actions.map((one) => since(one.at)), began: actions.map((one) => ({ action: one.action, at: since(one.began) })) } : {};
+      return { title: step.title, at: since(step.startTime.getTime()), ...done };
+    });
+    // A moment is shown from where its step starts: its file does its way there first.
+    const scene: Scene = { name, length, steps: taken, recording: this.#fileFor(name), from: taken[0]?.at ?? 0 };
     const readings: Reading[] = read.readings.map((reading, i) => ({ ...reading, picture: `${picturesOf(scene)}/${i + 1}.png` }));
 
     // The assets are in the folder already, kept as the page loaded them.

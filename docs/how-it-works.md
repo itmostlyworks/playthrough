@@ -132,9 +132,9 @@ for `--last N`: over four (a moment is one thing happening), or a button that br
 (pressing it, or a still). The step begins once the page has settled (a second still, nothing loading, what moves by
 itself left out), is pictured there (`first.png`), and holds a beat before the pointer moves; it ends once the page rests
 after the last thing done, and an end that changed while it held (a late message, a debounced search) is read again once
-it rests. A moment's `from` is its step's start, in seconds into its recording, set by `moment` and by `again`, so what's
-shown survives every hand-back; read in one place, `shownFrom`, which starts a moment kept before `from` existed by the
-same rule from what its recording says of each action, and a still where its end holds. Something changing every frame
+it rests. A moment's `from` is its step's start, in seconds into its recording, kept with every moment as the recorder reads it
+(`reporter.ts`), by `moment` and by `again` alike, so what's shown survives every hand-back; everything that shows a
+moment reads that one value (a still, `isStill` in `shown.ts`, is one with nothing done from it on). Something changing every frame
 for good (a bar slid along by a script) is learned as moving by itself once a rest has waited its longest, five seconds
 (`rest.ts`), and left out from then on.
 
@@ -342,12 +342,21 @@ Committed with the app: `playthrough/app.json` and `playthrough/setup.ts`. Out o
 `.playthrough/` (its own `.gitignore` says `*`): `change.json` (the change meant), `port.json` (the app's port),
 `browser.json` (what `as` did; `browser-marked.json`, where the last moment was marked in it), `running.json`, `using/`
 and `app.log` (the app), `borrowed/` (worlds not yet given back), and a folder per change: `review.json` (its title, what
-was asked, when it started), `scenes/<words>.ts` (each moment's way there and its step), `rounds/<n>/` (each hand-back:
+was asked, when it started, and the format it's kept in), `scenes/<words>.ts` (each moment's way there, then its step),
+`rounds/<n>/` (each hand-back:
 `round.json` with its moments and replies, `files/` with their recordings, readings and pictures, `since/<k>.json`
 compared with hand-back k), `sends/<id>.json` (what the person sent, never written again), `taken.json` (what the agent
 has taken of it), `seen.json` (what each person has opened), `branches/` (what the person did in the app, and notes'
 frames), `waiting/<pid>` (an agent listening). On the machine: `~/.playthrough/apps.json` and `open.json` (the list
 running).
+
+**Kept in an older format**, a change is brought along once, the first time this Playthrough reads it
+(`packages/review/src/format.ts`, from the store's own queue): each file rewritten as it would have been kept now, by the
+rule that showed it before, so it shows the same, and `review.json`'s `format` last, so one stopped half-way is finished
+the next time it's read and one already brought along is never touched; one kept by a newer Playthrough is refused,
+saying to update. Format 2: every moment has its `from` (one kept without, or given 0 by an older `again`, gets where
+it was shown from), and every way does its way there before its step (what was done before `from` moves out of the
+step), so running it again starts it where its step does.
 
 Underneath, the code still uses older names: a change is kept as a review, a hand-back as a round, a moment as a scene
 with one step, and stepping in is `take-over`. None of those words reach the agent or the person, and they're due to

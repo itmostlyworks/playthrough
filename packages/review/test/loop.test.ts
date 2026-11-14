@@ -4,7 +4,7 @@
 
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { allNotes, conversation, memory, newId, notesToAnswer, Refused, Reviews, roundInProgress, saidDone, waitingForTheAgent, type Note, type Round, type Scene, type Send } from "../src/index.ts";
+import { allNotes, conversation, memory, newId, notesToAnswer, Refused, Reviews, roundInProgress, saidDone, waitingForTheAgent, type Note, type Round, type Scene, type Send, type Storage } from "../src/index.ts";
 
 const CHANGE = "change-the-card-prefix";
 
@@ -165,5 +165,71 @@ describe("the loop", () => {
     await again.take(CHANGE);
     await handBack(again, [PREFIX, STILL]);
     assert.equal(saidDone(await again.get(CHANGE)), undefined, "handed back since");
+  });
+});
+
+// A change as an older Playthrough kept it: format 1, its moments without a start, each way doing everything in its step.
+const OLDER_WAY = `import { expect, test } from "playthrough/test";
+
+test("Cards now say WEB-1", async ({ page, setup, baseURL }) => {
+  await test.step("Cards now say WEB-1", async () => {
+    await page.getByRole("link", { name: "Settings", exact: true }).click();
+    await page.getByRole("link", { name: "Workspace", exact: true }).click();
+    await expect(page.getByText("WEB-1", { exact: true })).toBeVisible();
+  });
+});
+`;
+async function keptTheOlderWay(storage: Storage) {
+  const write = (path: string, value: unknown) => storage.write(`${CHANGE}/${path}`, new TextEncoder().encode(typeof value === "string" ? value : JSON.stringify(value)));
+  // Ending on a page a link brought it to, with nothing done there: shown as a still.
+  const began = [{ action: "click link “Settings”", at: 2.5 }, { action: "click link “Workspace”", at: 3.5 }];
+  const older = { ...PREFIX, steps: [{ ...PREFIX.steps[0]!, at: 0, began }], from: undefined };
+  await write("review.json", { format: 1, id: CHANGE, title: "Change the card prefix", started: "2026-11-12T09:00:00.000Z" });
+  await write("rounds/1/round.json", { number: 1, by: "Agent", scenes: [older], replies: [], accounts: {}, finished: "2026-11-12T10:00:00.000Z" });
+  await write("scenes/cards-now-say-web-1.ts", OLDER_WAY);
+}
+const text = async (storage: Storage, path: string) => new TextDecoder().decode((await storage.read(`${CHANGE}/${path}`))!);
+
+describe("a change kept the older way", () => {
+  test("reads once it's been brought along, as it showed: each moment with where it starts, its way before its step", async () => {
+    const storage = memory();
+    await keptTheOlderWay(storage);
+    const review = await new Reviews(storage).get(CHANGE);
+    assert.equal(review.rounds[0]?.scenes[0]?.from, 4.5, "a still, where its end holds");
+    assert.match(await text(storage, "scenes/cards-now-say-web-1.ts"), /click\(\);\n {2}await test\.step\("Cards now say WEB-1", async \(\) => \{\n {4}await expect/);
+    assert.equal(JSON.parse(await text(storage, "review.json")).format, 2);
+  });
+
+  test("is brought along once: read again, by this or another reader, nothing is written", async () => {
+    const storage = memory();
+    await keptTheOlderWay(storage);
+    await new Reviews(storage).get(CHANGE);
+    const writes: string[] = [];
+    const watched: Storage = { ...storage, write: (path, bytes) => (writes.push(path), storage.write(path, bytes)) };
+    const reviews = new Reviews(watched);
+    await Promise.all([reviews.get(CHANGE), reviews.get(CHANGE), new Reviews(watched).get(CHANGE)]);
+    assert.deepEqual(writes, []);
+  });
+
+  test("stopped half-way, it's brought along from where it is the next time it's read, to the same", async () => {
+    const whole = memory();
+    await keptTheOlderWay(whole);
+    const once = await new Reviews(whole).get(CHANGE);
+
+    const storage = memory();
+    await keptTheOlderWay(storage);
+    let left = 1;
+    const stopping: Storage = { ...storage, write: async (path, bytes) => (left-- > 0 ? storage.write(path, bytes) : Promise.reject(new Error("stopped"))) };
+    await assert.rejects(new Reviews(stopping).get(CHANGE), /stopped/);
+    assert.equal(JSON.parse(await text(storage, "review.json")).format, 1, "still says it's older");
+    assert.deepEqual(await new Reviews(storage).get(CHANGE), once);
+    assert.equal(await text(storage, "scenes/cards-now-say-web-1.ts"), await text(whole, "scenes/cards-now-say-web-1.ts"));
+  });
+
+  test("one kept by a newer Playthrough isn't read, and says what to do", async () => {
+    const storage = memory();
+    await keptTheOlderWay(storage);
+    await storage.write(`${CHANGE}/review.json`, new TextEncoder().encode(JSON.stringify({ format: 3, id: CHANGE, title: "Change the card prefix", started: "2026-11-12T09:00:00.000Z" })));
+    await assert.rejects(new Reviews(storage).get(CHANGE), /kept by a newer Playthrough \(its format is 3; this one reads 2\)\. Update Playthrough/);
   });
 });

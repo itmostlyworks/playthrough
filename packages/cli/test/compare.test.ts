@@ -34,7 +34,7 @@ async function round(number: number, scenes: Record<string, [title: string, page
       read.push({ step: title, at: i + 0.9, picture, ...(await readPage(page)) });
     }
     readings.set(name, read);
-    kept.push({ name, length: steps.length + 1, steps: steps.map(([title], i) => ({ title, at: i })), recording: `${name}.json` });
+    kept.push({ name, length: steps.length + 1, steps: steps.map(([title], i) => ({ title, at: i })), recording: `${name}.json`, from: 0 });
   }
   return { number, scenes: kept, readings: async (scene) => readings.get(scene.name)!, picture: async (name) => pictures.get(name)! };
 }

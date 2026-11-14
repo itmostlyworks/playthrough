@@ -1,6 +1,7 @@
 // The review store: the steps of the loop, each checked against the rules before anything is kept.
 // Where things are kept is a Storage, so a folder, memory and later a hosted store all keep reviews the same way.
 
+import { FORMAT, sceneNow, wayNow } from "./format.ts";
 import type { Comparison, Review, Round, Seen, Send, Taken } from "./model.ts";
 import {
   problemsFinishing,
@@ -38,7 +39,9 @@ export class Refused extends Error {
 //   <review>/rounds/<n>/round.json       the agent, until the round is finished
 //   <review>/rounds/<n>/files/<name>     the agent: recordings, pictures
 //   <review>/rounds/<n>/since/<k>.json   Playthrough: round n compared with round k, while n is being worked on
-//   <review>/sends/<id>.json             whoever sent it, once: never written again
+//   <review>/sends/<id>.json             whoever sent it, once: never written again, but by Playthrough bringing it
+//                                        to this format
+//   <review>/scenes/<moment>.ts          the agent: each moment's way there, its step the moment itself
 //   <review>/taken.json                  the agent
 //   <review>/seen.json                   each person, through the page, as they open a moment
 //   <review>/branches/<name>             each person, through the page: what they did in the app, and its pictures
@@ -59,7 +62,14 @@ export class Reviews {
 
   async get(id: string): Promise<Review> {
     if (problemsWithId(id).length) throw new Refused(problemsWithId(id));
-    const about = await this.#readJson<{ id: string; title: string; asked?: string; started: string }>(`${id}/review.json`);
+    // Kept in another format, it's brought along first, in its turn with every other step on it.
+    const kept = await this.#readJson<About>(`${id}/review.json`);
+    if (kept && kept.format !== FORMAT) await this.#one(id, async () => {});
+    return this.#read(id);
+  }
+
+  async #read(id: string): Promise<Review> {
+    const about = await this.#readJson<About>(`${id}/review.json`);
     if (!about) {
       const others = await this.list();
       throw new Refused([`There's no review called “${id}”.${others.length ? ` The reviews here: ${list(others.map(quote))}.` : ""}`]);
@@ -97,15 +107,15 @@ export class Reviews {
       const problems = problemsStarting(id, title, asked);
       if (problems.length) throw new Refused(problems);
       if (await this.storage.read(`${id}/review.json`)) throw new Refused([`There's already a review called “${id}”.`]);
-      await this.#writeJson(`${id}/review.json`, { format: 1, id, title, ...(asked && { asked }), started: now() });
-      return this.get(id);
+      await this.#writeJson(`${id}/review.json`, { format: FORMAT, id, title, ...(asked && { asked }), started: now() });
+      return this.#read(id);
     });
   }
 
   // Saves the round being worked on, as often as the agent likes, until it's finished.
   async saveRound(id: string, round: Round): Promise<void> {
     return this.#one(id, async () => {
-      const review = await this.get(id);
+      const review = await this.#read(id);
       const kept = { ...round, finished: undefined };
       const problems = problemsWithRound(review, kept);
       if (problems.length) throw new Refused(problems);
@@ -115,7 +125,7 @@ export class Reviews {
 
   async saveFile(id: string, round: number, name: string, bytes: Uint8Array): Promise<void> {
     return this.#one(id, async () => {
-      const problems = problemsWithFile(await this.get(id), round, name);
+      const problems = problemsWithFile(await this.#read(id), round, name);
       if (problems.length) throw new Refused(problems);
       await this.storage.write(`${id}/rounds/${round}/files/${name}`, bytes);
     });
@@ -138,7 +148,7 @@ export class Reviews {
   // Takes what's been sent and not yet taken. The round being worked on answers it.
   async take(id: string): Promise<Send[]> {
     return this.#one(id, async () => {
-      const review = await this.get(id);
+      const review = await this.#read(id);
       const fresh = review.sends.filter((send) => !review.taken.some((taken) => taken.send === send.id));
       if (!fresh.length) return [];
       const round = roundInProgress(review);
@@ -150,7 +160,7 @@ export class Reviews {
 
   async finish(id: string, round: number): Promise<void> {
     return this.#one(id, async () => {
-      const review = await this.get(id);
+      const review = await this.#read(id);
       const saved = review.rounds.find((saved) => saved.number === round);
       if (saved?.finished) return;
       const problems = problemsFinishing(review, round);
@@ -164,7 +174,7 @@ export class Reviews {
   // What Playthrough found comparing the round being worked on with one before it. Comparing them again replaces it.
   async saveComparison(id: string, comparison: Comparison): Promise<void> {
     return this.#one(id, async () => {
-      const problems = problemsWithComparison(await this.get(id), comparison);
+      const problems = problemsWithComparison(await this.#read(id), comparison);
       if (problems.length) throw new Refused(problems);
       await this.#writeJson(`${id}/rounds/${comparison.round}/since/${comparison.since}.json`, comparison);
     });
@@ -175,7 +185,7 @@ export class Reviews {
   // Sending the same send twice keeps it once.
   async send(id: string, send: Send): Promise<void> {
     return this.#one(id, async () => {
-      const review = await this.get(id);
+      const review = await this.#read(id);
       const already = review.sends.find((sent) => sent.id === send.id);
       if (already && JSON.stringify(already) === JSON.stringify(send)) return;
       const problems = problemsWithSend(review, send);
@@ -187,7 +197,7 @@ export class Reviews {
   // Kept with the review, so it holds in every browser they look from.
   async see(id: string, by: string, moments: Seen[]): Promise<void> {
     return this.#one(id, async () => {
-      const review = await this.get(id);
+      const review = await this.#read(id);
       const problems = problemsSeeing(review, by, moments);
       if (problems.length) throw new Refused(problems);
       const theirs = review.seen?.[by] ?? [];
@@ -237,11 +247,43 @@ export class Reviews {
     });
   }
 
-  // One step at a time on each review, so a step always sees the one before it.
+  // One step at a time on each review, so a step always sees the one before it; and the review in this format before
+  // the first.
   #one<T>(id: string, step: () => Promise<T>): Promise<T> {
-    const next = (this.#queues.get(id) ?? Promise.resolve()).catch(() => {}).then(step);
+    const next = (this.#queues.get(id) ?? Promise.resolve())
+      .catch(() => {})
+      .then(() => this.#bringAlong(id))
+      .then(step);
     this.#queues.set(id, next);
     return next;
+  }
+
+  // A review kept in an older format, brought to this one: each file rewritten only if it changes, and review.json, which
+  // says the format, last, so one stopped half-way is brought along again from where it is, and one already in this
+  // format is never touched. One kept by a newer Playthrough isn't read at all.
+  async #bringAlong(id: string): Promise<void> {
+    const about = await this.#readJson<About>(`${id}/review.json`);
+    if (!about || about.format === FORMAT) return;
+    if ((about.format ?? 1) > FORMAT)
+      throw new Refused([`The review “${id}” was kept by a newer Playthrough (its format is ${about.format}; this one reads ${FORMAT}). Update Playthrough, then run this again.`]);
+    const rewrite = async <T>(path: string, change: (kept: T) => T) => {
+      const kept = await this.#readJson<T>(path);
+      if (kept === undefined) return;
+      const now = change(kept);
+      if (JSON.stringify(now) !== JSON.stringify(kept)) await this.#writeJson(path, now);
+    };
+    const numbers = (await this.storage.list(`${id}/rounds`)).map(Number).filter(Number.isInteger).sort((a, b) => a - b);
+    for (const n of numbers) await rewrite<Round>(`${id}/rounds/${n}/round.json`, (round) => ({ ...round, scenes: round.scenes.map(sceneNow) }));
+    const rounds = (await Promise.all(numbers.map((n) => this.#readJson<Round>(`${id}/rounds/${n}/round.json`)))).filter((round) => round !== undefined);
+    for (const name of (await this.storage.list(`${id}/scenes`)).filter((name) => name.endsWith(".ts"))) {
+      const bytes = await this.storage.read(`${id}/scenes/${name}`);
+      const file = bytes && new TextDecoder().decode(bytes);
+      const words = file && wordsOf(file);
+      const scene = words && rounds.findLast((round) => round.scenes.some((one) => one.name === words))?.scenes.find((one) => one.name === words);
+      const now = file && scene && wayNow(file, scene);
+      if (now && now !== file) await this.storage.write(`${id}/scenes/${name}`, new TextEncoder().encode(now));
+    }
+    await this.#writeJson(`${id}/review.json`, { ...about, format: FORMAT });
   }
 
   async #readJson<T>(path: string): Promise<T | undefined> {
@@ -261,3 +303,12 @@ export class Reviews {
 }
 
 const now = () => new Date().toISOString();
+
+// What review.json says: a review's words, and the format it's kept in.
+type About = { format?: number; id: string; title: string; asked?: string; started: string };
+
+// A moment's words, from its way's file: the test it is.
+function wordsOf(file: string): string | undefined {
+  const named = file.match(/^test\(("(?:[^"\\]|\\.)*")/m)?.[1];
+  return named === undefined ? undefined : JSON.parse(named);
+}

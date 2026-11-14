@@ -17,7 +17,7 @@ import { chromium, type Page } from "@playwright/test";
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import type { Glimpse, Reading } from "@playthrough/page";
-import { allNotes, conversation, list, MOST_SHOWN, notesToAnswer, saidDone, shownFrom, quote, Refused, roundInProgress, startOf, toAccountFor, type Change, type Review, type Round, type Scene } from "@playthrough/review";
+import { allNotes, conversation, list, MOST_SHOWN, notesToAnswer, saidDone, quote, Refused, roundInProgress, startOf, toAccountFor, type Change, type Review, type Round, type Scene } from "@playthrough/review";
 import { agent } from "./agent.ts";
 import { browserFile, stopBrowser, type Browser } from "./as.ts";
 import { changeHere, momentNamed, momentsOf } from "./change.ts";
@@ -32,7 +32,7 @@ import { markUnsteady, recorder, runOnce } from "./scenes.ts";
 import { seenChanging, SQUARE, squaresOf, type Square } from "./seen.ts";
 import { setupIn } from "./setup.ts";
 import { listening } from "./wait.ts";
-import { aboutSaid, ENDED, fileOf, sceneOf, TIMED, wayBefore, whatDiffers, type About, type Done } from "./way.ts";
+import { aboutSaid, ENDED, fileOf, sceneOf, TIMED, whatDiffers, type About, type Done } from "./way.ts";
 
 // What a moment says is what's there, short enough to sit under a picture of it: who and where, the person sees.
 const MOST_WORDS = 10;
@@ -128,8 +128,7 @@ export async function moment(repo: Repo, words: string, named?: string, last?: n
   writeFileSync(join(repo.scenes(id), file), sceneOf(way));
   rmSync(trying, { recursive: true, force: true });
   const acted = lastActedOn(done, readings.at(-1)!);
-  const step = recorded.scene.steps[0];
-  const scene: Scene = { ...recorded.scene, ...(there.about && { about: { role: there.about.role, name: there.about.name } }), ...(acted && { acted }), ...(step && { from: step.at }) };
+  const scene: Scene = { ...recorded.scene, ...(there.about && { about: { role: there.about.role, name: there.about.name } }), ...(acted && { acted }) };
   const number = roundInProgress(review);
   for (const { name, bytes } of recorded.files) await repo.reviews.saveFile(id, number, name, bytes);
   const kept = review.rounds.find((round) => round.number === number);
@@ -145,11 +144,11 @@ export async function moment(repo: Repo, words: string, named?: string, last?: n
   const shown = done.slice(from).filter((one) => one.does !== "goto");
   const before = done.slice(0, from).filter((one) => !(one.does === "goto" && one.led));
   const still = !shown.length;
-  const length = scene.length - (scene.from ?? 0);
+  const length = scene.length - scene.from;
   console.log(`\nKept ${/[“"]/.test(words) ? words : quote(words)}${still ? ", a still: nothing happens in it" : `, ${length.toFixed(1)} s`}${there.about ? `, about the ${aboutSaid(there.about)}` : ""}.`);
   if (!still) console.log(`  shows    ${shown.map(saidOf).join(" → ")}`);
   if (before.length) console.log(`  before   ${before.length > 3 ? "… " : ""}${before.slice(-3).map(saidOf).join(" → ")}   (kept, never shown)`);
-  if (step && !still) console.log(`  first    ${shownAt(frameOf(recorded.scene, "first"))}`);
+  if (!still) console.log(`  first    ${shownAt(frameOf(recorded.scene, "first"))}`);
   console.log(`  ${still ? "picture" : "last   "}  ${shownAt(readings.at(-1)!.picture)}`);
   if (!still && seen && !seen.changed.length) console.log(`  Nothing you can see changed in it. Fine if that's the point; if not, look at its first and last frames.`);
   const moving = seen ? movingNamed(seen.moving, glimpses[0]) : [];
@@ -351,12 +350,8 @@ export async function again(repo: Repo) {
   const marked = (name: string) => review.rounds.findLast((round) => round.scenes.some((scene) => scene.name === name))?.scenes.find((scene) => scene.name === name);
   const scenes = ran.recorded
     .map(({ scene }) => {
-      // Its start: where its step begins, its file doing the way there before it; or, kept before moments had a start,
-      // where the rule starts it in what was recorded, as the page would show it.
       const { about, acted } = marked(scene.name) ?? {};
-      const file = moments.find((one) => one.words === scene.name)?.file;
-      const from = file && wayBefore(readFileSync(file, "utf8")) && scene.steps[0] ? scene.steps[0].at : shownFrom({ ...scene, from: undefined });
-      return { ...scene, ...(about && { about }), ...(acted && { acted }), from };
+      return { ...scene, ...(about && { about }), ...(acted && { acted }) };
     })
     .sort((a, b) => order(a) - order(b));
   const kept = review.rounds.find((round) => round.number === number);

@@ -10,6 +10,7 @@ const moment = (length: number, actions: [string, number, number?][]): Scene => 
   length,
   steps: [{ title: "Change the card prefix", at: 0, actions: actions.map(([, began, done]) => done ?? began), began: actions.map(([action, at]) => ({ action, at })) }],
   recording: "prefix.json",
+  from: 0,
 });
 
 // Whether two recordings pass these two moments of theirs together.
@@ -50,9 +51,9 @@ test("a moment marked again a different way lines up on what both still do", () 
 });
 
 test("recordings kept without what each action was line up action by action where both took as many", () => {
-  const then: Scene = { name: "Pick Ana", length: 4, steps: [{ title: "Pick Ana", at: 0, actions: [1, 3] }], recording: "a.json" };
-  const now: Scene = { name: "Pick Ana", length: 4, steps: [{ title: "Pick Ana", at: 0, actions: [1.5, 3.2] }], recording: "b.json" };
-  const fewer: Scene = { name: "Pick Ana", length: 4, steps: [{ title: "Pick Ana", at: 0, actions: [1.5] }], recording: "c.json" };
+  const then: Scene = { name: "Pick Ana", length: 4, steps: [{ title: "Pick Ana", at: 0, actions: [1, 3] }], recording: "a.json", from: 0 };
+  const now: Scene = { name: "Pick Ana", length: 4, steps: [{ title: "Pick Ana", at: 0, actions: [1.5, 3.2] }], recording: "b.json", from: 0 };
+  const fewer: Scene = { name: "Pick Ana", length: 4, steps: [{ title: "Pick Ana", at: 0, actions: [1.5] }], recording: "c.json", from: 0 };
   assert.ok(passTogether(then, now, 1, 1.5) && passTogether(then, now, 3, 3.2));
   assert.ok(!passTogether(then, fewer, 3, 1.5), "with another number of them, none is taken for another by its place");
 });

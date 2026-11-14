@@ -1,3 +1,4 @@
+export * from "./format.ts";
 export * from "./model.ts";
 export * from "./rules.ts";
 export * from "./shown.ts";

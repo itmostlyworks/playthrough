@@ -2,7 +2,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { shownFrom, startOf, type Done, type Scene } from "../src/index.ts";
+import { startOf, type Done } from "../src/index.ts";
 
 const goto: Done = { does: "goto", went: true };
 const link = (went = true): Done => ({ does: "click", role: "link", went });
@@ -46,33 +46,4 @@ test("a moment showing more than four things done is more than one thing happeni
 
 test("with nothing gone to, it starts at the start", () => {
   assert.deepEqual(startOf([type, button()]), { at: 0 });
-});
-
-const kept = (began: [string, number, number][], length = 10): Scene => ({
-  name: "“BS-WEB” is refused",
-  length,
-  recording: "bs-web.json",
-  steps: [{ title: "“BS-WEB” is refused", at: 0, actions: began.map(([, , at]) => at), began: began.map(([action, at]) => ({ action, at })) }],
-});
-
-test("a moment kept before moments had a start is shown from where the rule starts it, a little before its first thing", () => {
-  const scene = kept([["click link “Settings”", 1, 1.5], ["click link “Workspace”", 2.5, 3], ["type textbox “Card prefix”", 4.5, 5.5], ["click button “Update”", 6.5, 7]]);
-  assert.equal(shownFrom(scene), 3.5);
-});
-
-test("one kept before that ends on a page arrived at by a link, with nothing done there, is a still: where its end holds", () => {
-  assert.equal(shownFrom(kept([["click link “Settings”", 1, 1.5], ["click link “Workspace”", 2.5, 3]])), 8.5);
-  assert.equal(shownFrom(kept([["click link “Settings”", 1, 1.5], ["click link “Workspace”", 2.5, 3]], 4)), 3.1, "and never before the last thing done");
-});
-
-test("never from before the thing done before the first shown", () => {
-  assert.equal(shownFrom(kept([["click link “Settings”", 1, 1.5], ["press Enter textbox “Search”", 1.8, 2]])), 1.5);
-});
-
-test("one kept before with nothing done in it at all is a still where its end holds", () => {
-  assert.equal(shownFrom(kept([], 30)), 28.5);
-});
-
-test("one with a start is shown from it", () => {
-  assert.equal(shownFrom({ ...kept([["click link “Settings”", 1, 1.5]]), from: 0.4 }), 0.4);
 });

@@ -4,7 +4,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Glimpse, Reading } from "@playthrough/page";
-import { allNotes, conversation, newId, shownFrom, together, type Note, type Review, type Round, type Scene } from "@playthrough/review";
+import { allNotes, conversation, isStill, newId, together, type Note, type Review, type Round, type Scene } from "@playthrough/review";
 import { glimpses, picture, readings as readingsOf, recording } from "./api.ts";
 import { clamp } from "./clamp.ts";
 import { CHIP, playedTogether } from "./compare.ts";
@@ -29,12 +29,9 @@ import type { Together } from "./view.ts";
 // How long what you did takes to fade out, back to the moment.
 const FADING = 300;
 
-// A moment where nothing is done from there on is a still: its picture, with nothing to play.
-const isStill = (scene: Scene) => !scene.steps.some((step) => (step.actions ?? []).some((action) => action >= shownFrom(scene)));
-
 // Where a moment's recording ends, and where what's shown of it starts.
 const endOf = (scene: Scene) => Math.max(0, scene.length - 0.05);
-const startOf = (scene: Scene) => Math.min(shownFrom(scene), endOf(scene));
+const startOf = (scene: Scene) => Math.min(scene.from, endOf(scene));
 
 export function MomentView(props: {
   review: Review;

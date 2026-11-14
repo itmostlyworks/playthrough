@@ -122,14 +122,6 @@ ${[...shown, ...(still.length ? [] : scrolling), ...(isStill ? [] : comfortable)
 }
 export const ENDED = "ended.json";
 
-// Whether a moment's file does its way there before its step, as every one marked since moments had a start does (a page
-// is always arrived at first); one kept before does everything in its step.
-export function wayBefore(file: string): boolean {
-  const lines = file.split("\n");
-  const from = lines.findIndex((line) => line.startsWith("test("));
-  return lines.findIndex((line) => line.includes("await test.step(")) > from + 1;
-}
-
 // What a thing was done on, as getByRole finds it, by its words where it has no role, by its path where it has neither.
 function locatorOf(done: Done): string {
   const nth = done.nth !== undefined ? `.nth(${done.nth})` : "";

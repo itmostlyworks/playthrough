@@ -1,6 +1,6 @@
 // What of a moment's recording is shown: the thing the agent tagged happening, and nothing of the way there, which stays
-// kept underneath for stepping in and running it again. One rule, for the agent marking a moment and for the page
-// showing one kept before moments had a start.
+// kept underneath for stepping in and running it again. The rule is the agent's, as it marks a moment; what's kept is
+// where it starts in its recording (`from`), which everything that shows it reads.
 
 import type { Scene } from "./model.ts";
 
@@ -34,34 +34,5 @@ export function startOf(done: Done[], since = 0): Start {
   return { at, ...(shown(at) > MOST_SHOWN && { unclear: "long" }) };
 }
 
-// A moment kept before moments had a start (no `from`), shown from where the same rule starts it, in seconds of its
-// recording; one with a start, from there. Its recording knows what each action was (`click link “Settings”`), not
-// where it went: a link followed is taken to go somewhere, and nothing else to. Where the rule can't tell, it shows the
-// button that brought you, and all of a long one.
-export function shownFrom(scene: Scene): number {
-  return scene.from ?? Math.round(startedBy(scene) * 1000) / 1000;
-}
-
-function startedBy(scene: Scene): number {
-  const step = scene.steps.at(-1);
-  const began = step?.began ?? [];
-  const ended = step?.actions ?? [];
-  // Nothing done at all, it's a still where its end holds.
-  if (!began.length) return Math.max(0, scene.length - HELD);
-  if (began.length !== ended.length) return 0;
-  const { at } = startOf(began.map(({ action }) => doneIn(action)));
-  // Nothing done on the page it ends on: a still, from where its end holds, settled, and after the last thing done.
-  if (at >= began.length) return Math.min(scene.length, Math.max(ended.at(-1)! + 0.1, scene.length - HELD));
-  // A little before the first thing shown, for the pointer to come to it, and never back into the thing before.
-  return Math.max(at ? ended[at - 1]! : 0, began[at]!.at - LEAD, 0);
-}
-const LEAD = 1;
-// How long a recording's end holds, as recorded (reporter.ts's HOLD).
-const HELD = 1.5;
-
-// An action as a recording names it (`click link “Settings”`, `type textbox “Card prefix”`, `press Enter`), as done.
-function doneIn(action: string): Done {
-  const [does = "", ...rest] = action.split(" ");
-  const role = (does === "press" ? rest.slice(1) : rest)[0];
-  return { does, ...(role && !role.startsWith("“") && { role }), went: does === "click" && role === "link" };
-}
+// A moment where nothing is done from where it's shown is a still: its picture, with nothing to play.
+export const isStill = (scene: Scene) => !scene.steps.some((step) => (step.actions ?? []).some((action) => action >= scene.from));

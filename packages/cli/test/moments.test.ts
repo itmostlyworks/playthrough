@@ -15,7 +15,7 @@ import { howEachWent } from "../src/moments.ts";
 import { repo } from "../src/repo.ts";
 import { problemsWithPeople } from "../src/setup.ts";
 import { agentWaiting, listening } from "../src/wait.ts";
-import { fileOf, sameAddress, sceneOf, wayBefore, wayIn, whatDiffers, wordsIn, type Done } from "../src/way.ts";
+import { fileOf, sameAddress, sceneOf, wayIn, whatDiffers, wordsIn, type Done } from "../src/way.ts";
 
 const folders: string[] = [];
 after(() => Promise.all(folders.map((folder) => rm(folder, { recursive: true, force: true }))));
@@ -112,12 +112,6 @@ describe("the way to a moment", () => {
     assert.match(step!, /waitForFunction[\s\S]*\[0, 600\], \{ timeout: 3000 \}\)\.catch/);
     const still = sceneOf({ words: "The footer", person: "Maja", did: footer.slice(0, 2), setup: {}, from: 2, scrolled: { x: 0, y: 1200 } });
     assert.match(still.split("await test.step(")[0]!, /window\.scrollTo\(x, y\), \[0, 1200\]\);/, "a still's first frame is where the agent is");
-  });
-
-  test("knows a moment kept before moments had a start, which does everything in its step, from one marked since", () => {
-    assert.equal(wayBefore(sceneOf({ words: "Here", person: "Maja", did, setup: {} })), false);
-    assert.equal(wayBefore(sceneOf({ words: "Here", person: "Maja", did, setup: {}, from: 1 })), true);
-    assert.equal(wayBefore(sceneOf({ words: "Here", person: "Maja", did, setup: {}, from: did.length })), true, "a still too");
   });
 
   test("brings what the moment first does comfortably into view before it starts, and what it's about before it's checked; a still's on the way; never going there by hand", () => {
@@ -260,7 +254,7 @@ describe("the change a command means", () => {
 });
 
 describe("every moment run again", () => {
-  const scene = (name: string, person = "Maja"): Scene => ({ name, length: 5, steps: [{ title: name, at: 0 }], recording: `${fileOf(name)}.json`, person });
+  const scene = (name: string, person = "Maja"): Scene => ({ name, length: 5, steps: [{ title: name, at: 0 }], recording: `${fileOf(name)}.json`, person, from: 0 });
   const handedBack: Round = { number: 1, by: "Claude Code", scenes: [scene("Cards say WEB-1"), scene("The prefix can't be changed", "Sam")], replies: [], accounts: {}, finished: "2026-11-12T10:00:00.000Z" };
 
   test("says of each that it's the same, different and how, or new since it was handed back", () => {
