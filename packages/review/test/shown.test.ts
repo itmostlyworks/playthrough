@@ -60,8 +60,9 @@ test("a moment kept before moments had a start is shown from where the rule star
   assert.equal(shownFrom(scene), 3.5);
 });
 
-test("one kept before that ends on a page arrived at by a link, with nothing done there, is a still after it", () => {
-  assert.equal(shownFrom(kept([["click link “Settings”", 1, 1.5], ["click link “Workspace”", 2.5, 3]])), 3.1);
+test("one kept before that ends on a page arrived at by a link, with nothing done there, is a still: where its end holds", () => {
+  assert.equal(shownFrom(kept([["click link “Settings”", 1, 1.5], ["click link “Workspace”", 2.5, 3]])), 8.5);
+  assert.equal(shownFrom(kept([["click link “Settings”", 1, 1.5], ["click link “Workspace”", 2.5, 3]], 4)), 3.1, "and never before the last thing done");
 });
 
 test("never from before the thing done before the first shown", () => {

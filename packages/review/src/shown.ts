@@ -45,12 +45,14 @@ export function shownFrom(scene: Scene): number {
   const ended = step?.actions ?? [];
   if (!began.length || began.length !== ended.length) return 0;
   const { at } = startOf(began.map(({ action }) => doneIn(action)));
-  // Nothing done on the page it ends on: a still, after the last thing done.
-  if (at >= began.length) return Math.min(scene.length, ended.at(-1)! + 0.1);
+  // Nothing done on the page it ends on: a still, from where its end holds, settled, and after the last thing done.
+  if (at >= began.length) return Math.min(scene.length, Math.max(ended.at(-1)! + 0.1, scene.length - HELD));
   // A little before the first thing shown, for the pointer to come to it, and never back into the thing before.
   return Math.max(at ? ended[at - 1]! : 0, began[at]!.at - LEAD, 0);
 }
 const LEAD = 1;
+// How long a recording's end holds, as recorded (reporter.ts's HOLD).
+const HELD = 1.5;
 
 // An action as a recording names it (`click link “Settings”`, `type textbox “Card prefix”`, `press Enter`), as done.
 function doneIn(action: string): Done {
