@@ -12,17 +12,17 @@ export type Saying = { notes: Note[]; replies: YourReply[]; done?: true };
 // it's sending; kept, it's sent, and what went is no longer this browser's to keep (only that: what you wrote
 // meanwhile, here or in another tab, stays), in the same breath as what pressed it is told, so nothing said is drawn
 // unsaid between; not kept, what stopped it.
-export function useSend(change: string, round: number, you: string) {
+export function useSend(change: string, handBack: number, you: string) {
   const [sending, setSending] = useState<"sending" | "sent" | string[]>();
   // What the last send said, as it was pressed: where it was pressed says it until it's gone.
   const [went, setWent] = useState<Saying>();
   const send = async (saying: Saying, sent?: () => void) => {
     setSending("sending");
     setWent(saying);
-    const problems = await post(change, { id: newId(), round, by: you, sent: new Date().toISOString(), notes: saying.notes, ...(saying.replies.length && { replies: saying.replies }), ...(saying.done && { done: true }) });
+    const problems = await post(change, { id: newId(), handBack, by: you, sent: new Date().toISOString(), notes: saying.notes, ...(saying.replies.length && { replies: saying.replies }), ...(saying.done && { done: true }) });
     if (problems.length) return (setSending(problems), false);
     sent?.();
-    keepUnsent(change, round, (now) => ({
+    keepUnsent(change, handBack, (now) => ({
       notes: now.notes.filter((note) => !saying.notes.some((one) => one.id === note.id)),
       replies: now.replies.filter((reply) => !saying.replies.some((one) => one.note === reply.note && one.words === reply.words)),
     }));

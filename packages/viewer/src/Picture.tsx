@@ -1,4 +1,4 @@
-// A scene's picture is one of its readings' pictures: the page once a step had settled. It's framed as a part of the page,
+// A moment's picture is one of its readings' pictures: the page once a step had settled. It's framed as a part of the page,
 // so the same picture drawn at any size shows the same part of it, and one can grow into the other.
 
 import { useState } from "react";

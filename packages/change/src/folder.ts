@@ -26,6 +26,10 @@ export function folder(root: string): Storage {
       await writeFile(unfinished, bytes);
       await rename(unfinished, file);
     },
+    async move(from, to) {
+      await mkdir(dirname(join(root, to)), { recursive: true });
+      await rename(join(root, from), join(root, to));
+    },
     async list(path) {
       try {
         return (await readdir(join(root, path))).filter((name) => !name.endsWith(".writing"));

@@ -1,12 +1,12 @@
-// A scene's recording at a moment, and played on from it, with the hand that does it: what a still can't say, where
+// A moment's recording at a moment, and played on from it, with the hand that does it: what a still can't say, where
 // they clicked and what the page did. Waiting, for a page to load or an app to answer, is cut short as it plays, so
-// nothing is spent watching nothing happen. Another round's recording follows the clock of the one that plays, at the
+// nothing is spent watching nothing happen. Another hand-back's recording follows the clock of the one that plays, at the
 // matching moment, so the two stay in step. At rest, what's noted there is found on the page, and noting, what a click
 // would note is outlined.
 
 import { useEffect, useRef, useState, type MouseEvent, type RefObject } from "react";
 import { elementOf, type Glimpse } from "@playthrough/page";
-import type { Element, Scene, Point } from "@playthrough/change";
+import type { Element, Moment, Point } from "@playthrough/change";
 import { recording } from "./api.ts";
 import { Replay, type Choice, type Events, type Pressed, type Rect, type Scrolled } from "./replay.ts";
 import type { Crop } from "./Picture.tsx";
@@ -16,7 +16,7 @@ import { around as aroundCentre, centreOf, following as followingPointer, holdin
 // Nothing happening for longer than this is waiting, and is played as this long.
 const WAIT = 0.7;
 
-// The moment a scene is at as it plays: what plays it sets it each frame, and what follows it is told.
+// The moment a moment is at as it plays: what plays it sets it each frame, and what follows it is told.
 export class Clock {
   #at: number;
   #told = new Set<(at: number) => void>();
@@ -36,7 +36,7 @@ export class Clock {
   }
 }
 
-// A scene's recording with its waiting cut short, as it plays: how long it is then, the recording's own moment at a
+// A moment's recording with its waiting cut short, as it plays: how long it is then, the recording's own moment at a
 // moment of it, and back. Its steps' lines run on it, so a line fills at one speed as it plays and goes where it's
 // pressed at the same speed, leaping no wait. A step's start is where a wait is cut at, so each step's is its own.
 // And where its page has first drawn itself: a recording starts as the page loads, blank until the app has put itself
@@ -49,8 +49,8 @@ function cutOf(events: Events, length: number, starts: number[]): Cut {
     .filter((event) => event.type === 3 && (event.data as { source: number; adds?: unknown[] }).source === 0 && (event.data as { adds?: unknown[] }).adds?.length)
     .map((event) => (event.timestamp - start) / 1000);
   const drawn = Math.min(added.find((at, i) => (added[i + 1] ?? Infinity) - at > 0.3) ?? 0, starts[1] ?? length);
-  const moments = [...new Set([0, ...starts, ...happened.filter((at) => at > 0 && at < length), length])].sort((a, b) => a - b);
-  const spans = moments.slice(1).map((to, i) => ({ from: moments[i]!, real: to - moments[i]!, shown: Math.min(to - moments[i]!, WAIT) }));
+  const cuts = [...new Set([0, ...starts, ...happened.filter((at) => at > 0 && at < length), length])].sort((a, b) => a - b);
+  const spans = cuts.slice(1).map((to, i) => ({ from: cuts[i]!, real: to - cuts[i]!, shown: Math.min(to - cuts[i]!, WAIT) }));
   return {
     drawn,
     length: spans.reduce((sum, span) => sum + span.shown, 0),
@@ -72,15 +72,15 @@ function cutOf(events: Events, length: number, starts: number[]): Cut {
   };
 }
 
-export function useCut(change: string, round: number, scene: Scene): Cut | undefined {
+export function useCut(change: string, handBack: number, moment: Moment): Cut | undefined {
   const [kept, setKept] = useState<Cut>();
   useEffect(() => {
     let current = true;
     // Another recording's isn't this one's while it comes.
     setKept(undefined);
-    recording(change, round, scene.recording).then((events) => current && setKept(cutOf(events, scene.length, scene.steps.map((step) => step.at))));
+    recording(change, handBack, moment.recording).then((events) => current && setKept(cutOf(events, moment.length, [moment.from])));
     return () => void (current = false);
-  }, [change, round, scene.recording]);
+  }, [change, handBack, moment.recording]);
   return kept;
 }
 
@@ -107,7 +107,7 @@ function calm(t: number): number {
 
 type Props = {
   change: string;
-  round: number;
+  handBack: number;
   recording: string;
   // The moment it rests at, and plays on from to `until`, setting the clock as it goes and saying where it stopped.
   at: number;
@@ -115,7 +115,7 @@ type Props = {
   cut?: Cut;
   clock?: Clock;
   onStop?: (at: number) => void;
-  // Another round's, it follows the clock while the one it's beside plays, at the matching moment.
+  // Another hand-back's, it follows the clock while the one it's beside plays, at the matching moment.
   following?: { clock: Clock; at: (at: number) => number };
   crop?: Crop;
   // At actual size, a window onto the page that follows the pointer, beside another onto the same part of it: the one
@@ -170,7 +170,7 @@ export function Player(props: Props) {
   useEffect(() => {
     let current = true;
     let made: Replay | undefined;
-    recording(props.change, props.round, props.recording).then((events) => {
+    recording(props.change, props.handBack, props.recording).then((events) => {
       if (!current || !box.current) return;
       made = new Replay(events, box.current);
       // Moved on every frame, the page is drawn once, as it is, and only shifted.
@@ -178,7 +178,7 @@ export function Player(props: Props) {
       setReplay({ replay: made, events });
     });
     return () => void ((current = false), made?.destroy());
-  }, [props.change, props.round, props.recording]);
+  }, [props.change, props.handBack, props.recording]);
   useEffect(() => void (props.scrolled && (props.scrolled.current = replay && (() => replay.replay.scrolled()))), [replay]);
   const handAt = useRef<{ x: number; y: number }>(undefined);
   useEffect(() => void (props.drawn && (props.drawn.current = () => handAt.current)), []);
@@ -199,10 +199,10 @@ export function Player(props: Props) {
     if (crop !== glide.current.crop || holds !== glide.current.holds) glide.current = { crop, holds, from: view.current, set: frameTime() };
     const thingOf = (mark: Mark): Rect | undefined => (mark.node !== undefined ? replayed.markOf(mark.node) : undefined) ?? (mark.name ? replayed.named(mark.name) : undefined);
     const gliding = () => !!glide.current.from && frameTime() - (glide.current.since ?? frameTime()) < GLIDE * 1000;
-    const draw = (moment: number, moving: boolean) => {
+    const draw = (time: number, moving: boolean) => {
       // Gone, as Before is once Compare's let go, it's told nothing more.
       if (!box.current) return;
-      const shape = replayed.shapeAt(moment);
+      const shape = replayed.shapeAt(time);
       const part = glide.current.crop;
       // On no part of it, it's the whole screen, as its picture is: a phone's, narrower than the picture, whole and in
       // the middle, rather than across the picture's width and cut off below its top.
@@ -212,7 +212,7 @@ export function Player(props: Props) {
       if (actualSize) {
         const room = { width: box.current.clientWidth, height: box.current.clientHeight };
         const { together, leads } = actualSize;
-        let view = leads || !together.centre ? followingPointer(replayed, moment, length, room, shape) : aroundCentre(room, shape, together.centre, together.k);
+        let view = leads || !together.centre ? followingPointer(replayed, time, length, room, shape) : aroundCentre(room, shape, together.centre, together.k);
         // What's held is a thing, or a part of the page, as a thing with the words around it.
         const part = actualSize.holds?.box;
         const thing = leads && holds && actualSize.holds && (thingOf(actualSize.holds) ?? (part && { left: part.x * shape.width, top: part.y * shape.height, width: part.width * shape.width, height: part.height * shape.height }));
@@ -230,12 +230,12 @@ export function Player(props: Props) {
       }
       const k = box.current.clientWidth / across;
       view.current = { left, top, across, k };
-      replayed.show(moment, moving);
+      replayed.show(time, moving);
       replayed.host.style.transform = `translate(${-left * k}px, ${-top * k}px) scale(${k})`;
-      replayed.placeCaret(caret.current!, moment, left, top, k);
-      const pointer = replayed.pointerAt(moment);
-      placeList(list.current!, replayed.choices.find((choice) => moment >= choice.from && moment < choice.until + SHUTS), pointer, left, top, k);
-      placeKey(pressed.current!, moving ? replayed.keys.findLast((one) => moment >= one.at && moment - one.at < KEY_SHOWN) : undefined, moment, pointer, shape, left, top, k);
+      replayed.placeCaret(caret.current!, time, left, top, k);
+      const pointer = replayed.pointerAt(time);
+      placeList(list.current!, replayed.choices.find((choice) => time >= choice.from && time < choice.until + SHUTS), pointer, left, top, k);
+      placeKey(pressed.current!, moving ? replayed.keys.findLast((one) => time >= one.at && time - one.at < KEY_SHOWN) : undefined, time, pointer, shape, left, top, k);
       const hand = cursor.current!;
       handAt.current = pointer && { x: (pointer[0] - left) * k, y: (pointer[1] - top) * k };
       hand.style.opacity = pointer ? "1" : "0";
@@ -243,14 +243,14 @@ export function Player(props: Props) {
       const { x, y } = handAt.current;
       hand.style.transform = `translate(${x - 3}px, ${y - 2}px)`;
       // A click rings out over half a second of the recording.
-      const click = replayed.clicks.find((click) => moment >= click && moment - click < 0.5);
-      const u = click === undefined ? 1 : (moment - click) / 0.5;
+      const click = replayed.clicks.find((click) => time >= click && time - click < 0.5);
+      const u = click === undefined ? 1 : (time - click) / 0.5;
       Object.assign(ring.current!.style, { opacity: String(1 - u), transform: `translate(${x}px, ${y}px) scale(${0.4 + u * 1.1})` });
     };
     let frameId = 0;
     const stop = () => cancelAnimationFrame(frameId);
     if (following) {
-      const tell = (moment: number) => draw(following.at(moment), true);
+      const tell = (time: number) => draw(following.at(time), true);
       const glided = () => (tell(following.clock.at), gliding() && (frameId = requestAnimationFrame(glided)));
       glided();
       const unfollow = following.clock.follow(tell);
@@ -261,9 +261,9 @@ export function Player(props: Props) {
       const [from, until, since] = [cut.cut(clock?.at ?? at), cut.cut(playing.until), performance.now()];
       const tick = () => {
         const going = from + (performance.now() - since) / 1000;
-        const moment = Math.min(cut.real(going), playing.until);
-        draw(moment, true);
-        clock?.set(moment);
+        const time = Math.min(cut.real(going), playing.until);
+        draw(time, true);
+        clock?.set(time);
         if (going >= until) return stopped.current?.(playing.until);
         frameId = requestAnimationFrame(tick);
       };
@@ -370,13 +370,13 @@ const KEY_FADES = 0.3;
 // A key pressed, small and quiet, beside what it went to and never over it: right of the field it was pressed in, or
 // under it where the screen ends first; else just below and right of the pointer, where a name tag would sit. Shown as
 // the recording plays, never at rest.
-function placeKey(element: HTMLElement, pressed: Pressed | undefined, moment: number, pointer: [number, number] | undefined, shape: { width: number }, left: number, top: number, k: number) {
+function placeKey(element: HTMLElement, pressed: Pressed | undefined, time: number, pointer: [number, number] | undefined, shape: { width: number }, left: number, top: number, k: number) {
   const by = pressed?.field ?? (pointer && { x: pointer[0] + 10, y: pointer[1] + 16, width: 0, height: 0 });
   if (!pressed || !by) return void (element.style.opacity = "0");
   if (element.textContent !== pressed.key) element.textContent = pressed.key;
   const wide = element.offsetWidth / k;
   const [x, y] = !pressed.field ? [by.x, by.y] : by.x + by.width + 8 + wide <= shape.width ? [by.x + by.width + 8, by.y + by.height / 2 - 8.5 / k] : [by.x, by.y + by.height + 6];
-  element.style.opacity = String(0.9 * Math.min(1, (KEY_SHOWN - (moment - pressed.at)) / KEY_FADES));
+  element.style.opacity = String(0.9 * Math.min(1, (KEY_SHOWN - (time - pressed.at)) / KEY_FADES));
   element.style.transform = `translate(${((x - left) * k).toFixed(1)}px, ${((y - top) * k).toFixed(1)}px)`;
 }
 

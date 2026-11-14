@@ -1,7 +1,7 @@
-// Stepping in: runs the moment's scene to where it's stepped into on the app as it is now, then hands the page as it was
+// Stepping in: runs the moment's moment to where it's stepped into on the app as it is now, then hands the page as it was
 // there to the person, in their own browser, to carry on from. It's the real app under their hands, a fresh copy of the
-// moment made the way every scene starts, not a picture of it. Playthrough passes everything on to the app, and at
-// /take-over gives the browser what the scene's page had: its address, its cookies, and what the app kept in the browser.
+// moment made the way every moment starts, not a picture of it. Playthrough passes everything on to the app, and at
+// /take-over gives the browser what the moment's page had: its address, its cookies, and what the app kept in the browser.
 
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -10,7 +10,7 @@ import { connect } from "node:net";
 import { answerAs, asRecorded, pathTo } from "@playthrough/page";
 import { doneBefore, quote, Refused } from "@playthrough/change";
 import { running, using } from "./app.ts";
-import { QUIET_DEV_CHROME, recorder, type Handed, type To } from "./scenes.ts";
+import { QUIET_DEV_CHROME, recorder, type Handed, type To } from "./run.ts";
 import { LONGEST, runTo } from "./following.ts";
 import { listen, thisMachine } from "./open.ts";
 import { read } from "./read.ts";
@@ -20,11 +20,11 @@ import type { Made } from "./setup.ts";
 // Clear of the viewer's, which takes the next free one from 5790 when several are open.
 const PORT = 5830;
 
-// Runs the scene to where it's stepped into and passes the app on, then says where: each step in has an address of its
+// Runs the moment to where it's stepped into and passes the app on, then says where: each step in has an address of its
 // own, /take-over/<moment>, with the app made for it, so two tabs, or a reload, never share one or take one from the
 // other. In the viewer, Step in asks for it where the playhead rests and turns the frame into the app there: nothing is
 // run before it's asked for.
-export async function getReady(repo: Repo, id: string, to: To, waiting?: AbortSignal): Promise<{ port: number; moment: string; checked?: string }> {
+export async function getReady(repo: Repo, id: string, to: To, waiting?: AbortSignal): Promise<{ port: number; name: string; checked?: string }> {
   const app = await repo.app();
   const { handed, made, checked, done } = await madeFor(repo, id, to, waiting);
   // One way through for each copy of the app, as each answers at an address of its own.
@@ -36,23 +36,23 @@ export async function getReady(repo: Repo, id: string, to: To, waiting?: AbortSi
     throw error;
   });
   // Not counted, so it can't be guessed.
-  const moment = randomBytes(12).toString("base64url");
-  steppedIn.set(moment, { repo, id, to, handed, made, done, opened: false, holding: 0 });
+  const name = randomBytes(12).toString("base64url");
+  steppedIn.set(name, { repo, id, to, handed, made, done, opened: false, holding: 0 });
   // Never opened, as when the tab closed before the app was there, it's given back a minute on.
-  letGoSoon(moment, UNOPENED);
-  return { port, moment, ...(checked && { checked }) };
+  letGoSoon(name, UNOPENED);
+  return { port, name, ...(checked && { checked }) };
 }
 
 // Where the page says it stands, as the run counts it: after so many of what the moment shows, the way there counted
 // with them where the moment's file does it inside its step.
-export async function placeOf(repo: Repo, id: string, scene: string, after?: number): Promise<To> {
-  const round = await recorded(repo, id);
-  const moment = round.scenes.find((one) => one.name === scene);
-  if (!moment) throw new Refused([`${quote(scene)} isn't among the moments the agent last handed back: they've changed since this page was loaded. Reload it, then step in again.`]);
-  return { scene, ...(after !== undefined && { after: doneBefore(moment) + after }) };
+export async function placeOf(repo: Repo, id: string, moment: string, after?: number): Promise<To> {
+  const handBack = await recorded(repo, id);
+  const kept = handBack.moments.find((one) => one.name === moment);
+  if (!kept) throw new Refused([`${quote(moment)} isn't among the moments the agent last handed back: they've changed since this page was loaded. Reload it, then step in again.`]);
+  return { moment, ...(after !== undefined && { after: doneBefore(kept) + after }) };
 }
 
-// The app made for a step in: the copy's app running, used while the scene runs there, and then for as long as what it
+// The app made for a step in: the copy's app running, used while the moment runs there, and then for as long as what it
 // made is the person's.
 // Within one limit, starting the app included, and stopped once nobody's waiting for it.
 async function madeFor(repo: Repo, id: string, to: To, waiting?: AbortSignal) {
@@ -90,8 +90,8 @@ const steppedIn = new Map<string, SteppedIn>();
 const LEFT = 15_000;
 const UNOPENED = 60_000;
 
-function letGoSoon(moment: string, after: number) {
-  const one = steppedIn.get(moment);
+function letGoSoon(name: string, after: number) {
+  const one = steppedIn.get(name);
   if (!one) return;
   clearTimeout(one.letGo);
   one.letGo = setTimeout(() => {
@@ -104,21 +104,21 @@ function letGoSoon(moment: string, after: number) {
 }
 
 // A page of the app holds its step in for as long as it's open (SAYS).
-function held(moment: string, request: IncomingMessage, response: ServerResponse) {
-  const one = steppedIn.get(moment);
+function held(name: string, request: IncomingMessage, response: ServerResponse) {
+  const one = steppedIn.get(name);
   response.writeHead(one?.handed ? 200 : 404, { "content-type": "text/event-stream", "cache-control": "no-store" });
   if (!one?.handed) return void response.end();
   response.write(":\n\n");
   one.holding++;
   clearTimeout(one.letGo);
-  request.on("close", () => --one.holding || letGoSoon(moment, LEFT));
+  request.on("close", () => --one.holding || letGoSoon(name, LEFT));
 }
 
 // Opened again, as stepping in again on the same moment reloads its address, it's the app afresh: what the person did
 // there before isn't where they step in now; and so it is once what was made has been given back. One opening at a
 // time, stopped once nobody's waiting for it.
-async function opening(moment: string, waiting: AbortSignal): Promise<Handed | undefined> {
-  const one = steppedIn.get(moment);
+async function opening(name: string, waiting: AbortSignal): Promise<Handed | undefined> {
+  const one = steppedIn.get(name);
   if (!one) return undefined;
   clearTimeout(one.letGo);
   const opened = (one.opening ?? Promise.resolve()).then(async () => {
@@ -135,7 +135,7 @@ async function opening(moment: string, waiting: AbortSignal): Promise<Handed | u
     await opened;
     return one.handed;
   } finally {
-    letGoSoon(moment, LEFT);
+    letGoSoon(name, LEFT);
   }
 }
 
@@ -144,9 +144,9 @@ const passings = new Map<string, Promise<number>>();
 
 async function recorded(repo: Repo, id: string) {
   const change = await repo.changes.get(id);
-  const round = change.rounds.at(-1);
-  if (!round) throw new Refused([`${id} has no moments yet, so there's nothing to step into.`]);
-  return round;
+  const handBack = change.handBacks.at(-1);
+  if (!handBack) throw new Refused([`${id} has no moments yet, so there's nothing to step into.`]);
+  return handBack;
 }
 
 // Everything that isn't /take-over goes to the app as it is, answers and live connections both, as if the browser
@@ -156,13 +156,13 @@ function passOn(app: App): Promise<number> {
   const target = new URL(app.url);
   const server = createServer((request, response) => {
     if (!named(request)) return turnAway(response);
-    const [first, second, moment] = new URL(request.url ?? "/", "http://playthrough").pathname.split("/").filter(Boolean);
+    const [first, second, name] = new URL(request.url ?? "/", "http://playthrough").pathname.split("/").filter(Boolean);
     if (first === "take-over")
       return void opening(second ?? "", waitedFor(response)).then(
         (handed) => (handed ? handOver(second ?? "", handed, response) : said(response, 404, GONE)),
         (error) => said(response, 500, error instanceof Refused ? error.problems.join(" ") : String((error as Error)?.message ?? error)),
       );
-    if (first === ".playthrough" && second === "held") return held(moment ?? "", request, response);
+    if (first === ".playthrough" && second === "held") return held(name ?? "", request, response);
     // A page is asked for whole, so a word can be added to it: the app is told not to squeeze it.
     const page = /text\/html/.test(request.headers.accept ?? "");
     const headers = asIfDirect(request, target);
@@ -219,12 +219,12 @@ function asIfDirect(request: IncomingMessage, target: URL) {
 }
 
 // Taken over in the viewer, the app sits in its frame, and this goes into each of its pages, first. Scrolled where the
-// scene's page was, it tells the viewer once it has settled (loaded, its fonts and pictures in, nothing on its way and
+// moment's page was, it tells the viewer once it has settled (loaded, its fonts and pictures in, nothing on its way and
 // nothing changing for a moment), so the frame turns into it with nothing on screen changing. It tells the viewer where
 // the pointer is, and whether it's over words you can type into: the viewer draws the recording's pointer coming to
 // yours, hiding the app's own until they meet, and then only your name, beside the app's own. And as every key there
 // goes to the app, Escape goes back to the viewer too, when the app does nothing with it.
-// rrweb's recorder, as every scene has it, for what you do here to be recorded.
+// rrweb's recorder, as every moment has it, for what you do here to be recorded.
 let RECORDER: string | undefined;
 
 const SAYS = `<script>(() => {
@@ -232,7 +232,7 @@ const SAYS = `<script>(() => {
   ${QUIET_DEV_CHROME}
   // This page holds its step in, as long as it's open: closed, reloaded or gone to another, what was made for it is given
   // back once no page holds it.
-  const holding = sessionStorage.getItem("playthrough:moment");
+  const holding = sessionStorage.getItem("playthrough:stepped-in");
   if (holding) new EventSource("/.playthrough/held/" + encodeURIComponent(holding));
   // On the recordings' clock, so what the page says about time reads as it did there.
   const ahead = Number(sessionStorage.getItem("playthrough:clock")) || 0;
@@ -246,7 +246,7 @@ const SAYS = `<script>(() => {
     Object.assign(Shifted, { now: () => Real.now() + ahead, parse: Real.parse, UTC: Real.UTC });
     window.Date = Shifted;
   }
-  // In the browser the scene was recorded in, whatever yours says: light or dark, still or moving, in its languages.
+  // In the browser the moment was recorded in, whatever yours says: light or dark, still or moving, in its languages.
   const browser = JSON.parse(sessionStorage.getItem("playthrough:browser") || "null");
   if (browser) {
     ${asRecorded.toString()}
@@ -285,7 +285,7 @@ const SAYS = `<script>(() => {
   const hidden = document.createElement("style");
   hidden.textContent = "html, html * { cursor: none !important; }";
   document.documentElement.appendChild(hidden);
-  // Made ready unseen in the viewer, the page waits as the scene left it, the text cursor where it was: the keyboard goes
+  // Made ready unseen in the viewer, the page waits as the moment left it, the text cursor where it was: the keyboard goes
   // back to the change until the page is yours, and the app isn't told it left, or a field that saves as it's left, as
   // Kan's checklist item does, would save what was half typed. Leaving, it goes to nothing on the page. Once the page is
   // yours and the keyboard comes in, it's back in that field, the text cursor where it was.
@@ -349,7 +349,7 @@ const SAYS = `<script>(() => {
     }, 150);
   };
   addEventListener("keydown", leave, true);
-  // A scene on a phone is a finger's: there, a mouse drag is a swipe. What's under it follows the pointer, and let go, it
+  // A moment on a phone is a finger's: there, a mouse drag is a swipe. What's under it follows the pointer, and let go, it
   // glides on as a fling does, to the column it snaps to if it snaps, as Kan's board does; a wheel or a trackpad only
   // jumped it a column at a time ("It just jumps from one column to the next"). Pressed and held first, it's the app's
   // own drag, as a long press is on a phone, as a card is dragged on Kan's board; a click is still a click.
@@ -468,8 +468,8 @@ const SAYS = `<script>(() => {
     parent.postMessage({ playthrough: "did", did }, "*");
     readSoon();
   };
-  // What's on the page, read as a scene's page is after each step, once what you did has settled: a note on your
-  // recording is on a thing there, as on any scene's.
+  // What's on the page, read as a moment's page is after each step, once what you did has settled: a note on your
+  // recording is on a thing there, as on any moment's.
   const read = ${read};
   let recording = false, reading;
   const readNow = () => recording && window.rrwebRecord.record.addCustomEvent("reading", read());
@@ -517,7 +517,7 @@ const SAYS = `<script>(() => {
       readNow();
       send();
       const node = window.rrwebRecord?.record?.mirror?.getId(on);
-      // Named as the page is read for every scene, so a later round's scene finds it by the same name: a reminder's
+      // Named as the page is read for every moment, so a later hand-back's moment finds it by the same name: a reminder's
       // message box is "Message" there, where its own words named it here. What the page's reading doesn't count as a
       // thing, as the part of a panel around what's in it, is the spot, never the words of everything in it.
       const known = node > 0 && recording ? read().things.find((thing) => thing.node === node) : undefined;
@@ -595,9 +595,9 @@ const SAYS = `<script>(() => {
     await document.fonts?.ready;
     while (!still() && performance.now() - since < 8000) await wait(80);
   };
-  // Partway through a step, the actions that only changed what was on the page are done again here, as the scene did them.
+  // Partway through a step, the actions that only changed what was on the page are done again here, as the moment did them.
   // Each waits for what it acts on while the page is changing, as it does after the one before; on a still page, what
-  // isn't there isn't coming, as a menu that was open only on the scene's page.
+  // isn't there isn't coming, as a menu that was open only on the moment's page.
   const find = async (path) => {
     for (const until = performance.now() + 3000; performance.now() < until; await wait(80)) {
       const found = document.querySelector(path);
@@ -658,7 +658,7 @@ const SAYS = `<script>(() => {
     stir();
     return true;
   };
-  // Once it's yours, what you do is recorded, as a scene is, from the page as it was handed over: a note you make here
+  // Once it's yours, what you do is recorded, as a moment is, from the page as it was handed over: a note you make here
   // is on your own recording. Each page records itself, from its own first frame, or made ready unseen, from when you
   // take it over, where your recording starts.
   let recorded = [];
@@ -672,7 +672,7 @@ const SAYS = `<script>(() => {
       maskAllInputs: false,
       inlineStylesheet: true,
     }) && ((recording = true), said(), readNow());
-  // Light or dark, still or moving, as the scene was recorded, for your recording to be played back as it was too.
+  // Light or dark, still or moving, as the moment was recorded, for your recording to be played back as it was too.
   const said = () => window.rrwebRecord.record.addCustomEvent("browser", { dark: matchMedia("(prefers-color-scheme: dark)").matches, still: matchMedia("(prefers-reduced-motion: reduce)").matches });
   addEventListener("message", ({ source, data }) => source === parent && data?.playthrough === "yours" && record());
   const settle = async () => {
@@ -717,19 +717,19 @@ function fromTheApp(answer: IncomingMessage, target: URL, request: IncomingMessa
   return headers;
 }
 
-// The browser gets the scene's cookies and what the app kept in it, then goes to where the scene's page was.
-function handOver(moment: string, handed: Handed, response: ServerResponse) {
+// The browser gets the moment's cookies and what the app kept in it, then goes to where the moment's page was.
+function handOver(name: string, handed: Handed, response: ServerResponse) {
   const { url, cookies, local, session, scroll, clock, browser, again = [] } = handed;
   const { pathname, search, hash } = new URL(url);
   const setCookies = cookies.map(
     ({ name, value, path, expires, httpOnly }) =>
       `${name}=${value}; Path=${path}; SameSite=Lax${httpOnly ? "; HttpOnly" : ""}${expires > 0 ? `; Expires=${new Date(expires * 1000).toUTCString()}` : ""}`,
   );
-  const keep = JSON.stringify({ moment, local, session, scroll, clock, browser, again, to: pathname + search + hash }).replace(/</g, "\\u003c");
+  const keep = JSON.stringify({ name, local, session, scroll, clock, browser, again, to: pathname + search + hash }).replace(/</g, "\\u003c");
   response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "set-cookie": setCookies });
   response.end(`<!doctype html><meta name="viewport" content="width=device-width"><title>Stepping in…</title>
 <script>
-const { moment, local, session, scroll, clock, browser, again, to } = ${keep};
+const { name, local, session, scroll, clock, browser, again, to } = ${keep};
 for (const [key, value] of Object.entries(local)) localStorage.setItem(key, value);
 for (const [key, value] of Object.entries(session)) sessionStorage.setItem(key, value);
 sessionStorage.setItem("playthrough:scroll", JSON.stringify(scroll));
@@ -738,7 +738,7 @@ sessionStorage.setItem("playthrough:browser", JSON.stringify(browser));
 sessionStorage.removeItem("playthrough:yours");
 if (again.length) sessionStorage.setItem("playthrough:again", JSON.stringify(again));
 sessionStorage.removeItem("playthrough:did");
-sessionStorage.setItem("playthrough:moment", moment);
+sessionStorage.setItem("playthrough:name", name);
 location.replace(to);
 </script>`);
 }

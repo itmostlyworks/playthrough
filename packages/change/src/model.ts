@@ -1,10 +1,10 @@
-// What a change is: one change an agent makes, its moments handed back round after round until the person says it's done.
-// The agent keeps each moment as a scene of a round and answers notes; Playthrough compares each round with the ones
-// before it; people send notes, replies, and Done. Each thing here has one writer, and once written, only a round still
+// What a change is: one change an agent makes, its moments handed back hand-back after hand-back until the person says it's done.
+// The agent keeps each moment as a moment of a hand-back and answers notes; Playthrough compares each hand-back with the ones
+// before it; people send notes, replies, and Done. Each thing here has one writer, and once written, only a hand-back still
 // being worked on ever changes.
 //
 // Each shape is a schema, so the types and what's checked at the door are one statement. An error is written as
-// what the thing still needs, to follow its name: “the scene “Export a quarter” needs its length, in seconds”.
+// what the thing still needs, to follow its name: “the moment “Export a quarter” needs its length, in seconds”.
 
 import { z } from "zod";
 
@@ -53,8 +53,8 @@ export const Did = z.strictObject({
 // moment, as one that's gone.
 export const Place = z
   .strictObject({
-    scene: text("needs the scene it's on"),
-    at: seconds("needs its moment, in seconds").optional().describe("Without it, the whole scene"),
+    moment: text("needs the moment it's on"),
+    at: seconds("needs its moment, in seconds").optional().describe("Without it, the whole moment"),
     element: Element.optional(),
     alike: z.array(Element).optional().describe("The other things changed alike with its element, each where it is"),
     box: Box.optional().describe("Something with no words of its own, or where only the pixels changed"),
@@ -64,13 +64,13 @@ export const Place = z
   .refine(atSomeMoment, { error: "is on something but at no moment. Give it one" });
 
 // Where a note is: on a moment as it was handed back, or on what was there after stepping into the app from one. Either
-// way it names the hand-back and the moment, so which moment a note is on is always its `scene`, and the recording its
+// way it names the hand-back and the moment, so which moment a note is on is always its `moment`, and the recording its
 // thing's element number belongs to is said outright.
-const handBack = z.number({ error: "needs the hand-back it's on" }).int().min(1, { error: "needs the hand-back it's on, from 1" });
+const handBackNumber = z.number({ error: "needs the hand-back it's on" }).int().min(1, { error: "needs the hand-back it's on, from 1" });
 export const OnMoment = z
   .strictObject({
-    round: handBack,
-    scene: text("needs the moment it's on"),
+    handBack: handBackNumber,
+    moment: text("needs the moment it's on"),
     at: seconds("needs its moment, in seconds").optional().describe("Seconds into the moment's recording on that hand-back; without it, the whole moment"),
     element: Element.optional().describe("Its node is in the moment's recording on that hand-back"),
     box: Box.optional().describe("Something with no words of its own"),
@@ -80,8 +80,8 @@ export const OnMoment = z
   .refine(atSomeMoment, { error: "is on something but at no moment. Give it one" });
 export const InApp = z
   .strictObject({
-    round: handBack,
-    scene: text("needs the moment it was stepped into"),
+    handBack: handBackNumber,
+    moment: text("needs the moment it was stepped into"),
     steppedIn: seconds("needs where they stepped in, in seconds").describe("Seconds into the moment's recording on that hand-back"),
     did: z.array(Did, { error: "needs what they did there, a list, even if it's empty" }).describe("What the person did there, in order"),
     recording: fileName("needs its recording: the name of one of the person's own files").describe("The moment up to where they stepped in, then what they did"),
@@ -93,67 +93,57 @@ export const InApp = z
   })
   .refine(onOneThing, { error: ONE_THING });
 
-export const Step = z.strictObject({
-  title: text("needs a title").describe("Steps are matched across rounds by their title"),
-  at: seconds("needs the moment it starts, in seconds"),
-  actions: z
-    .array(seconds("needs the moment each of its actions was done, in seconds"))
-    .optional()
-    .describe("When each of its actions was done: between them the page rests, and a person can take the scene over there"),
-  began: z
-    .array(
-      z.strictObject({
-        action: text("needs what the action was"),
-        at: seconds("needs the moment the action began, in seconds"),
-      }),
-    )
-    .optional()
-    .describe("Each of its actions as it began, in the order of actions: what it was, as another recording of the scene knows the same action, and when. Two recordings are lined up by these"),
+// Something done in a moment as it was recorded: when it was done, and, recorded since Playthrough kept them, what it was,
+// as another recording of the moment knows the same thing done, and when it began. Two recordings are lined up by these.
+export const Action = z.strictObject({
+  at: seconds("needs the time it was done, in seconds").describe("Between two, the page rests, and a person can step in there"),
+  what: text("needs what was done").optional().describe("As a recording names it: “click link “Settings””"),
+  began: seconds("needs the time it began, in seconds").optional(),
 });
 
-export const Scene = z.strictObject({
-  name: text("needs a name").describe("Its identity: a new name is a new scene"),
+export const Moment = z.strictObject({
+  name: text("needs a name").describe("Its identity: a new name is a new moment"),
   length: z.number({ error: "needs its length, in seconds" }).positive({ error: "needs its length, in seconds" }),
-  steps: z.array(Step),
-  recording: fileName("needs its recording: the name of a file in the round"),
+  recording: fileName("needs its recording: the name of a file in the hand-back"),
   person: text("needs the name of who it acts as, or no person")
     .optional()
-    .describe("Who the scene is done as, as its file or the app's setup names them: the name on the recorded pointer, handed to you when you take over"),
+    .describe("Who the moment is done as, as its file or the app's setup names them: the name on the recorded pointer, handed to you when you take over"),
   about: Element.optional().describe("A moment's: the one thing that shows it, as the page names it, which the person sees it closed in on"),
   acted: Element.optional().describe("A moment's: the last thing done something to on the way that's still there at its point, which its still closes in on where it's about nothing"),
   from: seconds("needs where the moment starts, in seconds").describe(
-    "Where what's shown of its recording starts, where its step does, the way there before it kept and never shown; with nothing done from there on, the moment is a still",
+    "Where what's shown of its recording starts, the way there before it kept and never shown; with nothing done from there on, the moment is a still",
   ),
+  actions: z.array(Action, { error: "needs what was done in it, a list, even if it's empty" }).describe("What it did once its way there was done, in order; a moment kept before moments had a start did its way there here too, before where it starts"),
   unsteady: z
     .array(text("needs the ids of the changes it makes by itself"))
     .optional()
-    .describe("Changes found between two recordings of the same app, like a time the server stamps: left out of every comparison, in every scene"),
+    .describe("Changes found between two recordings of the same app, like a time the server stamps: left out of every comparison, in every moment"),
 });
 
-// Something different on screen between two rounds, found by Playthrough and said in its fixed words.
+// Something different on screen between two hand-backs, found by Playthrough and said in its fixed words.
 export const Finding = z.strictObject({
-  id: text("needs an id").describe("Its thing and its kind of change, so it keeps its id in every round while it's the same change"),
+  id: text("needs an id").describe("Its thing and its kind of change, so it keeps its id in every hand-back while it's the same change"),
   words: text("needs its words").describe("What changed, for the agent: “Download CSV and Cancel have swapped places”"),
   reworded: text("needs the words that read differently")
     .optional()
     .describe("For words reworded, the words that read differently now, which the viewer marks where they are: “on their own”"),
-  gone: z.literal(true).optional().describe("Not on the newer round: where it was, on the round before, is where it's seen, with Compare"),
+  gone: z.literal(true).optional().describe("Not on the newer hand-back: where it was, on the hand-back before, is where it's seen, with Compare"),
   seen: z
     .array(Place, { error: "needs where it's seen, a list" })
-    .min(1, { error: "needs where it's seen: each scene, at its moment there" })
-    .describe("Each scene it's seen in, at its moment there; a scene that's gone, with no moment"),
+    .min(1, { error: "needs where it's seen: each moment, at its moment there" })
+    .describe("Each moment it's seen in, at its moment there; a moment that's gone, with no moment"),
   pictureOnly: z
     .literal(true)
     .optional()
     .describe("Seen only in the pictures, with nothing read there changed: shown to the person, who can see what it is, and not put to the agent, who can't see more of it than Playthrough did"),
 });
 
-// A round compared with one before it: against the round before, what the agent did this round; against the round
+// A hand-back compared with one before it: against the hand-back before, what the agent did this hand-back; against the hand-back
 // someone last looked at a moment on, what's new to them. The same difference found by two comparisons has the same id.
 export const Comparison = z.strictObject({
-  round: z.number({ error: "needs its round" }).int().min(1, { error: "needs its round, from 1" }),
-  since: z.number({ error: "needs the round it's compared with" }).int().min(1, { error: "needs the round it's compared with, from 1" }),
-  changes: z.array(Finding, { error: "needs its changes, a list, even if it's empty" }),
+  handBack: z.number({ error: "needs its hand-back" }).int().min(1, { error: "needs its hand-back, from 1" }),
+  since: z.number({ error: "needs the hand-back it's compared with" }).int().min(1, { error: "needs the hand-back it's compared with, from 1" }),
+  findings: z.array(Finding, { error: "needs its findings, a list, even if it's empty" }),
 });
 
 export const Reply = z.strictObject({
@@ -166,25 +156,25 @@ export const Reply = z.strictObject({
 export const Note = z.strictObject({
   id: id("needs an id of letters, digits and dashes"),
   on: z
-    .union([OnMoment, InApp], { error: "is on a moment as handed back (its round, scene and at) or in the app (its round, scene, steppedIn, did, recording, length and at)" })
+    .union([OnMoment, InApp], { error: "is on a moment as handed back (its hand-back, moment and at) or in the app (its hand-back, moment, steppedIn, did, recording, length and at)" })
     .optional()
     .describe("Without it, about the work in general"),
   words: text("needs words"),
 });
 
-// What the agent handed back, and its answers. Once finished, a round never changes.
-export const Round = z.strictObject({
+// What the agent handed back, and its answers. Once finished, a hand-back never changes.
+export const HandBack = z.strictObject({
   number: z.number().int().min(1),
   by: text("needs to say which agent recorded it").describe("By the name it goes by, “Claude Code” or “Codex”: one change can pass between agents"),
-  scenes: z.array(Scene),
+  moments: z.array(Moment),
   replies: z.array(Reply).describe("The agent's answer to each note that asks for one"),
   finished: z.iso.datetime().optional(),
 });
 
-// What one person sent about one round, at once: notes and replies, or Done. Once sent, it never changes.
+// What one person sent about one hand-back, at once: notes and replies, or Done. Once sent, it never changes.
 export const Send = z.strictObject({
   id: id("needs an id of letters, digits and dashes").describe("Chosen by the sender, so sending twice sends once"),
-  round: z.number().int().min(1),
+  handBack: z.number().int().min(1),
   by: text("needs to say who sent it"),
   sent: z.iso.datetime({ error: "needs to say when it was sent, as an ISO date" }),
   notes: z.array(Note).describe("New ones"),
@@ -192,21 +182,21 @@ export const Send = z.strictObject({
     .array(z.strictObject({ note: text("needs the note it's on"), words: text("needs words") }))
     .optional()
     .describe("A person's words back on a note's latest answer: what's still not right, or an answer to a question the agent asked. They judge nothing, and ask the agent again"),
-  done: z.literal(true, { error: "is true or left out" }).optional().describe("Done: every moment of its round looks good, and that's all it says"),
+  done: z.literal(true, { error: "is true or left out" }).optional().describe("Done: every moment of its hand-back looks good, and that's all it says"),
 });
 
-// The agent took a send, and answers it in this round.
-export const Taken = z.strictObject({ send: z.string(), round: z.number().int(), at: z.iso.datetime() });
+// The agent took a send, and answers it in this hand-back.
+export const Taken = z.strictObject({ send: z.string(), handBack: z.number().int(), at: z.iso.datetime() });
 
-// A moment someone has opened, as it was handed back in one round: one handed back again, different, asks to be seen again.
-export const Seen = z.strictObject({ round: z.number().int().min(1), scene: text("needs the scene it's of") });
+// A moment someone has opened, as it was handed back in one hand-back: one handed back again, different, asks to be seen again.
+export const Seen = z.strictObject({ handBack: z.number().int().min(1), moment: text("needs the moment it's of") });
 
 export const Change = z.strictObject({
   id: z.string(),
   title: z.string().describe("A few words for the change, as a pull request's title"),
   asked: z.string().optional().describe("What was asked, in the person's words"),
   started: z.iso.datetime(),
-  rounds: z.array(Round),
+  handBacks: z.array(HandBack),
   comparisons: z.array(Comparison),
   sends: z.array(Send),
   taken: z.array(Taken),
@@ -220,13 +210,13 @@ export type Did = z.infer<typeof Did>;
 export type Place = z.infer<typeof Place>;
 export type OnMoment = z.infer<typeof OnMoment>;
 export type InApp = z.infer<typeof InApp>;
-export type Step = z.infer<typeof Step>;
-export type Scene = z.infer<typeof Scene>;
+export type Action = z.infer<typeof Action>;
+export type Moment = z.infer<typeof Moment>;
 export type Finding = z.infer<typeof Finding>;
 export type Comparison = z.infer<typeof Comparison>;
 export type Reply = z.infer<typeof Reply>;
 export type Note = z.infer<typeof Note>;
-export type Round = z.infer<typeof Round>;
+export type HandBack = z.infer<typeof HandBack>;
 export type Send = z.infer<typeof Send>;
 export type Taken = z.infer<typeof Taken>;
 export type Seen = z.infer<typeof Seen>;

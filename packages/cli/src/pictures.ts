@@ -1,7 +1,7 @@
 // What only the pictures show. The reading names what changed, but some things it can't see: a bar with no words, an icon,
 // something brought in front of another, something moved a pixel or two. So the pictures of the same moment are compared
 // too, and where they differ with nothing the reading found there, that's a change of its own, named by what it's on. They
-// are taken from the page itself, so where nothing changed they're the same dot for dot, and a scene whose pictures are the
+// are taken from the page itself, so where nothing changed they're the same dot for dot, and a moment whose pictures are the
 // same at every step looks the same.
 
 import type { Page } from "@playwright/test";
@@ -14,7 +14,7 @@ type Patch = { x: number; y: number; width: number; height: number; nudged: bool
 type Area = { x: number; y: number; width: number; height: number };
 
 // A change known only by where it is on the screen, a part of a picture with nothing read there or only near it, as what
-// changes by itself: left out only in the scene it was found in, as the same place in another scene is another thing.
+// changes by itself: left out only in the moment it was found in, as the same place in another moment is another thing.
 export const HERE = "here:";
 
 export async function picturesAt(page: Page, then: Reading, now: Reading, pictures: { then: Buffer; now: Buffer }): Promise<Found[]> {
@@ -48,7 +48,7 @@ export async function picturesAt(page: Page, then: Reading, now: Reading, pictur
   });
 }
 
-// What a patch is on: the smallest named thing or words round all of it; under a heading of a table the page marks as
+// What a patch is on: the smallest named thing or words hand-back all of it; under a heading of a table the page marks as
 // one, that column; else what's nearest it, as a person points at a spot (“Something near “-60.00””); else just where it
 // is. Something named only by data is known by where it is.
 function whatsThere(reading: Reading, patch: Area): { called: string; identity?: string } {
@@ -58,12 +58,12 @@ function whatsThere(reading: Reading, patch: Area): { called: string; identity?:
   // only named by a patch that's a fair part of it.
   const fair = (thing: Thing, most: number) => !HOLDS.test(thing.role) || area(thing.box) < most;
   // A focus ring or a shadow is drawn just outside its thing's box, and is still that thing's.
-  const round = named.filter((thing) => contains(thing.box, patch, 6) && fair(thing, 6 * area(patch))).sort((p, q) => area(p.box) - area(q.box))[0];
+  const handBack = named.filter((thing) => contains(thing.box, patch, 6) && fair(thing, 6 * area(patch))).sort((p, q) => area(p.box) - area(q.box))[0];
   const middle = patch.x + patch.width / 2;
   const table = reading.things.find((thing) => /^(table|grid|treegrid)$/.test(thing.role) && contains(thing.box, patch, 2));
   const cell = table && reading.things.find((thing) => thing.column && holderOf(reading, thing) === table && middle >= thing.box.x && middle < thing.box.x + thing.box.width);
-  if (cell && (!round || round === table)) return { called: `${cell.column} column`, identity: `column:${bare(cell.column!)} in ${identity(reading, table!)}` };
-  if (round) return { called: called(round), identity: bare(round.name) ? identity(reading, round) : undefined };
+  if (cell && (!handBack || handBack === table)) return { called: `${cell.column} column`, identity: `column:${bare(cell.column!)} in ${identity(reading, table!)}` };
+  if (handBack) return { called: called(handBack), identity: bare(handBack.name) ? identity(reading, handBack) : undefined };
 
   const gap = (thing: Thing) =>
     Math.hypot(
@@ -100,7 +100,7 @@ async function differ({ then, now, explained }: { then: string; now: string; exp
   const SQUARE = 16; // differences are counted in squares this size,
   const DOTS = 4; // and a square differs with at least this many different dots in it
   const GAP = 3; // squares within this many of each other are one patch
-  const AROUND = 8; // pixels round what the reading found that are its doing too
+  const AROUND = 8; // pixels hand-back what the reading found that are its doing too
   const NUDGE = 2; // the same picture moved this far, in quarter pixels, is nudged
   const FARTHEST = 24; // and this far, along or across, moved
 

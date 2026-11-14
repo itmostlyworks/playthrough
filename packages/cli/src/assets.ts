@@ -6,7 +6,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
 
-// Each address the page loaded something from, and the file it's kept in, beside the round's recordings.
+// Each address the page loaded something from, and the file it's kept in, beside the hand-back's recordings.
 export type Assets = Record<string, string>;
 export const assetsOf = (recording: string) => `assets/${recording}`;
 

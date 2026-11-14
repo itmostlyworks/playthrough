@@ -12,7 +12,7 @@ import { basename, extname, join, normalize, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Reading } from "@playthrough/page";
 import { Refused, type Did, type Change, type Seen, type Send } from "@playthrough/change";
-import { BEAT } from "./scenes.ts";
+import { BEAT } from "./run.ts";
 import { repo as copyAt, type Repo } from "./repo.ts";
 import { readyIn } from "./following.ts";
 import { everyCopy, machine } from "./machine.ts";
@@ -203,12 +203,12 @@ async function answer(here: Machine, page: string, you: string, request: Incomin
   const { repo, id, address, rest } = await here.holding(parts);
   const changes = repo.changes;
 
-  if (request.method === "GET" && rest[0] === "rounds" && rest[2] === "files" && rest[3]) {
-    // Your branches play beside the round's recordings, as if they were its own.
+  if (request.method === "GET" && rest[0] === "hand-backs" && rest[2] === "files" && rest[3]) {
+    // Your branches play beside the hand-back's recordings, as if they were its own.
     const name = rest.slice(3).join("/");
     const branch = name.match(/^(assets\/|readings\/)?branches\/(.+)$/);
     const bytes = branch ? await changes.branch(id, `${branch[1] ?? ""}${branch[2]}`) : await changes.file(id, Number(rest[1]), name);
-    if (!bytes) return json(response, 404, { problems: [`Round ${rest[1]} of ${id} has no file called “${rest.slice(3).join("/")}”.`] });
+    if (!bytes) return json(response, 404, { problems: [`Hand-back ${rest[1]} of ${id} has no file called “${rest.slice(3).join("/")}”.`] });
     response.writeHead(200, { "content-type": TYPES[extname(path)] ?? "application/octet-stream", "cache-control": "max-age=31536000, immutable" });
     // An SVG asks for light or dark itself: asked for as recorded (?as=dark,still), it's answered that way.
     const as = asked.searchParams.get("as");
@@ -249,20 +249,20 @@ async function shownOf(repo: Repo): Promise<{ app: string; people: Record<string
 // Playthrough, at the port and moment this answers with; and where the moment's checks at its end don't hold on the app
 // as it is now, what they say. A tab closed or reloaded meanwhile stops it.
 async function takeOver(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
-  const { scene, after } = await body<{ scene: string; after?: number }>(request);
-  const { port, moment, checked } = await getReady(repo, id, await placeOf(repo, id, scene, after), waitedFor(response));
-  json(response, 200, { port, moment, ...(checked && { checked }) });
+  const { moment, after } = await body<{ moment: string; after?: number }>(request);
+  const { port, name, checked } = await getReady(repo, id, await placeOf(repo, id, moment, after), waitedFor(response));
+  json(response, 200, { port, name, ...(checked && { checked }) });
 }
 
-// What a person did in the app, taken over, kept as a recording of its own: the scene as it was recorded up to where they
-// took it over, then theirs, going on from there. It plays like any scene, with what the scene's recording kept of the
+// What a person did in the app, taken over, kept as a recording of its own: the moment as it was recorded up to where they
+// took it over, then theirs, going on from there. It plays like any moment, with what the moment's recording kept of the
 // app's files, and a note on it is on what they saw. Each time it's kept, it's kept whole, under a new name, as what
 // the viewer has fetched once it keeps.
 async function branch(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
-  const { round, scene: name, at, events, recording } = await body<{ round: number; scene: string; at: number; events: Event[]; recording: string }>(request);
-  const scene = (await repo.changes.get(id)).rounds.find((kept) => kept.number === round)?.scenes.find((scene) => scene.name === name);
-  const was = scene && (await repo.changes.file(id, round, scene.recording));
-  if (!scene || !was || !events.length) return json(response, 404, { problems: [`Round ${round} of ${id} has no recording of “${name}” to branch off.`] });
+  const { handBack, moment: name, at, events, recording } = await body<{ handBack: number; moment: string; at: number; events: Event[]; recording: string }>(request);
+  const moment = (await repo.changes.get(id)).handBacks.find((kept) => kept.number === handBack)?.moments.find((moment) => moment.name === name);
+  const was = moment && (await repo.changes.file(id, handBack, moment.recording));
+  if (!moment || !was || !events.length) return json(response, 404, { problems: [`Hand-back ${handBack} of ${id} has no recording of “${name}” to branch off.`] });
   const before: Event[] = JSON.parse(Buffer.from(was).toString("utf8"));
   const start = before[0]!.timestamp;
   const then = start + at * 1000;
@@ -271,14 +271,14 @@ async function branch(repo: Repo, id: string, request: IncomingMessage, response
   const joined = [...before.filter((event) => event.timestamp <= then), ...yours.filter((event) => !readingOf(event))];
   await repo.changes.saveBranch(id, recording, Buffer.from(JSON.stringify(joined)));
   // As the app read itself while you were in it. Only yours: the page there is recorded afresh, its elements numbered
-  // anew, so the scene's readings from before would name the wrong things.
+  // anew, so the moment's readings from before would name the wrong things.
   const readings = yours.filter(readingOf).map((event) => ({ step: "In the app", at: (event.timestamp - start) / 1000, ...readingOf(event)! }));
   await repo.changes.saveBranch(id, `readings/${recording}`, Buffer.from(JSON.stringify(readings)));
   // What the moment's recording kept, and what yours names besides, as fonts of a page the moment never showed.
-  const kept = await repo.changes.file(id, round, `assets/${scene.recording}`);
+  const kept = await repo.changes.file(id, handBack, `assets/${moment.recording}`);
   const theirs: Assets = kept ? JSON.parse(Buffer.from(kept).toString("utf8")) : {};
   const all = await keepNamed(JSON.stringify(yours), theirs, (await repo.app()).url, (file, bytes) => repo.changes.saveBranch(id, file, bytes));
-  // Read from the round's files, a branch's own are under branches/.
+  // Read from the hand-back's files, a branch's own are under branches/.
   const named = Object.fromEntries(Object.entries(all).map(([address, file]) => [address, address in theirs ? file : `branches/${file}`]));
   if (Object.keys(named).length) await repo.changes.saveBranch(id, `assets/${recording}`, Buffer.from(JSON.stringify(named)));
   json(response, 200, { length: (joined.at(-1)!.timestamp - start) / 1000 });
@@ -286,7 +286,7 @@ async function branch(repo: Repo, id: string, request: IncomingMessage, response
 
 type Event = { timestamp: number; type?: number; data?: { tag?: string; payload?: Pick<Reading, "screen" | "things"> } };
 // Watched later, yours keeps its pace while you act, but a while spent looking, when nothing happened, goes by in a
-// scene's pause.
+// moment's pause.
 function paced(events: Event[]): Event[] {
   let cut = 0;
   return events.map((event, i) => {
@@ -298,8 +298,8 @@ const readingOf = (event: Event) => (event.type === 5 && event.data?.tag === "re
 
 // How long until a moment asked for is ready, for the viewer to count down to, if it can be known.
 async function readyInFor(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
-  const { scene, after } = await body<{ scene: string; after?: number }>(request);
-  const to = await placeOf(repo, id, scene, after).catch(() => undefined);
+  const { moment, after } = await body<{ moment: string; after?: number }>(request);
+  const to = await placeOf(repo, id, moment, after).catch(() => undefined);
   json(response, 200, { in: to && (await readyIn(repo, id, to)) });
 }
 

@@ -46,7 +46,7 @@ export function shownAt(readings: Reading[], element: Element, at: number): Show
   return (element.node === undefined ? undefined : nearest((thing) => thing.node === element.node)) ?? nearest((thing) => thing.role === element.role && thing.name === element.name);
 }
 
-// As an element of the round it's on. Something with no name of its own there keeps the one it was noted by.
+// As an element of the hand-back it's on. Something with no name of its own there keeps the one it was noted by.
 export const elementOf = (thing: Thing, name: string): Element => ({ role: thing.role, name: thing.name || name, ...(thing.node !== undefined && { node: thing.node }) });
 
 // Two names for the same thing, as a person would take them: most of the shorter one's words in the other's, so a card

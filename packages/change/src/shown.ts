@@ -2,7 +2,7 @@
 // kept underneath for stepping in and running it again. The rule is the agent's, as it marks a moment; what's kept is
 // where it starts in its recording (`from`), which everything that shows it reads.
 
-import type { Scene } from "./model.ts";
+import type { Moment } from "./model.ts";
 
 // One thing done on the way to a moment, as the rule reads it: what it was (click, type, fill, press, selectOption; goto
 // for a page loaded), the role of what it was done on, and whether it took you to another page: an address gone to
@@ -35,4 +35,4 @@ export function startOf(done: Done[], since = 0): Start {
 }
 
 // A moment where nothing is done from where it's shown is a still: its picture, with nothing to play.
-export const isStill = (scene: Scene) => !scene.steps.some((step) => (step.actions ?? []).some((action) => action >= scene.from));
+export const isStill = (moment: Moment) => !moment.actions.some((action) => action.at >= moment.from);

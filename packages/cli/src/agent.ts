@@ -1,5 +1,5 @@
 // Which agent is running the commands, by the name it goes by, so each answer shows whose it is when a change passes
-// between agents. The best-known ones say so in their shell; any other writes its name in the round, as `by`.
+// between agents. The best-known ones say so in their shell; any other writes its name in the hand-back, as `by`.
 
 const known: { name: string; says: string[] }[] = [
   { name: "Claude Code", says: ["CLAUDECODE"] },

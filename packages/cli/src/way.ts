@@ -1,4 +1,4 @@
-// The way to a moment: what the agent did in its browser, written as a scene Playthrough runs again from a fresh start,
+// The way to a moment: what the agent did in its browser, written as a moment Playthrough runs again from a fresh start,
 // and whether running it again landed where the agent was.
 
 import { differences, type Reading, type Thing } from "@playthrough/page";
@@ -24,11 +24,11 @@ export function wordsIn(file: string): string | undefined {
   return named === undefined ? undefined : JSON.parse(named);
 }
 
-// The way there, written as a scene: each page gone to, and what was done on each, as getByRole finds it, or by its path
+// The way there, written as a moment: each page gone to, and what was done on each, as getByRole finds it, or by its path
 // where it has no role and name; scrolled where the page was, as a footer is only seen there; then what it's about, as
-// it was, checked again. What's done from `from` on is the scene's step, the moment itself; what's done before it is the
+// it was, checked again. What's done from `from` on is the moment's step, the moment itself; what's done before it is the
 // way there, kept and never shown. Tried, it also writes where it ended, beside itself, as no reading says the address.
-export function sceneOf({
+export function wayFile({
   words,
   person,
   did,

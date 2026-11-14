@@ -95,8 +95,8 @@ test("a note being written in the app is still being written once you're back", 
 
 test("going to another moment, nothing of this one goes with it: it rests on its own end", () => {
   const busy = press(press(moment(), { type: "compare" }), { type: "play" });
-  const next = press(busy, { type: "moment", scene: "Shows them again", starts: 1, end: 6 });
-  assert.deepEqual(next, { scene: "Shows them again", starts: 1, end: 6, at: 6, mode: { is: "resting" } });
+  const next = press(busy, { type: "moment", moment: "Shows them again", starts: 1, end: 6 });
+  assert.deepEqual(next, { moment: "Shows them again", starts: 1, end: 6, at: 6, mode: { is: "resting" } });
 });
 
 test("a still has no Play", () => {

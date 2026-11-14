@@ -2,7 +2,7 @@
 // the step the way a person would watch it: rrweb in every page, the pointer gliding to what it acts on, and a beat after
 // each action so its result can be seen. The step ends once the page is at rest, and the page it left is read there, with
 // a picture of it: what the comparison compares. Run as plain tests, it does nothing. Each recording and its readings go
-// to the reporter, which makes them a scene (reporter.ts). Stepped into, a moment runs in Playthrough itself instead
+// to the reporter, which makes them a moment (reporter.ts). Stepped into, a moment runs in Playthrough itself instead
 // (following.ts), on the same pace and steps.
 
 import { test as base, expect as playwrightExpect, type APIRequestContext, type Browser, type BrowserContext, type BrowserContextOptions, type Dialog, type Locator, type Page } from "@playwright/test";
@@ -13,14 +13,14 @@ import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { Glimpse, Reading } from "@playthrough/page";
 import { keepAssets, type Assets } from "./assets.ts";
-import { ALONGSIDE, BEAT, QUIET_DEV_CHROME, type Action, type Handed, type On, type Run, type To } from "./scenes.ts";
+import { ALONGSIDE, BEAT, QUIET_DEV_CHROME, type Action, type Handed, type On, type Run, type To } from "./run.ts";
 import { readPage, unhovered } from "./read.ts";
 import { repo } from "./repo.ts";
 import { ACTIONS, ASSETS, firstLine, GLIMPSES, HOLD, PERSON, PICTURED, PICTURE, READINGS, RECORDING, seconds, type Failed, type Acted } from "./reporter.ts";
 import { SETTLED, stillFor, watchRest } from "./rest.ts";
 import { firstOf, make, personIn, setupIn, type Made, type Setup } from "./setup.ts";
 
-// The screens besides the laptop every scene is on unless it says otherwise: a phone, tapped, and a tablet. A scene takes
+// The screens besides the laptop every moment is on unless it says otherwise: a phone, tapped, and a tablet. A moment takes
 // one with test.use, and so does someone it's handed to.
 export type Screen = Pick<BrowserContextOptions, "viewport" | "isMobile" | "hasTouch" | "timezoneId" | "colorScheme">;
 export const phone: Screen = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
@@ -28,7 +28,7 @@ export const tablet: Screen = { viewport: { width: 820, height: 1180 }, isMobile
 const LAPTOP = { width: 1280, height: 800 };
 const CLIPBOARD = ["clipboard-read", "clipboard-write"];
 
-// Everything it needs comes with the run (scenes.ts), so it never has to find anything for itself.
+// Everything it needs comes with the run (run.ts), so it never has to find anything for itself.
 const run: Run | undefined = process.env.PLAYTHROUGH_RUN ? JSON.parse(process.env.PLAYTHROUGH_RUN) : undefined;
 
 export const expect = playwrightExpect;
@@ -44,7 +44,7 @@ ${readFileSync(rrweb, "utf8")}
 const said = () => window.rrwebRecord.record.addCustomEvent("browser", { dark: matchMedia("(prefers-color-scheme: dark)").matches, still: matchMedia("(prefers-reduced-motion: reduce)").matches });
 if (window.top === window) {
   window.rrwebRecord.record({
-    // Nothing is kept until the scene itself starts, after whatever the app's setup did on the page.
+    // Nothing is kept until the moment itself starts, after whatever the app's setup did on the page.
     emit: (event) => (window.__playthrough?.(event), event.type === 2 && setTimeout(said)),
     // every input, not just the last: with "last", rrweb only hears a field change when it loses focus,
     // so words typed into a search box that kept focus never reached the recording
@@ -176,20 +176,20 @@ const OPTION = 22; // and each of its options is this tall, in the page's pixels
 
 let pointer: { page: Page; x: number; y: number } | undefined;
 
-// The scene underway: the page it's on, what waits for that page to rest, what was read at the end of each step so far,
+// The moment underway: the page it's on, what waits for that page to rest, what was read at the end of each step so far,
 // with its picture, and when each action was done; the step it's in; the assets each page loaded; and the browser's own
 // dialog shown during the action being done, until it's answered.
 type Underway = { page: Page; events: { timestamp: number }[]; rest: (still?: number) => Promise<void>; depth: number; readings: Omit<Reading, "picture">[]; glimpses: Glimpse[]; pictures: Buffer[]; frames: Map<string, Buffer>; actions: Acted[]; step?: string; assets: (() => Promise<Assets>)[]; dialog?: Promise<void> };
 let underway: Underway | undefined;
 
-// What every scene starts from (setup.ts), loaded once a run.
+// What every moment starts from (setup.ts), loaded once a run.
 let appSetup: Promise<Setup> | undefined;
 const setupOf = () => (appSetup ??= setupIn(repo(run?.root).setup));
 
-// Every round runs on the day the change started, at the time of day it's recorded, with the page's random numbers from
+// Every hand-back runs on the day the change started, at the time of day it's recorded, with the page's random numbers from
 // the same seed, so what the page works out from the day reads the same each time. The app's server keeps the real time,
 // which nothing here sets, and on the real time of day what it stamps reads as it would: a card the setup made was made
-// “less than a minute ago”, in every round that day. On a later day, the server's times are that many days ahead. The
+// “less than a minute ago”, in every hand-back that day. On a later day, the server's times are that many days ahead. The
 // clock runs on from there, as a person's does: page.clock.setFixedTime would stop it, and whatever the page times by it.
 const DAY = 24 * 60 * 60 * 1000;
 export const onTheDayItStarted = (started: string, now = Date.now()) => new Date(now - (Math.floor(now / DAY) - Math.floor(Date.parse(started) / DAY)) * DAY);
@@ -210,7 +210,7 @@ const recorded = base.extend<{ person: string | undefined; rest: () => Promise<v
   // The clipboard is the page's to write to, as a person's browser lets a click copy: headless, it's refused, and Copy never
   // says Copied.
   contextOptions: async ({ contextOptions }, use) => use({ permissions: CLIPBOARD, ...(await setupOf()).use, ...contextOptions }),
-  // Who the scene is done as: one of the app's people (setup.ts), named by its file with test.use, or else the first.
+  // Who the moment is done as: one of the app's people (setup.ts), named by its file with test.use, or else the first.
   person: [async ({}, use) => use(firstOf(await setupOf())), { option: true }],
   // What waits for the page to come to rest, watching it from before setup sets its clock (rest.ts).
   rest: async ({ page }, use) => use(run ? await watchRest(page) : async () => {}),
@@ -226,20 +226,20 @@ const recorded = base.extend<{ person: string | undefined; rest: () => Promise<v
     await made.giveBack();
   },
   recorder: [
-    // Once what the scene starts from is made, so making it isn't in the recording.
+    // Once what the moment starts from is made, so making it isn't in the recording.
     async ({ page, rest, person, setup }, use, testInfo) => {
       if (!run) return use();
       testInfo.setTimeout(testInfo.timeout * 3);
-      const scene: Underway = { page, events: [], rest, depth: 0, readings: [], glimpses: [], pictures: [], frames: new Map(), actions: [], assets: [] };
-      await page.exposeFunction("__playthrough", (event: { timestamp: number }) => void scene.events.push(event));
-      scene.assets.push(keepAssets(page, run.folder));
+      const moment: Underway = { page, events: [], rest, depth: 0, readings: [], glimpses: [], pictures: [], frames: new Map(), actions: [], assets: [] };
+      await page.exposeFunction("__playthrough", (event: { timestamp: number }) => void moment.events.push(event));
+      moment.assets.push(keepAssets(page, run.folder));
       pace(page);
-      dialogsOn(page, scene);
+      dialogsOn(page, moment);
       pointer = { page, x: 640, y: 640 };
-      underway = scene;
-      const { events, readings, glimpses, pictures, actions } = scene;
-      // A page setup left loaded, where the scene starts, is taken whole now, as rrweb took it before anything heard it;
-      // otherwise the recording starts with the first page the scene loads. Taken then, it played blank until the next.
+      underway = moment;
+      const { events, readings, glimpses, pictures, actions } = moment;
+      // A page setup left loaded, where the moment starts, is taken whole now, as rrweb took it before anything heard it;
+      // otherwise the recording starts with the first page the moment loads. Taken then, it played blank until the next.
       if (page.url() !== "about:blank") await page.evaluate(() => (window as any).rrwebRecord?.record.takeFullSnapshot());
       await page.mouse.move(pointer.x, pointer.y);
       try {
@@ -248,25 +248,25 @@ const recorded = base.extend<{ person: string | undefined; rest: () => Promise<v
         pointer = undefined;
         underway = undefined;
       }
-      const last = scene.page;
-      const assets = async () => Object.assign({}, ...(await Promise.all(scene.assets.map((kept) => kept()))));
+      const last = moment.page;
+      const assets = async () => Object.assign({}, ...(await Promise.all(moment.assets.map((kept) => kept()))));
       if (testInfo.status !== testInfo.expectedStatus) return;
       await last.waitForTimeout(HOLD);
       // Changed while its end held, by what was done arriving late (a debounced search, a delayed message), it wasn't at
       // rest: it ends once it is, read again there.
-      if ((await stillFor(last)) < HOLD - 100 && scene.readings.length) {
-        await scene.rest();
-        const at = seconds(Date.now() - (scene.events[0]?.timestamp ?? Date.now()));
+      if ((await stillFor(last)) < HOLD - 100 && moment.readings.length) {
+        await moment.rest();
+        const at = seconds(Date.now() - (moment.events[0]?.timestamp ?? Date.now()));
         await unhovered(last, async () => {
           const { screen, things, items } = await readPage(last);
-          scene.readings.splice(-1, 1, { step: scene.readings.at(-1)!.step, at, screen, things, items });
-          scene.pictures.splice(-1, 1, await last.screenshot({ animations: "disabled", caret: "hide" }));
+          moment.readings.splice(-1, 1, { step: moment.readings.at(-1)!.step, at, screen, things, items });
+          moment.pictures.splice(-1, 1, await last.screenshot({ animations: "disabled", caret: "hide" }));
         });
         await last.waitForTimeout(HOLD);
         // Changing still, it's ended anyway, and said so.
       }
       // A moment's end once it has held: what still changes there, it ended before.
-      if (scene.frames.size) scene.frames.set("held", await unhovered(last, () => last.screenshot({ animations: "disabled", caret: "hide" })));
+      if (moment.frames.size) moment.frames.set("held", await unhovered(last, () => last.screenshot({ animations: "disabled", caret: "hide" })));
       // Nothing changes while the end holds, so a last event makes the recording long enough to include it.
       await last.evaluate(() => (window as any).rrwebRecord.record.addCustomEvent("end", {}));
       await last.waitForTimeout(100);
@@ -279,7 +279,7 @@ const recorded = base.extend<{ person: string | undefined; rest: () => Promise<v
       const who = person ?? (typeof setup.person === "string" ? setup.person.trim() : undefined);
       if (who) await testInfo.attach(PERSON, { body: who, contentType: "text/plain" });
       for (const picture of pictures) await testInfo.attach(PICTURE, { body: picture, contentType: "image/png" });
-      for (const [name, picture] of scene.frames) await testInfo.attach(`${PICTURED} ${name}`, { body: picture, contentType: "image/png" });
+      for (const [name, picture] of moment.frames) await testInfo.attach(`${PICTURED} ${name}`, { body: picture, contentType: "image/png" });
     },
     { auto: true },
   ],
@@ -293,7 +293,7 @@ async function readied(page: Page, run: Run) {
   await page.addInitScript({ content: seeded });
 }
 
-// A window of its own, in one language and time zone as every scene is, on the laptop unless it's on another screen, and
+// A window of its own, in one language and time zone as every moment is, on the laptop unless it's on another screen, and
 // opened as the app's setup says.
 export async function pageFor(browser: Browser, baseURL: string, screen: Screen, use?: BrowserContextOptions) {
   // Stepping in, the clipboard is the page's to write to, as it is in a recording.
@@ -303,22 +303,22 @@ export async function pageFor(browser: Browser, baseURL: string, screen: Screen,
 
 // The browser's own dialogs, an alert, a confirm or a prompt, aren't in the page, so rrweb never sees them: each is kept
 // in the recording as a moment of its own, with what it says, and held long enough to read before it's answered, as the
-// scene answers it, or else as Playwright would, which is No. The viewer draws it there (replay.ts). One about leaving the
+// moment answers it, or else as Playwright would, which is No. The viewer draws it there (replay.ts). One about leaving the
 // page is answered as Playwright does, Yes, and not kept.
-const holding = new WeakMap<Dialog, { scene: Underway; page: Page; read: Promise<void>; answered: () => void }>();
+const holding = new WeakMap<Dialog, { moment: Underway; page: Page; read: Promise<void>; answered: () => void }>();
 const answered = new WeakSet<object>();
-function dialogsOn(page: Page, scene: Underway) {
+function dialogsOn(page: Page, moment: Underway) {
   const listening = (to: object) => (to as { listenerCount: (event: string) => number }).listenerCount("dialog");
   page.on("dialog", (dialog) => {
-    // The scene answers it if it listens for it, on its page or the page's window.
+    // The moment answers it if it listens for it, on its page or the page's window.
     const theirs = listening(page) > 1 || listening(page.context()) > 0;
     if (dialog.type() === "beforeunload") return void (theirs || dialog.accept().catch(() => {}));
     answers(dialog);
     const said = { type: dialog.type(), message: dialog.message(), ...(dialog.type() === "prompt" && { value: dialog.defaultValue() }) };
-    if (scene.page === page) scene.events.push({ type: 5, data: { tag: "dialog", payload: said }, timestamp: Date.now() } as { timestamp: number });
+    if (moment.page === page) moment.events.push({ type: 5, data: { tag: "dialog", payload: said }, timestamp: Date.now() } as { timestamp: number });
     let answered = () => {};
-    scene.dialog = new Promise((done) => (answered = done));
-    holding.set(dialog, { scene, page, read: new Promise((read) => setTimeout(read, Math.min(4000, 1200 + 40 * dialog.message().length))), answered });
+    moment.dialog = new Promise((done) => (answered = done));
+    holding.set(dialog, { moment, page, read: new Promise((read) => setTimeout(read, Math.min(4000, 1200 + 40 * dialog.message().length))), answered });
     if (!theirs) dialog.dismiss().catch(() => {});
   });
 }
@@ -335,7 +335,7 @@ function answers(dialog: Dialog) {
       if (held) {
         await held.read;
         const answer = { yes, ...(yes && this.type() === "prompt" && { value: value ?? "" }) };
-        if (held.scene.page === held.page) held.scene.events.push({ type: 5, data: { tag: "dialog answered", payload: answer }, timestamp: Date.now() } as { timestamp: number });
+        if (held.moment.page === held.page) held.moment.events.push({ type: 5, data: { tag: "dialog answered", payload: answer }, timestamp: Date.now() } as { timestamp: number });
       }
       try {
         return await original.call(this, value);
@@ -346,10 +346,10 @@ function answers(dialog: Dialog) {
   }
 }
 
-// A scene can import a module of its own as Playwright finds it, without its ending (“../history”) or by its .js name, so
-// the scenes that record can be taken over: Node, which loads them here, finds a module only by its whole name. And it's
-// loaded again whenever the scenes are, as an agent changes it with them: Node keeps a module by its address, so it's
-// asked for at the scenes' time (`?written`). Each is kept in `imported`, whose times say when the scenes were written too.
+// A moment can import a module of its own as Playwright finds it, without its ending (“../history”) or by its .js name, so
+// the moments that record can be taken over: Node, which loads them here, finds a module only by its whole name. And it's
+// loaded again whenever the moments are, as an agent changes it with them: Node keeps a module by its address, so it's
+// asked for at the moments' time (`?written`). Each is kept in `imported`, whose times say when the moments were written too.
 export const imported = new Set<string>();
 let finding = false;
 function findsAsPlaywright() {
@@ -380,39 +380,39 @@ function foundAsPlaywright(specifier: string, context: modules.ResolveHookContex
   }
 }
 
-// Stepped into, a scene runs in Playthrough (following.ts), unrecorded, on the recordings' clock, which the person carries
+// Stepped into, a moment runs in Playthrough (following.ts), unrecorded, on the recordings' clock, which the person carries
 // on with: told where to hand its page over, and to stop, once it's no longer wanted.
 // Stopped while the app's setup is making its world, it goes on until that's made, so what it made can be given back
 // whole: `made` says it is.
 export type Orders = { to: To; stopped?: boolean; made?: boolean };
-// A scene, as its file gives it to test(): with the page, what Playwright gives every test besides, and the setup.
+// A moment, as its file gives it to test(): with the page, what Playwright gives every test besides, and the setup.
 export type Body = (given: { page: Page; context: BrowserContext; request: APIRequestContext; baseURL: string; setup: Record<string, any> }) => Promise<unknown>;
 
-// Loaded in Playthrough, each scene is kept by its name instead of run. A file at a time, as test() can't tell whose it is.
+// Loaded in Playthrough, each moment is kept by its name instead of run. A file at a time, as test() can't tell whose it is.
 // With everything its file says with test.use: the window it's recorded in, like a phone's screen and touch, and who it's
 // done as.
 export type Kept = { body: Body; use: BrowserContextOptions & { person?: string } };
 let collecting: Map<string, Kept> | undefined;
-// The file being loaded, and each describe() in it around the scenes being kept now: what it says with test.use.
+// The file being loaded, and each describe() in it around the moments being kept now: what it says with test.use.
 let around: { use: Kept["use"] }[] = [];
 let loading = Promise.resolve();
-export function scenesIn(file: string, written: number): Promise<Map<string, Kept>> {
+export function momentsIn(file: string, written: number): Promise<Map<string, Kept>> {
   findsAsPlaywright();
-  const scenes = new Map<string, Kept>();
+  const moments = new Map<string, Kept>();
   const loaded = loading.then(async () => {
-    [collecting, around] = [scenes, [{ use: {} }]];
+    [collecting, around] = [moments, [{ use: {} }]];
     try {
       await import(`${pathToFileURL(file).href}?${written}`);
     } finally {
       [collecting, around] = [undefined, []];
     }
-    return scenes;
+    return moments;
   });
   loading = loaded.then(() => {}, () => {});
   return loaded;
 }
 
-// The scene being stepped into: whether its own run has begun, past the app's setup and signing in; how deep in its
+// The moment being stepped into: whether its own run has begun, past the app's setup and signing in; how deep in its
 // steps it is, as only what's done in its own steps is counted; the step it's in; and how many things it has done there.
 // What's only in the page's memory, like a search typed or a form opened, wouldn't survive loading it in the person's
 // browser. So it's handed over as it was before the actions that only changed what's on it (`from`), however many steps
@@ -420,13 +420,13 @@ export function scenesIn(file: string, written: number): Promise<Map<string, Kep
 // isn't, nor anything before it: a fresh load of the page has those already. `address` is where the last of them left
 // the page.
 // Several run at once, one for each step in, each in its own window, and each knows its own by what it was called from.
-type Taking = { page: Page; going: boolean; depth: number; rest: () => Promise<void>; step?: string; done: number; from?: Handed; again: Action[]; address?: string; wrote: boolean; orders: Orders; handed?: Handed };
-const taking = new AsyncLocalStorage<Taking>();
+type SteppingIn = { page: Page; going: boolean; depth: number; rest: () => Promise<void>; step?: string; done: number; from?: Handed; again: Action[]; address?: string; wrote: boolean; orders: Orders; handed?: Handed };
+const steppingIn = new AsyncLocalStorage<SteppingIn>();
 
 // What's kept to do again holds while the page is still where the last of it left it, and nothing has been saved since.
-const holds = (scene: Taking) => !scene.wrote && scene.page.url() === scene.address;
+const holds = (stepping: SteppingIn) => !stepping.wrote && stepping.page.url() === stepping.address;
 
-// It's been handed over, it's past where it's handed over, or it's no longer wanted: the scene goes no further.
+// It's been handed over, it's past where it's handed over, or it's no longer wanted: the moment goes no further.
 class Stopped extends Error {}
 
 export async function runAlongside(
@@ -435,23 +435,23 @@ export async function runAlongside(
   body: Body,
   orders: Orders,
 ): Promise<{ handed?: Handed; stopped?: Pick<Failed, "at" | "why">; made?: Made; checked?: string }> {
-  // The page, readied as the scene's was when it was recorded, and what it writes noted.
-  const scene: Taking = { page, going: false, depth: 0, rest: await watchRest(page), done: 0, again: [], wrote: false, orders };
+  // The page, readied as the moment's was when it was recorded, and what it writes noted.
+  const stepping: SteppingIn = { page, going: false, depth: 0, rest: await watchRest(page), done: 0, again: [], wrote: false, orders };
   await page.clock.setSystemTime(onTheDayItStarted(started));
   await page.addInitScript({ content: seeded });
-  page.on("request", (request) => void (["GET", "HEAD", "OPTIONS"].includes(request.method()) || (scene.wrote = true)));
+  page.on("request", (request) => void (["GET", "HEAD", "OPTIONS"].includes(request.method()) || (stepping.wrote = true)));
   pace(page);
   // A page gone to in a step is the first place a step that starts on a blank page can be stepped into.
   const goto = page.goto.bind(page);
   page.goto = async (...args) => {
     const went = await goto(...args);
-    if (scene.depth) await reached(scene);
+    if (stepping.depth) await reached(stepping);
     return went;
   };
-  return taking.run(scene, async () => {
+  return steppingIn.run(stepping, async () => {
     let made: Made | undefined;
     try {
-      // Who the scene is done as, as when it was recorded: who its file names, or else the first the app names.
+      // Who the moment is done as, as when it was recorded: who its file names, or else the first the app names.
       const who = person ?? firstOf(appSetup);
       if (who) personIn(appSetup, who);
       if (orders.stopped) throw new Stopped();
@@ -459,23 +459,23 @@ export async function runAlongside(
       orders.made = true;
       if (orders.stopped) throw new Stopped();
       if (who) await appSetup.signIn?.({ page, person: who, setup: made.setup });
-      scene.going = true;
+      stepping.going = true;
       await body({ page, context: page.context(), request, baseURL, setup: made.setup });
       // Done everything, or fewer things than it showed, it's handed over at its end.
       if (orders.stopped) throw new Stopped();
-      await handOver(scene);
-      return { handed: scene.handed, made };
+      await handOver(stepping);
+      return { handed: stepping.handed, made };
     } catch (error) {
-      if (error instanceof Stopped || orders.stopped) return { handed: scene.handed, made };
+      if (error instanceof Stopped || orders.stopped) return { handed: stepping.handed, made };
       const why = firstLine(String((error as Error)?.message ?? error));
       // Everything the moment does is done, and only a check of how it ended fails: that's the place a person steps in
       // to look at, so it's handed over as it is, with what didn't hold.
-      if (isCheck(error) && scene.step) {
-        await handOver(scene);
+      if (isCheck(error) && stepping.step) {
+        await handOver(stepping);
         const on = String((error as { message?: string }).message).match(/^Locator: (.*)$/m)?.[1];
-        return { handed: scene.handed, made, checked: `This moment's check of how it ends doesn't hold on the app as it is now: Playwright says “${why}”${on ? ` of ${on}` : ""}.` };
+        return { handed: stepping.handed, made, checked: `This stepping's check of how it ends doesn't hold on the app as it is now: Playwright says “${why}”${on ? ` of ${on}` : ""}.` };
       }
-      return { stopped: { at: scene.step, why }, made };
+      return { stopped: { at: stepping.step, why }, made };
     }
   });
 }
@@ -484,11 +484,11 @@ export async function runAlongside(
 // something loaded, it's handed over there and goes no further. On a page with nothing loaded yet, as a moment's step
 // that starts its recording begins, it goes on to the first page gone to, or thing done, that loads one. Stepped in at
 // the end, it's handed over once it's done everything (runAlongside).
-async function reached(scene: Taking) {
-  const { to, stopped } = scene.orders;
+async function reached(stepping: SteppingIn) {
+  const { to, stopped } = stepping.orders;
   if (stopped) throw new Stopped();
-  if (to.after === undefined || scene.done < to.after || scene.page.url() === "about:blank") return;
-  await handOver(scene);
+  if (to.after === undefined || stepping.done < to.after || stepping.page.url() === "about:blank") return;
+  await handOver(stepping);
   throw new Stopped();
 }
 
@@ -514,11 +514,11 @@ async function asItIs(page: Page): Promise<Handed> {
   return { url: page.url(), cookies: await page.context().cookies(), ...kept, clock: kept.clock - Date.now() };
 }
 
-// The scene goes no further: its page is handed over as it was before what only changed the page's memory, with that to
+// The moment goes no further: its page is handed over as it was before what only changed the page's memory, with that to
 // do again, or else as it is once it's at rest.
-async function handOver(scene: Taking) {
-  const { page, rest, from, again } = scene;
-  scene.handed = from && again.length && holds(scene) ? { ...from, again } : await kept(page, rest);
+async function handOver(stepping: SteppingIn) {
+  const { page, rest, from, again } = stepping;
+  stepping.handed = from && again.length && holds(stepping) ? { ...from, again } : await kept(page, rest);
 }
 
 // Where an element is on its page, the same on a copy made the same way.
@@ -535,59 +535,59 @@ const pathTo = (target: Locator) =>
     }, undefined, { timeout: 5000 })
     .catch(() => undefined);
 
-// A scene's steps are the ones it takes itself, not steps inside them. Each ends once the page is at rest, and the page
+// A moment's steps are the ones it takes itself, not steps inside them. Each ends once the page is at rest, and the page
 // it left is read there, unless the step failed.
 const playwrightStep = base.step;
 const step = Object.assign(async (title: string, body: (info: unknown) => unknown, options?: object) => {
-  const taken = taking.getStore();
-  if (taken) {
+  const stepping = steppingIn.getStore();
+  if (stepping) {
     // A moment's way there done, it can be stepped into where its step starts, before anything it shows is done.
-    if (!taken.depth) {
-      taken.step = title;
-      await reached(taken);
+    if (!stepping.depth) {
+      stepping.step = title;
+      await reached(stepping);
     }
-    taken.depth++;
+    stepping.depth++;
     try {
       return await body(undefined);
     } finally {
-      taken.depth--;
+      stepping.depth--;
     }
   }
-  const scene = underway;
-  if (!scene || scene.depth) return playwrightStep(title, body, options);
+  const moment = underway;
+  if (!moment || moment.depth) return playwrightStep(title, body, options);
   // A step begins with the page at rest, so what was done before it, a moment's way there, has settled before what the
-  // step shows; and the scene's first step is pictured and glimpsed there, as the moment's first frame, then holds a beat
+  // step shows; and the moment's first step is pictured and glimpsed there, as the moment's first frame, then holds a beat
   // before anything moves.
-  await scene.rest(scene.readings.length ? undefined : SETTLED);
+  await moment.rest(moment.readings.length ? undefined : SETTLED);
   return playwrightStep(
     title,
     async (info) => {
       // Pictured again a beat later, with nothing done: what differs moves by itself.
-      if (!scene.readings.length && !scene.frames.size) {
-        const at = seconds(Date.now() - (scene.events[0]?.timestamp ?? Date.now()));
-        const picture = () => scene.page.screenshot({ animations: "disabled", caret: "hide" });
-        await unhovered(scene.page, async () => {
-          const { screen, things, items } = await readPage(scene.page);
-          scene.glimpses.push({ step: title, at, screen, things, items });
-          scene.frames.set("first", await picture());
+      if (!moment.readings.length && !moment.frames.size) {
+        const at = seconds(Date.now() - (moment.events[0]?.timestamp ?? Date.now()));
+        const picture = () => moment.page.screenshot({ animations: "disabled", caret: "hide" });
+        await unhovered(moment.page, async () => {
+          const { screen, things, items } = await readPage(moment.page);
+          moment.glimpses.push({ step: title, at, screen, things, items });
+          moment.frames.set("first", await picture());
         });
-        if (pointer) await scene.page.waitForTimeout(BEAT);
-        scene.frames.set("a-beat-later", await unhovered(scene.page, picture));
+        if (pointer) await moment.page.waitForTimeout(BEAT);
+        moment.frames.set("a-beat-later", await unhovered(moment.page, picture));
       }
-      scene.step = title;
-      scene.depth++;
+      moment.step = title;
+      moment.depth++;
       let done: unknown;
       try {
         done = await body(info);
       } finally {
-        scene.depth--;
+        moment.depth--;
       }
-      await scene.rest();
-      const at = seconds(Date.now() - (scene.events[0]?.timestamp ?? Date.now()));
-      await unhovered(scene.page, async () => {
-        const { screen, things, items } = await readPage(scene.page);
-        scene.readings.push({ step: title, at, screen, things, items });
-        scene.pictures.push(await scene.page.screenshot({ animations: "disabled", caret: "hide" }));
+      await moment.rest();
+      const at = seconds(Date.now() - (moment.events[0]?.timestamp ?? Date.now()));
+      await unhovered(moment.page, async () => {
+        const { screen, things, items } = await readPage(moment.page);
+        moment.readings.push({ step: title, at, screen, things, items });
+        moment.pictures.push(await moment.page.screenshot({ animations: "disabled", caret: "hide" }));
       });
       return done;
     },
@@ -601,16 +601,16 @@ function withSteps<T extends typeof recorded>(test: T): T {
   const extend = test.extend;
   return Object.assign(test, { step, extend: (...args: Parameters<typeof extend>) => withSteps(extend.apply(test, args)) });
 }
-// Loaded in Playthrough, which says so first (following.ts), test() keeps each scene by its name instead. It's settled once,
+// Loaded in Playthrough, which says so first (following.ts), test() keeps each moment by its name instead. It's settled once,
 // as the file loads: wrapped, Playwright's test() would take the wrapper for where each test is written.
-// As in Playwright, what a file or a describe() in it says with test.use holds for every scene in it, wherever it's said
-// there; what's said nearer a scene goes over what's said further out.
+// As in Playwright, what a file or a describe() in it says with test.use holds for every moment in it, wherever it's said
+// there; what's said nearer a moment goes over what's said further out.
 const keeping: object = Object.assign(
   (title: string, ...rest: unknown[]) => {
     const scopes = [...around];
     collecting?.set(title, {
       body: rest.at(-1) as Body,
-      // Once the file has loaded, so what's said after the scene holds too.
+      // Once the file has loaded, so what's said after the moment holds too.
       get use() {
         return Object.assign({}, ...scopes.map((scope) => scope.use));
       },
@@ -659,7 +659,7 @@ async function inView(target: Locator, { offScreen = false } = {}) {
   }
 }
 
-// Every action on an element glides there first and pauses after, and once it's done is a place to take the scene over.
+// Every action on an element glides there first and pauses after, and once it's done is a place to take the moment over.
 // Patched once in each worker, for every locator.
 const actions = ["click", "dblclick", "check", "uncheck", "setChecked", "hover", "tap", "fill", "selectOption", "press"] as const;
 const paced = new WeakSet<object>();
@@ -668,12 +668,12 @@ function pace(page: Page) {
   const prototype = Object.getPrototypeOf(page.locator("html"));
   if (paced.has(prototype)) return;
   paced.add(prototype);
-  // A fill typed on a recording is still one action: typed with Playwright's own typing, not the scene's, which is one too.
+  // A fill typed on a recording is still one action: typed with Playwright's own typing, not the moment's, which is one too.
   const typeIn = prototype.type;
   for (const action of actions) {
     const original = prototype[action];
     prototype[action] = async function (this: Locator, ...args: unknown[]) {
-      // As long as the scene said to wait, where it said.
+      // As long as the moment said to wait, where it said.
       const timeout = args.findLast((arg): arg is { timeout: number } => !!arg && typeof arg === "object" && typeof (arg as { timeout?: unknown }).timeout === "number")?.timeout;
       // In what a moment shows, what's about to be done is brought comfortably into view first, as a person scrolls to it.
       if (pointer && underway?.depth && underway.frames.size && !underway.readings.length) await inView(this, { offScreen: true });
@@ -690,7 +690,7 @@ function pace(page: Page) {
           }
         : aimed
           ? // What the hand came to is what's acted on, though pointing at it changed its name, as "Marked done" turning
-            // into "Mark as not done": found again by the name the scene gave, it was gone. Drawn anew meanwhile, it's
+            // into "Mark as not done": found again by the name the moment gave, it was gone. Drawn anew meanwhile, it's
             // found again.
             () =>
               (aimed[action] as (...args: unknown[]) => Promise<unknown>)
@@ -705,8 +705,8 @@ function pace(page: Page) {
       return result;
     };
   }
-  // Words typed into an element go a key at a time on a recording too, unless the scene said how fast; and typing them is
-  // an action, as filling them in is, done again in your browser where the scene is taken over: Kan's card prefix, cleared
+  // Words typed into an element go a key at a time on a recording too, unless the moment said how fast; and typing them is
+  // an action, as filling them in is, done again in your browser where the moment is taken over: Kan's card prefix, cleared
   // and then typed a key at a time, was taken over cleared. pressSequentially is Playwright's type by a newer name, and
   // types with it, so type alone is the action: both, Kan's prefix came back typed twice.
   for (const action of ["pressSequentially", "type"] as const) {
@@ -761,12 +761,12 @@ function pace(page: Page) {
 }
 
 // An action is done, and when, and kept to be done again in the person's browser if it only changed what's on the page;
-// the scene is handed over once it's done as many as the recording had.
+// the moment is handed over once it's done as many as the recording had.
 async function acted(does: string, target: (page: Page) => Promise<string | undefined>, act: () => Promise<unknown>, given: unknown, action: string) {
-  const taken = taking.getStore();
-  // The scene's own actions, on its way to a step as in one: a panel the way opened is part of the moment it leads to.
-  // What made the app and signed in before it isn't the scene's.
-  const keeping = taken?.going ? taken : undefined;
+  const stepping = steppingIn.getStore();
+  // The moment's own actions, on its way to a step as in one: a panel the way opened is part of the moment it leads to.
+  // What made the app and signed in before it isn't the moment's.
+  const keeping = stepping?.going ? stepping : undefined;
   let on: string | undefined, address: string | undefined;
   if (keeping) {
     if (!holds(keeping)) Object.assign(keeping, { from: undefined, again: [] });
@@ -802,7 +802,7 @@ async function acted(does: string, target: (page: Page) => Promise<string | unde
   return result;
 }
 
-// An action as another recording of the scene knows the same one: what it does, and to what, as a person points at it.
+// An action as another recording of the moment knows the same one: what it does, and to what, as a person points at it.
 // Words going in are typing, however they went in, and never the words, which may be just what changed; a key is which
 // key it is, as Escape.
 function nameOf(does: string, on: On | undefined, given: unknown): string {
@@ -833,21 +833,21 @@ const doneOn = (target: Locator): Promise<On | undefined> =>
 // and go inside a step, gone by its end, where the page is read for the comparison. It takes a few hundredths of a
 // second, after the beat; a page on its way to another address has nothing to read.
 async function glimpse() {
-  const scene = underway;
-  if (!pointer || !scene) return;
-  const at = seconds(Date.now() - (scene.events[0]?.timestamp ?? Date.now()));
-  const read = await readPage(scene.page).catch(() => undefined);
-  if (read) scene.glimpses.push({ step: scene.step ?? "", at, ...read });
+  const moment = underway;
+  if (!pointer || !moment) return;
+  const at = seconds(Date.now() - (moment.events[0]?.timestamp ?? Date.now()));
+  const read = await readPage(moment.page).catch(() => undefined);
+  if (read) moment.glimpses.push({ step: moment.step ?? "", at, ...read });
   // In a moment, pictured too, for what it changes that you can see on the way, as a Copied that goes again.
-  if (read && scene.frames.size && !scene.readings.length && scene.depth)
-    scene.frames.set(`after-${scene.frames.size - 1}`, await unhovered(scene.page, () => scene.page.screenshot({ animations: "disabled", caret: "hide" })));
+  if (read && moment.frames.size && !moment.readings.length && moment.depth)
+    moment.frames.set(`after-${moment.frames.size - 1}`, await unhovered(moment.page, () => moment.page.screenshot({ animations: "disabled", caret: "hide" })));
 }
 
 // A dropdown's list of options is the browser's, not the page's, so rrweb never sees it open, as with a dialog: the
 // choice changed with nothing pressed ("It doesn't even click the drop down, just instantly switches it"). So it's kept
 // in the recording as a moment of its own, with where the dropdown is and its options, for the viewer to draw: it opens,
-// the pointer goes down to the option the scene chooses, and it's chosen there.
-async function opensList(target: Locator, given: unknown, at: { page: Page; x: number; y: number }, scene: Underway) {
+// the pointer goes down to the option the moment chooses, and it's chosen there.
+async function opensList(target: Locator, given: unknown, at: { page: Page; x: number; y: number }, moment: Underway) {
   const list = await target
     .evaluate((select, given) => {
       if (!(select instanceof HTMLSelectElement) || select.multiple || select.size > 1) return undefined;
@@ -862,7 +862,7 @@ async function opensList(target: Locator, given: unknown, at: { page: Page; x: n
     .catch(() => undefined);
   if (!list || list.chosen < 0) return false;
   const { chosen, ...shown } = list;
-  scene.events.push({ type: 5, data: { tag: "choice", payload: { ...shown, row: OPTION } }, timestamp: Date.now() } as { timestamp: number });
+  moment.events.push({ type: 5, data: { tag: "choice", payload: { ...shown, row: OPTION } }, timestamp: Date.now() } as { timestamp: number });
   await at.page.waitForTimeout(OPENED);
   const to = { x: list.x + Math.min(list.width / 2, 60), y: list.y + 4 + OPTION * (chosen + 0.5) };
   await glide(at, to, async () => to);
@@ -876,7 +876,7 @@ const typedInto = (target: Locator) =>
     .evaluate((on) => (on as HTMLElement).isContentEditable || on instanceof HTMLTextAreaElement || (on instanceof HTMLInputElement && ["text", "search", "email", "url", "tel", "password"].includes(on.type)))
     .catch(() => false);
 
-// What's acted on, waited for in the action's place, fails in the action's words: the scene said click, not waitFor.
+// What's acted on, waited for in the action's place, fails in the action's words: the moment said click, not waitFor.
 function asAction(error: unknown, action: string) {
   if (error instanceof Error) {
     error.message = error.message.replace("locator.waitFor", `locator.${action}`);
@@ -886,7 +886,7 @@ function asAction(error: unknown, action: string) {
 }
 
 async function approach(target: Locator, at: { page: Page; x: number; y: number }, timeout?: number) {
-  // What it acts on is waited for here, as long as the action waits (scenes.ts), and one that never comes fails here, in
+  // What it acts on is waited for here, as long as the action waits (run.ts), and one that never comes fails here, in
   // Playwright's words: waited for again by the action, it took twice as long to give up on. It's found now, before the
   // hand is on its way, and that's what's acted on.
   await target.waitFor({ state: "attached", timeout });

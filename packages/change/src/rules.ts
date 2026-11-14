@@ -2,50 +2,50 @@
 // Each returns what's wrong in plain words, saying what to do about it, and nothing when all is well.
 
 import type { z } from "zod";
-import { Comparison, fileName, madeInApp, Round, Seen, Send, type Finding, type InApp, type Note, type OnMoment, type Change, type Scene } from "./model.ts";
+import { Comparison, fileName, madeInApp, HandBack, Seen, Send, type Finding, type InApp, type Note, type OnMoment, type Change, type Moment } from "./model.ts";
 import { quote } from "./words.ts";
 
-// The round the agent is working on: the last one until it's finished, then the next; the first is 1.
-export function roundInProgress(change: Change): number {
-  const last = change.rounds.at(-1);
+// The hand-back the agent is working on: the last one until it's finished, then the next; the first is 1.
+export function handBackInProgress(change: Change): number {
+  const last = change.handBacks.at(-1);
   if (!last) return 1;
   return last.finished ? last.number + 1 : last.number;
 }
 
-// Every note in the change, with the round it was written on and who wrote it.
-export function allNotes(change: Change): Map<string, { note: Note; round: number; by: string }> {
-  const notes = new Map<string, { note: Note; round: number; by: string }>();
-  for (const send of change.sends) for (const note of send.notes) notes.set(note.id, { note, round: send.round, by: send.by });
+// Every note in the change, with the hand-back it was written on and who wrote it.
+export function allNotes(change: Change): Map<string, { note: Note; handBack: number; by: string }> {
+  const notes = new Map<string, { note: Note; handBack: number; by: string }>();
+  for (const send of change.sends) for (const note of send.notes) notes.set(note.id, { note, handBack: send.handBack, by: send.by });
   return notes;
 }
 
-// A note's conversation, oldest first: the note, then round by round the agent's reply and what people said about it.
-// Each turn says who: a person, or the agent that recorded the round, whatever their names.
-export type Turn = { by: string; agent: boolean; round: number; words: string };
+// A note's conversation, oldest first: the note, then hand-back by hand-back the agent's reply and what people said about it.
+// Each turn says who: a person, or the agent that recorded the hand-back, whatever their names.
+export type Turn = { by: string; agent: boolean; handBack: number; words: string };
 
 export function conversation(change: Change, id: string): Turn[] {
   const started = allNotes(change).get(id);
   if (!started) return [];
-  const turns: { turn: Turn; order: number }[] = [{ turn: { by: started.by, agent: false, round: started.round, words: started.note.words }, order: 0 }];
-  for (const round of change.rounds.filter((round) => round.number > started.round)) {
-    const reply = round.replies.find((reply) => reply.note === id);
-    if (reply?.words.trim()) turns.push({ turn: { by: round.by, agent: true, round: round.number, words: reply.words }, order: 1 });
+  const turns: { turn: Turn; order: number }[] = [{ turn: { by: started.by, agent: false, handBack: started.handBack, words: started.note.words }, order: 0 }];
+  for (const handBack of change.handBacks.filter((handBack) => handBack.number > started.handBack)) {
+    const reply = handBack.replies.find((reply) => reply.note === id);
+    if (reply?.words.trim()) turns.push({ turn: { by: handBack.by, agent: true, handBack: handBack.number, words: reply.words }, order: 1 });
   }
   for (const send of change.sends)
-    for (const reply of (send.replies ?? []).filter((reply) => reply.note === id)) turns.push({ turn: { by: send.by, agent: false, round: send.round, words: reply.words }, order: 2 });
-  return turns.sort((a, b) => a.turn.round - b.turn.round || a.order - b.order).map(({ turn }) => turn);
+    for (const reply of (send.replies ?? []).filter((reply) => reply.note === id)) turns.push({ turn: { by: send.by, agent: false, handBack: send.handBack, words: reply.words }, order: 2 });
+  return turns.sort((a, b) => a.turn.handBack - b.turn.handBack || a.order - b.order).map(({ turn }) => turn);
 }
 
-// The notes a round has to answer: those in the sends it took that are new, or that someone replied to.
-export function notesToAnswer(change: Change, round: number): string[] {
-  return asking(change.sends.filter((send) => change.taken.some((taken) => taken.send === send.id && taken.round === round)));
+// The notes a hand-back has to answer: those in the sends it took that are new, or that someone replied to.
+export function notesToAnswer(change: Change, handBack: number): string[] {
+  return asking(change.sends.filter((send) => change.taken.some((taken) => taken.send === send.id && taken.handBack === handBack)));
 }
 
-// The notes waiting for the agent: asking for an answer that no finished round has given yet.
+// The notes waiting for the agent: asking for an answer that no finished hand-back has given yet.
 export function waitingForTheAgent(change: Change): string[] {
   const answered = (send: Send) => {
     const taken = change.taken.find((taken) => taken.send === send.id);
-    return !!taken && change.rounds.some((round) => round.number === taken.round && round.finished);
+    return !!taken && change.handBacks.some((handBack) => handBack.number === taken.handBack && handBack.finished);
   };
   return asking(change.sends.filter((send) => !answered(send)));
 }
@@ -54,20 +54,20 @@ export function waitingForTheAgent(change: Change): string[] {
 // back, saying Done. Whatever comes after it opens the change again: a note or a reply sent, or the moments handed back
 // anew. Asked about one person, it's their latest word.
 export function saidDone(change: Change, by?: string): Send | undefined {
-  const handedBack = change.rounds.findLast((round) => round.finished);
+  const handedBack = change.handBacks.findLast((handBack) => handBack.finished);
   const last = change.sends.filter((send) => by === undefined || send.by === by).at(-1);
-  return handedBack && last?.round === handedBack.number && last.done ? last : undefined;
+  return handedBack && last?.handBack === handedBack.number && last.done ? last : undefined;
 }
 
-// A change has moments when its latest round is finished with some in it.
-export const latestOf = (change: Change): Round | undefined => change.rounds.findLast((round) => !!round.finished && round.scenes.length > 0);
+// A change has moments when its latest hand-back is finished with some in it.
+export const latestOf = (change: Change): HandBack | undefined => change.handBacks.findLast((handBack) => !!handBack.finished && handBack.moments.length > 0);
 
 export const sentBy = (change: Change, you: string) => change.sends.filter((one) => one.by === you);
 
 // Waiting on you until you've sent something on its latest moments, or said Done; then it's with your agents.
 const sentOn = (change: Change, you: string) => {
-  const round = latestOf(change);
-  return round ? sentBy(change, you).filter((one) => one.round === round.number) : [];
+  const handBack = latestOf(change);
+  return handBack ? sentBy(change, you).filter((one) => one.handBack === handBack.number) : [];
 };
 
 // Where a change stands for one person: waiting on them; with their agents, once they've sent notes on its latest
@@ -104,90 +104,86 @@ export function problemsStarting(id: string, title: string, asked?: string): str
   return problems;
 }
 
-export function problemsWithRound(change: Change, round: Round): string[] {
-  const shape = problemsWithShape(Round, round, Number.isInteger(round?.number) ? `Round ${round.number}` : "This round");
+export function problemsWithHandBack(change: Change, handBack: HandBack): string[] {
+  const shape = problemsWithShape(HandBack, handBack, Number.isInteger(handBack?.number) ? `Hand-back ${handBack.number}` : "This hand-back");
   if (shape.length) return shape;
 
-  const due = roundInProgress(change);
-  if (round.number !== due) {
-    if (round.number < due) return [`Round ${round.number} is finished, so it can't change.`];
-    return [`Round ${round.number} can't be recorded yet: the round being worked on is ${due}.`];
+  const due = handBackInProgress(change);
+  if (handBack.number !== due) {
+    if (handBack.number < due) return [`Hand-back ${handBack.number} is finished, so it can't change.`];
+    return [`Hand-back ${handBack.number} can't be recorded yet: the hand-back being worked on is ${due}.`];
   }
 
-  const at = `Round ${round.number}`;
-  const problems = problemsWithScenes(round, at);
+  const at = `Hand-back ${handBack.number}`;
+  const problems = problemsWithMoments(handBack, at);
   const notes = allNotes(change);
-  problems.push(...duplicates(round.replies.map((reply) => reply.note), (id) => `${at} has two replies to note ${id}. Say it all in one.`));
-  for (const reply of round.replies) if (!notes.has(reply.note)) problems.push(`${at} replies to note ${reply.note}, which doesn't exist.`);
+  problems.push(...duplicates(handBack.replies.map((reply) => reply.note), (id) => `${at} has two replies to note ${id}. Say it all in one.`));
+  for (const reply of handBack.replies) if (!notes.has(reply.note)) problems.push(`${at} replies to note ${reply.note}, which doesn't exist.`);
   return problems;
 }
 
-// Scenes are told apart by their names, and their steps by their titles, so each is there once.
-function problemsWithScenes(round: Round, at: string): string[] {
-  const problems = duplicates(round.scenes.map((scene) => scene.name), (name) => `${at} has two scenes called “${name}”.`);
-  for (const scene of round.scenes) {
-    const steps = scene.steps.map((step) => step.title);
-    problems.push(...duplicates(steps, (title) => `${at}: the scene “${scene.name}” has two steps called “${title}”. Steps are matched by title.`));
-    for (const step of scene.steps.filter((step) => step.at > scene.length))
-      problems.push(`${at}: the step “${step.title}” in the scene “${scene.name}” starts after the scene ends.`);
-  }
+// Moments are told apart by their names, so each is there once; what each did is in its recording.
+function problemsWithMoments(handBack: HandBack, at: string): string[] {
+  const problems = duplicates(handBack.moments.map((moment) => moment.name), (name) => `${at} has two moments called “${name}”.`);
+  for (const moment of handBack.moments)
+    if (moment.actions.some((action) => action.at > moment.length)) problems.push(`${at}: the moment “${moment.name}” has something done after it ends.`);
   return problems;
 }
 
-// Playthrough compares the round being worked on with each round before it, and can compare again until it's finished.
+// Playthrough compares the hand-back being worked on with each hand-back before it, and can compare again until it's finished.
 export function problemsWithComparison(change: Change, comparison: Comparison): string[] {
   const shape = problemsWithShape(Comparison, comparison, "This comparison");
   if (shape.length) return shape;
-  const at = `Round ${comparison.round} against round ${comparison.since}`;
-  const round = change.rounds.find((kept) => kept.number === comparison.round);
-  const earlier = change.rounds.find((kept) => kept.number === comparison.since);
-  if (!round) return [`Round ${comparison.round} hasn't been recorded yet, so it can't be compared.`];
-  if (round.finished) return [`Round ${comparison.round} is finished, so what it's compared with can't change.`];
-  if (comparison.since >= comparison.round) return [`${at}: a round is only compared with a round before it.`];
-  if (!earlier) return [`${at}: there's no round ${comparison.since} to compare it with.`];
+  const at = `Hand-back ${comparison.handBack} against hand-back ${comparison.since}`;
+  const handBack = change.handBacks.find((kept) => kept.number === comparison.handBack);
+  const earlier = change.handBacks.find((kept) => kept.number === comparison.since);
+  if (!handBack) return [`Hand-back ${comparison.handBack} hasn't been recorded yet, so it can't be compared.`];
+  if (handBack.finished) return [`Hand-back ${comparison.handBack} is finished, so what it's compared with can't change.`];
+  if (comparison.since >= comparison.handBack) return [`${at}: a hand-back is only compared with a hand-back before it.`];
+  if (!earlier) return [`${at}: there's no hand-back ${comparison.since} to compare it with.`];
 
-  const problems = duplicates(comparison.changes.map((finding) => finding.id), (id) => `${at} has two changes with the id ${id}.`);
-  for (const finding of comparison.changes)
+  const problems = duplicates(comparison.findings.map((finding) => finding.id), (id) => `${at} has two findings with the id ${id}.`);
+  for (const finding of comparison.findings)
     for (const seen of finding.seen) {
-      const gone = seen.at === undefined && !round.scenes.some((scene) => scene.name === seen.scene);
-      problems.push(...problemsWithPlace(seen, gone ? earlier.scenes : round.scenes, `${at}: ${describe(finding)}`));
+      const gone = seen.at === undefined && !handBack.moments.some((moment) => moment.name === seen.moment);
+      problems.push(...problemsWithPlace(seen, gone ? earlier.moments : handBack.moments, `${at}: ${describe(finding)}`));
     }
   return problems;
 }
 
-// The changes the agent is told of: those Playthrough can name. One only the pictures show is the person's to look at.
-export const toAccountFor = (comparison?: Comparison) => (comparison?.changes ?? []).filter((finding) => !finding.pictureOnly);
+// The findings the agent is told of: those Playthrough can name. One only the pictures show is the person's to look at.
+export const toAccountFor = (comparison?: Comparison) => (comparison?.findings ?? []).filter((finding) => !finding.pictureOnly);
 
-// A round is handed back once its file is in the right shape, every note it took is answered, and, compared at all, it's
-// compared with every round before it.
+// A hand-back is handed back once its file is in the right shape, every note it took is answered, and, compared at all, it's
+// compared with every hand-back before it.
 export function problemsFinishing(change: Change, number: number): string[] {
-  const round = change.rounds.find((round) => round.number === number);
-  if (!round) return [`Round ${number} hasn't been recorded yet.`];
-  const at = `Round ${number}`;
-  const shape = problemsWithShape(Round, round, at);
+  const handBack = change.handBacks.find((handBack) => handBack.number === number);
+  if (!handBack) return [`Hand-back ${number} hasn't been recorded yet.`];
+  const at = `Hand-back ${number}`;
+  const shape = problemsWithShape(HandBack, handBack, at);
   if (shape.length) return shape;
-  if (!round.scenes.length) return [`${at} has no scenes yet. Record them first.`];
+  if (!handBack.moments.length) return [`${at} has no moments yet. Record them first.`];
 
   const problems: string[] = [];
   const notes = allNotes(change);
   for (const id of notesToAnswer(change, number)) {
-    const reply = round.replies.find((reply) => reply.note === id);
+    const reply = handBack.replies.find((reply) => reply.note === id);
     const note = notes.get(id)?.note;
     if (!isText(reply?.words)) problems.push(`${at} needs an answer to note ${id}${note ? `, “${cut(note.words)}”` : ""}: its reply's “words”, under “replies”.`);
   }
 
-  // Compared at all, a round is compared with every round before it, so what's new to anyone, wherever they last
+  // Compared at all, a hand-back is compared with every hand-back before it, so what's new to anyone, wherever they last
   // looked, is known.
-  const comparisons = change.comparisons.filter((comparison) => comparison.round === number);
+  const comparisons = change.comparisons.filter((comparison) => comparison.handBack === number);
   if (comparisons.length)
-    for (const earlier of change.rounds.filter((earlier) => earlier.number < number && !comparisons.some((comparison) => comparison.since === earlier.number)))
-      problems.push(`${at} isn't compared with round ${earlier.number} yet, so it can't be handed back. Run every moment again.`);
+    for (const earlier of change.handBacks.filter((earlier) => earlier.number < number && !comparisons.some((comparison) => comparison.since === earlier.number)))
+      problems.push(`${at} isn't compared with hand-back ${earlier.number} yet, so it can't be handed back. Run every moment again.`);
   return problems;
 }
 
-export function problemsWithFile(change: Change, round: number, name: string): string[] {
-  const due = roundInProgress(change);
-  if (round !== due) return [`Files go in the round being worked on, ${due}, not round ${round}.`];
+export function problemsWithFile(change: Change, handBack: number, name: string): string[] {
+  const due = handBackInProgress(change);
+  if (handBack !== due) return [`Files go in the hand-back being worked on, ${due}, not hand-back ${handBack}.`];
   return problemsWithFileName(name);
 }
 
@@ -197,7 +193,7 @@ export function problemsWithFileName(name: string): string[] {
     : [`“${name}” can't be a file's name: use letters, digits, dots, dashes and underscores, and slashes between folders.`];
 }
 
-// A send says new notes and replies to notes it can see, or Done: that every moment of a finished round looks good.
+// A send says new notes and replies to notes it can see, or Done: that every moment of a finished hand-back looks good.
 export function problemsWithSend(change: Change, send: Send): string[] {
   const shape = problemsWithShape(Send, send, "This send");
   if (shape.length) return shape;
@@ -206,8 +202,8 @@ export function problemsWithSend(change: Change, send: Send): string[] {
   if (!send.notes.length && !replies.length && !send.done) return ["There's nothing in this send."];
   if (send.done && (send.notes.length || replies.length)) return ["Done says every moment looks good, and nothing more: send the notes and replies on their own."];
 
-  const round = change.rounds.find((round) => round.number === send.round);
-  if (!round?.finished) return [`Round ${send.round} isn't finished, so it can't take notes yet.`];
+  const handBack = change.handBacks.find((handBack) => handBack.number === send.handBack);
+  if (!handBack?.finished) return [`Hand-back ${send.handBack} isn't finished, so it can't take notes yet.`];
 
   const problems: string[] = [];
   const notes = allNotes(change);
@@ -221,24 +217,24 @@ export function problemsWithSend(change: Change, send: Send): string[] {
   for (const reply of replies) {
     const known = notes.get(reply.note);
     if (send.notes.some((note) => note.id === reply.note)) problems.push(`Note ${reply.note} is new: say it in the note, not a reply.`);
-    else if (!known || known.round > send.round) problems.push(`There's no note ${reply.note} on round ${send.round} to reply to.`);
+    else if (!known || known.handBack > send.handBack) problems.push(`There's no note ${reply.note} on hand-back ${send.handBack} to reply to.`);
   }
 
   return problems;
 }
 
-// What's seen is a moment handed back: a scene of a finished round.
-export function problemsSeeing(change: Change, by: string, moments: Seen[]): string[] {
+// What's seen is a moment handed back: a moment of a finished hand-back.
+export function problemsSeeing(change: Change, by: string, seen: Seen[]): string[] {
   if (!isText(by)) return ["Seeing needs to say who saw it."];
-  return moments.flatMap((moment) => {
-    const shape = problemsWithShape(Seen, moment, "What's seen");
+  return seen.flatMap((one) => {
+    const shape = problemsWithShape(Seen, one, "What's seen");
     if (shape.length) return shape;
-    const round = change.rounds.find((round) => round.number === moment.round && round.finished);
-    return round?.scenes.some((scene) => scene.name === moment.scene) ? [] : [`Round ${moment.round} hands back no ${quote(moment.scene)} to see.`];
+    const handBack = change.handBacks.find((handBack) => handBack.number === one.handBack && handBack.finished);
+    return handBack?.moments.some((moment) => moment.name === one.moment) ? [] : [`Hand-back ${one.handBack} hands back no ${quote(one.moment)} to see.`];
   });
 }
 
-// What's wrong with something's shape: its name, then what it needs, as in “Round 2: scene 3 needs a name.”
+// What's wrong with something's shape: its name, then what it needs, as in “Hand-back 2: moment 3 needs a name.”
 function problemsWithShape(schema: z.ZodType, value: unknown, subject: string): string[] {
   const result = schema.safeParse(value, { error: plainly });
   if (result.success) return [];
@@ -261,7 +257,7 @@ const plainly: z.core.$ZodErrorMap = (issue) => {
 };
 const KINDS: Record<string, string> = { string: "text", number: "a number", array: "a list", object: "an object", boolean: "true or false" };
 
-// Names what a problem is on, innermost first: “Round 2: the step “Open” in the scene “Export a quarter””.
+// Names what a problem is on, innermost first: “Hand-back 2: the step “Open” in the moment “Export a quarter””.
 function whose(subject: string, path: PropertyKey[], value: unknown): string {
   const things: string[] = [];
   let here = value;
@@ -273,35 +269,34 @@ function whose(subject: string, path: PropertyKey[], value: unknown): string {
 }
 
 function nameOf(list: string, item: Record<string, unknown> | undefined, index: number): string {
-  const { name, title, words, id, note } = item ?? {};
+  const { name, words, id, note } = item ?? {};
   const named: Record<string, string | false> = {
-    scenes: isText(name) && `the scene “${name}”`,
-    steps: isText(title) && `the step “${title}”`,
-    changes: (isText(words) && `the change “${cut(words)}”`) || (isText(id) && `the change ${id}`),
+    moments: isText(name) && `the moment “${name}”`,
+    findings: (isText(words) && `the finding “${cut(words)}”`) || (isText(id) && `the finding ${id}`),
     replies: isText(note) && `the reply to note ${note}`,
     notes: isText(id) && `note ${id}`,
   };
-  const singular: Record<string, string> = { scenes: "scene", steps: "step", changes: "change", seen: "place it's seen", replies: "reply", notes: "note" };
+  const singular: Record<string, string> = { moments: "moment", actions: "action", findings: "finding", seen: "place it's seen", replies: "reply", notes: "note" };
   return named[list] || `${singular[list] ?? list} ${index + 1}`;
 }
 
 // A note is on a moment of a hand-back the person could see: on it, within its recording; or in the app, stepped into
 // within it, and within the person's own recording, which is one of their own files.
 function problemsWithNotePlace(change: Change, send: Send, id: string, on: OnMoment | InApp): string[] {
-  const handedBack = change.rounds.find((round) => round.number === on.round && round.finished);
-  if (!handedBack) return [`Note ${id} is on round ${on.round}, which hasn't been handed back.`];
-  if (on.round > send.round) return [`Note ${id} is on round ${on.round}, but it's sent on round ${send.round}.`];
-  if (!madeInApp(on)) return problemsWithPlace(on, handedBack.scenes, `Note ${id}`);
-  const problems = problemsWithPlace({ scene: on.scene, at: on.steppedIn }, handedBack.scenes, `Note ${id}'s step in`);
+  const handedBack = change.handBacks.find((handBack) => handBack.number === on.handBack && handBack.finished);
+  if (!handedBack) return [`Note ${id} is on hand-back ${on.handBack}, which hasn't been handed back.`];
+  if (on.handBack > send.handBack) return [`Note ${id} is on hand-back ${on.handBack}, but it's sent on hand-back ${send.handBack}.`];
+  if (!madeInApp(on)) return problemsWithPlace(on, handedBack.moments, `Note ${id}`);
+  const problems = problemsWithPlace({ moment: on.moment, at: on.steppedIn }, handedBack.moments, `Note ${id}'s step in`);
   if (!on.recording.startsWith("branches/")) problems.push(`Note ${id} is in the app, so its recording is one of the person's own, “branches/…”, not “${on.recording}”.`);
   if (on.at > on.length) problems.push(`Note ${id} is at ${on.at}s, but the person's own recording is ${on.length}s long.`);
   return problems;
 }
 
-function problemsWithPlace(place: { scene: string; at?: number }, scenes: Scene[], what: string): string[] {
-  const scene = scenes.find((scene) => scene.name === place.scene);
-  if (!scene) return [`${what} is on the scene “${place.scene}”, which isn't there.`];
-  return (place.at ?? 0) <= scene.length ? [] : [`${what} is at ${place.at}s, but “${scene.name}” is ${scene.length}s long.`];
+function problemsWithPlace(place: { moment: string; at?: number }, moments: Moment[], what: string): string[] {
+  const moment = moments.find((moment) => moment.name === place.moment);
+  if (!moment) return [`${what} is on the moment “${place.moment}”, which isn't there.`];
+  return (place.at ?? 0) <= moment.length ? [] : [`${what} is at ${place.at}s, but “${moment.name}” is ${moment.length}s long.`];
 }
 
 function duplicates(values: string[], problem: (value: string) => string): string[] {
@@ -310,6 +305,6 @@ function duplicates(values: string[], problem: (value: string) => string): strin
   return [...twice].map(problem);
 }
 
-const describe = (finding: Finding) => `the change ${finding.id} (${cut(finding.words)})`;
+const describe = (finding: Finding) => `the finding ${finding.id} (${cut(finding.words)})`;
 const cut = (words: string) => (words.length > 48 ? `${words.slice(0, 47).trimEnd()}…` : words);
 const isText = (value: unknown): value is string => typeof value === "string" && value.trim() !== "";

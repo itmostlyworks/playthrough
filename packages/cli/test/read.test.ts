@@ -12,7 +12,7 @@ let browser: Browser;
 before(async () => void (browser = await chromium.launch()));
 after(() => browser.close());
 
-// A page served from nowhere, its answers as slow as asked, watched and on a set clock as a scene's page is.
+// A page served from nowhere, its answers as slow as asked, watched and on a set clock as a moment's page is.
 async function open(html: string, answers: Record<string, { after: number; body: string }> = {}): Promise<{ page: Page; rest: () => Promise<void> }> {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   await page.route("http://page.test/**", async (route) => {

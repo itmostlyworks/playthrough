@@ -1,8 +1,8 @@
-// What every scene of the app starts from, made by playthrough/setup.ts before each scene, if the app has one: its default
-// export is given the page, Playwright's request and who the scene is done as, and what it returns is each scene's
+// What every moment of the app starts from, made by playthrough/setup.ts before each moment, if the app has one: its default
+// export is given the page, Playwright's request and who the moment is done as, and what it returns is each moment's
 // “setup”. Each run makes its own, so no two start from what another left, and gives it back once it's over: setup's
 // `after`, if it has one, is given what was made, and takes it away, so the app, shared or not, isn't left with a world
-// for every run. The app's people, if it names them, are who a scene can be done as: `signIn` makes a page theirs. And
+// for every run. The app's people, if it names them, are who a moment can be done as: `signIn` makes a page theirs. And
 // `use`, if it says, is how every page of the app is opened, as
 // Playwright's test.use would: an app that serves a test its own way, told by the browser's user agent, say.
 
@@ -28,7 +28,7 @@ export type People = Record<string, string>;
 const FEWEST_WORDS = 6;
 export type Setup = { make?: Make; after?: After; signIn?: SignIn; people?: People; use?: BrowserContextOptions };
 
-// What Playthrough keeps the same for every scene, or a scene says with test.use, isn't the setup's to set for them all.
+// What Playthrough keeps the same for every moment, or a moment says with test.use, isn't the setup's to set for them all.
 const OURS = ["baseURL", "viewport", "screen", "isMobile", "hasTouch", "deviceScaleFactor", "locale", "timezoneId", "colorScheme", "reducedMotion", "forcedColors", "contrast"];
 
 // Loaded again in Playthrough once it's written again, by when.
@@ -71,7 +71,7 @@ function twoPlaywrights(error: unknown, file: string): Refused | undefined {
   ]);
 }
 
-// A setup is a module whatever the app's package.json says, as scenes are: written with import and export, as they're
+// A setup is a module whatever the app's package.json says, as moments are: written with import and export, as they're
 // shown, one in an app that says it's CommonJS would otherwise fail to load.
 const setups = new Set<string>();
 function asModule(href: string) {
@@ -98,10 +98,10 @@ export function watching(request: APIRequestContext, changed: () => void): APIRe
   });
 }
 
-// Who a scene that names no one is done as: the first the app names.
+// Who a moment that names no one is done as: the first the app names.
 export const firstOf = ({ people }: Setup) => Object.keys(people ?? {})[0];
 
-// Someone the app names, or anyone at all where it names nobody; one it doesn't name stops the scene before anything is made.
+// Someone the app names, or anyone at all where it names nobody; one it doesn't name stops the moment before anything is made.
 export function personIn({ people }: Setup, person: string) {
   if (people && !(person in people))
     throw new Error(`playthrough/setup.ts names no one called ${quote(person)}. Its people: ${list(Object.keys(people).map(quote))}. Add them there, or go as one of them.`);

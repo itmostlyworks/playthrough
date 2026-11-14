@@ -1,4 +1,4 @@
-// Turns each recorded test into a scene: its name, where each step starts in the recording, and how long it is, with what
+// Turns each recorded test into a moment: its name, where each step starts in the recording, and how long it is, with what
 // was read at the end of each step; and names each one that failed and the step it failed at. It runs inside Playwright,
 // so it writes them down, in the folder the run gave it, and says how each went as it ends, in a line of its own, where
 // Playwright's list printed a stack.
@@ -7,7 +7,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Reporter, TestCase, TestError, TestResult, TestStep } from "@playwright/test/reporter";
 import type { Glimpse, Reading } from "@playthrough/page";
-import { quote, type Scene, type Changes } from "@playthrough/change";
+import { quote, type Moment, type Changes } from "@playthrough/change";
 import { assetsOf, type Assets } from "./assets.ts";
 
 export const RECORDING = "playthrough recording";
@@ -19,21 +19,21 @@ export const PICTURED = "playthrough frame";
 export const ASSETS = "playthrough assets";
 export const PERSON = "playthrough person";
 export const ACTIONS = "playthrough actions";
-export const HOLD = 1500; // the end of a scene holds, so its last state can be seen
+export const HOLD = 1500; // the end of a moment holds, so its last state can be seen
 
-// A scene's readings go beside the round's recordings, under the same name, each picture in a folder of its own.
-export const readingsOf = (scene: Scene) => `readings/${scene.recording}`;
-// As kept: none for a scene recorded before Playthrough read each step.
-export async function readingsOn(changes: Changes, change: string, round: number, scene: Scene): Promise<Reading[]> {
-  const bytes = await changes.file(change, round, readingsOf(scene));
+// A moment's readings go beside the hand-back's recordings, under the same name, each picture in a folder of its own.
+export const readingsOf = (moment: Moment) => `readings/${moment.recording}`;
+// As kept: none for a moment recorded before Playthrough read each step.
+export async function readingsOn(changes: Changes, change: string, handBack: number, moment: Moment): Promise<Reading[]> {
+  const bytes = await changes.file(change, handBack, readingsOf(moment));
   return bytes ? JSON.parse(Buffer.from(bytes).toString()) : [];
 }
-const picturesOf = (scene: Scene) => `readings/${scene.recording.replace(/\.json$/, "")}`;
+const picturesOf = (moment: Moment) => `readings/${moment.recording.replace(/\.json$/, "")}`;
 // A moment's frames, beside its step's pictures: the page as its step began, at rest ("first"); the same a beat later, with
 // nothing done ("a-beat-later"); after each thing it does ("after-1"…); and once its end has held ("held").
-export const frameOf = (scene: Scene, name: string) => `${picturesOf(scene)}/${name}.png`;
+export const frameOf = (moment: Moment, name: string) => `${picturesOf(moment)}/${name}.png`;
 // And what was glimpsed after each action, beside them.
-export const glimpsesOf = (scene: Scene) => `${picturesOf(scene)}.glimpses.json`;
+export const glimpsesOf = (moment: Moment) => `${picturesOf(moment)}.glimpses.json`;
 
 // Why, in Playwright's words: the first line of what it says, and for a wait that ran out, what it was waiting for, from
 // the lines under it; as much of it as can be read, which an error's text an app sends back, stack and all, may not be.
@@ -47,16 +47,16 @@ export function firstLine(said: string) {
   if (found.length) line = `${line} ${found.slice(0, 2).join(", ")}${found.length > 2 ? ", …" : ""}`;
   return line.length > 300 ? `${line.slice(0, 300)}…` : line;
 }
-export type Failed = { scene: string; at?: string; why?: string; broken?: true };
-// What Playwright says when the browser stops a scene, not the app: the page crashed or closed, or the app stopped answering.
+export type Failed = { moment: string; at?: string; why?: string; broken?: true };
+// What Playwright says when the browser stops a moment, not the app: the page crashed or closed, or the app stopped answering.
 const BROKEN = /Page crashed|Target crashed|Target page, context or browser has been closed|net::ERR_CONNECTION_REFUSED/;
-export type Recorded = { scene: Scene; files: string[] };
-// An action as it was done: what it was, as another recording of the scene knows the same action, and when it began and
+export type Recorded = { moment: Moment; files: string[] };
+// An action as it was done: what it was, as another recording of the moment knows the same action, and when it began and
 // was done, by this machine's clock.
 export type Acted = { action: string; began: number; at: number };
 type Event = { timestamp: number; [field: string]: unknown };
 
-export default class Scenes implements Reporter {
+export default class MomentReporter implements Reporter {
   #folder: string;
   #ran: { file: string; line: number; recorded?: Recorded; failed?: Failed }[] = [];
 
@@ -80,15 +80,15 @@ export default class Scenes implements Reporter {
     const person = result.attachments.find((attachment) => attachment.name === PERSON)?.body?.toString();
     // Who it's done as, if its file or the app's setup said.
     const as = (made: Recorded) => {
-      if (person) made.scene.person = person;
+      if (person) made.moment.person = person;
       return made;
     };
     const went = (how: string) => console.log(`  ${quote(test.title)}: ${how}`);
     if (result.status === "passed") {
       if (!recording) return;
-      const recorded = as(this.#scene(test.title, recording, read, steps));
+      const recorded = as(this.#moment(test.title, recording, read, steps));
       this.#ran.push({ ...where, recorded });
-      return went(`to its end, ${Math.round(recorded.scene.length)}s`);
+      return went(`to its end, ${Math.round(recorded.moment.length)}s`);
     }
 
     // It stopped at the step it couldn't do, or after the last one when it failed between them. Stopped by the browser, it
@@ -97,58 +97,54 @@ export default class Scenes implements Reporter {
     const said = (stop?.error ?? result.error)?.message ?? "";
     const broken = BROKEN.test(said);
     const why = firstLine(said);
-    this.#ran.push({ ...where, failed: { scene: test.title, ...(stop?.error && { at: stop.title }), ...(why && { why }), ...(broken && { broken }) } });
+    this.#ran.push({ ...where, failed: { moment: test.title, ...(stop?.error && { at: stop.title }), ...(why && { why }), ...(broken && { broken }) } });
     went(broken ? "the browser stopped it" : stop?.error ? `failed at ${quote(stop.title)}` : "failed before its first step");
   }
 
-  // What stops the run itself, like a scene's file that doesn't load, as Playwright says it.
+  // What stops the run itself, like a moment's file that doesn't load, as Playwright says it.
   onError(error: TestError) {
     console.log(`\n${error.message ?? error.value}`);
   }
 
-  #scene(name: string, recording: Buffer, read: { readings: Omit<Reading, "picture">[]; glimpses: Glimpse[]; pictures: Buffer[]; frames: { name: string; body: Buffer }[]; assets: Assets; actions: Acted[] }, steps: TestStep[]): Recorded {
+  #moment(name: string, recording: Buffer, read: { readings: Omit<Reading, "picture">[]; glimpses: Glimpse[]; pictures: Buffer[]; frames: { name: string; body: Buffer }[]; assets: Assets; actions: Acted[] }, steps: TestStep[]): Recorded {
     const events: Event[] = JSON.parse(recording.toString());
     const start = events[0]!.timestamp;
     const length = seconds(events.at(-1)!.timestamp - start);
-    // A step's start and the recording's events are both read from this machine's clock.
-    // Each action is the step's it was done in.
-    const actionsIn = (step: TestStep, next?: TestStep) => read.actions.filter((done) => done.at >= step.startTime.getTime() && done.at < (next?.startTime.getTime() ?? Infinity));
-    const since = (moment: number) => Math.min(length, seconds(moment - start));
-    const taken = steps.map((step, i) => {
-      const actions = actionsIn(step, steps[i + 1]);
-      const done = actions.length ? { actions: actions.map((one) => since(one.at)), began: actions.map((one) => ({ action: one.action, at: since(one.began) })) } : {};
-      return { title: step.title, at: since(step.startTime.getTime()), ...done };
-    });
-    // A moment is shown from where its step starts: its file does its way there first.
-    const scene: Scene = { name, length, steps: taken, recording: this.#fileFor(name), from: taken[0]?.at ?? 0 };
-    const readings: Reading[] = read.readings.map((reading, i) => ({ ...reading, picture: `${picturesOf(scene)}/${i + 1}.png` }));
+    // Where its step starts and what was done are both read from this machine's clock. What it did is what was done in
+    // its step, its file's way there done before it; it's shown from where its step starts.
+    const since = (time: number) => Math.min(length, seconds(time - start));
+    const step = steps[0];
+    const inStep = read.actions.filter((done) => step && done.at >= step.startTime.getTime());
+    const actions = inStep.map((done) => ({ at: since(done.at), what: done.action, began: since(done.began) }));
+    const moment: Moment = { name, length, recording: this.#fileFor(name), from: step ? since(step.startTime.getTime()) : 0, actions };
+    const readings: Reading[] = read.readings.map((reading, i) => ({ ...reading, picture: `${picturesOf(moment)}/${i + 1}.png` }));
 
     // The assets are in the folder already, kept as the page loaded them.
     const glimpses = read.glimpses.filter((glimpse) => glimpse.at <= length);
-    const files = [scene.recording, readingsOf(scene), glimpsesOf(scene), ...readings.map((reading) => reading.picture), ...read.frames.map((frame) => frameOf(scene, frame.name)), assetsOf(scene.recording), ...new Set(Object.values(read.assets))];
-    for (const folder of [picturesOf(scene), "assets"]) mkdirSync(join(this.#folder, folder), { recursive: true });
-    writeFileSync(join(this.#folder, scene.recording), JSON.stringify(events));
-    writeFileSync(join(this.#folder, readingsOf(scene)), JSON.stringify(readings));
-    writeFileSync(join(this.#folder, glimpsesOf(scene)), JSON.stringify(glimpses));
-    writeFileSync(join(this.#folder, assetsOf(scene.recording)), JSON.stringify(read.assets));
+    const files = [moment.recording, readingsOf(moment), glimpsesOf(moment), ...readings.map((reading) => reading.picture), ...read.frames.map((frame) => frameOf(moment, frame.name)), assetsOf(moment.recording), ...new Set(Object.values(read.assets))];
+    for (const folder of [picturesOf(moment), "assets"]) mkdirSync(join(this.#folder, folder), { recursive: true });
+    writeFileSync(join(this.#folder, moment.recording), JSON.stringify(events));
+    writeFileSync(join(this.#folder, readingsOf(moment)), JSON.stringify(readings));
+    writeFileSync(join(this.#folder, glimpsesOf(moment)), JSON.stringify(glimpses));
+    writeFileSync(join(this.#folder, assetsOf(moment.recording)), JSON.stringify(read.assets));
     read.pictures.forEach((picture, i) => writeFileSync(join(this.#folder, readings[i]!.picture), picture));
-    for (const frame of read.frames) writeFileSync(join(this.#folder, frameOf(scene, frame.name)), frame.body);
-    return { scene, files };
+    for (const frame of read.frames) writeFileSync(join(this.#folder, frameOf(moment, frame.name)), frame.body);
+    return { moment, files };
   }
 
   onEnd() {
     const ran = this.#ran.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line);
-    writeFileSync(join(this.#folder, "scenes.json"), JSON.stringify({ recorded: ran.flatMap((run) => run.recorded ?? []), failed: ran.flatMap((run) => run.failed ?? []) }));
+    writeFileSync(join(this.#folder, "moments.json"), JSON.stringify({ recorded: ran.flatMap((run) => run.recorded ?? []), failed: ran.flatMap((run) => run.failed ?? []) }));
   }
 
   printsToStdio() {
     return true;
   }
 
-  // Named after the scene, so the files read as what they are.
+  // Named after the moment, so the files read as what they are.
   #fileFor(name: string): string {
-    const base = name.toLowerCase().normalize("NFKD").replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "scene";
-    const taken = new Set(this.#ran.map((run) => run.recorded?.scene.recording));
+    const base = name.toLowerCase().normalize("NFKD").replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "moment";
+    const taken = new Set(this.#ran.map((run) => run.recorded?.moment.recording));
     for (let n = 1; ; n++) {
       const file = n === 1 ? `${base}.json` : `${base}-${n}.json`;
       if (!taken.has(file)) return file;

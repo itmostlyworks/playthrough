@@ -65,24 +65,24 @@ function Change({ listed, you, moment, note, go }: { listed: Listed; you: string
   const { notes, replies } = useUnsent(id, latest?.number ?? 1);
   const setNotes = (edit: (notes: Note[]) => Note[]) => keepUnsent(id, latest?.number ?? 1, (now) => ({ ...now, notes: edit(now.notes) }));
   const setReplies = (edit: (replies: YourReply[]) => YourReply[]) => keepUnsent(id, latest?.number ?? 1, (now) => ({ ...now, replies: edit(now.replies) }));
-  const at = useRef<{ moment: number; round?: number }>(undefined);
-  if (at.current?.moment !== moment) at.current = { moment, round: latest?.number };
-  const round = change.rounds.find((one) => one.number === at.current!.round);
-  const n = round && Math.min(moment, round.scenes.length);
+  const at = useRef<{ moment: number; handBack?: number }>(undefined);
+  if (at.current?.moment !== moment) at.current = { moment, handBack: latest?.number };
+  const handBack = change.handBacks.find((one) => one.number === at.current!.handBack);
+  const n = handBack && Math.min(moment, handBack.moments.length);
   // Opened, it's seen: for the list, and for next time.
-  const taking = round && n && takingOf(round.number, round.scenes[n - 1]!.name);
+  const taking = handBack && n && takingOf(handBack.number, handBack.moments[n - 1]!.name);
   useEffect(() => void (taking && markSeen(change, you, [taking])), [taking]);
-  if (!round || !n) return <div className="grid h-dvh place-items-center bg-ground text-soft">Nothing is waiting on you here.</div>;
-  const scene = round.scenes[n - 1]!;
+  if (!handBack || !n) return <div className="grid h-dvh place-items-center bg-ground text-soft">Nothing is waiting on you here.</div>;
+  const shown = handBack.moments[n - 1]!;
   const sent = sentBy(change, you).flatMap((one) => one.notes);
   return (
     <MomentView
-      key={`${round.number}`}
+      key={`${handBack.number}`}
       change={change}
-      round={round}
+      handBack={handBack}
       n={n}
-      about={scene.about}
-      who={whoIn(listed, scene)}
+      about={shown.about}
+      who={whoIn(listed, shown)}
       notes={notes}
       sent={sent}
       setNotes={setNotes}

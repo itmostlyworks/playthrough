@@ -1,5 +1,5 @@
-// A scene's file says with test.use what window its scenes are recorded in, like a phone's screen and touch, and a
-// describe() in it what holds for the scenes in it. Taken over, each scene is kept with what holds for it, as Playwright
+// A moment's file says with test.use what window its moments are recorded in, like a phone's screen and touch, and a
+// describe() in it what holds for the moments in it. Taken over, each moment is kept with what holds for it, as Playwright
 // gives it, and its window is opened with that.
 
 import assert from "node:assert/strict";
@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { after, before, test } from "node:test";
-import { ALONGSIDE } from "../src/scenes.ts";
+import { ALONGSIDE } from "../src/run.ts";
 
 let folder = "";
 let windows: Record<string, unknown> = {};
@@ -31,20 +31,20 @@ test.describe("In Swedish", () => {
 `,
   );
   (globalThis as Record<symbol, unknown>)[ALONGSIDE] = true;
-  const { scenesIn } = await import("../src/test.ts");
-  const scenes = await scenesIn(join(folder, "pay.spec.ts"), 1);
-  windows = Object.fromEntries([...scenes].map(([name, kept]) => [name, kept.use]));
+  const { momentsIn } = await import("../src/test.ts");
+  const moments = await momentsIn(join(folder, "pay.spec.ts"), 1);
+  windows = Object.fromEntries([...moments].map(([name, kept]) => [name, kept.use]));
 });
 after(() => rm(folder, { recursive: true }));
 
 const phone = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
 const swedish = { locale: "sv-SE", timezoneId: "Europe/Stockholm" };
 
-test("taken over, a scene is kept with what its file says with test.use, before the scene or after it", () => {
+test("taken over, a moment is kept with what its file says with test.use, before the moment or after it", () => {
   assert.deepEqual(windows["Pay on a phone"], phone);
 });
 
-test("what a describe() says holds for the scenes in it, over what's said around it", () => {
+test("what a describe() says holds for the moments in it, over what's said around it", () => {
   assert.deepEqual(windows["Pay in Swedish"], { ...phone, ...swedish });
   assert.deepEqual(windows["Pay with a mouse, in Swedish"], { ...phone, ...swedish, hasTouch: false });
 });

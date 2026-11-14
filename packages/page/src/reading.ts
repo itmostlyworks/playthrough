@@ -1,6 +1,6 @@
 // What's on the page at a moment, as a person would name it: each control by its role and name, each piece of words, and
-// each panel or bar, with where it is, how it looks and what holds it. Each step of a scene ends with the page read, so
-// two rounds compare step by step, and something pointed at in one is found in another.
+// each panel or bar, with where it is, how it looks and what holds it. Each step of a moment ends with the page read, so
+// two hand-backs compare step by step, and something pointed at in one is found in another.
 
 export type Thing = {
   role: string; // button, link, dialog, table, heading…; text for words with no role of their own; box for a panel or bar

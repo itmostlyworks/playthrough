@@ -1,12 +1,9 @@
 // A change: one piece of work the agent does in this copy of the app, by its title, as a pull request's, and what was
 // asked, in the person's words. The agent names it once; every command after that means it, until another is named.
 // Each copy (each of git's worktrees) has changes of its own, so an agent in each works on its own without saying which.
-//
-// Underneath, a change is a change: its moments are scenes, and each time it's handed back, a round. None of those words
-// reach the agent or the person.
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, rename, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { list, quote, Refused } from "@playthrough/change";
 import type { Repo } from "./repo.ts";
@@ -16,8 +13,10 @@ import { wordsIn } from "./way.ts";
 const LONGEST_TITLE = 10;
 const HOW = `playthrough change "<a title, as a pull request's>" "<what you were asked, in the person's words>"`;
 
-// The change this copy's commands mean, kept beside its changes.
-const meantIn = (repo: Repo) => join(repo.root, ".playthrough", "change.json");
+// The change this copy's commands mean, kept beside its changes. Its own name, so it's never taken for a change's own
+// change.json; kept by an older Playthrough as change.json, it's moved once, when it's next read.
+const meantIn = (repo: Repo) => join(repo.root, ".playthrough", "working-on.json");
+const meantBefore = (repo: Repo) => join(repo.root, ".playthrough", "change.json");
 
 export const idOf = (title: string) =>
   title
@@ -59,14 +58,17 @@ export async function change(repo: Repo, said: string | undefined, asked: string
 
 // The change this copy's commands mean: the one named last here.
 export async function changeHere(repo: Repo): Promise<string> {
+  if (!existsSync(meantIn(repo)) && existsSync(meantBefore(repo))) await rename(meantBefore(repo), meantIn(repo));
   const kept = existsSync(meantIn(repo)) ? JSON.parse(await readFile(meantIn(repo), "utf8")).change : undefined;
   if (!kept || !(await repo.changes.list()).includes(kept)) throw new Refused([`Say what the change is first, once: ${HOW}`]);
+  // Read once, so one kept by an older Playthrough is brought along before its moments' files are.
+  await repo.changes.get(kept);
   return kept;
 }
 
 // A change's moments are the files of their ways there, each named by its words: what's run again, and handed back.
 export function momentsOf(repo: Repo, id: string): { words: string; file: string }[] {
-  const folder = repo.scenes(id);
+  const folder = repo.moments(id);
   const files = existsSync(folder) ? readdirSync(folder).filter((name) => name.endsWith(".ts")) : [];
   return files.flatMap((name) => {
     const words = wordsIn(readFileSync(join(folder, name), "utf8"));

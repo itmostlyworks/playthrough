@@ -8,7 +8,7 @@ import type { Repo } from "./repo.ts";
 
 // Where a note was made: which recording, the moment in it, and what it's on there, by the recording's own numbering or
 // its spot on the screen.
-export type Framed = { round: number; recording: string; at: number; node?: number; point?: { x: number; y: number } };
+export type Framed = { handBack: number; recording: string; at: number; node?: number; point?: { x: number; y: number } };
 // The picture's name among the person's own files, the screen's size, and where its thing is on it, as shares of the
 // screen.
 export type Frame = { picture: string; screen: { width: number; height: number }; box?: { x: number; y: number; width: number; height: number } };
@@ -35,10 +35,10 @@ export async function frameOf(repo: Repo, id: string, address: string, note: str
 }
 
 // The screen the recording had at that moment, as its last word on its size before then says.
-async function shapeAt(repo: Repo, id: string, { round, recording, at }: Framed) {
+async function shapeAt(repo: Repo, id: string, { handBack, recording, at }: Framed) {
   const branch = recording.match(/^branches\/(.+)$/);
-  const bytes = branch ? await repo.changes.branch(id, branch[1]!) : await repo.changes.file(id, round, recording);
-  if (!bytes) throw new Error(`Round ${round} of ${id} has no recording called “${recording}”.`);
+  const bytes = branch ? await repo.changes.branch(id, branch[1]!) : await repo.changes.file(id, handBack, recording);
+  if (!bytes) throw new Error(`Hand-back ${handBack} of ${id} has no recording called “${recording}”.`);
   const events: { type: number; timestamp: number; data: { width?: number; height?: number } }[] = JSON.parse(Buffer.from(bytes).toString("utf8"));
   const start = events[0]?.timestamp ?? 0;
   const sized = events.filter((event) => event.type === 4 && event.data.width && (event.timestamp - start) / 1000 <= at + 0.05).at(-1) ?? events.find((event) => event.type === 4);
@@ -48,7 +48,7 @@ async function shapeAt(repo: Repo, id: string, { round, recording, at }: Framed)
 // A moment's still, its recording at its end drawn twice as fine as the picture kept as it was recorded, which a list
 // closing in on what it's about shows larger than it was taken on a screen of twice the dots: drawn once and kept.
 export async function stillOf(repo: Repo, id: string, address: string, framed: Framed, port: number): Promise<string> {
-  const name = `stills/${framed.round}-${framed.recording.replace(/^branches\//, "").replace(/\.json$/, "")}.png`;
+  const name = `stills/${framed.handBack}-${framed.recording.replace(/^branches\//, "").replace(/\.json$/, "")}.png`;
   if (await repo.changes.branch(id, name)) return `branches/${name}`;
   const shape = await shapeAt(repo, id, framed);
   const drawn = drawing.then(() => draw(port, address, framed, shape, 2));

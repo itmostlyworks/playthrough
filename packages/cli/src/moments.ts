@@ -10,14 +10,14 @@
 //   playthrough reply <note> "<words>"  answers a note
 //   playthrough wait                    hands back, and waits for what the person says
 //
-// What's on disk is what the person's page reads: each moment's way there is a file in the change's scenes folder, and
-// what's kept of it, its recording and what it's about, is in the round being worked on, until it's handed back.
+// What's on disk is what the person's page reads: each moment's way there is a file in the change's moments folder, and
+// what's kept of it, its recording and what it's about, is in the hand-back being worked on, until it's handed back.
 
 import { chromium, type Page } from "@playwright/test";
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import type { Glimpse, Reading } from "@playthrough/page";
-import { allNotes, conversation, list, madeInApp, MOST_SHOWN, notesToAnswer, saidDone, quote, Refused, roundInProgress, startOf, toAccountFor, type Finding, type Change, type Round, type Scene } from "@playthrough/change";
+import { allNotes, conversation, list, madeInApp, MOST_SHOWN, notesToAnswer, saidDone, quote, Refused, handBackInProgress, startOf, toAccountFor, type Finding, type Change, type HandBack, type Moment } from "@playthrough/change";
 import { agent } from "./agent.ts";
 import { browserFile, stopBrowser, type Browser } from "./as.ts";
 import { changeHere, momentNamed, momentsOf } from "./change.ts";
@@ -28,11 +28,11 @@ import { openAlready, PORT } from "./open.ts";
 import { readPage, unhovered } from "./read.ts";
 import type { Repo } from "./repo.ts";
 import { frameOf, glimpsesOf, readingsOf, type Failed } from "./reporter.ts";
-import { markUnsteady, recorder, runOnce } from "./scenes.ts";
+import { markUnsteady, recorder, runOnce } from "./run.ts";
 import { seenChanging, SQUARE, squaresOf, type Square } from "./seen.ts";
 import { setupIn } from "./setup.ts";
 import { listening } from "./wait.ts";
-import { aboutSaid, ENDED, fileOf, sceneOf, TIMED, whatDiffers, type About, type Done } from "./way.ts";
+import { aboutSaid, ENDED, fileOf, wayFile, TIMED, whatDiffers, type About, type Done } from "./way.ts";
 
 // What a moment says is what's there, short enough to sit under a picture of it: who and where, the person sees.
 const MOST_WORDS = 10;
@@ -81,9 +81,9 @@ export async function moment(repo: Repo, words: string, named?: string, last?: n
   mkdirSync(trying, { recursive: true });
   writeFileSync(join(trying, "package.json"), `{ "type": "module" }\n`);
   const way = { words, person: browser.person, did: done, setup: browser.setup, about: there.about, scrolled: there.scrolled, from };
-  writeFileSync(join(trying, file), sceneOf({ ...way, tried: true }));
+  writeFileSync(join(trying, file), wayFile({ ...way, tried: true }));
   console.log(`Running the way there again, from a fresh start, as ${browser.person}…`);
-  const ran = await runOnce({ scenes: trying, only: [words], app: await repo.app(), root: repo.root, recorder, started: change.started });
+  const ran = await runOnce({ moments: trying, only: [words], app: await repo.app(), root: repo.root, recorder, started: change.started });
   const notKept = (why: string) => {
     rmSync(trying, { recursive: true, force: true });
     return new Refused([`Not kept: run again from a fresh start, ${why}`, "Tell the person only about moments that were kept. Fix what's said, or get there another way, and mark it again."]);
@@ -94,7 +94,7 @@ export async function moment(repo: Repo, words: string, named?: string, last?: n
     if (there.about && failed?.why?.includes("expect(")) throw notKept(`it got there, but ${aboutSaid(there.about)} wasn't so: ${failed.why}`);
     throw notKept(`it didn't get there${failed?.why ? `: ${failed.why}` : "."}`);
   }
-  const readings: Reading[] = JSON.parse(recorded.files.find((one) => one.name === readingsOf(recorded.scene))!.bytes.toString());
+  const readings: Reading[] = JSON.parse(recorded.files.find((one) => one.name === readingsOf(recorded.moment))!.bytes.toString());
   const ended: string = JSON.parse(readFileSync(join(trying, ENDED), "utf8")).url;
   const { differ, timely } = whatDiffers(there, { url: ended, reading: readings.at(-1)! });
   if (differ.length)
@@ -105,50 +105,50 @@ export async function moment(repo: Repo, words: string, named?: string, last?: n
   // Run once more, what changes by itself, as a caret blinking or a time the server stamps, is known, and left out
   // whenever it's compared again.
   console.log("Running it once more, to see what changes by itself…");
-  const twice = await runOnce({ scenes: trying, only: [words], app: await repo.app(), root: repo.root, recorder, started: change.started });
+  const twice = await runOnce({ moments: trying, only: [words], app: await repo.app(), root: repo.root, recorder, started: change.started });
   if (!twice.recorded.length) throw notKept(`it got there once, but not a second time${twice.failed[0]?.why ? `: ${twice.failed[0].why}` : ""}. Make what it starts from the same each time, in playthrough/setup.ts.`);
-  await markUnsteady(roundInProgress(change), ran.recorded, twice.recorded);
+  await markUnsteady(handBackInProgress(change), ran.recorded, twice.recorded);
   // Its first and last frames, in both runs, for whether it changes anything you can see.
-  const framesOf = ({ scene, files }: (typeof ran.recorded)[number]) => {
+  const framesOf = ({ moment, files }: (typeof ran.recorded)[number]) => {
     const file = (name: string) => files.find((one) => one.name === name)?.bytes;
-    const end: Reading | undefined = JSON.parse(file(readingsOf(scene))?.toString() ?? "[]").at(-1);
-    const [first, later, last, held] = [file(frameOf(scene, "first")), file(frameOf(scene, "a-beat-later")), end && file(end.picture), file(frameOf(scene, "held"))];
+    const end: Reading | undefined = JSON.parse(file(readingsOf(moment))?.toString() ?? "[]").at(-1);
+    const [first, later, last, held] = [file(frameOf(moment, "first")), file(frameOf(moment, "a-beat-later")), end && file(end.picture), file(frameOf(moment, "held"))];
     const after = files.filter((one) => /\/after-\d+\.png$/.test(one.name)).map((one) => one.bytes);
     return first && later && last ? { first, later, after, last, held } : undefined;
   };
   const frames = [framesOf(recorded), framesOf(twice.recorded[0]!)];
-  const opening: Glimpse | undefined = JSON.parse(recorded.files.find((one) => one.name === glimpsesOf(recorded.scene))?.bytes.toString() ?? "[]")[0];
+  const opening: Glimpse | undefined = JSON.parse(recorded.files.find((one) => one.name === glimpsesOf(recorded.moment))?.bytes.toString() ?? "[]")[0];
   const timed = (opening?.things ?? []).filter((thing) => TIMED.test(thing.name)).flatMap((thing) => squaresOf(thing.box));
   const seen = frames[0] && frames[1] ? await seenChanging([frames[0], frames[1]], timed).catch(() => undefined) : undefined;
 
-  mkdirSync(repo.scenes(id), { recursive: true });
-  writeFileSync(join(repo.scenes(id), "package.json"), `{ "type": "module" }\n`);
+  mkdirSync(repo.moments(id), { recursive: true });
+  writeFileSync(join(repo.moments(id), "package.json"), `{ "type": "module" }\n`);
   // Marked again with the same words, it's the same moment, in whatever file it was kept before.
-  for (const one of momentsOf(repo, id)) if (one.words === words && one.file !== join(repo.scenes(id), file)) rmSync(one.file);
-  writeFileSync(join(repo.scenes(id), file), sceneOf(way));
+  for (const one of momentsOf(repo, id)) if (one.words === words && one.file !== join(repo.moments(id), file)) rmSync(one.file);
+  writeFileSync(join(repo.moments(id), file), wayFile(way));
   rmSync(trying, { recursive: true, force: true });
   const acted = lastActedOn(done, readings.at(-1)!);
-  const scene: Scene = { ...recorded.scene, ...(there.about && { about: { role: there.about.role, name: there.about.name } }), ...(acted && { acted }) };
-  const number = roundInProgress(change);
+  const moment: Moment = { ...recorded.moment, ...(there.about && { about: { role: there.about.role, name: there.about.name } }), ...(acted && { acted }) };
+  const number = handBackInProgress(change);
   for (const { name, bytes } of recorded.files) await repo.changes.saveFile(id, number, name, bytes);
-  const kept = change.rounds.find((round) => round.number === number);
-  const scenes = kept?.scenes.some((one) => one.name === scene.name) ? kept.scenes.map((one) => (one.name === scene.name ? scene : one)) : [...(kept?.scenes ?? []), scene];
-  await repo.changes.saveRound(id, { number, by: agent(kept?.by), scenes, replies: kept?.replies ?? [] });
+  const kept = change.handBacks.find((handBack) => handBack.number === number);
+  const moments = kept?.moments.some((one) => one.name === moment.name) ? kept.moments.map((one) => (one.name === moment.name ? moment : one)) : [...(kept?.moments ?? []), moment];
+  await repo.changes.saveHandBack(id, { number, by: agent(kept?.by), moments, replies: kept?.replies ?? [] });
   writeFileSync(markedFile(repo), JSON.stringify({ began: browser.began, at: done.length }));
   // Marked again after running them all again, it's compared again with what the person saw, with the rest.
-  if (change.comparisons.some((comparison) => comparison.round === number)) await compareAll(repo, id, number, scenes);
+  if (change.comparisons.some((comparison) => comparison.handBack === number)) await compareAll(repo, id, number, moments);
 
-  // What the moment shows, read back: the agent reads this, not the scene file.
-  const shownAt = (name: string) => repo.show(join(dirname(repo.round(id, number)), "files", name));
-  const glimpses: Glimpse[] = JSON.parse(recorded.files.find((one) => one.name === glimpsesOf(recorded.scene))?.bytes.toString() ?? "[]");
+  // What the moment shows, read back: the agent reads this, not the moment file.
+  const shownAt = (name: string) => repo.show(join(dirname(repo.handBack(id, number)), "files", name));
+  const glimpses: Glimpse[] = JSON.parse(recorded.files.find((one) => one.name === glimpsesOf(recorded.moment))?.bytes.toString() ?? "[]");
   const shown = done.slice(from).filter((one) => one.does !== "goto");
   const before = done.slice(0, from).filter((one) => !(one.does === "goto" && one.led));
   const still = !shown.length;
-  const length = scene.length - scene.from;
+  const length = moment.length - moment.from;
   console.log(`\nKept ${/[“"]/.test(words) ? words : quote(words)}${still ? ", a still: nothing happens in it" : `, ${length.toFixed(1)} s`}${there.about ? `, about the ${aboutSaid(there.about)}` : ""}.`);
   if (!still) console.log(`  shows    ${shown.map(saidOf).join(" → ")}`);
   if (before.length) console.log(`  before   ${before.length > 3 ? "… " : ""}${before.slice(-3).map(saidOf).join(" → ")}   (kept, never shown)`);
-  if (!still) console.log(`  first    ${shownAt(frameOf(recorded.scene, "first"))}`);
+  if (!still) console.log(`  first    ${shownAt(frameOf(recorded.moment, "first"))}`);
   console.log(`  ${still ? "picture" : "last   "}  ${shownAt(readings.at(-1)!.picture)}`);
   if (!still && seen && !seen.changed.length) console.log(`  Nothing you can see changed in it. Fine if that's the point; if not, look at its first and last frames.`);
   const moving = seen ? movingNamed(seen.moving, glimpses[0]) : [];
@@ -297,25 +297,25 @@ async function aboutOn(page: Page, words: string, named?: string): Promise<{ abo
 // the next hand-back.
 export async function drop(repo: Repo, words: string) {
   const id = await changeHere(repo);
-  const moment = momentNamed(repo, id, words);
+  const way = momentNamed(repo, id, words);
   const change = await repo.changes.get(id);
   // A moment a note is on is where the person sees what was done about it: dropped, they'd have nowhere to look, unless a
   // moment marked since the note came shows it.
-  const on = notesOn(change, moment.words);
-  if (on.length && !markedSinceNotes(repo, change, on, moment.words).length)
+  const on = notesOn(change, way.words);
+  if (on.length && !markedSinceNotes(repo, change, on, way.words).length)
     throw new Refused([
-      `${on.length > 1 ? `Notes ${list(on)} are` : `Note ${on[0]} is`} on ${quote(moment.words)}: the person sees what you did about ${on.length > 1 ? "them" : "it"} in a moment, not only in your answer. Mark one that shows it first, a still where it was if it's gone (playthrough moment "<what's there now>"); then drop this one, if what it showed no longer exists.`,
+      `${on.length > 1 ? `Notes ${list(on)} are` : `Note ${on[0]} is`} on ${quote(way.words)}: the person sees what you did about ${on.length > 1 ? "them" : "it"} in a way, not only in your answer. Mark one that shows it first, a still where it was if it's gone (playthrough way "<what's there now>"); then drop this one, if what it showed no longer exists.`,
     ]);
-  rmSync(moment.file);
-  const last = change.rounds.at(-1);
-  if (last && !last.finished) await repo.changes.saveRound(id, { ...last, scenes: last.scenes.filter((scene) => scene.name !== moment.words) });
-  console.log(`Dropped ${quote(moment.words)}: it isn't run again, or handed back.`);
+  rmSync(way.file);
+  const last = change.handBacks.at(-1);
+  if (last && !last.finished) await repo.changes.saveHandBack(id, { ...last, moments: last.moments.filter((moment) => moment.name !== way.words) });
+  console.log(`Dropped ${quote(way.words)}: it isn't run again, or handed back.`);
 }
 
 // The notes waiting for an answer on a moment.
 function notesOn(change: Change, moment: string): string[] {
   const notes = allNotes(change);
-  return notesToAnswer(change, roundInProgress(change)).filter((id) => notes.get(id)?.note.on?.scene === moment);
+  return notesToAnswer(change, handBackInProgress(change)).filter((id) => notes.get(id)?.note.on?.moment === moment);
 }
 
 // The moments marked since the person's notes reached the agent, other than the one they're on: where what was done about
@@ -324,8 +324,8 @@ function markedSinceNotes(repo: Repo, change: Change, notes: string[], besides?:
   const sent = change.sends.filter((send) => send.notes.some((note) => notes.includes(note.id)));
   const reached = Math.max(0, ...change.taken.filter((taken) => sent.some((send) => send.id === taken.send)).map((taken) => Date.parse(taken.at)));
   return momentsOf(repo, change.id)
-    .filter((moment) => moment.words !== besides && statSync(moment.file).mtimeMs > reached)
-    .map((moment) => moment.words);
+    .filter((way) => way.words !== besides && statSync(way.file).mtimeMs > reached)
+    .map((way) => way.words);
 }
 
 // Every moment again, on the code as it is now, by its way there: recorded, compared with what was last handed back, and
@@ -333,31 +333,31 @@ function markedSinceNotes(repo: Repo, change: Change, notes: string[], besides?:
 export async function again(repo: Repo) {
   const id = await changeHere(repo);
   const change = await repo.changes.get(id);
-  const handedBack = change.rounds.findLast((round) => round.finished);
+  const handedBack = change.handBacks.findLast((handBack) => handBack.finished);
   if (!handedBack)
     throw new Refused(["Nothing's been handed back yet, so there's nothing to run them again against: each moment was run again from a fresh start as you marked it. Hand back with playthrough wait, in the background."]);
-  const moments = momentsOf(repo, id);
-  if (!moments.length) throw new Refused(["There are no moments to run again. Mark one: playthrough as <person>, then playthrough moment \"<what's there>\""]);
-  const number = roundInProgress(change);
-  console.log(`Running ${moments.length > 1 ? `the ${moments.length} moments` : "the moment"} again, on the code as it is now…`);
-  const ran = await runOnce({ scenes: repo.scenes(id), app: await repo.app(), root: repo.root, recorder, started: change.started });
+  const ways = momentsOf(repo, id);
+  if (!ways.length) throw new Refused(["There are no ways to run again. Mark one: playthrough as <person>, then playthrough moment \"<what's there>\""]);
+  const number = handBackInProgress(change);
+  console.log(`Running ${ways.length > 1 ? `the ${ways.length} ways` : "the moment"} again, on the code as it is now…`);
+  const ran = await runOnce({ moments: repo.moments(id), app: await repo.app(), root: repo.root, recorder, started: change.started });
   for (const { files } of ran.recorded) for (const { name, bytes } of files) await repo.changes.saveFile(id, number, name, bytes);
   // In the order they were handed back, what each is about as it was marked; one new since, after them.
-  const order = (scene: Scene) => handedBack.scenes.findIndex((one) => one.name === scene.name) >>> 0;
-  const marked = (name: string) => change.rounds.findLast((round) => round.scenes.some((scene) => scene.name === name))?.scenes.find((scene) => scene.name === name);
-  const scenes = ran.recorded
-    .map(({ scene }) => {
-      const { about, acted } = marked(scene.name) ?? {};
-      return { ...scene, ...(about && { about }), ...(acted && { acted }) };
+  const order = (moment: Moment) => handedBack.moments.findIndex((one) => one.name === moment.name) >>> 0;
+  const marked = (name: string) => change.handBacks.findLast((handBack) => handBack.moments.some((moment) => moment.name === name))?.moments.find((moment) => moment.name === name);
+  const moments = ran.recorded
+    .map(({ moment }) => {
+      const { about, acted } = marked(moment.name) ?? {};
+      return { ...moment, ...(about && { about }), ...(acted && { acted }) };
     })
     .sort((a, b) => order(a) - order(b));
-  const kept = change.rounds.find((round) => round.number === number);
-  await repo.changes.saveRound(id, { number, by: agent(kept?.by), scenes, replies: kept?.replies ?? [] });
-  const comparisons = await compareAll(repo, id, number, scenes);
+  const kept = change.handBacks.find((handBack) => handBack.number === number);
+  await repo.changes.saveHandBack(id, { number, by: agent(kept?.by), moments, replies: kept?.replies ?? [] });
+  const comparisons = await compareAll(repo, id, number, moments);
   const since = comparisons.find((comparison) => comparison.since === handedBack.number);
 
   // What only the pictures show is the person's to look at: the agent can't see more of it than Playthrough did.
-  console.log(`\n${howEachWent(scenes, ran.failed, handedBack, toAccountFor(since)).join("\n")}`);
+  console.log(`\n${howEachWent(moments, ran.failed, handedBack, toAccountFor(since)).join("\n")}`);
   const unanswered = notesToAnswer(change, number).filter((note) => !kept?.replies.some((reply) => reply.note === note && reply.words.trim()));
   console.log(
     `\n${unanswered.length ? `Answer ${unanswered.length > 1 ? "each note" : "the note"}: ${unanswered.map((note) => `playthrough reply ${note} "<what you did, in a line>"`).join("; ")}. Then hand` : "Hand"} back, in the background, so you hear when the person answers: playthrough wait`,
@@ -365,23 +365,23 @@ export async function again(repo: Repo) {
 }
 
 // Compared with each time it was handed back before, so what's different is known to whoever last looked, whenever.
-async function compareAll(repo: Repo, id: string, number: number, scenes: Scene[]) {
-  const comparisons = await compareWithEarlier(repo.changes, id, number, scenes);
+async function compareAll(repo: Repo, id: string, number: number, moments: Moment[]) {
+  const comparisons = await compareWithEarlier(repo.changes, id, number, moments);
   for (const comparison of comparisons) await repo.changes.saveComparison(id, comparison);
   return comparisons;
 }
 
 // Each moment run again, in a line: new since it was last handed back, the same, different and how, as Playthrough
 // says it; or where its way stopped, with how to get it back.
-export function howEachWent(scenes: Scene[], failed: Failed[], handedBack: Round, findings: Finding[]): string[] {
-  const went = scenes.map((scene) => {
-    const different = findings.filter((finding) => finding.seen.some((seen) => seen.scene === scene.name));
-    const fresh = !handedBack.scenes.some((one) => one.name === scene.name);
-    return `${quote(scene.name)}: ${fresh ? "new" : different.length ? `different: ${different.map((finding) => finding.words).join("; ")}` : "the same"}.`;
+export function howEachWent(moments: Moment[], failed: Failed[], handedBack: HandBack, findings: Finding[]): string[] {
+  const went = moments.map((moment) => {
+    const different = findings.filter((finding) => finding.seen.some((seen) => seen.moment === moment.name));
+    const fresh = !handedBack.moments.some((one) => one.name === moment.name);
+    return `${quote(moment.name)}: ${fresh ? "new" : different.length ? `different: ${different.map((finding) => finding.words).join("; ")}` : "the same"}.`;
   });
   const stopped = failed.map((one) => {
-    const person = handedBack.scenes.find((scene) => scene.name === one.scene)?.person;
-    return `${quote(one.scene)}: couldn't get there${one.why ? `, where the way stopped: ${quote(one.why.split("\n")[0]!)}` : ""}. Get there by hand (playthrough as ${person ?? "<person>"} ${JSON.stringify(one.scene)} goes as far as it can) and mark it again with the same words, or leave it out: playthrough drop ${JSON.stringify(one.scene)}`;
+    const person = handedBack.moments.find((moment) => moment.name === one.moment)?.person;
+    return `${quote(one.moment)}: couldn't get there${one.why ? `, where the way stopped: ${quote(one.why.split("\n")[0]!)}` : ""}. Get there by hand (playthrough as ${person ?? "<person>"} ${JSON.stringify(one.moment)} goes as far as it can) and mark it again with the same words, or leave it out: playthrough drop ${JSON.stringify(one.moment)}`;
   });
   return [...went, ...stopped];
 }
@@ -390,20 +390,20 @@ export function howEachWent(scenes: Scene[], failed: Failed[], handedBack: Round
 export async function reply(repo: Repo, note: string, words: string | undefined) {
   const id = await changeHere(repo);
   const change = await repo.changes.get(id);
-  const number = roundInProgress(change);
+  const number = handBackInProgress(change);
   const asked = notesToAnswer(change, number);
   if (!asked.includes(note)) throw new Refused([`There's no note ${note} waiting for an answer.${asked.length ? ` The notes that are: ${asked.join(", ")}.` : ""}`]);
   if (!words?.trim()) throw new Refused([`Say it: playthrough reply ${note} "<what you did, in a line>"`]);
-  const kept = change.rounds.find((round) => round.number === number);
+  const kept = change.handBacks.find((handBack) => handBack.number === number);
   if (!kept) throw new Refused(["Run playthrough again first: the answer goes with the moments as they are now."]);
   // Answered on a moment that won't be handed back (dropped, or it couldn't get there), the person would read what you did
   // with nothing to see it in.
-  const moment = allNotes(change).get(note)?.note.on?.scene;
-  if (moment && !kept.scenes.some((scene) => scene.name === moment) && !markedSinceNotes(repo, change, [note]).length)
+  const named = allNotes(change).get(note)?.note.on?.moment;
+  if (named && !kept.moments.some((moment) => moment.name === named) && !markedSinceNotes(repo, change, [note]).length)
     throw new Refused([
-      `Note ${note} is on ${quote(moment)}, which isn't in what you'd hand back: the person would read your answer with nothing to see it in. Mark a moment that shows what you did (playthrough moment "<what's there>"), or get ${quote(moment)} there again and mark it with the same words; then answer.`,
+      `Note ${note} is on ${quote(named)}, which isn't in what you'd hand back: the person would read your answer with nothing to see it in. Mark a moment that shows what you did (playthrough moment "<what's there>"), or get ${quote(named)} there again and mark it with the same words; then answer.`,
     ]);
-  await repo.changes.saveRound(id, { ...kept, replies: [...kept.replies.filter((one) => one.note !== note), { note, words: words.trim() }] });
+  await repo.changes.saveHandBack(id, { ...kept, replies: [...kept.replies.filter((one) => one.note !== note), { note, words: words.trim() }] });
   console.log(`Answered ${note}.`);
 }
 
@@ -413,24 +413,24 @@ export async function wait(repo: Repo) {
   const id = await changeHere(repo);
   const changes = repo.changes;
   let change = await changes.get(id);
-  const last = change.rounds.at(-1);
-  if (!last?.scenes.length) throw new Refused(["There are no moments to hand back yet. Mark one: playthrough as <person>, then playthrough moment \"<what's there>\""]);
+  const last = change.handBacks.at(-1);
+  if (!last?.moments.length) throw new Refused(["There are no moments to hand back yet. Mark one: playthrough as <person>, then playthrough moment \"<what's there>\""]);
   if (!last.finished) {
     const unanswered = notesToAnswer(change, last.number).filter((note) => !last.replies.some((reply) => reply.note === note && reply.words.trim()));
     if (unanswered.length) throw new Refused([`Answer each note first: ${unanswered.map((note) => `playthrough reply ${note} "<what you did, in a line>"`).join("; ")}`]);
-    const missing = momentsOf(repo, id).filter((moment) => !last.scenes.some((scene) => scene.name === moment.words));
+    const missing = momentsOf(repo, id).filter((way) => !last.moments.some((moment) => moment.name === way.words));
     if (missing.length)
       throw new Refused([
         `${list(missing.map((one) => quote(one.words)))} ${missing.length > 1 ? "aren't" : "isn't"} in what you'd hand back. Run playthrough again: it runs every moment on the code as it is now. One it can't get to, get to by hand and mark again, or leave out with playthrough drop "<moment>".`,
       ]);
     await changes.finish(id, last.number);
-    console.log(`Handed back: the person sees ${last.scenes.length > 1 ? `the ${last.scenes.length} moments` : "the moment"} as they are now${last.replies.length ? ", and your answers" : ""}.`);
+    console.log(`Handed back: the person sees ${last.moments.length > 1 ? `the ${last.moments.length} moments` : "the moment"} as they are now${last.replies.length ? ", and your answers" : ""}.`);
     if (await stopBrowser(repo)) console.log("The browser from playthrough as is stopped: it starts again when you need it.");
     console.log(await addressOf(repo, id));
   } else {
     // Notes taken by a wait that stopped before they were answered are said again.
     const asking = notesToAnswer(change, last.number + 1);
-    if (asking.length) return sayNotes(repo, change, last.number + 1, asking, change.sends.find((send) => change.taken.some((taken) => taken.send === send.id && taken.round === last.number + 1))?.by);
+    if (asking.length) return sayNotes(repo, change, last.number + 1, asking, change.sends.find((send) => change.taken.some((taken) => taken.send === send.id && taken.handBack === last.number + 1))?.by);
   }
   console.log("Waiting for the person…");
   for (;;) {
@@ -439,7 +439,7 @@ export async function wait(repo: Repo) {
     change = await changes.wait(id, (change) => change.sends.some((send) => !change.taken.some((taken) => taken.send === send.id))).finally(heard);
     const taken = await changes.take(id);
     change = await changes.get(id);
-    const number = roundInProgress(change);
+    const number = handBackInProgress(change);
     const asking = notesToAnswer(change, number);
     if (asking.length) return sayNotes(repo, change, number, asking, taken[0]?.by);
     const done = saidDone(change);
@@ -458,17 +458,17 @@ async function addressOf(repo: Repo, id: string): Promise<string> {
 async function sayNotes(repo: Repo, change: Change, number: number, asking: string[], by = "The person") {
   const notes = allNotes(change);
   const pictures = await pictureNotes(repo, change, number, asking);
-  const handedBack = change.rounds.findLast((round) => round.finished);
+  const handedBack = change.handBacks.findLast((handBack) => handBack.finished);
   console.log(`\n${by} said:`);
   for (const note of asking) {
     const on = notes.get(note)!.note.on;
-    const name = on?.scene;
-    const scene = handedBack?.scenes.find((one) => one.name === name);
+    const name = on?.moment;
+    const moment = handedBack?.moments.find((one) => one.name === name);
     const thing = on?.element ? `, on the ${on.element.role} ${quote(on.element.name)}` : "";
-    console.log(`\n  ${note}  on ${name ? `the moment ${quote(name)}` : "the change as a whole"}${scene?.person ? `, as ${scene.person}` : ""}${thing}`);
+    console.log(`\n  ${note}  on ${name ? `the moment ${quote(name)}` : "the change as a whole"}${moment?.person ? `, as ${moment.person}` : ""}${thing}`);
     for (const turn of conversation(change, note)) console.log(`    ${turn.agent ? "You" : turn.by}: ${turn.words}`);
     if (pictures.get(note)) console.log(`    As they saw it: ${pictures.get(note)}`);
-    if (scene?.person) console.log(`    To be there: playthrough as ${scene.person} ${JSON.stringify(scene.name)}`);
+    if (moment?.person) console.log(`    To be there: playthrough as ${moment.person} ${JSON.stringify(moment.name)}`);
     if (on && madeInApp(on) && on.did.length)
       console.log(`    They stepped into the app there, then: ${on.did.map((did) => `${did.does}${did.what ? ` ${quote(did.what)}` : ""}${typeof did.with === "string" && did.does !== "click" ? ` ${quote(did.with)}` : ""}`).join(", then ")}.`);
   }

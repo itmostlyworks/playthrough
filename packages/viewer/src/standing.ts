@@ -1,7 +1,7 @@
 // Where a change stands for you, read from it as it's kept: its latest moments, what you've sent on them and seen of
 // them, what's different since, and what each note says now, in the page's words.
 
-import { conversation, notesToAnswer, type Note, type Change, type Round, type Scene } from "@playthrough/change";
+import { conversation, notesToAnswer, type Note, type Change, type HandBack, type Moment } from "@playthrough/change";
 import type { Listed } from "./api.ts";
 import { stored, seenKey, type YourReply } from "./kept.ts";
 
@@ -19,26 +19,26 @@ export function noteSays(change: Change, you: string, note: Note, sent: boolean,
   const words = replied ?? turns.findLast((turn) => !turn.agent)?.words ?? note.words;
   if (replied) return { words, stands: "reply not sent yet", fresh: false };
   if (!turns.at(-1)?.agent) return { words, stands: "sent", fresh: false };
-  const [round, on] = [turns.at(-1)!.round, note.on?.scene];
-  const fresh = !seenOf(change, you).some((taking) => Number(taking.slice(0, taking.indexOf(":"))) >= round && taking.slice(taking.indexOf(":") + 1) === on);
+  const [handBack, on] = [turns.at(-1)!.handBack, note.on?.moment];
+  const fresh = !seenOf(change, you).some((taking) => Number(taking.slice(0, taking.indexOf(":"))) >= handBack && taking.slice(taking.indexOf(":") + 1) === on);
   return { words, stands: fresh ? "new answer" : "answered", fresh };
 }
 
 // Each moment's taking: seen per taking, so one that's different since asks for you again, once.
-export const takingOf = (round: number, scene: string) => `${round}:${scene}`;
+export const takingOf = (handBack: number, moment: string) => `${handBack}:${moment}`;
 
 // The moments that look different since the taking before, by Playthrough's own comparison, with its words.
-export function differentSince(change: Change, round: Round): Map<string, string[]> {
-  const before = change.rounds.findLast((one) => one.number < round.number && one.finished);
-  const compared = before && change.comparisons.find((one) => one.round === round.number && one.since === before.number);
+export function differentSince(change: Change, handBack: HandBack): Map<string, string[]> {
+  const before = change.handBacks.findLast((one) => one.number < handBack.number && one.finished);
+  const compared = before && change.comparisons.find((one) => one.handBack === handBack.number && one.since === before.number);
   const different = new Map<string, string[]>();
-  for (const finding of compared?.changes ?? []) for (const seen of finding.seen) different.set(seen.scene, [...(different.get(seen.scene) ?? []), finding.words]);
+  for (const finding of compared?.findings ?? []) for (const seen of finding.seen) different.set(seen.moment, [...(different.get(seen.moment) ?? []), finding.words]);
   return different;
 }
 
 // The moments you've opened, kept with the change for you, so they're seen from every browser, each as it was handed
 // back: one handed back again, different, asks for you again.
-export const seenOf = (change: Change, you: string): string[] => (change.seen?.[you] ?? []).map((one) => takingOf(one.round, one.scene));
+export const seenOf = (change: Change, you: string): string[] => (change.seen?.[you] ?? []).map((one) => takingOf(one.handBack, one.moment));
 
 // Once each: the page asks again as it draws until the change comes back with it.
 const telling = new Set<string>();
@@ -51,13 +51,13 @@ export function markSeen(change: Change, you: string, takings: string[]) {
     here = JSON.parse(stored((id) => seenKey(id, you), change.id) ?? "[]");
   } catch {}
   const kept = new Set(seenOf(change, you));
-  const moments = [...new Set([...here, ...takings])]
+  const opened = [...new Set([...here, ...takings])]
     .filter((taking) => !kept.has(taking) && !telling.has(`${change.id}:${taking}`))
-    .map((taking) => ({ round: Number(taking.slice(0, taking.indexOf(":"))), scene: taking.slice(taking.indexOf(":") + 1) }))
-    .filter(({ round, scene }) => change.rounds.some((one) => one.number === round && one.finished && one.scenes.some((kept) => kept.name === scene)));
-  if (!moments.length) return;
-  for (const one of moments) telling.add(`${change.id}:${takingOf(one.round, one.scene)}`);
-  void fetch(`/api/changes/${encodeURIComponent(change.id)}/seen`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ by: you, moments }) }).then((answer) => {
+    .map((taking) => ({ handBack: Number(taking.slice(0, taking.indexOf(":"))), moment: taking.slice(taking.indexOf(":") + 1) }))
+    .filter(({ handBack, moment }) => change.handBacks.some((one) => one.number === handBack && one.finished && one.moments.some((kept) => kept.name === moment)));
+  if (!opened.length) return;
+  for (const one of opened) telling.add(`${change.id}:${takingOf(one.handBack, one.moment)}`);
+  void fetch(`/api/changes/${encodeURIComponent(change.id)}/seen`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ by: you, moments: opened }) }).then((answer) => {
     if (!answer.ok) return;
     try {
       localStorage.removeItem(seenKey(change.id, you));
@@ -65,13 +65,13 @@ export function markSeen(change: Change, you: string, takings: string[]) {
   });
 }
 
-// Since when the agent has been working on what was sent, for the round after the latest: only on what asks it
-// something, as a send that only says things look good asks for no next round.
-export const workingSince = (change: Change, latest: Round) =>
-  change.taken.find((taken) => taken.round > latest.number && notesToAnswer(change, taken.round).length > 0)?.at;
+// Since when the agent has been working on what was sent, for the hand-back after the latest: only on what asks it
+// something, as a send that only says things look good asks for no next hand-back.
+export const workingSince = (change: Change, latest: HandBack) =>
+  change.taken.find((taken) => taken.handBack > latest.number && notesToAnswer(change, taken.handBack).length > 0)?.at;
 
 // Who a moment is done as, as the list says them ("Sam, a member").
-export const whoIn = (listed: Listed, scene: Scene) => (scene.person ? (listed.people[scene.person] ?? scene.person) : "");
+export const whoIn = (listed: Listed, moment: Moment) => (moment.person ? (listed.people[moment.person] ?? moment.person) : "");
 
 // How long ago, as a person says it.
 export function ago(iso: string, now: number): string {

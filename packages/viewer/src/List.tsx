@@ -218,7 +218,7 @@ function ChangeInList(props: {
   const { listed, standing, told, you, now, open, arrived, landing, keyed, onToggle, onOpen, onLeaving } = props;
   const stands = told === listed ? standing : standingOf(told.change, you);
   const { change } = listed;
-  const round = latestOf(change)!;
+  const handBack = latestOf(change)!;
   const [grown, setGrown] = useState(!arrived);
   const own = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -234,12 +234,12 @@ function ChangeInList(props: {
     const shown = setTimeout(() => own.current?.scrollIntoView({ block: "nearest", behavior: still ? "auto" : "smooth" }), still ? 0 : LEAVING);
     return () => clearTimeout(shown);
   }, []);
-  const unsent = useUnsent(change.id, round.number);
+  const unsent = useUnsent(change.id, handBack.number);
   const [seen] = useState(() => seenOf(change, you));
   // What this browser kept before it was kept with the change goes to it.
   useEffect(() => markSeen(change, you, []), []);
-  const different = differentSince(change, round);
-  const { sending, went, send } = useSend(change.id, round.number, you);
+  const different = differentSince(change, handBack);
+  const { sending, went, send } = useSend(change.id, handBack.number, you);
   // Sent, it says what went until it's gone.
   const { notes, replies } = sending === "sent" && went ? went : unsent;
   const said = notes.length + replies.length;
@@ -286,7 +286,7 @@ function ChangeInList(props: {
             <div className="min-w-0 flex-1">
               <h2 className="text-[15px] leading-[22px] font-semibold text-fg">{change.title}</h2>
               <p className="text-[13px] leading-5 text-soft">
-                {listed.app} · {ago(round.finished!, now)}
+                {listed.app} · {ago(handBack.finished!, now)}
                 {stands.is !== "waiting" && <> · <StandsNow listed={told} standing={stands} now={now} /></>}
                 {not}
               </p>
@@ -311,25 +311,25 @@ function ChangeInList(props: {
         )}
         <Fold open={open}>
           <ol className={`grid grid-cols-3 gap-x-5 gap-y-6 phone:grid-cols-1 [@media(min-width:821px)_and_(max-width:1000px)]:grid-cols-2 ${waiting ? "mt-4" : "mt-3 mb-6"}`}>
-            {round.scenes.map((scene, i) => {
+            {handBack.moments.map((moment, i) => {
               // Seen in this taking, or the same as one seen before, it's quieter; different since, it asks again.
-              const seenBefore = seen.some((one) => one === scene.name || one.endsWith(`:${scene.name}`));
-              const quiet = !waiting || seen.includes(takingOf(round.number, scene.name)) || (seenBefore && !different.has(scene.name));
-              const talk = [...allNotes(change)].filter(([, kept]) => kept.note.on?.scene === scene.name);
+              const seenBefore = seen.some((one) => one === moment.name || one.endsWith(`:${moment.name}`));
+              const quiet = !waiting || seen.includes(takingOf(handBack.number, moment.name)) || (seenBefore && !different.has(moment.name));
+              const talk = [...allNotes(change)].filter(([, kept]) => kept.note.on?.moment === moment.name);
               return (
-                <li key={scene.name}>
+                <li key={moment.name}>
                   <button onClick={() => onOpen(i + 1)} className="group block w-full text-left focus-visible:outline-none">
-                    <Still change={change} round={round} scene={scene} about={scene.about ?? scene.acted} seen={quiet} />
-                    <span className={`mt-2.5 block text-[13px] leading-5 ${quiet ? "text-faint" : "text-soft"}`}>{whoIn(listed, scene)}</span>
-                    <span className={`block text-[14px] leading-5 ${quiet ? "text-soft" : "text-fg"}`}>{scene.name}</span>
+                    <Still change={change} handBack={handBack} moment={moment} about={moment.about ?? moment.acted} seen={quiet} />
+                    <span className={`mt-2.5 block text-[13px] leading-5 ${quiet ? "text-faint" : "text-soft"}`}>{whoIn(listed, moment)}</span>
+                    <span className={`block text-[14px] leading-5 ${quiet ? "text-soft" : "text-fg"}`}>{moment.name}</span>
                     {/* Said once: where someone spoke on it, the reply says what changed. */}
-                    {waiting && !quiet && seenBefore && different.has(scene.name) && !talk.length && !notes.some((note) => note.on?.scene === scene.name) && (
+                    {waiting && !quiet && seenBefore && different.has(moment.name) && !talk.length && !notes.some((note) => note.on?.moment === moment.name) && (
                       <span className="mt-0.5 block text-[13px] leading-5 text-amber-ink">Different since you saw it</span>
                     )}
                   </button>
                   {(() => {
                     // A line a note: your latest words, and where it stands. Its conversation is by its pin.
-                    const unsentHere = notes.filter((note) => note.on?.scene === scene.name);
+                    const unsentHere = notes.filter((note) => note.on?.moment === moment.name);
                     const lines = [
                       ...talk.map(([id, kept]) => ({ id, ...noteSays(change, you, kept.note, true, replies) })),
                       ...unsentHere.map((note) => ({ id: note.id, words: note.words, stands: "not sent yet", fresh: false })),

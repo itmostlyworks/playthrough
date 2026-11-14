@@ -84,7 +84,7 @@ again, the browser open already starts again, fresh, as whoever is named; given 
 there first.
 
 **`moment`** (`moments.ts`, `way.ts`) reads where that browser is and what the moment is about (the thing named, as the
-page names it, or else the thing its words name), works out where it starts (below), writes the way there as a scene
+page names it, or else the thing its words name), works out where it starts (below), writes the way there as the moment's
 file, and runs it from a fresh start as the same person. It's kept only if it lands: the same page read, the same
 address, and what it's about saying the same; else it says what differed, and words that tell the time, reworded only
 in their numbers, are left out of that and said. It's run a second time, and what differs between the two runs changes
@@ -133,7 +133,8 @@ for `--last N`: over four (a moment is one thing happening), or a button that br
 itself left out), is pictured there (`first.png`), and holds a beat before the pointer moves; it ends once the page rests
 after the last thing done, and an end that changed while it held (a late message, a debounced search) is read again once
 it rests. A moment's `from` is its step's start, in seconds into its recording, kept with every moment as the recorder reads it
-(`reporter.ts`), by `moment` and by `again` alike, so what's shown survives every hand-back; everything that shows a
+(`reporter.ts`), with what it did there as one list (`actions`: each thing done, when it was done, and what it was and when it
+began), by `moment` and by `again` alike, so what's shown survives every hand-back; everything that shows a
 moment reads that one value (a still, `isStill` in `shown.ts`, is one with nothing done from it on). Something changing every frame
 for good (a bar slid along by a script) is learned as moving by itself once a rest has waited its longest, five seconds
 (`rest.ts`), and left out from then on.
@@ -141,7 +142,7 @@ for good (a bar slid along by a script) is learned as moving by itself once a re
 ## Recording
 
 Each moment is run as a Playwright test, its way there and its step, from `playthrough/test` (`test.ts`, the reporter
-`reporter.ts`, run by `scenes.ts` with `playwright.config.ts`): a quarter as many at once as the machine has cores, or
+`reporter.ts`, run by `run.ts` with `playwright.config.ts`): a quarter as many at once as the machine has cores, or
 one at a time where `app.json` says so, in Chromium at 1280 by 800, against the copy's app (`app.ts`). It runs on the day
 the change was started, at the time of day it's run, the clock running on from there, in English and UTC, with the
 page's random numbers from a fixed seed, so what the page works out from the day reads the same each time. rrweb is in
@@ -153,15 +154,15 @@ is written into the page as the CSS animation it is. The recording keeps the poi
 does something (Escape, Enter, Tab, arrows, shortcuts), never letters typed, and hides a dev server's own badge
 (Next's), never touching the app; it and the agent's browser may write to the clipboard. The fonts, images and
 stylesheets each page loads are kept with its recording, once each by what's in them (`assets.ts`), so it looks the same
-with the app gone; it plays light or dark, still or moving, as its browser was (`page/src/scheme.ts`). Each action named
-as it's done (`began` beside `actions`: `click button “Update”`, `type textbox “Card prefix”`, never the words) is how two
+with the app gone; it plays light or dark, still or moving, as its browser was (`page/src/scheme.ts`). Each thing done named
+as it's done (its `what`: `click button “Update”`, `type textbox “Card prefix”`, never the words) is how two
 recordings of a moment are lined up. The page at the step's end is read once it rests (`rest.ts`: nothing it asked for
 on its way, and nothing changing for 300 ms of the frames it draws), as the app shows it, not as the pointer hovers it,
 with a picture; after each action it's glimpsed too, read without a picture.
 
 ## What's different
 
-Each `again` compares the hand-back it makes with every one before it (`compare.ts`, `changes.ts`, `pictures.ts`), moment
+Each `again` compares the hand-back it makes with every one before it (`compare.ts`, `findings.ts`, `pictures.ts`), moment
 by moment: the two readings of its end pair thing by thing, and what changed is said in Playthrough's own words, never the
 agent's: “Export button is new”, “Status column looks different” where only the pictures differ, “Clear completed
 button now says “Clear 2 completed””. What only follows from another is told with it (what was pushed along by
@@ -245,11 +246,11 @@ Space, T and C act on the moment and close it first. An open note's thing is nev
 the recording's edge, or down off it. A reply waits to be clicked into, so ← → go on through the notes. A note just saved
 arrives at the foot of the edge, the edge forward with its words for 1.4 s; one made in the app joins the edge the same
 way once you're back. An answer you haven't opened is new, on its picture and its line on the list, until you open it.
-A note is kept in one of two places (`model.ts`): on a moment as handed back (its hand-back `round`, the moment's `scene`,
-`at` in its recording, and its thing: an element, a box or a spot), or made in the app after stepping in (`round` and
-`scene` again, `steppedIn` where in the moment, `did`, the person's own `recording` and its `length`, `at` in that, and
+A note is kept in one of two places (`model.ts`): on a moment as handed back (its `handBack`, its `moment`,
+`at` in its recording, and its thing: an element, a box or a spot), or made in the app after stepping in (`handBack` and
+`moment` again, `steppedIn` where in the moment, `did`, the person's own `recording` and its `length`, `at` in that, and
 its thing there); an element's number is only ever read against the one recording it was read from. Which moment a note
-is on is its `scene`, either way. Notes and replies not yet sent are kept in this browser (`kept.ts`), by the change,
+is on is its `moment`, either way. Notes and replies not yet sent are kept in this browser (`kept.ts`), by the change,
 until Send; what you've opened is
 kept with the change, per moment as handed back (`seen.json`), so a moment handed back again is unseen again.
 
@@ -345,12 +346,11 @@ from another site's page, it refuses, as what's sent there reaches the agent in 
 ## What's kept where
 
 Committed with the app: `playthrough/app.json` and `playthrough/setup.ts`. Out of git, in the app's copy,
-`.playthrough/` (its own `.gitignore` says `*`): `change.json` (the change meant), `port.json` (the app's port),
+`.playthrough/` (its own `.gitignore` says `*`): `working-on.json` (the change its commands mean), `port.json` (the app's port),
 `browser.json` (what `as` did; `browser-marked.json`, where the last moment was marked in it), `running.json`, `using/`
-and `app.log` (the app), `borrowed/` (worlds not yet given back), and a folder per change: `review.json` (its title, what
-was asked, when it started, and the format it's kept in), `scenes/<words>.ts` (each moment's way there, then its step),
-`rounds/<n>/` (each hand-back:
-`round.json` with its moments and replies, `files/` with their recordings, readings and pictures, `since/<k>.json`
+and `app.log` (the app), `borrowed/` (worlds not yet given back), and a folder per change: `change.json` (its title, what
+was asked, when it started, and the format it's kept in), `moments/<words>.ts` (each moment's way there, then its step),
+`hand-backs/<n>/` (each hand-back: `hand-back.json` with its moments and replies, `files/` with their recordings, readings and pictures, `since/<k>.json`
 compared with hand-back k), `sends/<id>.json` (what the person sent, never written again but once, to bring it to a newer format), `taken.json` (what the agent
 has taken of it), `seen.json` (what each person has opened), `branches/` (what the person did in the app, and notes'
 frames), `waiting/<pid>` (an agent listening). On the machine: `~/.playthrough/apps.json` and `open.json` (the list
@@ -358,18 +358,21 @@ running).
 
 **Kept in an older format**, a change is brought along once, the first time this Playthrough reads it
 (`packages/change/src/format.ts`, from the store's own queue): each file rewritten as it would have been kept now, by the
-rule that showed it before, so it shows the same, and `review.json`'s `format` last, so one stopped half-way is finished
+rule that showed it before, so it shows the same, each folder and file kept by an older name moved whole to its name
+now, and `change.json`'s `format` last, so one stopped half-way is finished
 the next time it's read and one already brought along is never touched; one kept by a newer Playthrough is refused,
 saying to update. Format 2: every moment has its `from` (one kept without, or given 0 by an older `again`, gets where
 it was shown from), and every way does its way there before its step (what was done before `from` moves out of the
-step), so running it again starts it where its step does; a send that said Done by naming every moment of its round as
-looking good, and nothing more, says Done; and what nothing reads any more is left behind (an older round's `accounts`, a
+step), so running it again starts it where its step does; a send that said Done by naming every moment of its hand-back as
+looking good, and nothing more, says Done; and what nothing reads any more is left behind (an older hand-back's `accounts`, a
 send's `verdicts` and `looksGood`); and each note sent says which of its two places it's in and on which hand-back
-(the one it was sent on), as a note not yet sent in a browser says the latest when it's read there.
-
-Underneath, the code still uses older names: a change is kept as a review, a hand-back as a round, a moment as a scene
-with one step, and stepping in is `take-over`. None of those words reach the agent or the person, and they're due to
-change.
+(the one it was sent on), as a note not yet sent in a browser says the latest when it's read there. Format 3: everything by its name in
+moments' words, the same in the code: `review.json` is `change.json`, `rounds/<n>/round.json` is
+`hand-backs/<n>/hand-back.json`, `scenes/` is `moments/`; a hand-back's `scenes` are its `moments`, what a moment did is
+one list (`actions`, each `{ at, what, began }`, an older one's without the two it never knew), not one step titled with
+its name; each `round` is `handBack` and each `scene` `moment`, in notes, sends, what's taken and seen, and where a
+finding is seen; a comparison's `changes` are its `findings`. A copy's `.playthrough/change.json` is `working-on.json`,
+moved the next time a command reads it.
 
 ## Working on Playthrough
 

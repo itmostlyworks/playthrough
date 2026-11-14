@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { fromKept } from "../src/api.ts";
 
-const files = "/api/changes/lake-trip/rounds/1/files/";
+const files = "/api/changes/lake-trip/hand-backs/1/files/";
 const kept = {
   "http://localhost:3000/_next/static/media/inter.woff2": "assets/1a2b.woff2",
   "http://localhost:3000/_next/image?url=%2Flogo.png&w=256&q=75": "assets/3c4d.webp",

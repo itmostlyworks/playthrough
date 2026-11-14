@@ -1,19 +1,19 @@
-// What changed at one moment of a scene between two rounds, as the changes a person would name. What only follows from
+// What changed at one moment of a moment between two hand-backs, as the changes a person would name. What only follows from
 // another is told with it: what moved or grew with what holds it, and what was pushed along by something new, gone or
 // resized above or beside it. Things that swapped places, rows in a new order, and alike things changed alike are one
 // change each. A person reads a row, a list's item or a card as one thing: one new or gone is one change, and so are the
 // words one says now; the same change in each of them is one change, in as many places. Each is said in Playthrough's
 // fixed words, never the agent's, and its id is the thing and what happened to it, so the same change seen in another
-// scene, at another moment or against another round is the same one.
+// moment, at another moment or against another hand-back is the same one.
 
 import { createHash } from "node:crypto";
 import { a, called, dataLeftOut, differences, HOLDS, holderOf, identity, lookWords, near, NEAR, parentOf, plural, rewordedPart, rewordedWords, sentence, symbolOnly, the, things, together, wayOf, word, WORD, type Difference, type Glimpse, type Item, type Reading, type Thing } from "@playthrough/page";
 import type { Box, Element } from "@playthrough/change";
 
-// A change at one moment: what it's on is an element of the newer round, or for something gone, where it was. And the
+// A change at one moment: what it's on is an element of the newer hand-back, or for something gone, where it was. And the
 // ids of the changes it stands for, each by itself, so what changes by itself is left out as itself, never as all it's
 // told with.
-// Off the screen, it's what the page has but the recording doesn't show at this moment.
+// Off the screen, it's what the page has but the recording doesn't show at this time.
 export type Found = { id: string; words: string; element?: Element; alike?: Element[]; box?: Box; pieces: string[]; reworded?: string; gone?: true; offScreen?: true; top?: number };
 
 // What happened to a thing, before it's said in full: what it's on, in which of the two readings, and what came with it;
@@ -34,33 +34,33 @@ const MOST_INSIDE = 5; // changes inside one table or list told one by one; past
 // Each rule in turn. What only follows from another comes out first; then each change left is told, with what came with it,
 // but for what changes by itself, which isn't a change at all, nor counted in one.
 export function findingsAt(then: Reading, now: Reading, unsteady = new Set<string>(), shown: Shown = { then: [], now: [] }): Found[] {
-  const moment = new Moment(then, now, shown);
-  const { follows, carried } = followingHolders(moment);
-  const own = moment.differences.filter((difference) => !follows.has(difference));
+  const readings = new ThenAndNow(then, now, shown);
+  const { follows, carried } = followingHolders(readings);
+  const own = readings.differences.filter((difference) => !follows.has(difference));
   const others = own.filter((difference) => !isMove(difference));
-  const caused = grownByWhatsInside(moment, own);
+  const caused = grownByWhatsInside(readings, own);
   const along = new Map<Difference, With>();
 
-  const items = itemsReordered(moment, own.filter(isMove));
-  const { reordered, left } = rowsReordered(moment, items.left);
+  const items = itemsReordered(readings, own.filter(isMove));
+  const { reordered, left } = rowsReordered(readings, items.left);
   const { shifts, loose } = layoutShifts(left, carried);
-  moment.shifts = shifts.map((shift) => shift.by);
+  readings.shifts = shifts.map((shift) => shift.by);
   const widened = widenedTogether(others, caused, along);
   const told = [
     ...items.reordered,
     ...reordered,
-    ...swappedOrMoved(moment, madeRoom(loose, others, caused, along)),
-    ...causesOfShifts(moment, shifts, widened, others, caused, along),
+    ...swappedOrMoved(readings, madeRoom(loose, others, caused, along)),
+    ...causesOfShifts(readings, shifts, widened, others, caused, along),
   ];
-  for (const difference of others) if (!caused.has(difference)) told.push(tell(moment, difference, along.get(difference)));
-  return said(told, moment, unsteady);
+  for (const difference of others) if (!caused.has(difference)) told.push(tell(readings, difference, along.get(difference)));
+  return said(told, readings, unsteady);
 }
 
-// What each round glimpsed in the step and just after it.
+// What each hand-back glimpsed in the step and just after it.
 type Shown = { then: Glimpse[]; now: Glimpse[] };
 
 // The two readings of a moment: which thing now is which thing then, and what happened to each one that changed.
-class Moment {
+class ThenAndNow {
   readonly then: Reading;
   readonly now: Reading;
   readonly differences: Difference[];
@@ -73,7 +73,7 @@ class Moment {
     this.then = then;
     this.now = now;
     // A message the page announces and takes away by itself, a toast, is judged by whether the step showed it, not by
-    // whether it's still up when the step is read: gone then, or new now, when that round glimpsed it in the step or just
+    // whether it's still up when the step is read: gone then, or new now, when that hand-back glimpsed it in the step or just
     // after, it was only read at another moment of its life. Kan's “Added to favorites” stays as long as the page keeps
     // redrawing, so a slower run reads the step once it's faded. A dialog isn't a message: one that now closes is gone.
     const ids = (things: { reading: Pick<Reading, "things">; thing: Thing }[]) => new Set(things.map(({ reading, thing }) => identity(reading, thing)));
@@ -113,13 +113,13 @@ class Moment {
 // What moved or changed size with what holds it isn't a change of its own: everything in a panel that moved, the words in
 // a heading that got wider, what reflowed in a dialog that got shorter. What moved with a holder still counts as moved
 // with it, in a layout shift.
-function followingHolders(moment: Moment): { follows: Map<Difference, Thing>; carried: Map<Difference, number> } {
+function followingHolders(readings: ThenAndNow): { follows: Map<Difference, Thing>; carried: Map<Difference, number> } {
   const follows = new Map<Difference, Thing>();
-  for (const difference of moment.differences) {
-    const holder = holderItFollows(moment, difference);
+  for (const difference of readings.differences) {
+    const holder = holderItFollows(readings, difference);
     if (holder) follows.set(difference, holder);
   }
-  const ofThing = new Map(moment.differences.flatMap((difference) => ("now" in difference ? [[difference.now, difference] as const] : [])));
+  const ofThing = new Map(readings.differences.flatMap((difference) => ("now" in difference ? [[difference.now, difference] as const] : [])));
   const carried = new Map<Difference, number>();
   for (const [difference, holder] of follows) {
     if (!isMove(difference)) continue;
@@ -131,19 +131,19 @@ function followingHolders(moment: Moment): { follows: Map<Difference, Thing>; ca
 }
 
 // A holder makes what's in it wider or narrower, never taller: something taller makes what holds it taller.
-function holderItFollows(moment: Moment, difference: Difference): Thing | undefined {
+function holderItFollows(readings: ThenAndNow, difference: Difference): Thing | undefined {
   if (difference.what !== "moved" && difference.what !== "resized") return undefined;
   const { then: a, now: b } = difference;
-  for (const around of [holderOf(moment.now, b), parentOf(moment.now, b)]) {
-    const before = around && moment.was.get(around);
+  for (const around of [holderOf(readings.now, b), parentOf(readings.now, b)]) {
+    const before = around && readings.was.get(around);
     if (!around || !before) continue;
     if (difference.what === "resized") {
       const widerWithIt = !near(before.box.width, around.box.width) && near(growthOf(a, b).x, growthOf(before, around).x) && near(a.box.height, b.box.height);
       if (widerWithIt) return around;
       continue;
     }
-    if (around === moment.movedWith(a, b)) return around;
-    const holds = around === holderOf(moment.now, b);
+    if (around === readings.movedWith(a, b)) return around;
+    const holds = around === holderOf(readings.now, b);
     const reflowed = holds && REFLOWS.test(around.role) && !sameSize(before, around);
     // In a table or list that got taller or shorter, what moved up or down by no more than that reflowed with it.
     const taller = around.box.height - before.box.height;
@@ -156,8 +156,8 @@ function holderItFollows(moment: Moment, difference: Difference): Thing | undefi
 // owes whom” panel put in it, a table wider by a column of new buttons or by longer words, a panel taller by what moved
 // into it. Each way it changed size is explained by something inside that changed as much, or at least half as much,
 // and not because it did: what's narrower only because its holder is can't explain it.
-function grownByWhatsInside(moment: Moment, own: Difference[]): Set<Difference> {
-  const { then, now } = moment;
+function grownByWhatsInside(readings: ThenAndNow, own: Difference[]): Set<Difference> {
+  const { then, now } = readings;
   const sizeOf = (thing: Thing, axis: "x" | "y") => (axis === "x" ? thing.box.width : thing.box.height);
   const explains = (d: Difference, holder: Pair, axis: "x" | "y", by: number) => {
     if (d === holder) return false;
@@ -183,9 +183,9 @@ function grownByWhatsInside(moment: Moment, own: Difference[]): Set<Difference> 
 // sorted below two, didn't swap with either); more are a new order. Each moved item is called by its words, as one new or
 // gone is; a new order isn't, so one that comes every run is learned as changing by itself. What moved inside the list's
 // items, with them, is theirs.
-function itemsReordered(moment: Moment, moves: Move[]): { reordered: Told[]; left: Move[] } {
-  const { then, now } = moment;
-  const pairs = pairItems(moment);
+function itemsReordered(readings: ThenAndNow, moves: Move[]): { reordered: Told[]; left: Move[] } {
+  const { then, now } = readings;
+  const pairs = pairItems(readings);
   const reordered: Told[] = [];
   let left = moves;
   for (const [, paired] of groupBy([...pairs], ([, b]) => now.items![b]!.list)) {
@@ -237,15 +237,15 @@ function longestRising(sequence: number[]): Set<number> {
 }
 
 // A table or list whose rows moved by many amounts, up and down, has its rows in a new order.
-function rowsReordered(moment: Moment, moves: Move[]): { reordered: Told[]; left: Move[] } {
+function rowsReordered(readings: ThenAndNow, moves: Move[]): { reordered: Told[]; left: Move[] } {
   const reordered: Told[] = [];
   let left = moves;
-  for (const [holder, inIt] of groupBy(moves, (move) => holderOf(moment.now, move.now))) {
-    if (!holder || !TABLES.test(holder.role) || !moment.was.has(holder)) continue;
+  for (const [holder, inIt] of groupBy(moves, (move) => holderOf(readings.now, move.now))) {
+    if (!holder || !TABLES.test(holder.role) || !readings.was.has(holder)) continue;
     const amounts = new Set(inIt.map((move) => Math.round(movedBy(move).y / 3)));
     const upAndDown = inIt.some((move) => movedBy(move).y < 0) && inIt.some((move) => movedBy(move).y > 0);
     if (amounts.size < 3 || !upAndDown) continue;
-    reordered.push({ what: "reordered", thing: holder, in: moment.now, words: `Rows in ${the(holder)} are in a new order` });
+    reordered.push({ what: "reordered", thing: holder, in: readings.now, words: `Rows in ${the(holder)} are in a new order` });
     left = left.filter((move) => !inIt.includes(move));
   }
   return { reordered, left };
@@ -268,7 +268,7 @@ function layoutShifts(moves: Move[], carried: Map<Difference, number>): { shifts
 
 // One thing moved straight up or down on its own, by something above it that took room or gave it, is part of that
 // change, as many moved alike are: the close's heading, pushed down by a new section, isn't a change of its own, and on
-// the newer round its outline showed nothing. Two that went opposite ways may have swapped, and stay.
+// the newer hand-back its outline showed nothing. Two that went opposite ways may have swapped, and stay.
 function madeRoom(loose: Move[], others: Difference[], caused: Set<Difference>, along: Map<Difference, With>): Move[] {
   const candidates = others.filter((difference) => !caused.has(difference));
   return loose.filter((move) => {
@@ -283,18 +283,18 @@ function madeRoom(loose: Move[], others: Difference[], caused: Set<Difference>, 
 // Two things that crossed each other in what holds them, moving opposite ways, have swapped places; each move is taken
 // against what holds them, when that moved too (a menu that opens higher, its items swapped). Things that all went the
 // same way only moved.
-function swappedOrMoved(moment: Moment, loose: Move[]): Told[] {
+function swappedOrMoved(readings: ThenAndNow, loose: Move[]): Told[] {
   const told: Told[] = [];
-  for (const [holder, moves] of groupBy(loose, (move) => holderOf(moment.now, move.now))) {
-    const before = holder && moment.was.get(holder);
+  for (const [holder, moves] of groupBy(loose, (move) => holderOf(readings.now, move.now))) {
+    const before = holder && readings.was.get(holder);
     const went = before ? moveOf(before, holder!) : { x: 0, y: 0 };
     const axes = ["x", "y"] as const;
     const opposite = axes.some((axis) => moves.some((move) => movedBy(move)[axis] - went[axis] > NEAR) && moves.some((move) => movedBy(move)[axis] - went[axis] < -NEAR));
-    // Two crossed when which came first, along or across, turned round.
+    // Two crossed when which came first, along or across, turned hand-back.
     const turned = (p: Move, q: Move) => axes.some((axis) => Math.sign(p.then.page[axis] - q.then.page[axis]) * Math.sign(p.now.page[axis] - q.now.page[axis]) < 0);
     const crossed = moves.some((p) => moves.some((q) => turned(p, q)));
     if (!holder || !before || moves.length < 2 || !opposite || !crossed) {
-      for (const move of moves) told.push({ what: "moved", thing: move.now, in: moment.now, words: `${called(move.now)} ${movedWords(moment, move)}` });
+      for (const move of moves) told.push({ what: "moved", thing: move.now, in: readings.now, words: `${called(move.now)} ${movedWords(readings, move)}` });
       continue;
     }
     const order = [...moves].sort((p, q) => p.now.page.x - q.now.page.x || p.now.page.y - q.now.page.y);
@@ -302,7 +302,7 @@ function swappedOrMoved(moment: Moment, loose: Move[]): Told[] {
       moves.length === 2
         ? `${together(order.map((move) => move.now))} have swapped places`
         : `What's in ${the(holder)} is in a new order: ${order.slice(0, 3).map((move) => called(move.now)).join(", ")}${moves.length > 3 ? "…" : ""}`;
-    told.push({ what: "swapped", thing: holder, in: moment.now, words });
+    told.push({ what: "swapped", thing: holder, in: readings.now, words });
   }
   return told;
 }
@@ -339,7 +339,7 @@ function widenedTogether(others: Difference[], caused: Set<Difference>, along: M
 // new, gone or resized above it, or beside it on the side it moved away from; else something that moved past it, from
 // one side to the other, taking its room along (Spliit's who owes whom, moved below the expenses). With no cause, the
 // shift is told by the first thing in it.
-function causesOfShifts(moment: Moment, shifts: Shift[], widened: Widened[], others: Difference[], caused: Set<Difference>, along: Map<Difference, With>): Told[] {
+function causesOfShifts(readings: ThenAndNow, shifts: Shift[], widened: Widened[], others: Difference[], caused: Set<Difference>, along: Map<Difference, With>): Told[] {
   const unexplained: Shift[] = [];
   for (const shift of shifts) {
     const { by, moves } = shift;
@@ -356,7 +356,7 @@ function causesOfShifts(moment: Moment, shifts: Shift[], widened: Widened[], oth
     const span = spanOf(pushed);
     // Across, in a row laid out with space between, a small new thing can move its neighbour a long way: the nearest change
     // on the side it moved away from, when nothing beside it is big enough.
-    const cause = moment.into(firstOf(moves)) ? undefined : (causeOf(span, looking, candidates) ?? (vertical ? undefined : causeOf(span, { ...looking, share: 0 }, candidates)));
+    const cause = readings.into(firstOf(moves)) ? undefined : (causeOf(span, looking, candidates) ?? (vertical ? undefined : causeOf(span, { ...looking, share: 0 }, candidates)));
     if (cause) addAlong(along, cause, "pushed", pushed, way);
     else unexplained.push(shift);
   }
@@ -382,13 +382,13 @@ function causesOfShifts(moment: Moment, shifts: Shift[], widened: Widened[], oth
       if (other && alikeInSize(shift, other)) {
         const calledBy = (shift: Shift) => shift.moves.find((move) => move.now.role === "text")?.now ?? firstOf(shift.moves).now;
         const both = [calledBy(shift), calledBy(other)].sort((p, q) => p.page.y - q.page.y || p.page.x - q.page.x);
-        return { what: "swapped", thing: both[0]!, in: moment.now, words: `${together(both)} have swapped places` };
+        return { what: "swapped", thing: both[0]!, in: readings.now, words: `${together(both)} have swapped places` };
       }
       // Alike things, each in an item of its own, moved as one: “57%”, “29%” and “14%” moved left.
       const alike = shift.moves.every((move) => move.now.item !== undefined && move.now.role === first.now.role) && new Set(shift.moves.map((move) => move.now.item)).size === shift.moves.length;
       const them = alike ? together([...shift.moves].sort((p, q) => p.now.page.y - q.now.page.y || p.now.page.x - q.now.page.x).map((move) => move.now)) : called(first.now);
       const more = shift.moves.length > 1 && !alike ? `, with ${shift.moves.length - 1} more ${things(shift.moves.length - 1)} around it` : "";
-      return { what: "moved", thing: first.now, in: moment.now, words: `${them} ${movedWords(moment, first)}${more}`, ...(pushed && { pushed }) };
+      return { what: "moved", thing: first.now, in: readings.now, words: `${them} ${movedWords(readings, first)}${more}`, ...(pushed && { pushed }) };
     });
 }
 
@@ -449,37 +449,37 @@ function causeOf(span: Span, { vertical, by, kinds = /^(new|gone|resized|reworde
 }
 
 // A change of its own, in words, with what came with it.
-function tell(moment: Moment, difference: Difference, along: With = {}): Told {
-  const { now } = moment;
+function tell(readings: ThenAndNow, difference: Difference, along: With = {}): Told {
+  const { now } = readings;
   switch (difference.what) {
     case "new":
       return { what: "new", thing: difference.now, in: now, words: `${called(difference.now)} is new`, ...along };
     case "gone":
-      return { what: "gone", thing: difference.then, in: moment.then, words: `${called(difference.then)} is gone`, ...along };
+      return { what: "gone", thing: difference.then, in: readings.then, words: `${called(difference.then)} is gone`, ...along };
     case "became":
       return { what: "became", thing: difference.now, in: now, words: `${called(difference.then)} is ${a(word(difference.now))} now`, ...along };
     case "reworded":
       return { what: "reworded", thing: difference.now, in: now, words: rewordedWords(difference.then, difference.now), reworded: rewordedPart(difference.then.words, difference.now.words), ...along };
     case "looks different": {
-      const size = sizeWords(moment, difference);
+      const size = sizeWords(readings, difference);
       const words = `${called(difference.now)} looks different: ${lookWords(difference.then, difference.now)}${size ? `, and ${size}` : ""}`;
       return { what: "looks different", thing: difference.now, in: now, words, ...along };
     }
     default:
-      return { what: difference.what, thing: difference.now, in: now, words: `${called(difference.now)} ${sizeWords(moment, difference)}`, ...along };
+      return { what: difference.what, thing: difference.now, in: now, words: `${called(difference.now)} ${sizeWords(readings, difference)}`, ...along };
   }
 }
 
-function movedWords(moment: Moment, move: Pair): string {
-  const holder = moment.into(move);
+function movedWords(readings: ThenAndNow, move: Pair): string {
+  const holder = readings.into(move);
   return holder ? `moved into ${the(holder)}` : `moved ${wayOf(movedBy(move).x, movedBy(move).y)}`;
 }
 
 // “Is wider and taller”, then where it went when both its edges went the same way; by under 10px, “a little”. Moved into
 // something, its size is what it takes there, and where it went only follows what holds it.
-function sizeWords(moment: Moment, pair: Pair): string {
+function sizeWords(readings: ThenAndNow, pair: Pair): string {
   const { then: a, now: b } = pair;
-  const holder = moment.into(pair);
+  const holder = readings.into(pair);
   if (holder) return `moved into ${the(holder)}`;
   const little = (from: number, to: number) => (Math.abs(to - from) < 10 ? "a little " : "");
   const change = (from: number, to: number, more: string, less: string) => (near(from, to) ? "" : `${little(from, to)}${to > from ? more : less}`);
@@ -490,20 +490,20 @@ function sizeWords(moment: Moment, pair: Pair): string {
   };
   const across = edges(b.page.x, b.box.width, a.page.x, a.box.width);
   const down = edges(b.page.y, b.box.height, a.page.y, a.box.height);
-  const went = (across || down) && !moment.movedAlong(a, b) ? `moved ${wayOf(across, down)}` : "";
+  const went = (across || down) && !readings.movedAlong(a, b) ? `moved ${wayOf(across, down)}` : "";
   return [sizes.length ? `is ${sizes.join(" and ")}` : "", went].filter(Boolean).join(", and ");
 }
 
 // Each change in full: what changes by itself left out, each item's told as one, alike things changed alike told once,
 // what changed inside one table or list counted when there's a lot, and each with its id and where it is.
-function said(told: Told[], moment: Moment, unsteady: Set<string>): Found[] {
-  const { now, was, isNow } = moment;
-  const id = (told: Told) => idOf(told.key ?? identityOf(told, moment), told.what);
+function said(told: Told[], readings: ThenAndNow, unsteady: Set<string>): Found[] {
+  const { now, was, isNow } = readings;
+  const id = (told: Told) => idOf(told.key ?? identityOf(told, readings), told.what);
   const piecesOf = (told: Told) => told.pieces ?? [id(told)];
   // Top to bottom, as the page reads.
   const steady = told.filter((one) => !unsteady.has(id(one)));
   const byId = groupBy(
-    asItems(steady, moment, id).sort((p, q) => p.thing.page.y - q.thing.page.y || p.thing.page.x - q.thing.page.x),
+    asItems(steady, readings, id).sort((p, q) => p.thing.page.y - q.thing.page.y || p.thing.page.x - q.thing.page.x),
     id,
   );
 
@@ -545,12 +545,12 @@ const offScreen = (told: Told[]): { offScreen?: true } => (told.some((one) => on
 // it, in which kind of item of which list, for words reworded, how they changed, and for a move, which way. Never its
 // words, which in an item are its data, so the same change in every row is one change: “(paid)” after each customer's
 // name; and never two moves the opposite way. Anything else is what it is (differences.ts).
-function identityOf({ in: reading, thing, what }: Told, moment: Moment): string {
+function identityOf({ in: reading, thing, what }: Told, readings: ThenAndNow): string {
   const item = thing.item === undefined ? undefined : reading.items?.[thing.item];
   if (!item) return identity(reading, thing);
   const kind = reading.things.filter((other) => other.item === thing.item && other.role === thing.role && other.column === thing.column);
   const place = `${thing.role} ${kind.indexOf(thing) + 1}${thing.column ? ` under ${thing.column}` : ""}`;
-  const was = /^(reworded|moved)$/.test(what) ? moment.was.get(thing) : undefined;
+  const was = /^(reworded|moved)$/.test(what) ? readings.was.get(thing) : undefined;
   const went = was && what === "moved" && moveOf(was, thing);
   const how = went ? `, ${wayOf(near(went.x, 0) ? 0 : went.x, near(went.y, 0) ? 0 : went.y)}` : was ? `: ${shapeOf(was.words, thing.words)}` : "";
   return `${place} in a ${item.role} of ${listOf(reading, item)}${how}`;
@@ -560,7 +560,7 @@ const listOf = (reading: Reading, item: Item) => (item.holder === undefined ? "t
 // Items, rows or a list's items, paired across the two readings: by what's the same in both inside them, most first;
 // then, in lists side by side, those left in order, when there are as many of each. Words only in the same place say
 // nothing of which item is which.
-function pairItems({ then, now, was }: Moment): Map<number, number> {
+function pairItems({ then, now, was }: ThenAndNow): Map<number, number> {
   const [before, after] = [then.items ?? [], now.items ?? []];
   const pairs = new Map<number, number>(); // each item then, and the one it is now
   const taken = new Set<number>();
@@ -587,9 +587,9 @@ function pairItems({ then, now, was }: Moment): Map<number, number> {
 
 // What came, went or was reworded in one item is one change to it: the item new or gone, or the words it says now, where
 // more than one piece of them changed. How something in it looks, or where it is, is told on its own.
-function asItems(told: Told[], moment: Moment, id: (told: Told) => string): Told[] {
-  const { then, now } = moment;
-  const items = pairItems(moment);
+function asItems(told: Told[], readings: ThenAndNow, id: (told: Told) => string): Told[] {
+  const { then, now } = readings;
+  const items = pairItems(readings);
   const was = new Map([...items].map(([a, b]) => [b, a]));
   const itemOf = (one: Told) => {
     if (one.thing.item === undefined || !/^(new|gone|reworded|became)$/.test(one.what)) return undefined;
@@ -687,7 +687,7 @@ export function idOf(thing: string, what: string): string {
   return Array.from(createHash("sha256").update(`${thing}|${what}`).digest().subarray(0, 8), (byte) => letters[byte % 32]).join("");
 }
 
-// Where it is: an element of the newer round, by its role and name, or where something gone was, as shares of the screen.
+// Where it is: an element of the newer hand-back, by its role and name, or where something gone was, as shares of the screen.
 function placeOf(told: Told, now: Reading): { element: Element } | { box: Box } | {} {
   const { thing } = told;
   if (told.in === now && thing.name) return { element: elementOf(thing) };
@@ -695,7 +695,7 @@ function placeOf(told: Told, now: Reading): { element: Element } | { box: Box } 
   return box ? { box } : {};
 }
 
-// Where the others changed alike with the first are, those still on the newer round.
+// Where the others changed alike with the first are, those still on the newer hand-back.
 function alikeOf([first, ...others]: Told[], now: Reading): { alike?: Element[] } {
   const alike = others.filter((told) => told.in === now && told.thing.name).map((told) => elementOf(told.thing));
   return first!.in === now && first!.thing.name && alike.length ? { alike } : {};

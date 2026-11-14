@@ -1,10 +1,10 @@
-// Which agent recorded a round, so each answer in a change that passes between agents shows whose it is.
+// Which agent recorded a hand-back, so each answer in a change that passes between agents shows whose it is.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { agent } from "../src/agent.ts";
 
-test("an agent is known by what its shell says about it, whatever the round says", () => {
+test("an agent is known by what its shell says about it, whatever the hand-back says", () => {
   assert.equal(agent(undefined, { CLAUDECODE: "1" }), "Claude Code");
   assert.equal(agent(undefined, { CODEX_THREAD_ID: "019a" }), "Codex");
   assert.equal(agent(undefined, { CURSOR_AGENT: "1" }), "Cursor");
@@ -12,7 +12,7 @@ test("an agent is known by what its shell says about it, whatever the round says
   assert.equal(agent("Claude Code", { CODEX_SANDBOX: "seatbelt" }), "Codex");
 });
 
-test("any other agent goes by the name it wrote in the round, and is the agent until it does", () => {
+test("any other agent goes by the name it wrote in the hand-back, and is the agent until it does", () => {
   assert.equal(agent("Aider", {}), "Aider");
   assert.equal(agent(undefined, {}), "Agent");
 });

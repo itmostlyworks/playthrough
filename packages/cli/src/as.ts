@@ -44,7 +44,7 @@ const seeded = `(() => {
   };
 })();`;
 
-// What's done in any of the browser's pages, kept as a person's is when they take a scene over (take-over.ts), whoever
+// What's done in any of the browser's pages, kept as a person's is when they take a moment over (take-over.ts), whoever
 // drives: a click, words in a field, Enter in a field, and past what take-over keeps, a key with Ctrl or ⌘ or Escape,
 // on whatever has the focus or the page itself. And each page loaded, with its address, as a way of getting there
 // that no listener hears. Nothing here is replayed, so what isn't trusted is kept too: a tool may set a field's words
@@ -213,7 +213,7 @@ export async function as(repo: Repo, person: string, at?: string) {
   mkdirSync(join(repo.root, ".playthrough"), { recursive: true });
   const save = () => writeFileSync(browserFile(repo), JSON.stringify(live, null, 2));
   // Asked to start again (startAgain): what was made is given back, the browser forgets who it was signed in as, and
-  // what every scene starts from is made again, for whoever's asked for; the way there starts again from the app's start.
+  // what every moment starts from is made again, for whoever's asked for; the way there starts again from the app's start.
   process.on("SIGUSR1", async () => {
     try {
       const { person: next, at: there } = JSON.parse(readFileSync(againFile(repo), "utf8"));

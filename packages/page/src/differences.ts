@@ -1,4 +1,4 @@
-// Two readings of the same moment in two rounds, thing by thing: which thing now is which thing then, and what happened to
+// Two readings of the same moment in two hand-backs, thing by thing: which thing now is which thing then, and what happened to
 // each one that changed. A thing is the same one when it's what it was, called what it was, saying what it said; one that's
 // gone where something like it is new may be the same one, reworded or renamed.
 
@@ -33,7 +33,7 @@ export function bare(words: string): string {
 }
 
 // What a thing is, whatever it shows: what it is, its name with the data in it left out, and what holds it, said the same
-// way. The Export dialog saying “12 invoices from Q3 2026” in one scene and “25 invoices from 2026” in another is one dialog.
+// way. The Export dialog saying “12 invoices from Q3 2026” in one moment and “25 invoices from 2026” in another is one dialog.
 // A message the page announces is the same one whatever page it pops up over.
 export function identity(reading: Pick<Reading, "things">, thing: Thing, up = 1): string {
   const holder = up > 0 && !thing.live ? holderOf(reading, thing) : undefined;

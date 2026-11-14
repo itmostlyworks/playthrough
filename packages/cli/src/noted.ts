@@ -13,8 +13,8 @@ import { readingsOn } from "./reporter.ts";
 
 type Area = { x: number; y: number; width: number; height: number };
 
-// Kept in the round that answers them, as the files a person would open: each note's id names its picture.
-export async function pictureNotes(repo: Repo, change: Change, round: number, notes: string[]): Promise<Map<string, string>> {
+// Kept in the hand-back that answers them, as the files a person would open: each note's id names its picture.
+export async function pictureNotes(repo: Repo, change: Change, handBack: number, notes: string[]): Promise<Map<string, string>> {
   const shown = new Map<string, string>();
   // Opened for the first note there's a picture of, if it opens at all.
   let browser: Browser | undefined;
@@ -30,8 +30,8 @@ export async function pictureNotes(repo: Repo, change: Change, round: number, no
         await page.setContent(drawn(Buffer.from(picture).toString("base64"), found));
         await page.locator("img").evaluate((image: HTMLImageElement) => image.decode());
         const name = `notes/${id}.png`;
-        await repo.changes.saveFile(change.id, round, name, await page.screenshot());
-        shown.set(id, repo.show(join(dirname(repo.round(change.id, round)), "files", name)));
+        await repo.changes.saveFile(change.id, handBack, name, await page.screenshot());
+        shown.set(id, repo.show(join(dirname(repo.handBack(change.id, handBack)), "files", name)));
       } catch {
         // this one goes without, and the rest are still pictured
       } finally {
@@ -50,10 +50,10 @@ export async function pictureNotes(repo: Repo, change: Change, round: number, no
 // or part of the screen. One on the whole moment was made at its end, so it's the page the moment left, with nothing
 // marked.
 async function whereSeen(repo: Repo, change: Change, on: OnMoment) {
-  const scene = change.rounds.find((round) => round.number === on.round)?.scenes.find((scene) => scene.name === on.scene);
-  if (!scene) return undefined;
-  const readings = await readingsOn(repo.changes, change.id, on.round, scene);
-  const file = (name: string) => repo.changes.file(change.id, on.round, name);
+  const moment = change.handBacks.find((handBack) => handBack.number === on.handBack)?.moments.find((moment) => moment.name === on.moment);
+  if (!moment) return undefined;
+  const readings = await readingsOn(repo.changes, change.id, on.handBack, moment);
+  const file = (name: string) => repo.changes.file(change.id, on.handBack, name);
   if (on.at === undefined) {
     const end = readings.at(-1);
     return end && { picture: await file(end.picture), width: end.screen.width, height: end.screen.height };

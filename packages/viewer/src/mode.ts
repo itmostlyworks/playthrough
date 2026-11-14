@@ -26,13 +26,13 @@ export type Mode =
 
 // `starts` is where what's shown of the moment starts, `end` where it ends; `at` where it rests, and stepped in, where
 // it was stepped into; `along`, compared, how far along both it rests.
-export type Page = { scene: string; starts: number; end: number; at: number; along?: number; mode: Mode };
+export type Page = { moment: string; starts: number; end: number; at: number; along?: number; mode: Mode };
 
 // A moment arrived at: at rest on its end, or with a note open.
-export const arrived = (scene: string, starts: number, end: number, open?: string): Page => ({ scene, starts, end, at: end, mode: open ? { is: "a note open", note: open } : { is: "resting" } });
+export const arrived = (moment: string, starts: number, end: number, open?: string): Page => ({ moment, starts, end, at: end, mode: open ? { is: "a note open", note: open } : { is: "resting" } });
 
 export type Action =
-  | { type: "moment"; scene: string; starts: number; end: number; open?: string }
+  | { type: "moment"; moment: string; starts: number; end: number; open?: string }
   | { type: "play" }
   // Played to where it was going, on its own.
   | { type: "played" }
@@ -62,7 +62,7 @@ export function reduce(page: Page, action: Action & Now): Page {
   const resting: Page = { ...stopped, mode: { is: "resting" } };
   switch (action.type) {
     case "moment":
-      return arrived(action.scene, action.starts, action.end, action.open);
+      return arrived(action.moment, action.starts, action.end, action.open);
     case "play": {
       if (playing(mode)) return { ...stopped, mode: mode.is === "comparing" ? { is: "comparing" } : { is: "resting" } };
       // Played, it carries on from where it rests, or from where what's shown starts if it rests at its end or before.

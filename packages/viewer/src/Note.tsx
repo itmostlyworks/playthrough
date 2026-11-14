@@ -35,7 +35,7 @@ export function Turns({ you, turns, unsent }: { you: string; turns: Turn[]; unse
 
 // Where a note was made: the recording it was made on (a taking of the moment, or yours, stepped in), the moment in it,
 // and its thing there, by that recording's own numbering, or its spot.
-export type Made = { round: number; recording: string; at: number; node?: number; point?: { x: number; y: number } };
+export type Made = { handBack: number; recording: string; at: number; node?: number; point?: { x: number; y: number } };
 
 // Each note's kept picture, by its id: the frame it was made on. One made at the end of a taking is that taking's own
 // picture, there at once; any other, drawn once by `playthrough open` (frames.ts) and kept.
@@ -44,16 +44,16 @@ export function useFrames(change: Change, notes: { note: Note; shown?: Made }[])
   // Each by where it's shown: a note shown as it is now, once the agent hands the moment back without its thing, is
   // shown where it was made, and asked for again.
   const asked = useRef(new Map<string, string>());
-  const keyOf = (shown: Made) => `${shown.round} ${shown.recording} ${shown.at} ${shown.node ?? ""}`;
+  const keyOf = (shown: Made) => `${shown.handBack} ${shown.recording} ${shown.at} ${shown.node ?? ""}`;
   const wanted = notes.filter(({ note, shown }) => shown && asked.current.get(note.id) !== keyOf(shown));
   useEffect(() => {
     for (const { note, shown: made } of wanted) {
       if (!made) continue;
       asked.current.set(note.id, keyOf(made));
-      const taking = change.rounds.find((one) => one.number === made.round)?.scenes.find((one) => one.recording === made.recording);
+      const taking = change.handBacks.find((one) => one.number === made.handBack)?.moments.find((one) => one.recording === made.recording);
       const kept = (frame: NoteFrame | undefined) => frame && asked.current.get(note.id) === keyOf(made) && setFrames((all) => ({ ...all, [note.id]: frame }));
       if (taking && Math.abs(made.at - taking.length) < 0.1)
-        void readingsOf(change.id, made.round, made.recording).then((read) => {
+        void readingsOf(change.id, made.handBack, made.recording).then((read) => {
           const end = read.at(-1);
           if (!end) return;
           const found = made.node !== undefined ? end.things.find((one) => one.node === made.node) : undefined;
@@ -63,7 +63,7 @@ export function useFrames(change: Change, notes: { note: Note; shown?: Made }[])
           // A line of words is laid out across its whole column: its words are as wide as they are, as near as can be
           // told, which is what its strip shows and its pin stands clear of.
           const said = found?.words && /^(text|heading)$/.test(found.role) && share({ ...found.box, width: Math.min(found.box.width, found.words.length * parseFloat(found.look.size) * 0.55) });
-          kept({ src: picture(change.id, made.round, made.recording, Math.max(0, taking.steps.length - 1)), screen: end.screen, ...(box && { box }), ...(said && { words: said }) });
+          kept({ src: picture(change.id, made.handBack, made.recording, 0), screen: end.screen, ...(box && { box }), ...(said && { words: said }) });
         });
       else void noteFrame(change.id, note.id, made).then(kept);
     }
@@ -129,9 +129,9 @@ const STRIP = 3.8;
 const tooLarge = (thing: { width: number; height: number }) => thing.width + 40 > TILE * 1.6 || (thing.height + 16) * STRIP > TILE * 1.6;
 
 function stripOf(screen: { width: number; height: number }, thing?: { x: number; y: number; width: number; height: number }): Crop {
-  const [round, widest, around] = [TILE, TILE * 1.6, 20];
+  const [handBack, widest, around] = [TILE, TILE * 1.6, 20];
   const spot = !thing || (!thing.width && !thing.height);
-  let width = spot ? round * 1.5 : Math.min(widest, Math.max(round, thing.width + 2 * around, (thing.height + 16) * STRIP));
+  let width = spot ? handBack * 1.5 : Math.min(widest, Math.max(handBack, thing.width + 2 * around, (thing.height + 16) * STRIP));
   width = Math.min(width, screen.width, screen.height * STRIP);
   const height = width / STRIP;
   const [middle, centre] = thing ? [thing.x + thing.width / 2, thing.y + thing.height / 2] : [screen.width / 2, screen.height / 2];

@@ -10,8 +10,8 @@ import { dirname, join, relative, resolve } from "node:path";
 import { Refused, Changes } from "@playthrough/change";
 import { folder } from "@playthrough/change/folder";
 
-// And whether its scenes run one at a time: on an app with a page that shows what every run made, as a blog's index lists
-// every post, scenes run side by side would see each other's. Where app.json lets Playthrough give the app a port, the
+// And whether its moments run one at a time: on an app with a page that shows what every run made, as a blog's index lists
+// every post, moments run side by side would see each other's. Where app.json lets Playthrough give the app a port, the
 // port it gave this copy, and start and url say it.
 export type App = { start: string; url: string; oneAtATime?: boolean; port?: number };
 export type Repo = ReturnType<typeof repo>;
@@ -22,13 +22,13 @@ export function repo(root = home(process.cwd())) {
   return {
     root,
     changes: new Changes(folder(changes)),
-    scenes: (change: string) => join(changes, change, "scenes"),
-    round: (change: string, round: number) => join(changes, change, "rounds", String(round), "round.json"),
+    moments: (change: string) => join(changes, change, "moments"),
+    handBack: (change: string, handBack: number) => join(changes, change, "hand-backs", String(handBack), "hand-back.json"),
     // A file for each agent waiting for what's sent, named by its process.
     waiting: (change: string) => join(changes, change, "waiting"),
     // How to start the app, committed.
     appFile,
-    // What every scene of the app starts from, committed beside app.json.
+    // What every moment of the app starts from, committed beside app.json.
     setup: join(root, "playthrough", "setup.ts"),
     // What setup made for each run, until its after gives it back.
     borrowed: join(changes, "borrowed"),
@@ -61,7 +61,7 @@ export function repo(root = home(process.cwd())) {
       // Otherwise it's started, and waited for, for three minutes, at an address nothing can answer at.
       if (!/^https?:$/.test(URL.parse(url)?.protocol ?? ""))
         throw new Refused([`playthrough/app.json's “url” is a whole address, as a browser takes it, like http://localhost:{port}, not “${app.url}”.`]);
-      if (app.oneAtATime !== undefined && typeof app.oneAtATime !== "boolean") throw new Refused([`playthrough/app.json's “oneAtATime” is true or false: true runs each scene by itself.`]);
+      if (app.oneAtATime !== undefined && typeof app.oneAtATime !== "boolean") throw new Refused([`playthrough/app.json's “oneAtATime” is true or false: true runs each moment by itself.`]);
       return { start: given(app.start), url, ...(app.oneAtATime && { oneAtATime: true }), ...(port !== undefined && { port }) };
     },
   };

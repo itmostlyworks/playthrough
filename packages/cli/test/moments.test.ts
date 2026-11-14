@@ -9,13 +9,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, test } from "node:test";
 import type { Reading, Thing } from "@playthrough/page";
-import { Refused, type Round, type Scene } from "@playthrough/change";
+import { Refused, type HandBack, type Moment } from "@playthrough/change";
 import { change, changeHere, idOf, momentNamed, titleOf, momentsOf } from "../src/change.ts";
 import { howEachWent } from "../src/moments.ts";
 import { repo } from "../src/repo.ts";
 import { problemsWithPeople } from "../src/setup.ts";
 import { agentWaiting, listening } from "../src/wait.ts";
-import { fileOf, sameAddress, sceneOf, wayIn, whatDiffers, wordsIn, type Done } from "../src/way.ts";
+import { fileOf, sameAddress, wayFile, wayIn, whatDiffers, wordsIn, type Done } from "../src/way.ts";
 
 const folders: string[] = [];
 after(() => Promise.all(folders.map((folder) => rm(folder, { recursive: true, force: true }))));
@@ -39,7 +39,7 @@ describe("the way to a moment", () => {
     { does: "click", on: "#__next > form p", text: "post on Monday", nth: 1 },
     { does: "press", on: "body", with: "Meta+k" },
   ];
-  const way = sceneOf({ words: "Cards now say WEB-1", person: "Maja", did, setup: { board: "qiaa4o4hklar" } });
+  const way = wayFile({ words: "Cards now say WEB-1", person: "Maja", did, setup: { board: "qiaa4o4hklar" } });
 
   test("is written as a person would say each step: by role and name, which one where several share them, by its words where nothing names it, and by its place only where it says nothing", () => {
     assert.match(way, /await page\.getByRole\("link", \{ name: "Settings", exact: true \}\)\.click\(\);/);
@@ -51,7 +51,7 @@ describe("the way to a moment", () => {
   });
 
   test("types where the caret was put, as it was typed there, and finds a field the page gives no name by which of its kind it is", () => {
-    const typed = sceneOf({
+    const typed = wayFile({
       words: "Words typed at the start stay there",
       person: "Maja",
       did: [
@@ -63,16 +63,16 @@ describe("the way to a moment", () => {
       about: { role: "text", name: "Draft and post on Monday", disabled: false },
     });
     assert.match(typed, /await page\.getByRole\("textbox"\)\.nth\(1\)\.fill\("post on Monday"\);\n    await page\.getByRole\("textbox"\)\.nth\(1\)\.press\("Home"\);\n    await page\.getByRole\("textbox"\)\.nth\(1\)\.pressSequentially\("Draft and "\);/);
-    const inWords = sceneOf({ words: "Here", person: "Maja", did: [{ does: "press", on: "#__next p", text: "post on Monday", with: "Home" }, { does: "type", on: "#__next p", text: "post on Monday", with: "Draft and " }], setup: {} });
+    const inWords = wayFile({ words: "Here", person: "Maja", did: [{ does: "press", on: "#__next p", text: "post on Monday", with: "Home" }, { does: "type", on: "#__next p", text: "post on Monday", with: "Draft and " }], setup: {} });
     assert.match(inWords, /await page\.keyboard\.press\("Home"\);\n    await page\.keyboard\.type\("Draft and "\);/, "keys on words with no role go where the focus is");
     assert.match(typed, /await expect\(page\.getByText\("Draft and post on Monday", \{ exact: true \}\)\)\.toBeVisible\(\);\n  \}\);/, "words are checked only for being there");
   });
 
   test("goes to what setup made for this run, not the one the agent's browser had: at once where the agent went there directly, and only where a click hasn't taken it already where one led there", () => {
     assert.match(way, /\n    await page\.goto\(`\$\{baseURL\}\/boards\/\$\{setup\.board\}`\);/);
-    const passing = sceneOf({ words: "Here", person: "Maja", did: [{ does: "goto", on: "page", with: "/login" }, ...did], setup: { board: "qiaa4o4hklar" } });
+    const passing = wayFile({ words: "Here", person: "Maja", did: [{ does: "goto", on: "page", with: "/login" }, ...did], setup: { board: "qiaa4o4hklar" } });
     assert.doesNotMatch(passing, /login/, "an address left for another before anything was done there isn't gone to");
-    const led = sceneOf({ words: "Here", person: "Maja", did: [...did, { does: "goto", on: "page", with: "/cards/qiaa4o4hklar", led: true }], setup: { board: "qiaa4o4hklar" } });
+    const led = wayFile({ words: "Here", person: "Maja", did: [...did, { does: "goto", on: "page", with: "/cards/qiaa4o4hklar", led: true }], setup: { board: "qiaa4o4hklar" } });
     assert.match(led, /waitForURL\(`\$\{baseURL\}\/cards\/\$\{setup\.board\}`, \{ timeout: 3000 \}\)\.catch\(\(\) => page\.goto\(`\$\{baseURL\}\/cards\/\$\{setup\.board\}`\)\)/);
   });
 
@@ -80,12 +80,12 @@ describe("the way to a moment", () => {
     assert.match(way, /test\.use\(\{ person: "Maja" \}\);/);
     assert.equal(wordsIn(way), "Cards now say WEB-1");
     assert.equal(fileOf("Cards now say WEB-1"), "cards-now-say-web-1.ts");
-    assert.equal(wordsIn(sceneOf({ words: 'The "Save" button is gone', person: "Sam", did: [], setup: {} })), 'The "Save" button is gone');
+    assert.equal(wordsIn(wayFile({ words: 'The "Save" button is gone', person: "Sam", did: [], setup: {} })), 'The "Save" button is gone');
   });
 
   test("checks again what the moment is about: that it's there, what it says, and whether it can be changed", () => {
     const about = { role: "textbox", name: "Card prefix", value: "BS", disabled: true };
-    const checked = sceneOf({ words: "The prefix can't be changed", person: "Sam", did: [], setup: {}, about });
+    const checked = wayFile({ words: "The prefix can't be changed", person: "Sam", did: [], setup: {}, about });
     assert.match(checked, /await expect\(page\.getByRole\("textbox", \{ name: "Card prefix", exact: true \}\)\)\.toBeVisible\(\);/);
     assert.match(checked, /\.toHaveValue\("BS"\);/);
     assert.match(checked, /\.not\.toBeEditable\(\);/);
@@ -93,7 +93,7 @@ describe("the way to a moment", () => {
   });
 
   test("does the way there before the moment's step, and only what the moment shows in it; going there by hand does both", () => {
-    const shown = sceneOf({ words: "The prefix is WEB", person: "Maja", did: did.slice(0, 4), setup: { board: "qiaa4o4hklar" }, from: 2 });
+    const shown = wayFile({ words: "The prefix is WEB", person: "Maja", did: did.slice(0, 4), setup: { board: "qiaa4o4hklar" }, from: 2 });
     const [way, step] = shown.split('await test.step("The prefix is WEB"');
     assert.match(way!, /^  await page\.getByRole\("link", \{ name: "Settings", exact: true \}\)\.click\(\);$/m);
     assert.doesNotMatch(step!, /Settings/);
@@ -105,33 +105,33 @@ describe("the way to a moment", () => {
   test("scrolls where the agent had before each thing it did: the way at once, ending where the moment's first is done; the moment as a person scrolls; and ends where the agent is", () => {
     const scrolled = (y: number, done: Done): Done => ({ ...done, scrolled: { x: 0, y } });
     const footer = [did[0]!, scrolled(0, did[1]!), scrolled(1200, did[3]!), scrolled(0, did[2]!)];
-    const shown = sceneOf({ words: "Back to top", person: "Maja", did: footer, setup: {}, from: 2, scrolled: { x: 0, y: 600 } });
+    const shown = wayFile({ words: "Back to top", person: "Maja", did: footer, setup: {}, from: 2, scrolled: { x: 0, y: 600 } });
     const [way, step] = shown.split('await test.step("Back to top"');
     assert.match(way!, /window\.scrollTo\(x, y\), \[0, 1200\]\);\n  await test\.step|window\.scrollTo\(x, y\), \[0, 1200\]\);$/m);
     assert.match(step!, /name: "Save"[\s\S]*behavior: "smooth" \}\), \[0, 0\]\);\n.*fill\("WEB"\)/);
     assert.match(step!, /waitForFunction[\s\S]*\[0, 600\], \{ timeout: 3000 \}\)\.catch/);
-    const still = sceneOf({ words: "The footer", person: "Maja", did: footer.slice(0, 2), setup: {}, from: 2, scrolled: { x: 0, y: 1200 } });
+    const still = wayFile({ words: "The footer", person: "Maja", did: footer.slice(0, 2), setup: {}, from: 2, scrolled: { x: 0, y: 1200 } });
     assert.match(still.split("await test.step(")[0]!, /window\.scrollTo\(x, y\), \[0, 1200\]\);/, "a still's first frame is where the agent is");
   });
 
   test("brings what the moment first does comfortably into view before it starts, and what it's about before it's checked; a still's on the way; never going there by hand", () => {
     const about = { role: "textbox", name: "Card prefix", value: "WEB", disabled: false };
-    const moment = sceneOf({ words: "The prefix is WEB", person: "Maja", did: did.slice(0, 4), setup: {}, from: 2, about });
-    const [way, step] = moment.split('await test.step("The prefix is WEB"');
+    const file = wayFile({ words: "The prefix is WEB", person: "Maja", did: did.slice(0, 4), setup: {}, from: 2, about });
+    const [way, step] = file.split('await test.step("The prefix is WEB"');
     assert.match(way!, /await test\.inView\(page\.getByRole\("textbox", \{ name: "Card prefix", exact: true \}\), \{ offScreen: true \}\);\n\s*$/);
     assert.match(step!, /name: "Save"[\s\S]*await test\.inView\(page\.getByRole\("textbox", \{ name: "Card prefix", exact: true \}\)\);\n.*expect/);
-    const still = sceneOf({ words: "The prefix", person: "Sam", did: did.slice(0, 2), setup: {}, from: 2, about });
+    const still = wayFile({ words: "The prefix", person: "Sam", did: did.slice(0, 2), setup: {}, from: 2, about });
     assert.match(still.split("await test.step(")[0]!, /await test\.inView\(page\.getByRole\("textbox"/);
-    assert.doesNotMatch(wayIn(moment), /inView/);
+    assert.doesNotMatch(wayIn(file), /inView/);
   });
 
   test("a right click is done again as one, as a card's menu opens", () => {
-    const menu = sceneOf({ words: "The card's menu", person: "Maja", did: [{ does: "click", on: "#card", role: "link", name: "Write the launch post", button: "right" }], setup: {} });
+    const menu = wayFile({ words: "The card's menu", person: "Maja", did: [{ does: "click", on: "#card", role: "link", name: "Write the launch post", button: "right" }], setup: {} });
     assert.match(menu, /getByRole\("link", \{ name: "Write the launch post", exact: true \}\)\.click\(\{ button: "right" \}\);/);
   });
 
   test("writes where it ended only while it's tried, never in the moment that's kept", () => {
-    assert.match(sceneOf({ words: "Here", person: "Maja", did, setup: {}, tried: true }), /writeFileSync\(new URL\("\.\/ended\.json"/);
+    assert.match(wayFile({ words: "Here", person: "Maja", did, setup: {}, tried: true }), /writeFileSync\(new URL\("\.\/ended\.json"/);
     assert.doesNotMatch(way, /writeFileSync|ended\.json/);
   });
 });
@@ -244,9 +244,9 @@ describe("the change a command means", () => {
     const here = await copy();
     await quietly(() => change(here, "Comments and activity in tabs", "Put them in tabs."));
     const id = await changeHere(here);
-    mkdirSync(here.scenes(id), { recursive: true });
-    writeFileSync(join(here.scenes(id), fileOf("Activity is its own tab")), sceneOf({ words: "Activity is its own tab", person: "Maja", did: [], setup: {} }));
-    writeFileSync(join(here.scenes(id), "package.json"), "{}");
+    mkdirSync(here.moments(id), { recursive: true });
+    writeFileSync(join(here.moments(id), fileOf("Activity is its own tab")), wayFile({ words: "Activity is its own tab", person: "Maja", did: [], setup: {} }));
+    writeFileSync(join(here.moments(id), "package.json"), "{}");
     assert.deepEqual(momentsOf(here, id).map((one) => one.words), ["Activity is its own tab"]);
     assert.equal(momentNamed(here, id, "activity is its own TAB").words, "Activity is its own tab");
     assert.throws(() => momentNamed(here, id, "Comments first"), /There's no moment “Comments first”\. The moments: “Activity is its own tab”\./);
@@ -254,12 +254,12 @@ describe("the change a command means", () => {
 });
 
 describe("every moment run again", () => {
-  const scene = (name: string, person = "Maja"): Scene => ({ name, length: 5, steps: [{ title: name, at: 0 }], recording: `${fileOf(name)}.json`, person, from: 0 });
-  const handedBack: Round = { number: 1, by: "Claude Code", scenes: [scene("Cards say WEB-1"), scene("The prefix can't be changed", "Sam")], replies: [], finished: "2026-11-12T10:00:00.000Z" };
+  const moment = (name: string, person = "Maja"): Moment => ({ name, length: 5, actions: [], recording: `${fileOf(name)}.json`, person, from: 0 });
+  const handedBack: HandBack = { number: 1, by: "Claude Code", moments: [moment("Cards say WEB-1"), moment("The prefix can't be changed", "Sam")], replies: [], finished: "2026-11-12T10:00:00.000Z" };
 
   test("says of each that it's the same, different and how, or new since it was handed back", () => {
-    const changes = [{ id: "c1", words: "“Card prefix” is new", seen: [{ scene: "The prefix can't be changed", at: 4 }] }];
-    assert.deepEqual(howEachWent([scene("Cards say WEB-1"), scene("The prefix can't be changed", "Sam"), scene("A hint says what's allowed")], [], handedBack, changes), [
+    const changes = [{ id: "c1", words: "“Card prefix” is new", seen: [{ moment: "The prefix can't be changed", at: 4 }] }];
+    assert.deepEqual(howEachWent([moment("Cards say WEB-1"), moment("The prefix can't be changed", "Sam"), moment("A hint says what's allowed")], [], handedBack, changes), [
       "“Cards say WEB-1”: the same.",
       "“The prefix can't be changed”: different: “Card prefix” is new.",
       "“A hint says what's allowed”: new.",
@@ -267,7 +267,7 @@ describe("every moment run again", () => {
   });
 
   test("says where one couldn't get there stopped, and how to get it back as whoever it was", () => {
-    const [stopped] = howEachWent([], [{ scene: "The prefix can't be changed", why: "Timeout 10000ms exceeded, waiting for getByRole('link', { name: 'Settings' })" }], handedBack, []);
+    const [stopped] = howEachWent([], [{ moment: "The prefix can't be changed", why: "Timeout 10000ms exceeded, waiting for getByRole('link', { name: 'Settings' })" }], handedBack, []);
     assert.equal(
       stopped,
       `“The prefix can't be changed”: couldn't get there, where the way stopped: “Timeout 10000ms exceeded, waiting for getByRole('link', { name: 'Settings' })”. Get there by hand (playthrough as Sam "The prefix can't be changed" goes as far as it can) and mark it again with the same words, or leave it out: playthrough drop "The prefix can't be changed"`,

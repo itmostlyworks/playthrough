@@ -1,4 +1,4 @@
-// What only the pictures show: the same moment in two rounds, read and pictured in Chromium, where the reading finds
+// What only the pictures show: the same moment in two hand-backs, read and pictured in Chromium, where the reading finds
 // nothing. Each promise is two small pages.
 
 import assert from "node:assert/strict";

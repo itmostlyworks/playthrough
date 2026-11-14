@@ -1,4 +1,4 @@
-// A page's light or dark, and still or moving, as the browser a scene was recorded in answered them, whatever the browser
+// A page's light or dark, and still or moving, as the browser a moment was recorded in answered them, whatever the browser
 // it's shown in says. A page asks in its styles, its scripts and its colour-scheme, and each asking is answered before
 // the page hears it: the app stepped into is shown as it was recorded, and so is the recording played back, where the
 // site's own `prefers-color-scheme` styles had played it dark in a dark viewer though it was recorded light.

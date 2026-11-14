@@ -42,7 +42,7 @@ export function useYou(): string | undefined {
   return you;
 }
 
-// A round's files never change once it's finished, so each is fetched once, once it's come: one that didn't is asked
+// A hand-back's files never change once it's finished, so each is fetched once, once it's come: one that didn't is asked
 // for again the next time.
 const files = new Map<string, Promise<unknown>>();
 function once<T>(path: string, fetching: () => Promise<T>): Promise<T> {
@@ -56,19 +56,19 @@ function once<T>(path: string, fetching: () => Promise<T>): Promise<T> {
     );
   return files.get(path) as Promise<T>;
 }
-function file<T>(change: string, round: number, name: string): Promise<T> {
-  const path = `/api/changes/${change}/rounds/${round}/files/${name}`;
+function file<T>(change: string, handBack: number, name: string): Promise<T> {
+  const path = `/api/changes/${change}/hand-backs/${handBack}/files/${name}`;
   return once(path, () => get<T>(path));
 }
 
 // A recording plays with the fonts, images and stylesheets kept with it, never the app's own, which may be gone or
 // somewhere else. Of the sizes an image offered, the one it was recorded at is the one it shows.
-export function recording(change: string, round: number, name: string): Promise<Events> {
-  const path = `/api/changes/${change}/rounds/${round}/files/${name}`;
+export function recording(change: string, handBack: number, name: string): Promise<Events> {
+  const path = `/api/changes/${change}/hand-backs/${handBack}/files/${name}`;
   return once(path, () => {
-    const kept = file<Record<string, string>>(change, round, `assets/${name}`).catch(() => ({}));
+    const kept = file<Record<string, string>>(change, handBack, `assets/${name}`).catch(() => ({}));
     const events = fetch(path).then((answer) => (answer.ok ? answer.text() : Promise.reject(new Error(`${path}: ${answer.status}`))));
-    return Promise.all([events, kept]).then(([events, kept]) => JSON.parse(fromKept(events, kept, `/api/changes/${change}/rounds/${round}/files/`)));
+    return Promise.all([events, kept]).then(([events, kept]) => JSON.parse(fromKept(events, kept, `/api/changes/${change}/hand-backs/${handBack}/files/`)));
   });
 }
 
@@ -87,12 +87,12 @@ export function fromKept(events: string, kept: Record<string, string>, files: st
     .replace(/https?:\/\/[^\s"'()\\]+/g, (address) => (address in kept ? files + kept[address] + (/\.svg$/.test(kept[address]!) ? `?as=${as}` : "") : address));
 }
 
-// What was on the page at each step of a scene, read as it was recorded, and its picture then.
+// What was on the page at each step of a moment, read as it was recorded, and its picture then.
 const readingsName = (recording: string) => `readings/${recording.replace(/\.json$/, "")}`;
-export const readings = (change: string, round: number, recording: string) => file<Reading[]>(change, round, `${readingsName(recording)}.json`).catch((): Reading[] => []);
-// None for a round recorded before Playthrough glimpsed the page after each action.
-export const glimpses = (change: string, round: number, recording: string) => file<Glimpse[]>(change, round, `${readingsName(recording)}.glimpses.json`).catch((): Glimpse[] => []);
-export const picture = (change: string, round: number, recording: string, reading: number) => `/api/changes/${change}/rounds/${round}/files/${readingsName(recording)}/${reading + 1}.png`;
+export const readings = (change: string, handBack: number, recording: string) => file<Reading[]>(change, handBack, `${readingsName(recording)}.json`).catch((): Reading[] => []);
+// None for a hand-back recorded before Playthrough glimpsed the page after each action.
+export const glimpses = (change: string, handBack: number, recording: string) => file<Glimpse[]>(change, handBack, `${readingsName(recording)}.glimpses.json`).catch((): Glimpse[] => []);
+export const picture = (change: string, handBack: number, recording: string, reading: number) => `/api/changes/${change}/hand-backs/${handBack}/files/${readingsName(recording)}/${reading + 1}.png`;
 
 // What's wrong in plain words, or nothing once it's kept.
 export async function send(change: string, send: Send): Promise<string[]> {
@@ -125,13 +125,13 @@ async function posted<T>(path: string, body: unknown): Promise<{ answer: T } | {
 // Where its thing is on it, and where a line of words' words are, which is narrower than the line.
 export type NoteFrame = { src: string; screen: { width: number; height: number }; box?: { x: number; y: number; width: number; height: number }; words?: { x: number; y: number; width: number; height: number } };
 const framing = new Map<string, Promise<NoteFrame | undefined>>();
-export function noteFrame(change: string, note: string, framed: { round: number; recording: string; at: number; node?: number; point?: { x: number; y: number } }): Promise<NoteFrame | undefined> {
+export function noteFrame(change: string, note: string, framed: { handBack: number; recording: string; at: number; node?: number; point?: { x: number; y: number } }): Promise<NoteFrame | undefined> {
   const asked = framing.get(note);
   if (asked) return asked;
   const made = posted<{ picture: string; screen: NoteFrame["screen"]; box?: NoteFrame["box"] }>(`/api/changes/${change}/frames`, { note, ...framed }).then((done) => {
     // Not drawn, it's asked for again next time.
     if ("problems" in done) return void framing.delete(note);
-    return { src: `/api/changes/${change}/rounds/${framed.round}/files/${done.answer.picture}`, screen: done.answer.screen, ...(done.answer.box && { box: done.answer.box }) };
+    return { src: `/api/changes/${change}/hand-backs/${framed.handBack}/files/${done.answer.picture}`, screen: done.answer.screen, ...(done.answer.box && { box: done.answer.box }) };
   });
   framing.set(note, made);
   return made;
@@ -140,20 +140,20 @@ export function noteFrame(change: string, note: string, framed: { round: number;
 // A moment's still drawn twice as fine, for screens with twice the dots, by `playthrough open` and kept (frames.ts): its
 // address once it's drawn. Asked for once a page.
 const fine = new Map<string, Promise<string | undefined>>();
-export function fineStill(change: string, round: number, recording: string, at: number): Promise<string | undefined> {
-  const key = `${change} ${round} ${recording}`;
+export function fineStill(change: string, handBack: number, recording: string, at: number): Promise<string | undefined> {
+  const key = `${change} ${handBack} ${recording}`;
   const asked = fine.get(key);
   if (asked) return asked;
-  const made = posted<{ picture: string }>(`/api/changes/${change}/stills`, { round, recording, at }).then((done) =>
-    "problems" in done ? undefined : `/api/changes/${change}/rounds/${round}/files/${done.answer.picture}`,
+  const made = posted<{ picture: string }>(`/api/changes/${change}/stills`, { handBack, recording, at }).then((done) =>
+    "problems" in done ? undefined : `/api/changes/${change}/hand-backs/${handBack}/files/${done.answer.picture}`,
   );
   fine.set(key, made);
   return made;
 }
 
-// What you did in the app, kept as your branch off the scene you took over: its length, in seconds, once it's kept, or
+// What you did in the app, kept as your branch off the moment you took over: its length, in seconds, once it's kept, or
 // what's wrong in plain words.
-export async function keepBranch(change: string, round: number, from: { scene: string; at: number }, events: unknown[], recording: string): Promise<number | string[]> {
-  const done = await posted<{ length: number }>(`/api/changes/${change}/branches`, { round, ...from, events, recording });
+export async function keepBranch(change: string, handBack: number, from: { moment: string; at: number }, events: unknown[], recording: string): Promise<number | string[]> {
+  const done = await posted<{ length: number }>(`/api/changes/${change}/branches`, { handBack, ...from, events, recording });
   return "problems" in done ? done.problems : done.answer.length;
 }

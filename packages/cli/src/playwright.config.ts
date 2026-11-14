@@ -4,16 +4,16 @@
 import { defineConfig } from "@playwright/test";
 import { fileURLToPath } from "node:url";
 import { availableParallelism } from "node:os";
-import { WAITS, type Run } from "./scenes.ts";
+import { WAITS, type Run } from "./run.ts";
 
 const run: Run = JSON.parse(process.env.PLAYTHROUGH_RUN ?? "null");
 
 export default defineConfig({
-  testDir: run.scenes,
+  testDir: run.moments,
   testMatch: /\.[cm]?[jt]s$/,
-  // Playwright empties it first, and writes the page a scene failed on there, as error-context.md and a picture.
+  // Playwright empties it first, and writes the page a moment failed on there, as error-context.md and a picture.
   outputDir: `${run.folder}/results`,
-  // Each scene plays in real time, is recorded and read, and the app serves them all on the same machine: at a quarter of
+  // Each moment plays in real time, is recorded and read, and the app serves them all on the same machine: at a quarter of
   // the cores, each runs at most about a tenth slower than alone (Kan's five, 126 s one at a time, take 50 s).
   workers: run.app.oneAtATime ? 1 : Math.max(1, Math.floor(availableParallelism() / 4)),
   reporter: [[fileURLToPath(new URL("./reporter.ts", import.meta.url)), { folder: run.folder }]],
