@@ -978,9 +978,20 @@ function MomentView(props: {
     const taking = review.rounds.find((one) => one.number === madeIn(note))?.scenes.find((one) => one.name === on?.scene);
     return taking && { round: madeIn(note), recording: taking.recording, at: on?.at ?? taking.length, ...thing };
   };
-  const frames = useFrames(review, round, onEdge.map(({ note }) => note), madeAt);
   // A thing on the moment's page by its role and name, as it was read at its end.
   const nodeOf = (named?: { role: string; name: string }) => named && readings?.at(-1)?.things.find((thing) => thing.role === named.role && thing.name === named.name)?.node;
+  // A note is shown on its thing as it is now wherever that thing is in the moment's picture now, found as its pin is;
+  // only otherwise on the frame it was made on. Its picture on the edge and the note open both go by this.
+  const nowOn = (note: Note) => {
+    const node = note.on?.app || madeIn(note) < round.number ? nodeOf(note.on?.element) : note.on?.element?.node;
+    return node !== undefined && readings?.at(-1)?.things.some((thing) => thing.node === node) ? node : undefined;
+  };
+  const shownAt = (note: Note): Made | undefined => {
+    const node = nowOn(note);
+    return node !== undefined ? { round: round.number, recording: scene.recording, at: scene.length, node } : madeAt(note);
+  };
+  const isNow = (shown?: Made) => !!shown && shown.round === round.number && shown.recording === scene.recording && Math.abs(shown.at - scene.length) < 0.1;
+  const frames = useFrames(review, readings ? onEdge.map(({ note }) => ({ note, shown: shownAt(note) })) : []);
   // A note's pin is on the recording whenever its thing is in the picture: made on this taking, that very thing; made in
   // the app or on an earlier taking, the same thing drawn here, by its role and name. One on a spot is on this taking's
   // picture only where it was made.
@@ -1002,7 +1013,11 @@ function MomentView(props: {
   // A note open shows the frame it was made on, wherever that was, its pin on its thing and what's been said on it,
   // and nothing more. It fades in over the moment, and out again where it was.
   const opened = live?.shown ? undefined : onEdge.find(({ note }) => note.id === open);
-  const openMade = opened && madeAt(opened.note);
+  const openMade = opened && shownAt(opened.note);
+  // Its thing is in the moment's picture now: the moment, at its end, is where it's shown.
+  const openNow = isNow(openMade);
+  // Shown as it was before the agent last handed the moment back, the bar says so where Play would be.
+  const asItWas = !!opened && !openNow && !!openMade && openMade.round < round.number;
   const openNote = (id: string) => {
     if (writing || live?.shown) return;
     setNoting(false);
@@ -1014,7 +1029,8 @@ function MomentView(props: {
   const [openPlaced, setOpenPlaced] = useState<Placed>({});
   const shut = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (opened && openMade) {
+    if (opened && openNow && at < end - 0.02) restAt(end);
+    if (opened && openMade && !openNow) {
       setLayers((now) => [...now.filter((one) => one.note.id !== opened.note.id).slice(-1), { ...opened, made: openMade }]);
       // The one under it goes once the new one has come in over it.
       const settled = setTimeout(() => setLayers((now) => now.slice(-1)), FADING);
@@ -1026,7 +1042,7 @@ function MomentView(props: {
     let current = true;
     void (fading?.finished ?? Promise.resolve()).then(() => current && (setLayers([]), setOpenPlaced({})), () => {});
     return () => void ((current = false), fading?.cancel());
-  }, [opened?.note.id]);
+  }, [opened?.note.id, openNow]);
   const shownOpen = layers.at(-1);
   // On its picture, its thing is where the picture says, as the picture's drawn in the recording's room.
   const [, resized] = useState(0);
@@ -1046,6 +1062,8 @@ function MomentView(props: {
     return { [shownOpen.note.id]: { left: left + box.x * screen.width * k, top: top + box.y * screen.height * k, width: box.width * screen.width * k, height: box.height * screen.height * k } };
   })();
   const openAt = pictured ? (onPicture ?? {}) : openPlaced;
+  // The note whose card shows: open on the moment as it is now, or on the frame it was made on, until that has faded.
+  const carded = opened && openNow ? opened : shownOpen && (opened ? shownOpen.note.id === opened.note.id && shownOpen : !phone && shownOpen);
   // What it's about is outlined only at the point: midway, it may not be there yet.
   const aboutAt = atPoint && !live?.shown && !opened ? placed[ABOUT] : undefined;
 
@@ -1174,28 +1192,28 @@ function MomentView(props: {
     <>
           {writing && <NoteCard at={(!writing.note.on?.app && pinOf(placed[writing.note.id])) || writing.spot} frame={frame} under={phone}><Write onSave={save} onDrop={() => setWriting(undefined)} /></NoteCard>}
           {/* Closing, it fades where it stood; under the bar on a phone, it goes at once, so it never holds its room. */}
-          {!writing && shownOpen && (opened ? shownOpen.note.id === opened.note.id : !phone) && (
-            <NoteCard key={shownOpen.note.id} at={pinOf(openAt[shownOpen.note.id]) ?? { x: 24, y: 24 }} frame={frame} closing={!opened} under={phone}>
+          {!writing && carded && (
+            <NoteCard key={carded.note.id} at={pinOf(openNow ? placed[carded.note.id] : openAt[carded.note.id]) ?? { x: 24, y: 24 }} frame={frame} closing={!opened} under={phone}>
               <div className="min-h-0 flex-1 overflow-y-auto px-1">
-                {shownOpen.sent ? <Turns you={you} turns={conversation(review, shownOpen.note.id)} /> : <Turns you={you} turns={[]} unsent={shownOpen.note.words} />}
+                {carded.sent ? <Turns you={you} turns={conversation(review, carded.note.id)} /> : <Turns you={you} turns={[]} unsent={carded.note.words} />}
               </div>
-              {shownOpen.sent && (
+              {carded.sent && (
                 <div className="mt-2 border-t border-line pt-2">
                   <Write
-                    key={shownOpen.note.id}
+                    key={carded.note.id}
                     placeholder="Reply"
                     rows={2}
                     focus={false}
-                    start={replies.find((one) => one.note === shownOpen.note.id)?.words ?? ""}
-                    onSave={(words) => (setReplies((all) => [...all.filter((one) => one.note !== shownOpen.note.id), { note: shownOpen.note.id, words }]), setOpen(undefined))}
+                    start={replies.find((one) => one.note === carded.note.id)?.words ?? ""}
+                    onSave={(words) => (setReplies((all) => [...all.filter((one) => one.note !== carded.note.id), { note: carded.note.id, words }]), setOpen(undefined))}
                     onDrop={() => setOpen(undefined)}
                   />
                 </div>
               )}
-              {!shownOpen.sent && (
+              {!carded.sent && (
                 <div className="mt-2 flex items-center gap-2 px-1 text-xs text-soft">
-                  <span>Sent with Send on the list</span>
-                  <button className="ml-auto rounded-md px-1.5 py-0.5 hover:bg-hover hover:text-fg" onClick={() => (setNotes((all) => all.filter((one) => one.id !== shownOpen.note.id)), setOpen(undefined))}>
+                  <span>Sent with Send, at the top</span>
+                  <button className="ml-auto rounded-md px-1.5 py-0.5 hover:bg-hover hover:text-fg" onClick={() => (setNotes((all) => all.filter((one) => one.id !== carded.note.id)), setOpen(undefined))}>
                     Remove
                   </button>
                 </div>
@@ -1326,10 +1344,10 @@ function MomentView(props: {
               </div>
             )}
             <div className={`pointer-events-none absolute inset-0 ${layers.length ? "z-[6]" : ""}`}>
-              {shownOpen ? (
+              {shownOpen && !openNow ? (
                 <Pinned pins={[pinFor(shownOpen)]} placed={openAt} open={shownOpen.note.id} faded={!opened} onOpen={() => setOpen(undefined)} />
               ) : (
-                <Pinned pins={pinned.map(pinFor)} placed={placed} open={writing?.note.id} faded={!!playing || !!live?.shown} lit={pointed} onPoint={setPointed} onOpen={(id) => id && openNote(id)} quiet />
+                <Pinned pins={(opened && openNow ? [opened] : pinned).map(pinFor)} placed={placed} open={writing?.note.id ?? (openNow ? opened?.note.id : undefined)} faded={!!playing || !!live?.shown} lit={pointed} onPoint={setPointed} onOpen={(id) => id && openNote(id)} quiet />
               )}
             </div>
           </div>
@@ -1346,7 +1364,10 @@ function MomentView(props: {
             className={`absolute top-full left-1/2 z-20 flex -translate-x-1/2 -translate-y-1/2 gap-0.5 rounded-xl bg-surface p-1 text-[13px] select-none ${inApp ? "shadow-[0_0_0_1.5px_rgba(236,178,72,0.95),0_6px_20px_rgba(20,24,34,0.12)]" : "shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]"}`}
             style={{ height: BAR }}
           >
-            {still ? (
+            {asItWas ? (
+              // What's shown is from before the agent last handed it back.
+              <span className={`${ITEM} w-[96px] cursor-default text-faint! phone:w-[64px]`}>As it was</span>
+            ) : still ? (
               // Nothing to play: where Play would be, it says what this moment is.
               <span className={`${ITEM} w-[96px] cursor-default text-faint! phone:w-[64px]`}>A still</span>
             ) : (
@@ -1388,17 +1409,19 @@ function MomentView(props: {
 
 // Each note's kept picture, by its id: the frame it was made on. One made at the end of a taking is that taking's own
 // picture, there at once; any other, drawn once by `playthrough open` (frames.ts) and kept.
-function useFrames(review: Review, round: Round, notes: Note[], madeAt: (note: Note) => Made | undefined): Record<string, NoteFrame | undefined> {
+function useFrames(review: Review, notes: { note: Note; shown?: Made }[]): Record<string, NoteFrame | undefined> {
   const [frames, setFrames] = useState<Record<string, NoteFrame | undefined>>({});
-  const asked = useRef(new Set<string>());
-  const wanted = notes.filter((note) => !asked.current.has(note.id));
+  // Each by where it's shown: a note shown as it is now, once the agent hands the moment back without its thing, is
+  // shown where it was made, and asked for again.
+  const asked = useRef(new Map<string, string>());
+  const keyOf = (shown: Made) => `${shown.round} ${shown.recording} ${shown.at} ${shown.node ?? ""}`;
+  const wanted = notes.filter(({ note, shown }) => shown && asked.current.get(note.id) !== keyOf(shown));
   useEffect(() => {
-    for (const note of wanted) {
-      asked.current.add(note.id);
-      const made = madeAt(note);
+    for (const { note, shown: made } of wanted) {
       if (!made) continue;
-      const taking = !note.on?.app && review.rounds.find((one) => one.number === made.round)?.scenes.find((one) => one.recording === made.recording);
-      const kept = (frame: NoteFrame | undefined) => frame && setFrames((all) => ({ ...all, [note.id]: frame }));
+      asked.current.set(note.id, keyOf(made));
+      const taking = review.rounds.find((one) => one.number === made.round)?.scenes.find((one) => one.recording === made.recording);
+      const kept = (frame: NoteFrame | undefined) => frame && asked.current.get(note.id) === keyOf(made) && setFrames((all) => ({ ...all, [note.id]: frame }));
       if (taking && Math.abs(made.at - taking.length) < 0.1)
         void readingsOf(review.id, made.round, made.recording).then((read) => {
           const end = read.at(-1);
@@ -1410,7 +1433,7 @@ function useFrames(review: Review, round: Round, notes: Note[], madeAt: (note: N
         });
       else void noteFrame(review.id, note.id, made).then(kept);
     }
-  }, [wanted.map((note) => note.id).join(" "), round.number]);
+  }, [wanted.map(({ note, shown }) => `${note.id}:${shown && keyOf(shown)}`).join(" ")]);
   return frames;
 }
 
