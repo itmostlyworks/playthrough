@@ -1030,6 +1030,24 @@ function MomentView(props: {
     return () => void ((current = false), fading?.cancel());
   }, [opened?.note.id]);
   const shownOpen = layers.at(-1);
+  // On its picture, its thing is where the picture says, as the picture's drawn in the recording's room.
+  const [, resized] = useState(0);
+  useEffect(() => {
+    if (!layers.length) return;
+    const again = () => resized((n) => n + 1);
+    addEventListener("resize", again);
+    return () => removeEventListener("resize", again);
+  }, [layers.length > 0]);
+  const pictured = shownOpen && frames[shownOpen.note.id];
+  const onPicture = ((): Placed | undefined => {
+    const shown = frame.current;
+    if (!shownOpen || !pictured?.box || !shown) return undefined;
+    const { screen, box } = pictured;
+    const k = Math.min(shown.clientWidth / screen.width, shown.clientHeight / screen.height);
+    const [left, top] = [(shown.clientWidth - screen.width * k) / 2, (shown.clientHeight - screen.height * k) / 2];
+    return { [shownOpen.note.id]: { left: left + box.x * screen.width * k, top: top + box.y * screen.height * k, width: box.width * screen.width * k, height: box.height * screen.height * k } };
+  })();
+  const openAt = pictured ? (onPicture ?? {}) : openPlaced;
   // What it's about is outlined only at the point: midway, it may not be there yet.
   const aboutAt = atPoint && !live?.shown && !opened ? placed[ABOUT] : undefined;
 
@@ -1249,27 +1267,30 @@ function MomentView(props: {
               </div>
             )}
             {layers.length > 0 && (
-              // The frame the open note was made on, over the moment: its kept picture at once, then the recording there
-              // drawn over it, with no pointer and nothing played.
+              // The frame the open note was made on, over the moment: its kept picture, the same one its edge shows, or the
+              // recording there until that's drawn, with no pointer and nothing played.
               <div ref={shut} className={`absolute inset-0 z-[5] [&_[data-hand]]:hidden ${opened ? "" : "pointer-events-none"}`}>
                 {layers.map(({ note, made }) => (
                   <div key={note.id} className="absolute inset-0 animate-arrive overflow-hidden bg-paper">
-                    {frames[note.id] && <img src={frames[note.id]!.src} alt="" draggable={false} className="pointer-events-none absolute inset-0 size-full object-contain" />}
-                    <Player
-                      review={review.id}
-                      round={made.round}
-                      recording={made.recording}
-                      at={made.at}
-                      marks={[{ id: note.id, ...(made.node !== undefined ? { node: made.node } : made.point && { point: made.point }) }]}
-                      onMarks={note.id === shownOpen?.note.id ? setOpenPlaced : undefined}
-                    />
+                    {frames[note.id] ? (
+                      <img src={frames[note.id]!.src} alt="" draggable={false} className="pointer-events-none absolute inset-0 size-full object-contain" />
+                    ) : (
+                      <Player
+                        review={review.id}
+                        round={made.round}
+                        recording={made.recording}
+                        at={made.at}
+                        marks={[{ id: note.id, ...(made.node !== undefined ? { node: made.node } : made.point && { point: made.point }) }]}
+                        onMarks={note.id === shownOpen?.note.id ? setOpenPlaced : undefined}
+                      />
+                    )}
                   </div>
                 ))}
               </div>
             )}
             <div className={`pointer-events-none absolute inset-0 ${layers.length ? "z-[6]" : ""}`}>
               {shownOpen ? (
-                <Pinned pins={[pinFor(shownOpen)]} placed={openPlaced} open={shownOpen.note.id} faded={!opened} onOpen={() => setOpen(undefined)} />
+                <Pinned pins={[pinFor(shownOpen)]} placed={openAt} open={shownOpen.note.id} faded={!opened} onOpen={() => setOpen(undefined)} />
               ) : (
                 <Pinned pins={pinned.map(pinFor)} placed={placed} open={writing?.note.id} faded={!!playing || !!live?.shown} lit={pointed} onPoint={setPointed} onOpen={(id) => id && openNote(id)} quiet />
               )}
@@ -1281,7 +1302,7 @@ function MomentView(props: {
           </span>
           {writing && <NoteCard at={(!writing.note.on?.app && pinOf(placed[writing.note.id])) || writing.spot} frame={frame}><Write onSave={save} onDrop={() => setWriting(undefined)} /></NoteCard>}
           {!writing && shownOpen && (!opened || shownOpen.note.id === opened.note.id) && (
-            <NoteCard key={shownOpen.note.id} at={pinOf(openPlaced[shownOpen.note.id]) ?? { x: 24, y: 24 }} frame={frame} closing={!opened}>
+            <NoteCard key={shownOpen.note.id} at={pinOf(openAt[shownOpen.note.id]) ?? { x: 24, y: 24 }} frame={frame} closing={!opened}>
               <div className="min-h-0 flex-1 overflow-y-auto px-1">
                 {shownOpen.sent ? <Turns you={you} turns={conversation(review, shownOpen.note.id)} /> : <Turns you={you} turns={[]} unsent={shownOpen.note.words} />}
               </div>
