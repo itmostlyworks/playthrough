@@ -4,7 +4,7 @@
 
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, test } from "node:test";
@@ -14,6 +14,7 @@ import { change, changeHere, idOf, momentNamed, titleOf, momentsOf } from "../sr
 import { howEachWent } from "../src/moments.ts";
 import { repo } from "../src/repo.ts";
 import { problemsWithPeople } from "../src/setup.ts";
+import { agentWaiting, listening } from "../src/wait.ts";
 import { fileOf, sameAddress, sceneOf, wayBefore, wayIn, whatDiffers, wordsIn, type Done } from "../src/way.ts";
 
 const folders: string[] = [];
@@ -273,6 +274,26 @@ describe("every moment run again", () => {
       stopped,
       `“The prefix can't be changed”: couldn't get there, where the way stopped: “Timeout 10000ms exceeded, waiting for getByRole('link', { name: 'Settings' })”. Get there by hand (playthrough as Sam "The prefix can't be changed" goes as far as it can) and mark it again with the same words, or leave it out: playthrough drop "The prefix can't be changed"`,
     );
+  });
+});
+
+describe("an agent listening", () => {
+  test("is one whose wait is still running on this start of the machine, never another process given its number since; one that said nothing of the start is taken to be on this one", async () => {
+    const here = repo(await mkdtemp(join(tmpdir(), "playthrough-waiting-")));
+    folders.push(here.root);
+    assert.equal(await agentWaiting(here, "marked"), false, "nobody yet");
+    const stop = await listening(here, "marked");
+    assert.equal(await agentWaiting(here, "marked"), true);
+    stop();
+    assert.equal(await agentWaiting(here, "marked"), false, "gone once it stops");
+    const said = (pid: number, what: string) => writeFileSync(join(here.waiting("marked"), String(pid)), what);
+    said(process.pid, JSON.stringify({ by: process.pid, boot: "another start of the machine" }));
+    assert.equal(await agentWaiting(here, "marked"), false, "a number from before the machine started again");
+    said(process.pid, "");
+    assert.equal(await agentWaiting(here, "marked"), true, "an agent listening since before the start was noted");
+    said(2 ** 22 + 1, "");
+    rmSync(join(here.waiting("marked"), String(process.pid)));
+    assert.equal(await agentWaiting(here, "marked"), false, "one whose process has ended");
   });
 });
 

@@ -5,9 +5,10 @@
 
 import { allNotes, conversation, list, notesToAnswer, pausedAt, quote, Refused, roundInProgress, time, type Did, type Scene, type Place } from "@playthrough/review";
 import { rmSync } from "node:fs";
-import { mkdir, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { agent } from "./agent.ts";
+import { stillAt, thisCommand, type Command } from "./command.ts";
 import { pictureNotes } from "./noted.ts";
 import type { Repo } from "./repo.ts";
 
@@ -88,11 +89,12 @@ export async function wait(repo: Repo, id: string) {
 
 // While it waits, it says so beside the review, so the person can be told when nobody is: an agent's command in the
 // background can be ended by the agent's own time limit, and what's sent then sits until it's run again. Ended by a
-// signal, it leaves its file behind, so an agent counts as waiting only while its process runs.
+// signal, it leaves its file behind, so an agent counts as waiting only while its process runs: the same process, on
+// the same start of the machine, not another given its number since.
 export async function listening(repo: Repo, id: string): Promise<() => void> {
   const file = join(repo.waiting(id), String(process.pid));
   await mkdir(repo.waiting(id), { recursive: true });
-  await writeFile(file, "");
+  await writeFile(file, JSON.stringify(thisCommand()));
   const gone = () => rmSync(file, { force: true });
   process.once("exit", gone);
   return () => {
@@ -103,16 +105,21 @@ export async function listening(repo: Repo, id: string): Promise<() => void> {
 
 export async function agentWaiting(repo: Repo, id: string): Promise<boolean> {
   const agents = await readdir(repo.waiting(id)).catch(() => []);
-  return agents.some((pid) => running(Number(pid)));
+  const still = await Promise.all(
+    agents.map(async (pid) => {
+      // One written before the machine's start was noted in it is empty: it's taken to be on this one, as it was.
+      const said = await readFile(join(repo.waiting(id), pid), "utf8").catch(() => undefined);
+      if (said === undefined) return false;
+      try {
+        const command: Command = said.trim() ? JSON.parse(said) : { by: Number(pid) };
+        return stillAt(command);
+      } catch {
+        return false;
+      }
+    }),
+  );
+  return still.some(Boolean);
 }
-
-const running = (pid: number) => {
-  try {
-    return process.kill(pid, 0);
-  } catch (error) {
-    return (error as NodeJS.ErrnoException).code === "EPERM";
-  }
-};
 
 function where(place: Place | undefined, from?: Scene): string {
   if (!place) return "on the work in general";
