@@ -687,6 +687,12 @@ function fadeOf(frame: Frame): React.CSSProperties {
 // names nothing on the page.
 const STILL = 1.6;
 function closeOn(reading: Reading | undefined, about: { role: string; name: string } | undefined, shape: number): Frame | undefined {
+  const shown = reading && aboutBox(reading, about);
+  return shown && around(shown, reading.screen, shape, 3);
+}
+// What a moment is about with its nearest words, as a field's label and the line under it, on its page: the part of
+// it to keep in view.
+function aboutBox(reading: Reading | undefined, about: { role: string; name: string } | undefined) {
   // Of several the same, the one in view, as the moment was kept with.
   const alike = about ? (reading?.things ?? []).filter((one) => one.role === about.role && one.name === about.name) : [];
   const inView = (box: { x: number; y: number; width: number; height: number }) => box.y + box.height > 0 && box.y < reading!.screen.height && box.x + box.width > 0 && box.x < reading!.screen.width;
@@ -707,7 +713,7 @@ function closeOn(reading: Reading | undefined, about: { role: string; name: stri
   // A line of words is laid out across its whole column: it's as wide as its words, as near as can be told.
   const wordsOf = (one: (typeof near)[number]) =>
     one.words && /^(text|heading)$/.test(one.role) ? { ...one.box, width: Math.min(one.box.width, one.words.length * parseFloat(one.look.size) * 0.55) } : one.box;
-  return around(union([thing.box, ...near.map(wordsOf)]), reading.screen, shape, 3);
+  return union([thing.box, ...near.map(wordsOf)]);
 }
 
 // A moment's still: the app at its point, closed in on what it's about, or where it names nothing, on the last thing
@@ -1122,7 +1128,13 @@ function MomentView(props: {
   const aboutNode = nodeOf(about);
   // Compared, at the point, what the moment is about (else the last thing done) is in view whole, as on the older page.
   const closeNode = nodeOf(closeTo);
-  const holdsAt = atPoint && closeNode !== undefined ? { id: ABOUT, node: closeNode } : undefined;
+  // with its nearest words, as the line under a field, which is often what changed.
+  const held = useMemo(() => {
+    const end = readings?.at(-1);
+    const box = end && aboutBox(end, closeTo);
+    return box && { x: box.x / end.screen.width, y: box.y / end.screen.height, width: box.width / end.screen.width, height: box.height / end.screen.height };
+  }, [readings, closeTo?.role, closeTo?.name]);
+  const holdsAt = atPoint && held ? { id: ABOUT, box: held } : undefined;
   const pinned = [...onEdge, ...(writing ? [{ note: writing.note, sent: false }] : [])];
   const marks: Mark[] = [...(aboutNode !== undefined ? [{ id: ABOUT, node: aboutNode }] : []), ...pinned.map(({ note }) => markOf(note))];
   const pinFor = ({ note, sent }: { note: Note; sent: boolean }): Pin => ({ id: note.id, on: [note.id], ink: sent ? "var(--slate)" : "var(--amber)", fill: sent ? "bg-slate" : "bg-amber" });
@@ -1433,8 +1445,9 @@ function MomentView(props: {
               />
             )}
             {comparing && then && both && (
-              // Now leads, so it's drawn first, on the right.
-              <div className="absolute inset-0 z-[5] flex animate-arrive flex-row-reverse gap-3 bg-ground">
+              // Now leads, so it's drawn first, on the right. Both end above the bar, so nothing they hold in view, what
+              // the moment is about above all, is ever under it.
+              <div className="absolute inset-0 z-[5] flex animate-arrive flex-row-reverse gap-3 bg-ground" style={{ paddingBottom: BAR / 2 + 8 }}>
                 {[
                   { label: "Now", round: round.number, recording: scene.recording, side: 0, actualSize: { ...leading, holds: holdsAt } },
                   { label: "When you last saw it", round: then.round.number, recording: then.scene.recording, side: 1, actualSize: { ...beside, holds: holdsAt } },

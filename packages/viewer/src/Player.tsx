@@ -230,7 +230,9 @@ export function Player(props: Props) {
         const room = { width: box.current.clientWidth, height: box.current.clientHeight };
         const { together, leads } = actualSize;
         let view = leads || !together.centre ? followingPointer(replayed, moment, length, room, shape) : aroundCentre(room, shape, together.centre, together.k);
-        const thing = leads && holds && actualSize.holds && thingOf(actualSize.holds);
+        // What's held is a thing, or a part of the page, as a thing with the words around it.
+        const part = actualSize.holds?.box;
+        const thing = leads && holds && actualSize.holds && (thingOf(actualSize.holds) ?? (part && { left: part.x * shape.width, top: part.y * shape.height, width: part.width * shape.width, height: part.height * shape.height }));
         if (thing) view = holding(view, room, shape, thing);
         if (leads) Object.assign(together, { centre: centreOf(view, room), k: view.k });
         [left, top, across] = [view.x, view.y, room.width / view.k];
