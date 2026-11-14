@@ -138,6 +138,11 @@ The list's stills ring under the pointer.
 keeps its scroll. The app stepped into is drawn with `will-change: transform`, so its words keep their spaces. Compare's
 sides end above the bar and hold what the moment is about with its nearest words. An edge forward stands on the ground.
 
+**Last stretch.** A new answer's New mark shows on the edge at rest, its words carrying it forward. An open note's
+thing is never under the bar: the bar moves along the recording's edge, or down off it. Stepping in, the clipboard is
+the page's, on the way there (`pageFor`) and in your browser (the frame's `allow`), and the way there doesn't wait out
+three seconds for an address the page won't reach by itself (`quickArrivals`, `following.ts`).
+
 **Compare plays both together.** Play and the line drive both sides, at the same action at the same instant. Each
 recording keeps, per action, what it was and when it began (`began` beside `actions` on a step: `click button
 “Update”`, `type textbox “Card prefix”`, never the words, `press Escape`), named as it's done (`test.ts`); one without
