@@ -508,7 +508,7 @@ function ChangeInList(props: {
               const talk = [...allNotes(review)].filter(([, kept]) => (kept.note.on?.app?.from.scene ?? kept.note.on?.scene) === scene.name);
               return (
                 <li key={scene.name}>
-                  <button onClick={() => onOpen(i + 1)} className="group block w-full text-left">
+                  <button onClick={() => onOpen(i + 1)} className="group block w-full text-left focus-visible:outline-none">
                     <Still review={review} round={round} scene={scene} about={scene.about ?? scene.acted} seen={quiet} />
                     <span className={`mt-2.5 block text-[13px] leading-5 ${quiet ? "text-faint" : "text-soft"}`}>{whoIn(listed, scene)}</span>
                     <span className={`block text-[14px] leading-5 ${quiet ? "text-soft" : "text-fg"}`}>{scene.name}</span>
@@ -666,7 +666,10 @@ function closeOn(reading: Reading | undefined, about: { role: string; name: stri
 const FADE = 20;
 function Still({ review, round, scene, about, seen }: { review: Review; round: Round; scene: Scene; about?: { role: string; name: string }; seen: boolean }) {
   return (
-    <span className={`relative block aspect-[1.6] overflow-hidden rounded-lg bg-paper shadow-frame transition-[filter,opacity] duration-200 ease-calm group-hover:opacity-100 group-hover:grayscale-0 ${seen ? "opacity-60 grayscale" : ""}`}>
+    // Under the pointer it's ringed and gives a little as it's pressed, as a picture on a moment's edge does.
+    <span
+      className={`relative block aspect-[1.6] overflow-hidden rounded-lg bg-paper shadow-frame transition-[filter,opacity,box-shadow,scale] duration-200 ease-calm group-hover:opacity-100 group-hover:shadow-[0_0_0_2px_var(--ground),0_0_0_3.5px_var(--faint)] group-hover:grayscale-0 group-focus-visible:shadow-[0_0_0_2px_var(--ground),0_0_0_4px_var(--amber)] group-active:scale-[0.98] group-active:duration-75 ${seen ? "opacity-60 grayscale" : ""}`}
+    >
       <StillPicture review={review} round={round} scene={scene} about={about} />
     </span>
   );
