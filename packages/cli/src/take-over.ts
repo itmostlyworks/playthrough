@@ -468,7 +468,7 @@ const SAYS = `<script>(() => {
       const known = node > 0 && recording ? read().things.find((thing) => thing.node === node) : undefined;
       const [kind, name] = known ? [known.role, known.name] : recording ? [] : [role(on), words(on)];
       noted = on;
-      parent.postMessage({ playthrough: "noted", ...(name ? { element: { role: kind, name, css: path(on), ...(node > 0 && { node }) } } : { point: { x: e.clientX / innerWidth, y: e.clientY / innerHeight } }), did, x: e.clientX, y: e.clientY }, "*");
+      parent.postMessage({ playthrough: "noted", ...(name ? { element: { role: kind, name, css: path(on), ...(node > 0 && { node }) } } : { point: { x: e.clientX / innerWidth, y: e.clientY / innerHeight } }), did, x: e.clientX, y: e.clientY, ...(name && { box: (({ left, top, width, height }) => ({ x: left, y: top, width, height }))(on.getBoundingClientRect()) }) }, "*");
       noting = false;
       swallowing = true;
       ringed();

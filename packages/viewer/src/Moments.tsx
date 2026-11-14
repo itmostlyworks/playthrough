@@ -21,7 +21,7 @@ import { CHIP } from "./Scene.tsx";
 import { readyAt } from "./live.ts";
 import { usePhone } from "./phone.ts";
 import { clamp } from "./moments.ts";
-import type { Scrolled } from "./replay.ts";
+import type { Rect, Scrolled } from "./replay.ts";
 
 // Where you are: the list, or a change's moment, by the change's address and the moment's place in it from 1, and a
 // note open by its pin.
@@ -717,7 +717,8 @@ function Change({ listed, you, moment, note, go }: { listed: Listed; you: string
 }
 
 type Live = { scene: string; from: number; address?: string; shown: boolean; settled?: boolean; problems?: string[]; at?: { x: number; y: number } };
-type Writing = { note: Note; spot: { x: number; y: number } };
+// Where it was asked for: the spot, and the thing there where the app said where it is, in the recording's pixels.
+type Writing = { note: Note; spot: { x: number; y: number }; box?: Rect };
 
 // Where a moment's shown part starts, in seconds into its recording: the way there before it is kept, and never shown.
 // The agent's side says it; a moment kept before it did shows whole. The one place it's read.
@@ -938,7 +939,9 @@ function MomentView(props: {
       if (typeof length !== "number") return setLive((live) => live && { ...live, problems: length });
       const spot = { x: box.left - shown.left + (data.x * box.width) / iframe.offsetWidth, y: box.top - shown.top + (data.y * box.height) / iframe.offsetHeight };
       const on: Place = { scene: scene.name, at: Math.floor(length * 100) / 100, ...(data.element ? { element: data.element } : data.point && { point: data.point }), app: { from, did: data.did, recording: `branches/${file}`, length } };
-      setWriting({ note: { id: newId(), on, words: "" }, spot });
+      const scale = (x: number, y: number) => ({ x: box.left - shown.left + (x * box.width) / iframe.offsetWidth, y: box.top - shown.top + (y * box.height) / iframe.offsetHeight });
+      const thing = data.box && { ...scale(data.box.x, data.box.y), right: scale(data.box.x + data.box.width, data.box.y + data.box.height) };
+      setWriting({ note: { id: newId(), on, words: "" }, spot, ...(thing && { box: { left: thing.x, top: thing.y, width: thing.right.x - thing.x, height: thing.right.y - thing.y } }) });
     }
   };
   useEffect(() => {
@@ -1190,10 +1193,10 @@ function MomentView(props: {
   // What's said by a pin: the note being written, or the one open. On a phone, under the bar, where there's room.
   const cards = (
     <>
-          {writing && <NoteCard at={(!writing.note.on?.app && pinOf(placed[writing.note.id])) || writing.spot} frame={frame} under={phone}><Write onSave={save} onDrop={() => setWriting(undefined)} /></NoteCard>}
+          {writing && <NoteCard by={(!writing.note.on?.app && placed[writing.note.id]) || writing.box || spotAt(writing.spot)} frame={frame} under={phone}><Write onSave={save} onDrop={() => setWriting(undefined)} /></NoteCard>}
           {/* Closing, it fades where it stood; under the bar on a phone, it goes at once, so it never holds its room. */}
           {!writing && carded && (
-            <NoteCard key={carded.note.id} at={pinOf(openNow ? placed[carded.note.id] : openAt[carded.note.id]) ?? { x: 24, y: 24 }} frame={frame} closing={!opened} under={phone}>
+            <NoteCard key={carded.note.id} by={(openNow ? placed[carded.note.id] : openAt[carded.note.id]) ?? spotAt({ x: 24, y: 24 })} frame={frame} closing={!opened} under={phone}>
               <div className="min-h-0 flex-1 overflow-y-auto px-1">
                 {carded.sent ? <Turns you={you} turns={conversation(review, carded.note.id)} /> : <Turns you={you} turns={[]} unsent={carded.note.words} />}
               </div>
@@ -1532,23 +1535,31 @@ const UNDER = BAR / 2 + 20;
 // Beside the recording, room for each edge's pictures at rest.
 const SIDE = "clamp(104px, 10vw, 160px)";
 
-// Where a note's pin is on what it's on, as Pinned puts it: just outside its top right corner.
-const pinOf = (thing: Placed[string]) => thing && { x: thing.left + thing.width + 14, y: thing.top - 14 };
+// A spot, as a thing with no size.
+const spotAt = ({ x, y }: { x: number; y: number }): Rect => ({ left: x, top: y, width: 0, height: 0 });
 
-// A card by a spot on the moment: beside it where there's room, never past the frame's sides.
+// A note's card by its thing: beside it where there's room, else under or over it, never on it, nor past the frame.
 // Under: in the page's flow, as wide as it is, as on a phone.
-function NoteCard({ at, frame, closing, under, children }: { at: { x: number; y: number }; frame: React.RefObject<HTMLDivElement | null>; closing?: boolean; under?: boolean; children: ReactNode }) {
-  const wide = frame.current?.clientWidth ?? 0;
+function NoteCard({ by, frame, closing, under, children }: { by: Rect; frame: React.RefObject<HTMLDivElement | null>; closing?: boolean; under?: boolean; children: ReactNode }) {
+  const [wide, high] = [frame.current?.clientWidth ?? 0, frame.current?.clientHeight ?? 0];
   const width = Math.min(280, wide - 16);
-  const left = at.x + 18 + width <= wide ? at.x + 18 : Math.max(8, at.x - 18 - width);
-  // In the frame's lower half, it grows upward from the pin, so it never runs off under the bar.
-  const high = frame.current?.clientHeight ?? 0;
-  const place = at.y > high / 2 ? { bottom: Math.max(8, high - at.y - 12) } : { top: Math.max(8, at.y - 12) };
+  const [right, bottom] = [by.left + by.width, by.top + by.height];
+  // Its pin stands just outside the thing's top right corner: beside it on the right means past the pin too.
+  const [pastPin, gap, edge] = [32, 14, 8];
+  // In the frame's lower half it grows upward, so it never runs off under the bar.
+  const low = by.top + by.height / 2 > high / 2;
+  const place =
+    by.width && right + pastPin + width <= wide - edge
+      ? { left: right + pastPin, ...(low ? { bottom: Math.max(edge, high - bottom - 12) } : { top: Math.max(edge, by.top - 12) }) }
+      : by.width && by.left - gap - width >= edge
+        ? { left: by.left - gap - width, ...(low ? { bottom: Math.max(edge, high - bottom - 12) } : { top: Math.max(edge, by.top - 12) }) }
+        : // Too wide to stand beside, or a spot on a line: under it, or over it in the lower half, never on it.
+          { left: Math.min(Math.max(edge, by.left - (by.width ? 0 : 24)), wide - width - edge), ...(low ? { bottom: high - by.top + gap } : { top: bottom + gap }) };
   return (
     <div
       data-note-card
       className={`${under ? "relative" : "absolute z-40 max-h-[min(70vh,calc(100%-16px))]"} flex animate-arrive flex-col rounded-xl bg-surface p-2 shadow-float transition-opacity duration-300 ease-calm ${closing ? "pointer-events-none opacity-0" : ""}`}
-      style={under ? undefined : { left, ...place, width }}
+      style={under ? undefined : { ...place, width }}
       onClick={(event) => event.stopPropagation()}
     >
       {children}
@@ -1567,7 +1578,7 @@ function Write({ onSave, onDrop, placeholder = "What's right or wrong here?", ro
         rows={rows}
         value={words}
         placeholder={placeholder}
-        className="block w-full resize-none rounded-lg bg-transparent px-1 py-0.5 text-[13px] leading-5 text-fg outline-none placeholder:text-faint"
+        className="block max-h-[min(40vh,240px)] min-h-[60px] w-full resize-none rounded-lg bg-transparent px-1 py-0.5 text-[13px] leading-5 text-fg outline-none [field-sizing:content] placeholder:text-faint"
         onChange={(event) => setWords(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === "Escape") return (event.stopPropagation(), onDrop());
