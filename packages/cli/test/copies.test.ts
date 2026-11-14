@@ -12,7 +12,6 @@ import { Refused } from "@playthrough/review";
 import { keepRunning, serves, stopApp } from "../src/app.ts";
 import { thisCommand } from "../src/command.ts";
 import { copies, inWorktree, repo } from "../src/repo.ts";
-import { start } from "../src/start.ts";
 
 let main = "";
 let worktree = "";
@@ -95,9 +94,4 @@ test("the app the viewer keeps ready gives way to a command that runs scenes, an
     ready.kill();
     await stopApp(ownUrl);
   }
-});
-
-test("a review's name taken in another worktree is refused, as the person finds them all in one place", async () => {
-  await repo(main).reviews.start("due-soon", "Due soon", "Show what's due soon");
-  await assert.rejects(start(repo(worktree), "due-soon", "Due soon", "Show what's due soon"), (error: Refused) => error instanceof Refused && /another worktree/.test(error.problems[0]!));
 });

@@ -1,7 +1,6 @@
-// Where Playthrough keeps things in the app's repo: each review in .playthrough/, out of git, with the scenes written for it,
-// and how to start the app in playthrough/app.json, which is committed so every review uses it. While a scene added later
-// records on Before, where the agent's work is set aside is written down in .playthrough/ too. Each of git's worktrees is
-// a copy of the app with reviews of its own, beside the work they're about.
+// Where Playthrough keeps things in the app's repo: each change in .playthrough/, out of git, with its moments' ways there,
+// and how to start the app in playthrough/app.json, which is committed so every change uses it. Each of git's worktrees
+// is a copy of the app with changes of its own, beside the work they're about.
 
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -24,14 +23,9 @@ export function repo(root = home(process.cwd())) {
     root,
     reviews: new Reviews(folder(reviews)),
     scenes: (review: string) => join(reviews, review, "scenes"),
-    // What Playwright wrote of the page each scene failed on, the last time any did, for the agent to look at.
-    failed: (review: string) => join(reviews, review, "failed"),
     round: (review: string, round: number) => join(reviews, review, "rounds", String(round), "round.json"),
-    // The file each scene is written in, as it was when the scene last ran on Before.
-    ranOnBefore: (review: string) => join(reviews, review, "ran-on-before.json"),
     // A file for each agent waiting for what's sent, named by its process.
     waiting: (review: string) => join(reviews, review, "waiting"),
-    setAside: join(reviews, "set-aside.json"),
     // Whose turn it is to run the app here: a command that runs scenes, or the viewer, keeping it ready for taking over.
     turn: join(reviews, "turn.json"),
     // How to start the app, committed.
@@ -40,12 +34,10 @@ export function repo(root = home(process.cwd())) {
     setup: join(root, "playthrough", "setup.ts"),
     // What setup made for each run, until its after gives it back.
     borrowed: join(reviews, "borrowed"),
-    // The app's setup as it was last tried, and where each of its people started there.
-    tried: join(reviews, "tried"),
     // As a person at this folder would type it.
     show: (path: string) => relative(process.cwd(), path) || ".",
 
-    // Git never sees .playthrough/, so setting the agent's work aside, or putting the app as it was in place, never moves it.
+    // Git never sees .playthrough/: what's kept there is Playthrough's, never the app's.
     async keepOutOfGit() {
       await mkdir(reviews, { recursive: true });
       await writeFile(join(reviews, ".gitignore"), "*\n");

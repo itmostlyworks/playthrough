@@ -49,7 +49,7 @@ function kept(reviews: Reviews, id: string, number: number, scenes: Scene[]): Re
   const file = async (name: string) => {
     const bytes = await reviews.file(id, number, name);
     if (!bytes)
-      throw new Refused([`${number === 0 ? "Before" : `Round ${number}`} has no ${name}, so it can't be compared: it was recorded before Playthrough read each step. Start the review again.`]);
+      throw new Refused([`Round ${number} has no ${name}, so it can't be compared: it was recorded before Playthrough read each step. Mark its moments again.`]);
     return Buffer.from(bytes);
   };
   const glimpses = async (scene: Scene) => {

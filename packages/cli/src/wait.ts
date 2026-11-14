@@ -1,93 +1,13 @@
-// Hands the round over and waits for what people say about it. Handing over finishes the round, which the rules allow once
-// every note is answered. Then it waits for a send that asks for something, takes it, and prints the notes to answer,
-// each with a picture of what it's on, or for one made in the app, what was done there. The agent reading them may be a
-// fresh one, so they say which review they're for and where the rest is.
+// Whether an agent is listening for what the person says: playthrough wait, run in the background, says so beside the
+// change while it waits, and the person's page asks.
 
-import { allNotes, conversation, list, notesToAnswer, pausedAt, quote, Refused, roundInProgress, time, type Did, type Scene, type Place } from "@playthrough/review";
 import { rmSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { agent } from "./agent.ts";
 import { stillAt, thisCommand, type Command } from "./command.ts";
-import { pictureNotes } from "./noted.ts";
 import type { Repo } from "./repo.ts";
 
-export async function wait(repo: Repo, id: string) {
-  const reviews = repo.reviews;
-  let review = await reviews.get(id);
-  const last = review.rounds.at(-1);
-  if (!review.accepted) {
-    if (!last || last.number === 0) throw new Refused([`There's nothing to hand over yet. Record round 1 first: playthrough record ${id}`]);
-    if (!last.finished) {
-      try {
-        await reviews.finish(id, last.number);
-      } catch (error) {
-        if (!(error instanceof Refused)) throw error;
-        throw new Refused([
-          `Round ${last.number} isn't ready to hand over yet:`,
-          ...error.problems.map((problem) => `  ${problem}`),
-          `${error.problems.length > 1 ? "Fix these" : "Fix it"} in ${repo.show(repo.round(id, last.number))}, then hand it over again: playthrough wait ${id}`,
-        ]);
-      }
-      console.log(`Round ${last.number} is ready for review. Tell the person it's theirs: npx playthrough open ${id} opens it.`);
-      // Handed over, the notes it answered are answered: what's asked now is what comes next.
-      review = await reviews.get(id);
-    } else console.log(`Round ${last.number} is handed over already.`);
-    console.log(`Waiting for notes on ${id}…`);
-  }
-
-  for (;;) {
-    let round = roundInProgress(review);
-    let asking = review.accepted ? [] : notesToAnswer(review, round);
-    // Notes an earlier wait took, for a round not recorded yet, are answered first: waiting for another send would wait
-    // on what's already here.
-    if (!asking.length) {
-      const done = await listening(repo, id);
-      review = await reviews
-        .wait(id, (review) => !!review.accepted || review.sends.some((send) => !review.taken.some((taken) => taken.send === send.id)))
-        .finally(done);
-      if (review.accepted) return console.log(`\n${review.accepted.by} accepted the work. The review is done.`);
-      const taken = await reviews.take(id);
-      review = await reviews.get(id);
-      round = roundInProgress(review);
-      asking = notesToAnswer(review, round);
-      for (const send of taken) {
-        const good = [
-          ...send.looksGood.map(quote),
-          ...send.verdicts.filter((verdict) => verdict.verdict === "looks good").map((verdict) => `your answer to note ${verdict.note}`),
-        ];
-        if (good.length) console.log(`\n${send.by} says ${list(good)} ${good.length > 1 ? "look" : "looks"} good.`);
-        const back = (send.takenBack ?? []).map(quote);
-        if (back.length) console.log(`\n${send.by} takes back Looks good on ${list(back)}: ${back.length > 1 ? "they ask" : "it asks"} again.`);
-      }
-      if (!asking.length) continue;
-    }
-
-    const notes = allNotes(review);
-    const you = agent();
-    const pictures = await pictureNotes(repo, review, round, asking);
-    console.log(`\nNotes to answer in round ${round} of ${id}: ${quote(review.title)}`);
-    for (const note of asking) {
-      const turns = conversation(review, note).map((turn) => {
-        const who = turn.agent ? `${turn.by === you ? "You" : turn.by}, in round ${turn.round}` : turn.verdict ? `${turn.by}, ${turn.verdict}` : turn.by;
-        return `    ${who}${turn.words.trim() ? `: ${turn.words}` : ""}`;
-      });
-      const picture = pictures.get(note);
-      const kept = notes.get(note);
-      // The scene as it was recorded when the note was made, whose steps say where in it the note is.
-      const on = kept?.note.on;
-      const from = on && review.rounds.find((one) => one.number === kept.round)?.scenes.find((scene) => scene.name === (on.app?.from.scene ?? on.scene));
-      console.log(`\n  ${note}  ${where(kept?.note.on, from)}${picture ? `\n    As they saw it: ${picture}` : ""}\n${turns.join("\n")}`);
-    }
-    if (asking.some((note) => notes.get(note)?.note.on?.app))
-      console.log(`\nWhat they did in the app is yours to write, as a fork of the scene they took over, in its file: test.fork("<what they do there>", { notes: ["<the note's id>"] }, async ({ page }) => { … }), with steps as a scene's. Record runs the scene to where they took it over, then the fork, every round until the note is settled, and puts your answer on what the note is on, where the fork first shows it. playthrough forks ${id} runs it while you work.`);
-    const first = pictures.size ? "Look at what each note is on, change" : "Change";
-    console.log(`\n${first} the app, then record round ${round}: playthrough record ${id}. Then answer each note in that round's round.json, under “replies”: record says where.`);
-    return console.log(`New to this review? Run playthrough alone for how Playthrough works. Its scenes are in ${repo.show(repo.scenes(id))}.`);
-  }
-}
-
-// While it waits, it says so beside the review, so the person can be told when nobody is: an agent's command in the
+// While it waits, it says so beside the change, so the person can be told when nobody is: an agent's command in the
 // background can be ended by the agent's own time limit, and what's sent then sits until it's run again. Ended by a
 // signal, it leaves its file behind, so an agent counts as waiting only while its process runs: the same process, on
 // the same start of the machine, not another given its number since.
@@ -120,36 +40,3 @@ export async function agentWaiting(repo: Repo, id: string): Promise<boolean> {
   );
   return still.some(Boolean);
 }
-
-function where(place: Place | undefined, from?: Scene): string {
-  if (!place) return "on the work in general";
-  const at = place.at === undefined ? "" : ` at ${time(place.at)}${place.until === undefined ? "" : ` to ${time(place.until)}`}`;
-  const on = place.element
-    ? `, the ${place.element.role} “${place.element.name}”`
-    : place.point
-      ? `, ${share(place.point.x)} across and ${share(place.point.y)} down the screen`
-      : place.box
-        ? `, the part of the screen ${share(place.box.x)} across and ${share(place.box.y)} down`
-        : "";
-  // Made in the app itself, not on a recording: the person took the scene over there and carried on by hand.
-  if (place.app) {
-    const did = place.app.did.length ? ` and carried on by hand (${list(place.app.did.map(done))})` : "";
-    const paused = from && pausedAt(from, place.app.from.at);
-    const step = paused ? `, ${paused.actions ? `after ${paused.actions} of the actions in` : paused.actions === 0 ? "at the start of" : "at the end of"} its step “${paused.step}”` : "";
-    return `on “${place.app.from.scene}”, in the app: they took the scene over at ${time(place.app.from.at)}${step}${did}${on}`;
-  }
-  // On a recording, the step it's in names where, as the person sees the steps listed beside it.
-  const step = from && place.at !== undefined ? from.steps.findLast((step) => step.at <= place.at! + 0.05) : undefined;
-  return `on “${place.scene}”${step ? `, in its step “${step.title}”,` : ""}${at}${on}`;
-}
-
-// What a person did in the app, as they'd say it.
-function done({ does, with: given, what }: Did): string {
-  const named = what ? ` “${what}”` : "";
-  if (does === "fill") return `typed “${given}” into${named || " a box"}`;
-  if (does === "press") return `pressed ${given}`;
-  if (does === "selectOption") return `chose “${given}”${named && ` in${named}`}`;
-  return `clicked${named || " something with no words"}`;
-}
-
-const share = (fraction: number) => `${Math.round(fraction * 100)}%`;

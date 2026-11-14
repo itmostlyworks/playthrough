@@ -11,7 +11,6 @@ import { networkInterfaces } from "node:os";
 import { answerAs, asRecorded, pathTo } from "@playthrough/page";
 import { list, quote, Refused, type Did } from "@playthrough/review";
 import { keepRunning } from "./app.ts";
-import { refuseWhileAside } from "./before.ts";
 import { QUIET_DEV_CHROME, recorder, type Handed } from "./scenes.ts";
 import { runTo } from "./following.ts";
 import { listen, thisMachine } from "./open.ts";
@@ -57,7 +56,6 @@ export async function getReady(
     throw new Refused([`${quote(scene.name)} has no step called ${quote(stepName)}. Its steps: ${list(scene.steps.map((step) => quote(step.title)))}.`]);
 
   const app = await repo.app();
-  refuseWhileAside(repo);
   await keepRunning(app, repo.root, { ready: true });
   const began = Date.now();
   const { handed, made } = await runTo(repo, id, { scene: scene.name, ...(stepName && { step: stepName, ...(actions !== undefined && { actions }) }), ...(did?.length && { did }), ...(notes?.length && { notes }) });
@@ -87,8 +85,8 @@ const passings = new Map<string, { moments: Map<string, Handed>; port: Promise<n
 
 async function recorded(repo: Repo, id: string) {
   const review = await repo.reviews.get(id);
-  const round = review.rounds.findLast((round) => round.number > 0) ?? review.rounds.at(-1);
-  if (!round) throw new Refused([`${id} has nothing recorded yet, so there's nothing to take over. Record it first: playthrough record ${id}`]);
+  const round = review.rounds.at(-1);
+  if (!round) throw new Refused([`${id} has no moments yet, so there's nothing to step into.`]);
   return round;
 }
 

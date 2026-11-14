@@ -78,14 +78,12 @@ type Event = { timestamp: number; [field: string]: unknown };
 export default class Scenes implements Reporter {
   #folder: string;
   #scenes: string;
-  #before: boolean;
   #taken: string[];
   #ran: { file: string; line: number; recorded?: Recorded; failed?: Failed }[] = [];
 
-  constructor({ folder, scenes, before, taken }: { folder: string; scenes: string; before: boolean; taken: string[] }) {
+  constructor({ folder, scenes, taken }: { folder: string; scenes: string; taken: string[] }) {
     this.#folder = folder;
     this.#scenes = scenes;
-    this.#before = before;
     this.#taken = taken;
   }
 
@@ -100,16 +98,14 @@ export default class Scenes implements Reporter {
       frames: result.attachments.filter((attachment) => attachment.name.startsWith(`${PICTURED} `)).map((attachment) => ({ name: attachment.name.slice(PICTURED.length + 1), body: attachment.body! })),
       assets: JSON.parse(result.attachments.find((attachment) => attachment.name === ASSETS)?.body?.toString() ?? "{}"),
       actions: JSON.parse(result.attachments.find((attachment) => attachment.name === ACTIONS)?.body?.toString() ?? "[]"),
-      hands: JSON.parse(result.attachments.find((attachment) => attachment.name === HANDS)?.body?.toString() ?? "[]"),
     };
     const steps = result.steps.filter((step) => step.category === "test.step");
     const person = result.attachments.find((attachment) => attachment.name === PERSON)?.body?.toString();
     const wrote = result.attachments.find((attachment) => attachment.name === WROTE)?.body?.toString();
     const doneOn = result.attachments.find((attachment) => attachment.name === DONE_ON)?.body?.toString();
-    // Who it's done as, if its file or the app's setup said; a step done by them again, handed back, says nothing.
+    // Who it's done as, if its file or the app's setup said.
     const as = (made: Recorded) => {
       if (person) made.scene.person = person;
-      for (const step of made.scene.steps) if (step.person === made.scene.person) delete step.person;
       if (wrote) made.wrote = wrote;
       if (doneOn) made.doneOn = JSON.parse(doneOn);
       return made;
@@ -122,23 +118,14 @@ export default class Scenes implements Reporter {
       return went(`to its end, ${Math.round(recorded.scene.length)}s`);
     }
 
-    // It stopped at the step it couldn't do, or after the last one when it failed between them. On Before, it's kept as
-    // far as that: what the app as it was could do. Stopped by the browser, it says nothing about the app, so it failed.
+    // It stopped at the step it couldn't do, or after the last one when it failed between them. Stopped by the browser, it
+    // says nothing about the app.
     const stop = steps.at(-1);
-    const kept = stop?.error ? steps.slice(0, -1) : steps;
     const said = (stop?.error ?? result.error)?.message ?? "";
     const broken = BROKEN.test(said);
     const why = firstLine(said);
-    const failed: Failed = { scene: test.title, ...(stop?.error && { at: stop.title }), ...(why && { why }), ...(broken && { broken }) };
-    if (!this.#before || broken || !recording || !stop || !kept.length) {
-      this.#ran.push({ ...where, failed });
-      return went(broken ? "the browser stopped it" : this.#before ? "can't start" : failed.at ? `failed at ${quote(failed.at)}` : "failed before its first step");
-    }
-    const until = stop.startTime.getTime() + (stop.error ? 0 : stop.duration);
-    const recorded = as(this.#scene(test.title, recording, read, kept, until));
-    if (stop.error) recorded.scene.stopped = stop.title;
-    this.#ran.push({ ...where, failed, recorded });
-    went(stop.error ? `stops at ${quote(stop.title)}` : "stops after its last step");
+    this.#ran.push({ ...where, failed: { scene: test.title, ...(stop?.error && { at: stop.title }), ...(why && { why }), ...(broken && { broken }) } });
+    went(broken ? "the browser stopped it" : stop?.error ? `failed at ${quote(stop.title)}` : "failed before its first step");
   }
 
   // What stops the run itself, like a scene's file that doesn't load, as Playwright says it.
@@ -146,26 +133,21 @@ export default class Scenes implements Reporter {
     console.log(`\n${error.message ?? error.value}`);
   }
 
-  // A scene cut short ends where it stopped, held as long as any scene's end, with the same last event (rrweb's custom
-  // events are type 5). The step it stopped at left nothing to read.
-  #scene(name: string, recording: Buffer, read: { readings: Omit<Reading, "picture">[]; glimpses: Glimpse[]; pictures: Buffer[]; frames: { name: string; body: Buffer }[]; assets: Assets; actions: Acted[]; hands: Hand[] }, steps: TestStep[], until?: number): Recorded {
-    let events: Event[] = JSON.parse(recording.toString());
-    if (until !== undefined) events = [...events.filter((event) => event.timestamp < until), { type: 5, data: { tag: "end", payload: {} }, timestamp: until + HOLD }];
+  #scene(name: string, recording: Buffer, read: { readings: Omit<Reading, "picture">[]; glimpses: Glimpse[]; pictures: Buffer[]; frames: { name: string; body: Buffer }[]; assets: Assets; actions: Acted[] }, steps: TestStep[]): Recorded {
+    const events: Event[] = JSON.parse(recording.toString());
     const start = events[0]!.timestamp;
     const length = seconds(events.at(-1)!.timestamp - start);
     // A step's start and the recording's events are both read from this machine's clock.
     // Each action is the step's it was done in.
-    const actionsIn = (step: TestStep, next?: TestStep) => read.actions.filter((done) => done.at >= step.startTime.getTime() && done.at < (next?.startTime.getTime() ?? until ?? Infinity));
+    const actionsIn = (step: TestStep, next?: TestStep) => read.actions.filter((done) => done.at >= step.startTime.getTime() && done.at < (next?.startTime.getTime() ?? Infinity));
     const since = (moment: number) => Math.min(length, seconds(moment - start));
     const scene: Scene = {
       name,
       length,
       steps: steps.map((step, i) => {
         const actions = actionsIn(step, steps[i + 1]);
-        // Whoever the scene was last handed to before the step began does it.
-        const person = read.hands.filter((hand) => hand.at <= step.startTime.getTime()).at(-1)?.person;
         const done = actions.length ? { actions: actions.map((one) => since(one.at)), began: actions.map((one) => ({ action: one.action, at: since(one.began) })) } : {};
-        return { title: step.title, at: since(step.startTime.getTime()), ...done, ...(person && { person }) };
+        return { title: step.title, at: since(step.startTime.getTime()), ...done };
       }),
       recording: this.#fileFor(name),
     };

@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, test } from "node:test";
 import { folder } from "../src/folder.ts";
-import { conversation, memory, toJudge, newId, Refused, Reviews, type Change, type Scene, type Round, type Send, type Storage } from "../src/index.ts";
+import { conversation, memory, newId, Refused, Reviews, type Change, type Scene, type Round, type Send, type Storage } from "../src/index.ts";
 
 const folders: string[] = [];
 after(() => Promise.all(folders.map((path) => rm(path, { recursive: true }))));
@@ -59,14 +59,11 @@ const refused = (pattern: RegExp) => (error: unknown) => {
 
 for (const [kept, storage] of storages) {
   describe(`Reviews kept ${kept}`, () => {
-    // A review with Before and a first round recorded, ready for notes.
+    // A review with its first round handed back, ready for notes.
     async function recorded() {
       const reviews = new Reviews(await storage());
       await reviews.start("invoice-export", "Export a quarter's invoices as a CSV");
-      await reviews.saveRound("invoice-export", round(0));
-      await reviews.finish("invoice-export", 0);
-      await reviews.saveRound("invoice-export", round(1, { accounts: { c1: { line: "Export sits where the totals are." } } }));
-      await reviews.saveComparison("invoice-export", { round: 1, since: 0, changes: [change("c1", "“Export” button is new")] });
+      await reviews.saveRound("invoice-export", round(1));
       await reviews.finish("invoice-export", 1);
       return reviews;
     }
@@ -104,68 +101,43 @@ for (const [kept, storage] of storages) {
       await assert.rejects(reviews.get("invoice-exports"), refused(/^There's no review called “invoice-exports”\. The reviews here: “invoice-export”\.$/));
     });
 
-    test("the first round is Before, or round 1 when the app is new", async () => {
+    test("the first round is 1, and each after it the next", async () => {
       const reviews = new Reviews(await storage());
       await reviews.start("invoice-export", "A title");
-      await assert.rejects(reviews.saveRound("invoice-export", round(2)), refused(/first round is 0/));
+      await assert.rejects(reviews.saveRound("invoice-export", round(2)), refused(/^Round 2 can't be recorded yet: the round being worked on is 1\.$/));
+      await assert.rejects(reviews.saveRound("invoice-export", round(0)), Refused);
       await reviews.saveRound("invoice-export", round(1));
       await reviews.finish("invoice-export", 1);
       assert.equal((await reviews.get("invoice-export")).rounds[0]?.number, 1);
     });
 
-    test("a round is compared only with a round before it, so a first round with no Before has no changes", async () => {
+    test("a round is compared only with a round before it", async () => {
       const reviews = new Reviews(await storage());
       await reviews.start("invoice-export", "A title");
       await reviews.saveRound("invoice-export", round(1));
-      const compared = { round: 1, since: 0, changes: [change("c1", "“Export” button is new")] };
-      await assert.rejects(reviews.saveComparison("invoice-export", compared), refused(/there's no Before to compare it with/));
-      await assert.rejects(reviews.saveComparison("invoice-export", { ...compared, since: 1 }), refused(/only compared with a round before it/));
+      await assert.rejects(reviews.saveComparison("invoice-export", { round: 1, since: 1, changes: [] }), refused(/only compared with a round before it/));
+      await assert.rejects(reviews.saveComparison("invoice-export", { round: 1, since: 0, changes: [] }), refused(/needs the round it's compared with, from 1/));
     });
 
     test("what a round is compared with is kept until the round is finished, then it never changes", async () => {
       const reviews = await recorded();
-      assert.deepEqual((await reviews.get("invoice-export")).comparisons.map(({ round, since }) => [round, since]), [[1, 0]]);
-      await assert.rejects(reviews.saveComparison("invoice-export", { round: 1, since: 0, changes: [] }), refused(/Round 1 is finished/));
       await reviews.saveRound("invoice-export", round(2));
       await reviews.saveComparison("invoice-export", { round: 2, since: 1, changes: [change("c2", "Moved down")] });
+      assert.deepEqual((await reviews.get("invoice-export")).comparisons.map(({ round, since }) => [round, since]), [[2, 1]]);
       await reviews.saveComparison("invoice-export", { round: 2, since: 1, changes: [] });
       assert.deepEqual((await reviews.get("invoice-export")).comparisons.at(-1)?.changes, []);
+      await reviews.finish("invoice-export", 2);
+      await assert.rejects(reviews.saveComparison("invoice-export", { round: 2, since: 1, changes: [] }), refused(/Round 2 is finished/));
     });
 
     test("a round can be saved as often as needed until it's finished, then it never changes", async () => {
       const reviews = await recorded();
       await reviews.saveRound("invoice-export", round(2, { scenes: [scene("Export a quarter")] }));
       await reviews.saveRound("invoice-export", round(2));
-      assert.equal((await reviews.get("invoice-export")).rounds[2]?.scenes.length, 2);
+      assert.equal((await reviews.get("invoice-export")).rounds[1]?.scenes.length, 2);
       await reviews.finish("invoice-export", 2);
       await assert.rejects(reviews.saveRound("invoice-export", round(2)), refused(/Round 2 is finished/));
       await assert.rejects(reviews.saveRound("invoice-export", round(4)), refused(/being worked on is 3/));
-    });
-
-    test("Before gains a scene added later, with its files, or the word that the app as it was can't start it; a scene tried again takes the place of what it had of it; a file it has stays as it is", async () => {
-      const reviews = await recorded();
-      const recording = new TextEncoder().encode("[]");
-      const add = (scenes: Scene[], cantStart: string[], files = [{ name: "export-a-year.json", bytes: recording }]) =>
-        reviews.addToBefore("invoice-export", { scenes, cantStart, files });
-      await add([scene("Export a year")], ["Open the export"]);
-      const before = (await reviews.get("invoice-export")).rounds[0];
-      assert.deepEqual(before?.scenes.map((scene) => scene.name), ["Export a quarter", "Cancel halfway", "Export a year"]);
-      assert.deepEqual([before?.cantStart, !!before?.finished], [["Open the export"], true]);
-      assert.deepEqual(await reviews.file("invoice-export", 0, "export-a-year.json"), recording);
-
-      await add([scene("Export a quarter")], [], []);
-      await add([scene("Open the export")], [], []);
-      const again = (await reviews.get("invoice-export")).rounds[0];
-      assert.deepEqual([again?.scenes.map((scene) => scene.name), again?.cantStart], [["Export a quarter", "Cancel halfway", "Export a year", "Open the export"], []]);
-      const other = [{ name: "export-a-year.json", bytes: new TextEncoder().encode("[{}]") }];
-      await assert.rejects(add([scene("Export a month")], [], other), refused(/Before has a file called “export-a-year\.json” already, with something else in it/));
-      // A file kept by what's in it, like a font two scenes load, comes again the same.
-      await add([scene("Export a month")], []);
-
-      const app = new Reviews(await storage());
-      await app.start("new-app", "A title");
-      await app.saveRound("new-app", round(1));
-      await assert.rejects(app.addToBefore("new-app", { scenes: [scene("Export a year")], cantStart: [], files: [] }), refused(/no Before to add a scene to/));
     });
 
     test("finishing twice is the same as finishing once", async () => {
@@ -188,50 +160,15 @@ for (const [kept, storage] of storages) {
       await assert.rejects(reviews.see("invoice-export", "Ana", [{ round: 2, scene: "Export a quarter" }]), refused(/^Round 2 hands back no “Export a quarter” to see\.$/));
     });
 
-    test("a round is handed over without the agent saying why of what changed: its answers to notes are its why", async () => {
+    test("a round compared at all is compared with every round before it before it's handed back", async () => {
       const reviews = await recorded();
       await reviews.saveRound("invoice-export", round(2));
-      await reviews.saveComparison("invoice-export", { round: 2, since: 0, changes: [change("c1", "“Export” button is new"), change("c2", "Download CSV and Cancel swapped")] });
-      await reviews.saveComparison("invoice-export", { round: 2, since: 1, changes: [change("c2", "Download CSV and Cancel swapped")] });
       await reviews.finish("invoice-export", 2);
-      assert.ok((await reviews.get("invoice-export")).rounds[2]?.finished);
-    });
-
-    test("the agent says why once for all that changed at one moment of a scene, and handed over, it's what the agent says of each", async () => {
-      const reviews = await recorded();
-      const changes = [change("c2", "Download CSV and Cancel swapped"), change("c3", "Download CSV looks different"), change("c4", "“Done” is new", 5)];
-      const swapped = { line: "Download sits on the right, like every other dialog." };
-      await reviews.saveRound("invoice-export", round(2, { accounts: { c2: swapped } }));
-      await reviews.saveComparison("invoice-export", { round: 2, since: 0, changes: [change("c1", "“Export” button is new"), ...changes] });
-      await reviews.saveComparison("invoice-export", { round: 2, since: 1, changes });
-      const drawing = { notReal: "The page was still drawing." };
-      await reviews.saveRound("invoice-export", round(2, { accounts: { c2: swapped, c4: drawing } }));
-      await reviews.finish("invoice-export", 2);
-      assert.deepEqual((await reviews.get("invoice-export")).rounds[2]?.accounts, { c2: swapped, c3: swapped, c4: drawing });
-    });
-
-    test("a round compared at all is compared with every round before it before it's handed over", async () => {
-      const reviews = await recorded();
-      await reviews.saveRound("invoice-export", round(2));
-      await reviews.saveComparison("invoice-export", { round: 2, since: 1, changes: [] });
-      await assert.rejects(reviews.finish("invoice-export", 2), refused(/^Round 2 isn't compared with Before yet, so it can't be handed over\. Record it again\.$/));
-      await reviews.saveComparison("invoice-export", { round: 2, since: 0, changes: [change("c1", "“Export” button is new")] });
-      await reviews.finish("invoice-export", 2);
-    });
-
-    test("what the agent says is about one of the round's changes, and a change made for a note names a note that exists", async () => {
-      const reviews = await recorded();
-      await reviews.saveRound("invoice-export", round(2, { accounts: { c9: { line: "Moved it." }, c1: { note: "nobody" } } }));
-      await reviews.saveComparison("invoice-export", { round: 2, since: 1, changes: [] });
-      await reviews.saveComparison("invoice-export", { round: 2, since: 0, changes: [change("c1", "“Export” button is new")] });
-      await assert.rejects(reviews.finish("invoice-export", 2), (error: unknown) => {
-        assert.ok(error instanceof Refused);
-        assert.deepEqual(error.problems, [
-          "Round 2 says something about the change c9, which isn't one of this round's changes.",
-          "Round 2: the change c1 (“Export” button is new) was made for note nobody, which doesn't exist.",
-        ]);
-        return true;
-      });
+      await reviews.saveRound("invoice-export", round(3));
+      await reviews.saveComparison("invoice-export", { round: 3, since: 2, changes: [] });
+      await assert.rejects(reviews.finish("invoice-export", 3), refused(/^Round 3 isn't compared with round 1 yet, so it can't be handed back\. Run every moment again\.$/));
+      await reviews.saveComparison("invoice-export", { round: 3, since: 1, changes: [change("c1", "“Export” button is new")] });
+      await reviews.finish("invoice-export", 3);
     });
 
     test("a scene that's gone is a change with no moment, on the earlier round's scene", async () => {
@@ -243,14 +180,12 @@ for (const [kept, storage] of storages) {
       await assert.rejects(reviews.saveComparison("invoice-export", { round: 2, since: 1, changes: [late] }), refused(/isn't there/));
     });
 
-    test("notes go only on finished rounds after Before", async () => {
+    test("notes go only on rounds handed back", async () => {
       const reviews = new Reviews(await storage());
       await reviews.start("invoice-export", "A title");
-      await reviews.saveRound("invoice-export", round(0));
-      await reviews.finish("invoice-export", 0);
       await reviews.saveRound("invoice-export", round(1));
-      await assert.rejects(reviews.send("invoice-export", send(0, { notes: [note("Hm")] })), refused(/Round 0 is Before/));
       await assert.rejects(reviews.send("invoice-export", send(1, { notes: [note("Hm")] })), refused(/isn't finished/));
+      await assert.rejects(reviews.send("invoice-export", send(0, { notes: [note("Hm")] })), Refused);
     });
 
     test("a note's place is on a scene in its round, at a moment within it", async () => {
@@ -270,29 +205,17 @@ for (const [kept, storage] of storages) {
       await reviews.finish("invoice-export", 2);
     });
 
-    test("a reply goes in its note's scene", async () => {
-      const { reviews, asked } = await working();
-      const reply = { note: asked.id, words: "It fades in now.", on: { scene: "Cancel halfway", at: 1 } };
-      await reviews.saveRound("invoice-export", round(2, { replies: [reply] }));
-      await assert.rejects(reviews.finish("invoice-export", 2), refused(/A reply goes in its note's scene/));
-    });
-
-    test("looks good settles a note, and a reply asks again", async () => {
+    test("a person's reply to an answer asks the agent again, whoever sends it", async () => {
       const { reviews, asked } = await working();
       await reviews.saveRound("invoice-export", round(2, { replies: [{ note: asked.id, words: "It fades in now." }] }));
       await reviews.finish("invoice-export", 2);
 
-      await reviews.send("invoice-export", send(2, { replies: [{ note: asked.id, words: "Now it's too slow." }] }));
+      await reviews.send("invoice-export", send(2, { by: "Ben", replies: [{ note: asked.id, words: "Now it's too slow." }] }));
       await reviews.take("invoice-export");
       await reviews.saveRound("invoice-export", round(3));
       await assert.rejects(reviews.finish("invoice-export", 3), refused(/needs an answer/));
       await reviews.saveRound("invoice-export", round(3, { replies: [{ note: asked.id, words: "Faster now." }] }));
       await reviews.finish("invoice-export", 3);
-
-      await reviews.send("invoice-export", send(3, { verdicts: [{ note: asked.id, verdict: "looks good", words: "Lovely." }] }));
-      await reviews.take("invoice-export");
-      await reviews.saveRound("invoice-export", round(4));
-      await reviews.finish("invoice-export", 4);
     });
 
     test("a note's conversation reads in order: the note, then each round's reply by the agent that recorded it, and what people said", async () => {
@@ -300,68 +223,21 @@ for (const [kept, storage] of storages) {
       await reviews.saveRound("invoice-export", round(2, { by: "Codex", replies: [{ note: asked.id, words: "It fades in now." }] }));
       await reviews.finish("invoice-export", 2);
       await reviews.send("invoice-export", send(2, { replies: [{ note: asked.id, words: "Now it's too slow." }] }));
-      await reviews.send("invoice-export", send(2, { by: "Bo", verdicts: [{ note: asked.id, verdict: "looks good" }] }));
 
       assert.deepEqual(conversation(await reviews.get("invoice-export"), asked.id), [
         { by: "Ana", agent: false, round: 1, words: "The dialog snaps in." },
         { by: "Codex", agent: true, round: 2, words: "It fades in now." },
         { by: "Ana", agent: false, round: 2, words: "Now it's too slow." },
-        { by: "Bo", agent: false, round: 2, words: "", verdict: "looks good" },
       ]);
     });
 
-    test("a note has one state for everyone, so a reply from anyone after a Looks good sends the answer back", async () => {
-      const { reviews, asked } = await working();
-      await reviews.saveRound("invoice-export", round(2, { replies: [{ note: asked.id, words: "It fades in now." }] }));
-      await reviews.finish("invoice-export", 2);
-      await reviews.send("invoice-export", send(2, { by: "Ana", verdicts: [{ note: asked.id, verdict: "looks good" }] }));
-      await reviews.send("invoice-export", send(2, { by: "Ben", replies: [{ note: asked.id, words: "Too slow." }] }));
-      assert.equal((await reviews.take("invoice-export")).length, 2);
-      await reviews.saveRound("invoice-export", round(3));
-      await assert.rejects(reviews.finish("invoice-export", 3), refused(/needs an answer to note/));
-    });
-
-    test("a note whose last word is Looks good asks nothing more, whoever said the words before it", async () => {
-      const { reviews, asked } = await working();
-      await reviews.saveRound("invoice-export", round(2, { replies: [{ note: asked.id, words: "It fades in now." }] }));
-      await reviews.finish("invoice-export", 2);
-      await reviews.send("invoice-export", send(2, { by: "Ben", replies: [{ note: asked.id, words: "Too slow." }] }));
-      await reviews.send("invoice-export", send(2, { by: "Ana", verdicts: [{ note: asked.id, verdict: "looks good", words: "It's fine, it's meant to be calm." }] }));
-      await reviews.take("invoice-export");
-      await reviews.saveRound("invoice-export", round(3));
-      await reviews.finish("invoice-export", 3);
-    });
-
-    test("a reply to an answer judges nothing: it's in the conversation as the person's words, and asks the agent again", async () => {
-      const { reviews, asked } = await working();
-      await reviews.saveRound("invoice-export", round(2, { replies: [{ note: asked.id, words: "It fades in now. Want the toasts to fade too?" }] }));
-      await reviews.finish("invoice-export", 2);
-      await reviews.send("invoice-export", send(2, { replies: [{ note: asked.id, words: "Yes, in this change." }] }));
-
-      const review = await reviews.get("invoice-export");
-      assert.deepEqual(conversation(review, asked.id).at(-1), { by: "Ana", agent: false, round: 2, words: "Yes, in this change." });
-      assert.equal(toJudge(conversation(review, asked.id)), false, "replied to, the answer isn't waiting to be judged");
-      await reviews.take("invoice-export");
-      await reviews.saveRound("invoice-export", round(3));
-      await assert.rejects(reviews.finish("invoice-export", 3), refused(/needs an answer to note/));
-    });
-
-    test("a reply is on a note that exists, in words, and a send says one thing on a note: a verdict or a reply", async () => {
+    test("a reply is on a note that exists, in words; and an answer isn't judged, only replied to", async () => {
       const { reviews, asked } = await working();
       await reviews.saveRound("invoice-export", round(2, { replies: [{ note: asked.id, words: "It fades in now." }] }));
       await reviews.finish("invoice-export", 2);
       await assert.rejects(reviews.send("invoice-export", send(2, { replies: [{ note: "nobody", words: "Hm" }] })), refused(/no note nobody on round 2 to reply to/));
       await assert.rejects(reviews.send("invoice-export", send(2, { replies: [{ note: asked.id, words: " " }] })), refused(/needs words/));
-      const both = send(2, { verdicts: [{ note: asked.id, verdict: "looks good" }], replies: [{ note: asked.id, words: "Also the toasts?" }] });
-      await assert.rejects(reviews.send("invoice-export", both), refused(/judges note .* and replies to it: say one/));
-    });
-
-    test("a verdict is on a note that exists, and a new note has words, not a verdict", async () => {
-      const reviews = await recorded();
-      await assert.rejects(reviews.send("invoice-export", send(1, { verdicts: [{ note: "nobody", verdict: "looks good" }] })), refused(/no note nobody/));
-      const fresh = note("Hm");
-      const both = send(1, { notes: [fresh], verdicts: [{ note: fresh.id, verdict: "looks good" }] });
-      await assert.rejects(reviews.send("invoice-export", both), refused(/is new: it needs words, not a verdict/));
+      await assert.rejects(reviews.send("invoice-export", send(2, { verdicts: [{ note: asked.id, verdict: "looks good" }] })), refused(/say what's still not right in a reply/));
     });
 
     test("a whole scene can look good, if the round has it", async () => {
@@ -388,22 +264,16 @@ for (const [kept, storage] of storages) {
         ]);
         return true;
       });
-      const misspelled = round(2, { accounts: { c2: { lne: "Moved it." } as never } });
-      await assert.rejects(reviews.saveRound("invoice-export", misspelled), refused(/^Round 2: what it says about the change c2 says one of \{ line \}, \{ note \} or \{ notReal \}\.$/));
     });
 
-    test("a round the agent edited by hand is checked when it's handed over, so a misspelling is refused by name", async () => {
+    test("a round edited by hand is checked when it's handed back, so a misspelling is refused by name", async () => {
       const reviews = await recorded();
       await reviews.saveRound("invoice-export", round(2));
-      await reviews.saveComparison("invoice-export", { round: 2, since: 1, changes: [change("c2", "Download CSV and Cancel swapped")] });
-      const edited = { ...round(2), accounts: { c2: { lne: "Download sits on the right." } }, brief: "I swapped them." };
+      const edited = { ...round(2), replies: [{ note: "abc", wrds: "Fixed." }] };
       await reviews.storage.write("invoice-export/rounds/2/round.json", new TextEncoder().encode(JSON.stringify(edited)));
       await assert.rejects(reviews.finish("invoice-export", 2), (error: unknown) => {
         assert.ok(error instanceof Refused);
-        assert.deepEqual(error.problems, [
-          "Round 2: what it says about the change c2 says one of { line }, { note } or { notReal }.",
-          "Round 2 has “brief”, which isn't one of its fields.",
-        ]);
+        assert.deepEqual(error.problems, ["Round 2: the reply to note abc needs its words, even if empty until it's answered.", "Round 2: the reply to note abc has “wrds”, which isn't one of its fields."]);
         return true;
       });
     });
@@ -451,30 +321,6 @@ for (const [kept, storage] of storages) {
     test("taking takes each send once", async () => {
       const { reviews } = await working();
       assert.deepEqual(await reviews.take("invoice-export"), []);
-    });
-
-    test("accepting is final: no rounds or sends come after it, and accepting again keeps the first", async () => {
-      const reviews = await recorded();
-      await reviews.accept("invoice-export", "Ana");
-      await reviews.accept("invoice-export", "Ben");
-      assert.equal((await reviews.get("invoice-export")).accepted?.by, "Ana");
-      await assert.rejects(reviews.saveRound("invoice-export", round(2)), refused(/accepted/));
-      await assert.rejects(reviews.send("invoice-export", send(1, { notes: [note("Hm")] })), refused(/accepted/));
-      assert.deepEqual(await reviews.take("invoice-export"), []);
-    });
-
-    test("the work can't be accepted while a note waits for the agent's answer", async () => {
-      const { reviews, asked } = await working();
-      await assert.rejects(reviews.accept("invoice-export", "Ben"), refused(new RegExp(`Note ${asked.id}, “The dialog snaps in.”, still waits for the agent's answer`)));
-      await reviews.saveRound("invoice-export", round(2, { replies: [{ note: asked.id, words: "It fades in now." }] }));
-      await reviews.finish("invoice-export", 2);
-      await reviews.accept("invoice-export", "Ben");
-    });
-
-    test("there's nothing to accept before a round is finished", async () => {
-      const reviews = new Reviews(await storage());
-      await reviews.start("invoice-export", "A title");
-      await assert.rejects(reviews.accept("invoice-export", "Ana"), refused(/no finished round to accept/));
     });
 
     test("files go in the round being worked on and come back as they were", async () => {

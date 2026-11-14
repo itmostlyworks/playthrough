@@ -1,4 +1,4 @@
-// Each note the agent is asked to answer, pictured as it was last seen: the page its step left at its moment, or for one
+// Each note the agent is asked to answer, pictured as it was made: the page its step left at its moment, or for one
 // made in the app, the frame the person's page drew of it, with what it's on outlined in the notes' amber, or a ring on
 // its spot. The agent looks before changing anything, so what “this” means is never a guess. A picture that can't be
 // made never holds up the notes.
@@ -6,7 +6,7 @@
 import { dirname, join } from "node:path";
 import { chromium, type Browser } from "@playwright/test";
 import { shownAt } from "@playthrough/page";
-import { allNotes, lastSeen, type Review } from "@playthrough/review";
+import { allNotes, type Review } from "@playthrough/review";
 import type { Frame } from "./frames.ts";
 import type { Repo } from "./repo.ts";
 import { readingsOn } from "./reporter.ts";
@@ -20,7 +20,7 @@ export async function pictureNotes(repo: Repo, review: Review, round: number, no
   let browser: Browser | undefined;
   try {
     for (const id of notes) {
-      const found = await (allNotes(review).get(id)?.note.on?.app ? whereMade : whereSeen)(repo, review, id, round).catch(() => undefined);
+      const found = await (allNotes(review).get(id)?.note.on?.app ? whereMade : whereSeen)(repo, review, id).catch(() => undefined);
       const picture = found?.picture;
       if (!found || !picture) continue;
       browser ??= await chromium.launch();
@@ -45,12 +45,13 @@ export async function pictureNotes(repo: Repo, review: Review, round: number, no
   return shown;
 }
 
-// The picture of the step the note was last seen at, and where on it: what it's on, or its spot or part of the screen.
-// One on the whole scene was made at its end, so it's the page the scene left, with nothing marked.
-async function whereSeen(repo: Repo, review: Review, id: string, before: number) {
-  const seen = lastSeen(review, id, before);
-  const on = seen?.on;
-  const scene = seen && review.rounds.find((round) => round.number === seen.round)?.scenes.find((scene) => scene.name === on!.scene);
+// The picture of the step the note was made at, on the round it was sent on, and where on it: what it's on, or its spot
+// or part of the screen. One on the whole moment was made at its end, so it's the page the moment left, with nothing
+// marked.
+async function whereSeen(repo: Repo, review: Review, id: string) {
+  const seen = allNotes(review).get(id);
+  const on = seen?.note.on;
+  const scene = seen && on && review.rounds.find((round) => round.number === seen.round)?.scenes.find((scene) => scene.name === on.scene);
   if (!seen || !on || !scene) return undefined;
   const readings = await readingsOn(repo.reviews, review.id, seen.round, scene);
   const file = (name: string) => repo.reviews.file(review.id, seen.round, name);

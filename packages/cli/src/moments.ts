@@ -45,7 +45,6 @@ export async function moment(repo: Repo, words: string, named?: string, last?: n
   if (counted > MOST_WORDS) throw new Refused([`That's ${counted} words. Say only what's there, in under eight (“Cards now say WEB-1 to WEB-5”): the person already sees who it is and where.`]);
   const people = Object.keys((await setupIn(repo.setup)).people ?? {}).filter((name) => new RegExp(`(^|\\W)${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\W|$)`, "i").test(words));
   if (people.length) throw new Refused([`The person sees who it is beside the moment: leave ${list(people.map(quote))} out of its words, and say only what's there.`]);
-  const began = Date.now();
   const markAgain = `playthrough moment ${JSON.stringify(words)}${named ? ` ${JSON.stringify(named)}` : ""}`;
 
   // Where the agent is now, as the page is read at a step's end.
@@ -108,7 +107,7 @@ export async function moment(repo: Repo, words: string, named?: string, last?: n
   console.log("Running it once more, to see what changes by itself…");
   const twice = await runOnce({ scenes: trying, only: [words], app: await repo.app(), root: repo.root, recorder, before: false, taken: [], started: review.started });
   if (!twice.recorded.length) throw notKept(`it got there once, but not a second time${twice.failed[0]?.why ? `: ${twice.failed[0].why}` : ""}. Make what it starts from the same each time, in playthrough/setup.ts.`);
-  await markUnsteady(Math.max(1, roundInProgress(review)), ran.recorded, twice.recorded);
+  await markUnsteady(roundInProgress(review), ran.recorded, twice.recorded);
   // Its first and last frames, in both runs, for whether it changes anything you can see.
   const framesOf = ({ scene, files }: (typeof ran.recorded)[number]) => {
     const file = (name: string) => files.find((one) => one.name === name)?.bytes;
@@ -131,7 +130,7 @@ export async function moment(repo: Repo, words: string, named?: string, last?: n
   const acted = lastActedOn(done, readings.at(-1)!);
   const step = recorded.scene.steps[0];
   const scene: Scene = { ...recorded.scene, ...(there.about && { about: { role: there.about.role, name: there.about.name } }), ...(acted && { acted }), ...(step && { from: step.at }) };
-  const number = Math.max(1, roundInProgress(review));
+  const number = roundInProgress(review);
   for (const { name, bytes } of recorded.files) await repo.reviews.saveFile(id, number, name, bytes);
   const kept = review.rounds.find((round) => round.number === number);
   const scenes = kept?.scenes.some((one) => one.name === scene.name) ? kept.scenes.map((one) => (one.name === scene.name ? scene : one)) : [...(kept?.scenes ?? []), scene];

@@ -1,35 +1,10 @@
-// What someone pointed at on one round, found on another. Each round is its own recording, so an element's node means
-// nothing in another; what links them is the page each step left, read on both rounds and paired as the comparison pairs
-// it: the same step, by its title, and on it the thing that's the same thing.
+// What someone pointed at, found in what was read: the thing a note is on in the reading that shows it, and the thing a
+// spot on empty space is named by.
 
-import { inStep, type Element, type Scene, type Place, type Point } from "@playthrough/review";
-import { differences } from "./differences.ts";
+import type { Element, Point } from "@playthrough/review";
 import type { Glimpse, Reading, Thing } from "./reading.ts";
 
-// A round's recording of a scene, with what was read at the end of each of its steps.
-export type Recorded = { scene: Scene; readings: Reading[] };
 export type Shown = { reading: Reading; thing: Thing };
-
-// A place on another round: its moment there, kept in step through the steps both take, on its thing as it's found
-// there and called as it's called there. A spot keeps beside the thing it's named by, wherever that thing is there; a
-// part of the screen, or a spot with nothing named near it, stays where it was on the screen; a thing that isn't there
-// leaves only the moment.
-export function placeIn(place: Place, from: Recorded, to: Recorded): Place {
-  if (place.at === undefined) return { scene: place.scene };
-  // To the hundredth, but never past the scene's end, which isn't rounded: 5.689s long, an answer at its end was at 5.69s.
-  const at = (moment: number) => Math.min(to.scene.length, Math.round(inStep(moment, from.scene, to.scene) * 100) / 100);
-  const until = place.until === undefined ? undefined : at(place.until);
-  const moment = { scene: place.scene, at: at(place.at), ...(until !== undefined && until > at(place.at) && { until }) };
-  if (place.box) return { ...moment, box: place.box };
-  if (place.point) return { ...moment, point: besideOn(place.point, place.at, from, to) ?? place.point };
-  const there = (element: Element) => {
-    const found = foundIn(from.readings, element, place.at!, to.readings);
-    return found && elementOf(found.thing, element.name);
-  };
-  const element = place.element && there(place.element);
-  const alike = element && place.alike?.map(there).filter((found) => found !== undefined);
-  return element ? { ...moment, element, ...(alike?.length && { alike }) } : moment;
-}
 
 // What holds other things you could name on their own: words of their own in it are noted for themselves.
 export const HOLDING = /^(dialog|alertdialog|group|radiogroup|table|grid|treegrid|listbox|menu)$/;
@@ -57,25 +32,6 @@ function besideIn<Read extends Glimpse>(read: Read[], at: number, point: Point):
   return thing && { reading, thing };
 }
 
-// A spot on another round, as far from the thing it's named by as it was: a note beside a card that moved down the list
-// moves down with it. Nothing where that thing isn't there.
-function besideOn(point: Point, at: number, from: Recorded, to: Recorded): Point | undefined {
-  const beside = besideIn(from.readings, at, point);
-  const found = beside && sameIn(beside, from.readings, to.readings);
-  if (!beside || !found) return undefined;
-  const share = (pixels: number, of: number) => Math.min(1, Math.max(0, pixels / of));
-  return {
-    x: share(point.x * beside.reading.screen.width + found.thing.box.x - beside.thing.box.x, found.reading.screen.width),
-    y: share(point.y * beside.reading.screen.height + found.thing.box.y - beside.thing.box.y, found.reading.screen.height),
-  };
-}
-
-// The same thing on another round: where it shows nearest its moment, then the same step there.
-function foundIn(from: Reading[], element: Element, at: number, to: Reading[]): Shown | undefined {
-  const shown = shownAt(from, element, at);
-  return shown && sameIn(shown, from, to);
-}
-
 // The reading nearest its moment with its element in it; for one whose element was never read there (noted by its role
 // and name alone), the nearest with something of that role and name.
 export function shownAt(readings: Reading[], element: Element, at: number): Shown | undefined {
@@ -90,16 +46,6 @@ export function shownAt(readings: Reading[], element: Element, at: number): Show
   return (element.node === undefined ? undefined : nearest((thing) => thing.node === element.node)) ?? nearest((thing) => thing.role === element.role && thing.name === element.name);
 }
 
-// Its step on the other round is the step of the same title, the same one of them where a title comes again; on it, the
-// thing paired with it as the comparison pairs them. Nothing where that round didn't take the step, or the thing is gone.
-function sameIn({ reading, thing }: Shown, from: Reading[], to: Reading[]): Shown | undefined {
-  const nth = from.filter((kept) => kept.step === reading.step).indexOf(reading);
-  const there = to.filter((kept) => kept.step === reading.step)[nth];
-  if (!there) return undefined;
-  for (const [now, then] of differences(reading, there).was) if (then === thing) return { reading: there, thing: now };
-  return undefined;
-}
-
 // As an element of the round it's on. Something with no name of its own there keeps the one it was noted by.
 export const elementOf = (thing: Thing, name: string): Element => ({ role: thing.role, name: thing.name || name, ...(thing.node !== undefined && { node: thing.node }) });
 
@@ -110,22 +56,3 @@ export function sameWords(one: string, other: string): boolean {
   return !few!.length || few!.filter((word) => many!.includes(word)).length * 2 >= few!.length;
 }
 const wordsOf = (name: string) => name.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
-
-// A thing noted where no scene records, in the app taken over, found where a scene first shows it, in what each step left
-// or what was glimpsed after an action: the same role, and the same words, the closest of them where several are, as a
-// reminder's subject, “INV-1043 is overdue”, shares enough with its message to pass for it. Nothing for one noted with no
-// words, as anything of its role would do.
-export function firstShown(element: Element, seen: Glimpse[]): { at: number; element: Element } | undefined {
-  const noted = wordsOf(element.name);
-  if (!noted.length) return undefined;
-  const closeness = (thing: Thing) => {
-    const words = wordsOf(thing.name);
-    return words.filter((word) => noted.includes(word)).length / Math.max(words.length, noted.length);
-  };
-  for (const glimpse of seen.toSorted((a, b) => a.at - b.at)) {
-    const same = glimpse.things.filter((thing) => thing.role === element.role && sameWords(thing.name, element.name));
-    const thing = same.toSorted((a, b) => closeness(b) - closeness(a))[0];
-    if (thing) return { at: glimpse.at, element: elementOf(thing, element.name) };
-  }
-  return undefined;
-}

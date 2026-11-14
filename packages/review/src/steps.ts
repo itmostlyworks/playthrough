@@ -1,23 +1,14 @@
-// Each round is its own recording of a scene, so a moment in one is found in another through what both did there.
+// Each round is its own recording of a moment, so two are played together, and a moment stepped into, through what
+// each did there.
 
 import type { Scene } from "./model.ts";
-
-// The same moment in another round's recording of the scene, as the two pass it together. Where only the other did
-// something, it's passed in no time here, so the other leaps it: played together, both go by `together`.
-export function inStep(at: number, from: Scene, to: Scene): number {
-  if (at <= 0) return at;
-  const [mine, theirs] = together(from, to);
-  for (let i = 0; i < mine.length - 1; i++)
-    if (at <= mine[i + 1]!) return theirs[i]! + (theirs[i + 1]! - theirs[i]!) * Math.min(1, Math.max(0, (at - mine[i]!) / (mine[i + 1]! - mine[i]!)));
-  return to.length;
-}
 
 // The moments two recordings of a scene pass together, in order, each in its own recording's time. Each recording is
 // what it did, in order: each step as it starts, each action in it, and the end. The two are lined up on the longest run
 // of these both did, in order: a step by its title; an action by its step and what it was, so when one clicks Update the
 // other does, and one typing in a field starts and stops as the other does, whatever words each types. Between two they
 // share, each goes at its own pace, scaled to arrive together. What only one did plays there while the other holds just
-// before what they share next, so Before waits while round 1 opens a menu it didn't have, then both go on together.
+// before what they share next, so one waits while the other opens a menu it didn't have, then both go on together.
 export function together(one: Scene, other: Scene): [number[], number[]] {
   const mine = [0];
   const theirs = [0];
@@ -68,9 +59,6 @@ function shared(ours: Done[], others: Done[]): [Done, Done][] {
     else k++;
   return pairs;
 }
-
-// The step a moment is in: its result, where the page rests once it has played, is the step's, not the next one's.
-export const stepAt = (scene: Scene, at: number) => scene.steps.find((_, i) => (scene.steps[i + 1]?.at ?? scene.length) >= at - 0.05) ?? scene.steps.at(-1);
 
 // Where a scene is taken over, as the recording was at a moment: after as many of a step's actions as it had done, or at
 // the step's end, as the page rests between them. The same place on every round that takes that step that far.

@@ -1,7 +1,7 @@
-// What a review is. A review is one piece of work an agent does, round after round, until a person accepts it.
-// The agent records rounds, answers notes and says why each change is there; Playthrough compares each round with the ones
-// before it; people send notes and verdicts. Each thing here has one writer, and once written, only a round still being
-// worked on ever changes, and Before, which gains each scene added later.
+// What a review is: one change an agent makes, its moments handed back round after round until the person says it's done.
+// The agent keeps each moment as a scene of a round and answers notes; Playthrough compares each round with the ones
+// before it; people send notes, replies, and Done. Each thing here has one writer, and once written, only a round still
+// being worked on ever changes.
 //
 // Each shape is a schema, so the types and what's checked at the door are one statement. An error is written as
 // what the thing still needs, to follow its name: “the scene “Export a quarter” needs its length, in seconds”.
@@ -45,7 +45,6 @@ export const Place = z
   .strictObject({
     scene: text("needs the scene it's on"),
     at: seconds("needs its moment, in seconds").optional().describe("Without it, the whole scene"),
-    until: seconds("needs its end, in seconds").optional().describe("The end of a stretch"),
     element: Element.optional(),
     alike: z.array(Element).optional().describe("The other things changed alike with its element, each where it is"),
     box: Box.optional().describe("Something with no words of its own, or where only the pixels changed"),
@@ -56,10 +55,6 @@ export const Place = z
         did: z.array(Did).describe("What the person did there, in order"),
         recording: fileName("needs its recording: the name of a file in the round").describe("The scene up to where it was taken over, then the person's own steps"),
         length: z.number({ error: "needs its length, in seconds" }).positive({ error: "needs its length, in seconds" }),
-        steps: z
-          .array(z.strictObject({ title: text("needs its title"), at: seconds("needs its start, in seconds") }))
-          .optional()
-          .describe("Run again as the agent wrote it, a fork of its scene: its steps, each at its start"),
       })
       .optional()
       .describe("In the app: on the person's own recording, which branches off a scene where they took it over. Its scene names the branch"),
@@ -69,9 +64,6 @@ export const Place = z
   })
   .refine((place) => place.at !== undefined || !(place.element || place.box || place.point), {
     error: "is on something but at no moment. Give it one",
-  })
-  .refine((place) => place.until === undefined || (place.at !== undefined && place.until > place.at), {
-    error: "ends before it starts. A stretch ends after its moment",
   });
 
 export const Step = z.strictObject({
@@ -90,9 +82,6 @@ export const Step = z.strictObject({
     )
     .optional()
     .describe("Each of its actions as it began, in the order of actions: what it was, as another recording of the scene knows the same action, and when. Two recordings are lined up by these"),
-  person: text("needs the name of who does it, or no person")
-    .optional()
-    .describe("Who does it, once the scene has changed hands: someone other than who the scene is done as"),
 });
 
 export const Scene = z.strictObject({
@@ -100,10 +89,6 @@ export const Scene = z.strictObject({
   length: z.number({ error: "needs its length, in seconds" }).positive({ error: "needs its length, in seconds" }),
   steps: z.array(Step),
   recording: fileName("needs its recording: the name of a file in the round"),
-  line: text("needs words in its line, or no line").optional().describe("The agent's, beside the scene's steps and at its start: what it starts from, and whether it shows the change or what the change leaves alone"),
-  stopped: text("needs the step it stopped at")
-    .optional()
-    .describe("On Before, the step the scene couldn't take there, or that the app as it was had something else for: it's kept as far as that"),
   person: text("needs the name of who it acts as, or no person")
     .optional()
     .describe("Who the scene is done as, as its file or the app's setup names them: the name on the recorded pointer, handed to you when you take over"),
@@ -136,17 +121,15 @@ export const Change = z.strictObject({
     .describe("Seen only in the pictures, with nothing read there changed: shown to the person, who can see what it is, and not put to the agent, who can't see more of it than Playthrough did"),
 });
 
-// A round compared with one before it. Against Before it's the work so far; against the round before, what the agent
-// did this round; against the round someone last looked at a scene on, what's new to them. The same difference found by
-// two comparisons has the same id, so what the agent said about it holds in both.
+// A round compared with one before it: against the round before, what the agent did this round; against the round
+// someone last looked at a moment on, what's new to them. The same difference found by two comparisons has the same id.
 export const Comparison = z.strictObject({
-  round: z.number({ error: "needs its round" }).int().min(1, { error: "needs its round, after Before" }),
-  since: z.number({ error: "needs the round it's compared with" }).int().min(0).describe("0 is Before"),
+  round: z.number({ error: "needs its round" }).int().min(1, { error: "needs its round, from 1" }),
+  since: z.number({ error: "needs the round it's compared with" }).int().min(1, { error: "needs the round it's compared with, from 1" }),
   changes: z.array(Change, { error: "needs its changes, a list, even if it's empty" }),
 });
 
-// What the agent says about a change: why it's there, the note it was made for, or that nothing really changed. One of
-// them, in the round where something about the change is new.
+// What the agent once said about a change, kept in older rounds: nothing writes one now.
 export const Account = z.union(
   [
     z.strictObject({ line: text("needs words in its line") }).describe("Why it's there, in the agent's voice: what it meant or chose"),
@@ -159,32 +142,27 @@ export const Account = z.union(
 export const Reply = z.strictObject({
   note: text("needs the note it answers"),
   words: z.string({ error: "needs its words, even if empty until it's answered" }),
-  on: Place.optional().describe("Where it shows on this round's recording; without it, the note's place was lost"),
-  watch: text("needs a step's title").optional().describe("For an answer that moves: the step of its scene it's seen in, which the note then plays"),
 });
 
 // A note is a conversation about one thing. A person starts it in a send; then the agent's replies and people's replies
-// take turns on it until someone says it looks good.
+// take turns on it.
 export const Note = z.strictObject({
   id: id("needs an id of letters, digits and dashes"),
   on: Place.optional().describe("Without it, about the work in general"),
   words: text("needs words"),
 });
 
-// What the agent recorded, and what it says about it. Once finished, a round never changes, except that Before gains each
-// scene added later, recorded on the app as it was.
+// What the agent handed back, and its answers. Once finished, a round never changes.
 export const Round = z.strictObject({
-  number: z.number().int().min(0).describe("Round 0 is Before: the app as it was"),
+  number: z.number().int().min(1),
   by: text("needs to say which agent recorded it").describe("By the name it goes by, “Claude Code” or “Codex”: one review can pass between agents"),
   scenes: z.array(Scene),
   replies: z.array(Reply).describe("The agent's answer to each note that asks for one"),
-  accounts: z.record(z.string(), Account).describe("What the agent says about each change new since the round before, by its id"),
-  commit: z.string().optional().describe("What it was recorded from"),
-  cantStart: z.array(text("needs the scene's name")).optional().describe("Before: the scenes the app as it was can't start, so they have no Before"),
+  accounts: z.record(z.string(), Account).describe("Kept in older rounds, and empty in every round since"),
   finished: z.iso.datetime().optional(),
 });
 
-// An answer that fixes what its note asked for. One that doesn't gets a reply instead, saying what's still wrong.
+// An answer once judged to fix what its note asked for. Nothing judges one now: a send's verdicts are always none.
 export const Verdict = z.strictObject({
   note: text("needs the note it's on"),
   verdict: z.literal("looks good", { error: "is “looks good”: one that isn't gets a reply" }),
@@ -194,7 +172,7 @@ export const Verdict = z.strictObject({
 // What one person sent about one round, at once. Once sent, it never changes.
 export const Send = z.strictObject({
   id: id("needs an id of letters, digits and dashes").describe("Chosen by the sender, so sending twice sends once"),
-  round: z.number().int().min(0),
+  round: z.number().int().min(1),
   by: text("needs to say who sent it"),
   sent: z.iso.datetime({ error: "needs to say when it was sent, as an ISO date" }),
   notes: z.array(Note).describe("New ones"),
@@ -203,8 +181,7 @@ export const Send = z.strictObject({
     .array(z.strictObject({ note: text("needs the note it's on"), words: text("needs words") }))
     .optional()
     .describe("A person's words back on a note's latest answer: what's still not right, or an answer to a question the agent asked. They judge nothing, and ask the agent again"),
-  looksGood: z.array(text("needs the scene's name")).describe("Scenes that look good as a whole; one that isn't quite right gets a note"),
-  takenBack: z.array(text("needs the scene's name")).optional().describe("Scenes whose Looks good, said before, is taken back: they ask again"),
+  looksGood: z.array(text("needs the scene's name")).describe("Done says every scene of its round looks good"),
 });
 
 // The agent took a send, and answers it in this round.
@@ -213,7 +190,7 @@ export const Taken = z.strictObject({ send: z.string(), round: z.number().int(),
 // A moment someone has opened, as it was handed back in one round: one handed back again, different, asks to be seen again.
 export const Seen = z.strictObject({ round: z.number().int().min(1), scene: text("needs the scene it's of") });
 
-// Final: no rounds or sends come after it.
+// Kept by the older page; nothing accepts a review now, and the store reads none.
 export const Accepted = z.strictObject({ by: z.string(), at: z.iso.datetime() });
 
 export const Review = z.strictObject({
