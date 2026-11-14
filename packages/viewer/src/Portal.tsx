@@ -67,7 +67,9 @@ export function Portal({ live, screen, scrolled, theirs, onStandIn, app: talk, o
   const homing = () => void (onItsWay() && requestAnimationFrame(homing));
   const come = () => {
     const their = theirHand.current!;
-    their.coming = hand.current!.animate([], { duration: HANDING, easing: PORTAL });
+    // Held at its start until it starts: your pointer moving just as it's set off can be heard a moment before the
+    // page's clock reaches its start, and it was then nowhere along, drawn on yours for a frame.
+    their.coming = hand.current!.animate([], { duration: HANDING, easing: PORTAL, fill: "backwards" });
     their.coming.onfinish = () => {
       theirHand.current = undefined;
       onItsWay();
