@@ -34,7 +34,8 @@ export function folder(root: string): Storage {
       try {
         return (await readdir(join(root, path))).filter((name) => !name.endsWith(".writing"));
       } catch (error) {
-        if (isMissing(error)) return [];
+        // Nothing there, or a file: nothing inside either way.
+        if (isMissing(error) || (error as { code?: string }).code === "ENOTDIR") return [];
         throw error;
       }
     },
