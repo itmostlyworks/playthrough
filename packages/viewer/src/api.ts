@@ -191,7 +191,8 @@ async function posted<T>(path: string, body: unknown): Promise<{ answer: T } | {
 
 // A note's frame as a picture, drawn once by `playthrough open` and kept (frames.ts): its address, and where the note's
 // thing is on it, as shares of the screen. Asked for once a page.
-export type NoteFrame = { src: string; screen: { width: number; height: number }; box?: { x: number; y: number; width: number; height: number } };
+// Where its thing is on it, and where a line of words' words are, which is narrower than the line.
+export type NoteFrame = { src: string; screen: { width: number; height: number }; box?: { x: number; y: number; width: number; height: number }; words?: { x: number; y: number; width: number; height: number } };
 const framing = new Map<string, Promise<NoteFrame | undefined>>();
 export function noteFrame(review: string, note: string, framed: { round: number; recording: string; at: number; node?: number; point?: { x: number; y: number } }): Promise<NoteFrame | undefined> {
   const asked = framing.get(note);
