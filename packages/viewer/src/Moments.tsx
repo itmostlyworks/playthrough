@@ -703,7 +703,6 @@ function Change({ listed, you, moment, note, go }: { listed: Listed; you: string
       n={n}
       about={scene.about}
       who={whoIn(listed, scene)}
-      whoOf={(other) => whoIn(listed, other)}
       notes={notes}
       sent={sent}
       setNotes={setNotes}
@@ -736,7 +735,6 @@ function MomentView(props: {
   n: number;
   about?: { role: string; name: string };
   who: string;
-  whoOf: (scene: Scene) => string;
   notes: Note[];
   sent: Note[];
   setNotes: (change: (notes: Note[]) => Note[]) => void;
@@ -748,7 +746,7 @@ function MomentView(props: {
   onMoment: (n: number) => void;
   onLeave: () => void;
 }) {
-  const { review, round, n, about, who, whoOf, notes, sent, setNotes, replies, setReplies, you, onMoment, onLeave } = props;
+  const { review, round, n, about, who, notes, sent, setNotes, replies, setReplies, you, onMoment, onLeave } = props;
   const scene = round.scenes[n - 1]!;
   const count = round.scenes.length;
   const end = Math.max(0, scene.length - 0.05);
@@ -1132,8 +1130,11 @@ function MomentView(props: {
           }
           words={
             <>
-              <span className="block truncate text-xs leading-4 text-faint">{whoOf(other)}</span>
-              <span className="line-clamp-2 text-[13px] leading-[18px] text-fg">{other.name}</span>
+              {/* Who by their name alone: who they are is said over the recording once you're there. */}
+              <span className="line-clamp-2 text-[12.5px] leading-[17px] text-fg">
+                {other.person && <span className="text-soft">{other.person} · </span>}
+                {other.name}
+              </span>
             </>
           }
           onPress={() => toMoment(i + 1)}
@@ -1158,8 +1159,8 @@ function MomentView(props: {
           picture={<NotePicture frame={frames[note.id]} sent={isSent} />}
           words={
             <>
-              <span className="block truncate text-[13px] leading-[18px] text-fg">{words}</span>
-              <span className={`block text-xs leading-4 ${stands === "answered" ? "text-soft" : "text-faint"}`}>{stands}</span>
+              <span className="line-clamp-3 text-[12.5px] leading-[17px] text-fg">{words}</span>
+              <span className={`block text-[11.5px] leading-4 ${stands === "answered" ? "text-soft" : "text-faint"}`}>{stands}</span>
             </>
           }
           onPress={() => openNote(note.id)}
@@ -1417,9 +1418,14 @@ function NotePicture({ frame, sent }: { frame?: NoteFrame; sent: boolean }) {
   if (!frame) return null;
   const { screen, box } = frame;
   const thing = box && { x: box.x * screen.width, y: box.y * screen.height, width: box.width * screen.width, height: box.height * screen.height };
-  // Closed in with its thing a little toward the recording, as the edge fades away on its other side.
+  // Closed in with its thing a little toward the recording, as the edge fades away on its other side,
   const centred = thing && around(thing, screen, STILL, 3);
-  const part = centred && { ...centred, x: clamp(centred.x + centred.width * 0.14, 0, 1 - centred.width) };
+  // and high, clear of where its words land as the edge comes forward.
+  const part = centred && box && {
+    ...centred,
+    x: clamp(centred.x + centred.width * 0.14, 0, 1 - centred.width),
+    y: clamp(box.y + box.height / 2 - centred.height * 0.3, 0, 1 - centred.height),
+  };
   // Its pin, as on the recording: just outside its thing's top right corner, or on its spot.
   const pin = box && part && { x: (box.x + box.width - part.x) / part.width, y: (box.y - part.y) / part.height };
   const out = box && box.width ? 9 : 0;

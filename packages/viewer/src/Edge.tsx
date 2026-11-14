@@ -126,7 +126,7 @@ export function Edge(props: {
         <div
           ref={list}
           onScroll={look}
-          className="grid h-full grid-cols-[minmax(0,1fr)] content-start gap-1 overflow-x-clip overflow-y-auto overscroll-contain px-2.5 py-2 [scrollbar-width:none]"
+          className="grid h-full grid-cols-[minmax(0,1fr)] content-start gap-0.5 overflow-x-clip overflow-y-auto overscroll-contain px-2.5 py-2 [scrollbar-width:none]"
           style={{ maskImage: fade("to bottom"), WebkitMaskImage: fade("to bottom") }}
         >
           {children(forward)}
@@ -142,7 +142,7 @@ export function Edge(props: {
   );
 }
 
-// One picture on an edge, and its words under it once the edge has come forward. Strong: the moment you're on, the
+// One picture on an edge, and its words over its lower part once the edge has come forward. Strong: the moment you're on, the
 // note open. Lit: its pin on the recording is pointed at, or it is.
 export function Tile(props: {
   id: string;
@@ -193,8 +193,13 @@ export function Tile(props: {
         className={`relative block aspect-[1.6] overflow-hidden rounded-lg bg-paper transition-[box-shadow,opacity,scale] duration-200 ease-calm group-active/tile:scale-[0.97] group-active/tile:duration-75 ${quiet && !strong ? "opacity-60 group-hover/tile:opacity-100 group-focus-visible/tile:opacity-100" : ""} group-focus-visible/tile:shadow-[0_0_0_2px_var(--surface),0_0_0_4px_var(--amber)] ${strong ? "shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--soft)]" : lit ? "shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--faint)]" : "shadow-frame group-hover/tile:shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--faint)]"}`}
       >
         {picture}
+        {/* Its words come up over the picture's lower part, on the card's own ground, as the edge comes forward. */}
+        <span
+          className={`absolute inset-x-0 bottom-0 bg-surface px-2 pt-1.5 pb-[7px] transition-[opacity,translate] duration-200 ease-calm ${forward ? "translate-y-0 opacity-100 delay-75" : "pointer-events-none translate-y-1 opacity-0"}`}
+        >
+          {words}
+        </span>
       </span>
-      <span className={`block px-1 pt-2 pb-0.5 transition-opacity duration-200 ease-calm ${forward ? "opacity-100 delay-75" : "opacity-0"}`}>{words}</span>
     </button>
   );
 }
