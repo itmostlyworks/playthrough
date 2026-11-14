@@ -830,12 +830,20 @@ function MomentView(props: {
   // Where it rests: its end, as it opens, or wherever it was paused. Another moment opens at its own end.
   const [rest, setRest] = useState<{ scene: string; at: number; along?: number }>({ scene: scene.name, at: end });
   const at = rest.scene === scene.name ? rest.at : end;
-  // Compare: this moment as it was when it was last handed back, beside how it is now, played together.
-  const then = (() => {
-    const earlier = review.rounds.findLast((one) => one.number > 0 && one.number < round.number && one.finished && one.scenes.some((kept) => kept.name === scene.name));
-    const kept = earlier?.scenes.find((one) => one.name === scene.name);
+  // Compare: this moment as it was when you last looked at it, before this hand-back, beside how it is now, played
+  // together. Offered only where there's such a look; where nothing differs since, the bar says so instead. Any moment
+  // of the change with a look keeps the bar four wide for every one, so it never changes width going from one to the next.
+  const [looked] = useState(() => seenOf(review, you));
+  const lastLook = (one: Scene) => {
+    const earlier = review.rounds.findLast((kept) => kept.number > 0 && kept.number < round.number && kept.finished && looked.includes(takingOf(kept.number, one.name)) && kept.scenes.some((taken) => taken.name === one.name));
+    const kept = earlier?.scenes.find((taken) => taken.name === one.name);
     return earlier && kept ? { round: earlier, scene: kept } : undefined;
-  })();
+  };
+  const anyLook = round.scenes.some((one) => lastLook(one));
+  const looking = lastLook(scene);
+  const compared = looking && review.comparisons.find((one) => one.round === round.number && one.since === looking.round.number);
+  const unchanged = !!compared && !compared.changes.some((change) => change.seen.some((seen) => seen.scene === scene.name));
+  const then = unchanged ? undefined : looking;
   const [comparing, setComparing] = useState(false);
   const both = useMemo(() => then && cut && playedTogether(cut, together(scene, then.scene)), [cut, then?.scene.recording, scene.recording]);
   const [bothOf] = useState(() => new Clock(0));
@@ -1461,11 +1469,15 @@ function MomentView(props: {
             <button className={`${ITEM}`} disabled={stepping || !!writing || comparing || !!opened} aria-pressed={noting} onClick={note}>
               Note <Key>N</Key>
             </button>
-            {then && (
-              <button className={`${ITEM}`} disabled={!!live?.shown || !!writing} aria-pressed={comparing} onClick={compare}>
-                Compare <Key>C</Key>
-              </button>
-            )}
+            {anyLook &&
+              (then ? (
+                <button className={`${ITEM} w-[104px] phone:w-auto`} disabled={!!live?.shown || !!writing} aria-pressed={comparing} onClick={compare}>
+                  Compare <Key>C</Key>
+                </button>
+              ) : (
+                // Nothing to compare: what it is, in Compare's place.
+                <span className={`${ITEM} w-[104px] cursor-default text-faint! phone:w-auto`}>{looking ? "Unchanged" : "New"}</span>
+              ))}
             </div>
           </div>
         </div>
