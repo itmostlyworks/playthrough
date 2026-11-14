@@ -863,7 +863,7 @@ function MomentView(props: {
   const [behind, setBehind] = useState<string>();
   const was = useRef(scene);
   if (was.current !== scene) {
-    if (was.current.recording !== scene.recording && !phone) setBehind(picture(review.id, round.number, was.current.recording, Math.max(0, was.current.steps.length - 1)));
+    if (was.current.recording !== scene.recording && !phone && !matchMedia("(prefers-reduced-motion: reduce)").matches) setBehind(picture(review.id, round.number, was.current.recording, Math.max(0, was.current.steps.length - 1)));
     was.current = scene;
   }
 
@@ -1150,6 +1150,12 @@ function MomentView(props: {
       );
     });
 
+  const momentsEdge = (
+    <Edge side="left" label="Moments" frame={frame} quiet={!!live?.shown} phone={phone} showing={scene.name}>
+      {momentTiles}
+    </Edge>
+  );
+
   return (
     <div className="grid h-dvh grid-rows-[auto_auto_minmax(0,1fr)] overflow-hidden bg-ground phone:grid-rows-[auto_auto_auto_minmax(0,1fr)]" onPointerDown={pressAway}>
       <header className="flex h-12 min-w-0 items-center gap-3 px-6 phone:px-4">
@@ -1336,14 +1342,14 @@ function MomentView(props: {
       </div>
       {/* Beside the recording, or under it on a phone: the change's moments, and this one's notes. */}
       <div className={phone ? "grid min-h-0 content-start gap-6 overflow-y-auto px-4 pt-6 pb-8" : "contents"}>
+        {/* Tab reaches them as they read, left to right; on a phone, the notes come first, nearest what they're on. */}
+        {!phone && momentsEdge}
         {(!phone || onEdge.length > 0) && (
           <Edge side="right" label="Notes" frame={frame} quiet={!!live?.shown} phone={phone} showing={open ?? lastArrived}>
             {noteTiles}
           </Edge>
         )}
-        <Edge side="left" label="Moments" frame={frame} quiet={!!live?.shown} phone={phone} showing={scene.name}>
-          {momentTiles}
-        </Edge>
+        {phone && momentsEdge}
       </div>
     </div>
   );
