@@ -4,11 +4,11 @@
 // a still each in the agent's words, and one button that moves it on: Send, with what you said, or Done.
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { allNotes, newId, waitingForTheAgent, type Note } from "@playthrough/review";
-import { send, type Listed } from "./api.ts";
-import { unsentOf, keepUnsent, repliesOf, keepReplies, scrolledBack, openedLines, keepOpened, type YourReply } from "./kept.ts";
+import { allNotes, waitingForTheAgent } from "@playthrough/review";
+import type { Listed } from "./api.ts";
+import { unsentOf, useUnsent, scrolledBack, openedLines, keepOpened } from "./kept.ts";
 import { Key } from "./Key.tsx";
-import { SendButton, tick, FILLED_KEY, SAID } from "./Send.tsx";
+import { SendButton, tick, FILLED_KEY, SAID, useSend, type Saying } from "./Send.tsx";
 import { toSend, noteSays, takingOf, differentSince, seenOf, markSeen, latestOf, workingSince, whoIn, ago, standingOf, type Standing } from "./standing.ts";
 import { Still } from "./Still.tsx";
 
@@ -109,7 +109,7 @@ export function List({ changes, you, onOpen }: { changes?: Listed[]; you?: strin
   const withAgents = all.filter((one) => one.standing.is === "sent").sort(newest);
   const done = all.filter((one) => one.standing.is === "done").sort(newest);
   // Ctrl+Enter sends the first change with something to send, as a page's send sends its one review.
-  const keyed = [...waiting, ...withAgents, ...done].find(({ listed }) => unsentOf(listed.review.id).length)?.listed.review.id;
+  const keyed = [...waiting, ...withAgents, ...done].find(({ listed }) => unsentOf(listed.review.id).notes.length)?.listed.review.id;
   const toggle = (id: string) => {
     const next = opened.includes(id) ? opened.filter((one) => one !== id) : [...opened, id];
     setOpened(next);
@@ -234,38 +234,31 @@ function ChangeInList(props: {
     const shown = setTimeout(() => own.current?.scrollIntoView({ block: "nearest", behavior: still ? "auto" : "smooth" }), still ? 0 : LEAVING);
     return () => clearTimeout(shown);
   }, []);
-  const [notes] = useState(() => unsentOf(review.id));
-  const [replies] = useState(() => repliesOf(review.id));
+  const unsent = useUnsent(review.id);
   const [seen] = useState(() => seenOf(review, you));
   // What this browser kept before it was kept with the change goes to it.
-  useEffect(() => markSeen(review, you, seen), []);
+  useEffect(() => markSeen(review, you, []), []);
   const different = differentSince(review, round);
+  const { sending, went, send } = useSend(review.id, round.number, you);
+  // Sent, it says what went until it's gone.
+  const { notes, replies } = sending === "sent" && went ? went : unsent;
   const said = notes.length + replies.length;
-  const [problems, setProblems] = useState<string[]>();
-  const [busy, setBusy] = useState(false);
+  const problems = Array.isArray(sending) ? sending : undefined;
   // Sent or done, it folds away where it was and arrives as its line where it goes.
   const [leaving, setLeaving] = useState(false);
-  // Sent, it says so where you pressed, and only then goes.
-  const [sentNow, setSentNow] = useState(false);
   const waiting = standing.is === "waiting";
-  const say = async (what: { notes: Note[]; replies?: YourReply[]; looksGood: string[] }) => {
-    if (busy || leaving) return;
-    setBusy(true);
+  const say = async (saying: Saying) => {
+    if (sending === "sending" || leaving) return;
     onLeaving(true);
-    const said = await send(review.id, { id: newId(), round: round.number, by: you, sent: new Date().toISOString(), verdicts: [], ...what });
-    setBusy(false);
-    if (said.length) return (onLeaving(false), setProblems(said));
-    keepUnsent(review.id, []);
-    keepReplies(review.id, []);
-    setSentNow(true);
+    if (!(await send(saying))) return onLeaving(false);
     await new Promise((done) => setTimeout(done, matchMedia("(prefers-reduced-motion: reduce)").matches ? 900 : SAID));
     setLeaving(true);
     setTimeout(() => onLeaving(false, true), matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : LEAVING);
   };
-  const sendNow = () => (said ? say({ notes, ...(replies.length && { replies }), looksGood: [] }) : Promise.resolve());
+  const sendNow = () => (said ? say({ notes, replies, looksGood: [] }) : Promise.resolve());
   // Done says every moment looks good to you, and that you've nothing more to say: the agent hears it as it hears a
   // send, and the change can still take a note later.
-  const doneNow = () => say({ notes: [], looksGood: round.scenes.map((scene) => scene.name) });
+  const doneNow = () => say({ notes: [], replies: [], looksGood: round.scenes.map((scene) => scene.name) });
   // Ctrl+Enter sends, as on the page; never a plain Enter, and never Done.
   const keys = useRef(sendNow);
   keys.current = () => (keyed ? sendNow() : Promise.resolve());
@@ -274,8 +267,9 @@ function ChangeInList(props: {
     addEventListener("keydown", down);
     return () => removeEventListener("keydown", down);
   }, []);
+  const sentNow = sending === "sent";
   const button = (said || waiting) && (
-    <SendButton className="self-start" filled={!!said && !sentNow} onClick={said ? sendNow : doneNow} disabled={busy || leaving || sentNow}>
+    <SendButton className="self-start" filled={!!said && !sentNow} onClick={said ? sendNow : doneNow} disabled={sending === "sending" || leaving || sentNow}>
       {sentNow ? <>{tick}{said ? "Sent" : "Done"}</> : said ? <>Send {toSend(notes.length, replies.length)} <Key className={FILLED_KEY}>Ctrl ↵</Key></> : "Done"}
     </SendButton>
   );

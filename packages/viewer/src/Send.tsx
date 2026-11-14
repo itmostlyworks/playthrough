@@ -1,6 +1,36 @@
 // Sending, on the list and on a moment's page alike.
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { newId, type Note } from "@playthrough/review";
+import { send as post } from "./api.ts";
+import { keepUnsent, type YourReply } from "./kept.ts";
+
+// What a send says: notes, replies, and the moments it says look good, which Done says of every one.
+export type Saying = { notes: Note[]; replies: YourReply[]; looksGood: string[] };
+
+// One send on a change, from wherever it's pressed: what you said, on the moments as last handed back. While it goes,
+// it's sending; kept, it's sent, and what went is no longer this browser's to keep (only that: what you wrote
+// meanwhile, here or in another tab, stays), in the same breath as what pressed it is told, so nothing said is drawn
+// unsaid between; not kept, what stopped it.
+export function useSend(review: string, round: number, you: string) {
+  const [sending, setSending] = useState<"sending" | "sent" | string[]>();
+  // What the last send said, as it was pressed: where it was pressed says it until it's gone.
+  const [went, setWent] = useState<Saying>();
+  const send = async (saying: Saying, sent?: () => void) => {
+    setSending("sending");
+    setWent(saying);
+    const problems = await post(review, { id: newId(), round, by: you, sent: new Date().toISOString(), verdicts: [], notes: saying.notes, ...(saying.replies.length && { replies: saying.replies }), looksGood: saying.looksGood });
+    if (problems.length) return (setSending(problems), false);
+    sent?.();
+    keepUnsent(review, (now) => ({
+      notes: now.notes.filter((note) => !saying.notes.some((one) => one.id === note.id)),
+      replies: now.replies.filter((reply) => !saying.replies.some((one) => one.note === reply.note && one.words === reply.words)),
+    }));
+    setSending("sent");
+    return true;
+  };
+  return { sending, went, send, again: () => setSending(undefined) };
+}
 
 // Send, the one filled button there is, while something is unsent; else plain, as Done is. Arriving, as the first note
 // is kept, it comes in with the note landing on the edge, so it's seen.

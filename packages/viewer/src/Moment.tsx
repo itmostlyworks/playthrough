@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Glimpse, Reading } from "@playthrough/page";
 import { allNotes, conversation, newId, pausedAt, shownFrom, together, type Did, type Note, type Place, type Review, type Round, type Scene } from "@playthrough/review";
-import { glimpses, keepBranch, picture, readings as readingsOf, recording, send } from "./api.ts";
+import { glimpses, keepBranch, picture, readings as readingsOf, recording } from "./api.ts";
 import { clamp } from "./clamp.ts";
 import { CHIP, playedTogether } from "./compare.ts";
 import { Edge, Tile } from "./Edge.tsx";
@@ -20,7 +20,7 @@ import { Pinned, type Pin } from "./Pinned.tsx";
 import { Clock, Player, useCut, type Mark, type Placed } from "./Player.tsx";
 import { Portal, TAG } from "./Portal.tsx";
 import type { Rect, Scrolled } from "./replay.ts";
-import { SendButton, tick, FILLED_KEY, SAID } from "./Send.tsx";
+import { SendButton, tick, FILLED_KEY, SAID, useSend } from "./Send.tsx";
 import { toSend, noteSays, takingOf, seenOf } from "./standing.ts";
 import { closeOn, aboutBox, StillPicture } from "./Still.tsx";
 import type { Together } from "./view.ts";
@@ -57,24 +57,18 @@ export function MomentView(props: {
   const { review, round, n, about, who, notes, setNotes, replies, setReplies, you, onMoment, onLeave } = props;
   // Send, here as on the list: everything unsent on the change goes. Sent, it says so where you pressed, and what was
   // sent is drawn as sent at once, as the change comes back with it.
-  const [sending, setSending] = useState<"sending" | "sent" | string[]>();
+  const { sending, send, again } = useSend(review.id, round.number, you);
   const [justSent, setJustSent] = useState<Note[]>([]);
   const sent = [...props.sent, ...justSent.filter((note) => !props.sent.some((one) => one.id === note.id))];
   const unsent = notes.length + replies.length;
   const sendNow = async () => {
     if (!unsent || sending === "sending") return;
-    setSending("sending");
-    const [goingNotes, goingReplies] = [notes, replies];
-    const problems = await send(review.id, { id: newId(), round: round.number, by: you, sent: new Date().toISOString(), verdicts: [], notes: goingNotes, ...(goingReplies.length && { replies: goingReplies }), looksGood: [] });
-    if (problems.length) return setSending(problems);
-    setJustSent((now) => [...now, ...goingNotes]);
-    setNotes(() => []);
-    setReplies(() => []);
-    setSending("sent");
+    const going = notes;
+    await send({ notes: going, replies, looksGood: [] }, () => setJustSent((now) => [...now, ...going]));
   };
   useEffect(() => {
     if (sending !== "sent") return;
-    const done = setTimeout(() => setSending(undefined), SAID + 1000);
+    const done = setTimeout(again, SAID + 1000);
     return () => clearTimeout(done);
   }, [sending]);
   const scene = round.scenes[n - 1]!;

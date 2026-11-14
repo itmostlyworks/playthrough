@@ -6,10 +6,10 @@
 import { useEffect, useRef, useState } from "react";
 import type { Note } from "@playthrough/review";
 import { useChanges, useYou, type Listed } from "./api.ts";
-import { unsentOf, keepUnsent, repliesOf, keepReplies, keepScroll, openedLines, keepOpened, type YourReply } from "./kept.ts";
+import { useUnsent, keepUnsent, keepScroll, openedLines, keepOpened, type YourReply } from "./kept.ts";
 import { List } from "./List.tsx";
 import { MomentView } from "./Moment.tsx";
-import { takingOf, seenOf, markSeen, latestOf, sentBy, whoIn, standingOf } from "./standing.ts";
+import { takingOf, markSeen, latestOf, sentBy, whoIn, standingOf } from "./standing.ts";
 
 // Where you are: the list, or a change's moment, by the change's address and the moment's place in it from 1, and a
 // note open by its pin.
@@ -61,28 +61,19 @@ function Change({ listed, you, moment, note, go }: { listed: Listed; you: string
   const id = review.id;
   // Back on the list, the change you were in is open, wherever it stands.
   useEffect(() => void (openedLines().includes(id) || keepOpened([...openedLines(), id])), [id]);
-  const [notes, setNotesNow] = useState(() => unsentOf(id));
-  const setNotes = (change: (notes: Note[]) => Note[]) =>
-    setNotesNow((now) => {
-      const next = change(now);
-      keepUnsent(id, next);
-      return next;
-    });
-  const [replies, setRepliesNow] = useState(() => repliesOf(id));
-  const setReplies = (change: (replies: YourReply[]) => YourReply[]) =>
-    setRepliesNow((now) => {
-      const next = change(now);
-      keepReplies(id, next);
-      return next;
-    });
+  const { notes, replies } = useUnsent(id);
+  const setNotes = (change: (notes: Note[]) => Note[]) => keepUnsent(id, (now) => ({ ...now, notes: change(now.notes) }));
+  const setReplies = (change: (replies: YourReply[]) => YourReply[]) => keepUnsent(id, (now) => ({ ...now, replies: change(now.replies) }));
   const latest = latestOf(review);
   const at = useRef<{ moment: number; round?: number }>(undefined);
   if (at.current?.moment !== moment) at.current = { moment, round: latest?.number };
   const round = review.rounds.find((one) => one.number === at.current!.round);
-  if (!round) return <div className="grid h-dvh place-items-center bg-ground text-soft">Nothing is waiting on you here.</div>;
-  const n = Math.min(moment, round.scenes.length);
+  const n = round && Math.min(moment, round.scenes.length);
+  // Opened, it's seen: for the list, and for next time.
+  const taking = round && n && takingOf(round.number, round.scenes[n - 1]!.name);
+  useEffect(() => void (taking && markSeen(review, you, [taking])), [taking]);
+  if (!round || !n) return <div className="grid h-dvh place-items-center bg-ground text-soft">Nothing is waiting on you here.</div>;
   const scene = round.scenes[n - 1]!;
-  markSeen(review, you, [...seenOf(review, you), takingOf(round.number, scene.name)]);
   const sent = sentBy(review, you).flatMap((one) => one.notes);
   return (
     <MomentView

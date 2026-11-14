@@ -1,7 +1,7 @@
 // Where a change stands for you, read from it as it's kept: its latest moments, what you've sent on them and seen of
 // them, what's different since, and what each note says now, in the page's words.
 
-import { conversation, notesToAnswer, type Note, type Review, type Round, type Scene } from "@playthrough/review";
+import { conversation, notesToAnswer, saidDone, type Note, type Review, type Round, type Scene, type Send } from "@playthrough/review";
 import type { Listed } from "./api.ts";
 import { stored, seenKey, type YourReply } from "./kept.ts";
 
@@ -37,22 +37,21 @@ export function differentSince(review: Review, round: Round): Map<string, string
 }
 
 // The moments you've opened, kept with the change for you, so they're seen from every browser, each as it was handed
-// back: one handed back again, different, asks for you again. Those this browser kept before they were kept with the
-// change are carried over to it once.
-export function seenOf(review: Review, you: string): string[] {
-  let here: string[] = [];
-  try {
-    here = JSON.parse(stored((id) => seenKey(id, you), review.id) ?? "[]");
-  } catch {}
-  return [...new Set([...(review.seen?.[you] ?? []).map((one) => takingOf(one.round, one.scene)), ...here])];
-}
+// back: one handed back again, different, asks for you again.
+export const seenOf = (review: Review, you: string): string[] => (review.seen?.[you] ?? []).map((one) => takingOf(one.round, one.scene));
 
 // Once each: the page asks again as it draws until the change comes back with it.
 const telling = new Set<string>();
 
+// Those this browser kept before they were kept with the change go to it with the first moments told, and are then
+// forgotten here.
 export function markSeen(review: Review, you: string, takings: string[]) {
-  const kept = new Set((review.seen?.[you] ?? []).map((one) => takingOf(one.round, one.scene)));
-  const moments = takings
+  let here: string[] = [];
+  try {
+    here = JSON.parse(stored((id) => seenKey(id, you), review.id) ?? "[]");
+  } catch {}
+  const kept = new Set(seenOf(review, you));
+  const moments = [...new Set([...here, ...takings])]
     .filter((taking) => !kept.has(taking) && !telling.has(`${review.id}:${taking}`))
     .map((taking) => ({ round: Number(taking.slice(0, taking.indexOf(":"))), scene: taking.slice(taking.indexOf(":") + 1) }))
     .filter(({ round, scene }) => review.rounds.some((one) => one.number === round && one.finished && one.scenes.some((kept) => kept.name === scene)));
@@ -80,7 +79,7 @@ const sentOn = (review: Review, you: string) => {
 // Since when the agent has been working on what was sent, for the round after the latest: only on what asks it
 // something, as a send that only says things look good asks for no next round.
 export const workingSince = (review: Review, latest: Round) =>
-  review.accepted ? undefined : review.taken.find((taken) => taken.round > latest.number && notesToAnswer(review, taken.round).length > 0)?.at;
+  review.taken.find((taken) => taken.round > latest.number && notesToAnswer(review, taken.round).length > 0)?.at;
 
 // Who a moment is done as, as the list says them ("Sam, a member").
 export const whoIn = (listed: Listed, scene: Scene) => (scene.person ? (listed.people[scene.person] ?? scene.person) : "");
@@ -95,17 +94,18 @@ export function ago(iso: string, now: number): string {
 }
 
 // Where a change stands for you: waiting on you; with your agents, once you've sent notes on its latest moments; or
-// done, once you said Done, which sends that every moment looks good. Nothing about Done is final: a note later sends
-// as any other, and the change is with your agents again.
+// done, once you said Done, which sends that every moment looks good, by the review's one rule (saidDone). Nothing
+// about Done is final: a note later sends as any other, and the change is with your agents again.
 export type Standing = { is: "waiting" } | { is: "sent"; at: string; notes: number; replies: number } | { is: "done"; at: string };
 
 export function standingOf(review: Review, you: string): Standing {
-  if (review.accepted) return { is: "done", at: review.accepted.at };
+  const done = saidDone(review, you);
+  if (done) return { is: "done", at: done.sent };
   const sends = sentOn(review, you);
   const last = sends.at(-1);
   if (!last) return { is: "waiting" };
-  const saidNothing = (one: Review["sends"][number]) => !one.notes.length && !one.verdicts.length && !one.replies?.length;
-  if (saidNothing(last)) return { is: "done", at: last.sent };
-  const since = sends.slice(sends.findLastIndex(saidNothing) + 1);
+  // What's been said since it was last done, if it was.
+  const doneThen = (one: Send) => !!saidDone({ ...review, sends: review.sends.slice(0, review.sends.indexOf(one) + 1) }, you);
+  const since = sends.slice(sends.findLastIndex(doneThen) + 1);
   return { is: "sent", at: last.sent, notes: since.reduce((sum, one) => sum + one.notes.length, 0), replies: since.reduce((sum, one) => sum + (one.replies?.length ?? 0), 0) };
 }

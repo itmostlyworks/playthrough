@@ -2,6 +2,7 @@
 // what it kept of what you'd seen before that was kept with the change; and, for this tab, where the list was
 // scrolled and which of its quiet lines you'd opened.
 
+import { useEffect, useState } from "react";
 import type { Note, Send } from "@playthrough/review";
 
 // What this browser keeps for a change, by its address. What it kept by the change's own name alone, before every app's
@@ -15,42 +16,52 @@ export function stored(key: (review: string) => string, review: string): string 
   return before;
 }
 
-// Your notes on a change not yet sent, kept in this browser until you send them.
-const unsentKey = (review: string) => `playthrough:moments:${review}`;
-
-export function unsentOf(review: string): Note[] {
-  try {
-    return JSON.parse(stored(unsentKey, review) ?? "[]");
-  } catch {
-    return [];
-  }
-}
-
-export function keepUnsent(review: string, notes: Note[]) {
-  try {
-    if (notes.length) localStorage.setItem(unsentKey(review), JSON.stringify(notes));
-    else localStorage.removeItem(unsentKey(review));
-  } catch {}
-}
-
-// Your replies on notes already sent, kept in this browser until you send them, by note: each as Send takes it.
+// Your notes on a change not yet sent, and your replies on notes already sent, kept in this browser until you send
+// them: each reply as Send takes it.
 export type YourReply = NonNullable<Send["replies"]>[number];
+export type Unsent = { notes: Note[]; replies: YourReply[] };
 
+const unsentKey = (review: string) => `playthrough:moments:${review}`;
 const repliesKey = (review: string) => `playthrough:moments-replies:${review}`;
 
-export function repliesOf(review: string): YourReply[] {
+function read<T>(key: (review: string) => string, review: string): T[] {
   try {
-    return JSON.parse(stored(repliesKey, review) ?? "[]");
+    return JSON.parse(stored(key, review) ?? "[]");
   } catch {
     return [];
   }
 }
 
-export function keepReplies(review: string, replies: YourReply[]) {
+export const unsentOf = (review: string): Unsent => ({ notes: read(unsentKey, review), replies: read(repliesKey, review) });
+
+// Changed as it is kept now, not as this tab last read it, so two tabs on one change each add to what the other kept
+// rather than the last one's whole list winning; and every tab, this one too, hears of it.
+export function keepUnsent(review: string, change: (now: Unsent) => Unsent) {
+  const next = change(unsentOf(review));
   try {
-    if (replies.length) localStorage.setItem(repliesKey(review), JSON.stringify(replies));
-    else localStorage.removeItem(repliesKey(review));
+    for (const [key, list] of [[unsentKey, next.notes], [repliesKey, next.replies]] as const)
+      if (list.length) localStorage.setItem(key(review), JSON.stringify(list));
+      else localStorage.removeItem(key(review));
   } catch {}
+  dispatchEvent(new Event(CHANGED));
+}
+
+const CHANGED = "playthrough:unsent";
+
+// What's unsent on a change, as kept now: again whenever this tab or another changes it.
+export function useUnsent(review: string): Unsent {
+  const [unsent, setUnsent] = useState(() => unsentOf(review));
+  useEffect(() => {
+    const again = () => setUnsent((was) => {
+      const now = unsentOf(review);
+      return JSON.stringify(now) === JSON.stringify(was) ? was : now;
+    });
+    again();
+    addEventListener(CHANGED, again);
+    addEventListener("storage", again);
+    return () => (removeEventListener(CHANGED, again), removeEventListener("storage", again));
+  }, [review]);
+  return unsent;
 }
 
 // The moments you opened, as this browser kept them before they were kept with the change.
