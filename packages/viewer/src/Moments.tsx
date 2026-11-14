@@ -1741,8 +1741,11 @@ function Progress({ clock, share, shareOf, moving, shown }: { clock: Clock; shar
     return clock.follow((moment) => show(told.current(moment)));
   }, [moving, share]);
   return (
-    <span aria-hidden className={`pointer-events-none absolute inset-x-2.5 bottom-[3px] h-0.5 overflow-hidden rounded-full bg-line transition-opacity duration-300 ease-calm ${shown ? "" : "opacity-0"}`}>
-      <span ref={fill} className="block h-full origin-left rounded-full bg-soft" />
+    // Along the button's own bottom edge, end to end, its corners taking the line's ends.
+    <span aria-hidden className={`pointer-events-none absolute inset-0 overflow-hidden rounded-lg transition-opacity duration-300 ease-calm ${shown ? "" : "opacity-0"}`}>
+      <span className={`absolute inset-x-0 bottom-0 h-0.5 ${UNPLAYED}`}>
+        <span ref={fill} className="block h-full origin-left bg-soft" />
+      </span>
     </span>
   );
 }
@@ -1764,11 +1767,17 @@ function Getting({ since, due }: { since: number; due?: number }) {
     return () => cancelAnimationFrame(frameId);
   }, [since, due]);
   return (
-    <span aria-hidden className="pointer-events-none absolute inset-x-2.5 bottom-[3px] h-0.5 animate-arrive overflow-hidden rounded-full bg-line">
-      <span ref={fill} className="block h-full origin-left rounded-full bg-amber" />
+    // As Play's: along the button's bottom edge, end to end.
+    <span aria-hidden className="pointer-events-none absolute inset-0 animate-arrive overflow-hidden rounded-lg">
+      <span className={`absolute inset-x-0 bottom-0 h-0.5 ${UNPLAYED}`}>
+        <span ref={fill} className="block h-full origin-left bg-amber" />
+      </span>
     </span>
   );
 }
+
+// The part of Play's line not yet played: there to be seen, a step quieter than what has.
+const UNPLAYED = "bg-[color-mix(in_srgb,var(--soft)_32%,transparent)]";
 
 // Two recordings of a moment played together, from the moments both pass together: now with its waiting cut short, as
 // it plays alone, and where only the other moves, as long as that takes there. Along it, where each is; and where now's
