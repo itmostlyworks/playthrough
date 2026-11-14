@@ -22,7 +22,7 @@ export const centreOf = (view: View, frame: Size): Point => [view.x + frame.widt
 
 // Following the pointer, the view leads it a little, averaged mostly over the second to come, so what it's about to
 // click is in view before the click.
-export function ahead(replay: Replay, at: number, length: number): Point {
+function ahead(replay: Replay, at: number, length: number): Point {
   let sum: Point = [0, 0];
   let count = 0;
   for (let u = -0.3; u <= 0.9; u += 0.1) {
@@ -40,7 +40,7 @@ export function following(replay: Replay | undefined, at: number, length: number
 }
 
 // How large something shows whole: at 100% where it fits, else zoomed out just enough, with room around it.
-export const wholeAt = (frame: Size, thing: Size) => Math.min(1, frame.width / (thing.width + 48), frame.height / (thing.height + 48));
+const wholeAt = (frame: Size, thing: Size) => Math.min(1, frame.width / (thing.width + 48), frame.height / (thing.height + 48));
 
 // A view moved the least it needs for something to show whole in it, with room around it, so what was in view stays
 // where both fit; where it doesn't fit as large, zoomed out around it.
