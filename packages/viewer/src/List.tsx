@@ -4,12 +4,12 @@
 // a still each in the agent's words, and one button that moves it on: Send, with what you said, or Done.
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { allNotes, waitingForTheAgent } from "@playthrough/review";
+import { allNotes, latestOf, standingOf, waitingForTheAgent, type Standing } from "@playthrough/review";
 import type { Listed } from "./api.ts";
 import { unsentOf, useUnsent, scrolledBack, openedLines, keepOpened } from "./kept.ts";
 import { Key } from "./Key.tsx";
 import { SendButton, tick, FILLED_KEY, SAID, useSend, type Saying } from "./Send.tsx";
-import { toSend, noteSays, takingOf, differentSince, seenOf, markSeen, latestOf, workingSince, whoIn, ago, standingOf, type Standing } from "./standing.ts";
+import { toSend, noteSays, takingOf, differentSince, seenOf, markSeen, workingSince, whoIn, ago } from "./standing.ts";
 import { Still } from "./Still.tsx";
 
 // So many done changes show; the rest wait behind one line.
@@ -255,10 +255,10 @@ function ChangeInList(props: {
     setLeaving(true);
     setTimeout(() => onLeaving(false, true), matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : LEAVING);
   };
-  const sendNow = () => (said ? say({ notes, replies, looksGood: [] }) : Promise.resolve());
+  const sendNow = () => (said ? say({ notes, replies }) : Promise.resolve());
   // Done says every moment looks good to you, and that you've nothing more to say: the agent hears it as it hears a
   // send, and the change can still take a note later.
-  const doneNow = () => say({ notes: [], replies: [], looksGood: round.scenes.map((scene) => scene.name) });
+  const doneNow = () => say({ notes: [], replies: [], done: true });
   // Ctrl+Enter sends, as on the page; never a plain Enter, and never Done.
   const keys = useRef(sendNow);
   keys.current = () => (keyed ? sendNow() : Promise.resolve());

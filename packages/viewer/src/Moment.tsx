@@ -60,7 +60,7 @@ export function MomentView(props: {
   const sendNow = async () => {
     if (!unsent || sending === "sending") return;
     const going = notes;
-    await send({ notes: going, replies, looksGood: [] }, () => setJustSent((now) => [...now, ...going]));
+    await send({ notes: going, replies }, () => setJustSent((now) => [...now, ...going]));
   };
   useEffect(() => {
     if (sending !== "sent") return;

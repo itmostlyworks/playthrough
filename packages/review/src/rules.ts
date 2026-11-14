@@ -51,13 +51,39 @@ export function waitingForTheAgent(review: Review): string[] {
 }
 
 // The send that said the change is done, while it stands: done is the person's latest word, on the moments as last handed
-// back, saying every one of them looks good and nothing more. Whatever comes after it opens the change again: a note or a
-// reply sent, or the moments handed back anew. Asked about one person, it's their latest word.
+// back, saying Done. Whatever comes after it opens the change again: a note or a reply sent, or the moments handed back
+// anew. Asked about one person, it's their latest word.
 export function saidDone(review: Review, by?: string): Send | undefined {
   const handedBack = review.rounds.findLast((round) => round.finished);
   const last = review.sends.filter((send) => by === undefined || send.by === by).at(-1);
-  if (!handedBack || last?.round !== handedBack.number) return undefined;
-  return !last.notes.length && !last.replies?.length && handedBack.scenes.every((scene) => last.looksGood.includes(scene.name)) ? last : undefined;
+  return handedBack && last?.round === handedBack.number && last.done ? last : undefined;
+}
+
+// A change has moments when its latest round is finished with some in it.
+export const latestOf = (review: Review): Round | undefined => review.rounds.findLast((round) => !!round.finished && round.scenes.length > 0);
+
+export const sentBy = (review: Review, you: string) => review.sends.filter((one) => one.by === you);
+
+// Waiting on you until you've sent something on its latest moments, or said Done; then it's with your agents.
+const sentOn = (review: Review, you: string) => {
+  const round = latestOf(review);
+  return round ? sentBy(review, you).filter((one) => one.round === round.number) : [];
+};
+
+// Where a change stands for one person: waiting on them; with their agents, once they've sent notes on its latest
+// moments; or done, once they said Done (saidDone). Nothing about Done is final: a note later sends as any other, and the
+// change is with their agents again. The list and the page read it alike.
+export type Standing = { is: "waiting" } | { is: "sent"; at: string; notes: number; replies: number } | { is: "done"; at: string };
+
+export function standingOf(review: Review, you: string): Standing {
+  const done = saidDone(review, you);
+  if (done) return { is: "done", at: done.sent };
+  const sends = sentOn(review, you);
+  const last = sends.at(-1);
+  if (!last) return { is: "waiting" };
+  // What's been said since it was last done, if it was.
+  const since = sends.slice(sends.findLastIndex((one) => one.done) + 1);
+  return { is: "sent", at: last.sent, notes: since.reduce((sum, one) => sum + one.notes.length, 0), replies: since.reduce((sum, one) => sum + (one.replies?.length ?? 0), 0) };
 }
 
 // What asks for an answer in some sends: a new note, or one a person replied to.
@@ -171,14 +197,15 @@ export function problemsWithFileName(name: string): string[] {
     : [`“${name}” can't be a file's name: use letters, digits, dots, dashes and underscores, and slashes between folders.`];
 }
 
-// A send says new notes, replies to notes it can see, or Done: that every moment of a finished round looks good.
+// A send says new notes and replies to notes it can see, or Done: that every moment of a finished round looks good.
 export function problemsWithSend(review: Review, send: Send): string[] {
   const shape = problemsWithShape(Send, send, "This send");
   if (shape.length) return shape;
   if (review.sends.some((other) => other.id === send.id)) return [`Something else was already sent as ${send.id}. Send this with a new id.`];
   if (send.verdicts.length) return ["A note's answer isn't judged any more: say what's still not right in a reply."];
   const replies = send.replies ?? [];
-  if (!send.notes.length && !replies.length && !send.looksGood.length) return ["There's nothing in this send."];
+  if (!send.notes.length && !replies.length && !send.done) return ["There's nothing in this send."];
+  if (send.done && (send.notes.length || replies.length)) return ["Done says every moment looks good, and nothing more: send the notes and replies on their own."];
 
   const round = review.rounds.find((round) => round.number === send.round);
   if (!round?.finished) return [`Round ${send.round} isn't finished, so it can't take notes yet.`];
@@ -199,8 +226,6 @@ export function problemsWithSend(review: Review, send: Send): string[] {
     else if (!known || known.round > send.round) problems.push(`There's no note ${reply.note} on round ${send.round} to reply to.`);
   }
 
-  problems.push(...duplicates(send.looksGood, (scene) => `This send says “${scene}” looks good twice.`));
-  for (const scene of send.looksGood.filter((scene) => !round.scenes.some((recorded) => recorded.name === scene))) problems.push(`Round ${send.round} has no scene called “${scene}”.`);
   return problems;
 }
 
@@ -258,7 +283,7 @@ function nameOf(list: string, item: Record<string, unknown> | undefined, index: 
     replies: isText(note) && `the reply to note ${note}`,
     notes: isText(id) && `note ${id}`,
   };
-  const singular: Record<string, string> = { scenes: "scene", steps: "step", changes: "change", seen: "place it's seen", replies: "reply", notes: "note", looksGood: "scene said to look good" };
+  const singular: Record<string, string> = { scenes: "scene", steps: "step", changes: "change", seen: "place it's seen", replies: "reply", notes: "note" };
   return named[list] || `${singular[list] ?? list} ${index + 1}`;
 }
 

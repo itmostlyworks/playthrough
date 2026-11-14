@@ -46,7 +46,6 @@ const send = (round: number, parts: Partial<Send> = {}): Send => ({
   sent: new Date((clock += 1000)).toISOString(),
   notes: [],
   verdicts: [],
-  looksGood: [],
   ...parts,
 });
 
@@ -241,10 +240,11 @@ for (const [kept, storage] of storages) {
       await assert.rejects(reviews.send("invoice-export", send(2, { verdicts: [{ note: asked.id, verdict: "looks good" }] })), refused(/say what's still not right in a reply/));
     });
 
-    test("a whole scene can look good, if the round has it", async () => {
+    test("Done says nothing more, and a send says something", async () => {
       const reviews = await recorded();
-      await reviews.send("invoice-export", send(1, { looksGood: ["Export a quarter"] }));
-      await assert.rejects(reviews.send("invoice-export", send(1, { looksGood: ["Pay an invoice"] })), refused(/no scene called “Pay an invoice”/));
+      await reviews.send("invoice-export", send(1, { done: true }));
+      await assert.rejects(reviews.send("invoice-export", send(1, { done: true, notes: [{ id: "n1", words: "Hm" }] })), refused(/Done says every moment looks good, and nothing more/));
+      await assert.rejects(reviews.send("invoice-export", send(1, {})), refused(/nothing in this send/));
     });
 
     test("what's sent or recorded in the wrong shape is refused in plain words, naming the thing", async () => {

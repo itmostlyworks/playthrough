@@ -1,7 +1,7 @@
 // Where a change stands for you, read from it as it's kept: its latest moments, what you've sent on them and seen of
 // them, what's different since, and what each note says now, in the page's words.
 
-import { conversation, notesToAnswer, saidDone, type Note, type Review, type Round, type Scene, type Send } from "@playthrough/review";
+import { conversation, notesToAnswer, type Note, type Review, type Round, type Scene } from "@playthrough/review";
 import type { Listed } from "./api.ts";
 import { stored, seenKey, type YourReply } from "./kept.ts";
 
@@ -29,7 +29,7 @@ export const takingOf = (round: number, scene: string) => `${round}:${scene}`;
 
 // The moments that look different since the taking before, by Playthrough's own comparison, with its words.
 export function differentSince(review: Review, round: Round): Map<string, string[]> {
-  const before = review.rounds.findLast((one) => one.number < round.number && one.number > 0 && one.finished);
+  const before = review.rounds.findLast((one) => one.number < round.number && one.finished);
   const compared = before && review.comparisons.find((one) => one.round === round.number && one.since === before.number);
   const different = new Map<string, string[]>();
   for (const change of compared?.changes ?? []) for (const seen of change.seen) different.set(seen.scene, [...(different.get(seen.scene) ?? []), change.words]);
@@ -65,17 +65,6 @@ export function markSeen(review: Review, you: string, takings: string[]) {
   });
 }
 
-// A change has moments when its latest round is finished with some in it.
-export const latestOf = (review: Review): Round | undefined => review.rounds.findLast((round) => round.number > 0 && !!round.finished && round.scenes.length > 0);
-
-export const sentBy = (review: Review, you: string) => review.sends.filter((one) => one.by === you);
-
-// Waiting on you until you've sent something on its latest moments, or said Done; then it's with your agents.
-const sentOn = (review: Review, you: string) => {
-  const round = latestOf(review);
-  return round ? sentBy(review, you).filter((one) => one.round === round.number) : [];
-};
-
 // Since when the agent has been working on what was sent, for the round after the latest: only on what asks it
 // something, as a send that only says things look good asks for no next round.
 export const workingSince = (review: Review, latest: Round) =>
@@ -91,21 +80,4 @@ export function ago(iso: string, now: number): string {
   if (minutes < 60) return `${minutes} min ago`;
   const hours = Math.floor(minutes / 60);
   return hours < 24 ? `${hours} h ago` : new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-}
-
-// Where a change stands for you: waiting on you; with your agents, once you've sent notes on its latest moments; or
-// done, once you said Done, which sends that every moment looks good, by the review's one rule (saidDone). Nothing
-// about Done is final: a note later sends as any other, and the change is with your agents again.
-export type Standing = { is: "waiting" } | { is: "sent"; at: string; notes: number; replies: number } | { is: "done"; at: string };
-
-export function standingOf(review: Review, you: string): Standing {
-  const done = saidDone(review, you);
-  if (done) return { is: "done", at: done.sent };
-  const sends = sentOn(review, you);
-  const last = sends.at(-1);
-  if (!last) return { is: "waiting" };
-  // What's been said since it was last done, if it was.
-  const doneThen = (one: Send) => !!saidDone({ ...review, sends: review.sends.slice(0, review.sends.indexOf(one) + 1) }, you);
-  const since = sends.slice(sends.findLastIndex(doneThen) + 1);
-  return { is: "sent", at: last.sent, notes: since.reduce((sum, one) => sum + one.notes.length, 0), replies: since.reduce((sum, one) => sum + (one.replies?.length ?? 0), 0) };
 }

@@ -4,7 +4,7 @@
 
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { allNotes, conversation, memory, newId, notesToAnswer, Refused, Reviews, roundInProgress, saidDone, waitingForTheAgent, type Note, type Round, type Scene, type Send, type Storage } from "../src/index.ts";
+import { allNotes, conversation, memory, newId, notesToAnswer, Refused, Reviews, roundInProgress, saidDone, standingOf, waitingForTheAgent, type Note, type Round, type Scene, type Send, type Storage } from "../src/index.ts";
 
 const CHANGE = "change-the-card-prefix";
 
@@ -28,9 +28,9 @@ const handBack = async (reviews: Reviews, scenes: Scene[], replies: Round["repli
 };
 
 let clock = Date.parse("2026-11-14T09:00:00Z");
-const said = (round: number, parts: Partial<Send>): Send => ({ id: newId(), round, by: "Ludwig", sent: new Date((clock += 1000)).toISOString(), notes: [], verdicts: [], looksGood: [], ...parts });
+const said = (round: number, parts: Partial<Send>): Send => ({ id: newId(), round, by: "Ludwig", sent: new Date((clock += 1000)).toISOString(), notes: [], verdicts: [], ...parts });
 const onThing = (words: string, scene = PREFIX.name): Note => ({ id: newId(), words, on: { scene, at: 5, element: { role: "textbox", name: "Card prefix" } } });
-const done = (round: number, scenes: Scene[]) => said(round, { looksGood: scenes.map((scene) => scene.name) });
+const done = (round: number) => said(round, { done: true });
 
 async function named() {
   const reviews = new Reviews(memory());
@@ -141,27 +141,29 @@ describe("the loop", () => {
     assert.deepEqual(await reviews.take(CHANGE), []);
   });
 
-  test("Done is the person's latest word saying every moment handed back looks good, and nothing more", async () => {
+  test("Done is kept as the person said it, their latest word on the moments as last handed back, and says nothing more", async () => {
     const reviews = await handedBack();
     assert.equal(saidDone(await reviews.get(CHANGE)), undefined, "nothing said yet");
-    await reviews.send(CHANGE, said(1, { looksGood: [PREFIX.name] }));
-    assert.equal(saidDone(await reviews.get(CHANGE)), undefined, "one moment of two isn't Done");
-    const doneNow = done(1, [PREFIX, STILL]);
+    await reviews.send(CHANGE, said(1, { notes: [onThing("Hm")] }));
+    assert.equal(saidDone(await reviews.get(CHANGE)), undefined, "a note isn't Done");
+    await assert.rejects(reviews.send(CHANGE, said(1, { done: true, notes: [onThing("And this")] })), /Done says every moment looks good, and nothing more/);
+    const doneNow = done(1);
     await reviews.send(CHANGE, doneNow);
     const review = await reviews.get(CHANGE);
     assert.deepEqual(saidDone(review), doneNow);
     assert.deepEqual(saidDone(review, "Ludwig"), doneNow, "and it's theirs");
     assert.equal(saidDone(review, "Ana"), undefined, "nobody else has said it");
+    assert.deepEqual([standingOf(review, "Ludwig"), standingOf(review, "Ana")], [{ is: "done", at: doneNow.sent }, { is: "waiting" }], "and the change stands done for them");
   });
 
   test("a note sent after Done, or the moments handed back anew, opens the change again", async () => {
     const reviews = await handedBack();
-    await reviews.send(CHANGE, done(1, [PREFIX, STILL]));
+    await reviews.send(CHANGE, done(1));
     await reviews.send(CHANGE, said(1, { notes: [onThing("One more thing")] }));
     assert.equal(saidDone(await reviews.get(CHANGE)), undefined, "a note after it");
 
     const again = await handedBack();
-    await again.send(CHANGE, done(1, [PREFIX, STILL]));
+    await again.send(CHANGE, done(1));
     await again.take(CHANGE);
     await handBack(again, [PREFIX, STILL]);
     assert.equal(saidDone(await again.get(CHANGE)), undefined, "handed back since");
@@ -187,6 +189,7 @@ async function keptTheOlderWay(storage: Storage) {
   await write("review.json", { format: 1, id: CHANGE, title: "Change the card prefix", started: "2026-11-12T09:00:00.000Z" });
   await write("rounds/1/round.json", { number: 1, by: "Agent", scenes: [older], replies: [], accounts: {}, finished: "2026-11-12T10:00:00.000Z" });
   await write("scenes/cards-now-say-web-1.ts", OLDER_WAY);
+  await write("sends/d0ne.json", { id: "d0ne", round: 1, by: "Ludwig", sent: "2026-11-12T11:00:00.000Z", notes: [], verdicts: [], looksGood: [PREFIX.name] });
 }
 const text = async (storage: Storage, path: string) => new TextDecoder().decode((await storage.read(`${CHANGE}/${path}`))!);
 
@@ -197,6 +200,8 @@ describe("a change kept the older way", () => {
     const review = await new Reviews(storage).get(CHANGE);
     assert.equal(review.rounds[0]?.scenes[0]?.from, 4.5, "a still, where its end holds");
     assert.match(await text(storage, "scenes/cards-now-say-web-1.ts"), /click\(\);\n {2}await test\.step\("Cards now say WEB-1", async \(\) => \{\n {4}await expect/);
+    assert.equal(saidDone(review)?.id, "d0ne", "Done said by naming every moment is Done");
+    assert.deepEqual(JSON.parse(await text(storage, "sends/d0ne.json")).done, true);
     assert.equal(JSON.parse(await text(storage, "review.json")).format, 2);
   });
 

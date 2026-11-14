@@ -9,8 +9,8 @@ Its parts:
   hand-back, finish it, take what was sent, send, mark what's been seen, wait) and refuses anything that breaks a rule,
   saying what's wrong in plain words (`rules.ts`). It keeps changes in memory (`memory.ts`, for tests) or in a folder
   (`folder.ts`). Where a moment's recording starts (`shown.ts`), how two recordings of one moment play together
-  (`steps.ts`) and when a change is done (`saidDone`, `rules.ts`) are each one rule here, which the commands and the
-  page both call.
+  (`steps.ts`), when a change is done (`saidDone`, `rules.ts`) and where it stands for someone (`standingOf`) are each
+  one rule here, which the commands and the page both call.
 - **`packages/page`**: what's on a page, as a person would name it, and the same thing found again. A reading is the
   page as a moment left it, everything on it named in Playthrough's fixed words (`names.ts`); two readings of one moment
   on two hand-backs pair thing by thing (`differences.ts`), which is how what's different is found and where a note's
@@ -259,10 +259,11 @@ the recording's room at actual size, a window following now's pointer, both onto
 nearest words (`holding`).
 
 **Send and Done.** Send carries every note and reply you haven't sent on the change, from the list or a moment's page, in
-one send; it never locks. Done, on the list, sends that every moment as last handed back looks good, and nothing more.
-Whether a change is done is one rule, `saidDone` (`packages/review/src/rules.ts`): the person's latest send, on the latest
-hand-back, saying every moment of it looks good with no notes or replies; a note or reply after it, or a new hand-back,
-opens the change again. The list places a change under Done by it, for you; the agent's `wait` ends by it.
+one send; it never locks. Done, on the list, sends Done (`done: true`): every moment as last handed back looks good, and
+nothing more (a send saying Done with a note or a reply is refused). Whether a change is done is one rule, `saidDone`
+(`packages/review/src/rules.ts`): the person's latest send, on the latest hand-back, says Done; a note or reply after it,
+or a new hand-back, opens the change again. Where a change stands for you (waiting on you, with your agents, done) is one
+rule beside it, `standingOf`, which the list and the page read; the agent's `wait` ends by `saidDone`.
 
 ## Stepping in
 
@@ -356,7 +357,8 @@ rule that showed it before, so it shows the same, and `review.json`'s `format` l
 the next time it's read and one already brought along is never touched; one kept by a newer Playthrough is refused,
 saying to update. Format 2: every moment has its `from` (one kept without, or given 0 by an older `again`, gets where
 it was shown from), and every way does its way there before its step (what was done before `from` moves out of the
-step), so running it again starts it where its step does.
+step), so running it again starts it where its step does; a send that said Done by naming every moment of its round as
+looking good, and nothing more, says Done.
 
 Underneath, the code still uses older names: a change is kept as a review, a hand-back as a round, a moment as a scene
 with one step, and stepping in is `take-over`. None of those words reach the agent or the person, and they're due to

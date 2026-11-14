@@ -3,9 +3,10 @@
 // Each piece comes back unchanged when it's already in this shape, so bringing a change along twice, or again after it
 // stopped half-way, changes nothing more.
 //
-// Format 2: every moment kept with where it starts, and every moment's way doing its way there before its step.
+// Format 2: every moment kept with where it starts, and every moment's way doing its way there before its step; Done
+// kept as said.
 
-import type { Scene } from "./model.ts";
+import type { Scene, Send } from "./model.ts";
 import { startOf, type Done } from "./shown.ts";
 
 export const FORMAT = 2;
@@ -69,4 +70,11 @@ export function wayNow(file: string, scene: Scene): string {
   const cut = before < acting.length ? acting[before]! : checked < 0 ? body.length : checked;
   const way = body.slice(0, cut).map((line) => line.replace(/^ {2}/, ""));
   return [...lines.slice(0, step), ...way, lines[step]!, ...body.slice(cut), ...lines.slice(ends)].join("\n");
+}
+
+// A send that said Done said every moment of its round looks good, by name, and nothing more; now it says Done.
+type OlderSend = Send & { looksGood?: string[] };
+export function sendNow({ looksGood, ...send }: OlderSend, scenes: Scene[]): Send {
+  const saidDone = !!looksGood?.length && !send.notes.length && !send.replies?.length && scenes.every((scene) => looksGood.includes(scene.name));
+  return { ...send, ...(saidDone && { done: true as const }) };
 }

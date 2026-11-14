@@ -169,7 +169,7 @@ export const Verdict = z.strictObject({
   words: z.string().optional(),
 });
 
-// What one person sent about one round, at once. Once sent, it never changes.
+// What one person sent about one round, at once: notes and replies, or Done. Once sent, it never changes.
 export const Send = z.strictObject({
   id: id("needs an id of letters, digits and dashes").describe("Chosen by the sender, so sending twice sends once"),
   round: z.number().int().min(1),
@@ -181,7 +181,7 @@ export const Send = z.strictObject({
     .array(z.strictObject({ note: text("needs the note it's on"), words: text("needs words") }))
     .optional()
     .describe("A person's words back on a note's latest answer: what's still not right, or an answer to a question the agent asked. They judge nothing, and ask the agent again"),
-  looksGood: z.array(text("needs the scene's name")).describe("Done says every scene of its round looks good"),
+  done: z.literal(true, { error: "is true or left out" }).optional().describe("Done: every moment of its round looks good, and that's all it says"),
 });
 
 // The agent took a send, and answers it in this round.

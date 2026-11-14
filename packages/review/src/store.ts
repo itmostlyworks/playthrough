@@ -1,7 +1,7 @@
 // The review store: the steps of the loop, each checked against the rules before anything is kept.
 // Where things are kept is a Storage, so a folder, memory and later a hosted store all keep reviews the same way.
 
-import { FORMAT, sceneNow, wayNow } from "./format.ts";
+import { FORMAT, sceneNow, sendNow, wayNow } from "./format.ts";
 import type { Comparison, Review, Round, Seen, Send, Taken } from "./model.ts";
 import {
   problemsFinishing,
@@ -275,6 +275,8 @@ export class Reviews {
     const numbers = (await this.storage.list(`${id}/rounds`)).map(Number).filter(Number.isInteger).sort((a, b) => a - b);
     for (const n of numbers) await rewrite<Round>(`${id}/rounds/${n}/round.json`, (round) => ({ ...round, scenes: round.scenes.map(sceneNow) }));
     const rounds = (await Promise.all(numbers.map((n) => this.#readJson<Round>(`${id}/rounds/${n}/round.json`)))).filter((round) => round !== undefined);
+    for (const name of (await this.storage.list(`${id}/sends`)).filter((name) => name.endsWith(".json")))
+      await rewrite<Send>(`${id}/sends/${name}`, (send) => sendNow(send, rounds.find((round) => round.number === send.round)?.scenes ?? []));
     for (const name of (await this.storage.list(`${id}/scenes`)).filter((name) => name.endsWith(".ts"))) {
       const bytes = await this.storage.read(`${id}/scenes/${name}`);
       const file = bytes && new TextDecoder().decode(bytes);

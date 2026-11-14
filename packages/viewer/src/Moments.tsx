@@ -4,12 +4,12 @@
 // Done with nothing to say. The list is at /, each moment at /moments/<its change's address>/<n>: here is which.
 
 import { useEffect, useRef, useState } from "react";
-import type { Note } from "@playthrough/review";
+import { latestOf, sentBy, standingOf, type Note } from "@playthrough/review";
 import { useChanges, useYou, type Listed } from "./api.ts";
 import { useUnsent, keepUnsent, keepScroll, openedLines, keepOpened, type YourReply } from "./kept.ts";
 import { List } from "./List.tsx";
 import { MomentView } from "./Moment.tsx";
-import { takingOf, markSeen, latestOf, sentBy, whoIn, standingOf } from "./standing.ts";
+import { takingOf, markSeen, whoIn } from "./standing.ts";
 
 // Where you are: the list, or a change's moment, by the change's address and the moment's place in it from 1, and a
 // note open by its pin.

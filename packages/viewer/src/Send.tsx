@@ -5,8 +5,8 @@ import { newId, type Note } from "@playthrough/review";
 import { send as post } from "./api.ts";
 import { keepUnsent, type YourReply } from "./kept.ts";
 
-// What a send says: notes, replies, and the moments it says look good, which Done says of every one.
-export type Saying = { notes: Note[]; replies: YourReply[]; looksGood: string[] };
+// What a send says: notes and replies, or Done.
+export type Saying = { notes: Note[]; replies: YourReply[]; done?: true };
 
 // One send on a change, from wherever it's pressed: what you said, on the moments as last handed back. While it goes,
 // it's sending; kept, it's sent, and what went is no longer this browser's to keep (only that: what you wrote
@@ -19,7 +19,7 @@ export function useSend(review: string, round: number, you: string) {
   const send = async (saying: Saying, sent?: () => void) => {
     setSending("sending");
     setWent(saying);
-    const problems = await post(review, { id: newId(), round, by: you, sent: new Date().toISOString(), verdicts: [], notes: saying.notes, ...(saying.replies.length && { replies: saying.replies }), looksGood: saying.looksGood });
+    const problems = await post(review, { id: newId(), round, by: you, sent: new Date().toISOString(), verdicts: [], notes: saying.notes, ...(saying.replies.length && { replies: saying.replies }), ...(saying.done && { done: true }) });
     if (problems.length) return (setSending(problems), false);
     sent?.();
     keepUnsent(review, (now) => ({
