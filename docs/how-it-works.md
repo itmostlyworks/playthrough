@@ -29,7 +29,11 @@ are now.
 **The agent's side** (`packages/cli`; `playthrough` alone prints `MOMENTS.md`, all a fresh agent is told). `change`
 names the change, and every command in that copy means it until another is named. `as <person>` starts the app and a
 Chromium signed in as them, on a debugging port the agent's own browser tool attaches to, and keeps what's done there
-(`as.ts`), each with the address it was done at, and each page loaded with whether something done before led there.
+(`as.ts`), each with the address it was done at and where the page was scrolled, and each page loaded with whether
+something done before led there. The way scrolls at once to where the moment's first thing was done (or, for a still,
+where the agent is), so the first frame is where the agent was looking; between the moment's things it scrolls
+smoothly, as a person would; and it ends where the agent is, waiting first for the page to get there by itself (Back to
+top's smooth scroll).
 `moment "<what's there>" ["<thing>"] [--last N]` reads where that browser is, writes the way there as a scene, runs it
 from a fresh start, and keeps it only if it lands: the same page read, the same address, and what it's about there,
 saying the same (`moments.ts`, `way.ts`).
@@ -52,7 +56,7 @@ somewhere), and a still where its end holds.
 **The read-back.** Kept, `moment` says its length (or that it's a still) and what it's about; `shows`, the things done,
 in plain words (`type “BS-WEB” in Card prefix → click Update`); `before`, the last of the way (kept, never shown); the
 paths of its first and last frames; a line for each click, key or choice after which nothing read on the page changed
-but how something looks (`changed nothing you can see`); and how to mark it again with `--last N`. Marked again with the
+but how something looks or where it's scrolled (`nothing you can see changed. Fine if that's the point`); and how to mark it again with `--last N`. Marked again with the
 same words, it replaces the moment, whatever file it was in. Steps are kept by role and name, words typed where the caret was put as typed, keys that move
 it too. The recording keeps the pointer, the text cursor and each key that does something (Escape, Enter, Tab, arrows,
 shortcuts), never letters typed; and hides a dev server's own badge (Next's), never touching the app. `again` runs every
