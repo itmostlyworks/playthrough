@@ -4,7 +4,7 @@
 // Done with nothing to say. The list is at /, each moment at /moments/<its change's address>/<n>: here is which.
 
 import { useEffect, useRef, useState } from "react";
-import { latestOf, sentBy, standingOf, type Note } from "@playthrough/review";
+import { latestOf, sentBy, standingOf, type Note } from "@playthrough/change";
 import { useChanges, useYou, type Listed } from "./api.ts";
 import { useUnsent, keepUnsent, keepScroll, openedLines, keepOpened, type YourReply } from "./kept.ts";
 import { List } from "./List.tsx";
@@ -13,18 +13,18 @@ import { takingOf, markSeen, whoIn } from "./standing.ts";
 
 // Where you are: the list, or a change's moment, by the change's address and the moment's place in it from 1, and a
 // note open by its pin.
-type Where = { review?: string; moment?: number; note?: string };
+type Where = { change?: string; moment?: number; note?: string };
 
 const whereFrom = (path: string, search = ""): Where => {
   const [first, ...parts] = path.split("/").filter(Boolean).map(decodeURIComponent);
   if (first !== "moments" || !parts.length) return {};
   const moment = parts.length > 1 && /^\d+$/.test(parts.at(-1)!) ? Number(parts.pop()) : 1;
   const note = new URLSearchParams(search).get("note") ?? undefined;
-  return { review: parts.join("/"), moment: Math.max(1, moment), ...(note && { note }) };
+  return { change: parts.join("/"), moment: Math.max(1, moment), ...(note && { note }) };
 };
 
-const pathOf = ({ review, moment, note }: Where) =>
-  review ? `/moments/${review.split("/").map(encodeURIComponent).join("/")}/${moment ?? 1}${note ? `?note=${encodeURIComponent(note)}` : ""}` : "/";
+const pathOf = ({ change, moment, note }: Where) =>
+  change ? `/moments/${change.split("/").map(encodeURIComponent).join("/")}/${moment ?? 1}${note ? `?note=${encodeURIComponent(note)}` : ""}` : "/";
 
 export function MomentsPage() {
   const [where, setWhere] = useState(() => whereFrom(location.pathname, location.search));
@@ -41,44 +41,44 @@ export function MomentsPage() {
   const changes = useChanges();
   const you = useYou();
   // The tab says how many changes wait on you, so it's seen from any other.
-  const waiting = changes && you ? changes.filter(({ review }) => latestOf(review) && standingOf(review, you).is === "waiting").length : 0;
+  const waiting = changes && you ? changes.filter(({ change }) => latestOf(change) && standingOf(change, you).is === "waiting").length : 0;
   useEffect(() => void (document.title = waiting ? `${waiting} waiting · Playthrough` : "Playthrough"), [waiting]);
   // A change by its own name alone, as addresses were before every app's were listed, is the first with that name.
-  const listed = where.review ? changes?.find(({ review }) => review.id === where.review || review.id.endsWith(`/${where.review}`)) : undefined;
-  useEffect(() => void (listed && listed.review.id !== where.review && go({ ...where, review: listed.review.id }, true)), [listed?.review.id]);
-  if (where.review) {
-    if (!changes || !you || (listed && listed.review.id !== where.review)) return <div className="h-dvh bg-ground" />;
+  const listed = where.change ? changes?.find(({ change }) => change.id === where.change || change.id.endsWith(`/${where.change}`)) : undefined;
+  useEffect(() => void (listed && listed.change.id !== where.change && go({ ...where, change: listed.change.id }, true)), [listed?.change.id]);
+  if (where.change) {
+    if (!changes || !you || (listed && listed.change.id !== where.change)) return <div className="h-dvh bg-ground" />;
     if (!listed) return <div className="grid h-dvh place-items-center bg-ground text-soft">There's no change here.</div>;
-    return <Change key={where.review} listed={listed} you={you} moment={where.moment ?? 1} note={where.note} go={go} />;
+    return <Change key={where.change} listed={listed} you={you} moment={where.moment ?? 1} note={where.note} go={go} />;
   }
-  return <List changes={changes} you={you} onOpen={(review, moment, note) => (keepScroll(), go({ review, moment, note }))} />;
+  return <List changes={changes} you={you} onOpen={(change, moment, note) => (keepScroll(), go({ change, moment, note }))} />;
 }
 
 // A change's moments, one at a time. What the agent hands back while you're on one waits until you go to another, so
 // nothing changes under you.
 function Change({ listed, you, moment, note, go }: { listed: Listed; you: string; moment: number; note?: string; go: (to: Where, replace?: boolean) => void }) {
-  const { review } = listed;
-  const id = review.id;
+  const { change } = listed;
+  const id = change.id;
   // Back on the list, the change you were in is open, wherever it stands.
   useEffect(() => void (openedLines().includes(id) || keepOpened([...openedLines(), id])), [id]);
-  const latest = latestOf(review);
+  const latest = latestOf(change);
   const { notes, replies } = useUnsent(id, latest?.number ?? 1);
-  const setNotes = (change: (notes: Note[]) => Note[]) => keepUnsent(id, latest?.number ?? 1, (now) => ({ ...now, notes: change(now.notes) }));
-  const setReplies = (change: (replies: YourReply[]) => YourReply[]) => keepUnsent(id, latest?.number ?? 1, (now) => ({ ...now, replies: change(now.replies) }));
+  const setNotes = (edit: (notes: Note[]) => Note[]) => keepUnsent(id, latest?.number ?? 1, (now) => ({ ...now, notes: edit(now.notes) }));
+  const setReplies = (edit: (replies: YourReply[]) => YourReply[]) => keepUnsent(id, latest?.number ?? 1, (now) => ({ ...now, replies: edit(now.replies) }));
   const at = useRef<{ moment: number; round?: number }>(undefined);
   if (at.current?.moment !== moment) at.current = { moment, round: latest?.number };
-  const round = review.rounds.find((one) => one.number === at.current!.round);
+  const round = change.rounds.find((one) => one.number === at.current!.round);
   const n = round && Math.min(moment, round.scenes.length);
   // Opened, it's seen: for the list, and for next time.
   const taking = round && n && takingOf(round.number, round.scenes[n - 1]!.name);
-  useEffect(() => void (taking && markSeen(review, you, [taking])), [taking]);
+  useEffect(() => void (taking && markSeen(change, you, [taking])), [taking]);
   if (!round || !n) return <div className="grid h-dvh place-items-center bg-ground text-soft">Nothing is waiting on you here.</div>;
   const scene = round.scenes[n - 1]!;
-  const sent = sentBy(review, you).flatMap((one) => one.notes);
+  const sent = sentBy(change, you).flatMap((one) => one.notes);
   return (
     <MomentView
       key={`${round.number}`}
-      review={review}
+      change={change}
       round={round}
       n={n}
       about={scene.about}
@@ -90,7 +90,7 @@ function Change({ listed, you, moment, note, go }: { listed: Listed; you: string
       setReplies={setReplies}
       you={you}
       opening={note}
-      onMoment={(to) => go({ review: id, moment: to }, true)}
+      onMoment={(to) => go({ change: id, moment: to }, true)}
       onLeave={() => go({})}
     />
   );

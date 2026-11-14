@@ -3,12 +3,12 @@
 
 import { useEffect, useState } from "react";
 import type { Glimpse, Reading } from "@playthrough/page";
-import type { Review, Send } from "@playthrough/review";
+import type { Change, Send } from "@playthrough/change";
 import type { Events } from "./replay.ts";
 
-// A change as the list has it: the review, at its address on this machine, the app's name and its people as the person
+// A change as the list has it: the change, at its address on this machine, the app's name and its people as the person
 // sees them ("Sam, a member"), and whether an agent is waiting for what's sent.
-export type Listed = { review: Review; app: string; people: Record<string, string>; agentWaiting: boolean };
+export type Listed = { change: Change; app: string; people: Record<string, string>; agentWaiting: boolean };
 
 // Every change on this machine, from every app and every copy of each, arriving again whenever any of them changes,
 // undefined until it's first come. One stream, while the page is in sight: a browser lets six requests at a time go to
@@ -21,12 +21,12 @@ export function useChanges(): Listed[] | undefined {
     let every = 0;
     let last = "";
     const take = (data: string) => data !== last && setChanges(JSON.parse((last = data)));
-    const ask = () => fetch("/api/reviews").then((answer) => (answer.ok ? answer.text() : undefined), () => undefined).then((data) => data && take(data));
+    const ask = () => fetch("/api/changes").then((answer) => (answer.ok ? answer.text() : undefined), () => undefined).then((data) => data && take(data));
     const listen = () => {
       clearInterval(every);
       if (document.hidden) return void (live?.close(), (live = undefined), (every = window.setInterval(ask, 5000)));
       if (live && live.readyState !== EventSource.CLOSED) return;
-      live = new EventSource("/api/reviews?live");
+      live = new EventSource("/api/changes?live");
       live.onmessage = ({ data }) => take(data);
     };
     listen();
@@ -56,19 +56,19 @@ function once<T>(path: string, fetching: () => Promise<T>): Promise<T> {
     );
   return files.get(path) as Promise<T>;
 }
-function file<T>(review: string, round: number, name: string): Promise<T> {
-  const path = `/api/reviews/${review}/rounds/${round}/files/${name}`;
+function file<T>(change: string, round: number, name: string): Promise<T> {
+  const path = `/api/changes/${change}/rounds/${round}/files/${name}`;
   return once(path, () => get<T>(path));
 }
 
 // A recording plays with the fonts, images and stylesheets kept with it, never the app's own, which may be gone or
 // somewhere else. Of the sizes an image offered, the one it was recorded at is the one it shows.
-export function recording(review: string, round: number, name: string): Promise<Events> {
-  const path = `/api/reviews/${review}/rounds/${round}/files/${name}`;
+export function recording(change: string, round: number, name: string): Promise<Events> {
+  const path = `/api/changes/${change}/rounds/${round}/files/${name}`;
   return once(path, () => {
-    const kept = file<Record<string, string>>(review, round, `assets/${name}`).catch(() => ({}));
+    const kept = file<Record<string, string>>(change, round, `assets/${name}`).catch(() => ({}));
     const events = fetch(path).then((answer) => (answer.ok ? answer.text() : Promise.reject(new Error(`${path}: ${answer.status}`))));
-    return Promise.all([events, kept]).then(([events, kept]) => JSON.parse(fromKept(events, kept, `/api/reviews/${review}/rounds/${round}/files/`)));
+    return Promise.all([events, kept]).then(([events, kept]) => JSON.parse(fromKept(events, kept, `/api/changes/${change}/rounds/${round}/files/`)));
   });
 }
 
@@ -89,14 +89,14 @@ export function fromKept(events: string, kept: Record<string, string>, files: st
 
 // What was on the page at each step of a scene, read as it was recorded, and its picture then.
 const readingsName = (recording: string) => `readings/${recording.replace(/\.json$/, "")}`;
-export const readings = (review: string, round: number, recording: string) => file<Reading[]>(review, round, `${readingsName(recording)}.json`).catch((): Reading[] => []);
+export const readings = (change: string, round: number, recording: string) => file<Reading[]>(change, round, `${readingsName(recording)}.json`).catch((): Reading[] => []);
 // None for a round recorded before Playthrough glimpsed the page after each action.
-export const glimpses = (review: string, round: number, recording: string) => file<Glimpse[]>(review, round, `${readingsName(recording)}.glimpses.json`).catch((): Glimpse[] => []);
-export const picture = (review: string, round: number, recording: string, reading: number) => `/api/reviews/${review}/rounds/${round}/files/${readingsName(recording)}/${reading + 1}.png`;
+export const glimpses = (change: string, round: number, recording: string) => file<Glimpse[]>(change, round, `${readingsName(recording)}.glimpses.json`).catch((): Glimpse[] => []);
+export const picture = (change: string, round: number, recording: string, reading: number) => `/api/changes/${change}/rounds/${round}/files/${readingsName(recording)}/${reading + 1}.png`;
 
 // What's wrong in plain words, or nothing once it's kept.
-export async function send(review: string, send: Send): Promise<string[]> {
-  return post(`/api/reviews/${review}/sends`, send);
+export async function send(change: string, send: Send): Promise<string[]> {
+  return post(`/api/changes/${change}/sends`, send);
 }
 
 async function get<T>(path: string): Promise<T> {
@@ -125,13 +125,13 @@ async function posted<T>(path: string, body: unknown): Promise<{ answer: T } | {
 // Where its thing is on it, and where a line of words' words are, which is narrower than the line.
 export type NoteFrame = { src: string; screen: { width: number; height: number }; box?: { x: number; y: number; width: number; height: number }; words?: { x: number; y: number; width: number; height: number } };
 const framing = new Map<string, Promise<NoteFrame | undefined>>();
-export function noteFrame(review: string, note: string, framed: { round: number; recording: string; at: number; node?: number; point?: { x: number; y: number } }): Promise<NoteFrame | undefined> {
+export function noteFrame(change: string, note: string, framed: { round: number; recording: string; at: number; node?: number; point?: { x: number; y: number } }): Promise<NoteFrame | undefined> {
   const asked = framing.get(note);
   if (asked) return asked;
-  const made = posted<{ picture: string; screen: NoteFrame["screen"]; box?: NoteFrame["box"] }>(`/api/reviews/${review}/frames`, { note, ...framed }).then((done) => {
+  const made = posted<{ picture: string; screen: NoteFrame["screen"]; box?: NoteFrame["box"] }>(`/api/changes/${change}/frames`, { note, ...framed }).then((done) => {
     // Not drawn, it's asked for again next time.
     if ("problems" in done) return void framing.delete(note);
-    return { src: `/api/reviews/${review}/rounds/${framed.round}/files/${done.answer.picture}`, screen: done.answer.screen, ...(done.answer.box && { box: done.answer.box }) };
+    return { src: `/api/changes/${change}/rounds/${framed.round}/files/${done.answer.picture}`, screen: done.answer.screen, ...(done.answer.box && { box: done.answer.box }) };
   });
   framing.set(note, made);
   return made;
@@ -140,12 +140,12 @@ export function noteFrame(review: string, note: string, framed: { round: number;
 // A moment's still drawn twice as fine, for screens with twice the dots, by `playthrough open` and kept (frames.ts): its
 // address once it's drawn. Asked for once a page.
 const fine = new Map<string, Promise<string | undefined>>();
-export function fineStill(review: string, round: number, recording: string, at: number): Promise<string | undefined> {
-  const key = `${review} ${round} ${recording}`;
+export function fineStill(change: string, round: number, recording: string, at: number): Promise<string | undefined> {
+  const key = `${change} ${round} ${recording}`;
   const asked = fine.get(key);
   if (asked) return asked;
-  const made = posted<{ picture: string }>(`/api/reviews/${review}/stills`, { round, recording, at }).then((done) =>
-    "problems" in done ? undefined : `/api/reviews/${review}/rounds/${round}/files/${done.answer.picture}`,
+  const made = posted<{ picture: string }>(`/api/changes/${change}/stills`, { round, recording, at }).then((done) =>
+    "problems" in done ? undefined : `/api/changes/${change}/rounds/${round}/files/${done.answer.picture}`,
   );
   fine.set(key, made);
   return made;
@@ -153,7 +153,7 @@ export function fineStill(review: string, round: number, recording: string, at: 
 
 // What you did in the app, kept as your branch off the scene you took over: its length, in seconds, once it's kept, or
 // what's wrong in plain words.
-export async function keepBranch(review: string, round: number, from: { scene: string; at: number }, events: unknown[], recording: string): Promise<number | string[]> {
-  const done = await posted<{ length: number }>(`/api/reviews/${review}/branches`, { round, ...from, events, recording });
+export async function keepBranch(change: string, round: number, from: { scene: string; at: number }, events: unknown[], recording: string): Promise<number | string[]> {
+  const done = await posted<{ length: number }>(`/api/changes/${change}/branches`, { round, ...from, events, recording });
   return "problems" in done ? done.problems : done.answer.length;
 }

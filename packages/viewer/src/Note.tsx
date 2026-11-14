@@ -1,7 +1,7 @@
 // A note on a moment: where it's shown, its strip on the edge, its words, and its card by its thing, written or open.
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import type { Turn, Note, Review } from "@playthrough/review";
+import type { Turn, Note, Change } from "@playthrough/change";
 import { noteFrame, picture, readings as readingsOf, type NoteFrame } from "./api.ts";
 import { clamp } from "./clamp.ts";
 import { TILE } from "./Edge.tsx";
@@ -39,7 +39,7 @@ export type Made = { round: number; recording: string; at: number; node?: number
 
 // Each note's kept picture, by its id: the frame it was made on. One made at the end of a taking is that taking's own
 // picture, there at once; any other, drawn once by `playthrough open` (frames.ts) and kept.
-export function useFrames(review: Review, notes: { note: Note; shown?: Made }[]): Record<string, NoteFrame | undefined> {
+export function useFrames(change: Change, notes: { note: Note; shown?: Made }[]): Record<string, NoteFrame | undefined> {
   const [frames, setFrames] = useState<Record<string, NoteFrame | undefined>>({});
   // Each by where it's shown: a note shown as it is now, once the agent hands the moment back without its thing, is
   // shown where it was made, and asked for again.
@@ -50,10 +50,10 @@ export function useFrames(review: Review, notes: { note: Note; shown?: Made }[])
     for (const { note, shown: made } of wanted) {
       if (!made) continue;
       asked.current.set(note.id, keyOf(made));
-      const taking = review.rounds.find((one) => one.number === made.round)?.scenes.find((one) => one.recording === made.recording);
+      const taking = change.rounds.find((one) => one.number === made.round)?.scenes.find((one) => one.recording === made.recording);
       const kept = (frame: NoteFrame | undefined) => frame && asked.current.get(note.id) === keyOf(made) && setFrames((all) => ({ ...all, [note.id]: frame }));
       if (taking && Math.abs(made.at - taking.length) < 0.1)
-        void readingsOf(review.id, made.round, made.recording).then((read) => {
+        void readingsOf(change.id, made.round, made.recording).then((read) => {
           const end = read.at(-1);
           if (!end) return;
           const found = made.node !== undefined ? end.things.find((one) => one.node === made.node) : undefined;
@@ -63,9 +63,9 @@ export function useFrames(review: Review, notes: { note: Note; shown?: Made }[])
           // A line of words is laid out across its whole column: its words are as wide as they are, as near as can be
           // told, which is what its strip shows and its pin stands clear of.
           const said = found?.words && /^(text|heading)$/.test(found.role) && share({ ...found.box, width: Math.min(found.box.width, found.words.length * parseFloat(found.look.size) * 0.55) });
-          kept({ src: picture(review.id, made.round, made.recording, Math.max(0, taking.steps.length - 1)), screen: end.screen, ...(box && { box }), ...(said && { words: said }) });
+          kept({ src: picture(change.id, made.round, made.recording, Math.max(0, taking.steps.length - 1)), screen: end.screen, ...(box && { box }), ...(said && { words: said }) });
         });
-      else void noteFrame(review.id, note.id, made).then(kept);
+      else void noteFrame(change.id, note.id, made).then(kept);
     }
   }, [wanted.map(({ note, shown }) => `${note.id}:${shown && keyOf(shown)}`).join(" ")]);
   return frames;

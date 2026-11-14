@@ -5,7 +5,7 @@
 // there.
 
 import { useEffect, useRef, useState } from "react";
-import { doneAt, madeInApp, newId, type Did, type InApp, type Note, type Scene } from "@playthrough/review";
+import { doneAt, madeInApp, newId, type Did, type InApp, type Note, type Scene } from "@playthrough/change";
 import { keepBranch } from "./api.ts";
 import { isPlaying, type Action, type Page } from "./mode.ts";
 import type { Clock } from "./Player.tsx";
@@ -16,7 +16,7 @@ import type { App, Heard } from "./Portal.tsx";
 // and where your pointer was in the app as you left it.
 type Run = { scene: string; from: number; since: number; due?: number; address?: string; checked?: string; problems?: string[]; at?: { x: number; y: number } };
 
-export function useStepIn({ review, round, scene, page, clock, act, pointing }: { review: string; round: number; scene: Scene; page: Page; clock: Clock; act: (action: Action) => void; pointing: () => void }) {
+export function useStepIn({ change, round, scene, page, clock, act, pointing }: { change: string; round: number; scene: Scene; page: Page; clock: Clock; act: (action: Action) => void; pointing: () => void }) {
   const [run, setRun] = useState<Run>();
   // A step in is its moment's: going to another lets it go, and nothing of it is drawn there meanwhile.
   const here = run?.scene === scene.name ? run : undefined;
@@ -43,9 +43,9 @@ export function useStepIn({ review, round, scene, page, clock, act, pointing }: 
     setRun({ scene: scene.name, from: where, since });
     asking.current?.abort();
     const asked = (asking.current = new AbortController());
-    const ours = (change: (run: Run) => Run) => setRun((now) => (now?.since === since ? change(now) : now));
-    readyIn(review, scene.name, after, asked.signal).then((left) => left && ours((now) => ({ ...now, due: since + left })));
-    readyAt(review, scene.name, after, asked.signal).then((answer) => {
+    const ours = (update: (run: Run) => Run) => setRun((now) => (now?.since === since ? update(now) : now));
+    readyIn(change, scene.name, after, asked.signal).then((left) => left && ours((now) => ({ ...now, due: since + left })));
+    readyAt(change, scene.name, after, asked.signal).then((answer) => {
       if (asked.signal.aborted) return;
       if ("address" in answer) return ours((now) => ({ ...now, address: answer.address, checked: answer.checked }));
       ours((now) => ({ ...now, problems: answer.problems }));
@@ -96,7 +96,7 @@ export function useStepIn({ review, round, scene, page, clock, act, pointing }: 
       const from = { scene: scene.name, at: Math.round((here?.from ?? page.end) * 100) / 100 };
       const file = `${kept.id}-${++kept.kept}.json`;
       const now = { type: 5, data: { tag: "now", payload: {} }, timestamp: kept.events.at(-1)!.timestamp };
-      const length = await keepBranch(review, round, from, [...kept.events, now], file);
+      const length = await keepBranch(change, round, from, [...kept.events, now], file);
       if (typeof length !== "number") return setRun((run) => run && { ...run, problems: length });
       const on: InApp = { round, scene: scene.name, steppedIn: from.at, did: said.did, recording: `branches/${file}`, length, at: Math.floor(length * 100) / 100, ...(said.element ? { element: said.element } : said.point && { point: said.point }) };
       const [corner, far] = said.box ? [at(said.box.x, said.box.y), at(said.box.x + said.box.width, said.box.y + said.box.height)] : [];
@@ -133,16 +133,16 @@ const SETTLING = 30_000;
 
 // How long until a moment asked for is ready, in milliseconds, as long as the last run took to get there; nothing when
 // that can't be known yet.
-const readyIn = (review: string, scene: string, after: number | undefined, asked: AbortSignal): Promise<number | undefined> =>
-  fetch(`/api/reviews/${encodeURIComponent(review)}/ready-in`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ scene, after }), signal: asked })
+const readyIn = (change: string, scene: string, after: number | undefined, asked: AbortSignal): Promise<number | undefined> =>
+  fetch(`/api/changes/${encodeURIComponent(change)}/ready-in`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ scene, after }), signal: asked })
     .then((answer) => answer.json())
     .then((said) => said.in ?? undefined, () => undefined);
 
 // Where the app is at that moment, through Playthrough, on the same machine name the viewer was reached by, and what its
 // check at the end says where it doesn't hold now; or what stops it.
-async function readyAt(review: string, scene: string, after: number | undefined, asked: AbortSignal): Promise<{ address: string; checked?: string } | { problems: string[] }> {
+async function readyAt(change: string, scene: string, after: number | undefined, asked: AbortSignal): Promise<{ address: string; checked?: string } | { problems: string[] }> {
   try {
-    const answer = await fetch(`/api/reviews/${encodeURIComponent(review)}/take-over`, {
+    const answer = await fetch(`/api/changes/${encodeURIComponent(change)}/take-over`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ scene, after }),

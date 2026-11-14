@@ -2,13 +2,13 @@
 // asked, in the person's words. The agent names it once; every command after that means it, until another is named.
 // Each copy (each of git's worktrees) has changes of its own, so an agent in each works on its own without saying which.
 //
-// Underneath, a change is a review: its moments are scenes, and each time it's handed back, a round. None of those words
+// Underneath, a change is a change: its moments are scenes, and each time it's handed back, a round. None of those words
 // reach the agent or the person.
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { list, quote, Refused } from "@playthrough/review";
+import { list, quote, Refused } from "@playthrough/change";
 import type { Repo } from "./repo.ts";
 import { wordsIn } from "./way.ts";
 
@@ -39,13 +39,13 @@ export async function change(repo: Repo, said: string | undefined, asked: string
   if (words > LONGEST_TITLE) throw new Refused([`That title is ${words} words. Say the change in under ${LONGEST_TITLE}, as a pull request's title (“Let admins change the card prefix”): what was asked goes after it.`]);
   const id = idOf(title);
   await repo.keepOutOfGit();
-  const known = (await repo.reviews.list()).includes(id);
+  const known = (await repo.changes.list()).includes(id);
   // Beside its changes, Playthrough keeps folders of its own in .playthrough/, and one kept by an older version may be
   // there still: a change is never put in one.
   if (!known && (id === basename(repo.borrowed) || existsSync(join(repo.root, ".playthrough", id))))
     throw new Refused([`A change titled ${quote(title)} would be kept in .playthrough/${id}, a folder Playthrough keeps for itself. Give it another title.`]);
-  if (!known) await repo.reviews.start(id, title, asked.trim());
-  const { title: kept } = await repo.reviews.get(id);
+  if (!known) await repo.changes.start(id, title, asked.trim());
+  const { title: kept } = await repo.changes.get(id);
   // Two titles can make the same name: the second would carry on the first, and what was asked of it would be lost.
   if (kept !== title) throw new Refused([`${quote(title)} would be the change ${quote(kept)}, which is here already. To carry that one on, name it by its own title; for another change, give this one a title of its own.`]);
   await writeFile(meantIn(repo), `${JSON.stringify({ change: id })}\n`);
@@ -60,7 +60,7 @@ export async function change(repo: Repo, said: string | undefined, asked: string
 // The change this copy's commands mean: the one named last here.
 export async function changeHere(repo: Repo): Promise<string> {
   const kept = existsSync(meantIn(repo)) ? JSON.parse(await readFile(meantIn(repo), "utf8")).change : undefined;
-  if (!kept || !(await repo.reviews.list()).includes(kept)) throw new Refused([`Say what the change is first, once: ${HOW}`]);
+  if (!kept || !(await repo.changes.list()).includes(kept)) throw new Refused([`Say what the change is first, once: ${HOW}`]);
   return kept;
 }
 

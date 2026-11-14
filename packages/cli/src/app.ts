@@ -9,7 +9,7 @@ import { spawn } from "node:child_process";
 import { closeSync, mkdirSync, openSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { constants } from "node:os";
 import { join } from "node:path";
-import { quote, Refused } from "@playthrough/review";
+import { quote, Refused } from "@playthrough/change";
 import { stillAt, thisCommand, type Command } from "./command.ts";
 import { machine } from "./machine.ts";
 import { inWorktree, PORTED, repo, type App } from "./repo.ts";

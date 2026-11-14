@@ -192,9 +192,9 @@ describe("What changed at a moment", () => {
 
   test("a paragraph rewritten, keeping too little of what it said, is one gone and another new", async () => {
     const then = `<h1>Playthrough</h1><p>Open source, on your machine, with any web app and any agent.</p>`;
-    const now = `<h1>Playthrough</h1><section style="height: 300px"></section><p>Free for teams of three, with every review kept in your repository.</p>`;
+    const now = `<h1>Playthrough</h1><section style="height: 300px"></section><p>Free for teams of three, with every change kept in your repository.</p>`;
     const found = await changes(then, now);
-    assert.deepEqual(found.map((finding) => finding.words), ["“Open source, on your machine, with any web app and any agen…” is gone", "“Free for teams of three, with every review kept in your rep…” is new"]);
+    assert.deepEqual(found.map((finding) => finding.words), ["“Open source, on your machine, with any web app and any agen…” is gone", "“Free for teams of three, with every change kept in your rep…” is new"]);
   });
 
   test("an item whose words changed in more than one piece says what it says now, and the same change in each item is one change (the polls app's shares)", async () => {

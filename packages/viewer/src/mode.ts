@@ -2,7 +2,7 @@
 // it. Every press is an action on it, carrying where the recording has got to, so whatever stops it playing stops it
 // there; and one rule says what may be pressed, which the keys and the buttons alike ask.
 
-import type { Note } from "@playthrough/review";
+import type { Note } from "@playthrough/change";
 import type { Rect } from "./replay.ts";
 
 // A note being written: the spot it was asked for at, and the thing there where the app said where it is, in the

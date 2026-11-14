@@ -4,7 +4,7 @@
 // several scenes, or at several steps, is one change, seen in each scene where it first shows there.
 
 import { chromium, type Page } from "@playwright/test";
-import { list, quote, Refused, type Finding, type Comparison, type Scene, type Place, type Reviews, type Step } from "@playthrough/review";
+import { list, quote, Refused, type Finding, type Comparison, type Scene, type Place, type Changes, type Step } from "@playthrough/change";
 import { findingsAt, idOf } from "./findings.ts";
 import { HERE, picturesAt } from "./pictures.ts";
 import type { Glimpse, Reading } from "@playthrough/page";
@@ -15,17 +15,17 @@ import { glimpsesOf, readingsOf } from "./reporter.ts";
 export type Recorded = { number: number; scenes: Scene[]; readings: (scene: Scene) => Promise<Reading[]>; glimpses?: (scene: Scene) => Promise<Glimpse[]>; picture: (name: string) => Promise<Buffer> };
 
 // The round being worked on, compared with each round before it, from what's kept of each.
-export async function compareWithEarlier(reviews: Reviews, id: string, number: number, scenes: Scene[]): Promise<Comparison[]> {
-  const review = await reviews.get(id);
-  const earlier = review.rounds.filter((round) => round.number < number);
+export async function compareWithEarlier(changes: Changes, id: string, number: number, scenes: Scene[]): Promise<Comparison[]> {
+  const change = await changes.get(id);
+  const earlier = change.rounds.filter((round) => round.number < number);
   if (!earlier.length) return [];
   const unsteady = unsteadyIn([...earlier.flatMap((round) => round.scenes), ...scenes]);
   const browser = await chromium.launch();
   try {
     const page = await browser.newPage();
-    const now = kept(reviews, id, number, scenes);
+    const now = kept(changes, id, number, scenes);
     const comparisons: Comparison[] = [];
-    for (const round of earlier) comparisons.push(await compare(page, kept(reviews, id, round.number, round.scenes), now, unsteady));
+    for (const round of earlier) comparisons.push(await compare(page, kept(changes, id, round.number, round.scenes), now, unsteady));
     return comparisons;
   } finally {
     await browser.close();
@@ -45,15 +45,15 @@ export async function findingsByThemselves(first: Recorded, second: Recorded): P
   }
 }
 
-function kept(reviews: Reviews, id: string, number: number, scenes: Scene[]): Recorded {
+function kept(changes: Changes, id: string, number: number, scenes: Scene[]): Recorded {
   const file = async (name: string) => {
-    const bytes = await reviews.file(id, number, name);
+    const bytes = await changes.file(id, number, name);
     if (!bytes)
       throw new Refused([`Round ${number} has no ${name}, so it can't be compared: it was recorded before Playthrough read each step. Mark its moments again.`]);
     return Buffer.from(bytes);
   };
   const glimpses = async (scene: Scene) => {
-    const bytes = await reviews.file(id, number, glimpsesOf(scene));
+    const bytes = await changes.file(id, number, glimpsesOf(scene));
     return bytes ? JSON.parse(Buffer.from(bytes).toString()) : [];
   };
   return { number, scenes, readings: async (scene) => JSON.parse((await file(readingsOf(scene))).toString()), glimpses, picture: file };

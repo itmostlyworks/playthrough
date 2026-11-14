@@ -4,7 +4,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Glimpse, Reading } from "@playthrough/page";
-import { conversation, isStill, madeInApp, newId, together, type Note, type Review, type Round, type Scene } from "@playthrough/review";
+import { conversation, isStill, madeInApp, newId, together, type Note, type Change, type Round, type Scene } from "@playthrough/change";
 import { glimpses, picture, readings as readingsOf, recording } from "./api.ts";
 import { clamp } from "./clamp.ts";
 import { CHIP, playedTogether } from "./compare.ts";
@@ -34,26 +34,26 @@ const endOf = (scene: Scene) => Math.max(0, scene.length - 0.05);
 const startOf = (scene: Scene) => Math.min(scene.from, endOf(scene));
 
 export function MomentView(props: {
-  review: Review;
+  change: Change;
   round: Round;
   n: number;
   about?: { role: string; name: string };
   who: string;
   notes: Note[];
   sent: Note[];
-  setNotes: (change: (notes: Note[]) => Note[]) => void;
+  setNotes: (edit: (notes: Note[]) => Note[]) => void;
   replies: YourReply[];
-  setReplies: (change: (replies: YourReply[]) => YourReply[]) => void;
+  setReplies: (edit: (replies: YourReply[]) => YourReply[]) => void;
   you: string;
   // A note to open as the moment opens, pressed on the list.
   opening?: string;
   onMoment: (n: number) => void;
   onLeave: () => void;
 }) {
-  const { review, round, n, about, who, notes, setNotes, replies, setReplies, you, onMoment, onLeave } = props;
+  const { change, round, n, about, who, notes, setNotes, replies, setReplies, you, onMoment, onLeave } = props;
   // Send, here as on the list: everything unsent on the change goes. Sent, it says so where you pressed, and what was
   // sent is drawn as sent at once, as the change comes back with it.
-  const { sending, send, again } = useSend(review.id, round.number, you);
+  const { sending, send, again } = useSend(change.id, round.number, you);
   const [justSent, setJustSent] = useState<Note[]>([]);
   const sent = [...props.sent, ...justSent.filter((note) => !props.sent.some((one) => one.id === note.id))];
   const unsent = notes.length + replies.length;
@@ -79,15 +79,15 @@ export function MomentView(props: {
   useEffect(() => {
     let current = true;
     const kept = (more: { readings?: Reading[]; glimpsed?: Glimpse[] }) => current && setRead((now) => ({ ...(now?.recording === scene.recording && now), recording: scene.recording, ...more }));
-    readingsOf(review.id, round.number, scene.recording).then((readings) => kept({ readings }));
-    glimpses(review.id, round.number, scene.recording).then((glimpsed) => kept({ glimpsed }));
+    readingsOf(change.id, round.number, scene.recording).then((readings) => kept({ readings }));
+    glimpses(change.id, round.number, scene.recording).then((glimpsed) => kept({ glimpsed }));
     return () => void (current = false);
   }, [scene.recording]);
   // The others are fetched as this one opens, so going on to the next is as quick as the first.
   useEffect(() => {
     for (const other of round.scenes) {
-      void recording(review.id, round.number, other.recording).catch(() => {});
-      new Image().src = picture(review.id, round.number, other.recording, Math.max(0, other.steps.length - 1));
+      void recording(change.id, round.number, other.recording).catch(() => {});
+      new Image().src = picture(change.id, round.number, other.recording, Math.max(0, other.steps.length - 1));
     }
   }, [round]);
   // The recording's shape, kept from one moment to the next until the next's is known, so the recording never changes
@@ -99,7 +99,7 @@ export function MomentView(props: {
   const phone = usePhone();
   const closeTo = about ?? scene.acted;
   const closer = useMemo(() => (phone ? closeOn(readings?.at(-1), closeTo, screen.width / screen.height) : undefined), [phone, readings, closeTo?.role, closeTo?.name]);
-  const cut = useCut(review.id, round.number, scene);
+  const cut = useCut(change.id, round.number, scene);
   const [clockOf] = useState(() => new Clock(end));
   const [bothOf] = useState(() => new Clock(0));
   // What the page is doing, one thing at a time, and where the recording rests. Every press is an action, carrying
@@ -132,15 +132,15 @@ export function MomentView(props: {
   // Compare: this moment as it was when you last looked at it, before this hand-back, beside how it is now, played
   // together. Offered only where there's such a look; where nothing differs since, the bar says so instead. Any moment
   // of the change with a look keeps the bar four wide for every one, so it never changes width going from one to the next.
-  const [looked] = useState(() => seenOf(review, you));
+  const [looked] = useState(() => seenOf(change, you));
   const lastLook = (one: Scene) => {
-    const earlier = review.rounds.findLast((kept) => kept.number > 0 && kept.number < round.number && kept.finished && looked.includes(takingOf(kept.number, one.name)) && kept.scenes.some((taken) => taken.name === one.name));
+    const earlier = change.rounds.findLast((kept) => kept.number > 0 && kept.number < round.number && kept.finished && looked.includes(takingOf(kept.number, one.name)) && kept.scenes.some((taken) => taken.name === one.name));
     const kept = earlier?.scenes.find((taken) => taken.name === one.name);
     return earlier && kept ? { round: earlier, scene: kept } : undefined;
   };
   const anyLook = round.scenes.some((one) => lastLook(one));
   const looking = lastLook(scene);
-  const compared = looking && review.comparisons.find((one) => one.round === round.number && one.since === looking.round.number);
+  const compared = looking && change.comparisons.find((one) => one.round === round.number && one.since === looking.round.number);
   const unchanged = !!compared && !compared.changes.some((finding) => finding.seen.some((seen) => seen.scene === scene.name));
   const then = unchanged ? undefined : looking;
   const both = useMemo(() => then && cut && playedTogether(cut, together(scene, then.scene)), [cut, then?.scene.recording, scene.recording]);
@@ -192,13 +192,13 @@ export function MomentView(props: {
   const pill = useRef<HTMLSpanElement>(null);
   const toolbar = useRef<HTMLDivElement>(null);
   const [aiming, setAiming] = useState(false);
-  const stepIn = useStepIn({ review: review.id, round: round.number, scene, page, clock: clockOf, act, pointing: () => note() });
+  const stepIn = useStepIn({ change: change.id, round: round.number, scene, page, clock: clockOf, act, pointing: () => note() });
 
   // Going to another moment, the one you were on stays under the new one until it has come in over it.
   const [behind, setBehind] = useState<string>();
   const was = useRef(scene);
   if (was.current !== scene) {
-    if (was.current.recording !== scene.recording && !phone && !matchMedia("(prefers-reduced-motion: reduce)").matches) setBehind(picture(review.id, round.number, was.current.recording, Math.max(0, was.current.steps.length - 1)));
+    if (was.current.recording !== scene.recording && !phone && !matchMedia("(prefers-reduced-motion: reduce)").matches) setBehind(picture(change.id, round.number, was.current.recording, Math.max(0, was.current.steps.length - 1)));
     was.current = scene;
   }
 
@@ -212,11 +212,11 @@ export function MomentView(props: {
   // What was new as you came to this moment stays new here until you open it: coming counts as seeing it, for the list
   // and for next time.
   const newAsYouCame = useRef(new Map<string, Set<string>>());
-  if (!newAsYouCame.current.has(scene.name)) newAsYouCame.current.set(scene.name, new Set(said.filter(({ note, sent }) => noteSays(review, you, note, sent, replies).fresh).map(({ note }) => note.id)));
+  if (!newAsYouCame.current.has(scene.name)) newAsYouCame.current.set(scene.name, new Set(said.filter(({ note, sent }) => noteSays(change, you, note, sent, replies).fresh).map(({ note }) => note.id)));
   const [openedHere, setOpenedHere] = useState<string[]>([]);
   useEffect(() => void (open && !openedHere.includes(open) && setOpenedHere((now) => [...now, open])), [open]);
   const says = (note: Note, sent: boolean) => {
-    const said = noteSays(review, you, note, sent, replies);
+    const said = noteSays(change, you, note, sent, replies);
     const fresh = sent && said.stands !== "sent" && said.stands !== "reply not sent yet" && !!newAsYouCame.current.get(scene.name)?.has(note.id) && !openedHere.includes(note.id);
     return { ...said, fresh, stands: said.stands === "new answer" || said.stands === "answered" ? (fresh ? "new answer" : "answered") : said.stands };
   };
@@ -224,7 +224,7 @@ export function MomentView(props: {
     if (!on) return undefined;
     const thing = on.element?.node !== undefined ? { node: on.element.node } : on.point && { point: on.point };
     if (madeInApp(on)) return { round: on.round, recording: on.recording, at: Math.min(on.length, on.at), ...thing };
-    const taking = review.rounds.find((one) => one.number === on.round)?.scenes.find((one) => one.name === on.scene);
+    const taking = change.rounds.find((one) => one.number === on.round)?.scenes.find((one) => one.name === on.scene);
     return taking && { round: on.round, recording: taking.recording, at: on.at ?? taking.length, ...thing };
   };
   // A note's element number is good only in the recording it was read from: this taking's, where it was made on it.
@@ -242,7 +242,7 @@ export function MomentView(props: {
     return node !== undefined ? { round: round.number, recording: scene.recording, at: scene.length, node } : madeAt(note);
   };
   const isNow = (shown?: Made) => !!shown && shown.round === round.number && shown.recording === scene.recording && Math.abs(shown.at - scene.length) < 0.1;
-  const frames = useFrames(review, readings ? onEdge.map(({ note }) => ({ note, shown: shownAt(note) })) : []);
+  const frames = useFrames(change, readings ? onEdge.map(({ note }) => ({ note, shown: shownAt(note) })) : []);
   // A note's pin is on the recording whenever its thing is in the picture: made on this taking, that very thing; made in
   // the app or on an earlier taking, the same thing drawn here, by its role and name. One on a spot is on this taking's
   // picture only where it was made.
@@ -464,7 +464,7 @@ export function MomentView(props: {
           quiet
           picture={
             <>
-              <StillPicture review={review} round={round} scene={other} about={other.about ?? other.acted} />
+              <StillPicture change={change} round={round} scene={other} about={other.about ?? other.acted} />
               {talk.length > 0 && (
                 <span className="absolute top-1.5 right-1.5 flex gap-[3px]">
                   {talk.slice(0, 5).map((one) => (
@@ -523,7 +523,7 @@ export function MomentView(props: {
           {!writing && carded && cardBy && (
             <NoteCard key={carded.note.id} by={cardBy} stage={stage} closing={!opened} under={phone}>
               <div className="min-h-0 flex-1 overflow-y-auto px-1">
-                {carded.sent ? <Turns you={you} turns={conversation(review, carded.note.id)} /> : <Turns you={you} turns={[]} unsent={carded.note.words} />}
+                {carded.sent ? <Turns you={you} turns={conversation(change, carded.note.id)} /> : <Turns you={you} turns={[]} unsent={carded.note.words} />}
               </div>
               {carded.sent && (
                 <div className="mt-2 border-t border-line pt-2">
@@ -565,7 +565,7 @@ export function MomentView(props: {
           <svg viewBox="0 0 12 12" className="size-3 flex-none" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="M7.5 2.5L4 6l3.5 3.5" />
           </svg>
-          <span className="truncate">{review.title}</span>
+          <span className="truncate">{change.title}</span>
         </button>
         {(unsent > 0 || sending) && (
           <SendButton className="ml-auto" filled={unsent > 0 && sending !== "sent"} arrives onClick={() => void sendNow()} disabled={sending === "sending" || sending === "sent"}>
@@ -602,9 +602,9 @@ export function MomentView(props: {
           >
             {behind && <img src={behind} alt="" draggable={false} className="pointer-events-none absolute inset-0 size-full object-contain" />}
             <div key={scene.recording} className="absolute inset-0 animate-arrive" onAnimationEnd={(event) => event.target === event.currentTarget && setBehind(undefined)}>
-              {(!phone || readings) && <Picture shot={{ src: picture(review.id, round.number, scene.recording, Math.max(0, scene.steps.length - 1)), crop: closer }} />}
+              {(!phone || readings) && <Picture shot={{ src: picture(change.id, round.number, scene.recording, Math.max(0, scene.steps.length - 1)), crop: closer }} />}
               <Player
-                review={review.id}
+                change={change.id}
                 round={round.number}
                 recording={scene.recording}
                 crop={closer}
@@ -639,7 +639,7 @@ export function MomentView(props: {
                   <div key={side.label} className="relative min-w-0 flex-1">
                     <div className="absolute inset-0 overflow-hidden rounded-lg bg-paper shadow-frame">
                       <Player
-                        review={review.id}
+                        change={change.id}
                         round={side.round}
                         recording={side.recording}
                         at={both.at(along)[side.side]!}
@@ -662,7 +662,7 @@ export function MomentView(props: {
                       <img src={frames[note.id]!.src} alt="" draggable={false} className="pointer-events-none absolute inset-0 size-full object-contain" />
                     ) : (
                       <Player
-                        review={review.id}
+                        change={change.id}
                         round={made.round}
                         recording={made.recording}
                         at={made.at}

@@ -1,4 +1,4 @@
-// Each of git's worktrees is a copy of the app: its reviews are found from any of them, it runs on a port of its own where
+// Each of git's worktrees is a copy of the app: its changes are found from any of them, it runs on a port of its own where
 // app.json gives one, and at the address the app always has, what answers in a worktree is never taken for its own. And
 // each copy's app is one, shared by everyone using it.
 
@@ -9,7 +9,7 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
-import { Refused } from "@playthrough/review";
+import { Refused } from "@playthrough/change";
 import { answers, keepRunning, openFile, running, stopUnused, UNUSED, using } from "../src/app.ts";
 import { thisCommand } from "../src/command.ts";
 import { copies, inWorktree, repo } from "../src/repo.ts";

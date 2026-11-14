@@ -186,13 +186,13 @@ let underway: Underway | undefined;
 let appSetup: Promise<Setup> | undefined;
 const setupOf = () => (appSetup ??= setupIn(repo(run?.root).setup));
 
-// Every round runs on the day the review started, at the time of day it's recorded, with the page's random numbers from
+// Every round runs on the day the change started, at the time of day it's recorded, with the page's random numbers from
 // the same seed, so what the page works out from the day reads the same each time. The app's server keeps the real time,
 // which nothing here sets, and on the real time of day what it stamps reads as it would: a card the setup made was made
 // “less than a minute ago”, in every round that day. On a later day, the server's times are that many days ahead. The
 // clock runs on from there, as a person's does: page.clock.setFixedTime would stop it, and whatever the page times by it.
 const DAY = 24 * 60 * 60 * 1000;
-export const onReviewDay = (started: string, now = Date.now()) => new Date(now - (Math.floor(now / DAY) - Math.floor(Date.parse(started) / DAY)) * DAY);
+export const onTheDayItStarted = (started: string, now = Date.now()) => new Date(now - (Math.floor(now / DAY) - Math.floor(Date.parse(started) / DAY)) * DAY);
 const seeded = `(() => {
   let seed = 20251026;
   Math.random = () => {
@@ -286,10 +286,10 @@ const recorded = base.extend<{ person: string | undefined; rest: () => Promise<v
 });
 
 // A page recorded, readied before anything loads in it: rrweb first, to take the page's own clock before it's set, then
-// the review's day and the seeded random numbers.
+// the change's day and the seeded random numbers.
 async function readied(page: Page, run: Run) {
   await page.addInitScript({ content: recorder(run.recorder) });
-  await page.clock.setSystemTime(onReviewDay(run.started));
+  await page.clock.setSystemTime(onTheDayItStarted(run.started));
   await page.addInitScript({ content: seeded });
 }
 
@@ -437,7 +437,7 @@ export async function runAlongside(
 ): Promise<{ handed?: Handed; stopped?: Pick<Failed, "at" | "why">; made?: Made; checked?: string }> {
   // The page, readied as the scene's was when it was recorded, and what it writes noted.
   const scene: Taking = { page, going: false, depth: 0, rest: await watchRest(page), done: 0, again: [], wrote: false, orders };
-  await page.clock.setSystemTime(onReviewDay(started));
+  await page.clock.setSystemTime(onTheDayItStarted(started));
   await page.addInitScript({ content: seeded });
   page.on("request", (request) => void (["GET", "HEAD", "OPTIONS"].includes(request.method()) || (scene.wrote = true)));
   pace(page);

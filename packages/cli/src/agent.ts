@@ -1,4 +1,4 @@
-// Which agent is running the commands, by the name it goes by, so each answer shows whose it is when a review passes
+// Which agent is running the commands, by the name it goes by, so each answer shows whose it is when a change passes
 // between agents. The best-known ones say so in their shell; any other writes its name in the round, as `by`.
 
 const known: { name: string; says: string[] }[] = [

@@ -3,16 +3,16 @@
 // scrolled and which of its quiet lines you'd opened.
 
 import { useEffect, useState } from "react";
-import { noteNow, type Note, type Send } from "@playthrough/review";
+import { noteNow, type Note, type Send } from "@playthrough/change";
 
 // What this browser keeps for a change, by its address. What it kept by the change's own name alone, before every app's
 // changes were listed, comes over to the address once.
-export function stored(key: (review: string) => string, review: string): string | null {
-  const now = localStorage.getItem(key(review));
-  const own = review.slice(review.indexOf("/") + 1);
-  if (now !== null || own === review) return now;
+export function stored(key: (change: string) => string, change: string): string | null {
+  const now = localStorage.getItem(key(change));
+  const own = change.slice(change.indexOf("/") + 1);
+  if (now !== null || own === change) return now;
   const before = localStorage.getItem(key(own));
-  if (before !== null) (localStorage.setItem(key(review), before), localStorage.removeItem(key(own)));
+  if (before !== null) (localStorage.setItem(key(change), before), localStorage.removeItem(key(own)));
   return before;
 }
 
@@ -21,28 +21,28 @@ export function stored(key: (review: string) => string, review: string): string 
 export type YourReply = NonNullable<Send["replies"]>[number];
 export type Unsent = { notes: Note[]; replies: YourReply[] };
 
-const unsentKey = (review: string) => `playthrough:moments:${review}`;
-const repliesKey = (review: string) => `playthrough:moments-replies:${review}`;
+const unsentKey = (change: string) => `playthrough:moments:${change}`;
+const repliesKey = (change: string) => `playthrough:moments-replies:${change}`;
 
-function read<T>(key: (review: string) => string, review: string): T[] {
+function read<T>(key: (change: string) => string, change: string): T[] {
   try {
-    return JSON.parse(stored(key, review) ?? "[]");
+    return JSON.parse(stored(key, change) ?? "[]");
   } catch {
     return [];
   }
 }
 
 // Kept by a Playthrough before notes said which hand-back they're on, a note not yet sent is on the latest.
-export const unsentOf = (review: string, latest: number): Unsent => ({ notes: read<Note>(unsentKey, review).map((note) => noteNow(note, latest)), replies: read(repliesKey, review) });
+export const unsentOf = (change: string, latest: number): Unsent => ({ notes: read<Note>(unsentKey, change).map((note) => noteNow(note, latest)), replies: read(repliesKey, change) });
 
 // Changed as it is kept now, not as this tab last read it, so two tabs on one change each add to what the other kept
 // rather than the last one's whole list winning; and every tab, this one too, hears of it.
-export function keepUnsent(review: string, latest: number, change: (now: Unsent) => Unsent) {
-  const next = change(unsentOf(review, latest));
+export function keepUnsent(change: string, latest: number, edit: (now: Unsent) => Unsent) {
+  const next = edit(unsentOf(change, latest));
   try {
     for (const [key, list] of [[unsentKey, next.notes], [repliesKey, next.replies]] as const)
-      if (list.length) localStorage.setItem(key(review), JSON.stringify(list));
-      else localStorage.removeItem(key(review));
+      if (list.length) localStorage.setItem(key(change), JSON.stringify(list));
+      else localStorage.removeItem(key(change));
   } catch {}
   dispatchEvent(new Event(CHANGED));
 }
@@ -50,23 +50,23 @@ export function keepUnsent(review: string, latest: number, change: (now: Unsent)
 const CHANGED = "playthrough:unsent";
 
 // What's unsent on a change, as kept now: again whenever this tab or another changes it.
-export function useUnsent(review: string, latest: number): Unsent {
-  const [unsent, setUnsent] = useState(() => unsentOf(review, latest));
+export function useUnsent(change: string, latest: number): Unsent {
+  const [unsent, setUnsent] = useState(() => unsentOf(change, latest));
   useEffect(() => {
     const again = () => setUnsent((was) => {
-      const now = unsentOf(review, latest);
+      const now = unsentOf(change, latest);
       return JSON.stringify(now) === JSON.stringify(was) ? was : now;
     });
     again();
     addEventListener(CHANGED, again);
     addEventListener("storage", again);
     return () => (removeEventListener(CHANGED, again), removeEventListener("storage", again));
-  }, [review, latest]);
+  }, [change, latest]);
   return unsent;
 }
 
 // The moments you opened, as this browser kept them before they were kept with the change.
-export const seenKey = (review: string, you: string) => `playthrough:moments-seen:${review}:${you}`;
+export const seenKey = (change: string, you: string) => `playthrough:moments-seen:${change}:${you}`;
 
 // Where the list was scrolled as you went to a moment, for coming back to it there.
 const scrollKey = "playthrough:moments-scroll";

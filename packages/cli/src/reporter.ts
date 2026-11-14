@@ -7,7 +7,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Reporter, TestCase, TestError, TestResult, TestStep } from "@playwright/test/reporter";
 import type { Glimpse, Reading } from "@playthrough/page";
-import { quote, type Scene, type Reviews } from "@playthrough/review";
+import { quote, type Scene, type Changes } from "@playthrough/change";
 import { assetsOf, type Assets } from "./assets.ts";
 
 export const RECORDING = "playthrough recording";
@@ -24,8 +24,8 @@ export const HOLD = 1500; // the end of a scene holds, so its last state can be 
 // A scene's readings go beside the round's recordings, under the same name, each picture in a folder of its own.
 export const readingsOf = (scene: Scene) => `readings/${scene.recording}`;
 // As kept: none for a scene recorded before Playthrough read each step.
-export async function readingsOn(reviews: Reviews, review: string, round: number, scene: Scene): Promise<Reading[]> {
-  const bytes = await reviews.file(review, round, readingsOf(scene));
+export async function readingsOn(changes: Changes, change: string, round: number, scene: Scene): Promise<Reading[]> {
+  const bytes = await changes.file(change, round, readingsOf(scene));
   return bytes ? JSON.parse(Buffer.from(bytes).toString()) : [];
 }
 const picturesOf = (scene: Scene) => `readings/${scene.recording.replace(/\.json$/, "")}`;

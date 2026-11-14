@@ -1,4 +1,4 @@
-// Reviews kept in a folder on this machine, one folder per review.
+// Changes kept in a folder on this machine, one folder per change.
 
 import { randomUUID } from "node:crypto";
 import { watch as watchFiles } from "node:fs";

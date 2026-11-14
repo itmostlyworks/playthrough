@@ -8,7 +8,7 @@
 
 import { createHash } from "node:crypto";
 import { a, called, dataLeftOut, differences, HOLDS, holderOf, identity, lookWords, near, NEAR, parentOf, plural, rewordedPart, rewordedWords, sentence, symbolOnly, the, things, together, wayOf, word, WORD, type Difference, type Glimpse, type Item, type Reading, type Thing } from "@playthrough/page";
-import type { Box, Element } from "@playthrough/review";
+import type { Box, Element } from "@playthrough/change";
 
 // A change at one moment: what it's on is an element of the newer round, or for something gone, where it was. And the
 // ids of the changes it stands for, each by itself, so what changes by itself is left out as itself, never as all it's
@@ -681,7 +681,7 @@ function alikeWords(alike: Told[]): string {
   return sentence(`${shared}${along}, in ${alike.length} places`);
 }
 
-// Its id: the thing and what happened to it, as letters that don't read alike, like every id in a review.
+// Its id: the thing and what happened to it, as letters that don't read alike, like every id in a change.
 export function idOf(thing: string, what: string): string {
   const letters = "abcdefghijkmnpqrstuvwxyz23456789";
   return Array.from(createHash("sha256").update(`${thing}|${what}`).digest().subarray(0, 8), (byte) => letters[byte % 32]).join("");

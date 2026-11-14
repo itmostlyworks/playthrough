@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { createServer, request as ask, type IncomingMessage, type ServerResponse } from "node:http";
 import { connect } from "node:net";
 import { answerAs, asRecorded, pathTo } from "@playthrough/page";
-import { doneBefore, quote, Refused } from "@playthrough/review";
+import { doneBefore, quote, Refused } from "@playthrough/change";
 import { running, using } from "./app.ts";
 import { QUIET_DEV_CHROME, recorder, type Handed, type To } from "./scenes.ts";
 import { LONGEST, runTo } from "./following.ts";
@@ -143,8 +143,8 @@ async function opening(moment: string, waiting: AbortSignal): Promise<Handed | u
 const passings = new Map<string, Promise<number>>();
 
 async function recorded(repo: Repo, id: string) {
-  const review = await repo.reviews.get(id);
-  const round = review.rounds.at(-1);
+  const change = await repo.changes.get(id);
+  const round = change.rounds.at(-1);
   if (!round) throw new Refused([`${id} has no moments yet, so there's nothing to step into.`]);
   return round;
 }
@@ -286,7 +286,7 @@ const SAYS = `<script>(() => {
   hidden.textContent = "html, html * { cursor: none !important; }";
   document.documentElement.appendChild(hidden);
   // Made ready unseen in the viewer, the page waits as the scene left it, the text cursor where it was: the keyboard goes
-  // back to the review until the page is yours, and the app isn't told it left, or a field that saves as it's left, as
+  // back to the change until the page is yours, and the app isn't told it left, or a field that saves as it's left, as
   // Kan's checklist item does, would save what was half typed. Leaving, it goes to nothing on the page. Once the page is
   // yours and the keyboard comes in, it's back in that field, the text cursor where it was.
   let left;

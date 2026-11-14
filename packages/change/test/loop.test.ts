@@ -1,10 +1,10 @@
 // What the loop promises, from a change named to Done, as the store keeps it: what a person and an agent can count on
-// whatever page or command they use. A change is kept as a review, a moment as a scene with one step, a hand-back as a
+// whatever page or command they use. A change is kept as a change, a moment as a scene with one step, a hand-back as a
 // round.
 
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { allNotes, conversation, isStill, memory, newId, notesToAnswer, Refused, Reviews, roundInProgress, saidDone, standingOf, waitingForTheAgent, type Note, type Round, type Scene, type Send, type Storage } from "../src/index.ts";
+import { allNotes, conversation, isStill, memory, newId, notesToAnswer, Refused, Changes, roundInProgress, saidDone, standingOf, waitingForTheAgent, type Note, type Round, type Scene, type Send, type Storage } from "../src/index.ts";
 
 const CHANGE = "change-the-card-prefix";
 
@@ -20,10 +20,10 @@ const moment = (name: string, done: number[] = [3, 4]): Scene => ({
 const PREFIX = moment("Cards now say WEB-1");
 const STILL = moment("Sam can't change the prefix", []);
 
-const handBack = async (reviews: Reviews, scenes: Scene[], replies: Round["replies"] = []) => {
-  const number = roundInProgress(await reviews.get(CHANGE));
-  await reviews.saveRound(CHANGE, { number, by: "Claude Code", scenes, replies });
-  await reviews.finish(CHANGE, number);
+const handBack = async (changes: Changes, scenes: Scene[], replies: Round["replies"] = []) => {
+  const number = roundInProgress(await changes.get(CHANGE));
+  await changes.saveRound(CHANGE, { number, by: "Claude Code", scenes, replies });
+  await changes.finish(CHANGE, number);
   return number;
 };
 
@@ -33,37 +33,37 @@ const onThing = (words: string, round = 1): Note => ({ id: newId(), words, on: {
 const done = (round: number) => said(round, { done: true });
 
 async function named() {
-  const reviews = new Reviews(memory());
-  await reviews.start(CHANGE, "Change the card prefix", "Let a workspace admin change the card prefix.");
-  return reviews;
+  const changes = new Changes(memory());
+  await changes.start(CHANGE, "Change the card prefix", "Let a workspace admin change the card prefix.");
+  return changes;
 }
 
 async function handedBack() {
-  const reviews = await named();
-  await handBack(reviews, [PREFIX, STILL]);
-  return reviews;
+  const changes = await named();
+  await handBack(changes, [PREFIX, STILL]);
+  return changes;
 }
 
 describe("the loop", () => {
   test("a change is named by its title, with what was asked in the person's words, and has nothing handed back yet", async () => {
-    const review = await (await named()).get(CHANGE);
-    assert.deepEqual([review.title, review.asked, review.rounds], ["Change the card prefix", "Let a workspace admin change the card prefix.", []]);
+    const change = await (await named()).get(CHANGE);
+    assert.deepEqual([change.title, change.asked, change.rounds], ["Change the card prefix", "Let a workspace admin change the card prefix.", []]);
   });
 
   test("a moment kept is the person's only once it's handed back, and then never changes", async () => {
-    const reviews = await named();
-    await reviews.saveRound(CHANGE, { number: 1, by: "Claude Code", scenes: [PREFIX], replies: [] });
-    await assert.rejects(reviews.send(CHANGE, said(1, { notes: [onThing("Hm")] })), /isn't finished/);
-    await reviews.finish(CHANGE, 1);
-    const [round] = (await reviews.get(CHANGE)).rounds;
+    const changes = await named();
+    await changes.saveRound(CHANGE, { number: 1, by: "Claude Code", scenes: [PREFIX], replies: [] });
+    await assert.rejects(changes.send(CHANGE, said(1, { notes: [onThing("Hm")] })), /isn't finished/);
+    await changes.finish(CHANGE, 1);
+    const [round] = (await changes.get(CHANGE)).rounds;
     assert.deepEqual([round?.scenes, !!round?.finished], [[PREFIX], true]);
-    await assert.rejects(reviews.saveRound(CHANGE, { ...round!, scenes: [] }), /Round 1 is finished/);
+    await assert.rejects(changes.saveRound(CHANGE, { ...round!, scenes: [] }), /Round 1 is finished/);
   });
 
   test("a moment always has where it starts, the one value everything that shows it reads", async () => {
-    const reviews = await named();
+    const changes = await named();
     const startless = { ...PREFIX, from: undefined } as unknown as Scene;
-    await assert.rejects(reviews.saveRound(CHANGE, { number: 1, by: "Claude Code", scenes: [startless], replies: [] }), /the scene “Cards now say WEB-1” needs where the moment starts, in seconds/);
+    await assert.rejects(changes.saveRound(CHANGE, { number: 1, by: "Claude Code", scenes: [startless], replies: [] }), /the scene “Cards now say WEB-1” needs where the moment starts, in seconds/);
     assert.equal(isStill(STILL), true, "nothing done from its start: a still");
     assert.equal(isStill(PREFIX), false);
   });
@@ -74,113 +74,113 @@ describe("the loop", () => {
   });
 
   test("a note on a thing in a moment reaches the agent, who can't hand back again without answering it", async () => {
-    const reviews = await handedBack();
+    const changes = await handedBack();
     const note = onThing("Say what the prefix is for");
-    await reviews.send(CHANGE, said(1, { notes: [note] }));
-    assert.deepEqual(waitingForTheAgent(await reviews.get(CHANGE)), [note.id], "waiting before the agent takes it");
-    assert.equal((await reviews.take(CHANGE)).length, 1);
-    const review = await reviews.get(CHANGE);
-    assert.deepEqual(notesToAnswer(review, 2), [note.id]);
-    assert.deepEqual(allNotes(review).get(note.id)?.note.on, { round: 1, scene: PREFIX.name, at: 5, element: { role: "textbox", name: "Card prefix" } }, "on that moment as handed back");
-    await assert.rejects(handBack(reviews, [PREFIX, STILL]), (error: unknown) => error instanceof Refused && new RegExp(`needs an answer to note ${note.id}, “Say what the prefix is for”`).test(error.message));
+    await changes.send(CHANGE, said(1, { notes: [note] }));
+    assert.deepEqual(waitingForTheAgent(await changes.get(CHANGE)), [note.id], "waiting before the agent takes it");
+    assert.equal((await changes.take(CHANGE)).length, 1);
+    const change = await changes.get(CHANGE);
+    assert.deepEqual(notesToAnswer(change, 2), [note.id]);
+    assert.deepEqual(allNotes(change).get(note.id)?.note.on, { round: 1, scene: PREFIX.name, at: 5, element: { role: "textbox", name: "Card prefix" } }, "on that moment as handed back");
+    await assert.rejects(handBack(changes, [PREFIX, STILL]), (error: unknown) => error instanceof Refused && new RegExp(`needs an answer to note ${note.id}, “Say what the prefix is for”`).test(error.message));
   });
 
   test("a note made after stepping into the app is on that moment, at a time in the person's own recording, however long", async () => {
-    const reviews = await handedBack();
+    const changes = await handedBack();
     const there: Note = {
       id: newId(),
       words: "The field should turn red too",
       on: { round: 1, scene: PREFIX.name, steppedIn: 5, did: [{ does: "fill", on: "#prefix", with: "BS-WEB", what: "Card prefix" }], recording: "branches/m4bcdc6n-1.json", length: 52, at: 47.6, element: { role: "textbox", name: "Card prefix", node: 112 } },
     };
-    await reviews.send(CHANGE, said(1, { notes: [there] }));
-    await reviews.take(CHANGE);
-    const review = await reviews.get(CHANGE);
-    assert.deepEqual(notesToAnswer(review, 2), [there.id]);
-    assert.equal(allNotes(review).get(there.id)?.note.on?.scene, PREFIX.name, "on the moment it was stepped into");
+    await changes.send(CHANGE, said(1, { notes: [there] }));
+    await changes.take(CHANGE);
+    const change = await changes.get(CHANGE);
+    assert.deepEqual(notesToAnswer(change, 2), [there.id]);
+    assert.equal(allNotes(change).get(there.id)?.note.on?.scene, PREFIX.name, "on the moment it was stepped into");
     const elsewhere = (on: Partial<Extract<Note["on"], { steppedIn: number }>>) => ({ ...there, id: newId(), on: { ...(there.on as Extract<Note["on"], { steppedIn: number }>), ...on } });
-    await assert.rejects(reviews.send(CHANGE, said(1, { notes: [elsewhere({ scene: "Gone" })] })), /on the scene “Gone”, which isn't there/);
-    await assert.rejects(reviews.send(CHANGE, said(1, { notes: [elsewhere({ steppedIn: 9 })] })), /s step in is at 9s, but “Cards now say WEB-1” is 6s long/);
-    await assert.rejects(reviews.send(CHANGE, said(1, { notes: [elsewhere({ at: 60 })] })), /is at 60s, but the person's own recording is 52s long/);
-    await assert.rejects(reviews.send(CHANGE, said(1, { notes: [elsewhere({ recording: "cards.json" })] })), /its recording is one of the person's own/);
+    await assert.rejects(changes.send(CHANGE, said(1, { notes: [elsewhere({ scene: "Gone" })] })), /on the scene “Gone”, which isn't there/);
+    await assert.rejects(changes.send(CHANGE, said(1, { notes: [elsewhere({ steppedIn: 9 })] })), /s step in is at 9s, but “Cards now say WEB-1” is 6s long/);
+    await assert.rejects(changes.send(CHANGE, said(1, { notes: [elsewhere({ at: 60 })] })), /is at 60s, but the person's own recording is 52s long/);
+    await assert.rejects(changes.send(CHANGE, said(1, { notes: [elsewhere({ recording: "cards.json" })] })), /its recording is one of the person's own/);
   });
 
   test("a note is on a moment as handed back or made in the app, never both, and on a hand-back the person has", async () => {
-    const reviews = await handedBack();
+    const changes = await handedBack();
     const both = { ...onThing("Hm"), on: { ...onThing("Hm").on!, steppedIn: 1 } } as unknown as Note;
-    await assert.rejects(reviews.send(CHANGE, said(1, { notes: [both] })), /has “steppedIn”, which isn't one of its fields/);
-    await assert.rejects(reviews.send(CHANGE, said(1, { notes: [onThing("Hm", 2)] })), /is on round 2, which hasn't been handed back/);
+    await assert.rejects(changes.send(CHANGE, said(1, { notes: [both] })), /has “steppedIn”, which isn't one of its fields/);
+    await assert.rejects(changes.send(CHANGE, said(1, { notes: [onThing("Hm", 2)] })), /is on round 2, which hasn't been handed back/);
   });
 
   test("the agent's reply comes back with the next hand-back, under its name, and the person's reply to it asks again", async () => {
-    const reviews = await handedBack();
+    const changes = await handedBack();
     const note = onThing("Say what the prefix is for");
-    await reviews.send(CHANGE, said(1, { notes: [note] }));
-    await reviews.take(CHANGE);
-    await handBack(reviews, [PREFIX, STILL], [{ note: note.id, words: "A hint under the field says so now." }]);
-    await reviews.send(CHANGE, said(2, { replies: [{ note: note.id, words: "Shorter, please." }] }));
-    await reviews.take(CHANGE);
-    const review = await reviews.get(CHANGE);
+    await changes.send(CHANGE, said(1, { notes: [note] }));
+    await changes.take(CHANGE);
+    await handBack(changes, [PREFIX, STILL], [{ note: note.id, words: "A hint under the field says so now." }]);
+    await changes.send(CHANGE, said(2, { replies: [{ note: note.id, words: "Shorter, please." }] }));
+    await changes.take(CHANGE);
+    const change = await changes.get(CHANGE);
     assert.deepEqual(
-      conversation(review, note.id).map(({ by, agent, words }) => [by, agent, words]),
+      conversation(change, note.id).map(({ by, agent, words }) => [by, agent, words]),
       [
         ["Ludwig", false, "Say what the prefix is for"],
         ["Claude Code", true, "A hint under the field says so now."],
         ["Ludwig", false, "Shorter, please."],
       ],
     );
-    assert.deepEqual(notesToAnswer(review, 3), [note.id]);
+    assert.deepEqual(notesToAnswer(change, 3), [note.id]);
   });
 
   test("what the person has opened is kept per moment as handed back, once each, in every browser they look from", async () => {
-    const reviews = await handedBack();
-    await reviews.see(CHANGE, "Ludwig", [{ round: 1, scene: PREFIX.name }]);
-    await reviews.see(CHANGE, "Ludwig", [{ round: 1, scene: PREFIX.name }]);
-    assert.deepEqual((await reviews.get(CHANGE)).seen, { Ludwig: [{ round: 1, scene: PREFIX.name }] });
-    await assert.rejects(reviews.see(CHANGE, "Ludwig", [{ round: 2, scene: PREFIX.name }]), /Round 2 hands back no “Cards now say WEB-1” to see/);
+    const changes = await handedBack();
+    await changes.see(CHANGE, "Ludwig", [{ round: 1, scene: PREFIX.name }]);
+    await changes.see(CHANGE, "Ludwig", [{ round: 1, scene: PREFIX.name }]);
+    assert.deepEqual((await changes.get(CHANGE)).seen, { Ludwig: [{ round: 1, scene: PREFIX.name }] });
+    await assert.rejects(changes.see(CHANGE, "Ludwig", [{ round: 2, scene: PREFIX.name }]), /Round 2 hands back no “Cards now say WEB-1” to see/);
   });
 
   test("a moment handed back again is unseen again, and what's different in it since is kept against the hand-back seen", async () => {
-    const reviews = await handedBack();
-    await reviews.see(CHANGE, "Ludwig", [{ round: 1, scene: PREFIX.name }]);
-    await reviews.saveRound(CHANGE, { number: 2, by: "Claude Code", scenes: [PREFIX, STILL], replies: [] });
+    const changes = await handedBack();
+    await changes.see(CHANGE, "Ludwig", [{ round: 1, scene: PREFIX.name }]);
+    await changes.saveRound(CHANGE, { number: 2, by: "Claude Code", scenes: [PREFIX, STILL], replies: [] });
     const different = { id: "hint", words: "“Use up to 10 letters” is new", seen: [{ scene: PREFIX.name, at: 5 }] };
-    await reviews.saveComparison(CHANGE, { round: 2, since: 1, changes: [different] });
-    await reviews.finish(CHANGE, 2);
-    const review = await reviews.get(CHANGE);
-    assert.ok(!review.seen?.Ludwig?.some((seen) => seen.round === 2), "nothing of round 2 is seen yet");
-    assert.deepEqual(review.comparisons.find((comparison) => comparison.round === 2 && comparison.since === 1)?.changes, [different]);
+    await changes.saveComparison(CHANGE, { round: 2, since: 1, changes: [different] });
+    await changes.finish(CHANGE, 2);
+    const change = await changes.get(CHANGE);
+    assert.ok(!change.seen?.Ludwig?.some((seen) => seen.round === 2), "nothing of round 2 is seen yet");
+    assert.deepEqual(change.comparisons.find((comparison) => comparison.round === 2 && comparison.since === 1)?.changes, [different]);
   });
 
   test("what's sent is kept once, as it was sent, and the agent takes it once", async () => {
-    const reviews = await handedBack();
+    const changes = await handedBack();
     const send = said(1, { notes: [onThing("Hm")] });
-    await reviews.send(CHANGE, send);
-    await reviews.send(CHANGE, structuredClone(send));
-    assert.deepEqual((await reviews.get(CHANGE)).sends, [send]);
-    assert.deepEqual(await reviews.take(CHANGE), [send]);
-    assert.deepEqual(await reviews.take(CHANGE), []);
+    await changes.send(CHANGE, send);
+    await changes.send(CHANGE, structuredClone(send));
+    assert.deepEqual((await changes.get(CHANGE)).sends, [send]);
+    assert.deepEqual(await changes.take(CHANGE), [send]);
+    assert.deepEqual(await changes.take(CHANGE), []);
   });
 
   test("Done is kept as the person said it, their latest word on the moments as last handed back, and says nothing more", async () => {
-    const reviews = await handedBack();
-    assert.equal(saidDone(await reviews.get(CHANGE)), undefined, "nothing said yet");
-    await reviews.send(CHANGE, said(1, { notes: [onThing("Hm")] }));
-    assert.equal(saidDone(await reviews.get(CHANGE)), undefined, "a note isn't Done");
-    await assert.rejects(reviews.send(CHANGE, said(1, { done: true, notes: [onThing("And this")] })), /Done says every moment looks good, and nothing more/);
+    const changes = await handedBack();
+    assert.equal(saidDone(await changes.get(CHANGE)), undefined, "nothing said yet");
+    await changes.send(CHANGE, said(1, { notes: [onThing("Hm")] }));
+    assert.equal(saidDone(await changes.get(CHANGE)), undefined, "a note isn't Done");
+    await assert.rejects(changes.send(CHANGE, said(1, { done: true, notes: [onThing("And this")] })), /Done says every moment looks good, and nothing more/);
     const doneNow = done(1);
-    await reviews.send(CHANGE, doneNow);
-    const review = await reviews.get(CHANGE);
-    assert.deepEqual(saidDone(review), doneNow);
-    assert.deepEqual(saidDone(review, "Ludwig"), doneNow, "and it's theirs");
-    assert.equal(saidDone(review, "Ana"), undefined, "nobody else has said it");
-    assert.deepEqual([standingOf(review, "Ludwig"), standingOf(review, "Ana")], [{ is: "done", at: doneNow.sent }, { is: "waiting" }], "and the change stands done for them");
+    await changes.send(CHANGE, doneNow);
+    const change = await changes.get(CHANGE);
+    assert.deepEqual(saidDone(change), doneNow);
+    assert.deepEqual(saidDone(change, "Ludwig"), doneNow, "and it's theirs");
+    assert.equal(saidDone(change, "Ana"), undefined, "nobody else has said it");
+    assert.deepEqual([standingOf(change, "Ludwig"), standingOf(change, "Ana")], [{ is: "done", at: doneNow.sent }, { is: "waiting" }], "and the change stands done for them");
   });
 
   test("a note sent after Done, or the moments handed back anew, opens the change again", async () => {
-    const reviews = await handedBack();
-    await reviews.send(CHANGE, done(1));
-    await reviews.send(CHANGE, said(1, { notes: [onThing("One more thing")] }));
-    assert.equal(saidDone(await reviews.get(CHANGE)), undefined, "a note after it");
+    const changes = await handedBack();
+    await changes.send(CHANGE, done(1));
+    await changes.send(CHANGE, said(1, { notes: [onThing("One more thing")] }));
+    assert.equal(saidDone(await changes.get(CHANGE)), undefined, "a note after it");
 
     const again = await handedBack();
     await again.send(CHANGE, done(1));
@@ -222,12 +222,12 @@ describe("a change kept the older way", () => {
   test("reads once it's been brought along, as it showed: each moment with where it starts, its way before its step", async () => {
     const storage = memory();
     await keptTheOlderWay(storage);
-    const review = await new Reviews(storage).get(CHANGE);
-    assert.equal(review.rounds[0]?.scenes[0]?.from, 4.5, "a still, where its end holds");
+    const change = await new Changes(storage).get(CHANGE);
+    assert.equal(change.rounds[0]?.scenes[0]?.from, 4.5, "a still, where its end holds");
     assert.match(await text(storage, "scenes/cards-now-say-web-1.ts"), /click\(\);\n {2}await test\.step\("Cards now say WEB-1", async \(\) => \{\n {4}await expect/);
-    assert.equal(saidDone(review)?.id, "d0ne", "Done said by naming every moment is Done");
+    assert.equal(saidDone(change)?.id, "d0ne", "Done said by naming every moment is Done");
     assert.deepEqual(
-      review.sends[0]?.notes.map((note) => note.on),
+      change.sends[0]?.notes.map((note) => note.on),
       [
         { round: 1, scene: PREFIX.name, at: 5, element: { role: "textbox", name: "Card prefix", node: 7 } },
         { round: 1, scene: PREFIX.name, steppedIn: 5, did: [], recording: "branches/k33p-1.json", length: 9, at: 8.5, point: { x: 0.5, y: 0.5 } },
@@ -242,26 +242,26 @@ describe("a change kept the older way", () => {
   test("is brought along once: read again, by this or another reader, nothing is written", async () => {
     const storage = memory();
     await keptTheOlderWay(storage);
-    await new Reviews(storage).get(CHANGE);
+    await new Changes(storage).get(CHANGE);
     const writes: string[] = [];
     const watched: Storage = { ...storage, write: (path, bytes) => (writes.push(path), storage.write(path, bytes)) };
-    const reviews = new Reviews(watched);
-    await Promise.all([reviews.get(CHANGE), reviews.get(CHANGE), new Reviews(watched).get(CHANGE)]);
+    const changes = new Changes(watched);
+    await Promise.all([changes.get(CHANGE), changes.get(CHANGE), new Changes(watched).get(CHANGE)]);
     assert.deepEqual(writes, []);
   });
 
   test("stopped half-way, it's brought along from where it is the next time it's read, to the same", async () => {
     const whole = memory();
     await keptTheOlderWay(whole);
-    const once = await new Reviews(whole).get(CHANGE);
+    const once = await new Changes(whole).get(CHANGE);
 
     const storage = memory();
     await keptTheOlderWay(storage);
     let left = 1;
     const stopping: Storage = { ...storage, write: async (path, bytes) => (left-- > 0 ? storage.write(path, bytes) : Promise.reject(new Error("stopped"))) };
-    await assert.rejects(new Reviews(stopping).get(CHANGE), /stopped/);
+    await assert.rejects(new Changes(stopping).get(CHANGE), /stopped/);
     assert.equal(JSON.parse(await text(storage, "review.json")).format, 1, "still says it's older");
-    assert.deepEqual(await new Reviews(storage).get(CHANGE), once);
+    assert.deepEqual(await new Changes(storage).get(CHANGE), once);
     assert.equal(await text(storage, "scenes/cards-now-say-web-1.ts"), await text(whole, "scenes/cards-now-say-web-1.ts"));
   });
 
@@ -269,6 +269,6 @@ describe("a change kept the older way", () => {
     const storage = memory();
     await keptTheOlderWay(storage);
     await storage.write(`${CHANGE}/review.json`, new TextEncoder().encode(JSON.stringify({ format: 3, id: CHANGE, title: "Change the card prefix", started: "2026-11-12T09:00:00.000Z" })));
-    await assert.rejects(new Reviews(storage).get(CHANGE), /kept by a newer Playthrough \(its format is 3; this one reads 2\)\. Update Playthrough/);
+    await assert.rejects(new Changes(storage).get(CHANGE), /kept by a newer Playthrough \(its format is 3; this one reads 2\)\. Update Playthrough/);
   });
 });

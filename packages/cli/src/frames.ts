@@ -22,22 +22,22 @@ const IDLE = 30_000;
 // The page asks by the change's address on this machine, which the browser drawing it opens it by.
 export async function frameOf(repo: Repo, id: string, address: string, note: string, framed: Framed, port: number): Promise<Frame> {
   const name = `frames/${note}`;
-  const kept = await repo.reviews.branch(id, `${name}.json`);
+  const kept = await repo.changes.branch(id, `${name}.json`);
   if (kept) return JSON.parse(Buffer.from(kept).toString("utf8"));
   const shape = await shapeAt(repo, id, framed);
   const drawn = drawing.then(() => draw(port, address, framed, shape, 1));
   drawing = drawn.catch(() => {});
   const { png, box } = await drawn;
   const frame: Frame = { picture: `branches/${name}.png`, screen: shape, ...(box && { box }) };
-  await repo.reviews.saveBranch(id, `${name}.png`, png);
-  await repo.reviews.saveBranch(id, `${name}.json`, Buffer.from(JSON.stringify(frame)));
+  await repo.changes.saveBranch(id, `${name}.png`, png);
+  await repo.changes.saveBranch(id, `${name}.json`, Buffer.from(JSON.stringify(frame)));
   return frame;
 }
 
 // The screen the recording had at that moment, as its last word on its size before then says.
 async function shapeAt(repo: Repo, id: string, { round, recording, at }: Framed) {
   const branch = recording.match(/^branches\/(.+)$/);
-  const bytes = branch ? await repo.reviews.branch(id, branch[1]!) : await repo.reviews.file(id, round, recording);
+  const bytes = branch ? await repo.changes.branch(id, branch[1]!) : await repo.changes.file(id, round, recording);
   if (!bytes) throw new Error(`Round ${round} of ${id} has no recording called “${recording}”.`);
   const events: { type: number; timestamp: number; data: { width?: number; height?: number } }[] = JSON.parse(Buffer.from(bytes).toString("utf8"));
   const start = events[0]?.timestamp ?? 0;
@@ -49,11 +49,11 @@ async function shapeAt(repo: Repo, id: string, { round, recording, at }: Framed)
 // closing in on what it's about shows larger than it was taken on a screen of twice the dots: drawn once and kept.
 export async function stillOf(repo: Repo, id: string, address: string, framed: Framed, port: number): Promise<string> {
   const name = `stills/${framed.round}-${framed.recording.replace(/^branches\//, "").replace(/\.json$/, "")}.png`;
-  if (await repo.reviews.branch(id, name)) return `branches/${name}`;
+  if (await repo.changes.branch(id, name)) return `branches/${name}`;
   const shape = await shapeAt(repo, id, framed);
   const drawn = drawing.then(() => draw(port, address, framed, shape, 2));
   drawing = drawn.catch(() => {});
-  await repo.reviews.saveBranch(id, name, (await drawn).png);
+  await repo.changes.saveBranch(id, name, (await drawn).png);
   return `branches/${name}`;
 }
 
@@ -62,7 +62,7 @@ async function draw(port: number, address: string, framed: Framed, shape: { widt
   browser ??= chromium.launch();
   const page = await (await browser).newPage({ viewport: shape, deviceScaleFactor: scale });
   try {
-    await page.goto(`http://localhost:${port}/?frame=${encodeURIComponent(JSON.stringify({ review: address, ...framed }))}`);
+    await page.goto(`http://localhost:${port}/?frame=${encodeURIComponent(JSON.stringify({ change: address, ...framed }))}`);
     await page.waitForFunction(() => "framed" in window, undefined, { timeout: 20_000 });
     await page.evaluate(() => document.fonts.ready);
     // What the page's own images take to come in, once it's drawn.

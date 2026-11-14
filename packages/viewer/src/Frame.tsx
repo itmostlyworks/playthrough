@@ -5,15 +5,15 @@
 import { useRef } from "react";
 import { Player } from "./Player.tsx";
 
-export type Framed = { review: string; round: number; recording: string; at: number; node?: number; point?: { x: number; y: number } };
+export type Framed = { change: string; round: number; recording: string; at: number; node?: number; point?: { x: number; y: number } };
 
 export function FramePage({ framed }: { framed: Framed }) {
   const room = useRef<HTMLDivElement>(null);
-  const { review, round, recording, at, node, point } = framed;
+  const { change, round, recording, at, node, point } = framed;
   return (
     <div ref={room} className="fixed inset-0 bg-paper">
       <Player
-        review={review}
+        change={change}
         round={round}
         recording={recording}
         at={at}

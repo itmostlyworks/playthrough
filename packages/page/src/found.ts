@@ -1,7 +1,7 @@
 // What someone pointed at, found in what was read: the thing a note is on in the reading that shows it, and the thing a
 // spot on empty space is named by.
 
-import type { Element, Point } from "@playthrough/review";
+import type { Element, Point } from "@playthrough/change";
 import type { Glimpse, Reading, Thing } from "./reading.ts";
 
 export type Shown = { reading: Reading; thing: Thing };

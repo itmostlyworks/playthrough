@@ -12,7 +12,7 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathTo } from "@playthrough/page";
-import { quote, Refused } from "@playthrough/review";
+import { quote, Refused } from "@playthrough/change";
 import { keepRunning } from "./app.ts";
 import { changeHere, momentNamed } from "./change.ts";
 import { hovering } from "./read.ts";
@@ -33,7 +33,7 @@ const againFile = (repo: Repo) => join(repo.root, ".playthrough", "browser-again
 
 // Copied from test.ts, which can't be imported here without becoming a test file.
 const DAY = 24 * 60 * 60 * 1000;
-const onReviewDay = (started: string, now = Date.now()) => new Date(now - (Math.floor(now / DAY) - Math.floor(Date.parse(started) / DAY)) * DAY);
+const onTheDayItStarted = (started: string, now = Date.now()) => new Date(now - (Math.floor(now / DAY) - Math.floor(Date.parse(started) / DAY)) * DAY);
 const seeded = `(() => {
   let seed = 20251026;
   Math.random = () => {
@@ -201,8 +201,8 @@ export async function as(repo: Repo, person: string, at?: string) {
     handleSIGHUP: false,
   });
   // On the change's day, as each moment's way is run again, so what's dated reads the same in both.
-  const started = await changeHere(repo).then((id) => repo.reviews.get(id).then((change) => change.started), () => new Date().toISOString());
-  await context.clock.setSystemTime(onReviewDay(started));
+  const started = await changeHere(repo).then((id) => repo.changes.get(id).then((change) => change.started), () => new Date().toISOString());
+  await context.clock.setSystemTime(onTheDayItStarted(started));
   await context.addInitScript({ content: seeded });
   const page = context.pages()[0] ?? (await context.newPage());
   const request = await requests.newContext({ baseURL: app.url });

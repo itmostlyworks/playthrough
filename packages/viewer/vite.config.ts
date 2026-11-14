@@ -1,5 +1,5 @@
 // The viewer is one page, built into the command's viewer/ for `playthrough open` to serve, in a checkout as in the
-// package published. While working on it, `npm run dev` serves it with instant reloads and passes the reviews through
+// package published. While working on it, `npm run dev` serves it with instant reloads and passes the changes through
 // from a `playthrough open` running beside it.
 
 import tailwind from "@tailwindcss/vite";

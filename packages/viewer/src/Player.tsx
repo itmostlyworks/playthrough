@@ -6,7 +6,7 @@
 
 import { useEffect, useRef, useState, type MouseEvent, type RefObject } from "react";
 import { elementOf, type Glimpse } from "@playthrough/page";
-import type { Element, Scene, Point } from "@playthrough/review";
+import type { Element, Scene, Point } from "@playthrough/change";
 import { recording } from "./api.ts";
 import { Replay, type Choice, type Events, type Pressed, type Rect, type Scrolled } from "./replay.ts";
 import type { Crop } from "./Picture.tsx";
@@ -72,15 +72,15 @@ function cutOf(events: Events, length: number, starts: number[]): Cut {
   };
 }
 
-export function useCut(review: string, round: number, scene: Scene): Cut | undefined {
+export function useCut(change: string, round: number, scene: Scene): Cut | undefined {
   const [kept, setKept] = useState<Cut>();
   useEffect(() => {
     let current = true;
     // Another recording's isn't this one's while it comes.
     setKept(undefined);
-    recording(review, round, scene.recording).then((events) => current && setKept(cutOf(events, scene.length, scene.steps.map((step) => step.at))));
+    recording(change, round, scene.recording).then((events) => current && setKept(cutOf(events, scene.length, scene.steps.map((step) => step.at))));
     return () => void (current = false);
-  }, [review, round, scene.recording]);
+  }, [change, round, scene.recording]);
   return kept;
 }
 
@@ -106,7 +106,7 @@ function calm(t: number): number {
 }
 
 type Props = {
-  review: string;
+  change: string;
   round: number;
   recording: string;
   // The moment it rests at, and plays on from to `until`, setting the clock as it goes and saying where it stopped.
@@ -170,7 +170,7 @@ export function Player(props: Props) {
   useEffect(() => {
     let current = true;
     let made: Replay | undefined;
-    recording(props.review, props.round, props.recording).then((events) => {
+    recording(props.change, props.round, props.recording).then((events) => {
       if (!current || !box.current) return;
       made = new Replay(events, box.current);
       // Moved on every frame, the page is drawn once, as it is, and only shifted.
@@ -178,7 +178,7 @@ export function Player(props: Props) {
       setReplay({ replay: made, events });
     });
     return () => void ((current = false), made?.destroy());
-  }, [props.review, props.round, props.recording]);
+  }, [props.change, props.round, props.recording]);
   useEffect(() => void (props.scrolled && (props.scrolled.current = replay && (() => replay.replay.scrolled()))), [replay]);
   const handAt = useRef<{ x: number; y: number }>(undefined);
   useEffect(() => void (props.drawn && (props.drawn.current = () => handAt.current)), []);

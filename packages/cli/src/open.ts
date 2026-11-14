@@ -11,7 +11,7 @@ import { userInfo } from "node:os";
 import { basename, extname, join, normalize, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Reading } from "@playthrough/page";
-import { Refused, type Did, type Review, type Seen, type Send } from "@playthrough/review";
+import { Refused, type Did, type Change, type Seen, type Send } from "@playthrough/change";
 import { BEAT } from "./scenes.ts";
 import { repo as copyAt, type Repo } from "./repo.ts";
 import { readyIn } from "./following.ts";
@@ -76,9 +76,9 @@ function keepsApps() {
   });
 }
 
-// A change as the page has it: the review, by an address of the machine's (its copy's name, then its own), the app's
+// A change as the page has it: the change, by an address of the machine's (its copy's name, then its own), the app's
 // name and its people as the person sees them ("Sam, a member"), and whether an agent is waiting for what's sent.
-export type Listed = { review: Review; app: string; people: Record<string, string>; agentWaiting: boolean };
+export type Listed = { change: Change; app: string; people: Record<string, string>; agentWaiting: boolean };
 
 // Every copy on the machine, each read where it's kept, and the list of every change in them, arriving again to whoever
 // asks each time it changes.
@@ -92,7 +92,7 @@ function onThisMachine() {
     const copies = copiesNow();
     const copy = second !== undefined && copies.find((one) => one.name === first);
     if (copy) return { repo: copy.repo, id: second!, address: `${first}/${second}`, rest };
-    for (const { repo } of copies) if ((await repo.reviews.list()).includes(first!)) return { repo, id: first!, address: first!, rest: second === undefined ? rest : [second, ...rest] };
+    for (const { repo } of copies) if ((await repo.changes.list()).includes(first!)) return { repo, id: first!, address: first!, rest: second === undefined ? rest : [second, ...rest] };
     throw new Refused([`There's no change at ${first} on this machine.`]);
   }
 
@@ -102,19 +102,19 @@ function onThisMachine() {
     const each = await Promise.all(
       copiesNow().map(async ({ name, repo }) => {
         const shown = await shownOf(repo);
-        const reviews = await Promise.all((await repo.reviews.list()).map((id) => repo.reviews.get(id).catch(() => undefined)));
+        const changes = await Promise.all((await repo.changes.list()).map((id) => repo.changes.get(id).catch(() => undefined)));
         return {
           name,
           shown,
           changes: await Promise.all(
-            reviews.filter((review) => !!review).map(async (review) => ({ review: { ...review, id: `${name}/${review.id}` }, ...shown, agentWaiting: await agentWaiting(repo, review.id) })),
+            changes.filter((change) => !!change).map(async (change) => ({ change: { ...change, id: `${name}/${change.id}` }, ...shown, agentWaiting: await agentWaiting(repo, change.id) })),
           ),
         };
       }),
     );
     const listing = each.filter(({ changes }) => changes.length);
     const shared = (app: string) => listing.filter(({ shown }) => shown.app === app).length > 1;
-    return listing.flatMap(({ name, shown, changes }) => (shared(shown.app) ? changes.map((change) => ({ ...change, app: `${shown.app} in ${name}` })) : changes));
+    return listing.flatMap(({ name, shown, changes }) => (shared(shown.app) ? changes.map((one) => ({ ...one, app: `${shown.app} in ${name}` })) : changes));
   }
 
   // Looked at again soon after anything in a copy's folder changes, and every two seconds, as an agent that's ended
@@ -190,7 +190,7 @@ async function answer(here: Machine, page: string, you: string, request: Incomin
 
   if (request.method === "GET" && collection === "you") return json(response, 200, { name: you });
   if (request.method === "GET" && collection === "app") return json(response, 200, { machine: machine() });
-  if (collection !== "reviews") return json(response, 404, { problems: [`There's nothing at ${path}.`] });
+  if (collection !== "changes") return json(response, 404, { problems: [`There's nothing at ${path}.`] });
 
   if (request.method === "GET" && !parts.length) {
     if (!asked.searchParams.has("live")) return json(response, 200, await here.list());
@@ -201,13 +201,13 @@ async function answer(here: Machine, page: string, you: string, request: Incomin
   }
   if (!parts.length) return json(response, 404, { problems: [`There's nothing at ${path}.`] });
   const { repo, id, address, rest } = await here.holding(parts);
-  const reviews = repo.reviews;
+  const changes = repo.changes;
 
   if (request.method === "GET" && rest[0] === "rounds" && rest[2] === "files" && rest[3]) {
     // Your branches play beside the round's recordings, as if they were its own.
     const name = rest.slice(3).join("/");
     const branch = name.match(/^(assets\/|readings\/)?branches\/(.+)$/);
-    const bytes = branch ? await reviews.branch(id, `${branch[1] ?? ""}${branch[2]}`) : await reviews.file(id, Number(rest[1]), name);
+    const bytes = branch ? await changes.branch(id, `${branch[1] ?? ""}${branch[2]}`) : await changes.file(id, Number(rest[1]), name);
     if (!bytes) return json(response, 404, { problems: [`Round ${rest[1]} of ${id} has no file called “${rest.slice(3).join("/")}”.`] });
     response.writeHead(200, { "content-type": TYPES[extname(path)] ?? "application/octet-stream", "cache-control": "max-age=31536000, immutable" });
     // An SVG asks for light or dark itself: asked for as recorded (?as=dark,still), it's answered that way.
@@ -217,7 +217,7 @@ async function answer(here: Machine, page: string, you: string, request: Incomin
   }
   if (request.method === "POST" && rest[0] === "seen") {
     const { by, moments } = await body<{ by: string; moments: Seen[] }>(request);
-    await reviews.see(id, by, moments);
+    await changes.see(id, by, moments);
     return json(response, 200, {});
   }
   if (request.method === "POST" && rest[0] === "take-over") return takeOver(repo, id, request, response);
@@ -229,7 +229,7 @@ async function answer(here: Machine, page: string, you: string, request: Incomin
     return json(response, 200, await frameOf(repo, id, address, note, framed, request.socket.localPort!));
   }
   if (request.method === "POST" && rest[0] === "sends") {
-    await reviews.send(id, await body<Send>(request));
+    await changes.send(id, await body<Send>(request));
     return json(response, 200, {});
   }
   return json(response, 404, { problems: [`There's nothing at ${path}.`] });
@@ -260,8 +260,8 @@ async function takeOver(repo: Repo, id: string, request: IncomingMessage, respon
 // the viewer has fetched once it keeps.
 async function branch(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
   const { round, scene: name, at, events, recording } = await body<{ round: number; scene: string; at: number; events: Event[]; recording: string }>(request);
-  const scene = (await repo.reviews.get(id)).rounds.find((kept) => kept.number === round)?.scenes.find((scene) => scene.name === name);
-  const was = scene && (await repo.reviews.file(id, round, scene.recording));
+  const scene = (await repo.changes.get(id)).rounds.find((kept) => kept.number === round)?.scenes.find((scene) => scene.name === name);
+  const was = scene && (await repo.changes.file(id, round, scene.recording));
   if (!scene || !was || !events.length) return json(response, 404, { problems: [`Round ${round} of ${id} has no recording of “${name}” to branch off.`] });
   const before: Event[] = JSON.parse(Buffer.from(was).toString("utf8"));
   const start = before[0]!.timestamp;
@@ -269,18 +269,18 @@ async function branch(repo: Repo, id: string, request: IncomingMessage, response
   const shift = then + 1 - events[0]!.timestamp;
   const yours = paced(events).map((event) => ({ ...event, timestamp: event.timestamp + shift }));
   const joined = [...before.filter((event) => event.timestamp <= then), ...yours.filter((event) => !readingOf(event))];
-  await repo.reviews.saveBranch(id, recording, Buffer.from(JSON.stringify(joined)));
+  await repo.changes.saveBranch(id, recording, Buffer.from(JSON.stringify(joined)));
   // As the app read itself while you were in it. Only yours: the page there is recorded afresh, its elements numbered
   // anew, so the scene's readings from before would name the wrong things.
   const readings = yours.filter(readingOf).map((event) => ({ step: "In the app", at: (event.timestamp - start) / 1000, ...readingOf(event)! }));
-  await repo.reviews.saveBranch(id, `readings/${recording}`, Buffer.from(JSON.stringify(readings)));
+  await repo.changes.saveBranch(id, `readings/${recording}`, Buffer.from(JSON.stringify(readings)));
   // What the moment's recording kept, and what yours names besides, as fonts of a page the moment never showed.
-  const kept = await repo.reviews.file(id, round, `assets/${scene.recording}`);
+  const kept = await repo.changes.file(id, round, `assets/${scene.recording}`);
   const theirs: Assets = kept ? JSON.parse(Buffer.from(kept).toString("utf8")) : {};
-  const all = await keepNamed(JSON.stringify(yours), theirs, (await repo.app()).url, (file, bytes) => repo.reviews.saveBranch(id, file, bytes));
+  const all = await keepNamed(JSON.stringify(yours), theirs, (await repo.app()).url, (file, bytes) => repo.changes.saveBranch(id, file, bytes));
   // Read from the round's files, a branch's own are under branches/.
   const named = Object.fromEntries(Object.entries(all).map(([address, file]) => [address, address in theirs ? file : `branches/${file}`]));
-  if (Object.keys(named).length) await repo.reviews.saveBranch(id, `assets/${recording}`, Buffer.from(JSON.stringify(named)));
+  if (Object.keys(named).length) await repo.changes.saveBranch(id, `assets/${recording}`, Buffer.from(JSON.stringify(named)));
   json(response, 200, { length: (joined.at(-1)!.timestamp - start) / 1000 });
 }
 

@@ -7,7 +7,7 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { Refused, type Scene } from "@playthrough/review";
+import { Refused, type Scene } from "@playthrough/change";
 import { findingsByThemselves, type Recorded as Compared } from "./compare.ts";
 import { keepRunning } from "./app.ts";
 import { glimpsesOf, readingsOf, type Failed, type Recorded } from "./reporter.ts";

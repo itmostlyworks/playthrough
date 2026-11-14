@@ -6,7 +6,7 @@
 import { chromium, request as requests, type Browser } from "@playwright/test";
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { quote, Refused } from "@playthrough/review";
+import { quote, Refused } from "@playthrough/change";
 import { ALONGSIDE, isScene, type Handed, type To } from "./scenes.ts";
 import { firstLine } from "./reporter.ts";
 import type { Repo } from "./repo.ts";
@@ -47,7 +47,7 @@ const key = (repo: Repo, id: string) => `${repo.root}\n${id}`;
 
 async function run(repo: Repo, id: string, to: To, files: string[], written: number, until: number, waiting?: AbortSignal) {
   const app = await repo.app();
-  const { started } = await repo.reviews.get(id);
+  const { started } = await repo.changes.get(id);
   const { runAlongside, pageFor } = await alongside();
   const { scenes, setup } = await loadedOf(repo, id, files, written);
   const kept = scenes.get(to.scene);
@@ -107,7 +107,7 @@ function browser(): Promise<Browser> {
   return opened;
 }
 
-// The review's scenes and the app's setup as they're written now, loaded once each time they're written again: a scene file
+// The change's scenes and the app's setup as they're written now, loaded once each time they're written again: a scene file
 // added or taken away changes its folder's time, and a module of their own that they import, once loaded, its own.
 async function writtenOf(repo: Repo, id: string) {
   const files = (await readdir(repo.scenes(id))).filter(isScene).map((name) => join(repo.scenes(id), name));

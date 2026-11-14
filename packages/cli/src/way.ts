@@ -2,7 +2,7 @@
 // and whether running it again landed where the agent was.
 
 import { differences, type Reading, type Thing } from "@playthrough/page";
-import { quote } from "@playthrough/review";
+import { quote } from "@playthrough/change";
 
 // What was done, as take-over keeps a person's, and what it was done on as getByRole finds it: its role and name, and
 // which of those alike it was, where it isn't the only one; with no role, by its words; by its path only where it has

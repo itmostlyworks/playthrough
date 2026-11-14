@@ -4,7 +4,7 @@ Everything Playthrough does, in detail. To start, read the [README](../README.md
 
 Its parts:
 
-- **`packages/review`**: what a change is, and the store that keeps it. The agent keeps moments and answers notes; the
+- **`packages/change`**: what a change is, and the store that keeps it. The agent keeps moments and answers notes; the
   person sends notes, replies and Done; each file has one writer. The store takes each step (start a change, keep a
   hand-back, finish it, take what was sent, send, mark what's been seen, wait) and refuses anything that breaks a rule,
   saying what's wrong in plain words (`rules.ts`). It keeps changes in memory (`memory.ts`, for tests) or in a folder
@@ -124,7 +124,7 @@ Each hand-back says which agent made it: Claude Code, Codex, Cursor and Gemini C
 
 ## Where a moment starts
 
-`startOf`, in `packages/review/src/shown.ts`. A moment's file does the way there first and then its one step, which is
+`startOf`, in `packages/change/src/shown.ts`. A moment's file does the way there first and then its one step, which is
 what's shown: what was done since arriving on the page it ends on, or since the moment before in this browser if that
 came later. A link followed or an address gone to is the way; a button that took you to a new page is doing something
 and stays in. Nothing done since is a still. Where it can't tell, it isn't kept and lists the things done counting back
@@ -256,7 +256,7 @@ kept with the change, per moment as handed back (`seen.json`), so a moment hande
 **Compare** (`compare.ts`, `view.ts`) is offered where you've opened this moment on an earlier hand-back and something
 differs since: the moment as it is now beside how it was when you last saw it, both playing their shown parts together.
 Play and the line drive both sides, at the same action at the same instant: `together`
-(`packages/review/src/steps.ts`) lines two recordings up on the longest run both did in order, actions by name (one
+(`packages/change/src/steps.ts`) lines two recordings up on the longest run both did in order, actions by name (one
 recorded before actions were named knows each by its place only); each pair begins and ends together, each side scaled
 to its own pace between, and what one did alone plays while the other holds before what's next. Each side is its half of
 the recording's room at actual size, a window following now's pointer, both onto the same part of the page
@@ -266,7 +266,7 @@ nearest words (`holding`).
 **Send and Done.** Send carries every note and reply you haven't sent on the change, from the list or a moment's page, in
 one send; it never locks. Done, on the list, sends Done (`done: true`): every moment as last handed back looks good, and
 nothing more (a send saying Done with a note or a reply is refused). Whether a change is done is one rule, `saidDone`
-(`packages/review/src/rules.ts`): the person's latest send, on the latest hand-back, says Done; a note or reply after it,
+(`packages/change/src/rules.ts`): the person's latest send, on the latest hand-back, says Done; a note or reply after it,
 or a new hand-back, opens the change again. Where a change stands for you (waiting on you, with your agents, done) is one
 rule beside it, `standingOf`, which the list and the page read; the agent's `wait` ends by `saidDone`.
 
@@ -278,7 +278,7 @@ nothing is made ready in the background while you watch: each step in is the app
 not doing work twice and not waiting on nothing.
 
 **Where it stands is one count.** The page says how many of the things the moment shows are done where the recording
-rests (`doneAt`, `packages/review/src/steps.ts`): none at its start, one after the first, nothing at all at its end or once
+rests (`doneAt`, `packages/change/src/steps.ts`): none at its start, one after the first, nothing at all at its end or once
 the last is done, or on a still; pressed while it plays, where it has got to. The run is handed over after that many
 things done in the moment's step, its way there done whole before them (a file kept with its way inside its step counts
 the way's too, `doneBefore`), or, with no count, once everything is done; never on a page with nothing loaded: a step
@@ -357,7 +357,7 @@ frames), `waiting/<pid>` (an agent listening). On the machine: `~/.playthrough/a
 running).
 
 **Kept in an older format**, a change is brought along once, the first time this Playthrough reads it
-(`packages/review/src/format.ts`, from the store's own queue): each file rewritten as it would have been kept now, by the
+(`packages/change/src/format.ts`, from the store's own queue): each file rewritten as it would have been kept now, by the
 rule that showed it before, so it shows the same, and `review.json`'s `format` last, so one stopped half-way is finished
 the next time it's read and one already brought along is never touched; one kept by a newer Playthrough is refused,
 saying to update. Format 2: every moment has its `from` (one kept without, or given 0 by an older `again`, gets where
@@ -374,12 +374,12 @@ change.
 ## Working on Playthrough
 
 `npm run quick` (and `npm test`, the same today) holds the store, the comparison, the commands and what the page works
-out to their promises (`packages/*/test`), the loop's in `review/test/loop.test.ts`. `npm run check` checks the types.
+out to their promises (`packages/*/test`), the loop's in `change/test/loop.test.ts`. `npm run check` checks the types.
 While working on the page, `npm run dev --workspace @playthrough/viewer` serves it with instant reloads beside a running
 `playthrough open`.
 
 `npm run build` builds the page, then the package in `packages/cli/release` (`packages/cli/build.ts`): Node runs
-TypeScript from a checkout but not from inside an installed package, so there the command is JavaScript, with the review
+TypeScript from a checkout but not from inside an installed package, so there the command is JavaScript, with the change
 and the page inside it, beside the page it serves, the types moments are written against and `MOMENTS.md`. Every push to
 main is checked, tested and built (`check.yml`). It's released from GitHub: in the Actions tab, Release, Run workflow,
 with the version (`release.yml`). That sets the version, the package's and the plugin's, checks, tests and builds it,

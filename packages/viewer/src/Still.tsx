@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Reading, Thing } from "@playthrough/page";
-import type { Review, Round, Scene } from "@playthrough/review";
+import type { Change, Round, Scene } from "@playthrough/change";
 import { fineStill, picture, readings as readingsOf } from "./api.ts";
 import { around, Picture, union, type Crop } from "./Picture.tsx";
 
@@ -54,28 +54,28 @@ export function aboutBox(reading: Reading | undefined, about: { role: string; na
 // past fades there rather than being cut. Seen, it's quieter.
 const FADE = 20;
 
-export function Still({ review, round, scene, about, seen }: { review: Review; round: Round; scene: Scene; about?: { role: string; name: string }; seen: boolean }) {
+export function Still({ change, round, scene, about, seen }: { change: Change; round: Round; scene: Scene; about?: { role: string; name: string }; seen: boolean }) {
   return (
     // Under the pointer it's ringed and gives a little as it's pressed, as a picture on a moment's edge does.
     <span
       className={`relative block aspect-[1.6] overflow-hidden rounded-lg bg-paper shadow-frame transition-[filter,opacity,box-shadow,scale] duration-200 ease-calm group-hover:opacity-100 group-hover:shadow-[0_0_0_2px_var(--ground),0_0_0_3.5px_var(--faint)] group-hover:grayscale-0 group-focus-visible:shadow-[0_0_0_2px_var(--ground),0_0_0_4px_var(--amber)] group-active:scale-[0.98] group-active:duration-75 ${seen ? "opacity-60 grayscale" : ""}`}
     >
-      <StillPicture review={review} round={round} scene={scene} about={about} />
+      <StillPicture change={change} round={round} scene={scene} about={about} />
     </span>
   );
 }
 
 // The still's picture alone, for whatever holds it: the list, or a moment's edge.
-export function StillPicture({ review, round, scene, about }: { review: Review; round: Round; scene: Scene; about?: { role: string; name: string } }) {
+export function StillPicture({ change, round, scene, about }: { change: Change; round: Round; scene: Scene; about?: { role: string; name: string } }) {
   const [crop, setCrop] = useState<Crop>();
   // Closed in, the picture kept as it was recorded is shown larger than it was taken on a screen of twice the dots: there,
   // it's drawn twice as fine, and the kept one shows until that's in.
   const [sharp, setSharp] = useState<string>();
   useEffect(() => {
     let current = true;
-    readingsOf(review.id, round.number, scene.recording).then((read) => current && setCrop(closeOn(read.at(-1), about, STILL)));
+    readingsOf(change.id, round.number, scene.recording).then((read) => current && setCrop(closeOn(read.at(-1), about, STILL)));
     if (devicePixelRatio > 1)
-      void fineStill(review.id, round.number, scene.recording, scene.length).then((src) => {
+      void fineStill(change.id, round.number, scene.recording, scene.length).then((src) => {
         if (!src || !current) return;
         const loaded = new Image();
         loaded.onload = () => current && setSharp(src);
@@ -85,7 +85,7 @@ export function StillPicture({ review, round, scene, about }: { review: Review; 
   }, [scene.recording, about?.name]);
   return (
     <span className="absolute inset-0" style={crop && fadeOf(crop)}>
-      <Picture shot={{ src: sharp ?? picture(review.id, round.number, scene.recording, Math.max(0, scene.steps.length - 1)), crop }} />
+      <Picture shot={{ src: sharp ?? picture(change.id, round.number, scene.recording, Math.max(0, scene.steps.length - 1)), crop }} />
     </span>
   );
 }

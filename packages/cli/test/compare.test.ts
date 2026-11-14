@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
 import { chromium, type Browser, type Page } from "@playwright/test";
 import type { Reading } from "@playthrough/page";
-import type { Scene } from "@playthrough/review";
+import type { Scene } from "@playthrough/change";
 import { findingsByThemselves, compare, unsteadyIn, type Recorded } from "../src/compare.ts";
 import { readPage } from "../src/read.ts";
 

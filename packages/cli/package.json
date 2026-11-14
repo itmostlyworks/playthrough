@@ -1,15 +1,15 @@
 {
   "name": "playthrough",
   "version": "0.6.0",
-  "description": "Review what your coding agent built in your web app by watching recordings of it.",
+  "description": "Change what your coding agent built in your web app by watching recordings of it.",
   "keywords": [
     "coding-agent",
     "claude-code",
     "cursor",
     "codex",
     "ai-agents",
-    "code-review",
-    "ui-review",
+    "code-change",
+    "ui-change",
     "playwright",
     "recording",
     "human-in-the-loop",
@@ -43,7 +43,7 @@
   },
   "devDependencies": {
     "@playthrough/page": "*",
-    "@playthrough/review": "*",
+    "@playthrough/change": "*",
     "rolldown": "1.2.15"
   }
 }

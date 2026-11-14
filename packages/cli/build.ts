@@ -1,5 +1,5 @@
 // Makes the package npm publishes, in release/. Node runs Playthrough's TypeScript from a checkout but not from inside an
-// installed package, so the command is made JavaScript there, with the review and the page inside it, and beside it go
+// installed package, so the command is made JavaScript there, with the change and the page inside it, and beside it go
 // the viewer it serves, the types a scene is written against and what it prints. Run after the viewer is built, by
 // `npm run build` from core. What the package needs from npm is what its parts need, less each other.
 
@@ -15,7 +15,7 @@ const release = join(cli, "release");
 const manifest = (part: string) => JSON.parse(readFileSync(join(packages, part, "package.json"), "utf8"));
 const own = manifest("cli");
 const needs: Record<string, string> = Object.fromEntries(
-  ["cli", "page", "review"].flatMap((part) => Object.entries<string>(manifest(part).dependencies ?? {})).filter(([name]) => !name.startsWith("@playthrough/")),
+  ["cli", "page", "change"].flatMap((part) => Object.entries<string>(manifest(part).dependencies ?? {})).filter(([name]) => !name.startsWith("@playthrough/")),
 );
 const fromNpm = (id: string) => builtinModules.includes(id) || id.startsWith("node:") || Object.keys(needs).some((name) => id === name || id.startsWith(`${name}/`));
 const js = (path: string) => path.replace(/\.ts$/, ".js");
@@ -35,7 +35,7 @@ await build({
 
 // The types, laid out as the parts are, each part's name made the path to it.
 const types = join(release, "types");
-const roots = ["cli/src/test.ts", "review/src/index.ts", "review/src/folder.ts", "page/src/index.ts"].map((root) => join(packages, root));
+const roots = ["cli/src/test.ts", "change/src/index.ts", "change/src/folder.ts", "page/src/index.ts"].map((root) => join(packages, root));
 const tsc = join(packages, "../node_modules/.bin/tsc");
 execFileSync(tsc, ["--ignoreConfig", ...roots, "--declaration", "--emitDeclarationOnly", "--allowImportingTsExtensions", "--rootDir", packages, "--outDir", types, "--module", "nodenext", "--target", "es2024", "--strict", "--skipLibCheck", "--types", "node", "--verbatimModuleSyntax"], { stdio: "inherit" });
 for (const file of readdirSync(types, { recursive: true, encoding: "utf8" }).filter((name) => name.endsWith(".d.ts")).map((name) => join(types, name))) {

@@ -1,4 +1,4 @@
-// What a review is: one change an agent makes, its moments handed back round after round until the person says it's done.
+// What a change is: one change an agent makes, its moments handed back round after round until the person says it's done.
 // The agent keeps each moment as a scene of a round and answers notes; Playthrough compares each round with the ones
 // before it; people send notes, replies, and Done. Each thing here has one writer, and once written, only a round still
 // being worked on ever changes.
@@ -175,7 +175,7 @@ export const Note = z.strictObject({
 // What the agent handed back, and its answers. Once finished, a round never changes.
 export const Round = z.strictObject({
   number: z.number().int().min(1),
-  by: text("needs to say which agent recorded it").describe("By the name it goes by, “Claude Code” or “Codex”: one review can pass between agents"),
+  by: text("needs to say which agent recorded it").describe("By the name it goes by, “Claude Code” or “Codex”: one change can pass between agents"),
   scenes: z.array(Scene),
   replies: z.array(Reply).describe("The agent's answer to each note that asks for one"),
   finished: z.iso.datetime().optional(),
@@ -201,7 +201,7 @@ export const Taken = z.strictObject({ send: z.string(), round: z.number().int(),
 // A moment someone has opened, as it was handed back in one round: one handed back again, different, asks to be seen again.
 export const Seen = z.strictObject({ round: z.number().int().min(1), scene: text("needs the scene it's of") });
 
-export const Review = z.strictObject({
+export const Change = z.strictObject({
   id: z.string(),
   title: z.string().describe("A few words for the change, as a pull request's title"),
   asked: z.string().optional().describe("What was asked, in the person's words"),
@@ -230,7 +230,7 @@ export type Round = z.infer<typeof Round>;
 export type Send = z.infer<typeof Send>;
 export type Taken = z.infer<typeof Taken>;
 export type Seen = z.infer<typeof Seen>;
-export type Review = z.infer<typeof Review>;
+export type Change = z.infer<typeof Change>;
 
 // A note made in the app after stepping in, rather than on a moment as handed back.
 export const madeInApp = (on: OnMoment | InApp): on is InApp => "recording" in on;

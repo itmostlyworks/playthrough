@@ -6,7 +6,7 @@
 import { dirname, join } from "node:path";
 import { chromium, type Browser } from "@playwright/test";
 import { shownAt } from "@playthrough/page";
-import { allNotes, madeInApp, type InApp, type OnMoment, type Review } from "@playthrough/review";
+import { allNotes, madeInApp, type InApp, type OnMoment, type Change } from "@playthrough/change";
 import type { Frame } from "./frames.ts";
 import type { Repo } from "./repo.ts";
 import { readingsOn } from "./reporter.ts";
@@ -14,14 +14,14 @@ import { readingsOn } from "./reporter.ts";
 type Area = { x: number; y: number; width: number; height: number };
 
 // Kept in the round that answers them, as the files a person would open: each note's id names its picture.
-export async function pictureNotes(repo: Repo, review: Review, round: number, notes: string[]): Promise<Map<string, string>> {
+export async function pictureNotes(repo: Repo, change: Change, round: number, notes: string[]): Promise<Map<string, string>> {
   const shown = new Map<string, string>();
   // Opened for the first note there's a picture of, if it opens at all.
   let browser: Browser | undefined;
   try {
     for (const id of notes) {
-      const on = allNotes(review).get(id)?.note.on;
-      const found = on && (await (madeInApp(on) ? whereMade(repo, review, id, on) : whereSeen(repo, review, on)).catch(() => undefined));
+      const on = allNotes(change).get(id)?.note.on;
+      const found = on && (await (madeInApp(on) ? whereMade(repo, change, id, on) : whereSeen(repo, change, on)).catch(() => undefined));
       const picture = found?.picture;
       if (!found || !picture) continue;
       browser ??= await chromium.launch();
@@ -30,8 +30,8 @@ export async function pictureNotes(repo: Repo, review: Review, round: number, no
         await page.setContent(drawn(Buffer.from(picture).toString("base64"), found));
         await page.locator("img").evaluate((image: HTMLImageElement) => image.decode());
         const name = `notes/${id}.png`;
-        await repo.reviews.saveFile(review.id, round, name, await page.screenshot());
-        shown.set(id, repo.show(join(dirname(repo.round(review.id, round)), "files", name)));
+        await repo.changes.saveFile(change.id, round, name, await page.screenshot());
+        shown.set(id, repo.show(join(dirname(repo.round(change.id, round)), "files", name)));
       } catch {
         // this one goes without, and the rest are still pictured
       } finally {
@@ -49,11 +49,11 @@ export async function pictureNotes(repo: Repo, review: Review, round: number, no
 // The picture of the step the note was made at, on the hand-back it's on, and where on it: what it's on, or its spot
 // or part of the screen. One on the whole moment was made at its end, so it's the page the moment left, with nothing
 // marked.
-async function whereSeen(repo: Repo, review: Review, on: OnMoment) {
-  const scene = review.rounds.find((round) => round.number === on.round)?.scenes.find((scene) => scene.name === on.scene);
+async function whereSeen(repo: Repo, change: Change, on: OnMoment) {
+  const scene = change.rounds.find((round) => round.number === on.round)?.scenes.find((scene) => scene.name === on.scene);
   if (!scene) return undefined;
-  const readings = await readingsOn(repo.reviews, review.id, on.round, scene);
-  const file = (name: string) => repo.reviews.file(review.id, on.round, name);
+  const readings = await readingsOn(repo.changes, change.id, on.round, scene);
+  const file = (name: string) => repo.changes.file(change.id, on.round, name);
   if (on.at === undefined) {
     const end = readings.at(-1);
     return end && { picture: await file(end.picture), width: end.screen.width, height: end.screen.height };
@@ -70,15 +70,15 @@ async function whereSeen(repo: Repo, review: Review, on: OnMoment) {
 
 // One made in the app is on what was there, which no recording of the moment shows: the frame the person's page drew of
 // it, as it shows the note, kept with what they did. Not drawn yet, it goes without.
-async function whereMade(repo: Repo, review: Review, id: string, on: InApp) {
-  const kept = await repo.reviews.branch(review.id, `frames/${id}.json`);
+async function whereMade(repo: Repo, change: Change, id: string, on: InApp) {
+  const kept = await repo.changes.branch(change.id, `frames/${id}.json`);
   if (!kept) return undefined;
   const frame: Frame = JSON.parse(Buffer.from(kept).toString("utf8"));
   const { width, height } = frame.screen;
   const share = frame.box ?? on.box;
   const area: Area | undefined = share && { x: share.x * width, y: share.y * height, width: share.width * width, height: share.height * height };
   const spot = on.point && { x: on.point.x * width, y: on.point.y * height };
-  return { picture: await repo.reviews.branch(review.id, frame.picture.replace(/^branches\//, "")), width, height, area, spot };
+  return { picture: await repo.changes.branch(change.id, frame.picture.replace(/^branches\//, "")), width, height, area, spot };
 }
 
 function drawn(picture: string, { area, spot }: { area?: Area; spot?: { x: number; y: number } }): string {

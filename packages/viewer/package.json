@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@playthrough/page": "*",
-    "@playthrough/review": "*",
+    "@playthrough/change": "*",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "rrweb": "2.1.7"

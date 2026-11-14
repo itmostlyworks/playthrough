@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, test } from "node:test";
 import type { Reading, Thing } from "@playthrough/page";
-import { Refused, type Round, type Scene } from "@playthrough/review";
+import { Refused, type Round, type Scene } from "@playthrough/change";
 import { change, changeHere, idOf, momentNamed, titleOf, momentsOf } from "../src/change.ts";
 import { howEachWent } from "../src/moments.ts";
 import { repo } from "../src/repo.ts";
@@ -202,7 +202,7 @@ describe("the change a command means", () => {
     assert.equal(await changeHere(here), "keep-the-cursor-in-a-checklist-item");
     await quietly(() => change(here, "Let admins change the card prefix", "Asked again, in other words."));
     assert.equal(await changeHere(here), "let-admins-change-the-card-prefix");
-    const kept = await here.reviews.get("let-admins-change-the-card-prefix");
+    const kept = await here.changes.get("let-admins-change-the-card-prefix");
     assert.deepEqual([kept.title, kept.asked], ["Let admins change the card prefix", "Admins should be able to change the card prefix."], "what was asked first stands");
   });
 
@@ -228,14 +228,14 @@ describe("the change a command means", () => {
     await assert.rejects(change(here, "Tried", "Try it."), /\.playthrough\/tried, a folder Playthrough keeps for itself/);
     await quietly(() => change(here, "Sort cards by date", "Sort them."));
     await assert.rejects(change(here, "Sort cards by: date", "Sort them otherwise."), /“Sort cards by: date” would be the change “Sort cards by date”, which is here already/);
-    assert.equal((await here.reviews.get("sort-cards-by-date")).asked, "Sort them.");
+    assert.equal((await here.changes.get("sort-cards-by-date")).asked, "Sort them.");
   });
 
   test("is titled as a person says it, without a commit's prefix", async () => {
     const here = await copy();
     await quietly(() => change(here, "feat: sort cards in a list by due date", "Let me sort the cards."));
     assert.equal(await changeHere(here), "sort-cards-in-a-list-by-due-date");
-    assert.equal((await here.reviews.get("sort-cards-in-a-list-by-due-date")).title, "Sort cards in a list by due date");
+    assert.equal((await here.changes.get("sort-cards-in-a-list-by-due-date")).title, "Sort cards in a list by due date");
     assert.equal(titleOf("fix(board)!: keep the cursor"), "Keep the cursor");
     assert.equal(titleOf("Search: show matches"), "Search: show matches");
   });

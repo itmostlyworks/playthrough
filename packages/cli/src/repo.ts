@@ -7,8 +7,8 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createServer, type AddressInfo } from "node:net";
 import { dirname, join, relative, resolve } from "node:path";
-import { Refused, Reviews } from "@playthrough/review";
-import { folder } from "@playthrough/review/folder";
+import { Refused, Changes } from "@playthrough/change";
+import { folder } from "@playthrough/change/folder";
 
 // And whether its scenes run one at a time: on an app with a page that shows what every run made, as a blog's index lists
 // every post, scenes run side by side would see each other's. Where app.json lets Playthrough give the app a port, the
@@ -17,28 +17,28 @@ export type App = { start: string; url: string; oneAtATime?: boolean; port?: num
 export type Repo = ReturnType<typeof repo>;
 
 export function repo(root = home(process.cwd())) {
-  const reviews = join(root, ".playthrough");
+  const changes = join(root, ".playthrough");
   const appFile = join(root, "playthrough", "app.json");
   return {
     root,
-    reviews: new Reviews(folder(reviews)),
-    scenes: (review: string) => join(reviews, review, "scenes"),
-    round: (review: string, round: number) => join(reviews, review, "rounds", String(round), "round.json"),
+    changes: new Changes(folder(changes)),
+    scenes: (change: string) => join(changes, change, "scenes"),
+    round: (change: string, round: number) => join(changes, change, "rounds", String(round), "round.json"),
     // A file for each agent waiting for what's sent, named by its process.
-    waiting: (review: string) => join(reviews, review, "waiting"),
+    waiting: (change: string) => join(changes, change, "waiting"),
     // How to start the app, committed.
     appFile,
     // What every scene of the app starts from, committed beside app.json.
     setup: join(root, "playthrough", "setup.ts"),
     // What setup made for each run, until its after gives it back.
-    borrowed: join(reviews, "borrowed"),
+    borrowed: join(changes, "borrowed"),
     // As a person at this folder would type it.
     show: (path: string) => relative(process.cwd(), path) || ".",
 
     // Git never sees .playthrough/: what's kept there is Playthrough's, never the app's.
     async keepOutOfGit() {
-      await mkdir(reviews, { recursive: true });
-      await writeFile(join(reviews, ".gitignore"), "*\n");
+      await mkdir(changes, { recursive: true });
+      await writeFile(join(changes, ".gitignore"), "*\n");
     },
 
     async app(): Promise<App> {
@@ -68,7 +68,7 @@ export function repo(root = home(process.cwd())) {
 }
 
 // The app's folder: the nearest one up from here that Playthrough is in, as far as the top of the git repo, so a command
-// run from inside the app finds its reviews. Where it isn't yet, it's here.
+// run from inside the app finds its changes. Where it isn't yet, it's here.
 function home(here: string): string {
   for (let folder = here; ; folder = dirname(folder)) {
     if (existsSync(join(folder, ".playthrough")) || existsSync(join(folder, "playthrough", "app.json"))) return folder;
@@ -107,7 +107,7 @@ const free = () =>
   });
 
 // The app's folder in each of the repo's worktrees that has it, as git lists them, the main one first; outside git, just
-// this one. An agent working in a worktree keeps its reviews there, and from any copy the person finds them all.
+// this one. An agent working in a worktree keeps its changes there, and from any copy the person finds them all.
 export function copies(root: string): string[] {
   try {
     const git = (...args: string[]) => execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();

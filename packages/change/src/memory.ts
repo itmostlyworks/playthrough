@@ -1,4 +1,4 @@
-// Reviews kept in memory: for tests, and the plainest statement of what a storage has to do.
+// Changes kept in memory: for tests, and the plainest statement of what a storage has to do.
 
 import type { Storage } from "./store.ts";
 

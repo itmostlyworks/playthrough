@@ -6,7 +6,7 @@
 
 import "./node.ts";
 import { readFileSync } from "node:fs";
-import { Refused } from "@playthrough/review";
+import { Refused } from "@playthrough/change";
 import { as } from "./as.ts";
 import { change } from "./change.ts";
 import { again, drop, moment, reply, wait } from "./moments.ts";

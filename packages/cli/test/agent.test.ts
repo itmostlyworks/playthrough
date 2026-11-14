@@ -1,4 +1,4 @@
-// Which agent recorded a round, so each answer in a review that passes between agents shows whose it is.
+// Which agent recorded a round, so each answer in a change that passes between agents shows whose it is.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
