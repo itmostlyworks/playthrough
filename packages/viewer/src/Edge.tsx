@@ -12,6 +12,9 @@ const GAP = 16;
 const DRAWER = TILE + 2 * GAP;
 // How wide the screen's edge fades.
 const VEIL = 64;
+// From the edge's top to its first picture's: the list's padding and the card's, so the first picture's top is the
+// recording's.
+const INSET = 8 + 6;
 
 type Room = { top: number; height: number; inner: number; screen: number };
 
@@ -109,7 +112,7 @@ export function Edge(props: {
         aria-label={label}
         inert={quiet}
         className={`fixed z-30 transition-[translate,opacity] duration-300 ease-calm ${quiet ? "opacity-40" : ""}`}
-        style={{ top: room.top - 8, height: room.height + 16, width: DRAWER, left: right ? room.inner : room.inner - DRAWER, translate: forward ? `${right ? -shift : shift}px 0` : "0 0" }}
+        style={{ top: room.top - INSET, height: room.height + 2 * INSET, width: DRAWER, left: right ? room.inner : room.inner - DRAWER, translate: forward ? `${right ? -shift : shift}px 0` : "0 0" }}
         onPointerEnter={(event) => event.pointerType !== "touch" && ((under.current = true), toward(true, 70))}
         onPointerLeave={(event) => event.pointerType !== "touch" && ((under.current = false), toward(false, 220))}
         onPointerDownCapture={(event) => {
@@ -136,7 +139,7 @@ export function Edge(props: {
       <div
         aria-hidden
         className={`pointer-events-none fixed z-30 transition-opacity duration-300 ease-calm ${forward ? "opacity-0" : ""}`}
-        style={{ top: room.top - 8, height: room.height + 16, width: VEIL, [right ? "right" : "left"]: 0, background: `linear-gradient(to ${right ? "right" : "left"}, transparent, var(--ground) 92%)` }}
+        style={{ top: room.top - INSET, height: room.height + 2 * INSET, width: VEIL, [right ? "right" : "left"]: 0, background: `linear-gradient(to ${right ? "right" : "left"}, transparent, var(--ground) 92%)` }}
       />
     </>
   );
