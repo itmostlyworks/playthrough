@@ -57,7 +57,7 @@ somewhere), and a still where its end holds.
 in plain words (`type “BS-WEB” in Card prefix → click Update`); `before`, the last of the way (kept, never shown); the
 paths of its first and last frames; a line for each click, key or choice after which nothing read on the page changed
 but how something looks or where it's scrolled (`nothing you can see changed. Fine if that's the point`); and how to mark it again with `--last N`. Marked again with the
-same words, it replaces the moment, whatever file it was in. Steps are kept by role and name, words typed where the caret was put as typed, keys that move
+same words, it replaces the moment, whatever file it was in. Steps are kept by role and name, a right click as one, words typed where the caret was put as typed, keys that move
 it too. The recording keeps the pointer, the text cursor and each key that does something (Escape, Enter, Tab, arrows,
 shortcuts), never letters typed; and hides a dev server's own badge (Next's), never touching the app. `again` runs every
 moment on the code as it is now and says each is the same, different, new, or couldn't get there. `wait` hands back,
