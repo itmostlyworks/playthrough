@@ -454,10 +454,9 @@ function foundAsPlaywright(specifier: string, context: modules.ResolveHookContex
   }
 }
 
-// Taken over, a scene runs in Playthrough (following.ts), unrecorded, on the recordings' clock, which the person carries on
-// with. It's told how far the playhead has gone, and told again each time it moves; once the playhead rests where the
-// scene is, to hand its page over; and to stop, once it's no longer wanted.
-export type Orders = { to: To; stopped?: boolean; moved?: () => void };
+// Stepped into, a scene runs in Playthrough (following.ts), unrecorded, on the recordings' clock, which the person carries
+// on with: told where to hand its page over, and to stop, once it's no longer wanted.
+export type Orders = { to: To; stopped?: boolean };
 // A scene, as its file gives it to test(): with the page, what Playwright gives every test besides, and the setup.
 export type Body = (given: { page: Page; context: BrowserContext; request: APIRequestContext; baseURL: string; setup: Record<string, any>; handTo: HandTo }) => Promise<unknown>;
 
@@ -497,23 +496,20 @@ export function scenesIn(file: string, written: number): Promise<Map<string, Kep
 // back or on the way to the first, and they're done again there. One that wrote something, or went to another address,
 // isn't, nor anything before it: a fresh load of the page has those already. `address` is where the last of them left
 // the page.
-// The steps it has finished say how far it has got, against how far the playhead has. Several run at once, one for each
-// review open, each in its own window, and each knows its own by what it was called from. And how long it has worked,
-// not counting waiting for the playhead, which it says as it gets to each place to take it over: on the same app, the
-// same each time to within a few percent. While it waits, it can be told to go on (`moved`).
-type Taking = { page: Page; given?: Parameters<Body>[0]; forks: Forked[]; forking?: boolean; depth: number; rest: () => Promise<void>; step?: string; actions: number; from?: Handed; again: Action[]; address?: string; wrote: boolean; passed: string[]; orders: Orders; handed?: Handed; began: number; waited: number; arrived?: Arrived };
-export type Arrived = (step: string | undefined, actions: number | undefined, worked: number) => void;
+// The steps it has finished say how far it has got. Several run at once, one for each step in, each in its own window,
+// and each knows its own by what it was called from.
+type Taking = { page: Page; given?: Parameters<Body>[0]; forks: Forked[]; forking?: boolean; depth: number; rest: () => Promise<void>; step?: string; actions: number; from?: Handed; again: Action[]; address?: string; wrote: boolean; passed: string[]; orders: Orders; handed?: Handed };
 const taking = new AsyncLocalStorage<Taking>();
 
 // What's kept to do again holds while the page is still where the last of it left it, and nothing has been saved since.
 const holds = (scene: Taking) => !scene.wrote && scene.page.url() === scene.address;
 
-// The playhead went back before it, it's been handed over, or it's no longer wanted: the scene goes no further.
+// It's been handed over, it's past where it's handed over, or it's no longer wanted: the scene goes no further.
 class Stopped extends Error {}
 
 export async function runAlongside(
   page: Page,
-  { request, baseURL, started, setup: appSetup, borrowed, arrived, person }: { request: APIRequestContext; baseURL: string; started: string; setup: Setup; borrowed: string; arrived?: Arrived; person?: string },
+  { request, baseURL, started, setup: appSetup, borrowed, person }: { request: APIRequestContext; baseURL: string; started: string; setup: Setup; borrowed: string; person?: string },
   body: Body,
   orders: Orders,
   forks: Forked[] = [],
@@ -526,7 +522,7 @@ export async function runAlongside(
     page.on("request", (request) => void (["GET", "HEAD", "OPTIONS"].includes(request.method()) || (scene.wrote = true)));
     return rest;
   };
-  const scene: Taking = { page, forks, depth: 0, rest: async () => {}, actions: 0, again: [], wrote: false, passed: [], orders, began: Date.now(), waited: 0, arrived };
+  const scene: Taking = { page, forks, depth: 0, rest: async () => {}, actions: 0, again: [], wrote: false, passed: [], orders };
   scene.rest = await readied(page);
   pace(page);
   // Handed on, the run carries on on the other's page, as the recording does: where the playhead rests there, it's that
@@ -562,26 +558,15 @@ export async function runAlongside(
   });
 }
 
-// After an action, at a step's end, or at the scene's end (no step): it goes on once the playhead has passed, waits while
-// the playhead is there, and hands over once it rests there. Nothing here can be undone, so if the playhead went back
-// before it, it stops.
+// After an action, at a step's end, or at the scene's end (no step): it goes on until it's where it's handed over, hands
+// over there, and goes no further.
 async function reached(scene: Taking, step?: string, actions?: number) {
-  scene.arrived?.(step, actions, Date.now() - scene.began - scene.waited);
-  for (;;) {
-    const { to, stopped } = scene.orders;
-    if (stopped) throw new Stopped();
-    const where = against(scene.passed, step, actions, to);
-    if (where === "on") return;
-    if (where === "here" && to.rests) await handOver(scene, to);
-    if (where === "past" || to.rests) {
-      if (step) throw new Stopped();
-      return;
-    }
-    const since = Date.now();
-    await new Promise<void>((moved) => (scene.orders.moved = moved));
-    scene.orders.moved = undefined;
-    scene.waited += Date.now() - since;
-  }
+  const { to, stopped } = scene.orders;
+  if (stopped) throw new Stopped();
+  const where = against(scene.passed, step, actions, to);
+  if (where === "on") return;
+  if (where === "here") await handOver(scene, to);
+  if (step) throw new Stopped();
 }
 
 function against(passed: string[], step: string | undefined, actions: number | undefined, to: To): "on" | "here" | "past" {
