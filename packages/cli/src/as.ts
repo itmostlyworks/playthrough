@@ -69,11 +69,11 @@ const NOTING = `(() => {
   };
   const path = ${pathTo};
   // As getByRole finds it, from Chrome's own accessibility tree (ComputedAccessibilityInfo, switched on at launch): by
-  // its role and name, and a field the page gives no name by its role alone, which of them it is.
+  // its role and name, and a field or a switch the page gives no name by its role alone, which of them it is.
   const nameOf = (element) => (element.computedName || "").trim().replace(/\\s+/g, " ");
   const named = (element) => {
     const role = element.computedRole, name = nameOf(element);
-    const field = ["textbox", "searchbox", "combobox", "spinbutton"].includes(role);
+    const field = ["textbox", "searchbox", "combobox", "spinbutton", "switch", "checkbox", "radio", "slider"].includes(role);
     if (!role || (!name && !field) || ["generic", "none", "presentation", "StaticText", "paragraph", "group"].includes(role)) return {};
     const alike = [...document.querySelectorAll("*")].filter((other) => other.computedRole === role && (!name || nameOf(other) === name));
     const nth = alike.indexOf(element);
@@ -189,6 +189,8 @@ export async function as(repo: Repo, person: string, at?: string) {
   const context = await chromium.launchPersistentContext(profile, {
     headless: !process.env.PLAYTHROUGH_HEADED,
     args: [`--remote-debugging-port=${debugging}`, "--enable-blink-features=ComputedAccessibilityInfo"],
+    // As a recording's, the clipboard is the page's to write to (test.ts).
+    permissions: ["clipboard-read", "clipboard-write"],
     ...setup.use,
     baseURL: app.url,
     locale: "en-US",

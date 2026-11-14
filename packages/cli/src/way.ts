@@ -119,6 +119,14 @@ ${[...shown, ...(still.length ? [] : scrolling), ...checks].join("\n")}
 }
 export const ENDED = "ended.json";
 
+// Whether a moment's file does its way there before its step, as every one marked since moments had a start does (a page
+// is always arrived at first); one kept before does everything in its step.
+export function wayBefore(file: string): boolean {
+  const lines = file.split("\n");
+  const from = lines.findIndex((line) => line.startsWith("test("));
+  return lines.findIndex((line) => line.includes("await test.step(")) > from + 1;
+}
+
 // The way there of a moment's file, and what the moment does, without what it checks: for going there by hand, not for
 // proving it.
 export function wayIn(file: string): string {
@@ -153,12 +161,15 @@ export function sameAddress(here: string, again: string): string | undefined {
 // message that comes and goes by itself, as a toast, there or not by how long ago it came. Nothing differs: it landed.
 // What's out of sight where the moment ends, as a page's top is from its footer, isn't what's there: a pin that drops a
 // while after the page lands, up out of sight, doesn't keep a moment at its footer from landing.
-export function whatDiffers(here: { url: string; reading: Reading }, again: { url: string; reading: Reading }): { differ: string[]; passing: string[]; address?: string } {
+export function whatDiffers(here: { url: string; reading: Reading }, again: { url: string; reading: Reading }): { differ: string[]; passing: string[]; timely: string[]; address?: string } {
   const inSight = ({ box }: Thing, { width, height }: Reading["screen"]) => box.y + box.height > 0 && box.y < height && box.x + box.width > 0 && box.x < width;
   const all = differences(here.reading, again.reading).differences.filter(
     (one) => ("then" in one && inSight(one.then, here.reading.screen)) || ("now" in one && inSight(one.now, again.reading.screen)),
   );
-  const passes = (one: (typeof all)[number]) => ("now" in one ? one.now : one.then).live;
+  // Words that say a time, reworded only in their numbers (“Synced 3 s ago”, “12:04”), change with time, not with the work.
+  const timely = (one: (typeof all)[number]) =>
+    one.what === "reworded" && one.then.name.replace(/\d+/g, "#") === one.now.name.replace(/\d+/g, "#") && TIMED.test(one.now.name);
+  const passes = (one: (typeof all)[number]) => ("now" in one ? one.now : one.then).live || timely(one);
   const address = sameAddress(here.url, again.url);
   return {
     differ: [
@@ -166,9 +177,12 @@ export function whatDiffers(here: { url: string; reading: Reading }, again: { ur
       ...(address === undefined ? [`the address: ${new URL(here.url).pathname} where you are, ${new URL(again.url).pathname} run again`] : []),
     ],
     passing: all.filter(passes).map(said),
+    timely: all.filter(timely).map((one) => ("now" in one ? one.now.name : "")),
     ...(address !== undefined && { address }),
   };
 }
+
+export const TIMED = /\d\s*(s|secs?|seconds?|m|mins?|minutes?|h|hrs?|hours?|d|days?|weeks?)\b|\bago\b|\d{1,2}:\d{2}/i;
 
 const said = (one: ReturnType<typeof differences>["differences"][number]) =>
   "now" in one && "then" in one ? `${one.what}: ${one.then.role} ${quote(one.then.name)} → ${quote(one.now.name)}` : one.what === "new" ? `only run again: ${one.now.role} ${quote(one.now.name)}` : `only where you are: ${one.then.role} ${quote(one.then.name)}`;

@@ -55,12 +55,23 @@ somewhere), and a still where its end holds.
 
 **The read-back.** Kept, `moment` says its length (or that it's a still) and what it's about; `shows`, the things done,
 in plain words (`type “BS-WEB” in Card prefix → click Update`); `before`, the last of the way (kept, never shown); the
-paths of its first and last frames; a line for each click, key or choice after which nothing read on the page changed
-but how something looks or where it's scrolled (`nothing you can see changed. Fine if that's the point`); and how to mark it again with `--last N`. Marked again with the
-same words, it replaces the moment, whatever file it was in. Steps are kept by role and name, a right click as one, words typed where the caret was put as typed, keys that move
+paths of its first and last frames; and how to mark it again with `--last N`. Its frames (`first`, `a-beat-later` with
+nothing done, `after-1`… after each thing done, the last, `held` once the end has held) are pictures the page took of
+itself, in both runs (`seen.ts`): where nothing changed from the first frame to any after it, in both runs, it says
+`Nothing you can see changed in it. Fine if that's the point`, leaving out squares that change with nothing done, that
+differ between the runs at either end, and where words tell the time, so a colour counts and a clock doesn't; what was
+seen moving with nothing done is named (`Moves by itself, and isn't counted`); an end still changing in both runs once it
+held is said, with what to do (name what comes late as the moment's thing, which its check waits for). Words that tell the
+time, reworded only in their numbers, pass the landing check and are said. A moment that won't land because something
+the agent saw came later says to name it. Recordings and the agent's browser may write to the clipboard. Marked again with
+the same words, it replaces the moment, whatever file it was in. Steps are kept by role and name, a switch, checkbox,
+radio or slider with no name by its role and which it is (read back as "a switch with no name"), a right click as one, words typed where the caret was put as typed, keys that move
 it too. The recording keeps the pointer, the text cursor and each key that does something (Escape, Enter, Tab, arrows,
 shortcuts), never letters typed; and hides a dev server's own badge (Next's), never touching the app. `again` runs every
-moment on the code as it is now and says each is the same, different, new, or couldn't get there. `wait` hands back,
+moment on the code as it is now and says each is the same, different, new, or couldn't get there; one kept before
+moments had a start (its file does everything in its step, `wayBefore`) comes out with its start by the rule. `drop` on a
+moment a note is waiting on, and `reply` to a note whose moment won't be handed back, refuse until a moment has been marked
+since the note came: the person sees what was done in a moment, not only in words. `wait` hands back,
 stops the `as` browser, and prints each note on its moment with how to stand there; `reply` answers one. When the
 person says Done, `wait` ends.
 

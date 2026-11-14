@@ -86,7 +86,9 @@ Wait prints each note on its moment, with a picture of what they saw and how to 
 "<moment>"). Then:
 7. Change the app.
 8. playthrough again: every moment runs on the code as it is now, and each is the same, different (and how), or
-   couldn't get there. Get to one that couldn't by hand and mark it again with the same words, or drop it. One nobody
-   spoke on that's now different is worth a look too.
+   couldn't get there. For each note, the person must be able to see what you did: in the moment it was on, run again,
+   or in a moment you mark for it. One that couldn't get there because of your change, get to by hand and mark again
+   with the same words, or mark what's there now. Drop a moment only when what it showed no longer exists and nobody
+   spoke on it. One nobody spoke on that's now different is worth a look too.
 9. playthrough reply <note> "<what you did, in a line>" for each note: your answer is the only why the person sees.
 10. playthrough wait, in the background, again. When the person says every moment looks good, it ends: the change is done.

@@ -16,7 +16,8 @@ export const RECORDING = "playthrough recording";
 export const READINGS = "playthrough readings";
 export const GLIMPSES = "playthrough glimpses";
 export const PICTURE = "playthrough picture";
-export const OPENING = "playthrough opening";
+// A frame of a moment's, pictured by its name: "first", "a-beat-later", "after-1"…, "held".
+export const PICTURED = "playthrough frame";
 export const ASSETS = "playthrough assets";
 export const PERSON = "playthrough person";
 export const HANDS = "playthrough hands";
@@ -33,8 +34,9 @@ export async function readingsOn(reviews: Reviews, review: string, round: number
   return bytes ? JSON.parse(Buffer.from(bytes).toString()) : [];
 }
 const picturesOf = (scene: Scene) => `readings/${scene.recording.replace(/\.json$/, "")}`;
-// The page as its first step began, at rest: a moment's first frame.
-export const openingOf = (scene: Scene) => `${picturesOf(scene)}/first.png`;
+// A moment's frames, beside its step's pictures: the page as its step began, at rest ("first"); the same a beat later, with
+// nothing done ("a-beat-later"); after each thing it does ("after-1"…); and once its end has held ("held").
+export const frameOf = (scene: Scene, name: string) => `${picturesOf(scene)}/${name}.png`;
 // And what was glimpsed after each action, beside them.
 export const glimpsesOf = (scene: Scene) => `${picturesOf(scene)}.glimpses.json`;
 
@@ -95,7 +97,7 @@ export default class Scenes implements Reporter {
       readings: JSON.parse(result.attachments.find((attachment) => attachment.name === READINGS)?.body?.toString() ?? "[]"),
       glimpses: JSON.parse(result.attachments.find((attachment) => attachment.name === GLIMPSES)?.body?.toString() ?? "[]"),
       pictures: result.attachments.filter((attachment) => attachment.name === PICTURE).map((attachment) => attachment.body!),
-      opening: result.attachments.find((attachment) => attachment.name === OPENING)?.body,
+      frames: result.attachments.filter((attachment) => attachment.name.startsWith(`${PICTURED} `)).map((attachment) => ({ name: attachment.name.slice(PICTURED.length + 1), body: attachment.body! })),
       assets: JSON.parse(result.attachments.find((attachment) => attachment.name === ASSETS)?.body?.toString() ?? "{}"),
       actions: JSON.parse(result.attachments.find((attachment) => attachment.name === ACTIONS)?.body?.toString() ?? "[]"),
       hands: JSON.parse(result.attachments.find((attachment) => attachment.name === HANDS)?.body?.toString() ?? "[]"),
@@ -146,7 +148,7 @@ export default class Scenes implements Reporter {
 
   // A scene cut short ends where it stopped, held as long as any scene's end, with the same last event (rrweb's custom
   // events are type 5). The step it stopped at left nothing to read.
-  #scene(name: string, recording: Buffer, read: { readings: Omit<Reading, "picture">[]; glimpses: Glimpse[]; pictures: Buffer[]; opening?: Buffer; assets: Assets; actions: Acted[]; hands: Hand[] }, steps: TestStep[], until?: number): Recorded {
+  #scene(name: string, recording: Buffer, read: { readings: Omit<Reading, "picture">[]; glimpses: Glimpse[]; pictures: Buffer[]; frames: { name: string; body: Buffer }[]; assets: Assets; actions: Acted[]; hands: Hand[] }, steps: TestStep[], until?: number): Recorded {
     let events: Event[] = JSON.parse(recording.toString());
     if (until !== undefined) events = [...events.filter((event) => event.timestamp < until), { type: 5, data: { tag: "end", payload: {} }, timestamp: until + HOLD }];
     const start = events[0]!.timestamp;
@@ -171,14 +173,14 @@ export default class Scenes implements Reporter {
 
     // The assets are in the folder already, kept as the page loaded them.
     const glimpses = read.glimpses.filter((glimpse) => glimpse.at <= length);
-    const files = [scene.recording, readingsOf(scene), glimpsesOf(scene), ...readings.map((reading) => reading.picture), ...(read.opening ? [openingOf(scene)] : []), assetsOf(scene.recording), ...new Set(Object.values(read.assets))];
+    const files = [scene.recording, readingsOf(scene), glimpsesOf(scene), ...readings.map((reading) => reading.picture), ...read.frames.map((frame) => frameOf(scene, frame.name)), assetsOf(scene.recording), ...new Set(Object.values(read.assets))];
     for (const folder of [picturesOf(scene), "assets"]) mkdirSync(join(this.#folder, folder), { recursive: true });
     writeFileSync(join(this.#folder, scene.recording), JSON.stringify(events));
     writeFileSync(join(this.#folder, readingsOf(scene)), JSON.stringify(readings));
     writeFileSync(join(this.#folder, glimpsesOf(scene)), JSON.stringify(glimpses));
     writeFileSync(join(this.#folder, assetsOf(scene.recording)), JSON.stringify(read.assets));
     read.pictures.forEach((picture, i) => writeFileSync(join(this.#folder, readings[i]!.picture), picture));
-    if (read.opening) writeFileSync(join(this.#folder, openingOf(scene)), read.opening);
+    for (const frame of read.frames) writeFileSync(join(this.#folder, frameOf(scene, frame.name)), frame.body);
     return { scene, files };
   }
 

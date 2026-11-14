@@ -69,6 +69,10 @@ test("never from before the thing done before the first shown", () => {
   assert.equal(shownFrom(kept([["click link “Settings”", 1, 1.5], ["press Enter textbox “Search”", 1.8, 2]])), 1.5);
 });
 
+test("one kept before with nothing done in it at all is a still where its end holds", () => {
+  assert.equal(shownFrom(kept([], 30)), 28.5);
+});
+
 test("one with a start is shown from it", () => {
   assert.equal(shownFrom({ ...kept([["click link “Settings”", 1, 1.5]]), from: 0.4 }), 0.4);
 });

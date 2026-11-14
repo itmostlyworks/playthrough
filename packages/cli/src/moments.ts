@@ -14,10 +14,10 @@
 // what's kept of it, its recording and what it's about, is in the round being worked on, until it's handed back.
 
 import { chromium, type Page } from "@playwright/test";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { differences, type Glimpse, type Reading } from "@playthrough/page";
-import { allNotes, conversation, list, MOST_SHOWN, notesToAnswer, quote, Refused, roundInProgress, startOf, toAccountFor, type Change, type Review, type Round, type Scene } from "@playthrough/review";
+import type { Glimpse, Reading } from "@playthrough/page";
+import { allNotes, conversation, list, MOST_SHOWN, notesToAnswer, shownFrom, quote, Refused, roundInProgress, startOf, toAccountFor, type Change, type Review, type Round, type Scene } from "@playthrough/review";
 import { agent } from "./agent.ts";
 import { browserFile, stopBrowser, type Browser } from "./as.ts";
 import { changeHere, momentNamed, momentsOf } from "./change.ts";
@@ -25,11 +25,12 @@ import { compareWithEarlier } from "./compare.ts";
 import { pictureNotes } from "./noted.ts";
 import { readPage, unhovered } from "./read.ts";
 import type { Repo } from "./repo.ts";
-import { glimpsesOf, openingOf, readingsOf, type Failed } from "./reporter.ts";
+import { frameOf, glimpsesOf, readingsOf, type Failed } from "./reporter.ts";
 import { markUnsteady, recorder, runOnce } from "./scenes.ts";
+import { seenChanging, SQUARE, squaresOf, type Square } from "./seen.ts";
 import { setupIn } from "./setup.ts";
 import { listening } from "./wait.ts";
-import { aboutSaid, ENDED, fileOf, sceneOf, whatDiffers, type About, type Done } from "./way.ts";
+import { aboutSaid, ENDED, fileOf, sceneOf, TIMED, wayBefore, whatDiffers, type About, type Done } from "./way.ts";
 
 // What a moment says is what's there, short enough to sit under a picture of it: who and where, the person sees.
 const MOST_WORDS = 10;
@@ -94,8 +95,11 @@ export async function moment(repo: Repo, words: string, named?: string, last?: n
   }
   const readings: Reading[] = JSON.parse(recorded.files.find((one) => one.name === readingsOf(recorded.scene))!.bytes.toString());
   const ended: string = JSON.parse(readFileSync(join(trying, ENDED), "utf8")).url;
-  const { differ } = whatDiffers(there, { url: ended, reading: readings.at(-1)! });
-  if (differ.length) throw notKept(`it ended somewhere else. What differs from where you are:\n${differ.map((one) => `  ${one}`).join("\n")}`);
+  const { differ, timely } = whatDiffers(there, { url: ended, reading: readings.at(-1)! });
+  if (differ.length)
+    throw notKept(
+      `it ended somewhere else. What differs from where you are:\n${differ.map((one) => `  ${one}`).join("\n")}${differ.some((one) => one.startsWith("only where you are")) ? "\nIf what's only where you are comes a while after what you did, name it as the moment's thing: the moment waits for it." : ""}`,
+    );
 
   // Run once more, what changes by itself, as a caret blinking or a time the server stamps, is known, and left out
   // whenever it's compared again.
@@ -103,6 +107,18 @@ export async function moment(repo: Repo, words: string, named?: string, last?: n
   const twice = await runOnce({ scenes: trying, only: [words], app: await repo.app(), root: repo.root, recorder, before: false, taken: [], started: review.started });
   if (!twice.recorded.length) throw notKept(`it got there once, but not a second time${twice.failed[0]?.why ? `: ${twice.failed[0].why}` : ""}. Make what it starts from the same each time, in playthrough/setup.ts.`);
   await markUnsteady(Math.max(1, roundInProgress(review)), ran.recorded, twice.recorded);
+  // Its first and last frames, in both runs, for whether it changes anything you can see.
+  const framesOf = ({ scene, files }: (typeof ran.recorded)[number]) => {
+    const file = (name: string) => files.find((one) => one.name === name)?.bytes;
+    const end: Reading | undefined = JSON.parse(file(readingsOf(scene))?.toString() ?? "[]").at(-1);
+    const [first, later, last, held] = [file(frameOf(scene, "first")), file(frameOf(scene, "a-beat-later")), end && file(end.picture), file(frameOf(scene, "held"))];
+    const after = files.filter((one) => /\/after-\d+\.png$/.test(one.name)).map((one) => one.bytes);
+    return first && later && last ? { first, later, after, last, held } : undefined;
+  };
+  const frames = [framesOf(recorded), framesOf(twice.recorded[0]!)];
+  const opening: Glimpse | undefined = JSON.parse(recorded.files.find((one) => one.name === glimpsesOf(recorded.scene))?.bytes.toString() ?? "[]")[0];
+  const timed = (opening?.things ?? []).filter((thing) => TIMED.test(thing.name)).flatMap((thing) => squaresOf(thing.box));
+  const seen = frames[0] && frames[1] ? await seenChanging([frames[0], frames[1]], timed).catch(() => undefined) : undefined;
 
   mkdirSync(repo.scenes(id), { recursive: true });
   writeFileSync(join(repo.scenes(id), "package.json"), `{ "type": "module" }\n`);
@@ -132,13 +148,15 @@ export async function moment(repo: Repo, words: string, named?: string, last?: n
   console.log(`\nKept ${/[“"]/.test(words) ? words : quote(words)}${still ? ", a still: nothing happens in it" : `, ${length.toFixed(1)} s`}${there.about ? `, about the ${aboutSaid(there.about)}` : ""}.`);
   if (!still) console.log(`  shows    ${shown.map(saidOf).join(" → ")}`);
   if (before.length) console.log(`  before   ${before.length > 3 ? "… " : ""}${before.slice(-3).map(saidOf).join(" → ")}   (kept, never shown)`);
-  if (step && !still) console.log(`  first    ${shownAt(openingOf(recorded.scene))}`);
+  if (step && !still) console.log(`  first    ${shownAt(frameOf(recorded.scene, "first"))}`);
   console.log(`  ${still ? "picture" : "last   "}  ${shownAt(readings.at(-1)!.picture)}`);
-  for (const i of unseen(shown, step, glimpses, readings.at(-1)!)) {
-    const alike = shown.filter((one) => saidOf(one) === saidOf(shown[i]!));
-    const which = alike.length > 1 ? ` (the ${["first", "second", "third", "fourth"][alike.indexOf(shown[i]!)] ?? "last"})` : "";
-    console.log(`  After ${saidOf(shown[i]!)}${which}, nothing you can see changed. Fine if that's the point; if not, it isn't this moment's.`);
+  if (!still && seen && !seen.changed.length) console.log(`  Nothing you can see changed in it. Fine if that's the point; if not, look at its first and last frames.`);
+  const moving = seen ? movingNamed(seen.moving, glimpses[0]) : [];
+  if (moving.length) {
+    console.log(`  Moves by itself, and isn't counted: ${list(moving.map(quote))}. If it's the app still arriving, it plays in the moment too.`);
   }
+  if (seen?.unsettled.length) console.log(`  It was still changing when it ended. If what it shows comes late, name that as the moment's thing: the moment waits for it.`);
+  if (timely.length) console.log(`  Left out of where it lands, as it changes with time: ${list(timely.map(quote))}.`);
   console.log(`Not what you meant? Mark it again with --last N, the last N things done (0 is a still).`);
 }
 
@@ -181,33 +199,19 @@ function unclear(done: Done[], at: number, why: "long" | "brought", again: strin
 // A thing done, as a person would say it: “type “BS-WEB” in Card prefix”, “click Update”.
 function saidOf(one: Done): string {
   const on = one.name ?? one.text ?? one.what ?? "";
-  const into = on ? ` in ${on}` : "";
+  const into = on ? ` in ${on}` : one.role ? ` in a ${one.role} with no name` : "";
   if (one.does === "goto") return `go to ${one.with}`;
   if (one.does === "fill" || one.does === "type") return `type ${quote(one.with ?? "")}${into}`;
   if (one.does === "selectOption") return `choose ${quote(one.with ?? "")}${into}`;
   if (one.does === "press") return `press ${one.with}${into}`;
-  return `${one.button === "right" ? "right-click" : "click"} ${on || "the page"}`;
+  return `${one.button === "right" ? "right-click" : "click"} ${on || (one.role ? `a ${one.role} with no name` : "the page")}`;
 }
 
-// Where a page read is scrolled to, from where its first thing is on the page and on the screen.
-const scrollOf = ({ things: [first] }: Glimpse) => (first ? `${first.page.x - first.box.x},${first.page.y - first.box.y}` : "");
-
-// What the moment shows that changed nothing you can see: each click, key or choice, the page read before it against
-// after it (the moment's first frame, what was glimpsed after each, and the page at rest at its end). Words typed show as
-// they go in. Only the look of something, as the pointer over it, isn't a change.
-function unseen(shown: Done[], step: Scene["steps"][number] | undefined, glimpses: Glimpse[], end: Reading): number[] {
-  const began = step?.began ?? [];
-  const ended = step?.actions ?? [];
-  if (began.length !== shown.length || !step) return [];
-  const at = (time: number) => glimpses.findLast((one) => one.at <= time + 0.01);
-  return shown.flatMap((one, i) => {
-    if (one.does === "fill" || one.does === "type") return [];
-    const before = at(began[i]!.at);
-    const after = i === shown.length - 1 ? end : glimpses.find((glimpse) => glimpse.at >= ended[i]! - 0.01);
-    if (!before || !after) return [];
-    if (scrollOf(before) !== scrollOf(after)) return [];
-    return differences({ ...before, picture: "" }, { ...after, picture: "" }).differences.some((difference) => difference.what !== "looks different") ? [] : [i];
-  });
+// What moves by itself, said by the smallest things named there in the moment's first frame, a few at most.
+function movingNamed(moving: Square[], first: Glimpse | undefined): string[] {
+  const touches = ({ box }: Glimpse["things"][number]) => moving.some(({ x, y }) => box.x < (x + 1) * SQUARE && box.x + box.width > x * SQUARE && box.y < (y + 1) * SQUARE && box.y + box.height > y * SQUARE);
+  const named = (first?.things ?? []).filter((thing) => thing.name && !TIMED.test(thing.name) && touches(thing)).sort((a, b) => a.box.width * a.box.height - b.box.width * b.box.height);
+  return [...new Set(named.map((thing) => thing.name))].slice(0, 3);
 }
 
 // The last thing done something to on the way that's still on the page at its end, as the page's reading has it (a
@@ -294,10 +298,37 @@ async function aboutOn(page: Page, words: string, named?: string): Promise<{ abo
 export async function drop(repo: Repo, words: string) {
   const id = await changeHere(repo);
   const moment = momentNamed(repo, id, words);
+  const review = await repo.reviews.get(id);
+  // A moment a note is on is where the person sees what was done about it: dropped, they'd have nowhere to look, unless a
+  // moment marked since the note came shows it.
+  const on = notesOn(review, moment.words);
+  if (on.length && !markedSinceNotes(repo, review, on, moment.words).length)
+    throw new Refused([
+      `${on.length > 1 ? `Notes ${list(on)} are` : `Note ${on[0]} is`} on ${quote(moment.words)}: the person sees what you did about ${on.length > 1 ? "them" : "it"} in a moment, not only in your answer. Mark one that shows it first, a still where it was if it's gone (playthrough moment "<what's there now>"); then drop this one, if what it showed no longer exists.`,
+    ]);
   rmSync(moment.file);
-  const last = (await repo.reviews.get(id)).rounds.at(-1);
+  const last = review.rounds.at(-1);
   if (last && !last.finished) await repo.reviews.saveRound(id, { ...last, scenes: last.scenes.filter((scene) => scene.name !== moment.words) });
   console.log(`Dropped ${quote(moment.words)}: it isn't run again, or handed back.`);
+}
+
+// The notes waiting for an answer on a moment.
+function notesOn(review: Review, moment: string): string[] {
+  const notes = allNotes(review);
+  return notesToAnswer(review, roundInProgress(review)).filter((id) => {
+    const on = notes.get(id)?.note.on;
+    return (on?.app?.from.scene ?? on?.scene) === moment;
+  });
+}
+
+// The moments marked since the person's notes reached the agent, other than the one they're on: where what was done about
+// them can be seen.
+function markedSinceNotes(repo: Repo, review: Review, notes: string[], besides?: string): string[] {
+  const sent = review.sends.filter((send) => send.notes.some((note) => notes.includes(note.id)));
+  const reached = Math.max(0, ...review.taken.filter((taken) => sent.some((send) => send.id === taken.send)).map((taken) => Date.parse(taken.at)));
+  return momentsOf(repo, review.id)
+    .filter((moment) => moment.words !== besides && statSync(moment.file).mtimeMs > reached)
+    .map((moment) => moment.words);
 }
 
 // Every moment again, on the code as it is now, by its way there: recorded, compared with what was last handed back, and
@@ -319,9 +350,12 @@ export async function again(repo: Repo) {
   const marked = (name: string) => review.rounds.findLast((round) => round.scenes.some((scene) => scene.name === name))?.scenes.find((scene) => scene.name === name);
   const scenes = ran.recorded
     .map(({ scene }) => {
-      // A moment with a start keeps it: its file has the way there before its step, which begins where it's shown from.
-      const { about, acted, from } = marked(scene.name) ?? {};
-      return { ...scene, ...(about && { about }), ...(acted && { acted }), ...(from !== undefined && scene.steps[0] && { from: scene.steps[0].at }) };
+      // Its start: where its step begins, its file doing the way there before it; or, kept before moments had a start,
+      // where the rule starts it in what was recorded, as the page would show it.
+      const { about, acted } = marked(scene.name) ?? {};
+      const file = moments.find((one) => one.words === scene.name)?.file;
+      const from = file && wayBefore(readFileSync(file, "utf8")) && scene.steps[0] ? scene.steps[0].at : shownFrom({ ...scene, from: undefined });
+      return { ...scene, ...(about && { about }), ...(acted && { acted }), from };
     })
     .sort((a, b) => order(a) - order(b));
   const kept = review.rounds.find((round) => round.number === number);
@@ -369,6 +403,14 @@ export async function reply(repo: Repo, note: string, words: string | undefined)
   if (!words?.trim()) throw new Refused([`Say it: playthrough reply ${note} "<what you did, in a line>"`]);
   const kept = review.rounds.find((round) => round.number === number);
   if (!kept) throw new Refused(["Run playthrough again first: the answer goes with the moments as they are now."]);
+  // Answered on a moment that won't be handed back (dropped, or it couldn't get there), the person would read what you did
+  // with nothing to see it in.
+  const on = allNotes(review).get(note)?.note.on;
+  const moment = on?.app?.from.scene ?? on?.scene;
+  if (moment && !kept.scenes.some((scene) => scene.name === moment) && !markedSinceNotes(repo, review, [note]).length)
+    throw new Refused([
+      `Note ${note} is on ${quote(moment)}, which isn't in what you'd hand back: the person would read your answer with nothing to see it in. Mark a moment that shows what you did (playthrough moment "<what's there>"), or get ${quote(moment)} there again and mark it with the same words; then answer.`,
+    ]);
   await repo.reviews.saveRound(id, { ...kept, replies: [...kept.replies.filter((one) => one.note !== note), { note, words: words.trim() }] });
   console.log(`Answered ${note}.`);
 }
