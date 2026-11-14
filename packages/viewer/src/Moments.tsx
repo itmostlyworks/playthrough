@@ -9,7 +9,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 import type { Glimpse, Reading, Thing } from "@playthrough/page";
 import { allNotes, conversation, newId, pausedAt, shownFrom, together, waitingForTheAgent, type Turn, type Did, type Note, type Place, type Review, type Round, type Scene } from "@playthrough/review";
 import { fineStill, glimpses, keepBranch, noteFrame, picture, readings as readingsOf, recording, send, useChanges, useYou, type Listed, type NoteFrame } from "./api.ts";
-import { Edge, Tile } from "./Edge.tsx";
+import { Edge, TILE, Tile } from "./Edge.tsx";
 import { Key, tick } from "./Card.tsx";
 import { around, Picture, union, type Frame } from "./Picture.tsx";
 import { workingSince } from "./notes.ts";
@@ -1350,15 +1350,9 @@ function MomentView(props: {
           strong={open === note.id}
           lit={pointed === note.id}
           arriving={before && !before.has(note.id) ? "right" : undefined}
-          picture={
-            <>
-              <NotePicture frame={frames[note.id]} sent={isSent} />
-              {/* On the side toward the recording, which the screen's edge never fades. */}
-              {/* At rest; come forward, its words say it. */}
-              {fresh && <span className={`absolute top-1.5 left-1.5 rounded-full bg-fg px-1.5 text-[10.5px] leading-4 font-medium text-ground transition-opacity duration-200 ease-calm ${forward ? "opacity-0" : ""}`}>New</span>}
-            </>
-          }
-          words={<NoteWords words={words} stands={stands} fresh={fresh} />}
+          strip
+          picture={<NotePicture frame={frames[note.id]} sent={isSent} />}
+          words={<NoteWords words={words} stands={stands} fresh={fresh} short />}
           onPress={() => openNote(note.id)}
           onPoint={(now) => setPointed(now ? note.id : undefined)}
         />
@@ -1660,44 +1654,63 @@ function useFrames(review: Review, notes: { note: Note; shown?: Made }[]): Recor
 }
 
 // A note's words, as its picture on the edge says them and its pin does pointed at.
-function NoteWords({ words, stands, fresh }: { words: string; stands: string; fresh: boolean }) {
+// Under its strip on the edge, two lines; by its pin, three.
+function NoteWords({ words, stands, fresh, short }: { words: string; stands: string; fresh: boolean; short?: boolean }) {
   return (
     <>
-      <span className="line-clamp-3 text-[12.5px] leading-[17px] text-fg">{words}</span>
+      <span className={`${short ? "line-clamp-2" : "line-clamp-3"} text-[12.5px] leading-[17px] text-fg`}>{words}</span>
       <span className={`block text-[11.5px] leading-4 ${fresh ? "font-medium text-fg" : stands === "answered" ? "text-soft" : "text-faint"}`}>{stands}</span>
     </>
   );
 }
 
-// A note's picture on the edge: its frame closed in on what it's on, as a moment's still is, with its pin there.
+// A note's strip on the edge: its frame, cut for the strip's own shape around the thing it's on, so that thing is what
+// you see, with its pin where it sits on the recording. The thing whole where it can be, a little of what's around it,
+// never drawn larger than it was recorded nor much smaller, where its words stop being read; toward the
+// recording, as the screen's edge fades the other side at rest.
 function NotePicture({ frame, sent }: { frame?: NoteFrame; sent: boolean }) {
   if (!frame) return null;
   const { screen, box } = frame;
-  const thing = box && { x: box.x * screen.width, y: box.y * screen.height, width: box.width * screen.width, height: box.height * screen.height };
-  // Closed in with its thing a little toward the recording, as the edge fades away on its other side,
-  const centred = thing && around(thing, screen, STILL, 3);
-  // and high, clear of where its words land as the edge comes forward.
-  const part = centred && box && {
-    ...centred,
-    x: clamp(centred.x + centred.width * 0.14, 0, 1 - centred.width),
-    y: clamp(box.y + box.height / 2 - centred.height * 0.3, 0, 1 - centred.height),
-  };
-  // Its pin, as on the recording: just outside its thing's top right corner, or on its spot.
-  const pin = box && part && { x: (box.x + box.width - part.x) / part.width, y: (box.y - part.y) / part.height };
-  const out = box && box.width ? 9 : 0;
+  const part = stripOf(screen, box && { x: box.x * screen.width, y: box.y * screen.height, width: box.width * screen.width, height: box.height * screen.height });
+  // Its pin, as on the recording: just outside its thing's top right corner, or on its spot; always whole in the strip.
+  const out = box && box.width ? 6 : 0;
+  const pin = box && { x: (box.x + box.width - part.x) / part.width, y: (box.y - part.y) / part.height };
   return (
     <span className="absolute inset-0 animate-arrive">
-      <span className="absolute inset-0" style={part && fadeOf(part)}>
-        <Picture shot={{ src: frame.src, frame: part }} />
-      </span>
+      <Picture shot={{ src: frame.src, frame: part }} />
       {pin && (
         <i
           className={`absolute size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full shadow-[0_0_0_2px_#fff,0_1px_3px_rgb(0_0_0/0.25)] ${sent ? "bg-slate" : "bg-amber"}`}
-          style={{ left: `calc(${clamp(pin.x) * 100}% + ${out}px)`, top: `calc(${clamp(pin.y) * 100}% - ${out}px)` }}
+          style={{ left: `clamp(7px, calc(${clamp(pin.x) * 100}% + ${out}px), calc(100% - 7px))`, top: `clamp(7px, calc(${clamp(pin.y) * 100}% - ${out}px), calc(100% - 7px))` }}
         />
       )}
     </span>
   );
+}
+
+// The part of a note's frame its strip shows, in shares of the screen, this wide for its height:
+// - a small thing (a switch, a button) at the size it was recorded, with what's beside it, as its label;
+// - a wide line (a heading, a field), from its start, at most a little smaller than it was recorded, so it reads;
+// - something far larger than the strip (a pane, a list), its top left, at that readable size, not all of it shrunk;
+// - a spot with no thing, around the spot at the size it was recorded;
+// - all of it inside the screen, so a thing at the screen's edge sits at the strip's.
+const STRIP = 3.8;
+function stripOf(screen: { width: number; height: number }, thing?: { x: number; y: number; width: number; height: number }): Frame {
+  const [round, widest, around] = [TILE, TILE * 1.6, 20];
+  const spot = !thing || (!thing.width && !thing.height);
+  let width = spot ? round * 1.5 : Math.min(widest, Math.max(round, thing.width + 2 * around, (thing.height + 16) * STRIP));
+  width = Math.min(width, screen.width, screen.height * STRIP);
+  const height = width / STRIP;
+  const [middle, centre] = thing ? [thing.x + thing.width / 2, thing.y + thing.height / 2] : [screen.width / 2, screen.height / 2];
+  // Toward the recording: its middle two fifths in, kept whole where it fits.
+  const x = spot || thing.width + 2 * around <= width ? Math.min(Math.max(middle - width * 0.4, (thing?.x ?? middle) + (thing?.width ?? 0) + 8 - width), (thing?.x ?? middle) - 8) : thing.x - around;
+  const y = spot || thing.height + 16 <= height ? centre - height / 2 : thing.y - 8;
+  return {
+    x: clamp(x, 0, screen.width - width) / screen.width,
+    y: clamp(y, 0, screen.height - height) / screen.height,
+    width: width / screen.width,
+    height: height / screen.height,
+  };
 }
 
 // How far through what's shown playing is: a slim line inside Play, there once the moment has left its end, filling

@@ -96,11 +96,16 @@ plays and pauses it, as Space does.
 the order said. Each is a picture of one size (176 by 110), one after another, at rest beside the recording and never
 over it, 16px from it, running past the screen's edge and fading into it. Pointed at (after a breath, 70ms; going back
 after 220ms), or reached with Tab, an edge comes forward: it slides until its pictures are 16px from the screen's edge,
-a little over the recording, each a card whose words come up over its picture's lower part: a moment's who by name and
-its words, a note's latest words in up to three lines and where it stands ("not sent yet", "sent", "answered"). A touch brings it forward first. Many scroll in their own column, under the wheel, their cut end
+a little over the recording. A moment's card's words, who by name and its words, come up over its picture's lower part.
+A note's card is the same at rest and forward, nothing in it moving: a slim strip of its picture over its latest words
+in two lines and where it stands ("not sent yet", "sent", "answered", "new answer"). A touch brings it forward first. Many scroll in their own column, under the wheel, their cut end
 fading over 64px; the moment you're on, a note open or one arriving is scrolled into view. A moment's picture is the
 list's still, the others' quieter than the one you're on, with its notes' dots; pressed, the moment changes in place.
-A note's picture is the frame it was made on closed in on its thing, a little toward the recording, with its pin: a
+A note's strip is cut for its own shape (`stripOf`) around its thing, with its pin by the thing's top right corner:
+a small thing (a switch, a button) at the size it was recorded, with what's beside it; a wide line or something far
+larger than the strip (a heading, a pane) from its start or top left, a little smaller at most, so it reads; a spot
+with no thing, around the spot; never larger than recorded, always inside the screen, and two fifths in from the
+recording's side, which the screen's edge never fades. It's cut from the frame its thing is shown on: a
 kept picture, never a recording played (`useFrames`): one made at a taking's end is that taking's own picture; any
 other is drawn once by `playthrough open` in a browser of its own from the recording it was made on (`frames.ts`,
 the viewer's `?frame=` page, `Frame.tsx`) and kept with what the person did (`branches/frames/<note>.png` and `.json`,

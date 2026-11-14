@@ -1,7 +1,8 @@
-// A moment's edges: on the left the change's moments, on the right this moment's notes, each a picture of the same size
-// one after another. At rest they sit beside the recording, never over it, fading into the screen's edge. Pointed at,
-// or reached with Tab, they come forward, all the way onto the screen and a little over the recording, each with its
-// words; a touch brings them forward first. While you're in the app they rest, quieter, as everything that drives the
+// A moment's edges: on the left the change's moments, each a picture, on the right this moment's notes, each a slim
+// strip of its thing over what was said, all one size, one after another. At rest they sit beside the recording, never
+// over it, fading into the screen's edge. Pointed at, or reached with Tab, they come forward, all the way onto the
+// screen and a little over the recording, a moment's words coming up over its picture, a note's card as it was; a
+// touch brings them forward first. While you're in the app they rest, quieter, as everything that drives the
 // recording does. On a phone there's no room beside the recording: they're rows under it, words and all.
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
@@ -171,10 +172,12 @@ export function Tile(props: {
   arriving?: "left" | "right";
   picture: ReactNode;
   words: ReactNode;
+  // A note's: a slim strip of its picture over its words, both always shown, rather than a picture its words come over.
+  strip?: boolean;
   onPress: () => void;
   onPoint?: (pointed: boolean) => void;
 }) {
-  const { id, label, forward, strong, quiet, lit, arriving: from, picture, words, onPress, onPoint } = props;
+  const { id, label, forward, strong, quiet, lit, arriving: from, picture, words, strip, onPress, onPoint } = props;
   const arriving = !!from;
   const own = useRef<HTMLButtonElement>(null);
   // A new one comes in from past the screen's edge, so it's seen arriving where it'll stay.
@@ -206,15 +209,25 @@ export function Tile(props: {
       className={`group/tile block w-full rounded-xl p-1.5 text-left transition-[background-color,box-shadow,opacity] duration-200 ease-calm focus-visible:outline-none ${forward ? "bg-surface shadow-[0_0_0_1px_var(--edge)]" : "bg-ground shadow-[0_0_0_0_transparent]"}`}
     >
       <span
-        className={`relative block aspect-[1.6] overflow-hidden rounded-lg bg-paper transition-[box-shadow,opacity,scale] duration-200 ease-calm group-active/tile:scale-[0.97] group-active/tile:duration-75 ${quiet && !strong ? "opacity-80 group-hover/tile:opacity-100 group-focus-visible/tile:opacity-100" : ""} group-focus-visible/tile:shadow-[0_0_0_2px_var(--surface),0_0_0_4px_var(--amber)] ${strong ? "shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--soft)]" : lit ? "shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--faint)]" : "shadow-[0_0_0_1px_var(--edge),0_1px_3px_var(--edge)] group-hover/tile:shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--faint)]"}`}
+        className={`relative block overflow-hidden rounded-lg ${strip ? "flex flex-col bg-surface" : "aspect-[1.6] bg-paper"} transition-[box-shadow,opacity,scale] duration-200 ease-calm group-active/tile:scale-[0.97] group-active/tile:duration-75 ${quiet && !strong ? "opacity-80 group-hover/tile:opacity-100 group-focus-visible/tile:opacity-100" : ""} group-focus-visible/tile:shadow-[0_0_0_2px_var(--surface),0_0_0_4px_var(--amber)] ${strong ? "shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--soft)]" : lit ? "shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--faint)]" : "shadow-[0_0_0_1px_var(--edge),0_1px_3px_var(--edge)] group-hover/tile:shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--faint)]"}`}
       >
-        {picture}
-        {/* Its words come up over the picture's lower part, on the card's own ground, as the edge comes forward. */}
-        <span
-          className={`absolute inset-x-0 bottom-0 bg-surface px-2 pt-1.5 pb-[7px] transition-[opacity,translate] duration-200 ease-calm ${forward ? "translate-y-0 opacity-100 delay-75" : "pointer-events-none translate-y-1 opacity-0"}`}
-        >
-          {words}
-        </span>
+        {strip ? (
+          // The same at rest and forward: nothing inside it moves.
+          <>
+            <span className="relative block aspect-[3.8] flex-none overflow-hidden bg-paper">{picture}</span>
+            <span className="block px-2 pt-1.5 pb-[7px]">{words}</span>
+          </>
+        ) : (
+          <>
+            {picture}
+            {/* Its words come up over the picture's lower part, on the card's own ground, as the edge comes forward. */}
+            <span
+              className={`absolute inset-x-0 bottom-0 bg-surface px-2 pt-1.5 pb-[7px] transition-[opacity,translate] duration-200 ease-calm ${forward ? "translate-y-0 opacity-100 delay-75" : "pointer-events-none translate-y-1 opacity-0"}`}
+            >
+              {words}
+            </span>
+          </>
+        )}
       </span>
     </button>
   );
