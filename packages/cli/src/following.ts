@@ -19,7 +19,7 @@ import type { Kept, Orders } from "./test.ts";
 // last one was taken over is there already, or goes on from where it waits; one past it is run again.
 // With what the run made for it (setup.ts), which is the app the person has, theirs to give back.
 export async function runTo(repo: Repo, id: string, to: To): Promise<{ handed: Handed; made?: Made }> {
-  const where = !to.step ? "its end" : to.actions ? `action ${to.actions} of ${quote(to.step)}` : `the end of ${quote(to.step)}`;
+  const where = !to.step ? "its end" : to.actions ? `action ${to.actions} of ${quote(to.step)}` : to.actions === 0 ? `the start of ${quote(to.step)}` : `the end of ${quote(to.step)}`;
   const resting = { ...to, rests: true };
   try {
     for (const fresh of [false, true]) {

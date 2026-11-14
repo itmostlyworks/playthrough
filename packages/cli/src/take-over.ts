@@ -60,7 +60,7 @@ export async function getReady(
   refuseWhileAside(repo);
   await keepRunning(app, repo.root, { ready: true });
   const began = Date.now();
-  const { handed, made } = await runTo(repo, id, { scene: scene.name, ...(stepName && { step: stepName, ...(actions && { actions }) }), ...(did?.length && { did }), ...(notes?.length && { notes }) });
+  const { handed, made } = await runTo(repo, id, { scene: scene.name, ...(stepName && { step: stepName, ...(actions !== undefined && { actions }) }), ...(did?.length && { did }), ...(notes?.length && { notes }) });
   // One way through for each copy of the app, as each answers at an address of its own.
   if (!passings.has(app.url)) {
     const moments = new Map<string, Handed>();

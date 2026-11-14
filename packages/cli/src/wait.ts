@@ -128,7 +128,7 @@ function where(place: Place | undefined, from?: Scene): string {
   if (place.app) {
     const did = place.app.did.length ? ` and carried on by hand (${list(place.app.did.map(done))})` : "";
     const paused = from && pausedAt(from, place.app.from.at);
-    const step = paused ? `, ${paused.actions ? `after ${paused.actions} of the actions in` : "at the end of"} its step “${paused.step}”` : "";
+    const step = paused ? `, ${paused.actions ? `after ${paused.actions} of the actions in` : paused.actions === 0 ? "at the start of" : "at the end of"} its step “${paused.step}”` : "";
     return `on “${place.app.from.scene}”, in the app: they took the scene over at ${time(place.app.from.at)}${step}${did}${on}`;
   }
   // On a recording, the step it's in names where, as the person sees the steps listed beside it.
