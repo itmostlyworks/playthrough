@@ -43,30 +43,46 @@ http://localhost:5790/: every change in every copy of every app a `playthrough` 
 stills, closed in on what each is about (or, naming nothing, on the last thing done); then those with your agents and
 those done, a line each. The list keeps itself current, but never moves what's under your pointer: one that arrives
 there says at once where it stands and moves when the pointer leaves. A moment opens at
-`/moments/<copy>/<change>/<n>`: Play, Step in (the real app, as that person, started afresh each time; a link out of
-it opens in a tab of your own), Note (on the recording or in the app), Compare with what it was when it was handed
-back before. They're on a bar across the recording's bottom edge, as on the older page, and the line Play fills and
-you drag is under the bar. A click on the recording plays and pauses it, as Space does and as a video's does, in
-Compare too; stepping in is T or the bar's Step in. A note is on the thing it was made on; the same thing drawn again
-(the same role and name, as when the app draws it anew) still counts, and nothing else does. On the recording, a thing
-that isn't there is pinned where it was; in the app, its pin goes while it's gone and comes back with it, never moving
-onto what took its place, as the next card does once one is deleted (`take-over.ts`, by the page's own reading).
-**A note made after stepping in shows the frame you made it on.** One made in the app after doing something there (its
-`did` not empty) is pinned on the moment's picture only where its thing is there too, by role and name. Over the line,
-in the gap under the bar, each such note is a small pin whose point stands on the place you stepped in from, its head as wide
-as a dot on the line, in its own colour (amber unsent, slate sent); those from one place stand side by side in the
-order made, inwards (leftwards at the line's end), never on a note's dot on the line there and always within the line's
-ends; dots on the line stay notes on the recording. Pins and dots answer alike, all by scaling from where they stand:
-larger under the pointer, smaller pressed, larger with a soft halo while their note is open, a new one growing in from
-its point; resting on one says its note's words under the line; the line itself thickens only under the pointer on the
-line, never on a mark; Tab reaches them, with the page's amber ring round the mark. Pressed (or such
-a pin, or `?note=`), the playhead glides to the place under it and the frame cross-fades to that note's frame of your
-kept recording (`app.recording`, from `keepBranch`, so on a later version too), at rest, with its pin on its thing and
-its card, no pointer drawn, nothing played; its mark is chosen, and nothing else on the line changes. Another mark
-shows its note instead, ← → go to the mark that way, and the chosen one again closes it. Escape, the mark again, or a press off the frame and card
-fades back to the moment where it was; Space, a click on it, the line, T, C or another moment act on the moment and close
-it first; Note is off. A note made as you stepped in, before doing anything, is an ordinary note, and Back after noting
-in the app is the moment. Send says your notes; Done says every moment looks good. Neither locks.
+`/moments/<copy>/<change>/<n>`, at rest on its end. **A moment is only what it shows:** its recording plays from
+the scene's `from` (seconds in; the way there before it is kept and never shown; read in one place, `shownFrom`, and a
+moment kept before `from` existed shows whole) to its end. A moment with nothing done from `from` on is a still: where
+Play would be, the bar says "A still". The recording sits in the middle, as large as the room beside its edges lets it
+be (`SIDE`, a tenth of the window, 104 to 160px each side), and never moves or changes size: not as an edge comes
+forward, a note opens or the moment changes (its shape is kept until the next one's is known, and the one you were on
+stays under the new one until it has faded in). The bar across its bottom edge: Play (Space), whose slim line inside it
+fills as it plays, there only once the moment has left its end; Step in (T; the real app, as that person, started
+afresh each time; a link out of it opens in a tab of your own); Note (N, on the recording or in the app); Compare (C)
+with what it was when it was last handed back, both sides playing their shown parts together. A click on the recording
+plays and pauses it, as Space does.
+**The edges** (`Edge.tsx`). On the left, the change's moments; on the right, this moment's notes, sent then unsent, in
+the order said. Each is a picture of one size (176 by 110), one after another, at rest beside the recording and never
+over it, 16px from it, running past the screen's edge and fading into it. Pointed at (after a breath, 70ms; going back
+after 220ms), or reached with Tab, an edge comes forward: it slides until its pictures are 16px from the screen's edge,
+a little over the recording, each a card with its words: a moment's who and words, a note's latest words and where it
+stands ("not sent yet", "sent", "answered"). A touch brings it forward first. Many scroll in their own column, fading
+where they're cut; the moment you're on, a note open or one arriving is scrolled into view. A moment's picture is the
+list's still, the others' quieter than the one you're on, with its notes' dots; pressed, the moment changes in place.
+A note's picture is the frame it was made on closed in on its thing, a little toward the recording, with its pin: a
+kept picture, never a recording played (`useFrames`): one made at a taking's end is that taking's own picture; any
+other is drawn once by `playthrough open` in a browser of its own from the recording it was made on (`frames.ts`,
+the viewer's `?frame=` page, `Frame.tsx`) and kept with what the person did (`branches/frames/<note>.png` and `.json`,
+where its thing is as shares of the screen). A note's pin on the recording and its picture are one thing: pointing at
+either lights both, the thing outlined only then or while open (`Pinned`'s `quiet`).
+**A note is words on a thing in a picture.** Its pin is on the recording at rest whenever its thing is there: made on
+this taking, that very thing; made in the app or on an earlier taking, the same thing drawn here, found by its role and
+name, never on whatever says the same words; on a spot, only on this taking where it was made. In the app, its pin
+goes while its thing is gone and comes back with it, never onto what took its place (`take-over.ts`). Opened (its picture, its pin, ← →, or `?note=`), the recording
+cross-fades to that note's kept picture, whichever recording it was made on (the moment's end, part-way, an earlier
+taking, or yours after stepping in: they're all alike), with its pin on its thing and its card, and nothing more; its
+picture on the edge stays strong. Escape, its picture again, or a press anywhere but its card or the edges closes it,
+fading where it was; Space, T and C act on the moment and close it first; Note is off. A reply waits to be clicked
+into, so ← → go on through the notes. A note just saved arrives at the foot of the edge, coming in from past the
+screen's edge; one made in the app joins the edge, and its moment's dots, once you're back. While you're in the app the
+edges rest, quieter, and can't be pressed. Keys: Space, T, N, C; ↑ ↓ (and K, J) the moment before and next; ← → this
+moment's notes, opening each; Escape closes what's open. Reduced motion: nothing slides or fades.
+**On a phone** (820px or less) there's no room beside the recording: under the bar, the notes and then the moments are
+rows of the same pictures, words always under them, scrolled sideways.
+Send says your notes; Done says every moment looks good. Neither locks.
 
 **Compare plays both together.** Play and the line drive both sides, at the same action at the same instant. Each
 recording keeps, per action, what it was and when it began (`began` beside `actions` on a step: `click button
