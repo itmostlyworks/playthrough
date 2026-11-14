@@ -8,7 +8,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Glimpse, Reading, Thing } from "@playthrough/page";
 import { allNotes, conversation, newId, pausedAt, shownFrom, together, waitingForTheAgent, type Turn, type Did, type Note, type Place, type Review, type Round, type Scene } from "@playthrough/review";
-import { glimpses, keepBranch, noteFrame, picture, readings as readingsOf, recording, send, useChanges, useYou, type Listed, type NoteFrame } from "./api.ts";
+import { fineStill, glimpses, keepBranch, noteFrame, picture, readings as readingsOf, recording, send, useChanges, useYou, type Listed, type NoteFrame } from "./api.ts";
 import { Edge, Tile } from "./Edge.tsx";
 import { Key, tick } from "./Card.tsx";
 import { around, Picture, union, type Frame } from "./Picture.tsx";
@@ -733,14 +733,24 @@ function Still({ review, round, scene, about, seen }: { review: Review; round: R
 // The still's picture alone, for whatever holds it: the list, or a moment's edge.
 function StillPicture({ review, round, scene, about }: { review: Review; round: Round; scene: Scene; about?: { role: string; name: string } }) {
   const [frame, setFrame] = useState<Frame>();
+  // Closed in, the picture kept as it was recorded is shown larger than it was taken on a screen of twice the dots: there,
+  // it's drawn twice as fine, and the kept one shows until that's in.
+  const [sharp, setSharp] = useState<string>();
   useEffect(() => {
     let current = true;
     readingsOf(review.id, round.number, scene.recording).then((read) => current && setFrame(closeOn(read.at(-1), about, STILL)));
+    if (devicePixelRatio > 1)
+      void fineStill(review.id, round.number, scene.recording, scene.length).then((src) => {
+        if (!src || !current) return;
+        const loaded = new Image();
+        loaded.onload = () => current && setSharp(src);
+        loaded.src = src;
+      });
     return () => void (current = false);
   }, [scene.recording, about?.name]);
   return (
     <span className="absolute inset-0" style={frame && fadeOf(frame)}>
-      <Picture shot={{ src: picture(review.id, round.number, scene.recording, Math.max(0, scene.steps.length - 1)), frame }} />
+      <Picture shot={{ src: sharp ?? picture(review.id, round.number, scene.recording, Math.max(0, scene.steps.length - 1)), frame }} />
     </span>
   );
 }
