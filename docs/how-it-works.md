@@ -71,8 +71,8 @@ stills, closed in on what each is about (or, naming nothing, on the last thing d
 those done, a line each. The list keeps itself current, but never moves what's under your pointer: one that arrives
 there says at once where it stands and moves when the pointer leaves. A moment opens at
 `/moments/<copy>/<change>/<n>`, at rest on its end. **A moment is only what it shows:** its recording plays from
-the scene's `from` (seconds in; the way there before it is kept and never shown; read in one place, `shownFrom`, and a
-moment kept before `from` existed shows whole) to its end. A moment with nothing done from `from` on is a still: where
+the scene's `from` (seconds in; the way there before it is kept and never shown; read in one place, `shownFrom` in
+`@playthrough/review`, which starts a moment kept before `from` existed by the agent's own rule) to its end. A moment with nothing done from `from` on is a still: where
 Play would be, the bar says "A still". The recording sits in the middle, as large as the room beside its edges lets it
 be (`SIDE`, a tenth of the window, 104 to 160px each side), and never moves or changes size: not as an edge comes
 forward, a note opens or the moment changes (its shape is kept until the next one's is known, and the one you were on

@@ -7,7 +7,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Glimpse, Reading, Thing } from "@playthrough/page";
-import { allNotes, conversation, newId, pausedAt, together, waitingForTheAgent, type Turn, type Did, type Note, type Place, type Review, type Round, type Scene } from "@playthrough/review";
+import { allNotes, conversation, newId, pausedAt, shownFrom, together, waitingForTheAgent, type Turn, type Did, type Note, type Place, type Review, type Round, type Scene } from "@playthrough/review";
 import { glimpses, keepBranch, noteFrame, picture, readings as readingsOf, recording, send, useChanges, useYou, type Listed, type NoteFrame } from "./api.ts";
 import { Edge, Tile } from "./Edge.tsx";
 import { Key, tick } from "./Card.tsx";
@@ -746,9 +746,6 @@ type Live = { scene: string; from: number; address?: string; shown: boolean; set
 // Where it was asked for: the spot, and the thing there where the app said where it is, in the recording's pixels.
 type Writing = { note: Note; spot: { x: number; y: number }; box?: Rect };
 
-// Where a moment's shown part starts, in seconds into its recording: the way there before it is kept, and never shown.
-// The agent's side says it; a moment kept before it did shows whole. The one place it's read.
-const shownFrom = (scene: Scene) => scene.from ?? 0;
 // A moment where nothing is done from there on is a still: its picture, with nothing to play.
 const isStill = (scene: Scene) => !scene.steps.some((step) => (step.actions ?? []).some((action) => action >= shownFrom(scene)));
 
