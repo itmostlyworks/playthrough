@@ -2,7 +2,6 @@
 // each did there.
 
 import type { Scene } from "./model.ts";
-import { shownFrom } from "./shown.ts";
 
 // The moments two recordings of a scene pass together, in order, each in its own recording's time. Each recording is
 // what it did, in order: each step as it starts, each action in it, and the end. The two are lined up on the longest run
@@ -66,13 +65,13 @@ function shared(ours: Done[], others: Done[]): [Done, Done][] {
 // whole, and the run never stops on a page with nothing loaded yet: it goes on to the first thing that loads one
 // (test.ts).
 export function doneAt(scene: Scene, at: number): number | undefined {
-  const shown = actionsOf(scene).filter((action) => action >= shownFrom(scene));
+  const shown = actionsOf(scene).filter((action) => action >= scene.from);
   const done = shown.filter((action) => action <= at).length;
   return done === shown.length ? undefined : done;
 }
 
 // The things done on the way there that the run counts with what's shown, as a file kept before moments had a start does
 // its way inside the moment's step.
-export const doneBefore = (scene: Scene) => actionsOf(scene).filter((action) => action < shownFrom(scene)).length;
+export const doneBefore = (scene: Scene) => actionsOf(scene).filter((action) => action < scene.from).length;
 
 const actionsOf = (scene: Scene) => scene.steps.flatMap((step) => step.actions ?? []);

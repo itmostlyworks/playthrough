@@ -5,7 +5,7 @@
 // there.
 
 import { useEffect, useRef, useState } from "react";
-import { doneAt, newId, type Did, type Note, type Place, type Scene } from "@playthrough/review";
+import { doneAt, madeInApp, newId, type Did, type InApp, type Note, type Scene } from "@playthrough/review";
 import { keepBranch } from "./api.ts";
 import { isPlaying, type Action, type Page } from "./mode.ts";
 import type { Clock } from "./Player.tsx";
@@ -98,7 +98,7 @@ export function useStepIn({ review, round, scene, page, clock, act, pointing }: 
       const now = { type: 5, data: { tag: "now", payload: {} }, timestamp: kept.events.at(-1)!.timestamp };
       const length = await keepBranch(review, round, from, [...kept.events, now], file);
       if (typeof length !== "number") return setRun((run) => run && { ...run, problems: length });
-      const on: Place = { scene: scene.name, at: Math.floor(length * 100) / 100, ...(said.element ? { element: said.element } : said.point && { point: said.point }), app: { from, did: said.did, recording: `branches/${file}`, length } };
+      const on: InApp = { round, scene: scene.name, steppedIn: from.at, did: said.did, recording: `branches/${file}`, length, at: Math.floor(length * 100) / 100, ...(said.element ? { element: said.element } : said.point && { point: said.point }) };
       const [corner, far] = said.box ? [at(said.box.x, said.box.y), at(said.box.x + said.box.width, said.box.y + said.box.height)] : [];
       act({ type: "pointed", writing: { note: { id: newId(), on, words: "" }, spot: at(said.x, said.y), ...(corner && far && { box: { left: corner.x, top: corner.y, width: far.x - corner.x, height: far.y - corner.y } }) } });
     }
@@ -107,7 +107,7 @@ export function useStepIn({ review, round, scene, page, clock, act, pointing }: 
   // Saved there, a note made in the app shows in it as a pin on what it's on.
   const saved = (note: Note, number: number) => {
     if (shown) madeThere.current.add(note.id);
-    if (note.on?.app && yours) app.current?.post({ playthrough: "pin", id: note.id, number, thing: note.on.element && { role: note.on.element.role, name: note.on.element.name }, point: note.on.point });
+    if (note.on && madeInApp(note.on) && yours) app.current?.post({ playthrough: "pin", id: note.id, number, thing: note.on.element && { role: note.on.element.role, name: note.on.element.name }, point: note.on.point });
   };
 
   return {
