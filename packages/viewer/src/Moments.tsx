@@ -1120,7 +1120,7 @@ function MomentView(props: {
             <>
               <StillPicture review={review} round={round} scene={other} about={other.about ?? other.acted} />
               {talk.length > 0 && (
-                <span className="absolute right-1.5 bottom-1.5 flex gap-[3px]">
+                <span className="absolute top-1.5 right-1.5 flex gap-[3px]">
                   {talk.slice(0, 5).map((one) => (
                     <i key={one.id} className={`size-[7px] rounded-full shadow-[0_0_0_1.5px_#fff] ${notes.includes(one) ? "bg-amber" : "bg-slate"}`} />
                   ))}
