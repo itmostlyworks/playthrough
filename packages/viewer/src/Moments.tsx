@@ -1173,7 +1173,8 @@ function MomentView(props: {
   const cards = (
     <>
           {writing && <NoteCard at={(!writing.note.on?.app && pinOf(placed[writing.note.id])) || writing.spot} frame={frame} under={phone}><Write onSave={save} onDrop={() => setWriting(undefined)} /></NoteCard>}
-          {!writing && shownOpen && (!opened || shownOpen.note.id === opened.note.id) && (
+          {/* Closing, it fades where it stood; under the bar on a phone, it goes at once, so it never holds its room. */}
+          {!writing && shownOpen && (opened ? shownOpen.note.id === opened.note.id : !phone) && (
             <NoteCard key={shownOpen.note.id} at={pinOf(openAt[shownOpen.note.id]) ?? { x: 24, y: 24 }} frame={frame} closing={!opened} under={phone}>
               <div className="min-h-0 flex-1 overflow-y-auto px-1">
                 {shownOpen.sent ? <Turns you={you} turns={conversation(review, shownOpen.note.id)} /> : <Turns you={you} turns={[]} unsent={shownOpen.note.words} />}
