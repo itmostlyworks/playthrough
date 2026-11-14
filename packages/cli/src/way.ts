@@ -9,7 +9,7 @@ import { quote } from "@playthrough/review";
 // neither.
 // And the address it was done at; a page loaded, whether something done on the page before led there (a link followed, a
 // form sent) or it was gone to directly.
-export type Done = { does: string; on: string; with?: string; what?: string; role?: string; name?: string; text?: string; nth?: number; address?: string; led?: boolean; scrolled?: { x: number; y: number } };
+export type Done = { does: string; on: string; with?: string; what?: string; role?: string; name?: string; text?: string; nth?: number; address?: string; led?: boolean; scrolled?: { x: number; y: number }; button?: "right" };
 
 // What a moment is about, read where the agent is: one thing on the page, by its role and name, with what can be
 // checked of it again; or words with no role of their own (role "text"), by what they say, the first that does.
@@ -70,7 +70,7 @@ export function sceneOf({
     if (done.does === "type") return keyboard ? `    await page.keyboard.type(${given});` : `    await page.${at}.pressSequentially(${given});`;
     if (done.does === "selectOption") return `    await page.${at}.selectOption(${given});${what}`;
     if (done.does === "press") return keyboard ? `    await page.keyboard.press(${given});` : `    await page.${at}.press(${given});`;
-    return `    await page.${at}.click();${what}`;
+    return `    await page.${at}.click(${done.button ? `{ button: ${JSON.stringify(done.button)} }` : ""});${what}`;
   });
   // Scrolled where the agent had scrolled before each thing done there: on the way, at once; in what the moment shows, as
   // a person scrolls. A page loaded starts at its top.

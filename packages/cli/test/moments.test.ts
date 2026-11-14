@@ -109,6 +109,11 @@ describe("the way to a moment", () => {
     assert.match(still.split("await test.step(")[0]!, /window\.scrollTo\(x, y\), \[0, 1200\]\);/, "a still's first frame is where the agent is");
   });
 
+  test("a right click is done again as one, as a card's menu opens", () => {
+    const menu = sceneOf({ words: "The card's menu", person: "Maja", did: [{ does: "click", on: "#card", role: "link", name: "Write the launch post", button: "right" }], setup: {} });
+    assert.match(menu, /getByRole\("link", \{ name: "Write the launch post", exact: true \}\)\.click\(\{ button: "right" \}\);/);
+  });
+
   test("writes where it ended only while it's tried, never in the moment that's kept", () => {
     assert.match(sceneOf({ words: "Here", person: "Maja", did, setup: {}, tried: true }), /writeFileSync\(new URL\("\.\/ended\.json"/);
     assert.doesNotMatch(way, /writeFileSync|ended\.json/);

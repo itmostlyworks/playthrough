@@ -122,6 +122,11 @@ const NOTING = `(() => {
     const target = thing(e.target);
     if (!target.matches?.("input:not([type=checkbox]):not([type=radio]), textarea, select")) keep({ does: "click", ...on(target), what: words(target) });
   }, true);
+  // A right click, as a card's menu opens on a board.
+  addEventListener("contextmenu", (e) => {
+    const target = thing(e.target);
+    keep({ does: "click", ...on(target), what: words(target), button: "right" });
+  }, true);
   // Words typed where the caret was put, not at the end, are kept as typed there, and what's typed after them too:
   // what a fix to where the caret goes is about. Anywhere else, the field's words once typed are what's kept.
   let typing = false, typingAt;

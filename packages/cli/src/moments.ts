@@ -186,7 +186,7 @@ function saidOf(one: Done): string {
   if (one.does === "fill" || one.does === "type") return `type ${quote(one.with ?? "")}${into}`;
   if (one.does === "selectOption") return `choose ${quote(one.with ?? "")}${into}`;
   if (one.does === "press") return `press ${one.with}${into}`;
-  return `click ${on || "the page"}`;
+  return `${one.button === "right" ? "right-click" : "click"} ${on || "the page"}`;
 }
 
 // Where a page read is scrolled to, from where its first thing is on the page and on the screen.
