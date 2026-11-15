@@ -11,7 +11,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pathTo } from "@playthrough/page";
+import { clicked, pathTo } from "@playthrough/page";
 import { quote, Refused } from "@playthrough/change";
 import { keepRunning } from "./app.ts";
 import { changeHere, momentNamed } from "./change.ts";
@@ -76,17 +76,16 @@ export const NOTING = `(() => {
       if (!--reading) (document.adoptedStyleSheets = document.adoptedStyleSheets.filter((sheet) => sheet !== written)), hovering(true);
     }
   };
-  const pressable = "a, button, input, select, textarea, label, summary, [role=button], [role=link], [role=checkbox], [role=radio], [role=switch], [role=tab], [role=menuitem], [role=option], [role=combobox], [role=textbox], [contenteditable=''], [contenteditable=true]";
+  const clicked = ${clicked};
   // A rich-text editor's words are what's been typed in it: it's said by its label or what it asks for, and found by its
   // role and name, or else its place, never by what it says.
   const asks = (editor) => editor.getAttribute("aria-label") || editor.getAttribute("aria-placeholder") || editor.querySelector("[data-placeholder]")?.getAttribute("data-placeholder") || "";
   const words = (element) => asWritten(() => (element.isContentEditable ? asks(element) : element.innerText?.trim() || element.getAttribute?.("aria-label") || element.value || element.placeholder || "").trim().replace(/\\s+/g, " ").slice(0, 80));
-  const thing = (target) => asWritten(() => {
-    const pressed = target?.closest?.(pressable);
-    if (pressed && !pressed.querySelector(pressable)) return pressed;
-    for (let at = target; at && at !== (pressed ?? document.body); at = at.parentElement) if (at.nodeType === 1 && words(at)) return at;
-    return pressed ?? target;
-  });
+  // What was clicked, and its words; on nothing that says any, where it was, saying nothing.
+  const thing = (target) => {
+    const on = clicked(target);
+    return { target: on ?? target, what: on ? words(on) : "" };
+  };
   const path = ${pathTo};
   // As getByRole finds it, from Chrome's own accessibility tree (ComputedAccessibilityInfo, switched on at launch): by
   // its role and name, and a field or a switch the page gives no name by its role alone, which of them it is.
@@ -133,13 +132,13 @@ export const NOTING = `(() => {
   if (document.readyState === "loading") addEventListener("DOMContentLoaded", arrived, { once: true });
   else arrived();
   addEventListener("click", (e) => {
-    const target = thing(e.target);
-    if (!target.matches?.("input:not([type=checkbox]):not([type=radio]), textarea, select")) keep({ does: "click", ...on(target), what: words(target) });
+    const { target, what } = thing(e.target);
+    if (!target.matches?.("input:not([type=checkbox]):not([type=radio]), textarea, select")) keep({ does: "click", ...on(target), what });
   }, true);
   // A right click, as a card's menu opens on a board.
   addEventListener("contextmenu", (e) => {
-    const target = thing(e.target);
-    keep({ does: "click", ...on(target), what: words(target), button: "right" });
+    const { target, what } = thing(e.target);
+    keep({ does: "click", ...on(target), what, button: "right" });
   }, true);
   // Words typed where the caret was put, not at the end, are kept as typed there, and what's typed after them too:
   // what a fix to where the caret goes is about. Anywhere else, the field's words once typed are what's kept.

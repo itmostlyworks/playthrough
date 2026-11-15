@@ -75,6 +75,18 @@ test("words typed into a rich-text editor are kept on the editor as it was befor
   assert.deepEqual(again, ["half written", "Looks good to me"]);
 });
 
+test("a click is on what was pressed, or the nearest words of their own, never a part of the page holding others' words, as stepping in keeps it too", { timeout: 30_000 }, async () => {
+  const { did } = await keptAndPlayed(
+    `<div id="board"><div><button>Visibility</button> <button>New list</button></div><div id="space" style="height: 100px"><span>Write the <b>launch</b> post</span></div></div>`,
+    async (page) => {
+      await page.locator("#space").click({ position: { x: 600, y: 80 } });
+      await page.getByText("Write the").click();
+    },
+    async () => {},
+  );
+  assert.deepEqual(did.filter((one) => one.does === "click").map(({ what }) => what), ["", "Write the launch post"]);
+});
+
 declare const comment: HTMLElement, description: HTMLElement;
 
 test("a dialog left open where a moment is kept is found, by its name or else its heading, and one closed isn't", { timeout: 30_000 }, async () => {

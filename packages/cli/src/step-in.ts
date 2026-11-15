@@ -7,7 +7,7 @@ import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createServer, request as ask, type IncomingMessage, type ServerResponse } from "node:http";
 import { connect } from "node:net";
-import { answerAs, asRecorded, escapedTwice, pathTo } from "@playthrough/page";
+import { answerAs, asRecorded, clicked, escapedTwice, pathTo } from "@playthrough/page";
 import { doneBefore, quote, Refused } from "@playthrough/change";
 import { running, using } from "./app.ts";
 import { QUIET_DEV_CHROME, recorder, type Handed, type To } from "./run.ts";
@@ -493,17 +493,10 @@ export const SAYS = `<script>(() => {
     addEventListener("mouseup", letGo, true);
   }
   // What a thing is called, and the path back to it, so a note says what it's on, and taking your branch over does what you did again.
-  // Something you can press or type into, or else the nearest thing with words of its own: inside a dialog, what's in
-  // it, not the dialog. Something you press that holds others isn't one control but what holds them, as on a recording:
-  // Kan's list is one you drag, with its name field, its + and its cards in it, and its count is noted for itself. A box
-  // you write in that an editor draws, as Kan's comment box, is one too, empty or not, not the part of the page around it.
-  const pressable = "a, button, input, select, textarea, label, summary, [role=button], [role=link], [role=checkbox], [role=radio], [role=switch], [role=tab], [role=menuitem], [role=option], [role=combobox], [role=textbox], [contenteditable=''], [contenteditable=true]";
-  const thing = (target) => {
-    const pressed = target?.closest?.(pressable);
-    if (pressed && !pressed.querySelector(pressable)) return pressed;
-    for (let at = target; at && at !== (pressed ?? document.body); at = at.parentElement) if (at.nodeType === 1 && words(at)) return at;
-    return pressed ?? target;
-  };
+  // What's clicked, as in the agent's browser (clicked.ts): inside a dialog, what's in it, not the dialog; Kan's list's
+  // count is noted for itself; and on nothing that says anything, where it was.
+  const clicked = ${clicked};
+  const thing = (target) => clicked(target) ?? target;
   // The words you saw on it, as you'd name it; its label only when it shows none, as an icon's, and an empty box what it
   // says it's for, as an editor draws it ("Add comment…").
   const words = (element) => (element.innerText?.trim() || element.getAttribute?.("aria-label") || element.value || element.placeholder || element.querySelector?.("[data-placeholder]")?.getAttribute("data-placeholder") || "").trim().replace(/\\s+/g, " ").slice(0, 80);
@@ -529,8 +522,8 @@ export const SAYS = `<script>(() => {
   const readSoon = () => (clearTimeout(reading), (reading = setTimeout(() => rested().then(readNow), 300)));
   addEventListener("click", (e) => {
     if (!e.isTrusted || swallowing) return;
-    const on = thing(e.target);
-    if (!on.matches?.("input:not([type=checkbox]):not([type=radio]), textarea, select")) keep({ does: "click", on: path(on), what: words(on) });
+    const on = clicked(e.target);
+    if (!on?.matches("input:not([type=checkbox]):not([type=radio]), textarea, select")) keep({ does: "click", on: path(on ?? e.target), what: on ? words(on) : "" });
   }, true);
   addEventListener("input", (e) => {
     const on = e.target;
@@ -578,7 +571,7 @@ export const SAYS = `<script>(() => {
       const known = node > 0 && recording ? read().things.find((thing) => thing.node === node) : undefined;
       const [kind, name] = known ? [known.role, known.name] : recording ? [] : [role(on), words(on)];
       noted = on;
-      parent.postMessage({ playthrough: "noted", ...(name ? { element: { role: kind, name, css: path(on), ...(node > 0 && { node }) } } : { point: { x: e.clientX / innerWidth, y: e.clientY / innerHeight } }), did, x: e.clientX, y: e.clientY, ...(name && { box: (({ left, top, width, height }) => ({ x: left, y: top, width, height }))(on.getBoundingClientRect()) }) }, "*");
+      parent.postMessage({ playthrough: "noted", ...(name ? { element: { role: kind, name, css: path(on), ...(node > 0 && { node }) } } : { point: { x: e.clientX / innerWidth, y: e.clientY / innerHeight } }), did, x: e.clientX, y: e.clientY, ...(name && { box: (({ left, top, width, height }) => ({ x: left, y: top, width, height }))(on.getBoundingClientRect()) }), address: location.pathname + location.search + location.hash }, "*");
       noting = false;
       swallowing = true;
       ringed();

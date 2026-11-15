@@ -101,7 +101,7 @@ export function useStepIn({ change, handBack, moment, page, clock, act, pointing
       const now = { type: 5, data: { tag: "now", payload: {} }, timestamp: kept.events.at(-1)!.timestamp };
       const length = await keepBranch(change, handBack, from, [...kept.events, now], file);
       if (typeof length !== "number") return setRun((run) => run && { ...run, problems: length });
-      const on: InApp = { handBack, moment: moment.name, steppedIn: from.at, did: said.did, recording: `branches/${file}`, length, at: Math.floor(length * 100) / 100, ...(said.element ? { element: said.element } : said.point && { point: said.point }) };
+      const on: InApp = { handBack, moment: moment.name, steppedIn: from.at, did: said.did, ...(said.address && { address: said.address }), recording: `branches/${file}`, length, at: Math.floor(length * 100) / 100, ...(said.element ? { element: said.element } : said.point && { point: said.point }) };
       const [corner, far] = said.box ? [at(said.box.x, said.box.y), at(said.box.x + said.box.width, said.box.y + said.box.height)] : [];
       act({ type: "pointed", writing: { note: { id: newId(), on, words: "" }, spot: at(said.x, said.y), ...(corner && far && { box: { left: corner.x, top: corner.y, width: far.x - corner.x, height: far.y - corner.y } }) } });
     }

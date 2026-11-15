@@ -84,6 +84,7 @@ export const InApp = z
     moment: text("needs the moment it was stepped into"),
     steppedIn: seconds("needs where they stepped in, in seconds").describe("Seconds into the moment's recording on that hand-back"),
     did: z.array(Did, { error: "needs what they did there, a list, even if it's empty" }).describe("What the person did there, in order"),
+    address: z.string().optional().describe("Where the app was when the note was made: its path, query and hash, as the agent's browser would go there"),
     recording: fileName("needs its recording: the name of one of the person's own files").describe("The moment up to where they stepped in, then what they did"),
     length: z.number({ error: "needs its length, in seconds" }).positive({ error: "needs its length, in seconds" }),
     at: seconds("needs its time, in seconds").describe("Seconds into the person's own recording"),
