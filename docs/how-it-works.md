@@ -12,7 +12,10 @@ Its parts:
   (`takings.ts`), when a change is done (`saidDone`, `rules.ts`) and where it stands for someone (`standingOf`) are each
   one rule here, which the commands and the page both call.
 - **`packages/page`**: what's on a page, as a person would name it, and the same thing found again. A reading is the
-  page as a moment left it, everything on it named in Playthrough's fixed words (`names.ts`); two readings of one moment
+  page as a moment left it, everything on it named in Playthrough's fixed words (`names.ts`); a field or switch the page
+  gives no name is called by the nearest heading or label before it, else the nearest words, each read whole by what
+  says it, however the page wrote it (Kan's card title is "BS-1", never the "1" its last piece says; `beside`,
+  `read.ts`); two readings of one moment
   on two hand-backs pair thing by thing (`differences.ts`), which is how what's different is found and where a note's
   thing is in each. Also the path back to an element (`path.ts`) and a page's light or dark, still or moving, as
   recorded (`scheme.ts`).
@@ -133,7 +136,8 @@ the pages it loaded, not where the app's own links went since, and how to stand 
 click there is on is decided as in the agent's browser (`clicked`, in `@playthrough/page`): what was pressed, or the
 nearest words of their own, never a part of the page that only holds others' (Kan's board, holding its toolbar's
 "Visibility New list"), and with neither, "click the page". When the person says Done, it ends. Stopped before then, it's run again, and notes
-it took already are said again.
+it took already are said again; `MOMENTS.md` tells the agent to give it the longest time limit its shell allows, since
+a shell's own (Claude Code's background limit) stopped one at ten minutes.
 
 Each hand-back says which agent made it: Claude Code, Codex, Cursor and Gemini CLI are known from their shell
 (`agent.ts`); any other is "Agent".
@@ -347,7 +351,8 @@ the app the edges rest, quieter, and can't be pressed or come forward, all but t
 which doesn't drive the recording: pressed, it leaves the app as Back does and goes on to the last stop in one move,
 the app fading into it (`toLastStop`, `Moment.tsx`; `footAnswers`, `Edge.tsx`). It doesn't press Send or Done. **On a phone** (820px or less) there's no room beside the
 recording: under the bar, the notes and then the moments are rows of the same pictures, words always under them,
-scrolled sideways.
+scrolled sideways. The recording and its bar stay; what's under them scrolls, fading where there's more above or below,
+as an edge's list does and a note's thread too long for its card (`useMore`, `Edge.tsx`).
 
 **A note** (`Note.tsx`) is words on a thing in a picture. N, then "Point at what it's about" on the bar with "Cancel
 Esc": what a click would note is outlined and named as Playthrough names everything (`things.ts`, `pickAt`), and the
