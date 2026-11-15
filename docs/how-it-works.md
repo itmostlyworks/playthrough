@@ -274,9 +274,9 @@ rule beside it, `standingOf`, which the list and the page read; the agent's `wai
 ## Stepping in
 
 Step in (T) turns the recording into the real app at the moment it rests on, or where it has got to if it's playing, as
-the moment's person, signed in, a fresh copy made the way every moment starts. Nothing is run before it's asked for, and
-nothing is made ready in the background while you watch: each step in is the app made fresh, and its speed comes from
-not doing work twice and not waiting on nothing.
+the moment's person, signed in, a fresh copy made the way every moment starts. Nothing runs before your first step in on
+a change: watching does nothing to the app, so the first is made while you wait. After it, Playthrough keeps the app
+ready where the recording rests, so the next is quick. Each step in is still the app made fresh, never one left behind.
 
 **Where it stands is one count.** The page says how many of the things the moment shows are done where the recording
 rests (`doneAt`, `packages/change/src/takings.ts`): none at its start, one after the first, nothing at all at its end or once
@@ -298,7 +298,17 @@ and passes everything else on to the app, answering only this machine's names. W
 held by the app's pages while they're open, Back included, and given back 15 s after the last one goes (tab closed,
 reload, another moment), or a minute after it was made if never opened; so two tabs, a reload or another moment never
 hand one person the app another is using. Every Step in asks afresh, so Step in again on the same moment is the app made
-again, never the world left behind; an address opened again (by hand) runs afresh too, never a missing page. **Every wait
+again, never the world left behind; an address opened again (by hand) runs afresh too, never a missing page. **Kept
+ready** (`keepReady`): once a tab has stepped in on a change (`kept.ts` remembers it for the tab's life), whenever the page
+is somewhere Step in could be pressed, not playing, and has rested there 600 ms (so going through moments with the keys
+doesn't start a run for each), it POSTs `keep-ready` with the place Step in would ask for there, once for each place, and
+again once back from the app. The server makes one ahead for each change, the way any step in is made, within its own
+minute. A step in to the same place, with the moments written as they were when it was made, takes it: it waits for it if
+it's still on its way, within the step in's own minute, and runs afresh if it failed; taken, it's that step in's, as one
+it ran itself. Asked for another place, the one before is stopped and given back; not taken within five minutes of last
+being asked for, it's given back and lets go of the app, so the app's own time unused can start. A step in called off
+while it waits leaves the one ahead where it was. Nothing of it shows on the page: one that can't be made is the step in's
+to say why. **Every wait
 ends in words.** A step in has a minute from its asking, the app's start included ("The app hadn't answered … it may still
 be starting", "This moment didn't open within 60 seconds…"), each page load on the way 30 s, and it stops as soon as the
 asking request closes, though a setup already making its world finishes first, so what it made is given back whole; a
