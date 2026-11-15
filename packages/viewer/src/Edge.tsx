@@ -53,10 +53,8 @@ export function Edge(props: {
   // What ends the list, its last card: told how much of it runs past the screen's edge, so its words can stand where
   // they read.
   foot?: (forward: boolean, tucked: number) => ReactNode;
-  // Kept forward whatever the pointer does, while what's at its foot is saying something that mustn't be missed.
-  held?: boolean;
 }) {
-  const { side, label, keys, stage, quiet, phone, empty, showing, arrived, children, foot, held } = props;
+  const { side, label, keys, stage, quiet, phone, empty, showing, arrived, children, foot } = props;
   const [room, setRoom] = useState<Room>();
   useLayoutEffect(() => {
     const shown = stage.current;
@@ -112,24 +110,6 @@ export function Edge(props: {
     setBand((now) => (now?.top === at?.top && now?.bottom === at?.bottom ? now : at));
   };
   useLayoutEffect(look);
-  // Opening as the edge comes forward, the foot's card stays whole in view if it was in view: the list scrolls with it.
-  useEffect(() => {
-    const card = footing.current;
-    if (!card || phone) return;
-    let was = card.offsetHeight;
-    const watching = new ResizeObserver(() => {
-      const shown = list.current;
-      const grew = card.offsetHeight > was;
-      was = card.offsetHeight;
-      if (shown && grew) {
-        const [box, room] = [card.getBoundingClientRect(), shown.getBoundingClientRect()];
-        if (box.top < room.bottom && box.bottom > room.bottom - 8) shown.scrollBy({ top: box.bottom - room.bottom + 8 });
-      }
-      look();
-    });
-    watching.observe(card);
-    return () => watching.disconnect();
-  }, [!!foot, phone, !!room]);
   const placed = useRef(false);
   useEffect(() => {
     const tile = showing && list.current?.querySelector<HTMLElement>(`[data-tile="${CSS.escape(showing)}"]`);
@@ -137,7 +117,7 @@ export function Edge(props: {
     if (!tile || !shown) return;
     // Only the edge's own list scrolls, never the page around it, by as little as brings it in; the last one, with
     // the foot's card after it.
-    const last = tile === [...shown.querySelectorAll("[data-tile]")].at(-1) && footing.current;
+    const last = tile.nextElementSibling === footing.current && footing.current;
     const [box, room] = [last ? { top: tile.getBoundingClientRect().top, bottom: last.getBoundingClientRect().bottom, left: 0, right: 0 } : tile.getBoundingClientRect(), shown.getBoundingClientRect()];
     // As it's first drawn, it's drawn there, not scrolled to.
     const behavior = matchMedia("(prefers-reduced-motion: reduce)").matches || !placed.current ? "auto" : "smooth";
@@ -174,7 +154,6 @@ export function Edge(props: {
   const shift = right ? Math.max(0, room.inner + DRAWER - room.screen) : Math.max(0, DRAWER - room.inner);
   // How far its pictures run past the screen's edge at rest.
   const cutBy = right ? room.inner + GAP + TILE - room.screen : TILE + GAP - room.inner;
-  const out = forward || !!held;
   const fade = (to: string) => `linear-gradient(${to}, ${cut.above ? "transparent" : "#000"}, #000 ${cut.above ? MORE : 0}px, #000 calc(100% - ${cut.below ? MORE : 0}px), ${cut.below ? "transparent" : "#000"})`;
   return (
     <>
@@ -193,10 +172,10 @@ export function Edge(props: {
         aria-label={label}
         inert={quiet}
         className={`fixed z-30 transition-[translate,opacity] duration-300 ease-calm ${quiet ? "opacity-40" : ""}`}
-        style={{ top: room.top - INSET, height: room.height + 2 * INSET, width: DRAWER, left: right ? room.inner : room.inner - DRAWER, translate: out ? `${right ? -shift : shift}px 0` : "0 0" }}
+        style={{ top: room.top - INSET, height: room.height + 2 * INSET, width: DRAWER, left: right ? room.inner : room.inner - DRAWER, translate: forward ? `${right ? -shift : shift}px 0` : "0 0" }}
         {...pointing}
         onPointerDownCapture={(event) => {
-          if (event.pointerType !== "touch" || out) return;
+          if (event.pointerType !== "touch" || forward) return;
           // The first touch brings it forward; what's under it is pressed by the next.
           setForward(true);
           const swallow = (click: Event) => (click.stopPropagation(), click.preventDefault());
@@ -212,9 +191,9 @@ export function Edge(props: {
         >
           {/* The cards stand on nothing of their own: forward, each is its own card over the recording. */}
           <div className="grid grid-cols-[minmax(0,1fr)] gap-1.5">
-            {children(out)}
+            {children(forward)}
             {/* The list's last card, at rest as far past the screen's edge as the others are. */}
-            {foot && <div ref={footing}>{foot(out, out ? 0 : Math.max(0, cutBy + TUCKED))}</div>}
+            {foot && <div ref={footing}>{foot(forward, forward ? 0 : Math.max(0, cutBy + TUCKED))}</div>}
           </div>
         </div>
       </div>
@@ -223,7 +202,7 @@ export function Edge(props: {
       {cutBy > 0 && (
         <div
           aria-hidden
-          className={`pointer-events-none fixed z-30 transition-opacity duration-300 ease-calm ${out ? "opacity-0" : ""}`}
+          className={`pointer-events-none fixed z-30 transition-opacity duration-300 ease-calm ${forward ? "opacity-0" : ""}`}
           style={{
             top: room.top - INSET,
             height: room.height + 2 * INSET,

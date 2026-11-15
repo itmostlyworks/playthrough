@@ -23,7 +23,8 @@ import { Clock, Player, useCut, type Mark, type Placed } from "./Player.tsx";
 import { Portal, TAG } from "./Portal.tsx";
 import type { Rect, Scrolled } from "./replay.ts";
 import { ago, noteSays, takingOf, seenOf } from "./standing.ts";
-import { StepLeft } from "./StepLeft.tsx";
+import { LastStop } from "./LastStop.tsx";
+import { StepAction, StepCard, useStepLeft } from "./StepLeft.tsx";
 import { backAgain } from "./step.ts";
 import { useKeptReady, useStepIn } from "./stepIn.ts";
 import { useHeld } from "./held.ts";
@@ -61,22 +62,39 @@ export function MomentView(props: {
   unopened: { note: string; moment: number }[];
   onOpened: (note: string) => void;
   onMoment: (n: number) => void;
-  // The change as listed, for the step left at the foot of its moments, and on to what's next once it's taken.
+  // The change as listed, for the step left, and on to what's next once it's taken.
   listed: Listed;
   goOn: () => void;
+  // At the last stop, after the last moment (`n` is the last moment then): the whole change in the recording's place,
+  // the step left in the bar's. Gone to and from it as between moments.
+  atLastStop: boolean;
+  onLastStop: () => void;
+  // The moments you haven't watched, by their place from 1.
+  unwatched: number[];
 }) {
-  const { change, handBack, n, about, who, notes, setNotes, replies, setReplies, you, onMoment } = props;
+  const { change, handBack, n, about, who, notes, setNotes, replies, setReplies, you, onMoment, atLastStop } = props;
   // What was sent is drawn as sent at once, as the change comes back with it.
   const [justSent, setJustSent] = useState<Note[]>([]);
   const sent = [...props.sent, ...justSent.filter((note) => !props.sent.some((one) => one.id === note.id))];
   const unsent = notes.length + replies.length;
-  // The step left, the moments' last card: pressed from anywhere with Ctrl+Enter while something's unsent; on the last
-  // moment, ↓ puts the keyboard on it, so Enter presses it. Pressed, the Moments edge stays forward with what it says.
-  const press = useRef<() => void>(undefined);
-  const foot = useRef<HTMLButtonElement>(null);
-  const [footSays, setFootSays] = useState(false);
-  // The keyboard on it: it's where you are, and the moment's card says so no more meanwhile, both in one go.
-  const [onFoot, setOnFoot] = useState(false);
+  // The step left: at the last stop, pressed or Enter; from anywhere, Ctrl+Enter while something's unsent.
+  const step = useStepLeft(props.listed, you, (going) => setJustSent((now) => [...now, ...going]), props.goOn);
+  // What you asked takes the lines the moment's own line took, so the title over it stays where it was.
+  const line = useRef<HTMLParagraphElement>(null);
+  const lines = useRef(2);
+  useLayoutEffect(() => void (!atLastStop && line.current && (lines.current = Math.max(1, Math.round(line.current.offsetHeight / 22)))));
+  // The last stop's sheet stays drawn while it fades, as leaving it.
+  const sheet = useRef<HTMLDivElement>(null);
+  const [sheetDrawn, setSheetDrawn] = useState(atLastStop);
+  useEffect(() => {
+    if (atLastStop) return setSheetDrawn(true);
+    const shown = sheet.current;
+    if (!shown || matchMedia("(prefers-reduced-motion: reduce)").matches) return setSheetDrawn(false);
+    const fading = shown.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 240, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)", fill: "forwards" });
+    let current = true;
+    fading.finished.then(() => current && setSheetDrawn(false), () => {});
+    return () => void ((current = false), fading.cancel());
+  }, [atLastStop]);
   const moment = handBack.moments[n - 1]!;
   const count = handBack.moments.length;
   const end = endOf(moment);
@@ -331,15 +349,21 @@ export function MomentView(props: {
     act({ type: "moment", moment: other.name, starts: startOf(other), end: endOf(other), open });
     onMoment(to);
   };
+  // After the last moment, the last stop; from it, ↑ is the last moment again and there's nothing further on.
+  const toLastStop = () => {
+    if (!may.move || atLastStop) return;
+    act({ type: "moment", moment: moment.name, starts: from, end });
+    props.onLastStop();
+  };
   const next = (by: number) => {
     if (!may.move) return;
+    if (atLastStop) return void (by < 0 && goTo(count));
     const to = n + by;
     if (to < 1) return;
-    // Past the last moment there's no next: the step left is what's after it, and ↓ only ever moves, to it.
-    if (to > count) return foot.current?.focus();
+    if (to > count) return toLastStop();
     goTo(to);
   };
-  const toMoment = (to: number) => may.move && to !== n && goTo(to);
+  const toMoment = (to: number) => may.move && (to !== n || atLastStop) && goTo(to);
   const openNote = (id: string) => may.move && act({ type: "open", note: id });
   // What you said on a moment of the change, in the order its edge has it: one made in the app joins once you're back.
   const notesOn = (other: Moment) => (other === moment ? onEdge.map(({ note }) => note) : [...sent, ...notes].filter((one) => one.on?.moment === other.name));
@@ -347,11 +371,12 @@ export function MomentView(props: {
   // moment that has one, its first going on, its last going back. Past the change's last or first, nothing.
   const nextNote = (by: 1 | -1) => {
     if (!may.move) return;
-    const here = notesOn(moment);
+    // From the last stop, back is the change's last note, wherever it is, and on is nothing.
+    const here = atLastStop ? [] : notesOn(moment);
     const i = here.findIndex((one) => one.id === open);
     const to = here[i < 0 ? (by > 0 ? 0 : here.length - 1) : i + by];
     if (to) return openNote(to.id);
-    for (let other = n + by; other >= 1 && other <= count; other += by) {
+    for (let other = atLastStop ? (by < 0 ? count : count + 1) : n + by; other >= 1 && other <= count; other += by) {
       const there = notesOn(handBack.moments[other - 1]!).at(by > 0 ? 0 : -1);
       if (there) return goTo(other, there.id);
     }
@@ -453,18 +478,19 @@ export function MomentView(props: {
     // A picture on an edge with the keyboard on it is pressed with Enter or Space, as any button is.
     if (event.target instanceof HTMLElement && event.target.closest("[data-tile]") && /^( |enter)$/i.test(event.key)) return;
     // Ctrl+Enter sends.
-    if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !writing) return (event.preventDefault(), void (unsent && press.current?.()));
+    if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !writing) return (event.preventDefault(), void (unsent && step.what === "send" && step.press()));
     if (typing || event.ctrlKey || event.metaKey || event.altKey) return;
     const key = event.key.toLowerCase();
     // Any other key pressed lets go of an arrow held; its own repeat is nothing, the page keeps its own pace.
     if (!event.repeat) arrow.letGo();
-    // The keyboard on the step left: Enter presses it, and nothing else does; ↓ has nowhere further to go; ↑ or Escape
-    // take the keyboard off it, back to the last moment as it was. Any other key is the page's, the keyboard back on it.
-    if (event.target === foot.current && foot.current) {
-      if (/^(tab|shift)$/.test(key)) return;
-      if (/^( |enter)$/.test(key) || (!event.shiftKey && /^(arrowdown|j)$/.test(key))) return void (key !== "enter" && event.preventDefault());
-      foot.current.blur();
-      if (!event.shiftKey && /^(arrowup|k|escape)$/.test(key)) return event.preventDefault();
+    // At the last stop there's no recording to drive: Enter presses the step left, ↑ or Escape go back to the last
+    // moment, and with Shift ↑ ↓ the notes are gone through as anywhere; nothing else on it answers.
+    if (atLastStop) {
+      const pressing = key === "enter" && !(event.target instanceof HTMLElement && event.target.closest("button, a"));
+      const did = pressing ? step.press : event.shiftKey ? { arrowup: () => nextNote(-1), k: () => nextNote(-1) }[key] : { arrowup: () => next(-1), k: () => next(-1), escape: () => next(-1) }[key];
+      if (/^( |arrowdown|arrowleft|arrowright|j)$/.test(key) || did) event.preventDefault();
+      if (!event.repeat) did?.();
+      return;
     }
     if (key === "escape") {
       if (open) close();
@@ -517,7 +543,7 @@ export function MomentView(props: {
           id={other.name}
           label={other.name}
           forward={forward}
-          strong={i + 1 === n && !onFoot}
+          strong={i + 1 === n && !atLastStop}
           quiet
           picture={
             <>
@@ -625,29 +651,8 @@ export function MomentView(props: {
       stage={stage}
       quiet={away}
       phone={phone}
-      showing={moment.name}
-      held={footSays}
-      foot={(forward, tucked) => {
-        const answer = props.unopened[0];
-        return (
-          <StepLeft
-            listed={props.listed}
-            you={you}
-            last={n === count}
-            keyed={onFoot}
-            onKeyed={setOnFoot}
-            forward={forward}
-            tucked={tucked}
-            press={press}
-            button={foot}
-            onPressed={() => setFootSays(true)}
-            onSent={(going) => setJustSent((now) => [...now, ...going])}
-            goOn={props.goOn}
-            unopened={props.unopened.length}
-            onUnopened={() => answer && may.move && goTo(answer.moment, answer.note)}
-          />
-        );
-      }}
+      showing={atLastStop ? LAST_STOP : moment.name}
+      foot={(forward, tucked) => <StepCard step={step} here={atLastStop} forward={forward} tucked={tucked} onPress={toLastStop} />}
     >
       {momentTiles}
     </Edge>
@@ -659,8 +664,8 @@ export function MomentView(props: {
     // Clipped, never scrolled: a caret put in a note's box can't move the page under you.
     <div className="grid h-dvh grid-rows-[auto_minmax(0,1fr)] overflow-clip bg-ground phone:grid-rows-[auto_auto_minmax(0,1fr)]" onPointerDown={pressAway}>
       <Header opener={props.opener} centre={phone ? title : undefined}>
-        {/* Only ever the next moment: on the last, there's none. */}
-        <button onClick={() => next(1)} disabled={!may.move || n === count} className="-mr-2 flex flex-none items-center gap-1.5 rounded-lg px-2 py-1 text-soft transition-colors duration-150 ease-calm enabled:hover:bg-hover enabled:hover:text-fg disabled:opacity-50">
+        {/* The next moment, and after the last the last stop; there, nothing. */}
+        <button onClick={() => next(1)} disabled={!may.move || atLastStop} className="-mr-2 flex flex-none items-center gap-1.5 rounded-lg px-2 py-1 text-soft transition-colors duration-150 ease-calm enabled:hover:bg-hover enabled:hover:text-fg disabled:opacity-50">
           Next
           <Key>↓</Key>
         </button>
@@ -679,9 +684,20 @@ export function MomentView(props: {
               for them, so nothing under them moves. */}
           <div className="absolute inset-x-0 bottom-full mb-3 flex flex-col items-center phone:mb-2 phone:items-start">
             {!phone && title}
-            <p className="line-clamp-2 text-center text-[15px] leading-[22px] text-balance text-fg phone:line-clamp-3 phone:text-left" title={moment.name}>
-              {moment.name}
-              {who && <span className="text-soft"> as {who}</span>}
+            {/* At the last stop, what you asked, in your own words, in the moment's line's place; nothing if you asked nothing. */}
+            <p
+              ref={line}
+              className={`line-clamp-2 min-h-[22px] text-center text-[15px] leading-[22px] text-balance text-fg phone:line-clamp-3 phone:text-left ${atLastStop ? "px-12 phone:px-0" : ""}`}
+              style={atLastStop ? { WebkitLineClamp: lines.current } : undefined}
+              title={atLastStop ? change.asked : moment.name}>
+              {atLastStop ? (
+                change.asked
+              ) : (
+                <>
+                  {moment.name}
+                  {who && <span className="text-soft"> as {who}</span>}
+                </>
+              )}
             </p>
           </div>
           <div
@@ -786,6 +802,12 @@ export function MomentView(props: {
             theirs={() => drawn.current?.()}
             onStandIn={setStandIn}
           />
+          {/* The last stop's sheet, in the recording's very frame, coming in over it and going as a moment does. */}
+          {sheetDrawn && (
+            <div ref={sheet} className={`absolute inset-0 z-[15] ${atLastStop ? "animate-arrive" : "pointer-events-none"}`}>
+              <LastStop change={change} handBack={handBack} said={[...sent.map((note) => ({ note, sent: true })), ...notes.map((note) => ({ note, sent: false }))]} says={says} unwatched={props.unwatched} onMoment={(to) => may.move && goTo(to)} />
+            </div>
+          )}
           {(() => {
             const one = saying && !opened && !writing && !playing && !away ? onEdge.find(({ note }) => note.id === saying) : undefined;
             const thing = one && placed?.[one.note.id];
@@ -813,6 +835,11 @@ export function MomentView(props: {
             ref={toolbar}
             style={{ height: BAR, translate: `calc(-50% + ${clear?.x ?? 0}px) calc(-50% + ${clear?.y ?? 0}px)`, opacity: clear ? 1 : 0 }}
           >
+            {/* At the last stop, the one thing to do there. */}
+            {atLastStop ? (
+              <StepAction step={step} />
+            ) : (
+            <>
             {/* Noting, the bar says what to do and how to leave, over what it holds, at its width. */}
             {noting && (
               <div className="absolute inset-1 z-1 flex animate-arrive items-center justify-between gap-2 rounded-lg bg-surface pl-2.5">
@@ -883,6 +910,8 @@ export function MomentView(props: {
                 <span className={`${ITEM} ${COMPARING} cursor-default text-faint!`}>{looking ? "Unchanged" : "New"}</span>
               ))}
             </div>
+            </>
+            )}
           </div>
         </div>
         {stepIn.said && <p className="absolute bottom-0 left-1/2 max-w-[90%] -translate-x-1/2 translate-y-full animate-arrive rounded-md bg-surface px-3 py-1.5 text-xs text-amber-ink shadow-tip">{stepIn.said}</p>}
@@ -904,6 +933,9 @@ export function MomentView(props: {
 }
 
 const ABOUT = "about";
+
+// The last stop's card on the Moments edge, by its name there.
+const LAST_STOP = "the last stop";
 
 // Compare's place on the bar, as wide as what it holds at its widest, so the bar is the same width whatever's there.
 const COMPARING = "w-[124px] phone:w-[112px]";

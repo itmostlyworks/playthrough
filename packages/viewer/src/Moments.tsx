@@ -1,8 +1,7 @@
 // What's next, from every app on this machine. / opens on the next change waiting on you, its opening card
 // (Opening.tsx); its moments go one by one with Next (Moment.tsx), each at /moments/<its change's address>/<n>, and
-// the list of them ends in the one step left for it, Send or Done, which goes on to what's next. A change seen all
-// through has nothing left to open: / opens it on its last moment, where that step is full, as its old end,
-// /moments/<its change's address>/end, does.
+// after the last, the last stop, at /moments/<its change's address>/end: the whole change, and the one step left for
+// it, Send or Done, which goes on to what's next. A change seen all through has nothing left to open: / opens it there.
 // Top left on every page, how many wait on you opens every change as a sheet over the page (Waiting.tsx), from which
 // any can be gone to. Going on to the next moment is the yes; what you said goes to the agent by Send, or Done with
 // nothing to say. Here is which page, and what's next.
@@ -15,27 +14,25 @@ import { useUnsent, keepUnsent, type YourReply } from "./kept.ts";
 import { MomentView } from "./Moment.tsx";
 import { NothingWaiting, Opening } from "./Opening.tsx";
 import { takingOf, markSeen, whoIn } from "./standing.ts";
-import { seenThrough, unreadOf, waitingInOrder } from "./step.ts";
+import { seenThrough, unreadOf, unseenOf, waitingInOrder } from "./step.ts";
 import { Opener, Sheet, useSheet, waitingSays } from "./Waiting.tsx";
 
 // Where you are: what's next, or a change's moment, by the change's address and the moment's place in it from 1, and a
-// note open by its pin; or a change's `last` moment, by its number once the change is known.
-export type Where = { change?: string; moment?: number; note?: string; last?: true };
+// note open by its pin; or a change's last stop, `end`, after its last moment.
+export type Where = { change?: string; moment?: number; note?: string; end?: true };
 export type Go = (to: Where, replace?: boolean) => void;
 
 const whereFrom = (path: string, search = ""): Where => {
   const [first, ...parts] = path.split("/").filter(Boolean).map(decodeURIComponent);
   if (first !== "moments" || !parts.length) return {};
-  if (parts.length > 1 && parts.at(-1) === "end") return { change: parts.slice(0, -1).join("/"), last: true };
+  if (parts.length > 1 && parts.at(-1) === "end") return { change: parts.slice(0, -1).join("/"), end: true };
   const moment = parts.length > 1 && /^\d+$/.test(parts.at(-1)!) ? Number(parts.pop()) : 1;
   const note = new URLSearchParams(search).get("note") ?? undefined;
   return { change: parts.join("/"), moment: Math.max(1, moment), ...(note && { note }) };
 };
 
-const pathOf = ({ change, moment, note }: Where) =>
-  change ? `/moments/${change.split("/").map(encodeURIComponent).join("/")}/${moment ?? 1}${note ? `?note=${encodeURIComponent(note)}` : ""}` : "/";
-
-const lastOf = (listed: Listed) => latestOf(listed.change)?.moments.length ?? 1;
+const pathOf = ({ change, moment, note, end }: Where) =>
+  change ? `/moments/${change.split("/").map(encodeURIComponent).join("/")}/${end ? "end" : (moment ?? 1)}${note ? `?note=${encodeURIComponent(note)}` : ""}` : "/";
 
 export function MomentsPage() {
   const [where, setWhere] = useState(() => whereFrom(location.pathname, location.search));
@@ -76,10 +73,9 @@ export function MomentsPage() {
   const listed = where.change ? changes?.find(({ change }) => change.id === where.change || change.id.endsWith(`/${where.change}`)) : undefined;
   useEffect(() => void (listed && listed.change.id !== where.change && go({ ...where, change: listed.change.id }, true)), [listed?.change.id]);
   const card = waiting[0];
-  // A change's end is its last moment, at rest, where the step left is full: come to by its old address, or at / for a
-  // change seen all through, whose card would have nothing left to open. Either way the address becomes that moment's.
-  const ending = where.change ? (where.last && where.moment === undefined ? listed : undefined) : card && you && seenThrough(card, you) ? card : undefined;
-  useEffect(() => void (ending && go({ change: ending.change.id, moment: lastOf(ending) }, true)), [ending?.change.id, where.change, where.moment]);
+  // At /, a change seen all through has nothing left to open: it opens at its last stop.
+  const ending = !where.change && card && you && seenThrough(card, you) ? card : undefined;
+  useEffect(() => void (ending && go({ change: ending.change.id, end: true }, true)), [ending?.change.id, where.change]);
   useSpaceStays();
   if (!changes || !you) return <div className="h-dvh bg-ground" />;
 
@@ -97,6 +93,7 @@ export function MomentsPage() {
           listed={listed}
           you={you}
           moment={where.moment ?? 1}
+          atLastStop={!!where.end}
           note={where.note}
           go={go}
           goOn={() => goOn(listed)}
@@ -134,11 +131,13 @@ function useSpaceStays() {
 
 // A change's moments, one at a time. What the agent hands back while you're on one waits until you go to another, so
 // nothing changes under you.
-function Change(props: { listed: Listed; you: string; moment: number; note?: string; go: Go; goOn: () => void; opener: ReactNode; unopened: { note: string; moment: number }[]; onOpened: (note: string) => void }) {
-  const { listed, you, moment, note, go } = props;
+function Change(props: { listed: Listed; you: string; moment: number; atLastStop: boolean; note?: string; go: Go; goOn: () => void; opener: ReactNode; unopened: { note: string; moment: number }[]; onOpened: (note: string) => void }) {
+  const { listed, you, note, go, atLastStop } = props;
   const { change } = listed;
   const id = change.id;
   const latest = latestOf(change);
+  // The last stop is after the last moment, which the page stays on underneath it.
+  const moment = atLastStop ? Infinity : props.moment;
   const { notes, replies } = useUnsent(id, latest?.number ?? 1);
   const setNotes = (edit: (notes: Note[]) => Note[]) => keepUnsent(id, latest?.number ?? 1, (now) => ({ ...now, notes: edit(now.notes) }));
   const setReplies = (edit: (replies: YourReply[]) => YourReply[]) => keepUnsent(id, latest?.number ?? 1, (now) => ({ ...now, replies: edit(now.replies) }));
@@ -146,8 +145,8 @@ function Change(props: { listed: Listed; you: string; moment: number; note?: str
   if (at.current?.moment !== moment) at.current = { moment, handBack: latest?.number };
   const handBack = change.handBacks.find((one) => one.number === at.current!.handBack);
   const n = handBack && Math.min(moment, handBack.moments.length);
-  // Opened, it's seen: for what's next, and for next time.
-  const taking = handBack && n && takingOf(handBack.number, handBack.moments[n - 1]!.name);
+  // Opened, it's seen: for what's next, and for next time. At the last stop, it isn't being watched.
+  const taking = !atLastStop && handBack && n && takingOf(handBack.number, handBack.moments[n - 1]!.name);
   useEffect(() => void (taking && markSeen(change, you, [taking])), [taking]);
   if (!handBack || !n) return <div className="grid h-dvh place-items-center bg-ground text-soft">Nothing is waiting on you here.</div>;
   const shown = handBack.moments[n - 1]!;
@@ -174,6 +173,9 @@ function Change(props: { listed: Listed; you: string; moment: number; note?: str
       onMoment={(to) => go({ change: id, moment: to }, true)}
       listed={listed}
       goOn={props.goOn}
+      atLastStop={atLastStop}
+      onLastStop={() => go({ change: id, end: true }, true)}
+      unwatched={unseenOf(listed, you)}
     />
   );
 }
