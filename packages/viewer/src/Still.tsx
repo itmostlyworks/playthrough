@@ -1,4 +1,5 @@
-// A moment's still: its picture closed in on what it's about, as the list shows it and a moment's left edge does.
+// A moment's still: its picture closed in on what it's about, as a change's previews show it and a moment's left edge
+// does.
 
 import { useEffect, useState } from "react";
 import type { Reading, Thing } from "@playthrough/page";
@@ -49,23 +50,12 @@ export function aboutBox(reading: Reading | undefined, about: { role: string; na
   return union([thing.box, ...near.map(wordsOf)]);
 }
 
-// A moment's still: the app at its point, closed in on what it's about, or where it names nothing, on the last thing
-// done on the way that's still there; the whole screen where there's neither. What runs off an edge the page goes on
-// past fades there rather than being cut. Seen, it's quieter.
+// What runs off an edge the page goes on past fades there rather than being cut.
 const FADE = 20;
 
-export function Still({ change, handBack, moment, about, seen }: { change: Change; handBack: HandBack; moment: Moment; about?: { role: string; name: string }; seen: boolean }) {
-  return (
-    // Under the pointer it's ringed and gives a little as it's pressed, as a picture on a moment's edge does.
-    <span
-      className={`relative block aspect-[1.6] overflow-hidden rounded-lg bg-paper shadow-frame transition-[filter,opacity,box-shadow,scale] duration-200 ease-calm group-hover:opacity-100 group-hover:shadow-[0_0_0_2px_var(--ground),0_0_0_3.5px_var(--faint)] group-hover:grayscale-0 group-focus-visible:shadow-[0_0_0_2px_var(--ground),0_0_0_4px_var(--amber)] group-active:scale-[0.98] group-active:duration-75 ${seen ? "opacity-60 grayscale" : ""}`}
-    >
-      <StillPicture change={change} handBack={handBack} moment={moment} about={about} />
-    </span>
-  );
-}
-
-// The still's picture alone, for whatever holds it: the list, or a moment's edge.
+// A moment's still, for whatever holds it, a change's previews or a moment's edge: the app at its point, closed in on
+// what it's about, or where it names nothing, on the last thing done on the way that's still there; the whole screen
+// where there's neither.
 export function StillPicture({ change, handBack, moment, about }: { change: Change; handBack: HandBack; moment: Moment; about?: { role: string; name: string } }) {
   const [crop, setCrop] = useState<Crop>();
   // Closed in, the picture kept as it was recorded is shown larger than it was taken on a screen of twice the dots: there,

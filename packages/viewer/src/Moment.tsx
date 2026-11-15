@@ -2,15 +2,17 @@
 // the left and this one's notes on the right. From here: play the few seconds that led here, step in (the real app
 // there, as that person), note what you click, compare with how it was when you last saw it, or go on.
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Glimpse, Reading } from "@playthrough/page";
 import { conversation, isStill, madeInApp, newId, together, type Note, type Change, type HandBack, type Moment } from "@playthrough/change";
 import { glimpses, picture, readings as readingsOf, recording } from "./api.ts";
 import { clamp } from "./clamp.ts";
 import { CHIP, playedTogether } from "./compare.ts";
 import { Edge, Tile } from "./Edge.tsx";
+import { Header, Title } from "./Header.tsx";
 import type { YourReply } from "./kept.ts";
 import { Key } from "./Key.tsx";
+import { LastStep } from "./LastStep.tsx";
 import { arrived, can, isPlaying, isStepped, reduce, type Action } from "./mode.ts";
 import { Progress, Getting, ITEM, BAR } from "./MomentBar.tsx";
 import { Turns, useFrames, NoteWords, NotePicture, NoteCard, Write, type Made } from "./Note.tsx";
@@ -21,7 +23,8 @@ import { Clock, Player, useCut, type Mark, type Placed } from "./Player.tsx";
 import { Portal, TAG } from "./Portal.tsx";
 import type { Rect, Scrolled } from "./replay.ts";
 import { SendButton, tick, FILLED_KEY, SAID, useSend } from "./Send.tsx";
-import { toSend, noteSays, takingOf, seenOf } from "./standing.ts";
+import { ago, toSend, noteSays, takingOf, seenOf } from "./standing.ts";
+import { backAgain } from "./step.ts";
 import { useKeptReady, useStepIn } from "./stepIn.ts";
 import { closeOn, aboutBox, StillPicture } from "./Still.tsx";
 import type { Together } from "./view.ts";
@@ -35,6 +38,8 @@ const startOf = (moment: Moment) => Math.min(moment.from, endOf(moment));
 
 export function MomentView(props: {
   change: Change;
+  // The app it's in, by its name.
+  app: string;
   handBack: HandBack;
   n: number;
   about?: { role: string; name: string };
@@ -45,13 +50,16 @@ export function MomentView(props: {
   replies: YourReply[];
   setReplies: (edit: (replies: YourReply[]) => YourReply[]) => void;
   you: string;
-  // A note to open as the moment opens, pressed on the list.
+  // A note to open as the moment opens, as its address says.
   opening?: string;
+  // What's waiting, top left: the way to every other change.
+  opener: ReactNode;
   onMoment: (n: number) => void;
-  onLeave: () => void;
+  // After the last moment, the step left for the change taken: on to the next.
+  onGoOn: () => void;
 }) {
-  const { change, handBack, n, about, who, notes, setNotes, replies, setReplies, you, onMoment, onLeave } = props;
-  // Send, here as on the list: everything unsent on the change goes. Sent, it says so where you pressed, and what was
+  const { change, handBack, n, about, who, notes, setNotes, replies, setReplies, you, onMoment } = props;
+  // Send: everything unsent on the change goes. Sent, it says so where you pressed, and what was
   // sent is drawn as sent at once, as the change comes back with it.
   const { sending, send, again } = useSend(change.id, handBack.number, you);
   const [justSent, setJustSent] = useState<Note[]>([]);
@@ -103,7 +111,7 @@ export function MomentView(props: {
   const [clockOf] = useState(() => new Clock(end));
   const [bothOf] = useState(() => new Clock(0));
   // What the page is doing, one thing at a time, and where the recording rests. Every press is an action, carrying
-  // where the recording has got to. It opens at the moment's end, with a note open where one was pressed on the list,
+  // where the recording has got to. It opens at the moment's end, with a note open where its address names one,
   // on this moment; another moment, going to it is an action too, so nothing of this one is drawn there.
   const [page, setPage] = useState(() => arrived(moment.name, from, end, [...props.sent, ...notes].some((one) => one.id === props.opening && one.on?.moment === moment.name) ? props.opening : undefined));
   // Come to another moment other than by going to it here, it's arrived at as it would have been, before it's drawn.
@@ -209,7 +217,7 @@ export function MomentView(props: {
   const theirs = sent.filter((one) => one.on?.moment === moment.name);
   const said = [...theirs.map((note) => ({ note, sent: true })), ...mine.map((note) => ({ note, sent: false }))];
   const onEdge = said.filter(({ note }) => !stepIn.madeThere(note));
-  // What was new as you came to this moment stays new here until you open it: coming counts as seeing it, for the list
+  // What was new as you came to this moment stays new here until you open it: coming counts as seeing it, for what's next
   // and for next time.
   const newAsYouCame = useRef(new Map<string, Set<string>>());
   if (!newAsYouCame.current.has(moment.name)) newAsYouCame.current.set(moment.name, new Set(said.filter(({ note, sent }) => noteSays(change, you, note, sent, replies).fresh).map(({ note }) => note.id)));
@@ -303,7 +311,7 @@ export function MomentView(props: {
     if (!may.move) return;
     const to = n + by;
     if (to < 1) return;
-    if (to > count) return onLeave();
+    if (to > count) return lastStep.current?.();
     goTo(to);
   };
   const toMoment = (to: number) => may.move && to !== n && goTo(to);
@@ -319,6 +327,9 @@ export function MomentView(props: {
   // Next goes through this moment's answers that were new as you came to it, one by one, before it goes on.
   const nextAnswer = may.move ? onEdge.find(({ note, sent }) => note.id !== open && says(note, sent).fresh) : undefined;
   const onward = () => (nextAnswer ? openNote(nextAnswer.note.id) : next(1));
+  // On the last moment, with no answer left to open, Next's place holds the step left for the change, which ↓ takes.
+  const lastStep = useRef<() => void>(undefined);
+  const atLast = n === count && !nextAnswer;
   // The open note's frame over the moment, and the one before it while that fades: only ever this moment's.
   const [layered, setLayers] = useState<{ note: Note; sent: boolean; made: Made }[]>([]);
   const layers = layered.filter((one) => one.note.on?.moment === moment.name);
@@ -406,7 +417,7 @@ export function MomentView(props: {
     const typing = event.target instanceof HTMLElement && event.target.closest("textarea, input, [contenteditable]");
     // A picture on an edge with the keyboard on it is pressed with Enter or Space, as any button is.
     if (event.target instanceof HTMLElement && event.target.closest("[data-tile]") && /^( |enter)$/i.test(event.key)) return;
-    // Ctrl+Enter sends, as on the list.
+    // Ctrl+Enter sends.
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !writing) return (event.preventDefault(), void sendNow());
     if (typing || event.ctrlKey || event.metaKey || event.altKey) return;
     const key = event.key.toLowerCase();
@@ -562,26 +573,30 @@ export function MomentView(props: {
   return (
     // Clipped, never scrolled: a caret put in a note's box can't move the page under you.
     <div className="grid h-dvh grid-rows-[auto_auto_minmax(0,1fr)] overflow-clip bg-ground phone:grid-rows-[auto_auto_auto_minmax(0,1fr)]" onPointerDown={pressAway}>
-      <header className="flex h-12 min-w-0 items-center gap-3 px-6 phone:px-4">
-        <button onClick={onLeave} className="-ml-2 flex min-w-0 items-center gap-1.5 rounded-lg px-2 py-1 text-soft transition-colors duration-150 ease-calm hover:bg-hover hover:text-fg">
-          <svg viewBox="0 0 12 12" className="size-3 flex-none" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <path d="M7.5 2.5L4 6l3.5 3.5" />
-          </svg>
-          <span className="truncate">{change.title}</span>
-        </button>
-        {(unsent > 0 || sending) && (
-          <SendButton className="ml-auto" filled={unsent > 0 && sending !== "sent"} arrives onClick={() => void sendNow()} disabled={sending === "sending" || sending === "sent"}>
-            {sending === "sent" ? <>{tick}Sent</> : sending === "sending" ? "Sending…" : <>Send {toSend(notes.length, replies.length)} <Key className={FILLED_KEY}>Ctrl ↵</Key></>}
-          </SendButton>
+      <Header
+        opener={props.opener}
+        centre={<Title title={change.title} asked={change.asked} quiet={`${props.app} · ${backAgain(change, you) ? "back again" : "back"} ${ago(handBack.finished!, Date.now())}`} />}
+      >
+        {atLast ? (
+          <LastStep change={change} you={you} notes={notes.length} replies={replies.length} sending={sending} sendNow={sendNow} press={lastStep} onGoOn={props.onGoOn} />
+        ) : (
+          <>
+            {(unsent > 0 || sending) && (
+              <SendButton filled={unsent > 0 && sending !== "sent"} arrives onClick={() => void sendNow()} disabled={sending === "sending" || sending === "sent"}>
+                {sending === "sent" ? <>{tick}Sent</> : sending === "sending" ? "Sending…" : <>Send {toSend(notes.length, replies.length)} <Key className={FILLED_KEY}>Ctrl ↵</Key></>}
+              </SendButton>
+            )}
+            {Array.isArray(sending) && <span className="text-[13px] text-amber-ink">Not sent: {sending[0]}</span>}
+            <button onClick={onward} disabled={!may.move} className="-mr-2 flex flex-none items-center gap-1.5 rounded-lg px-2 py-1 text-soft transition-colors duration-150 ease-calm enabled:hover:bg-hover enabled:hover:text-fg disabled:opacity-50">
+              {nextAnswer ? "Next answer" : "Next"}
+              <Key>↓</Key>
+            </button>
+          </>
         )}
-        {Array.isArray(sending) && <span className="text-[13px] text-amber-ink">Not sent: {sending[0]}</span>}
-        <button onClick={onward} disabled={!may.move} className={`-mr-2 flex flex-none items-center gap-1.5 rounded-lg px-2 py-1 text-soft transition-colors duration-150 ease-calm enabled:hover:bg-hover enabled:hover:text-fg disabled:opacity-50 ${unsent > 0 || sending ? "" : "ml-auto"}`}>
-          {nextAnswer ? "Next answer" : n < count ? "Next" : "To the list"}
-          <Key>↓</Key>
-        </button>
-      </header>
-      {/* Who and where, in the agent's words: room for two lines, three on a phone, so nothing under it moves. */}
-      <p className="line-clamp-2 h-[44px] px-6 text-[15px] leading-[22px] text-fg phone:line-clamp-3 phone:h-[66px] phone:px-4" title={moment.name}>
+      </Header>
+      {/* Who and where, in the agent's words, under the change's title: room for two lines, three on a phone, so nothing
+          under it moves. */}
+      <p className="line-clamp-2 h-[44px] px-6 text-center text-[15px] leading-[22px] text-balance text-fg phone:line-clamp-3 phone:h-[66px] phone:px-4 phone:text-left" title={moment.name}>
         {who && <span className="text-soft">{who} · </span>}
         {moment.name}
       </p>
@@ -786,10 +801,10 @@ export function MomentView(props: {
 const ABOUT = "about";
 
 // Under the recording, room for the lower half of the bar that hangs across its edge, and a little more.
-const UNDER = BAR / 2 + 20;
+export const UNDER = BAR / 2 + 20;
 
 // Beside the recording, room for each edge's pictures at rest.
-const SIDE = "clamp(104px, 10vw, 160px)";
+export const SIDE = "clamp(104px, 10vw, 160px)";
 
 // A spot, as a thing with no size.
 const spotAt = ({ x, y }: { x: number; y: number }): Rect => ({ left: x, top: y, width: 0, height: 0 });

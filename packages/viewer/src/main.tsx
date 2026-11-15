@@ -1,5 +1,5 @@
-// The viewer: what's waiting on you from every app on this machine at /, and each moment at /moments/…; any other
-// address is the list.
+// The viewer: what's next for you from every app on this machine at /, and each moment at /moments/…; any other
+// address is what's next.
 
 import { createRoot } from "react-dom/client";
 import { FramePage, type Framed } from "./Frame.tsx";

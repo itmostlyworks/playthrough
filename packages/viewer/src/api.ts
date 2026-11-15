@@ -6,13 +6,13 @@ import type { Glimpse, Reading } from "@playthrough/page";
 import type { Change, Send } from "@playthrough/change";
 import type { Events } from "./replay.ts";
 
-// A change as the list has it: the change, at its address on this machine, the app's name and its people as the person
+// A change as `playthrough open` lists it: the change, at its address on this machine, the app's name and its people as the person
 // sees them ("Sam, a member"), and whether an agent is waiting for what's sent.
 export type Listed = { change: Change; app: string; people: Record<string, string>; agentWaiting: boolean };
 
 // Every change on this machine, from every app and every copy of each, arriving again whenever any of them changes,
 // undefined until it's first come. One stream, while the page is in sight: a browser lets six requests at a time go to
-// one address, from all its tabs together. Out of sight, the list is asked for now and then instead, so the tab's
+// one address, from all its tabs together. Out of sight, they are asked for now and then instead, so the tab's
 // title still says what's waiting.
 export function useChanges(): Listed[] | undefined {
   const [changes, setChanges] = useState<Listed[]>();

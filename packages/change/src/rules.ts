@@ -72,7 +72,7 @@ const sentOn = (change: Change, you: string) => {
 
 // Where a change stands for one person: waiting on them; with their agents, once they've sent notes on its latest
 // moments; or done, once they said Done (saidDone). Nothing about Done is final: a note later sends as any other, and the
-// change is with their agents again. The list and the page read it alike.
+// change is with their agents again. Every change in the sheet and a moment's page read it alike.
 export type Standing = { is: "waiting" } | { is: "sent"; at: string; notes: number; replies: number } | { is: "done"; at: string };
 
 export function standingOf(change: Change, you: string): Standing {

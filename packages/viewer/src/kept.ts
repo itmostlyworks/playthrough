@@ -1,6 +1,6 @@
 // What this browser keeps for you: your notes and replies not yet sent, by the change's address, until you send them;
-// what it kept of what you'd seen before that was kept with the change; and, for this tab, where the list was
-// scrolled, which of its quiet lines you'd opened, and the changes you've stepped in on.
+// what it kept of what you'd seen before that was kept with the change; and, for this tab, the changes you've stepped
+// in on.
 
 import { useEffect, useState } from "react";
 import { noteNow, type Note, type Send } from "@playthrough/change";
@@ -67,42 +67,6 @@ export function useUnsent(change: string, latest: number): Unsent {
 
 // The moments you opened, as this browser kept them before they were kept with the change.
 export const seenKey = (change: string, you: string) => `playthrough:moments-seen:${change}:${you}`;
-
-// Where the list was scrolled as you went to a moment, for coming back to it there.
-const scrollKey = "playthrough:moments-scroll";
-
-export const keepScroll = () => {
-  try {
-    sessionStorage.setItem(scrollKey, String(scrollY));
-  } catch {}
-};
-
-export function scrolledBack() {
-  try {
-    const kept = Number(sessionStorage.getItem(scrollKey) ?? 0);
-    sessionStorage.removeItem(scrollKey);
-    return kept;
-  } catch {
-    return 0;
-  }
-}
-
-// The quiet lines you've opened, kept while you go to a moment and back.
-const openKey = "playthrough:moments-open";
-
-export function openedLines(): string[] {
-  try {
-    return JSON.parse(sessionStorage.getItem(openKey) ?? "[]");
-  } catch {
-    return [];
-  }
-}
-
-export function keepOpened(ids: string[]) {
-  try {
-    sessionStorage.setItem(openKey, JSON.stringify(ids));
-  } catch {}
-}
 
 // The changes this tab has stepped in on: from then on, the app is kept ready where the recording rests (stepIn.ts).
 const steppedKey = (change: string) => `playthrough:stepped-in:${change}`;

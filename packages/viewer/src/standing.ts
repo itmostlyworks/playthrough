@@ -9,7 +9,7 @@ import { stored, seenKey, type YourReply } from "./kept.ts";
 export const toSend = (notes: number, replies: number) =>
   [notes && `${notes} ${notes === 1 ? "note" : "notes"}`, replies && `${replies} ${replies === 1 ? "reply" : "replies"}`].filter(Boolean).join(" and ");
 
-// What a note says wherever it's shown, a line on the list, its picture's words or its pin pointed at: your latest
+// What a note says wherever it's shown, its picture's words or its pin pointed at: your latest
 // words, and where it stands. An answer is new if it came back after you last opened the moment it's on, as what you've
 // opened is kept with the change (`seen`), so it's the same on every device you look from.
 export function noteSays(change: Change, you: string, note: Note, sent: boolean, replies: YourReply[]) {
@@ -70,7 +70,7 @@ export function markSeen(change: Change, you: string, takings: string[]) {
 export const workingSince = (change: Change, latest: HandBack) =>
   change.taken.find((taken) => taken.handBack > latest.number && notesToAnswer(change, taken.handBack).length > 0)?.at;
 
-// Who a moment is done as, as the list says them ("Sam, a member").
+// Who a moment is done as, as the page says them ("Sam, a member").
 export const whoIn = (listed: Listed, moment: Moment) => (moment.person ? (listed.people[moment.person] ?? moment.person) : "");
 
 // How long ago, as a person says it.
