@@ -216,7 +216,13 @@ which the opening card's picture stands in too, so going in moves nothing).
 
 **Every change** (`Waiting.tsx`, `Changes.tsx`). Top left on every page, "6 changes waiting" (or "Every change") opens every
 change as a sheet over the page, the page under it softened and inert. Pressed or from the keyboard, it stays until
-Escape, a press beside it, or going somewhere. A mouse that moves onto it and rests there 80 ms opens it too, and then it
+Escape, a press beside it, or going somewhere. From the keyboard it's W, anywhere but in a box being typed into, its
+key drawn on the opener, and W again closes it. Opened from the keyboard (W, or Enter on the opener), the keyboard is on
+a change at once: the one you're on, or the first; ↑ and ↓ (and K, J) go from one change to the next, the sheet
+scrolling as little as brings it in, and Enter goes in. A change with the keyboard on it is lit as one pointed at is,
+with a quiet line round it, not the keyboard's amber ring. Coming, the sheet fades in over 200 ms; going, it fades where
+it is over 140 ms, already inert, the page under it answering from the moment it's closed, so going somewhere from it
+the sheet leaves over the page arriving. A mouse that moves onto the opener and rests there 80 ms opens it too, and then it
 goes once the pointer has been outside it for 300 ms; coming back in time keeps it. A page that loads
 or changes under a still pointer opens nothing, and once the sheet has closed, the pointer has to leave it before pointing
 opens it again. In the sheet: Waiting on you, each change's title, what you asked in two lines, the app and when it came
@@ -237,8 +243,8 @@ its arrows rest there, dimmed where they always are, and Play says "A still: not
 (`SIDE`, 10vw, 104 to 160px each side), and never moves or changes size: not as an edge comes forward, a note opens or
 the moment changes (its shape is kept until the next one's is known, and the one you were on stays under the new one
 until it has faded in). The bar across its bottom edge: Play (Space), whose slim line along its own bottom edge fills as
-it plays, there only once the moment has left its end, with a small arrow either side, the frame before (`,`) and the
-next frame (`.`), their words and keys coming up over them when pointed at a while; Step in (S); Note (N, on the
+it plays, there only once the moment has left its end, with a small arrow either side, the frame before (←) and the
+next frame (→), their words and keys coming up over them when pointed at a while; Step in (S); Note (N, on the
 recording or in the app); Compare (C), or in its place "Unchanged" or "New", or while a note from an earlier hand-back is
 open, its "As it was" and "Now" switch; Compare's place is as wide as the switch, and in the app who you are takes
 Play's room and its arrows', so the bar is the same width from one moment to the next, in every state;
@@ -257,15 +263,19 @@ there and steps; held, the key's own repeat walks it; compared, both sides go th
 Space does, it acts on the moment and closes the note first, as it was or now. At rest on a step the
 page is that very frame, motion and all (`Replay.show`): rebuilt to just before the changes of the second before it and
 those played back on one at a time, so a fade stepped back into is shown mid-way, not at its end, and what the page set
-moving is placed by when its change was. A note made there keeps that picture. Keys: Space, `,` `.`, S, N, C; ↑ ↓
-(and K, J) the moment before and next, ↓ after the last coming to the change's card; ← → this moment's notes, opening
-each; Escape closes what's open, leaves Compare or noting, else goes back; Ctrl+Enter (⌘↵) sends. Reduced motion:
-nothing slides or fades.
+moving is placed by when its change was. A note made there keeps that picture. Keys: Space, S, N, C; ← → the frame before and
+the next, along the moment, and never on into another; ↑ ↓ (and K, J) the moment before and next, ↓ after the last
+coming to the change's card; with Shift, ↑ ↓ the note before and the next through the whole change, opening each: this
+moment's one after another, then on to the nearest moment that has one (its first going on, its last going back), and
+nothing past the change's first or last; W what's waiting; Escape closes what's open, leaves Compare or noting, else
+goes back; Ctrl+Enter (⌘↵) sends. Reduced motion: nothing slides or fades.
 
 **The edges** (`Edge.tsx`). On the left, the change's moments; on the right, this moment's notes, sent then unsent, in
 the order said. Over each, what it holds, in a word, "Moments" and "Notes": at its pictures' outer side, or 24px
 from the screen's edge, where the header's words stand, when they run past it; still as the edge comes forward, and
-not there over notes while there are none. Each is a picture of one size (176 by 110), one after another, at rest beside the recording and never
+not there over notes while there are none. By each word, on its inner side, the keys that go through what it holds:
+↑ ↓ by Moments, Shift ↑ ↓ by Notes (not on a phone). Forward, a card has one border, its own, which says the moment
+you're on or the one pointed at; the picture's own border is only there at rest. Each is a picture of one size (176 by 110), one after another, at rest beside the recording and never
 over it, 16px from it, running past the screen's edge where the window is too narrow for them, fading out over its last
 few pixels (never over pictures wholly on the screen). Pointed at (after 70 ms; going back after 220 ms), or reached with
 Tab, an edge comes forward: it slides until its pictures are 16px from the screen's edge, a little over the recording,

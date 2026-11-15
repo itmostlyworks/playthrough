@@ -128,9 +128,10 @@ export function MomentsPage() {
   return (
     <>
       <div inert={!!sheet.open}>{page}</div>
-      {sheet.open && (
-        <Sheet pointed={sheet.open === "pointed"} onClose={() => sheet.close(true)}>
-          <Changes changes={changes} you={you} onOpen={(change, moment, note) => go({ change, moment, note })} />
+      {sheet.drawn && (
+        <Sheet key={sheet.times} pointed={sheet.drawn === "pointed"} going={!sheet.open} onClose={() => sheet.close(true)}>
+          {/* Opened from the keyboard, the keyboard is on the change you're on. */}
+          <Changes changes={changes} you={you} keyboardOn={sheet.drawn === "keyed" ? (where.change ?? card?.change.id ?? "") : undefined} onOpen={(change, moment, note) => go({ change, moment, note })} />
         </Sheet>
       )}
     </>

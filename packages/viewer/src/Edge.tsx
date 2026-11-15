@@ -8,6 +8,7 @@
 // says nothing. On a phone there's no room beside the recording: they're rows under it, words and all.
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { Key } from "./Key.tsx";
 
 // A picture's size, and the room around it.
 export const TILE = 176;
@@ -31,6 +32,8 @@ type Room = { top: number; height: number; inner: number; screen: number };
 export function Edge(props: {
   side: "left" | "right";
   label: string;
+  // The keys that go through what it holds, drawn by its word.
+  keys: string[];
   // The recording, which the edge sits beside.
   stage: RefObject<HTMLDivElement | null>;
   // Stepped in: what drives the recording rests.
@@ -44,7 +47,7 @@ export function Edge(props: {
   arrived?: string;
   children: (forward: boolean) => ReactNode;
 }) {
-  const { side, label, stage, quiet, phone, empty, showing, arrived, children } = props;
+  const { side, label, keys, stage, quiet, phone, empty, showing, arrived, children } = props;
   const [room, setRoom] = useState<Room>();
   useLayoutEffect(() => {
     const shown = stage.current;
@@ -128,8 +131,12 @@ export function Edge(props: {
   return (
     <>
       {!empty && (
-        <h2 className={`pointer-events-none fixed z-30 text-[13px] leading-5 font-semibold text-soft transition-opacity duration-300 ease-calm ${quiet ? "opacity-40" : ""}`} style={{ top: room.top - WORD, [right ? "right" : "left"]: Math.max(24, -cutBy) }}>
-          {label}
+        // Its keys are on the word's inner side, so the word itself stays at the pictures' outer one.
+        <h2 className={`pointer-events-none fixed z-30 flex items-center gap-1 text-[13px] leading-5 font-semibold text-soft transition-opacity duration-300 ease-calm ${right ? "flex-row-reverse" : ""} ${quiet ? "opacity-40" : ""}`} style={{ top: room.top - WORD, [right ? "right" : "left"]: Math.max(24, -cutBy) }}>
+          <span className={right ? "ml-1" : "mr-1"}>{label}</span>
+          {(right ? keys.toReversed() : keys).map((key) => (
+            <Key key={key}>{key}</Key>
+          ))}
         </h2>
       )}
       <div

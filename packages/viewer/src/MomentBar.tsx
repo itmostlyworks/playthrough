@@ -56,9 +56,9 @@ export function Getting({ since, due }: { since: number; due?: number }) {
 // A small arrow either side of Play: the frame before, or the next. Quiet beside Play, its words and its key come up
 // over it when it's pointed at a while, or reached with Tab.
 export function FrameButton({ by, disabled, onStep }: { by: 1 | -1; disabled: boolean; onStep: () => void }) {
-  const [words, key] = by < 0 ? ["Frame before", ","] : ["Next frame", "."];
+  const [words, key, named] = by < 0 ? ["Frame before", "←", "ArrowLeft"] : ["Next frame", "→", "ArrowRight"];
   return (
-    <button className={`${ITEM} group/tip relative w-6 px-0! text-soft! phone:w-5`} disabled={disabled} aria-label={words} aria-keyshortcuts={key} onClick={onStep}>
+    <button className={`${ITEM} group/tip relative w-6 px-0! text-soft! phone:w-5`} disabled={disabled} aria-label={words} aria-keyshortcuts={named} onClick={onStep}>
       <svg viewBox="0 0 10 10" width="10" height="10" aria-hidden className={by < 0 ? "-scale-x-100" : ""}>
         <path d="M3.5 1.5 7 5l-3.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
       </svg>

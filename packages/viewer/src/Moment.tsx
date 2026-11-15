@@ -320,9 +320,9 @@ export function MomentView(props: {
     leading.together.centre = undefined;
     act({ type: "compare" });
   };
-  const goTo = (to: number) => {
+  const goTo = (to: number, open?: string) => {
     const other = handBack.moments[to - 1]!;
-    act({ type: "moment", moment: other.name, starts: startOf(other), end: endOf(other) });
+    act({ type: "moment", moment: other.name, starts: startOf(other), end: endOf(other), open });
     onMoment(to);
   };
   const next = (by: number) => {
@@ -334,6 +334,21 @@ export function MomentView(props: {
   };
   const toMoment = (to: number) => may.move && to !== n && goTo(to);
   const openNote = (id: string) => may.move && act({ type: "open", note: id });
+  // What you said on a moment of the change, in the order its edge has it: one made in the app joins once you're back.
+  const notesOn = (other: Moment) => (other === moment ? onEdge.map(({ note }) => note) : [...sent, ...notes].filter((one) => one.on?.moment === other.name));
+  // The note before or the next, through the whole change: this moment's one after another, then on to the nearest
+  // moment that has one, its first going on, its last going back. Past the change's last or first, nothing.
+  const nextNote = (by: 1 | -1) => {
+    if (!may.move) return;
+    const here = notesOn(moment);
+    const i = here.findIndex((one) => one.id === open);
+    const to = here[i < 0 ? (by > 0 ? 0 : here.length - 1) : i + by];
+    if (to) return openNote(to.id);
+    for (let other = n + by; other >= 1 && other <= count; other += by) {
+      const there = notesOn(handBack.moments[other - 1]!).at(by > 0 ? 0 : -1);
+      if (there) return goTo(other, there.id);
+    }
+  };
   const close = () => act({ type: "close" });
   const save = (words: string) => {
     if (!writing) return;
@@ -422,8 +437,9 @@ export function MomentView(props: {
   // Pressing away from what's open, anywhere but its card and its picture on the edge, closes it.
   const pressAway = (event: React.PointerEvent) => opened && !(event.target as Element).closest("[data-note-card], [data-tile]") && !stage.current?.contains(event.target as Node) && close();
 
-  // The keys: Space plays, `,` and `.` go a frame back and on (held, on and on), S steps in and back, N notes, C
-  // compares, ↑ and ↓ go a moment back and on, ← and → open this moment's notes one after another, Escape lets go.
+  // The keys: Space plays, ← and → go a frame back and on (held, on and on), S steps in and back, N notes, C compares,
+  // ↑ and ↓ go a moment back and on, and with Shift a note back and on, Escape lets go. Left and right are along the
+  // moment, up and down through what's listed at its edges, and neither runs on into the other.
   const keys = useRef<(event: KeyboardEvent) => void>(() => {});
   keys.current = (event) => {
     const typing = event.target instanceof HTMLElement && event.target.closest("textarea, input, [contenteditable]");
@@ -440,14 +456,10 @@ export function MomentView(props: {
       else back();
       return;
     }
-    if ((key === "arrowleft" || key === "arrowright") && onEdge.length && may.move) {
-      const i = onEdge.findIndex(({ note }) => note.id === open);
-      const to = key === "arrowright" ? (i < 0 ? 0 : Math.min(onEdge.length - 1, i + 1)) : i < 0 ? onEdge.length - 1 : Math.max(0, i - 1);
-      event.preventDefault();
-      return void (onEdge[to]!.note.id !== open && openNote(onEdge[to]!.note.id));
-    }
-    if (key === "," || key === ".") return (event.preventDefault(), frame(key === "," ? -1 : 1));
-    const did = { " ": play, s: stepInOrBack, n: note, c: () => (flips ? flip() : compare()), arrowdown: () => next(1), j: () => next(1), arrowup: () => next(-1), k: () => next(-1) }[key];
+    if (key === "arrowleft" || key === "arrowright") return (event.preventDefault(), frame(key === "arrowleft" ? -1 : 1));
+    const down = () => (event.shiftKey ? nextNote(1) : next(1));
+    const up = () => (event.shiftKey ? nextNote(-1) : next(-1));
+    const did = { " ": play, s: stepInOrBack, n: note, c: () => (flips ? flip() : compare()), arrowdown: down, j: down, arrowup: up, k: up }[key];
     if (!did || event.repeat) return;
     event.preventDefault();
     did();
@@ -478,8 +490,8 @@ export function MomentView(props: {
 
   const momentTiles = (forward: boolean) =>
     handBack.moments.map((other, i) => {
-      // Its notes' dots, as its edge has them: one made in the app joins once you're back.
-      const talk = other === moment ? onEdge.map(({ note }) => note) : [...sent, ...notes].filter((one) => one.on?.moment === other.name);
+      // Its notes' dots, as its edge has them.
+      const talk = notesOn(other);
       return (
         <Tile
           key={other.name}
@@ -587,7 +599,7 @@ export function MomentView(props: {
   );
 
   const momentsEdge = (
-    <Edge side="left" label="Moments" stage={stage} quiet={away} phone={phone} showing={moment.name}>
+    <Edge side="left" label="Moments" keys={["↑", "↓"]} stage={stage} quiet={away} phone={phone} showing={moment.name}>
       {momentTiles}
     </Edge>
   );
@@ -827,7 +839,7 @@ export function MomentView(props: {
         {/* Tab reaches them as they read, left to right; on a phone, the notes come first, nearest what they're on. */}
         {!phone && momentsEdge}
         {(!phone || onEdge.length > 0) && (
-          <Edge side="right" label="Notes" stage={stage} quiet={away} phone={phone} empty={!onEdge.length} showing={open ?? lastArrived} arrived={lastArrived}>
+          <Edge side="right" label="Notes" keys={["Shift", "↑", "↓"]} stage={stage} quiet={away} phone={phone} empty={!onEdge.length} showing={open ?? lastArrived} arrived={lastArrived}>
             {noteTiles}
           </Edge>
         )}

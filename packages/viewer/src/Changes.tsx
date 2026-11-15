@@ -19,7 +19,8 @@ const LEAVING = 380;
 // newest first, or where that part will open if it isn't there yet.
 const LANDS: Record<Section, string[]> = { waiting: ["waiting-foot"], agents: ["agents", "waiting-foot"], done: ["done", "agents-foot", "waiting-foot"] };
 
-export function Changes({ changes, you, onOpen }: { changes: Listed[]; you: string; onOpen: (change: string, moment: number, note?: string) => void }) {
+// `keyboardOn`: opened from the keyboard, the change it starts on, where that's among them, or else the first.
+export function Changes({ changes, you, keyboardOn, onOpen }: { changes: Listed[]; you: string; keyboardOn?: string; onOpen: (change: string, moment: number, note?: string) => void }) {
   const [shown, setShown] = useState<Listed[]>();
   const [earlier, setEarlier] = useState(false);
   const before = useRef<Listed[]>(undefined);
@@ -92,6 +93,14 @@ export function Changes({ changes, you, onOpen }: { changes: Listed[]; you: stri
     const every = setInterval(() => aMinute((n) => n + 1), 60000);
     return () => clearInterval(every);
   }, []);
+  const drawn = !!shown;
+  useLayoutEffect(() => {
+    if (keyboardOn === undefined || !drawn) return;
+    const rows = [...(own.current?.querySelectorAll<HTMLElement>("[data-row]") ?? [])].filter((row) => !row.closest("[inert]"));
+    const row = rows.find((one) => one.closest<HTMLElement>("[data-change]")?.dataset.change === keyboardOn) ?? rows[0];
+    row?.focus({ preventScroll: true });
+    row?.closest("[data-change]")?.scrollIntoView({ block: "nearest" });
+  }, [drawn]);
   if (!shown) return <div className="h-40" />;
 
   const now = Date.now();
@@ -157,7 +166,7 @@ export function Changes({ changes, you, onOpen }: { changes: Listed[]; you: stri
             <div className="mt-1.5">{done.slice(0, LATEST).map(row)}</div>
             {done.length > LATEST && (
               <>
-                <button onClick={() => setEarlier(!earlier)} aria-expanded={earlier} className={`${QUIET_ROW} hover:bg-hover`}>
+                <button data-row onClick={() => setEarlier(!earlier)} aria-expanded={earlier} className={`${QUIET_ROW} hover:bg-hover focus-visible:bg-hover focus-visible:shadow-[0_0_0_1.5px_var(--faint)] focus-visible:outline-none`}>
                   <span className="text-soft">Earlier · {done.length - LATEST}</span>
                 </button>
                 <Fold open={earlier}>{done.slice(LATEST).map(row)}</Fold>
@@ -170,7 +179,7 @@ export function Changes({ changes, you, onOpen }: { changes: Listed[]; you: stri
   );
 }
 
-const QUIET_ROW = "-mx-3 flex w-[calc(100%+24px)] items-baseline gap-2 rounded-lg px-3 py-1.5 text-left text-[14px] leading-[22px] transition-colors duration-150 ease-calm";
+const QUIET_ROW = "-mx-3 flex w-[calc(100%+24px)] items-baseline gap-2 rounded-lg px-3 py-1.5 text-left text-[14px] leading-[22px] transition-[background-color,box-shadow] duration-150 ease-calm";
 
 function Fold({ open, children }: { open: boolean; children: ReactNode }) {
   return (
@@ -276,12 +285,15 @@ function Row(props: {
   );
   const not = problems && <span className="text-amber-ink"> · Not sent: {problems[0]}</span>;
   const openable = !!handBack;
-  const lit = openable ? "hover:bg-hover" : "";
+  // With the keyboard on it, a row is lit as one pointed at is, with a quiet line round it: going down them it reads
+  // as where you are, which the keyboard's amber ring, a box round every row in turn, was too loud for.
+  const lit = openable ? "hover:bg-hover has-[[data-row]:focus-visible]:bg-hover has-[[data-row]:focus-visible]:shadow-[0_0_0_1.5px_var(--faint)]" : "";
   const press = openable && (
     <button
+      data-row
       onClick={go}
       aria-label={words ? `${change.title}: ${words}` : change.title}
-      className="absolute inset-0 rounded-lg focus-visible:outline-offset-0"
+      className="absolute inset-0 rounded-lg focus-visible:outline-none"
     />
   );
   return (
@@ -296,7 +308,7 @@ function Row(props: {
           // Each change is set apart from the one above by a line, with room either side of it: its pictures are the
           // heaviest thing in the sheet, and with nothing between they read as the next change's as much as their own.
           <div className="border-t border-line py-3 transition-colors duration-150 ease-calm [[data-change]:first-child_&]:border-transparent">
-            <div className={`relative -mx-3 rounded-lg px-3 py-3 transition-colors duration-150 ease-calm ${glowing ? "animate-glow" : ""} ${lit}`}>
+            <div className={`relative -mx-3 rounded-lg px-3 py-3 transition-[background-color,box-shadow] duration-150 ease-calm ${glowing ? "animate-glow" : ""} ${lit}`}>
               {press}
               <div className="flex items-start gap-4">
                 <h2 className="pointer-events-none min-w-0 flex-1 line-clamp-2 text-[15px] leading-[22px] font-semibold text-fg">{change.title}</h2>
