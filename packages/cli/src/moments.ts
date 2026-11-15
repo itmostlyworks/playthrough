@@ -60,7 +60,7 @@ export async function moment(repo: Repo, words: string, named?: string, last?: n
   const there = { url: here.url(), reading: await readAt(here), scrolled: await here.evaluate(() => ({ x: scrollX, y: scrollY })), ...(await aboutOn(here, words, named)), open: await openOn(here) };
   await open.close();
   if (named && !there.about)
-    throw new Refused([`Nothing on the page is called ${quote(named)}, as a button, a field, a link or a heading is, or says it.${there.near.length ? ` Near it: ${list(there.near.map(quote))}.` : ""} Say it as the page names it, or leave it out.`]);
+    throw new Refused([`Nothing on the page is called ${quote(named)}, as a button, a field, a link or a heading is, or holds it, or says it.${there.near.length ? ` Near it: ${list(there.near.map(quote))}.` : ""} Say it as the page names it, or leave it out.`]);
 
   // Where the moment starts: what was done since arriving on this page, or since the moment before; or the last N things.
   const done = browser.did;
@@ -239,7 +239,7 @@ async function readAt(page: Page): Promise<Reading> {
 // What the moment is about: the thing named, by its whole name, or else the smallest that holds those words, as a card
 // holds its title; or, named nothing, the thing whose name its words say, the longest, a field before a heading, of two
 // words or more: one word, as a person's name, says too little. And where nothing's found, what's near what was said.
-async function aboutOn(page: Page, words: string, named?: string): Promise<{ about?: About; near: string[] }> {
+export async function aboutOn(page: Page, words: string, named?: string): Promise<{ about?: About; near: string[] }> {
   return page.evaluate(
     ({ words, named }) => {
       const nameOf = (window as any).__playthroughNamed;
@@ -254,10 +254,13 @@ async function aboutOn(page: Page, words: string, named?: string): Promise<{ abo
         ? (all.filter((one) => lower(one) === said).sort(headingLast)[0] ?? all.filter((one) => lower(one).includes(said)).sort((a, b) => a.name.length - b.name.length || headingLast(a, b))[0])
         : all.filter((one) => /\s/.test(one.name) && said.includes(lower(one))).sort((a, b) => b.name.length - a.name.length || headingLast(a, b))[0];
       const near = [...new Set(all.filter((one) => said.split(/\s+/).some((word) => word.length > 3 && lower(one).includes(word))).map((one) => one.name))].slice(0, 5);
-      // Named, and no button, field or heading is called that: words on the page that say it, the innermost, as a
-      // field's own words, which the page names nothing.
+      // Named, and nothing is called that: a field that holds it, as Kan's list names are fields, called by the words in
+      // them as a person calls them.
+      const isField = (element: Element) => ["INPUT", "TEXTAREA", "SELECT"].includes(element.tagName);
+      const holding = named && !found ? all.find((one) => isField(one.element) && (one.element as HTMLInputElement).value.toLowerCase().trim() === said) : undefined;
+      // Nor held: words on the page that say it, the innermost, as a field's own words, which the page names nothing.
       const own = (element: Element) => ((element as HTMLElement).innerText ?? "").trim().replace(/\s+/g, " ");
-      const saying: Element[] = named && !found ? asWritten(() => [...document.querySelectorAll("body *")].filter((element) => own(element).toLowerCase() === said && ![...element.children].some((child) => own(child).toLowerCase() === said))) : [];
+      const saying: Element[] = named && !found && !holding ? asWritten(() => [...document.querySelectorAll("body *")].filter((element) => own(element).toLowerCase() === said && ![...element.children].some((child) => own(child).toLowerCase() === said))) : [];
       // Of several the same, as a Docs link in the header and another in the footer, the one in view, by which of them
       // it is.
       const inView = (element: Element) => {
@@ -272,18 +275,18 @@ async function aboutOn(page: Page, words: string, named?: string): Promise<{ abo
         const { element, nth } = which(saying, saying[0]!);
         return { near, about: { role: "text", name: asWritten(() => own(element)), disabled: false, ...(nth !== undefined && { nth }) } };
       }
-      if (!found) return { near };
-      const { element: chosen, nth } = which(
-        all.filter((one) => one.role === found.role && one.name === found.name).map((one) => one.element),
-        found.element,
-      );
+      const thing = found ?? holding;
+      if (!thing) return { near };
+      const alike = all.filter((one) => one.role === thing.role && one.name === thing.name).map((one) => one.element);
+      // Held, it's the field holding it of those alike, wherever it is.
+      const { element: chosen, nth } = found ? which(alike, found.element) : { element: thing.element, ...(alike.length > 1 && { nth: alike.indexOf(thing.element) }) };
       const element = chosen as HTMLInputElement;
-      const field = "value" in element && ["INPUT", "TEXTAREA", "SELECT"].includes(element.tagName);
+      const field = isField(element);
       return {
         near,
         about: {
-          role: found.role,
-          name: found.name,
+          role: thing.role,
+          name: thing.name,
           ...(nth !== undefined && { nth }),
           ...(field && { value: element.value }),
           disabled: element.matches(":disabled") || element.getAttribute("aria-disabled") === "true" || element.readOnly === true,

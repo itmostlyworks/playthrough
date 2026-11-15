@@ -91,7 +91,8 @@ where the page was scrolled, and each page loaded with whether something done be
 open already starts again, fresh, as whoever is named; given a moment, it goes that moment's way there first.
 
 **`moment`** (`moments.ts`, `way.ts`) reads where that browser is and what the moment is about (the thing named, as the
-page names it, or else the thing its words name), works out where it starts (below), writes the way there as the moment's
+page names it, or else the field holding those words, as Kan's list names are fields, or else the words on the page
+that say it; unnamed, the thing its words name), works out where it starts (below), writes the way there as the moment's
 file, and runs it from a fresh start as the same person. It's kept only if it lands: the same page read, the same
 address, and what it's about saying the same; else it says what differed (what it's about otherwise as what was looked
 for and what was found: "no link “My cards” was to be seen", "button “Save” was disabled, not enabled"), and words that tell the time, reworded only

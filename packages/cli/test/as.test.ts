@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { chromium, type Browser, type Page } from "@playwright/test";
 import { NOTING } from "../src/as.ts";
-import { openOn } from "../src/moments.ts";
+import { aboutOn, openOn } from "../src/moments.ts";
 import { wayFile, wayIn, type Done } from "../src/way.ts";
 
 let browser: Browser;
@@ -100,5 +100,18 @@ test("a dialog left open where a moment is kept is found, by its name or else it
   assert.deepEqual(await openOnPage(`<div role="alertdialog" aria-label="Delete board?">Sure?</div>`), { name: "Delete board?" });
   assert.deepEqual(await openOnPage(`<dialog open>Saved</dialog>`), { name: "" }, "one with nothing to call it by is still open");
   assert.equal(await openOnPage(`<dialog><h2>New board</h2></dialog><h1>Website launch</h1>`), undefined);
+  await page.close();
+});
+
+test("what a moment is about can be named by the words a field holds, as Kan's list names are fields: that field, of those alike", { timeout: 30_000 }, async () => {
+  const page = await browser.newPage();
+  await page.addInitScript({ content: NOTING });
+  await page.route("http://app.test/**", (route) =>
+    route.fulfill({ contentType: "text/html", body: `<!doctype html><input aria-label="List name" value="To do"><input aria-label="List name" value="Doing"><h2>Done soon</h2>` }),
+  );
+  await page.goto("http://app.test/");
+  assert.deepEqual((await aboutOn(page, "Each list shows its count", "doing")).about, { role: "textbox", name: "List name", nth: 1, value: "Doing", disabled: false });
+  assert.equal((await aboutOn(page, "Each list shows its count", "Done soon")).about?.role, "heading", "what's called that comes first");
+  assert.equal((await aboutOn(page, "Each list shows its count", "Done")).about?.role, "heading", "and what's called something like it");
   await page.close();
 });
