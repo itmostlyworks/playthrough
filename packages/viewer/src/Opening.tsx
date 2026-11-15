@@ -7,7 +7,7 @@ import { picture, readings as readingsOf, type Listed } from "./api.ts";
 import { TellYours } from "./Changes.tsx";
 import { Header } from "./Header.tsx";
 import { Key } from "./Key.tsx";
-import { SIDE, UNDER } from "./Moment.tsx";
+import { inItsRoom } from "./Moment.tsx";
 import { usePhone } from "./phone.ts";
 import { SAID, SendButton, take, tick } from "./Send.tsx";
 import { ago, toSend } from "./standing.ts";
@@ -67,31 +67,22 @@ export function Opening({ listed, you, opener, go, onTaking, goOn }: { listed: L
   // The whole card is pressed to go in; Done or Send on it is a button of its own over it.
   const card = "group cursor-pointer [&_button]:cursor-auto";
   return (
-    <div className="grid h-dvh grid-rows-[auto_auto_minmax(0,1fr)] overflow-clip bg-ground phone:grid-rows-[auto_minmax(0,1fr)]">
+    <div className="grid h-dvh grid-rows-[auto_minmax(0,1fr)] overflow-clip bg-ground">
       <Header opener={opener}>
         <button onClick={enter} className="-mr-2 flex flex-none items-center gap-1.5 rounded-lg px-2 py-1 text-soft transition-colors duration-150 ease-calm hover:bg-hover hover:text-fg">
           Next
           <Key>↓</Key>
         </button>
       </Header>
-      {/* Where a moment's page says who and where: room kept, so the picture is where the recording will be. */}
-      <div className="h-[44px] phone:hidden" />
       {phone ? (
         <div onClick={enter} className={`flex flex-col gap-6 px-4 pt-4 ${card}`}>
           {words}
           <Softened listed={listed} moment={moment} screen={screen} fill={false} />
         </div>
       ) : (
-        <div className="relative mt-2 grid min-h-0 place-items-center [container-type:size]">
-          <div
-            onClick={enter}
-            className={`relative ${card}`}
-            style={{
-              aspectRatio: screen ? `${screen.width} / ${screen.height}` : "16 / 10",
-              width: `min(calc(100cqw - 2 * ${SIDE}), calc((100cqh - ${UNDER}px) * ${screen ? screen.width / screen.height : 1.6}))`,
-              marginBottom: UNDER,
-            }}
-          >
+        // The picture is where the recording will be, in the same room.
+        <div className="relative grid min-h-0 place-items-center [container-type:size]">
+          <div onClick={enter} className={`relative ${card}`} style={{ aspectRatio: screen ? `${screen.width} / ${screen.height}` : "16 / 10", ...inItsRoom(screen ? screen.width / screen.height : 1.6) }}>
             <Softened listed={listed} moment={moment} screen={screen} fill />
             <div className="absolute inset-0 grid place-items-center p-10">{words}</div>
           </div>

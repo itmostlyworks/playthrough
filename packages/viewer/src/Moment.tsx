@@ -572,7 +572,7 @@ export function MomentView(props: {
 
   return (
     // Clipped, never scrolled: a caret put in a note's box can't move the page under you.
-    <div className="grid h-dvh grid-rows-[auto_auto_minmax(0,1fr)] overflow-clip bg-ground phone:grid-rows-[auto_auto_auto_minmax(0,1fr)]" onPointerDown={pressAway}>
+    <div className="grid h-dvh grid-rows-[auto_minmax(0,1fr)] overflow-clip bg-ground phone:grid-rows-[auto_auto_minmax(0,1fr)]" onPointerDown={pressAway}>
       <Header
         opener={props.opener}
         centre={<Title title={change.title} asked={change.asked} quiet={`${props.app} · ${backAgain(change, you) ? "back again" : "back"} ${ago(handBack.finished!, Date.now())}`} />}
@@ -594,25 +594,21 @@ export function MomentView(props: {
           </>
         )}
       </Header>
-      {/* Who and where, in the agent's words, under the change's title: room for two lines, three on a phone, so nothing
-          under it moves. */}
-      <p className="line-clamp-2 h-[44px] px-6 text-center text-[15px] leading-[22px] text-balance text-fg phone:line-clamp-3 phone:h-[66px] phone:px-4 phone:text-left" title={moment.name}>
-        {who && <span className="text-soft">{who} · </span>}
-        {moment.name}
-      </p>
       {/* The recording, as large as the room beside the edges lets it be: the same size from one moment to the next. */}
-      <div className="relative mt-2 grid min-h-0 place-items-center [container-type:size] phone:[container-type:inline-size]">
+      <div className="relative grid min-h-0 place-items-center [container-type:size] phone:[container-type:inline-size]">
         <div
           ref={stage}
           className="relative overflow-visible rounded-lg"
-          style={{
-            aspectRatio: `${screen.width} / ${screen.height}`,
-            width: phone ? "calc(100cqw - 32px)" : `min(calc(100cqw - 2 * ${SIDE}), calc((100cqh - ${UNDER}px) * ${screen.width / screen.height}))`,
-            marginBottom: UNDER,
-          }}
+          style={{ aspectRatio: `${screen.width} / ${screen.height}`, ...(phone ? { width: "calc(100cqw - 32px)", marginTop: 3 * 22 + 8, marginBottom: UNDER } : inItsRoom(screen.width / screen.height)) }}
           onPointerMove={(event) => (movePill(event), setAiming(!(event.target as Element).closest("[role=toolbar]")))}
           onPointerLeave={() => setAiming(false)}
         >
+          {/* Who and where, in the agent's words, on the recording's top: it's the recording's, wherever that stands. Two
+              lines at most, three on a phone, growing up into room kept for them, so nothing under it moves. */}
+          <p className="absolute inset-x-0 bottom-full mb-3 line-clamp-2 text-center text-[15px] leading-[22px] text-balance text-fg phone:mb-2 phone:line-clamp-3 phone:text-left" title={moment.name}>
+            {who && <span className="text-soft">{who} · </span>}
+            {moment.name}
+          </p>
           <div
             className="absolute inset-0 overflow-hidden rounded-lg bg-paper shadow-frame"
             onClick={(event) => !noting && !(event.target as Element).closest("button") && (opened ? close() : play())}
@@ -801,10 +797,16 @@ export function MomentView(props: {
 const ABOUT = "about";
 
 // Under the recording, room for the lower half of the bar that hangs across its edge, and a little more.
-export const UNDER = BAR / 2 + 20;
+const UNDER = BAR / 2 + 20;
 
 // Beside the recording, room for each edge's pictures at rest.
-export const SIDE = "clamp(104px, 10vw, 160px)";
+const SIDE = "clamp(104px, 10vw, 160px)";
+
+// Over the recording, room for who and where in two lines, and the gap under them.
+const OVER = 2 * 22 + 12;
+
+// The recording in its room, by its shape: as wide as the edges leave, or as tall as what's over and under it does.
+export const inItsRoom = (shape: number) => ({ width: `min(calc(100cqw - 2 * ${SIDE}), calc((100cqh - ${OVER + UNDER}px) * ${shape}))`, marginTop: OVER, marginBottom: UNDER });
 
 // A spot, as a thing with no size.
 const spotAt = ({ x, y }: { x: number; y: number }): Rect => ({ left: x, top: y, width: 0, height: 0 });

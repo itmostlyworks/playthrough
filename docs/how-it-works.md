@@ -195,11 +195,15 @@ press, Enter on the button, or ↓. With nothing waiting, the page says so calml
 
 **The top of every page** (`Header.tsx`) has three places, one job each: at the left what's waiting, the way to every
 other change; in the centre what this is; at the right what's next. The centre is the window's, as the recording and its
-bar are, whatever the sides hold. On a moment's page the change's title is there, quiet, with who and the moment's name
-centred under it, so they read as a small heading over the recording; pointed at (after 70 ms) or reached with the
-keyboard, the title brings a small card under it with what you asked in your own words and the app and when it came
+bar are, whatever the sides hold. On a moment's page the change's title is there, quiet; pointed at (after 70 ms) or
+reached with the keyboard, it brings a small card under it with what you asked in your own words and the app and when it came
 back. The opening card's page has no title in the centre: the card says it. On a phone there's no centre: the title, in
 full colour, takes the room between what's waiting and Next, and there's no card for what you asked.
+
+**Who and where** is the recording's, not the header's: who it's done as and the moment's name sit on the recording's
+top, centred over it, 12px above its edge, on the line the edges' words are on, wherever the recording stands in its
+room. Two lines at most (three on a phone, at the left), growing up into room kept over the recording (`inItsRoom`,
+which the opening card's picture stands in too, so going in moves nothing).
 
 **Every change** (`Waiting.tsx`, `Changes.tsx`). Top left on every page, "6 changes waiting" (or "Every change") opens every
 change as a sheet over the page, the page under it softened and inert. Pressed or from the keyboard, it stays until
