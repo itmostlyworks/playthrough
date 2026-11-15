@@ -3,7 +3,7 @@
 // over it, fading into the screen's edge. Pointed at, or reached with Tab, they come forward, all the way onto the
 // screen and a little over the recording, a moment's words coming up over its picture, a note's card as it was; a
 // touch brings them forward first. While you're in the app they rest, quieter, as everything that drives the
-// recording does. Over each, what it holds, in a word, at its pictures' outer side, or where the header's own words
+// recording does, all but the moments' step left, which doesn't drive it and still answers. Over each, what it holds, in a word, at its pictures' outer side, or where the header's own words
 // stand when they run past the screen's edge: it stays put as the edge comes forward, and an edge with nothing on it
 // says nothing. What ends a list (the moments' step left) is its last card, a short one, tucked and forward with the
 // rest, its words held where they read at rest. On a phone there's no room beside the recording: they're rows under
@@ -53,8 +53,13 @@ export function Edge(props: {
   // What ends the list, its last card: told how much of it runs past the screen's edge, so its words can stand where
   // they read.
   foot?: (forward: boolean, tucked: number) => ReactNode;
+  // Stepped in, the last card still answers, where it doesn't drive the recording: the moments' step left.
+  footAnswers?: boolean;
 }) {
-  const { side, label, keys, stage, quiet, phone, empty, showing, arrived, children, foot } = props;
+  const { side, label, keys, stage, quiet, phone, empty, showing, arrived, children, foot, footAnswers } = props;
+  // What rests while you're in the app: every card but an answering last one.
+  const resting = quiet ? "pointer-events-none opacity-40" : "";
+  const footResting = quiet && !footAnswers;
   const [room, setRoom] = useState<Room>();
   useLayoutEffect(() => {
     const shown = stage.current;
@@ -117,7 +122,7 @@ export function Edge(props: {
     if (!tile || !shown) return;
     // Only the edge's own list scrolls, never the page around it, by as little as brings it in; the last one, with
     // the foot's card after it.
-    const last = tile.nextElementSibling === footing.current && footing.current;
+    const last = !tile.nextElementSibling && footing.current;
     const [box, room] = [last ? { top: tile.getBoundingClientRect().top, bottom: last.getBoundingClientRect().bottom, left: 0, right: 0 } : tile.getBoundingClientRect(), shown.getBoundingClientRect()];
     // As it's first drawn, it's drawn there, not scrolled to.
     const behavior = matchMedia("(prefers-reduced-motion: reduce)").matches || !placed.current ? "auto" : "smooth";
@@ -130,22 +135,28 @@ export function Edge(props: {
     if (by) shown.scrollBy({ top: by, behavior });
     // And once the edge is first drawn, which is after the moment it shows is known.
   }, [showing, !!room]);
-  // Pointed at or reached with the keyboard, it comes forward.
+  // Pointed at or reached with the keyboard, it comes forward; while you're in the app, it rests where it is.
   const pointing = {
-    onPointerEnter: (event: React.PointerEvent) => event.pointerType !== "touch" && ((under.current = true), toward(true, 70)),
+    onPointerEnter: (event: React.PointerEvent) => event.pointerType !== "touch" && ((under.current = true), quiet || toward(true, 70)),
     onPointerLeave: (event: React.PointerEvent) => event.pointerType !== "touch" && ((under.current = false), toward(false, 220)),
-    onFocus: () => toward(true, 0),
+    onFocus: () => quiet || toward(true, 0),
     onBlur: (event: React.FocusEvent) => !under.current && !event.currentTarget.contains(event.relatedTarget as Node) && toward(false, 0),
   };
 
   if (phone)
     return (
-      <section aria-label={label} className={`transition-opacity duration-200 ease-calm ${quiet ? "pointer-events-none opacity-40" : ""}`} inert={quiet}>
-        <h2 className="text-[13px] leading-5 font-semibold text-soft">{label}</h2>
-        <div ref={list} className="-mx-4 -mb-4 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pt-2 pb-4 [scrollbar-width:none] [&>*]:w-[148px] [&>*]:flex-none [&>*]:snap-start">
-          {children(true)}
+      <section aria-label={label}>
+        <div className={`transition-opacity duration-200 ease-calm ${resting}`} inert={quiet}>
+          <h2 className="text-[13px] leading-5 font-semibold text-soft">{label}</h2>
+          <div ref={list} className="-mx-4 -mb-4 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pt-2 pb-4 [scrollbar-width:none] [&>*]:w-[148px] [&>*]:flex-none [&>*]:snap-start">
+            {children(true)}
+          </div>
         </div>
-        {foot && <div className="mt-7 max-w-[280px]">{foot(true, 0)}</div>}
+        {foot && (
+          <div className={`mt-7 max-w-[280px] transition-opacity duration-200 ease-calm ${footResting ? resting : ""}`} inert={footResting}>
+            {foot(true, 0)}
+          </div>
+        )}
       </section>
     );
   if (!room) return null;
@@ -170,12 +181,11 @@ export function Edge(props: {
         ref={own}
         role="region"
         aria-label={label}
-        inert={quiet}
-        className={`fixed z-30 transition-[translate,opacity] duration-300 ease-calm ${quiet ? "opacity-40" : ""}`}
+        className="fixed z-30 transition-[translate] duration-300 ease-calm"
         style={{ top: room.top - INSET, height: room.height + 2 * INSET, width: DRAWER, left: right ? room.inner : room.inner - DRAWER, translate: forward ? `${right ? -shift : shift}px 0` : "0 0" }}
         {...pointing}
         onPointerDownCapture={(event) => {
-          if (event.pointerType !== "touch" || forward) return;
+          if (event.pointerType !== "touch" || forward || quiet) return;
           // The first touch brings it forward; what's under it is pressed by the next.
           setForward(true);
           const swallow = (click: Event) => (click.stopPropagation(), click.preventDefault());
@@ -191,9 +201,15 @@ export function Edge(props: {
         >
           {/* The cards stand on nothing of their own: forward, each is its own card over the recording. */}
           <div className="grid grid-cols-[minmax(0,1fr)] gap-1.5">
-            {children(forward)}
+            <div className={`grid grid-cols-[minmax(0,1fr)] gap-1.5 transition-opacity duration-300 ease-calm ${quiet ? "opacity-40" : ""}`} inert={quiet}>
+              {children(forward)}
+            </div>
             {/* The list's last card, at rest as far past the screen's edge as the others are. */}
-            {foot && <div ref={footing}>{foot(forward, forward ? 0 : Math.max(0, cutBy + TUCKED))}</div>}
+            {foot && (
+              <div ref={footing} className={`transition-opacity duration-300 ease-calm ${footResting ? "opacity-40" : ""}`} inert={footResting}>
+                {foot(forward, forward ? 0 : Math.max(0, cutBy + TUCKED))}
+              </div>
+            )}
           </div>
         </div>
       </div>

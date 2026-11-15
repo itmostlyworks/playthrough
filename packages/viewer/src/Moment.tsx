@@ -353,8 +353,12 @@ export function MomentView(props: {
     onMoment(to);
   };
   // After the last moment, the last stop; from it, ↑ is the last moment again and there's nothing further on.
+  // While the app is yours, the step left still answers, as sending what you said isn't driving the recording: it leaves
+  // the app as Back does, on its way there.
   const toLastStop = () => {
-    if (!may.move || atLastStop) return;
+    if (atLastStop) return;
+    if (inApp && may.back) stepIn.back();
+    else if (!may.move) return;
     act({ type: "moment", moment: moment.name, starts: from, end });
     props.onLastStop();
   };
@@ -668,6 +672,7 @@ export function MomentView(props: {
       phone={phone}
       showing={atLastStop ? LAST_STOP : moment.name}
       foot={(forward, tucked) => <StepCard step={step} here={atLastStop} forward={forward} tucked={tucked} onPress={toLastStop} />}
+      footAnswers={inApp && may.back}
     >
       {momentTiles}
     </Edge>

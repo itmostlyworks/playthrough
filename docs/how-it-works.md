@@ -331,7 +331,9 @@ inside the screen; one from an earlier hand-back is cut from the moment's pictur
 in a browser of its own from the recording it was made on (`frames.ts`, the page's `?frame=` address, `Frame.tsx`) and
 kept with what the person did (`branches/frames/<note>.png` and `.json`). A note's pin on the recording and its picture
 are one thing: pointing at either lights both, the thing outlined only then or while open (`Pinned.tsx`). While you're in
-the app the edges rest, quieter, and can't be pressed. **On a phone** (820px or less) there's no room beside the
+the app the edges rest, quieter, and can't be pressed or come forward, all but the moments' last card (Send, or Done),
+which doesn't drive the recording: pressed, it leaves the app as Back does and goes on to the last stop in one move,
+the app fading into it (`toLastStop`, `Moment.tsx`; `footAnswers`, `Edge.tsx`). It doesn't press Send or Done. **On a phone** (820px or less) there's no room beside the
 recording: under the bar, the notes and then the moments are rows of the same pictures, words always under them,
 scrolled sideways.
 
