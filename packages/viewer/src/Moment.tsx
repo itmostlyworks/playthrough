@@ -79,15 +79,11 @@ export function MomentView(props: {
   const unsent = notes.length + replies.length;
   // The step left: at the last stop, pressed or Enter; from anywhere, Ctrl+Enter while something's unsent.
   const step = useStepLeft(props.listed, you, (going) => setJustSent((now) => [...now, ...going]), props.goOn);
-  // At the last stop, the moment's line says what's in the frame, in counts, in one line; holding the room the moment's
-  // own line took, so the title over it stays where it was.
-  const line = useRef<HTMLParagraphElement>(null);
-  const lines = useRef(1);
-  // Everything you said on the change, sent and unsent: what the last stop holds.
-  const allSaid = [...sent.map((note) => ({ note, sent: true })), ...notes.map((note) => ({ note, sent: false }))];
-  const counted = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
-  const inTheFrame = `${counted(handBack.moments.length, "moment")}${allSaid.length ? `, ${counted(allSaid.length, "note")}` : ""}`;
-  useLayoutEffect(() => void (!atLastStop && line.current && (lines.current = Math.max(1, Math.round(line.current.offsetHeight / 22)))));
+  // What Send sends, and only that, is what the last stop shows of what you said: your notes not sent, and the sent
+  // ones you've replied to, in your words. Pressed, what went stays shown, as gone, till the page goes on.
+  const sendable = [...sent.filter((note) => replies.some((one) => one.note === note.id)).map((note) => ({ note, sent: true })), ...notes.map((note) => ({ note, sent: false }))];
+  const sending = useRef<typeof sendable>(undefined);
+  if (!step.said || !sending.current) sending.current = sendable;
   // The last stop's sheet stays drawn while it fades, as leaving it.
   const sheet = useRef<HTMLDivElement>(null);
   const [sheetDrawn, setSheetDrawn] = useState(atLastStop);
@@ -275,6 +271,8 @@ export function MomentView(props: {
   };
   const isNow = (shown?: Made) => !!shown && shown.handBack === handBack.number && shown.recording === moment.recording && Math.abs(shown.at - moment.length) < 0.1;
   const frames = useFrames(change, readings ? onEdge.map(({ note }) => ({ note, shown: shownAt(note) })) : []);
+  // The last stop's notes, from across the change, each on the frame it was made on.
+  const sheetFrames = useFrames(change, atLastStop ? sending.current!.map(({ note }) => ({ note, shown: madeAt(note) })) : []);
   // A note from an earlier hand-back is shown on the moment as it is now, at its end, on its thing where that's found
   // there; how it was, the frame it was made on, is one flip away, asked for only once it's open. Its thing not
   // there now (gone since, or on a page you went to after stepping in), there's no now to show it on: it's shown as
@@ -689,21 +687,18 @@ export function MomentView(props: {
               moment in the agent's words, then as whom ("… as Maja, the admin"). Those take two lines at most, three on a phone, growing up into room kept
               for them, so nothing under them moves. */}
           <div className="absolute inset-x-0 bottom-full mb-3 flex flex-col items-center phone:mb-2 phone:items-start">
-            {!phone && title}
-            <p
-              ref={line}
-              className={atLastStop ? "flex w-full items-end justify-center truncate text-[15px] leading-[22px] text-fg phone:justify-start" : "line-clamp-2 text-center text-[15px] leading-[22px] text-balance text-fg phone:line-clamp-3 phone:text-left"}
-              style={atLastStop ? { minHeight: lines.current * 22 } : undefined}
-              title={atLastStop ? undefined : moment.name}>
-              {atLastStop ? (
-                inTheFrame
-              ) : (
-                <>
-                  {moment.name}
-                  {who && <span className="text-soft"> as {who}</span>}
-                </>
-              )}
-            </p>
+            {/* At the last stop there's no moment to name: the change's title takes the moment's line, as the sheet's
+                heading, and its own small place over it rests empty. Both stay drawn, one faded out, so nothing moves. */}
+            {!phone && <div className={`flex min-w-0 max-w-full justify-center transition-opacity duration-[240ms] ease-calm ${atLastStop ? "pointer-events-none opacity-0" : ""}`}>{title}</div>}
+            <div className="grid w-full">
+              <p className={`line-clamp-2 text-center text-[15px] leading-[22px] text-balance text-fg transition-opacity duration-[240ms] ease-calm [grid-area:1/1] phone:line-clamp-3 phone:text-left ${atLastStop ? "opacity-0" : ""}`} title={moment.name}>
+                {moment.name}
+                {who && <span className="text-soft"> as {who}</span>}
+              </p>
+              <p aria-hidden={!atLastStop} className={`min-w-0 self-end truncate text-center text-[15px] leading-[22px] text-fg transition-opacity duration-[240ms] ease-calm [grid-area:1/1] phone:text-left ${atLastStop ? "" : "opacity-0"}`}>
+                {change.title}
+              </p>
+            </div>
           </div>
           <div
             className="absolute inset-0 overflow-hidden rounded-lg bg-paper shadow-frame"
@@ -810,7 +805,42 @@ export function MomentView(props: {
           {/* The last stop's sheet, in the recording's very frame, coming in over it and going as a moment does. */}
           {sheetDrawn && (
             <div ref={sheet} className={`absolute inset-0 z-[15] ${atLastStop ? "animate-arrive" : "pointer-events-none"}`}>
-              <LastStop change={change} handBack={handBack} said={allSaid} says={says} unwatched={props.unwatched} onMoment={(to) => may.move && goTo(to)} />
+              <LastStop
+                asked={change.asked}
+                notes={sending.current.map(({ note, sent: isSent }) => {
+                  // The note's card as it is on the Notes edge forward, with the moment it's on, since here they come
+                  // from several; amber while it's yours to send, slate once it's gone.
+                  const on = handBack.moments.findIndex((one) => one.name === note.on?.moment) + 1;
+                  const words = says(note, isSent).words;
+                  return {
+                    id: note.id,
+                    card: (
+                      <Tile
+                        id={note.id}
+                        label={words}
+                        forward
+                        strong={false}
+                        strip
+                        picture={<NotePicture frame={sheetFrames[note.id]} />}
+                        words={
+                          <span className="flex gap-[7px]">
+                            <i className={`mt-[5px] size-[7px] flex-none rounded-full shadow-[0_0_0_1.5px_#fff] ${step.taken === "Sent" ? "bg-slate" : "bg-amber"}`} />
+                            <span className="min-w-0">
+                              <span className="block text-[12.5px] leading-[17px] text-fg">{words}</span>
+                              {on > 0 && <span className="mt-0.5 block line-clamp-1 text-[11.5px] leading-4 text-soft">{handBack.moments[on - 1]!.name}</span>}
+                            </span>
+                          </span>
+                        }
+                        onPress={() => on && may.move && goTo(on, note.id)}
+                      />
+                    ),
+                  };
+                })}
+                unwatched={props.unwatched.length}
+                unopened={props.unopened.length}
+                onUnwatched={() => props.unwatched[0] && may.move && goTo(props.unwatched[0])}
+                onUnopened={() => props.unopened[0] && may.move && goTo(props.unopened[0].moment, props.unopened[0].note)}
+              />
             </div>
           )}
           {(() => {
@@ -927,7 +957,7 @@ export function MomentView(props: {
         {/* Tab reaches them as they read, left to right; on a phone, the notes come first, nearest what they're on. */}
         {!phone && momentsEdge}
         {(!phone || (!atLastStop && onEdge.length > 0)) && (
-          <Edge side="right" label="Notes" keys={["Shift", "↑", "↓"]} stage={stage} quiet={away} phone={phone} empty={atLastStop ? !allSaid.length : !onEdge.length} showing={open ?? lastArrived} arrived={lastArrived}>
+          <Edge side="right" label="Notes" keys={["Shift", "↑", "↓"]} stage={stage} quiet={away} phone={phone} empty={atLastStop ? !sent.length && !notes.length : !onEdge.length} showing={open ?? lastArrived} arrived={lastArrived}>
             {noteTiles}
           </Edge>
         )}
