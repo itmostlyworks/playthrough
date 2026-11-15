@@ -189,21 +189,30 @@ where the recording will be. Nothing plays. The whole card is one press, as its 
 else the first. The next change is one with something you haven't seen or read, then one seen through with something
 unsent, then one seen through with nothing said, each longest waiting first (`waitingInOrder`); one you've finished here
 stays finished as it was handed back, so the next card comes at once. In a change, its moments go one by one with Next,
-which only ever means the next moment. After the last, Next (↓) comes to **the change's card at its end**, at
-`/moments/<copy>/<change>/end` (reload stays there; the browser's Back, or ↑, is the last moment): the same card, over
-its last moment, holding the one step left, Send while something's unsent or Done while it waits on you, with a line under
-it saying what pressing it does ("Your agent starts on them."; "Says every moment looks good, and the change is done.").
-A change seen all through is this same card at `/`. The step is pressed, or Enter (its key cap ↵); nothing else on the
-page says anything to the agent: ↓ never does, and Space is never a press on it (`useSpaceStays`). Taken, it says Sent or
-Done with a tick where it was pressed, and goes on to the next change's card. Next or ↓ on the card goes on to the next
-change's card and leaves this one waiting, after the rest (none while no other waits). An answer that was new as you came
-to the change and that you went past unopened is still new on its note, and the card says so beside when it came back
-("1 answer not opened"); pressed, that note opens on its moment. A change already with your agents (sent from the top
-right on the way) or done says so in the step's place, with where it stands, and there's only going on. With nothing
-waiting, the page says so calmly, with what your agents are on.
+which only ever means the next moment: on the last it's dimmed. **The Moments list ends in what you do** (`StepLeft.tsx`):
+at the foot of the Moments edge, one row, the one step left, Send while something's unsent ("Send 2 notes ↵") or Done
+while it waits on you ("Done ↵"). It's there on every moment, so the end is seen coming: quiet (soft words, no box)
+until the last moment, where it's full (Send filled, Done plain). It stands under the recording's foot at the edge's
+word's place, never tucked into the screen's edge as the cards are, and stays put as the edge comes forward; in a window
+too short for that, it's lifted just enough to be whole and the cards' list ends above it. On the last moment ↓ (or J)
+brings the edge forward with the keyboard on the row, lit as a row of what's waiting is (its hover ground and a 1.5px
+faint line); Enter presses it, and only then; ↓ on it does nothing; ↑, K or Escape take the keyboard off it, back to
+the last moment as it was; any other key of the page's is the page's again. Pressed (or Ctrl+Enter from anywhere on a
+moment, while something's unsent) it gives the keyboard back to the page and says Sending…, then Sent or Done with a
+tick in its place, what went drawn as sent at once, and after a pause (`SAID`) goes on to `/`. What pressing it does
+("Your agent starts on them."; "Says every moment looks good, and the change is done.") shows under it only while the
+edge is forward or the keyboard is on it; not sent, "Not sent: …" in amber. On the last moment, an answer that was new
+as you came to the change and that you went past unopened is still new on its note, and a line under the row says so
+("1 answer not opened"); pressed, that note opens on its moment. A change already with your agents or done says so in
+the row's place ("Sent" and "Agent working", or "No agent listening" with the line to tell yours; "Done", "Every moment
+looked good."), with nothing to press. There's no page after the last moment: `/moments/<copy>/<change>/end`, and `/`
+when the next change is seen all through (`seenThrough`), open its last moment with the keyboard on the row, the address
+the moment's. Nothing else says anything to the agent: ↓ never does, and Space is never a press on it (`useSpaceStays`).
+On a phone the row stands under the Moments strip, the page's last thing, its line always shown. With nothing waiting,
+the page says so calmly, with what your agents are on.
 
 **The top of every page** (`Header.tsx`) is its two corners: at the left Playthrough and what's waiting in it, the way
-to every other change; at the right what's next (Next, and Send while something's unsent). Between them, nothing: what
+to every other change; at the right what's next (Next). Between them, nothing: what
 this is stands on the recording's top. The left is one thing to press, the opener (`Waiting.tsx`): Playthrough's mark
 (`Mark.tsx`, as `public/logo.svg`, in the page's colours) and name, then "6 changes waiting" (or "Every change") and its
 key; on a phone the mark and "6 waiting" alone.
@@ -255,8 +264,8 @@ recording or in the app); Compare (C), or in its place "Unchanged" or "New", or 
 open, its "As it was" and "Now" switch; Compare's place is as wide as the switch, and in the app who you are takes
 Play's room and its arrows', so the bar is the same width from one moment to the next, in every state;
 on a phone its buttons sit closer and Step in on its way says "Stepping…", so all of it fits 390 wide. A click on the recording
-plays and pauses it. Send stands top right, filled once something's unsent (Ctrl ↵), on every moment, and says Sent
-where it was pressed. Beside it, Next: the next moment, and after the last, the change's card. What the page is doing is one value (`mode.ts`): resting, playing, a note open, pointing,
+plays and pauses it. Send and Done are at the foot of the Moments edge (above); top right, Next: the next moment,
+dimmed on the last. What the page is doing is one value (`mode.ts`): resting, playing, a note open, pointing,
 writing, comparing, getting there or the app yours; every press is an action on it, carrying where the recording has got
 to, so whatever stops it playing stops it there, and one rule (`can`) says what may be pressed, which the keys and the
 buttons alike ask. **Stepping** (`stepping.ts`) goes by change, not by time: each press rests on the next instant the
@@ -274,8 +283,8 @@ Space does, it acts on the moment and closes the note first, as it was or now. A
 page is that very frame, motion and all (`Replay.show`): rebuilt to just before the changes of the second before it and
 those played back on one at a time, so a fade stepped back into is shown mid-way, not at its end, and what the page set
 moving is placed by when its change was. A note made there keeps that picture. Keys: Space, S, N, C; ← → the frame before and
-the next, along the moment, and never on into another; ↑ ↓ (and K, J) the moment before and next, ↓ after the last
-coming to the change's card; with Shift, ↑ ↓ the note before and the next through the whole change, opening each: this
+the next, along the moment, and never on into another; ↑ ↓ (and K, J) the moment before and next, ↓ on the last
+putting the keyboard on the step left at the foot of Moments; with Shift, ↑ ↓ the note before and the next through the whole change, opening each: this
 moment's one after another, then on to the nearest moment that has one (its first going on, its last going back), and
 nothing past the change's first or last; W what's waiting; Escape closes what's open, leaves Compare or noting, else
 goes back; Ctrl+Enter (⌘↵) sends. Reduced motion: nothing slides or fades.
@@ -283,7 +292,8 @@ goes back; Ctrl+Enter (⌘↵) sends. Reduced motion: nothing slides or fades.
 **The edges** (`Edge.tsx`). On the left, the change's moments; on the right, this moment's notes, sent then unsent, in
 the order said. Over each, what it holds, in a word, "Moments" and "Notes": at its pictures' outer side, or 24px
 from the screen's edge, where the header's words stand, when they run past it; still as the edge comes forward, and
-not there over notes while there are none. By each word, on its inner side, the keys that go through what it holds:
+not there over notes while there are none. The Moments edge has a foot, the step left (above): its words at its
+word's place, 8px under the recording's foot, a part of the edge (pointed at, it brings it forward) that never moves. By each word, on its inner side, the keys that go through what it holds:
 ↑ ↓ by Moments, Shift ↑ ↓ by Notes (not on a phone). Forward, a card has one border, its own, which says the moment
 you're on or the one pointed at; the picture's own border is only there at rest. Each is a picture of one size (176 by 110), one after another, at rest beside the recording and never
 over it, 16px from it, running past the screen's edge where the window is too narrow for them, fading out over its last

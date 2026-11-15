@@ -1,6 +1,6 @@
-// Sending, from every change's row and a moment's page alike.
+// Sending, from every change's row and the foot of a change's moments alike.
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 import { latestOf, newId, type Change, type Note } from "@playthrough/change";
 import { send as post } from "./api.ts";
 import { keepUnsent, unsentOf, type YourReply } from "./kept.ts";
@@ -22,40 +22,32 @@ async function sendOn(change: string, handBack: number, you: string, saying: Say
   return [];
 }
 
-// A change's one step taken from outside its moments: everything unsent on it, or Done, which says every moment looks
-// good and nothing else.
-export function take(change: Change, you: string, what: "send" | "done"): Promise<string[]> {
+// A change's one step: everything unsent on it, or Done, which says every moment looks good and nothing else. Told
+// with the notes that went as they're kept, so a page showing them draws them sent at once.
+export function take(change: Change, you: string, what: "send" | "done", sent?: (notes: Note[]) => void): Promise<string[]> {
   const handBack = latestOf(change)!.number;
-  return sendOn(change.id, handBack, you, what === "send" ? unsentOf(change.id, handBack) : { notes: [], replies: [], done: true });
+  const saying: Saying = what === "send" ? unsentOf(change.id, handBack) : { notes: [], replies: [], done: true };
+  return sendOn(change.id, handBack, you, saying, sent && (() => sent(saying.notes)));
 }
 
-// A send from a moment's page: while it goes, it's sending; kept, it's sent; not kept, what stopped it.
-export function useSend(change: string, handBack: number, you: string) {
-  const [sending, setSending] = useState<"sending" | "sent" | string[]>();
-  const send = async (saying: Saying, sent?: () => void) => {
-    setSending("sending");
-    const problems = await sendOn(change, handBack, you, saying, sent);
-    if (problems.length) return (setSending(problems), false);
-    setSending("sent");
-    return true;
-  };
-  return { sending, send, again: () => setSending(undefined) };
-}
-
-// Send, the one filled button there is, while something is unsent; else plain, as Done is. Arriving, as the first note
-// is kept, it comes in with the note landing on the edge, so it's seen.
-export function SendButton({ filled, arrives, className = "", children, ...rest }: { filled: boolean; arrives?: boolean; className?: string; children: ReactNode; onClick: () => void; disabled: boolean }) {
-  const own = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    if (!arrives || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    own.current?.animate([{ opacity: 0, scale: 0.92 }, { opacity: 1, scale: 1.04, offset: 0.6 }, { opacity: 1, scale: 1 }], { duration: 520, delay: 120, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)", fill: "backwards" });
-  }, []);
+// Send, the one filled button there is, while something is unsent; else plain, as Done is. Quiet, before it's the step
+// to take now, only its words, soft. Lit, with the keyboard on it, as a row of what's waiting is: its pointed-at ground
+// and a quiet line round it.
+export function SendButton({ filled, quiet, lit, className = "", children, ...rest }: { filled: boolean; quiet?: boolean; lit?: boolean; className?: string; children: ReactNode; onClick: (event: React.MouseEvent<HTMLButtonElement>) => void; disabled: boolean; ref?: Ref<HTMLButtonElement>; onFocus?: () => void; onBlur?: () => void }) {
+  const look = lit
+    ? filled
+      ? "bg-[color-mix(in_srgb,var(--fg)_86%,var(--ground))] text-ground shadow-[0_0_0_1.5px_var(--faint)]"
+      : "bg-hover text-fg shadow-[0_0_0_1.5px_var(--faint)]"
+    : quiet
+      ? "bg-transparent text-soft shadow-[0_0_0_0_transparent] enabled:hover:bg-hover enabled:hover:text-fg"
+      : filled
+        ? "bg-fg text-ground shadow-[0_1px_2px_var(--drop)] enabled:hover:bg-[color-mix(in_srgb,var(--fg)_86%,var(--ground))]"
+        : "bg-surface text-fg shadow-[0_0_0_1px_var(--edge),0_1px_2px_var(--drop)] enabled:hover:bg-hover";
   return (
     <button
-      ref={own}
       onMouseDown={(event) => event.preventDefault()}
       {...rest}
-      className={`flex h-8 flex-none items-center gap-2 rounded-lg px-3 text-[13px] font-medium whitespace-nowrap transition-[background-color,color,box-shadow,opacity] duration-200 ease-calm ${filled ? "bg-fg text-ground shadow-[0_1px_2px_var(--drop)] enabled:hover:bg-[color-mix(in_srgb,var(--fg)_86%,var(--ground))]" : "bg-surface text-fg shadow-[0_0_0_1px_var(--edge),0_1px_2px_var(--drop)] enabled:hover:bg-hover"} ${className}`}
+      className={`flex h-8 flex-none items-center gap-2 rounded-lg px-3 text-[13px] font-medium whitespace-nowrap transition-[background-color,color,box-shadow,opacity] duration-200 ease-calm focus-visible:outline-none ${look} ${className}`}
     >
       {children}
     </button>

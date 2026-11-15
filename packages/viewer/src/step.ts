@@ -52,6 +52,9 @@ export function unreadOf(listed: Listed, you: string): { note: string; moment: n
     .sort((a, b) => a.moment - b.moment);
 }
 
+// Every moment seen and every answer read: all that's left on it is to say Done or Send.
+export const seenThrough = (listed: Listed, you: string) => !unseenOf(listed, you).length && !unreadOf(listed, you).length;
+
 // Where pressing a change takes you: the first of its moments with something on it you haven't seen, a moment or an
 // answer, so Next goes on through the rest in order and none is left behind; else its first. Going in lands on the
 // moment itself, so an answer's card isn't over what it's about: its note says it's new, and → opens it.
@@ -110,14 +113,14 @@ export function stepOf(listed: Listed, you: string): Step {
     return { is: "with", words: "Sent" };
   }
   const words = lookOf(listed, you);
-  return unseenOf(listed, you).length || unreadOf(listed, you).length ? { is: "look", words } : { is: "done", words };
+  return seenThrough(listed, you) ? { is: "done", words } : { is: "look", words };
 }
 
 // What's waiting on you, in the order it comes: first what has something you haven't seen or read, then what's seen
 // through with something unsent, and last what's seen through with nothing said, so the next is one you can judge; each
 // part longest waiting first.
 export function waitingInOrder(changes: Listed[], you: string): Listed[] {
-  const rank = (one: Listed) => (unseenOf(one, you).length || unreadOf(one, you).length ? 0 : stepOf(one, you).is === "send" ? 1 : 2);
+  const rank = (one: Listed) => (!seenThrough(one, you) ? 0 : stepOf(one, you).is === "send" ? 1 : 2);
   return changes
     .filter((one) => sectionOf(one, you) === "waiting")
     .sort((a, b) => rank(a) - rank(b) || latestOf(a.change)!.finished!.localeCompare(latestOf(b.change)!.finished!));

@@ -1,11 +1,12 @@
 // A moment's page: the recording as large as the window lets it be, the bar across its foot, the change's moments on
-// the left and this one's notes on the right. From here: play the few seconds that led here, step in (the real app
-// there, as that person), note what you click, compare with how it was when you last saw it, or go on.
+// the left, ending in the step left for it, and this one's notes on the right. From here: play the few seconds that led
+// here, step in (the real app there, as that person), note what you click, compare with how it was when you last saw
+// it, go on, or say Done or Send.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Glimpse, Reading } from "@playthrough/page";
 import { conversation, isStill, madeInApp, newId, together, type Note, type Change, type HandBack, type Moment } from "@playthrough/change";
-import { glimpses, picture, readings as readingsOf, recording } from "./api.ts";
+import { glimpses, picture, readings as readingsOf, recording, type Listed } from "./api.ts";
 import { clamp } from "./clamp.ts";
 import { CHIP, playedTogether } from "./compare.ts";
 import { Edge, Tile } from "./Edge.tsx";
@@ -21,8 +22,8 @@ import { Pinned, type Pin } from "./Pinned.tsx";
 import { Clock, Player, useCut, type Mark, type Placed } from "./Player.tsx";
 import { Portal, TAG } from "./Portal.tsx";
 import type { Rect, Scrolled } from "./replay.ts";
-import { SendButton, tick, FILLED_KEY, SAID, useSend } from "./Send.tsx";
-import { ago, toSend, noteSays, takingOf, seenOf } from "./standing.ts";
+import { ago, noteSays, takingOf, seenOf } from "./standing.ts";
+import { StepLeft } from "./StepLeft.tsx";
 import { backAgain } from "./step.ts";
 import { useKeptReady, useStepIn } from "./stepIn.ts";
 import { useHeld } from "./held.ts";
@@ -55,30 +56,31 @@ export function MomentView(props: {
   opening?: string;
   // What's waiting, top left: the way to every other change.
   opener: ReactNode;
-  // The answers new as you came to the change that you haven't opened: each is new on its note until it's opened.
-  unopened: string[];
+  // The answers new as you came to the change that you haven't opened, each on its moment: each is new on its note
+  // until it's opened.
+  unopened: { note: string; moment: number }[];
   onOpened: (note: string) => void;
   onMoment: (n: number) => void;
-  // After the last moment: the change's card, holding the step left for it.
-  onEnd: () => void;
+  // The change as listed, for the step left at the foot of its moments, and on to what's next once it's taken.
+  listed: Listed;
+  goOn: () => void;
+  // Come to as the change's end: the last moment, with the keyboard on the step left.
+  toFoot?: boolean;
 }) {
   const { change, handBack, n, about, who, notes, setNotes, replies, setReplies, you, onMoment } = props;
-  // Send: everything unsent on the change goes. Sent, it says so where you pressed, and what was
-  // sent is drawn as sent at once, as the change comes back with it.
-  const { sending, send, again } = useSend(change.id, handBack.number, you);
+  // What was sent is drawn as sent at once, as the change comes back with it.
   const [justSent, setJustSent] = useState<Note[]>([]);
   const sent = [...props.sent, ...justSent.filter((note) => !props.sent.some((one) => one.id === note.id))];
   const unsent = notes.length + replies.length;
-  const sendNow = async () => {
-    if (!unsent || sending === "sending") return;
-    const going = notes;
-    await send({ notes: going, replies }, () => setJustSent((now) => [...now, ...going]));
+  // The step left, at the foot of the moments: pressed from anywhere with Ctrl+Enter while something's unsent; on the
+  // last moment, ↓ puts the keyboard on it, so Enter presses it. Come to as the change's end, the keyboard is on it.
+  const press = useRef<() => void>(undefined);
+  const foot = useRef<HTMLButtonElement>(null);
+  const toFoot = useRef(!!props.toFoot);
+  const footButton = (button: HTMLButtonElement | null) => {
+    foot.current = button;
+    if (button && toFoot.current) (button.focus(), (toFoot.current = false));
   };
-  useEffect(() => {
-    if (sending !== "sent") return;
-    const done = setTimeout(again, SAID + 1000);
-    return () => clearTimeout(done);
-  }, [sending]);
   const moment = handBack.moments[n - 1]!;
   const count = handBack.moments.length;
   const end = endOf(moment);
@@ -228,7 +230,7 @@ export function MomentView(props: {
   useEffect(() => void (open && props.onOpened(open)), [open]);
   const says = (note: Note, sent: boolean) => {
     const said = noteSays(change, you, note, sent, replies);
-    const fresh = sent && said.stands !== "sent" && said.stands !== "reply not sent yet" && props.unopened.includes(note.id);
+    const fresh = sent && said.stands !== "sent" && said.stands !== "reply not sent yet" && props.unopened.some((one) => one.note === note.id);
     return { ...said, fresh, stands: said.stands === "new answer" || said.stands === "answered" ? (fresh ? "new answer" : "answered") : said.stands };
   };
   const madeAt = ({ on }: Note): Made | undefined => {
@@ -337,7 +339,8 @@ export function MomentView(props: {
     if (!may.move) return;
     const to = n + by;
     if (to < 1) return;
-    if (to > count) return props.onEnd();
+    // Past the last moment there's no next: the step left is what's after it, and ↓ only ever moves, to it.
+    if (to > count) return foot.current?.focus();
     goTo(to);
   };
   const toMoment = (to: number) => may.move && to !== n && goTo(to);
@@ -454,11 +457,19 @@ export function MomentView(props: {
     // A picture on an edge with the keyboard on it is pressed with Enter or Space, as any button is.
     if (event.target instanceof HTMLElement && event.target.closest("[data-tile]") && /^( |enter)$/i.test(event.key)) return;
     // Ctrl+Enter sends.
-    if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !writing) return (event.preventDefault(), void sendNow());
+    if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !writing) return (event.preventDefault(), void (unsent && press.current?.()));
     if (typing || event.ctrlKey || event.metaKey || event.altKey) return;
     const key = event.key.toLowerCase();
     // Any other key pressed lets go of an arrow held; its own repeat is nothing, the page keeps its own pace.
     if (!event.repeat) arrow.letGo();
+    // The keyboard on the step left: Enter presses it, and nothing else does; ↓ has nowhere further to go; ↑ or Escape
+    // take the keyboard off it, back to the last moment as it was. Any other key is the page's, the keyboard back on it.
+    if (event.target === foot.current && foot.current) {
+      if (/^(tab|shift)$/.test(key)) return;
+      if (/^( |enter)$/.test(key) || (!event.shiftKey && /^(arrowdown|j)$/.test(key))) return void (key !== "enter" && event.preventDefault());
+      foot.current.blur();
+      if (!event.shiftKey && /^(arrowup|k|escape)$/.test(key)) return event.preventDefault();
+    }
     if (key === "escape") {
       if (open) close();
       else if (comparing) compare();
@@ -598,7 +609,7 @@ export function MomentView(props: {
               )}
               {!carded.sent && (
                 <div className="mt-2 flex items-center gap-2 px-1 text-xs text-soft">
-                  <span>Sent with Send, at the top</span>
+                  <span>Sent with Send, under Moments</span>
                   {/* A button as the reply box's Keep is, its padding taken from the row so the card stays its size. */}
                   <button className="-my-0.5 ml-auto rounded-md px-2 py-1 font-medium text-fg hover:bg-hover" onClick={() => (setNotes((all) => all.filter((one) => one.id !== carded.note.id)), close())}>
                     Remove
@@ -611,7 +622,32 @@ export function MomentView(props: {
   );
 
   const momentsEdge = (
-    <Edge side="left" label="Moments" keys={["↑", "↓"]} stage={stage} quiet={away} phone={phone} showing={moment.name}>
+    <Edge
+      side="left"
+      label="Moments"
+      keys={["↑", "↓"]}
+      stage={stage}
+      quiet={away}
+      phone={phone}
+      showing={moment.name}
+      foot={(forward) => {
+        const answer = props.unopened[0];
+        return (
+          <StepLeft
+            listed={props.listed}
+            you={you}
+            last={n === count}
+            forward={forward}
+            press={press}
+            button={footButton}
+            onSent={(going) => setJustSent((now) => [...now, ...going])}
+            goOn={props.goOn}
+            unopened={props.unopened.length}
+            onUnopened={() => answer && may.move && goTo(answer.moment, answer.note)}
+          />
+        );
+      }}
+    >
       {momentTiles}
     </Edge>
   );
@@ -622,13 +658,8 @@ export function MomentView(props: {
     // Clipped, never scrolled: a caret put in a note's box can't move the page under you.
     <div className="grid h-dvh grid-rows-[auto_minmax(0,1fr)] overflow-clip bg-ground phone:grid-rows-[auto_auto_minmax(0,1fr)]" onPointerDown={pressAway}>
       <Header opener={props.opener} centre={phone ? title : undefined}>
-        {(unsent > 0 || sending) && (
-          <SendButton filled={unsent > 0 && sending !== "sent"} arrives onClick={() => void sendNow()} disabled={sending === "sending" || sending === "sent"}>
-            {sending === "sent" ? <>{tick}Sent</> : sending === "sending" ? "Sending…" : <>Send {toSend(notes.length, replies.length)} <Key className={FILLED_KEY}>Ctrl ↵</Key></>}
-          </SendButton>
-        )}
-        {Array.isArray(sending) && <span className="text-[13px] text-amber-ink">Not sent: {sending[0]}</span>}
-        <button onClick={() => next(1)} disabled={!may.move} className="-mr-2 flex flex-none items-center gap-1.5 rounded-lg px-2 py-1 text-soft transition-colors duration-150 ease-calm enabled:hover:bg-hover enabled:hover:text-fg disabled:opacity-50">
+        {/* Only ever the next moment: on the last, there's none. */}
+        <button onClick={() => next(1)} disabled={!may.move || n === count} className="-mr-2 flex flex-none items-center gap-1.5 rounded-lg px-2 py-1 text-soft transition-colors duration-150 ease-calm enabled:hover:bg-hover enabled:hover:text-fg disabled:opacity-50">
           Next
           <Key>↓</Key>
         </button>

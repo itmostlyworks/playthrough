@@ -5,7 +5,9 @@
 // touch brings them forward first. While you're in the app they rest, quieter, as everything that drives the
 // recording does. Over each, what it holds, in a word, at its pictures' outer side, or where the header's own words
 // stand when they run past the screen's edge: it stays put as the edge comes forward, and an edge with nothing on it
-// says nothing. On a phone there's no room beside the recording: they're rows under it, words and all.
+// says nothing. What ends a list (the moments' step left) stands at its foot, under the recording's, read at rest and
+// staying put as the edge comes forward, as its word does. On a phone there's no room beside the recording: they're
+// rows under it, words and all, and the foot under them.
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Key } from "./Key.tsx";
@@ -26,8 +28,12 @@ const WORD = 20 + 12;
 const SHOWN = 1400;
 // Where more runs on past the edge's top or foot, it fades over this much, so it reads as more to come.
 const MORE = 64;
+// From the recording's foot to the edge's foot, and from the foot to the window's, at least; and the foot's row, as
+// tall as a button (what it says under that runs on below).
+const FOOT = 8;
+const ROW = 32;
 
-type Room = { top: number; height: number; inner: number; screen: number };
+type Room = { top: number; height: number; inner: number; screen: number; tall: number };
 
 export function Edge(props: {
   side: "left" | "right";
@@ -46,15 +52,17 @@ export function Edge(props: {
   // A tile just arrived: the edge comes forward with it, words and all, for a moment, then rests.
   arrived?: string;
   children: (forward: boolean) => ReactNode;
+  // What ends the list, at its foot: readable at rest, never tucked into the screen's edge as the pictures are.
+  foot?: (forward: boolean) => ReactNode;
 }) {
-  const { side, label, keys, stage, quiet, phone, empty, showing, arrived, children } = props;
+  const { side, label, keys, stage, quiet, phone, empty, showing, arrived, children, foot } = props;
   const [room, setRoom] = useState<Room>();
   useLayoutEffect(() => {
     const shown = stage.current;
     if (!shown || phone) return;
     const measure = () => {
       const box = shown.getBoundingClientRect();
-      setRoom({ top: box.top, height: box.height, inner: side === "right" ? box.right : box.left, screen: innerWidth });
+      setRoom({ top: box.top, height: box.height, inner: side === "right" ? box.right : box.left, screen: innerWidth, tall: innerHeight });
     };
     measure();
     const watching = new ResizeObserver(measure);
@@ -111,6 +119,13 @@ export function Edge(props: {
     const by = box.top < room.top + 28 ? box.top - room.top - 28 : box.bottom > room.bottom - 28 ? box.bottom - room.bottom + 28 : 0;
     if (by) shown.scrollBy({ top: by, behavior });
   }, [showing]);
+  // Pointed at or reached with the keyboard, the pictures and the foot alike bring the edge forward.
+  const pointing = {
+    onPointerEnter: (event: React.PointerEvent) => event.pointerType !== "touch" && ((under.current = true), toward(true, 70)),
+    onPointerLeave: (event: React.PointerEvent) => event.pointerType !== "touch" && ((under.current = false), toward(false, 220)),
+    onFocus: () => toward(true, 0),
+    onBlur: (event: React.FocusEvent) => !under.current && !event.currentTarget.contains(event.relatedTarget as Node) && toward(false, 0),
+  };
 
   if (phone)
     return (
@@ -119,6 +134,7 @@ export function Edge(props: {
         <div ref={list} className="-mx-4 -mb-4 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pt-2 pb-4 [scrollbar-width:none] [&>*]:w-[148px] [&>*]:flex-none [&>*]:snap-start">
           {children(true)}
         </div>
+        {foot && <div className="mt-7">{foot(true)}</div>}
       </section>
     );
   if (!room) return null;
@@ -127,6 +143,10 @@ export function Edge(props: {
   const shift = right ? Math.max(0, room.inner + DRAWER - room.screen) : Math.max(0, DRAWER - room.inner);
   // How far its pictures run past the screen's edge at rest.
   const cutBy = right ? room.inner + GAP + TILE - room.screen : TILE + GAP - room.inner;
+  // The foot's row under the recording's foot; in a window too short for that, lifted just enough to be whole, and
+  // the pictures' list ends above it, so it's never over one.
+  const footAt = Math.min(room.top + room.height + FOOT, room.tall - FOOT - ROW);
+  const bottom = foot ? Math.min(room.top + room.height + INSET, footAt - FOOT / 2) : room.top + room.height + INSET;
   const fade = (to: string) => `linear-gradient(${to}, ${cut.above ? "transparent" : "#000"}, #000 ${cut.above ? MORE : 0}px, #000 calc(100% - ${cut.below ? MORE : 0}px), ${cut.below ? "transparent" : "#000"})`;
   return (
     <>
@@ -145,9 +165,8 @@ export function Edge(props: {
         aria-label={label}
         inert={quiet}
         className={`fixed z-30 transition-[translate,opacity] duration-300 ease-calm ${quiet ? "opacity-40" : ""}`}
-        style={{ top: room.top - INSET, height: room.height + 2 * INSET, width: DRAWER, left: right ? room.inner : room.inner - DRAWER, translate: forward ? `${right ? -shift : shift}px 0` : "0 0" }}
-        onPointerEnter={(event) => event.pointerType !== "touch" && ((under.current = true), toward(true, 70))}
-        onPointerLeave={(event) => event.pointerType !== "touch" && ((under.current = false), toward(false, 220))}
+        style={{ top: room.top - INSET, height: bottom - (room.top - INSET), width: DRAWER, left: right ? room.inner : room.inner - DRAWER, translate: forward ? `${right ? -shift : shift}px 0` : "0 0" }}
+        {...pointing}
         onPointerDownCapture={(event) => {
           if (event.pointerType !== "touch" || forward) return;
           // The first touch brings it forward; what's under it is pressed by the next.
@@ -156,8 +175,6 @@ export function Edge(props: {
           addEventListener("click", swallow, { capture: true, once: true });
           setTimeout(() => removeEventListener("click", swallow, { capture: true }), 600);
         }}
-        onFocus={() => toward(true, 0)}
-        onBlur={(event) => !under.current && !event.currentTarget.contains(event.relatedTarget as Node) && toward(false, 0)}
       >
         <div
           ref={list}
@@ -169,13 +186,25 @@ export function Edge(props: {
           <div className="grid grid-cols-[minmax(0,1fr)] gap-1.5">{children(forward)}</div>
         </div>
       </div>
+      {foot && (
+        // At the word's place, where it's read at rest and stays as the edge comes forward: one place for it on every
+        // moment, however many there are.
+        <div
+          inert={quiet}
+          className={`fixed z-30 transition-opacity duration-300 ease-calm ${quiet ? "opacity-40" : ""}`}
+          style={{ top: footAt, [right ? "right" : "left"]: Math.max(24, -cutBy) }}
+          {...pointing}
+        >
+          {foot(forward)}
+        </div>
+      )}
       {/* The screen's edge, at rest, only where the pictures run past it: they leave over its last few pixels, quickly at
           the very edge, rather than a long grey band over pictures wholly on the screen. */}
       {cutBy > 0 && (
         <div
           aria-hidden
           className={`pointer-events-none fixed z-30 transition-opacity duration-300 ease-calm ${forward ? "opacity-0" : ""}`}
-          style={{ top: room.top - INSET, height: room.height + 2 * INSET, width: Math.min(VEIL, cutBy + 24), [right ? "right" : "left"]: 0, background: `linear-gradient(to ${right ? "right" : "left"}, transparent, ${EASED})` }}
+          style={{ top: room.top - INSET, height: bottom - (room.top - INSET), width: Math.min(VEIL, cutBy + 24), [right ? "right" : "left"]: 0, background: `linear-gradient(to ${right ? "right" : "left"}, transparent, ${EASED})` }}
         />
       )}
     </>

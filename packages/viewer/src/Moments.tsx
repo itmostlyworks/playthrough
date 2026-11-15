@@ -1,7 +1,8 @@
 // What's next, from every app on this machine. / opens on the next change waiting on you, its opening card
 // (Opening.tsx); its moments go one by one with Next (Moment.tsx), each at /moments/<its change's address>/<n>, and
-// after the last, Next comes back to the change's card, at /moments/<its change's address>/end, holding the one step
-// left for it, which goes on to the next change's card.
+// the list of them ends in the one step left for it, Send or Done, which goes on to what's next. A change seen all
+// through has nothing left to open: / opens it on its last moment, the keyboard on that step, as its old end,
+// /moments/<its change's address>/end, does.
 // Top left on every page, how many wait on you opens every change as a sheet over the page (Waiting.tsx), from which
 // any can be gone to. Going on to the next moment is the yes; what you said goes to the agent by Send, or Done with
 // nothing to say. Here is which page, and what's next.
@@ -14,28 +15,28 @@ import { useUnsent, keepUnsent, type YourReply } from "./kept.ts";
 import { MomentView } from "./Moment.tsx";
 import { NothingWaiting, Opening } from "./Opening.tsx";
 import { takingOf, markSeen, whoIn } from "./standing.ts";
-import { unreadOf, waitingInOrder } from "./step.ts";
+import { seenThrough, unreadOf, waitingInOrder } from "./step.ts";
 import { Opener, Sheet, useSheet, waitingSays } from "./Waiting.tsx";
 
 // Where you are: what's next, or a change's moment, by the change's address and the moment's place in it from 1, and a
-// note open by its pin; or a change's card after its last moment, its end.
-export type Where = { change?: string; moment?: number; note?: string; end?: true };
+// note open by its pin; or a change's end, `foot`: its last moment, with the keyboard on the step left, which is the
+// last moment by its number once the change is known.
+export type Where = { change?: string; moment?: number; note?: string; foot?: true };
 export type Go = (to: Where, replace?: boolean) => void;
 
 const whereFrom = (path: string, search = ""): Where => {
   const [first, ...parts] = path.split("/").filter(Boolean).map(decodeURIComponent);
   if (first !== "moments" || !parts.length) return {};
-  if (parts.length > 1 && parts.at(-1) === "end") return { change: parts.slice(0, -1).join("/"), end: true };
+  if (parts.length > 1 && parts.at(-1) === "end") return { change: parts.slice(0, -1).join("/"), foot: true };
   const moment = parts.length > 1 && /^\d+$/.test(parts.at(-1)!) ? Number(parts.pop()) : 1;
   const note = new URLSearchParams(search).get("note") ?? undefined;
   return { change: parts.join("/"), moment: Math.max(1, moment), ...(note && { note }) };
 };
 
-const pathOf = ({ change, moment, note, end }: Where) =>
-  change ? `/moments/${change.split("/").map(encodeURIComponent).join("/")}/${end ? "end" : (moment ?? 1)}${note ? `?note=${encodeURIComponent(note)}` : ""}` : "/";
+const pathOf = ({ change, moment, note }: Where) =>
+  change ? `/moments/${change.split("/").map(encodeURIComponent).join("/")}/${moment ?? 1}${note ? `?note=${encodeURIComponent(note)}` : ""}` : "/";
 
-// The browser's own mark on a change's end come to from its last moment, so going back up is the browser's Back.
-const AFTER_THE_LAST = "after the last moment";
+const lastOf = (listed: Listed) => latestOf(listed.change)?.moments.length ?? 1;
 
 export function MomentsPage() {
   const [where, setWhere] = useState(() => whereFrom(location.pathname, location.search));
@@ -51,7 +52,7 @@ export function MomentsPage() {
     sheet.close(false);
     const path = pathOf(to);
     if (path === location.pathname + location.search) replace = true;
-    history[replace ? "replaceState" : "pushState"](to.end && where.change === to.change && !replace ? AFTER_THE_LAST : null, "", path);
+    history[replace ? "replaceState" : "pushState"](null, "", path);
     setWhere(to);
   };
   const changes = useChanges();
@@ -60,13 +61,9 @@ export function MomentsPage() {
   // changes come back with where it stands now.
   const [passed, setPassed] = useState<string[]>([]);
   const passing = (listed: Listed) => `${listed.change.id}:${latestOf(listed.change)?.number}`;
-  // The changes gone on from with Next from their card, left waiting: each comes after the rest, in the order left.
-  const [later, setLater] = useState<string[]>([]);
-  // A card whose Done or Send was pressed stays, saying so, though the change has already moved on.
-  const [taking, setTaking] = useState<Listed>();
-  const waiting = changes && you ? waitingInOrder(changes, you).filter((one) => !passed.includes(passing(one))).sort((a, b) => later.indexOf(passing(a)) - later.indexOf(passing(b))) : [];
+  const waiting = changes && you ? waitingInOrder(changes, you).filter((one) => !passed.includes(passing(one))) : [];
   // The answers that were new as you came to a change, each on its moment, kept from the first look in, and the ones
-  // you've opened since: one gone past unopened is still new, on its note and on the change's card at its end.
+  // you've opened since: one gone past unopened is still new, on its note and under the change's last moment.
   const asYouCame = useRef(new Map<string, { note: string; moment: number }[]>());
   const [opened, setOpened] = useState<string[]>([]);
   const unopenedOf = (listed: Listed) => {
@@ -79,35 +76,21 @@ export function MomentsPage() {
   // A change by its own name alone, as addresses were before every app's were listed, is the first with that name.
   const listed = where.change ? changes?.find(({ change }) => change.id === where.change || change.id.endsWith(`/${where.change}`)) : undefined;
   useEffect(() => void (listed && listed.change.id !== where.change && go({ ...where, change: listed.change.id }, true)), [listed?.change.id]);
+  const card = waiting[0];
+  // A change's end is its last moment with the keyboard on the step left: come to by its old address, or at / for a
+  // change seen all through, whose card would have nothing left to open. Either way the address becomes that moment's.
+  const ending = where.change ? (where.foot && where.moment === undefined ? listed : undefined) : card && you && seenThrough(card, you) ? card : undefined;
+  useEffect(() => void (ending && go({ change: ending.change.id, moment: lastOf(ending), foot: true }, true)), [ending?.change.id, where.change, where.moment]);
   useSpaceStays();
   if (!changes || !you) return <div className="h-dvh bg-ground" />;
 
   const opener = <Opener waiting={waiting.length} open={sheet.open} onOpen={sheet.openBy} />;
-  // On from a change to the next's card: finished, as it was handed back; or left waiting, after the rest.
+  // On from a change to what's next, finished, as it was handed back.
   const goOn = (from: Listed) => (setPassed((now) => [...now, passing(from)]), go({}));
-  const leave = (from: Listed) => (setLater((now) => [...now.filter((one) => one !== passing(from)), passing(from)]), go({}));
-  const elseWaiting = (from: Listed) => waiting.some((one) => one.change.id !== from.change.id);
-  const card = taking ?? waiting[0];
-  const opening = (listed: Listed, end: boolean) => (
-    <Opening
-      key={listed.change.id}
-      listed={listed}
-      you={you}
-      end={end}
-      unopened={unopenedOf(listed)}
-      opener={opener}
-      go={go}
-      afterTheLast={history.state === AFTER_THE_LAST}
-      onTaking={() => setTaking(listed)}
-      goOn={() => (setTaking(undefined), goOn(listed))}
-      leave={elseWaiting(listed) ? () => leave(listed) : undefined}
-    />
-  );
   let page: ReactNode;
-  if (where.change) {
-    if (listed && listed.change.id !== where.change) page = <div className="h-dvh bg-ground" />;
-    else if (!listed) page = <div className="grid h-dvh place-items-center bg-ground text-soft">There's no change here.</div>;
-    else if (where.end) page = opening(listed, true);
+  if (ending || (listed && listed.change.id !== where.change)) page = <div className="h-dvh bg-ground" />;
+  else if (where.change) {
+    if (!listed) page = <div className="grid h-dvh place-items-center bg-ground text-soft">There's no change here.</div>;
     else
       page = (
         <Change
@@ -116,13 +99,15 @@ export function MomentsPage() {
           you={you}
           moment={where.moment ?? 1}
           note={where.note}
+          toFoot={where.foot}
           go={go}
+          goOn={() => goOn(listed)}
           opener={opener}
-          unopened={unopenedOf(listed).map((one) => one.note)}
+          unopened={unopenedOf(listed)}
           onOpened={(note) => setOpened((now) => (now.includes(note) ? now : [...now, note]))}
         />
       );
-  } else if (card) page = opening(card, false);
+  } else if (card) page = <Opening key={card.change.id} listed={card} you={you} opener={opener} go={go} />;
   else page = <NothingWaiting changes={changes} you={you} opener={opener} />;
 
   return (
@@ -151,7 +136,7 @@ function useSpaceStays() {
 
 // A change's moments, one at a time. What the agent hands back while you're on one waits until you go to another, so
 // nothing changes under you.
-function Change(props: { listed: Listed; you: string; moment: number; note?: string; go: Go; opener: ReactNode; unopened: string[]; onOpened: (note: string) => void }) {
+function Change(props: { listed: Listed; you: string; moment: number; note?: string; toFoot?: boolean; go: Go; goOn: () => void; opener: ReactNode; unopened: { note: string; moment: number }[]; onOpened: (note: string) => void }) {
   const { listed, you, moment, note, go } = props;
   const { change } = listed;
   const id = change.id;
@@ -189,7 +174,9 @@ function Change(props: { listed: Listed; you: string; moment: number; note?: str
       unopened={props.unopened}
       onOpened={props.onOpened}
       onMoment={(to) => go({ change: id, moment: to }, true)}
-      onEnd={() => go({ change: id, end: true })}
+      listed={listed}
+      goOn={props.goOn}
+      toFoot={props.toFoot}
     />
   );
 }
