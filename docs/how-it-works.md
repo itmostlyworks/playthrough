@@ -150,8 +150,9 @@ every page; the pointer glides to what it acts on, found before the hand sets of
 filled into a field is typed a key at a time (60 ms apart, a long text in 1.5 s at most). The browser's own dialogs, which
 rrweb never sees, are kept as moments of their own, held long enough to read (1.2 s and 40 ms a character, up to 4 s); a
 dropdown's list is kept open 0.35 s before the pointer goes to its choice; what a script animates with `element.animate`
-is written into the page as the CSS animation it is. The recording keeps the pointer, the text cursor and each key that
-does something (Escape, Enter, Tab, arrows, shortcuts), never letters typed, and hides a dev server's own badge
+is written into the page as the CSS animation it is. The recording keeps the pointer, the text cursor (said again once
+what moved its field has stopped; the page places it from the field it's in, after as many letters as it was, even with
+nothing typed yet, so one measured as a picker eased open stands at the field's start) and each key that does something (Escape, Enter, Tab, arrows, shortcuts), never letters typed, and hides a dev server's own badge
 (Next's), never touching the app; it and the agent's browser may write to the clipboard. The fonts, images and
 stylesheets each page loads are kept with its recording, once each by what's in them (`assets.ts`), so it looks the same
 with the app gone; it plays light or dark, still or moving, as its browser was (`page/src/scheme.ts`). Each thing done named

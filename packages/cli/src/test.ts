@@ -104,7 +104,9 @@ if (window.top === window) {
       window.rrwebRecord.record.addCustomEvent("caret", caret ? { x: Math.round(caret.x), y: Math.round(caret.y), height: Math.round(caret.height), letters: caret.letters } : {});
     } catch {}
   };
-  for (const type of ["selectionchange", "input", "keyup", "focusin", "focusout", "scroll"]) document.addEventListener(type, () => requestAnimationFrame(sayCaret), true);
+  // Said again once what moved the field has stopped: focused as a picker eased open, it was measured mid-way, a few
+  // pixels off where the field came to rest.
+  for (const type of ["selectionchange", "input", "keyup", "focusin", "focusout", "scroll", "transitionend", "animationend"]) document.addEventListener(type, () => requestAnimationFrame(sayCaret), true);
   // A key that does something, which rrweb doesn't keep either: Escape closing a panel looks like the × being pressed
   // without it. Never a letter typed, whose words appearing say it; said where the keyboard was, in the field it went
   // to, else by the pointer.

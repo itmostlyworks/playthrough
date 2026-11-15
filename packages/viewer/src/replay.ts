@@ -480,18 +480,21 @@ export class Replay {
     for (let extra = 0.25; extra <= 4 && !fits(); extra += 0.25) frame.style.width = `${this.#shape.width + extra}px`;
   }
 
-  // Typing into a field, the cursor is after as many of its words' letters as it was, as this browser lays them out,
-  // which another browser can put elsewhere than where the recording measured it: Firefox laid Kan's header out 42px to
-  // the right of Chromium. Recorded before the letters were kept, it's at their end, where typing mostly is.
+  // In a field, the cursor is after as many of its words' letters as it was, as this browser lays them out, which another
+  // browser can put elsewhere than where the recording measured it: Firefox laid Kan's header out 42px to the right of
+  // Chromium. Recorded before the letters were kept, it's at their end, where typing mostly is. The field is the one
+  // typed into since the cursor came to one; with nothing typed yet, the one it was measured in, where its letters
+  // were kept: measured as the field came in, a picker still easing open, it was a few pixels right of its start
+  // and below, and stood between the S and the e of "Search boards and lists" once the picker had opened.
   #onField(at: number): [number, number, number] | undefined {
     const caret = this.carets.findLast(([when]) => when <= at);
+    if (!caret?.[3]) return undefined;
     const typed = this.typed.findLast(([when]) => when <= at);
-    if (!caret?.[3] || !typed) return undefined;
-    // Into this field since the cursor last came to one.
     const came = this.carets.findLast(([when, , , height], i) => when <= at && height && !this.carets[i - 1]?.[3])?.[0] ?? 0;
-    if (typed[0] < came - 0.05) return undefined;
+    const page = this.#replayer.iframe.contentDocument;
+    const node = typed && typed[0] >= came - 0.05 ? this.#replayer.getMirror().getNode(typed[1]) : caret[4] !== undefined ? page?.elementFromPoint(caret[1] + 1, caret[2] + caret[3] / 2) : undefined;
     // Of the replayed page's own window, so not one of this page's inputs: told by its name.
-    const field = this.#replayer.getMirror().getNode(typed[1]) as HTMLInputElement | null;
+    const field = node as HTMLInputElement | null | undefined;
     if (field?.nodeName !== "INPUT" || !field.ownerDocument.defaultView) return undefined;
     const look = field.ownerDocument.defaultView.getComputedStyle(field);
     const measure = field.ownerDocument.createElement("canvas").getContext("2d");
