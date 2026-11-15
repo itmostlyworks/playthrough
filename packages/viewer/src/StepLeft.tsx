@@ -115,7 +115,9 @@ export function StepLeft(props: {
     // Space is never a press here: only pressing it, or Enter. With the keyboard on it, lit as a row of what's waiting.
     <div
       data-goes-on
-      className={`rounded-xl p-1.5 transition-[background-color,box-shadow] duration-200 ease-calm ${forward ? (keyed ? "bg-hover shadow-[0_0_0_1.5px_var(--faint)]" : "bg-surface shadow-[0_0_0_1px_var(--edge)]") : "bg-ground shadow-[0_0_0_0_transparent]"}`}
+      // Its ground is always solid, as a moment's card's is: the hover colour is see-through, so lit, it's laid over the
+      // surface (an inset shadow fills the card under its words), never put in its place.
+      className={`rounded-xl p-1.5 transition-[background-color,box-shadow] duration-200 ease-calm ${forward ? `bg-surface ${keyed ? "shadow-[inset_0_0_0_200px_var(--hover),0_0_0_1.5px_var(--faint)]" : "shadow-[inset_0_0_0_200px_transparent,0_0_0_1px_var(--edge)]"}` : "bg-ground shadow-[inset_0_0_0_200px_transparent,0_0_0_0_transparent]"}`}
     >
       {taken ? (
         <span role="status" className={row}>
