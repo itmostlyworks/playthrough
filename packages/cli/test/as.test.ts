@@ -50,3 +50,28 @@ test("a button or words are kept by their words as written, not as the page's st
   assert.deepEqual(did.filter((one) => one.does === "click").map(({ name, text }) => name ?? text), ["My boards", "Save Draft", "the launch post"]);
   assert.equal(again, "folded saved opened");
 });
+
+test("words typed into a rich-text editor are kept on the editor as it was before them, empty or not, typed in one go or two, so they're typed there again", { timeout: 30_000 }, async () => {
+  const { did, again } = await keptAndPlayed(
+    `<div id="comment" contenteditable="true"><p data-placeholder="Add comment..."><br></p></div>
+    <div id="description" contenteditable="true"><p>Looks good</p></div>
+    <button>Elsewhere</button>`,
+    async (page) => {
+      await page.locator("#comment").click();
+      await page.keyboard.type("half");
+      await page.getByRole("button", { name: "Elsewhere" }).click();
+      await page.locator("#comment").click();
+      await page.keyboard.press("End");
+      await page.keyboard.type(" written");
+      await page.locator("#description").click();
+      await page.keyboard.press("End");
+      await page.keyboard.type(" to me");
+    },
+    (page) => page.evaluate(() => [comment.innerText, description.innerText]),
+  );
+  assert.ok(did.every((one) => one.text === undefined), "never by what's typed in it");
+  assert.equal(did.find((one) => one.does === "fill")?.what, "Add comment...", "said by what it asks for");
+  assert.deepEqual(again, ["half written", "Looks good to me"]);
+});
+
+declare const comment: HTMLElement, description: HTMLElement;

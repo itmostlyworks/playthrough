@@ -51,12 +51,14 @@ const seeded = `(() => {
 // from a script.
 export const NOTING = `(() => {
   if (window.top !== window) return;
-  // The field being typed in at its caret, until something else is done.
-  let typedIn;
+  // The field being typed in at its caret, until something else is done; and the field words go into, found as it was
+  // before them, until something other than typing is done.
+  let typedIn, into;
   // Where it was done, so what took the agent to another page is known, however the page got there; and where the page
   // was scrolled, as scrolling is done by no listener here, and a moment starts where the agent was looking.
   const keep = (done) => {
     if (done.does !== "type") typedIn = undefined;
+    if (done.does !== "type" && done.does !== "fill") into = undefined;
     window.__playthroughDid?.({ ...done, address: location.pathname, scrolled: { x: Math.round(scrollX), y: Math.round(scrollY) } });
   };
   // Everything here is read as the page shows it with nothing pointed at, as Kan's links add their shortcut ("Settings
@@ -75,7 +77,10 @@ export const NOTING = `(() => {
     }
   };
   const pressable = "a, button, input, select, textarea, label, summary, [role=button], [role=link], [role=checkbox], [role=radio], [role=switch], [role=tab], [role=menuitem], [role=option], [role=combobox], [role=textbox], [contenteditable=''], [contenteditable=true]";
-  const words = (element) => asWritten(() => (element.innerText?.trim() || element.getAttribute?.("aria-label") || element.value || element.placeholder || "").trim().replace(/\\s+/g, " ").slice(0, 80));
+  // A rich-text editor's words are what's been typed in it: it's said by its label or what it asks for, and found by its
+  // role and name, or else its place, never by what it says.
+  const asks = (editor) => editor.getAttribute("aria-label") || editor.getAttribute("aria-placeholder") || editor.querySelector("[data-placeholder]")?.getAttribute("data-placeholder") || "";
+  const words = (element) => asWritten(() => (element.isContentEditable ? asks(element) : element.innerText?.trim() || element.getAttribute?.("aria-label") || element.value || element.placeholder || "").trim().replace(/\\s+/g, " ").slice(0, 80));
   const thing = (target) => asWritten(() => {
     const pressed = target?.closest?.(pressable);
     if (pressed && !pressed.querySelector(pressable)) return pressed;
@@ -96,6 +101,7 @@ export const NOTING = `(() => {
   };
   const own = (element) => (element.innerText ?? "").trim().replace(/\\s+/g, " ");
   const on = (element) => asWritten(() => {
+    if (element.isContentEditable) return { on: path(element), ...named(element) };
     // Words with no role of their own, inside a link or a button, are that link or button.
     for (let at = element; at && at !== document.body; at = at.parentElement) {
       const found = named(at);
@@ -137,9 +143,12 @@ export const NOTING = `(() => {
   }, true);
   // Words typed where the caret was put, not at the end, are kept as typed there, and what's typed after them too:
   // what a fix to where the caret goes is about. Anywhere else, the field's words once typed are what's kept.
-  let typing = false, typingAt;
+  let typing = false;
+  // Found as it is before the words change it: a rich-text editor said by what it asks for, which typing takes away.
+  const field = (target) => ({ target, found: on(target), what: target.isContentEditable ? asks(target) : target.getAttribute("aria-label") || target.placeholder || "" });
   addEventListener("beforeinput", (e) => {
     const target = e.target;
+    if (into?.target !== target) into = field(target);
     const text = target.isContentEditable ? asWritten(() => target.innerText).replace(/\\n$/, "") : target.value ?? "";
     const selection = target.isContentEditable ? getSelection() : undefined;
     // At the end, or over all of it, what's typed makes the field's words whole, as filling it does.
@@ -147,18 +156,20 @@ export const NOTING = `(() => {
       ? selection.toString().replace(/\\n$/, "") === text || (selection.isCollapsed && !!selection.focusNode && (() => { const range = document.createRange(); range.selectNodeContents(target); range.setStart(selection.focusNode, selection.focusOffset); return range.toString().replace(/\\n$/, "") === ""; })())
       : (target.selectionStart === 0 && target.selectionEnd === text.length) || (target.selectionStart === text.length && target.selectionEnd === text.length);
     typing = e.inputType === "insertText" && !!e.data && (typedIn === target || (!!text && !whole));
-    // Found as it is before the words change it.
-    if (typing && typedIn !== target) typingAt = on(target);
   }, true);
   addEventListener("input", (e) => {
     const target = e.target;
     if (!target.matches?.("input, textarea, select, [contenteditable]")) return;
     if (target.tagName === "SELECT") keep({ does: "selectOption", ...on(target), with: target.value, what: words(target) });
-    else if (typing) {
-      keep({ does: "type", ...typingAt, with: e.data });
-      typedIn = target;
+    else {
+      // A field set by a script, with no typing before it, is found as it is now.
+      const { found, what } = into?.target === target ? into : field(target);
+      if (typing) {
+        keep({ does: "type", ...found, with: e.data });
+        typedIn = target;
+      }
+      else if (!["checkbox", "radio"].includes(target.type)) keep({ does: "fill", ...found, with: target.isContentEditable ? asWritten(() => target.innerText) : target.value, what });
     }
-    else if (!["checkbox", "radio"].includes(target.type)) keep({ does: "fill", ...on(target), with: target.isContentEditable ? asWritten(() => target.innerText) : target.value, what: target.getAttribute("aria-label") || target.placeholder || "" });
   }, true);
   addEventListener("keydown", (e) => {
     if (e.key === "Enter" && e.target.matches?.("input")) keep({ does: "press", ...on(e.target), with: "Enter", what: words(e.target) });

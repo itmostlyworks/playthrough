@@ -80,10 +80,12 @@ on a debugging port from 9333 that the agent's own browser tool attaches to, and
 done: each thing by its role and name (a switch, checkbox, radio or slider with no name by its role and which it is), or
 by its words where nothing names it, both read as the page shows them with nothing hovered and as they're written, not
 as the page's style cases them (`asWritten`: a fold upper-cased by CSS is "My boards", which is what getByRole and
-getByText find again, never "MY BOARDS"), a right click as one, words typed where the caret was put as typed, keys that move the caret too, each with the address it
-was done at and where the page was scrolled, and each page loaded with whether something done before led there. Run
-again, the browser open already starts again, fresh, as whoever is named; given a moment, it goes that moment's way
-there first.
+getByText find again, never "MY BOARDS"), a right click as one, words typed where the caret was put as typed, keys
+that move the caret too; the field words go into is found as it was before them, once for each run of typing, and a
+rich-text editor (Kan's comment box) never by its words, which are what's typed: by its role and name if the page gives
+it one, else by its place, and said by what it asks for ("Add comment…"); each with the address it was done at and
+where the page was scrolled, and each page loaded with whether something done before led there. Run again, the browser
+open already starts again, fresh, as whoever is named; given a moment, it goes that moment's way there first.
 
 **`moment`** (`moments.ts`, `way.ts`) reads where that browser is and what the moment is about (the thing named, as the
 page names it, or else the thing its words name), works out where it starts (below), writes the way there as the moment's
