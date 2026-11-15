@@ -38,6 +38,19 @@ test("a field's text cursor hidden for a picture and put back is no change", () 
   assert.deepEqual(changesOf(events), [0.017, 0.817]);
 });
 
+test("what changes in a dev server's badge, hidden in every recording, is no change", () => {
+  const page = { id: 1, type: 0, childNodes: [{ id: 2, type: 2, tagName: "body", attributes: {}, childNodes: [] }] };
+  const badge = { id: 5, type: 2, tagName: "nextjs-portal", attributes: {}, childNodes: [{ id: 6, type: 2, tagName: "svg", attributes: {}, childNodes: [] }] };
+  const events = [
+    start,
+    at(10, { node: page, initialOffset: { top: 0, left: 0 } }, EventType.FullSnapshot),
+    at(200, { source: IncrementalSource.Mutation, adds: [{ parentId: 2, nextId: null, node: badge }], removes: [], texts: [], attributes: [] }),
+    mutation(600, [{ id: 6, attributes: { class: "paused" } }]),
+    mutation(900, [{ id: 2, attributes: { class: "dark" } }]),
+  ];
+  assert.deepEqual(changesOf(events), [0.017, 0.917], "nor is the badge coming");
+});
+
 // A moment shown from 1s to 5s whose screen changed at 2s and at 3s, and whose page moved for 50ms after the change at
 // 2s; nothing moved after the one at 3s.
 const shown = { from: 1, end: 5, changes: [0.5, 2, 3, 6] };

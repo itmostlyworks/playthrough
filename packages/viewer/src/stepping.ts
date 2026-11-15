@@ -22,16 +22,53 @@ const CHANGING = new Set<number>([
 const DRAWN = new Set(["caret", "choice", "chose", "dialog", "dialog answered"]);
 // Taking a picture, the recording's browser hides each field's text cursor and puts it back, which shows nothing.
 const HIDES_CARET = "caret-color: transparent !important;";
+// What a dev server draws over the app is hidden in every recording (the CLI's run.ts), and Next's badge goes on
+// changing its colours unseen.
+const UNSEEN = new Set(["nextjs-portal"]);
+
+type Serialized = { id: number; tagName?: string; childNodes?: Serialized[] };
 
 // The instants a recording's screen changed, in seconds from its start, each the first frame drawn after it: a page
-// loaded, the page changing, a click (its ring is drawn), or what Playthrough draws for it. Changes within one frame of
-// the first are one.
+// loaded, what's seen of the page changing, a click (its ring is drawn), or what Playthrough draws for it. Changes
+// within one frame of the first are one.
 export function changesOf(events: eventWithTime[]): number[] {
   const start = events[0]?.timestamp ?? 0;
-  const hidden = new Set<number>();
+  // The nodes in what's never seen, and the fields whose text cursor is hidden for a picture.
+  const unseen = new Set<number>();
+  const caretHidden = new Set<number>();
+  const learn = (node: Serialized, inUnseen: boolean) => {
+    const hides = inUnseen || UNSEEN.has(node.tagName?.toLowerCase() ?? "");
+    if (hides) unseen.add(node.id);
+    for (const child of node.childNodes ?? []) learn(child, hides);
+  };
+  const shows = (event: eventWithTime): boolean => {
+    if (event.type === EventType.Meta) return true;
+    if (event.type === EventType.FullSnapshot) return (unseen.clear(), learn(event.data.node as Serialized, false), true);
+    if (event.type === EventType.Custom) return DRAWN.has((event.data as { tag: string }).tag);
+    if (event.type !== EventType.IncrementalSnapshot) return false;
+    const data = event.data;
+    if (data.source === IncrementalSource.MouseInteraction) return data.type === MouseInteractions.Click;
+    if (!CHANGING.has(data.source)) return false;
+    if (data.source !== IncrementalSource.Mutation) return !unseen.has((data as { id?: number }).id ?? -1);
+    let seen = false;
+    for (const { parentId, node } of data.adds) {
+      learn(node as Serialized, unseen.has(parentId));
+      seen ||= !unseen.has(parentId) && !unseen.has(node.id);
+    }
+    seen ||= data.removes.some(({ id }) => !unseen.has(id)) || data.texts.some(({ id }) => !unseen.has(id));
+    for (const { id, attributes } of data.attributes) {
+      if (unseen.has(id)) continue;
+      const style = attributes.style;
+      const only = Object.keys(attributes).length === 1 && typeof style === "string";
+      if (only && style === HIDES_CARET) caretHidden.add(id);
+      else if (only && caretHidden.has(id)) caretHidden.delete(id);
+      else seen = true;
+    }
+    return seen;
+  };
   const changes: number[] = [];
   for (const event of events) {
-    if (!showsChange(event, hidden)) continue;
+    if (!shows(event)) continue;
     const ms = event.timestamp - start;
     const last = changes.at(-1);
     // Played up to an instant, the recording shows what happened before it: the frame after the first change of one
@@ -39,26 +76,6 @@ export function changesOf(events: eventWithTime[]): number[] {
     if (last === undefined || ms >= last) changes.push(ms + Math.ceil(FRAME * 1000));
   }
   return changes.map((ms) => ms / 1000);
-}
-
-function showsChange(event: eventWithTime, hidden: Set<number>): boolean {
-  if (event.type === EventType.Meta || event.type === EventType.FullSnapshot) return true;
-  if (event.type === EventType.Custom) return DRAWN.has((event.data as { tag: string }).tag);
-  if (event.type !== EventType.IncrementalSnapshot) return false;
-  const data = event.data;
-  if (data.source === IncrementalSource.MouseInteraction) return data.type === MouseInteractions.Click;
-  if (!CHANGING.has(data.source)) return false;
-  if (data.source !== IncrementalSource.Mutation || data.adds.length || data.removes.length || data.texts.length) return true;
-  // Nothing but each field's text cursor hidden, or put back where it was hidden.
-  let shows = false;
-  for (const { id, attributes } of data.attributes) {
-    const style = attributes.style;
-    const only = Object.keys(attributes).length === 1 && typeof style === "string";
-    if (only && style === HIDES_CARET) hidden.add(id);
-    else if (only && hidden.has(id)) hidden.delete(id);
-    else shows = true;
-  }
-  return shows;
 }
 
 // What's shown of a moment, from `from` to `end`, and the instants its screen changed.

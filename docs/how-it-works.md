@@ -249,7 +249,7 @@ to, so whatever stops it playing stops it there, and one rule (`can`) says what 
 buttons alike ask. **Stepping** (`stepping.ts`) goes by change, not by time: each press rests on the next instant the
 screen changed, or the one before (a page loaded, the page changed, a click, typing, a scroll, or what Playthrough draws
 for it, as the text cursor; changes within one frame, 1/60 s as the recording's browser drew them, are one; a field's
-cursor hidden for a picture is none), and while the page is still moving from a change with no other coming, one frame
+cursor hidden for a picture is none, nor is Next's badge, hidden in every recording, changing its colours), and while the page is still moving from a change with no other coming, one frame
 of that motion at a time, until it's as good as there (97% of its eased way). Back from the first change is the
 moment's start; on from the last, its end; none past either, where its arrow is quiet. Pressed while it plays, it stops
 there and steps; held, the key's own repeat walks it; compared, both sides go there together; with a note open, as
