@@ -13,7 +13,7 @@ import { Header, Title } from "./Header.tsx";
 import type { YourReply } from "./kept.ts";
 import { Key } from "./Key.tsx";
 import { arrived, can, isPlaying, isStepped, reduce, type Action } from "./mode.ts";
-import { Progress, Getting, FrameButton, ITEM, BAR } from "./MomentBar.tsx";
+import { Progress, Getting, FrameButton, Tip, ITEM, BAR } from "./MomentBar.tsx";
 import { Turns, useFrames, NoteWords, NotePicture, NoteCard, Write, type Made } from "./Note.tsx";
 import { usePhone } from "./phone.ts";
 import { Picture } from "./Picture.tsx";
@@ -765,16 +765,19 @@ export function MomentView(props: {
               <span className={`${ITEM} ${PLAYS} cursor-default px-1!`}>
                 <span className="truncate rounded-full bg-[#EDB654] px-[7px] text-[11.5px] leading-[19px] text-[#3B2A07]">{person ? `You, as ${person}` : "You"}</span>
               </span>
-            ) : still ? (
-              // Nothing to play: where Play would be, it says what this moment is.
-              <span className={`${ITEM} ${PLAYS} cursor-default text-faint!`}>A still</span>
             ) : (
+              // A still has nothing to play: Play and its arrows rest where they are, as anything that can't be pressed
+              // does, and Play says why when it's pointed at.
               <>
                 <FrameButton by={-1} disabled={!may.frameBefore} onStep={() => frame(-1)} />
-                <button className={`${ITEM} relative w-[96px] phone:w-[56px]`} disabled={!may.play} onClick={play}>
-                  <span className="w-9 text-left">{playing ? "Pause" : "Play"}</span> <Key className="min-w-9">Space</Key>
-                  <Progress clock={clockOf} share={shareOf(at)} shareOf={shareOf} moving={!!playing} shown={!atPoint && !away} />
-                </button>
+                {/* The tip stands beside Play, not in it, so it's as clear as any other while Play rests. */}
+                <span className="group/tip relative flex">
+                  <button className={`${ITEM} relative w-[96px] phone:w-[56px]`} disabled={!may.play} aria-description={still ? STILL : undefined} onClick={play}>
+                    <span className="w-9 text-left">{playing ? "Pause" : "Play"}</span> <Key className="min-w-9">Space</Key>
+                    {!still && <Progress clock={clockOf} share={shareOf(at)} shareOf={shareOf} moving={!!playing} shown={!atPoint && !away} />}
+                  </button>
+                  {still && <Tip>{STILL}</Tip>}
+                </span>
                 <FrameButton by={1} disabled={!may.nextFrame} onStep={() => frame(1)} />
               </>
             )}
@@ -838,8 +841,11 @@ const ABOUT = "about";
 // Compare's place on the bar, as wide as what it holds at its widest, so the bar is the same width whatever's there.
 const COMPARING = "w-[124px] phone:w-[112px]";
 
-// Play's place, with the arrows either side: where there's nothing to play, what's said there takes all of it, so the
-// bar is the same width on every moment.
+// Why Play rests on a still.
+const STILL = "A still: nothing to play";
+
+// Play's place, with the arrows either side: in the app, who you are there takes all of it, so the bar is the same
+// width there too.
 const PLAYS = "w-[148px] phone:w-[100px]";
 
 // Under the recording, room for the lower half of the bar that hangs across its edge, and a little more.

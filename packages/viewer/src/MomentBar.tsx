@@ -1,7 +1,7 @@
 // The bar across a moment's foot: its size and its buttons' look, the slim lines inside Play and Step in, and the
 // arrows either side of Play.
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { Key } from "./Key.tsx";
 import { Clock } from "./Player.tsx";
 
@@ -58,14 +58,23 @@ export function Getting({ since, due }: { since: number; due?: number }) {
 export function FrameButton({ by, disabled, onStep }: { by: 1 | -1; disabled: boolean; onStep: () => void }) {
   const [words, key] = by < 0 ? ["Frame before", ","] : ["Next frame", "."];
   return (
-    <button className={`${ITEM} group/frame relative w-6 px-0! text-soft! phone:w-5`} disabled={disabled} aria-label={words} aria-keyshortcuts={key} onClick={onStep}>
+    <button className={`${ITEM} group/tip relative w-6 px-0! text-soft! phone:w-5`} disabled={disabled} aria-label={words} aria-keyshortcuts={key} onClick={onStep}>
       <svg viewBox="0 0 10 10" width="10" height="10" aria-hidden className={by < 0 ? "-scale-x-100" : ""}>
         <path d="M3.5 1.5 7 5l-3.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
-      <span aria-hidden className="pointer-events-none absolute bottom-full left-1/2 mb-2.5 flex -translate-x-1/2 items-center gap-1.5 rounded-md bg-surface py-1 pr-1.5 pl-2 text-xs leading-4 text-soft opacity-0 shadow-tip transition-opacity duration-150 ease-calm group-hover/frame:opacity-100 group-hover/frame:delay-500 group-focus-visible/frame:opacity-100 pointer-coarse:hidden">
+      <Tip>
         {words} <Key>{key}</Key>
-      </span>
+      </Tip>
     </button>
+  );
+}
+
+// What a button on the bar is, over it when it's pointed at a while, or reached with Tab: on one that rests, why.
+export function Tip({ children }: { children: ReactNode }) {
+  return (
+    <span aria-hidden className="pointer-events-none absolute bottom-full left-1/2 mb-2.5 flex -translate-x-1/2 items-center gap-1.5 rounded-md bg-surface px-2 py-1 text-xs leading-4 whitespace-nowrap text-soft opacity-0 shadow-tip transition-opacity duration-150 ease-calm group-hover/tip:opacity-100 group-hover/tip:delay-500 group-focus-visible/tip:opacity-100 pointer-coarse:hidden [&:has(kbd)]:pr-1.5">
+      {children}
+    </span>
   );
 }
 

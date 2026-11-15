@@ -232,16 +232,16 @@ one above: its pictures are the heaviest thing in the sheet, and with nothing be
 pointer: one that arrives there says at once where it stands and moves when the pointer leaves.
 
 **A moment's page** (`Moment.tsx`, the bar in `MomentBar.tsx`). A moment opens at rest on its end. **A moment is only
-what it shows:** its recording plays from `from` to its end; one with nothing done from `from` on is a still, and where
-Play would be, the bar says "A still". The recording sits in the middle, as large as the room beside its edges lets it be
+what it shows:** its recording plays from `from` to its end; one with nothing done from `from` on is a still: Play and
+its arrows rest there, dimmed where they always are, and Play says "A still: nothing to play" when pointed at. The recording sits in the middle, as large as the room beside its edges lets it be
 (`SIDE`, 10vw, 104 to 160px each side), and never moves or changes size: not as an edge comes forward, a note opens or
 the moment changes (its shape is kept until the next one's is known, and the one you were on stays under the new one
 until it has faded in). The bar across its bottom edge: Play (Space), whose slim line along its own bottom edge fills as
 it plays, there only once the moment has left its end, with a small arrow either side, the frame before (`,`) and the
 next frame (`.`), their words and keys coming up over them when pointed at a while; Step in (S); Note (N, on the
 recording or in the app); Compare (C), or in its place "Unchanged" or "New", or while a note from an earlier hand-back is
-open, its "As it was" and "Now" switch; Compare's place is as wide as the switch, and where nothing can play, a still,
-what's said there takes the arrows' room too, so the bar is the same width from one moment to the next, in every state;
+open, its "As it was" and "Now" switch; Compare's place is as wide as the switch, and in the app who you are takes
+Play's room and its arrows', so the bar is the same width from one moment to the next, in every state;
 on a phone its buttons sit closer and Step in on its way says "Stepping…", so all of it fits 390 wide. A click on the recording
 plays and pauses it. Send stands top right, filled once something's unsent (Ctrl ↵), on every moment, and says Sent
 where it was pressed. Beside it, Next: the next moment, and after the last, the change's card. What the page is doing is one value (`mode.ts`): resting, playing, a note open, pointing,
