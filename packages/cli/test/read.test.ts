@@ -92,6 +92,12 @@ describe("Reading a page", () => {
     assert.equal(find(things, "box", "Payment failed").wordsInside, "Payment failed");
   });
 
+  test("a field the page gives no name is called by the nearest words before it, whole, though the page wrote them in pieces (Kan's card title)", async () => {
+    const { page } = await open(`<span id="number"></span><textarea>Write the launch post</textarea><script>number.append("BS", "-", "1")</script>`);
+    const { things } = await readPage(page);
+    find(things, "textbox", "BS-1");
+  });
+
   test("words marked inside words are part of them, and what's laid out apart reads apart", async () => {
     const { page } = await open(`
       <p>Total for <b>Q3</b> $27,785.00</p>

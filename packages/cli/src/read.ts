@@ -140,12 +140,17 @@ export function read() {
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     walker.currentNode = element;
     let nearest = "";
-    for (let node: Node | null, seen = 0; (node = walker.previousNode()) && seen < 6; ) {
-      const words = plain(node.textContent ?? "");
+    // Words are read whole, by what says them: a page can write one in pieces, as Kan writes a card's “BS-1” as
+    // “BS”, “-” and “1”.
+    for (let node: Node | null, seen = 0, last: Element | null = null; (node = walker.previousNode()) && seen < 6; ) {
+      const holder = node.parentElement;
+      if (!holder || holder === last) continue;
+      last = holder;
+      const words = ownWords(holder);
       if (!words) continue;
       seen++;
       nearest ||= words;
-      if (node.parentElement?.closest(TITLES)) return cut(words, 60);
+      if (holder.closest(TITLES)) return cut(words, 60);
     }
     return cut(nearest, 60);
   }
