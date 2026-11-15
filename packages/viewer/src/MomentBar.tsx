@@ -1,6 +1,8 @@
-// The bar across a moment's foot: its size and its buttons' look, and the slim lines inside Play and Step in.
+// The bar across a moment's foot: its size and its buttons' look, the slim lines inside Play and Step in, and the
+// arrows either side of Play.
 
 import { useEffect, useRef } from "react";
+import { Key } from "./Key.tsx";
 import { Clock } from "./Player.tsx";
 
 // How far through what's shown playing is: a slim line inside Play, there once the moment has left its end, filling
@@ -51,11 +53,27 @@ export function Getting({ since, due }: { since: number; due?: number }) {
   );
 }
 
+// A small arrow either side of Play: the frame before, or the next. Quiet beside Play, its words and its key come up
+// over it when it's pointed at a while, or reached with Tab.
+export function FrameButton({ by, disabled, onStep }: { by: 1 | -1; disabled: boolean; onStep: () => void }) {
+  const [words, key] = by < 0 ? ["Frame before", ","] : ["Next frame", "."];
+  return (
+    <button className={`${ITEM} group/frame relative w-6 px-0! text-soft! phone:w-5`} disabled={disabled} aria-label={words} aria-keyshortcuts={key} onClick={onStep}>
+      <svg viewBox="0 0 10 10" width="10" height="10" aria-hidden className={by < 0 ? "-scale-x-100" : ""}>
+        <path d="M3.5 1.5 7 5l-3.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      <span aria-hidden className="pointer-events-none absolute bottom-full left-1/2 mb-2.5 flex -translate-x-1/2 items-center gap-1.5 rounded-md bg-surface py-1 pr-1.5 pl-2 text-xs leading-4 text-soft opacity-0 shadow-tip transition-opacity duration-150 ease-calm group-hover/frame:opacity-100 group-hover/frame:delay-500 group-focus-visible/frame:opacity-100 pointer-coarse:hidden">
+        {words} <Key>{key}</Key>
+      </span>
+    </button>
+  );
+}
+
 // The part of Play's line not yet played: there to be seen, a step quieter than what has.
 const UNPLAYED = "bg-[color-mix(in_srgb,var(--soft)_32%,transparent)]";
 
-// On a phone, the keys go, so the bar fits with all four.
+// On a phone, the keys go and the buttons sit a little closer, so the bar fits with all of them in 390 wide.
 export const ITEM =
-  "phone:[&_kbd]:hidden inline-flex items-center justify-center gap-2 rounded-lg px-2.5 py-1.5 whitespace-nowrap text-fg transition-colors duration-150 ease-calm enabled:hover:bg-hover disabled:cursor-default disabled:opacity-50 aria-pressed:bg-hover [&_kbd]:text-[color-mix(in_srgb,var(--faint)_55%,var(--soft))]";
+  "phone:[&_kbd]:hidden inline-flex items-center justify-center gap-2 rounded-lg px-2.5 py-1.5 phone:px-2 whitespace-nowrap text-fg transition-colors duration-150 ease-calm enabled:hover:bg-hover disabled:cursor-default disabled:opacity-50 aria-pressed:bg-hover [&_kbd]:text-[color-mix(in_srgb,var(--faint)_55%,var(--soft))]";
 
 export const BAR = 40;

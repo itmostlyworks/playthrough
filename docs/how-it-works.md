@@ -235,15 +235,28 @@ Play would be, the bar says "A still". The recording sits in the middle, as larg
 (`SIDE`, 10vw, 104 to 160px each side), and never moves or changes size: not as an edge comes forward, a note opens or
 the moment changes (its shape is kept until the next one's is known, and the one you were on stays under the new one
 until it has faded in). The bar across its bottom edge: Play (Space), whose slim line along its own bottom edge fills as
-it plays, there only once the moment has left its end; Step in (S); Note (N, on the recording or in the app); Compare
-(C), or in its place "Unchanged" or "New", or while a note from an earlier hand-back is open, its "As it was" and
-"Now" switch; Compare's place is as wide as the switch, so the bar is the same width from one moment to the next. A click on the recording
+it plays, there only once the moment has left its end, with a small arrow either side, the frame before (`,`) and the
+next frame (`.`), their words and keys coming up over them when pointed at a while; Step in (S); Note (N, on the
+recording or in the app); Compare (C), or in its place "Unchanged" or "New", or while a note from an earlier hand-back is
+open, its "As it was" and "Now" switch; Compare's place is as wide as the switch, and where nothing can play, a still,
+what's said there takes the arrows' room too, so the bar is the same width from one moment to the next, in every state;
+on a phone its buttons sit closer, so all of it fits 390 wide. A click on the recording
 plays and pauses it. Send stands top right, filled once something's unsent (Ctrl ↵), on every moment, and says Sent
 where it was pressed. Beside it, Next: the next moment, and after the last, the change's card. What the page is doing is one value (`mode.ts`): resting, playing, a note open, pointing,
 writing, comparing, getting there or the app yours; every press is an action on it, carrying where the recording has got
 to, so whatever stops it playing stops it there, and one rule (`can`) says what may be pressed, which the keys and the
-buttons alike ask. Keys: Space, S, N, C; ↑ ↓ (and K, J) the moment before and next, ↓ after the last coming to the
-change's card; ← → this moment's notes, opening
+buttons alike ask. **Stepping** (`stepping.ts`) goes by change, not by time: each press rests on the next instant the
+screen changed, or the one before (a page loaded, the page changed, a click, typing, a scroll, or what Playthrough draws
+for it, as the text cursor; changes within one frame, 1/60 s as the recording's browser drew them, are one; a field's
+cursor hidden for a picture is none), and while the page is still moving from a change with no other coming, one frame
+of that motion at a time, until it's as good as there (97% of its eased way). Back from the first change is the
+moment's start; on from the last, its end; none past either, where its arrow is quiet. Pressed while it plays, it stops
+there and steps; held, the key's own repeat walks it; compared, both sides go there together; with a note open, as
+Space does, it acts on the moment and closes the note first, as it was or now. At rest on a step the
+page is that very frame, motion and all (`Replay.show`): rebuilt to just before the changes of the second before it and
+those played back on one at a time, so a fade stepped back into is shown mid-way, not at its end, and what the page set
+moving is placed by when its change was. A note made there keeps that picture. Keys: Space, `,` `.`, S, N, C; ↑ ↓
+(and K, J) the moment before and next, ↓ after the last coming to the change's card; ← → this moment's notes, opening
 each; Escape closes what's open, leaves Compare or noting, else goes back; Ctrl+Enter (⌘↵) sends. Reduced motion:
 nothing slides or fades.
 

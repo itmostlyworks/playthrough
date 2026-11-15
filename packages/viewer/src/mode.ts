@@ -39,6 +39,8 @@ export type Action =
   | { type: "played" }
   // At rest somewhere else: paused part-way, or a note on the moment as it is now opened, at its end.
   | { type: "rest"; at: number }
+  // The frame before or the next, as stepping finds it: at rest there, compared or not.
+  | { type: "step"; at: number }
   | { type: "note" }
   | { type: "pointed"; writing: Writing }
   | { type: "written" }
@@ -80,6 +82,8 @@ export function reduce(page: Page, action: Action & Now): Page {
       return page;
     case "rest":
       return { ...(playing(mode) ? resting : page), at: action.at, along: undefined };
+    case "step":
+      return { ...stopped, at: action.at, along: undefined, mode: mode.is === "comparing" ? { is: "comparing" } : { is: "resting" } };
     case "note":
       if (mode.is === "the app yours") return { ...page, mode: { ...mode, pointing: mode.pointing ? undefined : true } };
       return { ...stopped, mode: mode.is === "pointing" ? { is: "resting" } : { is: "pointing" } };
@@ -120,8 +124,12 @@ export function can(page: Page, facts: Facts) {
   const { mode } = page;
   const writing = mode.is === "writing" || (mode.is === "the app yours" && !!mode.writing);
   const away = stepped(mode);
+  const plays = !away && !writing && !facts.still && facts.ready;
   return {
-    play: !away && !writing && !facts.still && facts.ready,
+    play: plays,
+    // The frame before, or the next: none before what's shown starts, nor after its end.
+    frameBefore: plays && (playing(mode) || page.at > page.starts + 0.001),
+    nextFrame: plays && (playing(mode) || page.at < page.end - 0.001),
     // Pressed again while it's getting there, Step in does nothing: Back and Escape stop it.
     stepIn: !away && !writing && !facts.elsewhere,
     back: mode.is === "getting there" || (mode.is === "the app yours" && !writing),

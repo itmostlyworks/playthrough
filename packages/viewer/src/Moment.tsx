@@ -13,7 +13,7 @@ import { Header, Title } from "./Header.tsx";
 import type { YourReply } from "./kept.ts";
 import { Key } from "./Key.tsx";
 import { arrived, can, isPlaying, isStepped, reduce, type Action } from "./mode.ts";
-import { Progress, Getting, ITEM, BAR } from "./MomentBar.tsx";
+import { Progress, Getting, FrameButton, ITEM, BAR } from "./MomentBar.tsx";
 import { Turns, useFrames, NoteWords, NotePicture, NoteCard, Write, type Made } from "./Note.tsx";
 import { usePhone } from "./phone.ts";
 import { Picture } from "./Picture.tsx";
@@ -307,6 +307,13 @@ export function MomentView(props: {
   const may = can(page, facts);
   useKeptReady({ change: change.id, moment, page, facts });
   const play = () => may.play && act({ type: "play" });
+  // The frame before or the next, from where the recording has got to: pressed as it plays, it stops there and steps.
+  const frameFrom = useRef<((at: number, by: 1 | -1, from: number, end: number) => number | undefined) | undefined>(undefined);
+  const frame = (by: 1 | -1) => {
+    if (!(by < 0 ? may.frameBefore : may.nextFrame)) return;
+    const to = frameFrom.current?.(clockOf.at, by, from, end);
+    if (to !== undefined) act({ type: "step", at: to });
+  };
   // A note open on a frame of its own shows somewhere the app can't be taken to: stepping in from it would swap the
   // picture for the moment's and open the app there. Closed, Step in answers again. In the app, it's Back.
   const stepInOrBack = () => (inApp ? may.back && stepIn.back() : may.stepIn && stepIn.stepIn());
@@ -426,8 +433,8 @@ export function MomentView(props: {
   // Pressing away from what's open, anywhere but its card and its picture on the edge, closes it.
   const pressAway = (event: React.PointerEvent) => opened && !(event.target as Element).closest("[data-note-card], [data-tile]") && !stage.current?.contains(event.target as Node) && close();
 
-  // The keys: Space plays, S steps in and back, N notes, C compares, ↑ and ↓ go a moment back and on, ← and → open this
-  // moment's notes one after another, Escape lets go.
+  // The keys: Space plays, `,` and `.` go a frame back and on (held, on and on), S steps in and back, N notes, C
+  // compares, ↑ and ↓ go a moment back and on, ← and → open this moment's notes one after another, Escape lets go.
   const keys = useRef<(event: KeyboardEvent) => void>(() => {});
   keys.current = (event) => {
     const typing = event.target instanceof HTMLElement && event.target.closest("textarea, input, [contenteditable]");
@@ -450,6 +457,7 @@ export function MomentView(props: {
       event.preventDefault();
       return void (onEdge[to]!.note.id !== open && openNote(onEdge[to]!.note.id));
     }
+    if (key === "," || key === ".") return (event.preventDefault(), frame(key === "," ? -1 : 1));
     const did = { " ": play, s: stepInOrBack, n: note, c: () => (may.flip ? flip() : compare()), arrowdown: () => next(1), j: () => next(1), arrowup: () => next(-1), k: () => next(-1) }[key];
     if (!did || event.repeat) return;
     event.preventDefault();
@@ -644,6 +652,7 @@ export function MomentView(props: {
                 scrolled={scrolled}
                 hand={!standIn}
                 drawn={drawn}
+                frameFrom={frameFrom}
               />
             </div>
             {aboutAt && (
@@ -753,17 +762,21 @@ export function MomentView(props: {
             <div className="contents" inert={noting}>
             {inApp ? (
               // In the app, who you are there, beside Back.
-              <span className={`${ITEM} w-[96px] cursor-default px-1! phone:w-[64px]`}>
+              <span className={`${ITEM} ${PLAYS} cursor-default px-1!`}>
                 <span className="truncate rounded-full bg-[#EDB654] px-[7px] text-[11.5px] leading-[19px] text-[#3B2A07]">{person ? `You, as ${person}` : "You"}</span>
               </span>
             ) : still ? (
               // Nothing to play: where Play would be, it says what this moment is.
-              <span className={`${ITEM} w-[96px] cursor-default text-faint! phone:w-[64px]`}>A still</span>
+              <span className={`${ITEM} ${PLAYS} cursor-default text-faint!`}>A still</span>
             ) : (
-              <button className={`${ITEM} relative w-[96px] phone:w-[64px]`} disabled={!may.play} onClick={play}>
-                <span className="w-9 text-left">{playing ? "Pause" : "Play"}</span> <Key className="min-w-9">Space</Key>
-                <Progress clock={clockOf} share={shareOf(at)} shareOf={shareOf} moving={!!playing} shown={!atPoint && !away} />
-              </button>
+              <>
+                <FrameButton by={-1} disabled={!may.frameBefore} onStep={() => frame(-1)} />
+                <button className={`${ITEM} relative w-[96px] phone:w-[58px]`} disabled={!may.play} onClick={play}>
+                  <span className="w-9 text-left">{playing ? "Pause" : "Play"}</span> <Key className="min-w-9">Space</Key>
+                  <Progress clock={clockOf} share={shareOf(at)} shareOf={shareOf} moving={!!playing} shown={!atPoint && !away} />
+                </button>
+                <FrameButton by={1} disabled={!may.nextFrame} onStep={() => frame(1)} />
+              </>
             )}
             <button className={`${ITEM} relative w-[116px] phone:w-[104px]`} disabled={!may.stepIn && !may.back} aria-pressed={stepping} onClick={stepInOrBack}>
               {inApp ? "Back" : stepping ? "Stepping in…" : "Step in"} {!stepping && <Key>{inApp ? "Esc" : "S"}</Key>}
@@ -823,6 +836,10 @@ const ABOUT = "about";
 
 // Compare's place on the bar, as wide as what it holds at its widest, so the bar is the same width whatever's there.
 const COMPARING = "w-[124px] phone:w-[112px]";
+
+// Play's place, with the arrows either side: where there's nothing to play, what's said there takes all of it, so the
+// bar is the same width on every moment.
+const PLAYS = "w-[148px] phone:w-[102px]";
 
 // Under the recording, room for the lower half of the bar that hangs across its edge, and a little more.
 const UNDER = BAR / 2 + 20;

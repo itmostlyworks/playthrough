@@ -10,6 +10,7 @@ import type { Element, Moment, Point } from "@playthrough/change";
 import { recording } from "./api.ts";
 import { Replay, type Choice, type Events, type Pressed, type Rect, type Scrolled } from "./replay.ts";
 import type { Crop } from "./Picture.tsx";
+import { stepFrom } from "./stepping.ts";
 import { pickAt } from "./things.ts";
 import { around as aroundCentre, centreOf, following as followingPointer, holding, type Together } from "./view.ts";
 
@@ -135,6 +136,8 @@ type Props = {
   // draws it, in its own pixels, if it does: where the app's comes from.
   hand?: boolean;
   drawn?: RefObject<(() => { x: number; y: number } | undefined) | undefined>;
+  // Where a frame on (1) or back (-1) from a time rests, within what's shown from `from` to `end`; nothing past either.
+  frameFrom?: RefObject<((at: number, by: 1 | -1, from: number, end: number) => number | undefined) | undefined>;
 };
 
 // A thing marked, by its node in this recording, else by its name, as one made in the app names it; or its spot, or
@@ -180,6 +183,11 @@ export function Player(props: Props) {
     return () => void ((current = false), made?.destroy());
   }, [props.change, props.handBack, props.recording]);
   useEffect(() => void (props.scrolled && (props.scrolled.current = replay && (() => replay.replay.scrolled()))), [replay]);
+  useEffect(() => {
+    if (!props.frameFrom) return;
+    const replayed = replay?.replay;
+    props.frameFrom.current = replayed && ((at, by, from, end) => stepFrom(at, by, { from, end, changes: replayed.changes }, (change) => replayed.movingUntil(change)));
+  }, [replay]);
   const handAt = useRef<{ x: number; y: number }>(undefined);
   useEffect(() => void (props.drawn && (props.drawn.current = () => handAt.current)), []);
 

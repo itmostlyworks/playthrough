@@ -37,6 +37,7 @@ The page opens on the next change waiting on you, from any app and agent on your
 | | |
 |---|---|
 | Space, or a click | Play and pause |
+| , . | The frame before, the next: each where the screen changed |
 | S | Step in: the real app at this moment, as that person |
 | N | Note: click what it's about, say what's off |
 | C | Compare with how it was when you last saw it |

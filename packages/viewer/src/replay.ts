@@ -5,6 +5,7 @@
 
 import { answerAs, pathTo, type Answered } from "@playthrough/page";
 import { EventType, IncrementalSource, MouseInteractions, Replayer, type eventWithTime } from "rrweb";
+import { changesOf, isStep, FRAME } from "./stepping.ts";
 
 export type Events = eventWithTime[];
 export type Rect = { left: number; top: number; width: number; height: number };
@@ -25,8 +26,6 @@ export type Recorded = {
   // When the hand was out of the app: in a recording you made by taking a moment over, going to Playthrough's own controls.
   away: [number, number][];
   clicks: number[];
-  // The moments its page changes: a click, something on the page changing, typing or a scroll.
-  changes: number[];
   // What was clicked or typed into, as [seconds, node].
   acted: [number, number][];
   // What was typed into, as [seconds, node].
@@ -64,7 +63,7 @@ export type Choice = { from: number; until: number; x: number; y: number; width:
 function recorded(events: Events): Recorded {
   const start = events[0]?.timestamp ?? 0;
   const seconds = (timestamp: number) => (timestamp - start) / 1000;
-  const shown: Recorded = { shapes: [], loads: [], pointer: [], away: [], clicks: [], changes: [], acted: [], typed: [], aimed: [], scrolls: [], dialogs: [], choices: [], carets: [], keys: [], browser: { dark: false, still: false } };
+  const shown: Recorded = { shapes: [], loads: [], pointer: [], away: [], clicks: [], acted: [], typed: [], aimed: [], scrolls: [], dialogs: [], choices: [], carets: [], keys: [], browser: { dark: false, still: false } };
   let said = false;
   let host = "";
   for (const event of events) {
@@ -110,8 +109,6 @@ function recorded(events: Events): Recorded {
       if (data.type === MouseInteractions.Click) (shown.acted.push([seconds(event.timestamp), data.id]), shown.aimed.push([seconds(event.timestamp), data.id, data.x, data.y]));
     } else if (data.source === IncrementalSource.Input) (shown.acted.push([seconds(event.timestamp), data.id]), shown.typed.push([seconds(event.timestamp), data.id]));
     else if (data.source === IncrementalSource.Scroll) shown.scrolls.push([seconds(event.timestamp), data.id, data.x, data.y]);
-    const changes = [IncrementalSource.Mutation, IncrementalSource.Scroll, IncrementalSource.Input].includes(data.source);
-    if (changes || (data.source === IncrementalSource.MouseInteraction && data.type === MouseInteractions.Click)) shown.changes.push(seconds(event.timestamp) + 0.01);
   }
   if (!shown.shapes.length) shown.shapes.push({ from: 0, width: 1280, height: 800, touch: false });
   shown.pointer.sort((a, b) => a[0] - b[0]);
@@ -162,6 +159,12 @@ function awayFrom({ pointer, shapes }: Recorded): [number, number][] {
 // How long a page shown at rest is given to come to rest, at most, in milliseconds.
 const SETTLING = 1500;
 
+// How long the page's motion is taken to run on after the change that set it going, at most, in seconds: shown at a
+// step, what began longer ago is over.
+const MOTION = 1;
+// How long after a change its step is, in milliseconds: the frame after it.
+const CHANGE_SHOWN = Math.ceil(FRAME * 1000);
+
 export class Replay {
   readonly host = document.createElement("div");
   readonly shapes: Shape[];
@@ -175,6 +178,8 @@ export class Replay {
   readonly keys: Pressed[];
   readonly typed: Recorded["typed"];
   readonly aimed: Recorded["aimed"];
+  // The instants its screen changed, in seconds: where stepping rests.
+  readonly changes: number[];
   #replayer: Replayer;
   // The screen the page is shown on now, which rrweb changes with it as someone else's page loads.
   #shape: Shape;
@@ -199,6 +204,11 @@ export class Replay {
   // box faded in again when the Person menu closed ("It still flashes"), and the open menu itself, as the pointer moved
   // over it. Started again, an animation goes on from where it had got to.
   #started = new WeakMap<Element, Map<string, number>>();
+  // Shown at a step: which, when what the page set moving began there, in the recording's milliseconds, and until when
+  // it moves after each change, in seconds, once learned.
+  #exactAt: number | undefined;
+  #began = new WeakMap<Animation, number>();
+  #until = new Map<number, number>();
 
   // Built where it will show: rrweb builds its page only in one that's already in the document.
   constructor(events: Events, into: HTMLElement) {
@@ -211,6 +221,7 @@ export class Replay {
       Object.defineProperty(event.data, "removes", { get: () => removes, set() {}, enumerable: true, configurable: true });
     }
     const shows = recorded(events);
+    this.changes = changesOf(events);
     ({ shapes: this.shapes, loads: this.loads, pointer: this.pointer, away: this.away, clicks: this.clicks, dialogs: this.dialogs, choices: this.choices, carets: this.carets, keys: this.keys, typed: this.typed, aimed: this.aimed, scrolls: this.#scrolls } = shows);
     this.#drawn = Math.max(0, (events.find((event) => event.type === EventType.FullSnapshot)?.timestamp ?? start) - start + 1);
     this.host.className = "absolute top-0 left-0 origin-top-left [&_.replayer-mouse]:hidden [&_iframe]:pointer-events-none [&_iframe]:block [&_iframe]:border-0";
@@ -247,23 +258,17 @@ export class Replay {
   }
 
   // The page at a moment of its recording, in seconds. Before its start, while the moment's name is up, its first frame.
+  // At rest on a step, as that very frame.
   show(at: number, playing: boolean) {
     const ms = Math.max(Math.round(Math.max(0, at) * 1000), this.#drawn);
+    if (!playing && isStep(ms / 1000, this.changes)) return void (ms !== this.#exactAt && this.#showExactly(ms));
+    this.#exactAt = undefined;
     const moved = ms !== this.#at;
     if (moved) {
       const jumped = this.#at < 0 || ms < this.#at || ms - this.#at > 300;
       if (jumped) this.#started = new WeakMap();
-      this.#replayer.pause(ms);
-      this.#at = ms;
+      this.#moveTo(ms);
       if (jumped) this.#settle();
-      this.#scrollBetween(ms / 1000);
-      const shape = this.shapeAt(ms / 1000);
-      const resized = shape !== this.#shape;
-      if (resized) {
-        this.#shape = shape;
-        Object.assign(this.host.style, { width: `${shape.width}px`, height: `${shape.height}px` });
-      }
-      this.#fit(resized);
     }
     // A page rebuilt for a jump can start its transitions a frame late, and a dialog centred by its transform slid in
     // from the side: for its first 0.15s after a jump, its motion is over, playing too.
@@ -292,10 +297,83 @@ export class Replay {
     }
   }
 
+  #moveTo(ms: number) {
+    // rrweb takes what it last played to be as far as it has got, and a pointer's moves are kept together, timed from
+    // the first: going back to just after that first, it took itself to be going on, rebuilt nothing, and the page
+    // stayed where it was, a dialog closing shown closed a frame after it began to. Going back, it starts again.
+    if (ms < this.#at) (this.#replayer as unknown as { service: { state: { context: { lastPlayedEvent: unknown } } } }).service.state.context.lastPlayedEvent = null;
+    this.#replayer.pause(ms);
+    this.#at = ms;
+    this.#scrollBetween(ms / 1000);
+    const shape = this.shapeAt(ms / 1000);
+    const resized = shape !== this.#shape;
+    if (resized) {
+      this.#shape = shape;
+      Object.assign(this.host.style, { width: `${shape.width}px`, height: `${shape.height}px` });
+    }
+    this.#fit(resized);
+  }
+
+  // The page as it was at a step, its motion where it had got to then, in the recording's own time: what the page set
+  // moving is placed by when the change that set it going was. Going back, the page is rebuilt from its first frame all
+  // at once, and what moved there would start over or never start, a fade shown at its end: so it's rebuilt to just
+  // before the changes of the last second, and those are played onto it one at a time, each setting its motion going as
+  // it did. On from a step, only what's new is played on.
+  #showExactly(ms: number) {
+    // Nothing is finished for it: what the page is doing at this frame is what's shown.
+    [this.#settlesUntil, this.#jumpedTo] = [0, -Infinity];
+    const along = this.#exactAt !== undefined && this.#exactAt <= ms;
+    const changes = this.changes.map((change) => Math.round(change * 1000)).filter((change) => change <= ms);
+    let walked = this.#exactAt ?? 0;
+    if (!along) {
+      const first = changes.find((change) => change > ms - MOTION * 1000);
+      walked = Math.max(this.#drawn, first === undefined ? ms : first - CHANGE_SHOWN);
+      this.#started = new WeakMap();
+      this.#moveTo(walked);
+      for (const animation of this.#animations()) this.#began.set(animation, -Infinity);
+    }
+    const began = (at: number) => {
+      for (const animation of this.#animations()) if (!this.#began.has(animation)) this.#began.set(animation, at);
+    };
+    for (const change of changes) if (change > walked) (this.#moveTo(change), began(change - CHANGE_SHOWN));
+    this.#moveTo(ms);
+    began(ms);
+    for (const animation of this.#animations()) {
+      try {
+        const since = ms - (this.#began.get(animation) ?? ms);
+        const end = Number(animation.effect?.getComputedTiming().endTime);
+        if (since === Infinity || since >= end) finish(animation);
+        else {
+          animation.pause();
+          animation.currentTime = since;
+        }
+      } catch {}
+      this.#seen.add(animation);
+    }
+    [this.#exactAt, this.#rested, this.#playing, this.#changed] = [ms, ms, false, false];
+  }
+
+  // Until when, in seconds, the page goes on moving after a change: what's moving as its frame is shown, until it's
+  // as good as there. A dialog easing in spends its last third a hair from where it stops, and stepping back through
+  // it from the end was a dozen presses that showed nothing. Learned by showing it there, once.
+  movingUntil(change: number): number {
+    const known = this.#until.get(change);
+    if (known !== undefined) return known;
+    const ms = Math.round(change * 1000);
+    this.#showExactly(ms);
+    let until = ms;
+    for (const animation of this.#animations()) {
+      const began = this.#began.get(animation) ?? -Infinity;
+      if (began > -Infinity) until = Math.max(until, began + thereBy(animation));
+    }
+    this.#until.set(change, until / 1000);
+    return until / 1000;
+  }
+
   // Stopping by itself, the page is shown at rest, as after a jump: the stop can come a few hundredths of a second
-  // into a dialog opening, and pausing held it there.
+  // into a dialog opening, and pausing held it there. At rest on a step, it's that frame, motion and all.
   rest() {
-    if (this.#rested === this.#at) return;
+    if (this.#rested === this.#at || this.#exactAt === this.#at) return;
     this.#rested = this.#at;
     this.#settle();
     for (const animation of this.#animations()) finish(animation);
@@ -576,6 +654,28 @@ const AIMING = 1.2;
 // rrweb rewrites each of a page's stylesheets for it to show hovering, a few hundredths of a second for an app's, each
 // time it builds a page; the recordings of one app carry the same ones, so they're rewritten once, for all of them.
 const styles = { stylesWithHoverClass: new Map<string, string>() };
+
+// How far into its motion, in milliseconds, an animation is as good as where it stops: its eased progress all but
+// done. One that never ends never is.
+const THERE = 0.97;
+function thereBy(animation: Animation): number {
+  const timing = animation.effect?.getComputedTiming();
+  const end = Number(timing?.endTime);
+  if (!timing || !Number.isFinite(end) || timing.iterations !== 1) return end;
+  const was = animation.currentTime;
+  const progress = (at: number) => ((animation.currentTime = at), animation.effect?.getComputedTiming().progress ?? 1);
+  let [low, high] = [Number(timing.delay ?? 0), end];
+  try {
+    while (high - low > 1) {
+      const middle = (low + high) / 2;
+      if (progress(middle) >= THERE) high = middle;
+      else low = middle;
+    }
+  } finally {
+    animation.currentTime = was;
+  }
+  return high;
+}
 
 // One that never ends can't be finished, and plays on.
 function finish(animation: Animation) {

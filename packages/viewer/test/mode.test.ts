@@ -126,3 +126,14 @@ test("after the first step in, the app is kept ready where the recording rests, 
     assert.equal(keptReadyAt(page, facts, true), undefined);
   assert.equal(keptReadyAt(moment(), { ...facts, elsewhere: true }, true), undefined, "nor on a note open on a frame of its own");
 });
+
+test("a frame on or back rests there, playing or compared, and none is offered past what's shown", () => {
+  const stepped = press(press(moment(), { type: "play" }), { type: "step", at: 4.1 }, 4.3);
+  assert.deepEqual([stepped.mode, stepped.at], [{ is: "resting" }, 4.1]);
+  const compared = press(press(press(moment(), { type: "compare" }), { type: "play" }), { type: "step", at: 6 }, 5.8);
+  assert.deepEqual([compared.mode, compared.at], [{ is: "comparing" }, 6]);
+  assert.deepEqual([can(moment(), facts).frameBefore, can(moment(), facts).nextFrame], [true, false], "at the end, only back");
+  const start = press(moment(), { type: "rest", at: 2 });
+  assert.deepEqual([can(start, facts).frameBefore, can(start, facts).nextFrame], [false, true], "at the start, only on");
+  assert.equal(can(moment(), { ...facts, still: true }).frameBefore, false, "a still has no frames");
+});
