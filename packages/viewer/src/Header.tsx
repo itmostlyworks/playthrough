@@ -1,9 +1,13 @@
-// The top of every page, in three places: at the left what's waiting, the way to every other change; in the centre what
-// this is; at the right what's next. The centre is the window's, as the recording and its bar under it are, whatever
-// the sides hold. On a phone there's no room for a centre: what this is takes the room between.
+// The top of every page, its two corners: at the left Playthrough and what's waiting in it, the way to every other
+// change; at the right what's next. Between them, nothing: what this is stands on the recording's top, where it's
+// looked at. On a phone there's no room over the recording for it: the change's title takes the room between.
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { usePhone } from "./phone.ts";
+
+// The header's height, and the gap between the title and what you asked.
+const HEADER = 48;
+const GAP = 6;
 
 export function Header({ opener, centre, children }: { opener: ReactNode; centre?: ReactNode; children?: ReactNode }) {
   return (
@@ -17,11 +21,22 @@ export function Header({ opener, centre, children }: { opener: ReactNode; centre
   );
 }
 
-// The change's title, quietly, in the centre. Pointed at, or with the keyboard on it, what you asked comes under it in
-// your own words, with where it's from and when it came back: what you judge by, at hand without being on the line.
+// The change's title, quietly, over the moment's own line on the recording's top: what this is a moment of, with what
+// it is, in one place. (On a phone, in the header's room between.) Pointed at, or with the keyboard on it, what you
+// asked comes by it in your own words, with where it's from and when it came back: what you judge by, at hand without
+// being on the line. That comes up over the title where it fits under the header, so it covers nothing of the moment;
+// where it's too long for that, or the window too short, under it.
 export function Title({ title, asked, quiet }: { title: string; asked?: string; quiet: string }) {
   const phone = usePhone();
   const [shown, setShown] = useState(false);
+  const [place, setPlace] = useState<"over" | "under">();
+  const own = useRef<HTMLSpanElement>(null);
+  const said = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (!shown) return setPlace(undefined);
+    const [top, height] = [own.current?.getBoundingClientRect().top ?? 0, said.current?.offsetHeight ?? 0];
+    setPlace(top - GAP - height >= HEADER ? "over" : "under");
+  }, [shown]);
   // A breath, so a pointer passing over the title shows nothing.
   const breath = useRef<ReturnType<typeof setTimeout>>(undefined);
   const rest = () => (clearTimeout(breath.current), (breath.current = undefined));
@@ -30,15 +45,16 @@ export function Title({ title, asked, quiet }: { title: string; asked?: string; 
   useEffect(() => rest, []);
   if (phone) return <span className="min-w-0 truncate text-fg">{title}</span>;
   return (
-    <div className="relative flex min-w-0 justify-center">
+    <div className="relative flex min-w-0 max-w-full justify-center">
       <span
+        ref={own}
         tabIndex={0}
         aria-describedby="what-you-asked"
         onPointerMove={(event) => event.pointerType === "mouse" && !shown && !breath.current && show(false)}
         onPointerLeave={hide}
         onFocus={(event) => event.currentTarget.matches(":focus-visible") && show(true)}
         onBlur={hide}
-        className="block max-w-[min(560px,40vw)] truncate rounded-md px-1 text-soft transition-colors duration-150 ease-calm hover:text-fg focus-visible:text-fg"
+        className="block max-w-full truncate rounded-md px-1 text-[13px] leading-[22px] text-soft transition-colors duration-150 ease-calm hover:text-fg focus-visible:text-fg"
       >
         {title}
       </span>
@@ -46,7 +62,8 @@ export function Title({ title, asked, quiet }: { title: string; asked?: string; 
         <div
           id="what-you-asked"
           role="tooltip"
-          className="pointer-events-none absolute top-[calc(100%+6px)] left-1/2 z-40 w-max max-w-[min(34em,calc(100vw-48px))] -translate-x-1/2 animate-arrive rounded-xl bg-surface px-4 py-3 shadow-float"
+          ref={said}
+          className={`pointer-events-none absolute left-1/2 z-40 w-max max-w-[min(34em,calc(100vw-48px))] -translate-x-1/2 rounded-xl bg-surface px-4 py-3 shadow-float ${place === "over" ? "bottom-[calc(100%+6px)] animate-arrive" : place ? "top-[calc(100%+6px)] animate-arrive" : "invisible"}`}
           style={{ animationDuration: "150ms" }}
         >
           {asked && <p className="text-[14px] leading-[22px] text-pretty text-fg">{asked}</p>}

@@ -6,6 +6,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Key } from "./Key.tsx";
+import { Mark } from "./Mark.tsx";
 
 export type Opened = "pointed" | "pressed" | "keyed";
 
@@ -92,7 +93,10 @@ export function Opener({ waiting, open, onOpen }: { waiting: number; open?: Open
       aria-keyshortcuts={OPENS.toUpperCase()}
       className="-ml-2 flex flex-none items-center gap-1.5 rounded-lg px-2 py-1 text-soft transition-colors duration-150 ease-calm hover:bg-hover hover:text-fg"
     >
-      {/* On a phone the count alone, so the change's title keeps its room. */}
+      {/* Whose page this is, and what's in it: Playthrough's mark and name lead what's waiting, one thing to press. On
+          a phone the mark and the count alone, so the change's title keeps its room. */}
+      <Mark className="size-[18px]" />
+      <span className="mr-2.5 font-semibold text-fg phone:hidden">Playthrough</span>
       {waiting ? <><span className="phone:hidden">{waitingSays(waiting)}</span><span className="hidden phone:inline">{waiting} waiting</span></> : "Every change"}
       <svg viewBox="0 0 12 12" className="size-3 flex-none" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
         <path d="M2.5 4.5L6 8l3.5-3.5" />

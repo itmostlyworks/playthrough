@@ -202,17 +202,21 @@ to the change and that you went past unopened is still new on its note, and the 
 right on the way) or done says so in the step's place, with where it stands, and there's only going on. With nothing
 waiting, the page says so calmly, with what your agents are on.
 
-**The top of every page** (`Header.tsx`) has three places, one job each: at the left what's waiting, the way to every
-other change; in the centre what this is; at the right what's next. The centre is the window's, as the recording and its
-bar are, whatever the sides hold. On a moment's page the change's title is there, quiet; pointed at (after 70 ms) or
-reached with the keyboard, it brings a small card under it with what you asked in your own words and the app and when it came
-back. The opening card's page has no title in the centre: the card says it. On a phone there's no centre: the title, in
-full colour, takes the room between what's waiting and Next, and there's no card for what you asked.
+**The top of every page** (`Header.tsx`) is its two corners: at the left Playthrough and what's waiting in it, the way
+to every other change; at the right what's next (Next, and Send while something's unsent). Between them, nothing: what
+this is stands on the recording's top. The left is one thing to press, the opener (`Waiting.tsx`): Playthrough's mark
+(`Mark.tsx`, as `public/logo.svg`, in the page's colours) and name, then "6 changes waiting" (or "Every change") and its
+key; on a phone the mark and "6 waiting" alone.
 
-**Who and where** is the recording's, not the header's: who it's done as and the moment's name sit on the recording's
-top, centred over it, 12px above its edge, on the line the edges' words are on, wherever the recording stands in its
-room. Two lines at most (three on a phone, at the left), growing up into room kept over the recording (`inItsRoom`,
-which the opening card's picture stands in too, so going in moves nothing).
+**What this is** is the recording's, not the header's, in one stack on its top, centred over it, 12px above its edge,
+wherever the recording stands in its room: the change's title, quiet and small, and under it who it's done as and the
+moment's name, on the line the edges' words are on. Those take two lines at most (three on a phone, at the left),
+growing up into room kept over the recording (`inItsRoom`, three lines' worth, which the opening card's picture stands
+in too, so going in moves nothing). The title, pointed at (after 70 ms) or reached with the keyboard, brings a small
+card with what you asked in your own words and the app and when it came back: over the title where it fits under the
+header, covering nothing of the moment, else under it. The opening card's page has no title: the card says it. On a
+phone there's no room over the recording for it: the title, in full colour, takes the header's room between what's
+waiting and Next, and there's no card for what you asked.
 
 **Every change** (`Waiting.tsx`, `Changes.tsx`). Top left on every page, "6 changes waiting" (or "Every change") opens every
 change as a sheet over the page, the page under it softened and inert. Pressed or from the keyboard, it stays until
