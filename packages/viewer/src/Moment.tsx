@@ -523,6 +523,13 @@ export function MomentView(props: {
       else if (!event.repeat && escapes.current(performance.now())) back();
       return;
     }
+    // Noting, the bar holds only what to do and Cancel, and the keys say no more: N or Escape leave it, and nothing
+    // else runs, so words typed before pointing, or an arrow, never drive the page or drop the note.
+    if (noting) {
+      if (key.length === 1 || key.startsWith("arrow")) event.preventDefault();
+      if (key === "n" && !event.repeat) note();
+      return;
+    }
     if (key === "arrowleft" || key === "arrowright") return (event.preventDefault(), void (!event.repeat && arrow.press(key === "arrowleft" ? -1 : 1)));
     const down = () => (event.shiftKey ? nextNote(1) : next(1));
     const up = () => (event.shiftKey ? nextNote(-1) : next(-1));
@@ -534,9 +541,10 @@ export function MomentView(props: {
   useEffect(() => {
     const down = (event: KeyboardEvent) => keys.current(event);
     const up = (event: KeyboardEvent) => /^Arrow(Left|Right)$/.test(event.key) && arrow.letGo();
-    addEventListener("keydown", down);
-    addEventListener("keyup", up);
-    return () => (removeEventListener("keydown", down), removeEventListener("keyup", up));
+    // On the document, so the moment's keys come before W's, on the window, whichever was listening first.
+    document.addEventListener("keydown", down);
+    document.addEventListener("keyup", up);
+    return () => (document.removeEventListener("keydown", down), document.removeEventListener("keyup", up));
   }, []);
 
   // A note's picture is new on the edge when it wasn't there the last time this moment was drawn: it arrives.

@@ -48,7 +48,8 @@ export function useSheet() {
   useEffect(() => {
     const down = (event: KeyboardEvent) => {
       const typing = event.target instanceof HTMLElement && event.target.closest("textarea, input, [contenteditable]");
-      if (typing || event.repeat || event.ctrlKey || event.metaKey || event.altKey || event.key.toLowerCase() !== OPENS) return;
+      // A key the page has already taken (W typed while noting) opens nothing.
+      if (typing || event.defaultPrevented || event.repeat || event.ctrlKey || event.metaKey || event.altKey || event.key.toLowerCase() !== OPENS) return;
       event.preventDefault();
       openBy("keyed");
     };
