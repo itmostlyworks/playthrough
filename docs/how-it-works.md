@@ -241,7 +241,7 @@ next frame (`.`), their words and keys coming up over them when pointed at a whi
 recording or in the app); Compare (C), or in its place "Unchanged" or "New", or while a note from an earlier hand-back is
 open, its "As it was" and "Now" switch; Compare's place is as wide as the switch, and where nothing can play, a still,
 what's said there takes the arrows' room too, so the bar is the same width from one moment to the next, in every state;
-on a phone its buttons sit closer, so all of it fits 390 wide. A click on the recording
+on a phone its buttons sit closer and Step in on its way says "Stepping…", so all of it fits 390 wide. A click on the recording
 plays and pauses it. Send stands top right, filled once something's unsent (Ctrl ↵), on every moment, and says Sent
 where it was pressed. Beside it, Next: the next moment, and after the last, the change's card. What the page is doing is one value (`mode.ts`): resting, playing, a note open, pointing,
 writing, comparing, getting there or the app yours; every press is an action on it, carrying where the recording has got

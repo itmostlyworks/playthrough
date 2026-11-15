@@ -771,15 +771,16 @@ export function MomentView(props: {
             ) : (
               <>
                 <FrameButton by={-1} disabled={!may.frameBefore} onStep={() => frame(-1)} />
-                <button className={`${ITEM} relative w-[96px] phone:w-[58px]`} disabled={!may.play} onClick={play}>
+                <button className={`${ITEM} relative w-[96px] phone:w-[56px]`} disabled={!may.play} onClick={play}>
                   <span className="w-9 text-left">{playing ? "Pause" : "Play"}</span> <Key className="min-w-9">Space</Key>
                   <Progress clock={clockOf} share={shareOf(at)} shareOf={shareOf} moving={!!playing} shown={!atPoint && !away} />
                 </button>
                 <FrameButton by={1} disabled={!may.nextFrame} onStep={() => frame(1)} />
               </>
             )}
-            <button className={`${ITEM} relative w-[116px] phone:w-[104px]`} disabled={!may.stepIn && !may.back} aria-pressed={stepping} onClick={stepInOrBack}>
-              {inApp ? "Back" : stepping ? "Stepping in…" : "Step in"} {!stepping && <Key>{inApp ? "Esc" : "S"}</Key>}
+            {/* On a phone, "Stepping…": its amber line says where, and the bar fits 390 wide with the arrows by Play. */}
+            <button className={`${ITEM} relative w-[116px] phone:w-[84px]`} disabled={!may.stepIn && !may.back} aria-pressed={stepping} onClick={stepInOrBack}>
+              {inApp ? "Back" : stepping ? <>Stepping<span className="phone:hidden"> in</span>…</> : "Step in"} {!stepping && <Key>{inApp ? "Esc" : "S"}</Key>}
               {stepIn.getting && <Getting {...stepIn.getting} />}
             </button>
             <button className={`${ITEM}`} disabled={!may.note} aria-pressed={noting} onClick={note}>
@@ -796,7 +797,7 @@ export function MomentView(props: {
                         key={words}
                         aria-pressed={chosen}
                         onClick={() => !chosen && flip()}
-                        className={`flex flex-auto items-center justify-center rounded-md px-2 whitespace-nowrap transition-[background-color,color,box-shadow] duration-200 ease-calm ${chosen ? "cursor-default bg-surface text-fg shadow-[0_0_0_1px_var(--edge),0_1px_2px_var(--drop)]" : "text-soft hover:text-fg"}`}
+                        className={`flex flex-auto items-center justify-center rounded-md px-2 phone:px-[5px] whitespace-nowrap transition-[background-color,color,box-shadow] duration-200 ease-calm ${chosen ? "cursor-default bg-surface text-fg shadow-[0_0_0_1px_var(--edge),0_1px_2px_var(--drop)]" : "text-soft hover:text-fg"}`}
                       >
                         {words}
                       </button>
@@ -839,7 +840,7 @@ const COMPARING = "w-[124px] phone:w-[112px]";
 
 // Play's place, with the arrows either side: where there's nothing to play, what's said there takes all of it, so the
 // bar is the same width on every moment.
-const PLAYS = "w-[148px] phone:w-[102px]";
+const PLAYS = "w-[148px] phone:w-[100px]";
 
 // Under the recording, room for the lower half of the bar that hangs across its edge, and a little more.
 const UNDER = BAR / 2 + 20;
