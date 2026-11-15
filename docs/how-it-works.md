@@ -305,8 +305,8 @@ moving is placed by when its change was. A note made there keeps that picture. K
 the next, along the moment, and never on into another; ↑ ↓ (and K, J) the moment before and next, ↓ on the last
 going to the last stop; with Shift, ↑ ↓ the note before and the next through the whole change, opening each: this
 moment's one after another, then on to the nearest moment that has one (its first going on, its last going back), and
-nothing past the change's first or last; W what's waiting; Escape closes what's open, leaves Compare or noting, else
-goes back; Ctrl+Enter (⌘↵) sends. Reduced motion: nothing slides or fades.
+nothing past the change's first or last; W what's waiting; Escape closes what's open, leaves Compare or noting, or
+calls off a step in on its way; while the app is yours, Escape twice is Back; Ctrl+Enter (⌘↵) sends. Reduced motion: nothing slides or fades.
 
 **The edges** (`Edge.tsx`). On the left, the change's moments; on the right, this moment's notes, sent then unsent, in
 the order said. Over each, what it holds, in a word, "Moments" and "Notes": at its pictures' outer side, or 24px
@@ -450,8 +450,11 @@ minute) and 30 s for the app's page to settle, then says so under the bar, with 
 running. Whatever stopped it is said under the bar in the server's words; in the app, so is a check at the end that
 doesn't hold now. The app opens in the recording's place, at the same size,
 and the recording's pointer comes to yours wherever yours has gone, and gives way to it. In the app the bar says "You,
-as …" beside Back; Escape, in the app or out of it, goes back, but it's the app's first: if the app does something with
-it, closing a menu or a dialog, that's all it does. A link out of it opens in a tab of your own. The app is drawn with
+as …" beside Back, whose keys read Esc Esc: a single Escape is the app's, whatever the app does with it, or nothing,
+and Playthrough does nothing with it; Escape twice, the second within half a second of the first, is Back, and the app
+never hears that second press (`escapedTwice`, `twice.ts` in `@playthrough/page`, the same rule in the app and on
+Playthrough's page around it). A key held down is one press; with Note on, Escape is Playthrough's and turns it off,
+without counting as a first press. A link out of it opens in a tab of your own. The app is drawn with
 `will-change: transform`, so its words keep their spaces, and the clipboard is the page's, on the way there and in your
 browser. In a moment recorded on a phone's screen, a mouse drag is a swipe. Note works there as on the recording: what you did in the app is
 recorded from when it was handed to you (or from the note, made before the recording's pointer had come to yours) and kept with the change (`branches/`, with the fonts, pictures and stylesheets

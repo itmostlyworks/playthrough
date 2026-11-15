@@ -4,7 +4,7 @@
 // it, go on, or say Done or Send.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { Glimpse, Reading } from "@playthrough/page";
+import { escapedTwice, type Glimpse, type Reading } from "@playthrough/page";
 import { conversation, isStill, madeInApp, newId, together, type Note, type Change, type HandBack, type Moment } from "@playthrough/change";
 import { glimpses, picture, readings as readingsOf, recording, type Listed } from "./api.ts";
 import { clamp } from "./clamp.ts";
@@ -491,6 +491,7 @@ export function MomentView(props: {
   // ↑ and ↓ go a moment back and on, and with Shift a note back and on, Escape lets go. Left and right are along the
   // moment, up and down through what's listed at its edges, and neither runs on into the other.
   const keys = useRef<(event: KeyboardEvent) => void>(() => {});
+  const escapes = useRef(escapedTwice());
   keys.current = (event) => {
     const typing = event.target instanceof HTMLElement && event.target.closest("textarea, input, [contenteditable]");
     // A picture on an edge with the keyboard on it is pressed with Enter or Space, as any button is.
@@ -514,7 +515,9 @@ export function MomentView(props: {
       if (open) close();
       else if (comparing) compare();
       else if (noting) act({ type: "note" });
-      else back();
+      // While the app is yours, Escape twice is Back, as it is in the app (step-in.ts); getting there, once calls it off.
+      else if (!inApp) back();
+      else if (!event.repeat && escapes.current(performance.now())) back();
       return;
     }
     if (key === "arrowleft" || key === "arrowright") return (event.preventDefault(), void (!event.repeat && arrow.press(key === "arrowleft" ? -1 : 1)));
@@ -924,7 +927,16 @@ export function MomentView(props: {
             )}
             {/* On a phone, "Stepping…": its amber line says where, and the bar fits 390 wide with the arrows by Play. */}
             <button className={`${ITEM} relative w-[116px] phone:w-[84px]`} disabled={!may.stepIn && !may.back} aria-pressed={stepping} onClick={stepInOrBack}>
-              {inApp ? "Back" : stepping ? <>Stepping<span className="phone:hidden"> in</span>…</> : "Step in"} {!stepping && <Key>{inApp ? "Esc" : "S"}</Key>}
+              {inApp ? "Back" : stepping ? <>Stepping<span className="phone:hidden"> in</span>…</> : "Step in"}{" "}
+              {/* In the app, a single Escape is the app's: twice is Back. */}
+              {inApp ? (
+                <span className="flex gap-1 phone:hidden pointer-coarse:hidden">
+                  <Key>Esc</Key>
+                  <Key>Esc</Key>
+                </span>
+              ) : (
+                !stepping && <Key>S</Key>
+              )}
               {stepIn.getting && <Getting {...stepIn.getting} />}
             </button>
             <button className={`${ITEM}`} disabled={!may.note} aria-pressed={noting} onClick={note}>

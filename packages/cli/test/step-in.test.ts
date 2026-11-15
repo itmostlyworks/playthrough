@@ -67,6 +67,32 @@ test("a moment that ends in a menu opened by a right click is stepped into with 
   await person.close();
 });
 
+test("in the app, a single Escape is the app's, and twice is Back, the app hearing only the first", async () => {
+  const person = await browser.newPage();
+  await app(person);
+  await person.goto("http://app.test/");
+  const settled = person.evaluate(() => new Promise((done) => addEventListener("message", ({ data }) => data?.playthrough === "settled" && done(true))));
+  await person.evaluate(() => {
+    Object.assign(window, { backs: 0 });
+    addEventListener("message", ({ data }) => data?.playthrough === "escape" && (window as unknown as { backs: number }).backs++);
+    document.body.append(Object.assign(document.createElement("iframe"), { src: "/board" }));
+  });
+  await settled;
+  const board = person.frames().find((frame) => frame.url().endsWith("/board"))!;
+  await board.evaluate(() => (Object.assign(window, { heard: 0 }), addEventListener("keydown", (e) => e.key === "Escape" && (window as unknown as { heard: number }).heard++)));
+  await board.focus("#card");
+  const said = async () => [await board.evaluate(() => (window as unknown as { heard: number }).heard), await person.evaluate(() => (window as unknown as { backs: number }).backs)];
+
+  await person.keyboard.press("Escape");
+  await person.waitForTimeout(600);
+  assert.deepEqual(await said(), [1, 0], "once: the app's, and nothing more");
+  await person.keyboard.press("Escape");
+  await person.keyboard.press("Escape");
+  await person.waitForTimeout(100);
+  assert.deepEqual(await said(), [2, 1], "twice: the app heard the first, and the second was Back");
+  await person.close();
+});
+
 test("on the way to where it's stepped into, a key is pressed once the page has come to rest, as it was recorded", async () => {
   const running = await browser.newPage();
   // A card that takes a moment to load which board it's on, and Escape goes back to that board.

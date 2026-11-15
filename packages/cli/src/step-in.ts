@@ -7,7 +7,7 @@ import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createServer, request as ask, type IncomingMessage, type ServerResponse } from "node:http";
 import { connect } from "node:net";
-import { answerAs, asRecorded, pathTo } from "@playthrough/page";
+import { answerAs, asRecorded, escapedTwice, pathTo } from "@playthrough/page";
 import { doneBefore, quote, Refused } from "@playthrough/change";
 import { running, using } from "./app.ts";
 import { QUIET_DEV_CHROME, recorder, type Handed, type To } from "./run.ts";
@@ -274,7 +274,7 @@ function asIfDirect(request: IncomingMessage, target: URL) {
 // nothing changing for a moment), so the frame turns into it with nothing on screen changing. It tells the viewer where
 // the pointer is, and whether it's over words you can type into: the viewer draws the recording's pointer coming to
 // yours, hiding the app's own until they meet, and then only your name, beside the app's own. And as every key there
-// goes to the app, Escape goes back to the viewer too, when the app does nothing with it.
+// goes to the app, Escape twice goes back to the viewer instead.
 // rrweb's recorder, as every moment has it, for what you do here to be recorded.
 let RECORDER: string | undefined;
 
@@ -386,20 +386,22 @@ export const SAYS = `<script>(() => {
   // A click here is a click elsewhere, to what the viewer has open.
   addEventListener("pointerdown", (e) => e.isTrusted && parent.postMessage({ playthrough: "down" }, "*"), true);
   document.addEventListener("pointerleave", () => parent.postMessage({ playthrough: "pointer", x, y, inside: false }, "*"));
-  // Escape is the app's first, as N is while you type: if the app does something with it, closing a menu, a list or a
-  // dialog, or moving focus, that's all it does. Then it leaves the field you're typing in, whatever the app made of it,
-  // and only once you're in none does it go back to the viewer: coming back finds the app as it was.
-  const popups = () => [...document.querySelectorAll('[aria-haspopup][aria-expanded="true"], [aria-modal="true"], [role=menu], [role=listbox], [role=dialog], dialog[open]')].filter((element) => element.checkVisibility()).length;
-  const leave = (e) => {
-    if (e.key !== "Escape" || e.type !== "keydown" || e.repeat) return;
-    const [open, focused] = [popups(), document.activeElement];
-    setTimeout(() => {
-      if (popups() < open || document.activeElement !== focused) return;
-      if (typing(focused)) return focused.blur();
-      if (!e.defaultPrevented) parent.postMessage({ playthrough: "escape", x, y }, "*");
-    }, 150);
+  // Escape is the app's, every single press, whatever the app does with it. Pressed twice, the second right after the
+  // first, it's Back, and the app never hears that second one, held or let go: coming back finds the app as the first
+  // left it. With Note on, it's Playthrough's: it turns Note off. A key held down is one press.
+  const twice = (${escapedTwice.toString()})();
+  let taken = false;
+  const escape = (e) => {
+    if (e.key !== "Escape" || !e.isTrusted) return;
+    const ours = e.type === "keydown" && !e.repeat ? noting || twice(performance.now()) : taken;
+    if (e.type === "keydown" && !e.repeat) taken = ours;
+    if (!ours) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (e.type === "keydown" && !e.repeat) parent.postMessage({ playthrough: "escape", x, y }, "*");
   };
-  addEventListener("keydown", leave, true);
+  addEventListener("keydown", escape, true);
+  addEventListener("keyup", escape, true);
   // A moment on a phone is a finger's: there, a mouse drag is a swipe. What's under it follows the pointer, and let go, it
   // glides on as a fling does, to the column it snaps to if it snaps, as Kan's board does; a wheel or a trackpad only
   // jumped it a column at a time ("It just jumps from one column to the next"). Pressed and held first, it's the app's
