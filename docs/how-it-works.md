@@ -77,8 +77,10 @@ the name of another change here with a different title, saying which; the same t
 
 **`as <person>`** (`as.ts`) starts the app if nobody has, and a Chromium signed in as them (1280 by 800, English, UTC),
 on a debugging port from 9333 that the agent's own browser tool attaches to, and keeps everything done there as it's
-done: each thing by its role and name (a switch, checkbox, radio or slider with no name by its role and which it is), a
-right click as one, words typed where the caret was put as typed, keys that move the caret too, each with the address it
+done: each thing by its role and name (a switch, checkbox, radio or slider with no name by its role and which it is), or
+by its words where nothing names it, both read as the page shows them with nothing hovered and as they're written, not
+as the page's style cases them (`asWritten`: a fold upper-cased by CSS is "My boards", which is what getByRole and
+getByText find again, never "MY BOARDS"), a right click as one, words typed where the caret was put as typed, keys that move the caret too, each with the address it
 was done at and where the page was scrolled, and each page loaded with whether something done before led there. Run
 again, the browser open already starts again, fresh, as whoever is named; given a moment, it goes that moment's way
 there first.

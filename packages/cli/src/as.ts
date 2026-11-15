@@ -49,7 +49,7 @@ const seeded = `(() => {
 // on whatever has the focus or the page itself. And each page loaded, with its address, as a way of getting there
 // that no listener hears. Nothing here is replayed, so what isn't trusted is kept too: a tool may set a field's words
 // from a script.
-const NOTING = `(() => {
+export const NOTING = `(() => {
   if (window.top !== window) return;
   // The field being typed in at its caret, until something else is done.
   let typedIn;
@@ -59,14 +59,29 @@ const NOTING = `(() => {
     if (done.does !== "type") typedIn = undefined;
     window.__playthroughDid?.({ ...done, address: location.pathname, scrolled: { x: Math.round(scrollX), y: Math.round(scrollY) } });
   };
+  // Everything here is read as the page shows it with nothing pointed at, as Kan's links add their shortcut ("Settings
+  // G S") on hover; and in its words as written, not as its style cases them, as getByRole and getByText find them again:
+  // a fold upper-cased by CSS is still named "My boards". Once however deep the reading goes.
+  const hovering = ${hovering};
+  const written = new CSSStyleSheet();
+  written.replaceSync("*, ::before, ::after { text-transform: none !important; }");
+  let reading = 0;
+  const asWritten = (read) => {
+    if (!reading++) hovering(false), (document.adoptedStyleSheets = [...document.adoptedStyleSheets, written]);
+    try {
+      return read();
+    } finally {
+      if (!--reading) (document.adoptedStyleSheets = document.adoptedStyleSheets.filter((sheet) => sheet !== written)), hovering(true);
+    }
+  };
   const pressable = "a, button, input, select, textarea, label, summary, [role=button], [role=link], [role=checkbox], [role=radio], [role=switch], [role=tab], [role=menuitem], [role=option], [role=combobox], [role=textbox], [contenteditable=''], [contenteditable=true]";
-  const words = (element) => (element.innerText?.trim() || element.getAttribute?.("aria-label") || element.value || element.placeholder || "").trim().replace(/\\s+/g, " ").slice(0, 80);
-  const thing = (target) => {
+  const words = (element) => asWritten(() => (element.innerText?.trim() || element.getAttribute?.("aria-label") || element.value || element.placeholder || "").trim().replace(/\\s+/g, " ").slice(0, 80));
+  const thing = (target) => asWritten(() => {
     const pressed = target?.closest?.(pressable);
     if (pressed && !pressed.querySelector(pressable)) return pressed;
     for (let at = target; at && at !== (pressed ?? document.body); at = at.parentElement) if (at.nodeType === 1 && words(at)) return at;
     return pressed ?? target;
-  };
+  });
   const path = ${pathTo};
   // As getByRole finds it, from Chrome's own accessibility tree (ComputedAccessibilityInfo, switched on at launch): by
   // its role and name, and a field or a switch the page gives no name by its role alone, which of them it is.
@@ -79,34 +94,27 @@ const NOTING = `(() => {
     const nth = alike.indexOf(element);
     return { role, ...(name && { name }), ...((alike.length > 1 || !name) && nth >= 0 && { nth }) };
   };
-  // Named as the page shows it with nothing pointed at: Kan's links add their shortcut ("Settings G S") on hover.
-  const hovering = ${hovering};
   const own = (element) => (element.innerText ?? "").trim().replace(/\\s+/g, " ");
-  const on = (element) => {
-    hovering(false);
-    try {
-      // Words with no role of their own, inside a link or a button, are that link or button.
-      for (let at = element; at && at !== document.body; at = at.parentElement) {
-        const found = named(at);
-        if (found.role) return { on: path(at), ...found };
-      }
-      // Nothing named holds it: by its words, as getByText finds them, the innermost that says them; and by its place
-      // only where it says nothing, as a place moves whenever the page around it does.
-      const said = own(element);
-      if (said && said.length <= 80) {
-        let inner = element;
-        for (let child; (child = [...inner.children].find((one) => own(one) === said)); ) inner = child;
-        const alike = [...document.body.querySelectorAll("*")].filter((one) => own(one) === said && ![...one.children].some((child) => own(child) === said));
-        const nth = alike.indexOf(inner);
-        return { on: path(element), text: said, ...(alike.length > 1 && nth >= 0 && { nth }) };
-      }
-      return { on: path(element) };
-    } finally {
-      hovering(true);
+  const on = (element) => asWritten(() => {
+    // Words with no role of their own, inside a link or a button, are that link or button.
+    for (let at = element; at && at !== document.body; at = at.parentElement) {
+      const found = named(at);
+      if (found.role) return { on: path(at), ...found };
     }
-  };
+    // Nothing named holds it: by its words, as getByText finds them, the innermost that says them; and by its place
+    // only where it says nothing, as a place moves whenever the page around it does.
+    const said = own(element);
+    if (said && said.length <= 80) {
+      let inner = element;
+      for (let child; (child = [...inner.children].find((one) => own(one) === said)); ) inner = child;
+      const alike = [...document.body.querySelectorAll("*")].filter((one) => own(one) === said && ![...one.children].some((child) => own(child) === said));
+      const nth = alike.indexOf(inner);
+      return { on: path(element), text: said, ...(alike.length > 1 && nth >= 0 && { nth }) };
+    }
+    return { on: path(element) };
+  });
   window.__playthroughNamed = named;
-  window.__playthroughHovering = hovering;
+  window.__playthroughAsWritten = asWritten;
   // A page loaded from another of the app's, by a link followed or a form sent, was led there; one gone to directly wasn't.
   const led = (() => {
     try {
@@ -132,7 +140,7 @@ const NOTING = `(() => {
   let typing = false, typingAt;
   addEventListener("beforeinput", (e) => {
     const target = e.target;
-    const text = target.isContentEditable ? target.innerText.replace(/\\n$/, "") : target.value ?? "";
+    const text = target.isContentEditable ? asWritten(() => target.innerText).replace(/\\n$/, "") : target.value ?? "";
     const selection = target.isContentEditable ? getSelection() : undefined;
     // At the end, or over all of it, what's typed makes the field's words whole, as filling it does.
     const whole = selection
@@ -150,7 +158,7 @@ const NOTING = `(() => {
       keep({ does: "type", ...typingAt, with: e.data });
       typedIn = target;
     }
-    else if (!["checkbox", "radio"].includes(target.type)) keep({ does: "fill", ...on(target), with: target.isContentEditable ? target.innerText : target.value, what: target.getAttribute("aria-label") || target.placeholder || "" });
+    else if (!["checkbox", "radio"].includes(target.type)) keep({ does: "fill", ...on(target), with: target.isContentEditable ? asWritten(() => target.innerText) : target.value, what: target.getAttribute("aria-label") || target.placeholder || "" });
   }, true);
   addEventListener("keydown", (e) => {
     if (e.key === "Enter" && e.target.matches?.("input")) keep({ does: "press", ...on(e.target), with: "Enter", what: words(e.target) });

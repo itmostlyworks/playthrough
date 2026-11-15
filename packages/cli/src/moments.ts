@@ -241,10 +241,8 @@ async function aboutOn(page: Page, words: string, named?: string): Promise<{ abo
       const nameOf = (window as any).__playthroughNamed;
       if (!nameOf) return { near: [] };
       const said = (named ?? words).toLowerCase().trim();
-      const hovering = (window as any).__playthroughHovering;
-      hovering(false);
-      const all = [...document.querySelectorAll("a, button, input, select, textarea, h1, h2, h3, h4, [role]")].map((element) => ({ element, ...nameOf(element) })).filter((one) => one.role && one.name);
-      hovering(true);
+      const asWritten = (window as any).__playthroughAsWritten;
+      const all = asWritten(() => [...document.querySelectorAll("a, button, input, select, textarea, h1, h2, h3, h4, [role]")].map((element) => ({ element, ...nameOf(element) })).filter((one) => one.role && one.name)) as { element: Element; role: string; name: string }[];
       const lower = (one: { name: string }) => one.name.toLowerCase();
       // A field or a control before a heading of the same name: what can be changed is what's checked.
       const headingLast = (a: { role: string }, b: { role: string }) => Number(a.role === "heading") - Number(b.role === "heading");
@@ -255,7 +253,7 @@ async function aboutOn(page: Page, words: string, named?: string): Promise<{ abo
       // Named, and no button, field or heading is called that: words on the page that say it, the innermost, as a
       // field's own words, which the page names nothing.
       const own = (element: Element) => ((element as HTMLElement).innerText ?? "").trim().replace(/\s+/g, " ");
-      const saying = named && !found ? [...document.querySelectorAll("body *")].filter((element) => own(element).toLowerCase() === said && ![...element.children].some((child) => own(child).toLowerCase() === said)) : [];
+      const saying: Element[] = named && !found ? asWritten(() => [...document.querySelectorAll("body *")].filter((element) => own(element).toLowerCase() === said && ![...element.children].some((child) => own(child).toLowerCase() === said))) : [];
       // Of several the same, as a Docs link in the header and another in the footer, the one in view, by which of them
       // it is.
       const inView = (element: Element) => {
@@ -268,7 +266,7 @@ async function aboutOn(page: Page, words: string, named?: string): Promise<{ abo
       };
       if (saying.length) {
         const { element, nth } = which(saying, saying[0]!);
-        return { near, about: { role: "text", name: own(element), disabled: false, ...(nth !== undefined && { nth }) } };
+        return { near, about: { role: "text", name: asWritten(() => own(element)), disabled: false, ...(nth !== undefined && { nth }) } };
       }
       if (!found) return { near };
       const { element: chosen, nth } = which(
