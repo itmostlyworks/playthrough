@@ -194,6 +194,8 @@ export function Portal({ live, screen, scrolled, theirs, onStandIn, app: talk, o
 
     edging.style.opacity = "0";
     real(false);
+    // The keyboard comes back with you: left in the app waiting underneath, S and every other key would go to it.
+    if (document.activeElement === iframe.current) iframe.current?.blur();
     shape(yours, false);
     yourHand.current = undefined;
     door.style.pointerEvents = "none";
