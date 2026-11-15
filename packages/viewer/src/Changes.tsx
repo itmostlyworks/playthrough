@@ -142,7 +142,7 @@ export function Changes({ changes, you, onOpen }: { changes: Listed[]; you: stri
             {!all.length && <p className="text-soft">To see an agent's work here, tell it: “Show me this change with npx playthrough.”</p>}
           </div>
         )}
-        <div className="mt-2">{waiting.map(row)}</div>
+        <div className="-mt-1.5">{waiting.map(row)}</div>
         <div data-mark="waiting-foot" />
         {withAgents.length > 0 && (
           <section data-mark="agents" className="mt-10">
@@ -258,7 +258,7 @@ function Row(props: {
   // on a line of their own at the row's foot. The words open the change as the rest of the row does; only the button
   // over them is its own.
   const stepAt = (foot: boolean) => (
-    <div className={`pointer-events-none relative h-[22px] flex-none items-center gap-3 ${foot ? "mt-2 hidden justify-end phone:flex" : "flex phone:hidden"}`}>
+    <div className={`pointer-events-none relative h-[22px] flex-none items-center gap-3 ${foot ? "mt-3.5 hidden justify-end phone:flex" : "flex phone:hidden"}`}>
       {words && (
         <span className={`flex items-center gap-1 text-[13px] whitespace-nowrap text-soft transition-opacity duration-150 ease-calm ${saidNow ? "opacity-0" : ""}`}>
           {words}
@@ -293,22 +293,26 @@ function Row(props: {
     >
       <div className={`min-h-0 ${leaving || !grown ? "overflow-hidden" : ""}`}>
         {section === "waiting" ? (
-          <div className={`relative -mx-3 rounded-lg px-3 py-3 transition-colors duration-150 ease-calm ${glowing ? "animate-glow" : ""} ${lit}`}>
-            {press}
-            <div className="flex items-start gap-4">
-            <h2 className="pointer-events-none min-w-0 flex-1 line-clamp-2 text-[15px] leading-[22px] font-semibold text-fg">{change.title}</h2>
-            {stepAt(false)}
+          // Each change is set apart from the one above by a line, with room either side of it: its pictures are the
+          // heaviest thing in the sheet, and with nothing between they read as the next change's as much as their own.
+          <div className="border-t border-line py-3 transition-colors duration-150 ease-calm [[data-change]:first-child_&]:border-transparent">
+            <div className={`relative -mx-3 rounded-lg px-3 py-3 transition-colors duration-150 ease-calm ${glowing ? "animate-glow" : ""} ${lit}`}>
+              {press}
+              <div className="flex items-start gap-4">
+                <h2 className="pointer-events-none min-w-0 flex-1 line-clamp-2 text-[15px] leading-[22px] font-semibold text-fg">{change.title}</h2>
+                {stepAt(false)}
+              </div>
+              <div className="pointer-events-none">
+                {/* Your own words, in two lines at most: what you asked is what you judge by. */}
+                {change.asked && <p className="mt-0.5 line-clamp-2 text-[14px] leading-[22px] text-pretty text-soft">{change.asked}</p>}
+                <p className="mt-0.5 truncate text-[13px] leading-5 text-faint">
+                  {listed.app} · {backAgain(listed.change, you) ? "back again" : "back"} {ago(handBack!.finished!, now)}
+                  {not}
+                </p>
+              </div>
+              {handBack && <Strip listed={listed} onOpen={onOpen} />}
+              {stepAt(true)}
             </div>
-            <div className="pointer-events-none">
-              {/* Your own words, in two lines at most: what you asked is what you judge by. */}
-              {change.asked && <p className="line-clamp-2 text-[14px] leading-[22px] text-pretty text-soft">{change.asked}</p>}
-              <p className="truncate text-[13px] leading-5 text-faint">
-                {listed.app} · {backAgain(listed.change, you) ? "back again" : "back"} {ago(handBack!.finished!, now)}
-                {not}
-              </p>
-            </div>
-            {handBack && <Strip listed={listed} onOpen={onOpen} />}
-            {stepAt(true)}
           </div>
         ) : (
           <div className={`relative ${QUIET_ROW} flex-wrap items-center ${glowing ? "animate-glow" : ""} ${lit}`}>
@@ -389,7 +393,7 @@ function Strip({ listed, onOpen }: { listed: Listed; onOpen: (moment: number) =>
     </button>
   );
   return (
-    <div className="relative mt-2.5">
+    <div className="relative mt-4">
       <div
         ref={own}
         onScroll={look}

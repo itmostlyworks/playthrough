@@ -227,7 +227,8 @@ it you haven't seen. Under each waiting change, its moments in a line (`Strip`):
 name over its foot in two lines at most, drawn as it is whether seen or not. Pressed, one goes straight to that moment,
 and each is in the Tab order after the row's own step. More than fit go on sideways, fading at the side that has more,
 with a small arrow there for a pointer that can't scroll sideways (not on a phone, where a finger does). Changes with
-your agents and done ones have no pictures. The sheet keeps itself current, but never moves what's under your
+your agents and done ones have no pictures. A line with room either side of it sets each waiting change apart from the
+one above: its pictures are the heaviest thing in the sheet, and with nothing between they read as the next change's. The sheet keeps itself current, but never moves what's under your
 pointer: one that arrives there says at once where it stands and moves when the pointer leaves.
 
 **A moment's page** (`Moment.tsx`, the bar in `MomentBar.tsx`). A moment opens at rest on its end. **A moment is only
