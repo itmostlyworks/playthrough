@@ -4,7 +4,7 @@
 import { allNotes, latestOf, standingOf, waitingForTheAgent, type Change } from "@playthrough/change";
 import type { Listed } from "./api.ts";
 import { unsentOf } from "./kept.ts";
-import { differentSince, noteSays, seenOf, takingOf, workingSince } from "./standing.ts";
+import { differentSince, noteSays, seenOf, shownOn, takingOf, workingSince } from "./standing.ts";
 
 export type Step =
   // Waiting on you, with something you haven't seen: pressing the change goes to it.
@@ -45,7 +45,7 @@ export function unreadOf(listed: Listed, you: string): { note: string; moment: n
   const { replies } = unsentOf(change.id, handBack.number);
   return [...allNotes(change)]
     .flatMap(([id, kept]) => {
-      const on = kept.note.on?.moment;
+      const on = shownOn(change, handBack, kept.note);
       const moment = handBack.moments.findIndex((one) => one.name === on) + 1;
       return moment && noteSays(change, you, kept.note, true, replies).fresh ? [{ note: id, moment }] : [];
     })

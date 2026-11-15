@@ -127,7 +127,11 @@ out empty with nobody seeing.
 before (below), and says each is the same, different (in Playthrough's words), new, or couldn't get there, with how to
 get there by hand and mark it again or drop it. **`drop`** on a moment a note is waiting on, and **`answer`** to a note
 whose moment won't be handed back, refuse until a moment has been marked since the note reached the agent: the person
-sees what was done in a moment, not only in words. **`wait`** refuses while a note has no answer or a moment hasn't been
+sees what was done in a moment, not only in words. That's where such a note is then (`shownOn`, `standing.ts`): on the
+first moment of the hand-back that's new since the note was made, else the last, with its answer, its pin on its thing
+there where it's found by role and name, and "As it was" the frame it was written on; a note the person sent is never
+left with no moment to be on (15 Nov: Lena's "This isn't what I meant" was answered, its moment dropped, and the page
+showed it nowhere). **`wait`** refuses while a note has no answer or a moment hasn't been
 run again; otherwise it hands back, stops the `as` browser, gives the address of the change's own page, and waits. While
 it waits it keeps a file named by its process in the change's `waiting/`, saying which start of the machine it's on, so
 the page knows an agent is listening. When the person sends, it prints each note on its moment, with its conversation,

@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Change, HandBack, Moment, Send } from "@playthrough/change";
 import type { Listed } from "../src/api.ts";
+import { shownOn } from "../src/standing.ts";
 import { firstUnseen, lookOf, sectionOf, stepOf, unseenOf, waitingInOrder } from "../src/step.ts";
 
 const you = "Ana";
@@ -53,6 +54,17 @@ test("pressing a change goes to an answer you haven't read when it's on an earli
   const answered = handBack(2, ["Admin opens settings", "Admin turns numbers off", "Member sees no numbers"], { replies: [{ note: "n1", words: "Moved it to the top." }] });
   const change = listed({ handBacks: [handBack(1, ["Admin opens settings", "Admin turns numbers off", "Member sees no numbers"]), answered], sends: [send(1, { notes: [note] })], ...seen([1, "Admin opens settings"], [1, "Admin turns numbers off"]) });
   assert.deepEqual(firstUnseen(change, you), { moment: 1 });
+});
+
+test("a sent note whose moment the agent took out is on the first moment new since, its answer unread there until that's seen", () => {
+  const note = { id: "n1", on: { handBack: 1, moment: "Boards with favorites", at: 3 }, words: "This isn't what I meant." };
+  const redone = handBack(2, ["Admin opens settings", "Boards as a list"], { replies: [{ note: "n1", words: "Made the list instead." }] });
+  const change = listed({ handBacks: [handBack(1, ["Admin opens settings", "Boards with favorites"]), redone], sends: [send(1, { notes: [note] })] });
+  assert.equal(shownOn(change.change, redone, note), "Boards as a list");
+  const having = (...moments: [number, string][]) => ({ ...change, change: { ...change.change, ...seen(...moments) } });
+  assert.equal(lookOf(having([2, "Admin opens settings"]), you), "See 1 more moment, 1 answer");
+  assert.deepEqual(firstUnseen(having([2, "Admin opens settings"]), you), { moment: 2 });
+  assert.equal(lookOf(having([2, "Admin opens settings"], [2, "Boards as a list"]), you), "All 2 seen");
 });
 
 test("the step says what's left to see, as so many more once some are seen, and all seen at the end", () => {

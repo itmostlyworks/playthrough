@@ -22,7 +22,7 @@ import { Pinned, type Pin } from "./Pinned.tsx";
 import { Clock, Player, useCut, type Mark, type Placed } from "./Player.tsx";
 import { Portal, TAG } from "./Portal.tsx";
 import type { Rect, Scrolled } from "./replay.ts";
-import { ago, noteSays, takingOf, seenOf } from "./standing.ts";
+import { ago, noteSays, shownOn, takingOf, seenOf } from "./standing.ts";
 import { LastStop } from "./LastStop.tsx";
 import { StepAction, StepCard, useStepLeft } from "./StepLeft.tsx";
 import { backAgain } from "./step.ts";
@@ -134,7 +134,9 @@ export function MomentView(props: {
   // What the page is doing, one thing at a time, and where the recording rests. Every press is an action, carrying
   // where the recording has got to. It opens at the moment's end, with a note open where its address names one,
   // on this moment; another moment, going to it is an action too, so nothing of this one is drawn there.
-  const [page, setPage] = useState(() => arrived(moment.name, from, end, [...props.sent, ...notes].some((one) => one.id === props.opening && one.on?.moment === moment.name) ? props.opening : undefined));
+  // Which moment of this hand-back a note is on: its own, or where it's shown since the agent took its own out.
+  const isOn = (note: Note, name: string) => shownOn(change, handBack, note) === name;
+  const [page, setPage] = useState(() => arrived(moment.name, from, end, [...props.sent, ...notes].some((one) => one.id === props.opening && isOn(one, moment.name)) ? props.opening : undefined));
   // Come to another moment other than by going to it here, it's arrived at as it would have been, before it's drawn.
   if (page.moment !== moment.name) setPage(arrived(moment.name, from, end));
   // An action from a moment left behind, as the app answering late, changes nothing on this one.
@@ -236,8 +238,8 @@ export function MomentView(props: {
   const person = moment.person;
 
   // What you said on this moment, sent and then unsent, in the order said: the edge's pictures, and the pins.
-  const mine = notes.filter((one) => one.on?.moment === moment.name);
-  const theirs = sent.filter((one) => one.on?.moment === moment.name);
+  const mine = notes.filter((one) => isOn(one, moment.name));
+  const theirs = sent.filter((one) => isOn(one, moment.name));
   const said = [...theirs.map((note) => ({ note, sent: true })), ...mine.map((note) => ({ note, sent: false }))];
   const onEdge = said.filter(({ note }) => !stepIn.madeThere(note));
   // What was new as you came to the change stays new here until you open it: coming to its moment counts as seeing it,
@@ -373,7 +375,7 @@ export function MomentView(props: {
   const toMoment = (to: number) => may.move && (to !== n || atLastStop) && goTo(to);
   const openNote = (id: string) => may.move && act({ type: "open", note: id });
   // What you said on a moment of the change, in the order its edge has it: one made in the app joins once you're back.
-  const notesOn = (other: Moment) => (other === moment ? onEdge.map(({ note }) => note) : [...sent, ...notes].filter((one) => one.on?.moment === other.name));
+  const notesOn = (other: Moment) => (other === moment ? onEdge.map(({ note }) => note) : [...sent, ...notes].filter((one) => isOn(one, other.name)));
   // The note before or the next, through the whole change: this moment's one after another, then on to the nearest
   // moment that has one, its first going on, its last going back. Past the change's last or first, nothing.
   const nextNote = (by: 1 | -1) => {
@@ -398,7 +400,7 @@ export function MomentView(props: {
   };
   // The open note's frame over the moment, and the one before it while that fades: only ever this moment's.
   const [layered, setLayers] = useState<{ note: Note; sent: boolean; made: Made }[]>([]);
-  const layers = layered.filter((one) => one.note.on?.moment === moment.name);
+  const layers = layered.filter((one) => isOn(one.note, moment.name));
   // Where the recording on the open note's own frame has its thing, once it has said, and for which note.
   const [onFrame, setOnFrame] = useState<{ note: string; at?: Placed }>();
   const shut = useRef<HTMLDivElement>(null);
@@ -845,7 +847,7 @@ export function MomentView(props: {
                 notes={sending.current.map(({ note, sent: isSent }) => {
                   // The note's card as it is on the Notes edge forward, with the moment it's on, since here they come
                   // from several; amber while it's yours to send, slate once it's gone.
-                  const on = handBack.moments.findIndex((one) => one.name === note.on?.moment) + 1;
+                  const on = handBack.moments.findIndex((one) => isOn(note, one.name)) + 1;
                   const words = says(note, isSent).words;
                   return {
                     id: note.id,

@@ -19,9 +19,21 @@ export function noteSays(change: Change, you: string, note: Note, sent: boolean,
   const words = replied ?? turns.findLast((turn) => !turn.agent)?.words ?? note.words;
   if (replied) return { words, stands: "reply not sent yet", fresh: false };
   if (!turns.at(-1)?.agent) return { words, stands: "sent", fresh: false };
-  const [handBack, on] = [turns.at(-1)!.handBack, note.on?.moment];
+  const handBack = turns.at(-1)!.handBack;
+  const answeredIn = change.handBacks.find((one) => one.number === handBack);
+  const on = answeredIn ? shownOn(change, answeredIn, note) : note.on?.moment;
   const fresh = !seenOf(change, you).some((taking) => Number(taking.slice(0, taking.indexOf(":"))) >= handBack && taking.slice(taking.indexOf(":") + 1) === on);
   return { words, stands: fresh ? "new answer" : "answered", fresh };
+}
+
+// The moment of a hand-back a note is shown on: its own, or, where the agent took that one out, the first moment new
+// since the note was made, which is what the agent must mark before it can answer such a note (`answer`), else the
+// last. A note the person sent is never left with nowhere to be. None for a note on the change as a whole.
+export function shownOn(change: Change, handBack: HandBack, note: Note): string | undefined {
+  const on = note.on;
+  if (!on || handBack.moments.some((one) => one.name === on.moment)) return on?.moment;
+  const then = change.handBacks.find((one) => one.number === on.handBack);
+  return (handBack.moments.find((one) => !then?.moments.some((was) => was.name === one.name)) ?? handBack.moments.at(-1))?.name;
 }
 
 // Each moment's taking: seen per taking, so one that's different since asks for you again, once.
