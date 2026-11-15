@@ -447,7 +447,7 @@ export async function wait(repo: Repo) {
   }
 }
 
-// The change's own page on the person's list, its first moment, to give them rather than the list to find it in.
+// The change's own page, its first moment, to give them rather than what's next to find it from.
 async function addressOf(repo: Repo, id: string): Promise<string> {
   const copy = everyCopy().find((one) => one.root === repo.root)?.name ?? basename(repo.root);
   const port = await openAlready(machine());

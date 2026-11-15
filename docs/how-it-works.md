@@ -21,9 +21,9 @@ Its parts:
   Each of git's worktrees is a copy of the app with changes of its own, so an agent in a worktree never writes outside
   it. A word more than a command takes is refused, never ignored, and `--help` anywhere is the help. It runs each
   moment's way there and keeps it, reads and pictures the page, compares each hand-back with those before, pictures each
-  note for the agent, and steps the person into the app. `playthrough open` serves the list for the whole machine.
-- **`packages/viewer`**: where the person looks: the list (`List.tsx`) and a moment's page (`Moment.tsx`), described
-  below.
+  note for the agent, and steps the person into the app. `playthrough open` serves the page for the whole machine.
+- **`packages/viewer`**: where the person looks: what's next (`Moments.tsx`), a change's opening card (`Opening.tsx`),
+  a moment's page (`Moment.tsx`) and every change in a sheet (`Waiting.tsx`, `Changes.tsx`), described below.
 - **`example`**: a small invoices app to try it on (`node serve.ts`, at http://localhost:4400).
 
 On npm it's one package, `playthrough`, which an app installs as a dev dependency so its moments can import
@@ -55,7 +55,7 @@ playthrough again                                  # every moment again, on the 
 playthrough reply <note> "<words>"                 # answers a note
 playthrough drop "<moment>"                        # leaves a moment out
 playthrough wait                                   # hands back, then waits for what the person says
-playthrough open                                   # the list, for the person
+playthrough open                                   # the page, for the person
 ```
 
 **The first time in an app**, the agent adds `playthrough/app.json`, how to start it, and `playthrough/setup.ts`, what
@@ -172,25 +172,52 @@ one new or gone is one change and the same change in each is one change, in as m
 with nothing the reading found there, that's a change of its own, named by what it's on; the agent isn't asked about
 those, as it can't see more of them than Playthrough did (`toAccountFor`). What changes by itself is left out. A
 hand-back can be handed back only once it's compared with every one before it (`problemsFinishing`). The agent reads the
-comparison with the last hand-back; the page reads that one (Different since you saw it, on the list) and the one with
+comparison with the last hand-back; the page reads that one (a moment different since you saw it asks to be seen again) and the one with
 the hand-back you last opened each moment on (Compare).
 
 ## The person's side
 
-`playthrough open` serves the page (`packages/viewer`, built into `packages/cli/viewer`); `/` is the list, and a moment
-opens at `/moments/<copy>/<change>/<n>`, with `?note=<id>` opening one of its notes (`Moments.tsx`); any other address is
-the list.
+`playthrough open` serves the page (`packages/viewer`, built into `packages/cli/viewer`). There is no list page: `/` is
+what's next, and a moment opens at `/moments/<copy>/<change>/<n>`, with `?note=<id>` opening one of its notes
+(`Moments.tsx`); any other address is what's next.
 
-**The list** (`List.tsx`, `Still.tsx`, `standing.ts`). Waiting on you first: each change by its title, the app's name and
-how long ago it came back, then its moments as stills, a picture each closed in on what it's about (or, naming nothing,
-on the last thing done), with who and the moment's words under it, Different since you saw it where it is, and under
-that each note on it in a line with where it stands ("not sent yet", "sent", "answered", "new answer"). Then With your
-agents and Done, a quiet line each that opens to the same stills, Done's latest five and the rest under Earlier. Where a
-change stands is said in words: "back 5 min ago, waiting on you", "2 notes sent 3 min ago · the agent is working",
-"waiting for the agent", or "no agent is waiting, tell your agent", and "Done". Each waiting change has Send (once
-something's said) or Done (once nothing's left to send); pressed, it says Sent or Done with a tick where it was pressed.
-The list keeps itself current, but never moves what's under your pointer: one that arrives there says at once where it
-stands and moves when the pointer leaves. It keeps its scroll.
+**What's next** (`Moments.tsx`, `Opening.tsx`, `step.ts`). `/` opens on the next change waiting on you, its opening card:
+its title, what you asked, the app and when it came back, over the first moment you haven't seen, its picture softened
+where the recording will be. Nothing plays. The whole card is one press, as its look says on hover ("See 3 moments",
+"See 1 more moment", "Read 1 answer"): it, Space, ↓ or Next go in, to the first moment with something you haven't seen,
+else the first. Seen all through, the card's step is the change's own, Done or Send. The next change is one with something
+you haven't seen or read, then one seen through with something unsent, then one seen through with nothing said, each
+longest waiting first (`waitingInOrder`); one you've finished here stays finished as it was handed back, so the next card
+comes at once. In a change, its moments go one by one with Next; after the last, Next's place holds the one step left
+(`LastStep.tsx`): Send while something's unsent, Done while it waits on you, else Next change. Taken, it says Sent or Done
+with a tick where it was pressed, and goes on to the next change's card. Space never goes on to another change: only a
+press, Enter on the button, or ↓. With nothing waiting, the page says so calmly, with what your agents are on.
+
+**The top of every page** (`Header.tsx`) has three places, one job each: at the left what's waiting, the way to every
+other change; in the centre what this is; at the right what's next. The centre is the window's, as the recording and its
+bar are, whatever the sides hold. On a moment's page the change's title is there, quiet, with who and the moment's name
+centred under it, so they read as a small heading over the recording; pointed at (after 70 ms) or reached with the
+keyboard, the title brings a small card under it with what you asked in your own words and the app and when it came
+back. The opening card's page has no title in the centre: the card says it. On a phone there's no centre: the title, in
+full colour, takes the room between what's waiting and Next, and there's no card for what you asked.
+
+**Every change** (`Waiting.tsx`, `Changes.tsx`). Top left on every page, "N waiting" (or "Every change") opens every
+change as a sheet over the page, the page under it softened and inert. Pressed or from the keyboard, it stays until
+Escape, a press beside it, or going somewhere. A mouse that moves onto it and rests there 80 ms opens it too, and then it
+goes once the pointer has been outside it, and its previews, for 300 ms; coming back in time keeps it. A page that loads
+or changes under a still pointer opens nothing, and once the sheet has closed, the pointer has to leave it before pointing
+opens it again. In the sheet: Waiting on you, each change's title, what you asked in two lines, the app and when it came
+back, and at its right its step's words and button (Done, or a filled Send while something's unsent); then With your
+agents and Done, a quiet line each, Done's latest five and the rest under Earlier. Where a change stands is said in
+words: "Agent working", "Sent", or "No agent listening" with what to tell yours. Pressed, a row goes to the first thing on
+it you haven't seen. Pointed at (after 70 ms, and at once while another row's are showing), or reached with the keyboard,
+a row's moments come beside it, each its still (184 wide) with its name under it, never over the picture: to the right
+where there's room, else under the row or over it, whichever has more room, as tall as the window lets them be and
+scrolling past that. Pressed, one goes straight to that moment. An unseen bridge fills the gap between row and previews,
+and a pointer heading for them across other rows keeps them (the triangle from where it was to their near edge,
+`towards`); resting on another row for 250 ms, or turning away, hands over. They're out of the Tab order: a focused row
+shows them, and Enter goes in. Touch shows none. The sheet keeps itself current, but never moves what's under your
+pointer: one that arrives there says at once where it stands and moves when the pointer leaves.
 
 **A moment's page** (`Moment.tsx`, the bar in `MomentBar.tsx`). A moment opens at rest on its end. **A moment is only
 what it shows:** its recording plays from `from` to its end; one with nothing done from `from` on is a still, and where
@@ -202,7 +229,7 @@ it plays, there only once the moment has left its end; Step in (T); Note (N, on 
 (C), or in its place "Unchanged" or "New", the bar the same width from one moment to the next. A click on the recording
 plays and pauses it. Send stands top right, filled once something's unsent, and says Sent where it was pressed. After
 the bar's buttons, Next, or Next answer while an answer you haven't opened waits, which opens those first; after the
-last moment, To the list. What the page is doing is one value (`mode.ts`): resting, playing, a note open, pointing,
+last moment, the step left for the change. What the page is doing is one value (`mode.ts`): resting, playing, a note open, pointing,
 writing, comparing, getting there or the app yours; every press is an action on it, carrying where the recording has got
 to, so whatever stops it playing stops it there, and one rule (`can`) says what may be pressed, which the keys and the
 buttons alike ask. Keys: Space, T, N, C; ↑ ↓ (and K, J) the moment before and next; ← → this moment's notes, opening
@@ -218,7 +245,7 @@ its cards alone, each a little apart. A moment's card's words, who by name and i
 lower part. A note's card is the same at rest and forward: a slim strip of its picture over its latest words in two lines
 and where it stands; a new answer's New mark shows at rest. A touch brings an edge forward first. Many scroll in their
 own column, under the wheel, their cut end fading over 64px; the moment you're on, a note open or one arriving is
-scrolled into view. A moment's picture is the list's still, the others' quieter than the one you're on, with its notes'
+scrolled into view. A moment's picture is its still, the others' quieter than the one you're on, with its notes'
 dots; pressed, the moment changes in place. A note's strip is cut for its own shape (`stripOf`, `Note.tsx`) around its
 thing, its pin by the top right corner of what's shown of it (a line of words as wide as its words), beside it where
 there's no room above, never on it: a small thing at the size it was recorded, with what's beside it; a wide line from
@@ -245,7 +272,7 @@ pin and its card, and nothing more. Escape, its picture again, or a press anywhe
 Space, T and C act on the moment and close it first. An open note's thing is never under the bar: the bar moves along
 the recording's edge, or down off it. A reply waits to be clicked into, so ← → go on through the notes. A note just saved
 arrives at the foot of the edge, the edge forward with its words for 1.4 s; one made in the app joins the edge the same
-way once you're back. An answer you haven't opened is new, on its picture and its line on the list, until you open it.
+way once you're back. An answer you haven't opened is new, on its picture, until you open it.
 A note is kept in one of two places (`model.ts`): on a moment as handed back (its `handBack`, its `moment`,
 `at` in its recording, and its thing: an element, a box or a spot), or made in the app after stepping in (`handBack` and
 `moment` again, `steppedIn` where in the moment, `did`, the person's own `recording` and its `length`, `at` in that, and
@@ -264,12 +291,12 @@ the recording's room at actual size, a window following now's pointer, both onto
 (`following`), ending above the bar; at rest it moves the least that shows what the moment is about whole, with its
 nearest words (`holding`).
 
-**Send and Done.** Send carries every note and reply you haven't sent on the change, from the list or a moment's page, in
-one send; it never locks. Done, on the list, sends Done (`done: true`): every moment as last handed back looks good, and
+**Send and Done.** Send carries every note and reply you haven't sent on the change, from its row, its card or a
+moment's page, in one send (`Send.tsx`); it never locks. Done, from the same places, sends Done (`done: true`): every moment as last handed back looks good, and
 nothing more (a send saying Done with a note or a reply is refused). Whether a change is done is one rule, `saidDone`
 (`packages/change/src/rules.ts`): the person's latest send, on the latest hand-back, says Done; a note or reply after it,
 or a new hand-back, opens the change again. Where a change stands for you (waiting on you, with your agents, done) is one
-rule beside it, `standingOf`, which the list and the page read; the agent's `wait` ends by `saidDone`.
+rule beside it, `standingOf`, which every part of the page reads; the agent's `wait` ends by `saidDone`.
 
 ## Stepping in
 
@@ -315,7 +342,7 @@ asking request closes, though a setup already making its world finishes first, s
 moment that can't get there says where it stopped, in Playwright's words, and to say so in a note so the agent marks it
 again; one whose check of how it ends doesn't hold on the code as it is now opens where it got to, with that said
 (`checked`); an app that won't start says what it said last and to check `app.json`; a moment that's gone from the
-change says to reload, or to wait for the agent to hand back; a page of a step in from before the list restarted says so
+change says to reload, or to wait for the agent to hand back; a page of a step in from before the page's server restarted says so
 in the frame, and Escape. A page in the frame that never says it has loaded settles after ten seconds.
 
 **One app per copy** (`app.ts`), shared by the person stepping in, the agent's browser and every moment run, each in a
@@ -341,14 +368,14 @@ browser. In a moment recorded on a phone's screen, a mouse drag is a swipe. Note
 recorded from when it was handed to you and kept with the change (`branches/`, with the fonts, pictures and stylesheets
 its pages named, `keepNamed`), and the note is on that recording, at its end.
 
-## The list for the whole machine
+## The page for the whole machine
 
-`playthrough open` (`open.ts`) serves one list for the whole machine at http://localhost:5790/ (or the next free port),
+`playthrough open` (`open.ts`) serves one page for the whole machine at http://localhost:5790/ (or the next free port),
 and run again while it's open, says its address rather than opening another. It lists every change in every copy of
 every app a `playthrough` command has run in (`machine.ts`: `~/.playthrough/apps.json`, or `PLAYTHROUGH_HOME`, and an
 app gone from disk drops out), each read from the copy it's kept in; where two copies share an app's name, each says
 which copy it's in. It arrives again whenever any copy's folder changes, and every two seconds besides, so a change handed
-back from anywhere shows by itself, and whether an agent is listening is read from the files each time, so a list
+back from anywhere shows by itself, and whether an agent is listening is read from the files each time, so one
 restarted reads exactly what's on disk. It serves the page to this machine alone, and answers only the page itself: asked
 by any name but localhost's, as a site that has made its own name lead here (DNS rebinding) would ask, or sent something
 from another site's page, it refuses, as what's sent there reaches the agent in the person's name.
@@ -363,7 +390,7 @@ was asked, when it started, and the format it's kept in), `moments/<words>.ts` (
 `hand-backs/<n>/` (each hand-back: `hand-back.json` with its moments and replies, `files/` with their recordings, readings and pictures, `since/<k>.json`
 compared with hand-back k), `sends/<id>.json` (what the person sent, never written again but once, to bring it to a newer format), `taken.json` (what the agent
 has taken of it), `seen.json` (what each person has opened), `branches/` (what the person did in the app, and notes'
-frames), `waiting/<pid>` (an agent listening). On the machine: `~/.playthrough/apps.json` and `open.json` (the list
+frames), `waiting/<pid>` (an agent listening). On the machine: `~/.playthrough/apps.json` and `open.json` (the page
 running).
 
 **Kept in an older format**, a change is brought along once, the first time this Playthrough reads it
