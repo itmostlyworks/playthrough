@@ -398,21 +398,32 @@ export function MomentView(props: {
   // Where the recording on the open note's own frame has its thing, once it has said, and for which note.
   const [onFrame, setOnFrame] = useState<{ note: string; at?: Placed }>();
   const shut = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (opened && openNow && at < end - 0.02) act({ type: "rest", at: end });
-    if (opened && openMade && !openNow) {
-      setLayers((now) => [...now.filter((one) => one.note.id !== opened.note.id).slice(-1), { ...opened, made: openMade }]);
-      // The one under it goes once the new one has come in over it.
-      const settled = setTimeout(() => setLayers((now) => now.slice(-1)), FADING);
-      return () => clearTimeout(settled);
-    }
-    if (!layered.length) return;
+  useEffect(() => void (opened && openNow && at < end - 0.02 && act({ type: "rest", at: end })), [opened?.note.id, openNow]);
+  // The note open on a frame of its own, not on the moment as it is now.
+  const framed = opened && openMade && !openNow ? { ...opened, made: openMade } : undefined;
+  // Gone to from another note's frame, that frame stays under the new one while it comes in. Gone to from the moment,
+  // nothing is under it: what was fading off the moment is older than what was showing. Both before the page is next
+  // drawn, so the fade let go never shows the old frame again.
+  const framedBefore = useRef(false);
+  useLayoutEffect(() => {
+    const before = framedBefore.current;
+    framedBefore.current = !!framed;
+    if (!framed) return;
+    setLayers((now) => [...(before ? now.filter((one) => one.note.id !== framed.note.id).slice(-1) : []), framed]);
+    // The one under it goes once the new one has come in over it.
+    const settled = setTimeout(() => setLayers((now) => now.slice(-1)), FADING);
+    return () => clearTimeout(settled);
+  }, [framed?.note.id]);
+  // Off every frame, onto the moment, what's over it fades once: going on through notes shown on the moment as it is
+  // now neither starts the fade again nor brings back what's fading.
+  useLayoutEffect(() => {
+    if (framed || !layered.length) return;
     const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
     const fading = calm ? undefined : shut.current?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: FADING, easing: "ease", fill: "forwards" });
     let current = true;
     void (fading?.finished ?? Promise.resolve()).then(() => current && (setLayers([]), setOnFrame(undefined)), () => {});
     return () => void ((current = false), fading?.cancel());
-  }, [opened?.note.id, openNow]);
+  }, [!!framed]);
   const shownOpen = layers.at(-1);
   // On its picture, its thing is where the picture says, as the picture's drawn in the recording's room.
   const [, resized] = useState(0);

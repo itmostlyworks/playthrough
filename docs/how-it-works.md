@@ -338,7 +338,9 @@ thing is there: made on this hand-back, that very thing; made in the app or on a
 by its role and name, never whatever says the same words; on a spot, only on the hand-back it was made on. In the app,
 its pin goes while its thing is gone and comes back with it. Opened (its picture, its pin, ← →, or `?note=`), a note
 made on the hand-back you're looking at shows the moment at its end where it was made there, else cross-fades to its kept
-picture, the frame it was made on. **A note from an earlier hand-back opens on the moment as it is now**, at its
+picture, the frame it was made on. Gone through quickly, the latest note wins: a frame comes in over the note's frame just
+left, or over the moment alone, never over an older one, and off every frame the moment comes back in one fade that going on
+through notes on the moment's end neither restarts nor undoes. **A note from an earlier hand-back opens on the moment as it is now**, at its
 end, so what came of it is what you see, wherever its thing is found there by its role and name. How it was is one flip
 away, in place: while it's open, Compare's place on the bar holds a two-part switch, "As it was" and "Now", Now chosen;
 pressing it, or C, flips. Where its thing isn't in the moment now (the agent took it away, or you'd stepped in and gone
