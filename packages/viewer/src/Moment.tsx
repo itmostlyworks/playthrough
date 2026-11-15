@@ -554,7 +554,8 @@ export function MomentView(props: {
               {!carded.sent && (
                 <div className="mt-2 flex items-center gap-2 px-1 text-xs text-soft">
                   <span>Sent with Send, at the top</span>
-                  <button className="ml-auto rounded-md px-1.5 py-0.5 hover:bg-hover hover:text-fg" onClick={() => (setNotes((all) => all.filter((one) => one.id !== carded.note.id)), close())}>
+                  {/* A button as the reply box's Keep is, its padding taken from the row so the card stays its size. */}
+                  <button className="-my-0.5 ml-auto rounded-md px-2 py-1 font-medium text-fg hover:bg-hover" onClick={() => (setNotes((all) => all.filter((one) => one.id !== carded.note.id)), close())}>
                     Remove
                   </button>
                 </div>
