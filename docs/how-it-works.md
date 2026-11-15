@@ -270,13 +270,12 @@ over it, 16px from it, running past the screen's edge where the window is too na
 few pixels (never over pictures wholly on the screen). Pointed at (after 70 ms; going back after 220 ms), or reached with
 Tab, an edge comes forward: it slides until its pictures are 16px from the screen's edge, a little over the recording,
 its cards alone, each a little apart. A moment's card's words, who by name and its words, come up over its picture's
-lower part. A note's card is the same at rest and forward: a slim strip of its picture over its latest words in two lines
-and where it stands; a new answer's New mark shows at rest. A touch brings an edge forward first. Many scroll in their
+lower part. A note's card is the same at rest and forward, and leads with what it is as a moment leads with its picture: its dot, its latest words in two lines
+and where it stands, over a slim strip of its picture, set in; a new answer's New mark shows at rest. A touch brings an edge forward first. Many scroll in their
 own column, under the wheel, their cut end fading over 64px; the moment you're on, a note open or one arriving is
 scrolled into view. A moment's picture is its still, the others' quieter than the one you're on, with its notes'
 dots; pressed, the moment changes in place. A note's strip is cut for its own shape (`stripOf`, `Note.tsx`) around its
-thing, its pin by the top right corner of what's shown of it (a line of words as wide as its words), beside it where
-there's no room above, never on it: a small thing at the size it was recorded, with what's beside it; a wide line from
+thing (a line of words as wide as its words), with no pin on it, as its dot leads its words: a small thing at the size it was recorded, with what's beside it; a wide line from
 its start, a little smaller at most; something far larger than the strip closed in on what its moment is about where
 that's inside it, else from its top left; a spot with no thing, around the spot; never larger than recorded, always
 inside the screen; one from an earlier hand-back is cut from the moment's picture now, as it opens. It's cut from a kept picture of the frame its thing is shown on, never a recording played

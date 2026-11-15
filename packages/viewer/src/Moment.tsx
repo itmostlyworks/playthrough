@@ -544,8 +544,16 @@ export function MomentView(props: {
           lit={pointed === note.id}
           arriving={before && !before.has(note.id) ? "right" : undefined}
           strip
-          picture={<NotePicture frame={nowFrame(note)} sent={isSent} focus={isNow(shownAt(note)) || earlier(note) ? aboutHere : undefined} />}
-          words={<NoteWords words={words} stands={stands} fresh={fresh} short />}
+          picture={<NotePicture frame={nowFrame(note)} focus={isNow(shownAt(note)) || earlier(note) ? aboutHere : undefined} />}
+          words={
+            // Its dot first, as on the recording and on its moment's picture: a dot means a note.
+            <span className="flex gap-[7px]">
+              <i className={`mt-[5px] size-[7px] flex-none rounded-full shadow-[0_0_0_1.5px_#fff] ${isSent ? "bg-slate" : "bg-amber"}`} />
+              <span className="min-w-0">
+                <NoteWords words={words} stands={stands} fresh={fresh} short />
+              </span>
+            </span>
+          }
           onPress={() => openNote(note.id)}
           onPoint={(now) => setPointed(now ? note.id : undefined)}
         />

@@ -1,5 +1,5 @@
-// A moment's edges: on the left the change's moments, each a picture, on the right this moment's notes, each a slim
-// strip of its thing over what was said, all one size, one after another. At rest they sit beside the recording, never
+// A moment's edges: on the left the change's moments, each a picture, on the right this moment's notes, each its dot
+// and what was said over a slim strip of its thing, all one size, one after another. At rest they sit beside the recording, never
 // over it, fading into the screen's edge. Pointed at, or reached with Tab, they come forward, all the way onto the
 // screen and a little over the recording, a moment's words coming up over its picture, a note's card as it was; a
 // touch brings them forward first. While you're in the app they rest, quieter, as everything that drives the
@@ -188,7 +188,8 @@ export function Tile(props: {
   arriving?: "left" | "right";
   picture: ReactNode;
   words: ReactNode;
-  // A note's: a slim strip of its picture over its words, both always shown, rather than a picture its words come over.
+  // A note's: what was said, and under it a slim strip of its thing, set in, both always shown, rather than a picture
+  // its words come over. A note leads with its words as a moment does with its picture.
   strip?: boolean;
   onPress: () => void;
   onPoint?: (pointed: boolean) => void;
@@ -230,8 +231,8 @@ export function Tile(props: {
         {strip ? (
           // The same at rest and forward: nothing inside it moves.
           <>
-            <span className="relative block aspect-[3.8] flex-none overflow-hidden bg-paper">{picture}</span>
             <span className="block px-2 pt-1.5 pb-[7px]">{words}</span>
+            <span className="relative mx-2 mb-2 block aspect-[3.8] flex-none overflow-hidden rounded-[5px] bg-paper shadow-[0_0_0_1px_var(--edge)]">{picture}</span>
           </>
         ) : (
           <>

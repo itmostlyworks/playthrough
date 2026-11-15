@@ -83,10 +83,10 @@ export function NoteWords({ words, stands, fresh, short }: { words: string; stan
 }
 
 // A note's strip on the edge: its frame, cut for the strip's own shape around the thing it's on, so that thing is what
-// you see, with its pin where it sits on the recording. The thing whole where it can be, a little of what's around it,
-// never drawn larger than it was recorded nor much smaller, where its words stop being read; toward the
-// recording, as the screen's edge fades the other side at rest.
-export function NotePicture({ frame, sent, focus }: { frame?: NoteFrame; sent: boolean; focus?: NoteFrame["box"] }) {
+// you see. The thing whole where it can be, a little of what's around it, never drawn larger than it was recorded nor
+// much smaller, where its words stop being read; toward the recording, as the screen's edge fades the other side at
+// rest. Its dot isn't on it: that leads the note's words.
+export function NotePicture({ frame, focus }: { frame?: NoteFrame; focus?: NoteFrame["box"] }) {
   if (!frame) return null;
   const { screen } = frame;
   const box = frame.words ?? frame.box;
@@ -97,22 +97,9 @@ export function NotePicture({ frame, sent, focus }: { frame?: NoteFrame; sent: b
   // in it you pointed.
   const inside = !!thing && !!about && about.x >= thing.x && about.y >= thing.y && about.x + about.width <= thing.x + thing.width && about.y + about.height <= thing.y + thing.height;
   const part = stripOf(screen, thing && about && inside && tooLarge(thing) ? about : thing);
-  // Its pin, as on the recording: just outside the top right corner of what's shown of its thing, or on its spot; never
-  // on the thing. Where there's no room above it in the strip, beside it at its middle; always whole in the strip.
-  const spot = !box || (!box.width && !box.height);
-  const shownRight = box && (Math.min(box.x + box.width, part.x + part.width) - part.x) / part.width;
-  const roomAbove = !!box && (box.y - part.y) / part.height >= 0.25;
-  // A spot's pin, too, stands just off it, up and to the right, so what was pointed at stays seen.
-  const pin = box && (roomAbove ? { x: shownRight!, y: (box.y - part.y) / part.height, dx: spot ? 10 : 6, dy: spot ? -15 : -6 } : { x: shownRight!, y: (box.y + box.height / 2 - part.y) / part.height, dx: spot ? 12 : 10, dy: 0 });
   return (
     <span className="absolute inset-0 animate-arrive">
       <Picture shot={{ src: frame.src, crop: part }} />
-      {pin && (
-        <i
-          className={`absolute size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full shadow-[0_0_0_2px_#fff,0_1px_3px_rgb(0_0_0/0.25)] ${sent ? "bg-slate" : "bg-amber"}`}
-          style={{ left: `clamp(7px, calc(${clamp(pin.x) * 100}% + ${pin.dx}px), calc(100% - 7px))`, top: `clamp(7px, calc(${clamp(pin.y) * 100}% + ${pin.dy}px), calc(100% - 7px))` }}
-        />
-      )}
     </span>
   );
 }
