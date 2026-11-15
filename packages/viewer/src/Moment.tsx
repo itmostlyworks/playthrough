@@ -64,23 +64,17 @@ export function MomentView(props: {
   // The change as listed, for the step left at the foot of its moments, and on to what's next once it's taken.
   listed: Listed;
   goOn: () => void;
-  // Come to as the change's end: the last moment, with the keyboard on the step left.
-  toFoot?: boolean;
 }) {
   const { change, handBack, n, about, who, notes, setNotes, replies, setReplies, you, onMoment } = props;
   // What was sent is drawn as sent at once, as the change comes back with it.
   const [justSent, setJustSent] = useState<Note[]>([]);
   const sent = [...props.sent, ...justSent.filter((note) => !props.sent.some((one) => one.id === note.id))];
   const unsent = notes.length + replies.length;
-  // The step left, at the foot of the moments: pressed from anywhere with Ctrl+Enter while something's unsent; on the
-  // last moment, ↓ puts the keyboard on it, so Enter presses it. Come to as the change's end, the keyboard is on it.
+  // The step left, the moments' last card: pressed from anywhere with Ctrl+Enter while something's unsent; on the last
+  // moment, ↓ puts the keyboard on it, so Enter presses it. Pressed, the Moments edge stays forward with what it says.
   const press = useRef<() => void>(undefined);
   const foot = useRef<HTMLButtonElement>(null);
-  const toFoot = useRef(!!props.toFoot);
-  const footButton = (button: HTMLButtonElement | null) => {
-    foot.current = button;
-    if (button && toFoot.current) (button.focus(), (toFoot.current = false));
-  };
+  const [footSays, setFootSays] = useState(false);
   const moment = handBack.moments[n - 1]!;
   const count = handBack.moments.length;
   const end = endOf(moment);
@@ -630,7 +624,8 @@ export function MomentView(props: {
       quiet={away}
       phone={phone}
       showing={moment.name}
-      foot={(forward) => {
+      held={footSays}
+      foot={(forward, tucked) => {
         const answer = props.unopened[0];
         return (
           <StepLeft
@@ -638,8 +633,10 @@ export function MomentView(props: {
             you={you}
             last={n === count}
             forward={forward}
+            tucked={tucked}
             press={press}
-            button={footButton}
+            button={foot}
+            onPressed={() => setFootSays(true)}
             onSent={(going) => setJustSent((now) => [...now, ...going])}
             goOn={props.goOn}
             unopened={props.unopened.length}

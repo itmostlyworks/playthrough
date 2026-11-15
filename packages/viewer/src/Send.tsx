@@ -1,6 +1,6 @@
 // Sending, from every change's row and the foot of a change's moments alike.
 
-import type { ReactNode, Ref } from "react";
+import type { ReactNode } from "react";
 import { latestOf, newId, type Change, type Note } from "@playthrough/change";
 import { send as post } from "./api.ts";
 import { keepUnsent, unsentOf, type YourReply } from "./kept.ts";
@@ -30,24 +30,13 @@ export function take(change: Change, you: string, what: "send" | "done", sent?: 
   return sendOn(change.id, handBack, you, saying, sent && (() => sent(saying.notes)));
 }
 
-// Send, the one filled button there is, while something is unsent; else plain, as Done is. Quiet, before it's the step
-// to take now, only its words, soft. Lit, with the keyboard on it, as a row of what's waiting is: its pointed-at ground
-// and a quiet line round it.
-export function SendButton({ filled, quiet, lit, className = "", children, ...rest }: { filled: boolean; quiet?: boolean; lit?: boolean; className?: string; children: ReactNode; onClick: (event: React.MouseEvent<HTMLButtonElement>) => void; disabled: boolean; ref?: Ref<HTMLButtonElement>; onFocus?: () => void; onBlur?: () => void }) {
-  const look = lit
-    ? filled
-      ? "bg-[color-mix(in_srgb,var(--fg)_86%,var(--ground))] text-ground shadow-[0_0_0_1.5px_var(--faint)]"
-      : "bg-hover text-fg shadow-[0_0_0_1.5px_var(--faint)]"
-    : quiet
-      ? "bg-transparent text-soft shadow-[0_0_0_0_transparent] enabled:hover:bg-hover enabled:hover:text-fg"
-      : filled
-        ? "bg-fg text-ground shadow-[0_1px_2px_var(--drop)] enabled:hover:bg-[color-mix(in_srgb,var(--fg)_86%,var(--ground))]"
-        : "bg-surface text-fg shadow-[0_0_0_1px_var(--edge),0_1px_2px_var(--drop)] enabled:hover:bg-hover";
+// Send, the one filled button there is, while something is unsent; else plain, as Done is.
+export function SendButton({ filled, className = "", children, ...rest }: { filled: boolean; className?: string; children: ReactNode; onClick: () => void; disabled: boolean }) {
   return (
     <button
       onMouseDown={(event) => event.preventDefault()}
       {...rest}
-      className={`flex h-8 flex-none items-center gap-2 rounded-lg px-3 text-[13px] font-medium whitespace-nowrap transition-[background-color,color,box-shadow,opacity] duration-200 ease-calm focus-visible:outline-none ${look} ${className}`}
+      className={`flex h-8 flex-none items-center gap-2 rounded-lg px-3 text-[13px] font-medium whitespace-nowrap transition-[background-color,color,box-shadow,opacity] duration-200 ease-calm ${filled ? "bg-fg text-ground shadow-[0_1px_2px_var(--drop)] enabled:hover:bg-[color-mix(in_srgb,var(--fg)_86%,var(--ground))]" : "bg-surface text-fg shadow-[0_0_0_1px_var(--edge),0_1px_2px_var(--drop)] enabled:hover:bg-hover"} ${className}`}
     >
       {children}
     </button>

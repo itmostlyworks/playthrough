@@ -1,7 +1,7 @@
 // What's next, from every app on this machine. / opens on the next change waiting on you, its opening card
 // (Opening.tsx); its moments go one by one with Next (Moment.tsx), each at /moments/<its change's address>/<n>, and
 // the list of them ends in the one step left for it, Send or Done, which goes on to what's next. A change seen all
-// through has nothing left to open: / opens it on its last moment, the keyboard on that step, as its old end,
+// through has nothing left to open: / opens it on its last moment, where that step is full, as its old end,
 // /moments/<its change's address>/end, does.
 // Top left on every page, how many wait on you opens every change as a sheet over the page (Waiting.tsx), from which
 // any can be gone to. Going on to the next moment is the yes; what you said goes to the agent by Send, or Done with
@@ -19,15 +19,14 @@ import { seenThrough, unreadOf, waitingInOrder } from "./step.ts";
 import { Opener, Sheet, useSheet, waitingSays } from "./Waiting.tsx";
 
 // Where you are: what's next, or a change's moment, by the change's address and the moment's place in it from 1, and a
-// note open by its pin; or a change's end, `foot`: its last moment, with the keyboard on the step left, which is the
-// last moment by its number once the change is known.
-export type Where = { change?: string; moment?: number; note?: string; foot?: true };
+// note open by its pin; or a change's `last` moment, by its number once the change is known.
+export type Where = { change?: string; moment?: number; note?: string; last?: true };
 export type Go = (to: Where, replace?: boolean) => void;
 
 const whereFrom = (path: string, search = ""): Where => {
   const [first, ...parts] = path.split("/").filter(Boolean).map(decodeURIComponent);
   if (first !== "moments" || !parts.length) return {};
-  if (parts.length > 1 && parts.at(-1) === "end") return { change: parts.slice(0, -1).join("/"), foot: true };
+  if (parts.length > 1 && parts.at(-1) === "end") return { change: parts.slice(0, -1).join("/"), last: true };
   const moment = parts.length > 1 && /^\d+$/.test(parts.at(-1)!) ? Number(parts.pop()) : 1;
   const note = new URLSearchParams(search).get("note") ?? undefined;
   return { change: parts.join("/"), moment: Math.max(1, moment), ...(note && { note }) };
@@ -77,10 +76,10 @@ export function MomentsPage() {
   const listed = where.change ? changes?.find(({ change }) => change.id === where.change || change.id.endsWith(`/${where.change}`)) : undefined;
   useEffect(() => void (listed && listed.change.id !== where.change && go({ ...where, change: listed.change.id }, true)), [listed?.change.id]);
   const card = waiting[0];
-  // A change's end is its last moment with the keyboard on the step left: come to by its old address, or at / for a
+  // A change's end is its last moment, at rest, where the step left is full: come to by its old address, or at / for a
   // change seen all through, whose card would have nothing left to open. Either way the address becomes that moment's.
-  const ending = where.change ? (where.foot && where.moment === undefined ? listed : undefined) : card && you && seenThrough(card, you) ? card : undefined;
-  useEffect(() => void (ending && go({ change: ending.change.id, moment: lastOf(ending), foot: true }, true)), [ending?.change.id, where.change, where.moment]);
+  const ending = where.change ? (where.last && where.moment === undefined ? listed : undefined) : card && you && seenThrough(card, you) ? card : undefined;
+  useEffect(() => void (ending && go({ change: ending.change.id, moment: lastOf(ending) }, true)), [ending?.change.id, where.change, where.moment]);
   useSpaceStays();
   if (!changes || !you) return <div className="h-dvh bg-ground" />;
 
@@ -99,7 +98,6 @@ export function MomentsPage() {
           you={you}
           moment={where.moment ?? 1}
           note={where.note}
-          toFoot={where.foot}
           go={go}
           goOn={() => goOn(listed)}
           opener={opener}
@@ -136,7 +134,7 @@ function useSpaceStays() {
 
 // A change's moments, one at a time. What the agent hands back while you're on one waits until you go to another, so
 // nothing changes under you.
-function Change(props: { listed: Listed; you: string; moment: number; note?: string; toFoot?: boolean; go: Go; goOn: () => void; opener: ReactNode; unopened: { note: string; moment: number }[]; onOpened: (note: string) => void }) {
+function Change(props: { listed: Listed; you: string; moment: number; note?: string; go: Go; goOn: () => void; opener: ReactNode; unopened: { note: string; moment: number }[]; onOpened: (note: string) => void }) {
   const { listed, you, moment, note, go } = props;
   const { change } = listed;
   const id = change.id;
@@ -176,7 +174,6 @@ function Change(props: { listed: Listed; you: string; moment: number; note?: str
       onMoment={(to) => go({ change: id, moment: to }, true)}
       listed={listed}
       goOn={props.goOn}
-      toFoot={props.toFoot}
     />
   );
 }
