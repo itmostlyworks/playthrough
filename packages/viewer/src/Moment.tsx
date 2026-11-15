@@ -206,11 +206,13 @@ export function MomentView(props: {
   const [aiming, setAiming] = useState(false);
   const stepIn = useStepIn({ change: change.id, handBack: handBack.number, moment, page, clock: clockOf, act, pointing: () => note() });
 
-  // Going to another moment, the one you were on stays under the new one until it has come in over it.
-  const [behind, setBehind] = useState<string>();
+  // Going to another moment, the one you were on stays under the new one, drawn just as it was where it stood, until the
+  // new one has come in over it. Its picture would do it no justice: taken by another browser, its words fall a little
+  // wider and heavier, and two moments that look the same would blend into doubled, swollen words.
+  const [behind, setBehind] = useState<{ recording: string; at: number }>();
   const was = useRef(moment);
   if (was.current !== moment) {
-    if (was.current.recording !== moment.recording && !phone && !matchMedia("(prefers-reduced-motion: reduce)").matches) setBehind(picture(change.id, handBack.number, was.current.recording, 0));
+    if (was.current.recording !== moment.recording && !phone && !matchMedia("(prefers-reduced-motion: reduce)").matches) setBehind({ recording: was.current.recording, at: clockOf.at });
     was.current = moment;
   }
 
@@ -654,7 +656,14 @@ export function MomentView(props: {
             className="absolute inset-0 overflow-hidden rounded-lg bg-paper shadow-frame"
             onClick={(event) => !noting && !(event.target as Element).closest("button") && (opened ? close() : play())}
           >
-            {behind && <img src={behind} alt="" draggable={false} className="pointer-events-none absolute inset-0 size-full object-contain" />}
+            {/* The very layer the moment left was drawn in, kept by its key and laid out as it was, picture and all, so its
+                recording stays as drawn rather than being loaded and drawn again: it's only told nothing more. */}
+            {behind && (
+              <div key={behind.recording} className="pointer-events-none absolute inset-0">
+                <Picture shot={{ src: picture(change.id, handBack.number, behind.recording, 0) }} />
+                <Player change={change.id} handBack={handBack.number} recording={behind.recording} at={behind.at} hand={!standIn} />
+              </div>
+            )}
             <div key={moment.recording} className="absolute inset-0 animate-arrive" onAnimationEnd={(event) => event.target === event.currentTarget && setBehind(undefined)}>
               {(!phone || readings) && <Picture shot={{ src: picture(change.id, handBack.number, moment.recording, 0), crop: closer }} />}
               <Player

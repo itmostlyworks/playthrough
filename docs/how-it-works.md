@@ -246,8 +246,9 @@ pointer: one that arrives there says at once where it stands and moves when the 
 what it shows:** its recording plays from `from` to its end; one with nothing done from `from` on is a still: Play and
 its arrows rest there, dimmed where they always are, and Play says "A still: nothing to play" when pointed at. The recording sits in the middle, as large as the room beside its edges lets it be
 (`SIDE`, 10vw, 104 to 160px each side), and never moves or changes size: not as an edge comes forward, a note opens or
-the moment changes (its shape is kept until the next one's is known, and the one you were on stays under the new one
-until it has faded in). The bar across its bottom edge: Play (Space), whose slim line along its own bottom edge fills as
+the moment changes (its shape is kept until the next one's is known, and the one you were on stays under the new one,
+drawn just as it was, never swapped for its picture, until the new one has faded in: two moments that look alike change
+with nothing moving in what's the same). The bar across its bottom edge: Play (Space), whose slim line along its own bottom edge fills as
 it plays, there only once the moment has left its end, with a small arrow either side, the frame before (←) and the
 next frame (→), their words and keys coming up over them when pointed at a while; Step in (S); Note (N, on the
 recording or in the app); Compare (C), or in its place "Unchanged" or "New", or while a note from an earlier hand-back is
