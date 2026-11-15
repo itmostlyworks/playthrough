@@ -494,10 +494,13 @@ export function MomentView(props: {
   const escapes = useRef(escapedTwice());
   keys.current = (event) => {
     const typing = event.target instanceof HTMLElement && event.target.closest("textarea, input, [contenteditable]");
-    // A picture on an edge with the keyboard on it is pressed with Enter or Space, as any button is.
-    if (event.target instanceof HTMLElement && event.target.closest("[data-tile]") && /^( |enter)$/i.test(event.key)) return;
-    // Ctrl+Enter sends.
+    // Ctrl+Enter sends, wherever the keyboard is.
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !writing) return (event.preventDefault(), void (unsent && step.what === "send" && step.press()));
+    // A picture on an edge with the keyboard on it is pressed with Enter or Space, as any button is; but the last
+    // stop's own card, there, is where you came by it, and Enter on it is the step.
+    const tile = event.target instanceof HTMLElement && event.target.closest("[data-tile]");
+    const ownTile = atLastStop && tile && tile.getAttribute("data-tile") === "the last stop";
+    if (tile && !ownTile && /^( |enter)$/i.test(event.key)) return;
     if (typing || event.ctrlKey || event.metaKey || event.altKey) return;
     const key = event.key.toLowerCase();
     // Any other key pressed lets go of an arrow held; its own repeat is nothing, the page keeps its own pace.
@@ -505,7 +508,7 @@ export function MomentView(props: {
     // At the last stop there's no recording to drive: Enter presses the step left, ↑ or Escape go back to the last
     // moment, and with Shift ↑ ↓ the notes are gone through as anywhere; nothing else on it answers.
     if (atLastStop) {
-      const pressing = key === "enter" && !(event.target instanceof HTMLElement && event.target.closest("button, a"));
+      const pressing = key === "enter" && (ownTile || !(event.target instanceof HTMLElement && event.target.closest("button, a")));
       const did = pressing ? step.press : event.shiftKey ? { arrowup: () => nextNote(-1), k: () => nextNote(-1) }[key] : { arrowup: () => next(-1), k: () => next(-1), escape: () => next(-1) }[key];
       if (/^( |arrowdown|arrowleft|arrowright|j)$/.test(key) || did) event.preventDefault();
       if (!event.repeat) did?.();
