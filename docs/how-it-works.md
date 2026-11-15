@@ -237,7 +237,9 @@ each; Escape closes what's open, leaves Compare or noting, else goes back; Ctrl+
 nothing slides or fades.
 
 **The edges** (`Edge.tsx`). On the left, the change's moments; on the right, this moment's notes, sent then unsent, in
-the order said. Each is a picture of one size (176 by 110), one after another, at rest beside the recording and never
+the order said. Over each, what it holds, in a word, "Moments" and "Notes": at its pictures' outer side, or 24px
+from the screen's edge, where the header's words stand, when they run past it; still as the edge comes forward, and
+not there over notes while there are none. Each is a picture of one size (176 by 110), one after another, at rest beside the recording and never
 over it, 16px from it, running past the screen's edge where the window is too narrow for them, fading out over its last
 few pixels (never over pictures wholly on the screen). Pointed at (after 70 ms; going back after 220 ms), or reached with
 Tab, an edge comes forward: it slides until its pictures are 16px from the screen's edge, a little over the recording,
