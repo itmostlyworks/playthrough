@@ -169,6 +169,12 @@ describe("a moment run again", () => {
     assert.ok(differ.length && differ.every((line) => /launch post/.test(line)), differ.join("\n"));
   });
 
+  test("says how a thing looks different on each side, never only its unchanged name twice", () => {
+    const pressed = reading(thing("button", "Tiles", 10, { look: { color: "rgb(255, 255, 255)", background: "rgb(37, 99, 235)", size: "14px", weight: "400", border: "" } }));
+    const { differ } = whatDiffers({ url: "http://localhost/boards", reading: pressed }, { url: "http://localhost/boards", reading: reading(thing("button", "Tiles")) });
+    assert.deepEqual(differ, ["button “Tiles” looks different: background rgb(37, 99, 235) where you are, rgba(0, 0, 0, 0) run again; text colour rgb(255, 255, 255) where you are, rgb(0, 0, 0) run again"]);
+  });
+
   test("leaves out a message that passes by itself, as a toast, there in one and gone in the other", () => {
     const toasted = reading(...board.things, thing("status", "Card prefix updated", 600, { live: true }));
     const { differ, passing } = whatDiffers({ url: "http://localhost:3110/boards/1", reading: toasted }, { url: "http://localhost:3110/boards/1", reading: board });

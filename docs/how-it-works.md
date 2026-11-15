@@ -95,7 +95,9 @@ page names it, or else the field holding those words, as Kan's list names are fi
 that say it; unnamed, the thing its words name), works out where it starts (below), writes the way there as the moment's
 file, and runs it from a fresh start as the same person. It's kept only if it lands: the same page read, the same
 address, and what it's about saying the same; else it says what differed (what it's about otherwise as what was looked
-for and what was found: "no link “My cards” was to be seen", "button “Save” was disabled, not enabled"), and words that tell the time, reworded only
+for and what was found: "no link “My cards” was to be seen", "button “Save” was disabled, not enabled"; a thing that looks different or is another size with what about it, on each
+side: "button “Tiles” looks different: background rgb(37, 99, 235) where you are, rgba(0, 0, 0, 0) run again", where
+it once said only its unchanged name twice), and words that tell the time, reworded only
 in their numbers, are left out of that and said. It's run a second time, and what differs between the two runs changes
 by itself (a caret, a time the server stamps), so it's left out of every comparison from then on (`markUnsteady`). Its
 words are ten at most and never name a person, as the page already says who. Marked again with the same words, it

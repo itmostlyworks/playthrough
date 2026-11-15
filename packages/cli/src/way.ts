@@ -183,8 +183,29 @@ export function whatDiffers(here: { url: string; reading: Reading }, again: { ur
 
 export const TIMED = /\d\s*(s|secs?|seconds?|m|mins?|minutes?|h|hrs?|hours?|d|days?|weeks?)\b|\bago\b|\d{1,2}:\d{2}/i;
 
-const said = (one: ReturnType<typeof differences>["differences"][number]) =>
-  "now" in one && "then" in one ? `${one.what}: ${one.then.role} ${quote(one.then.name)} → ${quote(one.now.name)}` : one.what === "new" ? `only run again: ${one.now.role} ${quote(one.now.name)}` : `only where you are: ${one.then.role} ${quote(one.then.name)}`;
+// Each difference by what it is, with what differs on both sides: a thing that looks different says how, as its
+// words are often the same on both ("button “Tiles” → “Tiles”" said nothing the agent could act on).
+const said = (one: ReturnType<typeof differences>["differences"][number]): string => {
+  if (one.what === "new") return `only run again: ${one.now.role} ${quote(one.now.name)}`;
+  if (one.what === "gone") return `only where you are: ${one.then.role} ${quote(one.then.name)}`;
+  const it = `${one.then.role} ${quote(one.then.name)}`;
+  const both = (what: string, here: string, again: string) => `${what} ${here} where you are, ${again} run again`;
+  switch (one.what) {
+    case "reworded":
+      return `reworded: ${it} → ${quote(one.now.name)}`;
+    case "became":
+      return `${it} is ${one.now.role} ${quote(one.now.name)} run again`;
+    case "resized":
+      return both(`${it} is`, sizeOf(one.then), sizeOf(one.now));
+    default: {
+      const parts = (Object.keys(LOOK) as (keyof Thing["look"])[]).filter((part) => one.then.look[part] !== one.now.look[part]);
+      return `${it} looks different: ${parts.map((part) => both(LOOK[part], one.then.look[part] || "none", one.now.look[part] || "none")).join("; ")}`;
+    }
+  }
+};
+
+const sizeOf = ({ box }: Thing) => `${Math.round(box.width)}×${Math.round(box.height)}px`;
+const LOOK: Record<keyof Thing["look"], string> = { background: "background", color: "text colour", size: "text size", weight: "text weight", border: "border" };
 
 // What the moment is about, checked again at the end of the way and found otherwise: not there to be seen, or not as it
 // was where the agent is ("button “Save” was disabled, not enabled").
