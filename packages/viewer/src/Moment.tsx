@@ -9,7 +9,7 @@ import { conversation, isStill, madeInApp, newId, together, type Note, type Chan
 import { glimpses, picture, readings as readingsOf, recording, type Listed } from "./api.ts";
 import { clamp } from "./clamp.ts";
 import { CHIP, playedTogether } from "./compare.ts";
-import { Edge, Tile } from "./Edge.tsx";
+import { Edge, Tile, useMore } from "./Edge.tsx";
 import { Header, Title } from "./Header.tsx";
 import type { YourReply } from "./kept.ts";
 import { Key } from "./Key.tsx";
@@ -629,13 +629,18 @@ export function MomentView(props: {
     });
 
   // What's said by a pin: the note being written, or the one open. On a phone, under the bar, where there's room.
+  // A thread too long for its card, and on a phone the rows under the bar, fade where there's more, as an edge does.
+  const thread = useRef<HTMLDivElement>(null);
+  const threadMore = useMore(thread);
+  const rows = useRef<HTMLDivElement>(null);
+  const rowsMore = useMore(rows);
   const cards = (
     <>
           {writing && <NoteCard by={(!(writing.note.on && madeInApp(writing.note.on)) && placed?.[writing.note.id]) || writing.box || spotAt(writing.spot)} stage={stage} under={phone}><Write onSave={save} onDrop={() => act({ type: "written" })} /></NoteCard>}
           {/* Closing, it fades where it stood; under the bar on a phone, it goes at once, so it never holds its room. */}
           {!writing && carded && cardBy && (
             <NoteCard key={carded.note.id} by={cardBy} stage={stage} closing={!opened} under={phone}>
-              <div className="min-h-0 flex-1 overflow-y-auto px-1">
+              <div ref={thread} onScroll={threadMore.look} className="min-h-0 flex-1 overflow-y-auto px-1" style={threadMore.fade}>
                 {carded.sent ? <Turns you={you} turns={conversation(change, carded.note.id)} /> : <Turns you={you} turns={[]} unsent={carded.note.words} />}
               </div>
               {carded.sent && (
@@ -980,7 +985,7 @@ export function MomentView(props: {
         {stepIn.said && <p className="absolute bottom-0 left-1/2 max-w-[90%] -translate-x-1/2 translate-y-full animate-arrive rounded-md bg-surface px-3 py-1.5 text-xs text-amber-ink shadow-tip">{stepIn.said}</p>}
       </div>
       {/* Beside the recording, or under it on a phone: the change's moments, and this one's notes. */}
-      <div className={phone ? "grid min-h-0 grid-cols-[minmax(0,1fr)] content-start gap-6 overflow-y-auto px-4 pt-6 pb-8" : "contents"}>
+      <div ref={rows} onScroll={rowsMore.look} className={phone ? "grid min-h-0 grid-cols-[minmax(0,1fr)] content-start gap-6 overflow-y-auto px-4 pt-6 pb-8" : "contents"} style={phone ? rowsMore.fade : undefined}>
         {phone && cards}
         {/* Tab reaches them as they read, left to right; on a phone, the notes come first, nearest what they're on. */}
         {!phone && momentsEdge}

@@ -28,6 +28,21 @@ const WORD = 20 + 12;
 const SHOWN = 1400;
 // Where more runs on past the edge's top or foot, it fades over this much, so it reads as more to come.
 const MORE = 64;
+
+// A list that scrolls, fading where more runs on past its top or foot, and sharp where nothing does: an edge's
+// pictures, the rows under the recording on a phone, a note's thread. Its look is called as it scrolls.
+export function useMore(list: RefObject<HTMLElement | null>) {
+  const [cut, setCut] = useState({ above: false, below: false });
+  const look = () => {
+    const shown = list.current;
+    if (!shown) return;
+    const [above, below] = [shown.scrollTop > 1, shown.scrollTop + shown.clientHeight < shown.scrollHeight - 1];
+    setCut((now) => (now.above === above && now.below === below ? now : { above, below }));
+  };
+  useLayoutEffect(look);
+  const mask = `linear-gradient(to bottom, ${cut.above ? "transparent" : "#000"}, #000 ${cut.above ? MORE : 0}px, #000 calc(100% - ${cut.below ? MORE : 0}px), ${cut.below ? "transparent" : "#000"})`;
+  return { look, fade: { maskImage: mask, WebkitMaskImage: mask } };
+}
 // From the pictures' outer side to their card's: the card runs this much further past the screen's edge.
 const TUCKED = 6;
 
@@ -102,14 +117,11 @@ export function Edge(props: {
   }, [forward]);
   // What's overflowing fades where it's cut, above and below. The foot's card, where it is on the list's height, is
   // where the screen's edge doesn't fade: its words read at rest.
-  const [cut, setCut] = useState({ above: false, below: false });
+  const more = useMore(list);
   const footing = useRef<HTMLDivElement>(null);
   const [band, setBand] = useState<{ top: number; bottom: number }>();
   const look = () => {
-    const shown = list.current;
-    if (!shown) return;
-    const [above, below] = [shown.scrollTop > 1, shown.scrollTop + shown.clientHeight < shown.scrollHeight - 1];
-    setCut((now) => (now.above === above && now.below === below ? now : { above, below }));
+    more.look();
     const [card, region] = [footing.current?.getBoundingClientRect(), own.current?.getBoundingClientRect()];
     const at = card && region && { top: Math.round(card.top - region.top), bottom: Math.round(card.bottom - region.top) };
     setBand((now) => (now?.top === at?.top && now?.bottom === at?.bottom ? now : at));
@@ -165,7 +177,6 @@ export function Edge(props: {
   const shift = right ? Math.max(0, room.inner + DRAWER - room.screen) : Math.max(0, DRAWER - room.inner);
   // How far its pictures run past the screen's edge at rest.
   const cutBy = right ? room.inner + GAP + TILE - room.screen : TILE + GAP - room.inner;
-  const fade = (to: string) => `linear-gradient(${to}, ${cut.above ? "transparent" : "#000"}, #000 ${cut.above ? MORE : 0}px, #000 calc(100% - ${cut.below ? MORE : 0}px), ${cut.below ? "transparent" : "#000"})`;
   return (
     <>
       {!empty && (
@@ -197,7 +208,7 @@ export function Edge(props: {
           ref={list}
           onScroll={look}
           className="h-full overflow-x-clip overflow-y-auto overscroll-contain px-2.5 py-2 [scrollbar-width:none]"
-          style={{ maskImage: fade("to bottom"), WebkitMaskImage: fade("to bottom") }}
+          style={more.fade}
         >
           {/* The cards stand on nothing of their own: forward, each is its own card over the recording. */}
           <div className="grid grid-cols-[minmax(0,1fr)] gap-1.5">
