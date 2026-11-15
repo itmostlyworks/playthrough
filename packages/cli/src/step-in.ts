@@ -789,7 +789,7 @@ sessionStorage.setItem("playthrough:browser", JSON.stringify(browser));
 sessionStorage.removeItem("playthrough:yours");
 if (again.length) sessionStorage.setItem("playthrough:again", JSON.stringify(again));
 sessionStorage.removeItem("playthrough:did");
-sessionStorage.setItem("playthrough:name", name);
+sessionStorage.setItem("playthrough:stepped-in", name);
 location.replace(to);
 </script>`);
 }
