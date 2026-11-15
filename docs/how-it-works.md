@@ -396,7 +396,9 @@ showed, it's handed over at its end.
 **On the server** (`step-in.ts`, `following.ts`). The page POSTs `step-in` with the moment and its count, and asks
 `ready-in` how long it should take: as long as the last run to that point took. The moment's file runs, in one headless
 Chromium Playthrough keeps open while it runs, each run a window of its own with its own cookies and storage, to where
-it's stepped into; what the way and the step did only in the page's memory (a
+it's stepped into, each thing it does waiting for the page to come to rest first, as when it was recorded (`acted`,
+`test.ts`): done at once, Escape pressed on a Kan card still loading went back to a board that wasn't there, `/boards/undefined`.
+That costs Kan's runs about 1.5 to 3.5 seconds more. What the way and the step did only in the page's memory (a
 field typed into, a panel opened, a menu a right click opened, a key pressed with nothing focused) is done again in your
 browser, as it was done, before it shows,
 while what saved something or went to another address isn't done twice, and the page is scrolled where the recording

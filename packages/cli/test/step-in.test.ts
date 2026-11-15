@@ -66,3 +66,33 @@ test("a moment that ends in a menu opened by a right click is stepped into with 
   assert.equal(await board.getByRole("heading").count(), 0, "the card isn't opened");
   await person.close();
 });
+
+test("on the way to where it's stepped into, a key is pressed once the page has come to rest, as it was recorded", async () => {
+  const running = await browser.newPage();
+  // A card that takes a moment to load which board it's on, and Escape goes back to that board.
+  await running.route("http://app.test/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/card") return setTimeout(() => void route.fulfill({ body: "launch" }), 500);
+    route.fulfill({
+      contentType: "text/html",
+      body: `<!doctype html><a id="card" href="#">Write the launch post</a>
+<script>
+  let board;
+  card.addEventListener("click", (e) => (e.preventDefault(), fetch("/card").then((answer) => answer.text()).then((name) => (board = name))));
+  addEventListener("keydown", (e) => e.key === "Escape" && (location.href = "/board?back-to=" + board));
+</script>`,
+    });
+  });
+  const { handed } = await runAlongside(
+    running,
+    { request: running.request, baseURL: "http://app.test", started: new Date().toISOString(), setup: {}, borrowed },
+    async ({ page }) => {
+      await page.goto("http://app.test/board");
+      await page.getByRole("link", { name: "Write the launch post" }).click();
+      await page.keyboard.press("Escape");
+    },
+    { to: { moment: "Escape goes back to the board" } },
+  );
+  assert.equal(handed?.url, "http://app.test/board?back-to=launch");
+  await running.close();
+});

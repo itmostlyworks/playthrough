@@ -769,12 +769,12 @@ async function acted(does: string, target: (page: Page) => Promise<string | unde
   // The moment's own actions, on its way to a step as in one: a panel the way opened is part of the moment it leads to.
   // What made the app and signed in before it isn't the moment's.
   const keeping = stepping?.going ? stepping : undefined;
+  // Each action waits for the page to come to rest, as a person waits for it, recorded or on the way to where someone
+  // steps in: run at once, Escape pressed on a Kan card that hadn't loaded yet went back to a board that wasn't there.
+  await (keeping ?? underway)?.rest();
   let on: string | undefined, address: string | undefined;
   if (keeping) {
     if (!holds(keeping)) Object.assign(keeping, { from: undefined, again: [] });
-    // Not waited for to rest: it's kept only while nothing after it saves or goes elsewhere, so it's the page as loaded,
-    // which the person's browser loads afresh; caught on its way to another, it isn't kept. Waited for, it was a third of
-    // a second or more before each action.
     keeping.from ??= await asItIs(keeping.page).catch(() => undefined);
     keeping.wrote = false;
     [on, address] = [await target(keeping.page), keeping.page.url()];
