@@ -75,6 +75,8 @@ export function MomentView(props: {
   const press = useRef<() => void>(undefined);
   const foot = useRef<HTMLButtonElement>(null);
   const [footSays, setFootSays] = useState(false);
+  // The keyboard on it: it's where you are, and the moment's card says so no more meanwhile, both in one go.
+  const [onFoot, setOnFoot] = useState(false);
   const moment = handBack.moments[n - 1]!;
   const count = handBack.moments.length;
   const end = endOf(moment);
@@ -515,7 +517,7 @@ export function MomentView(props: {
           id={other.name}
           label={other.name}
           forward={forward}
-          strong={i + 1 === n}
+          strong={i + 1 === n && !onFoot}
           quiet
           picture={
             <>
@@ -632,6 +634,8 @@ export function MomentView(props: {
             listed={props.listed}
             you={you}
             last={n === count}
+            keyed={onFoot}
+            onKeyed={setOnFoot}
             forward={forward}
             tucked={tucked}
             press={press}

@@ -1,7 +1,7 @@
 // The step left for a change, the last card of its moments, so the change ends in what you do: Send while something's
-// unsent, Done while it waits on you. A short card, one line, there on every moment, quiet, so the end is seen coming,
-// and full on the last. Pressed, it says Sent or Done in its place, then goes on to what's next. Already with your
-// agents, or done, it says so, and there's nothing to press.
+// unsent, Done while it waits on you. A short card, one line, there on every moment, quiet, so the end is seen coming;
+// full only with the keyboard on it, where it's where you are. Pressed, it says Sent or Done in its place, then goes on
+// to what's next. Already with your agents, or done, it says so, and there's nothing to press.
 
 import { useLayoutEffect, useRef, useState, type Ref, type RefObject } from "react";
 import { standingOf, type Note } from "@playthrough/change";
@@ -21,8 +21,11 @@ const CARD = 188;
 export function StepLeft(props: {
   listed: Listed;
   you: string;
-  // On the change's last moment: it's the step to take now.
+  // On the change's last moment, where gone-past answers are said.
   last: boolean;
+  // The keyboard on it: it's where you are, full, and the moment you're on isn't marked meanwhile.
+  keyed: boolean;
+  onKeyed: (on: boolean) => void;
   // The edge forward: the card is a card, and what it says beyond its word shows under it.
   forward: boolean;
   // How much of the card runs past the screen's edge.
@@ -39,14 +42,13 @@ export function StepLeft(props: {
   unopened: number;
   onUnopened: () => void;
 }) {
-  const { listed, you, last, forward, press, onSent, goOn } = props;
+  const { listed, you, last, keyed, forward, press, onSent, goOn } = props;
   const { change } = listed;
   const step = stepOf(listed, you);
   const standing = standingOf(change, you);
   // What's offered stays what was pressed, as the change moves on under it.
   const [pressed, setPressed] = useState<"send" | "done">();
   const [said, setSaid] = useState<"sending" | "Sent" | "Done" | string[]>();
-  const [keyed, setKeyed] = useState(false);
   const what = pressed ?? (step.is === "send" ? "send" : standing.is === "waiting" ? "done" : undefined);
   // What's unsent, as it was before it went, so the words stay while it says Sent.
   const unsent = useRef({ notes: 0, replies: 0 });
@@ -64,12 +66,13 @@ export function StepLeft(props: {
   press.current = what && (() => void takeIt());
 
   const taken = !what || said === "Sent" || said === "Done";
-  const filled = what === "send" && !taken && last;
-  // At rest it's the box a moment's picture is; forward, the card is, and the box is only Send's fill. Quiet before the
-  // last moment: soft words in an outline.
+  // Full with the keyboard on it, and once pressed, as it says what came of it; else quiet: soft words, at rest in the
+  // outline a moment's picture has, forward on the card.
+  const whole = keyed || !!said;
+  const filled = what === "send" && !taken && whole;
   const box = filled
-    ? `bg-fg text-ground ${forward ? "" : "shadow-[0_1px_2px_var(--drop)]"} enabled:hover:bg-[color-mix(in_srgb,var(--fg)_86%,var(--ground))]`
-    : `${last || taken || keyed ? "text-fg" : "text-soft"} ${forward ? "enabled:hover:bg-hover" : last && !taken ? "bg-surface shadow-[0_0_0_1px_var(--edge),0_1px_3px_var(--edge)]" : "shadow-[0_0_0_1px_var(--edge)]"}`;
+    ? "bg-fg text-ground enabled:hover:bg-[color-mix(in_srgb,var(--fg)_86%,var(--ground))]"
+    : `${whole || taken ? "text-fg" : "text-soft"} ${forward ? "" : "shadow-[0_0_0_1px_var(--edge)]"}`;
   // The words held where they read at rest, settling where a card's words stand as it comes forward, with it.
   const words = (children: React.ReactNode) => (
     <span className="flex items-center whitespace-nowrap transition-[translate] duration-300 ease-calm" style={{ translate: `${Math.max(0, props.tucked + AT_REST - WORDS)}px 0` }}>
@@ -112,12 +115,11 @@ export function StepLeft(props: {
   );
 
   return (
-    // Space is never a press here: only pressing it, or Enter. With the keyboard on it, lit as a row of what's waiting.
+    // Space is never a press here: only pressing it, or Enter. Its ground is always solid, as a moment's card's is; with
+    // the keyboard on it, it has the line that says the moment you're on, and pointed at, the line a moment's card has.
     <div
       data-goes-on
-      // Its ground is always solid, as a moment's card's is: the hover colour is see-through, so lit, it's laid over the
-      // surface (an inset shadow fills the card under its words), never put in its place.
-      className={`rounded-xl p-1.5 transition-[background-color,box-shadow] duration-200 ease-calm ${forward ? `bg-surface ${keyed ? "shadow-[inset_0_0_0_200px_var(--hover),0_0_0_1.5px_var(--faint)]" : "shadow-[inset_0_0_0_200px_transparent,0_0_0_1px_var(--edge)]"}` : "bg-ground shadow-[inset_0_0_0_200px_transparent,0_0_0_0_transparent]"}`}
+      className={`rounded-xl p-1.5 transition-[background-color,box-shadow] duration-200 ease-calm ${forward ? `bg-surface ${keyed ? "shadow-[0_0_0_1.5px_var(--soft)]" : "shadow-[0_0_0_1px_var(--edge)] hover:shadow-[0_0_0_1.5px_var(--faint)]"}` : "bg-ground shadow-[0_0_0_0_transparent]"}`}
     >
       {taken ? (
         <span role="status" className={row}>
@@ -133,8 +135,8 @@ export function StepLeft(props: {
           ref={props.button}
           className={row}
           onMouseDown={(event) => event.preventDefault()}
-          onFocus={() => setKeyed(true)}
-          onBlur={() => setKeyed(false)}
+          onFocus={() => props.onKeyed(true)}
+          onBlur={() => props.onKeyed(false)}
           // Pressed, the keyboard goes back to the page; the edge stays forward with what it says.
           onClick={(event) => (event.currentTarget.blur(), void takeIt())}
           disabled={said === "sending"}

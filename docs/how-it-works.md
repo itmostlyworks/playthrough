@@ -194,10 +194,12 @@ the list's last card, a short one, the one step left: Send while something's uns
 waits on you. It's a moment's card in width, corners and gap, one line tall (40px), tucked at rest and forward with the
 rest; at rest, where only its right part shows, its words are held 8px from the screen's edge, where the screen's edge
 doesn't fade, and settle where a card's words stand as it comes forward. Send's words that don't fit there say only how
-many ("Send 2"), in full forward. It's there on every moment, so the end is seen coming: quiet (soft words in an
-outline) until the last moment, where it's full (Send filled, Done on the card's surface); never the 1.5px soft line
-that says the moment you're on. On the last moment ↓ (or J) brings the edge forward with the keyboard on it, lit as a
-row of what's waiting is (its hover ground and a 1.5px faint line), and only then is ↵ drawn, over its end; Enter
+many ("Send 2"), in full forward. It's there on every moment, so the end is seen coming, and quiet on every
+one, the last included (soft words, at rest in an outline, forward on a moment card's solid surface; pointed at, a
+moment card's 1.5px faint line). On the last moment ↓ (or J) brings the edge forward with the keyboard on it, and only
+then is it full: Done in full words, Send filled, ↵ drawn over its end. Meanwhile it's where you are: it has the 1.5px
+soft line that says the moment you're on, and the last moment's card drops it, both in the same frame (one state,
+`onFoot` in `Moment.tsx`); the recording and the bar stay on the last moment. Once pressed it stays full. Enter
 presses it, and only then; ↓ on it does nothing; ↑, K or Escape take the keyboard off it, back to the last moment as it
 was; any other key of the page's is the page's again. Pressed (or Ctrl+Enter from anywhere on a moment, while
 something's unsent) it gives the keyboard back to the page, the edge stays forward from then on (`held`), and it says
