@@ -35,10 +35,13 @@ export function repo(root = home(process.cwd())) {
     // As a person at this folder would type it.
     show: (path: string) => relative(process.cwd(), path) || ".",
 
-    // Git never sees .playthrough/: what's kept there is Playthrough's, never the app's.
+    // Git never sees .playthrough/: what's kept there is Playthrough's, never the app's. An agent told to pick up the
+    // person's notes "in Playthrough" looks here, and on 15 Nov one read a note's file and did it with nobody told: the
+    // folder says how to get them.
     async keepOutOfGit() {
       await mkdir(changes, { recursive: true });
       await writeFile(join(changes, ".gitignore"), "*\n");
+      await writeFile(join(changes, "README.md"), KEPT_HERE);
     },
 
     async app(): Promise<App> {
@@ -78,6 +81,12 @@ function home(here: string): string {
 
 // How app.json gives the app a port, so every copy of it runs on its own: in a worktree beside your own, or several at once.
 export const PORTED = `{ "start": "npm run dev -- --port {port}", "url": "http://localhost:{port}" }`;
+
+export const KEPT_HERE = `# Playthrough's own
+
+The person's changes, moments and notes, kept for their page. Don't read or change these files: run npx playthrough,
+which says what's waiting, and playthrough wait gets the person's notes.
+`;
 
 const ports = new Map<string, Promise<number>>();
 const portFor = (root: string) => ports.get(root) ?? ports.set(root, keptPort(root)).get(root)!;

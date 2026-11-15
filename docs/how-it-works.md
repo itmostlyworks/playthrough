@@ -514,7 +514,9 @@ from another site's page, it refuses, as what's sent there reaches the agent in 
 ## What's kept where
 
 Committed with the app: `playthrough/app.json` and `playthrough/setup.ts`. Out of git, in the app's copy,
-`.playthrough/` (its own `.gitignore` says `*`): `working-on.json` (the change its commands mean), `port.json` (the app's port),
+`.playthrough/` (its own `.gitignore` says `*`, and a `README.md` tells an agent who looks there not to read or change the
+files but to run `npx playthrough`, as on 15 Nov one told to pick up the notes "in Playthrough" read the note's file and
+did it with nobody told): `working-on.json` (the change its commands mean), `port.json` (the app's port),
 `browser.json` (what `as` did; `browser-marked.json`, where the last moment was marked in it), `running.json`, `using/`
 and `app.log` (the app), `borrowed/` (worlds not yet given back), and a folder per change: `change.json` (its title, what
 was asked, when it started, and the format it's kept in), `moments/<words>.ts` (each moment's way there, then its step),

@@ -4,7 +4,7 @@
 
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, test } from "node:test";
@@ -204,6 +204,13 @@ describe("the change a command means", () => {
     folders.push(root);
     return repo(root);
   };
+
+  test("is kept in a folder that says it's Playthrough's, and to get the person's notes through it, not its files", async () => {
+    const here = await copy();
+    await quietly(() => change(here, "Sort cards by date", "Sort them."));
+    assert.match(readFileSync(join(here.root, ".playthrough", "README.md"), "utf8"), /Don't read or change these files: run npx playthrough[\s\S]*playthrough wait gets the person's notes/);
+    assert.deepEqual(await here.changes.list(), ["sort-cards-by-date"], "and it's no change");
+  });
 
   test("is none until the agent names one, and says how", async () => {
     await assert.rejects(changeHere(await copy()), (error: unknown) => error instanceof Refused && /^Say what the change is first, once: playthrough change "/.test(error.message));
