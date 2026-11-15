@@ -388,7 +388,12 @@ export class Replay {
     while (this.#settling && performance.now() < until) await frame();
     const page = this.#replayer.iframe.contentDocument;
     const pictures = [...(page?.images ?? [])].filter((picture) => !picture.complete).map((picture) => new Promise((done) => (picture.addEventListener("load", done, { once: true }), picture.addEventListener("error", done, { once: true }))));
-    await Promise.race([Promise.all([page?.fonts.ready, ...pictures]), new Promise((done) => setTimeout(done, Math.max(0, until - performance.now())))]);
+    // Firefox never says a page's fonts are ready where one of them names a font the machine may lack, as Kan's
+    // fallback does, though none is on its way: they're in, too, once none has been loading for a few frames.
+    const noneLoading = async () => {
+      for (let quiet = 0; page && quiet < 3 && performance.now() < until; await frame()) quiet = [...page.fonts].some((font) => font.status === "loading") ? 0 : quiet + 1;
+    };
+    await Promise.race([Promise.all([Promise.race([page?.fonts.ready, noneLoading()]), ...pictures]), new Promise((done) => setTimeout(done, Math.max(0, until - performance.now())))]);
     await frame();
     await frame();
   }
