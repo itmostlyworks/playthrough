@@ -238,9 +238,10 @@ export function Portal({ live, screen, scrolled, theirs, onStandIn, app: talk, o
   }, [waiting]);
   return (
     <div ref={room} className="pointer-events-none absolute inset-0 z-10 overflow-hidden rounded-lg">
-      {/* See-through rather than hidden until it's yours, as a hidden frame from another address never settles. */}
+      {/* See-through rather than hidden until it's yours, as a hidden frame from another address never settles; and
+          out of the keyboard's way till then, so Tab never walks an app nobody can see. */}
       {live?.address && (
-        <div ref={app} data-live className="pointer-events-none absolute inset-0 overflow-hidden opacity-0">
+        <div ref={app} data-live inert={!inPortal} className="pointer-events-none absolute inset-0 overflow-hidden opacity-0">
           <div ref={sheen} className="pointer-events-none absolute inset-0 z-1 opacity-0 [background:radial-gradient(circle_at_var(--x)_var(--y),rgba(255,232,190,0.15),rgba(255,214,150,0.5))]" />
           <iframe
             ref={iframe}
