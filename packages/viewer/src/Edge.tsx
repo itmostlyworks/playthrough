@@ -176,7 +176,8 @@ export function Edge(props: {
 }
 
 // One picture on an edge, and its words over its lower part once the edge has come forward. Strong: the moment you're on, the
-// note open. Lit: its pin on the recording is pointed at, or it is.
+// note open. Lit: its pin on the recording is pointed at, or it is. It has one border, which says both: at rest the
+// picture's own, and forward its card's, the picture's gone, so there's never one inside another.
 export function Tile(props: {
   id: string;
   label: string;
@@ -223,10 +224,10 @@ export function Tile(props: {
       onPointerLeave={() => onPoint?.(false)}
       onFocus={() => onPoint?.(true)}
       onBlur={() => onPoint?.(false)}
-      className={`group/tile block w-full rounded-xl p-1.5 text-left transition-[background-color,box-shadow,opacity] duration-200 ease-calm focus-visible:outline-none ${forward ? "bg-surface shadow-[0_0_0_1px_var(--edge)]" : "bg-ground shadow-[0_0_0_0_transparent]"}`}
+      className={`group/tile block w-full rounded-xl p-1.5 text-left transition-[background-color,box-shadow,opacity] duration-200 ease-calm focus-visible:outline-none ${forward ? `bg-surface focus-visible:shadow-[0_0_0_2px_var(--amber)] ${strong ? "shadow-[0_0_0_1.5px_var(--soft)]" : lit ? "shadow-[0_0_0_1.5px_var(--faint)]" : "shadow-[0_0_0_1px_var(--edge)] hover:shadow-[0_0_0_1.5px_var(--faint)]"}` : "bg-ground shadow-[0_0_0_0_transparent]"}`}
     >
       <span
-        className={`relative block overflow-hidden rounded-lg ${strip ? "flex flex-col bg-surface" : "aspect-[1.6] bg-paper"} transition-[box-shadow,opacity,scale] duration-200 ease-calm group-active/tile:scale-[0.97] group-active/tile:duration-75 ${quiet && !strong ? "opacity-80 group-hover/tile:opacity-100 group-focus-visible/tile:opacity-100" : ""} group-focus-visible/tile:shadow-[0_0_0_2px_var(--surface),0_0_0_4px_var(--amber)] ${strong ? "shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--soft)]" : lit ? "shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--faint)]" : "shadow-[0_0_0_1px_var(--edge),0_1px_3px_var(--edge)] group-hover/tile:shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--faint)]"}`}
+        className={`relative block overflow-hidden rounded-lg ${strip ? "flex flex-col bg-surface" : `aspect-[1.6] bg-paper ${forward ? "rounded-b-none" : ""}`} transition-[box-shadow,opacity,scale] duration-200 ease-calm group-active/tile:scale-[0.97] group-active/tile:duration-75 ${quiet && !strong ? "opacity-80 group-hover/tile:opacity-100 group-focus-visible/tile:opacity-100" : ""} ${forward ? "shadow-[0_0_0_0_transparent]" : `group-focus-visible/tile:shadow-[0_0_0_2px_var(--surface),0_0_0_4px_var(--amber)] ${strong ? "shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--soft)]" : lit ? "shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--faint)]" : "shadow-[0_0_0_1px_var(--edge),0_1px_3px_var(--edge)] group-hover/tile:shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--faint)]"}`}`}
       >
         {strip ? (
           // The same at rest and forward: nothing inside it moves.
@@ -237,7 +238,8 @@ export function Tile(props: {
         ) : (
           <>
             {picture}
-            {/* Its words come up over the picture's lower part, on the card's own ground, as the edge comes forward. */}
+            {/* Its words come up over the picture's lower part, on the card's own ground, as the edge comes forward: the
+                picture is squared at its foot then, so no line of it shows round the words' corners. */}
             <span
               className={`absolute inset-x-0 bottom-0 bg-surface px-2 pt-1.5 pb-[7px] transition-[opacity,translate] duration-200 ease-calm ${forward ? "translate-y-0 opacity-100 delay-75" : "pointer-events-none translate-y-1 opacity-0"}`}
             >
