@@ -1,5 +1,6 @@
-// Stepping in: a run of the moment's moment to where the person steps in, only once that's asked for, as watching a
-// recording does nothing to the app, and nothing is made ready ahead of being asked. The moments run here, in Playthrough,
+// Stepping in: a run of the moment's moment to where the person steps in, or, once they have stepped in on the change,
+// to where its recording rests, ready for the next (step-in.ts); never before, as watching a recording does nothing to
+// the app. The moments run here, in Playthrough,
 // each in a window of its own, with its own cookies and storage, in one browser kept open while Playthrough runs: a window
 // opens in a moment, where a run of its own took a second and half a gigabyte.
 
@@ -109,7 +110,7 @@ function browser(): Promise<Browser> {
 
 // The change's moments and the app's setup as they're written now, loaded once each time they're written again: a moment file
 // added or taken away changes its folder's time, and a module of their own that they import, once loaded, its own.
-async function writtenOf(repo: Repo, id: string) {
+export async function writtenOf(repo: Repo, id: string) {
   const files = (await readdir(repo.moments(id))).filter(isMomentFile).map((name) => join(repo.moments(id), name));
   const { imported } = await alongside();
   const written = Math.max(...(await Promise.all([repo.moments(id), ...files, repo.setup, ...imported].map((file) => stat(file).then((it) => it.mtimeMs, () => 0)))));

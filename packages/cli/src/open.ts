@@ -18,7 +18,7 @@ import { readyIn } from "./following.ts";
 import { everyCopy, machine } from "./machine.ts";
 import { keepNamed, type Assets } from "./assets.ts";
 import { frameOf, stillOf, type Framed } from "./frames.ts";
-import { getReady, placeOf, waitedFor } from "./step-in.ts";
+import { getReady, keepReady, placeOf, waitedFor } from "./step-in.ts";
 import { setupIn } from "./setup.ts";
 import { agentWaiting } from "./wait.ts";
 import { openFile, stopUnused, UNUSED } from "./app.ts";
@@ -222,6 +222,7 @@ async function answer(here: Machine, page: string, you: string, request: Incomin
   }
   if (request.method === "POST" && rest[0] === "step-in") return stepInto(repo, id, request, response);
   if (request.method === "POST" && rest[0] === "ready-in") return readyInFor(repo, id, request, response);
+  if (request.method === "POST" && rest[0] === "keep-ready") return keptReady(repo, id, request, response);
   if (request.method === "POST" && rest[0] === "branches") return branch(repo, id, request, response);
   if (request.method === "POST" && rest[0] === "stills") return json(response, 200, { picture: await stillOf(repo, id, address, await body<Framed>(request), request.socket.localPort!) });
   if (request.method === "POST" && rest[0] === "frames") {
@@ -252,6 +253,14 @@ async function stepInto(repo: Repo, id: string, request: IncomingMessage, respon
   const { moment, after } = await body<{ moment: string; after?: number }>(request);
   const { port, name, checked } = await getReady(repo, id, await placeOf(repo, id, moment, after), waitedFor(response));
   json(response, 200, { port, name, ...(checked && { checked }) });
+}
+
+// Where the recording rests, once someone has stepped in on the change, for the next step in there to be quick. Answered at
+// once, and nothing said of it: one that can't be made is the step in's to say why.
+async function keptReady(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
+  const { moment, after } = await body<{ moment: string; after?: number }>(request);
+  json(response, 200, {});
+  await placeOf(repo, id, moment, after).then((to) => keepReady(repo, id, to)).catch(() => {});
 }
 
 // What a person did in the app, stepped into, kept as a recording of its own: the moment as it was recorded up to where they

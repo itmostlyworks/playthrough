@@ -11,7 +11,7 @@ import { answerAs, asRecorded, pathTo } from "@playthrough/page";
 import { doneBefore, quote, Refused } from "@playthrough/change";
 import { running, using } from "./app.ts";
 import { QUIET_DEV_CHROME, recorder, type Handed, type To } from "./run.ts";
-import { LONGEST, runTo } from "./following.ts";
+import { LONGEST, runTo, writtenOf } from "./following.ts";
 import { listen, thisMachine } from "./open.ts";
 import { read } from "./read.ts";
 import type { App, Repo } from "./repo.ts";
@@ -23,7 +23,7 @@ const PORT = 5830;
 // Runs the moment to where it's stepped into and passes the app on, then says where: each step in has an address of its
 // own, /step-in/<moment>, with the app made for it, so two tabs, or a reload, never share one or take one from the
 // other. In the viewer, Step in asks for it where the playhead rests and turns the frame into the app there: nothing is
-// run before it's asked for.
+// run before the first step in on a change, and after it, the one made ahead there is taken (keepReady).
 export async function getReady(repo: Repo, id: string, to: To, waiting?: AbortSignal): Promise<{ port: number; name: string; checked?: string }> {
   const app = await repo.app();
   const { handed, made, checked, done } = await madeFor(repo, id, to, waiting);
@@ -52,11 +52,61 @@ export async function placeOf(repo: Repo, id: string, moment: string, after?: nu
   return { moment, ...(after !== undefined && { after: doneBefore(kept) + after }) };
 }
 
-// The app made for a step in: the copy's app running, used while the moment runs there, and then for as long as what it
-// made is the person's.
-// Within one limit, starting the app included, and stopped once nobody's waiting for it.
+// The app made for a step in: the one made ahead to the same place, from the moments as they're written now, if there
+// is one; else run there. Within one limit from its asking, waiting on the one ahead included, and stopped once nobody's
+// waiting for it, which leaves the one ahead where it was: still ahead.
 async function madeFor(repo: Repo, id: string, to: To, waiting?: AbortSignal) {
   const until = Date.now() + LONGEST;
+  const one = ahead.get(key(repo, id));
+  if (one && same(one.to, to)) {
+    if (one.written === (await writtenOf(repo, id)).written) {
+      const made = await inTime(one.made, until, waiting, []).catch((error) => {
+        if (waiting?.aborted) throw error;
+      });
+      // Not dropped meanwhile, it's this step in's from now on, as one it ran itself; one that failed is run again, so
+      // it's said why in words.
+      if (made && ahead.get(key(repo, id)) === one) return (clearTimeout(one.untaken), ahead.delete(key(repo, id)), made);
+    } else letGoAhead(repo, id, one);
+  }
+  return make(repo, id, to, until, waiting);
+}
+
+// Once someone has stepped in on a change, the app is kept ready where its recording rests, for the next step in there
+// to take at once: one place for each change, made the way any step in is, and given back when it's moved on from, or
+// not taken within five minutes of last being asked for, so the app's own time unused can start.
+export async function keepReady(repo: Repo, id: string, to: To) {
+  const { written } = await writtenOf(repo, id);
+  const now = ahead.get(key(repo, id));
+  if (now && same(now.to, to) && now.written === written) return untakenSoon(repo, id, now);
+  if (now) letGoAhead(repo, id, now);
+  const stop = new AbortController();
+  const one: Ahead = { to, written, made: make(repo, id, to, Date.now() + LONGEST, stop.signal), stop };
+  ahead.set(key(repo, id), one);
+  // One that fails is dropped: the step in there runs afresh, and says why.
+  one.made.catch(() => ahead.get(key(repo, id)) === one && letGoAhead(repo, id, one));
+  untakenSoon(repo, id, one);
+}
+type Ahead = { to: To; written: number; made: ReturnType<typeof make>; stop: AbortController; untaken?: ReturnType<typeof setTimeout> };
+const ahead = new Map<string, Ahead>();
+const UNTAKEN = 5 * 60_000;
+const key = (repo: Repo, id: string) => `${repo.root}\n${id}`;
+const same = (one: To, other: To) => one.moment === other.moment && one.after === other.after;
+
+function untakenSoon(repo: Repo, id: string, one: Ahead) {
+  clearTimeout(one.untaken);
+  one.untaken = setTimeout(() => letGoAhead(repo, id, one), UNTAKEN);
+  one.untaken.unref();
+}
+
+function letGoAhead(repo: Repo, id: string, one: Ahead) {
+  if (ahead.get(key(repo, id)) === one) ahead.delete(key(repo, id));
+  clearTimeout(one.untaken);
+  one.stop.abort();
+  one.made.then(({ made, done }) => (void made?.giveBack(), done()), () => {});
+}
+
+// The copy's app running, used while the moment runs there, and then for as long as what it made is the person's.
+async function make(repo: Repo, id: string, to: To, until: number, waiting?: AbortSignal) {
   const done = using(repo.root);
   try {
     const app = await repo.app();
@@ -76,6 +126,7 @@ function inTime<T>(started: Promise<T>, until: number, waiting: AbortSignal | un
     const limit = setTimeout(() => reject(new Refused(late)), until - Date.now());
     const away = () => reject(new Refused(["Nobody's waiting for it any more."]));
     waiting?.addEventListener("abort", away, { once: true });
+    if (waiting?.aborted) away();
     started.then(resolve, reject).finally(() => (clearTimeout(limit), waiting?.removeEventListener("abort", away)));
   });
 }
