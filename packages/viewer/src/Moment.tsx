@@ -905,6 +905,13 @@ export function MomentView(props: {
             ref={toolbar}
             style={{ height: BAR, translate: `calc(-50% + ${clear?.x ?? 0}px) calc(-50% + ${clear?.y ?? 0}px)`, opacity: clear ? 1 : 0 }}
           >
+            {/* What Step in has to say, just over the bar, where it was pressed: why it couldn't open, that the app starts
+                first, or in the app that its check at the end doesn't hold now. Under the bar there's no room for it. */}
+            {(stepIn.said || stepIn.starting) && (
+              <p className={`pointer-events-none absolute bottom-full left-1/2 mb-2 w-max max-w-[min(640px,calc(100cqw-32px))] -translate-x-1/2 animate-arrive rounded-md bg-surface px-3 py-1.5 text-center text-xs shadow-tip ${stepIn.said ? "text-amber-ink" : "text-soft"}`}>
+                {stepIn.said || "Starting the app first, which can take a minute."}
+              </p>
+            )}
             {/* At the last stop, the one thing to do there. */}
             {atLastStop ? (
               <StepAction step={step} />
@@ -993,7 +1000,6 @@ export function MomentView(props: {
             )}
           </div>
         </div>
-        {stepIn.said && <p className="absolute bottom-0 left-1/2 max-w-[90%] -translate-x-1/2 translate-y-full animate-arrive rounded-md bg-surface px-3 py-1.5 text-xs text-amber-ink shadow-tip">{stepIn.said}</p>}
       </div>
       {/* Beside the recording, or under it on a phone: the change's moments, and this one's notes. */}
       <div ref={rows} onScroll={rowsMore.look} className={phone ? "grid min-h-0 grid-cols-[minmax(0,1fr)] content-start gap-6 overflow-y-auto px-4 pt-6 pb-8" : "contents"} style={phone ? rowsMore.fade : undefined}>

@@ -467,11 +467,15 @@ once, or with `playthrough open` running, which keeps every copy's app, once it'
 `open` stops those nobody is using.
 
 **In your browser** (`stepIn.ts`, `Portal.tsx`). While it's getting there, a line inside Step in fills as it goes, at
-the pace of the last run where that's known, the picture's edge breathes and the recording's pointer waits. Escape, or
+the pace of the last run where that's known, the picture's edge breathes and the recording's pointer waits. Where the
+app isn't running (stopped after fifteen minutes unused, say), `ready-in` says so, and over the bar it says "Starting
+the app first, which can take a minute." until it's there, the line inside Step in not filling, as the last run's pace
+says nothing of a start. Escape, or
 going to another moment, calls it off: the request ends, which stops the run, and a page of the app already opening
 unseen goes with it; the bar is at rest at once. The page waits 70 s for the answer (the server always gives one within a
-minute) and 30 s for the app's page to settle, then says so under the bar, with what to do; so does Playthrough no longer
-running. Whatever stopped it is said under the bar in the server's words; in the app, so is a check at the end that
+minute) and 30 s for the app's page to settle, then says so just over the bar, beside Step in (under it, at a desktop size, it was off the
+screen), with what to do; so does Playthrough no longer
+running. Whatever stopped it is said there in the server's words; in the app, so is a check at the end that
 doesn't hold now. The app opens in the recording's place, at the same size,
 and the recording's pointer comes to yours wherever yours has gone, and gives way to it. In the app the bar says "You,
 as …" beside Back, whose keys read Esc Esc. Back, the keyboard comes back to the page, and the app kept ready underneath

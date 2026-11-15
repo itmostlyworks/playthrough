@@ -21,7 +21,7 @@ import { frameOf, stillOf, type Framed } from "./frames.ts";
 import { getReady, keepReady, placeOf, waitedFor } from "./step-in.ts";
 import { setupIn } from "./setup.ts";
 import { agentWaiting } from "./wait.ts";
-import { openFile, stopUnused, UNUSED } from "./app.ts";
+import { answers, openFile, stopUnused, UNUSED } from "./app.ts";
 import { thisCommand } from "./command.ts";
 
 export const PORT = 5790;
@@ -305,10 +305,12 @@ function paced(events: Event[]): Event[] {
 }
 const readingOf = (event: Event) => (event.type === 5 && event.data?.tag === "reading" ? event.data.payload : undefined);
 
-// How long until a moment asked for is ready, for the viewer to count down to, if it can be known.
+// How long until a moment asked for is ready, for the viewer to count down to, if it can be known; or that the app isn't
+// running, as after it's gone unused a while, so it starts first, for as long as it takes, which the person is told.
 async function readyInFor(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
   const { moment, after } = await body<{ moment: string; after?: number }>(request);
   const to = await placeOf(repo, id, moment, after).catch(() => undefined);
+  if (!(await repo.app().then((app) => answers(app.url), () => true))) return json(response, 200, { starting: true });
   json(response, 200, { in: to && (await readyIn(repo, id, to)) });
 }
 
