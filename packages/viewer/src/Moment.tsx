@@ -22,7 +22,7 @@ import { Portal, TAG } from "./Portal.tsx";
 import type { Rect, Scrolled } from "./replay.ts";
 import { SendButton, tick, FILLED_KEY, SAID, useSend } from "./Send.tsx";
 import { toSend, noteSays, takingOf, seenOf } from "./standing.ts";
-import { useStepIn } from "./stepIn.ts";
+import { useKeptReady, useStepIn } from "./stepIn.ts";
 import { closeOn, aboutBox, StillPicture } from "./Still.tsx";
 import type { Together } from "./view.ts";
 
@@ -279,7 +279,9 @@ export function MomentView(props: {
   const asItWas = !!opened && !openNow && !!openMade && openMade.handBack < handBack.number;
 
   // What may be pressed now, which every key and button asks.
-  const may = can(page, { still, ready: !!cut, compares: !!then, elsewhere });
+  const facts = { still, ready: !!cut, compares: !!then, elsewhere };
+  const may = can(page, facts);
+  useKeptReady({ change: change.id, moment, page, facts });
   const play = () => may.play && act({ type: "play" });
   // A note open on a frame of its own shows somewhere the app can't be taken to: stepping in from it would swap the
   // picture for the moment's and open the app there. Closed, Step in answers again. In the app, it's Back.

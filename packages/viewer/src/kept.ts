@@ -1,6 +1,6 @@
 // What this browser keeps for you: your notes and replies not yet sent, by the change's address, until you send them;
 // what it kept of what you'd seen before that was kept with the change; and, for this tab, where the list was
-// scrolled and which of its quiet lines you'd opened.
+// scrolled, which of its quiet lines you'd opened, and the changes you've stepped in on.
 
 import { useEffect, useState } from "react";
 import { noteNow, type Note, type Send } from "@playthrough/change";
@@ -102,4 +102,21 @@ export function keepOpened(ids: string[]) {
   try {
     sessionStorage.setItem(openKey, JSON.stringify(ids));
   } catch {}
+}
+
+// The changes this tab has stepped in on: from then on, the app is kept ready where the recording rests (stepIn.ts).
+const steppedKey = (change: string) => `playthrough:stepped-in:${change}`;
+
+export function keepSteppedIn(change: string) {
+  try {
+    sessionStorage.setItem(steppedKey(change), "yes");
+  } catch {}
+}
+
+export function steppedInHere(change: string) {
+  try {
+    return sessionStorage.getItem(steppedKey(change)) === "yes";
+  } catch {
+    return false;
+  }
 }

@@ -1,13 +1,15 @@
 // Stepping in: the moment where its recording rests made ready, as the latest hand-back has it, and the picture turned
-// into the app there; given back, the recording again. Nothing runs before you ask: watching does nothing to the app.
-// Each is the app made afresh for that step in, from the same start as every moment. Everything the page does to get the
-// app and give it back is here: asking for it, calling it off, how long it should take, what the app says, a note made
+// into the app there; given back, the recording again. Nothing runs before the first step in on a change: watching does
+// nothing to the app. After it, the app is kept ready where the recording rests, so the next is quick. Each is the app
+// made afresh for that step in, from the same start as every moment. Everything the page does to get the app and give it
+// back is here: asking for it, calling it off, keeping it ready, how long it should take, what the app says, a note made
 // there.
 
 import { useEffect, useRef, useState } from "react";
 import { doneAt, madeInApp, newId, type Did, type InApp, type Note, type Moment } from "@playthrough/change";
 import { keepBranch } from "./api.ts";
-import { isPlaying, type Action, type Page } from "./mode.ts";
+import { keepSteppedIn, steppedInHere } from "./kept.ts";
+import { isPlaying, keptReadyAt, type Action, type Facts, type Page } from "./mode.ts";
 import type { Clock } from "./Player.tsx";
 import type { App, Heard } from "./Portal.tsx";
 
@@ -38,6 +40,7 @@ export function useStepIn({ change, handBack, moment, page, clock, act, pointing
     const where = isPlaying(mode) ? clock.at : page.at;
     const after = doneAt(moment, where);
     session.current = { id: newId(), events: [], did: [], kept: 0 };
+    keepSteppedIn(change);
     const since = Date.now();
     act({ type: "step in", since });
     setRun({ moment: moment.name, from: where, since });
@@ -125,6 +128,25 @@ export function useStepIn({ change, handBack, moment, page, clock, act, pointing
     portal: { live: here && { address: here.address, shown, inApp: yours, at: here.at }, app, onHeard: heard },
   };
 }
+
+// Once this tab has stepped in on the change, the place the recording has rested at for a beat is kept ready, asked for
+// as Step in there would ask, so moving through moments with the keys doesn't start a run for each. Asked once for each
+// place it rests at, and again once back from the app, where what was made there was taken.
+export function useKeptReady({ change, moment, page, facts }: { change: string; moment: Moment; page: Page; facts: Facts }) {
+  const at = page.moment === moment.name ? keptReadyAt(page, facts, steppedInHere(change)) : undefined;
+  const place = at === undefined ? undefined : JSON.stringify({ moment: moment.name, after: doneAt(moment, at) });
+  const asked = useRef<string>(undefined);
+  useEffect(() => {
+    if (place === undefined) return void (asked.current = undefined);
+    if (place === asked.current) return;
+    const rested = setTimeout(() => {
+      asked.current = place;
+      fetch(`/api/changes/${encodeURIComponent(change)}/keep-ready`, { method: "POST", headers: { "content-type": "application/json" }, body: place }).catch(() => {});
+    }, RESTED);
+    return () => clearTimeout(rested);
+  }, [change, place]);
+}
+const RESTED = 600;
 
 // Playthrough answers a step in within a minute, made or with why not (following.ts); past this, it isn't going to.
 const ANSWERED = 70_000;

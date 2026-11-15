@@ -3,7 +3,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { arrived, can, reduce, type Action, type Facts, type Page } from "../src/mode.ts";
+import { arrived, can, keptReadyAt, reduce, type Action, type Facts, type Page } from "../src/mode.ts";
 
 // A moment whose shown part starts at 2s and ends at 10s, at rest on its end.
 const moment = () => arrived("Hides the card numbers", 2, 10);
@@ -101,4 +101,18 @@ test("going to another moment, nothing of this one goes with it: it rests on its
 
 test("a still has no Play", () => {
   assert.equal(can(moment(), { ...facts, still: true }).play, false);
+});
+
+test("nothing is kept ready before this tab's first step in on the change, wherever the recording rests", () => {
+  const paused = press(press(moment(), { type: "play" }), { type: "play" }, 5.5);
+  for (const page of [moment(), paused, press(moment(), { type: "rest", at: 3 })]) assert.equal(keptReadyAt(page, facts, false), undefined);
+});
+
+test("after the first step in, the app is kept ready where the recording rests, Back included, and nowhere while it plays, gets there or is yours", () => {
+  const stepping = press(moment(), { type: "step in", since: 1 });
+  assert.equal(keptReadyAt(press(moment(), { type: "rest", at: 3 }), facts, true), 3);
+  assert.equal(keptReadyAt(press(stepping, { type: "back" }), facts, true), 10, "back, where it was stepped into");
+  for (const page of [press(moment(), { type: "play" }), stepping, press(stepping, { type: "yours" }), press(press(moment(), { type: "note" }), { type: "pointed", writing })])
+    assert.equal(keptReadyAt(page, facts, true), undefined);
+  assert.equal(keptReadyAt(moment(), { ...facts, elsewhere: true }, true), undefined, "nor on a note open on a frame of its own");
 });

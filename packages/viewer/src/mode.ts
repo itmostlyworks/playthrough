@@ -126,6 +126,10 @@ export function can(page: Page, facts: Facts) {
   };
 }
 
+// Where the app is kept ready for the next step in: nowhere before this tab's first on the change, and after it, where
+// the recording rests whenever Step in could be pressed there.
+export const keptReadyAt = (page: Page, facts: Facts, steppedIn: boolean) => (steppedIn && can(page, facts).stepIn && !playing(page.mode) ? page.at : undefined);
+
 // The page's words for what it's doing, as the bar and the recording ask them.
 export const isPlaying = playing;
 export const isStepped = stepped;
