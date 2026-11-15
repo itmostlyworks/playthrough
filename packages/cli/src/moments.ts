@@ -57,7 +57,7 @@ export async function moment(repo: Repo, words: string, named?: string, last?: n
     .filter((page) => page.url().startsWith(browser.url))
     .at(-1);
   if (!here) throw new Refused([`No page in the browser is on the app (${browser.url}).`]);
-  const there = { url: here.url(), reading: await readAt(here), scrolled: await here.evaluate(() => ({ x: scrollX, y: scrollY })), ...(await aboutOn(here, words, named)) };
+  const there = { url: here.url(), reading: await readAt(here), scrolled: await here.evaluate(() => ({ x: scrollX, y: scrollY })), ...(await aboutOn(here, words, named)), open: await openOn(here) };
   await open.close();
   if (named && !there.about)
     throw new Refused([`Nothing on the page is called ${quote(named)}, as a button, a field, a link or a heading is, or says it.${there.near.length ? ` Near it: ${list(there.near.map(quote))}.` : ""} Say it as the page names it, or leave it out.`]);
@@ -150,6 +150,9 @@ export async function moment(repo: Repo, words: string, named?: string, last?: n
   if (before.length) console.log(`  before   ${before.length > 3 ? "… " : ""}${before.slice(-3).map(saidOf).join(" → ")}   (kept, never shown)`);
   if (!still) console.log(`  first    ${shownAt(frameOf(recorded.moment, "first"))}`);
   console.log(`  ${still ? "picture" : "last   "}  ${shownAt(readings.at(-1)!.picture)}`);
+  // Kept where the agent is, it ends as the agent's page is: with what's open there still open, and what it leads to
+  // unseen unless it's marked too, as a board made from a dialog no one finished.
+  if (there.open) console.log(`  This moment ends with ${there.open.name ? quote(there.open.name) : "a dialog"} still open. If your change shows in what happens next, mark that too.`);
   if (!still && seen && !seen.changed.length) console.log(`  Nothing you can see changed in it. Fine if that's the point; if not, look at its first and last frames.`);
   const moving = seen ? movingNamed(seen.moving, glimpses[0]) : [];
   if (moving.length) {
@@ -289,6 +292,18 @@ async function aboutOn(page: Page, words: string, named?: string): Promise<{ abo
     },
     { words, named },
   );
+}
+
+// A dialog left open on the page, as the page marks one (role dialog or alertdialog, or an open <dialog>), the last opened
+// where there are several: by its name, or else its heading, as written; or none to give.
+export async function openOn(page: Page): Promise<{ name: string } | undefined> {
+  return page.evaluate(() => {
+    const { __playthroughNamed: named, __playthroughAsWritten: asWritten } = window as any;
+    const open = [...document.querySelectorAll("[role=dialog], [role=alertdialog], dialog[open]")].filter((one) => one.checkVisibility({ opacityProperty: true, visibilityProperty: true })).at(-1);
+    if (!open || !named) return undefined;
+    const heading = open.querySelector("h1, h2, h3, h4, h5, h6, [role=heading]") as HTMLElement | null;
+    return { name: asWritten(() => named(open).name || (heading?.innerText ?? "").trim().replace(/\s+/g, " ")) as string };
+  });
 }
 
 // A moment no longer wanted goes from what's run again and handed back; the person sees it as last handed back until

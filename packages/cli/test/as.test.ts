@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { chromium, type Browser, type Page } from "@playwright/test";
 import { NOTING } from "../src/as.ts";
+import { openOn } from "../src/moments.ts";
 import { wayFile, wayIn, type Done } from "../src/way.ts";
 
 let browser: Browser;
@@ -75,3 +76,17 @@ test("words typed into a rich-text editor are kept on the editor as it was befor
 });
 
 declare const comment: HTMLElement, description: HTMLElement;
+
+test("a dialog left open where a moment is kept is found, by its name or else its heading, and one closed isn't", { timeout: 30_000 }, async () => {
+  const page = await browser.newPage();
+  await page.addInitScript({ content: NOTING });
+  let body = "";
+  await page.route("http://app.test/**", (route) => route.fulfill({ contentType: "text/html", body: `<!doctype html>${body}` }));
+  const openOnPage = async (html: string) => ((body = html), await page.goto("http://app.test/"), openOn(page));
+  // As Headless UI draws Kan's: a dialog with no size of its own, holding a panel drawn fixed, with a heading.
+  assert.deepEqual(await openOnPage(`<div role="dialog" aria-modal="true"><div style="position: fixed; inset: 0"><h2 style="text-transform: uppercase">New board</h2></div></div>`), { name: "New board" });
+  assert.deepEqual(await openOnPage(`<div role="alertdialog" aria-label="Delete board?">Sure?</div>`), { name: "Delete board?" });
+  assert.deepEqual(await openOnPage(`<dialog open>Saved</dialog>`), { name: "" }, "one with nothing to call it by is still open");
+  assert.equal(await openOnPage(`<dialog><h2>New board</h2></dialog><h1>Website launch</h1>`), undefined);
+  await page.close();
+});

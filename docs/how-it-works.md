@@ -108,7 +108,13 @@ itself, in both runs (`seen.ts`): where nothing changed from the first frame to 
 `Nothing you can see changed in it. Fine if that's the point`, leaving out squares that change with nothing done, that
 differ between the runs at either end, and where words tell the time, so a colour counts and a clock doesn't; what was
 seen moving with nothing done is named (`Moves by itself, and isn't counted`); an end still changing once it held is
-said, with what to do (name what comes late as the moment's thing, which its check waits for).
+said, with what to do (name what comes late as the moment's thing, which its check waits for). Kept with a dialog still
+open where the agent is (role dialog or alertdialog, or an open `<dialog>`: `openOn`), which the moment, having landed
+there, ends with too, it says so in fixed words, by the dialog's name or else its heading (`This moment ends with “New
+board” still open. If your change shows in what happens next, mark that too.`, or "a dialog" with neither): the help's
+"cause and effect are two moments", said when it's so. It's kept all the same, and the person is told nothing. From 15
+Nov's user testing: a moment ended in the New board dialog, Create board never pressed, and a board made that way came
+out empty with nobody seeing.
 
 **`again`** runs every moment on the code as it is now, keeps them as the next hand-back, compares it with the hand-backs
 before (below), and says each is the same, different (in Playthrough's words), new, or couldn't get there, with how to
