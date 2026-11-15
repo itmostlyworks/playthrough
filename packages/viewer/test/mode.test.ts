@@ -7,7 +7,7 @@ import { arrived, can, keptReadyAt, reduce, type Action, type Facts, type Page }
 
 // A moment whose shown part starts at 2s and ends at 10s, at rest on its end.
 const moment = () => arrived("Hides the card numbers", 2, 10);
-const facts: Facts = { still: false, ready: true, compares: true, elsewhere: false };
+const facts: Facts = { still: false, ready: true, compares: true, elsewhere: false, flips: false };
 // Pressed with the recording where it has got to.
 const press = (page: Page, action: Action, now = page.at, along = page.along ?? 0) => reduce(page, { ...action, now, along });
 const writing = { note: { id: "n1", words: "" }, spot: { x: 10, y: 10 } };
@@ -55,6 +55,16 @@ test("while a note is open on a frame of its own, Step in and Note rest", () => 
   const may = can(open, { ...facts, elsewhere: true });
   assert.deepEqual([may.stepIn, may.note], [false, false]);
   assert.equal(can(open, facts).stepIn, true, "on the moment as it is now, Step in closes it and steps in");
+});
+
+test("a note from an earlier hand-back opens on the moment as it is now, flips to as it was and back, and opens another on now", () => {
+  const open = press(moment(), { type: "open", note: "n1" });
+  assert.equal(can(open, { ...facts, flips: true }).flip, true);
+  assert.equal(can(moment(), { ...facts, flips: true }).flip, false, "with nothing open there's nothing to flip");
+  const flipped = press(open, { type: "flip" });
+  assert.deepEqual(flipped.mode, { is: "a note open", note: "n1", asItWas: true });
+  assert.deepEqual(press(flipped, { type: "flip" }).mode, { is: "a note open", note: "n1" });
+  assert.deepEqual(press(flipped, { type: "open", note: "n2" }).mode, { is: "a note open", note: "n2" });
 });
 
 test("while writing a note, nothing but the note answers: not Play, Step in, Note, Compare or another moment", () => {

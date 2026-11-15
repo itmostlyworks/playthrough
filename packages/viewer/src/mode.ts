@@ -13,7 +13,8 @@ export type Mode =
   // Still, at its end, or wherever it was paused.
   | { is: "resting" }
   | { is: "playing"; until: number }
-  | { is: "a note open"; note: string }
+  // A note from an earlier hand-back opens on the moment as it is now; flipped, on the frame it was made on.
+  | { is: "a note open"; note: string; asItWas?: true }
   // Note pressed: pointing at what it's on.
   | { is: "pointing" }
   | { is: "writing"; writing: Writing }
@@ -44,6 +45,8 @@ export type Action =
   | { type: "open"; note: string }
   | { type: "close" }
   | { type: "compare" }
+  // A note from an earlier hand-back open: now, or as it was.
+  | { type: "flip" }
   | { type: "step in"; since: number }
   | { type: "yours" }
   // Back, or Escape; or, for one step in, the app couldn't be made ready.
@@ -90,6 +93,8 @@ export function reduce(page: Page, action: Action & Now): Page {
       return { ...stopped, mode: mode.is === "a note open" && mode.note === action.note ? { is: "resting" } : { is: "a note open", note: action.note } };
     case "close":
       return mode.is === "a note open" ? resting : page;
+    case "flip":
+      return mode.is === "a note open" ? { ...page, mode: { is: "a note open", note: mode.note, ...(!mode.asItWas && { asItWas: true }) } } : page;
     case "compare":
       return { ...stopped, mode: mode.is === "comparing" ? { is: "resting" } : { is: "comparing" } };
     case "step in":
@@ -105,8 +110,9 @@ export function reduce(page: Page, action: Action & Now): Page {
 }
 
 // What's known of the moment beside the page: whether it's a still, whether its recording is ready to play, whether
-// there's a look to compare with, whether the note open is on a frame of its own, somewhere the app can't be taken to.
-export type Facts = { still: boolean; ready: boolean; compares: boolean; elsewhere: boolean };
+// there's a look to compare with, whether the note open is on a frame of its own, somewhere the app can't be taken to,
+// and whether it's from an earlier hand-back, with how it was to flip to.
+export type Facts = { still: boolean; ready: boolean; compares: boolean; elsewhere: boolean; flips: boolean };
 
 // What may be pressed now. Stepping in, everything that drives the recording rests, and only the app, Note and Back
 // answer; writing, nothing but the note.
@@ -121,6 +127,7 @@ export function can(page: Page, facts: Facts) {
     back: mode.is === "getting there" || (mode.is === "the app yours" && !writing),
     note: !writing && mode.is !== "getting there" && mode.is !== "comparing" && mode.is !== "a note open",
     compare: facts.compares && !away && !writing,
+    flip: facts.flips && mode.is === "a note open",
     // On to another moment, or to another note on this one.
     move: !away && !writing,
   };

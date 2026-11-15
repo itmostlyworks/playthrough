@@ -236,7 +236,8 @@ Play would be, the bar says "A still". The recording sits in the middle, as larg
 the moment changes (its shape is kept until the next one's is known, and the one you were on stays under the new one
 until it has faded in). The bar across its bottom edge: Play (Space), whose slim line along its own bottom edge fills as
 it plays, there only once the moment has left its end; Step in (S); Note (N, on the recording or in the app); Compare
-(C), or in its place "Unchanged" or "New", the bar the same width from one moment to the next. A click on the recording
+(C), or in its place "Unchanged" or "New", or while a note from an earlier hand-back is open, its "As it was" and
+"Now" switch; Compare's place is as wide as the switch, so the bar is the same width from one moment to the next. A click on the recording
 plays and pauses it. Send stands top right, filled once something's unsent (Ctrl ↵), on every moment, and says Sent
 where it was pressed. Beside it, Next: the next moment, and after the last, the change's card. What the page is doing is one value (`mode.ts`): resting, playing, a note open, pointing,
 writing, comparing, getting there or the app yours; every press is an action on it, carrying where the recording has got
@@ -263,7 +264,7 @@ thing, its pin by the top right corner of what's shown of it (a line of words as
 there's no room above, never on it: a small thing at the size it was recorded, with what's beside it; a wide line from
 its start, a little smaller at most; something far larger than the strip closed in on what its moment is about where
 that's inside it, else from its top left; a spot with no thing, around the spot; never larger than recorded, always
-inside the screen. It's cut from a kept picture of the frame its thing is shown on, never a recording played
+inside the screen; one from an earlier hand-back is cut from the moment's picture now, as it opens. It's cut from a kept picture of the frame its thing is shown on, never a recording played
 (`useFrames`): one made at a moment's end is that hand-back's own picture; any other is drawn once by `playthrough open`
 in a browser of its own from the recording it was made on (`frames.ts`, the page's `?frame=` address, `Frame.tsx`) and
 kept with what the person did (`branches/frames/<note>.png` and `.json`). A note's pin on the recording and its picture
@@ -277,10 +278,15 @@ Esc": what a click would note is outlined and named as Playthrough names everyth
 note box sits beside its thing, never on it, growing with its words. Its pin is on the recording at rest whenever its
 thing is there: made on this hand-back, that very thing; made in the app or on an earlier hand-back, the same thing found
 by its role and name, never whatever says the same words; on a spot, only on the hand-back it was made on. In the app,
-its pin goes while its thing is gone and comes back with it. Opened (its picture, its pin, ← →, or `?note=`), the
-recording cross-fades to that note's kept picture, on its thing as it is now where that thing is in the moment's picture
-now, else on the frame it was made on, the bar saying "As it was" where that's from before the last hand-back; with its
-pin and its card, and nothing more. Escape, its picture again, or a press anywhere but its card or the edges closes it;
+its pin goes while its thing is gone and comes back with it. Opened (its picture, its pin, ← →, or `?note=`), a note
+made on the hand-back you're looking at shows the moment at its end where it was made there, else cross-fades to its kept
+picture, the frame it was made on. **A note from an earlier hand-back always opens on the moment as it is now**, at its
+end, so what came of it is what you see: on its thing where that's found by its role and name; where it isn't (the
+agent changed it, as asked), its pin stands where it stood on its thing, by the box that thing had as shares of the
+screen, with no outline, as that would say it's on whatever stands there now. How it was is one flip away, in place: while
+it's open, Compare's place on the bar holds a two-part switch, "As it was" and "Now", Now chosen; pressing it, or C, flips,
+a cross-fade in the same spot at the same size (at once with reduced motion), the pin going to its thing in the picture
+shown, the card staying where it is. ← → to another note opens it on Now. With its pin and its card, and nothing more. Escape, its picture again, or a press anywhere but its card or the edges closes it;
 Space, S and C act on the moment and close it first. An open note's thing is never under the bar: the bar moves along
 the recording's edge, or down off it. A reply waits to be clicked into, so ← → go on through the notes. A note just saved
 arrives at the foot of the edge, the edge forward with its words for 1.4 s; one made in the app joins the edge the same

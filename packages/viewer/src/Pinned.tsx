@@ -6,7 +6,7 @@ import type { Placed } from "./Player.tsx";
 import type { Rect } from "./replay.ts";
 
 // How far a pin sits out from its outline's corner, as in the frame.
-const OUT = 14;
+export const OUT = 14;
 
 // A pin, on the things it's for: a note's dot in its colour.
 export type Pin = { id: string; on: string[]; ink: string; fill: string };
