@@ -131,7 +131,10 @@ a picture of what they saw with the thing outlined (`noted.ts`: the page the mom
 app, the frame the person's page drew of it), how to stand there (`playthrough as <person> "<moment>"`), and for one
 made in the app what they did there and where the app was when they wrote it (`The app was at /boards/undefined when
 they wrote it.`: its path, query and hash, kept on the note as `address` when it's made, as what went wrong is often
-the address itself, gone by the time the agent looks). A note on a recording says no address: a recording knows only
+the address itself, gone by the time the agent looks). The ids the person's step in made are their run's own, so the
+address is kept with what that run's setup made written as setup's (`madeBySetup`, in `@playthrough/change`, as a
+moment's way writes them; the step in's answer carries its setup to the viewer): `The app was at /boards/${setup.board}
+when they wrote it, setup being what playthrough/setup.ts made for the run, as playthrough as prints it.` A note on a recording says no address: a recording knows only
 the pages it loaded, not where the app's own links went since, and how to stand there takes the agent to it. What a
 click there is on is decided as in the agent's browser (`clicked`, in `@playthrough/page`): what was pressed, or the
 nearest words of their own, never a part of the page that only holds others' (Kan's board, holding its toolbar's
