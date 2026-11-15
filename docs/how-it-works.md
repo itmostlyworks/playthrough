@@ -204,19 +204,17 @@ full colour, takes the room between what's waiting and Next, and there's no card
 **Every change** (`Waiting.tsx`, `Changes.tsx`). Top left on every page, "6 changes waiting" (or "Every change") opens every
 change as a sheet over the page, the page under it softened and inert. Pressed or from the keyboard, it stays until
 Escape, a press beside it, or going somewhere. A mouse that moves onto it and rests there 80 ms opens it too, and then it
-goes once the pointer has been outside it, and its previews, for 300 ms; coming back in time keeps it. A page that loads
+goes once the pointer has been outside it for 300 ms; coming back in time keeps it. A page that loads
 or changes under a still pointer opens nothing, and once the sheet has closed, the pointer has to leave it before pointing
 opens it again. In the sheet: Waiting on you, each change's title, what you asked in two lines, the app and when it came
 back, and at its right its step's words and button (Done, or a filled Send while something's unsent); then With your
 agents and Done, a quiet line each, Done's latest five and the rest under Earlier. Where a change stands is said in
 words: "Agent working", "Sent", or "No agent listening" with what to tell yours. Pressed, a row goes to the first thing on
-it you haven't seen. Pointed at (after 70 ms, and at once while another row's are showing), or reached with the keyboard,
-a row's moments come beside it, each its still (184 wide) with its name under it, never over the picture: to the right
-where there's room, else under the row or over it, whichever has more room, as tall as the window lets them be and
-scrolling past that. Pressed, one goes straight to that moment. An unseen bridge fills the gap between row and previews,
-and a pointer heading for them across other rows keeps them (the triangle from where it was to their near edge,
-`towards`); resting on another row for 250 ms, or turning away, hands over. They're out of the Tab order: a focused row
-shows them, and Enter goes in. Touch shows none. The sheet keeps itself current, but never moves what's under your
+it you haven't seen. Under each waiting change, its moments in a line (`Strip`): each its still, 132 wide, with its
+name over its foot in two lines at most, drawn as it is whether seen or not. Pressed, one goes straight to that moment,
+and each is in the Tab order after the row's own step. More than fit go on sideways, fading at the side that has more,
+with a small arrow there for a pointer that can't scroll sideways (not on a phone, where a finger does). Changes with
+your agents and done ones have no pictures. The sheet keeps itself current, but never moves what's under your
 pointer: one that arrives there says at once where it stands and moves when the pointer leaves.
 
 **A moment's page** (`Moment.tsx`, the bar in `MomentBar.tsx`). A moment opens at rest on its end. **A moment is only

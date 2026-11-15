@@ -1,11 +1,9 @@
-// Every change, in the sheet what's waiting opens: what's waiting on you as a calm column of rows, no pictures at rest.
-// Each says what the change is, what you asked in your own words, and at its right the one step you can take now.
-// Pressed, a row goes straight to the first thing on it you haven't seen. Pointed at, its moments come beside it, each
-// with its name, moving nothing, and pressed, one goes straight to that moment. What's with your agents and what's
-// done are quieter rows below.
+// Every change, in the sheet what's waiting opens: what's waiting on you as a calm column of rows. Each says what the
+// change is, what you asked in your own words, and at its right the one step you can take now, with its moments under
+// that, small, in a line. Pressed, a row goes straight to the first thing on it you haven't seen; pressed, a moment
+// goes straight to it. What's with your agents and what's done are quieter rows below.
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { createPortal } from "react-dom";
 import { latestOf, standingOf } from "@playthrough/change";
 import type { Listed } from "./api.ts";
 import { SAID, SendButton, Taken, take } from "./Send.tsx";
@@ -94,7 +92,6 @@ export function Changes({ changes, you, onOpen }: { changes: Listed[]; you: stri
     const every = setInterval(() => aMinute((n) => n + 1), 60000);
     return () => clearInterval(every);
   }, []);
-  const previews = usePreviews();
   if (!shown) return <div className="h-40" />;
 
   const now = Date.now();
@@ -120,8 +117,6 @@ export function Changes({ changes, you, onOpen }: { changes: Listed[]; you: stri
       now={now}
       arrived={moved.current.has(listed.change.id)}
       landing={landing.current.delete(listed.change.id)}
-      previewing={previews.of === undefined ? undefined : previews.of === listed.change.id}
-      onFocused={(focused) => (focused ? previews.show(listed.change.id) : previews.hide())}
       onOpen={(moment, note) => onOpen(listed.change.id, moment, note)}
       away={away}
       onLeaving={(going, moved) => {
@@ -132,7 +127,6 @@ export function Changes({ changes, you, onOpen }: { changes: Listed[]; you: stri
       }}
     />
   );
-  const previewed = previews.of && shown.find((one) => one.change.id === previews.of);
   return (
     <div ref={own}>
       <main
@@ -172,9 +166,6 @@ export function Changes({ changes, you, onOpen }: { changes: Listed[]; you: stri
           </section>
         )}
       </main>
-      {previewed && previews.row && latestOf(previewed.change) && (
-        <Previews key={previewed.change.id} listed={told(previewed)} row={previews.row} onEdge={previews.edgeAt} onOpen={(moment) => onOpen(previewed.change.id, moment)} />
-      )}
     </div>
   );
 }
@@ -189,8 +180,9 @@ function Fold({ open, children }: { open: boolean; children: ReactNode }) {
   );
 }
 
-// A change in the sheet. Waiting, its title, what you asked and the app, with the step at its right; with your agents
-// or done, one quiet line. The whole row is pressed to go in; Send and Done are buttons of their own over it.
+// A change in the sheet. Waiting, its title, what you asked and the app, with the step at its right and its moments
+// under them; with your agents or done, one quiet line. The whole row is pressed to go in; Send, Done and each moment
+// are buttons of their own over it.
 function Row(props: {
   listed: Listed;
   section: Section;
@@ -198,15 +190,12 @@ function Row(props: {
   now: number;
   arrived: boolean;
   landing: boolean;
-  // Whether its moments are beside it, or another's are; undefined while none are.
-  previewing?: boolean;
-  onFocused: (focused: boolean) => void;
   onOpen: (moment: number, note?: string) => void;
   // Once the pointer is off the rows, or at once without one.
   away: () => Promise<void>;
   onLeaving: (going: boolean, moved?: boolean) => void;
 }) {
-  const { listed, section, you, now, arrived, landing, previewing, onFocused, onOpen, away, onLeaving } = props;
+  const { listed, section, you, now, arrived, landing, onOpen, away, onLeaving } = props;
   const { change } = listed;
   const handBack = latestOf(change);
   // Acted on, the row says what it said as you pressed, with Sent or Done, until it goes: the change as it is now
@@ -288,15 +277,10 @@ function Row(props: {
   );
   const not = problems && <span className="text-amber-ink"> · Not sent: {problems[0]}</span>;
   const openable = !!handBack;
-  // Pointed at, it's the row its moments are beside; while another's are, the pointer may be on its way to them, and
-  // this row doesn't light up under it.
-  const pointing = openable ? { "data-row": change.id } : {};
-  const lit = previewing ? "bg-hover" : previewing === undefined && openable ? "hover:bg-hover" : "";
+  const lit = openable ? "hover:bg-hover" : "";
   const press = openable && (
     <button
       onClick={go}
-      onFocus={(event) => event.currentTarget.matches(":focus-visible") && onFocused(true)}
-      onBlur={() => onFocused(false)}
       aria-label={words ? `${change.title}: ${words}` : change.title}
       className="absolute inset-0 rounded-lg focus-visible:outline-offset-0"
     />
@@ -310,10 +294,7 @@ function Row(props: {
     >
       <div className={`min-h-0 ${leaving || !grown ? "overflow-hidden" : ""}`}>
         {section === "waiting" ? (
-          <div
-            {...pointing}
-            className={`relative -mx-3 rounded-lg px-3 py-3 transition-colors duration-150 ease-calm ${glowing ? "animate-glow" : ""} ${lit}`}
-          >
+          <div className={`relative -mx-3 rounded-lg px-3 py-3 transition-colors duration-150 ease-calm ${glowing ? "animate-glow" : ""} ${lit}`}>
             {press}
             <div className="flex items-start gap-4">
             <h2 className="pointer-events-none min-w-0 flex-1 line-clamp-2 text-[15px] leading-[22px] font-semibold text-fg">{change.title}</h2>
@@ -327,10 +308,11 @@ function Row(props: {
                 {not}
               </p>
             </div>
+            {handBack && <Strip listed={listed} onOpen={onOpen} />}
             {stepAt(true)}
           </div>
         ) : (
-          <div {...pointing} className={`relative ${QUIET_ROW} flex-wrap items-center ${glowing ? "animate-glow" : ""} ${lit}`}>
+          <div className={`relative ${QUIET_ROW} flex-wrap items-center ${glowing ? "animate-glow" : ""} ${lit}`}>
             {press}
             <span className="pointer-events-none min-w-0 flex-1 truncate">
               <span className="text-fg">{change.title}</span>
@@ -371,138 +353,67 @@ function quietWhen(listed: Listed, you: string, now: number) {
   return ago(latestOf(listed.change)!.finished!, now);
 }
 
+// A change's moments under what it is, small, in a line, each its still with its name over its foot. Each is drawn as
+// it is, seen or not: a picture dimmed seemed to show something else. Pressed, one goes straight to its moment. More
+// than fit go on sideways, fading where they do, with a small arrow there for a pointer that can't scroll that way.
+const SMALL = { width: 132, apart: 8 };
 
-type Point = { x: number; y: number };
-
-// Whether a pointer that moved from one point to another is heading for a box past its edge from a to b: it's inside
-// the triangle that edge makes with where the pointer was. On its way there it may cross other rows, which mustn't take
-// the box's place under it.
-function towards(from: Point, to: Point, [a, b]: [Point, Point]): boolean {
-  const side = (p: Point, q: Point) => (q.x - p.x) * (to.y - p.y) - (q.y - p.y) * (to.x - p.x);
-  const turns = [side(from, a), side(a, b), side(b, from)];
-  return !(turns.some((one) => one < 0) && turns.some((one) => one > 0));
-}
-
-// A row's moments come beside it a breath after the pointer reaches it, and another row's at once while any are
-// showing. Heading for them across other rows keeps them; resting there, or turning away, moves them on.
-const BREATH = 70;
-const HEADING = 250;
-
-function usePreviews() {
-  const [shown, setShown] = useState<{ of: string; row: DOMRect }>();
-  const of = useRef<string>(undefined);
-  of.current = shown?.of;
-  const edge = useRef<[Point, Point]>(undefined);
-  const last = useRef<Point>(undefined);
-  const breath = useRef<{ for: string; wait: ReturnType<typeof setTimeout> }>(undefined);
-  const heading = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const rest = () => (clearTimeout(breath.current?.wait), clearTimeout(heading.current), (breath.current = heading.current = undefined));
-  const rowOf = (id: string) => document.querySelector(`[data-row="${CSS.escape(id)}"]`)?.getBoundingClientRect();
-  const show = (id: string) => {
-    rest();
-    const row = rowOf(id);
-    if (row) setShown({ of: id, row });
-  };
-  const hide = () => (rest(), setShown(undefined));
-  // What's under the pointer: a row by its change, the moments beside one, or neither.
-  const under = (at: EventTarget | Element | null) => {
-    const element = at instanceof Element ? at : undefined;
-    return element?.closest("[data-previews]") ? "previews" : element?.closest<HTMLElement>("[data-row]")?.dataset.row;
-  };
-  const settle = (over: string | undefined) => {
-    if (over === "previews" || (over && over === of.current)) return rest();
-    if (!over) return hide();
-    if (of.current) return show(over);
-    if (breath.current?.for === over) return;
-    rest();
-    breath.current = { for: over, wait: setTimeout(() => show(over), BREATH) };
-  };
-  useEffect(() => {
-    // Only a pointer that moves: a row that slides under a still one, as another folds away, shows nothing.
-    const moved = (event: PointerEvent) => {
-      if (event.pointerType === "touch") return;
-      const [from, here] = [last.current, { x: event.clientX, y: event.clientY }];
-      last.current = here;
-      if (from && from.x === here.x && from.y === here.y) return;
-      const over = under(event.target);
-      if (of.current && over !== "previews" && over !== of.current && from && edge.current && towards(from, here, edge.current)) {
-        clearTimeout(heading.current);
-        heading.current = setTimeout(() => settle(under(document.elementFromPoint(here.x, here.y))), HEADING);
-        return;
-      }
-      settle(over);
-    };
-    // Scrolled, the row has gone from under its moments: they go. Their own scrolling is theirs.
-    const scrolled = (event: Event) => !(event.target instanceof Element && event.target.closest("[data-previews]")) && hide();
-    addEventListener("pointermove", moved);
-    addEventListener("scroll", scrolled, { passive: true, capture: true });
-    return () => (rest(), removeEventListener("pointermove", moved), removeEventListener("scroll", scrolled, { capture: true }));
-  }, []);
-  return { of: shown?.of, row: shown?.row, show, hide, edgeAt: (at: [Point, Point]) => void (edge.current = at) };
-}
-
-// A change's moments, small, beside its row, each with its name: to the right where there's room, else under it, or over
-// it where there's more room there, never moving it, and as tall as the window lets them be. Each is drawn as it is,
-// seen or not: a picture dimmed seemed to show something else. Pressed, one goes straight to its moment. Between row and
-// moments, an unseen bridge, so the pointer never crosses a gap that would let them go.
-const PREVIEW = { picture: 184, inset: 6, gap: 2, pad: 4, apart: 16, under: 4, margin: 16 };
-
-function Previews({ listed, row, onEdge, onOpen }: { listed: Listed; row: DOMRect; onEdge: (edge: [Point, Point]) => void; onOpen: (moment: number) => void }) {
+function Strip({ listed, onOpen }: { listed: Listed; onOpen: (moment: number) => void }) {
   const { change } = listed;
   const handBack = latestOf(change)!;
-  const count = handBack.moments.length;
-  const columns = count === 1 ? 1 : count <= 4 ? 2 : 3;
-  const cell = PREVIEW.picture + 2 * PREVIEW.inset;
-  const width = columns * cell + (columns - 1) * PREVIEW.gap + 2 * PREVIEW.pad;
   const own = useRef<HTMLDivElement>(null);
-  const [at, setAt] = useState<{ left: number; top: number; height: number; bridge: { left: number; top: number; width: number; height: number } }>();
-  useLayoutEffect(() => {
-    const natural = own.current!.scrollHeight;
-    const { apart, under, margin } = PREVIEW;
-    if (row.right + apart + width <= innerWidth - margin) {
-      const height = Math.min(natural, innerHeight - 2 * margin);
-      const [left, top] = [row.right + apart, Math.max(margin, Math.min(row.top, innerHeight - margin - height))];
-      onEdge([{ x: left, y: top }, { x: left, y: top + height }]);
-      return setAt({ left, top, height, bridge: { left: row.right, top: row.top, width: apart, height: row.height } });
-    }
-    const left = Math.max(margin, Math.min(row.left, innerWidth - margin - width));
-    const [below, above] = [innerHeight - margin - row.bottom - under, row.top - under - margin];
-    const down = natural <= below || below >= above;
-    const height = Math.min(natural, down ? below : above);
-    const top = down ? row.bottom + under : row.top - under - height;
-    const near = down ? top : top + height;
-    onEdge([{ x: left, y: near }, { x: left + width, y: near }]);
-    setAt({ left, top, height, bridge: { left: row.left, top: down ? row.bottom : row.top - under, width: row.width, height: under } });
-  }, [row]);
-  return createPortal(
-    <>
-      {at && <div data-sheet data-previews className="fixed z-[60]" style={at.bridge} />}
+  const [more, setMore] = useState({ before: false, after: false });
+  const look = () => {
+    const at = own.current;
+    if (!at) return;
+    const now = { before: at.scrollLeft > 1, after: at.scrollLeft + at.clientWidth < at.scrollWidth - 1 };
+    setMore((was) => (was.before === now.before && was.after === now.after ? was : now));
+  };
+  useLayoutEffect(look, [handBack.moments.length]);
+  useEffect(() => {
+    const resized = new ResizeObserver(look);
+    resized.observe(own.current!);
+    return () => resized.disconnect();
+  }, []);
+  const along = (by: 1 | -1) => own.current?.scrollBy({ left: by * (own.current.clientWidth - SMALL.width), behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  const fade = `linear-gradient(to right, ${more.before ? "transparent, #000 36px" : "#000, #000"}, ${more.after ? "#000 calc(100% - 36px), transparent" : "#000"})`;
+  const arrow = (by: 1 | -1, there: boolean) => (
+    <button
+      tabIndex={-1}
+      aria-hidden
+      onClick={() => along(by)}
+      className={`absolute top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded-full bg-surface text-soft shadow-float transition-opacity duration-150 ease-calm hover:text-fg phone:hidden ${by < 0 ? "left-0" : "right-0"} ${there ? "" : "pointer-events-none opacity-0"}`}
+    >
+      <svg viewBox="0 0 12 12" className="size-3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <path d={by < 0 ? "M7.5 2.5L4 6l3.5 3.5" : "M4.5 2.5L8 6l-3.5 3.5"} />
+      </svg>
+    </button>
+  );
+  return (
+    <div className="relative mt-2.5">
       <div
         ref={own}
-        data-sheet
-        data-previews
-        className={`fixed z-[60] animate-arrive overflow-y-auto overscroll-contain rounded-xl bg-surface shadow-float ${at ? "" : "invisible"}`}
-        style={{ left: at?.left ?? 0, top: at?.top ?? 0, width, maxHeight: at?.height, padding: PREVIEW.pad, animationDuration: "150ms" }}
+        onScroll={look}
+        className="-mx-3 flex overflow-x-auto overscroll-x-contain px-3 py-0.5 [scrollbar-width:none]"
+        style={{ gap: SMALL.apart, maskImage: fade, WebkitMaskImage: fade }}
       >
-        <div className="grid" style={{ gridTemplateColumns: `repeat(${columns}, ${cell}px)`, gap: PREVIEW.gap }}>
-          {handBack.moments.map((moment, i) => (
-            // Out of the keyboard's way: a focused row shows them, and Enter on it goes in.
-            <button
-              key={moment.name}
-              tabIndex={-1}
-              onClick={() => onOpen(i + 1)}
-              className="group flex flex-col gap-1.5 rounded-lg text-left transition-colors duration-150 ease-calm hover:bg-hover"
-              style={{ padding: PREVIEW.inset }}
-            >
-              <span className="relative block aspect-[1.6] w-full overflow-hidden rounded-md bg-paper shadow-frame">
-                <StillPicture change={change} handBack={handBack} moment={moment} about={moment.about ?? moment.acted} />
-              </span>
-              <span className="line-clamp-2 px-0.5 text-[12px] leading-4 text-soft transition-colors duration-150 ease-calm group-hover:text-fg">{moment.name}</span>
-            </button>
-          ))}
-        </div>
+        {handBack.moments.map((moment, i) => (
+          <button
+            key={moment.name}
+            onClick={() => onOpen(i + 1)}
+            aria-label={moment.name}
+            className="group relative aspect-[1.6] flex-none overflow-hidden rounded-md bg-paper text-left shadow-frame transition-shadow duration-150 ease-calm hover:shadow-[0_0_0_2px_var(--faint)]"
+            style={{ width: SMALL.width }}
+          >
+            <StillPicture change={change} handBack={handBack} moment={moment} about={moment.about ?? moment.acted} />
+            <span className="absolute inset-x-0 bottom-0 bg-linear-to-t from-[rgba(16,18,24,0.86)] via-[rgba(16,18,24,0.6)] to-transparent px-1.5 pt-5 pb-1 transition-opacity duration-150 ease-calm group-hover:from-[rgba(16,18,24,0.94)]">
+              <span className="line-clamp-2 text-[11px] leading-[14px] font-medium text-white">{moment.name}</span>
+            </span>
+          </button>
+        ))}
       </div>
-    </>,
-    document.body,
+      {arrow(-1, more.before)}
+      {arrow(1, more.after)}
+    </div>
   );
 }

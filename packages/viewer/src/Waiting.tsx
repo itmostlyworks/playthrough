@@ -73,8 +73,8 @@ export function Opener({ waiting, open, onOpen }: { waiting: number; open?: Open
 // How long the pointer can be away from a sheet opened by pointing before it goes.
 const AWAY = 300;
 
-// Every change, over the page, opened from what's waiting, as if from it. What belongs to it, its previews too, says so
-// with `data-sheet`, so the pointer can go to them without the sheet going.
+// Every change, over the page, opened from what's waiting, as if from it. What belongs to it says so with `data-sheet`:
+// opened by pointing, it goes once the pointer has been off that a while.
 export function Sheet({ pointed, onClose, children }: { pointed: boolean; onClose: () => void; children: ReactNode }) {
   const own = useRef<HTMLDivElement>(null);
   const close = useRef(onClose);

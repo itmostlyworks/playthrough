@@ -20,7 +20,7 @@ export function Header({ opener, centre, children }: { opener: ReactNode; centre
 export function Title({ title, asked, quiet }: { title: string; asked?: string; quiet: string }) {
   const phone = usePhone();
   const [shown, setShown] = useState(false);
-  // A breath, as the previews have, so a pointer passing over the title shows nothing.
+  // A breath, so a pointer passing over the title shows nothing.
   const breath = useRef<ReturnType<typeof setTimeout>>(undefined);
   const rest = () => (clearTimeout(breath.current), (breath.current = undefined));
   const show = (now: boolean) => (rest(), now ? setShown(true) : (breath.current = setTimeout(() => (rest(), setShown(true)), 70)));

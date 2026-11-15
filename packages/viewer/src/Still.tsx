@@ -1,4 +1,4 @@
-// A moment's still: its picture closed in on what it's about, as a change's previews show it and a moment's left edge
+// A moment's still: its picture closed in on what it's about, as a change's row shows it in the sheet and a moment's left edge
 // does.
 
 import { useEffect, useState } from "react";
@@ -53,7 +53,7 @@ export function aboutBox(reading: Reading | undefined, about: { role: string; na
 // What runs off an edge the page goes on past fades there rather than being cut.
 const FADE = 20;
 
-// A moment's still, for whatever holds it, a change's previews or a moment's edge: the app at its point, closed in on
+// A moment's still, for whatever holds it, a change's row in the sheet or a moment's edge: the app at its point, closed in on
 // what it's about, or where it names nothing, on the last thing done on the way that's still there; the whole screen
 // where there's neither.
 export function StillPicture({ change, handBack, moment, about }: { change: Change; handBack: HandBack; moment: Moment; about?: { role: string; name: string } }) {
