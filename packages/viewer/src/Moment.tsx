@@ -524,10 +524,10 @@ export function MomentView(props: {
           }
           words={
             <>
-              {/* Who by their name alone: who they are is said over the recording once you're there. */}
+              {/* What happens, then as whom, as over the recording: here by their name alone, who they are is said there. */}
               <span className="line-clamp-2 text-[12.5px] leading-[17px] text-fg">
-                {other.person && <span className="text-soft">{other.person} · </span>}
                 {other.name}
+                {other.person && <span className="text-soft"> as {other.person}</span>}
               </span>
             </>
           }
@@ -640,14 +640,14 @@ export function MomentView(props: {
           onPointerMove={(event) => (movePill(event), setAiming(!(event.target as Element).closest("[role=toolbar]")))}
           onPointerLeave={() => setAiming(false)}
         >
-          {/* What this is, on the recording's top, wherever that stands: the change's title, quietly, and under it who
-              and where in the agent's words. Those take two lines at most, three on a phone, growing up into room kept
+          {/* What this is, on the recording's top, wherever that stands: the change's title, quietly, and under it the
+              moment in the agent's words, then as whom ("… as Maja, the admin"). Those take two lines at most, three on a phone, growing up into room kept
               for them, so nothing under them moves. */}
           <div className="absolute inset-x-0 bottom-full mb-3 flex flex-col items-center phone:mb-2 phone:items-start">
             {!phone && title}
             <p className="line-clamp-2 text-center text-[15px] leading-[22px] text-balance text-fg phone:line-clamp-3 phone:text-left" title={moment.name}>
-              {who && <span className="text-soft">{who} · </span>}
               {moment.name}
+              {who && <span className="text-soft"> as {who}</span>}
             </p>
           </div>
           <div

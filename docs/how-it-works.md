@@ -209,8 +209,9 @@ this is stands on the recording's top. The left is one thing to press, the opene
 key; on a phone the mark and "6 waiting" alone.
 
 **What this is** is the recording's, not the header's, in one stack on its top, centred over it, 12px above its edge,
-wherever the recording stands in its room: the change's title, quiet and small, and under it who it's done as and the
-moment's name, on the line the edges' words are on. Those take two lines at most (three on a phone, at the left),
+wherever the recording stands in its room: the change's title, quiet and small, and under it the moment's name, then
+who it's done as, quieter ("Words typed at the start stay there as Maja, a workspace owner"), on the line the edges'
+words are on. Those take two lines at most (three on a phone, at the left),
 growing up into room kept over the recording (`inItsRoom`, three lines' worth, which the opening card's picture stands
 in too, so going in moves nothing). The title, pointed at (after 70 ms) or reached with the keyboard, brings a small
 card with what you asked in your own words and the app and when it came back: over the title where it fits under the
@@ -287,7 +288,7 @@ you're on or the one pointed at; the picture's own border is only there at rest.
 over it, 16px from it, running past the screen's edge where the window is too narrow for them, fading out over its last
 few pixels (never over pictures wholly on the screen). Pointed at (after 70 ms; going back after 220 ms), or reached with
 Tab, an edge comes forward: it slides until its pictures are 16px from the screen's edge, a little over the recording,
-its cards alone, each a little apart. A moment's card's words, who by name and its words, come up over its picture's
+its cards alone, each a little apart. A moment's card's words, its name and then as whom, by their name alone ("… as Maja"), come up over its picture's
 lower part. A note's card is the same at rest and forward, and leads with what it is as a moment leads with its picture: its dot, its latest words in two lines
 and where it stands, over a slim strip of its picture, set in; a new answer's New mark shows at rest. A touch brings an edge forward first. Many scroll in their
 own column, under the wheel, their cut end fading over 64px; the moment you're on, a note open or one arriving is
