@@ -196,13 +196,16 @@ edge beside it), on Playthrough's own surface, fading in over the last moment an
 does. Over it, the change's title takes the moment's line, as the sheet's heading, and its own small place above
 rests empty: both lines stay drawn, one faded out, so nothing moves (measured: the frame, both edges and both lines,
 0 px through ↓ and ↑, from a one-line and a two-line last moment). In the sheet, one block centred in the frame's
-height, clear of the bar: "You asked" and your words, the sheet's main thing, at 21px in a measure of 30em, whole
-while the frame has the height (else cut, whole on hover); nothing if you asked nothing. Under it, "Your notes": the
+height while it fits, else from the top, clear of the bar: "You asked" and your words, with nothing to send the sheet's
+main thing, at 21px in a measure of 30em, whole while the frame has the height (else cut, whole on hover); with notes
+to send, they are, and what you asked steps back to the moment line's 15px, three lines at most (whole on hover and to
+the keyboard); nothing if you asked nothing. Under it, "Your notes": the
 notes Send will send and only those (your notes not sent, and sent ones with your reply not sent), so they add up to
 the button's count; sent and answered ones aren't here, they're settled on their moments. Each is its card as the
 Notes edge has it forward (its dot, your words in full, its strip), with the moment it's on, quietly; pressed, it opens
-on its moment. One card alone at 300 wide; several, two or three across at that width, tops aligned, scrolling inside
-the frame past what fits. Just sent, they stay, their dots slate, till the page goes on. Last, what's still to do, as
+on its moment. One card alone at 300 wide; several, two or three across at that width, tops aligned. Past what fits,
+their part scrolls on its own (the wheel, touch, Tab; never ↑ ↓, which are the list's), ending clear of the bar and
+fading at whichever edge has more beyond it, so no card is cut hard. Just sent, they stay, their dots slate, till the page goes on. Last, what's still to do, as
 quiet lines you can press: "2 moments not watched" (to the first of them), "1 answer not opened" (to it); nothing when
 there's nothing. Only your words: nothing the agent wrote. There you're on no moment: the Notes edge holds no cards, its word
 staying while the change has notes. The bar's
