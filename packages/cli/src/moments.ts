@@ -32,7 +32,7 @@ import { markUnsteady, recorder, runOnce } from "./run.ts";
 import { seenChanging, SQUARE, squaresOf, type Square } from "./seen.ts";
 import { setupIn } from "./setup.ts";
 import { listening } from "./wait.ts";
-import { aboutSaid, ENDED, fileOf, wayFile, TIMED, whatDiffers, type About, type Done } from "./way.ts";
+import { aboutSaid, ENDED, fileOf, notSo, wayFile, TIMED, whatDiffers, type About, type Done } from "./way.ts";
 
 // What a moment says is what's there, short enough to sit under a picture of it: who and where, the person sees.
 const MOST_WORDS = 10;
@@ -91,7 +91,8 @@ export async function moment(repo: Repo, words: string, named?: string, last?: n
   const [recorded] = ran.recorded;
   const [failed] = ran.failed;
   if (!recorded) {
-    if (there.about && failed?.why?.includes("expect(")) throw notKept(`it got there, but ${aboutSaid(there.about)} wasn't so: ${failed.why}`);
+    if (there.about && failed?.found) throw notKept(`it got there, but ${notSo(there.about, failed.found)}.`);
+    if (there.about && failed?.why?.includes("expect(")) throw notKept(`it got there, but ${aboutSaid(there.about)} wasn't as it is where you are: ${failed.why}`);
     throw notKept(`it didn't get there${failed?.why ? `: ${failed.why}` : "."}`);
   }
   const readings: Reading[] = JSON.parse(recorded.files.find((one) => one.name === readingsOf(recorded.moment))!.bytes.toString());

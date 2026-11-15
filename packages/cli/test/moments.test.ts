@@ -15,7 +15,8 @@ import { howEachWent } from "../src/moments.ts";
 import { repo } from "../src/repo.ts";
 import { problemsWithPeople } from "../src/setup.ts";
 import { agentWaiting, listening } from "../src/wait.ts";
-import { fileOf, sameAddress, wayFile, wayIn, whatDiffers, wordsIn, type Done } from "../src/way.ts";
+import { foundOf } from "../src/reporter.ts";
+import { fileOf, notSo, sameAddress, wayFile, wayIn, whatDiffers, wordsIn, type Done } from "../src/way.ts";
 
 const folders: string[] = [];
 after(() => Promise.all(folders.map((folder) => rm(folder, { recursive: true, force: true }))));
@@ -90,6 +91,14 @@ describe("the way to a moment", () => {
     assert.match(checked, /\.toHaveValue\("BS"\);/);
     assert.match(checked, /\.not\.toBeEditable\(\);/);
     assert.doesNotMatch(wayIn(checked), /expect\(/, "going there by hand, nothing's checked");
+  });
+
+  test("found otherwise when run again, says what it looked for and what it found, as the agent would", () => {
+    const gone = foundOf("expect(locator).toBeVisible() failed\n\nLocator: getByRole('link', { name: 'My cards', exact: true })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:");
+    assert.equal(notSo({ role: "link", name: "My cards", disabled: false }, gone!), "no link “My cards” was to be seen");
+    const stuck = foundOf("expect(locator).toBeEnabled() failed\n\nLocator:  getByRole('button', { name: 'Save', exact: true })\nExpected: enabled\nReceived: disabled\nTimeout:  5000ms");
+    assert.equal(notSo({ role: "button", name: "Save", disabled: false }, stuck!), "button “Save” was disabled, not enabled");
+    assert.equal(foundOf("page.goto: net::ERR_CONNECTION_REFUSED"), undefined);
   });
 
   test("does the way there before the moment's step, and only what the moment shows in it; going there by hand does both", () => {

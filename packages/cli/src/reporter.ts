@@ -47,7 +47,16 @@ export function firstLine(said: string) {
   if (found.length) line = `${line} ${found.slice(0, 2).join(", ")}${found.length > 2 ? ", …" : ""}`;
   return line.length > 300 ? `${line.slice(0, 300)}…` : line;
 }
-export type Failed = { moment: string; at?: string; why?: string; broken?: true };
+// For a check that failed, what it looked for and what it found instead, in Playwright's words: "visible" and nothing;
+// "enabled" and "disabled".
+export function foundOf(said: string): { expected: string; found: string } | undefined {
+  const lines = said.replace(/\x1b\[[0-9;]*m/g, "").split("\n").map((line) => line.trim());
+  const [expected, received] = ["Expected:", "Received:"].map((label) => lines.find((line) => line.startsWith(label))?.slice(label.length).trim());
+  const found = received ?? (lines.some((line) => line === "Error: element(s) not found") ? "nothing" : undefined);
+  return expected && found ? { expected, found } : undefined;
+}
+
+export type Failed = { moment: string; at?: string; why?: string; found?: { expected: string; found: string }; broken?: true };
 // What Playwright says when the browser stops a moment, not the app: the page crashed or closed, or the app stopped answering.
 const BROKEN = /Page crashed|Target crashed|Target page, context or browser has been closed|net::ERR_CONNECTION_REFUSED/;
 export type Recorded = { moment: Moment; files: string[] };
@@ -97,7 +106,8 @@ export default class MomentReporter implements Reporter {
     const said = (stop?.error ?? result.error)?.message ?? "";
     const broken = BROKEN.test(said);
     const why = firstLine(said);
-    this.#ran.push({ ...where, failed: { moment: test.title, ...(stop?.error && { at: stop.title }), ...(why && { why }), ...(broken && { broken }) } });
+    const found = foundOf(said);
+    this.#ran.push({ ...where, failed: { moment: test.title, ...(stop?.error && { at: stop.title }), ...(why && { why }), ...(found && { found }), ...(broken && { broken }) } });
     went(broken ? "the browser stopped it" : stop?.error ? `failed at ${quote(stop.title)}` : "failed before its first step");
   }
 

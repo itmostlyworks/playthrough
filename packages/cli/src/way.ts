@@ -186,5 +186,10 @@ export const TIMED = /\d\s*(s|secs?|seconds?|m|mins?|minutes?|h|hrs?|hours?|d|da
 const said = (one: ReturnType<typeof differences>["differences"][number]) =>
   "now" in one && "then" in one ? `${one.what}: ${one.then.role} ${quote(one.then.name)} → ${quote(one.now.name)}` : one.what === "new" ? `only run again: ${one.now.role} ${quote(one.now.name)}` : `only where you are: ${one.then.role} ${quote(one.then.name)}`;
 
+// What the moment is about, checked again at the end of the way and found otherwise: not there to be seen, or not as it
+// was where the agent is ("button “Save” was disabled, not enabled").
+export const notSo = (about: About, { expected, found }: { expected: string; found: string }) =>
+  found === "nothing" ? `no ${about.role === "text" ? "words" : about.role} ${quote(about.name)} was to be seen` : `${aboutSaid(about)} was ${found}, not ${expected}`;
+
 export const aboutSaid = (about: About) =>
   `${about.role === "text" ? "words" : about.role} ${quote(about.name)}${about.value !== undefined ? `, saying ${quote(about.value)}` : ""}${about.disabled ? ", which can't be changed" : ""}${about.checked !== undefined ? (about.checked ? ", checked" : ", not checked") : ""}`;
