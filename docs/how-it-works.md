@@ -93,7 +93,8 @@ open already starts again, fresh, as whoever is named; given a moment, it goes t
 **`moment`** (`moments.ts`, `way.ts`) reads where that browser is and what the moment is about (the thing named, as the
 page names it, or else the thing its words name), works out where it starts (below), writes the way there as the moment's
 file, and runs it from a fresh start as the same person. It's kept only if it lands: the same page read, the same
-address, and what it's about saying the same; else it says what differed, and words that tell the time, reworded only
+address, and what it's about saying the same; else it says what differed (what it's about otherwise as what was looked
+for and what was found: "no link “My cards” was to be seen", "button “Save” was disabled, not enabled"), and words that tell the time, reworded only
 in their numbers, are left out of that and said. It's run a second time, and what differs between the two runs changes
 by itself (a caret, a time the server stamps), so it's left out of every comparison from then on (`markUnsteady`). Its
 words are ten at most and never name a person, as the page already says who. Marked again with the same words, it
@@ -243,7 +244,7 @@ card is for a moment: one short line (40px), a moment's card in width, corners a
 rest, its words held 8px from the screen's edge at rest where the edge's fade leaves room ("Send 2" when "Send 2 notes"
 doesn't fit there), quiet on every moment, and at the last stop full, with the line that says where you are, which
 no moment's card has then; pressed, it goes there. Keys there: ↑, K or Escape back to the last moment; Enter the
-step; Shift ↑ the change's last note; W as anywhere; nothing else. `/` when the next change is seen all through
+step, on this card too when Tab and Enter brought you there by it; Shift ↑ the change's last note; W as anywhere; nothing else. `/` when the next change is seen all through
 (`seenThrough`) opens at its last stop. Nothing else says anything to the agent: ↓ never does, and Space is never a
 press (`useSpaceStays`). On a phone, the sheet is two pictures to a row in the frame, the step in the bar, and the
 card under the Moments strip. With nothing waiting,
@@ -325,7 +326,9 @@ the next, along the moment, and never on into another; ↑ ↓ (and K, J) the mo
 going to the last stop; with Shift, ↑ ↓ the note before and the next through the whole change, opening each: this
 moment's one after another, then on to the nearest moment that has one (its first going on, its last going back), and
 nothing past the change's first or last; W what's waiting; Escape closes what's open, leaves Compare or noting, or
-calls off a step in on its way; while the app is yours, Escape twice is Back; Ctrl+Enter (⌘↵) sends. Reduced motion: nothing slides or fades.
+calls off a step in on its way; while the app is yours, Escape twice is Back; Ctrl+Enter (⌘↵) sends, wherever the
+keyboard is. Noting, while the bar says "Point at what it's about", only N and Escape answer, so words typed before
+pointing and the arrows run nothing; there's no key yet to point with. Reduced motion: nothing slides or fades.
 
 **The edges** (`Edge.tsx`). On the left, the change's moments; on the right, this moment's notes, sent then unsent, in
 the order said. Over each, what it holds, in a word, "Moments" and "Notes": at its pictures' outer side, or 24px
@@ -470,7 +473,8 @@ minute) and 30 s for the app's page to settle, then says so under the bar, with 
 running. Whatever stopped it is said under the bar in the server's words; in the app, so is a check at the end that
 doesn't hold now. The app opens in the recording's place, at the same size,
 and the recording's pointer comes to yours wherever yours has gone, and gives way to it. In the app the bar says "You,
-as …" beside Back, whose keys read Esc Esc: a single Escape is the app's, whatever the app does with it, or nothing,
+as …" beside Back, whose keys read Esc Esc. Back, the keyboard comes back to the page, and the app kept ready underneath
+is inert until it's yours again, so Tab never walks an app nobody can see. A single Escape is the app's, whatever the app does with it, or nothing,
 and Playthrough does nothing with it; Escape twice, the second within half a second of the first, is Back, and the app
 never hears that second press (`escapedTwice`, `twice.ts` in `@playthrough/page`, the same rule in the app and on
 Playthrough's page around it). A key held down is one press; with Note on, Escape is Playthrough's and turns it off,
