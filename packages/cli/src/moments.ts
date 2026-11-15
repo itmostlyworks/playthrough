@@ -17,10 +17,10 @@ import { chromium, type Page } from "@playwright/test";
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import type { Glimpse, Reading } from "@playthrough/page";
-import { allNotes, conversation, list, madeInApp, MOST_SHOWN, notesToAnswer, saidDone, quote, Refused, handBackInProgress, startOf, toAccountFor, type Finding, type Change, type HandBack, type Moment } from "@playthrough/change";
+import { allNotes, conversation, list, madeInApp, MOST_SHOWN, notesToAnswer, saidDone, quote, Refused, handBackInProgress, sendsNotTaken, startOf, toAccountFor, type Finding, type Change, type HandBack, type Moment } from "@playthrough/change";
 import { agent } from "./agent.ts";
 import { browserFile, stopBrowser, type Browser } from "./as.ts";
-import { changeHere, momentNamed, momentsOf } from "./change.ts";
+import { changeHere, meanHere, meantHere, momentNamed, momentsOf } from "./change.ts";
 import { compareWithEarlier } from "./compare.ts";
 import { everyCopy, machine } from "./machine.ts";
 import { pictureNotes } from "./noted.ts";
@@ -31,7 +31,7 @@ import { frameOf, glimpsesOf, readingsOf, type Failed } from "./reporter.ts";
 import { markUnsteady, recorder, runOnce } from "./run.ts";
 import { seenChanging, SQUARE, squaresOf, type Square } from "./seen.ts";
 import { setupIn } from "./setup.ts";
-import { listening } from "./wait.ts";
+import { listening, unheard } from "./wait.ts";
 import { aboutSaid, ENDED, fileOf, notSo, wayFile, TIMED, whatDiffers, type About, type Done } from "./way.ts";
 
 // What a moment says is what's there, short enough to sit under a picture of it: who and where, the person sees.
@@ -427,12 +427,12 @@ export async function answer(repo: Repo, note: string, words: string | undefined
 // Hands back what's been done since the person last spoke, then waits for what they say next, and says it: each note,
 // on its moment, with a picture, and how to stand where they stood. Said Done, the change is done, and it ends.
 export async function wait(repo: Repo) {
-  const id = await changeHere(repo);
   const changes = repo.changes;
-  let change = await changes.get(id);
-  const last = change.handBacks.at(-1);
-  if (!last?.moments.length) throw new Refused(["There are no moments to hand back yet. Mark one: playthrough as <person>, then playthrough moment \"<what's there>\""]);
-  if (!last.finished) {
+  const meant = await meantHere(repo);
+  let change = meant === undefined ? undefined : await changes.get(meant);
+  const last = change?.handBacks.at(-1);
+  if (change && last?.moments.length && !last.finished) {
+    const id = change.id;
     const unanswered = notesToAnswer(change, last.number).filter((note) => !last.replies.some((reply) => reply.note === note && reply.words.trim()));
     if (unanswered.length) throw new Refused([`Answer each note first: ${unanswered.map((note) => `playthrough answer ${note} "<what you did, in a line>"`).join("; ")}`]);
     const missing = momentsOf(repo, id).filter((way) => !last.moments.some((moment) => moment.name === way.words));
@@ -444,16 +444,32 @@ export async function wait(repo: Repo) {
     console.log(`Handed back: the person sees ${last.moments.length > 1 ? `the ${last.moments.length} moments` : "the moment"} as they are now${last.replies.length ? ", and your answers" : ""}.`);
     if (await stopBrowser(repo)) console.log("The browser from playthrough as is stopped: it starts again when you need it.");
     console.log(await addressOf(repo, id));
-  } else {
+  } else if (change && last?.finished) {
     // Notes taken by a wait that stopped before they were answered are said again.
-    const asking = notesToAnswer(change, last.number + 1);
-    if (asking.length) return sayNotes(repo, change, last.number + 1, asking, change.sends.find((send) => change.taken.some((taken) => taken.send === send.id && taken.handBack === last.number + 1))?.by);
+    const kept = change;
+    const asking = notesToAnswer(kept, last.number + 1);
+    if (asking.length) return sayNotes(repo, kept, last.number + 1, asking, kept.sends.find((send) => kept.taken.some((taken) => taken.send === send.id && taken.handBack === last.number + 1))?.by);
   }
+  // Notes sent while no agent was listening are the next agent's, whichever change it's on, or with none named: the
+  // person was told to ask any agent for them.
+  const [nobodys] = await unheard(repo);
+  if (nobodys) {
+    const taken = await changes.take(nobodys.id);
+    change = await changes.get(nobodys.id);
+    if (nobodys.id !== meant) {
+      await meanHere(repo, nobodys.id);
+      console.log(`\nThese notes are on ${quote(change.title)}: what you run here means it now.`);
+    }
+    const number = handBackInProgress(change);
+    return sayNotes(repo, change, number, notesToAnswer(change, number), taken[0]?.by);
+  }
+  const id = await changeHere(repo);
+  if (!last?.moments.length) throw new Refused(["There are no moments to hand back yet. Mark one: playthrough as <person>, then playthrough moment \"<what's there>\""]);
   console.log("Waiting for the person…");
   for (;;) {
     // While it waits, the person's page says an agent is listening.
     const heard = await listening(repo, id);
-    change = await changes.wait(id, (change) => change.sends.some((send) => !change.taken.some((taken) => taken.send === send.id))).finally(heard);
+    change = await changes.wait(id, (change) => sendsNotTaken(change).length > 0).finally(heard);
     const taken = await changes.take(id);
     change = await changes.get(id);
     const number = handBackInProgress(change);

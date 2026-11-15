@@ -85,7 +85,8 @@ EACH CHANGE
 WHEN THE PERSON SPEAKS
 
 Wait prints each note on its moment, with a picture of what they saw and how to stand there (playthrough as <person>
-"<moment>"). Then:
+"<moment>"). Notes sent while no agent was listening are the next agent's: every command says so, and wait gets them,
+whatever change you're on, and what you run means theirs from then on. Then:
 7. Change the app.
 8. playthrough again: every moment runs on the code as it is now, and each is the same, different (and how), or
    couldn't get there. For each note, the person must be able to see what you did: in the moment it was on, run again,

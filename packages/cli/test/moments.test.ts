@@ -9,12 +9,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, test } from "node:test";
 import type { Reading, Thing } from "@playthrough/page";
-import { madeBySetup, Refused, type HandBack, type Moment } from "@playthrough/change";
+import { madeBySetup, newId, Refused, type HandBack, type Moment, type Send } from "@playthrough/change";
 import { change, changeHere, idOf, momentNamed, titleOf, momentsOf } from "../src/change.ts";
-import { howEachWent } from "../src/moments.ts";
+import { howEachWent, wait } from "../src/moments.ts";
 import { repo } from "../src/repo.ts";
 import { problemsWithPeople } from "../src/setup.ts";
-import { agentWaiting, listening } from "../src/wait.ts";
+import { agentWaiting, listening, unheardSaid } from "../src/wait.ts";
 import { foundOf } from "../src/reporter.ts";
 import { fileOf, notSo, sameAddress, wayFile, wayIn, whatDiffers, wordsIn, type Done } from "../src/way.ts";
 
@@ -307,6 +307,57 @@ describe("an agent listening", () => {
     said(2 ** 22 + 1, "");
     rmSync(join(here.waiting("marked"), String(process.pid)));
     assert.equal(await agentWaiting(here, "marked"), false, "one whose process has ended");
+  });
+});
+
+describe("notes sent with no agent listening", () => {
+  const TOTAL = "total-under-the-invoices-table";
+  const said = (words: string): Send => ({ id: newId(), handBack: 1, by: "Kit", sent: new Date().toISOString(), notes: [{ id: newId(), words, on: { handBack: 1, moment: "The total of all eight", at: 1 } }] });
+  // The agent that made the change handed it back and was stopped; then the person sent a note on it.
+  const leftBehind = async () => {
+    const here = repo(await mkdtemp(join(tmpdir(), "playthrough-unheard-")));
+    folders.push(here.root);
+    await quietly(() => change(here, "Total under the invoices table", "Show the total under the table."));
+    await here.changes.saveHandBack(TOTAL, { number: 1, by: "Claude Code", moments: [{ name: "The total of all eight", length: 2, actions: [], recording: "the-total-of-all-eight.json", person: "Ana", from: 0 }], replies: [] });
+    await here.changes.finish(TOTAL, 1);
+    await here.changes.send(TOTAL, said("Say what it's the total of, like “Total of 3 open invoices”."));
+    return here;
+  };
+  const heard = async (run: () => Promise<unknown>) => {
+    const lines: string[] = [];
+    const log = console.log;
+    console.log = (...words: unknown[]) => void lines.push(words.join(" "));
+    try {
+      await run();
+    } finally {
+      console.log = log;
+    }
+    return lines.join("\n");
+  };
+
+  test("are said before anything an agent runs, by whom and on which change, with what gets them, until an agent listens", async () => {
+    const here = await leftBehind();
+    assert.deepEqual(await unheardSaid(here), [`Kit sent a note on “Total under the invoices table”, and no agent is listening for it. playthrough wait gets it, whatever change you're on.`]);
+    const stop = await listening(here, TOTAL);
+    assert.deepEqual(await unheardSaid(here), [], "an agent waiting has them");
+    stop();
+  });
+
+  test("are what wait gives an agent on another change, and what's run here means their change from then on", async () => {
+    const here = await leftBehind();
+    await quietly(() => change(here, "Show the total of the shown invoices", "A total for what's shown."));
+    const told = await heard(() => wait(here));
+    assert.match(told, /These notes are on “Total under the invoices table”: what you run here means it now\.\n\nKit said:\n[\s\S]*Kit: Say what it's the total of/);
+    assert.doesNotMatch(told, /Waiting for the person/);
+    assert.equal(await changeHere(here), TOTAL);
+    assert.deepEqual(await unheardSaid(here), [], "taken, they're the agent's");
+  });
+
+  test("are what wait gives an agent that hasn't named a change", async () => {
+    const here = await leftBehind();
+    rmSync(join(here.root, ".playthrough", "working-on.json"));
+    assert.match(await heard(() => wait(here)), /Kit said:[\s\S]*Say what it's the total of/);
+    assert.equal(await changeHere(here), TOTAL);
   });
 });
 

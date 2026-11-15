@@ -47,7 +47,7 @@ export async function change(repo: Repo, said: string | undefined, asked: string
   const { title: kept } = await repo.changes.get(id);
   // Two titles can make the same name: the second would carry on the first, and what was asked of it would be lost.
   if (kept !== title) throw new Refused([`${quote(title)} would be the change ${quote(kept)}, which is here already. To carry that one on, name it by its own title; for another change, give this one a title of its own.`]);
-  await writeFile(meantIn(repo), `${JSON.stringify({ change: id })}\n`);
+  await meanHere(repo, id);
   const moments = momentsOf(repo, id).length;
   console.log(
     known
@@ -58,13 +58,22 @@ export async function change(repo: Repo, said: string | undefined, asked: string
 
 // The change this copy's commands mean: the one named last here.
 export async function changeHere(repo: Repo): Promise<string> {
-  if (!existsSync(meantIn(repo)) && existsSync(meantBefore(repo))) await rename(meantBefore(repo), meantIn(repo));
-  const kept = existsSync(meantIn(repo)) ? JSON.parse(await readFile(meantIn(repo), "utf8")).change : undefined;
-  if (!kept || !(await repo.changes.list()).includes(kept)) throw new Refused([`Say what the change is first, once: ${HOW}`]);
+  const kept = await meantHere(repo);
+  if (!kept) throw new Refused([`Say what the change is first, once: ${HOW}`]);
   // Read once, so one kept by an older Playthrough is brought along before its moments' files are.
   await repo.changes.get(kept);
   return kept;
 }
+
+// The one named last here, if there is one and it's still here.
+export async function meantHere(repo: Repo): Promise<string | undefined> {
+  if (!existsSync(meantIn(repo)) && existsSync(meantBefore(repo))) await rename(meantBefore(repo), meantIn(repo));
+  const kept = existsSync(meantIn(repo)) ? JSON.parse(await readFile(meantIn(repo), "utf8")).change : undefined;
+  return kept && (await repo.changes.list()).includes(kept) ? kept : undefined;
+}
+
+// What's run here means this change from now on.
+export const meanHere = (repo: Repo, id: string) => writeFile(meantIn(repo), `${JSON.stringify({ change: id })}\n`);
 
 // A change's moments are the files of their ways there, each named by its words: what's run again, and handed back.
 export function momentsOf(repo: Repo, id: string): { words: string; file: string }[] {

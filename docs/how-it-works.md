@@ -144,6 +144,16 @@ nearest words of their own, never a part of the page that only holds others' (Ka
 it took already are said again; `MOMENTS.md` tells the agent to give it the longest time limit its shell allows, since
 a shell's own (Claude Code's background limit) stopped one at ten minutes.
 
+**Notes nobody is listening for** (`unheard`, in `wait.ts`) are notes sent on any change in this copy that no agent has
+taken and none is waiting for: the page's "No agent listening", whose line for the person to tell a new agent is "Pick up
+my notes in Playthrough." Every command but `wait` and `open`, the help included, says them first, one line a change:
+`Kit sent a note on “Total under the invoices table”, and no agent is listening for it. playthrough wait gets it,
+whatever change you're on.` `wait` gets them whichever change is meant here, or with none named: it hands back the
+change it's on if that's ready, then, rather than waiting, takes the longest-waiting of them and says them, and what's
+run here means their change from then on (`These notes are on “…”: what you run here means it now.`). From 15 Nov's
+user testing: the agent was stopped after handing back, the person sent a remark, and a new agent told exactly the
+page's words read the help, named a change of its own, and waited on it; the remark sat for 25 minutes.
+
 Each hand-back says which agent made it: Claude Code, Codex, Cursor and Gemini CLI are known from their shell
 (`agent.ts`); any other is "Agent".
 

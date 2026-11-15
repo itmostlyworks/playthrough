@@ -50,6 +50,10 @@ export function waitingForTheAgent(change: Change): string[] {
   return asking(change.sends.filter((send) => !answered(send)));
 }
 
+// What's been sent that no agent has taken yet, and the notes in it: what the next wait on the change gets.
+export const sendsNotTaken = (change: Change) => change.sends.filter((send) => !change.taken.some((taken) => taken.send === send.id));
+export const notesNotTaken = (change: Change) => asking(sendsNotTaken(change));
+
 // The send that said the change is done, while it stands: done is the person's latest word, on the moments as last handed
 // back, saying Done. Whatever comes after it opens the change again: a note or a reply sent, or the moments handed back
 // anew. Asked about one person, it's their latest word.

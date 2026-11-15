@@ -14,6 +14,7 @@ import {
   problemsWithSend,
   problemsSeeing,
   handBackInProgress,
+  sendsNotTaken,
 } from "./rules.ts";
 import { list, quote } from "./words.ts";
 
@@ -150,7 +151,7 @@ export class Changes {
   async take(id: string): Promise<Send[]> {
     return this.#one(id, async () => {
       const change = await this.#read(id);
-      const fresh = change.sends.filter((send) => !change.taken.some((taken) => taken.send === send.id));
+      const fresh = sendsNotTaken(change);
       if (!fresh.length) return [];
       const handBack = handBackInProgress(change);
       const at = now();

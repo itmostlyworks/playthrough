@@ -13,6 +13,7 @@ import { again, answer, drop, moment, wait } from "./moments.ts";
 import { know } from "./machine.ts";
 import { open } from "./open.ts";
 import { repo } from "./repo.ts";
+import { unheardSaid } from "./wait.ts";
 
 // Everything an agent needs to know, read once: bare, the command says it.
 const HELP = readFileSync(new URL("../MOMENTS.md", import.meta.url), "utf8").trimEnd();
@@ -37,6 +38,12 @@ const lastSaid = lastAt < 0 ? undefined : given[lastAt]!.includes("=") ? given[l
 const words = lastAt < 0 ? given : given.toSpliced(lastAt, given[lastAt]!.includes("=") ? 1 : 2);
 // The app this is run in is known to the machine's one page from now on, as soon as Playthrough has a folder in it.
 know(repo().root);
+// Notes the person sent with no agent listening are said before anything else, help included, as the first thing an
+// agent runs is often the help, cut short. Wait gets them; open is the person's.
+if (!["wait", "open"].includes(command!)) {
+  const unheard = await unheardSaid(repo());
+  if (unheard.length) console.log(`${unheard.join("\n")}\n`);
+}
 try {
   // Asked for help anywhere, as by reflex after a command, it's the help, never the command.
   if (!command || ["help", "--help", "-h"].includes(command) || words.some((word) => ["--help", "-h"].includes(word))) console.log(HELP);
