@@ -193,13 +193,17 @@ and after the last, **the last stop** (`/moments/<copy>/<change>/end`; a reload 
 between moments), where it's dimmed. The last stop is where the change ends in what you do. The recording's frame
 holds a sheet of the whole change (`LastStop.tsx`) on Playthrough's own surface, fading in over the last moment and
 out again as going between moments does; nothing else on the page moves (measured: the frame, the title, both edges'
-words and cards, 0 px through ↓ and ↑). Over it, in the moment's line's place, what you asked in your own words,
-clamped to the lines the moment's line took, so the title doesn't move; nothing if you asked nothing. In it, every
-moment as the picture its card on the edge has, with its name and "as Maja", in one row up to six, two up to twelve,
-three past that, all one size (at most 240 wide), scrolling inside the frame past what fits; under each, what you said
-on it, each note its dot and your words (two lines; past three, "+2 more"), an answer new and not opened said so
+words and cards, 0 px through ↓ and ↑). Over it, in the moment's line's place, what's in the frame in counts ("5
+moments, 3 notes"), one line, holding the room the moment's line took so the title doesn't move. At the sheet's top,
+"You asked" and your words in full (about 60 letters to a line, centred as a block, read from the left past two lines;
+past six, the rest on hover); nothing if you asked nothing. Under it, every moment as the picture its card on the edge
+has, with its name and "as Maja", laid out at the largest size (up to 240 wide) at which all of it fits the frame,
+counting what you asked and the notes, rows centred, a short last row too; only where even 130 wide doesn't fit, it
+scrolls inside the frame; the whole centred in the frame's height, clear of the bar. Under each, what you said on it,
+each note its dot and your words (three lines where there's height, else two; past three notes, "+2 more"), an answer new and not opened said so
 ("answer not opened"), and "not watched" by a moment you haven't seen. A note on no moment stands in a line under the
-pictures. Only your words and the pictures: nothing the agent wrote. A picture pressed goes to its moment. The bar's
+pictures. Only your words and the pictures: nothing the agent wrote. A picture pressed goes to its moment. There you're on no moment: the Notes edge holds no cards, its word
+staying while the change has notes. The bar's
 place holds the one thing to do (`StepLeft.tsx`, `StepAction`): Send while something's unsent ("Send 2 notes ↵",
 filled) or Done while it waits on you ("Done ↵"), with what it does by it ("Your agent starts on them."; "Says every
 moment looks good, and the change is done."). Pressed, or Enter (or Ctrl+Enter from any moment while something's
