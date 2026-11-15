@@ -278,7 +278,7 @@ dots; pressed, the moment changes in place. A note's strip is cut for its own sh
 thing (a line of words as wide as its words), with no pin on it, as its dot leads its words: a small thing at the size it was recorded, with what's beside it; a wide line from
 its start, a little smaller at most; something far larger than the strip closed in on what its moment is about where
 that's inside it, else from its top left; a spot with no thing, around the spot; never larger than recorded, always
-inside the screen; one from an earlier hand-back is cut from the moment's picture now, as it opens. It's cut from a kept picture of the frame its thing is shown on, never a recording played
+inside the screen; one from an earlier hand-back is cut from the moment's picture now where its thing is found there, as it opens. It's cut from a kept picture of the frame its thing is shown on, never a recording played
 (`useFrames`): one made at a moment's end is that hand-back's own picture; any other is drawn once by `playthrough open`
 in a browser of its own from the recording it was made on (`frames.ts`, the page's `?frame=` address, `Frame.tsx`) and
 kept with what the person did (`branches/frames/<note>.png` and `.json`). A note's pin on the recording and its picture
@@ -294,11 +294,13 @@ thing is there: made on this hand-back, that very thing; made in the app or on a
 by its role and name, never whatever says the same words; on a spot, only on the hand-back it was made on. In the app,
 its pin goes while its thing is gone and comes back with it. Opened (its picture, its pin, ← →, or `?note=`), a note
 made on the hand-back you're looking at shows the moment at its end where it was made there, else cross-fades to its kept
-picture, the frame it was made on. **A note from an earlier hand-back always opens on the moment as it is now**, at its
-end, so what came of it is what you see: on its thing where that's found by its role and name; where it isn't (the
-agent changed it, as asked), its pin stands where it stood on its thing, by the box that thing had as shares of the
-screen, with no outline, as that would say it's on whatever stands there now. How it was is one flip away, in place: while
-it's open, Compare's place on the bar holds a two-part switch, "As it was" and "Now", Now chosen; pressing it, or C, flips,
+picture, the frame it was made on. **A note from an earlier hand-back opens on the moment as it is now**, at its
+end, so what came of it is what you see, wherever its thing is found there by its role and name. How it was is one flip
+away, in place: while it's open, Compare's place on the bar holds a two-part switch, "As it was" and "Now", Now chosen;
+pressing it, or C, flips. Where its thing isn't in the moment now (the agent took it away, or you'd stepped in and gone
+to another page before noting), there's no now to show it on: it opens as it was, on the frame it was made on, its
+strip on the edge cut from that frame, and Now rests, saying "Not in this moment now" when the switch is pointed at; a
+pin never stands on whatever is there instead. A flip is
 a cross-fade in the same spot at the same size (at once with reduced motion), the pin going to its thing in the picture
 shown, the card staying where it is. ← → to another note opens it on Now. With its pin and its card, and nothing more. Escape, its picture again, or a press anywhere but its card or the edges closes it;
 Space, S and C act on the moment and close it first. An open note's thing is never under the bar: the bar moves along

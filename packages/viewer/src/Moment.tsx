@@ -17,7 +17,7 @@ import { Progress, Getting, FrameButton, Tip, ITEM, BAR } from "./MomentBar.tsx"
 import { Turns, useFrames, NoteWords, NotePicture, NoteCard, Write, type Made } from "./Note.tsx";
 import { usePhone } from "./phone.ts";
 import { Picture } from "./Picture.tsx";
-import { OUT, Pinned, type Pin } from "./Pinned.tsx";
+import { Pinned, type Pin } from "./Pinned.tsx";
 import { Clock, Player, useCut, type Mark, type Placed } from "./Player.tsx";
 import { Portal, TAG } from "./Portal.tsx";
 import type { Rect, Scrolled } from "./replay.ts";
@@ -250,21 +250,19 @@ export function MomentView(props: {
   };
   const isNow = (shown?: Made) => !!shown && shown.handBack === handBack.number && shown.recording === moment.recording && Math.abs(shown.at - moment.length) < 0.1;
   const frames = useFrames(change, readings ? onEdge.map(({ note }) => ({ note, shown: shownAt(note) })) : []);
-  // A note from an earlier hand-back is shown on the moment as it is now, at its end, whatever came of it: on its thing
-  // where that's found, else where its thing was, as shares of the screen; how it was, the frame it was made on, is one
-  // flip away. Its thing found, that frame is asked for only once it's open.
+  // A note from an earlier hand-back is shown on the moment as it is now, at its end, on its thing where that's found
+  // there; how it was, the frame it was made on, is one flip away, asked for only once it's open. Its thing not
+  // there now (gone since, or on a page you went to after stepping in), there's no now to show it on: it's shown as
+  // it was, and a pin never stands on whatever is there instead.
   const earlier = (note: Note) => !!note.on && note.on.handBack < handBack.number;
   const found = (note: Note) => nowOn(note) !== undefined;
-  const flipped = mode.is === "a note open" && !!mode.asItWas;
   const opened = onEdge.find(({ note }) => note.id === open);
+  const flips = !!opened && earlier(opened.note);
+  const nowThere = !!opened && found(opened.note);
+  const flipped = flips && (!nowThere || (mode.is === "a note open" && !!mode.asItWas));
   const wasFrames = useFrames(change, opened && earlier(opened.note) && found(opened.note) ? [{ note: opened.note, shown: madeAt(opened.note) }] : []);
   // The kept picture of the frame a note was made on.
   const wasFrame = (note: Note) => (earlier(note) && found(note) ? wasFrames[note.id] : frames[note.id]);
-  const nowFrame = (note: Note) => {
-    const [was, end] = [frames[note.id], readings?.at(-1)];
-    if (!earlier(note) || found(note) || !was?.box || !end) return frames[note.id];
-    return { src: picture(change.id, handBack.number, moment.recording, 0), screen: end.screen, box: was.box };
-  };
   // A note's pin is on the recording whenever its thing is in the picture: made on this taking, that very thing; made in
   // the app or on an earlier taking, the same thing drawn here, by its role and name. One on a spot is on this taking's
   // picture only where it was made.
@@ -272,9 +270,6 @@ export function MomentView(props: {
     const on = note.on;
     const node = onThisTaking(on) ? on?.element?.node : nodeOf(on?.element);
     if (node !== undefined) return { id: note.id, node };
-    // Open, one from an earlier hand-back whose thing is gone is where its thing was.
-    const was = frames[note.id]?.box;
-    if (note.id === open && earlier(note) && was) return { id: note.id, box: was };
     if (onThisTaking(on) && on?.point && Math.abs((on.at ?? end) - at) < 0.06) return { id: note.id, point: on.point };
     return { id: note.id };
   };
@@ -300,10 +295,9 @@ export function MomentView(props: {
   const openNow = isNow(openMade);
   // Open on a frame of its own, not on the moment as it is now.
   const elsewhere = !!opened && !openNow;
-  const flips = !!opened && earlier(opened.note);
 
   // What may be pressed now, which every key and button asks.
-  const facts = { still, ready: !!cut, compares: !!then, elsewhere, flips };
+  const facts = { still, ready: !!cut, compares: !!then, elsewhere, flips: flips && nowThere };
   const may = can(page, facts);
   useKeptReady({ change: change.id, moment, page, facts });
   const play = () => may.play && act({ type: "play" });
@@ -390,18 +384,13 @@ export function MomentView(props: {
   })();
   // Where the open note's thing is, one answer however it's found, and none until it's known: on the moment as it is
   // now, by the recording; on its own frame, by its kept picture, or the recording there until that's drawn. Known,
-  // and not there, it's on nothing. On the moment as it is now, an earlier note whose thing is gone is on nothing: its pin stands where it stood on its
-  // thing, just outside the top right corner of where that was, so it doesn't move as it's flipped, and there's no
-  // outline, which would say it's on whatever stands there now. Its card stands by that place.
-  const gone = !!opened && openNow && earlier(opened.note) && !found(opened.note);
-  const wasHere = gone ? placed?.[opened.note.id] : undefined;
-  const pinAt = (box: Rect): Rect => (box.width || box.height ? { left: box.left + box.width + OUT, top: box.top - OUT, width: 0, height: 0 } : box);
-  const openAt = opened && openNow ? (gone ? wasHere && { [opened.note.id]: pinAt(wasHere) } : placed) : pictured ? onPicture : shownOpen && onFrame?.note === shownOpen.note.id ? onFrame.at : undefined;
+  // and not there, it's on nothing.
+  const openAt = opened && openNow ? placed : pictured ? onPicture : shownOpen && onFrame?.note === shownOpen.note.id ? onFrame.at : undefined;
   // What the bar must never cover: an open note's thing while it's open; else, from the first frame shown to the last,
   // what the moment is about and the last thing done in it, where the page has them at its end, known from its reading
   // before anything is drawn. The bar is one place: over one of them, it drops just below the recording's edge for that
   // moment, still in the middle, and that's all.
-  const openThing = opened && (wasHere ?? openAt?.[opened.note.id]);
+  const openThing = opened && openAt?.[opened.note.id];
   const kept = (() => {
     const shown = stage.current;
     const end = readings?.at(-1);
@@ -426,7 +415,7 @@ export function MomentView(props: {
   // Its card comes in by its thing, so it waits until where that is is known: it never stands somewhere else first and
   // moves. Only a note that turns out to be on nothing stands in the corner.
   const corner = spotAt({ x: 24, y: 24 });
-  const cardBy = !carded ? undefined : phone ? corner : openAt && ((carded === opened && wasHere) || (openAt[carded.note.id] ?? corner));
+  const cardBy = !carded ? undefined : phone ? corner : openAt && (openAt[carded.note.id] ?? corner);
   // What it's about is outlined only at the point: midway, it may not be there yet.
   const aboutAt = atPoint && !away && !opened ? placed?.[ABOUT] : undefined;
 
@@ -458,7 +447,7 @@ export function MomentView(props: {
       return void (onEdge[to]!.note.id !== open && openNote(onEdge[to]!.note.id));
     }
     if (key === "," || key === ".") return (event.preventDefault(), frame(key === "," ? -1 : 1));
-    const did = { " ": play, s: stepInOrBack, n: note, c: () => (may.flip ? flip() : compare()), arrowdown: () => next(1), j: () => next(1), arrowup: () => next(-1), k: () => next(-1) }[key];
+    const did = { " ": play, s: stepInOrBack, n: note, c: () => (flips ? flip() : compare()), arrowdown: () => next(1), j: () => next(1), arrowup: () => next(-1), k: () => next(-1) }[key];
     if (!did || event.repeat) return;
     event.preventDefault();
     did();
@@ -544,7 +533,7 @@ export function MomentView(props: {
           lit={pointed === note.id}
           arriving={before && !before.has(note.id) ? "right" : undefined}
           strip
-          picture={<NotePicture frame={nowFrame(note)} focus={isNow(shownAt(note)) || earlier(note) ? aboutHere : undefined} />}
+          picture={<NotePicture frame={frames[note.id]} focus={isNow(shownAt(note)) ? aboutHere : undefined} />}
           words={
             // Its dot first, as on the recording and on its moment's picture: a dot means a note.
             <span className="flex gap-[7px]">
@@ -720,7 +709,7 @@ export function MomentView(props: {
               {shownOpen && !openNow ? (
                 <Pinned pins={[pinFor(shownOpen)]} placed={openAt} open={shownOpen.note.id} faded={!opened} onOpen={close} />
               ) : (
-                <Pinned pins={(opened && openNow ? [opened] : pinned).map(pinFor)} placed={gone ? openAt : placed} open={writing?.note.id ?? (openNow ? opened?.note.id : undefined)} faded={!!playing || away} lit={pointed} onPoint={pointPin} onOpen={(id) => id && openNote(id)} quiet />
+                <Pinned pins={(opened && openNow ? [opened] : pinned).map(pinFor)} placed={placed} open={writing?.note.id ?? (openNow ? opened?.note.id : undefined)} faded={!!playing || away} lit={pointed} onPoint={pointPin} onOpen={(id) => id && openNote(id)} quiet />
               )}
             </div>
           </div>
@@ -800,20 +789,24 @@ export function MomentView(props: {
             {(anyLook || sent.some(earlier)) &&
               (flips ? (
                 // A note from an earlier hand-back open: how it was, or now, flipped in place. Each part chooses itself.
-                <span role="group" aria-label="Shown" className={`${COMPARING} flex items-stretch rounded-lg bg-hover p-0.5`}>
+                // Its thing not in the moment now, Now rests, and says why when the switch is pointed at.
+                <span role="group" aria-label="Shown" className={`${COMPARING} group/tip relative flex items-stretch rounded-lg bg-hover p-0.5`}>
                   {(["As it was", "Now"] as const).map((words) => {
                     const chosen = (words === "As it was") === flipped;
                     return (
                       <button
                         key={words}
                         aria-pressed={chosen}
+                        disabled={!chosen && !nowThere}
+                        aria-description={!chosen && !nowThere ? NOT_NOW : undefined}
                         onClick={() => !chosen && flip()}
-                        className={`flex flex-auto items-center justify-center rounded-md px-2 phone:px-[5px] whitespace-nowrap transition-[background-color,color,box-shadow] duration-200 ease-calm ${chosen ? "cursor-default bg-surface text-fg shadow-[0_0_0_1px_var(--edge),0_1px_2px_var(--drop)]" : "text-soft hover:text-fg"}`}
+                        className={`flex flex-auto items-center justify-center rounded-md px-2 phone:px-[5px] whitespace-nowrap transition-[background-color,color,box-shadow] duration-200 ease-calm ${chosen ? "cursor-default bg-surface text-fg shadow-[0_0_0_1px_var(--edge),0_1px_2px_var(--drop)]" : "text-soft enabled:hover:text-fg disabled:cursor-default disabled:opacity-50"}`}
                       >
                         {words}
                       </button>
                     );
                   })}
+                  {!nowThere && <Tip>{NOT_NOW}</Tip>}
                 </span>
               ) : then ? (
                 <button className={`${ITEM} ${COMPARING}`} disabled={!may.compare} aria-pressed={comparing} onClick={compare}>
@@ -848,6 +841,9 @@ const ABOUT = "about";
 
 // Compare's place on the bar, as wide as what it holds at its widest, so the bar is the same width whatever's there.
 const COMPARING = "w-[124px] phone:w-[112px]";
+
+// Why Now rests for a note whose thing isn't in the moment's picture now.
+const NOT_NOW = "Not in this moment now";
 
 // Why Play rests on a still.
 const STILL = "A still: nothing to play";
