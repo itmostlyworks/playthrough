@@ -9,7 +9,7 @@ Read this once, to its end.
   playthrough moment "<what's there>" ["<thing>"]   keep what you just did here as a moment, and read back what it shows
   playthrough wait                                   hand back, and wait for what the person says, run in the background
   playthrough again                                  every moment again on the code as it is now: the same, or what's different
-  playthrough reply <note> "<words>"                answer one of the person's notes, in a line
+  playthrough answer <note> "<words>"               answer one of the person's notes, in a line
   playthrough drop "<moment>"                        leave a moment out
 
 THE FIRST TIME IN AN APP
@@ -91,5 +91,5 @@ Wait prints each note on its moment, with a picture of what they saw and how to 
    or in a moment you mark for it. One that couldn't get there because of your change, get to by hand and mark again
    with the same words, or mark what's there now. Drop a moment only when what it showed no longer exists and nobody
    spoke on it. One nobody spoke on that's now different is worth a look too.
-9. playthrough reply <note> "<what you did, in a line>" for each note: your answer is the only why the person sees.
+9. playthrough answer <note> "<what you did, in a line>" for each note: your answer is the only why the person sees.
 10. playthrough wait, in the background, again. When the person says every moment looks good, it ends: the change is done.

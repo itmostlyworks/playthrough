@@ -32,18 +32,18 @@ To try it without an app of your own, clone this repo, run `npm install` and `np
 
 ## What you see
 
-One page lists what's waiting on you from every app and agent on your machine: each change by its title, with its moments as pictures. Open one to watch it.
+The page opens on the next change waiting on you, from any app and agent on your machine: its title and what you asked. Go in, and its moments come one by one.
 
 | | |
 |---|---|
 | Space, or a click | Play and pause |
-| T | Step in: the real app at this moment, as that person |
+| S | Step in: the real app at this moment, as that person |
 | N | Note: click what it's about, say what's off |
 | C | Compare with how it was when you last saw it |
-| ↑ ↓ | The moment before, the next one |
-| Escape | Back |
+| ↓ ↑ | The next moment, the one before |
+| Escape | Back from the app, or close what's open |
 
-Send your notes, and the agent answers each with what it did and the moments as they are now. When every moment looks good, say Done.
+Send your notes, and the agent answers each with what it did and the moments as they are now. When every moment looks good, say Done, and the next change comes. Every other change is a press away, at the top left.
 
 ## More
 

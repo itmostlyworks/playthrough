@@ -52,7 +52,7 @@ playthrough change "<title>" "<what was asked>"   # names the change; every comm
 playthrough as <person> ["<moment>"]              # the app, and a browser signed in as them, for the agent's own tool
 playthrough moment "<what's there>" ["<thing>"] [--last N]   # keeps what was just done as a moment
 playthrough again                                  # every moment again, on the code as it is now
-playthrough reply <note> "<words>"                 # answers a note
+playthrough answer <note> "<words>"                # answers a note
 playthrough drop "<moment>"                        # leaves a moment out
 playthrough wait                                   # hands back, then waits for what the person says
 playthrough open                                   # the page, for the person
@@ -108,9 +108,9 @@ said, with what to do (name what comes late as the moment's thing, which its che
 
 **`again`** runs every moment on the code as it is now, keeps them as the next hand-back, compares it with the hand-backs
 before (below), and says each is the same, different (in Playthrough's words), new, or couldn't get there, with how to
-get there by hand and mark it again or drop it. **`drop`** on a moment a note is waiting on, and **`reply`** to a note
+get there by hand and mark it again or drop it. **`drop`** on a moment a note is waiting on, and **`answer`** to a note
 whose moment won't be handed back, refuse until a moment has been marked since the note reached the agent: the person
-sees what was done in a moment, not only in words. **`wait`** refuses while a note has no reply or a moment hasn't been
+sees what was done in a moment, not only in words. **`wait`** refuses while a note has no answer or a moment hasn't been
 run again; otherwise it hands back, stops the `as` browser, gives the address of the change's own page, and waits. While
 it waits it keeps a file named by its process in the change's `waiting/`, saying which start of the machine it's on, so
 the page knows an agent is listening. When the person sends, it prints each note on its moment, with its conversation,
@@ -201,7 +201,7 @@ keyboard, the title brings a small card under it with what you asked in your own
 back. The opening card's page has no title in the centre: the card says it. On a phone there's no centre: the title, in
 full colour, takes the room between what's waiting and Next, and there's no card for what you asked.
 
-**Every change** (`Waiting.tsx`, `Changes.tsx`). Top left on every page, "N waiting" (or "Every change") opens every
+**Every change** (`Waiting.tsx`, `Changes.tsx`). Top left on every page, "6 changes waiting" (or "Every change") opens every
 change as a sheet over the page, the page under it softened and inert. Pressed or from the keyboard, it stays until
 Escape, a press beside it, or going somewhere. A mouse that moves onto it and rests there 80 ms opens it too, and then it
 goes once the pointer has been outside it, and its previews, for 300 ms; coming back in time keeps it. A page that loads
@@ -225,14 +225,14 @@ Play would be, the bar says "A still". The recording sits in the middle, as larg
 (`SIDE`, 10vw, 104 to 160px each side), and never moves or changes size: not as an edge comes forward, a note opens or
 the moment changes (its shape is kept until the next one's is known, and the one you were on stays under the new one
 until it has faded in). The bar across its bottom edge: Play (Space), whose slim line along its own bottom edge fills as
-it plays, there only once the moment has left its end; Step in (T); Note (N, on the recording or in the app); Compare
+it plays, there only once the moment has left its end; Step in (S); Note (N, on the recording or in the app); Compare
 (C), or in its place "Unchanged" or "New", the bar the same width from one moment to the next. A click on the recording
 plays and pauses it. Send stands top right, filled once something's unsent, and says Sent where it was pressed. After
 the bar's buttons, Next, or Next answer while an answer you haven't opened waits, which opens those first; after the
 last moment, the step left for the change. What the page is doing is one value (`mode.ts`): resting, playing, a note open, pointing,
 writing, comparing, getting there or the app yours; every press is an action on it, carrying where the recording has got
 to, so whatever stops it playing stops it there, and one rule (`can`) says what may be pressed, which the keys and the
-buttons alike ask. Keys: Space, T, N, C; ↑ ↓ (and K, J) the moment before and next; ← → this moment's notes, opening
+buttons alike ask. Keys: Space, S, N, C; ↑ ↓ (and K, J) the moment before and next; ← → this moment's notes, opening
 each; Escape closes what's open, leaves Compare or noting, else goes back; Ctrl+Enter (⌘↵) sends. Reduced motion:
 nothing slides or fades.
 
@@ -271,7 +271,7 @@ its pin goes while its thing is gone and comes back with it. Opened (its picture
 recording cross-fades to that note's kept picture, on its thing as it is now where that thing is in the moment's picture
 now, else on the frame it was made on, the bar saying "As it was" where that's from before the last hand-back; with its
 pin and its card, and nothing more. Escape, its picture again, or a press anywhere but its card or the edges closes it;
-Space, T and C act on the moment and close it first. An open note's thing is never under the bar: the bar moves along
+Space, S and C act on the moment and close it first. An open note's thing is never under the bar: the bar moves along
 the recording's edge, or down off it. A reply waits to be clicked into, so ← → go on through the notes. A note just saved
 arrives at the foot of the edge, the edge forward with its words for 1.4 s; one made in the app joins the edge the same
 way once you're back. An answer you haven't opened is new, on its picture, until you open it.
@@ -302,7 +302,7 @@ rule beside it, `standingOf`, which every part of the page reads; the agent's `w
 
 ## Stepping in
 
-Step in (T) turns the recording into the real app at the moment it rests on, or where it has got to if it's playing, as
+Step in (S) turns the recording into the real app at the moment it rests on, or where it has got to if it's playing, as
 the moment's person, signed in, a fresh copy made the way every moment starts. Nothing runs before your first step in on
 a change: watching does nothing to the app, so the first is made while you wait. After it, Playthrough keeps the app
 ready where the recording rests, so the next is quick. Each step in is still the app made fresh, never one left behind.

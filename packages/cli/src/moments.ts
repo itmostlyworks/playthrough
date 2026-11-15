@@ -7,7 +7,7 @@
 //                                       moment is what was done since arriving on this page, or the last N things
 //   playthrough drop "<moment>"         a moment that's no longer wanted: not run again, or handed back
 //   playthrough again                   every moment again, on the code as it is now: the same, different, or not reached
-//   playthrough reply <note> "<words>"  answers a note
+//   playthrough answer <note> "<words>" answers a note
 //   playthrough wait                    hands back, and waits for what the person says
 //
 // What's on disk is what the person's page reads: each moment's way there is a file in the change's moments folder, and
@@ -360,7 +360,7 @@ export async function again(repo: Repo) {
   console.log(`\n${howEachWent(moments, ran.failed, handedBack, toAccountFor(since)).join("\n")}`);
   const unanswered = notesToAnswer(change, number).filter((note) => !kept?.replies.some((reply) => reply.note === note && reply.words.trim()));
   console.log(
-    `\n${unanswered.length ? `Answer ${unanswered.length > 1 ? "each note" : "the note"}: ${unanswered.map((note) => `playthrough reply ${note} "<what you did, in a line>"`).join("; ")}. Then hand` : "Hand"} back, in the background, so you hear when the person answers: playthrough wait`,
+    `\n${unanswered.length ? `Answer ${unanswered.length > 1 ? "each note" : "the note"}: ${unanswered.map((note) => `playthrough answer ${note} "<what you did, in a line>"`).join("; ")}. Then hand` : "Hand"} back, in the background, so you hear when the person answers: playthrough wait`,
   );
 }
 
@@ -387,13 +387,13 @@ export function howEachWent(moments: Moment[], failed: Failed[], handedBack: Han
 }
 
 // A note answered, in a line, under the agent's name, in what's handed back next.
-export async function reply(repo: Repo, note: string, words: string | undefined) {
+export async function answer(repo: Repo, note: string, words: string | undefined) {
   const id = await changeHere(repo);
   const change = await repo.changes.get(id);
   const number = handBackInProgress(change);
   const asked = notesToAnswer(change, number);
   if (!asked.includes(note)) throw new Refused([`There's no note ${note} waiting for an answer.${asked.length ? ` The notes that are: ${asked.join(", ")}.` : ""}`]);
-  if (!words?.trim()) throw new Refused([`Say it: playthrough reply ${note} "<what you did, in a line>"`]);
+  if (!words?.trim()) throw new Refused([`Say it: playthrough answer ${note} "<what you did, in a line>"`]);
   const kept = change.handBacks.find((handBack) => handBack.number === number);
   if (!kept) throw new Refused(["Run playthrough again first: the answer goes with the moments as they are now."]);
   // Answered on a moment that won't be handed back (dropped, or it couldn't get there), the person would read what you did
@@ -417,7 +417,7 @@ export async function wait(repo: Repo) {
   if (!last?.moments.length) throw new Refused(["There are no moments to hand back yet. Mark one: playthrough as <person>, then playthrough moment \"<what's there>\""]);
   if (!last.finished) {
     const unanswered = notesToAnswer(change, last.number).filter((note) => !last.replies.some((reply) => reply.note === note && reply.words.trim()));
-    if (unanswered.length) throw new Refused([`Answer each note first: ${unanswered.map((note) => `playthrough reply ${note} "<what you did, in a line>"`).join("; ")}`]);
+    if (unanswered.length) throw new Refused([`Answer each note first: ${unanswered.map((note) => `playthrough answer ${note} "<what you did, in a line>"`).join("; ")}`]);
     const missing = momentsOf(repo, id).filter((way) => !last.moments.some((moment) => moment.name === way.words));
     if (missing.length)
       throw new Refused([
@@ -472,5 +472,5 @@ async function sayNotes(repo: Repo, change: Change, number: number, asking: stri
     if (on && madeInApp(on) && on.did.length)
       console.log(`    They stepped into the app there, then: ${on.did.map((did) => `${did.does}${did.what ? ` ${quote(did.what)}` : ""}${typeof did.with === "string" && did.does !== "click" ? ` ${quote(did.with)}` : ""}`).join(", then ")}.`);
   }
-  console.log(`\nChange the app. Then: playthrough again, which runs every moment again and says what's different; playthrough reply <note> "<what you did, in a line>" for each; then hand back with playthrough wait, in the background.`);
+  console.log(`\nChange the app. Then: playthrough again, which runs every moment again and says what's different; playthrough answer <note> "<what you did, in a line>" for each; then hand back with playthrough wait, in the background.`);
 }

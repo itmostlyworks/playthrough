@@ -30,6 +30,9 @@ export function useSheet() {
 // Its pointer has to rest on it a breath, so one passing over the corner opens nothing.
 const BREATH = 80;
 
+// How many changes wait on you, in words: on the opener and the tab alike.
+export const waitingSays = (count: number) => `${count} ${count === 1 ? "change" : "changes"} waiting`;
+
 export function Opener({ waiting, open, onOpen }: { waiting: number; open?: Opened; onOpen: (how: Opened) => void }) {
   const breath = useRef<ReturnType<typeof setTimeout>>(undefined);
   const rest = () => (clearTimeout(breath.current), (breath.current = undefined));
@@ -58,7 +61,8 @@ export function Opener({ waiting, open, onOpen }: { waiting: number; open?: Open
       aria-haspopup="dialog"
       className="-ml-2 flex flex-none items-center gap-1.5 rounded-lg px-2 py-1 text-soft transition-colors duration-150 ease-calm hover:bg-hover hover:text-fg"
     >
-      {waiting ? `${waiting} waiting` : "Every change"}
+      {/* On a phone the count alone, so the change's title keeps its room. */}
+      {waiting ? <><span className="phone:hidden">{waitingSays(waiting)}</span><span className="hidden phone:inline">{waiting} waiting</span></> : "Every change"}
       <svg viewBox="0 0 12 12" className="size-3 flex-none" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
         <path d="M2.5 4.5L6 8l3.5-3.5" />
       </svg>

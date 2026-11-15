@@ -410,7 +410,7 @@ export function MomentView(props: {
   // Pressing away from what's open, anywhere but its card and its picture on the edge, closes it.
   const pressAway = (event: React.PointerEvent) => opened && !(event.target as Element).closest("[data-note-card], [data-tile]") && !stage.current?.contains(event.target as Node) && close();
 
-  // The keys: Space plays, T steps in and back, N notes, C compares, ↑ and ↓ go a moment back and on, ← and → open this
+  // The keys: Space plays, S steps in and back, N notes, C compares, ↑ and ↓ go a moment back and on, ← and → open this
   // moment's notes one after another, Escape lets go.
   const keys = useRef<(event: KeyboardEvent) => void>(() => {});
   keys.current = (event) => {
@@ -434,7 +434,7 @@ export function MomentView(props: {
       event.preventDefault();
       return void (onEdge[to]!.note.id !== open && openNote(onEdge[to]!.note.id));
     }
-    const did = { " ": play, t: stepInOrBack, n: note, c: compare, arrowdown: onward, j: onward, arrowup: () => next(-1), k: () => next(-1) }[key];
+    const did = { " ": play, s: stepInOrBack, n: note, c: compare, arrowdown: onward, j: onward, arrowup: () => next(-1), k: () => next(-1) }[key];
     if (!did || event.repeat) return;
     event.preventDefault();
     did();
@@ -762,7 +762,7 @@ export function MomentView(props: {
               </button>
             )}
             <button className={`${ITEM} relative w-[116px] phone:w-[104px]`} disabled={!may.stepIn && !may.back} aria-pressed={stepping} onClick={stepInOrBack}>
-              {inApp ? "Back" : stepping ? "Stepping in…" : "Step in"} {!stepping && <Key>{inApp ? "Esc" : "T"}</Key>}
+              {inApp ? "Back" : stepping ? "Stepping in…" : "Step in"} {!stepping && <Key>{inApp ? "Esc" : "S"}</Key>}
               {stepIn.getting && <Getting {...stepIn.getting} />}
             </button>
             <button className={`${ITEM}`} disabled={!may.note} aria-pressed={noting} onClick={note}>

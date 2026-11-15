@@ -14,7 +14,7 @@ import { MomentView } from "./Moment.tsx";
 import { NothingWaiting, Opening } from "./Opening.tsx";
 import { takingOf, markSeen, whoIn } from "./standing.ts";
 import { waitingInOrder } from "./step.ts";
-import { Opener, Sheet, useSheet } from "./Waiting.tsx";
+import { Opener, Sheet, useSheet, waitingSays } from "./Waiting.tsx";
 
 // Where you are: what's next, or a change's moment, by the change's address and the moment's place in it from 1, and a
 // note open by its pin.
@@ -57,7 +57,7 @@ export function MomentsPage() {
   const [taking, setTaking] = useState<Listed>();
   const waiting = changes && you ? waitingInOrder(changes, you).filter((one) => !passed.includes(passing(one))) : [];
   // The tab says how many changes wait on you, so it's seen from any other.
-  useEffect(() => void (document.title = waiting.length ? `${waiting.length} waiting · Playthrough` : "Playthrough"), [waiting.length]);
+  useEffect(() => void (document.title = waiting.length ? `${waitingSays(waiting.length)} · Playthrough` : "Playthrough"), [waiting.length]);
   // A change by its own name alone, as addresses were before every app's were listed, is the first with that name.
   const listed = where.change ? changes?.find(({ change }) => change.id === where.change || change.id.endsWith(`/${where.change}`)) : undefined;
   useEffect(() => void (listed && listed.change.id !== where.change && go({ ...where, change: listed.change.id }, true)), [listed?.change.id]);
