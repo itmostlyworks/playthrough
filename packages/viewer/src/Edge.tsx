@@ -3,7 +3,9 @@
 // over it, fading into the screen's edge. Pointed at, or reached with Tab, they come forward, all the way onto the
 // screen and a little over the recording, a moment's words coming up over its picture, a note's card as it was; a
 // touch brings them forward first. While you're in the app they rest, quieter, as everything that drives the
-// recording does. On a phone there's no room beside the recording: they're rows under it, words and all.
+// recording does. Over each, what it holds, in a word, at its pictures' outer side, or where the header's own words
+// stand when they run past the screen's edge: it stays put as the edge comes forward, and an edge with nothing on it
+// says nothing. On a phone there's no room beside the recording: they're rows under it, words and all.
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 
@@ -17,6 +19,8 @@ const EASED = ["8%", "22%", "42%", "68%", "100%"].map((alpha, i) => `color-mix(i
 // From the edge's top to its first picture's: the list's padding and the card's, so the first picture's top is the
 // recording's.
 const INSET = 8 + 6;
+// Its word's line, and the room between it and the first picture.
+const WORD = 20 + 12;
 // How long an edge stays forward with what just arrived on it, in milliseconds.
 const SHOWN = 1400;
 // Where more runs on past the edge's top or foot, it fades over this much, so it reads as more to come.
@@ -32,13 +36,15 @@ export function Edge(props: {
   // Stepped in: what drives the recording rests.
   quiet: boolean;
   phone: boolean;
+  // Nothing on it yet.
+  empty?: boolean;
   // The tile to keep in view, by its data-tile: the moment you're on, a note opened or arriving.
   showing?: string;
   // A tile just arrived: the edge comes forward with it, words and all, for a moment, then rests.
   arrived?: string;
   children: (forward: boolean) => ReactNode;
 }) {
-  const { side, label, stage, quiet, phone, showing, arrived, children } = props;
+  const { side, label, stage, quiet, phone, empty, showing, arrived, children } = props;
   const [room, setRoom] = useState<Room>();
   useLayoutEffect(() => {
     const shown = stage.current;
@@ -121,6 +127,11 @@ export function Edge(props: {
   const fade = (to: string) => `linear-gradient(${to}, ${cut.above ? "transparent" : "#000"}, #000 ${cut.above ? MORE : 0}px, #000 calc(100% - ${cut.below ? MORE : 0}px), ${cut.below ? "transparent" : "#000"})`;
   return (
     <>
+      {!empty && (
+        <h2 className={`pointer-events-none fixed z-30 text-[13px] leading-5 font-semibold text-soft transition-opacity duration-300 ease-calm ${quiet ? "opacity-40" : ""}`} style={{ top: room.top - WORD, [right ? "right" : "left"]: Math.max(24, -cutBy) }}>
+          {label}
+        </h2>
+      )}
       <div
         ref={own}
         role="region"
