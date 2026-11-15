@@ -7,7 +7,9 @@ import { usePhone } from "./phone.ts";
 
 export function Header({ opener, centre, children }: { opener: ReactNode; centre?: ReactNode; children?: ReactNode }) {
   return (
-    <header className="grid h-12 grid-cols-[1fr_auto_1fr] items-center gap-3 px-6 phone:flex phone:px-4">
+    // Never wider than the page: a title that can't wrap would otherwise widen it, on a phone, past the screen's edge,
+    // and take Send's words and every note card's foot out of sight with it.
+    <header className="grid h-12 min-w-0 grid-cols-[1fr_auto_1fr] items-center gap-3 px-6 phone:flex phone:px-4">
       <div className="flex min-w-0 items-center phone:flex-none">{opener}</div>
       <div className="flex min-w-0 justify-center phone:flex-1 phone:justify-start">{centre}</div>
       <div className="flex min-w-0 items-center justify-end gap-3 phone:flex-none">{children}</div>
