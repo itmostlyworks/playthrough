@@ -185,13 +185,21 @@ what's next, and a moment opens at `/moments/<copy>/<change>/<n>`, with `?note=<
 its title, what you asked, the app and when it came back, over the first moment you haven't seen, its picture softened
 where the recording will be. Nothing plays. The whole card is one press, as its look says on hover ("See 3 moments",
 "See 1 more moment", "Read 1 answer"): it, Space, ↓ or Next go in, to the first moment with something you haven't seen,
-else the first. Seen all through, the card's step is the change's own, Done or Send. The next change is one with something
-you haven't seen or read, then one seen through with something unsent, then one seen through with nothing said, each
-longest waiting first (`waitingInOrder`); one you've finished here stays finished as it was handed back, so the next card
-comes at once. In a change, its moments go one by one with Next; after the last, Next's place holds the one step left
-(`LastStep.tsx`): Send while something's unsent, Done while it waits on you, else Next change. Taken, it says Sent or Done
-with a tick where it was pressed, and goes on to the next change's card. Space never goes on to another change: only a
-press, Enter on the button, or ↓. With nothing waiting, the page says so calmly, with what your agents are on.
+else the first. The next change is one with something you haven't seen or read, then one seen through with something
+unsent, then one seen through with nothing said, each longest waiting first (`waitingInOrder`); one you've finished here
+stays finished as it was handed back, so the next card comes at once. In a change, its moments go one by one with Next,
+which only ever means the next moment. After the last, Next (↓) comes to **the change's card at its end**, at
+`/moments/<copy>/<change>/end` (reload stays there; the browser's Back, or ↑, is the last moment): the same card, over
+its last moment, holding the one step left, Send while something's unsent or Done while it waits on you, with a line under
+it saying what pressing it does ("Your agent starts on them."; "Says every moment looks good, and the change is done.").
+A change seen all through is this same card at `/`. The step is pressed, or Enter (its key cap ↵); nothing else on the
+page says anything to the agent: ↓ never does, and Space is never a press on it (`useSpaceStays`). Taken, it says Sent or
+Done with a tick where it was pressed, and goes on to the next change's card. Next or ↓ on the card goes on to the next
+change's card and leaves this one waiting, after the rest (none while no other waits). An answer that was new as you came
+to the change and that you went past unopened is still new on its note, and the card says so beside when it came back
+("1 answer not opened"); pressed, that note opens on its moment. A change already with your agents (sent from the top
+right on the way) or done says so in the step's place, with where it stands, and there's only going on. With nothing
+waiting, the page says so calmly, with what your agents are on.
 
 **The top of every page** (`Header.tsx`) has three places, one job each: at the left what's waiting, the way to every
 other change; in the centre what this is; at the right what's next. The centre is the window's, as the recording and its
@@ -229,12 +237,12 @@ the moment changes (its shape is kept until the next one's is known, and the one
 until it has faded in). The bar across its bottom edge: Play (Space), whose slim line along its own bottom edge fills as
 it plays, there only once the moment has left its end; Step in (S); Note (N, on the recording or in the app); Compare
 (C), or in its place "Unchanged" or "New", the bar the same width from one moment to the next. A click on the recording
-plays and pauses it. Send stands top right, filled once something's unsent, and says Sent where it was pressed. After
-the bar's buttons, Next, or Next answer while an answer you haven't opened waits, which opens those first; after the
-last moment, the step left for the change. What the page is doing is one value (`mode.ts`): resting, playing, a note open, pointing,
+plays and pauses it. Send stands top right, filled once something's unsent (Ctrl ↵), on every moment, and says Sent
+where it was pressed. Beside it, Next: the next moment, and after the last, the change's card. What the page is doing is one value (`mode.ts`): resting, playing, a note open, pointing,
 writing, comparing, getting there or the app yours; every press is an action on it, carrying where the recording has got
 to, so whatever stops it playing stops it there, and one rule (`can`) says what may be pressed, which the keys and the
-buttons alike ask. Keys: Space, S, N, C; ↑ ↓ (and K, J) the moment before and next; ← → this moment's notes, opening
+buttons alike ask. Keys: Space, S, N, C; ↑ ↓ (and K, J) the moment before and next, ↓ after the last coming to the
+change's card; ← → this moment's notes, opening
 each; Escape closes what's open, leaves Compare or noting, else goes back; Ctrl+Enter (⌘↵) sends. Reduced motion:
 nothing slides or fades.
 

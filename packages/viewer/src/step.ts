@@ -53,13 +53,12 @@ export function unreadOf(listed: Listed, you: string): { note: string; moment: n
 }
 
 // Where pressing a change takes you: the first of its moments with something on it you haven't seen, a moment or an
-// answer, so Next goes on through the rest in order and none is left behind; else its first. `note` is that moment's
-// first unread answer, where there is one; going in lands on the moment itself, so the answer's card isn't over what
-// it's about, and the moment's Next answer opens it.
-export function firstUnseen(listed: Listed, you: string): { moment: number; note?: string } {
+// answer, so Next goes on through the rest in order and none is left behind; else its first. Going in lands on the
+// moment itself, so an answer's card isn't over what it's about: its note says it's new, and → opens it.
+export function firstUnseen(listed: Listed, you: string): { moment: number } {
   const answer = unreadOf(listed, you)[0];
   const moment = unseenOf(listed, you)[0];
-  if (answer && (!moment || answer.moment <= moment)) return answer;
+  if (answer && (!moment || answer.moment <= moment)) return { moment: answer.moment };
   return { moment: moment ?? 1 };
 }
 

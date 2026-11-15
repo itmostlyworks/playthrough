@@ -12,7 +12,6 @@ import { Edge, Tile } from "./Edge.tsx";
 import { Header, Title } from "./Header.tsx";
 import type { YourReply } from "./kept.ts";
 import { Key } from "./Key.tsx";
-import { LastStep } from "./LastStep.tsx";
 import { arrived, can, isPlaying, isStepped, reduce, type Action } from "./mode.ts";
 import { Progress, Getting, ITEM, BAR } from "./MomentBar.tsx";
 import { Turns, useFrames, NoteWords, NotePicture, NoteCard, Write, type Made } from "./Note.tsx";
@@ -54,9 +53,12 @@ export function MomentView(props: {
   opening?: string;
   // What's waiting, top left: the way to every other change.
   opener: ReactNode;
+  // The answers new as you came to the change that you haven't opened: each is new on its note until it's opened.
+  unopened: string[];
+  onOpened: (note: string) => void;
   onMoment: (n: number) => void;
-  // After the last moment, the step left for the change taken: on to the next.
-  onGoOn: () => void;
+  // After the last moment: the change's card, holding the step left for it.
+  onEnd: () => void;
 }) {
   const { change, handBack, n, about, who, notes, setNotes, replies, setReplies, you, onMoment } = props;
   // Send: everything unsent on the change goes. Sent, it says so where you pressed, and what was
@@ -217,15 +219,12 @@ export function MomentView(props: {
   const theirs = sent.filter((one) => one.on?.moment === moment.name);
   const said = [...theirs.map((note) => ({ note, sent: true })), ...mine.map((note) => ({ note, sent: false }))];
   const onEdge = said.filter(({ note }) => !stepIn.madeThere(note));
-  // What was new as you came to this moment stays new here until you open it: coming counts as seeing it, for what's next
-  // and for next time.
-  const newAsYouCame = useRef(new Map<string, Set<string>>());
-  if (!newAsYouCame.current.has(moment.name)) newAsYouCame.current.set(moment.name, new Set(said.filter(({ note, sent }) => noteSays(change, you, note, sent, replies).fresh).map(({ note }) => note.id)));
-  const [openedHere, setOpenedHere] = useState<string[]>([]);
-  useEffect(() => void (open && !openedHere.includes(open) && setOpenedHere((now) => [...now, open])), [open]);
+  // What was new as you came to the change stays new here until you open it: coming to its moment counts as seeing it,
+  // for what's next and for next time.
+  useEffect(() => void (open && props.onOpened(open)), [open]);
   const says = (note: Note, sent: boolean) => {
     const said = noteSays(change, you, note, sent, replies);
-    const fresh = sent && said.stands !== "sent" && said.stands !== "reply not sent yet" && !!newAsYouCame.current.get(moment.name)?.has(note.id) && !openedHere.includes(note.id);
+    const fresh = sent && said.stands !== "sent" && said.stands !== "reply not sent yet" && props.unopened.includes(note.id);
     return { ...said, fresh, stands: said.stands === "new answer" || said.stands === "answered" ? (fresh ? "new answer" : "answered") : said.stands };
   };
   const madeAt = ({ on }: Note): Made | undefined => {
@@ -311,7 +310,7 @@ export function MomentView(props: {
     if (!may.move) return;
     const to = n + by;
     if (to < 1) return;
-    if (to > count) return lastStep.current?.();
+    if (to > count) return props.onEnd();
     goTo(to);
   };
   const toMoment = (to: number) => may.move && to !== n && goTo(to);
@@ -324,12 +323,6 @@ export function MomentView(props: {
     act({ type: "written" });
     stepIn.saved(kept, mine.length + 1);
   };
-  // Next goes through this moment's answers that were new as you came to it, one by one, before it goes on.
-  const nextAnswer = may.move ? onEdge.find(({ note, sent }) => note.id !== open && says(note, sent).fresh) : undefined;
-  const onward = () => (nextAnswer ? openNote(nextAnswer.note.id) : next(1));
-  // On the last moment, with no answer left to open, Next's place holds the step left for the change, which ↓ takes.
-  const lastStep = useRef<() => void>(undefined);
-  const atLast = n === count && !nextAnswer;
   // The open note's frame over the moment, and the one before it while that fades: only ever this moment's.
   const [layered, setLayers] = useState<{ note: Note; sent: boolean; made: Made }[]>([]);
   const layers = layered.filter((one) => one.note.on?.moment === moment.name);
@@ -434,7 +427,7 @@ export function MomentView(props: {
       event.preventDefault();
       return void (onEdge[to]!.note.id !== open && openNote(onEdge[to]!.note.id));
     }
-    const did = { " ": play, s: stepInOrBack, n: note, c: compare, arrowdown: onward, j: onward, arrowup: () => next(-1), k: () => next(-1) }[key];
+    const did = { " ": play, s: stepInOrBack, n: note, c: compare, arrowdown: () => next(1), j: () => next(1), arrowup: () => next(-1), k: () => next(-1) }[key];
     if (!did || event.repeat) return;
     event.preventDefault();
     did();
@@ -578,22 +571,16 @@ export function MomentView(props: {
         opener={props.opener}
         centre={<Title title={change.title} asked={change.asked} quiet={`${props.app} · ${backAgain(change, you) ? "back again" : "back"} ${ago(handBack.finished!, Date.now())}`} />}
       >
-        {atLast ? (
-          <LastStep change={change} you={you} notes={notes.length} replies={replies.length} sending={sending} sendNow={sendNow} press={lastStep} onGoOn={props.onGoOn} />
-        ) : (
-          <>
-            {(unsent > 0 || sending) && (
-              <SendButton filled={unsent > 0 && sending !== "sent"} arrives onClick={() => void sendNow()} disabled={sending === "sending" || sending === "sent"}>
-                {sending === "sent" ? <>{tick}Sent</> : sending === "sending" ? "Sending…" : <>Send {toSend(notes.length, replies.length)} <Key className={FILLED_KEY}>Ctrl ↵</Key></>}
-              </SendButton>
-            )}
-            {Array.isArray(sending) && <span className="text-[13px] text-amber-ink">Not sent: {sending[0]}</span>}
-            <button onClick={onward} disabled={!may.move} className="-mr-2 flex flex-none items-center gap-1.5 rounded-lg px-2 py-1 text-soft transition-colors duration-150 ease-calm enabled:hover:bg-hover enabled:hover:text-fg disabled:opacity-50">
-              {nextAnswer ? "Next answer" : "Next"}
-              <Key>↓</Key>
-            </button>
-          </>
+        {(unsent > 0 || sending) && (
+          <SendButton filled={unsent > 0 && sending !== "sent"} arrives onClick={() => void sendNow()} disabled={sending === "sending" || sending === "sent"}>
+            {sending === "sent" ? <>{tick}Sent</> : sending === "sending" ? "Sending…" : <>Send {toSend(notes.length, replies.length)} <Key className={FILLED_KEY}>Ctrl ↵</Key></>}
+          </SendButton>
         )}
+        {Array.isArray(sending) && <span className="text-[13px] text-amber-ink">Not sent: {sending[0]}</span>}
+        <button onClick={() => next(1)} disabled={!may.move} className="-mr-2 flex flex-none items-center gap-1.5 rounded-lg px-2 py-1 text-soft transition-colors duration-150 ease-calm enabled:hover:bg-hover enabled:hover:text-fg disabled:opacity-50">
+          Next
+          <Key>↓</Key>
+        </button>
       </Header>
       {/* The recording, as large as the room beside the edges lets it be: the same size from one moment to the next. */}
       <div className="relative grid min-h-0 place-items-center [container-type:size] phone:[container-type:inline-size]">

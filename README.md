@@ -40,7 +40,8 @@ The page opens on the next change waiting on you, from any app and agent on your
 | S | Step in: the real app at this moment, as that person |
 | N | Note: click what it's about, say what's off |
 | C | Compare with how it was when you last saw it |
-| ↓ ↑ | The next moment, the one before |
+| ↓ ↑ | The next moment, the one before; after the last, the change's card |
+| Enter | On the change's card: Send, or Done |
 | Escape | Back from the app, or close what's open |
 
 Send your notes, and the agent answers each with what it did and the moments as they are now. When every moment looks good, say Done, and the next change comes. Every other change is a press away, at the top left.

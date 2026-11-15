@@ -52,7 +52,7 @@ test("pressing a change goes to an answer you haven't read when it's on an earli
   const note = { id: "n1", on: { handBack: 1, moment: "Admin opens settings", at: 3 }, words: "The toggle is hard to find." };
   const answered = handBack(2, ["Admin opens settings", "Admin turns numbers off", "Member sees no numbers"], { replies: [{ note: "n1", words: "Moved it to the top." }] });
   const change = listed({ handBacks: [handBack(1, ["Admin opens settings", "Admin turns numbers off", "Member sees no numbers"]), answered], sends: [send(1, { notes: [note] })], ...seen([1, "Admin opens settings"], [1, "Admin turns numbers off"]) });
-  assert.deepEqual(firstUnseen(change, you), { note: "n1", moment: 1 });
+  assert.deepEqual(firstUnseen(change, you), { moment: 1 });
 });
 
 test("the step says what's left to see, as so many more once some are seen, and all seen at the end", () => {

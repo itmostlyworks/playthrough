@@ -241,8 +241,7 @@ function Row(props: {
     setLeaving(true);
     setTimeout(() => onLeaving(false, true), still ? 0 : LEAVING);
   };
-  // To the first moment with something unseen on it, the moment itself: its answers come with Next answer, so the
-  // answer's card isn't over what it's about as you arrive.
+  // To the first moment with something unseen on it.
   const go = () => onOpen(firstUnseen(listed, you).moment);
   // Waiting, Done is always there, quiet, one per change; a filled Send takes its place while
   // something's unsent. With your agents, Send only while something's unsent.
