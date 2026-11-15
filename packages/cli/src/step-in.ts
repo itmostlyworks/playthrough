@@ -565,6 +565,8 @@ export const SAYS = `<script>(() => {
     e.stopImmediatePropagation();
     if (e.type === "pointerdown") {
       const on = thing(e.target);
+      // Noted before the recording's pointer has come to yours, the recording starts here, so the note has one to be on.
+      record(true);
       readNow();
       send();
       const node = window.rrwebRecord?.record?.mirror?.getId(on);
@@ -719,9 +721,9 @@ export const SAYS = `<script>(() => {
   // step into it, where your recording starts.
   let recorded = [];
   const send = () => recorded.length && (parent.postMessage({ playthrough: "recorded", events: recorded }, "*"), (recorded = []));
-  const record = () =>
+  const record = (noted = false) =>
     !recording &&
-    !!sessionStorage.getItem("playthrough:yours") &&
+    (noted || !!sessionStorage.getItem("playthrough:yours")) &&
     window.rrwebRecord?.record({
       emit: (event) => recorded.push(event) === 1 && setTimeout(send, 100),
       sampling: { mousemove: 20, scroll: 16, input: "all" },

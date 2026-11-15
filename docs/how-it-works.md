@@ -370,7 +370,7 @@ as …" beside Back; Escape, in the app or out of it, goes back, but it's the ap
 it, closing a menu or a dialog, that's all it does. A link out of it opens in a tab of your own. The app is drawn with
 `will-change: transform`, so its words keep their spaces, and the clipboard is the page's, on the way there and in your
 browser. In a moment recorded on a phone's screen, a mouse drag is a swipe. Note works there as on the recording: what you did in the app is
-recorded from when it was handed to you and kept with the change (`branches/`, with the fonts, pictures and stylesheets
+recorded from when it was handed to you (or from the note, made before the recording's pointer had come to yours) and kept with the change (`branches/`, with the fonts, pictures and stylesheets
 its pages named, `keepNamed`), and the note is on that recording, at its end.
 
 ## The page for the whole machine
