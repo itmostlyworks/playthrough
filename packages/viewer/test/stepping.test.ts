@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { EventType, IncrementalSource, MouseInteractions, type eventWithTime } from "rrweb";
-import { changesOf, isStep, stepFrom, FRAME } from "../src/stepping.ts";
+import { changesOf, isStep, overAPause, stepFrom, FRAME } from "../src/stepping.ts";
 
 const at = (ms: number, data: object, type = EventType.IncrementalSnapshot) => ({ type, data, timestamp: 1000 + ms }) as eventWithTime;
 const mutation = (ms: number, attributes: { id: number; attributes: Record<string, string | null> }[] = [], adds = 0) =>
@@ -75,6 +75,21 @@ test("from anywhere between, a step goes to the step either side", () => {
   assert.equal(stepFrom(2.04, 1, shown, moving), 2.05);
   assert.equal(stepFrom(2.05, 1, shown, moving), 3, "once it has stopped, on to the next change");
   assert.equal(stepFrom(1.5, -1, shown, moving), 1);
+});
+
+test("held, stepping goes through what's moving and what follows closely, and stops at a pause either way", () => {
+  const held = (from: number, by: 1 | -1) => {
+    const steps: number[] = [];
+    for (let now = from, to; (to = stepFrom(now, by, shown, moving)) !== undefined && !overAPause(now, to); now = to) steps.push(to);
+    return steps;
+  };
+  assert.deepEqual(held(2, 1), [2.017, 2.033, 2.05], "through the motion, not on over the wait to 3s");
+  assert.deepEqual(held(3, -1), [], "the motion before is a wait away");
+  assert.deepEqual(held(2.05, -1), [2.033, 2.017, 2], "back through it to where it began, not on to the start");
+  const typed = { from: 0, end: 2, changes: [0.5, 0.56, 0.62, 1.4] };
+  const still = (change: number) => change;
+  assert.deepEqual([stepFrom(0.5, 1, typed, still), stepFrom(0.56, 1, typed, still)].map((to, i) => overAPause([0.5, 0.56][i]!, to!)), [false, false], "words typed 60ms apart are one run");
+  assert.equal(overAPause(0.62, stepFrom(0.62, 1, typed, still)!), true);
 });
 
 test("a change that moves into the next is stepped through only up to it", () => {

@@ -25,6 +25,8 @@ import { SendButton, tick, FILLED_KEY, SAID, useSend } from "./Send.tsx";
 import { ago, toSend, noteSays, takingOf, seenOf } from "./standing.ts";
 import { backAgain } from "./step.ts";
 import { useKeptReady, useStepIn } from "./stepIn.ts";
+import { useHeld } from "./held.ts";
+import { overAPause } from "./stepping.ts";
 import { closeOn, aboutBox, StillPicture } from "./Still.tsx";
 import type { Together } from "./view.ts";
 
@@ -303,11 +305,15 @@ export function MomentView(props: {
   const play = () => may.play && act({ type: "play" });
   // The frame before or the next, from where the recording has got to: pressed as it plays, it stops there and steps.
   const frameFrom = useRef<((at: number, by: 1 | -1, from: number, end: number) => number | undefined) | undefined>(undefined);
-  const frame = (by: 1 | -1) => {
-    if (!(by < 0 ? may.frameBefore : may.nextFrame)) return;
+  // Held, only a step that's no more than a pause away. It says whether it went.
+  const frame = (by: 1 | -1, held = false) => {
+    if (!(by < 0 ? may.frameBefore : may.nextFrame)) return false;
     const to = frameFrom.current?.(clockOf.at, by, from, end);
-    if (to !== undefined) act({ type: "step", at: to });
+    if (to === undefined || (held && overAPause(clockOf.at, to))) return false;
+    act({ type: "step", at: to });
+    return true;
   };
+  const arrow = useHeld(frame);
   // A note open on a frame of its own shows somewhere the app can't be taken to: stepping in from it would swap the
   // picture for the moment's and open the app there. Closed, Step in answers again. In the app, it's Back.
   const stepInOrBack = () => (inApp ? may.back && stepIn.back() : may.stepIn && stepIn.stepIn());
@@ -449,6 +455,8 @@ export function MomentView(props: {
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !writing) return (event.preventDefault(), void sendNow());
     if (typing || event.ctrlKey || event.metaKey || event.altKey) return;
     const key = event.key.toLowerCase();
+    // Any other key pressed lets go of an arrow held; its own repeat is nothing, the page keeps its own pace.
+    if (!event.repeat) arrow.letGo();
     if (key === "escape") {
       if (open) close();
       else if (comparing) compare();
@@ -456,7 +464,7 @@ export function MomentView(props: {
       else back();
       return;
     }
-    if (key === "arrowleft" || key === "arrowright") return (event.preventDefault(), frame(key === "arrowleft" ? -1 : 1));
+    if (key === "arrowleft" || key === "arrowright") return (event.preventDefault(), void (!event.repeat && arrow.press(key === "arrowleft" ? -1 : 1)));
     const down = () => (event.shiftKey ? nextNote(1) : next(1));
     const up = () => (event.shiftKey ? nextNote(-1) : next(-1));
     const did = { " ": play, s: stepInOrBack, n: note, c: () => (flips ? flip() : compare()), arrowdown: down, j: down, arrowup: up, k: up }[key];
@@ -466,8 +474,10 @@ export function MomentView(props: {
   };
   useEffect(() => {
     const down = (event: KeyboardEvent) => keys.current(event);
+    const up = (event: KeyboardEvent) => /^Arrow(Left|Right)$/.test(event.key) && arrow.letGo();
     addEventListener("keydown", down);
-    return () => removeEventListener("keydown", down);
+    addEventListener("keyup", up);
+    return () => (removeEventListener("keydown", down), removeEventListener("keyup", up));
   }, []);
 
   // A note's picture is new on the edge when it wasn't there the last time this moment was drawn: it arrives.
@@ -778,7 +788,7 @@ export function MomentView(props: {
               // A still has nothing to play: Play and its arrows rest where they are, as anything that can't be pressed
               // does, and Play says why when it's pointed at.
               <>
-                <FrameButton by={-1} disabled={!may.frameBefore} onStep={() => frame(-1)} />
+                <FrameButton by={-1} disabled={!may.frameBefore} onStep={() => frame(-1)} held={arrow} />
                 {/* The tip stands beside Play, not in it, so it's as clear as any other while Play rests. */}
                 <span className="group/tip relative flex">
                   <button className={`${ITEM} relative w-[96px] phone:w-[56px]`} disabled={!may.play} aria-description={still ? STILL : undefined} onClick={play}>
@@ -787,7 +797,7 @@ export function MomentView(props: {
                   </button>
                   {still && <Tip>{STILL}</Tip>}
                 </span>
-                <FrameButton by={1} disabled={!may.nextFrame} onStep={() => frame(1)} />
+                <FrameButton by={1} disabled={!may.nextFrame} onStep={() => frame(1)} held={arrow} />
               </>
             )}
             {/* On a phone, "Stepping…": its amber line says where, and the bar fits 390 wide with the arrows by Play. */}

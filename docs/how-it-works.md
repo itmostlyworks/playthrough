@@ -259,7 +259,11 @@ for it, as the text cursor; changes within one frame, 1/60 s as the recording's 
 cursor hidden for a picture is none, nor is Next's badge, hidden in every recording, changing its colours), and while the page is still moving from a change with no other coming, one frame
 of that motion at a time, until it's as good as there (97% of its eased way). Back from the first change is the
 moment's start; on from the last, its end; none past either, where its arrow is quiet. Pressed while it plays, it stops
-there and steps; held, the key's own repeat walks it; compared, both sides go there together; with a note open, as
+there and steps; held (`held.ts`), its key or its arrow under the pointer, it walks at the page's own pace, never the keyboard's
+repeat: the first step at once, then after 280 ms one every 66 ms (a quarter of the speed it played at, where every
+frame differs), and only to a step no more than a pause away (0.15 s of the recording), so through a fade or words being
+typed and never over a wait to the next thing that happened: it stops by itself where the screen goes still, and let go
+and pressed again it goes on; compared, both sides go there together; with a note open, as
 Space does, it acts on the moment and closes the note first, as it was or now. At rest on a step the
 page is that very frame, motion and all (`Replay.show`): rebuilt to just before the changes of the second before it and
 those played back on one at a time, so a fade stepped back into is shown mid-way, not at its end, and what the page set

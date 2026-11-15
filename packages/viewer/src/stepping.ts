@@ -1,4 +1,4 @@
-// Stepping through a moment a frame at a time, as `,` and `.` do: on to the next instant its screen changed, or back to
+// Stepping through a moment a frame at a time, as ← and → do: on to the next instant its screen changed, or back to
 // the one before, resting there; and where what changed is still moving with nothing else changing, as a fade, a frame of
 // that motion at a time. Where the screen changed is read from the recording alone; how long the page goes on moving
 // after, only the page can say, so it's asked.
@@ -110,6 +110,11 @@ export function stepFrom(at: number, by: 1 | -1, shown: Shown, movingUntil: (cha
   if (by > 0) return frames.find((frame) => frame > at + EPSILON) ?? Math.max(from, next);
   return frames.findLast((frame) => frame < at - EPSILON) ?? change ?? from;
 }
+
+// A pause, in seconds: held, stepping goes on only to a step no further off than this, so through a fade or words
+// being typed, and never over a wait to the next thing that happened.
+export const PAUSE = 0.15;
+export const overAPause = (at: number, to: number) => Math.abs(to - at) > PAUSE + EPSILON;
 
 // Whether `at` is a step: an instant the screen changed, or a frame after one. Resting there, the page is shown as it
 // was at that very frame, its motion where it had got to.
