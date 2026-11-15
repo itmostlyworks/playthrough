@@ -485,8 +485,9 @@ async function sayNotes(repo: Repo, change: Change, number: number, asking: stri
     if (on && madeInApp(on) && on.did.length)
       console.log(`    They stepped into the app there, then: ${on.did.map((did) => `${did.does}${did.what ? ` ${quote(did.what)}` : did.does === "click" ? " the page" : ""}${typeof did.with === "string" && did.does !== "click" ? ` ${quote(did.with)}` : ""}`).join(", then ")}.`);
     // Where they were is often the whole clue, as an address the app made wrong: what was there is gone by the time
-    // the agent looks.
-    if (on && madeInApp(on) && on.address) console.log(`    The app was at ${on.address} when they wrote it.`);
+    // the agent looks. What their run's setup made is said as setup's, the same place in the agent's own run.
+    if (on && madeInApp(on) && on.address)
+      console.log(`    The app was at ${on.address} when they wrote it${on.address.includes("${setup.") ? ", setup being what playthrough/setup.ts made for the run, as playthrough as prints it" : ""}.`);
   }
   console.log(`\nChange the app. Then: playthrough again, which runs every moment again and says what's different; playthrough answer <note> "<what you did, in a line>" for each; then hand back with playthrough wait, in the background.`);
 }

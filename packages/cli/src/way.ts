@@ -2,7 +2,7 @@
 // and whether running it again landed where the agent was.
 
 import { differences, type Reading, type Thing } from "@playthrough/page";
-import { quote } from "@playthrough/change";
+import { madeBySetup, quote } from "@playthrough/change";
 
 // What was done, as stepping in keeps a person's, and what it was done on as getByRole finds it: its role and name, and
 // which of those alike it was, where it isn't the only one; with no role, by its words; by its path only where it has
@@ -141,13 +141,6 @@ export function wayIn(file: string): string {
     .slice(from + 1, until)
     .filter((line) => !line.trim().startsWith("await expect(") && !line.includes("await test.step(") && !line.includes("await test.inView("))
     .join("\n");
-}
-
-// An address with what setup made written as setup's: the board made for this run is the board made for that one.
-function madeBySetup(address: string, setup: Record<string, unknown>) {
-  let out = address;
-  for (const [key, value] of Object.entries(setup)) if (typeof value === "string" && value.length > 6) out = out.split(value).join(`\${setup.${key}}`);
-  return out;
 }
 
 // Two addresses, part by part, with the ids in them set aside: where they differ, a part that's a number in both, or

@@ -251,8 +251,8 @@ async function shownOf(repo: Repo): Promise<{ app: string; people: Record<string
 // as it is now, what they say. A tab closed or reloaded meanwhile stops it.
 async function stepInto(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
   const { moment, after } = await body<{ moment: string; after?: number }>(request);
-  const { port, name, checked } = await getReady(repo, id, await placeOf(repo, id, moment, after), waitedFor(response));
-  json(response, 200, { port, name, ...(checked && { checked }) });
+  const { port, name, setup, checked } = await getReady(repo, id, await placeOf(repo, id, moment, after), waitedFor(response));
+  json(response, 200, { port, name, setup, ...(checked && { checked }) });
 }
 
 // Where the recording rests, once someone has stepped in on the change, for the next step in there to be quick. Answered at

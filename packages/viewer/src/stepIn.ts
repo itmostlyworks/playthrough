@@ -6,7 +6,7 @@
 // there.
 
 import { useEffect, useRef, useState } from "react";
-import { doneAt, madeInApp, newId, type Did, type InApp, type Note, type Moment } from "@playthrough/change";
+import { doneAt, madeBySetup, madeInApp, newId, type Did, type InApp, type Note, type Moment } from "@playthrough/change";
 import { keepBranch } from "./api.ts";
 import { keepSteppedIn, steppedInHere } from "./kept.ts";
 import { isPlaying, keptReadyAt, type Action, type Facts, type Page } from "./mode.ts";
@@ -14,9 +14,9 @@ import type { Clock } from "./Player.tsx";
 import type { App, Heard } from "./Portal.tsx";
 
 // One step in: on which moment, from where, since when, and as it goes, when it should be there, if that can be known;
-// the app's address once it's ready, and what its check at the end says where it doesn't hold now, or what stopped it;
-// and where your pointer was in the app as you left it.
-type Run = { moment: string; from: number; since: number; due?: number; address?: string; checked?: string; problems?: string[]; at?: { x: number; y: number } };
+// the app's address once it's ready, what setup made for it, and what its check at the end says where it doesn't hold
+// now, or what stopped it; and where your pointer was in the app as you left it.
+type Run = { moment: string; from: number; since: number; due?: number; address?: string; setup?: Record<string, unknown>; checked?: string; problems?: string[]; at?: { x: number; y: number } };
 
 export function useStepIn({ change, handBack, moment, page, clock, act, pointing }: { change: string; handBack: number; moment: Moment; page: Page; clock: Clock; act: (action: Action) => void; pointing: () => void }) {
   const [run, setRun] = useState<Run>();
@@ -50,7 +50,7 @@ export function useStepIn({ change, handBack, moment, page, clock, act, pointing
     readyIn(change, moment.name, after, asked.signal).then((left) => left && ours((now) => ({ ...now, due: since + left })));
     readyAt(change, moment.name, after, asked.signal).then((answer) => {
       if (asked.signal.aborted) return;
-      if ("address" in answer) return ours((now) => ({ ...now, address: answer.address, checked: answer.checked }));
+      if ("address" in answer) return ours((now) => ({ ...now, address: answer.address, setup: answer.setup, checked: answer.checked }));
       ours((now) => ({ ...now, problems: answer.problems }));
       act({ type: "back", since });
     });
@@ -101,7 +101,8 @@ export function useStepIn({ change, handBack, moment, page, clock, act, pointing
       const now = { type: 5, data: { tag: "now", payload: {} }, timestamp: kept.events.at(-1)!.timestamp };
       const length = await keepBranch(change, handBack, from, [...kept.events, now], file);
       if (typeof length !== "number") return setRun((run) => run && { ...run, problems: length });
-      const on: InApp = { handBack, moment: moment.name, steppedIn: from.at, did: said.did, ...(said.address && { address: said.address }), recording: `branches/${file}`, length, at: Math.floor(length * 100) / 100, ...(said.element ? { element: said.element } : said.point && { point: said.point }) };
+      // Where the app was, with the ids this step in's setup made said as setup's, for the agent to go there in its own run.
+      const on: InApp = { handBack, moment: moment.name, steppedIn: from.at, did: said.did, ...(said.address && { address: madeBySetup(said.address, here?.setup ?? {}) }), recording: `branches/${file}`, length, at: Math.floor(length * 100) / 100, ...(said.element ? { element: said.element } : said.point && { point: said.point }) };
       const [corner, far] = said.box ? [at(said.box.x, said.box.y), at(said.box.x + said.box.width, said.box.y + said.box.height)] : [];
       act({ type: "pointed", writing: { note: { id: newId(), on, words: "" }, spot: at(said.x, said.y), ...(corner && far && { box: { left: corner.x, top: corner.y, width: far.x - corner.x, height: far.y - corner.y } }) } });
     }
@@ -162,7 +163,7 @@ const readyIn = (change: string, moment: string, after: number | undefined, aske
 
 // Where the app is at that moment, through Playthrough, on the same machine name the viewer was reached by, and what its
 // check at the end says where it doesn't hold now; or what stops it.
-async function readyAt(change: string, moment: string, after: number | undefined, asked: AbortSignal): Promise<{ address: string; checked?: string } | { problems: string[] }> {
+async function readyAt(change: string, moment: string, after: number | undefined, asked: AbortSignal): Promise<{ address: string; setup: Record<string, unknown>; checked?: string } | { problems: string[] }> {
   try {
     const answer = await fetch(`/api/changes/${encodeURIComponent(change)}/step-in`, {
       method: "POST",
@@ -171,7 +172,7 @@ async function readyAt(change: string, moment: string, after: number | undefined
       signal: AbortSignal.any([asked, AbortSignal.timeout(ANSWERED)]),
     });
     const said = await answer.json().catch(() => ({}));
-    if (answer.ok) return { address: `${location.protocol}//${location.hostname}:${said.port}/step-in/${said.name}`, checked: said.checked };
+    if (answer.ok) return { address: `${location.protocol}//${location.hostname}:${said.port}/step-in/${said.name}`, setup: said.setup ?? {}, checked: said.checked };
     return { problems: said.problems ?? [`Playthrough couldn't open the app here: it answered ${answer.status}. Step in again; if it says so again, start Playthrough again with playthrough open.`] };
   } catch (error) {
     if ((error as Error)?.name === "TimeoutError")

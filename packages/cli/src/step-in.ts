@@ -24,7 +24,8 @@ const PORT = 5830;
 // own, /step-in/<moment>, with the app made for it, so two tabs, or a reload, never share one or take one from the
 // other. In the viewer, Step in asks for it where the playhead rests and turns the frame into the app there: nothing is
 // run before the first step in on a change, and after it, the one made ahead there is taken (keepReady).
-export async function getReady(repo: Repo, id: string, to: To, waiting?: AbortSignal): Promise<{ port: number; name: string; checked?: string }> {
+// With it, what setup made for it, so where the person writes a note is said as the same place in the agent's own run.
+export async function getReady(repo: Repo, id: string, to: To, waiting?: AbortSignal): Promise<{ port: number; name: string; setup: Record<string, unknown>; checked?: string }> {
   const app = await repo.app();
   const { handed, made, checked, done } = await madeFor(repo, id, to, waiting);
   // One way through for each copy of the app, as each answers at an address of its own.
@@ -40,7 +41,7 @@ export async function getReady(repo: Repo, id: string, to: To, waiting?: AbortSi
   steppedIn.set(name, { repo, id, to, handed, made, done, opened: false, holding: 0 });
   // Never opened, as when the tab closed before the app was there, it's given back a minute on.
   letGoSoon(name, UNOPENED);
-  return { port, name, ...(checked && { checked }) };
+  return { port, name, setup: made?.setup ?? {}, ...(checked && { checked }) };
 }
 
 // Where the page says it stands, as the run counts it: after so many of what the moment shows, the way there counted

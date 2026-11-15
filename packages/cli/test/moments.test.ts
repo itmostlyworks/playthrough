@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, test } from "node:test";
 import type { Reading, Thing } from "@playthrough/page";
-import { Refused, type HandBack, type Moment } from "@playthrough/change";
+import { madeBySetup, Refused, type HandBack, type Moment } from "@playthrough/change";
 import { change, changeHere, idOf, momentNamed, titleOf, momentsOf } from "../src/change.ts";
 import { howEachWent } from "../src/moments.ts";
 import { repo } from "../src/repo.ts";
@@ -180,6 +180,12 @@ describe("a moment run again", () => {
     assert.equal(sameAddress("http://a/settings/workspace", "http://a/settings/account"), undefined);
     assert.equal(sameAddress("http://a/boards", "http://a/boards/qiaa4o4hklar"), undefined);
     assert.equal(sameAddress("http://a/cards/short", "http://a/cards/other"), undefined);
+  });
+
+  test("an address where a note was written says what that run's setup made as setup's, the same place in the agent's run", () => {
+    const setup = { workspace: "qdn7k0ctncwq", board: "u8p2drvhftv7", person: "Maja" };
+    assert.equal(madeBySetup("/boards/u8p2drvhftv7?view=list", setup), "/boards/${setup.board}?view=list");
+    assert.equal(madeBySetup("/settings/account", setup), "/settings/account");
   });
 });
 
