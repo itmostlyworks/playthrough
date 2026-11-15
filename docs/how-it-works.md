@@ -321,7 +321,8 @@ showed, it's handed over at its end.
 `ready-in` how long it should take: as long as the last run to that point took. The moment's file runs, in one headless
 Chromium Playthrough keeps open while it runs, each run a window of its own with its own cookies and storage, to where
 it's stepped into; what the way and the step did only in the page's memory (a
-field typed into, a panel opened, a key pressed with nothing focused) is done again in your browser before it shows,
+field typed into, a panel opened, a menu a right click opened, a key pressed with nothing focused) is done again in your
+browser, as it was done, before it shows,
 while what saved something or went to another address isn't done twice, and the page is scrolled where the recording
 was. Each step in has an address of its own, `/step-in/<moment>`, a name nobody could guess, on a pass-through at
 http://localhost:5830/ that hands your browser the run's page (its address, cookies and what the app kept in the browser)

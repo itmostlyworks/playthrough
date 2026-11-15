@@ -278,7 +278,7 @@ function asIfDirect(request: IncomingMessage, target: URL) {
 // rrweb's recorder, as every moment has it, for what you do here to be recorded.
 let RECORDER: string | undefined;
 
-const SAYS = `<script>(() => {
+export const SAYS = `<script>(() => {
   if (window.parent === window) return;
   ${QUIET_DEV_CHROME}
   // This page holds its step in, as long as it's open: closed, reloaded or gone to another, what was made for it is given
@@ -655,16 +655,21 @@ const SAYS = `<script>(() => {
       if (found || still()) return found;
     }
   };
-  const press = (element, ...types) => {
+  const buttons = { left: [0, 1], middle: [1, 4], right: [2, 2] };
+  const press = (element, button, ...types) => {
     const box = element.getBoundingClientRect();
-    const at = { bubbles: true, cancelable: true, composed: true, view: window, clientX: box.x + box.width / 2, clientY: box.y + box.height / 2, button: 0, buttons: 1, pointerId: 1, pointerType: "mouse", isPrimary: true };
-    for (const type of types) element.dispatchEvent(new (type.startsWith("pointer") ? PointerEvent : MouseEvent)(type, at));
+    const [which, held] = buttons[button];
+    const at = { bubbles: true, cancelable: true, composed: true, view: window, clientX: box.x + box.width / 2, clientY: box.y + box.height / 2, button: which, pointerId: 1, pointerType: "mouse", isPrimary: true };
+    // The button is held from its down until its up, as the page reads it in buttons.
+    for (const type of types) element.dispatchEvent(new (type.startsWith("pointer") ? PointerEvent : MouseEvent)(type, { ...at, buttons: /down$|contextmenu/.test(type) ? held : 0 }));
   };
-  // Focused without scrolling to it: made ready unseen in the viewer, it would scroll the viewer's page to its frame.
-  const click = (element) => {
-    press(element, "pointerover", "pointerenter", "mouseover", "pointermove", "mousemove", "pointerdown", "mousedown");
+  // With the button it was done with, as a browser sends it: a right click opens what the page shows for it, as a card's
+  // menu, and is never a click, which would open the card. Focused without scrolling to it: made ready unseen in the
+  // viewer, it would scroll the viewer's page to its frame.
+  const click = (element, button = "left") => {
+    press(element, button, "pointerover", "pointerenter", "mouseover", "pointermove", "mousemove", "pointerdown", "mousedown", ...(button === "right" ? ["contextmenu"] : []));
     element.focus?.({ preventScroll: true });
-    press(element, "pointerup", "mouseup", "click");
+    press(element, button, "pointerup", "mouseup", button === "left" ? "click" : "auxclick");
   };
   const changed = (element) => ["input", "change"].forEach((type) => element.dispatchEvent(new Event(type, { bubbles: true })));
   // Filled, what's there is replaced; typed, it's added where the text cursor is.
@@ -695,15 +700,15 @@ const SAYS = `<script>(() => {
     }
     heard("keyup");
   };
-  const doAgain = async ({ does, on, with: given }) => {
+  const doAgain = async ({ does, on, with: given, button }) => {
     const element = await find(on);
     if (!element) return false;
-    if (does === "click" || does === "tap") click(element);
-    else if (does === "dblclick") (click(element), click(element), press(element, "dblclick"));
+    if (does === "click" || does === "tap") click(element, button);
+    else if (does === "dblclick") (click(element), click(element), press(element, "left", "dblclick"));
     else if (does === "fill") type(element, given);
     else if (does === "type") type(element, given, true);
     else if (does === "press") key(element, given);
-    else if (does === "hover") press(element, "pointerover", "pointerenter", "mouseover", "pointermove", "mousemove");
+    else if (does === "hover") press(element, "left", "pointerover", "pointerenter", "mouseover", "pointermove", "mousemove");
     else if (does === "selectOption") (element.value = [given].flat()[0], changed(element));
     else if (element.checked !== (does === "check" || (does === "setChecked" && given))) click(element);
     stir();

@@ -792,7 +792,10 @@ async function acted(does: string, target: (page: Page) => Promise<string | unde
     // saved something or went to another page, which shows at once. The next action's page is waited for as it's taken.
     await keeping.page.waitForTimeout(SAVING);
     const plain = typeof given === "string" || typeof given === "boolean" || (Array.isArray(given) && given.every((one) => typeof one === "string"));
-    if (on && !keeping.wrote && keeping.page.url() === address) Object.assign(keeping, { address }).again.push({ does, on, ...(plain && { with: given }) });
+    // A right click opens what a left one doesn't, as Kan's card menu where a left click opens the card.
+    const button = /click|tap/.test(does) ? (given as Pick<Action, "button"> | undefined)?.button : undefined;
+    const pressed = button === "right" || button === "middle" ? { button } : {};
+    if (on && !keeping.wrote && keeping.page.url() === address) Object.assign(keeping, { address }).again.push({ does, on, ...(plain && { with: given }), ...pressed });
     else Object.assign(keeping, { from: undefined, again: [] });
   }
   if (keeping?.depth) {

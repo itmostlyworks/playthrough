@@ -44,8 +44,9 @@ export type To = { moment: string; after?: number };
 export type Handed = { url: string; cookies: Cookie[]; local: Record<string, string>; session: Record<string, string>; scroll: { x: number; y: number }; clock: number; browser: Browser; again?: Action[] };
 // Whether it asked for dark and for little motion, and the languages it read in.
 export type Browser = { dark: boolean; still: boolean; languages: string[]; touch?: boolean };
-// An action of the moment's, done again in the person's browser: what it did, on the element at that path, with what.
-export type Action = { does: string; on: string; with?: string | boolean | string[] };
+// An action of the moment's, done again in the person's browser: what it did, on the element at that path, with what,
+// and a click with which button, where it wasn't the left.
+export type Action = { does: string; on: string; with?: string | boolean | string[]; button?: "right" | "middle" };
 export type Cookie = { name: string; value: string; path: string; expires: number; httpOnly: boolean };
 // Set in Playthrough before it loads what moments import, so test() there keeps each moment to step into (following.ts).
 export const ALONGSIDE = Symbol.for("playthrough: moments stepped into here");
