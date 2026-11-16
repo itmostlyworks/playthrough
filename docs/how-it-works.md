@@ -148,7 +148,8 @@ first: list.tsx has changed since the moments were run, and the answer goes with
 refuses while a note has no answer or a moment hasn't been run again, or, for moments that went on unrun, while anything
 has changed since they ran; otherwise it hands back, stops the `as` browser, gives the address of the change's own page, and waits. While
 it waits it keeps a file named by its process in the change's `waiting/`, saying which start of the machine it's on, so
-the page knows an agent is listening. When the person sends, it prints each note on its moment, with its conversation,
+the page knows an agent is listening. When the person sends, it prints each note on its moment (one written at the
+last stop "on the change as a whole", with its conversation and nothing more: no picture, no way to stand there), with its conversation,
 a picture of what they saw with the thing outlined (`noted.ts`: the page the moment left, or for a note made in the
 app, the frame the person's page drew of it), how to stand there (`playthrough as <person> "<moment>"`), and for one
 made in the app what they did there and where the app was when they wrote it (`The app was at /boards/undefined when
@@ -266,8 +267,19 @@ on its moment. One card alone at 300 wide; several, two or three across at that 
 their part scrolls on its own (the wheel, touch, Tab; never ↑ ↓, which are the list's), ending clear of the bar and
 fading at whichever edge has more beyond it, so no card is cut hard. Just sent, they stay, their dots slate, till the page goes on. Last, what's still to do, as
 quiet lines you can press: "2 moments not watched" (to the first of them), "1 answer not opened" (to it); nothing when
-there's nothing. Only your words: nothing the agent wrote. There you're on no moment: the Notes edge holds no cards, its word
-staying while the change has notes. The bar's
+there's nothing. Only your words: nothing the agent wrote. There you're on no moment, but on the change as a whole, and
+a note there is on it (16 Nov, from twenty user tests: seven remarks weren't about one spot, and two people said "this
+isn't what I meant" by pointing at the page's heading). Note (N) is on the bar beside the step, as on a moment; with
+nothing to point at, it opens the note box at once (the same box, Keep, Escape and growth), in the sheet's flow under
+what you asked, where "Your notes" lists. Kept, it's in "Your notes" with its words and no picture or moment, and Send
+counts it. A note on the whole change has no `on`; one whose moment was dropped keeps its `on` and is shown on a moment
+(`shownOn`), so neither is ever taken for the other. The Notes edge there holds the notes on the whole change, as a
+moment's holds its own (unsent, sent, answered, the thread, replying, Remove), a card opening in the sheet's flow
+where the box does; the last card on the Moments edge carries their dots as a moment's card carries its notes'. An
+answer to one is counted in "1 answer not opened" and reached by Shift ↑ ↓ (from the last moment's last note, Shift ↓
+goes on to them); the last stop is seen as a moment is (`Seen` with no moment), so coming there reads them; and the
+change opens where it would without it (`firstUnseen`, `seenThrough` leave it out): you meet the answer at the end. On
+a phone the box and the card are under the bar, as a moment's are. The bar's
 place holds the one thing to do (`StepLeft.tsx`, `StepAction`): Send while something's unsent ("Send 2 notes ↵",
 filled) or Done while it waits on you ("Done ↵"), with what it does by it ("Your agent starts on them."; "Says every
 moment looks good, and the change is done."). Pressed, or Enter (or Ctrl+Enter from any moment while something's
@@ -279,7 +291,8 @@ card is for a moment: one short line (40px), a moment's card in width, corners a
 rest, its words held 8px from the screen's edge at rest where the edge's fade leaves room ("Send 2" when "Send 2 notes"
 doesn't fit there), quiet on every moment, and at the last stop full, with the line that says where you are, which
 no moment's card has then; pressed, it goes there. Keys there: ↑, K or Escape back to the last moment; Enter the
-step, on this card too when Tab and Enter brought you there by it; Shift ↑ the change's last note; W as anywhere; nothing else. `/` when the next change is seen all through
+step, on this card too when Tab and Enter brought you there by it; N a note on the whole change; Shift ↑ ↓ through the
+notes there, then back into the moments'; Escape closes a note open there first; W as anywhere; nothing else. `/` when the next change is seen all through
 (`seenThrough`) opens at its last stop. Nothing else says anything to the agent: ↓ never does, and Space is never a
 press (`useSpaceStays`). On a phone, the sheet is two pictures to a row in the frame, the step in the bar, and the
 card under the Moments strip. With nothing waiting,

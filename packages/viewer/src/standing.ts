@@ -21,7 +21,8 @@ export function noteSays(change: Change, you: string, note: Note, sent: boolean,
   if (!turns.at(-1)?.agent) return { words, stands: "sent", fresh: false };
   const handBack = turns.at(-1)!.handBack;
   const answeredIn = change.handBacks.find((one) => one.number === handBack);
-  const on = answeredIn ? shownOn(change, answeredIn, note) : note.on?.moment;
+  // Where it's seen: its moment, or for one on the whole change, the last stop.
+  const on = (answeredIn ? shownOn(change, answeredIn, note) : note.on?.moment) ?? LAST_STOP;
   const fresh = !seenOf(change, you).some((taking) => Number(taking.slice(0, taking.indexOf(":"))) >= handBack && taking.slice(taking.indexOf(":") + 1) === on);
   return { words, stands: fresh ? "new answer" : "answered", fresh };
 }
@@ -36,8 +37,10 @@ export function shownOn(change: Change, handBack: HandBack, note: Note): string 
   return (handBack.moments.find((one) => !then?.moments.some((was) => was.name === one.name)) ?? handBack.moments.at(-1))?.name;
 }
 
-// Each moment's taking: seen per taking, so one that's different since asks for you again, once.
+// Each moment's taking: seen per taking, so one that's different since asks for you again, once. A hand-back's last
+// stop is seen as a taking with no moment.
 export const takingOf = (handBack: number, moment: string) => `${handBack}:${moment}`;
+export const LAST_STOP = "";
 
 // The moments that look different since the taking before, by Playthrough's own comparison, with its words.
 export function differentSince(change: Change, handBack: HandBack): Map<string, string[]> {
@@ -50,7 +53,7 @@ export function differentSince(change: Change, handBack: HandBack): Map<string, 
 
 // The moments you've opened, kept with the change for you, so they're seen from every browser, each as it was handed
 // back: one handed back again, different, asks for you again.
-export const seenOf = (change: Change, you: string): string[] => (change.seen?.[you] ?? []).map((one) => takingOf(one.handBack, one.moment));
+export const seenOf = (change: Change, you: string): string[] => (change.seen?.[you] ?? []).map((one) => takingOf(one.handBack, one.moment ?? LAST_STOP));
 
 // Once each: the page asks again as it draws until the change comes back with it.
 const telling = new Set<string>();
@@ -66,10 +69,11 @@ export function markSeen(change: Change, you: string, takings: string[]) {
   const opened = [...new Set([...here, ...takings])]
     .filter((taking) => !kept.has(taking) && !telling.has(`${change.id}:${taking}`))
     .map((taking) => ({ handBack: Number(taking.slice(0, taking.indexOf(":"))), moment: taking.slice(taking.indexOf(":") + 1) }))
-    .filter(({ handBack, moment }) => change.handBacks.some((one) => one.number === handBack && one.finished && one.moments.some((kept) => kept.name === moment)));
+    .filter(({ handBack, moment }) => change.handBacks.some((one) => one.number === handBack && one.finished && (moment === LAST_STOP || one.moments.some((kept) => kept.name === moment))));
   if (!opened.length) return;
   for (const one of opened) telling.add(`${change.id}:${takingOf(one.handBack, one.moment)}`);
-  void fetch(`/api/changes/${encodeURIComponent(change.id)}/seen`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ by: you, moments: opened }) }).then((answer) => {
+  const said = opened.map(({ handBack, moment }) => (moment === LAST_STOP ? { handBack } : { handBack, moment }));
+  void fetch(`/api/changes/${encodeURIComponent(change.id)}/seen`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ by: you, moments: said }) }).then((answer) => {
     if (!answer.ok) return;
     try {
       localStorage.removeItem(seenKey(change.id, you));

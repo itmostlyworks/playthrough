@@ -48,7 +48,8 @@ const CARD = 188;
 
 // The last stop's card on the Moments edge: always one short line, quiet, and where you are while you're there, with
 // the line a moment's card has then. Pressed, it goes there.
-export function StepCard({ step, here, forward, tucked, onPress }: { step: Step; here: boolean; forward: boolean; tucked: number; onPress: () => void }) {
+// Its notes' dots, the notes on the whole change, as a moment's card carries its notes'.
+export function StepCard({ step, here, forward, tucked, dots, onPress }: { step: Step; here: boolean; forward: boolean; tucked: number; dots: { id: string; sent: boolean }[]; onPress: () => void }) {
   // Send's words in full, measured: where they don't fit in what shows at rest, it says only how many ("Send 12"),
   // in full as the edge comes forward.
   const full = useRef<HTMLSpanElement>(null);
@@ -90,6 +91,13 @@ export function StepCard({ step, here, forward, tucked, onPress }: { step: Step;
         <span ref={full} aria-hidden className="invisible absolute whitespace-nowrap">
           {step.words}
         </span>
+        {dots.length > 0 && (
+          <span className="absolute top-1.5 right-1.5 flex gap-[3px]">
+            {dots.slice(0, 5).map((one) => (
+              <i key={one.id} className={`size-[7px] rounded-full shadow-[0_0_0_1.5px_#fff] ${one.sent ? "bg-slate" : "bg-amber"}`} />
+            ))}
+          </span>
+        )}
       </span>
     </button>
   );

@@ -241,7 +241,9 @@ export function MomentView(props: {
   const mine = notes.filter((one) => isOn(one, moment.name));
   const theirs = sent.filter((one) => isOn(one, moment.name));
   const said = [...theirs.map((note) => ({ note, sent: true })), ...mine.map((note) => ({ note, sent: false }))];
-  const onEdge = said.filter(({ note }) => !stepIn.madeThere(note));
+  // What you said on the change as a whole, on no moment: the last stop's, as a moment's notes are its own.
+  const onTheWhole = [...sent.filter((one) => !one.on).map((note) => ({ note, sent: true })), ...notes.filter((one) => !one.on).map((note) => ({ note, sent: false }))];
+  const onEdge = atLastStop ? onTheWhole : said.filter(({ note }) => !stepIn.madeThere(note));
   // What was new as you came to the change stays new here until you open it: coming to its moment counts as seeing it,
   // for what's next and for next time.
   useEffect(() => void (open && props.onOpened(open)), [open]);
@@ -341,7 +343,8 @@ export function MomentView(props: {
   // picture for the moment's and open the app there. Closed, Step in answers again. In the app, it's Back.
   const stepInOrBack = () => (inApp ? may.back && stepIn.back() : may.stepIn && stepIn.stepIn());
   const back = () => may.back && stepIn.back();
-  const note = () => may.note && act({ type: "note" });
+  // At the last stop a note is on the change as a whole: there's nothing to point at, so it's written at once.
+  const note = () => may.note && act(atLastStop ? { type: "pointed", writing: { note: { id: newId(), words: "" }, spot: { x: 0, y: 0 } } } : { type: "note" });
   const flip = () => may.flip && act({ type: "flip" });
   // Opened or closed, it stops where it's got to.
   const compare = () => {
@@ -357,11 +360,11 @@ export function MomentView(props: {
   // After the last moment, the last stop; from it, ↑ is the last moment again and there's nothing further on.
   // While the app is yours, the step left still answers, as sending what you said isn't driving the recording: it leaves
   // the app as Back does, on its way there.
-  const toLastStop = () => {
+  const toLastStop = (open?: string) => {
     if (atLastStop) return;
     if (inApp && may.back) stepIn.back();
     else if (!may.move) return;
-    act({ type: "moment", moment: moment.name, starts: from, end });
+    act({ type: "moment", moment: moment.name, starts: from, end, open });
     props.onLastStop();
   };
   const next = (by: number) => {
@@ -375,13 +378,13 @@ export function MomentView(props: {
   const toMoment = (to: number) => may.move && (to !== n || atLastStop) && goTo(to);
   const openNote = (id: string) => may.move && act({ type: "open", note: id });
   // What you said on a moment of the change, in the order its edge has it: one made in the app joins once you're back.
-  const notesOn = (other: Moment) => (other === moment ? onEdge.map(({ note }) => note) : [...sent, ...notes].filter((one) => isOn(one, other.name)));
+  const notesOn = (other: Moment) => (other === moment && !atLastStop ? onEdge.map(({ note }) => note) : [...sent, ...notes].filter((one) => isOn(one, other.name)));
   // The note before or the next, through the whole change: this moment's one after another, then on to the nearest
-  // moment that has one, its first going on, its last going back. Past the change's last or first, nothing.
+  // moment that has one, its first going on, its last going back; after the last moment, the notes on the whole change,
+  // at the last stop. Past the change's last or first, nothing.
   const nextNote = (by: 1 | -1) => {
     if (!may.move) return;
-    // From the last stop, back is the change's last note, wherever it is, and on is nothing.
-    const here = atLastStop ? [] : notesOn(moment);
+    const here = atLastStop ? onTheWhole.map(({ note }) => note) : notesOn(moment);
     const i = here.findIndex((one) => one.id === open);
     const to = here[i < 0 ? (by > 0 ? 0 : here.length - 1) : i + by];
     if (to) return openNote(to.id);
@@ -389,6 +392,7 @@ export function MomentView(props: {
       const there = notesOn(handBack.moments[other - 1]!).at(by > 0 ? 0 : -1);
       if (there) return goTo(other, there.id);
     }
+    if (by > 0 && !atLastStop && onTheWhole[0]) toLastStop(onTheWhole[0].note.id);
   };
   const close = () => act({ type: "close" });
   const save = (words: string) => {
@@ -478,7 +482,8 @@ export function MomentView(props: {
     return { x: 0, y: covers ? BAR / 2 : 0 };
   })());
   // The note whose card shows: open on the moment as it is now, or on the frame it was made on, until that has faded.
-  const carded = opened && openNow ? opened : shownOpen && (opened ? shownOpen.note.id === opened.note.id && shownOpen : !phone && shownOpen);
+  // At the last stop, a note on the whole change, on the sheet.
+  const carded = atLastStop ? opened : opened && openNow ? opened : shownOpen && (opened ? shownOpen.note.id === opened.note.id && shownOpen : !phone && shownOpen);
   // Its card comes in by its thing, so it waits until where that is is known: it never stands somewhere else first and
   // moves. Only a note that turns out to be on nothing stands in the corner.
   const corner = spotAt({ x: 24, y: 24 });
@@ -507,11 +512,16 @@ export function MomentView(props: {
     const key = event.key.toLowerCase();
     // Any other key pressed lets go of an arrow held; its own repeat is nothing, the page keeps its own pace.
     if (!event.repeat) arrow.letGo();
-    // At the last stop there's no recording to drive: Enter presses the step left, ↑ or Escape go back to the last
-    // moment, and with Shift ↑ ↓ the notes are gone through as anywhere; nothing else on it answers.
+    // At the last stop there's no recording to drive: Enter presses the step left, N notes on the whole change, ↑ or
+    // Escape go back to the last moment (Escape closing a note open first), and with Shift ↑ ↓ the notes are gone
+    // through as anywhere; nothing else on it answers.
     if (atLastStop) {
       const pressing = key === "enter" && (ownTile || !(event.target instanceof HTMLElement && event.target.closest("button, a")));
-      const did = pressing ? step.press : event.shiftKey ? { arrowup: () => nextNote(-1), k: () => nextNote(-1) }[key] : { arrowup: () => next(-1), k: () => next(-1), escape: () => next(-1) }[key];
+      const did = pressing
+        ? step.press
+        : event.shiftKey
+          ? { arrowup: () => nextNote(-1), k: () => nextNote(-1), arrowdown: () => nextNote(1), j: () => nextNote(1) }[key]
+          : { arrowup: () => next(-1), k: () => next(-1), escape: () => (open ? close() : next(-1)), n: note }[key];
       if (/^( |arrowdown|arrowleft|arrowright|j)$/.test(key) || did) event.preventDefault();
       if (!event.repeat) did?.();
       return;
@@ -550,9 +560,11 @@ export function MomentView(props: {
   }, []);
 
   // A note's picture is new on the edge when it wasn't there the last time this moment was drawn: it arrives.
+  // The last stop is a place of its own, after the last moment.
+  const place = atLastStop ? count + 1 : n;
   const known = useRef<{ n: number; ids: Set<string> }>(undefined);
-  const before = known.current?.n === n ? known.current.ids : undefined;
-  useEffect(() => void (known.current = { n, ids: new Set(onEdge.map(({ note }) => note.id)) }));
+  const before = known.current?.n === place ? known.current.ids : undefined;
+  useEffect(() => void (known.current = { n: place, ids: new Set(onEdge.map(({ note }) => note.id)) }));
   const newest = before && onEdge.findLast(({ note }) => !before.has(note.id))?.note.id;
   const [lastArrived, setLastArrived] = useState<string>();
   useEffect(() => void (newest && setLastArrived(newest)), [newest]);
@@ -611,9 +623,9 @@ export function MomentView(props: {
     const thing = end && closeTo && end.things.find((one) => one.role === closeTo.role && one.name === closeTo.name)?.box;
     return thing && { x: thing.x / end.screen.width, y: thing.y / end.screen.height, width: thing.width / end.screen.width, height: thing.height / end.screen.height };
   })();
-  // At the last stop you're on no moment: the notes are on the sheet, and the edge holds none.
+  // At the last stop you're on no moment: the edge holds the notes on the whole change.
   const noteTiles = (forward: boolean) =>
-    (atLastStop ? [] : onEdge).map(({ note, sent: isSent }) => {
+    onEdge.map(({ note, sent: isSent }) => {
       const { words, stands, fresh } = says(note, isSent);
       return (
         <Tile
@@ -625,7 +637,7 @@ export function MomentView(props: {
           lit={pointed === note.id}
           arriving={before && !before.has(note.id) ? "right" : undefined}
           strip
-          picture={<NotePicture frame={frames[note.id]} focus={isNow(shownAt(note)) ? aboutHere : undefined} />}
+          picture={note.on && <NotePicture frame={frames[note.id]} focus={isNow(shownAt(note)) ? aboutHere : undefined} />}
           words={
             // Its dot first, as on the recording and on its moment's picture: a dot means a note.
             <span className="flex gap-[7px]">
@@ -647,12 +659,14 @@ export function MomentView(props: {
   const threadMore = useMore(thread);
   const rows = useRef<HTMLDivElement>(null);
   const rowsMore = useMore(rows);
+  // At the last stop a card isn't by a thing: it's in the sheet's flow, as on a phone it's in the rows under the bar.
+  const inFlow = phone || atLastStop;
   const cards = (
     <>
-          {writing && <NoteCard by={(!(writing.note.on && madeInApp(writing.note.on)) && placed?.[writing.note.id]) || writing.box || spotAt(writing.spot)} stage={stage} under={phone}><Write onSave={save} onDrop={() => act({ type: "written" })} /></NoteCard>}
+          {writing && <NoteCard by={(!(writing.note.on && madeInApp(writing.note.on)) && placed?.[writing.note.id]) || writing.box || spotAt(writing.spot)} stage={stage} under={inFlow}><Write onSave={save} onDrop={() => act({ type: "written" })} /></NoteCard>}
           {/* Closing, it fades where it stood; under the bar on a phone, it goes at once, so it never holds its room. */}
-          {!writing && carded && cardBy && (
-            <NoteCard key={carded.note.id} by={cardBy} stage={stage} closing={!opened} under={phone}>
+          {!writing && carded && (cardBy || atLastStop) && (
+            <NoteCard key={carded.note.id} by={cardBy ?? corner} stage={stage} closing={!opened} under={inFlow}>
               <div ref={thread} onScroll={threadMore.look} className="min-h-0 flex-1 overflow-y-auto px-1" style={threadMore.fade}>
                 {carded.sent ? <Turns you={you} turns={conversation(change, carded.note.id)} /> : <Turns you={you} turns={[]} unsent={carded.note.words} />}
               </div>
@@ -692,7 +706,7 @@ export function MomentView(props: {
       quiet={away}
       phone={phone}
       showing={atLastStop ? LAST_STOP : moment.name}
-      foot={(forward, tucked) => <StepCard step={step} here={atLastStop} forward={forward} tucked={tucked} onPress={toLastStop} />}
+      foot={(forward, tucked) => <StepCard step={step} here={atLastStop} forward={forward} tucked={tucked} dots={onTheWhole.map(({ note, sent: isSent }) => ({ id: note.id, sent: isSent }))} onPress={() => toLastStop()} />}
       footAnswers={inApp && may.back}
     >
       {momentTiles}
@@ -844,6 +858,7 @@ export function MomentView(props: {
             <div ref={sheet} className={`absolute inset-0 z-[15] ${atLastStop ? "animate-arrive" : "pointer-events-none"}`}>
               <LastStop
                 asked={change.asked}
+                card={atLastStop && !phone && (writing || carded) ? cards : undefined}
                 notes={sending.current.map(({ note, sent: isSent }) => {
                   // The note's card as it is on the Notes edge forward, with the moment it's on, since here they come
                   // from several; amber while it's yours to send, slate once it's gone.
@@ -858,7 +873,7 @@ export function MomentView(props: {
                         forward
                         strong={false}
                         strip
-                        picture={<NotePicture frame={sheetFrames[note.id]} />}
+                        picture={note.on && <NotePicture frame={sheetFrames[note.id]} />}
                         words={
                           <span className="flex gap-[7px]">
                             <i className={`mt-[5px] size-[7px] flex-none rounded-full shadow-[0_0_0_1.5px_#fff] ${step.taken === "Sent" ? "bg-slate" : "bg-amber"}`} />
@@ -868,7 +883,7 @@ export function MomentView(props: {
                             </span>
                           </span>
                         }
-                        onPress={() => on && may.move && goTo(on, note.id)}
+                        onPress={() => (on ? may.move && goTo(on, note.id) : !note.on && openNote(note.id))}
                       />
                     ),
                   };
@@ -876,7 +891,11 @@ export function MomentView(props: {
                 unwatched={props.unwatched.length}
                 unopened={props.unopened.length}
                 onUnwatched={() => props.unwatched[0] && may.move && goTo(props.unwatched[0])}
-                onUnopened={() => props.unopened[0] && may.move && goTo(props.unopened[0].moment, props.unopened[0].note)}
+                onUnopened={() => {
+                  const first = props.unopened[0];
+                  // One on the whole change is here, at the last stop.
+                  if (first && may.move) first.moment > count ? openNote(first.note) : goTo(first.moment, first.note);
+                }}
               />
             </div>
           )}
@@ -897,7 +916,7 @@ export function MomentView(props: {
           <span ref={pill} aria-hidden className={`pointer-events-none absolute top-0 left-0 z-30 transition-opacity duration-150 ease-calm ${aimingNote && aiming ? "" : "opacity-0"}`}>
             <span className={TAG}>Note on this</span>
           </span>
-          {!phone && cards}
+          {!phone && !atLastStop && cards}
           {/* What you can do here, across the recording's bottom edge, as on the older page. */}
           <div
             role="toolbar"
@@ -916,7 +935,13 @@ export function MomentView(props: {
             )}
             {/* At the last stop, the one thing to do there. */}
             {atLastStop ? (
-              <StepAction step={step} />
+              // Note, as on a moment, on the whole change; beside it the step left.
+              <>
+                <button className={ITEM} disabled={!may.note} aria-pressed={!!writing} onClick={note}>
+                  Note <Key>N</Key>
+                </button>
+                <StepAction step={step} />
+              </>
             ) : (
             <>
             {/* Noting, the bar says what to do and how to leave, over what it holds, at its width. */}

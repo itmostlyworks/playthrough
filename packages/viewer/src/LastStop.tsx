@@ -11,6 +11,8 @@ const APART = 16;
 
 export function LastStop(props: {
   asked?: string;
+  // A note on the whole change being written, or open: its card as a moment's is, in the sheet's flow.
+  card?: ReactNode;
   // The notes Send will send, each drawn as its card on the Notes edge is; once sent, what went, till the page goes on.
   notes: { id: string; card: ReactNode }[];
   // What's still to do: the moments not watched, the answers not opened; each pressed goes to the first of them.
@@ -43,7 +45,7 @@ export function LastStop(props: {
   // three lines; with none, what you asked is the sheet, large, whole while the frame has the height for it. Cut
   // either way, it's whole on hover, and to the keyboard.
   const quietLine = "text-[12.5px] leading-[17px] text-soft";
-  const sending = notes.length > 0;
+  const sending = notes.length > 0 || !!props.card;
   const askedLines = sending ? 3 : Math.max(3, Math.floor((high - 140 - (todo.length ? 40 : 0)) / (phone ? 23 : 30)));
   // The notes, past what fits, scroll in their own part, fading at whichever edge has more beyond it.
   const list = useRef<HTMLDivElement>(null);
@@ -71,7 +73,8 @@ export function LastStop(props: {
             </p>
           </div>
         )}
-        {sending && (
+        {props.card && <div className="flex w-full max-w-[300px] flex-none flex-col">{props.card}</div>}
+        {notes.length > 0 && (
           <div className="flex min-h-0 w-full flex-col items-center">
             <p className={`${quietLine} mb-2 flex-none`}>Your notes</p>
             <div ref={list} onScroll={look} className="min-h-0 w-full overflow-y-auto overscroll-contain px-1 py-1 [scrollbar-width:thin]" style={{ maskImage: fade, WebkitMaskImage: fade }}>

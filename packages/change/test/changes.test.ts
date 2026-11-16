@@ -155,6 +155,14 @@ for (const [kept, storage] of storages) {
       await assert.rejects(changes.see("invoice-export", "Ana", [{ handBack: 2, moment: "Export a quarter" }]), refused(/^Hand-back 2 hands back no “Export a quarter” to see\.$/));
     });
 
+    test("a hand-back's last stop, where the notes on the whole change are, is seen as a moment is, once handed back", async () => {
+      const changes = await recorded();
+      await changes.see("invoice-export", "Ana", [{ handBack: 1 }]);
+      assert.deepEqual((await changes.get("invoice-export")).seen, { Ana: [{ handBack: 1 }] });
+      await changes.saveHandBack("invoice-export", handBack(2));
+      await assert.rejects(changes.see("invoice-export", "Ana", [{ handBack: 2 }]), refused(/^Hand-back 2 hasn't been handed back, so there's nothing of it to see\.$/));
+    });
+
     test("a hand-back compared at all is compared with every hand-back before it before it's handed back", async () => {
       const changes = await recorded();
       await changes.saveHandBack("invoice-export", handBack(2));

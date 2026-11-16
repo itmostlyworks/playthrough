@@ -227,13 +227,15 @@ export function problemsWithSend(change: Change, send: Send): string[] {
   return problems;
 }
 
-// What's seen is a moment handed back: a moment of a finished hand-back.
+// What's seen is a moment handed back, a moment of a finished hand-back, or its last stop, where the notes on the whole
+// change are.
 export function problemsSeeing(change: Change, by: string, seen: Seen[]): string[] {
   if (!isText(by)) return ["Seeing needs to say who saw it."];
   return seen.flatMap((one) => {
     const shape = problemsWithShape(Seen, one, "What's seen");
     if (shape.length) return shape;
     const handBack = change.handBacks.find((handBack) => handBack.number === one.handBack && handBack.finished);
+    if (one.moment === undefined) return handBack ? [] : [`Hand-back ${one.handBack} hasn't been handed back, so there's nothing of it to see.`];
     return handBack?.moments.some((moment) => moment.name === one.moment) ? [] : [`Hand-back ${one.handBack} hands back no ${quote(one.moment)} to see.`];
   });
 }

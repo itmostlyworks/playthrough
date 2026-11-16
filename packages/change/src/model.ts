@@ -190,7 +190,7 @@ export const Send = z.strictObject({
 export const Taken = z.strictObject({ send: z.string(), handBack: z.number().int(), at: z.iso.datetime() });
 
 // A moment someone has opened, as it was handed back in one hand-back: one handed back again, different, asks to be seen again.
-export const Seen = z.strictObject({ handBack: z.number().int().min(1), moment: text("needs the moment it's of") });
+export const Seen = z.strictObject({ handBack: z.number().int().min(1), moment: text("needs the moment it's of").optional().describe("Without it, the last stop: the change as a whole") });
 
 export const Change = z.strictObject({
   id: z.string(),

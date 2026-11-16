@@ -6,7 +6,7 @@ import { test } from "node:test";
 import type { Change, HandBack, Moment, Send } from "@playthrough/change";
 import type { Listed } from "../src/api.ts";
 import { shownOn } from "../src/standing.ts";
-import { firstUnseen, lookOf, sectionOf, stepOf, unseenOf, waitingInOrder } from "../src/step.ts";
+import { firstUnseen, lookOf, sectionOf, seenThrough, stepOf, unreadOf, unseenOf, waitingInOrder } from "../src/step.ts";
 
 const you = "Ana";
 
@@ -65,6 +65,18 @@ test("a sent note whose moment the agent took out is on the first moment new sin
   assert.equal(lookOf(having([2, "Admin opens settings"]), you), "See 1 more moment, 1 answer");
   assert.deepEqual(firstUnseen(having([2, "Admin opens settings"]), you), { moment: 2 });
   assert.equal(lookOf(having([2, "Admin opens settings"], [2, "Boards as a list"]), you), "All 2 seen");
+});
+
+test("an answer to a note on the whole change is at the last stop: counted, but the change opens where it would without it, and the last stop seen reads it", () => {
+  const note = { id: "w1", words: "Does it also close with Escape?" };
+  const answered = handBack(2, ["Admin opens settings"], { replies: [{ note: "w1", words: "Yes." }] });
+  const change = listed({ handBacks: [handBack(1, ["Admin opens settings"]), answered], sends: [send(1, { notes: [note] })] });
+  const having = (...moments: [number, string?][]) => ({ ...change, change: { ...change.change, seen: { [you]: moments.map(([handBack, moment]) => ({ handBack, ...(moment && { moment }) })) } } });
+  assert.deepEqual(unreadOf(having([2, "Admin opens settings"]), you), [{ note: "w1", moment: 2 }], "after the last moment");
+  assert.equal(lookOf(having([2, "Admin opens settings"]), you), "Read 1 answer");
+  assert.deepEqual(firstUnseen(having(), you), { moment: 1 });
+  assert.ok(seenThrough(having([2, "Admin opens settings"]), you), "so / opens at the last stop");
+  assert.deepEqual(unreadOf(having([2, "Admin opens settings"], [2]), you), []);
 });
 
 test("the step says what's left to see, as so many more once some are seen, and all seen at the end", () => {

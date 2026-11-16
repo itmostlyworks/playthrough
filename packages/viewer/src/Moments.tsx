@@ -13,7 +13,7 @@ import { Changes } from "./Changes.tsx";
 import { useUnsent, keepUnsent, type YourReply } from "./kept.ts";
 import { MomentView } from "./Moment.tsx";
 import { NothingWaiting, Opening } from "./Opening.tsx";
-import { takingOf, markSeen, whoIn } from "./standing.ts";
+import { LAST_STOP, takingOf, markSeen, whoIn } from "./standing.ts";
 import { seenThrough, unreadOf, unseenOf, waitingInOrder } from "./step.ts";
 import { Opener, Sheet, useSheet, waitingSays } from "./Waiting.tsx";
 
@@ -145,8 +145,9 @@ function Change(props: { listed: Listed; you: string; moment: number; atLastStop
   if (at.current?.moment !== moment) at.current = { moment, handBack: latest?.number };
   const handBack = change.handBacks.find((one) => one.number === at.current!.handBack);
   const n = handBack && Math.min(moment, handBack.moments.length);
-  // Opened, it's seen: for what's next, and for next time. At the last stop, it isn't being watched.
-  const taking = !atLastStop && handBack && n && takingOf(handBack.number, handBack.moments[n - 1]!.name);
+  // Opened, it's seen: for what's next, and for next time. At the last stop the moment isn't being watched: what's seen
+  // is the last stop, with the answers on the whole change.
+  const taking = handBack && n && takingOf(handBack.number, atLastStop ? LAST_STOP : handBack.moments[n - 1]!.name);
   useEffect(() => void (taking && markSeen(change, you, [taking])), [taking]);
   if (!handBack || !n) return <div className="grid h-dvh place-items-center bg-ground text-soft">Nothing is waiting on you here.</div>;
   const shown = handBack.moments[n - 1]!;

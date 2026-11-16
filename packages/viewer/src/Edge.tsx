@@ -302,7 +302,8 @@ export function Tile(props: {
           // The same at rest and forward: nothing inside it moves.
           <>
             <span className="block px-2 pt-1.5 pb-[7px]">{words}</span>
-            <span className="relative mx-2 mb-2 block aspect-[3.8] flex-none overflow-hidden rounded-[5px] bg-paper shadow-[0_0_0_1px_var(--edge)]">{picture}</span>
+            {/* A note on the whole change is on nothing to picture: its words alone. */}
+            {picture && <span className="relative mx-2 mb-2 block aspect-[3.8] flex-none overflow-hidden rounded-[5px] bg-paper shadow-[0_0_0_1px_var(--edge)]">{picture}</span>}
           </>
         ) : (
           <>
