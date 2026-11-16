@@ -1,6 +1,7 @@
 // A note on a moment: where it's shown, its strip on the edge, its words, and its card by its thing, written or open.
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { flushSync } from "react-dom";
 import type { Turn, Note, Change } from "@playthrough/change";
 import { noteFrame, picture, readings as readingsOf, type NoteFrame } from "./api.ts";
 import { clamp } from "./clamp.ts";
@@ -137,13 +138,17 @@ function stripOf(screen: { width: number; height: number }, thing?: { x: number;
 // Under: in the page's flow, as wide as it is, as on a phone.
 export function NoteCard({ by, stage, closing, under, children }: { by: Rect; stage: React.RefObject<HTMLDivElement | null>; closing?: boolean; under?: boolean; children: ReactNode }) {
   const own = useRef<HTMLDivElement>(null);
-  // Its own height, as it grows with its words, so it's always placed whole.
+  // Its own height, as it grows with its words, so it's always placed whole; and the height it came in at, which it's
+  // placed by, growing from there upward, so its foot holds still: Save, and the line being typed, stay under the hand.
   const [tall, setTall] = useState(140);
+  const first = useRef(0);
   useLayoutEffect(() => {
     const card = own.current;
     if (!card || under) return;
-    const measure = () => setTall(card.offsetHeight);
-    measure();
+    first.current = card.offsetHeight;
+    setTall(card.offsetHeight);
+    // Placed again in the same frame it grew in, so it's never seen grown the wrong way first.
+    const measure = () => flushSync(() => setTall(card.offsetHeight));
     const watching = new ResizeObserver(measure);
     watching.observe(card);
     return () => watching.disconnect();
@@ -154,19 +159,23 @@ export function NoteCard({ by, stage, closing, under, children }: { by: Rect; st
   // Its pin stands just outside the thing's top right corner: beside it on the right means past the pin too. It stays
   // clear of the bar across the recording's foot.
   const [pastPin, gap, edge, foot] = [32, 14, 8, high - BAR / 2 - 8];
-  const within = (top: number) => Math.min(Math.max(edge, top), foot - tall);
-  const fits = (top: number) => top >= edge && top + tall <= foot;
-  const place =
+  const came = first.current || tall;
+  const within = (top: number, height: number) => Math.min(Math.max(edge, top), foot - height);
+  const fits = (top: number) => top >= edge && top + came <= foot;
+  const [left, top, upward]: [number, number, boolean] =
     by.width && right + pastPin + width <= wide - edge
-      ? { left: right + pastPin, top: within(by.top - 12) }
+      ? [right + pastPin, within(by.top - 12, came), true]
       : by.width && by.left - gap - width >= edge
-        ? { left: by.left - gap - width, top: within(by.top - 12) }
-        : // Too wide to stand beside, or a spot on a line: under it, else over it; a thing taller than there's room
-          // around, inside it near its top.
-          {
-            left: Math.min(Math.max(edge, by.left - (by.width ? 0 : 24)), wide - width - edge),
-            top: fits(bottom + gap) ? bottom + gap : fits(by.top - gap - tall) ? by.top - gap - tall : within(by.top + 12),
-          };
+        ? [by.left - gap - width, within(by.top - 12, came), true]
+        : // Too wide to stand beside, or a spot on a line: under it, growing down so it stays off it, else over it; a
+          // thing taller than there's room around, inside it near its top.
+          [
+            Math.min(Math.max(edge, by.left - (by.width ? 0 : 24)), wide - width - edge),
+            fits(bottom + gap) ? bottom + gap : fits(by.top - gap - came) ? by.top - gap - came : within(by.top + 12, came),
+            !fits(bottom + gap),
+          ];
+  // Grown, where there's no room above, against the recording's top, it grows down instead, as at its foot it grows up.
+  const place = { left, top: within(upward ? top - (tall - came) : top, tall) };
   return (
     <div
       ref={own}

@@ -513,7 +513,13 @@ above (the picture doesn't scroll with the rows under it); two fingers are the b
 
 **A note** (`Note.tsx`) is words on a thing in a picture. N, then "Point at what it's about" on the bar with "Cancel
 Esc": what a click would note is outlined and named as Playthrough names everything (`things.ts`, `pickAt`), and the
-note box sits beside its thing, never on it, growing with its words. Its pin is on the recording at rest whenever its
+note box sits beside its thing, never on it, growing with its words. It grows upward, as a chat box does: its foot holds
+still, so Save and the line being typed stay under the hand and the earlier lines move up; the same for a Reply. It's
+placed by the height it came in at (`NoteCard`, `Note.tsx`) and placed again in the frame it grows in, so it's never
+seen grown the wrong way first. Against the recording's top, with no room above, it grows down instead, the mirror of
+its foot, where it's pushed up clear of the bar; a box under a thing too wide to stand beside grows down too, so it
+stays off its thing. At any zoom it's placed the same way by its thing as the view moves. On a phone the box is in the
+page under the bar and grows down as before. Its pin is on the recording at rest whenever its
 thing is there: made on this hand-back, that very thing; made in the app or on an earlier hand-back, the same thing found
 by its role and name, never whatever says the same words; on a spot, only on the hand-back it was made on. In the app,
 its pin goes while its thing is gone and comes back with it. Opened (its picture, its pin, ← →, or `?note=`), a note
