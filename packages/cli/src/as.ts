@@ -3,17 +3,19 @@
 // `playthrough moment` to write as the way there.
 //
 //   playthrough as <person> ["<moment>"]  starts the app and the browser, signed in as them, and, named, goes a kept
-//                                         moment's way there; the browser open already starts again, fresh
+//                                         moment's way there; the browser open already starts again, fresh. It comes
+//                                         back once the browser is ready, and the browser runs on behind it
+//   playthrough stop                      stops it
 
 import { chromium, request as requests, type Page } from "@playwright/test";
-import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync, spawn } from "node:child_process";
+import { closeSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { clicked, pathTo } from "@playthrough/page";
 import { quote, Refused } from "@playthrough/change";
-import { keepRunning } from "./app.ts";
+import { keepRunning, UNUSED } from "./app.ts";
 import { changeHere, momentNamed } from "./change.ts";
 import { hovering } from "./read.ts";
 import type { Repo } from "./repo.ts";
@@ -119,7 +121,27 @@ export const NOTING = `(() => {
   const arrived = () => keep({ does: "goto", on: "page", with: location.pathname + location.search + location.hash, ...(led && { led }) });
   if (document.readyState === "loading") addEventListener("DOMContentLoaded", arrived, { once: true });
   else arrived();
+  // A drag, kept only to be said, as nothing here can do it again: pressed, carried more than a click's wobble, and let
+  // go, with the page taking the moves for itself on the way, as a card dragged on a board is (a drag-and-drop library
+  // cancels them). Selecting words, a scrollbar or a slider, the page leaves the moves be. The click that ends it is
+  // the drag's.
+  let pressed, carried = false, dragged = false;
+  addEventListener("pointerdown", (e) => {
+    pressed = e.isPrimary && e.button === 0 ? { x: e.clientX, y: e.clientY, target: e.target } : undefined;
+    carried = dragged = false;
+  }, true);
+  // Read once the page has had it.
+  for (const move of ["pointermove", "mousemove"]) addEventListener(move, (e) => pressed && setTimeout(() => (carried ||= e.defaultPrevented)), true);
+  addEventListener("pointerup", (e) => {
+    const from = pressed;
+    pressed = undefined;
+    if (!from || !carried || Math.hypot(e.clientX - from.x, e.clientY - from.y) <= 10) return;
+    const { target, what } = thing(from.target);
+    keep({ does: "drag", ...on(target), what });
+    dragged = true;
+  }, true);
   addEventListener("click", (e) => {
+    if (dragged) return void (dragged = false);
     const { target, what } = thing(e.target);
     if (!target.matches?.("input:not([type=checkbox]):not([type=radio]), textarea, select")) keep({ does: "click", ...on(target), what });
   }, true);
@@ -180,8 +202,9 @@ export async function as(repo: Repo, person: string, at?: string) {
   personIn(setup, person);
   const app = await repo.app();
   const began = Date.now();
-  // A browser open already starts again from a fresh start, as this person, rather than a new one starting.
-  if (await startAgain(repo, person, began, to?.words)) return;
+  // Run by the agent, a browser open already starts again from a fresh start, as this person, rather than a new one
+  // starting; else the browser is started behind this command (startBehind), and it's that one that goes on from here.
+  if (!process.send) return (await startAgain(repo, person, began, to?.words)) || startBehind(repo);
   await clearEarlier(repo);
   // Stopped, by Ctrl+C or a kill, what setup made is given back by app.ts's own handling, which this sets up; stopped
   // so that nothing runs after it, the next one gives it back here.
@@ -217,6 +240,8 @@ export async function as(repo: Repo, person: string, at?: string) {
   const live: Browser = { pid: process.pid, person, started, setup: made.setup, url: app.url, debugging, profile, did: [], began };
   mkdirSync(join(repo.root, ".playthrough"), { recursive: true });
   const save = () => writeFileSync(browserFile(repo), JSON.stringify(live, null, 2));
+  // When something was last done in it, or it last started again: what its end, left alone, is counted from.
+  let used = began;
   // Asked to start again (startAgain): what was made is given back, the browser forgets who it was signed in as, and
   // what every moment starts from is made again, for whoever's asked for; the way there starts again from the app's start.
   process.on("SIGUSR1", async () => {
@@ -235,7 +260,7 @@ export async function as(repo: Repo, person: string, at?: string) {
       const went = there ? await takeTo(page, await momentNamed(repo, await changeHere(repo), there), made.setup, app.url) : undefined;
       writeFileSync(againFile(repo), JSON.stringify({ went }));
       // Ready only now: what's kept as it goes there is saved on the way, and the one waiting goes by this.
-      live.began = Date.now();
+      live.began = used = Date.now();
       save();
     } catch (error) {
       writeFileSync(againFile(repo), JSON.stringify({ failed: String((error as Error)?.message ?? error) }));
@@ -247,6 +272,7 @@ export async function as(repo: Repo, person: string, at?: string) {
     if (done.does === "fill" && last?.does === "fill" && last.on === done.on) live.did.pop();
     if (done.does === "type" && last?.does === "type" && last.on === done.on) last.with = `${last.with}${done.with}`;
     else live.did.push(done);
+    used = Date.now();
     save();
   });
   await context.addInitScript({ content: NOTING });
@@ -260,12 +286,39 @@ Drive it with your own tool over its debugging port, http://localhost:${debuggin
   or Playwright: chromium.connectOverCDP("http://localhost:${debugging}"), then its first context's page
   or Playwright MCP: --cdp-endpoint http://localhost:${debugging}
 ${went ? `${went}\n` : ""}When you've just done what shows the change: playthrough moment "<what's there>"
-Leave it running: playthrough wait stops it when you hand back, and playthrough as again starts it again, fresh.`);
-  await new Promise(() => {});
+It runs until you hand back (playthrough wait) or stop it (playthrough stop), or ${UNUSED / 60_000} minutes go by with nothing done in it. playthrough as again starts it again, fresh.`);
+  // Said ready, the command the agent ran comes back. Left with nothing done in it for as long as an app is left unused,
+  // it stops as Ctrl+C stops it, so an agent that ended without handing back leaves nothing running.
+  process.send!("ready");
+  process.disconnect();
+  setInterval(() => Date.now() - used > UNUSED && process.kill(process.pid, "SIGINT"), 60_000);
 }
 
-// This copy's browser, stopped as Ctrl+C stops it, giving back what was made, once the agent hands back: it was for
-// checking the work, and left running it holds the app and its port. Says whether there was one.
+// The browser, started as a process of its own that outlives this one: this command comes back once it says it's
+// ready, with everything it said, or, where it ended before then, refuses with it. Stopped before then, it stops it too.
+// What it says after is in .playthrough/browser.log.
+async function startBehind(repo: Repo) {
+  const log = join(repo.root, ".playthrough", "browser.log");
+  mkdirSync(join(repo.root, ".playthrough"), { recursive: true });
+  const output = openSync(log, "w");
+  const browser = spawn(process.execPath, [...process.execArgv, ...process.argv.slice(1)], { stdio: ["ignore", output, output, "ipc"], detached: true });
+  closeSync(output);
+  const stopping = () => browser.kill("SIGINT");
+  for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) process.once(signal, stopping);
+  const ready = await new Promise<boolean>((resolve) => {
+    browser.once("message", () => resolve(true));
+    browser.once("exit", () => resolve(false));
+  });
+  for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) process.off(signal, stopping);
+  const said = readFileSync(log, "utf8").trimEnd();
+  if (!ready) throw new Refused([said || `The browser ended before it was ready. Look at .playthrough/browser.log for why.`]);
+  browser.disconnect();
+  browser.unref();
+  console.log(said);
+}
+
+// This copy's browser, stopped as Ctrl+C stops it, giving back what was made, once the agent hands back or says stop: it
+// was for checking the work, and left running it holds the app and its port. Says whether there was one.
 export async function stopBrowser(repo: Repo): Promise<boolean> {
   let live: Browser;
   try {
@@ -285,6 +338,10 @@ export async function stopBrowser(repo: Repo): Promise<boolean> {
   return true;
 }
 
+export async function stop(repo: Repo) {
+  console.log((await stopBrowser(repo)) ? "The browser from playthrough as is stopped." : "There's no browser from playthrough as running here.");
+}
+
 // The browser open already, told to start again as this person, and said ready once it has: in a few seconds, where a
 // new one takes ten.
 async function startAgain(repo: Repo, person: string, began: number, at?: string): Promise<boolean> {
@@ -301,7 +358,7 @@ async function startAgain(repo: Repo, person: string, began: number, at?: string
     await new Promise((resolve) => setTimeout(resolve, 250));
     const now: Browser = JSON.parse(readFileSync(browserFile(repo), "utf8"));
     const again = JSON.parse(readFileSync(againFile(repo), "utf8"));
-    if (again.failed) throw new Refused([`The browser open already couldn't start again as ${person}: ${again.failed}. Stop it (Ctrl+C), then run this again.`]);
+    if (again.failed) throw new Refused([`The browser open already couldn't start again as ${person}: ${again.failed}. Stop it (playthrough stop), then run this again.`]);
     if (now.began > began)
       return (
         console.log(`Started again in ${((Date.now() - began) / 1000).toFixed(1)}s, in the browser open already: signed in as ${person}, on ${now.url}, from a fresh start made by playthrough/setup.ts:
@@ -310,7 +367,7 @@ ${again.went ? `${again.went}\n` : ""}Your tool stays attached at http://localho
         true
       );
   }
-  throw new Refused([`The browser open already didn't start again within two minutes. Stop it (Ctrl+C), then run this again.`]);
+  throw new Refused([`The browser open already didn't start again within two minutes. Stop it (playthrough stop), then run this again.`]);
 }
 
 // What this copy's browser left when it was stopped so that nothing ran after it (TaskStop, a kill -9): the browser

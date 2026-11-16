@@ -53,6 +53,7 @@ and a *reply* the agent's answer, or the person's back. *Handing back* gives the
 ```bash
 playthrough change "<title>" "<what was asked>"   # names the change; every command in this copy means it until another is named
 playthrough as <person> ["<moment>"]              # the app, and a browser signed in as them, for the agent's own tool
+playthrough stop                                   # stops that browser
 playthrough moment "<what's there>" ["<thing>"] [--last N]   # keeps what was just done as a moment
 playthrough again                                  # every moment again, on the code as it is now
 playthrough answer <note> "<words>"                # answers a note
@@ -87,8 +88,20 @@ getByText find again, never "MY BOARDS"), a right click as one, words typed wher
 that move the caret too; the field words go into is found as it was before them, once for each run of typing, and a
 rich-text editor (Kan's comment box) never by its words, which are what's typed: by its role and name if the page gives
 it one, else by its place, and said by what it asks for ("Add comment…"); each with the address it was done at and
-where the page was scrolled, and each page loaded with whether something done before led there. Run again, the browser
-open already starts again, fresh, as whoever is named; given a moment, it goes that moment's way there first.
+where the page was scrolled, and each page loaded with whether something done before led there. A drag is kept only to
+be said, never done again: a press carried more than 10px and let go, with the page taking the moves for itself on the
+way (`defaultPrevented` on a move, as a drag-and-drop library does once something is picked up: dnd-kit on Kan's
+board); selecting words, a slider and a press that wobbled leave the moves be, and the click that ends a drag is the
+drag's. (The agent's browser is headless, which hides scrollbars.) Run again, the browser open already starts again,
+fresh, as whoever is named; given a moment, it goes that moment's way there first.
+
+`as` comes back once the browser is ready (`startBehind`): the browser is a process of its own, the same command
+started detached with an IPC channel (which is how it knows it's the one behind), its output in `.playthrough/browser.log`;
+it says ready over the channel, and `as` prints what it said and returns, or, where it ended first, refuses with it.
+Stopped before then, `as` stops it too. The browser runs until `wait` hands back, `playthrough stop`, or 15 minutes
+(`UNUSED`, the app's own) with nothing done in it and no start again, when it stops itself as Ctrl+C does, giving back
+what setup made; then the app's own rule lets the app go. From 15 Nov's user testing: `as` never returned, every agent
+slept 40–60 s after it every round, and two ended it with `pkill -f "playthrough as"`, machine-wide.
 
 **`moment`** (`moments.ts`, `way.ts`) reads where that browser is and what the moment is about (the thing named, as the
 page names it, or else the field holding those words, as Kan's list names are fields, or else the words on the page
@@ -102,7 +115,16 @@ is where you are", or "on another page", with both addresses first), in a dozen 
 turn and "and N more", so many things only run again never hide what's only where you are, and words that tell the time, reworded only
 in their numbers, are left out of that and said. It's run a second time, and what differs between the two runs changes
 by itself (a caret, a time the server stamps), so it's left out of every comparison from then on (`markUnsteady`). Its
-words are ten at most and never name a person, as the page already says who. Marked again with the same words, it
+words are ten at most and never name a person, as the page already says who, unless that name is in what the moment
+types, fills or picks ("Typing sam…" in a search; 15 Nov). Before anything runs, it isn't kept where all of what it's
+about is past an edge of the agent's browser, which is the picture: `Not kept: the button “Lane 8” is past the right
+edge of your browser, so the moment's picture wouldn't show it. Bring it into view, then mark it again.` A thing bigger
+than the browser always shows some of itself, so a long list is never refused. Of several alike, the one in view is
+already the one chosen, so on 15 Nov's board ("List name", which every list has) this wouldn't have spoken: the empty
+list cut off at the right was what was new, not what was named. A moment showing a drag isn't kept (`Not kept: the
+last thing done here was a drag, and a moment can't hold a drag.`, or "one of the things done here is a drag"); one
+on the way there is left out of the way and of `before`, and said only where the moment doesn't land (`A drag was done
+on the way here, and a moment can't hold a drag.`). Marked again with the same words, it
 replaces that moment, whatever file it was in. In the way, an address the agent went to directly is gone to at once; one
 it was led to is waited for, then gone to; one left at once for another (Kan's sign-in page before its board) isn't gone
 to at all; and the page before each thing done is taken as it is, not after waiting for it to rest. The way scrolls at
@@ -680,7 +702,7 @@ Committed with the app: `playthrough/app.json` and `playthrough/setup.ts`. Out o
 `.playthrough/` (its own `.gitignore` says `*`, and a `README.md` tells an agent who looks there not to read or change the
 files but to run `npx playthrough`, as on 15 Nov one told to pick up the notes "in Playthrough" read the note's file and
 did it with nobody told): `working-on.json` (the change its commands mean), `port.json` (the app's port),
-`browser.json` (what `as` did; `browser-marked.json`, where the last moment was marked in it), `running.json`, `using/`
+`browser.json` (what `as` did; `browser-marked.json`, where the last moment was marked in it; `browser.log`, what its browser said), `running.json`, `using/`
 and `app.log` (the app), `borrowed/` (worlds not yet given back), and a folder per change: `change.json` (its title, what
 was asked, when it started, and the format it's kept in), `moments/<words>.ts` (each moment's way there, then its step),
 `hand-backs/<n>/` (each hand-back: `hand-back.json` with its moments and replies, `files/` with their recordings, readings and pictures, `since/<k>.json`

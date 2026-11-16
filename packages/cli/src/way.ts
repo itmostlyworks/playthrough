@@ -52,6 +52,8 @@ export function wayFile({
     // An address left before anything was done there, for another, is only the way the agent went: gone to, it was a
     // page loaded for nothing, as Kan's sign-in before the board.
     if (done.does === "goto" && did[i + 1]?.does === "goto") return "";
+    // A drag is kept only to be said: a moment can't do one again.
+    if (done.does === "drag") return "";
     const what = done.what && !done.role && !done.text ? ` // ${done.what.replace(/\n/g, " ")}` : "";
     const given = JSON.stringify(done.with ?? "");
     if (done.does === "goto") {

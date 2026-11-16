@@ -115,3 +115,55 @@ test("what a moment is about can be named by the words a field holds, as Kan's l
   assert.equal((await aboutOn(page, "Each list shows its count", "Done")).about?.role, "heading", "and what's called something like it");
   await page.close();
 });
+
+test("what a moment is about is past an edge of the browser only when none of it shows there: a list longer than the browser is in view", { timeout: 30_000 }, async () => {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  await page.addInitScript({ content: NOTING });
+  await page.route("http://app.test/**", (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      body: `<!doctype html><h1>Board</h1><div style="overflow-x: auto"><div style="display: flex; width: max-content"><button style="width: 1400px">To do</button><button style="width: 700px">Review</button></div></div>
+        <ul role="list" aria-label="Every card" style="height: 3000px"><li>One</li></ul>`,
+    }),
+  );
+  await page.goto("http://app.test/");
+  assert.equal((await aboutOn(page, "The new list", "Review")).past, "right");
+  assert.equal((await aboutOn(page, "The first list", "To do")).past, undefined);
+  await page.evaluate(() => window.scrollTo(0, 1500));
+  assert.equal((await aboutOn(page, "Every card shows", "Every card")).past, undefined, "taller than the browser, some of it shows");
+  assert.equal((await aboutOn(page, "The board", "Board")).past, "top");
+  await page.close();
+});
+
+test("a drag is kept to be said, never done again: a press the page carries off, and not selecting words, a slider or a press that wobbled", { timeout: 30_000 }, async () => {
+  const { did, again } = await keptAndPlayed(
+    `<button id="card" onclick="said.append('opened ')">Card A</button>
+    <p id="words">Some words worth selecting with the pointer</p>
+    <input type="range" aria-label="Volume" value="20">
+    <p id="said"></p>
+    <script>
+      // As a drag-and-drop library does: once carried a few pixels, the moves are the page's.
+      let start;
+      card.addEventListener("pointerdown", (e) => (start = { x: e.clientX, y: e.clientY }));
+      document.addEventListener("pointermove", (e) => start && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 4 && e.preventDefault());
+      document.addEventListener("pointerup", () => (start = undefined));
+    </script>`,
+    async (page) => {
+      const press = async (selector: string, by: { x: number; y: number }) => {
+        const box = (await page.locator(selector).boundingBox())!;
+        await page.mouse.move(box.x + 5, box.y + box.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(box.x + 5 + by.x, box.y + box.height / 2 + by.y, { steps: 8 });
+        await page.mouse.up();
+      };
+      await press("#words", { x: 200, y: 0 });
+      await press("input", { x: 100, y: 0 });
+      await press("#card", { x: 3, y: 2 });
+      await press("#card", { x: 300, y: 40 });
+    },
+    (page) => page.locator("#said").textContent(),
+  );
+  assert.deepEqual(did.filter((one) => one.does === "drag").map(({ what }) => what), ["Card A"]);
+  assert.ok(did.some((one) => one.does === "click" && one.what === "Card A"));
+  assert.equal(again, "opened ", "the wobbled press is a click, done again; the drag isn't");
+});

@@ -7,7 +7,7 @@
 import "./node.ts";
 import { readFileSync } from "node:fs";
 import { Refused } from "@playthrough/change";
-import { as } from "./as.ts";
+import { as, stop } from "./as.ts";
 import { change } from "./change.ts";
 import { again, answer, answering, drop, moment, wait } from "./moments.ts";
 import { know } from "./machine.ts";
@@ -23,6 +23,7 @@ const HELP = readFileSync(new URL("../MOMENTS.md", import.meta.url), "utf8").tri
 const commands = {
   change: [2, 2, `playthrough change "<a title, as a pull request's>" "<what you were asked, in the person's words>"`, ([title, asked]) => change(repo(), title, asked)],
   as: [1, 2, `playthrough as <person> ["<moment>"]`, ([person, at]) => as(repo(), person!, at)],
+  stop: [0, 0, "playthrough stop", () => stop(repo())],
   moment: [1, 2, `playthrough moment "<what's there, in under eight words>" ["<what it's about, as the page names it>"] [--last N]`, ([words, named], last) => moment(repo(), words!, named, last)],
   drop: [1, 1, `playthrough drop "<moment>"`, ([words]) => drop(repo(), words!)],
   again: [0, 0, "playthrough again", () => again(repo())],
@@ -39,8 +40,9 @@ const words = lastAt < 0 ? given : given.toSpliced(lastAt, given[lastAt]!.includ
 // The app this is run in is known to the machine's one page from now on, as soon as Playthrough has a folder in it.
 know(repo().root);
 // Notes the person sent with no agent listening are said before anything else, help included, as the first thing an
-// agent runs is often the help, cut short. Wait gets them; open is the person's.
-if (!["wait", "open"].includes(command!)) {
+// agent runs is often the help, cut short. Wait gets them; open is the person's; and the browser `as` starts behind
+// itself (process.send, as.ts) says nothing the `as` the agent ran hasn't.
+if (!["wait", "open"].includes(command!) && !process.send) {
   const unheard = await unheardSaid(repo());
   if (unheard.length) console.log(`${unheard.join("\n")}\n`);
 }

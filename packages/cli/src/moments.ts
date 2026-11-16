@@ -40,17 +40,15 @@ const MOST_WORDS = 10;
 
 export async function moment(repo: Repo, words: string, named?: string, last?: number) {
   const id = await changeHere(repo);
-  if (!existsSync(browserFile(repo))) throw new Refused(["There's no browser to keep a moment from. Start one, in the background: playthrough as <person>"]);
+  if (!existsSync(browserFile(repo))) throw new Refused(["There's no browser to keep a moment from. Start one: playthrough as <person>"]);
   const browser: Browser = JSON.parse(readFileSync(browserFile(repo), "utf8"));
   const counted = words.trim().split(/\s+/).length;
   if (counted > MOST_WORDS) throw new Refused([`That's ${counted} words. Say only what's there, in under eight (“Cards now say WEB-1 to WEB-5”): the person already sees who it is and where.`]);
-  const people = Object.keys((await setupIn(repo.setup)).people ?? {}).filter((name) => new RegExp(`(^|\\W)${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\W|$)`, "i").test(words));
-  if (people.length) throw new Refused([`The person sees who it is beside the moment: leave ${list(people.map(quote))} out of its words, and say only what's there.`]);
   const markAgain = `playthrough moment ${JSON.stringify(words)}${named ? ` ${JSON.stringify(named)}` : ""}`;
 
   // Where the agent is now, as the page is read at a step's end.
   const open = await chromium.connectOverCDP(`http://localhost:${browser.debugging}`).catch(() => {
-    throw new Refused([`The browser from playthrough as ${browser.person} isn't running any more. Start it again, in the background.`]);
+    throw new Refused([`The browser from playthrough as ${browser.person} isn't running any more. Start it again: playthrough as ${browser.person}`]);
   });
   const here = open
     .contexts()
@@ -62,6 +60,8 @@ export async function moment(repo: Repo, words: string, named?: string, last?: n
   await open.close();
   if (named && !there.about)
     throw new Refused([`Nothing on the page is called ${quote(named)}, as a button, a field, a link or a heading is, or holds it, or says it.${there.near.length ? ` Near it: ${list(there.near.map(quote))}.` : ""} Say it as the page names it, or leave it out.`]);
+  // The picture is what the browser shows: what the moment is about, all of it past an edge, isn't in it.
+  if (there.about && there.past) throw new Refused([`Not kept: the ${aboutSaid(there.about)} is past the ${there.past} edge of your browser, so the moment's picture wouldn't show it. Bring it into view, then mark it again.`]);
 
   // Where the moment starts: what was done since arriving on this page, or since the moment before; or the last N things.
   const done = browser.did;
@@ -72,6 +72,17 @@ export async function moment(repo: Repo, words: string, named?: string, last?: n
   const start = last !== undefined ? { at: last ? actions.at(-last)! : done.length } : startOf(onTheWay(done, new URL(there.url).pathname), since);
   if ("unclear" in start && start.unclear) throw new Refused(unclear(done, start.at, start.unclear, markAgain));
   const from = start.at;
+  // A drag is said, never done again: one the moment shows, it can't hold; one on the way there is why, if it doesn't land.
+  const drags = (since: number, until?: number) => done.slice(since, until).filter((one) => one.does !== "goto").map((one) => one.does === "drag");
+  if (drags(from).includes(true))
+    throw new Refused([`Not kept: ${drags(from).at(-1) ? "the last thing done here was a drag" : "one of the things done here is a drag"}, and a moment can't hold a drag.`]);
+  const draggedOnTheWay = drags(0, from).includes(true);
+  // A person's name in its words, unless it's what the moment types or picks, as a search for them is: the person sees
+  // who it is beside the moment.
+  const says = (text: string, name: string) => new RegExp(`(^|\\W)${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\W|$)`, "i").test(text);
+  const given = done.slice(from).flatMap((one) => (["fill", "type", "selectOption"].includes(one.does) && one.with ? [one.with] : []));
+  const people = Object.keys((await setupIn(repo.setup)).people ?? {}).filter((name) => says(words, name) && !given.some((text) => says(text, name)));
+  if (people.length) throw new Refused([`The person sees who it is beside the moment: leave ${list(people.map(quote))} out of its words, and say only what's there.`]);
 
   // The way there, run from a fresh start as the same person and recorded: tried in a folder of its own, and kept only
   // if it lands, in place of one with the same words.
@@ -87,7 +98,7 @@ export async function moment(repo: Repo, words: string, named?: string, last?: n
   const ran = await runOnce({ moments: trying, only: [words], app: await repo.app(), root: repo.root, recorder, started: change.started });
   const notKept = (why: string) => {
     rmSync(trying, { recursive: true, force: true });
-    return new Refused([`Not kept: run again from a fresh start, ${why}`, "Tell the person only about moments that were kept. Fix what's said, or get there another way, and mark it again."]);
+    return new Refused([`Not kept: run again from a fresh start, ${why}`, ...(draggedOnTheWay ? ["A drag was done on the way here, and a moment can't hold a drag."] : []), "Tell the person only about moments that were kept. Fix what's said, or get there another way, and mark it again."]);
   };
   const [recorded] = ran.recorded;
   const [failed] = ran.failed;
@@ -143,7 +154,8 @@ export async function moment(repo: Repo, words: string, named?: string, last?: n
   const shownAt = (name: string) => repo.show(join(dirname(repo.handBack(id, number)), "files", name));
   const glimpses: Glimpse[] = JSON.parse(recorded.files.find((one) => one.name === glimpsesOf(recorded.moment))?.bytes.toString() ?? "[]");
   const shown = done.slice(from).filter((one) => one.does !== "goto");
-  const before = done.slice(0, from).filter((one) => !(one.does === "goto" && one.led));
+  // A drag on the way isn't kept: it's said only where the moment doesn't land.
+  const before = done.slice(0, from).filter((one) => !(one.does === "goto" && one.led) && one.does !== "drag");
   const still = !shown.length;
   const length = moment.length - moment.from;
   console.log(`\nKept ${/[“"]/.test(words) ? words : quote(words)}${still ? ", a still: nothing happens in it" : `, ${length.toFixed(1)} s`}${there.about ? `, about the ${aboutSaid(there.about)}` : ""}.`);
@@ -214,6 +226,7 @@ function saidOf(one: Done): string {
   if (one.does === "fill" || one.does === "type") return `type ${quote(one.with ?? "")}${into}`;
   if (one.does === "selectOption") return `choose ${quote(one.with ?? "")}${into}`;
   if (one.does === "press") return `press ${one.with}${into}`;
+  if (one.does === "drag") return `drag ${on || (one.role ? `a ${one.role} with no name` : "something")}`;
   return `${one.button === "right" ? "right-click" : "click"} ${on || (one.role ? `a ${one.role} with no name` : "the page")}`;
 }
 
@@ -245,7 +258,8 @@ async function readAt(page: Page): Promise<Reading> {
 // What the moment is about: the thing named, by its whole name, or else the smallest that holds those words, as a card
 // holds its title; or, named nothing, the thing whose name its words say, the longest, a field before a heading, of two
 // words or more: one word, as a person's name, says too little. And where nothing's found, what's near what was said.
-export async function aboutOn(page: Page, words: string, named?: string): Promise<{ about?: About; near: string[] }> {
+// Found, the edge of the browser it's past, where none of it is in view: the picture is what the browser shows.
+export async function aboutOn(page: Page, words: string, named?: string): Promise<{ about?: About; near: string[]; past?: Edge }> {
   return page.evaluate(
     ({ words, named }) => {
       const nameOf = (window as any).__playthroughNamed;
@@ -277,9 +291,15 @@ export async function aboutOn(page: Page, words: string, named?: string): Promis
         const element = alike.find(inView) ?? first;
         return { element, ...(alike.length > 1 && { nth: alike.indexOf(element) }) };
       };
+      // A thing bigger than the browser, as a long list, always shows some of itself.
+      const pastOf = (element: Element) => {
+        const box = element.getBoundingClientRect();
+        if (!box.width && !box.height) return undefined;
+        return box.left >= innerWidth ? ("right" as const) : box.right <= 0 ? ("left" as const) : box.top >= innerHeight ? ("bottom" as const) : box.bottom <= 0 ? ("top" as const) : undefined;
+      };
       if (saying.length) {
         const { element, nth } = which(saying, saying[0]!);
-        return { near, about: { role: "text", name: asWritten(() => own(element)), disabled: false, ...(nth !== undefined && { nth }) } };
+        return { near, about: { role: "text", name: asWritten(() => own(element)), disabled: false, ...(nth !== undefined && { nth }) }, past: pastOf(element) };
       }
       const thing = found ?? holding;
       if (!thing) return { near };
@@ -298,11 +318,13 @@ export async function aboutOn(page: Page, words: string, named?: string): Promis
           disabled: element.matches(":disabled") || element.getAttribute("aria-disabled") === "true" || element.readOnly === true,
           ...(["checkbox", "radio"].includes(element.type) && { checked: element.checked }),
         },
+        past: pastOf(element),
       };
     },
     { words, named },
   );
 }
+type Edge = "top" | "right" | "bottom" | "left";
 
 // A dialog left open on the page, as the page marks one (role dialog or alertdialog, or an open <dialog>), the last opened
 // where there are several: by its name, or else its heading, as written; or none to give.

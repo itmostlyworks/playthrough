@@ -4,8 +4,9 @@ Read this once, to its end.
 
   playthrough change "<title>" "<what was asked>"   name the change you're making, once: a title, as a pull request's,
                                                      and what you were asked, in the person's words
-  playthrough as <person> ["<moment>"]              a browser on the app, signed in as one of its people, run in the
-                                                     background; given a moment, it goes there the way the moment did
+  playthrough as <person> ["<moment>"]              a browser on the app, signed in as one of its people, back once
+                                                     it's ready; given a moment, it goes there the way the moment did
+  playthrough stop                                   stop that browser
   playthrough moment "<what's there>" ["<thing>"]   keep what you just did here as a moment, and read back what it shows
   playthrough wait                                   hand back, and wait for what the person says, run in the background
   playthrough again                                  every moment again on the code as it is now: the same, or what's different
@@ -56,9 +57,9 @@ EACH CHANGE
 1. Name the change: playthrough change "<a title, as a pull request's>" "<what you were asked, word for word>". Every
    command after it means this change, until you name another.
 2. Change the app as asked.
-3. Check it as someone would use it: run playthrough as <person> in the background, and drive that browser with your
-   own tool, attached to it, never a browser of your own, at the port it says (9333, unless another copy's browser
-   has that):
+3. Check it as someone would use it: run playthrough as <person>, which comes back once its browser is ready, and drive
+   that browser with your own tool, attached to it, never a browser of your own, at the port it says (9333, unless
+   another copy's browser has that):
      agent-browser --cdp 9333 <command>
      Playwright MCP: --cdp-endpoint http://localhost:9333
      a script: chromium.connectOverCDP("http://localhost:9333"), then the page already open there
