@@ -763,7 +763,8 @@ export function MomentView(props: {
       quiet={away}
       phone={phone}
       showing={atLastStop ? LAST_STOP : moment.name}
-      foot={(forward, tucked) => <StepCard step={saidBefore ?? step} here={atLastStop} forward={forward} tucked={tucked} dots={onTheWhole.map(({ note, sent: isSent }) => ({ id: note.id, sent: isSent }))} onPress={() => toLastStop()} />}
+      // At the last stop on a phone, its Send or Done is the bar's, a thumb away: one is enough.
+      foot={phone && atLastStop ? undefined : (forward, tucked) => <StepCard step={saidBefore ?? step} here={atLastStop} forward={forward} tucked={tucked} dots={onTheWhole.map(({ note, sent: isSent }) => ({ id: note.id, sent: isSent }))} onPress={() => toLastStop()} />}
       answers={away && may.back}
     >
       {momentTiles}

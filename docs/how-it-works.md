@@ -328,7 +328,8 @@ motion, full just while the card is lit). Where the card is
 out of the edge's view, the dot goes to the edge's foot, and the list doesn't scroll. With reduced motion the card only
 lights, lit then unlit; at the last stop (Send is right there) and on a phone, nothing goes (`showWhereItWent`,
 `Moment.tsx`). The card is quiet on every moment, and at the last stop full, with the line that says where you are, which
-no moment's card has then; pressed, it goes there. Keys there: ↑, K or Escape back to the last moment; Enter the
+no moment's card has then; pressed, it goes there. At the last stop on a phone it isn't drawn: Send or Done is in the
+bar's place, a thumb away, and one is enough. Keys there: ↑, K or Escape back to the last moment; Enter the
 step, on this card too when Tab and Enter brought you there by it; N a note on the whole change; Shift ↑ ↓ through the
 notes there, then back into the moments'; Escape closes a note open there first; W as anywhere; nothing else. `/` when the next change is seen all through
 (`seenThrough`) opens at its last stop. Nothing else says anything to the agent: ↓ never does, and Space is never a
