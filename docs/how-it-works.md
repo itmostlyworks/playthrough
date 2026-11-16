@@ -292,7 +292,7 @@ quiet lines you can press: "2 moments not watched" (to the first of them), "1 an
 there's nothing. Only your words: nothing the agent wrote. There you're on no moment, but on the change as a whole, and
 a note there is on it (16 Nov, from twenty user tests: seven remarks weren't about one spot, and two people said "this
 isn't what I meant" by pointing at the page's heading). Note (N) is on the bar beside the step, as on a moment; with
-nothing to point at, it opens the note box at once (the same box, Keep, Escape and growth) in "Your notes", in the
+nothing to point at, it opens the note box at once (the same box, Save, Escape and growth) in "Your notes", in the
 place the next card takes, so kept, the note is its card in that same place, with its words and no picture or moment,
 and Send counts it. A note on the whole change has no `on`; one whose moment was dropped keeps its `on` and is shown on a moment
 (`shownOn`), so neither is ever taken for the other. The Notes edge there holds the notes on the whole change, as a

@@ -180,7 +180,7 @@ export function NoteCard({ by, stage, closing, under, children }: { by: Rect; st
   );
 }
 
-// Writing a note: Enter keeps it, Shift+Enter is a new line, Escape lets it go.
+// Writing a note: Enter saves it, Shift+Enter is a new line, Escape lets it go.
 // A reply waits to be clicked into, so the keys stay the page's while a note is open (← → go on through the notes).
 export function Write({ onSave, onDrop, placeholder = "What's right or wrong here?", rows = 3, start = "", focus = true }: { onSave: (words: string) => void; onDrop: () => void; placeholder?: string; rows?: number; start?: string; focus?: boolean }) {
   const [words, setWords] = useState(start);
@@ -206,7 +206,7 @@ export function Write({ onSave, onDrop, placeholder = "What's right or wrong her
           Cancel
         </button>
         <button className="rounded-md px-2 py-1 font-medium text-fg enabled:hover:bg-hover disabled:opacity-50" disabled={!words.trim()} onClick={() => onSave(words.trim())}>
-          Keep <Key>↵</Key>
+          Save <Key>↵</Key>
         </button>
       </div>
     </div>

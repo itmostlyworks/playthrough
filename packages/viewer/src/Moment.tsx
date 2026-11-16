@@ -696,7 +696,7 @@ export function MomentView(props: {
               {!carded.sent && (
                 <div className="mt-2 flex items-center gap-2 px-1 text-xs text-soft">
                   <span>Sent with Send, under Moments</span>
-                  {/* A button as the reply box's Keep is, its padding taken from the row so the card stays its size. */}
+                  {/* A button as the reply box's Save is, its padding taken from the row so the card stays its size. */}
                   <button className="-my-0.5 ml-auto rounded-md px-2 py-1 font-medium text-fg hover:bg-hover" onClick={() => (setNotes((all) => all.filter((one) => one.id !== carded.note.id)), close())}>
                     Remove
                   </button>
