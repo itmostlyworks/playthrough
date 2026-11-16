@@ -186,11 +186,6 @@ export function MomentView(props: {
   const unchanged = compared ? !compared.findings.some((finding) => finding.seen.some((seen) => seen.moment === moment.name)) : !!looking && unrun;
   const then = unchanged ? undefined : looking;
   const both = useMemo(() => then && cut && playedTogether(cut, together(moment, then.moment)), [cut, then?.moment.recording, moment.recording]);
-  // Each side at actual size, a window onto the same part of the page, following now's pointer, as the older page's are.
-  const [{ leading, beside }] = useState(() => {
-    const samePart = new Together();
-    return { leading: { together: samePart, leads: true }, beside: { together: samePart, leads: false } };
-  });
   // How far along both it rests: where now first is, or where it was let go, as now held while the other went on.
   const along = (both && page.along) ?? both?.of(at) ?? 0;
   const atPoint = !playing && at >= end - 0.02;
@@ -372,10 +367,11 @@ export function MomentView(props: {
   // At the last stop a note is on the change as a whole: there's nothing to point at, so it's written at once.
   const note = () => may.note && act(atLastStop ? { type: "pointed", writing: { note: { id: newId(), words: "" }, spot: { x: 0, y: 0 } } } : { type: "note" });
   const flip = () => may.flip && act({ type: "flip" });
-  // Opened or closed, it stops where it's got to.
+  // Opened or closed, it stops where it's got to. Each side starts at actual size, following now's pointer, as the older
+  // page's do; unless the person has taken the window, which then stays where they had it, as near as the sides allow.
   const compare = () => {
     if (!may.compare) return;
-    leading.together.forget();
+    if (!pageWindow.moved) pageWindow.forget();
     act({ type: "compare" });
   };
   const goTo = (to: number, open?: string) => {
@@ -875,8 +871,8 @@ export function MomentView(props: {
               // the moment is about above all, is ever under it.
               <div className="absolute inset-0 z-[5] flex animate-arrive flex-row-reverse gap-3 bg-ground" style={{ paddingBottom: phone ? 0 : BAR / 2 + 8 }}>
                 {[
-                  { label: "Now", handBack: handBack.number, recording: moment.recording, side: 0, actualSize: { ...leading, holds: holdsAt } },
-                  { label: "When you last saw it", handBack: then.handBack.number, recording: then.moment.recording, side: 1, actualSize: { ...beside, holds: holdsAt } },
+                  { label: "Now", handBack: handBack.number, recording: moment.recording, side: 0, actualSize: { together: pageWindow, leads: true, holds: holdsAt } },
+                  { label: "When you last saw it", handBack: then.handBack.number, recording: then.moment.recording, side: 1, actualSize: { together: pageWindow, leads: false, holds: holdsAt } },
                 ].map((side) => (
                   <div key={side.label} className="relative min-w-0 flex-1">
                     <div className="absolute inset-0 overflow-hidden rounded-lg bg-paper shadow-frame">
@@ -887,7 +883,7 @@ export function MomentView(props: {
                         at={both.at(along)[side.side]!}
                         following={playing ? { clock: bothOf, at: (along) => both.at(along)[side.side]! } : undefined}
                         actualSize={side.actualSize}
-                        moves={phone ? side.actualSize.together : undefined}
+                        moves={pageWindow}
                       />
                       <span className={CHIP}>{side.label}</span>
                     </div>

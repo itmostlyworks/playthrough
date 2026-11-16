@@ -528,7 +528,11 @@ recorded before actions were named knows each by its place only); each pair begi
 to its own pace between, and what one did alone plays while the other holds before what's next. Each side is its half of
 the recording's room at actual size, a window following now's pointer, both onto the same part of the page
 (`following`), ending above the bar (on a phone, at the picture's edge, the bar under it); at rest it moves the least that shows what the moment is about whole, with its
-nearest words (`holding`).
+nearest words (`holding`). The two sides are the moment's one window: the wheel or a drag on either brings both closer
+or moves both, onto the same part of the page, in the same frame, as close as the moment's own picture goes and as far
+out as the whole screen in a side. From then on they follow nothing, playing too. Compare on or off keeps where you
+had it and how close, as near as the other's room allows (the same middle, no further out than the whole screen); not
+yet moved, Compare starts at actual size, following now's pointer, as before.
 
 **Send and Done.** Send carries every note and reply you haven't sent on the change, from its row, its card or a
 moment's page, in one send (`Send.tsx`); it never locks. Done, from the same places, sends Done (`done: true`): every moment as last handed back looks good, and
