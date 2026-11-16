@@ -97,7 +97,9 @@ file, and runs it from a fresh start as the same person. It's kept only if it la
 address, and what it's about saying the same; else it says what differed (what it's about otherwise as what was looked
 for and what was found: "no link “My cards” was to be seen", "button “Save” was disabled, not enabled"; a thing that looks different or is another size with what about it, on each
 side: "button “Tiles” looks different: background rgb(37, 99, 235) where you are, rgba(0, 0, 0, 0) run again", where
-it once said only its unchanged name twice), and words that tell the time, reworded only
+it once said only its unchanged name twice), headed by where it ended ("it ended on /boards as you are, but not as it
+is where you are", or "on another page", with both addresses first), in a dozen lines at most taken from each side in
+turn and "and N more", so many things only run again never hide what's only where you are, and words that tell the time, reworded only
 in their numbers, are left out of that and said. It's run a second time, and what differs between the two runs changes
 by itself (a caret, a time the server stamps), so it's left out of every comparison from then on (`markUnsteady`). Its
 words are ten at most and never name a person, as the page already says who. Marked again with the same words, it

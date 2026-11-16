@@ -170,10 +170,18 @@ export function whatDiffers(here: { url: string; reading: Reading }, again: { ur
     one.what === "reworded" && one.then.name.replace(/\d+/g, "#") === one.now.name.replace(/\d+/g, "#") && TIMED.test(one.now.name);
   const passes = (one: (typeof all)[number]) => ("now" in one ? one.now : one.then).live || timely(one);
   const address = sameAddress(here.url, again.url);
+  // A dozen lines at most, as many from each side as there's room for: twelve things only run again never hide that
+  // something's only where you are.
+  const differing = all.filter((one) => !passes(one));
+  const sides = [differing.filter((one) => one.what === "new"), differing.filter((one) => one.what === "gone"), differing.filter((one) => one.what !== "new" && one.what !== "gone")];
+  const picked = new Set<(typeof differing)[number]>();
+  for (let i = 0; picked.size < MOST_SAID && sides.some((side) => side.length > i); i++) for (const side of sides) if (i < side.length && picked.size < MOST_SAID) picked.add(side[i]!);
+  const shown = sides.flatMap((side) => side.filter((one) => picked.has(one)));
   return {
     differ: [
-      ...all.filter((one) => !passes(one)).slice(0, 12).map(said),
       ...(address === undefined ? [`the address: ${new URL(here.url).pathname} where you are, ${new URL(again.url).pathname} run again`] : []),
+      ...shown.map(said),
+      ...(differing.length > shown.length ? [`and ${differing.length - shown.length} more`] : []),
     ],
     passing: all.filter(passes).map(said),
     timely: all.filter(timely).map((one) => ("now" in one ? one.now.name : "")),
@@ -181,7 +189,9 @@ export function whatDiffers(here: { url: string; reading: Reading }, again: { ur
   };
 }
 
-export const TIMED = /\d\s*(s|secs?|seconds?|m|mins?|minutes?|h|hrs?|hours?|d|days?|weeks?)\b|\bago\b|\d{1,2}:\d{2}/i;
+const MOST_SAID = 12;
+
+export const TIMED =/\d\s*(s|secs?|seconds?|m|mins?|minutes?|h|hrs?|hours?|d|days?|weeks?)\b|\bago\b|\d{1,2}:\d{2}/i;
 
 // Each difference by what it is, with what differs on both sides: a thing that looks different says how, as its
 // words are often the same on both ("button “Tiles” → “Tiles”" said nothing the agent could act on).

@@ -184,6 +184,20 @@ describe("a moment run again", () => {
     assert.deepEqual(differ, ["button “Tiles” looks different: background rgb(37, 99, 235) where you are, rgba(0, 0, 0, 0) run again; text colour rgb(255, 255, 255) where you are, rgb(0, 0, 0) run again"]);
   });
 
+  test("says what's on each side in a dozen lines at most: many things only run again never hide what's only where you are", () => {
+    const boards = (prefix: string, from: number) => Array.from({ length: 14 }, (_, i) => thing("link", `${prefix} board ${i}`, from + i * 40));
+    const { differ } = whatDiffers({ url: "http://localhost/boards", reading: reading(...boards("Mine", 10)) }, { url: "http://localhost/boards", reading: reading(...boards("Theirs", 700)) });
+    assert.equal(differ.length, 13);
+    assert.equal(differ.filter((line) => line.startsWith("only run again")).length, 6);
+    assert.equal(differ.filter((line) => line.startsWith("only where you are")).length, 6);
+    assert.equal(differ.at(-1), "and 16 more");
+  });
+
+  test("says first that it ended on another page, where it did", () => {
+    const { differ } = whatDiffers({ url: "http://localhost/boards", reading: board }, { url: "http://localhost/settings", reading: board });
+    assert.deepEqual(differ, ["the address: /boards where you are, /settings run again"]);
+  });
+
   test("leaves out a message that passes by itself, as a toast, there in one and gone in the other", () => {
     const toasted = reading(...board.things, thing("status", "Card prefix updated", 600, { live: true }));
     const { differ, passing } = whatDiffers({ url: "http://localhost:3110/boards/1", reading: toasted }, { url: "http://localhost:3110/boards/1", reading: board });

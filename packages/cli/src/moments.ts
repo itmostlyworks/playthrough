@@ -96,10 +96,10 @@ export async function moment(repo: Repo, words: string, named?: string, last?: n
   }
   const readings: Reading[] = JSON.parse(recorded.files.find((one) => one.name === readingsOf(recorded.moment))!.bytes.toString());
   const ended: string = JSON.parse(readFileSync(join(trying, ENDED), "utf8")).url;
-  const { differ, timely } = whatDiffers(there, { url: ended, reading: readings.at(-1)! });
+  const { differ, timely, address } = whatDiffers(there, { url: ended, reading: readings.at(-1)! });
   if (differ.length)
     throw notKept(
-      `it ended somewhere else. What differs from where you are:\n${differ.map((one) => `  ${one}`).join("\n")}${differ.some((one) => one.startsWith("only where you are")) ? "\nIf what's only where you are comes a while after what you did, name it as the moment's thing: the moment waits for it." : ""}`,
+      `it ended ${address !== undefined ? `on ${address} as you are, but not as it is where you are` : "on another page"}. What differs:\n${differ.map((one) => `  ${one}`).join("\n")}${differ.some((one) => one.startsWith("only where you are")) ? "\nIf what's only where you are comes a while after what you did, name it as the moment's thing: the moment waits for it." : ""}`,
     );
 
   // Run once more, what changes by itself, as a caret blinking or a time the server stamps, is known, and left out
