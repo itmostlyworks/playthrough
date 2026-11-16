@@ -94,12 +94,20 @@ export function backAgain(change: Change, you: string): boolean {
 
 // What to say to an agent so it picks up what you sent, when none is listening for it.
 const TELL = "Pick up my notes in Playthrough.";
+export const NO_AGENT = "No agent listening";
 
 // An agent is on the change: one is listening for what's sent, or one took what was sent before and is on it, so
 // what's sent now reaches it. Without one, what's sent is kept for the next.
 export function agentOn(listed: Listed): boolean {
   const latest = latestOf(listed.change);
   return listed.agentWaiting || (!!latest && !!workingSince(listed.change, latest) && !listed.agentGone);
+}
+
+// What to tell a new agent: while what you sent waits for one, and none is on it. Just sent, "tell your agent" read as
+// nonsense: you had. What's true is that nothing is listening for it.
+export function tellOf(listed: Listed, you: string): string | undefined {
+  const { change } = listed;
+  return latestOf(change) && standingOf(change, you).is === "sent" && waitingForTheAgent(change).length && !agentOn(listed) ? TELL : undefined;
 }
 
 // Nothing handed back yet, it's with your agents; handed back, where it stands for you.
@@ -122,8 +130,8 @@ export function stepOf(listed: Listed, you: string): Step {
     // Taken, it's being worked on until the agent that took it has ended (where that can be known), when it's the
     // next agent's, as if never taken.
     if (workingSince(change, latest) && agentOn(listed)) return { is: "with", words: "Agent working" };
-    // Just sent, "tell your agent" read as nonsense: you had. What's true is that nothing is listening for it.
-    if (waitingForTheAgent(change).length && !agentOn(listed)) return { is: "with", words: "No agent listening", tell: TELL };
+    const tell = tellOf(listed, you);
+    if (tell) return { is: "with", words: NO_AGENT, tell };
     return { is: "with", words: "Sent" };
   }
   const words = lookOf(listed, you);

@@ -6,11 +6,13 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { standingOf, type Note } from "@playthrough/change";
 import type { Listed } from "./api.ts";
-import { TellYours } from "./Changes.tsx";
 import { Key } from "./Key.tsx";
 import { FILLED_KEY, SAID, SendButton, Taken, take, tick } from "./Send.tsx";
 import { toSend } from "./standing.ts";
-import { agentOn, stepOf } from "./step.ts";
+import { agentOn, NO_AGENT, stepOf, tellOf } from "./step.ts";
+
+// What the bar says of a change sent on, by its tick: someone's on it, at it, or nobody is.
+const WITH_AGENTS = ["With your agent.", "Agent working", NO_AGENT];
 
 // The step, and what pressing it has come to: one for the page, read by its card and by the bar alike.
 export function useStepLeft(listed: Listed, you: string, onSent: (notes: Note[]) => void, goOn: () => void) {
@@ -36,7 +38,7 @@ export function useStepLeft(listed: Listed, you: string, onSent: (notes: Note[])
   const count = unsent.current.notes + unsent.current.replies;
   // Taken: pressed and kept, or already with your agents or done before you came.
   const taken = !what ? (standing.is === "done" ? "Done" : "Sent") : said === "Sent" || said === "Done" ? said : undefined;
-  return { what, said, taken, step, standing, count, agentOn: agentOn(listed), words: `Send ${toSend(unsent.current.notes, unsent.current.replies)}`, press: () => void press() };
+  return { what, said, taken, step, standing, count, agentOn: agentOn(listed), tell: tellOf(listed, you), words: `Send ${toSend(unsent.current.notes, unsent.current.replies)}`, press: () => void press() };
 }
 export type Step = ReturnType<typeof useStepLeft>;
 
@@ -118,17 +120,24 @@ export function StepAction({ step }: { step: Step }) {
   const { what, said, taken, standing } = step;
   const [line, warning] = ["truncate px-2 text-[13px] text-soft phone:hidden", "truncate px-2 text-[13px] text-amber-ink phone:hidden"];
   if (taken) {
-    const tell = !what && step.step.is === "with" && step.step.tell;
-    const words = what ? undefined : standing.is === "done" ? "Every moment looked good." : step.step.is === "with" && step.step.words !== "Sent" ? step.step.words : "With your agent.";
+    // Only where it stands, in a word: what to tell a new agent is on the sheet, not in the bar.
+    const words = what ? undefined : standing.is === "done" ? "Every moment looked good." : step.step.is === "with" && step.step.words !== "Sent" ? step.step.words : WITH_AGENTS[0];
     return (
       <div className="flex min-w-0 items-center">
         <Taken>{taken}</Taken>
-        {words && <span className={tell ? warning : line}>{words}</span>}
-        {tell && (
-          <span className="truncate pr-2 phone:hidden">
-            <TellYours words={tell} />
-          </span>
-        )}
+        {words &&
+          (standing.is === "done" ? (
+            <span className={line}>{words}</span>
+          ) : (
+            // Held in one place with what else it turns into as an agent comes or goes, so the bar keeps its width.
+            <span className="grid min-w-0 phone:hidden">
+              {[...new Set([...WITH_AGENTS, words])].map((one) => (
+                <span key={one} className={`${one === NO_AGENT ? warning : line} [grid-area:1/1] ${one === words ? "" : "invisible"}`}>
+                  {one}
+                </span>
+              ))}
+            </span>
+          ))}
       </div>
     );
   }

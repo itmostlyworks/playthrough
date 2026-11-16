@@ -893,6 +893,7 @@ export function MomentView(props: {
                     ),
                   };
                 })}
+                tell={step.tell}
                 unwatched={props.unwatched.length}
                 unopened={props.unopened.length}
                 onUnwatched={() => props.unwatched[0] && may.move && goTo(props.unwatched[0])}

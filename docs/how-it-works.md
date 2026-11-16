@@ -312,8 +312,11 @@ changes as an agent comes or goes, the two held in one place so the bar keeps it
 width (`w-max`), up to the recording's, so a line isn't cut where there's room for it. Pressed, or Enter (or Ctrl+Enter from any moment while something's
 unsent), it says Sending…, then Sent or Done with a tick in its place, what went drawn as sent at once, and after a
 pause (`SAID`) goes on to `/`; not sent, "Not sent: …" in amber. A change already with your agents or done says so
-there ("Sent" and "Agent working", or "No agent listening" with the line to tell yours; "Done", "Every moment looked
-good."), with nothing to press. On the Moments edge the list's last card is the way there (`StepCard`), as a moment's
+there ("Sent" and where it stands in a word: "With your agent.", "Agent working", or "No agent listening" in amber,
+the three held in one place so the bar keeps its width as they change; "Done", "Every moment looked good."), with
+nothing to press. What to tell a new agent is never in the bar: while what you sent waits with no agent on it
+(`tellOf`), the sheet says "Tell yours: “Pick up my notes in Playthrough.”" in a quiet line under your notes, above
+what's still to do, copying on a press as on the list; it comes and goes under what you asked, which doesn't move. On the Moments edge the list's last card is the way there (`StepCard`), as a moment's
 card is for a moment: one short line (40px), a moment's card in width, corners and gap, tucked and forward with the
 rest, its words held 8px from the screen's edge at rest where the edge's fade leaves room ("Send 2" when "Send 2 notes"
 doesn't fit there), quiet on every moment, and at the last stop full, with the line that says where you are, which

@@ -3,6 +3,7 @@
 // what the button counts; and what's still to do, if anything. The moments stay on their edge beside it.
 
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { TellYours } from "./Changes.tsx";
 import { useMore } from "./Edge.tsx";
 import { usePhone } from "./phone.ts";
 
@@ -18,6 +19,8 @@ export function LastStop(props: {
   // The notes Send will send, each drawn as its card on the Notes edge is; once sent, what went, till the page goes on.
   notes: { id: string; card: ReactNode }[];
   // What's still to do: the moments not watched, the answers not opened; each pressed goes to the first of them.
+  // What to tell a new agent, while what you sent waits with none on it: here, under your side of it, not in the bar.
+  tell?: string;
   unwatched: number;
   unopened: number;
   onUnwatched: () => void;
@@ -84,6 +87,11 @@ export function LastStop(props: {
                 ))}
               </div>
             </div>
+          )}
+          {props.tell && (
+            <p className="flex-none text-center">
+              <TellYours words={props.tell} />
+            </p>
           )}
           {todo.length > 0 && (
             <div className="flex flex-none flex-wrap justify-center gap-x-5 gap-y-1">
