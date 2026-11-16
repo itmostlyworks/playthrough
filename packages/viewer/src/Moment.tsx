@@ -545,9 +545,8 @@ export function MomentView(props: {
   // moves. Only a note that turns out to be on nothing stands in the corner.
   const corner = spotAt({ x: 24, y: 24 });
   const cardBy = !carded ? undefined : phone ? corner : openAt && (openAt[carded.note.id] ?? corner);
-  // What it's about is outlined only at the point: midway, it may not be there yet. Moved out of the picture, it has
-  // nothing to outline.
-  const aboutAt = atPoint && !away && !opened && placed?.[ABOUT]?.width ? placed[ABOUT] : undefined;
+  // What it's about is outlined only at the point: midway, it may not be there yet.
+  const aboutAt = atPoint && !away && !opened ? placed?.[ABOUT] : undefined;
 
   // Pressing away from what's open, anywhere but its card and its picture on the edge, closes it.
   const pressAway = (event: React.PointerEvent) => opened && !(event.target as Element).closest("[data-note-card], [data-tile]") && !stage.current?.contains(event.target as Node) && close();
@@ -793,7 +792,7 @@ export function MomentView(props: {
         <div
           ref={stage}
           className="relative overflow-visible rounded-lg"
-          style={{ aspectRatio: `${screen.width} / ${screen.height}`, ...(phone ? { width: "calc(100cqw - 32px)", marginTop: 3 * 22 + 8, marginBottom: UNDER } : inItsRoom(screen.width / screen.height)) }}
+          style={{ aspectRatio: `${screen.width} / ${screen.height}`, ...(phone ? { width: "calc(100cqw - 32px)", marginTop: 3 * 22 + 8, marginBottom: BAR + GAP } : inItsRoom(screen.width / screen.height)) }}
           onPointerMove={(event) => (movePill(event), setAiming(!(event.target as Element).closest("[role=toolbar]")))}
           onPointerLeave={() => setAiming(false)}
         >
@@ -860,7 +859,7 @@ export function MomentView(props: {
             {comparing && then && both && (
               // Now leads, so it's drawn first, on the right. Both end above the bar, so nothing they hold in view, what
               // the moment is about above all, is ever under it.
-              <div className="absolute inset-0 z-[5] flex animate-arrive flex-row-reverse gap-3 bg-ground" style={{ paddingBottom: BAR / 2 + 8 }}>
+              <div className="absolute inset-0 z-[5] flex animate-arrive flex-row-reverse gap-3 bg-ground" style={{ paddingBottom: phone ? 0 : BAR / 2 + 8 }}>
                 {[
                   { label: "Now", handBack: handBack.number, recording: moment.recording, side: 0, actualSize: { ...leading, holds: holdsAt } },
                   { label: "When you last saw it", handBack: then.handBack.number, recording: then.moment.recording, side: 1, actualSize: { ...beside, holds: holdsAt } },
@@ -985,19 +984,20 @@ export function MomentView(props: {
             <span className={TAG}>Note on this</span>
           </span>
           {!phone && !atLastStop && cards}
-          {/* What you can do here, across the recording's bottom edge, as on the older page. */}
+          {/* What you can do here, across the recording's bottom edge, as on the older page; on a phone, just under it. */}
           <div
             role="toolbar"
             aria-label="This moment"
             onClick={(event) => (event.target as Element).closest("button")?.blur()}
             className={`absolute top-full left-1/2 z-20 flex w-max max-w-full gap-0.5 rounded-xl transition-[translate,opacity] duration-300 ease-calm bg-surface p-1 text-[13px] select-none ${inApp ? "outline-2 outline-[rgba(236,178,72,0.95)] outline-solid shadow-[0_6px_20px_rgba(20,24,34,0.12)]" : "shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]"}`}
             ref={toolbar}
-            style={{ height: BAR, translate: `calc(-50% + ${clear?.x ?? 0}px) calc(-50% + ${clear?.y ?? 0}px)`, opacity: clear ? 1 : 0 }}
+            style={{ height: BAR, translate: phone ? "-50% 0" : `calc(-50% + ${clear?.x ?? 0}px) calc(-50% + ${clear?.y ?? 0}px)`, opacity: clear ? 1 : 0 }}
           >
             {/* What Step in has to say, just over the bar, where it was pressed: why it couldn't open, that the app starts
-                first, or in the app that its check at the end doesn't hold now. Under the bar there's no room for it. */}
+                first, or in the app that its check at the end doesn't hold now. Under the bar there's no room for it, but
+                on a phone, where over it is the picture. */}
             {(stepIn.said || stepIn.waitingOn) && (
-              <p className={`pointer-events-none absolute bottom-full left-1/2 mb-2 grid w-max max-w-[min(640px,calc(100cqw-32px))] -translate-x-1/2 animate-arrive justify-items-center rounded-md bg-surface px-3 py-1.5 text-center text-xs shadow-tip ${stepIn.said ? "text-amber-ink" : "text-soft"}`}>
+              <p className={`pointer-events-none absolute bottom-full left-1/2 mb-2 phone:top-full phone:bottom-auto phone:mt-2 phone:mb-0 grid w-max max-w-[min(640px,calc(100cqw-32px))] -translate-x-1/2 animate-arrive justify-items-center rounded-md bg-surface px-3 py-1.5 text-center text-xs shadow-tip ${stepIn.said ? "text-amber-ink" : "text-soft"}`}>
                 {stepIn.said || (
                   // Both lines are always there, one over the other, so the note is as wide for either and the words
                   // swap without anything moving.
@@ -1143,8 +1143,10 @@ const STILL = "A still: nothing to play";
 // width there too.
 const PLAYS = "w-[148px] phone:w-[100px]";
 
-// Under the recording, room for the lower half of the bar that hangs across its edge, and a little more.
-const UNDER = BAR / 2 + 20;
+// Under the recording, room for the lower half of the bar that hangs across its edge, and a little more; on a phone,
+// where the bar hangs under the edge so as not to cover the picture, the whole bar and the same more.
+const GAP = 20;
+const UNDER = BAR / 2 + GAP;
 
 // Beside the recording, room for each edge's pictures at rest.
 const SIDE = "clamp(104px, 10vw, 160px)";

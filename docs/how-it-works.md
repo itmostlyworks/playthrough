@@ -390,7 +390,8 @@ its arrows rest there, dimmed where they always are, and Play says "A still: not
 (`SIDE`, 10vw, 104 to 160px each side), and never moves or changes size: not as an edge comes forward, a note opens or
 the moment changes (its shape is kept until the next one's is known, and the one you were on stays under the new one,
 drawn just as it was, never swapped for its picture, until the new one has faded in: two moments that look alike change
-with nothing moving in what's the same). The bar across its bottom edge: Play (Space), whose slim line along its own bottom edge fills as
+with nothing moving in what's the same). The bar across its bottom edge (on a phone, just under it, touching it, so it
+covers none of the picture; Step in's few words then come under the bar, not over it): Play (Space), whose slim line along its own bottom edge fills as
 it plays, there only once the moment has left its end, with a small arrow either side, the frame before (←) and the
 next frame (→), their words and keys coming up over them when pointed at a while; Step in (S); Note (N, on the
 recording or in the app); Compare (C), or in its place "Unchanged" or "New", said rather than offered (smaller, in
@@ -511,7 +512,7 @@ Play and the line drive both sides, at the same action at the same instant: `tog
 recorded before actions were named knows each by its place only); each pair begins and ends together, each side scaled
 to its own pace between, and what one did alone plays while the other holds before what's next. Each side is its half of
 the recording's room at actual size, a window following now's pointer, both onto the same part of the page
-(`following`), ending above the bar; at rest it moves the least that shows what the moment is about whole, with its
+(`following`), ending above the bar (on a phone, at the picture's edge, the bar under it); at rest it moves the least that shows what the moment is about whole, with its
 nearest words (`holding`).
 
 **Send and Done.** Send carries every note and reply you haven't sent on the change, from its row, its card or a
