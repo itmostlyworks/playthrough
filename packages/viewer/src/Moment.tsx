@@ -172,7 +172,10 @@ export function MomentView(props: {
   const anyLook = handBack.moments.some((one) => lastLook(one));
   const looking = lastLook(moment);
   const compared = looking && change.comparisons.find((one) => one.handBack === handBack.number && one.since === looking.handBack.number);
-  const unchanged = !!compared && !compared.findings.some((finding) => finding.seen.some((seen) => seen.moment === moment.name));
+  // A hand-back after the first that's compared with nothing went on as the one before, unrun: a question answered with
+  // nothing changed (`unchangedOn`).
+  const unrun = !change.comparisons.some((one) => one.handBack === handBack.number);
+  const unchanged = compared ? !compared.findings.some((finding) => finding.seen.some((seen) => seen.moment === moment.name)) : !!looking && unrun;
   const then = unchanged ? undefined : looking;
   const both = useMemo(() => then && cut && playedTogether(cut, together(moment, then.moment)), [cut, then?.moment.recording, moment.recording]);
   // Each side at actual size, a window onto the same part of the page, following now's pointer, as the older page's are.

@@ -143,13 +143,13 @@ sentence). **`answer`** with no hand-back begun (no `again` since the person spo
 app has changed since the moments the person saw were run (`changedSince`: every file git lists for the app, its own
 and new ones it doesn't ignore, against the first of that hand-back's recordings; outside git, the app is taken as
 changed): those moments go on into the next hand-back as they are, with their files, unrun (`unchangedOn`), and the
-person sees them as seen before, with the answer. Anything changed, it refuses, naming the file: "Run playthrough again
+person sees them as seen before, "Unchanged" in Compare's place, with the answer ("Read 1 answer" on its card). Anything changed, it refuses, naming the file: "Run playthrough again
 first: list.tsx has changed since the moments were run, and the answer goes with the moments as they are now." **`wait`**
 refuses while a note has no answer or a moment hasn't been run again, or, for moments that went on unrun, while anything
 has changed since they ran; otherwise it hands back, stops the `as` browser, gives the address of the change's own page, and waits. While
 it waits it keeps a file named by its process in the change's `waiting/`, saying which start of the machine it's on, so
 the page knows an agent is listening. When the person sends, it prints each note on its moment (one written at the
-last stop "on the change as a whole", with its conversation and nothing more: no picture, no way to stand there), with its conversation,
+last stop "on the change as a whole", with no picture and no way to stand there), with its conversation,
 a picture of what they saw with the thing outlined (`noted.ts`: the page the moment left, or for a note made in the
 app, the frame the person's page drew of it), how to stand there (`playthrough as <person> "<moment>"`), and for one
 made in the app what they did there and where the app was when they wrote it (`The app was at /boards/undefined when
