@@ -319,7 +319,13 @@ nothing to press. What to tell a new agent is never in the bar: while what you s
 what's still to do, copying on a press as on the list; it comes and goes under what you asked, which doesn't move. On the Moments edge the list's last card is the way there (`StepCard`), as a moment's
 card is for a moment: one short line (40px), a moment's card in width, corners and gap, tucked and forward with the
 rest, its words held 8px from the screen's edge at rest where the edge's fade leaves room ("Send 2" when "Send 2 notes"
-doesn't fit there), quiet on every moment, and at the last stop full, with the line that says where you are, which
+doesn't fit there). A note saved on a moment shows where it went: a frame on, once it has
+settled into its pin, a dot leaves the pin (in the app, where the note was asked for), shrinking from the pin's 12px to
+a card's 7px, and goes to just after this card's words in 450 ms; the card keeps saying what it said until the dot
+lands, then in that same frame takes its new words ("Done" to "Send 1 note") and lights amber, fading. Where the card is
+out of the edge's view, the dot goes to the edge's foot, and the list doesn't scroll. With reduced motion the card only
+lights, lit then unlit; at the last stop (Send is right there) and on a phone, nothing goes (`showWhereItWent`,
+`Moment.tsx`). The card is quiet on every moment, and at the last stop full, with the line that says where you are, which
 no moment's card has then; pressed, it goes there. Keys there: ↑, K or Escape back to the last moment; Enter the
 step, on this card too when Tab and Enter brought you there by it; N a note on the whole change; Shift ↑ ↓ through the
 notes there, then back into the moments'; Escape closes a note open there first; W as anywhere; nothing else. `/` when the next change is seen all through

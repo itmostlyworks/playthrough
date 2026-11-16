@@ -4,6 +4,7 @@
 // it, go on, or say Done or Send.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { flushSync } from "react-dom";
 import { escapedTwice, RIGHT_AFTER, type Glimpse, type Reading } from "@playthrough/page";
 import { conversation, isStill, madeInApp, newId, together, type Note, type Change, type HandBack, type Moment } from "@playthrough/change";
 import { glimpses, picture, readings as readingsOf, recording, type Listed } from "./api.ts";
@@ -24,7 +25,7 @@ import { Portal, TAG } from "./Portal.tsx";
 import type { Rect, Scrolled } from "./replay.ts";
 import { ago, noteSays, shownOn, takingOf, seenOf } from "./standing.ts";
 import { LastStop } from "./LastStop.tsx";
-import { StepAction, StepCard, useStepLeft } from "./StepLeft.tsx";
+import { StepAction, StepCard, useStepLeft, type Step } from "./StepLeft.tsx";
 import { backAgain } from "./step.ts";
 import { useKeptReady, useStepIn } from "./stepIn.ts";
 import { useHeld } from "./held.ts";
@@ -408,9 +409,49 @@ export function MomentView(props: {
   const save = (words: string) => {
     if (!writing) return;
     const kept = { ...writing.note, words };
+    if (!atLastStop && !phone) showWhereItWent(kept, writing.spot);
     setNotes((all) => [...all, kept]);
     act({ type: "written" });
     stepIn.saved(kept, mine.length + 1);
+  };
+  // Saved on a moment, the note's dot goes from its pin to the Moments' last card, which only says Send, one more, as
+  // the dot lands there: until then it says what it said before. With reduced motion it doesn't go: the card lights as
+  // its words change. At the last stop Send is right there, and on a phone there's no edge to go to.
+  const [saidBefore, setSaidBefore] = useState<Step>();
+  const showWhereItWent = (note: Note, spot: { x: number; y: number }) => {
+    setSaidBefore(step);
+    const card = document.querySelector('[data-tile="the last stop"]');
+    const box = card?.firstElementChild;
+    // In the frame it lands, so the dot and the words never miss each other by a frame.
+    const landed = () => {
+      flushSync(() => setSaidBefore(undefined));
+      box?.animate([{ backgroundColor: "color-mix(in srgb, var(--amber) 22%, transparent)" }, {}], { duration: 700, easing: unmoving() ? "steps(1, end)" : "ease-out" });
+    };
+    // A frame on, once the note has settled into its pin.
+    requestAnimationFrame(() => {
+      const [says, edge, picture] = [card?.querySelector("[data-says]"), card?.closest("[role=region]"), stage.current];
+      if (unmoving() || !says || !edge || !picture) return landed();
+      // From its pin, as large as the pin's dot; in the app, where the pin isn't drawn here, from where it was asked for.
+      const pin = !inApp && document.querySelector(`[data-pin="${CSS.escape(note.id)}"]`)?.getBoundingClientRect();
+      const stood = picture.getBoundingClientRect();
+      const from = pin ? { x: pin.left + pin.width / 2, y: pin.top + pin.height / 2, size: 1 } : { x: stood.left + spot.x, y: stood.top + spot.y, size: DOT / PIN_DOT };
+      // To just after the card's words, where its dots stand, which its new words then run over; where the card is out
+      // of the edge's view, to the edge's foot, the list left as it is.
+      const [words, room] = [says.getBoundingClientRect(), edge.getBoundingClientRect()];
+      const to = { x: words.right + 8 + DOT / 2, y: clamp(words.top + words.height / 2, room.top + 14, room.bottom - 14) };
+      const dot = document.createElement("i");
+      dot.className = "pointer-events-none fixed z-50 size-3 rounded-full bg-amber shadow-[0_0_0_2px_#fff,0_1px_4px_rgb(0_0_0/0.25)]";
+      Object.assign(dot.style, { left: `${from.x - PIN_DOT / 2}px`, top: `${from.y - PIN_DOT / 2}px` });
+      document.body.append(dot);
+      const going = dot.animate(
+        [
+          { translate: "0 0", scale: from.size },
+          { translate: `${to.x - from.x}px ${to.y - from.y}px`, scale: DOT / PIN_DOT },
+        ],
+        { duration: 450, easing: "cubic-bezier(0.45, 0, 0.2, 1)", fill: "forwards" },
+      );
+      going.onfinish = () => (landed(), dot.remove());
+    });
   };
   // The open note's frame over the moment, and the one before it while that fades: only ever this moment's.
   const [layered, setLayers] = useState<{ note: Note; sent: boolean; made: Made }[]>([]);
@@ -716,7 +757,7 @@ export function MomentView(props: {
       quiet={away}
       phone={phone}
       showing={atLastStop ? LAST_STOP : moment.name}
-      foot={(forward, tucked) => <StepCard step={step} here={atLastStop} forward={forward} tucked={tucked} dots={onTheWhole.map(({ note, sent: isSent }) => ({ id: note.id, sent: isSent }))} onPress={() => toLastStop()} />}
+      foot={(forward, tucked) => <StepCard step={saidBefore ?? step} here={atLastStop} forward={forward} tucked={tucked} dots={onTheWhole.map(({ note, sent: isSent }) => ({ id: note.id, sent: isSent }))} onPress={() => toLastStop()} />}
       answers={away && may.back}
     >
       {momentTiles}
@@ -1106,3 +1147,8 @@ export const inItsRoom = (shape: number) => ({ width: `min(calc(100cqw - 2 * ${S
 
 // A spot, as a thing with no size.
 const spotAt = ({ x, y }: { x: number; y: number }): Rect => ({ left: x, top: y, width: 0, height: 0 });
+// Asked for reduced motion.
+const unmoving = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+// A note's dot on a card, and on its pin, across.
+const DOT = 7;
+const PIN_DOT = 12;

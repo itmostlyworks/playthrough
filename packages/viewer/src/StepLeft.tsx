@@ -94,7 +94,7 @@ export function StepCard({ step, here, forward, tucked, dots, onPress }: { step:
       >
         {/* The words held where they read at rest, settling where a card's words stand as it comes forward, with it. */}
         <span className="flex items-center whitespace-nowrap transition-[translate] duration-300 ease-calm" style={{ translate: `${Math.max(0, tucked + AT_REST - WORDS)}px 0` }}>
-          <span ref={said} className="flex items-center">
+          <span ref={said} data-says className="flex items-center">
             {words}
           </span>
           {/* After its words, held with them where they read at rest. */}
