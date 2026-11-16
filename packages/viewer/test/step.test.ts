@@ -6,7 +6,7 @@ import { test } from "node:test";
 import type { Change, HandBack, Moment, Send } from "@playthrough/change";
 import type { Listed } from "../src/api.ts";
 import { shownOn } from "../src/standing.ts";
-import { firstUnseen, lookOf, sectionOf, seenThrough, stepOf, unreadOf, unseenOf, waitingInOrder } from "../src/step.ts";
+import { agentOn, firstUnseen, lookOf, sectionOf, seenThrough, stepOf, unreadOf, unseenOf, waitingInOrder } from "../src/step.ts";
 
 const you = "Ana";
 
@@ -96,6 +96,14 @@ test("sent with no agent listening, the step says so and what to tell yours", ()
   const change = listed({ sends: [send(1, { notes: [note] })] });
   assert.deepEqual(stepOf({ ...change, agentWaiting: false }, you), { is: "with", words: "No agent listening", tell: "Pick up my notes in Playthrough." });
   assert.deepEqual(stepOf(change, you), { is: "with", words: "Sent" });
+});
+
+test("an agent is on a change while one listens, or while one that took what was sent before is on it; else what's sent is kept", () => {
+  const note = { id: "n1", on: { handBack: 1, moment: "Admin opens settings", at: 3 }, words: "The toggle is hard to find." };
+  const taken = listed({ sends: [send(1, { notes: [note] })], taken: [{ send: "send-1", handBack: 2, at: "2026-11-11T10:01:00.000Z" }] });
+  assert.equal(agentOn(listed()), true);
+  assert.equal(agentOn({ ...listed(), agentWaiting: false }), false);
+  assert.equal(agentOn({ ...taken, agentWaiting: false }), true);
 });
 
 test("a change is waiting on you once handed back, with your agents once you've sent on it or before it's handed back, and done once you say so", () => {

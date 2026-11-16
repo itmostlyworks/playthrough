@@ -10,7 +10,7 @@ import { TellYours } from "./Changes.tsx";
 import { Key } from "./Key.tsx";
 import { FILLED_KEY, SAID, SendButton, Taken, take, tick } from "./Send.tsx";
 import { toSend } from "./standing.ts";
-import { stepOf } from "./step.ts";
+import { agentOn, stepOf } from "./step.ts";
 
 // The step, and what pressing it has come to: one for the page, read by its card and by the bar alike.
 export function useStepLeft(listed: Listed, you: string, onSent: (notes: Note[]) => void, goOn: () => void) {
@@ -36,7 +36,7 @@ export function useStepLeft(listed: Listed, you: string, onSent: (notes: Note[])
   const count = unsent.current.notes + unsent.current.replies;
   // Taken: pressed and kept, or already with your agents or done before you came.
   const taken = !what ? (standing.is === "done" ? "Done" : "Sent") : said === "Sent" || said === "Done" ? said : undefined;
-  return { what, said, taken, step, standing, count, words: `Send ${toSend(unsent.current.notes, unsent.current.replies)}`, press: () => void press() };
+  return { what, said, taken, step, standing, count, agentOn: agentOn(listed), words: `Send ${toSend(unsent.current.notes, unsent.current.replies)}`, press: () => void press() };
 }
 export type Step = ReturnType<typeof useStepLeft>;
 
@@ -116,7 +116,7 @@ export function StepCard({ step, here, forward, tucked, dots, onPress }: { step:
 // pressed, what came of it, there.
 export function StepAction({ step }: { step: Step }) {
   const { what, said, taken, standing } = step;
-  const line = "truncate px-2 text-[13px] text-soft phone:hidden";
+  const [line, warning] = ["truncate px-2 text-[13px] text-soft phone:hidden", "truncate px-2 text-[13px] text-amber-ink phone:hidden"];
   if (taken) {
     const tell = !what && step.step.is === "with" && step.step.tell;
     const words = what ? undefined : standing.is === "done" ? "Every moment looked good." : step.step.is === "with" && step.step.words !== "Sent" ? step.step.words : "With your agent.";
@@ -149,7 +149,16 @@ export function StepAction({ step }: { step: Step }) {
       {Array.isArray(said) ? (
         <span className="truncate px-2 text-[13px] text-amber-ink">Not sent: {said[0]}</span>
       ) : (
-        !said && <span className={line}>{what === "send" ? `Your agent starts on ${step.count === 1 ? "it" : "them"}.` : "Says every moment looks good, and the change is done."}</span>
+        !said &&
+        (what !== "send" ? (
+          <span className={line}>Says every moment looks good, and the change is done.</span>
+        ) : (
+          // Both held in one place, the one not true unseen, so the bar keeps its width as an agent comes or goes.
+          <span className="grid min-w-0 phone:hidden">
+            <span className={`${line} [grid-area:1/1] ${step.agentOn ? "" : "invisible"}`}>Your agent starts on {step.count === 1 ? "it" : "them"}.</span>
+            <span className={`${warning} [grid-area:1/1] ${step.agentOn ? "invisible" : ""}`}>No agent listening. Kept for when one is.</span>
+          </span>
+        ))
       )}
     </div>
   );

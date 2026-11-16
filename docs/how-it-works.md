@@ -287,7 +287,10 @@ change opens where it would without it (`firstUnseen`, `seenThrough` leave it ou
 a phone the box and the card are under the bar, as a moment's are. The bar's
 place holds the one thing to do (`StepLeft.tsx`, `StepAction`): Send while something's unsent ("Send 2 notes ↵",
 filled) or Done while it waits on you ("Done ↵"), with what it does by it ("Your agent starts on them."; "Says every
-moment looks good, and the change is done."). Pressed, or Enter (or Ctrl+Enter from any moment while something's
+moment looks good, and the change is done."). Send's line is true: with no agent on the change (`agentOn`: none
+listening, and none on notes it took before), it says "No agent listening. Kept for when one is." in amber, and it
+changes as an agent comes or goes, the two held in one place so the bar keeps its width. The bar takes its words'
+width (`w-max`), up to the recording's, so a line isn't cut where there's room for it. Pressed, or Enter (or Ctrl+Enter from any moment while something's
 unsent), it says Sending…, then Sent or Done with a tick in its place, what went drawn as sent at once, and after a
 pause (`SAID`) goes on to `/`; not sent, "Not sent: …" in amber. A change already with your agents or done says so
 there ("Sent" and "Agent working", or "No agent listening" with the line to tell yours; "Done", "Every moment looked
@@ -301,7 +304,10 @@ notes there, then back into the moments'; Escape closes a note open there first;
 (`seenThrough`) opens at its last stop. Nothing else says anything to the agent: ↓ never does, and Space is never a
 press (`useSpaceStays`). On a phone, the sheet is two pictures to a row in the frame, the step in the bar, and the
 card under the Moments strip. With nothing waiting,
-the page says so calmly, with what your agents are on.
+the page says so calmly, with what your agents are on ("Your agents are on:", each with its words) and apart under
+"No agent listening:" what nobody is on, each with the line to tell yours; a heading shows only over a change it's
+true of. Its first line stays put as a change moves between the two when an agent arrives: the rest grows and shrinks
+under it, rather than the whole being centred.
 
 **The top of every page** (`Header.tsx`) is its two corners: at the left Playthrough and what's waiting in it, the way
 to every other change; at the right what's next (Next). Between them, nothing: what

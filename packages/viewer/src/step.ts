@@ -95,6 +95,13 @@ export function backAgain(change: Change, you: string): boolean {
 // What to say to an agent so it picks up what you sent, when none is listening for it.
 const TELL = "Pick up my notes in Playthrough.";
 
+// An agent is on the change: one is listening for what's sent, or one took what was sent before and is on it, so
+// what's sent now reaches it. Without one, what's sent is kept for the next.
+export function agentOn(listed: Listed): boolean {
+  const latest = latestOf(listed.change);
+  return listed.agentWaiting || (!!latest && !!workingSince(listed.change, latest));
+}
+
 // Nothing handed back yet, it's with your agents; handed back, where it stands for you.
 export function sectionOf(listed: Listed, you: string): Section {
   if (!latestOf(listed.change)) return "agents";

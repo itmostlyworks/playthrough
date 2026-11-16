@@ -103,35 +103,46 @@ function Softened({ listed, moment, screen, fill }: { listed: Listed; moment: Mo
   );
 }
 
-// Nothing waiting on you: said calmly, with what your agents are still on.
+// Nothing waiting on you: said calmly, with what your agents are still on, and apart, what no agent is listening for,
+// so "Your agents are on" is never said over a change nobody is on. Its first line stays where it is as a change goes
+// from one to the other when an agent arrives: what's under it grows and shrinks downwards.
 export function NothingWaiting({ changes, you, opener }: { changes: Listed[]; you: string; opener: ReactNode }) {
-  const on = changes.filter((one) => sectionOf(one, you) === "agents");
+  const steps = changes.filter((one) => sectionOf(one, you) === "agents").map((one) => ({ one, step: stepOf(one, you) }));
+  const on = steps.filter(({ step }) => !(step.is === "with" && step.tell));
+  const unheard = steps.flatMap(({ one, step }) => (step.is === "with" && step.tell ? [{ one, tell: step.tell }] : []));
   return (
     <div className="grid h-dvh grid-rows-[auto_minmax(0,1fr)] bg-ground">
       <Header opener={opener} />
-      <div className="grid animate-arrive place-items-center px-6 pb-24">
+      <div className="grid animate-arrive content-start justify-items-center overflow-y-auto px-6 pt-[30dvh] pb-12">
         <div className="w-full max-w-[420px]">
           <p className="text-[17px] leading-[26px] text-fg">Nothing's waiting on you.</p>
-          {on.length > 0 ? (
+          {on.length > 0 && (
             <>
               <p className="mt-1 text-[15px] leading-[22px] text-soft">Your agents are on:</p>
               <ul className="mt-3">
-                {on.map((one) => {
-                  const step = stepOf(one, you);
-                  const tell = step.is === "with" && step.tell;
-                  return (
-                    <li key={one.change.id} className="flex flex-wrap items-baseline gap-x-3 py-1 text-[14px] leading-[22px]">
-                      <span className="min-w-0 flex-1 truncate text-fg">{one.change.title}</span>
-                      <span className={`flex-none text-[13px] ${tell ? "text-amber-ink" : "text-soft"}`}>{"words" in step ? step.words : ""}</span>
-                      {tell && <TellYours words={tell} />}
-                    </li>
-                  );
-                })}
+                {on.map(({ one, step }) => (
+                  <li key={one.change.id} className="flex items-baseline gap-x-3 py-1 text-[14px] leading-[22px]">
+                    <span className="min-w-0 flex-1 truncate text-fg">{one.change.title}</span>
+                    <span className="flex-none text-[13px] text-soft">{"words" in step ? step.words : ""}</span>
+                  </li>
+                ))}
               </ul>
             </>
-          ) : (
-            !changes.length && <p className="mt-1 text-[15px] leading-[22px] text-soft">To see an agent's work here, tell it: “Show me this change with npx playthrough.”</p>
           )}
+          {unheard.length > 0 && (
+            <>
+              <p className={`${on.length ? "mt-5" : "mt-1"} text-[15px] leading-[22px] text-soft`}>No agent listening:</p>
+              <ul className="mt-3">
+                {unheard.map(({ one, tell }) => (
+                  <li key={one.change.id} className="py-1 text-[14px] leading-[22px]">
+                    <p className="truncate text-fg">{one.change.title}</p>
+                    <TellYours words={tell} />
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {!changes.length && <p className="mt-1 text-[15px] leading-[22px] text-soft">To see an agent's work here, tell it: “Show me this change with npx playthrough.”</p>}
         </div>
       </div>
     </div>
