@@ -357,22 +357,31 @@ export function Player(props: Props) {
     props.onPlace!(here.pick ? { element: elementOf(here.pick, here.pick.name) } : { point: { x: here.x / shape.width, y: here.y / shape.height } });
   };
 
-  // Where the window shows now, and the page it shows, as the wheel and a drag start from it.
+  // Where the window shows now, and the page it shows, as the wheel and a drag act on it: once it's the person's, where
+  // they've taken it, as it is this instant, not as it was last drawn, so a drag and the wheel's ease never act on a
+  // picture a frame old.
   const shownNow = () => {
     if (!replay || !box.current || !view.current) return undefined;
     const room = { width: box.current.clientWidth, height: box.current.clientHeight };
     const page = replay.replay.shapeAt(clock?.at ?? at);
+    if (moves?.moved) return { room, page, view: aroundCentre(room, page, moves.centre!, moves.k) };
     const { left, top, k } = view.current;
     return { room, page, view: { x: left, y: top, k, fit: Math.min(room.width / page.width, room.height / page.height) } };
   };
+  // The page's point under a place in the room, as it shows now, and how far that place is from the room's middle.
+  const pointAt = (shown: NonNullable<ReturnType<typeof shownNow>>, x: number, y: number): { at: [number, number]; off: [number, number] } => ({
+    at: [shown.view.x + x / shown.view.k, shown.view.y + y / shown.view.k],
+    off: [x - shown.room.width / 2, y - shown.room.height / 2],
+  });
   // The person takes the window: it stops gliding wherever it was going, and what a click would note is found again
   // once the pointer next moves.
   const take = () => ((glide.current.from = undefined), setHover(undefined));
 
-  // A drag on the picture moves its window, from where it showed as the press went down, once it's closer than the whole
-  // screen: whole, there's nowhere for it to go. Only a press that's gone further than a finger rests is a drag; the click
-  // after it is the drag's, so it neither plays nor places a note. Two fingers are the browser's own pinch.
-  const drag = useRef<{ x: number; y: number; from?: { centre: [number, number]; k: number } }>(undefined);
+  // A drag on the picture moves its window once it's closer than the whole screen: whole, there's nowhere for it to go.
+  // What's under the pointer goes with it, from where the picture is as each move comes, so the wheel turned meanwhile
+  // zooms about it and the drag goes on from there. Only a press that's gone further than a finger rests is a drag; the
+  // click after it is the drag's, so it neither plays nor places a note. Two fingers are the browser's own pinch.
+  const drag = useRef<{ x: number; y: number; moving?: boolean }>(undefined);
   const [dragging, setDragging] = useState(false);
   const press = (event: PointerEvent) => {
     drag.current = moves && event.isPrimary && view.current ? { x: event.clientX, y: event.clientY } : undefined;
@@ -381,21 +390,22 @@ export function Player(props: Props) {
     const going = drag.current;
     const shown = shownNow();
     if (!going || !shown) return aim(event);
-    const [dx, dy] = [event.clientX - going.x, event.clientY - going.y];
-    if (!going.from) {
-      if (Math.hypot(dx, dy) < SLOP) return;
+    if (!going.moving) {
+      if (Math.hypot(event.clientX - going.x, event.clientY - going.y) < SLOP) return;
       if (shown.view.k <= shown.view.fit * 1.001) return void (drag.current = undefined);
-      going.from = { centre: centreOf(shown.view, shown.room), k: shown.view.k };
+      going.moving = true;
       take();
       setDragging(true);
       box.current!.setPointerCapture(event.pointerId);
     }
-    const { centre, k } = going.from;
-    const moved = aroundCentre(shown.room, shown.page, [centre[0] - dx / k, centre[1] - dy / k], k);
-    moves!.move(centreOf(moved, shown.room), moved.k);
+    const shownAt = box.current!.getBoundingClientRect();
+    const { at } = pointAt(shown, going.x - shownAt.left, going.y - shownAt.top);
+    const { off } = pointAt(shown, event.clientX - shownAt.left, event.clientY - shownAt.top);
+    moves!.hold(at, off, shown.view.k);
+    [going.x, going.y] = [event.clientX, event.clientY];
   };
   const letGo = () => {
-    if (drag.current?.from) swallowNextClick();
+    if (drag.current?.moving) swallowNextClick();
     drag.current = undefined;
     setDragging(false);
   };
@@ -411,15 +421,15 @@ export function Player(props: Props) {
     // Asked first, Firefox says a mouse's notch in lines rather than in pixels it has guessed.
     const [lines, pages] = [event.deltaMode === WheelEvent.DOM_DELTA_LINE, event.deltaMode === WheelEvent.DOM_DELTA_PAGE];
     const by = wheeled(lines, pages, event.deltaY, event.ctrlKey);
-    const { view: now, room } = shown;
+    const { view: now } = shown;
     // Turned again while it's on its way, it goes on from where it was heading.
     const from = moves.heading ?? now.k;
     const to = nearer(from, by, now.fit, moves.closest ?? CLOSEST * now.fit);
     if (Math.abs(to - from) < 1e-9) return;
     take();
     const shownAt = box.current!.getBoundingClientRect();
-    const [x, y] = [event.clientX - shownAt.left, event.clientY - shownAt.top];
-    moves.zoom(now.k, to, [now.x + x / now.k, now.y + y / now.k], [x - room.width / 2, y - room.height / 2], to <= now.fit * 1.001 && !actualSize && !crop);
+    const { at, off } = pointAt(shown, event.clientX - shownAt.left, event.clientY - shownAt.top);
+    moves.zoom(now.k, to, at, off, to <= now.fit * 1.001 && !actualSize && !crop);
   };
   useEffect(() => {
     const heard = (event: WheelEvent) => wheel.current?.(event);

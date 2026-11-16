@@ -3,7 +3,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { approach, around, centreFor, nearer, SETTLES, wheeled, type View } from "../src/view.ts";
+import { approach, around, centreFor, nearer, SETTLES, Together, wheeled, type View } from "../src/view.ts";
 
 const room = { width: 1152, height: 720 };
 const page = { width: 1280, height: 800 };
@@ -91,4 +91,43 @@ test("a trackpad's small turns and pinches go in proportion, and nothing leaps f
   assert.ok(wheeled(false, false, -5, true) > 1.04 && wheeled(false, false, -5, true) < 1.06);
   assert.ok(wheeled(false, false, -100, true) <= 1.18 + 1e-9);
   assert.ok(wheeled(true, false, -30, false) <= 1.18 + 1e-9);
+});
+
+test("the wheel turned during a drag zooms about what's held, and the drag goes on from there: what's under the pointer stays under it through both", () => {
+  // The browser's frames, run by hand.
+  let frame: ((now: number) => void) | undefined;
+  Object.assign(globalThis, { requestAnimationFrame: (on: (now: number) => void) => ((frame = on), 1), cancelAnimationFrame: () => void (frame = undefined) });
+  const together = new Together();
+  const shown = () => around(room, page, together.centre!, together.k);
+  const off = (at: [number, number]): [number, number] => [at[0] - room.width / 2, at[1] - room.height / 2];
+  together.hold([640, 400], [0, 0], 1.5);
+  let pointer: [number, number] = [500, 300];
+  const held = underPointer(shown(), pointer);
+  const kept = () => {
+    const [x, y] = underPointer(shown(), pointer);
+    assert.ok(Math.abs(x - held[0]) < 1e-6 && Math.abs(y - held[1]) < 1e-6, `the held point is ${x - held[0]}, ${y - held[1]} off the pointer`);
+  };
+  const drag = (by: [number, number]) => {
+    const from = underPointer(shown(), pointer);
+    pointer = [pointer[0] + by[0], pointer[1] + by[1]];
+    together.hold(from, off(pointer), shown().k);
+    kept();
+  };
+  drag([6, 4]);
+  // Two notches in, as the drag goes on.
+  const to = 1.5 * 1.18 * 1.18;
+  together.zoom(together.k!, to, underPointer(shown(), pointer), off(pointer), false);
+  let [now, k] = [performance.now(), together.k!];
+  for (let i = 0; i < 12; i++) {
+    drag([-5, 3]);
+    now += 16;
+    const on = frame;
+    frame = undefined;
+    on?.(now);
+    kept();
+    assert.ok(together.k! >= k, `frame ${i + 1} went back from ${k} to ${together.k}`);
+    k = together.k!;
+  }
+  assert.equal(together.k, to, "the zoom got where it was heading, the drag meanwhile");
+  drag([20, -10]);
 });

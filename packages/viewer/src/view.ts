@@ -138,10 +138,13 @@ export class Together {
   constructor(now = (draw: () => void) => draw()) {
     this.#now = now;
   }
-  // Taken somewhere at once, as a drag takes it: wherever a zoom was going, it's here now.
-  move(centre: Point, k: number) {
-    this.#still();
-    Object.assign(this, { centre, k, moved: true });
+  // The page's point `at` held `off` from the room's middle, at once, as a drag holds what it took under the pointer,
+  // shown at closeness `k`. A zoom on its way carries on about that point instead, from where it's got to, so the wheel
+  // during a drag, or a drag during the wheel's ease, keeps what's under the pointer under it through both.
+  hold(at: Point, off: Point, k: number) {
+    if (this.#zoom) Object.assign(this.#zoom, { at, off });
+    else this.k = k;
+    Object.assign(this, { centre: centreFor(at, off, this.k!), moved: true });
     this.#tell();
   }
   // How close a zoom is taking it, so the next notch goes on from there, not from where it's got to.
