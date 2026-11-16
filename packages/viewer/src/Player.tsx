@@ -12,7 +12,7 @@ import { Replay, type Choice, type Events, type Pressed, type Rect, type Scrolle
 import type { Crop } from "./Picture.tsx";
 import { stepFrom } from "./stepping.ts";
 import { pickAt } from "./things.ts";
-import { around as aroundCentre, centreOf, following as followingPointer, holding, type Together } from "./view.ts";
+import { around as aroundCentre, centreOf, CLOSEST, following as followingPointer, holding, wheeled, zoomedAt, type Together } from "./view.ts";
 
 // Nothing happening for longer than this is waiting, and is played as this long.
 const WAIT = 0.7;
@@ -123,8 +123,9 @@ type Props = {
   // that leads says where, as the older page's Compare does. Holding something, at rest, it's in view whole, the view
   // gliding there: both sides are told, so both glide.
   actualSize?: { together: Together; leads: boolean; holds?: Mark };
-  // Its window, which a drag on the picture moves: from where it shows, it's then the person's, and every picture on the
-  // same window goes with it. A press that doesn't move is a press, as it always was.
+  // Its window, which the wheel over the picture brings closer or further, about the pointer, and a drag moves once it's
+  // closer than the whole screen: from where it shows, it's then the person's, and every picture on the same window goes
+  // with it. A press that doesn't move is a press, as it always was.
   moves?: Together;
   // The notes on what's at this moment: at rest, where each one's thing is on the page, in the player's own pixels;
   // nothing while it's on its way there, so nothing is placed where its thing was on the way.
@@ -224,6 +225,8 @@ export function Player(props: Props) {
       let [left, top, across] = part ? [part.x * shape.width, part.y * shape.height, part.width * shape.width] : [(shape.width - whole) / 2, 0, whole];
       const { from } = glide.current;
       const room = { width: box.current.clientWidth, height: box.current.clientHeight };
+      // The moment's own picture says how close its window may go, so it goes as close in Compare's narrower sides.
+      if (moves && !actualSize) moves.closest = CLOSEST * Math.min(room.width / shape.width, room.height / shape.height);
       if (moves?.moved) {
         const view = aroundCentre(room, shape, moves.centre!, moves.k);
         [left, top, across] = [view.x, view.y, room.width / view.k];
@@ -363,44 +366,84 @@ export function Player(props: Props) {
     props.onPlace!(here.pick ? { element: elementOf(here.pick, here.pick.name) } : { point: { x: here.x / shape.width, y: here.y / shape.height } });
   };
 
-  // A drag on the picture moves its window, from where it showed as the press went down. Only a press that's gone further
-  // than a finger rests is a drag; the click after it is the drag's, so it neither plays nor places a note. Two fingers
-  // are the browser's own pinch.
+  // Where the window shows now, and the page it shows, as the wheel and a drag start from it.
+  const shownNow = () => {
+    if (!replay || !box.current || !view.current) return undefined;
+    const room = { width: box.current.clientWidth, height: box.current.clientHeight };
+    const page = replay.replay.shapeAt(clock?.at ?? at);
+    const { left, top, k } = view.current;
+    return { room, page, view: { x: left, y: top, k, fit: Math.min(room.width / page.width, room.height / page.height) } };
+  };
+  // The person takes the window: it stops gliding wherever it was going, and what a click would note is found again
+  // once the pointer next moves.
+  const take = () => ((glide.current.from = undefined), setHover(undefined));
+
+  // A drag on the picture moves its window, from where it showed as the press went down, once it's closer than the whole
+  // screen: whole, there's nowhere for it to go. Only a press that's gone further than a finger rests is a drag; the click
+  // after it is the drag's, so it neither plays nor places a note. Two fingers are the browser's own pinch.
   const drag = useRef<{ x: number; y: number; from?: { centre: [number, number]; k: number } }>(undefined);
+  const [dragging, setDragging] = useState(false);
   const press = (event: PointerEvent) => {
     drag.current = moves && event.isPrimary && view.current ? { x: event.clientX, y: event.clientY } : undefined;
   };
   const pull = (event: PointerEvent) => {
     const going = drag.current;
-    if (!going || !replay || !box.current || !view.current) return aim(event);
+    const shown = shownNow();
+    if (!going || !shown) return aim(event);
     const [dx, dy] = [event.clientX - going.x, event.clientY - going.y];
     if (!going.from) {
       if (Math.hypot(dx, dy) < SLOP) return;
-      const { left, top, k } = view.current;
-      const room = { width: box.current.clientWidth, height: box.current.clientHeight };
-      going.from = { centre: centreOf({ x: left, y: top, k, fit: k }, room), k };
-      glide.current.from = undefined;
-      setHover(undefined);
-      box.current.setPointerCapture(event.pointerId);
+      if (shown.view.k <= shown.view.fit * 1.001) return void (drag.current = undefined);
+      going.from = { centre: centreOf(shown.view, shown.room), k: shown.view.k };
+      take();
+      setDragging(true);
+      box.current!.setPointerCapture(event.pointerId);
     }
-    const room = { width: box.current.clientWidth, height: box.current.clientHeight };
     const { centre, k } = going.from;
-    const shown = aroundCentre(room, replay.replay.shapeAt(clock?.at ?? at), [centre[0] - dx / k, centre[1] - dy / k], k);
-    moves!.move(centreOf(shown, room), shown.k);
+    const moved = aroundCentre(shown.room, shown.page, [centre[0] - dx / k, centre[1] - dy / k], k);
+    moves!.move(centreOf(moved, shown.room), moved.k);
   };
   const letGo = () => {
     if (drag.current?.from) swallowNextClick();
     drag.current = undefined;
+    setDragging(false);
   };
+
+  // The wheel over the picture brings it closer, or further, about the point under the pointer, which stays under it.
+  // All the way out it's as it was before it was ever moved, the whole screen; the page itself never scrolls or zooms
+  // from it. Heard before the page's own, so it can be kept from it.
+  const wheel = useRef<(event: WheelEvent) => void>(undefined);
+  wheel.current = (event) => {
+    const shown = moves && shownNow();
+    if (!shown) return;
+    event.preventDefault();
+    // Asked first, Firefox says a mouse's notch in lines rather than in pixels it has guessed.
+    const [lines, pages] = [event.deltaMode === WheelEvent.DOM_DELTA_LINE, event.deltaMode === WheelEvent.DOM_DELTA_PAGE];
+    const by = wheeled(lines, pages, event.deltaY, event.ctrlKey);
+    const shownAt = box.current!.getBoundingClientRect();
+    const closest = moves.closest ?? CLOSEST * shown.view.fit;
+    const next = zoomedAt(shown.view, shown.room, shown.page, [event.clientX - shownAt.left, event.clientY - shownAt.top], by, closest);
+    if (Math.abs(next.k - shown.view.k) < 1e-9) return;
+    take();
+    if (next.k <= next.fit * 1.001 && !actualSize && !crop) moves.letGo();
+    else moves.move(centreOf(next, shown.room), next.k);
+  };
+  useEffect(() => {
+    const heard = (event: WheelEvent) => wheel.current?.(event);
+    const shown = box.current!;
+    shown.addEventListener("wheel", heard, { passive: false });
+    return () => shown.removeEventListener("wheel", heard);
+  }, []);
 
   return (
     <div
       ref={box}
-      className={`absolute inset-0 overflow-hidden ${moves ? "[touch-action:pinch-zoom] select-none" : ""} ${aiming ? (hover ? "cursor-pointer" : "cursor-crosshair") : ""}`}
+      className={`absolute inset-0 overflow-hidden ${moves ? "[touch-action:pinch-zoom] select-none" : ""} ${dragging ? "cursor-grabbing" : aiming ? (hover ? "cursor-pointer" : "cursor-crosshair") : ""}`}
       onPointerDown={press}
       onPointerMove={pull}
       onPointerUp={letGo}
-      onPointerCancel={() => (drag.current = undefined)}
+      onPointerCancel={() => ((drag.current = undefined), setDragging(false))}
+      onLostPointerCapture={() => setDragging(false)}
       onPointerLeave={() => setHover(undefined)}
       onClick={place}
     >

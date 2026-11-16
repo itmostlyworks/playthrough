@@ -1,6 +1,6 @@
-// What part of a recorded page its room shows at actual size: a point on the page at (px, py) is drawn in the room at
-// ((px - x) * k, (py - y) * k), a window onto the page at 100% around where the recorded pointer is going, or around
-// what's held, as Compare's two sides are.
+// What part of a recorded page its room shows, and how close: a point on the page at (px, py) is drawn in the room at
+// ((px - x) * k, (py - y) * k). A window onto the page at 100% around where the recorded pointer is going, or around
+// what's held, as Compare's two sides are; or wherever the person has taken it.
 
 import { clamp } from "./clamp.ts";
 import type { Replay } from "./replay.ts";
@@ -53,16 +53,54 @@ export function holding(view: View, room: Size, page: Size, thing: { left: numbe
   return around(room, page, [x + width / 2, y + height / 2], k);
 }
 
-// One window onto a moment's page, where on it and how close, that every picture of it shows: Compare's two sides, the
-// one that leads saying where, so nothing shifts between them that didn't move. Once the person has moved it, by
-// dragging the picture, it's theirs: it stays where they put it, following nothing, and every picture on it is told.
+// The view brought `by` times closer about a point in the room, the page's point there staying under it: never further
+// out than the whole screen fitted, nor closer than `closest`, unless it already was.
+export function zoomedAt(view: View, room: Size, page: Size, at: Point, by: number, closest: number): View {
+  const k = clamp(view.k * by, view.fit, Math.max(view.fit, closest, view.k));
+  const [x, y] = [view.x + at[0] / view.k - at[0] / k, view.y + at[1] / view.k - at[1] / k];
+  return around(room, page, [x + room.width / 2 / k, y + room.height / 2 / k], k);
+}
+
+// How much closer a turn of the wheel brings the picture: a mouse's notch about a sixth, whether it's counted in lines,
+// as Firefox does, or in pixels; a trackpad's small turns, and its pinch, which comes as the wheel with Ctrl, in
+// proportion, so they glide.
+export function wheeled(lines: boolean, pages: boolean, delta: number, pinch: boolean): number {
+  const pixels = delta * (lines ? LINE : pages ? 800 : 1);
+  return Math.exp(clamp(-pixels * (pinch ? 0.01 : 0.0016), -NOTCH, NOTCH));
+}
+// A line of a wheel, in pixels: a notch is three.
+const LINE = 100 / 3;
+// The most one turn does, a notch's worth, so a fast spin or a Ctrl with a mouse never leaps.
+const NOTCH = Math.log(1.18);
+// How much closer than the whole screen the picture goes.
+export const CLOSEST = 3;
+
+// One window onto a moment's page, where on it and how close, that every picture of it shows: the moment's own and
+// Compare's two sides, the one that leads saying where, so nothing shifts between them that didn't move. Once the
+// person has moved it, by the wheel or a drag on the picture, it's theirs: it stays where they put it, following
+// nothing, and every picture on it is told. How close it may go is the moment's own picture's to say, so it's the same
+// in Compare.
 export class Together {
   centre?: Point;
   k?: number;
+  closest?: number;
   moved = false;
   #told = new Set<() => void>();
   move(centre: Point, k: number) {
     Object.assign(this, { centre, k, moved: true });
+    this.#tell();
+  }
+  // What a picture of a page shows of it, as far as the person has said: where they've taken it, else the whole screen.
+  shownIn(room: Size, page: Size): View {
+    return this.moved ? around(room, page, this.centre!, this.k) : around(room, page, [0, 0], 0);
+  }
+  // Back to how it starts, the person's view let go of: the wheel all the way out, or Back from the app.
+  letGo() {
+    if (!this.moved) return;
+    this.forget();
+    this.#tell();
+  }
+  #tell() {
     for (const tell of this.#told) tell();
   }
   // Where the next picture on it starts again: where it leads, or where it was going to start.

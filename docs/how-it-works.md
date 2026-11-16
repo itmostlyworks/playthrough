@@ -427,6 +427,24 @@ calls off a step in on its way; while the app is yours, Escape twice is Back; Ct
 keyboard is. Noting, while the bar says "Point at what it's about", only N and Escape answer, so words typed before
 pointing and the arrows run nothing; there's no key yet to point with. Reduced motion: nothing slides or fades.
 
+**The picture is a canvas.** The wheel over it brings it closer, or further, about the point under the pointer, which
+stays under it: from the whole screen up to three times closer (`CLOSEST`, `view.ts`), a notch about a sixth (`wheeled`:
+Firefox counts a mouse's notch in lines, three, and others in pixels, 100, and both come to the same; a trackpad's
+small turns go in proportion, and its pinch, which comes as the wheel with Ctrl, zooms the picture, never the page; a
+two-finger swipe zooms it too). All the way out it's the whole screen again, just as before it was moved: the wheel is
+the way back, with no button for it. Closer than the whole screen, **a drag moves the picture**, never past the screen's
+own edges; whole, there's nowhere for it to go and a drag does what it always did. A press that moves less than 8px
+(`SLOP`, `Player.tsx`) is a press, at any closeness (it plays or pauses, or with Note on places the note on what's
+under it), and the click that ends a drag is the drag's, so only a press notes. While dragging the pointer is a closed
+hand; nothing on the page is selected. Only what's inside the picture moves: its frame, the bar and the edges stay
+put. Once moved, the view is yours: it stays put as the moment plays, and another moment starts afresh, as does Back
+from the app (it shows whole, so the picture it closes onto is whole too, let go of while the app still covers it). It's
+one window, `Together` (`view.ts`), which every picture of the moment is drawn from (`Player.tsx`), the kept picture of
+a note's own frame too, and which the wheel and a drag move; its pins and outlines go with it, a note's thing moved out
+of view keeps its pin at the picture's nearest edge, as a spot out of it does, an open note's card stays by its pin, and
+the bar still drops below the edge only for what's in view (`kept`, `Moment.tsx`). The wheel over the bar, the edges or
+the page around the picture does what it did before; in the app, the wheel and a drag are the app's.
+
 **The edges** (`Edge.tsx`). On the left, the change's moments; on the right, this moment's notes, sent then unsent, in
 the order said. Over each, what it holds, in a word, "Moments" and "Notes": at its pictures' outer side, or 24px
 from the screen's edge, where the header's words stand, when they run past it; still as the edge comes forward, and
@@ -468,13 +486,9 @@ read there, so the picture starts closed in on what the moment is about (`startO
 at most three times the whole screen's size, and widened to the whole of the dialog or panel that holds it, the outermost
 of what holds it that's no wider than three quarters of the page, so no line in it is cut in half; a wide one comes out
 smaller. All of the panel where it fits, else from its top down to what the moment is about. Where nothing smaller than
-the page holds it, as on a board, it starts as close as the still. **A drag moves the picture**, either way (the
-picture doesn't scroll with the rows under it; two fingers are the browser's own pinch, `touch-action: pinch-zoom`): a
-press that moves less than 8px is a press, as always (it plays or pauses, or with Note on places the note), and the
-click that ends a drag is the drag's. Once moved, the view is yours: it stays put as the moment plays, and another
-moment starts afresh. It's one window, `Together` (`view.ts`), which the picture is drawn from (`Player.tsx`) and a drag
-moves; its pins and outlines go with it, and a note's thing moved out of view keeps its pin at the picture's nearest
-edge, as a spot out of it does. Compare's two sides share theirs, so a drag on either moves both.
+the page holds it, as on a board, it starts as close as the still. A drag moves the picture from there, as the canvas
+above (the picture doesn't scroll with the rows under it); two fingers are the browser's own pinch
+(`touch-action: pinch-zoom`), not the picture's, since only taps note.
 
 **A note** (`Note.tsx`) is words on a thing in a picture. N, then "Point at what it's about" on the bar with "Cancel
 Esc": what a click would note is outlined and named as Playthrough names everything (`things.ts`, `pickAt`), and the

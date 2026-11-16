@@ -125,12 +125,17 @@ export function MomentView(props: {
   const [screen, setScreen] = useState({ width: 1280, height: 800 });
   const shape = readings?.at(-1)?.screen;
   useEffect(() => void (shape && (shape.width !== screen.width || shape.height !== screen.height) && setScreen(shape)), [shape?.width, shape?.height]);
-  // On a phone, the whole screen is too small to read: it starts closed in on what the moment is about, with the whole of
-  // the dialog or panel it's in, and a drag moves it from there. Each moment starts afresh.
+  // The picture's one window onto the moment's page, which the wheel brings closer and a drag moves, the moment's own
+  // picture and Compare's two sides alike. On a phone, the whole screen is too small to read: it starts closed in on
+  // what the moment is about, with the whole of the dialog or panel it's in, and a drag moves it from there. Each moment
+  // starts afresh.
   const phone = usePhone();
   const closeTo = about ?? moment.acted;
   const closer = useMemo(() => (phone ? startOn(readings?.at(-1), closeTo, screen.width / screen.height) : undefined), [phone, readings, closeTo?.role, closeTo?.name]);
-  const pageWindow = useMemo(() => (phone ? new Together() : undefined), [phone, moment.recording]);
+  const pageWindow = useMemo(() => new Together(), [phone, moment.recording]);
+  // Moved, what's drawn over the picture by where things are on it is placed again.
+  const [, windowMoved] = useState(0);
+  useEffect(() => pageWindow.follow(() => windowMoved((times) => times + 1)), [pageWindow]);
   const cut = useCut(change.id, handBack.number, moment);
   const [clockOf] = useState(() => new Clock(end));
   const [bothOf] = useState(() => new Clock(0));
@@ -237,6 +242,14 @@ export function MomentView(props: {
       easing: matchMedia("(prefers-reduced-motion: reduce)").matches ? "steps(1, end)" : "ease-in",
     });
   const stepIn = useStepIn({ change: change.id, handBack: handBack.number, moment, page, clock: clockOf, act, pointing: () => note(), escapedOnce });
+
+  // The app shows whole, so Back is to the whole moment, as fresh: let go of while the app still covers it, so the
+  // picture it closes onto is the screen it was.
+  const wasInApp = useRef(false);
+  useLayoutEffect(() => {
+    if (wasInApp.current && !inApp) pageWindow.letGo();
+    wasInApp.current = inApp;
+  }, [inApp]);
 
   // Going to another moment, the one you were on stays under the new one, drawn just as it was where it stood, until the
   // new one has come in over it. Its picture would do it no justice: taken by another browser, its words fall a little
