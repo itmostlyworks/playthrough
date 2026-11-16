@@ -79,6 +79,8 @@ export const CLOSEST = 3;
 // there fast, then gently, never past it; notches in quick succession add up to one place it carries on toward, and a
 // trackpad's small turns are behind it by a fraction of this, too little to feel.
 export const SETTLES = 110;
+// How long stepping in takes to bring the picture out to the whole screen, in milliseconds, while the app's on its way.
+export const STEPS_OUT = 280;
 // Close enough to where it's heading that the rest is less than half a pixel, it's there.
 const THERE = 0.0004;
 // The ease's pace: a notch comes within THERE of where it's heading in SETTLES.
@@ -121,6 +123,8 @@ export class Together {
   centre?: Point;
   k?: number;
   closest?: number;
+  // How close the moment's own picture is with the whole screen in it, which stepping in goes back to.
+  fit?: number;
   moved = false;
   #told = new Set<() => void>();
   #zoom?: Zoom;
@@ -149,6 +153,11 @@ export class Together {
     if (!going) this.k = from;
     if (unmoving()) return void this.#step(Infinity, (draw) => draw());
     if (!this.#frame) this.#frame = requestAnimationFrame(this.#on);
+  }
+  // To the whole screen, on the calm curve, from wherever it's been brought, as stepping in starts: the app comes in whole.
+  wholeAgain(length: number) {
+    if (!this.moved || this.k === undefined || this.fit === undefined || this.k <= this.fit * 1.001) return this.letGo();
+    this.zoom(this.k, this.fit, this.centre!, [0, 0], true, length);
   }
   // A frame of the zoom, drawn by every picture on the window in this frame.
   #on = (now: number) => {

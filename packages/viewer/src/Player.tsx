@@ -212,8 +212,10 @@ export function Player(props: Props) {
       let [left, top, across] = part ? [part.x * shape.width, part.y * shape.height, part.width * shape.width] : [(shape.width - whole) / 2, 0, whole];
       const { from } = glide.current;
       const room = { width: box.current.clientWidth, height: box.current.clientHeight };
-      // The moment's own picture says how close its window may go, so it goes as close in Compare's narrower sides.
-      if (moves && !actualSize) moves.closest = CLOSEST * Math.min(room.width / shape.width, room.height / shape.height);
+      // The moment's own picture says how close its window may go, so it goes as close in Compare's narrower sides, and
+      // how close it is whole, which stepping in goes back to.
+      const fit = Math.min(room.width / shape.width, room.height / shape.height);
+      if (moves && !actualSize) Object.assign(moves, { fit, closest: CLOSEST * fit });
       if (moves?.moved) {
         const view = aroundCentre(room, shape, moves.centre!, moves.k);
         [left, top, across] = [view.x, view.y, room.width / view.k];

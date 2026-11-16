@@ -445,8 +445,12 @@ own edges; whole, there's nowhere for it to go and a drag does what it always di
 (`SLOP`, `Player.tsx`) is a press, at any closeness (it plays or pauses, or with Note on places the note on what's
 under it), and the click that ends a drag is the drag's, so only a press notes. While dragging the pointer is a closed
 hand; nothing on the page is selected. Only what's inside the picture moves: its frame, the bar and the edges stay
-put. Once moved, the view is yours: it stays put as the moment plays, and another moment starts afresh, as does Back
-from the app (it shows whole, so the picture it closes onto is whole too, let go of while the app still covers it). It's
+put. Once moved, the view is yours: it stays put as the moment plays, and another moment starts afresh. Step in (or S)
+takes the picture out to the whole screen at once, on the calm curve over 280 ms (`STEPS_OUT`, `view.ts`; at once with
+reduced motion), while "Stepping in…" shows: the app shows whole, so it comes in over the very picture it replaces,
+with no jump (before, it opened whole over a picture still brought closer). Called off, the picture stays whole; Back
+from the app is to the whole moment, let go of while the app still covers it. From Compare, Step in closes Compare and
+the same holds. It's
 one window, `Together` (`view.ts`), which every picture of the moment is drawn from (`Player.tsx`), the kept picture of
 a note's own frame too, and which the wheel and a drag move; its pins and outlines go with it, a note's thing moved out
 of view keeps its pin at the picture's nearest edge, as a spot out of it does, an open note's card stays by its pin, and

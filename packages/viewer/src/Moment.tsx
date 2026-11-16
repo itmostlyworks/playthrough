@@ -31,7 +31,7 @@ import { useKeptReady, useStepIn } from "./stepIn.ts";
 import { useHeld } from "./held.ts";
 import { overAPause } from "./stepping.ts";
 import { startOn, aboutBox, StillPicture } from "./Still.tsx";
-import { Together } from "./view.ts";
+import { STEPS_OUT, Together } from "./view.ts";
 
 // How long what you did takes to fade out, back to the moment.
 const FADING = 300;
@@ -245,6 +245,11 @@ export function MomentView(props: {
     if (wasInApp.current && !inApp) pageWindow.letGo();
     wasInApp.current = inApp;
   }, [inApp]);
+  // Brought closer, the picture goes out to the whole screen as soon as Step in is pressed, while the app is on its way,
+  // so the app comes in over the same picture it shows, without a jump; called off, it stays whole.
+  useLayoutEffect(() => {
+    if (stepping) pageWindow.wholeAgain(STEPS_OUT);
+  }, [stepping]);
 
   // Going to another moment, the one you were on stays under the new one, drawn just as it was where it stood, until the
   // new one has come in over it. Its picture would do it no justice: taken by another browser, its words fall a little
