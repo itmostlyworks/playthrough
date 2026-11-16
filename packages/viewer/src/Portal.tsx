@@ -7,6 +7,7 @@
 import { flushSync } from "react-dom";
 import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type Ref } from "react";
 import type { Scrolled } from "./replay.ts";
+import { pointerScale } from "./view.ts";
 
 // The app's frame, as the page talks to it: what's posted to it, and what it says, its points in the recording's
 // pixels as the picture is drawn now.
@@ -53,7 +54,9 @@ export function Portal({ live, screen, scrolled, theirs, onStandIn, app: talk, o
   // Where you last pointed, on the page; and your hand in the picture while you're in the app.
   const pointed = useRef<{ x: number; y: number }>(undefined);
   const yourHand = useRef<{ x: number; y: number }>(undefined);
-  const tip = (point: { x: number; y: number }) => `translate(${(point.x - 3).toFixed(1)}px,${(point.y - 2).toFixed(1)}px)`;
+  // As large as the recording's pointer is over the picture, so it doesn't change size as it comes into the app.
+  const grown = pointerScale(k);
+  const tip = (point: { x: number; y: number }) => `translate(${(point.x - 3 * grown).toFixed(1)}px,${(point.y - 2 * grown).toFixed(1)}px) scale(${grown})`;
   // The recording's pointer, in the app, until it has come to yours: where it stands, and what follows once it's there.
   const theirHand = useRef<{ from: { x: number; y: number }; then: () => void; coming?: Animation }>(undefined);
   // On its way to yours, it's as far along from where it stood to where yours is now: homing in, wherever yours goes.
@@ -259,7 +262,7 @@ export function Portal({ live, screen, scrolled, theirs, onStandIn, app: talk, o
       )}
       <div ref={ring} className="pointer-events-none absolute top-0 left-0 rounded-full opacity-0 [border:2.5px_solid_rgba(236,178,72,0.95)] [box-shadow:0_0_40px_14px_rgba(226,170,70,0.38),inset_0_0_36px_10px_rgba(255,214,150,0.4)]" />
       <div ref={edge} className="pointer-events-none absolute inset-0 rounded-lg opacity-0 [box-shadow:inset_0_0_0_1.5px_rgba(217,162,58,0.75),inset_0_0_22px_rgba(217,162,58,0.16)]" />
-      <div ref={hand} className="pointer-events-none absolute top-0 left-0 z-2 size-5 opacity-0 will-change-transform [&[data-yours]>svg]:invisible [filter:drop-shadow(0_1px_1px_rgba(0,0,0,.3))]">
+      <div ref={hand} className="pointer-events-none absolute top-0 left-0 z-2 size-5 origin-top-left opacity-0 will-change-transform [&[data-yours]>svg]:invisible [filter:drop-shadow(0_1px_1px_rgba(0,0,0,.3))]">
         <svg data-arrow viewBox="0 0 20 20" width="20" height="20" aria-hidden>
           <path d="M3 2l13 7.5-5.6 1.3L7.6 16z" fill="#FFFFFF" stroke="#1E2330" strokeWidth="1.3" strokeLinejoin="round" />
         </svg>

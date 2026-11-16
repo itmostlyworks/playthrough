@@ -75,6 +75,10 @@ const NOTCH = Math.log(1.18);
 // How much closer than the whole screen the picture goes.
 export const CLOSEST = 3;
 
+// How large the recorded pointer is drawn over a picture of the page drawn k times its size: its true size against the
+// app, so it grows with the picture brought closer than actual size, and never smaller than a pointer on a screen.
+export const pointerScale = (k: number) => Math.max(1, k);
+
 // How long the wheel's zoom takes to come to rest, in milliseconds. A notch says where it's heading and the picture gets
 // there fast, then gently, never past it; notches in quick succession add up to one place it carries on toward, and a
 // trackpad's small turns are behind it by a fraction of this, too little to feel.

@@ -12,7 +12,7 @@ import { Replay, type Choice, type Events, type Pressed, type Rect, type Scrolle
 import type { Crop } from "./Picture.tsx";
 import { stepFrom } from "./stepping.ts";
 import { pickAt } from "./things.ts";
-import { around as aroundCentre, calm, centreOf, CLOSEST, following as followingPointer, holding, nearer, wheeled, type Together } from "./view.ts";
+import { around as aroundCentre, calm, centreOf, CLOSEST, following as followingPointer, holding, nearer, pointerScale, wheeled, type Together } from "./view.ts";
 
 // Nothing happening for longer than this is waiting, and is played as this long.
 const WAIT = 0.7;
@@ -250,11 +250,13 @@ export function Player(props: Props) {
       hand.style.opacity = pointer ? "1" : "0";
       if (!handAt.current) return;
       const { x, y } = handAt.current;
-      hand.style.transform = `translate(${x - 3}px, ${y - 2}px)`;
+      // Grown with the picture, about its tip, which stays on what it points at.
+      const grown = pointerScale(k);
+      hand.style.transform = `translate(${x - 3 * grown}px, ${y - 2 * grown}px) scale(${grown})`;
       // A click rings out over half a second of the recording.
       const click = replayed.clicks.find((click) => time >= click && time - click < 0.5);
       const u = click === undefined ? 1 : (time - click) / 0.5;
-      Object.assign(ring.current!.style, { opacity: String(1 - u), transform: `translate(${x}px, ${y}px) scale(${0.4 + u * 1.1})` });
+      Object.assign(ring.current!.style, { opacity: String(1 - u), transform: `translate(${x}px, ${y}px) scale(${(0.4 + u * 1.1) * grown})` });
     };
     let frameId = 0;
     const stop = () => cancelAnimationFrame(frameId);
@@ -445,7 +447,7 @@ export function Player(props: Props) {
       <div ref={list} hidden className="pointer-events-none absolute top-0 left-0 z-1 origin-top-left overflow-hidden rounded-[3px] border border-[#767676] bg-white py-[3px] font-ui text-[13px] text-[#1e2330] shadow-[0_2px_8px_rgba(0,0,0,0.25)]" />
       <span ref={ring} className="pointer-events-none absolute top-0 left-0 z-1 -mt-3 -ml-3 size-6 rounded-full border-[1.5px] border-[rgba(40,44,54,0.5)] bg-[rgba(40,44,54,0.06)] opacity-0" />
       <kbd ref={pressed} className="pointer-events-none absolute top-0 left-0 z-1 rounded-[4px] bg-white px-[5px] font-ui text-[11px] leading-[17px] whitespace-nowrap text-[#1E2330] opacity-0 shadow-[0_0_0_1px_rgba(30,35,48,0.22),0_1px_2px_rgba(0,0,0,0.12)]" />
-      <div ref={cursor} data-hand style={props.hand === false ? { visibility: "hidden" } : undefined} className="pointer-events-none absolute top-0 left-0 z-1 size-5 opacity-0 [filter:drop-shadow(0_1px_1px_rgba(0,0,0,.3))]">
+      <div ref={cursor} data-hand style={props.hand === false ? { visibility: "hidden" } : undefined} className="pointer-events-none absolute top-0 left-0 z-1 size-5 origin-top-left opacity-0 [filter:drop-shadow(0_1px_1px_rgba(0,0,0,.3))]">
         <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden>
           <path d="M3 2l13 7.5-5.6 1.3L7.6 16z" fill="#FFFFFF" stroke="#1E2330" strokeWidth="1.3" strokeLinejoin="round" />
         </svg>
