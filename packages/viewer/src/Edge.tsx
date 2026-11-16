@@ -29,7 +29,7 @@ const WORD = 20 + 12;
 // How long an edge stays forward with what just arrived on it, in milliseconds.
 const SHOWN = 1400;
 // Where more runs on past the edge's top or foot, it fades over this much, so it reads as more to come.
-const MORE = 64;
+export const MORE = 64;
 
 // A list that scrolls, fading where more runs on past its top or foot, and sharp where nothing does: an edge's
 // pictures, the rows under the recording on a phone, a note's thread. Its look is called as it scrolls.

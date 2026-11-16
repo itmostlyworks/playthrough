@@ -10,7 +10,7 @@ import { conversation, isStill, madeInApp, newId, together, type Note, type Chan
 import { glimpses, picture, readings as readingsOf, recording, type Listed } from "./api.ts";
 import { clamp } from "./clamp.ts";
 import { CHIP, playedTogether } from "./compare.ts";
-import { Edge, Tile, useMore } from "./Edge.tsx";
+import { Edge, MORE, Tile, useMore } from "./Edge.tsx";
 import { Header, Title } from "./Header.tsx";
 import type { YourReply } from "./kept.ts";
 import { Key } from "./Key.tsx";
@@ -758,6 +758,22 @@ export function MomentView(props: {
   // A thread too long for its card, and on a phone the rows under the bar, fade where there's more, as an edge does.
   const thread = useRef<HTMLDivElement>(null);
   const threadMore = useMore(thread);
+  // Opened, a thread comes in at its end, so its newest answer is what you see, what's before it fading above. In the
+  // page's flow (on a phone, at the last stop) it doesn't scroll by itself: what holds it brings the newest in instead,
+  // clear of its own fade.
+  const threadShown = !writing && !!carded && !!(cardBy || atLastStop);
+  useLayoutEffect(() => {
+    const shown = thread.current;
+    if (!shown) return;
+    shown.scrollTop = shown.scrollHeight;
+    threadMore.look();
+    const newest = shown.firstElementChild?.lastElementChild;
+    let holder = shown.parentElement;
+    while (holder && !/auto|scroll/.test(getComputedStyle(holder).overflowY)) holder = holder.parentElement;
+    if (!newest || !holder || shown.scrollHeight > shown.clientHeight) return;
+    const by = newest.getBoundingClientRect().bottom - holder.getBoundingClientRect().bottom + MORE;
+    if (by > 0) holder.scrollTop += by;
+  }, [threadShown && carded.note.id]);
   const rows = useRef<HTMLDivElement>(null);
   const rowsMore = useMore(rows);
   // At the last stop a card isn't by a thing: it's in the sheet's flow, as on a phone it's in the rows under the bar.
