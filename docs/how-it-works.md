@@ -130,6 +130,31 @@ board” still open. If your change shows in what happens next, mark that too.`,
 Nov's user testing: a moment ended in the New board dialog, Create board never pressed, and a board made that way came
 out empty with nobody seeing.
 
+**The same as before** (`before.ts`). Kept, the moment's way is run once more, quietly, on the app as it was before the
+change, and its end compared with the moment's as hand-backs are compared (`compare`). With no finding, the read-back
+says, under the last frame, `The same as before your change: this moment doesn't show what you changed.` Anything else
+says nothing: different, not reached, the app as it was not starting, anything that goes wrong, so silence tells the
+agent nothing. From 16 Nov's testing (`explorations/user-testing-15-nov/rounds/before-your-change-test.md`): the same
+fact made 2 agents of 2 look again and put back what they'd taken away, where the advice above moved 1 in 4; "different"
+was read as proof the moment worked, so it isn't said. The person sees none of it. *The code as it was* is where HEAD
+left origin's default branch (`git merge-base HEAD origin/HEAD`), so work the agent committed before Playthrough first
+ran is still the change's; nothing is said without an `origin/HEAD` (a repo that wasn't cloned has none until `git
+remote set-head origin --auto`), or where the code now, tracked and new files, is that code. Work already pushed to
+origin's default branch counts as before: all of it, and the code is the same, so nothing is said; part of it, and a
+moment showing only that part would wrongly be the same, the one way left to a false "the same". *The copy* is `git
+archive` of that commit in `.playthrough/before/<commit>/`, out of the person's worktrees, with what git ignores brought
+over from the working folder by one rule: each ignored file copied (`.env`), each `node_modules` linked file by file
+with its links kept as they read, so a workspace package resolves to its code as it was; any other ignored folder
+(`.next`, `dist`) is what the app builds, and it builds it again. `playthrough/app.json` is copied in from now each time.
+It shares the app's database: every run makes its own world through `setup.ts` and gives it back. *Started* by `app.ts`
+as any copy's app is, on its own port, so only where `app.json` says `{port}`; a moment waits for it 60 seconds at most
+(`READY`), first time included, past which it says nothing and the app goes on starting for the next. It's stopped as
+any copy's is: as the moment ends, or with `playthrough open` running, fifteen minutes unused; and when the change is
+handed back. The export stays on disk (on Kan, 17 MB of code and the old app's 113 MB `.next`; `node_modules` are
+links) until a moment needs another base, which removes it if its app isn't running. On Kan, a kept moment took 24 s
+without it; 42 s the first time with it, and 41 s each time after with the app started again; 29 to 31 s with it kept
+ready by `open`.
+
 **`again`** runs every moment on the code as it is now, keeps them as the next hand-back, compares it with the hand-backs
 before (below), and says each is the same, different (in Playthrough's words), new, or couldn't get there, with which step
 and why in Playthrough's words, never Playwright's (`whyStopped`, `reporter.ts`: "couldn't get there: no link “Settings”
@@ -631,7 +656,7 @@ its output in `.playthrough/app.log`, and writes `.playthrough/running.json`; ev
 `.playthrough/using/<pid>`; two wanting it at once, one starts it and the other waits for it to answer (three minutes at
 most, then it says so, pointing at `app.log`). Nobody stops it under anyone: once nobody is using it, it's stopped at
 once, or with `playthrough open` running, which keeps every copy's app, once it's gone fifteen minutes unused; closing
-`open` stops those nobody is using.
+`open` stops those nobody is using. The app as it was before a change is one more such copy (above, The same as before).
 
 **In your browser** (`stepIn.ts`, `Portal.tsx`). While it's getting there, a line inside Step in fills as it goes, at
 the pace of the last run where that's known, the picture's edge breathes and the recording's pointer waits. Where the
@@ -681,7 +706,8 @@ Committed with the app: `playthrough/app.json` and `playthrough/setup.ts`. Out o
 files but to run `npx playthrough`, as on 15 Nov one told to pick up the notes "in Playthrough" read the note's file and
 did it with nobody told): `working-on.json` (the change its commands mean), `port.json` (the app's port),
 `browser.json` (what `as` did; `browser-marked.json`, where the last moment was marked in it), `running.json`, `using/`
-and `app.log` (the app), `borrowed/` (worlds not yet given back), and a folder per change: `change.json` (its title, what
+and `app.log` (the app), `borrowed/` (worlds not yet given back), `before/<commit>/` (the app as it was before the
+change, with a `.playthrough/` of its own), and a folder per change: `change.json` (its title, what
 was asked, when it started, and the format it's kept in), `moments/<words>.ts` (each moment's way there, then its step),
 `hand-backs/<n>/` (each hand-back: `hand-back.json` with its moments and replies, `files/` with their recordings, readings and pictures, `since/<k>.json`
 compared with hand-back k), `sends/<id>.json` (what the person sent, never written again but once, to bring it to a newer format), `taken.json` (what the agent

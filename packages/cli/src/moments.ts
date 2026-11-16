@@ -21,6 +21,7 @@ import type { Glimpse, Reading } from "@playthrough/page";
 import { allNotes, conversation, list, madeInApp, MOST_SHOWN, notesToAnswer, saidDone, quote, Refused, handBackInProgress, sendsNotTaken, startOf, toAccountFor, type Finding, type Change, type HandBack, type Moment } from "@playthrough/change";
 import { agent } from "./agent.ts";
 import { browserFile, stopBrowser, type Browser } from "./as.ts";
+import { sameAsBefore, stopBefore } from "./before.ts";
 import { changeHere, meanHere, meantHere, momentNamed, momentsOf } from "./change.ts";
 import { compareWithEarlier } from "./compare.ts";
 import { everyCopy, machine } from "./machine.ts";
@@ -138,6 +139,7 @@ export async function moment(repo: Repo, words: string, named?: string, last?: n
   writeFileSync(markedFile(repo), JSON.stringify({ began: browser.began, at: done.length }));
   // Marked again after running them all again, it's compared again with what the person saw, with the rest.
   if (change.comparisons.some((comparison) => comparison.handBack === number)) await compareAll(repo, id, number, moments);
+  const sameAs = await sameAsBefore(repo, id, way, { moment, files: recorded.files }, change.started);
 
   // What the moment shows, read back: the agent reads this, not the moment file.
   const shownAt = (name: string) => repo.show(join(dirname(repo.handBack(id, number)), "files", name));
@@ -151,6 +153,7 @@ export async function moment(repo: Repo, words: string, named?: string, last?: n
   if (before.length) console.log(`  before   ${before.length > 3 ? "… " : ""}${before.slice(-3).map(saidOf).join(" → ")}   (kept, never shown)`);
   if (!still) console.log(`  first    ${shownAt(frameOf(recorded.moment, "first"))}`);
   console.log(`  ${still ? "picture" : "last   "}  ${shownAt(readings.at(-1)!.picture)}`);
+  if (sameAs) console.log(`  ${sameAs}`);
   // Kept where the agent is, it ends as the agent's page is: with what's open there still open, and what it leads to
   // unseen unless it's marked too, as a board made from a dialog no one finished.
   if (there.open) console.log(`  This moment ends with ${there.open.name ? quote(there.open.name) : "a dialog"} still open. If your change shows in what happens next, mark that too.`);
@@ -486,6 +489,7 @@ export async function wait(repo: Repo) {
     await changes.finish(id, last.number);
     console.log(`Handed back: the person sees ${last.moments.length > 1 ? `the ${last.moments.length} moments` : "the moment"} as they are now${last.replies.length ? ", and your answers" : ""}.`);
     if (await stopBrowser(repo)) console.log("The browser from playthrough as is stopped: it starts again when you need it.");
+    stopBefore(repo.root);
     console.log(await addressOf(repo, id));
   } else if (change && last?.finished) {
     // Notes taken by a wait that stopped before they were answered are said again.

@@ -27,9 +27,11 @@ export async function keepRunning(app: App, root: string): Promise<number | unde
   return running(app, root);
 }
 
-// The app, started if it isn't running. Whoever asks says how long they use it (`using`).
-export async function running(app: App, root: string): Promise<number | undefined> {
+// The app, started if it isn't running. Whoever asks says how long they use it (`using`). Waited for until it answers,
+// or until whoever's waiting stops, which leaves it starting for the next to ask; quietly, as nobody's told it starts.
+export async function running(app: App, root: string, { waiting, quietly }: { waiting?: AbortSignal; quietly?: boolean } = {}): Promise<number | undefined> {
   endsWithPlaythrough(root);
+  const aWhile = async () => (await new Promise((wait) => setTimeout(wait, 250)), waiting?.throwIfAborted());
   const here = repo(root);
   await here.keepOutOfGit();
   const asked = Date.now();
@@ -39,7 +41,7 @@ export async function running(app: App, root: string): Promise<number | undefine
       if (await answers(app.url)) return;
       // Another command is starting it: it's waited for, as it can't start twice.
       if (Date.now() - asked > STARTING) throw new Refused([`The app didn't answer at ${app.url} within three minutes of being started. Look at .playthrough/app.log for why.`]);
-      await new Promise((wait) => setTimeout(wait, 250));
+      await aWhile();
       continue;
     }
     if (await answers(app.url)) {
@@ -56,10 +58,10 @@ export async function running(app: App, root: string): Promise<number | undefine
       writeFileSync(runningFile(root), JSON.stringify({ ...thisCommand(), url: app.url, used: Date.now() } satisfies Running), { flag: "wx" });
       break;
     } catch {
-      await new Promise((wait) => setTimeout(wait, 250));
+      await aWhile();
     }
   }
-  console.log(`Starting the app: ${app.start}`);
+  if (!quietly) console.log(`Starting the app: ${app.start}`);
   const began = Date.now();
   // What it says goes to a file, not to whoever started it, which may end long before it does.
   const log = join(root, ".playthrough", "app.log");
@@ -81,7 +83,7 @@ export async function running(app: App, root: string): Promise<number | undefine
       rmSync(runningFile(root), { force: true });
       throw new Refused([`${quote(app.start)} ended before the app answered at ${app.url}.`, ...saying(), "Check that playthrough/app.json starts the app there."]);
     }
-    await new Promise((wait) => setTimeout(wait, 250));
+    await aWhile();
   }
   stop(root);
   throw new Refused([`The app didn't answer at ${app.url} within three minutes of ${quote(app.start)}.`, ...saying(), "Check that playthrough/app.json starts it there."]);
@@ -147,7 +149,7 @@ const usingFolder = (root: string) => join(root, ".playthrough", "using");
 
 // The copy's app, while it, or the command starting it, is running on this start of the machine; one that's gone is
 // forgotten.
-function runningIn(root: string): Running | undefined {
+export function runningIn(root: string): Running | undefined {
   let now: Running;
   try {
     now = JSON.parse(readFileSync(runningFile(root), "utf8"));
