@@ -4,14 +4,15 @@
 
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, test } from "node:test";
 import type { Reading, Thing } from "@playthrough/page";
 import { madeBySetup, newId, Refused, type HandBack, type Moment, type Send } from "@playthrough/change";
 import { change, changeHere, idOf, momentNamed, titleOf, momentsOf } from "../src/change.ts";
-import { howEachWent, wait } from "../src/moments.ts";
+import { answer, howEachWent, wait } from "../src/moments.ts";
 import { repo } from "../src/repo.ts";
 import { problemsWithPeople } from "../src/setup.ts";
 import { agentWaiting, listening, unheardSaid } from "../src/wait.ts";
@@ -408,6 +409,63 @@ describe("notes sent with no agent listening", () => {
     rmSync(join(here.root, ".playthrough", "working-on.json"));
     assert.match(await heard(() => wait(here)), /Kit said:[\s\S]*Say what it's the total of/);
     assert.equal(await changeHere(here), TOTAL);
+  });
+});
+
+describe("a note that only asks something", () => {
+  const COUNT = "count-on-every-list";
+  const asked = (): Send => ({ id: newId(), handBack: 1, by: "Ivo", sent: new Date().toISOString(), notes: [{ id: "q1", words: "Does the count also update straight away when a card is moved?", on: { handBack: 1, moment: "Counts on every list", at: 1 } }] });
+  const heard = async (run: () => Promise<unknown>) => {
+    const lines: string[] = [];
+    const log = console.log;
+    console.log = (...words: unknown[]) => void lines.push(words.join(" "));
+    try {
+      await run();
+    } finally {
+      console.log = log;
+    }
+    return lines.join("\n");
+  };
+  const aMinuteAgo = (file: string) => utimesSync(file, new Date(Date.now() - 60_000), new Date(Date.now() - 60_000));
+  // Handed back, the app untouched since its one moment ran, and a question sent on it, which the agent has taken.
+  const questioned = async () => {
+    const here = repo(await mkdtemp(join(tmpdir(), "playthrough-asked-")));
+    folders.push(here.root);
+    execFileSync("git", ["init", "-q"], { cwd: here.root });
+    writeFileSync(join(here.root, "list.tsx"), "export const List = () => null;\n");
+    aMinuteAgo(join(here.root, "list.tsx"));
+    await quietly(() => change(here, "Count on every list", "Show how many cards each list has."));
+    await here.changes.saveHandBack(COUNT, { number: 1, by: "Claude Code", moments: [{ name: "Counts on every list", length: 2, actions: [], recording: "counts-on-every-list.json", person: "Ana", from: 0 }], replies: [] });
+    await here.changes.saveFile(COUNT, 1, "counts-on-every-list.json", Buffer.from("{}"));
+    await here.changes.finish(COUNT, 1);
+    await here.changes.send(COUNT, asked());
+    const told = await heard(() => wait(here));
+    return { here, told };
+  };
+
+  test("is said to the agent as one to answer, where only a note asking for a change asks for the app to change", async () => {
+    const { told } = await questioned();
+    assert.match(told, /Where a note asks for a change, change the app, then run every moment again: playthrough again, which says what's different\. Where it only asks something, answer it: nothing has to change\./);
+    assert.match(told, /playthrough answer <note> "<what you did, or your answer, in a line>"/);
+  });
+
+  test("is answered with nothing changed, the moments the person saw going on into the next hand-back as they are", async () => {
+    const { here } = await questioned();
+    await quietly(() => answer(here, "q1", "Yes: it moves with the card, before the page is loaded again."));
+    const next = (await here.changes.get(COUNT)).handBacks.find((handBack) => handBack.number === 2)!;
+    assert.deepEqual(next.moments.map((moment) => moment.name), ["Counts on every list"]);
+    assert.deepEqual(next.replies, [{ note: "q1", words: "Yes: it moves with the card, before the page is loaded again." }]);
+    assert.ok(await here.changes.file(COUNT, 2, "counts-on-every-list.json"), "with its recording");
+  });
+
+  test("waits for the moments to run again where the app has changed since they ran, before the answer or after it", async () => {
+    const { here } = await questioned();
+    writeFileSync(join(here.root, "list.tsx"), "export const List = () => 'changed';\n");
+    await assert.rejects(answer(here, "q1", "Yes."), /Run playthrough again first: list\.tsx has changed since the moments were run, and the answer goes with the moments as they are now\./);
+    aMinuteAgo(join(here.root, "list.tsx"));
+    await quietly(() => answer(here, "q1", "Yes."));
+    writeFileSync(join(here.root, "list.tsx"), "export const List = () => 'changed again';\n");
+    await assert.rejects(wait(here), /list\.tsx has changed since the moments were run\. Run playthrough again, so the person sees them as they are now\./);
   });
 });
 

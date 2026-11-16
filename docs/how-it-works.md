@@ -136,8 +136,17 @@ sees what was done in a moment, not only in words. That's where such a note is t
 first moment of the hand-back that's new since the note was made, else the last, with its answer, its pin on its thing
 there where it's found by role and name, and "As it was" the frame it was written on; a note the person sent is never
 left with no moment to be on (15 Nov: Lena's "This isn't what I meant" was answered, its moment dropped, and the page
-showed it nowhere). **`wait`** refuses while a note has no answer or a moment hasn't been
-run again; otherwise it hands back, stops the `as` browser, gives the address of the change's own page, and waits. While
+showed it nowhere). A note can be a question: what's printed after the notes says a note asking for a change wants the
+app changed and every moment run again, and one that only asks wants an answer, nothing changed ("<what you did, or your
+answer, in a line>"; 16 Nov: two agents spent four and six minutes recording something for a question that needed a
+sentence). **`answer`** with no hand-back begun (no `again` since the person spoke) goes through where nothing in the
+app has changed since the moments the person saw were run (`changedSince`: every file git lists for the app, its own
+and new ones it doesn't ignore, against the first of that hand-back's recordings; outside git, the app is taken as
+changed): those moments go on into the next hand-back as they are, with their files, unrun (`unchangedOn`), and the
+person sees them as seen before, with the answer. Anything changed, it refuses, naming the file: "Run playthrough again
+first: list.tsx has changed since the moments were run, and the answer goes with the moments as they are now." **`wait`**
+refuses while a note has no answer or a moment hasn't been run again, or, for moments that went on unrun, while anything
+has changed since they ran; otherwise it hands back, stops the `as` browser, gives the address of the change's own page, and waits. While
 it waits it keeps a file named by its process in the change's `waiting/`, saying which start of the machine it's on, so
 the page knows an agent is listening. When the person sends, it prints each note on its moment, with its conversation,
 a picture of what they saw with the thing outlined (`noted.ts`: the page the moment left, or for a note made in the

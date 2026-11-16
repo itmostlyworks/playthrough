@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 import { Refused } from "@playthrough/change";
 import { as } from "./as.ts";
 import { change } from "./change.ts";
-import { again, answer, drop, moment, wait } from "./moments.ts";
+import { again, answer, answering, drop, moment, wait } from "./moments.ts";
 import { know } from "./machine.ts";
 import { open } from "./open.ts";
 import { repo } from "./repo.ts";
@@ -26,7 +26,7 @@ const commands = {
   moment: [1, 2, `playthrough moment "<what's there, in under eight words>" ["<what it's about, as the page names it>"] [--last N]`, ([words, named], last) => moment(repo(), words!, named, last)],
   drop: [1, 1, `playthrough drop "<moment>"`, ([words]) => drop(repo(), words!)],
   again: [0, 0, "playthrough again", () => again(repo())],
-  answer: [2, 2, `playthrough answer <note> "<what you did, in a line>"`, ([note, words]) => answer(repo(), note!, words)],
+  answer: [2, 2, answering("<note>"), ([note, words]) => answer(repo(), note!, words)],
   wait: [0, 0, "playthrough wait", () => wait(repo())],
   open: [0, 0, "playthrough open", () => open()],
 } satisfies Record<string, [number, number, string, (words: string[], last?: number) => Promise<unknown>]>;

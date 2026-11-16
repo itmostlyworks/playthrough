@@ -14,7 +14,8 @@
 // what's kept of it, its recording and what it's about, is in the hand-back being worked on, until it's handed back.
 
 import { chromium, type Page } from "@playwright/test";
-import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import type { Glimpse, Reading } from "@playthrough/page";
 import { allNotes, conversation, list, madeInApp, MOST_SHOWN, notesToAnswer, saidDone, quote, Refused, handBackInProgress, sendsNotTaken, startOf, toAccountFor, type Finding, type Change, type HandBack, type Moment } from "@playthrough/change";
@@ -376,7 +377,7 @@ export async function again(repo: Repo) {
   console.log(`\n${howEachWent(moments, ran.failed, handedBack, toAccountFor(since)).join("\n")}`);
   const unanswered = notesToAnswer(change, number).filter((note) => !kept?.replies.some((reply) => reply.note === note && reply.words.trim()));
   console.log(
-    `\n${unanswered.length ? `Answer ${unanswered.length > 1 ? "each note" : "the note"}: ${unanswered.map((note) => `playthrough answer ${note} "<what you did, in a line>"`).join("; ")}. Then hand` : "Hand"} back, in the background, so you hear when the person answers: playthrough wait`,
+    `\n${unanswered.length ? `Answer ${unanswered.length > 1 ? "each note" : "the note"}: ${unanswered.map(answering).join("; ")}. Then hand` : "Hand"} back, in the background, so you hear when the person answers: playthrough wait`,
   );
 }
 
@@ -414,9 +415,8 @@ export async function answer(repo: Repo, note: string, words: string | undefined
   const number = handBackInProgress(change);
   const asked = notesToAnswer(change, number);
   if (!asked.includes(note)) throw new Refused([`There's no note ${note} waiting for an answer.${asked.length ? ` The notes that are: ${asked.join(", ")}.` : ""}`]);
-  if (!words?.trim()) throw new Refused([`Say it: playthrough answer ${note} "<what you did, in a line>"`]);
-  const kept = change.handBacks.find((handBack) => handBack.number === number);
-  if (!kept) throw new Refused(["Run playthrough again first: the answer goes with the moments as they are now."]);
+  if (!words?.trim()) throw new Refused([`Say it: ${answering(note)}`]);
+  const kept = change.handBacks.find((handBack) => handBack.number === number) ?? (await unchangedOn(repo, change, number));
   // Answered on a moment that won't be handed back (dropped, or it couldn't get there), the person would read what you did
   // with nothing to see it in.
   const named = allNotes(change).get(note)?.note.on?.moment;
@@ -426,6 +426,34 @@ export async function answer(repo: Repo, note: string, words: string | undefined
     ]);
   await repo.changes.saveHandBack(id, { ...kept, replies: [...kept.replies.filter((one) => one.note !== note), { note, words: words.trim() }] });
   console.log(`Answered ${note}.`);
+}
+
+// A note that only asks something is answered with nothing changed: where nothing in the app has changed since the
+// moments the person saw were run, those moments are as they are now, and go on into the next hand-back as they are,
+// with their files, unrun. Anything changed, they're run again first.
+async function unchangedOn(repo: Repo, change: Change, number: number): Promise<HandBack> {
+  const seen = change.handBacks.findLast((handBack) => handBack.finished)!;
+  const changed = changedSince(repo, change.id, seen);
+  if (changed) throw new Refused([`Run playthrough again first: ${changed} has changed since the moments were run, and the answer goes with the moments as they are now.`]);
+  cpSync(repo.files(change.id, seen.number), repo.files(change.id, number), { recursive: true, force: false });
+  const handBack = { number, by: agent(seen.by), moments: seen.moments, replies: [] };
+  await repo.changes.saveHandBack(change.id, handBack);
+  return handBack;
+}
+
+// What in the app has changed since a hand-back's moments were run, as git lists the app's files (its own, and new ones
+// it doesn't ignore; .playthrough/ never): one written since the first of its recordings, or gone. Outside git, what
+// changed can't be known, so the app is taken as changed.
+export function changedSince(repo: Repo, id: string, handBack: HandBack): string | undefined {
+  let ran: number;
+  let files: string[];
+  try {
+    ran = Math.min(...handBack.moments.map((moment) => statSync(join(repo.files(id, handBack.number), moment.recording)).mtimeMs));
+    files = execFileSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], { cwd: repo.root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], maxBuffer: 1 << 28 }).split("\0").filter(Boolean);
+  } catch {
+    return "the app";
+  }
+  return files.find((file) => !existsSync(join(repo.root, file)) || statSync(join(repo.root, file)).mtimeMs > ran);
 }
 
 // Hands back what's been done since the person last spoke, then waits for what they say next, and says it: each note,
@@ -438,12 +466,16 @@ export async function wait(repo: Repo) {
   if (change && last?.moments.length && !last.finished) {
     const id = change.id;
     const unanswered = notesToAnswer(change, last.number).filter((note) => !last.replies.some((reply) => reply.note === note && reply.words.trim()));
-    if (unanswered.length) throw new Refused([`Answer each note first: ${unanswered.map((note) => `playthrough answer ${note} "<what you did, in a line>"`).join("; ")}`]);
+    if (unanswered.length) throw new Refused([`Answer each note first: ${unanswered.map(answering).join("; ")}`]);
     const missing = momentsOf(repo, id).filter((way) => !last.moments.some((moment) => moment.name === way.words));
     if (missing.length)
       throw new Refused([
         `${list(missing.map((one) => quote(one.words)))} ${missing.length > 1 ? "aren't" : "isn't"} in what you'd hand back. Run playthrough again: it runs every moment on the code as it is now. One it can't get to, get to by hand and mark again, or leave out with playthrough drop "<moment>".`,
       ]);
+    // Answered with nothing changed, the moments weren't run again: anything changed since, they would be out of date.
+    const unrun = last.number > 1 && !change.comparisons.some((comparison) => comparison.handBack === last.number);
+    const changed = unrun && changedSince(repo, id, change.handBacks.findLast((handBack) => handBack.finished)!);
+    if (changed) throw new Refused([`${changed} has changed since the moments were run. Run playthrough again, so the person sees them as they are now.`]);
     await changes.finish(id, last.number);
     console.log(`Handed back: the person sees ${last.moments.length > 1 ? `the ${last.moments.length} moments` : "the moment"} as they are now${last.replies.length ? ", and your answers" : ""}.`);
     if (await stopBrowser(repo)) console.log("The browser from playthrough as is stopped: it starts again when you need it.");
@@ -513,5 +545,10 @@ async function sayNotes(repo: Repo, change: Change, number: number, asking: stri
     if (on && madeInApp(on) && on.address)
       console.log(`    The app was at ${on.address} when they wrote it${on.address.includes("${setup.") ? ", setup being what playthrough/setup.ts made for the run, as playthrough as prints it" : ""}.`);
   }
-  console.log(`\nChange the app. Then: playthrough again, which runs every moment again and says what's different; playthrough answer <note> "<what you did, in a line>" for each; then hand back with playthrough wait, in the background.`);
+  console.log(
+    `\nWhere a note asks for a change, change the app, then run every moment again: playthrough again, which says what's different. Where it only asks something, answer it: nothing has to change. Answer each: ${answering("<note>")}; then hand back with playthrough wait, in the background.`,
+  );
 }
+
+// How a note is answered: a line saying what was done, or answering what was asked.
+export const answering = (note: string) => `playthrough answer ${note} "<what you did, or your answer, in a line>"`;

@@ -24,6 +24,8 @@ export function repo(root = home(process.cwd())) {
     changes: new Changes(folder(changes)),
     moments: (change: string) => join(changes, change, "moments"),
     handBack: (change: string, handBack: number) => join(changes, change, "hand-backs", String(handBack), "hand-back.json"),
+    // Its recordings and pictures.
+    files: (change: string, handBack: number) => join(changes, change, "hand-backs", String(handBack), "files"),
     // A file for each agent waiting for what's sent, named by its process.
     waiting: (change: string) => join(changes, change, "waiting"),
     // How to start the app, committed.
