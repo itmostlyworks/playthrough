@@ -861,7 +861,7 @@ export function MomentView(props: {
             <div ref={sheet} className={`absolute inset-0 z-[15] ${atLastStop ? "animate-arrive" : "pointer-events-none"}`}>
               <LastStop
                 asked={change.asked}
-                card={atLastStop && !phone && (writing || carded) ? cards : undefined}
+                open={atLastStop && !phone && (writing || carded) ? { id: writing ? undefined : carded ? carded.note.id : undefined, card: cards } : undefined}
                 notes={sending.current.map(({ note, sent: isSent }) => {
                   // The note's card as it is on the Notes edge forward, with the moment it's on, since here they come
                   // from several; amber while it's yours to send, slate once it's gone.

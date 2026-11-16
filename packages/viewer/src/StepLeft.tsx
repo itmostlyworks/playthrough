@@ -65,7 +65,7 @@ export function StepCard({ step, here, forward, tucked, dots, onPress }: { step:
   ) : step.said === "sending" ? (
     step.what === "send" ? "Sending…" : "Done"
   ) : step.what === "send" ? (
-    !tucked || fullWidth <= shows ? step.words : `Send ${step.count}`
+    !tucked || fullWidth + (dots.length ? 8 + 10 * Math.min(5, dots.length) : 0) <= shows ? step.words : `Send ${step.count}`
   ) : (
     "Done"
   );
@@ -87,17 +87,18 @@ export function StepCard({ step, here, forward, tucked, dots, onPress }: { step:
         {/* The words held where they read at rest, settling where a card's words stand as it comes forward, with it. */}
         <span className="flex items-center whitespace-nowrap transition-[translate] duration-300 ease-calm" style={{ translate: `${Math.max(0, tucked + AT_REST - WORDS)}px 0` }}>
           {words}
+          {/* After its words, held with them where they read at rest. */}
+          {dots.length > 0 && (
+            <span className="ml-2 flex gap-[3px]">
+              {dots.slice(0, 5).map((one) => (
+                <i key={one.id} className={`size-[7px] rounded-full shadow-[0_0_0_1.5px_#fff] ${one.sent ? "bg-slate" : "bg-amber"}`} />
+              ))}
+            </span>
+          )}
         </span>
         <span ref={full} aria-hidden className="invisible absolute whitespace-nowrap">
           {step.words}
         </span>
-        {dots.length > 0 && (
-          <span className="absolute top-1.5 right-1.5 flex gap-[3px]">
-            {dots.slice(0, 5).map((one) => (
-              <i key={one.id} className={`size-[7px] rounded-full shadow-[0_0_0_1.5px_#fff] ${one.sent ? "bg-slate" : "bg-amber"}`} />
-            ))}
-          </span>
-        )}
       </span>
     </button>
   );

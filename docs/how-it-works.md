@@ -255,27 +255,31 @@ holds a sheet of your side of the change (`LastStop.tsx`), what isn't already on
 edge beside it), on Playthrough's own surface, fading in over the last moment and out again as going between moments
 does. Over it, the change's title takes the moment's line, as the sheet's heading, and its own small place above
 rests empty: both lines stay drawn, one faded out, so nothing moves (measured: the frame, both edges and both lines,
-0 px through ↓ and ↑, from a one-line and a two-line last moment). In the sheet, one block centred in the frame's
-height while it fits, else from the top, clear of the bar: "You asked" and your words, with nothing to send the sheet's
-main thing, at 21px in a measure of 30em, whole while the frame has the height (else cut, whole on hover); with notes
-to send, they are, and what you asked steps back to the moment line's 15px, three lines at most (whole on hover and to
-the keyboard); nothing if you asked nothing. Under it, "Your notes": the
+0 px through ↓ and ↑, from a one-line and a two-line last moment). In the sheet, "You asked" and your words hold one
+place whatever comes under them, as you note, keep, open and reply while standing there: where they'd stand alone,
+in the middle of the frame's height clear of the bar, at 21px in a measure of 30em, cut at about half the frame's
+height (whole on hover and to the keyboard) so what comes under has room; with nothing asked, what there is starts a
+third of the way down. Everything else comes in under them and moves nothing above it; past the frame's foot the whole
+sheet scrolls in its frame, your words going up with it, fading where there's more (`useMore`). (16 Nov: "You asked"
+had stood at four heights in four states, the sheet centring whatever it held; measured since, one y per size through
+the bare sheet, the box with one line and six, one kept, two kept and the box, a thread, and a reply typed.) Under
+them, "Your notes": the
 notes Send will send and only those (your notes not sent, and sent ones with your reply not sent), so they add up to
 the button's count; sent and answered ones aren't here, they're settled on their moments. Each is its card as the
 Notes edge has it forward (its dot, your words in full, its strip), with the moment it's on, quietly; pressed, it opens
-on its moment. One card alone at 300 wide; several, two or three across at that width, tops aligned. Past what fits,
-their part scrolls on its own (the wheel, touch, Tab; never ↑ ↓, which are the list's), ending clear of the bar and
-fading at whichever edge has more beyond it, so no card is cut hard. Just sent, they stay, their dots slate, till the page goes on. Last, what's still to do, as
+on its moment. Cards 300 wide, as many across as the frame's width holds at that width (three at most, one on a
+phone), filled from the left, tops aligned: the count of cards never changes the columns, so one kept or opened takes
+the next place and none already there moves. Just sent, they stay, their dots slate, till the page goes on. Last, what's still to do, as
 quiet lines you can press: "2 moments not watched" (to the first of them), "1 answer not opened" (to it); nothing when
 there's nothing. Only your words: nothing the agent wrote. There you're on no moment, but on the change as a whole, and
 a note there is on it (16 Nov, from twenty user tests: seven remarks weren't about one spot, and two people said "this
 isn't what I meant" by pointing at the page's heading). Note (N) is on the bar beside the step, as on a moment; with
-nothing to point at, it opens the note box at once (the same box, Keep, Escape and growth), in the sheet's flow under
-what you asked, where "Your notes" lists. Kept, it's in "Your notes" with its words and no picture or moment, and Send
-counts it. A note on the whole change has no `on`; one whose moment was dropped keeps its `on` and is shown on a moment
+nothing to point at, it opens the note box at once (the same box, Keep, Escape and growth) in "Your notes", in the
+place the next card takes, so kept, the note is its card in that same place, with its words and no picture or moment,
+and Send counts it. A note on the whole change has no `on`; one whose moment was dropped keeps its `on` and is shown on a moment
 (`shownOn`), so neither is ever taken for the other. The Notes edge there holds the notes on the whole change, as a
-moment's holds its own (unsent, sent, answered, the thread, replying, Remove), a card opening in the sheet's flow
-where the box does; the last card on the Moments edge carries their dots as a moment's card carries its notes'. An
+moment's holds its own (unsent, sent, answered, the thread, replying, Remove), one opened standing in its own card's
+place in "Your notes", or in the next place if it isn't there; the last card on the Moments edge carries their dots as a moment's card carries its notes'. An
 answer to one is counted in "1 answer not opened" and reached by Shift ↑ ↓ (from the last moment's last note, Shift ↓
 goes on to them); the last stop is seen as a moment is (`Seen` with no moment), so coming there reads them; and the
 change opens where it would without it (`firstUnseen`, `seenThrough` leave it out): you meet the answer at the end. On
