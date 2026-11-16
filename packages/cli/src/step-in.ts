@@ -7,7 +7,7 @@ import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createServer, request as ask, type IncomingMessage, type ServerResponse } from "node:http";
 import { connect } from "node:net";
-import { answerAs, asRecorded, clicked, escapedTwice, pathTo } from "@playthrough/page";
+import { answerAs, asRecorded, clicked, escapedTwice, pathTo, RIGHT_AFTER } from "@playthrough/page";
 import { doneBefore, quote, Refused } from "@playthrough/change";
 import { running, using } from "./app.ts";
 import { QUIET_DEV_CHROME, recorder, type Handed, type To } from "./run.ts";
@@ -389,13 +389,15 @@ export const SAYS = `<script>(() => {
   document.addEventListener("pointerleave", () => parent.postMessage({ playthrough: "pointer", x, y, inside: false }, "*"));
   // Escape is the app's, every single press, whatever the app does with it. Pressed twice, the second right after the
   // first, it's Back, and the app never hears that second one, held or let go: coming back finds the app as the first
-  // left it. With Note on, it's Playthrough's: it turns Note off. A key held down is one press.
-  const twice = (${escapedTwice.toString()})();
+  // left it. With Note on, it's Playthrough's: it turns Note off. A key held down is one press. The first of two is
+  // told, for Back to show that one more takes you back.
+  const twice = (${escapedTwice.toString()})(${RIGHT_AFTER});
   let taken = false;
   const escape = (e) => {
     if (e.key !== "Escape" || !e.isTrusted) return;
     const ours = e.type === "keydown" && !e.repeat ? noting || twice(performance.now()) : taken;
     if (e.type === "keydown" && !e.repeat) taken = ours;
+    if (e.type === "keydown" && !e.repeat && !ours) parent.postMessage({ playthrough: "escaped once" }, "*");
     if (!ours) return;
     e.preventDefault();
     e.stopImmediatePropagation();

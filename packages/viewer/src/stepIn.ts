@@ -16,10 +16,10 @@ import type { App, Heard } from "./Portal.tsx";
 // One step in: on which moment, from where, since when, and as it goes, when it should be there, if that can be known;
 // the app's address once it's ready, what setup made for it, and what its check at the end says where it doesn't hold
 // now, or what stopped it; and where your pointer was in the app as you left it. Whether the app wasn't running, so it
-// starts first.
-type Run = { moment: string; from: number; since: number; due?: number; starting?: boolean; address?: string; setup?: Record<string, unknown>; checked?: string; problems?: string[]; at?: { x: number; y: number } };
+// starts first, and whether it has answered since, so the way there is being redone.
+type Run = { moment: string; from: number; since: number; due?: number; starting?: boolean; answered?: boolean; address?: string; setup?: Record<string, unknown>; checked?: string; problems?: string[]; at?: { x: number; y: number } };
 
-export function useStepIn({ change, handBack, moment, page, clock, act, pointing }: { change: string; handBack: number; moment: Moment; page: Page; clock: Clock; act: (action: Action) => void; pointing: () => void }) {
+export function useStepIn({ change, handBack, moment, page, clock, act, pointing, escapedOnce }: { change: string; handBack: number; moment: Moment; page: Page; clock: Clock; act: (action: Action) => void; pointing: () => void; escapedOnce: () => void }) {
   const [run, setRun] = useState<Run>();
   // A step in is its moment's: going to another lets it go, and nothing of it is drawn there meanwhile.
   const here = run?.moment === moment.name ? run : undefined;
@@ -48,7 +48,17 @@ export function useStepIn({ change, handBack, moment, page, clock, act, pointing
     asking.current?.abort();
     const asked = (asking.current = new AbortController());
     const ours = (update: (run: Run) => Run) => setRun((now) => (now?.since === since ? update(now) : now));
-    readyIn(change, moment.name, after, asked.signal).then(({ in: left, starting }) => (starting ? ours((now) => ({ ...now, starting })) : left && ours((now) => ({ ...now, due: since + left }))));
+    readyIn(change, moment.name, after, asked.signal).then(async (answer) => {
+      if (answer?.in) return ours((now) => ({ ...now, due: since + answer.in! }));
+      if (!answer?.starting) return;
+      ours((now) => ({ ...now, starting: true }));
+      // Starting, it's asked again every second until the app answers: from then on it's the way there being redone.
+      for (let again: typeof answer | undefined = answer; again?.starting !== false; again = await readyIn(change, moment.name, after, asked.signal)) {
+        await new Promise((ready) => setTimeout(ready, ASKED_AGAIN));
+        if (asked.signal.aborted) return;
+      }
+      ours((now) => ({ ...now, answered: true }));
+    });
     readyAt(change, moment.name, after, asked.signal).then((answer) => {
       if (asked.signal.aborted) return;
       if ("address" in answer) return ours((now) => ({ ...now, address: answer.address, setup: answer.setup, checked: answer.checked }));
@@ -89,6 +99,7 @@ export function useStepIn({ change, handBack, moment, page, clock, act, pointing
   const heard: Heard = async (said, at) => {
     if (said.playthrough === "settled") act({ type: "yours" });
     if (said.playthrough === "escape") noting ? act({ type: "note" }) : back({ x: said.x, y: said.y });
+    if (said.playthrough === "escaped once") escapedOnce();
     if (said.playthrough === "note") pointing();
     if (said.playthrough === "recorded") session.current.events.push(...said.events);
     if (said.playthrough === "did") session.current.did = said.did;
@@ -124,8 +135,9 @@ export function useStepIn({ change, handBack, moment, page, clock, act, pointing
     // What it says under the bar: why it couldn't open, back on the recording; in the app, that its check at the end
     // doesn't hold now.
     said: yours ? here?.checked : here?.problems?.join(" "),
-    // Getting there with the app not running, that it's starting first, as the wait is longer for it.
-    starting: mode.is === "getting there" && !!here?.starting,
+    // Getting there with the app not running, what the longer wait is on: the app starting, then, once it answers, the
+    // way there being redone.
+    waitingOn: mode.is === "getting there" && here?.starting ? (here.answered ? ("the way there" as const) : ("the app" as const)) : undefined,
     // How far it is on its way, for Step in's line.
     getting: mode.is === "getting there" && here ? { since: here.since, due: here.due } : undefined,
     // The app, for the portal that holds it.
@@ -158,11 +170,13 @@ const ANSWERED = 70_000;
 const SETTLING = 30_000;
 
 // How long until a moment asked for is ready, in milliseconds, as long as the last run took to get there; nothing when
-// that can't be known yet, as when the app isn't running and starts first.
-const readyIn = (change: string, moment: string, after: number | undefined, asked: AbortSignal): Promise<{ in?: number; starting?: boolean }> =>
+// that can't be known yet, as when the app isn't running and starts first. Unanswered, nothing is known.
+const readyIn = (change: string, moment: string, after: number | undefined, asked: AbortSignal): Promise<{ in?: number; starting: boolean } | undefined> =>
   fetch(`/api/changes/${encodeURIComponent(change)}/ready-in`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ moment, after }), signal: asked })
-    .then((answer) => answer.json())
-    .then((said) => ({ in: said.in ?? undefined, starting: said.starting === true }), () => ({}));
+    .then((answer) => (answer.ok ? answer.json() : Promise.reject()))
+    .then((said) => ({ in: said.in ?? undefined, starting: said.starting === true }), () => undefined);
+// How often a starting app is asked after.
+const ASKED_AGAIN = 1000;
 
 // Where the app is at that moment, through Playthrough, on the same machine name the viewer was reached by, and what its
 // check at the end says where it doesn't hold now; or what stops it.

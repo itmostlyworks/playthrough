@@ -4,7 +4,7 @@
 // it, go on, or say Done or Send.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { escapedTwice, type Glimpse, type Reading } from "@playthrough/page";
+import { escapedTwice, RIGHT_AFTER, type Glimpse, type Reading } from "@playthrough/page";
 import { conversation, isStill, madeInApp, newId, together, type Note, type Change, type HandBack, type Moment } from "@playthrough/change";
 import { glimpses, picture, readings as readingsOf, recording, type Listed } from "./api.ts";
 import { clamp } from "./clamp.ts";
@@ -226,7 +226,14 @@ export function MomentView(props: {
   const pill = useRef<HTMLSpanElement>(null);
   const toolbar = useRef<HTMLDivElement>(null);
   const [aiming, setAiming] = useState(false);
-  const stepIn = useStepIn({ change: change.id, handBack: handBack.number, moment, page, clock: clockOf, act, pointing: () => note() });
+  // One Escape in the app, the first of Back's two keys lights, and fades over the time a second one would take you back.
+  const backKeys = useRef<HTMLSpanElement>(null);
+  const escapedOnce = () =>
+    backKeys.current?.firstElementChild?.animate([{ backgroundColor: "#EDB654", color: "#3B2A07", boxShadow: "0 0 0 1px #EDB654" }, {}], {
+      duration: RIGHT_AFTER,
+      easing: matchMedia("(prefers-reduced-motion: reduce)").matches ? "steps(1, end)" : "ease-in",
+    });
+  const stepIn = useStepIn({ change: change.id, handBack: handBack.number, moment, page, clock: clockOf, act, pointing: () => note(), escapedOnce });
 
   // Going to another moment, the one you were on stays under the new one, drawn just as it was where it stood, until the
   // new one has come in over it. Its picture would do it no justice: taken by another browser, its words fall a little
@@ -360,25 +367,25 @@ export function MomentView(props: {
     act({ type: "moment", moment: other.name, starts: startOf(other), end: endOf(other), open });
     onMoment(to);
   };
+  // While the app is yours, or on its way, a moment, the step left or Next pressed leaves it as Back does, on the way
+  // there: one press for Back and the press. The keys stay the app's. It says whether to go on.
+  const leaving = () => (away ? may.back && (stepIn.back(), true) : may.move);
   // After the last moment, the last stop; from it, ↑ is the last moment again and there's nothing further on.
-  // While the app is yours, the step left still answers, as sending what you said isn't driving the recording: it leaves
-  // the app as Back does, on its way there.
-  const toLastStop = (open?: string) => {
-    if (atLastStop) return;
-    if (inApp && may.back) stepIn.back();
-    else if (!may.move) return;
+  const lastStop = (open?: string) => {
     act({ type: "moment", moment: moment.name, starts: from, end, open });
     props.onLastStop();
   };
-  const next = (by: number) => {
-    if (!may.move) return;
+  const toLastStop = (open?: string) => !atLastStop && leaving() && lastStop(open);
+  const next = (by: number, pressed = false) => {
+    if (!(pressed ? leaving() : may.move)) return;
     if (atLastStop) return void (by < 0 && goTo(count));
     const to = n + by;
     if (to < 1) return;
-    if (to > count) return toLastStop();
+    if (to > count) return lastStop();
     goTo(to);
   };
-  const toMoment = (to: number) => may.move && (to !== n || atLastStop) && goTo(to);
+  // The moment you're on, pressed in the app, is Back.
+  const toMoment = (to: number) => (to === n && !atLastStop ? away && back() : leaving() && goTo(to));
   const openNote = (id: string) => may.move && act({ type: "open", note: id });
   // What you said on a moment of the change, in the order its edge has it: one made in the app joins once you're back.
   const notesOn = (other: Moment) => (other === moment && !atLastStop ? onEdge.map(({ note }) => note) : [...sent, ...notes].filter((one) => isOn(one, other.name)));
@@ -501,7 +508,7 @@ export function MomentView(props: {
   // ↑ and ↓ go a moment back and on, and with Shift a note back and on, Escape lets go. Left and right are along the
   // moment, up and down through what's listed at its edges, and neither runs on into the other.
   const keys = useRef<(event: KeyboardEvent) => void>(() => {});
-  const escapes = useRef(escapedTwice());
+  const escapes = useRef(escapedTwice(RIGHT_AFTER));
   keys.current = (event) => {
     const typing = event.target instanceof HTMLElement && event.target.closest("textarea, input, [contenteditable]");
     // Ctrl+Enter sends, wherever the keyboard is.
@@ -535,7 +542,7 @@ export function MomentView(props: {
       else if (noting) act({ type: "note" });
       // While the app is yours, Escape twice is Back, as it is in the app (step-in.ts); getting there, once calls it off.
       else if (!inApp) back();
-      else if (!event.repeat && escapes.current(performance.now())) back();
+      else if (!event.repeat) escapes.current(performance.now()) ? back() : escapedOnce();
       return;
     }
     // Noting, the bar holds only what to do and Cancel, and the keys say no more: N or Escape leave it, and nothing
@@ -710,7 +717,7 @@ export function MomentView(props: {
       phone={phone}
       showing={atLastStop ? LAST_STOP : moment.name}
       foot={(forward, tucked) => <StepCard step={step} here={atLastStop} forward={forward} tucked={tucked} dots={onTheWhole.map(({ note, sent: isSent }) => ({ id: note.id, sent: isSent }))} onPress={() => toLastStop()} />}
-      footAnswers={inApp && may.back}
+      answers={away && may.back}
     >
       {momentTiles}
     </Edge>
@@ -723,7 +730,12 @@ export function MomentView(props: {
     <div className="grid h-dvh grid-rows-[auto_minmax(0,1fr)] overflow-clip bg-ground phone:grid-rows-[auto_auto_minmax(0,1fr)]" onPointerDown={pressAway}>
       <Header opener={props.opener} centre={phone ? title : undefined}>
         {/* The next moment, and after the last the last stop; there, nothing. */}
-        <button onClick={() => next(1)} disabled={!may.move || atLastStop} className="-mr-2 flex flex-none items-center gap-1.5 rounded-lg px-2 py-1 text-soft transition-colors duration-150 ease-calm enabled:hover:bg-hover enabled:hover:text-fg disabled:opacity-50">
+        {/* In the app it rests as it does where it can't be pressed, and pointed at, comes to full: it answers. */}
+        <button
+          onClick={() => next(1, true)}
+          disabled={!(may.move || (away && may.back)) || atLastStop}
+          className={`-mr-2 flex flex-none items-center gap-1.5 rounded-lg px-2 py-1 text-soft transition-[color,background-color,opacity] duration-150 ease-calm enabled:hover:bg-hover enabled:hover:text-fg disabled:opacity-50 ${away ? "opacity-50 hover:opacity-100" : ""}`}
+        >
           Next
           <Key>↓</Key>
         </button>
@@ -934,9 +946,20 @@ export function MomentView(props: {
           >
             {/* What Step in has to say, just over the bar, where it was pressed: why it couldn't open, that the app starts
                 first, or in the app that its check at the end doesn't hold now. Under the bar there's no room for it. */}
-            {(stepIn.said || stepIn.starting) && (
-              <p className={`pointer-events-none absolute bottom-full left-1/2 mb-2 w-max max-w-[min(640px,calc(100cqw-32px))] -translate-x-1/2 animate-arrive rounded-md bg-surface px-3 py-1.5 text-center text-xs shadow-tip ${stepIn.said ? "text-amber-ink" : "text-soft"}`}>
-                {stepIn.said || "Starting the app first, which can take a minute."}
+            {(stepIn.said || stepIn.waitingOn) && (
+              <p className={`pointer-events-none absolute bottom-full left-1/2 mb-2 grid w-max max-w-[min(640px,calc(100cqw-32px))] -translate-x-1/2 animate-arrive justify-items-center rounded-md bg-surface px-3 py-1.5 text-center text-xs shadow-tip ${stepIn.said ? "text-amber-ink" : "text-soft"}`}>
+                {stepIn.said || (
+                  // Both lines are always there, one over the other, so the note is as wide for either and the words
+                  // swap without anything moving.
+                  <>
+                    <span className={`transition-opacity duration-200 ease-calm [grid-area:1/1] ${stepIn.waitingOn === "the app" ? "" : "opacity-0"}`} aria-hidden={stepIn.waitingOn !== "the app"}>
+                      Starting the app, which can take a minute.
+                    </span>
+                    <span className={`transition-opacity duration-200 ease-calm [grid-area:1/1] ${stepIn.waitingOn === "the way there" ? "" : "opacity-0"}`} aria-hidden={stepIn.waitingOn !== "the way there"}>
+                      Getting to this moment.
+                    </span>
+                  </>
+                )}
               </p>
             )}
             {/* At the last stop, the one thing to do there. */}
@@ -986,7 +1009,7 @@ export function MomentView(props: {
               {inApp ? "Back" : stepping ? <>Stepping<span className="phone:hidden"> in</span>…</> : "Step in"}{" "}
               {/* In the app, a single Escape is the app's: twice is Back. */}
               {inApp ? (
-                <span className="flex gap-1 phone:hidden pointer-coarse:hidden">
+                <span ref={backKeys} className="flex gap-1 phone:hidden pointer-coarse:hidden">
                   <Key>Esc</Key>
                   <Key>Esc</Key>
                 </span>

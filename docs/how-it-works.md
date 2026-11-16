@@ -439,9 +439,14 @@ inside the screen; one from an earlier hand-back is cut from the moment's pictur
 in a browser of its own from the recording it was made on (`frames.ts`, the page's `?frame=` address, `Frame.tsx`) and
 kept with what the person did (`branches/frames/<note>.png` and `.json`). A note's pin on the recording and its picture
 are one thing: pointing at either lights both, the thing outlined only then or while open (`Pinned.tsx`). While you're in
-the app the edges rest, quieter, and can't be pressed or come forward, all but the moments' last card (Send, or Done),
-which doesn't drive the recording: pressed, it leaves the app as Back does and goes on to the last stop in one move,
-the app fading into it (`toLastStop`, `Moment.tsx`; `footAnswers`, `Edge.tsx`). It doesn't press Send or Done. **On a phone** (820px or less) there's no room beside the
+the app, or while it's getting there, the edges rest, quieter, and don't come forward. The notes can't be pressed. The
+moments can, with the pointer: each stays dimmed until it's pointed at, then comes to full, and pressed it leaves the
+app as Back does and goes to that moment, at rest, in one move (a step in on its way is called off as Escape does); the
+moment you're in the app on is just Back. Next, dimmed in the app, does the same, coming to full when pointed at. The
+moments' last card (Send, or Done), which doesn't drive the recording, isn't dimmed at all: pressed, it leaves the app
+the same way and goes on to the last stop, the app fading into it (`leaving`, `Moment.tsx`; `answers`, `Edge.tsx`). It
+doesn't press Send or Done. Writing a note in the app, none of them answer, as Back doesn't. The keys are the app's all
+the while. The menu at the top left still opens what's waiting over the app. **On a phone** (820px or less) there's no room beside the
 recording: under the bar, the notes and then the moments are rows of the same pictures, words always under them,
 scrolled sideways. The recording and its bar stay; what's under them scrolls, fading where there's more above or below,
 as an edge's list does and a note's thread too long for its card (`useMore`, `Edge.tsx`).
@@ -554,8 +559,11 @@ once, or with `playthrough open` running, which keeps every copy's app, once it'
 **In your browser** (`stepIn.ts`, `Portal.tsx`). While it's getting there, a line inside Step in fills as it goes, at
 the pace of the last run where that's known, the picture's edge breathes and the recording's pointer waits. Where the
 app isn't running (stopped after fifteen minutes unused, say), `ready-in` says so, and over the bar it says "Starting
-the app first, which can take a minute." until it's there, the line inside Step in not filling, as the last run's pace
-says nothing of a start. Escape, or
+the app, which can take a minute.", the line inside Step in not filling, as the last run's pace says nothing of a
+start. `ready-in` is asked again every second until the app answers, when the server goes on to redo the way there;
+then the note's words swap, in the same place and size, to "Getting to this moment." until it's there (both lines are
+drawn one over the other, so neither moves the note; a quick cross-fade, none with reduced motion). Unanswered, the
+first line stays. No countdown. Escape, or
 going to another moment, calls it off: the request ends, which stops the run, and a page of the app already opening
 unseen goes with it; the bar is at rest at once. The page waits 70 s for the answer (the server always gives one within a
 minute) and 30 s for the app's page to settle, then says so just over the bar, beside Step in (under it, at a desktop size, it was off the
@@ -567,8 +575,10 @@ as …" beside Back, whose keys read Esc Esc. Back, the keyboard comes back to t
 is inert until it's yours again, so Tab never walks an app nobody can see. A single Escape is the app's, whatever the app does with it, or nothing,
 and Playthrough does nothing with it; Escape twice, the second within half a second of the first, is Back, and the app
 never hears that second press (`escapedTwice`, `twice.ts` in `@playthrough/page`, the same rule in the app and on
-Playthrough's page around it). A key held down is one press; with Note on, Escape is Playthrough's and turns it off,
-without counting as a first press. A link out of it opens in a tab of your own. The app is drawn with
+Playthrough's page around it). A first press that counts lights Back's first Esc key in the pill's amber, fading out
+over exactly the half second in which a second would take you back (the app tells the page with `escaped once`); with
+reduced motion it's lit, then unlit. Nothing in the bar changes size. A key held down is one press; with Note on,
+Escape is Playthrough's and turns it off, without counting as a first press, and lights nothing. A link out of it opens in a tab of your own. The app is drawn with
 `will-change: transform`, so its words keep their spaces, and the clipboard is the page's, on the way there and in your
 browser. In a moment recorded on a phone's screen, a mouse drag is a swipe. Note works there as on the recording: what you did in the app is
 recorded from when it was handed to you (or from the note, made before the recording's pointer had come to yours) and kept with the change (`branches/`, with the fonts, pictures and stylesheets
