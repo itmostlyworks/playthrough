@@ -27,27 +27,22 @@ export function LastStop(props: {
   const asked = props.asked?.trim();
   const phone = usePhone();
   const own = useRef<HTMLDivElement>(null);
-  const said = useRef<HTMLDivElement>(null);
-  const [{ wide, high, words }, setRoom] = useState({ wide: 0, high: 0, words: 0 });
+  const [high, setHigh] = useState(0);
   useLayoutEffect(() => {
     const frame = own.current;
     if (!frame) return;
-    const measure = () => setRoom({ wide: frame.clientWidth, high: frame.clientHeight, words: said.current?.offsetHeight ?? 0 });
+    const measure = () => setHigh(frame.clientHeight);
     measure();
     const watching = new ResizeObserver(measure);
     watching.observe(frame);
-    if (said.current) watching.observe(said.current);
     return () => watching.disconnect();
   }, []);
-  // What you asked holds one place whatever comes under it, so nothing you do here moves it: where it stands alone,
-  // in the middle of the frame's height clear of the bar. A long ask is cut at about half the frame (whole on hover,
-  // and to the keyboard), so what comes under it has room. With nothing asked, what there is starts a third of the way down.
+  // What you asked holds one place whatever comes under it, so nothing you do here moves it: a third of the way down
+  // the frame, clear of the bar, so there's room under it. A long ask is cut at about a third of the frame (whole on
+  // hover, and to the keyboard). With nothing asked, what there is starts there.
   const [above, below, line] = phone ? [16, 40, 23] : [32, 56, 30];
-  const askedLines = Math.max(3, Math.floor(((high - above - below) * 0.5) / line));
-  const top = above + Math.max(0, asked ? (high - above - below - words) / 2 : (high - above - below) * 0.3);
-  // Columns by the frame's width alone, as many as sit at a reading width, at most three, so a card kept or a box
-  // opened takes the next place and nothing already there moves.
-  const columns = Math.max(1, Math.min(phone ? 1 : 3, Math.floor((wide - 64 + APART) / (CARD + APART))));
+  const askedLines = Math.max(3, Math.floor(((high - above - below) * 0.34) / line));
+  const top = above + (high - above - below) * 0.3;
   const todo = [
     props.unwatched > 0 && { words: `${props.unwatched} ${props.unwatched === 1 ? "moment" : "moments"} not watched`, go: props.onUnwatched },
     props.unopened > 0 && { words: `${props.unopened} ${props.unopened === 1 ? "answer" : "answers"} not opened`, go: props.onUnopened },
@@ -66,7 +61,7 @@ export function LastStop(props: {
       <div ref={sheet} onScroll={more.look} className="h-full overflow-y-auto overscroll-contain [scrollbar-width:thin]" style={more.fade}>
         <div className="flex flex-col items-center gap-8 px-8 phone:gap-4 phone:px-4" style={{ paddingTop: top, paddingBottom: below }}>
           {asked && (
-            <div ref={said} className="flex w-full flex-none flex-col items-center text-center" title={asked} tabIndex={0} aria-label={`You asked: ${asked}`}>
+            <div className="flex w-full flex-none flex-col items-center text-center" title={asked} tabIndex={0} aria-label={`You asked: ${asked}`}>
               <p className={quietLine}>You asked</p>
               <p
                 className="mt-2 max-w-[30em] overflow-hidden text-[21px] leading-[30px] text-balance text-fg phone:text-[16px] phone:leading-[23px]"
@@ -79,7 +74,8 @@ export function LastStop(props: {
           {cards.length > 0 && (
             <div className="flex w-full flex-col items-center">
               {(notes.length > 0 || (open && !open.id)) && <p className={`${quietLine} mb-2`}>Your notes</p>}
-              <div className="grid w-full items-start" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, ${CARD}px))`, gap: APART, justifyContent: "center" }}>
+              {/* One column, centred, a card wide: a card kept or a box opened takes the next place down, and nothing moves. */}
+              <div className="flex w-full flex-col" style={{ maxWidth: CARD, gap: APART }}>
                 {cards.map((one) => (
                   // Brought into view clear of the bar across the frame's foot.
                   <div key={one.id} ref={one.open ? opened : undefined} className="flex flex-col" style={{ scrollMarginBottom: 24 }}>
