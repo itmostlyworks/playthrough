@@ -57,6 +57,12 @@ export function StepCard({ step, here, forward, tucked, dots, onPress }: { step:
   useLayoutEffect(() => setFullWidth(full.current?.offsetWidth ?? 0), [step.words]);
   // What shows of the card at rest, from where its words are held to just inside its box.
   const shows = CARD - 10 - tucked - AT_REST;
+  // Its dots, five at most as a moment's card has; at rest, as many as fit after the words in what shows, all of them
+  // as the edge comes forward.
+  const said = useRef<HTMLSpanElement>(null);
+  const [saidWidth, setSaidWidth] = useState(0);
+  useLayoutEffect(() => setSaidWidth(said.current?.offsetWidth ?? 0));
+  const dotted = dots.slice(0, tucked ? Math.max(0, Math.min(5, Math.floor((shows - saidWidth - 8) / 10))) : 5);
   const words = step.taken ? (
     <>
       {tick}
@@ -86,11 +92,13 @@ export function StepCard({ step, here, forward, tucked, dots, onPress }: { step:
       >
         {/* The words held where they read at rest, settling where a card's words stand as it comes forward, with it. */}
         <span className="flex items-center whitespace-nowrap transition-[translate] duration-300 ease-calm" style={{ translate: `${Math.max(0, tucked + AT_REST - WORDS)}px 0` }}>
-          {words}
+          <span ref={said} className="flex items-center">
+            {words}
+          </span>
           {/* After its words, held with them where they read at rest. */}
-          {dots.length > 0 && (
+          {dotted.length > 0 && (
             <span className="ml-2 flex gap-[3px]">
-              {dots.slice(0, 5).map((one) => (
+              {dotted.map((one) => (
                 <i key={one.id} className={`size-[7px] rounded-full shadow-[0_0_0_1.5px_#fff] ${one.sent ? "bg-slate" : "bg-amber"}`} />
               ))}
             </span>

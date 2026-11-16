@@ -279,7 +279,8 @@ and Send counts it. A note on the whole change has no `on`; one whose moment was
 (`shownOn`), so neither is ever taken for the other. The Notes edge there holds the notes on the whole change, as a
 moment's holds its own (unsent, sent, answered, the thread, replying, Remove), one opened standing in its own card's
 place in "Your notes", or in the next place if it isn't there; the last card on the Moments edge carries their dots as a moment's card carries its notes' (five at most, as there),
-after its words, which say "Send 2" at rest where words and dots don't both fit. An
+after its words, which say "Send 2" at rest where words and dots don't both fit; at rest, as many dots as fit in what
+shows of the card, all of them as the edge comes forward. An
 answer to one is counted in "1 answer not opened" and reached by Shift ↑ ↓ (from the last moment's last note, Shift ↓
 goes on to them); the last stop is seen as a moment is (`Seen` with no moment), so coming there reads them; and the
 change opens where it would without it (`firstUnseen`, `seenThrough` leave it out): you meet the answer at the end. On
