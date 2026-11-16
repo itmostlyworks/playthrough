@@ -322,7 +322,9 @@ rest, its words held 8px from the screen's edge at rest where the edge's fade le
 doesn't fit there). A note saved on a moment shows where it went: a frame on, once it has
 settled into its pin, a dot leaves the pin (in the app, where the note was asked for), shrinking from the pin's 12px to
 a card's 7px, and goes to just after this card's words in 450 ms; the card keeps saying what it said until the dot
-lands, then in that same frame takes its new words ("Done" to "Send 1 note") and lights amber, fading. Where the card is
+lands, then in that same frame takes its new words ("Done" to "Send 1 note") and lights amber, fading. The edge, sitting
+back at rest, comes to full over the dot's first 300 ms and settles back over 300 ms once the light has gone (with reduced
+motion, full just while the card is lit). Where the card is
 out of the edge's view, the dot goes to the edge's foot, and the list doesn't scroll. With reduced motion the card only
 lights, lit then unlit; at the last stop (Send is right there) and on a phone, nothing goes (`showWhereItWent`,
 `Moment.tsx`). The card is quiet on every moment, and at the last stop full, with the line that says where you are, which
@@ -430,8 +432,10 @@ not there over notes while there are none. The Moments edge ends in a short card
 ↑ ↓ by Moments, Shift ↑ ↓ by Notes (not on a phone). Forward, a card has one border, its own, which says the moment
 you're on or the one pointed at; the picture's own border is only there at rest. Each is a picture of one size (176 by 110), one after another, at rest beside the recording and never
 over it, 16px from it, running past the screen's edge where the window is too narrow for them, fading out over its last
-few pixels (never over pictures wholly on the screen). Pointed at (after 70 ms; going back after 220 ms), or reached with
-Tab, an edge comes forward: it slides until its pictures are 16px from the screen's edge, a little over the recording,
+few pixels (never over pictures wholly on the screen). At rest an edge sits back, all of it at 40%, its word and last
+card too, as one, so the recording has your eye; the one you're on and an amber dot still tell apart from the rest
+(`--resting`, `style.css`, the same value the app's resting uses, from that one place; not on a phone). Pointed at (after 70 ms; going back after 220 ms), or reached with
+Tab, an edge comes forward, coming to full as it slides (300 ms, calm; with reduced motion, at once): it slides until its pictures are 16px from the screen's edge, a little over the recording,
 its cards alone, each a little apart. A moment's card's words, its name and then as whom, by their name alone ("… as Maja"), come up over its picture's
 lower part. A note's card is the same at rest and forward, and leads with what it is as a moment leads with its picture: its dot, its latest words in two lines
 and where it stands, over a slim strip of its picture, set in; a new answer's New mark shows at rest. A touch brings an edge forward first. Many scroll in their
@@ -446,7 +450,8 @@ inside the screen; one from an earlier hand-back is cut from the moment's pictur
 in a browser of its own from the recording it was made on (`frames.ts`, the page's `?frame=` address, `Frame.tsx`) and
 kept with what the person did (`branches/frames/<note>.png` and `.json`). A note's pin on the recording and its picture
 are one thing: pointing at either lights both, the thing outlined only then or while open (`Pinned.tsx`). While you're in
-the app, or while it's getting there, the edges rest, quieter, and don't come forward. The notes can't be pressed. The
+the app, or while it's getting there, the edges rest, quieter, and don't come forward, each card at the same 40% rather
+than the edge's and its own together. The notes can't be pressed. The
 moments can, with the pointer: each stays dimmed until it's pointed at, then comes to full, and pressed it leaves the
 app as Back does and goes to that moment, at rest, in one move (a step in on its way is called off as Escape does); the
 moment you're in the app on is just Back. Next, dimmed in the app, does the same, coming to full when pointed at. The

@@ -2,7 +2,8 @@
 // and what was said over a slim strip of its thing, all one size, one after another. At rest they sit beside the recording, never
 // over it, fading into the screen's edge. Pointed at, or reached with Tab, they come forward, all the way onto the
 // screen and a little over the recording, a moment's words coming up over its picture, a note's card as it was; a
-// touch brings them forward first. While you're in the app they rest, quieter, as everything that drives the
+// touch brings them forward first. At rest they sit back, quieter, so the recording has your eye, and forward come to
+// full. While you're in the app they rest, quieter, as everything that drives the
 // recording does; the moments still answer a press, which leaves the app on the way, each coming to full as it's
 // pointed at, and their step left, which doesn't drive the recording, isn't quieter at all. Over each, what it holds, in a word, at its pictures' outer side, or where the header's own words
 // stand when they run past the screen's edge: it stays put as the edge comes forward, and an edge with nothing on it
@@ -76,7 +77,7 @@ export function Edge(props: {
   const { side, label, keys, stage, quiet, phone, empty, showing, arrived, children, foot, answers } = props;
   // What rests while you're in the app: every card, or where they answer, each until it's pointed at.
   const dead = quiet && !answers;
-  const resting = dead ? "opacity-40" : quiet ? "*:opacity-40 *:hover:opacity-100" : "";
+  const resting = dead ? "opacity-(--resting)" : quiet ? "*:opacity-(--resting) *:hover:opacity-100" : "";
   const [room, setRoom] = useState<Room>();
   useLayoutEffect(() => {
     const shown = stage.current;
@@ -160,14 +161,14 @@ export function Edge(props: {
   if (phone)
     return (
       <section aria-label={label}>
-        <div className={`transition-opacity duration-200 ease-calm ${quiet ? "opacity-40" : ""}`} inert={dead}>
+        <div className={`transition-opacity duration-200 ease-calm ${quiet ? "opacity-(--resting)" : ""}`} inert={dead}>
           <h2 className="text-[13px] leading-5 font-semibold text-soft">{label}</h2>
           <div ref={list} className="-mx-4 -mb-4 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pt-2 pb-4 [scrollbar-width:none] [&>*]:w-[148px] [&>*]:flex-none [&>*]:snap-start">
             {children(true)}
           </div>
         </div>
         {foot && (
-          <div className={`mt-7 max-w-[280px] transition-opacity duration-200 ease-calm ${dead ? "opacity-40" : ""}`} inert={dead}>
+          <div className={`mt-7 max-w-[280px] transition-opacity duration-200 ease-calm ${dead ? "opacity-(--resting)" : ""}`} inert={dead}>
             {foot(true, 0)}
           </div>
         )}
@@ -183,7 +184,7 @@ export function Edge(props: {
     <>
       {!empty && (
         // Its keys are on the word's inner side, so the word itself stays at the pictures' outer one.
-        <h2 className={`pointer-events-none fixed z-30 flex items-center gap-1 text-[13px] leading-5 font-semibold text-soft transition-opacity duration-300 ease-calm ${right ? "flex-row-reverse" : ""} ${quiet ? "opacity-40" : ""}`} style={{ top: room.top - WORD, [right ? "right" : "left"]: Math.max(24, -cutBy) }}>
+        <h2 className={`pointer-events-none fixed z-30 flex items-center gap-1 text-[13px] leading-5 font-semibold text-soft transition-opacity duration-300 ease-calm ${right ? "flex-row-reverse" : ""} ${forward ? "" : "opacity-(--resting)"}`} style={{ top: room.top - WORD, [right ? "right" : "left"]: Math.max(24, -cutBy) }}>
           <span className={right ? "ml-1" : "mr-1"}>{label}</span>
           {(right ? keys.toReversed() : keys).map((key) => (
             <Key key={key}>{key}</Key>
@@ -194,7 +195,8 @@ export function Edge(props: {
         ref={own}
         role="region"
         aria-label={label}
-        className="fixed z-30 transition-[translate] duration-300 ease-calm"
+        // At rest it sits back, all of it as one, so the recording has your eye; in the app its cards already rest.
+        className={`fixed z-30 transition-[translate,opacity] duration-300 ease-calm ${forward || quiet ? "" : "opacity-(--resting)"}`}
         style={{ top: room.top - INSET, height: room.height + 2 * INSET, width: DRAWER, left: right ? room.inner : room.inner - DRAWER, translate: forward ? `${right ? -shift : shift}px 0` : "0 0" }}
         {...pointing}
         onPointerDownCapture={(event) => {
@@ -219,7 +221,7 @@ export function Edge(props: {
             </div>
             {/* The list's last card, at rest as far past the screen's edge as the others are. */}
             {foot && (
-              <div ref={footing} className={`transition-opacity duration-300 ease-calm ${dead ? "opacity-40" : ""}`} inert={dead}>
+              <div ref={footing} className={`transition-opacity duration-300 ease-calm ${dead ? "opacity-(--resting)" : ""}`} inert={dead}>
                 {foot(forward, forward ? 0 : Math.max(0, cutBy + TUCKED))}
               </div>
             )}

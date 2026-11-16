@@ -421,16 +421,20 @@ export function MomentView(props: {
   const showWhereItWent = (note: Note, spot: { x: number; y: number }) => {
     setSaidBefore(step);
     const card = document.querySelector('[data-tile="the last stop"]');
-    const box = card?.firstElementChild;
-    // In the frame it lands, so the dot and the words never miss each other by a frame.
-    const landed = () => {
+    const [box, edge] = [card?.firstElementChild, card?.closest("[role=region]")];
+    // In the frame it lands, so the dot and the words never miss each other by a frame. The edge, sitting back at rest,
+    // is at full while the card is lit: with the dot on its way, from as it leaves; without, just while it's lit.
+    const landed = (going?: boolean) => {
       flushSync(() => setSaidBefore(undefined));
       box?.animate([{ backgroundColor: "color-mix(in srgb, var(--amber) 22%, transparent)" }, {}], { duration: 700, easing: unmoving() ? "steps(1, end)" : "ease-out" });
+      if (!going) edge?.animate([{ opacity: 1 }, { opacity: 1 }], { duration: 700 });
     };
     // A frame on, once the note has settled into its pin.
     requestAnimationFrame(() => {
-      const [says, edge, picture] = [card?.querySelector("[data-says]"), card?.closest("[role=region]"), stage.current];
+      const [says, picture] = [card?.querySelector("[data-says]"), stage.current];
       if (unmoving() || !says || !edge || !picture) return landed();
+      // Coming to full over the dot's first 300 ms, settling back over 300 ms once the card's light has gone.
+      edge.animate([{ opacity: 1, offset: 300 / 1450 }, { opacity: 1, offset: 1150 / 1450 }], { duration: 450 + 700 + 300 });
       // From its pin, as large as the pin's dot; in the app, where the pin isn't drawn here, from where it was asked for.
       const pin = !inApp && document.querySelector(`[data-pin="${CSS.escape(note.id)}"]`)?.getBoundingClientRect();
       const stood = picture.getBoundingClientRect();
@@ -450,7 +454,7 @@ export function MomentView(props: {
         ],
         { duration: 450, easing: "cubic-bezier(0.45, 0, 0.2, 1)", fill: "forwards" },
       );
-      going.onfinish = () => (landed(), dot.remove());
+      going.onfinish = () => (landed(true), dot.remove());
     });
   };
   // The open note's frame over the moment, and the one before it while that fades: only ever this moment's.

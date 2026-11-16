@@ -24,6 +24,8 @@
   /* What floats over the recording, the bar and the cards, is edged so it never blends into the page it's over. */
   --edge: rgba(20, 24, 34, 0.08);
   --drop: rgba(20, 24, 34, 0.16);
+  /* What sits back so the recording has your eye: an edge at rest, and in the app all that drives the recording. */
+  --resting: 0.4;
   color-scheme: light;
 }
 
