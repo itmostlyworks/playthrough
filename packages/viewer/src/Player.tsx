@@ -12,7 +12,7 @@ import { Replay, type Choice, type Events, type Pressed, type Rect, type Scrolle
 import type { Crop } from "./Picture.tsx";
 import { stepFrom } from "./stepping.ts";
 import { pickAt } from "./things.ts";
-import { around as aroundCentre, centreOf, CLOSEST, following as followingPointer, holding, wheeled, zoomedAt, type Together } from "./view.ts";
+import { around as aroundCentre, calm, centreOf, CLOSEST, following as followingPointer, holding, nearer, wheeled, type Together } from "./view.ts";
 
 // Nothing happening for longer than this is waiting, and is played as this long.
 const WAIT = 0.7;
@@ -92,19 +92,6 @@ type View = { left: number; top: number; across: number; k: number };
 
 // The time of the frame being drawn, as the page's own transitions keep it.
 const frameTime = () => Number(document.timeline.currentTime ?? performance.now());
-
-// The page's own curve, --ease-calm, cubic-bezier(0.2, 0.8, 0.2, 1): the view glides on it, as the picture narrows and
-// widens around it for Compare, so the two move in step.
-function calm(t: number): number {
-  const along = (s: number, a: number, b: number) => 3 * (1 - s) ** 2 * s * a + 3 * (1 - s) * s * s * b + s ** 3;
-  let [low, high] = [0, 1];
-  for (let i = 0; i < 20; i++) {
-    const s = (low + high) / 2;
-    if (along(s, 0.2, 0.2) < t) low = s;
-    else high = s;
-  }
-  return along((low + high) / 2, 0.8, 1);
-}
 
 type Props = {
   change: string;
@@ -420,13 +407,15 @@ export function Player(props: Props) {
     // Asked first, Firefox says a mouse's notch in lines rather than in pixels it has guessed.
     const [lines, pages] = [event.deltaMode === WheelEvent.DOM_DELTA_LINE, event.deltaMode === WheelEvent.DOM_DELTA_PAGE];
     const by = wheeled(lines, pages, event.deltaY, event.ctrlKey);
-    const shownAt = box.current!.getBoundingClientRect();
-    const closest = moves.closest ?? CLOSEST * shown.view.fit;
-    const next = zoomedAt(shown.view, shown.room, shown.page, [event.clientX - shownAt.left, event.clientY - shownAt.top], by, closest);
-    if (Math.abs(next.k - shown.view.k) < 1e-9) return;
+    const { view: now, room } = shown;
+    // Turned again while it's on its way, it goes on from where it was heading.
+    const from = moves.heading ?? now.k;
+    const to = nearer(from, by, now.fit, moves.closest ?? CLOSEST * now.fit);
+    if (Math.abs(to - from) < 1e-9) return;
     take();
-    if (next.k <= next.fit * 1.001 && !actualSize && !crop) moves.letGo();
-    else moves.move(centreOf(next, shown.room), next.k);
+    const shownAt = box.current!.getBoundingClientRect();
+    const [x, y] = [event.clientX - shownAt.left, event.clientY - shownAt.top];
+    moves.zoom(now.k, to, [now.x + x / now.k, now.y + y / now.k], [x - room.width / 2, y - room.height / 2], to <= now.fit * 1.001 && !actualSize && !crop);
   };
   useEffect(() => {
     const heard = (event: WheelEvent) => wheel.current?.(event);

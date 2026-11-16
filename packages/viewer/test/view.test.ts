@@ -3,19 +3,22 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { around, wheeled, zoomedAt, type View } from "../src/view.ts";
+import { approach, around, centreFor, nearer, SETTLES, wheeled, type View } from "../src/view.ts";
 
 const room = { width: 1152, height: 720 };
 const page = { width: 1280, height: 800 };
 const whole = around(room, page, [0, 0], 0);
 const underPointer = (view: View, at: [number, number]): [number, number] => [view.x + at[0] / view.k, view.y + at[1] / view.k];
+// The view at closeness k about the page's point under `at` in `view`, as the wheel takes it there.
+const zoomedTo = (view: View, at: [number, number], k: number) => around(room, page, centreFor(underPointer(view, at), [at[0] - room.width / 2, at[1] - room.height / 2], k), k);
+const zoomedAt = (view: View, at: [number, number], by: number) => zoomedTo(view, at, nearer(view.k, by, view.fit, 3 * whole.fit));
 
 test("the wheel brings the picture closer about the point under the pointer, which stays under it", () => {
   let view = whole;
   const at: [number, number] = [700, 260];
   const point = underPointer(view, at);
   for (let notch = 0; notch < 8; notch++) {
-    view = zoomedAt(view, room, page, at, 1.18, 3 * whole.fit);
+    view = zoomedAt(view, at, 1.18);
     const [x, y] = underPointer(view, at);
     assert.ok(Math.abs(x - point[0]) < 1e-6 && Math.abs(y - point[1]) < 1e-6, `notch ${notch + 1} moved the point`);
   }
@@ -23,22 +26,56 @@ test("the wheel brings the picture closer about the point under the pointer, whi
 
 test("it goes no closer than three times the whole screen, and no further out than the whole screen, where it's as it starts", () => {
   let view = whole;
-  for (let notch = 0; notch < 20; notch++) view = zoomedAt(view, room, page, [100, 600], 1.18, 3 * whole.fit);
+  for (let notch = 0; notch < 20; notch++) view = zoomedAt(view, [100, 600], 1.18);
   assert.equal(view.k, 3 * whole.fit);
-  for (let notch = 0; notch < 20; notch++) view = zoomedAt(view, room, page, [900, 100], 1 / 1.18, 3 * whole.fit);
+  for (let notch = 0; notch < 20; notch++) view = zoomedAt(view, [900, 100], 1 / 1.18);
   assert.deepEqual(view, whole);
 });
 
 test("brought further out near an edge, it never shows past the screen's edges", () => {
-  let view = zoomedAt(whole, room, page, [1100, 700], 2.5, 3 * whole.fit);
-  view = zoomedAt(view, room, page, [10, 10], 1 / 1.5, 3 * whole.fit);
+  let view = zoomedAt(whole, [1100, 700], 2.5);
+  view = zoomedAt(view, [10, 10], 1 / 1.5);
   assert.ok(view.x >= 0 && view.y >= 0);
   assert.ok(view.x + room.width / view.k <= page.width + 1e-9 && view.y + room.height / view.k <= page.height + 1e-9);
 });
 
 test("already closer than the closest, as a phone's picture starts, the wheel in leaves it as close as it is", () => {
   const close = around(room, page, [640, 400], 4);
-  assert.equal(zoomedAt(close, room, page, [500, 300], 1.18, 3 * whole.fit).k, 4);
+  assert.equal(zoomedAt(close, [500, 300], 1.18).k, 4);
+});
+
+// Frames of the wheel's ease toward `to` from `k`, 16 ms apart, until it's there.
+const frames = (k: number, to: number) => {
+  const all = [k];
+  while (all.at(-1) !== to && all.length < 100) all.push(approach(all.at(-1)!, to, 16));
+  return all;
+};
+
+test("a notch eases there, fast at first, never past it, and is at rest within its time", () => {
+  const all = frames(1, 1.18);
+  assert.ok(all.every((k, i) => i === 0 || (k > all[i - 1]! && k <= 1.18)), "every frame closer, none past it");
+  assert.ok(all[1]! - all[0]! > all[2]! - all[1]!, "fastest at once");
+  assert.ok((all.length - 1) * 16 <= SETTLES + 16, `at rest in ${(all.length - 1) * 16} ms`);
+  assert.equal(all.at(-1), 1.18);
+});
+
+test("notches in quick succession end where they would one at a time, and the point under the pointer stays under it in every frame", () => {
+  const at: [number, number] = [700, 260];
+  const point = underPointer(whole, at);
+  let [k, to] = [whole.k, whole.k];
+  for (let notch = 0; notch < 5; notch++) {
+    to = nearer(to, 1.18, whole.fit, 3 * whole.fit);
+    for (let frame = 0; frame < 2; frame++) {
+      k = approach(k, to, 16);
+      const [x, y] = underPointer(zoomedTo(whole, at, k), at);
+      assert.ok(Math.abs(x - point[0]) < 1e-6 && Math.abs(y - point[1]) < 1e-6, `notch ${notch + 1}, frame ${frame + 1} moved the point`);
+    }
+  }
+  let one = whole;
+  for (let notch = 0; notch < 5; notch++) one = zoomedAt(one, at, 1.18);
+  const eased = zoomedTo(whole, at, frames(k, to).at(-1)!);
+  assert.equal(eased.k, one.k);
+  assert.ok(Math.abs(eased.x - one.x) < 1e-9 && Math.abs(eased.y - one.y) < 1e-9);
 });
 
 test("a mouse's notch is the same, about a sixth closer, whether it comes in lines or in pixels", () => {

@@ -431,7 +431,15 @@ pointing and the arrows run nothing; there's no key yet to point with. Reduced m
 stays under it: from the whole screen up to three times closer (`CLOSEST`, `view.ts`), a notch about a sixth (`wheeled`:
 Firefox counts a mouse's notch in lines, three, and others in pixels, 100, and both come to the same; a trackpad's
 small turns go in proportion, and its pinch, which comes as the wheel with Ctrl, zooms the picture, never the page; a
-two-finger swipe zooms it too). All the way out it's the whole screen again, just as before it was moved: the wheel is
+two-finger swipe zooms it too). A notch doesn't jump: it says where the picture is heading, and the picture gets there
+in about a tenth of a second (`SETTLES`, `view.ts`, 110 ms), fastest at once and slowing as it arrives, never past it
+and never drifting on after (`approach`: each frame closes the same share of what's left, so it comes within half a
+pixel of where it's heading in that time). Notches in quick succession add up to one place it carries on toward, and
+the point under the pointer stays under it in every frame of the way, the pointer's place at each notch being the one
+held. A trackpad's small turns go through the same ease and trail it by a few milliseconds, too little to feel. Each
+frame of it is drawn, by every picture on the window and the pins and the open card over them, before the browser
+shows that frame (`Together` is given React's `flushSync` for it), so nothing is a frame behind. A drag takes it from
+wherever the ease has got to, at once and 1:1. With reduced motion there's no ease. All the way out it's the whole screen again, just as before it was moved: the wheel is
 the way back, with no button for it. Closer than the whole screen, **a drag moves the picture**, never past the screen's
 own edges; whole, there's nowhere for it to go and a drag does what it always did. A press that moves less than 8px
 (`SLOP`, `Player.tsx`) is a press, at any closeness (it plays or pauses, or with Note on places the note on what's

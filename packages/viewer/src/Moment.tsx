@@ -132,7 +132,7 @@ export function MomentView(props: {
   const phone = usePhone();
   const closeTo = about ?? moment.acted;
   const closer = useMemo(() => (phone ? startOn(readings?.at(-1), closeTo, screen.width / screen.height) : undefined), [phone, readings, closeTo?.role, closeTo?.name]);
-  const pageWindow = useMemo(() => new Together(), [phone, moment.recording]);
+  const pageWindow = useMemo(() => new Together(flushSync), [phone, moment.recording]);
   // Moved, what's drawn over the picture by where things are on it is placed again.
   const [, windowMoved] = useState(0);
   useEffect(() => pageWindow.follow(() => windowMoved((times) => times + 1)), [pageWindow]);
