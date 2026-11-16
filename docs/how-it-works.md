@@ -309,6 +309,11 @@ the page says so calmly, with what your agents are on ("Your agents are on:", ea
 true of. Its first line stays put as a change moves between the two when an agent arrives: the rest grows and shrinks
 under it, rather than the whole being centred.
 
+**"Tell yours: “Pick up my notes in Playthrough.”"**, wherever it shows, copies the sentence on a press (`TellYours`,
+`Changes.tsx`): a button of the sentence's own size, so "Copied" shows in its place for 1.4 s with nothing moving, and a
+press on it in a row doesn't open the change. Opened over plain http (a tailnet), where the browser gives no
+clipboard, it copies the older way; failing that, it selects the sentence for Ctrl+C and doesn't say Copied.
+
 **The top of every page** (`Header.tsx`) is its two corners: at the left Playthrough and what's waiting in it, the way
 to every other change; at the right what's next (Next). Between them, nothing: what
 this is stands on the recording's top. The left is one thing to press, the opener (`Waiting.tsx`): Playthrough's mark

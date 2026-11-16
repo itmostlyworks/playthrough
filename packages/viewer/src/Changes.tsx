@@ -3,7 +3,7 @@
 // that, small, in a line. Pressed, a row goes straight to the first thing on it you haven't seen; pressed, a moment
 // goes straight to it. What's with your agents and what's done are quieter rows below.
 
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { latestOf, standingOf } from "@playthrough/change";
 import type { Listed } from "./api.ts";
 import { SAID, SendButton, Taken, take } from "./Send.tsx";
@@ -351,12 +351,60 @@ function Row(props: {
 }
 
 // Sent, and nothing is listening for it: what to say to your agent, word for word, on a line of its own under the row's.
+// The words copy on a press, said "Copied" in their place for a moment, at their size, so nothing moves.
 export function TellYours({ words }: { words: string }) {
+  const [copied, setCopied] = useState(false);
+  const sentence = useRef<HTMLSpanElement>(null);
+  const shown = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(shown.current), []);
+  const copy = async (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    const button = event.currentTarget;
+    if (!(await copyText(words, button))) return void window.getSelection()?.selectAllChildren(sentence.current!);
+    clearTimeout(shown.current);
+    setCopied(true);
+    shown.current = setTimeout(() => setCopied(false), 1400);
+  };
   return (
     <span className="pointer-events-none w-full text-[13px] leading-5 text-soft">
-      Tell yours: <span className="text-fg">“{words}”</span>
+      Tell yours:{" "}
+      <button
+        onClick={copy}
+        aria-label={`Copy “${words}”`}
+        // Its hover and ring are drawn round it, not padded into it: it takes up only its words' room, in a line that
+        // cuts what doesn't fit.
+        className="pointer-events-auto relative cursor-pointer rounded-sm text-left text-fg transition-[background-color,box-shadow] duration-150 ease-calm hover:bg-hover hover:shadow-[0_0_0_3px_var(--hover)] focus-visible:shadow-[0_0_0_2px_var(--amber)] focus-visible:outline-none"
+      >
+        <span className={`transition-opacity duration-150 ease-calm ${copied ? "opacity-0" : ""}`}>
+          “<span ref={sentence}>{words}</span>”
+        </span>
+        <span aria-live="polite" className={`absolute inset-y-0 left-0 text-soft transition-opacity duration-150 ease-calm ${copied ? "" : "opacity-0"}`}>
+          {copied ? "Copied" : ""}
+        </span>
+      </button>
     </span>
   );
+}
+
+// On a page opened over plain http, as on a tailnet, the browser gives no clipboard: the older way still copies there.
+async function copyText(words: string, focused: HTMLElement): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(words);
+    return true;
+  } catch {
+    const area = Object.assign(document.createElement("textarea"), { value: words, readOnly: true });
+    area.style.cssText = "position:fixed;opacity:0;pointer-events:none";
+    document.body.append(area);
+    area.select();
+    try {
+      return document.execCommand("copy");
+    } catch {
+      return false;
+    } finally {
+      area.remove();
+      focused.focus();
+    }
+  }
 }
 
 // When, on a quiet row, in its own words: when you sent it, said Done, or the agent started.
