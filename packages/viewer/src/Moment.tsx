@@ -227,7 +227,7 @@ export function MomentView(props: {
   const pill = useRef<HTMLSpanElement>(null);
   const toolbar = useRef<HTMLDivElement>(null);
   const [aiming, setAiming] = useState(false);
-  // One Escape in the app, the first of Back's two keys lights, and fades over the time a second one would take you back.
+  // One Escape in the app, Back's Esc key lights, and fades over the time a second one would take you back.
   const backKeys = useRef<HTMLSpanElement>(null);
   const escapedOnce = () =>
     backKeys.current?.firstElementChild?.animate([{ backgroundColor: "#EDB654", color: "#3B2A07", boxShadow: "0 0 0 1px #EDB654" }, {}], {
@@ -1046,13 +1046,14 @@ export function MomentView(props: {
               </>
             )}
             {/* On a phone, "Stepping…": its amber line says where, and the bar fits 390 wide with the arrows by Play. */}
-            <button className={`${ITEM} relative w-[116px] phone:w-[84px]`} disabled={!may.stepIn && !may.back} aria-pressed={stepping} onClick={stepInOrBack}>
+            <button className={`${ITEM} relative w-[116px] phone:w-[84px]`} disabled={!may.stepIn && !may.back} aria-pressed={stepping} aria-label={inApp ? "Back, Escape twice" : undefined} onClick={stepInOrBack}>
               {inApp ? "Back" : stepping ? <>Stepping<span className="phone:hidden"> in</span>…</> : "Step in"}{" "}
-              {/* In the app, a single Escape is the app's: twice is Back. */}
+              {/* In the app, a single Escape is the app's: twice is Back. One key and its count, as two alike side by
+                  side read as one drawn twice. */}
               {inApp ? (
-                <span ref={backKeys} className="flex gap-1 phone:hidden pointer-coarse:hidden">
+                <span ref={backKeys} className="flex items-center gap-1 phone:hidden pointer-coarse:hidden">
                   <Key>Esc</Key>
-                  <Key>Esc</Key>
+                  <span className="text-[11px] leading-4 text-[color-mix(in_srgb,var(--faint)_55%,var(--soft))]">×2</span>
                 </span>
               ) : (
                 !stepping && <Key>S</Key>

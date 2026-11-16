@@ -578,11 +578,12 @@ screen), with what to do; so does Playthrough no longer
 running. Whatever stopped it is said there in the server's words; in the app, so is a check at the end that
 doesn't hold now. The app opens in the recording's place, at the same size,
 and the recording's pointer comes to yours wherever yours has gone, and gives way to it. In the app the bar says "You,
-as …" beside Back, whose keys read Esc Esc. Back, the keyboard comes back to the page, and the app kept ready underneath
+as …" beside Back, whose key reads Esc ×2: one keycap and its count in the keycap's own small, quiet letters (two
+keycaps side by side read as a bug, the user said), heard as "Back, Escape twice". Back, the keyboard comes back to the page, and the app kept ready underneath
 is inert until it's yours again, so Tab never walks an app nobody can see. A single Escape is the app's, whatever the app does with it, or nothing,
 and Playthrough does nothing with it; Escape twice, the second within half a second of the first, is Back, and the app
 never hears that second press (`escapedTwice`, `twice.ts` in `@playthrough/page`, the same rule in the app and on
-Playthrough's page around it). A first press that counts lights Back's first Esc key in the pill's amber, fading out
+Playthrough's page around it). A first press that counts lights Back's Esc key in the pill's amber (×2 stays as it is), fading out
 over exactly the half second in which a second would take you back (the app tells the page with `escaped once`); with
 reduced motion it's lit, then unlit. Nothing in the bar changes size. A key held down is one press; with Note on,
 Escape is Playthrough's and turns it off, without counting as a first press, and lights nothing. A link out of it opens in a tab of your own. The app is drawn with
