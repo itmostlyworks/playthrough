@@ -1048,8 +1048,9 @@ export function MomentView(props: {
                   Compare <Key>C</Key>
                 </button>
               ) : (
-                // Nothing to compare: what it is, in Compare's place.
-                <span className={`${ITEM} ${COMPARING} cursor-default text-faint!`}>{looking ? "Unchanged" : "New"}</span>
+                // Nothing to compare: what it is, in Compare's place, at its width. Said, not offered: smaller, in the
+                // soft ink of words that say what something is, so it can't be taken for a button resting.
+                <span className={`${COMPARING} inline-flex cursor-default items-center justify-center text-xs text-soft`}>{looking ? "Unchanged" : "New"}</span>
               ))}
             </div>
             </>

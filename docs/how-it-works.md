@@ -385,7 +385,8 @@ drawn just as it was, never swapped for its picture, until the new one has faded
 with nothing moving in what's the same). The bar across its bottom edge: Play (Space), whose slim line along its own bottom edge fills as
 it plays, there only once the moment has left its end, with a small arrow either side, the frame before (←) and the
 next frame (→), their words and keys coming up over them when pointed at a while; Step in (S); Note (N, on the
-recording or in the app); Compare (C), or in its place "Unchanged" or "New", or while a note from an earlier hand-back is
+recording or in the app); Compare (C), or in its place "Unchanged" or "New", said rather than offered (smaller, in
+the soft ink, nothing to press or reach with Tab, at Compare's width), or while a note from an earlier hand-back is
 open, its "As it was" and "Now" switch; Compare's place is as wide as the switch, and in the app who you are takes
 Play's room and its arrows', so the bar is the same width from one moment to the next, in every state;
 on a phone its buttons sit closer and Step in on its way says "Stepping…", so all of it fits 390 wide. A click on the recording
