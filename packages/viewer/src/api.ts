@@ -7,8 +7,9 @@ import type { Change, Send } from "@playthrough/change";
 import type { Events } from "./replay.ts";
 
 // A change as `playthrough open` lists it: the change, at its address on this machine, the app's name and its people as the person
-// sees them ("Sam, a member"), and whether an agent is waiting for what's sent.
-export type Listed = { change: Change; app: string; people: Record<string, string>; agentWaiting: boolean };
+// sees them ("Sam, a member"), whether an agent is waiting for what's sent, and whether the one it was last said to is
+// known to have ended.
+export type Listed = { change: Change; app: string; people: Record<string, string>; agentWaiting: boolean; agentGone: boolean };
 
 // Every change on this machine, from every app and every copy of each, arriving again whenever any of them changes,
 // undefined until it's first come. One stream, while the page is in sight: a browser lets six requests at a time go to

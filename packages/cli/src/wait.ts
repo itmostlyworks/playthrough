@@ -4,8 +4,8 @@
 import { rmSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { list, notesNotTaken, quote, sendsNotTaken, type Change } from "@playthrough/change";
-import { stillAt, thisCommand, type Command } from "./command.ts";
+import { handBackInProgress, list, notesNotTaken, notesToAnswer, quote, sendsNotTaken, type Change, type Send } from "@playthrough/change";
+import { agentOf, stillAt, thisCommand, type Command } from "./command.ts";
 import type { Repo } from "./repo.ts";
 
 // While it waits, it says so beside the change, so the person can be told when nobody is: an agent's command in the
@@ -42,22 +42,54 @@ export async function agentWaiting(repo: Repo, id: string): Promise<boolean> {
   return still.some(Boolean);
 }
 
-// The changes here with notes sent that no agent has taken, and none listening for them: beside each, the person's page
-// says "No agent listening" and gives them words for a new one. Longest waiting first.
-export async function unheard(repo: Repo): Promise<Change[]> {
+// The person's notes are said to an agent: the agent, not the wait that said them, which ends there, is what the page
+// looks for while it works on them. Where the agent can't be known, nothing is kept, and the page goes on saying it's
+// working, as it can't tell.
+export async function saidTo(repo: Repo, id: string) {
+  const agent = agentOf();
+  if (agent) await writeFile(repo.working(id), JSON.stringify(agent));
+  else rmSync(repo.working(id), { force: true });
+}
+
+// The agent the notes were said to has ended: it's known, and isn't running.
+export async function agentGone(repo: Repo, id: string): Promise<boolean> {
+  try {
+    return !stillAt(JSON.parse(await readFile(repo.working(id), "utf8")) as Command);
+  } catch {
+    return false;
+  }
+}
+
+// What's sent on a change that no agent will answer, while none is listening: what none has taken, or else what the
+// agent that took it hadn't answered when it ended.
+async function unheardOn(repo: Repo, change: Change): Promise<{ sends: Send[]; notes: number } | undefined> {
+  if (await agentWaiting(repo, change.id)) return undefined;
+  if (notesNotTaken(change).length) return { sends: sendsNotTaken(change), notes: notesNotTaken(change).length };
+  const number = handBackInProgress(change);
+  const notes = notesToAnswer(change, number).length;
+  if (!notes || !(await agentGone(repo, change.id))) return undefined;
+  return { sends: change.sends.filter((send) => change.taken.some((taken) => taken.send === send.id && taken.handBack === number)), notes };
+}
+
+// The changes here with notes no agent will answer, and none listening for them: beside each, the person's page says
+// "No agent listening" and gives them words for a new one. Longest waiting first.
+export async function unheard(repo: Repo): Promise<{ change: Change; sends: Send[]; notes: number }[]> {
   const changes = await Promise.all((await repo.changes.list()).map((id) => repo.changes.get(id)));
-  const found = await Promise.all(changes.map(async (change) => notesNotTaken(change).length > 0 && !(await agentWaiting(repo, change.id))));
-  const sent = (change: Change) => sendsNotTaken(change)[0]!.sent;
-  return changes.filter((_, i) => found[i]).sort((a, b) => sent(a).localeCompare(sent(b)));
+  const found = await Promise.all(
+    changes.map(async (change) => {
+      const on = await unheardOn(repo, change);
+      return on ? [{ change, ...on }] : [];
+    }),
+  );
+  return found.flat().sort((a, b) => a.sends[0]!.sent.localeCompare(b.sends[0]!.sent));
 }
 
 // What an agent arriving here is told first, whatever it runs, so the person's words to it ("Pick up my notes in
 // Playthrough") lead somewhere: a 15 Nov user test's new agent read the help, named a change of its own, and the note
 // sat with nobody on it.
 export async function unheardSaid(repo: Repo): Promise<string[]> {
-  return (await unheard(repo)).map((change) => {
-    const notes = notesNotTaken(change).length;
-    const by = list([...new Set(sendsNotTaken(change).map((send) => send.by))]);
+  return (await unheard(repo)).map(({ change, sends, notes }) => {
+    const by = list([...new Set(sends.map((send) => send.by))]);
     return `${by} sent ${notes === 1 ? "a note" : `${notes} notes`} on ${quote(change.title)}, and no agent is listening for ${notes === 1 ? "it" : "them"}. playthrough wait gets ${notes === 1 ? "it" : "them"}, whatever change you're on.`;
   });
 }

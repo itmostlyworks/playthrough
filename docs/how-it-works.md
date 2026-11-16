@@ -175,6 +175,20 @@ run here means their change from then on (`These notes are on “…”: what yo
 user testing: the agent was stopped after handing back, the person sent a remark, and a new agent told exactly the
 page's words read the help, named a change of its own, and waited on it; the remark sat for 25 minutes.
 
+**An agent that took the notes and ended** leaves them to the next. When notes are said to an agent, the wait that
+says them keeps who the agent is in `working.json` (`saidTo`): the wait ends there, so what's kept is the process that
+ran it and goes on (`agentOf`, `command.ts`), the nearest above it outside its session (an agent starts one for each
+command, as Claude Code does) that isn't a shell given the command (`bash -c`) or a package runner (`npx`); with its
+start, so another process given its number later isn't taken for it, and the start of the machine. On the machine
+here, each of three agents running `npx playthrough wait` came out as its own `claude` process. The page's re-listing
+every two seconds asks whether it still runs (`agentGone`); once it doesn't, "Agent working" becomes "No agent
+listening" with the line to tell yours, everywhere it shows (`agentOn`, `step.ts`), and the notes it hadn't answered
+are unheard (`unheard`) as if never taken: said first to whatever an agent runs, given by `wait`, and the agent they're
+said to is the one working on them. Wherever it can't be known it keeps nothing, and the page goes on saying "Agent
+working": on macOS and Windows (no `/proc`), and for notes taken before this (no `working.json`). An agent that runs
+its commands in its own session is passed by for what started it, which ends later if at all: the page is late to
+say it's gone, never early. An agent still running but stuck isn't noticed.
+
 Each hand-back says which agent made it: Claude Code, Codex, Cursor and Gemini CLI are known from their shell
 (`agent.ts`); any other is "Agent".
 
@@ -576,7 +590,7 @@ was asked, when it started, and the format it's kept in), `moments/<words>.ts` (
 `hand-backs/<n>/` (each hand-back: `hand-back.json` with its moments and replies, `files/` with their recordings, readings and pictures, `since/<k>.json`
 compared with hand-back k), `sends/<id>.json` (what the person sent, never written again but once, to bring it to a newer format), `taken.json` (what the agent
 has taken of it), `seen.json` (what each person has opened), `branches/` (what the person did in the app, and notes'
-frames), `waiting/<pid>` (an agent listening). On the machine: `~/.playthrough/apps.json` and `open.json` (the page
+frames), `waiting/<pid>` (an agent listening), `working.json` (the agent the notes were last said to). On the machine: `~/.playthrough/apps.json` and `open.json` (the page
 running).
 
 **Kept in an older format**, a change is brought along once, the first time this Playthrough reads it

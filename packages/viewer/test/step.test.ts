@@ -28,6 +28,7 @@ const listed = (parts: Partial<Change> = {}): Listed => ({
   app: "Kan",
   people: {},
   agentWaiting: true,
+  agentGone: false,
 });
 
 const seen = (...moments: [number, string][]) => ({ seen: { [you]: moments.map(([handBack, moment]) => ({ handBack, moment })) } });
@@ -104,6 +105,14 @@ test("an agent is on a change while one listens, or while one that took what was
   assert.equal(agentOn(listed()), true);
   assert.equal(agentOn({ ...listed(), agentWaiting: false }), false);
   assert.equal(agentOn({ ...taken, agentWaiting: false }), true);
+  assert.equal(agentOn({ ...taken, agentWaiting: false, agentGone: true }), false, "the agent that took it has ended");
+});
+
+test("taken by an agent that has since ended, it's no agent listening, with what to tell yours; while it can't be told, the agent is working", () => {
+  const note = { id: "n1", on: { handBack: 1, moment: "Admin opens settings", at: 3 }, words: "The toggle is hard to find." };
+  const taken = { ...listed({ sends: [send(1, { notes: [note] })], taken: [{ send: "send-1", handBack: 2, at: "2026-11-11T10:01:00.000Z" }] }), agentWaiting: false };
+  assert.deepEqual(stepOf(taken, you), { is: "with", words: "Agent working" });
+  assert.deepEqual(stepOf({ ...taken, agentGone: true }, you), { is: "with", words: "No agent listening", tell: "Pick up my notes in Playthrough." });
 });
 
 test("a change is waiting on you once handed back, with your agents once you've sent on it or before it's handed back, and done once you say so", () => {

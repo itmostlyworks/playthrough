@@ -99,7 +99,7 @@ const TELL = "Pick up my notes in Playthrough.";
 // what's sent now reaches it. Without one, what's sent is kept for the next.
 export function agentOn(listed: Listed): boolean {
   const latest = latestOf(listed.change);
-  return listed.agentWaiting || (!!latest && !!workingSince(listed.change, latest));
+  return listed.agentWaiting || (!!latest && !!workingSince(listed.change, latest) && !listed.agentGone);
 }
 
 // Nothing handed back yet, it's with your agents; handed back, where it stands for you.
@@ -119,9 +119,11 @@ export function stepOf(listed: Listed, you: string): Step {
   if (notes + replies) return { is: "send", notes, replies, ...(standing.is === "waiting" && { words: lookOf(listed, you) }) };
   if (standing.is === "done") return { is: "quiet", words: "" };
   if (standing.is === "sent") {
-    if (workingSince(change, latest)) return { is: "with", words: "Agent working" };
+    // Taken, it's being worked on until the agent that took it has ended (where that can be known), when it's the
+    // next agent's, as if never taken.
+    if (workingSince(change, latest) && agentOn(listed)) return { is: "with", words: "Agent working" };
     // Just sent, "tell your agent" read as nonsense: you had. What's true is that nothing is listening for it.
-    if (waitingForTheAgent(change).length && !listed.agentWaiting) return { is: "with", words: "No agent listening", tell: TELL };
+    if (waitingForTheAgent(change).length && !agentOn(listed)) return { is: "with", words: "No agent listening", tell: TELL };
     return { is: "with", words: "Sent" };
   }
   const words = lookOf(listed, you);

@@ -4,13 +4,54 @@
 import { readFileSync } from "node:fs";
 import { uptime } from "node:os";
 
-export type Command = { by: number; boot?: string | number };
+// `started`, where it's known, tells the process from another given its number since on the same start of the machine.
+export type Command = { by: number; boot?: string | number; started?: number };
 
 export const thisCommand = (): Command => ({ by: process.pid, boot: boot() });
 
 // The command is still at it: its process is running, and is the same one, not another that has its number since the
-// machine started again.
-export const stillAt = (command: Command) => sameBoot(command.boot) && running(command.by);
+// machine started again, or since it ended.
+export const stillAt = (command: Command) => sameBoot(command.boot) && running(command.by) && (command.started === undefined || (processOf(command.by)?.started ?? command.started) === command.started);
+
+// The agent that ran this command, which goes on after it: the nearest process above it that isn't only how it was run.
+// What only runs it ends with it: anything in its session, which an agent starts for each command (Claude Code does),
+// and a shell given the command (`bash -c`) or a package runner (`npx`) above that. An agent that runs its commands in
+// its own session is passed by for what started it, as is a person's shell for their terminal: they end later, if at
+// all, so the page is late to say it, never early. Known only where /proc says it; elsewhere, nothing.
+export function agentOf(): Command | undefined {
+  const session = processOf(process.pid)?.session;
+  if (session === undefined) return undefined;
+  for (let pid = process.ppid; pid > 1; ) {
+    const one = processOf(pid);
+    if (!one) return undefined;
+    if (one.session !== session && !givenCommand(one.words)) return { by: pid, boot: boot(), started: one.started };
+    pid = one.parent;
+  }
+  return undefined;
+}
+
+const SHELLS = ["sh", "bash", "zsh", "dash", "ksh", "fish"];
+const RUNNER = /^(npm|npx|pnpm|pnpx|yarn|bunx?)\b/;
+const nameOf = (word = "") => word.split("/").at(-1)!.replace(/^-/, "");
+
+function givenCommand(words: string[]): boolean {
+  const [first = "", second] = words;
+  // A runner names itself in its first word, or, when run by node, in its script's.
+  if (RUNNER.test(nameOf(first.split(" ")[0])) || RUNNER.test(nameOf(second))) return true;
+  return SHELLS.includes(nameOf(first)) && words.slice(1).some((word) => /^-[a-z]*c[a-z]*$/.test(word));
+}
+
+// A process as /proc says it: its parent, its session, when it started since the machine did, and the words it runs.
+function processOf(pid: number): { parent: number; session: number; started: number; words: string[] } | undefined {
+  try {
+    const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+    const fields = stat.slice(stat.lastIndexOf(")") + 2).split(" ");
+    const words = readFileSync(`/proc/${pid}/cmdline`, "utf8").split("\0").filter(Boolean);
+    return { parent: Number(fields[1]), session: Number(fields[3]), started: Number(fields[19]), words };
+  } catch {
+    return undefined;
+  }
+}
 
 // Which start of the machine this is. Linux names each one; elsewhere it's when it started, which a clock set since moves
 // by no more than a few minutes.

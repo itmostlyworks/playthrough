@@ -20,7 +20,7 @@ import { keepNamed, type Assets } from "./assets.ts";
 import { frameOf, stillOf, type Framed } from "./frames.ts";
 import { getReady, keepReady, placeOf, waitedFor } from "./step-in.ts";
 import { setupIn } from "./setup.ts";
-import { agentWaiting } from "./wait.ts";
+import { agentGone, agentWaiting } from "./wait.ts";
 import { answers, openFile, stopUnused, UNUSED } from "./app.ts";
 import { thisCommand } from "./command.ts";
 
@@ -77,8 +77,9 @@ function keepsApps() {
 }
 
 // A change as the page has it: the change, by an address of the machine's (its copy's name, then its own), the app's
-// name and its people as the person sees them ("Sam, a member"), and whether an agent is waiting for what's sent.
-export type Listed = { change: Change; app: string; people: Record<string, string>; agentWaiting: boolean };
+// name and its people as the person sees them ("Sam, a member"), whether an agent is waiting for what's sent, and
+// whether the one it was last said to is known to have ended.
+export type Listed = { change: Change; app: string; people: Record<string, string>; agentWaiting: boolean; agentGone: boolean };
 
 // Every copy on the machine, each read where it's kept, and the list of every change in them, arriving again to whoever
 // asks each time it changes.
@@ -107,7 +108,9 @@ function onThisMachine() {
           name,
           shown,
           changes: await Promise.all(
-            changes.filter((change) => !!change).map(async (change) => ({ change: { ...change, id: `${name}/${change.id}` }, ...shown, agentWaiting: await agentWaiting(repo, change.id) })),
+            changes
+              .filter((change) => !!change)
+              .map(async (change) => ({ change: { ...change, id: `${name}/${change.id}` }, ...shown, agentWaiting: await agentWaiting(repo, change.id), agentGone: await agentGone(repo, change.id) })),
           ),
         };
       }),

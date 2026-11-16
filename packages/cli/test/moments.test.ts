@@ -15,7 +15,7 @@ import { change, changeHere, idOf, momentNamed, titleOf, momentsOf } from "../sr
 import { answer, howEachWent, wait } from "../src/moments.ts";
 import { repo } from "../src/repo.ts";
 import { problemsWithPeople } from "../src/setup.ts";
-import { agentWaiting, listening, unheardSaid } from "../src/wait.ts";
+import { agentGone, agentWaiting, listening, unheardSaid } from "../src/wait.ts";
 import { whyStopped } from "../src/reporter.ts";
 import { fileOf, sameAddress, wayFile, wayIn, whatDiffers, wordsIn, type Done } from "../src/way.ts";
 
@@ -359,6 +359,31 @@ describe("an agent listening", () => {
     rmSync(join(here.waiting("marked"), String(process.pid)));
     assert.equal(await agentWaiting(here, "marked"), false, "one whose process has ended");
   });
+
+  // As Claude Code runs a command in the background: in a session of its own, through a shell given the command, here
+  // with a timeout as well. The agent is this test's process, which started them.
+  test("the agent that ran a command is the nearest process above it that isn't only how it was run", { skip: process.platform !== "linux" }, () => {
+    const command = `import { agentOf } from ${JSON.stringify(new URL("../src/command.ts", import.meta.url).pathname)}; console.log(JSON.stringify(agentOf()))`;
+    const ran = execFileSync("setsid", ["bash", "-c", `timeout 30 sh -c 'node --input-type=module -e "$0"' ${JSON.stringify(command)}`], { encoding: "utf8" });
+    const agent = JSON.parse(ran);
+    assert.equal(agent.by, process.pid);
+    assert.equal(typeof agent.started, "number");
+  });
+
+  test("the agent notes were said to has ended only when it's known and its process, the same one, isn't running", { skip: process.platform !== "linux" }, async () => {
+    const here = repo(await mkdtemp(join(tmpdir(), "playthrough-gone-")));
+    folders.push(here.root);
+    mkdirSync(join(here.root, ".playthrough", "marked"), { recursive: true });
+    assert.equal(await agentGone(here, "marked"), false, "nothing known, as with notes taken before agents were looked for");
+    const said = (agent: object) => writeFileSync(here.working("marked"), JSON.stringify(agent));
+    const started = Number(readFileSync(`/proc/${process.pid}/stat`, "utf8").split(") ")[1]!.split(" ")[19]);
+    said({ by: process.pid, started });
+    assert.equal(await agentGone(here, "marked"), false, "still running");
+    said({ by: process.pid, started: started + 1 });
+    assert.equal(await agentGone(here, "marked"), true, "another process given its number since");
+    said({ by: 2 ** 22 + 1 });
+    assert.equal(await agentGone(here, "marked"), true, "ended");
+  });
 });
 
 describe("notes sent with no agent listening", () => {
@@ -402,6 +427,19 @@ describe("notes sent with no agent listening", () => {
     assert.doesNotMatch(told, /Waiting for the person/);
     assert.equal(await changeHere(here), TOTAL);
     assert.deepEqual(await unheardSaid(here), [], "taken, they're the agent's");
+  });
+
+  test("taken by an agent that ended before answering, they're the next agent's, said and given as if never taken", async () => {
+    const here = await leftBehind();
+    await quietly(() => change(here, "Show the total of the shown invoices", "A total for what's shown."));
+    await quietly(() => wait(here));
+    writeFileSync(here.working(TOTAL), JSON.stringify({ by: process.pid }));
+    assert.deepEqual(await unheardSaid(here), [], "while the agent that took them runs, they're its");
+    writeFileSync(here.working(TOTAL), JSON.stringify({ by: 2 ** 22 + 1 }));
+    assert.deepEqual(await unheardSaid(here), [`Kit sent a note on “Total under the invoices table”, and no agent is listening for it. playthrough wait gets it, whatever change you're on.`]);
+    await quietly(() => change(here, "Show the total of the shown invoices", "A total for what's shown."));
+    assert.match(await heard(() => wait(here)), /These notes are on “Total under the invoices table”[\s\S]*Kit said:[\s\S]*Kit: Say what it's the total of/);
+    assert.deepEqual(await unheardSaid(here), [], "said again, they're the new agent's");
   });
 
   test("are what wait gives an agent that hasn't named a change", async () => {

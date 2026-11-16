@@ -32,7 +32,7 @@ import { frameOf, glimpsesOf, readingsOf, type Failed } from "./reporter.ts";
 import { markUnsteady, recorder, runOnce } from "./run.ts";
 import { seenChanging, SQUARE, squaresOf, type Square } from "./seen.ts";
 import { setupIn } from "./setup.ts";
-import { listening, unheard } from "./wait.ts";
+import { listening, saidTo, unheard } from "./wait.ts";
 import { aboutSaid, ENDED, fileOf, wayFile, TIMED, whatDiffers, type About, type Done } from "./way.ts";
 
 // What a moment says is what's there, short enough to sit under a picture of it: who and where, the person sees.
@@ -488,16 +488,18 @@ export async function wait(repo: Repo) {
   }
   // Notes sent while no agent was listening are the next agent's, whichever change it's on, or with none named: the
   // person was told to ask any agent for them.
+  // Notes an agent took and hadn't answered when it ended are the next one's in the same way.
   const [nobodys] = await unheard(repo);
   if (nobodys) {
-    const taken = await changes.take(nobodys.id);
-    change = await changes.get(nobodys.id);
-    if (nobodys.id !== meant) {
-      await meanHere(repo, nobodys.id);
+    const id = nobodys.change.id;
+    await changes.take(id);
+    change = await changes.get(id);
+    if (id !== meant) {
+      await meanHere(repo, id);
       console.log(`\nThese notes are on ${quote(change.title)}: what you run here means it now.`);
     }
     const number = handBackInProgress(change);
-    return sayNotes(repo, change, number, notesToAnswer(change, number), taken[0]?.by);
+    return sayNotes(repo, change, number, notesToAnswer(change, number), nobodys.sends[0]!.by);
   }
   const id = await changeHere(repo);
   if (!last?.moments.length) throw new Refused(["There are no moments to hand back yet. Mark one: playthrough as <person>, then playthrough moment \"<what's there>\""]);
@@ -525,6 +527,7 @@ async function addressOf(repo: Repo, id: string): Promise<string> {
 }
 
 async function sayNotes(repo: Repo, change: Change, number: number, asking: string[], by = "The person") {
+  await saidTo(repo, change.id);
   const notes = allNotes(change);
   const pictures = await pictureNotes(repo, change, number, asking);
   const handedBack = change.handBacks.findLast((handBack) => handBack.finished);

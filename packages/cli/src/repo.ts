@@ -28,6 +28,8 @@ export function repo(root = home(process.cwd())) {
     files: (change: string, handBack: number) => join(changes, change, "hand-backs", String(handBack), "files"),
     // A file for each agent waiting for what's sent, named by its process.
     waiting: (change: string) => join(changes, change, "waiting"),
+    // The agent the person's notes were last said to, which works on them after its wait has ended.
+    working: (change: string) => join(changes, change, "working.json"),
     // How to start the app, committed.
     appFile,
     // What every moment of the app starts from, committed beside app.json.
