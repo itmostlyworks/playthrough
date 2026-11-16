@@ -3,7 +3,7 @@
 // over it, fading into the screen's edge. Pointed at, or reached with Tab, they come forward, all the way onto the
 // screen and a little over the recording, a moment's words coming up over its picture, a note's card as it was; a
 // touch brings them forward first. At rest they sit back, quieter, so the recording has your eye, and forward come to
-// full. While you're in the app they rest, quieter, as everything that drives the
+// full; a card that waits on you (a new answer, Send) is at full all along. While you're in the app they rest, quieter, as everything that drives the
 // recording does; the moments still answer a press, which leaves the app on the way, each coming to full as it's
 // pointed at, and their step left, which doesn't drive the recording, isn't quieter at all. Over each, what it holds, in a word, at its pictures' outer side, or where the header's own words
 // stand when they run past the screen's edge: it stays put as the edge comes forward, and an edge with nothing on it
@@ -77,7 +77,10 @@ export function Edge(props: {
   const { side, label, keys, stage, quiet, phone, empty, showing, arrived, children, foot, answers } = props;
   // What rests while you're in the app: every card, or where they answer, each until it's pointed at.
   const dead = quiet && !answers;
-  const resting = dead ? "opacity-(--resting)" : quiet ? "*:opacity-(--resting) *:hover:opacity-100" : "";
+  const [forward, setForward] = useState(false);
+  // At rest, each card sits back but what waits on you, which stays at full: it's what's left to do.
+  const sitsBack = !quiet && !forward ? "*:not-data-waiting:opacity-(--resting)" : "";
+  const resting = dead ? "opacity-(--resting)" : quiet ? "*:opacity-(--resting) *:hover:opacity-100" : sitsBack;
   const [room, setRoom] = useState<Room>();
   useLayoutEffect(() => {
     const shown = stage.current;
@@ -92,7 +95,6 @@ export function Edge(props: {
     addEventListener("resize", measure);
     return () => (watching.disconnect(), removeEventListener("resize", measure));
   }, [phone, side]);
-  const [forward, setForward] = useState(false);
   const timer = useRef(0);
   const own = useRef<HTMLDivElement>(null);
   // Whether the pointer is over it: a picture pressed lets go of the keys, which mustn't send it back from under the pointer.
@@ -195,8 +197,8 @@ export function Edge(props: {
         ref={own}
         role="region"
         aria-label={label}
-        // At rest it sits back, all of it as one, so the recording has your eye; in the app its cards already rest.
-        className={`fixed z-30 transition-[translate,opacity] duration-300 ease-calm ${forward || quiet ? "" : "opacity-(--resting)"}`}
+        // At rest its cards sit back, so the recording has your eye; in the app they rest as all that drives it does.
+        className="fixed z-30 transition-[translate] duration-300 ease-calm"
         style={{ top: room.top - INSET, height: room.height + 2 * INSET, width: DRAWER, left: right ? room.inner : room.inner - DRAWER, translate: forward ? `${right ? -shift : shift}px 0` : "0 0" }}
         {...pointing}
         onPointerDownCapture={(event) => {
@@ -221,7 +223,7 @@ export function Edge(props: {
             </div>
             {/* The list's last card, at rest as far past the screen's edge as the others are. */}
             {foot && (
-              <div ref={footing} className={`transition-opacity duration-300 ease-calm ${dead ? "opacity-(--resting)" : ""}`} inert={dead}>
+              <div ref={footing} className={`transition-opacity duration-300 ease-calm ${dead ? "opacity-(--resting)" : sitsBack}`} inert={dead}>
                 {foot(forward, forward ? 0 : Math.max(0, cutBy + TUCKED))}
               </div>
             )}
@@ -258,6 +260,8 @@ export function Tile(props: {
   strong: boolean;
   quiet?: boolean;
   lit?: boolean;
+  // It waits on you: at full while the edge sits back.
+  waiting?: boolean;
   // New since the page opened, it arrives from this side.
   arriving?: "left" | "right";
   picture: ReactNode;
@@ -268,7 +272,7 @@ export function Tile(props: {
   onPress: () => void;
   onPoint?: (pointed: boolean) => void;
 }) {
-  const { id, label, forward, strong, quiet, lit, arriving: from, picture, words, strip, onPress, onPoint } = props;
+  const { id, label, forward, strong, quiet, lit, waiting, arriving: from, picture, words, strip, onPress, onPoint } = props;
   const arriving = !!from;
   const own = useRef<HTMLButtonElement>(null);
   // A new one comes in from past the screen's edge, so it's seen arriving where it'll stay.
@@ -286,6 +290,7 @@ export function Tile(props: {
     <button
       ref={own}
       data-tile={id}
+      data-waiting={waiting || undefined}
       aria-label={label}
       aria-pressed={strong}
       onClick={(event) => {

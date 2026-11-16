@@ -735,6 +735,7 @@ export function MomentView(props: {
           forward={forward}
           strong={open === note.id}
           lit={pointed === note.id}
+          waiting={fresh}
           arriving={before && !before.has(note.id) ? "right" : undefined}
           strip
           picture={note.on && <NotePicture frame={frames[note.id]} focus={isNow(shownAt(note)) ? aboutHere : undefined} />}

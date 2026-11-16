@@ -470,9 +470,12 @@ not there over notes while there are none. The Moments edge ends in a short card
 ↑ ↓ by Moments, Shift ↑ ↓ by Notes (not on a phone). Forward, a card has one border, its own, which says the moment
 you're on or the one pointed at; the picture's own border is only there at rest. Each is a picture of one size (176 by 110), one after another, at rest beside the recording and never
 over it, 16px from it, running past the screen's edge where the window is too narrow for them, fading out over its last
-few pixels (never over pictures wholly on the screen). At rest an edge sits back, all of it at 40%, its word and last
-card too, as one, so the recording has your eye; the one you're on and an amber dot still tell apart from the rest
-(`--resting`, `style.css`, the same value the app's resting uses, from that one place; not on a phone). Pointed at (after 70 ms; going back after 220 ms), or reached with
+few pixels (never over pictures wholly on the screen). At rest an edge sits back, each of its cards at 40%, its word and
+last card too, so the recording has your eye; the one you're on and an amber dot still tell apart from the rest
+(`--resting`, `style.css`, the same value the app's resting uses, from that one place; not on a phone). What waits on
+you stays at full: a note's card saying "new answer", and the last card while it says Send. Once it stops waiting (the
+answer opened, the notes sent) it settles back with the rest, in the cards' own calm fade; nothing moves. With every card
+waiting, the edge looks as it did before it sat back (`data-waiting`, `Tile` and `StepCard`, dimmed by `Edge`). Pointed at (after 70 ms; going back after 220 ms), or reached with
 Tab, an edge comes forward, coming to full as it slides (300 ms, calm; with reduced motion, at once): it slides until its pictures are 16px from the screen's edge, a little over the recording,
 its cards alone, each a little apart. A moment's card's words, its name and then as whom, by their name alone ("… as Maja"), come up over its picture's
 lower part. A note's card is the same at rest and forward, and leads with what it is as a moment leads with its picture: its dot, its latest words in two lines

@@ -65,6 +65,8 @@ export function StepCard({ step, here, forward, tucked, dots, onPress }: { step:
   const [saidWidth, setSaidWidth] = useState(0);
   useLayoutEffect(() => setSaidWidth(said.current?.offsetWidth ?? 0));
   const dotted = dots.slice(0, tucked ? Math.max(0, Math.min(5, Math.floor((shows - saidWidth - 8) / 10))) : 5);
+  // Saying Send, it waits on you, so it's at full while the edge sits back.
+  const sends = !step.taken && step.said !== "sending" && step.what === "send";
   const words = step.taken ? (
     <>
       {tick}
@@ -72,7 +74,7 @@ export function StepCard({ step, here, forward, tucked, dots, onPress }: { step:
     </>
   ) : step.said === "sending" ? (
     step.what === "send" ? "Sending…" : "Done"
-  ) : step.what === "send" ? (
+  ) : sends ? (
     !tucked || fullWidth + (dots.length ? 8 + 10 * Math.min(5, dots.length) : 0) <= shows ? step.words : `Send ${step.count}`
   ) : (
     "Done"
@@ -80,6 +82,7 @@ export function StepCard({ step, here, forward, tucked, dots, onPress }: { step:
   return (
     <button
       data-tile="the last stop"
+      data-waiting={sends || undefined}
       aria-label={step.what === "send" ? step.words : step.taken ?? "Done"}
       aria-pressed={here}
       onClick={(event) => {
@@ -87,7 +90,7 @@ export function StepCard({ step, here, forward, tucked, dots, onPress }: { step:
         if (event.detail) event.currentTarget.blur();
         onPress();
       }}
-      className={`group/tile block w-full rounded-xl p-1.5 text-left transition-[background-color,box-shadow] duration-200 ease-calm focus-visible:outline-none ${forward ? `bg-surface focus-visible:shadow-[0_0_0_2px_var(--amber)] ${here ? "shadow-[0_0_0_1.5px_var(--soft)]" : "shadow-[0_0_0_1px_var(--edge)] hover:shadow-[0_0_0_1.5px_var(--faint)]"}` : "bg-ground shadow-[0_0_0_0_transparent]"}`}
+      className={`group/tile block w-full rounded-xl p-1.5 text-left transition-[background-color,box-shadow,opacity] duration-200 ease-calm focus-visible:outline-none ${forward ? `bg-surface focus-visible:shadow-[0_0_0_2px_var(--amber)] ${here ? "shadow-[0_0_0_1.5px_var(--soft)]" : "shadow-[0_0_0_1px_var(--edge)] hover:shadow-[0_0_0_1.5px_var(--faint)]"}` : "bg-ground shadow-[0_0_0_0_transparent]"}`}
     >
       <span
         className={`relative flex h-7 items-center rounded-lg px-2 text-[12.5px] font-medium transition-[box-shadow,color] duration-200 ease-calm ${here || step.taken ? "text-fg" : "text-soft"} ${forward ? "shadow-[0_0_0_0_transparent]" : `group-focus-visible/tile:shadow-[0_0_0_2px_var(--surface),0_0_0_4px_var(--amber)] ${here ? "shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--soft)]" : "shadow-[0_0_0_1px_var(--edge)] group-hover/tile:shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--faint)]"}`}`}
