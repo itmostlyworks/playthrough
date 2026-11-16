@@ -162,7 +162,13 @@ export async function moment(repo: Repo, words: string, named?: string, last?: n
   if (seen?.unsettled.length) console.log(`  It was still changing when it ended. If what it shows comes late, name that as the moment's thing: the moment waits for it.`);
   if (timely.length) console.log(`  Left out of where it lands, as it changes with time: ${list(timely.map(quote))}.`);
   console.log(`Not what you meant? Mark it again with --last N, the last N things done (0 is a still).`);
+  console.log(`\n${beforeHandingBack}`);
 }
+
+// Said where an agent is about to hand back. From 15 Nov's user testing: asked for boards in alphabetical order, an
+// agent also took away starred boards coming first; the person's boards had none starred, so nothing showed it.
+const beforeHandingBack =
+  "Before you hand back, read your whole change once more beside the ask. Anything that worked before and now works differently or is gone, and the ask didn't call for it: put it back. If the ask does need it, that's a moment of its own: set the app up so it shows, and mark it as it is now.";
 
 // What the agent did, as the rule for where a moment starts reads it: what took it to another page went, by the address
 // each thing was done at, a page loaded after it that it led to, or where the browser is now. A page gone to directly
@@ -375,6 +381,7 @@ export async function again(repo: Repo) {
 
   // What only the pictures show is the person's to look at: the agent can't see more of it than Playthrough did.
   console.log(`\n${howEachWent(moments, ran.failed, handedBack, toAccountFor(since)).join("\n")}`);
+  console.log(`\n${beforeHandingBack}`);
   const unanswered = notesToAnswer(change, number).filter((note) => !kept?.replies.some((reply) => reply.note === note && reply.words.trim()));
   console.log(
     `\n${unanswered.length ? `Answer ${unanswered.length > 1 ? "each note" : "the note"}: ${unanswered.map(answering).join("; ")}. Then hand` : "Hand"} back, in the background, so you hear when the person answers: playthrough wait`,

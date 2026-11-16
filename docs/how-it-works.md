@@ -111,7 +111,12 @@ agent was looking; between the moment's things it scrolls smoothly, as a person 
 
 **The read-back.** Kept, `moment` says its length (or that it's a still) and what it's about; `shows`, the things done,
 in plain words (`type “BS-WEB” in Card prefix → click Update`); `before`, the last of the way (kept, never shown); the
-paths of its first and last frames; and how to mark it again with `--last N`. Its frames (`first`, `a-beat-later` with
+paths of its first and last frames; how to mark it again with `--last N`; and, last, what to do before handing back,
+said again at the end of `again` and in `MOMENTS.md` (steps 6 and 10): read the whole change once more beside the ask,
+put back anything that worked before and now works differently or is gone without the ask calling for it, and where the
+ask does need it, set the app up so it shows and mark it as a moment of its own. From 15 Nov's user testing: asked for
+boards in alphabetical order, an agent also took away starred boards coming first, said so only in its chat, and the
+person, with none starred, accepted. What was taken away arrives as an ordinary moment, nothing marked as unasked. Its frames (`first`, `a-beat-later` with
 nothing done, `after-1`… after each thing done, the last, `held` once the end has held) are pictures the page took of
 itself, in both runs (`seen.ts`): where nothing changed from the first frame to any after it, in both runs, it says
 `Nothing you can see changed in it. Fine if that's the point`, leaving out squares that change with nothing done, that

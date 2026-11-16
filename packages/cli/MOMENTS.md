@@ -76,7 +76,10 @@ EACH CHANGE
    a moment won't land after a couple of tries, tell the person so, rather than work round it.
 5. A few moments per change: one for each person or situation the change treats differently (an owner and a member;
    what's accepted and what's refused). Run playthrough as again for each: the same browser starts again, fresh.
-6. Hand back: playthrough wait, in the background, with the longest time limit your shell allows. It stops the browser
+6. Before you hand back, read your whole change once more beside the ask. Anything that worked before and now works
+   differently or is gone, and the ask didn't call for it: put it back. If the ask does need it, that's a moment of its
+   own: set the app up so it shows, and mark it as it is now.
+   Hand back: playthrough wait, in the background, with the longest time limit your shell allows. It stops the browser
    playthrough as keeps. Then tell the person their moments are ready, one line each, in your words, and give them the
    page wait prints for this change (playthrough open, if it isn't open yet): their change, not a list to find it in.
    Wait tells you when the person has spoken. If it's stopped before then, as a long wait can be, run it again: nothing
@@ -97,4 +100,4 @@ whatever change you're on, and what you run means theirs from then on. Then:
    spoke on it. One nobody spoke on that's now different is worth a look too.
 9. playthrough answer <note> "<what you did, or your answer, in a line>" for each note: your answer is the only why the
    person sees. With nothing in the app changed since the person's moments ran, they go back as they are.
-10. playthrough wait, in the background, again. When the person says every moment looks good, it ends: the change is done.
+10. Read your change once more beside the ask, as in 6. Then playthrough wait, in the background, again. When the person says every moment looks good, it ends: the change is done.
