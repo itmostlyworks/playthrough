@@ -510,13 +510,25 @@ export function MomentView(props: {
     return () => removeEventListener("resize", again);
   }, [layers.length > 0]);
   const pictured = shownOpen && wasFrame(shownOpen.note);
-  const onPicture = ((): Placed | undefined => {
+  // Where a kept picture of a frame is drawn in the picture, and how large: through the window where the person has taken
+  // it, as the recording is; else whole and in the middle.
+  const framing = (screen: { width: number; height: number }) => {
     const shown = stage.current;
-    if (!shownOpen || !pictured || !shown) return undefined;
+    if (!shown) return undefined;
+    const room = { width: shown.clientWidth, height: shown.clientHeight };
+    if (pageWindow.moved) {
+      const view = pageWindow.shownIn(room, screen);
+      return { k: view.k, left: -view.x * view.k, top: -view.y * view.k };
+    }
+    const k = Math.min(room.width / screen.width, room.height / screen.height);
+    return { k, left: (room.width - screen.width * k) / 2, top: (room.height - screen.height * k) / 2 };
+  };
+  const onPicture = ((): Placed | undefined => {
+    const framed = pictured && framing(pictured.screen);
+    if (!shownOpen || !pictured || !framed) return undefined;
     const { screen, box } = pictured;
     if (!box) return {};
-    const k = Math.min(shown.clientWidth / screen.width, shown.clientHeight / screen.height);
-    const [left, top] = [(shown.clientWidth - screen.width * k) / 2, (shown.clientHeight - screen.height * k) / 2];
+    const { k, left, top } = framed;
     return { [shownOpen.note.id]: { left: left + box.x * screen.width * k, top: top + box.y * screen.height * k, width: box.width * screen.width * k, height: box.height * screen.height * k } };
   })();
   // Where the open note's thing is, one answer however it's found, and none until it's known: on the moment as it is
@@ -532,10 +544,10 @@ export function MomentView(props: {
     const shown = stage.current;
     const end = readings?.at(-1);
     if (!shown || !end || closer) return [];
-    const k = Math.min(shown.clientWidth / end.screen.width, shown.clientHeight / end.screen.height);
+    const { x, y, k } = pageWindow.shownIn({ width: shown.clientWidth, height: shown.clientHeight }, end.screen);
     return [about, moment.acted].flatMap((named) => {
       const thing = named && end.things.find((one) => one.role === named.role && one.name === named.name);
-      return thing ? [{ left: thing.box.x * k, top: thing.box.y * k, width: thing.box.width * k, height: thing.box.height * k }] : [];
+      return thing ? [{ left: (thing.box.x - x) * k, top: (thing.box.y - y) * k, width: thing.box.width * k, height: thing.box.height * k }] : [];
     });
   })();
   // Until this moment's reading has come, the bar stays where it was; on the page's first moment, it waits unseen.
@@ -543,7 +555,8 @@ export function MomentView(props: {
   const clear = !readings && !openThing ? lastClear.current : (lastClear.current = (() => {
     const [wide, high, barWide] = [stage.current?.clientWidth ?? 0, stage.current?.clientHeight ?? 0, toolbar.current?.offsetWidth ?? 0];
     const [left, right] = [(wide - barWide) / 2, (wide + barWide) / 2];
-    const under = (openThing ? [openThing] : away || comparing ? [] : kept).filter((one) => one.top + one.height > high - BAR / 2 - 12);
+    // What's below the picture, brought closer, isn't in it to be covered.
+    const under = (openThing ? [openThing] : away || comparing ? [] : kept).filter((one) => one.top + one.height > high - BAR / 2 - 12 && one.top < high);
     const covers = under.some((one) => one.left < right + 12 && one.left + one.width > left - 12);
     return { x: 0, y: covers ? BAR / 2 : 0 };
   })());
@@ -554,8 +567,10 @@ export function MomentView(props: {
   // moves. Only a note that turns out to be on nothing stands in the corner.
   const corner = spotAt({ x: 24, y: 24 });
   const cardBy = !carded ? undefined : phone ? corner : openAt && (openAt[carded.note.id] ?? corner);
-  // What it's about is outlined only at the point: midway, it may not be there yet.
-  const aboutAt = atPoint && !away && !opened ? placed?.[ABOUT] : undefined;
+  // What it's about is outlined only at the point: midway, it may not be there yet. Out of view, with the picture brought
+  // closer, there's nothing of it to outline.
+  const aboutPlaced = placed?.[ABOUT];
+  const aboutAt = atPoint && !away && !opened && aboutPlaced && (aboutPlaced.width || aboutPlaced.height) ? aboutPlaced : undefined;
 
   // Pressing away from what's open, anywhere but its card and its picture on the edge, closes it.
   const pressAway = (event: React.PointerEvent) => opened && !(event.target as Element).closest("[data-note-card], [data-tile]") && !stage.current?.contains(event.target as Node) && close();
@@ -898,13 +913,18 @@ export function MomentView(props: {
                 {layers.map(({ note, made }) => (
                   <div key={note.id} className="absolute inset-0 animate-arrive overflow-hidden bg-paper">
                     {wasFrame(note) ? (
-                      <img src={wasFrame(note)!.src} alt="" draggable={false} className="pointer-events-none absolute inset-0 size-full object-contain" />
+                      (() => {
+                        const { src, screen } = wasFrame(note)!;
+                        const framed = framing(screen);
+                        return <img src={src} alt="" draggable={false} className={`pointer-events-none absolute ${framed ? "max-w-none" : "inset-0 size-full object-contain"}`} style={framed && { left: framed.left, top: framed.top, width: screen.width * framed.k, height: screen.height * framed.k }} />;
+                      })()
                     ) : (
                       <Player
                         change={change.id}
                         handBack={made.handBack}
                         recording={made.recording}
                         at={made.at}
+                        moves={pageWindow}
                         hand={false}
                         marks={[{ id: note.id, ...(made.node !== undefined ? { node: made.node } : made.point && { point: made.point }) }]}
                         onMarks={note.id === shownOpen?.note.id ? (at) => setOnFrame({ note: note.id, at }) : undefined}
