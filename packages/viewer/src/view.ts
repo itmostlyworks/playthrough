@@ -53,6 +53,24 @@ export function holding(view: View, room: Size, page: Size, thing: { left: numbe
   return around(room, page, [x + width / 2, y + height / 2], k);
 }
 
-// Two windows at actual size onto the same part of the page, side by side: the one that leads says where, the other
-// shows the same, so nothing shifts between them that didn't move.
-export type Together = { centre?: Point; k?: number };
+// One window onto a moment's page, where on it and how close, that every picture of it shows: Compare's two sides, the
+// one that leads saying where, so nothing shifts between them that didn't move. Once the person has moved it, by
+// dragging the picture, it's theirs: it stays where they put it, following nothing, and every picture on it is told.
+export class Together {
+  centre?: Point;
+  k?: number;
+  moved = false;
+  #told = new Set<() => void>();
+  move(centre: Point, k: number) {
+    Object.assign(this, { centre, k, moved: true });
+    for (const tell of this.#told) tell();
+  }
+  // Where the next picture on it starts again: where it leads, or where it was going to start.
+  forget() {
+    Object.assign(this, { centre: undefined, k: undefined, moved: false });
+  }
+  follow(tell: () => void) {
+    this.#told.add(tell);
+    return () => void this.#told.delete(tell);
+  }
+}

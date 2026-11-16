@@ -4,7 +4,7 @@
 // matching moment, so the two stay in step. At rest, what's noted there is found on the page, and noting, what a click
 // would note is outlined.
 
-import { useEffect, useRef, useState, type MouseEvent, type RefObject } from "react";
+import { useEffect, useRef, useState, type MouseEvent, type PointerEvent, type RefObject } from "react";
 import { elementOf, type Glimpse } from "@playthrough/page";
 import type { Element, Moment, Point } from "@playthrough/change";
 import { recording } from "./api.ts";
@@ -123,6 +123,9 @@ type Props = {
   // that leads says where, as the older page's Compare does. Holding something, at rest, it's in view whole, the view
   // gliding there: both sides are told, so both glide.
   actualSize?: { together: Together; leads: boolean; holds?: Mark };
+  // Its window, which a drag on the picture moves: from where it shows, it's then the person's, and every picture on the
+  // same window goes with it. A press that doesn't move is a press, as it always was.
+  moves?: Together;
   // The notes on what's at this moment: at rest, where each one's thing is on the page, in the player's own pixels;
   // nothing while it's on its way there, so nothing is placed where its thing was on the way.
   marks?: Mark[];
@@ -191,7 +194,10 @@ export function Player(props: Props) {
   const handAt = useRef<{ x: number; y: number }>(undefined);
   useEffect(() => void (props.drawn && (props.drawn.current = () => handAt.current)), []);
 
-  const { at, playing, cut, clock, following, crop, marks, actualSize } = props;
+  const { at, playing, cut, clock, following, crop, marks, actualSize, moves } = props;
+  // Moved, by a drag on this picture or on another on the same window, it's drawn again there.
+  const [moved, setMoved] = useState(0);
+  useEffect(() => moves?.follow(() => setMoved((times) => times + 1)), [moves]);
   // Each mark as it is, so one found later, as a note's spot read from where it was made, is placed again.
   const marked = JSON.stringify(marks);
   // Another part of the page to show, the view glides there from where it was, whatever else changes meanwhile: the
@@ -217,8 +223,11 @@ export function Player(props: Props) {
       const whole = Math.max(shape.width, (shape.height * box.current.clientWidth) / box.current.clientHeight);
       let [left, top, across] = part ? [part.x * shape.width, part.y * shape.height, part.width * shape.width] : [(shape.width - whole) / 2, 0, whole];
       const { from } = glide.current;
-      if (actualSize) {
-        const room = { width: box.current.clientWidth, height: box.current.clientHeight };
+      const room = { width: box.current.clientWidth, height: box.current.clientHeight };
+      if (moves?.moved) {
+        const view = aroundCentre(room, shape, moves.centre!, moves.k);
+        [left, top, across] = [view.x, view.y, room.width / view.k];
+      } else if (actualSize) {
         const { together, leads } = actualSize;
         let view = leads || !together.centre ? followingPointer(replayed, time, length, room, shape) : aroundCentre(room, shape, together.centre, together.k);
         // What's held is a thing, or a part of the page, as a thing with the words around it.
@@ -310,19 +319,22 @@ export function Player(props: Props) {
           // picture's edge no longer hides it.
           const thing = thingOf(mark);
           const onScreen = thing && thing.left < shape.width && thing.top < shape.height && thing.left + thing.width > 0 && thing.top + thing.height > 0;
-          if (onScreen) return [mark.id, { left: (thing.left - left) * k, top: (thing.top - top) * k, width: thing.width * k, height: thing.height * k }];
-          // On a spot, where its thing was, it's always in the picture: out of it, at the edge nearest to where it was.
-          const spot = !thing && spotOf(mark);
+          // On a spot, where its thing was, it's always in the picture.
+          const spot = onScreen ? thing : !thing && spotOf(mark);
           if (!spot) return [mark.id, undefined];
-          const placed = { left: (spot.left - left) * k, top: (spot.top - top) * k, width: spot.width * k, height: spot.height * k };
+          // What the picture shows of it; out of the picture, as a part of the page moved out of view, at the edge
+          // nearest to where it is.
           const [wide, high] = [box.current!.clientWidth, box.current!.clientHeight];
-          const inFrame = placed.left >= 0 && placed.top >= 0 && placed.left + placed.width <= wide && placed.top + placed.height <= high;
+          const [x, y] = [(spot.left - left) * k, (spot.top - top) * k];
+          const [right, bottom] = [Math.min(x + spot.width * k, wide), Math.min(y + spot.height * k, high)];
+          const [shownLeft, shownTop] = [Math.max(x, 0), Math.max(y, 0)];
+          if (right >= shownLeft && bottom >= shownTop) return [mark.id, { left: shownLeft, top: shownTop, width: right - shownLeft, height: bottom - shownTop }];
           const edge = (at: number, size: number, all: number) => Math.min(Math.max(at + size / 2, EDGE), all - EDGE);
-          return [mark.id, inFrame ? placed : { left: edge(placed.left, placed.width, wide), top: edge(placed.top, placed.height, high), width: 0, height: 0 }];
+          return [mark.id, { left: edge(x, spot.width * k, wide), top: edge(y, spot.height * k, high), width: 0, height: 0 }];
         }),
       ),
     );
-  }, [replay, at, playing?.until, cut, following, crop, marked, width, glided, actualSize?.together, actualSize?.holds && JSON.stringify(actualSize.holds)]);
+  }, [replay, at, playing?.until, cut, following, crop, marked, width, glided, moved, actualSize?.together, actualSize?.holds && JSON.stringify(actualSize.holds)]);
 
   // What's under the pointer on the page at rest, in its own pixels, and what a click there would note.
   const [hover, setHover] = useState<Rect>();
@@ -351,8 +363,47 @@ export function Player(props: Props) {
     props.onPlace!(here.pick ? { element: elementOf(here.pick, here.pick.name) } : { point: { x: here.x / shape.width, y: here.y / shape.height } });
   };
 
+  // A drag on the picture moves its window, from where it showed as the press went down. Only a press that's gone further
+  // than a finger rests is a drag; the click after it is the drag's, so it neither plays nor places a note. Two fingers
+  // are the browser's own pinch.
+  const drag = useRef<{ x: number; y: number; from?: { centre: [number, number]; k: number } }>(undefined);
+  const press = (event: PointerEvent) => {
+    drag.current = moves && event.isPrimary && view.current ? { x: event.clientX, y: event.clientY } : undefined;
+  };
+  const pull = (event: PointerEvent) => {
+    const going = drag.current;
+    if (!going || !replay || !box.current || !view.current) return aim(event);
+    const [dx, dy] = [event.clientX - going.x, event.clientY - going.y];
+    if (!going.from) {
+      if (Math.hypot(dx, dy) < SLOP) return;
+      const { left, top, k } = view.current;
+      const room = { width: box.current.clientWidth, height: box.current.clientHeight };
+      going.from = { centre: centreOf({ x: left, y: top, k, fit: k }, room), k };
+      glide.current.from = undefined;
+      setHover(undefined);
+      box.current.setPointerCapture(event.pointerId);
+    }
+    const room = { width: box.current.clientWidth, height: box.current.clientHeight };
+    const { centre, k } = going.from;
+    const shown = aroundCentre(room, replay.replay.shapeAt(clock?.at ?? at), [centre[0] - dx / k, centre[1] - dy / k], k);
+    moves!.move(centreOf(shown, room), shown.k);
+  };
+  const letGo = () => {
+    if (drag.current?.from) swallowNextClick();
+    drag.current = undefined;
+  };
+
   return (
-    <div ref={box} className={`absolute inset-0 overflow-hidden ${aiming ? (hover ? "cursor-pointer" : "cursor-crosshair") : ""}`} onPointerMove={aim} onPointerLeave={() => setHover(undefined)} onClick={place}>
+    <div
+      ref={box}
+      className={`absolute inset-0 overflow-hidden ${moves ? "[touch-action:pinch-zoom] select-none" : ""} ${aiming ? (hover ? "cursor-pointer" : "cursor-crosshair") : ""}`}
+      onPointerDown={press}
+      onPointerMove={pull}
+      onPointerUp={letGo}
+      onPointerCancel={() => (drag.current = undefined)}
+      onPointerLeave={() => setHover(undefined)}
+      onClick={place}
+    >
       {hover && <div className="pointer-events-none absolute z-1 rounded-[4px] outline-1 outline-offset-4 outline-[rgba(217,162,58,0.75)] outline-solid" style={hover} />}
       <span ref={caret} className="pointer-events-none absolute top-0 left-0 z-1 bg-[#1e2330] opacity-0" />
       {/* A dropdown's list, open as the browser drew it: not in the page, so drawn here, in Chrome's look in both themes. */}
@@ -370,6 +421,17 @@ export function Player(props: Props) {
 
 // How far inside the picture's edge a spot that's out of it is pinned: a pin's half and a little.
 const EDGE = 14;
+
+// How far a press may move, in pixels, and still be a press rather than a drag: a finger resting is never quite still.
+const SLOP = 8;
+
+// The click that ends a drag is the drag's: nothing hears it. A drag by touch may end in none, so the next press, wherever
+// it is, is heard again.
+function swallowNextClick() {
+  const swallow = (event: Event) => (event.stopPropagation(), event.preventDefault());
+  addEventListener("click", swallow, { capture: true, once: true });
+  addEventListener("pointerdown", () => removeEventListener("click", swallow, { capture: true }), { capture: true, once: true });
+}
 
 // A key pressed shows this long, in seconds of the recording, and fades over its last part.
 const KEY_SHOWN = 0.9;

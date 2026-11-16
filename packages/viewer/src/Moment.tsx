@@ -30,8 +30,8 @@ import { backAgain } from "./step.ts";
 import { useKeptReady, useStepIn } from "./stepIn.ts";
 import { useHeld } from "./held.ts";
 import { overAPause } from "./stepping.ts";
-import { closeOn, aboutBox, StillPicture } from "./Still.tsx";
-import type { Together } from "./view.ts";
+import { startOn, aboutBox, StillPicture } from "./Still.tsx";
+import { Together } from "./view.ts";
 
 // How long what you did takes to fade out, back to the moment.
 const FADING = 300;
@@ -125,10 +125,12 @@ export function MomentView(props: {
   const [screen, setScreen] = useState({ width: 1280, height: 800 });
   const shape = readings?.at(-1)?.screen;
   useEffect(() => void (shape && (shape.width !== screen.width || shape.height !== screen.height) && setScreen(shape)), [shape?.width, shape?.height]);
-  // On a phone, the whole screen is too small to read: it's closed in on what the moment is about, as its still is.
+  // On a phone, the whole screen is too small to read: it starts closed in on what the moment is about, with the whole of
+  // the dialog or panel it's in, and a drag moves it from there. Each moment starts afresh.
   const phone = usePhone();
   const closeTo = about ?? moment.acted;
-  const closer = useMemo(() => (phone ? closeOn(readings?.at(-1), closeTo, screen.width / screen.height) : undefined), [phone, readings, closeTo?.role, closeTo?.name]);
+  const closer = useMemo(() => (phone ? startOn(readings?.at(-1), closeTo, screen.width / screen.height) : undefined), [phone, readings, closeTo?.role, closeTo?.name]);
+  const pageWindow = useMemo(() => (phone ? new Together() : undefined), [phone, moment.recording]);
   const cut = useCut(change.id, handBack.number, moment);
   const [clockOf] = useState(() => new Clock(end));
   const [bothOf] = useState(() => new Clock(0));
@@ -181,7 +183,7 @@ export function MomentView(props: {
   const both = useMemo(() => then && cut && playedTogether(cut, together(moment, then.moment)), [cut, then?.moment.recording, moment.recording]);
   // Each side at actual size, a window onto the same part of the page, following now's pointer, as the older page's are.
   const [{ leading, beside }] = useState(() => {
-    const samePart: Together = {};
+    const samePart = new Together();
     return { leading: { together: samePart, leads: true }, beside: { together: samePart, leads: false } };
   });
   // How far along both it rests: where now first is, or where it was let go, as now held while the other went on.
@@ -360,7 +362,7 @@ export function MomentView(props: {
   // Opened or closed, it stops where it's got to.
   const compare = () => {
     if (!may.compare) return;
-    leading.together.centre = undefined;
+    leading.together.forget();
     act({ type: "compare" });
   };
   const goTo = (to: number, open?: string) => {
@@ -543,8 +545,9 @@ export function MomentView(props: {
   // moves. Only a note that turns out to be on nothing stands in the corner.
   const corner = spotAt({ x: 24, y: 24 });
   const cardBy = !carded ? undefined : phone ? corner : openAt && (openAt[carded.note.id] ?? corner);
-  // What it's about is outlined only at the point: midway, it may not be there yet.
-  const aboutAt = atPoint && !away && !opened ? placed?.[ABOUT] : undefined;
+  // What it's about is outlined only at the point: midway, it may not be there yet. Moved out of the picture, it has
+  // nothing to outline.
+  const aboutAt = atPoint && !away && !opened && placed?.[ABOUT]?.width ? placed[ABOUT] : undefined;
 
   // Pressing away from what's open, anywhere but its card and its picture on the edge, closes it.
   const pressAway = (event: React.PointerEvent) => opened && !(event.target as Element).closest("[data-note-card], [data-tile]") && !stage.current?.contains(event.target as Node) && close();
@@ -832,6 +835,7 @@ export function MomentView(props: {
                 handBack={handBack.number}
                 recording={moment.recording}
                 crop={closer}
+                moves={pageWindow}
                 at={at}
                 playing={comparing ? undefined : playing}
                 cut={cut}
@@ -870,6 +874,7 @@ export function MomentView(props: {
                         at={both.at(along)[side.side]!}
                         following={playing ? { clock: bothOf, at: (along) => both.at(along)[side.side]! } : undefined}
                         actualSize={side.actualSize}
+                        moves={phone ? side.actualSize.together : undefined}
                       />
                       <span className={CHIP}>{side.label}</span>
                     </div>

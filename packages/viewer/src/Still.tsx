@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import type { Reading, Thing } from "@playthrough/page";
 import type { Change, HandBack, Moment } from "@playthrough/change";
 import { fineStill, picture, readings as readingsOf } from "./api.ts";
+import { clamp } from "./clamp.ts";
 import { around, Picture, union, type Crop } from "./Picture.tsx";
 
 // Each edge of a part of the page that isn't the page's own edge fades out.
@@ -24,13 +25,47 @@ export function closeOn(reading: Reading | undefined, about: { role: string; nam
   return shown && around(shown, reading.screen, shape, 3);
 }
 
+// Where a phone's picture of a moment starts: closed in on what it's about as its still is, and widened to the whole of
+// the dialog or panel that holds it, so no line in it is cut in half, however much smaller that comes out. Where nothing
+// smaller than the page holds it, as on a board or a page of its own, as close as its still, to be moved by a drag.
+export function startOn(reading: Reading | undefined, about: { role: string; name: string } | undefined, shape: number): Crop | undefined {
+  const shown = reading && aboutBox(reading, about);
+  const close = shown && around(shown, reading.screen, shape, 3);
+  const panel = close && panelOf(reading, aboutThing(reading, about)!);
+  if (!close || !panel) return close;
+  const { width: across, height: down } = reading.screen;
+  const width = Math.min(across, down * shape, Math.max(panel.width + 2 * ROOM, close.width * across));
+  const height = width / shape;
+  // All of it where it fits, else from its top, as far down as what it's about.
+  const fits = panel.height + 2 * ROOM <= height;
+  const from = fits ? panel.y + panel.height / 2 - height / 2 : panel.y - ROOM;
+  const y = clamp(clamp(from, shown.y + shown.height + ROOM - height, shown.y - ROOM), 0, down - height);
+  const x = clamp(panel.x + panel.width / 2 - width / 2, 0, across - width);
+  return { x: x / across, y: y / down, width: width / across, height: height / down };
+}
+
+// Room kept round a panel in a phone's picture, in the page's pixels.
+const ROOM = 24;
+
+// The outermost of what holds a thing that's still a panel of the page, not the page: no wider than three quarters of it.
+export function panelOf(reading: Reading, thing: Thing) {
+  let panel: Thing["box"] | undefined;
+  for (let holder = reading.things[thing.holder ?? -1]; holder; holder = reading.things[holder.holder ?? -1])
+    if (holder.box.width <= (reading.screen.width * 3) / 4) panel = holder.box;
+  return panel;
+}
+
+// Of several things the same, the one in view, as the moment was kept with.
+function aboutThing(reading: Reading | undefined, about: { role: string; name: string } | undefined) {
+  const alike = about ? (reading?.things ?? []).filter((one) => one.role === about.role && one.name === about.name) : [];
+  const inView = (box: { x: number; y: number; width: number; height: number }) => box.y + box.height > 0 && box.y < reading!.screen.height && box.x + box.width > 0 && box.x < reading!.screen.width;
+  return alike.find((one) => inView(one.box)) ?? alike[0];
+}
+
 // What a moment is about with its nearest words, as a field's label and the line under it, on its page: the part of
 // it to keep in view.
 export function aboutBox(reading: Reading | undefined, about: { role: string; name: string } | undefined) {
-  // Of several the same, the one in view, as the moment was kept with.
-  const alike = about ? (reading?.things ?? []).filter((one) => one.role === about.role && one.name === about.name) : [];
-  const inView = (box: { x: number; y: number; width: number; height: number }) => box.y + box.height > 0 && box.y < reading!.screen.height && box.x + box.width > 0 && box.x < reading!.screen.width;
-  const thing = alike.find((one) => inView(one.box)) ?? alike[0];
+  const thing = aboutThing(reading, about);
   if (!reading || !thing) return undefined;
   const gap = (a: number, aSize: number, b: number, bSize: number) => Math.max(0, Math.max(a, b) - Math.min(a + aSize, b + bSize));
   // What holds it, as a list whose header its menu sits in, isn't near it: it's around it.

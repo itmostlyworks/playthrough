@@ -461,7 +461,18 @@ doesn't press Send or Done. Writing a note in the app, none of them answer, as B
 the while. The menu at the top left still opens what's waiting over the app. **On a phone** (820px or less) there's no room beside the
 recording: under the bar, the notes and then the moments are rows of the same pictures, words always under them,
 scrolled sideways. The recording and its bar stay; what's under them scrolls, fading where there's more above or below,
-as an edge's list does and a note's thread too long for its card (`useMore`, `Edge.tsx`).
+as an edge's list does and a note's thread too long for its card (`useMore`, `Edge.tsx`). The whole screen is too small to
+read there, so the picture starts closed in on what the moment is about (`startOn`, `Still.tsx`): as close as its still,
+at most three times the whole screen's size, and widened to the whole of the dialog or panel that holds it, the outermost
+of what holds it that's no wider than three quarters of the page, so no line in it is cut in half; a wide one comes out
+smaller. All of the panel where it fits, else from its top down to what the moment is about. Where nothing smaller than
+the page holds it, as on a board, it starts as close as the still. **A drag moves the picture**, either way (the
+picture doesn't scroll with the rows under it; two fingers are the browser's own pinch, `touch-action: pinch-zoom`): a
+press that moves less than 8px is a press, as always (it plays or pauses, or with Note on places the note), and the
+click that ends a drag is the drag's. Once moved, the view is yours: it stays put as the moment plays, and another
+moment starts afresh. It's one window, `Together` (`view.ts`), which the picture is drawn from (`Player.tsx`) and a drag
+moves; its pins and outlines go with it, and a note's thing moved out of view keeps its pin at the picture's nearest
+edge, as a spot out of it does. Compare's two sides share theirs, so a drag on either moves both.
 
 **A note** (`Note.tsx`) is words on a thing in a picture. N, then "Point at what it's about" on the bar with "Cancel
 Esc": what a click would note is outlined and named as Playthrough names everything (`things.ts`, `pickAt`), and the
