@@ -429,6 +429,7 @@ export function Player(props: Props) {
   return (
     <div
       ref={box}
+      data-picture={moves ? "" : undefined}
       className={`absolute inset-0 overflow-hidden ${moves ? "[touch-action:pinch-zoom] select-none" : ""} ${dragging ? "cursor-grabbing" : aiming ? (hover ? "cursor-pointer" : "cursor-crosshair") : ""}`}
       onPointerDown={press}
       onPointerMove={pull}

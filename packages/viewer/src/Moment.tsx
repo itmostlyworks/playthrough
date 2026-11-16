@@ -250,6 +250,20 @@ export function MomentView(props: {
   useLayoutEffect(() => {
     if (stepping) pageWindow.wholeAgain(STEPS_OUT);
   }, [stepping]);
+  // The wheel over a note's pin or card on the picture is the picture's, as it is anywhere else on it, Ctrl or not, and
+  // never the page's: only a card's words, while they can still scroll that way, take a plain turn first.
+  useEffect(() => {
+    const shown = stage.current;
+    if (!shown) return;
+    const heard = (event: WheelEvent) => {
+      const on = event.target instanceof Element ? event.target : undefined;
+      if (!on?.closest("[data-pin], [data-note-card]") || (!event.ctrlKey && scrollsFirst(on, event.deltaY))) return;
+      const picture = document.elementsFromPoint(event.clientX, event.clientY).find((one) => one.matches("[data-picture]"));
+      if (picture && !picture.dispatchEvent(new WheelEvent("wheel", event))) event.preventDefault();
+    };
+    shown.addEventListener("wheel", heard, { passive: false });
+    return () => shown.removeEventListener("wheel", heard);
+  }, []);
 
   // Going to another moment, the one you were on stays under the new one, drawn just as it was where it stood, until the
   // new one has come in over it. Its picture would do it no justice: taken by another browser, its words fall a little
@@ -1191,6 +1205,15 @@ const OVER = 3 * 22 + 12;
 
 // The recording in its room, by its shape: as wide as the edges leave, or as tall as what's over and under it does.
 export const inItsRoom = (shape: number) => ({ width: `min(calc(100cqw - 2 * ${SIDE}), calc((100cqh - ${OVER + UNDER}px) * ${shape}))`, marginTop: OVER, marginBottom: UNDER });
+
+// Whether something from `from` up to a note's card can still scroll its words `by` this way.
+function scrollsFirst(from: Element, by: number): boolean {
+  for (let one: Element | null = from; one; one = one.parentElement) {
+    if (/auto|scroll/.test(getComputedStyle(one).overflowY) && (by < 0 ? one.scrollTop > 0 : one.scrollTop + one.clientHeight < one.scrollHeight - 1)) return true;
+    if (one.matches("[data-note-card], [data-pin]")) return false;
+  }
+  return false;
+}
 
 // A spot, as a thing with no size.
 const spotAt = ({ x, y }: { x: number; y: number }): Rect => ({ left: x, top: y, width: 0, height: 0 });

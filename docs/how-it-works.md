@@ -454,7 +454,9 @@ the same holds. It's
 one window, `Together` (`view.ts`), which every picture of the moment is drawn from (`Player.tsx`), the kept picture of
 a note's own frame too, and which the wheel and a drag move; its pins and outlines go with it, a note's thing moved out
 of view keeps its pin at the picture's nearest edge, as a spot out of it does, an open note's card stays by its pin, and
-the bar still drops below the edge only for what's in view (`kept`, `Moment.tsx`). The wheel over the bar, the edges or
+the bar still drops below the edge only for what's in view (`kept`, `Moment.tsx`). The wheel over a note's pin or an
+open card on the picture is the picture's too, Ctrl or not, never the page's (it was the page's zoom with Ctrl): it's
+handed to the picture under it, and only a card's words that can still scroll that way take a plain turn first. The wheel over the bar, the edges or
 the page around the picture does what it did before; in the app, the wheel and a drag are the app's.
 
 **The edges** (`Edge.tsx`). On the left, the change's moments; on the right, this moment's notes, sent then unsent, in
