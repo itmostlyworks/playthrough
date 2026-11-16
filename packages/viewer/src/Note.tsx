@@ -189,8 +189,9 @@ export function NoteCard({ by, stage, closing, under, children }: { by: Rect; st
   );
 }
 
-// Writing a note: Enter saves it, Shift+Enter is a new line, Escape lets it go.
+// Writing a note: Enter saves it, with Ctrl or ⌘ too, Shift+Enter is a new line, Escape lets it go.
 // A reply waits to be clicked into, so the keys stay the page's while a note is open (← → go on through the notes).
+// Enter and Escape stop here: the page hears a key after the save has closed the field, and Ctrl+Enter there sends.
 export function Write({ onSave, onDrop, placeholder = "What's right or wrong here?", rows = 3, start = "", focus = true }: { onSave: (words: string) => void; onDrop: () => void; placeholder?: string; rows?: number; start?: string; focus?: boolean }) {
   const [words, setWords] = useState(start);
   return (
@@ -206,6 +207,7 @@ export function Write({ onSave, onDrop, placeholder = "What's right or wrong her
           if (event.key === "Escape") return (event.stopPropagation(), onDrop());
           if (event.key === "Enter" && !event.shiftKey) {
             event.preventDefault();
+            event.stopPropagation();
             if (words.trim()) onSave(words.trim());
           }
         }}

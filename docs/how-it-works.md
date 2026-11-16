@@ -446,7 +446,8 @@ going to the last stop; with Shift, ↑ ↓ the note before and the next through
 moment's one after another, then on to the nearest moment that has one (its first going on, its last going back), and
 nothing past the change's first or last; W what's waiting; Escape closes what's open, leaves Compare or noting, or
 calls off a step in on its way; while the app is yours, Escape twice is Back; Ctrl+Enter (⌘↵) sends, wherever the
-keyboard is. Noting, while the bar says "Point at what it's about", only N and Escape answer, so words typed before
+keyboard is but in a note or reply being written: there Enter saves, with Ctrl or ⌘ too, Shift+Enter is a new line, and
+neither reaches the page, so one key never both saves and sends. Noting, while the bar says "Point at what it's about", only N and Escape answer, so words typed before
 pointing and the arrows run nothing; there's no key yet to point with. Reduced motion: nothing slides or fades.
 
 **The picture is a canvas.** The wheel over it brings it closer, or further, about the point under the pointer, which

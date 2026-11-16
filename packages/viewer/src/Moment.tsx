@@ -601,7 +601,7 @@ export function MomentView(props: {
   const escapes = useRef(escapedTwice(RIGHT_AFTER));
   keys.current = (event) => {
     const typing = event.target instanceof HTMLElement && event.target.closest("textarea, input, [contenteditable]");
-    // Ctrl+Enter sends, wherever the keyboard is.
+    // Ctrl+Enter sends, wherever the keyboard is but in a note being written, where it saves (`Write`).
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !writing) return (event.preventDefault(), void (unsent && step.what === "send" && step.press()));
     // A picture on an edge with the keyboard on it is pressed with Enter or Space, as any button is; but the last
     // stop's own card, there, is where you came by it, and Enter on it is the step.
