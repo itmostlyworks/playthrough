@@ -18,6 +18,7 @@ import { changeHere, momentNamed } from "./change.ts";
 import { hovering } from "./read.ts";
 import type { Repo } from "./repo.ts";
 import { giveBackLeft, make, personIn, problemsWithPeople, setupIn } from "./setup.ts";
+import { steadied } from "./steady.ts";
 import { wayIn, type Done } from "./way.ts";
 
 // The debugging port a browser here is reached at: this one, unless another copy's browser has it.
@@ -30,19 +31,6 @@ export type Browser = { pid: number; person: string; started: string; setup: Rec
 export const browserFile = (repo: Repo) => join(repo.root, ".playthrough", "browser.json");
 // Asked to start again, as whom, and where to: written by the next `as`, read by the one running.
 const againFile = (repo: Repo) => join(repo.root, ".playthrough", "browser-again.json");
-
-// Copied from test.ts, which can't be imported here without becoming a test file.
-const DAY = 24 * 60 * 60 * 1000;
-const onTheDayItStarted = (started: string, now = Date.now()) => new Date(now - (Math.floor(now / DAY) - Math.floor(Date.parse(started) / DAY)) * DAY);
-const seeded = `(() => {
-  let seed = 20251026;
-  Math.random = () => {
-    seed = (seed + 0x6d2b79f5) | 0;
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-})();`;
 
 // What's done in any of the browser's pages, kept as a person's is when they step into a moment (step-in.ts), whoever
 // drives: a click, words in a field, Enter in a field, and past what stepping in keeps, a key with Ctrl or ⌘ or Escape,
@@ -220,8 +208,7 @@ export async function as(repo: Repo, person: string, at?: string) {
   });
   // On the change's day, as each moment's way is run again, so what's dated reads the same in both.
   const started = await changeHere(repo).then((id) => repo.changes.get(id).then((change) => change.started), () => new Date().toISOString());
-  await context.clock.setSystemTime(onTheDayItStarted(started));
-  await context.addInitScript({ content: seeded });
+  await context.addInitScript({ content: steadied(started) });
   const page = context.pages()[0] ?? (await context.newPage());
   const request = await requests.newContext({ baseURL: app.url });
   let made = await make(setup, repo.borrowed, { page, request, baseURL: app.url, person });

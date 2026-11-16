@@ -189,7 +189,11 @@ Each moment is run as a Playwright test, its way there and its step, from `playt
 `reporter.ts`, run by `run.ts` with `playwright.config.ts`): a quarter as many at once as the machine has cores, or
 one at a time where `app.json` says so, in Chromium at 1280 by 800, against the copy's app (`app.ts`). It runs on the day
 the change was started, at the time of day it's run, the clock running on from there, in English and UTC, with the
-page's random numbers from a fixed seed, so what the page works out from the day reads the same each time. rrweb is in
+page's random numbers from a fixed seed, so what the page works out from the day reads the same each time, and so does
+the agent's browser (`steady.ts`, put in each page as it loads). Only `Date` is moved, by whole days: Playwright's clock,
+used until 16 Nov, moved `performance.now` and each animation frame's time too, counted from when it was set, so in the
+agent's browser, open ten minutes, a page reloaded had its entrance animations timed ten minutes ahead, and Kan's boards,
+faded in by framer-motion, stayed unseen: every moment marked there was "Not kept" for a dozen links "only run again". rrweb is in
 every page; the pointer glides to what it acts on, found before the hand sets off, and rests on it before acting; what's
 filled into a field is typed a key at a time (60 ms apart, a long text in 1.5 s at most). The browser's own dialogs, which
 rrweb never sees, are kept as moments of their own, held long enough to read (1.2 s and 40 ms a character, up to 4 s); a

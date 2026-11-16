@@ -19,6 +19,7 @@ import { repo } from "./repo.ts";
 import { ACTIONS, ASSETS, GLIMPSES, HOLD, PERSON, PICTURED, PICTURE, READINGS, RECORDING, seconds, whyStopped, type Failed, type Acted } from "./reporter.ts";
 import { SETTLED, stillFor, watchRest } from "./rest.ts";
 import { firstOf, make, personIn, setupIn, type Made, type Setup } from "./setup.ts";
+import { steadied } from "./steady.ts";
 
 // The screens besides the laptop every moment is on unless it says otherwise: a phone, tapped, and a tablet. A moment takes
 // one with test.use, and so does someone it's handed to.
@@ -188,22 +189,6 @@ let underway: Underway | undefined;
 let appSetup: Promise<Setup> | undefined;
 const setupOf = () => (appSetup ??= setupIn(repo(run?.root).setup));
 
-// Every hand-back runs on the day the change started, at the time of day it's recorded, with the page's random numbers from
-// the same seed, so what the page works out from the day reads the same each time. The app's server keeps the real time,
-// which nothing here sets, and on the real time of day what it stamps reads as it would: a card the setup made was made
-// “less than a minute ago”, in every hand-back that day. On a later day, the server's times are that many days ahead. The
-// clock runs on from there, as a person's does: page.clock.setFixedTime would stop it, and whatever the page times by it.
-const DAY = 24 * 60 * 60 * 1000;
-export const onTheDayItStarted = (started: string, now = Date.now()) => new Date(now - (Math.floor(now / DAY) - Math.floor(Date.parse(started) / DAY)) * DAY);
-const seeded = `(() => {
-  let seed = 20251026;
-  Math.random = () => {
-    seed = (seed + 0x6d2b79f5) | 0;
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-})();`;
 
 const recorded = base.extend<{ person: string | undefined; rest: () => Promise<void>; setup: Record<string, any>; recorder: void }>({
   // In one language and time zone wherever it's recorded, and opened as the app's setup says, under what the file says.
@@ -291,8 +276,7 @@ const recorded = base.extend<{ person: string | undefined; rest: () => Promise<v
 // the change's day and the seeded random numbers.
 async function readied(page: Page, run: Run) {
   await page.addInitScript({ content: recorder(run.recorder) });
-  await page.clock.setSystemTime(onTheDayItStarted(run.started));
-  await page.addInitScript({ content: seeded });
+  await page.addInitScript({ content: steadied(run.started) });
 }
 
 // A window of its own, in one language and time zone as every moment is, on the laptop unless it's on another screen, and
@@ -439,8 +423,7 @@ export async function runAlongside(
 ): Promise<{ handed?: Handed; stopped?: Pick<Failed, "at" | "why">; made?: Made; checked?: string }> {
   // The page, readied as the moment's was when it was recorded, and what it writes noted.
   const stepping: SteppingIn = { page, going: false, depth: 0, rest: await watchRest(page), done: 0, again: [], wrote: false, orders };
-  await page.clock.setSystemTime(onTheDayItStarted(started));
-  await page.addInitScript({ content: seeded });
+  await page.addInitScript({ content: steadied(started) });
   page.on("request", (request) => void (["GET", "HEAD", "OPTIONS"].includes(request.method()) || (stepping.wrote = true)));
   pace(page);
   // A page gone to in a step is the first place a step that starts on a blank page can be stepped into.
