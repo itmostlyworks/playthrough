@@ -123,7 +123,7 @@ export function StepAction({ step }: { step: Step }) {
     return (
       <div className="flex min-w-0 items-center">
         <Taken>{taken}</Taken>
-        {words && <span className={line}>{words}</span>}
+        {words && <span className={tell ? warning : line}>{words}</span>}
         {tell && (
           <span className="truncate pr-2 phone:hidden">
             <TellYours words={tell} />

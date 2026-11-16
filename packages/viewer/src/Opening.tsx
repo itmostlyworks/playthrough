@@ -131,7 +131,7 @@ export function NothingWaiting({ changes, you, opener }: { changes: Listed[]; yo
           )}
           {unheard.length > 0 && (
             <>
-              <p className={`${on.length ? "mt-5" : "mt-1"} text-[15px] leading-[22px] text-soft`}>No agent listening:</p>
+              <p className={`${on.length ? "mt-5" : "mt-1"} text-[15px] leading-[22px] text-amber-ink`}>No agent listening:</p>
               <ul className="mt-3">
                 {unheard.map(({ one, tell }) => (
                   <li key={one.change.id} className="py-1 text-[14px] leading-[22px]">
