@@ -82,11 +82,10 @@ function inMemory(number: number, recorded: Ran["recorded"]): Compared {
 // What a run recorded, and what failed.
 export type Ran = { recorded: { moment: Moment; files: { name: string; bytes: Buffer }[] }[]; failed: Failed[] };
 
-// Quietly, nothing it says is seen: how each went, or why the run didn't.
-export async function runOnce(run: Omit<Run, "folder">, { quietly = false } = {}): Promise<Ran> {
+export async function runOnce(run: Omit<Run, "folder">): Promise<Ran> {
   const folder = await mkdtemp(join(tmpdir(), "playthrough-"));
   try {
-    const ran = await playwright({ ...run, folder }, quietly);
+    const ran = await playwright({ ...run, folder });
     const text = await readFile(join(folder, "moments.json"), "utf8").catch(() => undefined);
     const { recorded, failed }: { recorded: Recorded[]; failed: Failed[] } = text ? JSON.parse(text) : { recorded: [], failed: [] };
     if (!ran && !failed.length) throw new Refused(["\nIt didn't run, for the reason Playwright gives above. Fix that and run this again."]);
@@ -97,7 +96,7 @@ export async function runOnce(run: Omit<Run, "folder">, { quietly = false } = {}
   }
 }
 
-async function playwright(run: Run, quietly: boolean): Promise<boolean> {
+async function playwright(run: Run): Promise<boolean> {
   // Moments import playthrough/test from the app, so it has to be one of the app's packages.
   try {
     createRequire(join(run.root, "package.json")).resolve("playthrough/test");
@@ -113,7 +112,7 @@ async function playwright(run: Run, quietly: boolean): Promise<boolean> {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [cli, "test", "--config", config], {
       cwd: run.root,
-      stdio: quietly ? "ignore" : "inherit",
+      stdio: "inherit",
       env: { ...process.env, PLAYTHROUGH_RUN: JSON.stringify(run) },
     });
     // It goes when Playthrough does.

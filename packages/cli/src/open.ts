@@ -22,7 +22,6 @@ import { getReady, keepReady, placeOf, waitedFor } from "./step-in.ts";
 import { setupIn } from "./setup.ts";
 import { agentGone, agentWaiting } from "./wait.ts";
 import { answers, openFile, stopUnused, UNUSED } from "./app.ts";
-import { exportsOf } from "./before.ts";
 import { thisCommand } from "./command.ts";
 
 export const PORT = 5790;
@@ -66,11 +65,10 @@ export async function open() {
 }
 
 // Open, Playthrough keeps each copy's app once it's running, whoever started it, until nobody has used it for a while:
-// stepping in again, or the agent's next command, finds it there; the app as it was before a change too (before.ts).
-// Closed, it lets go of those nobody is using.
+// stepping in again, or the agent's next command, finds it there. Closed, it lets go of those nobody is using.
 function keepsApps() {
   writeFileSync(openFile(), JSON.stringify(thisCommand()));
-  const look = (unused: number) => everyCopy().forEach(({ root }) => [root, ...exportsOf(root)].forEach((app) => stopUnused(app, unused)));
+  const look = (unused: number) => everyCopy().forEach(({ root }) => stopUnused(root, unused));
   setInterval(() => look(UNUSED), 60_000).unref();
   process.once("exit", () => {
     rmSync(openFile(), { force: true });
