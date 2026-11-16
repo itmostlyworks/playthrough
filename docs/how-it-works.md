@@ -124,7 +124,10 @@ Nov's user testing: a moment ended in the New board dialog, Create board never p
 out empty with nobody seeing.
 
 **`again`** runs every moment on the code as it is now, keeps them as the next hand-back, compares it with the hand-backs
-before (below), and says each is the same, different (in Playthrough's words), new, or couldn't get there, with how to
+before (below), and says each is the same, different (in Playthrough's words), new, or couldn't get there, with which step
+and why in Playthrough's words, never Playwright's (`whyStopped`, `reporter.ts`: "couldn't get there: no link “Settings”
+was there to click", "got there, but not through what it shows: …", "got there, but no heading “INV-1043” was to be
+seen"; anything else as it was said, in its first line), and how to
 get there by hand and mark it again or drop it. **`drop`** on a moment a note is waiting on, and **`answer`** to a note
 whose moment won't be handed back, refuse until a moment has been marked since the note reached the agent: the person
 sees what was done in a moment, not only in words. That's where such a note is then (`shownOn`, `standing.ts`): on the
@@ -468,7 +471,7 @@ to say why. **Every wait
 ends in words.** A step in has a minute from its asking, the app's start included ("The app hadn't answered … it may still
 be starting", "This moment didn't open within 60 seconds…"), each page load on the way 30 s, and it stops as soon as the
 asking request closes, though a setup already making its world finishes first, so what it made is given back whole; a
-moment that can't get there says where it stopped, in Playwright's words, and to say so in a note so the agent marks it
+moment that can't get there says where it stopped and why, in the same words as `again`, and to say so in a note so the agent marks it
 again; one whose check of how it ends doesn't hold on the code as it is now opens where it got to, with that said
 (`checked`); an app that won't start says what it said last and to check `app.json`; a moment that's gone from the
 change says to reload, or to wait for the agent to hand back; a page of a step in from before the page's server restarted says so

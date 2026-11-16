@@ -32,7 +32,7 @@ import { markUnsteady, recorder, runOnce } from "./run.ts";
 import { seenChanging, SQUARE, squaresOf, type Square } from "./seen.ts";
 import { setupIn } from "./setup.ts";
 import { listening, unheard } from "./wait.ts";
-import { aboutSaid, ENDED, fileOf, notSo, wayFile, TIMED, whatDiffers, type About, type Done } from "./way.ts";
+import { aboutSaid, ENDED, fileOf, wayFile, TIMED, whatDiffers, type About, type Done } from "./way.ts";
 
 // What a moment says is what's there, short enough to sit under a picture of it: who and where, the person sees.
 const MOST_WORDS = 10;
@@ -91,9 +91,8 @@ export async function moment(repo: Repo, words: string, named?: string, last?: n
   const [recorded] = ran.recorded;
   const [failed] = ran.failed;
   if (!recorded) {
-    if (there.about && failed?.found) throw notKept(`it got there, but ${notSo(there.about, failed.found)}.`);
-    if (there.about && failed?.why?.includes("expect(")) throw notKept(`it got there, but ${aboutSaid(there.about)} wasn't as it is where you are: ${failed.why}`);
-    throw notKept(`it didn't get there${failed?.why ? `: ${failed.why}` : "."}`);
+    if (there.about && !failed?.checked && failed?.why?.includes("expect(")) throw notKept(`it got there, but ${aboutSaid(there.about)} wasn't as it is where you are: ${failed.why}`);
+    throw notKept(`it ${failed ? stoppedSaid(failed) : "couldn't get there"}.`);
   }
   const readings: Reading[] = JSON.parse(recorded.files.find((one) => one.name === readingsOf(recorded.moment))!.bytes.toString());
   const ended: string = JSON.parse(readFileSync(join(trying, ENDED), "utf8")).url;
@@ -389,7 +388,7 @@ async function compareAll(repo: Repo, id: string, number: number, moments: Momen
 }
 
 // Each moment run again, in a line: new since it was last handed back, the same, different and how, as Playthrough
-// says it; or where its way stopped, with how to get it back.
+// says it; or where it stopped and why, with how to get it back.
 export function howEachWent(moments: Moment[], failed: Failed[], handedBack: HandBack, findings: Finding[]): string[] {
   const went = moments.map((moment) => {
     const different = findings.filter((finding) => finding.seen.some((seen) => seen.moment === moment.name));
@@ -398,10 +397,15 @@ export function howEachWent(moments: Moment[], failed: Failed[], handedBack: Han
   });
   const stopped = failed.map((one) => {
     const person = handedBack.moments.find((moment) => moment.name === one.moment)?.person;
-    return `${quote(one.moment)}: couldn't get there${one.why ? `, where the way stopped: ${quote(one.why.split("\n")[0]!)}` : ""}. Get there by hand (playthrough as ${person ?? "<person>"} ${JSON.stringify(one.moment)} goes as far as it can) and mark it again with the same words, or leave it out: playthrough drop ${JSON.stringify(one.moment)}`;
+    return `${quote(one.moment)}: ${stoppedSaid(one)}. Get there by hand (playthrough as ${person ?? "<person>"} ${JSON.stringify(one.moment)} goes as far as it can) and mark it again with the same words, or leave it out: playthrough drop ${JSON.stringify(one.moment)}`;
   });
   return [...went, ...stopped];
 }
+
+// Where a moment run from a fresh start stopped, and why: on its way there, or in what it shows; or it got there, and
+// what it's about wasn't as it was.
+const stoppedSaid = ({ at, why, checked }: Failed) =>
+  checked ? `got there, but ${why}` : `${at ? "got there, but not through what it shows" : "couldn't get there"}${why ? `: ${why}` : ""}`;
 
 // A note answered, in a line, under the agent's name, in what's handed back next.
 export async function answer(repo: Repo, note: string, words: string | undefined) {

@@ -207,10 +207,5 @@ const said = (one: ReturnType<typeof differences>["differences"][number]): strin
 const sizeOf = ({ box }: Thing) => `${Math.round(box.width)}×${Math.round(box.height)}px`;
 const LOOK: Record<keyof Thing["look"], string> = { background: "background", color: "text colour", size: "text size", weight: "text weight", border: "border" };
 
-// What the moment is about, checked again at the end of the way and found otherwise: not there to be seen, or not as it
-// was where the agent is ("button “Save” was disabled, not enabled").
-export const notSo = (about: About, { expected, found }: { expected: string; found: string }) =>
-  found === "nothing" ? `no ${about.role === "text" ? "words" : about.role} ${quote(about.name)} was to be seen` : `${aboutSaid(about)} was ${found}, not ${expected}`;
-
 export const aboutSaid = (about: About) =>
   `${about.role === "text" ? "words" : about.role} ${quote(about.name)}${about.value !== undefined ? `, saying ${quote(about.value)}` : ""}${about.disabled ? ", which can't be changed" : ""}${about.checked !== undefined ? (about.checked ? ", checked" : ", not checked") : ""}`;

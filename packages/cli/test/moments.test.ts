@@ -15,8 +15,8 @@ import { howEachWent, wait } from "../src/moments.ts";
 import { repo } from "../src/repo.ts";
 import { problemsWithPeople } from "../src/setup.ts";
 import { agentWaiting, listening, unheardSaid } from "../src/wait.ts";
-import { foundOf } from "../src/reporter.ts";
-import { fileOf, notSo, sameAddress, wayFile, wayIn, whatDiffers, wordsIn, type Done } from "../src/way.ts";
+import { whyStopped } from "../src/reporter.ts";
+import { fileOf, sameAddress, wayFile, wayIn, whatDiffers, wordsIn, type Done } from "../src/way.ts";
 
 const folders: string[] = [];
 after(() => Promise.all(folders.map((folder) => rm(folder, { recursive: true, force: true }))));
@@ -94,11 +94,20 @@ describe("the way to a moment", () => {
   });
 
   test("found otherwise when run again, says what it looked for and what it found, as the agent would", () => {
-    const gone = foundOf("expect(locator).toBeVisible() failed\n\nLocator: getByRole('link', { name: 'My cards', exact: true })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:");
-    assert.equal(notSo({ role: "link", name: "My cards", disabled: false }, gone!), "no link “My cards” was to be seen");
-    const stuck = foundOf("expect(locator).toBeEnabled() failed\n\nLocator:  getByRole('button', { name: 'Save', exact: true })\nExpected: enabled\nReceived: disabled\nTimeout:  5000ms");
-    assert.equal(notSo({ role: "button", name: "Save", disabled: false }, stuck!), "button “Save” was disabled, not enabled");
-    assert.equal(foundOf("page.goto: net::ERR_CONNECTION_REFUSED"), undefined);
+    const gone = whyStopped("Error: \x1b[2mexpect(\x1b[22mlocator).toBeVisible() failed\n\nLocator: getByRole('link', { name: 'My cards', exact: true })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:");
+    assert.deepEqual(gone, { why: "no link “My cards” was to be seen", checked: true });
+    const stuck = whyStopped("expect(locator).toBeEnabled() failed\n\nLocator:  getByRole('button', { name: 'Save', exact: true })\nExpected: enabled\nReceived: disabled\nTimeout:  5000ms");
+    assert.equal(stuck.why, "button “Save” was disabled, not enabled");
+    const words = whyStopped("expect(locator).toBeVisible() failed\n\nLocator: getByText('Don\\'t panic', { exact: true })\nExpected: visible\nError: element(s) not found");
+    assert.equal(words.why, "no words “Don't panic” were to be seen");
+  });
+
+  test("stopped on the way, says what it was to do and to what, never Playwright's words; anything else, as it was said", () => {
+    const missing = whyStopped("TimeoutError: locator.click: Timeout 10000ms exceeded.\nCall log:\n\x1b[2m  - waiting for getByRole('button', { name: 'Close', exact: true })\x1b[22m\n");
+    assert.deepEqual(missing, { why: "no button “Close” was there to click" });
+    const stuck = whyStopped("TimeoutError: locator.fill: Timeout 10000ms exceeded.\nCall log:\n  - waiting for getByRole('textbox', { name: 'Title', exact: true })\n  - locator resolved to <input disabled/>\n  - element is not enabled\n");
+    assert.equal(stuck.why, "textbox “Title” was there, but couldn't be filled in");
+    assert.deepEqual(whyStopped("page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/"), { why: "page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/" });
   });
 
   test("does the way there before the moment's step, and only what the moment shows in it; going there by hand does both", () => {
@@ -295,11 +304,25 @@ describe("every moment run again", () => {
   });
 
   test("says where one couldn't get there stopped, and how to get it back as whoever it was", () => {
-    const [stopped] = howEachWent([], [{ moment: "The prefix can't be changed", why: "Timeout 10000ms exceeded, waiting for getByRole('link', { name: 'Settings' })" }], handedBack, []);
+    const [stopped] = howEachWent([], [{ moment: "The prefix can't be changed", why: "no link “Settings” was there to click" }], handedBack, []);
     assert.equal(
       stopped,
-      `“The prefix can't be changed”: couldn't get there, where the way stopped: “Timeout 10000ms exceeded, waiting for getByRole('link', { name: 'Settings' })”. Get there by hand (playthrough as Sam "The prefix can't be changed" goes as far as it can) and mark it again with the same words, or leave it out: playthrough drop "The prefix can't be changed"`,
+      `“The prefix can't be changed”: couldn't get there: no link “Settings” was there to click. Get there by hand (playthrough as Sam "The prefix can't be changed" goes as far as it can) and mark it again with the same words, or leave it out: playthrough drop "The prefix can't be changed"`,
     );
+  });
+
+  test("says whether one stopped on its way there, in what it shows, or got there to find what it's about otherwise", () => {
+    const [shows, otherwise] = howEachWent(
+      [],
+      [
+        { moment: "The panel slides out", at: "The panel slides out", why: "no button “Close” was there to click" },
+        { moment: "The panel slides in", at: "The panel slides in", why: "no heading “INV-1043” was to be seen", checked: true },
+      ],
+      handedBack,
+      [],
+    );
+    assert.match(shows!, /^“The panel slides out”: got there, but not through what it shows: no button “Close” was there to click\. /);
+    assert.match(otherwise!, /^“The panel slides in”: got there, but no heading “INV-1043” was to be seen\. /);
   });
 });
 

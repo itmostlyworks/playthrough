@@ -47,16 +47,44 @@ export function firstLine(said: string) {
   if (found.length) line = `${line} ${found.slice(0, 2).join(", ")}${found.length > 2 ? ", …" : ""}`;
   return line.length > 300 ? `${line.slice(0, 300)}…` : line;
 }
-// For a check that failed, what it looked for and what it found instead, in Playwright's words: "visible" and nothing;
-// "enabled" and "disabled".
-export function foundOf(said: string): { expected: string; found: string } | undefined {
+// Why a step stopped, in Playthrough's words, naming the thing as the moment does: a check that failed says what it
+// looked for and what it found ("no link “My cards” was to be seen", "button “Save” was disabled, not enabled"); an
+// action that waited in vain, what it was to be done to ("no button “Close” was there to click"). Anything else, as
+// Playwright or the app said it, in its first line.
+export function whyStopped(said: string): { why: string; checked?: true } {
   const lines = said.replace(/\x1b\[[0-9;]*m/g, "").split("\n").map((line) => line.trim());
+  const thing = thingIn(lines.find((line) => line.startsWith("Locator:"))?.slice("Locator:".length) ?? lines.find((line) => line.startsWith("- waiting for "))?.slice("- waiting for ".length));
   const [expected, received] = ["Expected:", "Received:"].map((label) => lines.find((line) => line.startsWith(label))?.slice(label.length).trim());
-  const found = received ?? (lines.some((line) => line === "Error: element(s) not found") ? "nothing" : undefined);
-  return expected && found ? { expected, found } : undefined;
+  const found = received ?? (lines.includes("Error: element(s) not found") ? "nothing" : undefined);
+  const was = thing?.startsWith("words ") ? "were" : "was";
+  if (thing && expected && found) return { why: found === "nothing" ? `no ${thing} ${was} to be seen` : `${thing} ${was} ${found}, not ${expected}`, checked: true };
+  const action = lines[0]?.match(/^TimeoutError: locator\.(\w+): Timeout/)?.[1];
+  const doing = action && DOING[action];
+  if (thing && doing) return { why: lines.some((line) => line.startsWith("- locator resolved to")) ? `${thing} ${was} there, but couldn't be ${doing[1]}` : `no ${thing} ${was} there to ${doing[0]}` };
+  return { why: firstLine(said) };
+}
+const DOING: Record<string, [string, string]> = {
+  click: ["click", "clicked"],
+  dblclick: ["double-click", "double-clicked"],
+  tap: ["tap", "tapped"],
+  hover: ["point at", "pointed at"],
+  fill: ["fill in", "filled in"],
+  pressSequentially: ["type in", "typed in"],
+  press: ["press a key in", "pressed a key in"],
+  selectOption: ["choose from", "chosen from"],
+  check: ["check", "checked"],
+  uncheck: ["uncheck", "unchecked"],
+  setChecked: ["check", "checked"],
+};
+// A locator as a person would name the thing: getByRole('link', { name: 'My cards' }) is link “My cards”.
+function thingIn(locator: string | undefined) {
+  const found = locator?.trim().match(/^getBy(Role|Text)\((['"])((?:\\.|(?!\2).)*)\2(?:, \{ name: (['"])((?:\\.|(?!\4).)*)\4)?/);
+  if (!found) return undefined;
+  const plain = (text: string) => text.replace(/\\(.)/g, "$1");
+  return found[1] === "Text" ? `words ${quote(plain(found[3]!))}` : found[5] !== undefined ? `${found[3]} ${quote(plain(found[5]))}` : found[3];
 }
 
-export type Failed = { moment: string; at?: string; why?: string; found?: { expected: string; found: string }; broken?: true };
+export type Failed = { moment: string; at?: string; why?: string; checked?: true; broken?: true };
 // What Playwright says when the browser stops a moment, not the app: the page crashed or closed, or the app stopped answering.
 const BROKEN = /Page crashed|Target crashed|Target page, context or browser has been closed|net::ERR_CONNECTION_REFUSED/;
 export type Recorded = { moment: Moment; files: string[] };
@@ -105,9 +133,8 @@ export default class MomentReporter implements Reporter {
     const stop = steps.at(-1);
     const said = (stop?.error ?? result.error)?.message ?? "";
     const broken = BROKEN.test(said);
-    const why = firstLine(said);
-    const found = foundOf(said);
-    this.#ran.push({ ...where, failed: { moment: test.title, ...(stop?.error && { at: stop.title }), ...(why && { why }), ...(found && { found }), ...(broken && { broken }) } });
+    const { why, checked } = whyStopped(said);
+    this.#ran.push({ ...where, failed: { moment: test.title, ...(stop?.error && { at: stop.title }), ...(why && { why }), ...(checked && { checked }), ...(broken && { broken }) } });
     went(broken ? "the browser stopped it" : stop?.error ? `failed at ${quote(stop.title)}` : "failed before its first step");
   }
 

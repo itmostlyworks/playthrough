@@ -16,7 +16,7 @@ import { keepAssets, type Assets } from "./assets.ts";
 import { ALONGSIDE, BEAT, QUIET_DEV_CHROME, type Action, type Handed, type On, type Run, type To } from "./run.ts";
 import { readPage, unhovered } from "./read.ts";
 import { repo } from "./repo.ts";
-import { ACTIONS, ASSETS, firstLine, GLIMPSES, HOLD, PERSON, PICTURED, PICTURE, READINGS, RECORDING, seconds, type Failed, type Acted } from "./reporter.ts";
+import { ACTIONS, ASSETS, GLIMPSES, HOLD, PERSON, PICTURED, PICTURE, READINGS, RECORDING, seconds, whyStopped, type Failed, type Acted } from "./reporter.ts";
 import { SETTLED, stillFor, watchRest } from "./rest.ts";
 import { firstOf, make, personIn, setupIn, type Made, type Setup } from "./setup.ts";
 
@@ -469,13 +469,12 @@ export async function runAlongside(
       return { handed: stepping.handed, made };
     } catch (error) {
       if (error instanceof Stopped || orders.stopped) return { handed: stepping.handed, made };
-      const why = firstLine(String((error as Error)?.message ?? error));
+      const { why } = whyStopped(String((error as Error)?.message ?? error));
       // Everything the moment does is done, and only a check of how it ended fails: that's the place a person steps in
       // to look at, so it's handed over as it is, with what didn't hold.
       if (isCheck(error) && stepping.step) {
         await handOver(stepping);
-        const on = String((error as { message?: string }).message).match(/^Locator: (.*)$/m)?.[1];
-        return { handed: stepping.handed, made, checked: `This stepping's check of how it ends doesn't hold on the app as it is now: Playwright says “${why}”${on ? ` of ${on}` : ""}.` };
+        return { handed: stepping.handed, made, checked: `This stepping's check of how it ends doesn't hold on the app as it is now: ${why}.` };
       }
       return { stopped: { at: stepping.step, why }, made };
     }

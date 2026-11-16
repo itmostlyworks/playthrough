@@ -9,7 +9,7 @@ import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { quote, Refused } from "@playthrough/change";
 import { ALONGSIDE, isMomentFile, type Handed, type To } from "./run.ts";
-import { firstLine } from "./reporter.ts";
+import { firstLine, whyStopped } from "./reporter.ts";
 import type { Repo } from "./repo.ts";
 import { giveBackLeft, setupIn, type Made, type Setup } from "./setup.ts";
 import type { Kept, Orders } from "./test.ts";
@@ -70,7 +70,7 @@ async function run(repo: Repo, id: string, to: To, files: string[], written: num
   else waiting?.addEventListener("abort", stop, { once: true });
   try {
     const ran = await runAlongside(page, { request, baseURL: app.url, started, setup, borrowed: repo.borrowed, person: kept.use.person }, kept.body, orders).catch(
-      (error) => ({ stopped: { why: firstLine(String(error?.message ?? error)) } }) as Awaited<ReturnType<typeof runAlongside>>,
+      (error) => ({ stopped: { why: whyStopped(String(error?.message ?? error)).why } }) as Awaited<ReturnType<typeof runAlongside>>,
     );
     return { ...ran, late };
   } finally {
@@ -146,6 +146,5 @@ function loadedOf(repo: Repo, id: string, files: string[], written: number) {
 
 const sweptFor = new Set<string>();
 
-// Where the way there stopped, and why, in Playwright's words: read in the viewer, where there's no terminal above it to
-// point to.
-const stoppedAt = ({ at, why }: { at?: string; why?: string }) => `it stopped${at ? ` at ${quote(at)}` : ""}${why ? `, where Playwright says “${why}”` : ""}.`;
+// Where the way there stopped, and why: read in the viewer, where there's no terminal above it to point to.
+const stoppedAt = ({ at, why }: { at?: string; why?: string }) => `it stopped${at ? ` at ${quote(at)}` : ""}${why ? `: ${why}` : ""}.`;
