@@ -306,7 +306,8 @@ own, or at `playthrough open`'s in a frame (an editor's browser), none of this a
 What another page may find the viewer's parts by is `data-part`, never their words or looks: the bar's `play`,
 `step-in` (`back` once in the app), `note`, and `send` (`done` with nothing to send), the arrows by Play,
 `frame-before` and `next-frame`, and every key drawn on a button, `key` (Back's "Esc ×2" is one); a note's `pin` and
-`note-card`; the change's `title` over the recording (in the header on a phone); the edges, `moments` and `notes`; each
+`note-card`; the rounded box the recording sits in, `picture`, always, where `data-picture` is there only while the
+picture can be moved; the change's `title` over the recording (in the header on a phone); the edges, `moments` and `notes`; each
 of the moments' cards, `moment`, and their last, `last-stop`; and over the notes at the last stop, `notes-heading`.
 Nothing in the viewer reads them.
 

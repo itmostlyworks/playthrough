@@ -874,6 +874,7 @@ export function MomentView(props: {
           {/* At the last stop, once its sheet has come in over it, the moment is put away: its edge showed round the sheet's
               rounded corners, light on dark. Leaving, it's back at once, under the sheet fading out. */}
           <div
+            data-part="picture"
             className={`absolute inset-0 overflow-hidden rounded-lg bg-paper shadow-frame transition-[visibility] duration-0 ${atLastStop ? "invisible delay-300" : "delay-0"}`}
             onClick={(event) => !noting && !(event.target as Element).closest("button") && (opened ? close() : play())}
           >
