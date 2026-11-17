@@ -292,6 +292,11 @@ of its own with a source of its own (`show(element, source)`, `show.tsx`), built
 and where you are is after the page's `#` (`#/moments/<copy>/<change>/<n>`), so it works from any folder of a plain
 static host, which answers only the page itself.
 
+**Inside another page's frame** (`inside.ts`), however it's served, the viewer keeps to its own: the picture's window
+stays whole, so the wheel, a drag and a swipe over it are the page around's; a scroll that has run out at an edge, the
+last stop's sheet or every change's sheet goes on out to it; and a note's field takes the keys only once they're
+already in the frame, as after a press in it. On its own, none of this applies.
+
 **What's next** (`Moments.tsx`, `Opening.tsx`, `step.ts`). `/` opens on the next change waiting on you, its opening card:
 its title, what you asked, the app and when it came back, over the first moment you haven't seen, its picture softened
 where the recording will be. Nothing plays. The whole card is one press, as its look says on hover ("See 3 moments",

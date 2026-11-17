@@ -10,6 +10,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { latestOf, sentBy, type Note } from "@playthrough/change";
 import { useChanges, useYou, type Listed } from "./api.ts";
 import { Changes } from "./Changes.tsx";
+import { insideAnotherPage } from "./inside.ts";
 import { useUnsent, keepUnsent, type YourReply } from "./kept.ts";
 import { MomentView } from "./Moment.tsx";
 import { NothingWaiting, Opening } from "./Opening.tsx";
@@ -45,6 +46,7 @@ export function MomentsPage({ afterHash = false }: { afterHash?: boolean }) {
     addEventListener("popstate", back);
     return () => removeEventListener("popstate", back);
   }, []);
+  useEffect(() => void document.documentElement.toggleAttribute("data-inside-another-page", insideAnotherPage()), []);
   const sheet = useSheet();
   // Going from one moment to the next, or one card at / to the next, replaces the address, so the browser's back is
   // where you came from. Going anywhere closes the sheet.

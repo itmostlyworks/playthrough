@@ -213,7 +213,7 @@ export function Edge(props: {
         <div
           ref={list}
           onScroll={look}
-          className="h-full overflow-x-clip overflow-y-auto overscroll-contain px-2.5 py-2 [scrollbar-width:none]"
+          className="h-full overflow-x-clip overflow-y-auto overscroll-contain inside:overscroll-auto px-2.5 py-2 [scrollbar-width:none]"
           style={more.fade}
         >
           {/* The cards stand on nothing of their own: forward, each is its own card over the recording. */}

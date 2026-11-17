@@ -8,6 +8,7 @@ import { useEffect, useRef, useState, type MouseEvent, type PointerEvent, type R
 import { elementOf, type Glimpse } from "@playthrough/page";
 import type { Element, Moment, Point } from "@playthrough/change";
 import { recording } from "./api.ts";
+import { insideAnotherPage } from "./inside.ts";
 import { Replay, type Choice, type Events, type Pressed, type Rect, type Scrolled } from "./replay.ts";
 import type { Crop } from "./Picture.tsx";
 import { stepFrom } from "./stepping.ts";
@@ -182,7 +183,9 @@ export function Player(props: Props) {
   const handAt = useRef<{ x: number; y: number }>(undefined);
   useEffect(() => void (props.drawn && (props.drawn.current = () => handAt.current)), []);
 
-  const { at, playing, cut, clock, following, crop, marks, actualSize, moves } = props;
+  const { at, playing, cut, clock, following, crop, marks, actualSize } = props;
+  // Inside another page its window stays whole: the wheel, a drag and a swipe over it are that page's.
+  const moves = insideAnotherPage() ? undefined : props.moves;
   // Moved, by a drag on this picture or on another on the same window, it's drawn again there.
   const [moved, setMoved] = useState(0);
   useEffect(() => moves?.follow(() => setMoved((times) => times + 1)), [moves]);

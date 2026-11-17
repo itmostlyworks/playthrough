@@ -66,7 +66,7 @@ export function LastStop(props: {
   useLayoutEffect(() => opened.current?.scrollIntoView({ block: "nearest" }), [open?.id ?? (open ? "new" : undefined)]);
   return (
     <div ref={own} className="absolute inset-0 overflow-hidden rounded-lg bg-surface shadow-frame">
-      <div ref={sheet} onScroll={more.look} className="h-full overflow-y-auto overscroll-contain [scrollbar-width:thin]" style={more.fade}>
+      <div ref={sheet} onScroll={more.look} className="h-full overflow-y-auto overscroll-contain inside:overscroll-auto [scrollbar-width:thin]" style={more.fade}>
         <div className="flex flex-col items-center gap-8 px-8 phone:gap-4 phone:px-4" style={{ paddingTop: top, paddingBottom: below }}>
           {asked && (
             <div className="flex w-full flex-none flex-col items-center text-center" title={asked} tabIndex={0} aria-label={`You asked: ${asked}`}>

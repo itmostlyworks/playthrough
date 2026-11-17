@@ -4,6 +4,8 @@
 @custom-variant phone (@media (max-width: 820px));
 /* Wide enough for a moment's notes to stand beside its recording. */
 @custom-variant wide (@media (min-width: 1180px));
+/* Inside another page's frame, as inside.ts says. */
+@custom-variant inside (&:where([data-inside-another-page] *));
 
 /* The prototype's quiet theme. Amber needs you, slate is with the agent, green is settled; recordings stay light in the
    dark. Only these colours exist, so every colour on the page is one of them. */

@@ -176,7 +176,7 @@ export function Sheet({ pointed, going, onClose, children }: { pointed: boolean;
         role="dialog"
         aria-label="Every change"
         tabIndex={-1}
-        className="absolute top-2 left-3 max-h-[calc(100dvh-16px)] w-[min(600px,calc(100vw-24px))] origin-top-left overflow-y-auto overscroll-contain rounded-xl bg-surface shadow-float outline-none phone:left-2 phone:w-[calc(100vw-16px)]"
+        className="absolute top-2 left-3 max-h-[calc(100dvh-16px)] w-[min(600px,calc(100vw-24px))] origin-top-left overflow-y-auto overscroll-contain inside:overscroll-auto rounded-xl bg-surface shadow-float outline-none phone:left-2 phone:w-[calc(100vw-16px)]"
       >
         {children}
       </div>

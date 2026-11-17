@@ -6,6 +6,7 @@ import type { Turn, Note, Change } from "@playthrough/change";
 import { noteFrame, picture, readings as readingsOf, type NoteFrame } from "./api.ts";
 import { clamp } from "./clamp.ts";
 import { TILE } from "./Edge.tsx";
+import { mayTakeKeys } from "./inside.ts";
 import { Key } from "./Key.tsx";
 import { BAR } from "./MomentBar.tsx";
 import { Picture, type Crop } from "./Picture.tsx";
@@ -218,7 +219,7 @@ export function Write({ onSave, onDrop, placeholder = "What's right or wrong her
   return (
     <div>
       <textarea
-        ref={(area) => void (focus && area && !area.dataset.focused && ((area.dataset.focused = "1"), area.focus({ preventScroll: true })))}
+        ref={(area) => void (focus && area && !area.dataset.focused && mayTakeKeys() && ((area.dataset.focused = "1"), area.focus({ preventScroll: true })))}
         rows={rows}
         value={words}
         placeholder={placeholder}
