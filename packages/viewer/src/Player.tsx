@@ -13,7 +13,7 @@ import { Replay, type Choice, type Events, type Pressed, type Rect, type Scrolle
 import type { Crop } from "./Picture.tsx";
 import { stepFrom } from "./stepping.ts";
 import { pickAt } from "./things.ts";
-import { around as aroundCentre, calm, centreOf, CLOSEST, framed, nearer, pointerScale, wheeled, type Box, type Together } from "./view.ts";
+import { around as aroundCentre, calm, CLOSEST, nearer, pointerScale, seenThrough, wheeled, type Box, type Together } from "./view.ts";
 
 // Nothing happening for longer than this is waiting, and is played as this long.
 const WAIT = 0.7;
@@ -107,9 +107,9 @@ type Props = {
   // Another hand-back's, it follows the clock while the one it's beside plays, at the matching moment.
   following?: { clock: Clock; at: (at: number) => number };
   crop?: Crop;
-  // One of Compare's sides, beside another onto the same part of the page: both open framed on what was done in the
-  // moment and what changed, the first drawn saying where, and never move by themselves after.
-  framedOn?: { together: Together; changed: Box[]; done: Box[] };
+  // One of Compare's sides, beside another on the same window: not yet moved by the person, both open framed on what was
+  // done in the moment and what changed, and never move by themselves after.
+  framedOn?: { changed: Box[]; done: Box[] };
   // Its window, which the wheel over the picture brings closer or further, about the pointer, and a drag moves once it's
   // closer than the whole screen: from where it shows, it's then the person's, and every picture on the same window goes
   // with it. A press that doesn't move is a press, as it always was.
@@ -215,15 +215,8 @@ export function Player(props: Props) {
       // how close it is whole, which stepping in goes back to.
       const fit = Math.min(room.width / shape.width, room.height / shape.height);
       if (moves && !framedOn) Object.assign(moves, { fit, closest: CLOSEST * fit });
-      if (framedOn && !framedOn.together.centre) {
-        const view = framed(room, shape, framedOn.changed, framedOn.done);
-        Object.assign(framedOn.together, { centre: centreOf(view, room), k: view.k });
-      }
-      const together = moves?.moved ? moves : framedOn?.together;
-      if (together) {
-        const view = aroundCentre(room, shape, together.centre!, together.k);
-        [left, top, across] = [view.x, view.y, room.width / view.k];
-      }
+      const seen = props.moves && seenThrough(props.moves, room, shape, framedOn);
+      if (seen) [left, top, across] = [seen.x, seen.y, room.width / seen.k];
       if (from && gliding()) {
         const now = frameTime();
         // The picture narrowing or widening around it, it starts when that did, to the frame.
@@ -321,7 +314,7 @@ export function Player(props: Props) {
         }),
       ),
     );
-  }, [replay, at, playing?.until, cut, following, crop, marked, width, glided, moved, framedOn?.together]);
+  }, [replay, at, playing?.until, cut, following, crop, marked, width, glided, moved, framedOn]);
 
   // What's under the pointer on the page at rest, in its own pixels, and what a click there would note.
   const [hover, setHover] = useState<Rect>();

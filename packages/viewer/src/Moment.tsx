@@ -191,11 +191,9 @@ export function MomentView(props: {
   const unchanged = compared ? !compared.findings.some((finding) => finding.seen.some((seen) => seen.moment === moment.name)) : !!looking && unrun;
   const then = unchanged ? undefined : looking;
   const both = useMemo(() => then && cut && playedTogether(cut, together(moment, then.moment)), [cut, then?.moment.recording, moment.recording]);
-  // Compare's two sides share a window of their own, so the moment's own picture is as it was when Compare's let go.
-  // Each time Compare opens, it opens framed on what was done in the moment and what changed, on either side, as both
-  // sides' readings and recordings tell: what was done is each click and typing, and the whole of the last thing done
-  // to. It's drawn once they've told it, so it never opens anywhere else first.
-  const compareWindow = useMemo(() => new Together(flushSync), [phone, moment.recording]);
+  // Not yet moved by the person, Compare opens framed on what was done in the moment and what changed, on either side,
+  // as both sides' readings and recordings tell: what was done is each click and typing, and the whole of the last thing
+  // done to. It's drawn once they've told it, so it never opens anywhere else first.
   const [opensOn, setOpensOn] = useState<{ recording: string; changed: Box[]; done: Box[] }>();
   useEffect(() => {
     const now = readings?.at(-1);
@@ -441,10 +439,10 @@ export function MomentView(props: {
   // At the last stop a note is on the change as a whole: there's nothing to point at, so it's written at once.
   const note = () => may.note && act(atLastStop ? { type: "pointed", writing: { note: { id: newId(), words: "" }, spot: { x: 0, y: 0 } } } : { type: "note" });
   const flip = () => may.flip && act({ type: "flip" });
-  // Opened or closed, it stops where it's got to. Opened, it's framed afresh, as close as the moment's own picture goes.
+  // Opened or closed, it stops where it's got to, and the picture stays where the person has it.
   const compare = () => {
     if (!may.compare) return;
-    if (!comparing) Object.assign(compareWindow, { closest: pageWindow.closest }).forget();
+    pageWindow.compareTurned();
     act({ type: "compare" });
   };
   const goTo = (to: number, open?: string) => {
@@ -961,8 +959,8 @@ export function MomentView(props: {
                         recording={side.recording}
                         at={both.at(along)[side.side]!}
                         following={playing ? { clock: bothOf, at: (along) => both.at(along)[side.side]! } : undefined}
-                        framedOn={{ together: compareWindow, ...framedOn }}
-                        moves={compareWindow}
+                        framedOn={framedOn}
+                        moves={pageWindow}
                       />
                       <span className={CHIP}>{side.label}</span>
                     </div>

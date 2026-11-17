@@ -654,7 +654,13 @@ Play and the line drive both sides, at the same action at the same instant: `tog
 recorded before actions were named knows each by its place only); each pair begins and ends together, each side scaled
 to its own pace between, and what one did alone plays while the other holds before what's next. Each side is its half of
 the recording's room, ending above the bar (on a phone, at the picture's edge, the bar under it), both onto the same
-part of the page. **Compare opens framed** on what was done in the moment and what changed, together, so what differs
+part of the page. The two sides and the moment's own picture are on the moment's one window (`Together`, `view.ts`): the
+wheel or a drag on any of them brings it closer or moves it, and once you have, it's yours. Compare on or off keeps
+where you had it and how close, as near as the other's room allows (the same middle, no further out than the whole
+screen), whether you moved it before Compare or in it ("if you have compare on it will zoom both and follow the same
+screen area", 16 Nov). Not yet moved, or brought all the way out, it starts again (`compareTurned`): Compare framed, the
+moment's own picture whole, so the wheel all the way out on the moment's own picture, then C, is the way back to what
+changed. **Not yet moved, Compare opens framed** on what was done in the moment and what changed, together, so what differs
 is in view on both sides from the first frame (before, each side opened on the app's top left, about half its width,
 and the demo's one change, a Status column, was out of view on both). What was done is each click's and each typing's
 place on either side (`doneIn`, `replay.ts`, where the click's ring is drawn) and the whole of the last thing done to
@@ -667,11 +673,10 @@ all of it to be in with 24px of room around (in view already, nothing moves); wh
 far enough out that it does, never further than `FARTHEST`, 0.6 of actual size, where an app's words stop reading;
 past that, it opens on what changed, from its top left, and what was done is a drag away. A phone's sides are framed
 by the same rule at their size. The sides are drawn once both readings and recordings are in, so they never open
-anywhere else first, and they come in already framed: nothing glides. They share a window of their own
-(`compareWindow`, `Moment.tsx`), framed by whichever side is drawn first; from then on it follows nothing, playing
-too, and the wheel or a drag on either brings both closer or moves both, onto the same part of the page, in the same
-frame, as close as the moment's own picture goes and as far out as the whole screen in a side. Compare off, the
-moment's own picture is exactly as it was; on again, it's framed afresh, so C twice is the way back to what changed.
+anywhere else first, and they come in already framed: nothing glides. Whichever side is drawn first frames the window
+for both (`seenThrough`, `view.ts`); from then on it follows nothing, playing too, and the wheel or a drag on either
+brings both closer or moves both, onto the same part of the page, in the same frame, as close as the moment's own
+picture goes and as far out as the whole screen in a side.
 
 **Send and Done.** Send carries every note and reply you haven't sent on the change, from its row, its card or a
 moment's page, in one send (`Send.tsx`); it never locks. Done, from the same places, sends Done (`done: true`): every moment as last handed back looks good, and

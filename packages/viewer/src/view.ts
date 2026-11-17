@@ -1,6 +1,6 @@
 // What part of a recorded page its room shows, and how close: a point on the page at (px, py) is drawn in the room at
-// ((px - x) * k, (py - y) * k). The whole screen; a window framed on what was done and what changed, as Compare's two
-// sides open; or wherever the person has taken it.
+// ((px - x) * k, (py - y) * k). Wherever the person has taken it; else the whole screen, or, as Compare's two sides
+// open, a window framed on what was done and what changed.
 
 import { clamp } from "./clamp.ts";
 
@@ -124,11 +124,10 @@ const unmoving = () => !!globalThis.matchMedia?.("(prefers-reduced-motion: reduc
 // `from`, or else at the wheel's pace.
 type Zoom = { to: number; at: Point; off: Point; whole: boolean; last: number; length?: number; from?: number; since?: number };
 
-// One window onto a moment's page, where on it and how close, that every picture on it shows: the moment's own, or
-// Compare's two sides, on a window of their own, the first drawn saying where, so nothing shifts between them that
-// didn't move. Once the person has moved it, by the wheel or a drag on the picture, it's theirs: it stays where they
-// put it, following nothing, and every picture on it is told. How close it may go is the moment's own picture's to
-// say, so it's the same in Compare.
+// One window onto a moment's page, where on it and how close, that every picture on it shows: the moment's own and
+// Compare's two sides, so nothing shifts between them that didn't move. Once the person has moved it, by the wheel or a
+// drag on any of them, it's theirs: it stays where they put it, following nothing, Compare on or off, and every picture
+// on it is told. How close it may go is the moment's own picture's to say, so it's the same in Compare.
 export class Together {
   centre?: Point;
   k?: number;
@@ -207,7 +206,12 @@ export class Together {
   #tell() {
     for (const tell of this.#told) tell();
   }
-  // Where the next picture on it starts again: where the first one drawn says, or where it was going to start.
+  // Compare on or off: where the person has it stays; not moved, or brought all the way out, it starts again, so Compare
+  // opens framed and the moment's own picture is the whole screen.
+  compareTurned() {
+    if (!this.moved || (this.fit !== undefined && this.k! <= this.fit * 1.001)) this.forget();
+  }
+  // Where the next picture on it starts again: where Compare's first side drawn says, or the whole screen.
   forget() {
     this.#still();
     Object.assign(this, { centre: undefined, k: undefined, moved: false });
@@ -216,4 +220,14 @@ export class Together {
     this.#told.add(tell);
     return () => void this.#told.delete(tell);
   }
+}
+
+// What a picture shows through its window: where the person has taken it; else, as one of Compare's sides, framed on what
+// was done and what changed, the first side drawn saying where for both; else nothing of its own, the whole screen.
+export function seenThrough(window: Together, room: Size, page: Size, framedOn?: { changed: Box[]; done: Box[] }): View | undefined {
+  if (!window.moved && framedOn && !window.centre) {
+    const view = framed(room, page, framedOn.changed, framedOn.done);
+    Object.assign(window, { centre: centreOf(view, room), k: view.k });
+  }
+  return window.moved || framedOn ? around(room, page, window.centre!, window.k) : undefined;
 }

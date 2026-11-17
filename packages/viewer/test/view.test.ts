@@ -3,7 +3,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { approach, around, centreFor, FARTHEST, framed, nearer, SETTLES, Together, wheeled, type Box, type View } from "../src/view.ts";
+import { approach, around, centreFor, FARTHEST, framed, nearer, seenThrough, SETTLES, Together, wheeled, type Box, type View } from "../src/view.ts";
 
 const room = { width: 1152, height: 720 };
 const page = { width: 1280, height: 800 };
@@ -166,6 +166,48 @@ test("never further out than it can be read: there, it opens on what changed, fr
   assert.ok(Math.abs(view.x - (41 - 24 / FARTHEST)) < 1e-9, "its left edge, with room");
   assert.ok(shows(view, box(41, 216, 1, 1), 24), "its top left, with room");
   assert.ok(!shows(view, done));
+});
+
+// The moment's own picture's window, as it draws it: how close it is whole.
+const pictureWindow = () => Object.assign(new Together(), { fit: whole.fit, closest: 3 * whole.fit });
+const opensOn = { changed: [box(727, 275, 151, 34)], done: [box(500, 120, 24, 24)] };
+const near = (view: View | undefined, to: View) => assert.ok(view && Math.abs(view.k - to.k) < 1e-9 && Math.abs(view.x - to.x) < 1e-6 && Math.abs(view.y - to.y) < 1e-6, `${JSON.stringify(view)} isn't ${JSON.stringify(to)}`);
+
+test("not yet moved, Compare opens framed, both sides on the same part of the page, and off again the moment's own picture is whole", () => {
+  const window = pictureWindow();
+  assert.equal(seenThrough(window, room, page), undefined, "the whole screen");
+  window.compareTurned();
+  const framedView = framed(side, page, opensOn.changed, opensOn.done);
+  near(seenThrough(window, side, page, opensOn), framedView);
+  near(seenThrough(window, side, page, opensOn), framedView);
+  window.compareTurned();
+  assert.equal(seenThrough(window, room, page), undefined);
+});
+
+test("moved first, Compare keeps where the person had it and how close, and off again it's still there", () => {
+  const window = pictureWindow();
+  window.hold([300, 500], [0, 0], 2 * whole.fit);
+  const had = seenThrough(window, room, page)!;
+  window.compareTurned();
+  near(seenThrough(window, side, page, opensOn), around(side, page, [300, 500], 2 * whole.fit));
+  window.compareTurned();
+  near(seenThrough(window, room, page), had);
+});
+
+test("moved in Compare, the moment's own picture is where the person left it once Compare's off", () => {
+  const window = pictureWindow();
+  window.compareTurned();
+  seenThrough(window, side, page, opensOn);
+  window.hold([900, 300], [0, 0], 1);
+  window.compareTurned();
+  near(seenThrough(window, room, page), around(room, page, [900, 300], 1));
+});
+
+test("brought all the way out, it's as if never moved: Compare opens framed again", () => {
+  const window = pictureWindow();
+  window.hold([300, 500], [0, 0], whole.fit);
+  window.compareTurned();
+  near(seenThrough(window, side, page, opensOn), framed(side, page, opensOn.changed, opensOn.done));
 });
 
 test("with nothing found changed, it opens on what was done", () => {
