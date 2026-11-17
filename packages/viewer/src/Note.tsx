@@ -78,7 +78,7 @@ export function NoteWords({ words, stands, fresh, short }: { words: string; stan
   return (
     <>
       <span className={`${short ? "line-clamp-2" : "line-clamp-3"} text-[12.5px] leading-[17px] text-fg`}>{words}</span>
-      <span className={`block text-[11.5px] leading-4 ${fresh ? "font-medium text-fg" : stands === "answered" ? "text-soft" : "text-faint"}`}>{stands}</span>
+      <span className={`block text-[11.5px] leading-4 ${fresh ? "font-medium text-fg" : "text-soft"}`}>{stands}</span>
     </>
   );
 }

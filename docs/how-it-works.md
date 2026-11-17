@@ -503,7 +503,8 @@ waiting, the edge looks as it did before it sat back (`data-waiting`, `Tile` and
 Tab, an edge comes forward, coming to full as it slides (300 ms, calm; with reduced motion, at once): it slides until its pictures are 16px from the screen's edge, a little over the recording,
 its cards alone, each a little apart. A moment's card's words, its name and then as whom, by their name alone ("… as Maja"), come up over its picture's
 lower part. A note's card is the same at rest and forward, and leads with what it is as a moment leads with its picture: its dot, its latest words in two lines
-and where it stands, over a slim strip of its picture, set in; a new answer's New mark shows at rest. A touch brings an edge forward first. Many scroll in their
+and where it stands ("not sent", "sent", "answered" in soft ink, "new answer" in full ink and heavier: in faint they
+were hard to read on a dark card; `NoteWords`, the same by its pin and at the last stop), over a slim strip of its picture, set in; a new answer's New mark shows at rest. A touch brings an edge forward first. Many scroll in their
 own column, under the wheel, their cut end fading over 64px; the moment you're on, a note open or one arriving is
 scrolled into view. A moment's picture is its still, the others' quieter than the one you're on, with its notes'
 dots; pressed, the moment changes in place. A note's strip is cut for its own shape (`stripOf`, `Note.tsx`) around its
