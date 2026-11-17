@@ -23,6 +23,11 @@ test("a note on words still there is on them, wherever they moved", () => {
   assert.equal(foundNow([then], [moved], label, 5.399)?.node, 1033);
 });
 
+test("a note whose step the moment no longer has is on nothing now, never on another step's thing", () => {
+  const other = { ...now, step: "click button “Overdue 3”" };
+  assert.equal(foundNow([then], [other], badge, 5.399), undefined);
+});
+
 test("a note whose thing is gone is on nothing now, never on what says the same words", () => {
   const gone = { ...now, things: now.things.filter((thing) => !/late/.test(thing.name)) };
   assert.equal(foundNow([then], [gone], badge, 5.399), undefined);

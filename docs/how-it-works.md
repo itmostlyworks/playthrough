@@ -587,10 +587,13 @@ its foot, where it's pushed up clear of the bar; a box under a thing too wide to
 stays off its thing. At any zoom it's placed the same way by its thing as the view moves. On a phone the box is in the
 page under the bar and grows down as before. Its pin is on the recording at rest whenever its
 thing is there: made on this hand-back, that very thing; made on an earlier hand-back, the thing it became, as the two
-hand-backs' readings of its step tell when they're compared for what changed (`foundNow`, `found.ts`), so words the agent
+hand-backs' readings of its step tell when they're compared for what changed (`foundNow`, `found.ts`: the steps lined up
+by what was done in them, as comparing does, its step gone from the moment meaning no now; worked out once for each two
+readings, however often it's drawn), so words the agent
 reworded as asked are still its thing and the same words standing elsewhere, there before as a thing of their own, never
 are (17 Nov: a note on Alder Dental's "Overdue" badge, made to say "79 days late", stood on the overdue total's "Overdue"
-label); made in the app, where no reading of it is kept, the same thing found by its role and name; nothing is drawn on a
+label); made in the app, where no reading of the page it was made on is kept and no step of the moment reads that page
+again, the same thing found by its role and name; nothing is drawn on a
 thing until the earlier readings have come, so a pin never lands and then moves; on a spot, only on the hand-back it was made on. In the app,
 its pin goes while its thing is gone and comes back with it. Opened (its picture, its pin, ← →, or `?note=`), a note
 made on the hand-back you're looking at shows the moment at its end where it was made there, else cross-fades to its kept
