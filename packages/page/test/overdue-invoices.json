@@ -1,0 +1,24 @@
+{
+ "then": {
+  "step": "Only overdue invoices show", "at": 3.824, "screen": {"width":1280,"height":800}, "picture": "readings/only-overdue-invoices-show/1.png",
+  "things": [
+   {"role":"status","name":"Overdue total","words":"","box":{"x":1050,"y":33,"width":190,"height":88},"page":{"x":1050,"y":33},"look":{"color":"rgb(21, 23, 28)","background":"rgb(255, 255, 255)","size":"16px","weight":"400","border":"none"},"live":true,"node":31},
+   {"role":"text","name":"Overdue","words":"Overdue","box":{"x":1125,"y":44,"width":94,"height":24},"page":{"x":1125,"y":44},"look":{"color":"rgb(165, 74, 64)","background":"rgba(0, 0, 0, 0)","size":"13px","weight":"600","border":"none"},"holder":0,"parent":0,"live":true,"node":33},
+   {"role":"table","name":"","words":"","box":{"x":41,"y":216,"width":1198,"height":227},"page":{"x":41,"y":216},"look":{"color":"rgb(21, 23, 28)","background":"rgb(255, 255, 255)","size":"16px","weight":"400","border":"none"},"node":64},
+   {"role":"text","name":"Overdue","words":"Overdue","box":{"x":763,"y":275,"width":114,"height":34},"page":{"x":763,"y":275},"look":{"color":"rgb(165, 74, 64)","background":"rgb(245, 232, 229)","size":"14px","weight":"650","border":"none"},"holder":2,"parent":2,"column":"Status","node":247},
+   {"role":"text","name":"Overdue","words":"Overdue","box":{"x":763,"y":335,"width":114,"height":34},"page":{"x":763,"y":335},"look":{"color":"rgb(165, 74, 64)","background":"rgb(245, 232, 229)","size":"14px","weight":"650","border":"none"},"holder":2,"parent":2,"column":"Status","node":264},
+   {"role":"text","name":"Overdue","words":"Overdue","box":{"x":763,"y":396,"width":114,"height":34},"page":{"x":763,"y":396},"look":{"color":"rgb(165, 74, 64)","background":"rgb(245, 232, 229)","size":"14px","weight":"650","border":"none"},"holder":2,"parent":2,"column":"Status","node":281}
+  ]
+ },
+ "now": {
+  "step": "Only overdue invoices show", "at": 3.861, "screen": {"width":1280,"height":800}, "picture": "readings/only-overdue-invoices-show/1.png",
+  "things": [
+   {"role":"status","name":"Overdue total","words":"","box":{"x":1050,"y":33,"width":190,"height":88},"page":{"x":1050,"y":33},"look":{"color":"rgb(21, 23, 28)","background":"rgb(255, 255, 255)","size":"16px","weight":"400","border":"none"},"live":true,"node":1031},
+   {"role":"text","name":"Overdue","words":"Overdue","box":{"x":1125,"y":44,"width":94,"height":24},"page":{"x":1125,"y":44},"look":{"color":"rgb(165, 74, 64)","background":"rgba(0, 0, 0, 0)","size":"13px","weight":"600","border":"none"},"holder":0,"parent":0,"live":true,"node":1033},
+   {"role":"table","name":"","words":"","box":{"x":41,"y":216,"width":1198,"height":227},"page":{"x":41,"y":216},"look":{"color":"rgb(21, 23, 28)","background":"rgb(255, 255, 255)","size":"16px","weight":"400","border":"none"},"node":1064},
+   {"role":"text","name":"79 days late","words":"79 days late","box":{"x":727,"y":275,"width":151,"height":34},"page":{"x":727,"y":275},"look":{"color":"rgb(165, 74, 64)","background":"rgb(245, 232, 229)","size":"14px","weight":"650","border":"none"},"holder":2,"parent":2,"column":"Status","node":1247},
+   {"role":"text","name":"45 days late","words":"45 days late","box":{"x":727,"y":335,"width":151,"height":34},"page":{"x":727,"y":335},"look":{"color":"rgb(165, 74, 64)","background":"rgb(245, 232, 229)","size":"14px","weight":"650","border":"none"},"holder":2,"parent":2,"column":"Status","node":1264},
+   {"role":"text","name":"27 days late","words":"27 days late","box":{"x":727,"y":396,"width":151,"height":34},"page":{"x":727,"y":396},"look":{"color":"rgb(165, 74, 64)","background":"rgb(245, 232, 229)","size":"14px","weight":"650","border":"none"},"holder":2,"parent":2,"column":"Status","node":1281}
+  ]
+ }
+}

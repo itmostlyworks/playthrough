@@ -2,6 +2,7 @@
 // spot on empty space is named by.
 
 import type { Element, Point } from "@playthrough/change";
+import { differences } from "./differences.ts";
 import type { Glimpse, Reading, Thing } from "./reading.ts";
 
 export type Shown = { reading: Reading; thing: Thing };
@@ -44,6 +45,17 @@ export function shownAt(readings: Reading[], element: Element, at: number): Show
     return best;
   };
   return (element.node === undefined ? undefined : nearest((thing) => thing.node === element.node)) ?? nearest((thing) => thing.role === element.role && thing.name === element.name);
+}
+
+// What a note made on an earlier taking of a moment is on in the taking now: the thing the two readings of its step, then
+// and now, say it became, as they say what changed. So a badge the agent reworded as asked is still the note's thing, and
+// the same words standing elsewhere, there before as a thing of their own, never are. Gone since, it's on nothing now.
+export function foundNow(then: Reading[], now: Reading[], element: Element, at: number): Thing | undefined {
+  const shown = shownAt(then, element, at);
+  const step = shown && now[then.indexOf(shown.reading)];
+  if (!step) return undefined;
+  for (const [thing, was] of differences(shown.reading, step).was) if (was === shown.thing) return thing;
+  return undefined;
 }
 
 // As an element of the hand-back it's on. Something with no name of its own there keeps the one it was noted by.

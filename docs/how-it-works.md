@@ -161,7 +161,7 @@ get there by hand and mark it again or drop it. **`drop`** on a moment a note is
 whose moment won't be handed back, refuse until a moment has been marked since the note reached the agent: the person
 sees what was done in a moment, not only in words. That's where such a note is then (`shownOn`, `standing.ts`): on the
 first moment of the hand-back that's new since the note was made, else the last, with its answer, its pin on its thing
-there where it's found by role and name, and "As it was" the frame it was written on; a note the person sent is never
+there as it is now, and "As it was" the frame it was written on; a note the person sent is never
 left with no moment to be on (15 Nov: Lena's "This isn't what I meant" was answered, its moment dropped, and the page
 showed it nowhere). A note can be a question: what's printed after the notes says a note asking for a change wants the
 app changed and every moment run again, and one that only asks wants an answer, nothing changed ("<what you did, or your
@@ -585,14 +585,18 @@ seen grown the wrong way first. Against the recording's top, with no room above,
 its foot, where it's pushed up clear of the bar; a box under a thing too wide to stand beside grows down too, so it
 stays off its thing. At any zoom it's placed the same way by its thing as the view moves. On a phone the box is in the
 page under the bar and grows down as before. Its pin is on the recording at rest whenever its
-thing is there: made on this hand-back, that very thing; made in the app or on an earlier hand-back, the same thing found
-by its role and name, never whatever says the same words; on a spot, only on the hand-back it was made on. In the app,
+thing is there: made on this hand-back, that very thing; made on an earlier hand-back, the thing it became, as the two
+hand-backs' readings of its step tell when they're compared for what changed (`foundNow`, `found.ts`), so words the agent
+reworded as asked are still its thing and the same words standing elsewhere, there before as a thing of their own, never
+are (17 Nov: a note on Alder Dental's "Overdue" badge, made to say "79 days late", stood on the overdue total's "Overdue"
+label); made in the app, where no reading of it is kept, the same thing found by its role and name; nothing is drawn on a
+thing until the earlier readings have come, so a pin never lands and then moves; on a spot, only on the hand-back it was made on. In the app,
 its pin goes while its thing is gone and comes back with it. Opened (its picture, its pin, ← →, or `?note=`), a note
 made on the hand-back you're looking at shows the moment at its end where it was made there, else cross-fades to its kept
 picture, the frame it was made on. Gone through quickly, the latest note wins: a frame comes in over the note's frame just
 left, or over the moment alone, never over an older one, and off every frame the moment comes back in one fade that going on
 through notes on the moment's end neither restarts nor undoes. **A note from an earlier hand-back opens on the moment as it is now**, at its
-end, so what came of it is what you see, wherever its thing is found there by its role and name. How it was is one flip
+end, so what came of it is what you see, wherever its thing is found there, as its pin is. How it was is one flip
 away, in place: while it's open, Compare's place on the bar holds a two-part switch, "As it was" and "Now", Now chosen;
 pressing it, or C, flips. Where its thing isn't in the moment now (the agent took it away, or you'd stepped in and gone
 to another page before noting), there's no now to show it on: it opens as it was, on the frame it was made on, its

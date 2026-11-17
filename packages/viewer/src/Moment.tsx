@@ -5,7 +5,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
-import { escapedTwice, RIGHT_AFTER, type Glimpse, type Reading } from "@playthrough/page";
+import { escapedTwice, foundNow, RIGHT_AFTER, type Glimpse, type Reading } from "@playthrough/page";
 import { conversation, isStill, madeInApp, newId, together, type Note, type Change, type HandBack, type Moment } from "@playthrough/change";
 import { glimpses, picture, readings as readingsOf, recording, type Listed } from "./api.ts";
 import { clamp } from "./clamp.ts";
@@ -308,10 +308,35 @@ export function MomentView(props: {
   const onThisTaking = (on: Note["on"]) => !!on && !madeInApp(on) && on.handBack === handBack.number;
   // A thing on the moment's page by its role and name, as it was read at its end.
   const nodeOf = (named?: { role: string; name: string }) => named && readings?.at(-1)?.things.find((thing) => thing.role === named.role && thing.name === named.name)?.node;
+  // The readings of the earlier takings this moment's notes were made on, which tell what each note's thing is now.
+  const takenThen = (note: Note) => {
+    const made = note.on && !madeInApp(note.on) && !onThisTaking(note.on) ? madeAt(note) : undefined;
+    return made && `${made.handBack}/${made.recording}`;
+  };
+  const [readThen, setReadThen] = useState<Record<string, Reading[]>>({});
+  const wanted = [...new Set(onEdge.flatMap(({ note }) => takenThen(note) ?? []))].filter((taking) => !(taking in readThen));
+  useEffect(() => {
+    for (const taking of wanted) {
+      const [number, recording] = [Number(taking.slice(0, taking.indexOf("/"))), taking.slice(taking.indexOf("/") + 1)];
+      readingsOf(change.id, number, recording).then((kept) => setReadThen((was) => ({ ...was, [taking]: kept })));
+    }
+  }, [wanted.join(" ")]);
+  // Until they've come, nothing a note is on is known, so nothing is drawn on a thing that might be the wrong one.
+  const allRead = !!readings && !wanted.length;
+  // Its thing in the picture now: made on this taking, that very thing; on an earlier one, the thing it became, as the
+  // two readings of its step tell; made in the app, where no reading of it is kept, the same thing by its role and name.
+  const nodeNow = (note: Note) => {
+    const on = note.on;
+    if (onThisTaking(on)) return on?.element?.node;
+    if (!on?.element || !readings) return undefined;
+    if (madeInApp(on)) return nodeOf(on.element);
+    const then = readThen[takenThen(note) ?? ""];
+    return then && foundNow(then, readings, on.element, madeAt(note)!.at)?.node;
+  };
   // A note is shown on its thing as it is now wherever that thing is in the moment's picture now, found as its pin is;
   // only otherwise on the frame it was made on, which is what its kept picture is drawn from.
   const nowOn = (note: Note) => {
-    const node = onThisTaking(note.on) ? note.on?.element?.node : nodeOf(note.on?.element);
+    const node = nodeNow(note);
     return node !== undefined && readings?.at(-1)?.things.some((thing) => thing.node === node) ? node : undefined;
   };
   const shownAt = (note: Note): Made | undefined => {
@@ -319,7 +344,7 @@ export function MomentView(props: {
     return node !== undefined ? { handBack: handBack.number, recording: moment.recording, at: moment.length, node } : madeAt(note);
   };
   const isNow = (shown?: Made) => !!shown && shown.handBack === handBack.number && shown.recording === moment.recording && Math.abs(shown.at - moment.length) < 0.1;
-  const frames = useFrames(change, readings ? onEdge.map(({ note }) => ({ note, shown: shownAt(note) })) : []);
+  const frames = useFrames(change, allRead ? onEdge.map(({ note }) => ({ note, shown: shownAt(note) })) : []);
   // The last stop's notes, from across the change, each on the frame it was made on.
   const sheetFrames = useFrames(change, atLastStop ? sending.current!.map(({ note }) => ({ note, shown: madeAt(note) })) : []);
   // A note from an earlier hand-back is shown on the moment as it is now, at its end, on its thing where that's found
@@ -335,12 +360,12 @@ export function MomentView(props: {
   const wasFrames = useFrames(change, opened && earlier(opened.note) && found(opened.note) ? [{ note: opened.note, shown: madeAt(opened.note) }] : []);
   // The kept picture of the frame a note was made on.
   const wasFrame = (note: Note) => (earlier(note) && found(note) ? wasFrames[note.id] : frames[note.id]);
-  // A note's pin is on the recording whenever its thing is in the picture: made on this taking, that very thing; made in
-  // the app or on an earlier taking, the same thing drawn here, by its role and name. One on a spot is on this taking's
-  // picture only where it was made.
+  // A note's pin is on the recording whenever its thing is in the picture: made on this taking, that very thing; on
+  // an earlier taking, the thing it became; in the app, the same thing drawn here, by its role and name. One on a spot is
+  // on this taking's picture only where it was made.
   const markOf = (note: Note): Mark => {
     const on = note.on;
-    const node = onThisTaking(on) ? on?.element?.node : nodeOf(on?.element);
+    const node = nodeNow(note);
     if (node !== undefined) return { id: note.id, node };
     if (onThisTaking(on) && on?.point && Math.abs((on.at ?? end) - at) < 0.06) return { id: note.id, point: on.point };
     return { id: note.id };
