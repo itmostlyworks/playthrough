@@ -75,6 +75,8 @@ export function Edge(props: {
   answers?: boolean;
 }) {
   const { side, label, keys, stage, quiet, phone, empty, showing, arrived, children, foot, answers } = props;
+  // For another page to find it by (data-part): the moments are always on the left, what you said on the right.
+  const part = side === "left" ? "moments" : "notes";
   // What rests while you're in the app: every card, or where they answer, each until it's pointed at.
   const dead = quiet && !answers;
   const [forward, setForward] = useState(false);
@@ -162,7 +164,7 @@ export function Edge(props: {
 
   if (phone)
     return (
-      <section aria-label={label}>
+      <section aria-label={label} data-part={part}>
         <div className={`transition-opacity duration-200 ease-calm ${quiet ? "opacity-(--resting)" : ""}`} inert={dead}>
           <h2 className="text-[13px] leading-5 font-semibold text-soft">{label}</h2>
           <div ref={list} className="-mx-4 -mb-4 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pt-2 pb-4 [scrollbar-width:none] [&>*]:w-[148px] [&>*]:flex-none [&>*]:snap-start">
@@ -197,6 +199,7 @@ export function Edge(props: {
         ref={own}
         role="region"
         aria-label={label}
+        data-part={part}
         // At rest its cards sit back, so the recording has your eye; in the app they rest as all that drives it does.
         className="fixed z-30 transition-[translate] duration-300 ease-calm"
         style={{ top: room.top - INSET, height: room.height + 2 * INSET, width: DRAWER, left: right ? room.inner : room.inner - DRAWER, translate: forward ? `${right ? -shift : shift}px 0` : "0 0" }}
@@ -271,8 +274,10 @@ export function Tile(props: {
   strip?: boolean;
   onPress: () => void;
   onPoint?: (pointed: boolean) => void;
+  // What it is, for another page to find it by.
+  part?: "moment";
 }) {
-  const { id, label, forward, strong, quiet, lit, waiting, arriving: from, picture, words, strip, onPress, onPoint } = props;
+  const { id, label, forward, strong, quiet, lit, waiting, arriving: from, picture, words, strip, onPress, onPoint, part } = props;
   const arriving = !!from;
   const own = useRef<HTMLButtonElement>(null);
   // A new one comes in from past the screen's edge, so it's seen arriving where it'll stay.
@@ -290,6 +295,7 @@ export function Tile(props: {
     <button
       ref={own}
       data-tile={id}
+      data-part={part}
       data-waiting={waiting || undefined}
       aria-label={label}
       aria-pressed={strong}

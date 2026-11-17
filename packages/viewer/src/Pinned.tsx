@@ -74,6 +74,7 @@ export function Pinned({ pins, placed, open, faded, onOpen, lit, onPoint, quiet 
               aria-label="Note"
               aria-expanded={chosen}
               data-pin={pin.id}
+              data-part="pin"
               className={`pointer-events-auto absolute grid size-[18px] cursor-pointer place-items-center transition duration-150 ease-calm hover:scale-112 ${lit === pin.id ? "scale-112" : ""}`}
               style={{ left, top }}
               onClick={() => onOpen(chosen ? undefined : pin.id)}

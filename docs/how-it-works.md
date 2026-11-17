@@ -297,6 +297,11 @@ stays whole, so the wheel, a drag and a swipe over it are the page around's; a s
 last stop's sheet or every change's sheet goes on out to it; and a note's field takes the keys only once they're
 already in the frame, as after a press in it. On its own, none of this applies.
 
+What another page may find the viewer's parts by is `data-part`, never their words or looks: the bar's `play`,
+`step-in` (`back` once in the app), `note`, and `send` (`done` with nothing to send); a note's `pin` and `note-card`;
+the edges, `moments` and `notes`; each of the moments' cards, `moment`, and their last, `last-stop`; and over the notes
+at the last stop, `notes-heading`. Nothing in the viewer reads them.
+
 **What's next** (`Moments.tsx`, `Opening.tsx`, `step.ts`). `/` opens on the next change waiting on you, its opening card:
 its title, what you asked, the app and when it came back, over the first moment you haven't seen, its picture softened
 where the recording will be. Nothing plays. The whole card is one press, as its look says on hover ("See 3 moments",

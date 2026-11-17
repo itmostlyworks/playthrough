@@ -202,6 +202,7 @@ export function NoteCard({ by, stage, closing, under, children }: { by: Rect; st
     <div
       ref={own}
       data-note-card
+      data-part="note-card"
       className={`${under ? "relative" : "absolute z-40"} flex animate-arrive flex-col rounded-xl bg-surface p-2 shadow-float transition-opacity duration-300 ease-calm ${closing ? "pointer-events-none opacity-0" : ""}`}
       style={under ? undefined : { ...place, width, maxHeight: foot - edge }}
       onClick={(event) => event.stopPropagation()}

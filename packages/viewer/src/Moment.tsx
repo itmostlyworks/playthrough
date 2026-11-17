@@ -656,6 +656,7 @@ export function MomentView(props: {
       return (
         <Tile
           key={other.name}
+          part="moment"
           id={other.name}
           label={other.name}
           forward={forward}
@@ -1087,7 +1088,7 @@ export function MomentView(props: {
                 <FrameButton by={-1} disabled={!may.frameBefore} onStep={() => frame(-1)} held={arrow} />
                 {/* The tip stands beside Play, not in it, so it's as clear as any other while Play rests. */}
                 <span className="group/tip relative flex">
-                  <button className={`${ITEM} relative w-[96px] phone:w-[56px]`} disabled={!may.play} aria-description={still ? STILL : undefined} onClick={play}>
+                  <button data-part="play" className={`${ITEM} relative w-[96px] phone:w-[56px]`} disabled={!may.play} aria-description={still ? STILL : undefined} onClick={play}>
                     <span className="w-9 text-left">{playing ? "Pause" : "Play"}</span> <Key className="min-w-9">Space</Key>
                     {!still && <Progress clock={clockOf} share={shareOf(at)} shareOf={shareOf} moving={!!playing} shown={!atPoint && !away} />}
                   </button>
@@ -1097,7 +1098,7 @@ export function MomentView(props: {
               </>
             )}
             {/* On a phone, "Stepping…": its amber line says where, and the bar fits 390 wide with the arrows by Play. */}
-            <button className={`${ITEM} relative w-[116px] phone:w-[84px]`} disabled={!may.stepIn && !may.back} aria-pressed={stepping} aria-label={inApp ? "Back, Escape twice" : undefined} onClick={stepInOrBack}>
+            <button data-part={inApp ? "back" : "step-in"} className={`${ITEM} relative w-[116px] phone:w-[84px]`} disabled={!may.stepIn && !may.back} aria-pressed={stepping} aria-label={inApp ? "Back, Escape twice" : undefined} onClick={stepInOrBack}>
               {inApp ? "Back" : stepping ? <>Stepping<span className="phone:hidden"> in</span>…</> : "Step in"}{" "}
               {/* In the app, a single Escape is the app's: twice is Back. One key and its count, as two alike side by
                   side read as one drawn twice. */}
@@ -1111,7 +1112,7 @@ export function MomentView(props: {
               )}
               {stepIn.getting && <Getting {...stepIn.getting} />}
             </button>
-            <button className={`${ITEM}`} disabled={!may.note} aria-pressed={noting} onClick={note}>
+            <button data-part="note" className={`${ITEM}`} disabled={!may.note} aria-pressed={noting} onClick={note}>
               Note <Key>N</Key>
             </button>
             {(anyLook || sent.some(earlier)) &&

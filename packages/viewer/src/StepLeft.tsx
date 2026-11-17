@@ -97,6 +97,7 @@ export function StepCard({ step, here, forward, tucked, dots, onPress }: { step:
   return (
     <button
       data-tile="the last stop"
+      data-part="last-stop"
       data-waiting={sends || undefined}
       aria-label={step.what === "send" ? step.words : step.taken ?? "Done"}
       aria-pressed={here}
@@ -160,7 +161,7 @@ export function StepAction({ step, told }: { step: Step; told: boolean }) {
       {/* Pressed, what it says stands in the button's own box, flat and quiet, nothing to press; the button is kept
           under it unseen, so the box is the button's to the pixel and the bar keeps its width. */}
       {what && (
-        <SendButton filled={filled} onClick={step.press} disabled={said === "sending" || !!taken} className={`[grid-area:1/1] ${taken ? "invisible" : ""}`}>
+        <SendButton data-part={filled ? "send" : "done"} filled={filled} onClick={step.press} disabled={said === "sending" || !!taken} className={`[grid-area:1/1] ${taken ? "invisible" : ""}`}>
           {/* Sending, its words stay under "Sending…" unseen, so the button keeps its width. */}
           <span className="grid place-items-center">
             <span className={`flex items-center gap-2 [grid-area:1/1] ${said === "sending" ? "invisible" : ""}`}>

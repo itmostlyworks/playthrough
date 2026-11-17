@@ -140,7 +140,7 @@ function NotesSay({ went, many }: { went?: Went; many: boolean }) {
   ];
   const now = went ?? "yours";
   return (
-    <p role="status" className="mb-2 grid justify-items-center text-[12.5px] leading-[17px] text-soft">
+    <p role="status" data-part="notes-heading" className="mb-2 grid justify-items-center text-[12.5px] leading-[17px] text-soft">
       {lines.map(([is, words]) => (
         <span key={is} aria-hidden={is !== now} className={`flex items-center whitespace-nowrap transition-opacity duration-200 ease-calm [grid-area:1/1] ${is === now ? "" : "opacity-0"}`}>
           {words}
