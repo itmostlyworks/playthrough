@@ -172,7 +172,9 @@ export function StepAction({ step, told }: { step: Step; told: boolean }) {
         </SendButton>
       )}
       {taken && (
-        <Taken className="rounded-lg bg-[color-mix(in_srgb,var(--soft)_11%,transparent)] [grid-area:1/1]">
+        // Over the button it's the button's box, and never widens it where its words are the wider (Done, with its key
+        // hidden on a phone): it counts for nothing in the bar's width, and takes all of the button's.
+        <Taken className={`rounded-lg bg-[color-mix(in_srgb,var(--soft)_11%,transparent)] [grid-area:1/1] ${what ? "w-0 min-w-full" : ""}`}>
           {taken}
         </Taken>
       )}

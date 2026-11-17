@@ -45,7 +45,7 @@ export function SendButton({ filled, className = "", children, ...rest }: { fill
 
 // Sent or done: said with a tick.
 export const tick = (
-  <svg viewBox="0 0 12 12" className="mr-1 size-3 text-green in-aria-pressed:text-inherit" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+  <svg viewBox="0 0 12 12" className="mr-1 size-3 flex-none text-green in-aria-pressed:text-inherit" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
     <path d="M2.8 6.2l2.2 2.2 4.2-4.6" />
   </svg>
 );
