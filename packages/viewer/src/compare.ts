@@ -1,6 +1,6 @@
 // Compare: a moment as it is now beside how it was when you last saw it, played together.
 
-import { differences, type Reading, type Thing } from "@playthrough/page";
+import type { Reading, Thing } from "@playthrough/page";
 import type { Finding } from "@playthrough/change";
 import type { Cut } from "./Player.tsx";
 import type { Box } from "./view.ts";
@@ -32,20 +32,17 @@ export function playedTogether(cut: Cut, [now, then]: [number[], number[]]): Pla
 
 // What changed in a moment since it was last seen, where it is on either side at the moment's point: each thing found
 // changed, and what it changed alike with; something gone, where it was. Found as a part of the page, a whole table with
-// “8 things changed inside”, it's the things inside it that read or look different, or are new or gone, where the two
-// readings tell them (moved and resized only follow from those), else the part itself.
+// “8 things changed inside”, it's the things the hand-back counted inside it, on whichever side each is, else the part
+// itself.
 export function changedAt(findings: Finding[], moment: string, then: Reading | undefined, now: Reading): Box[] {
-  const inside = then ? differences(then, now).differences.filter((one) => one.what !== "moved" && one.what !== "resized") : [];
   return findings.flatMap((finding) =>
     finding.seen.flatMap((place) => {
       if (place.moment !== moment) return [];
       if (place.element) return [place.element, ...(place.alike ?? [])].flatMap((named) => calledIn(finding.gone ? then : now, named));
       if (place.point) return [{ left: place.point.x * now.screen.width, top: place.point.y * now.screen.height, width: 0, height: 0 }];
       if (!place.box) return [];
-      const part = { left: place.box.x * now.screen.width, top: place.box.y * now.screen.height, width: place.box.width * now.screen.width, height: place.box.height * now.screen.height };
-      const within = (box: Box) => box.left >= part.left - 1 && box.top >= part.top - 1 && box.left + box.width <= part.left + part.width + 1 && box.top + box.height <= part.top + part.height + 1;
-      const things = inside.flatMap((one) => [...("now" in one ? [one.now] : []), ...("then" in one ? [one.then] : [])]).map(boxOf).filter(within);
-      return things.length ? things : [part];
+      const things = (place.inside ?? []).flatMap((named) => [...calledIn(now, named), ...calledIn(then, named)]);
+      return things.length ? things : [{ left: place.box.x * now.screen.width, top: place.box.y * now.screen.height, width: place.box.width * now.screen.width, height: place.box.height * now.screen.height }];
     }),
   );
 }

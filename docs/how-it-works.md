@@ -270,7 +270,10 @@ agent's: “Export button is new”, “Status column looks different” where o
 button now says “Clear 2 completed””. What only follows from another is told with it (what was pushed along by
 something new above it); things that swapped places, rows in a new order (the fewest that moved: “moved down 2
 places”), and alike things changed alike are one change each; a row, a list's item or a card is read as one thing, so
-one new or gone is one change and the same change in each is one change, in as many places. Where the pictures differ
+one new or gone is one change and the same change in each is one change, in as many places. Past five changes inside one
+table or list, they're one change to it, counted (“Table: 8 things changed inside”), kept on the table with each thing
+counted, by its role and name, which finds it on whichever hand-back has it (`inside`, `findings.ts`); what was only made
+wider, narrower or moved, columns making room for longer words, is counted but kept only when it's all there is. Where the pictures differ
 with nothing the reading found there, that's a change of its own, named by what it's on; the agent isn't asked about
 those, as it can't see more of them than Playthrough did (`toAccountFor`). What changes by itself is left out. A
 hand-back can be handed back only once it's compared with every one before it (`problemsFinishing`). The agent reads the
@@ -666,8 +669,8 @@ and the demo's one change, a Status column, was out of view on both). What was d
 place on either side (`doneIn`, `replay.ts`, where the click's ring is drawn) and the whole of the last thing done to
 (`acted`, as each side's reading has it); what changed is each finding on the moment, by its thing and those changed
 alike with it, in the reading of the side it's on, and, for a finding that's a whole part of the page ("Table: 8
-things changed inside"), the things inside it that read or look different, new or gone, as the two readings tell them
-(`differences`; moved and resized only follow from those), else the part itself (`changedAt`, `compare.ts`). The rule is
+things changed inside"), the things the hand-back counted inside it, on whichever side each is, else, kept before
+those were, the part itself (`changedAt`, `compare.ts`). The rule is
 one pure function, `framed` (`view.ts`): at actual size the view moves from the top left only as far as it takes for
 all of it to be in with 24px of room around (in view already, nothing moves); where it doesn't fit, it's brought just
 far enough out that it does, never further than `FARTHEST`, 0.6 of actual size, where an app's words stop reading;

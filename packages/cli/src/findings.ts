@@ -13,8 +13,9 @@ import type { Box, Element } from "@playthrough/change";
 // A finding at one time: what it's on is an element of the newer hand-back, or for something gone, where it was. And the
 // ids of the changes it stands for, each by itself, so what changes by itself is left out as itself, never as all it's
 // told with.
-// Off the screen, it's what the page has but the recording doesn't show at this time.
-export type Found = { id: string; words: string; element?: Element; alike?: Element[]; box?: Box; pieces: string[]; reworded?: string; gone?: true; offScreen?: true; top?: number };
+// Off the screen, it's what the page has but the recording doesn't show at this time. Counted inside a part of the page,
+// it's on the part, and on each thing that changed inside it.
+export type Found = { id: string; words: string; element?: Element; alike?: Element[]; box?: Box; inside?: Element[]; pieces: string[]; reworded?: string; gone?: true; offScreen?: true; top?: number };
 
 // What happened to a thing, before it's said in full: what it's on, in which of the two readings, and what came with it;
 // what it's known by, where the thing alone doesn't say, and the changes it stands for, by their ids.
@@ -528,9 +529,18 @@ function said(told: Told[], readings: ThenAndNow, unsteady: Set<string>): Found[
         ? `Columns in ${the(holder)} changed width`
         : `${called(holder)}: ${count} ${things(count)} changed inside`;
     const changed: Told = { what: "changed inside", thing: holder, in: now, words };
-    found.push({ id: id(changed), words: sentence(words), ...placeOf(changed, now), pieces: all.flat().flatMap(piecesOf), ...offScreen(all.flat()), top: topOf(changed, now) });
+    found.push({ id: id(changed), words: sentence(words), ...placeOf(changed, now), ...insideOf(all.flat()), pieces: all.flat().flatMap(piecesOf), ...offScreen(all.flat()), top: topOf(changed, now) });
   }
   return found;
+}
+
+// The things counted inside a part, each once, by its role and name, which find it in either hand-back's reading: some are
+// only on the earlier one. Those only wider, narrower or moved follow from the rest, as a table's columns make room for
+// words that got longer, so they're kept only when they're all there is: the columns are what changed.
+function insideOf(told: Told[]): { inside?: Element[] } {
+  const own = told.filter((one) => one.what !== "resized" && one.what !== "moved");
+  const named = new Map((own.length ? own : told).filter((one) => one.thing.name).map(({ thing }) => [`${thing.role} ${thing.name}`, { role: thing.role, name: thing.name }]));
+  return named.size ? { inside: [...named.values()] } : {};
 }
 
 // How far down the screen it is, as a share of it, so a moment's changes are told as the screen reads, top to bottom.

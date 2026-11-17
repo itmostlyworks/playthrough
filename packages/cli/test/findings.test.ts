@@ -161,13 +161,24 @@ describe("What changed at a moment", () => {
     ]);
   });
 
-  test("past five different changes inside one table or list, they're one change to it, counted and not listed", async () => {
+  test("past five different changes inside one table or list, they're one change to it, counted and not listed, that keeps each thing it counted, so Compare can show them", async () => {
     const customers = ["Alder Dental", "Harbor & Finch", "Juniper Health", "Kettle Works", "Moss Logistics", "Pale Harbour"];
-    const changed = await said(
-      `<div class="panel">${rows(customers)}</div>`,
-      `<div class="panel">${rows(customers.map((name, i) => `${name} ${["Group", "LLP", "Co", "Ltd", "AB", "Inc"][i]}`))}</div>`,
-    );
-    assert.deepEqual(changed, ["Table: 6 things changed inside"]);
+    const renamed = customers.map((name, i) => `${name} ${["Group", "LLP", "Co", "Ltd", "AB", "Inc"][i]}`);
+    const [table, ...more] = await changes(`<div class="panel">${rows(customers)}</div>`, `<div class="panel">${rows(renamed)}</div>`);
+    assert.deepEqual([table?.words, more.length], ["Table: 6 things changed inside", 0]);
+    assert.deepEqual(table!.inside, renamed.map((name) => ({ role: "text", name })));
+  });
+
+  test("of what's counted inside a table, what only made room for the rest isn't kept to show: its columns, wider or narrower for longer words (the demo's Status)", async () => {
+    const invoices = [["INV-1043", "Alder Dental", "Aug 12", "$920", "Ana", "Sep 1", 79], ["INV-1045", "Harbor & Finch", "Sep 15", "$1,840", "Ben", "Oct 2", 45], ["INV-1046", "Juniper Books", "Oct 3", "$460", "Cleo", "Oct 20", 27]] as const;
+    const late = (days: number) => `${days} days late and not yet reminded`;
+    const table = (status: (days: number) => string) =>
+      `<table style="width: 1000px"><tr>${["Invoice", "Customer", "Due", "Amount", "Owner", "Sent", "Status"].map((column) => `<th>${column}</th>`).join("")}</tr>${invoices
+        .map((invoice) => `<tr>${[...invoice.slice(0, 6), status(invoice[6])].map((cell) => `<td>${cell}</td>`).join("")}</tr>`)
+        .join("")}</table>`;
+    const [counted, ...more] = await changes(table(() => "Overdue"), table(late));
+    assert.deepEqual([counted?.words, more.length], [`Table: ${counted?.pieces.length} things changed inside`, 0]);
+    assert.deepEqual(counted!.inside, invoices.map((invoice) => ({ role: "text", name: late(invoice[6]) })));
   });
 
   test("the same rewording in each row is one change, whatever each row says, as a thing in an item is known by its place there and never by its words (each customer marked paid)", async () => {

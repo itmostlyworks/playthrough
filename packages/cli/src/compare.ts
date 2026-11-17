@@ -117,7 +117,7 @@ async function compareMoment(page: Page, earlier: Recorded, before: Moment, hand
     const pictured = await picturesAt(page, was, reading, pictures);
     // Top to bottom, as the screen reads, whether read or pictured.
     for (const found of [...findingsAt(was, reading, unsteady, shown), ...pictured].sort((a, b) => (a.top ?? 0) - (b.top ?? 0))) {
-      const on = found.element ? { element: found.element, ...(found.alike && { alike: found.alike }) } : found.box ? { box: found.box } : {};
+      const on = found.element ? { element: found.element, ...(found.alike && { alike: found.alike }) } : found.box ? { box: found.box, ...(found.inside && { inside: found.inside }) } : {};
       sightings.push({ id: found.id, words: found.words, place: { moment: moment.name, at: reading.at, ...on }, of: found.pieces, ...(found.reworded && { reworded: found.reworded }), ...(found.gone && { gone: true as const }), ...(pictured.includes(found) && { pictureOnly: true as const }), ...(found.offScreen && { offScreen: true as const }) });
     }
   }

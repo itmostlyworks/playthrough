@@ -58,6 +58,7 @@ export const Place = z
     element: Element.optional(),
     alike: z.array(Element).optional().describe("The other things changed alike with its element, each where it is"),
     box: Box.optional().describe("Something with no words of its own, or where only the pixels changed"),
+    inside: z.array(Element).optional().describe("For a part of the page counted as one change, the things that changed inside it, each on whichever hand-back has it"),
     point: Point.optional().describe("Empty space"),
   })
   .refine(onOneThing, { error: ONE_THING })
