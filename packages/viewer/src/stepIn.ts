@@ -7,7 +7,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { doneAt, madeBySetup, madeInApp, newId, type Did, type InApp, type Note, type Moment } from "@playthrough/change";
-import { keepBranch } from "./api.ts";
+import { keepBranch, source } from "./api.ts";
 import { keepSteppedIn, steppedInHere } from "./kept.ts";
 import { isPlaying, keptReadyAt, type Action, type Facts, type Page } from "./mode.ts";
 import type { Clock } from "./Player.tsx";
@@ -48,18 +48,19 @@ export function useStepIn({ change, handBack, moment, page, clock, act, pointing
     asking.current?.abort();
     const asked = (asking.current = new AbortController());
     const ours = (update: (run: Run) => Run) => setRun((now) => (now?.since === since ? update(now) : now));
-    readyIn(change, moment.name, after, asked.signal).then(async (answer) => {
+    // How long it should take is known as long as the last took, unless the app isn't running and starts first.
+    source.readyIn(change, moment.name, after, asked.signal).then(async (answer) => {
       if (answer?.in) return ours((now) => ({ ...now, due: since + answer.in! }));
       if (!answer?.starting) return;
       ours((now) => ({ ...now, starting: true }));
       // Starting, it's asked again every second until the app answers: from then on it's the way there being redone.
-      for (let again: typeof answer | undefined = answer; again?.starting !== false; again = await readyIn(change, moment.name, after, asked.signal)) {
+      for (let again: typeof answer | undefined = answer; again?.starting !== false; again = await source.readyIn(change, moment.name, after, asked.signal)) {
         await new Promise((ready) => setTimeout(ready, ASKED_AGAIN));
         if (asked.signal.aborted) return;
       }
       ours((now) => ({ ...now, answered: true }));
     });
-    readyAt(change, moment.name, after, asked.signal).then((answer) => {
+    source.stepIn(change, moment.name, after, asked.signal).then((answer) => {
       if (asked.signal.aborted) return;
       if ("address" in answer) return ours((now) => ({ ...now, address: answer.address, setup: answer.setup, checked: answer.checked }));
       ours((now) => ({ ...now, problems: answer.problems }));
@@ -150,50 +151,22 @@ export function useStepIn({ change, handBack, moment, page, clock, act, pointing
 // place it rests at, and again once back from the app, where what was made there was taken.
 export function useKeptReady({ change, moment, page, facts }: { change: string; moment: Moment; page: Page; facts: Facts }) {
   const at = page.moment === moment.name ? keptReadyAt(page, facts, steppedInHere(change)) : undefined;
-  const place = at === undefined ? undefined : JSON.stringify({ moment: moment.name, after: doneAt(moment, at) });
+  const after = at === undefined ? undefined : doneAt(moment, at);
+  const place = at === undefined ? undefined : `${moment.name} ${after}`;
   const asked = useRef<string>(undefined);
   useEffect(() => {
     if (place === undefined) return void (asked.current = undefined);
     if (place === asked.current) return;
     const rested = setTimeout(() => {
       asked.current = place;
-      fetch(`/api/changes/${encodeURIComponent(change)}/keep-ready`, { method: "POST", headers: { "content-type": "application/json" }, body: place }).catch(() => {});
+      source.keepReady(change, moment.name, after);
     }, RESTED);
     return () => clearTimeout(rested);
   }, [change, place]);
 }
 const RESTED = 600;
 
-// Playthrough answers a step in within a minute, made or with why not (following.ts); past this, it isn't going to.
-const ANSWERED = 70_000;
 // A page of the app is given half a minute to load on the way there, and its page here as long.
 const SETTLING = 30_000;
-
-// How long until a moment asked for is ready, in milliseconds, as long as the last run took to get there; nothing when
-// that can't be known yet, as when the app isn't running and starts first. Unanswered, nothing is known.
-const readyIn = (change: string, moment: string, after: number | undefined, asked: AbortSignal): Promise<{ in?: number; starting: boolean } | undefined> =>
-  fetch(`/api/changes/${encodeURIComponent(change)}/ready-in`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ moment, after }), signal: asked })
-    .then((answer) => (answer.ok ? answer.json() : Promise.reject()))
-    .then((said) => ({ in: said.in ?? undefined, starting: said.starting === true }), () => undefined);
 // How often a starting app is asked after.
 const ASKED_AGAIN = 1000;
-
-// Where the app is at that moment, through Playthrough, on the same machine name the viewer was reached by, and what its
-// check at the end says where it doesn't hold now; or what stops it.
-async function readyAt(change: string, moment: string, after: number | undefined, asked: AbortSignal): Promise<{ address: string; setup: Record<string, unknown>; checked?: string } | { problems: string[] }> {
-  try {
-    const answer = await fetch(`/api/changes/${encodeURIComponent(change)}/step-in`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ moment, after }),
-      signal: AbortSignal.any([asked, AbortSignal.timeout(ANSWERED)]),
-    });
-    const said = await answer.json().catch(() => ({}));
-    if (answer.ok) return { address: `${location.protocol}//${location.hostname}:${said.port}/step-in/${said.name}`, setup: said.setup ?? {}, checked: said.checked };
-    return { problems: said.problems ?? [`Playthrough couldn't open the app here: it answered ${answer.status}. Step in again; if it says so again, start Playthrough again with playthrough open.`] };
-  } catch (error) {
-    if ((error as Error)?.name === "TimeoutError")
-      return { problems: [`Playthrough hasn't answered in ${ANSWERED / 1000} seconds, when it always says within a minute. Look at where playthrough open runs: if it's stuck there, start it again, then step in again.`] };
-    return { problems: ["Playthrough isn't running here any more. Start it again with playthrough open, then step in again."] };
-  }
-}

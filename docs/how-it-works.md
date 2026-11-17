@@ -283,6 +283,13 @@ the hand-back you last opened each moment on (Compare).
 what's next, and a moment opens at `/moments/<copy>/<change>/<n>`, with `?note=<id>` opening one of its notes
 (`Moments.tsx`); any other address is what's next.
 
+The page asks one source for everything (`Source`, `api.ts`): who you are, every change as it's told again, where a
+hand-back's files are, and what it says (what's sent and seen, stepping in and its branches, a note's frame and a fine
+still drawn). `playthrough open` is that source (`server.ts`, at `/api`). Another page can show the viewer on an element
+of its own with a source of its own (`show(element, source)`, `show.tsx`), built beside the page into
+`packages/cli/show/` as `viewer.js`, one module with everything inside it, and `viewer.css`, and published as
+`playthrough/show/viewer.js` and `playthrough/show/viewer.css`.
+
 **What's next** (`Moments.tsx`, `Opening.tsx`, `step.ts`). `/` opens on the next change waiting on you, its opening card:
 its title, what you asked, the app and when it came back, over the first moment you haven't seen, its picture softened
 where the recording will be. Nothing plays. The whole card is one press, as its look says on hover ("See 3 moments",
@@ -750,7 +757,7 @@ out to their promises (`packages/*/test`), the loop's in `change/test/loop.test.
 While working on the page, `npm run dev --workspace @playthrough/viewer` serves it with instant reloads beside a running
 `playthrough open`.
 
-`npm run build` builds the page, then the package in `packages/cli/release` (`packages/cli/build.ts`): Node runs
+`npm run build` builds the page and the viewer for another page to show, then the package in `packages/cli/release` (`packages/cli/build.ts`): Node runs
 TypeScript from a checkout but not from inside an installed package, so there the command is JavaScript, with the change
 and the page inside it, beside the page it serves, the types moments are written against and `MOMENTS.md`. Every push to
 main is checked, tested and built (`check.yml`). It's released from GitHub: in the Actions tab, Release, Run workflow,

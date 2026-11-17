@@ -2,7 +2,7 @@
 // them, what's different since, and what each note says now, in the page's words.
 
 import { conversation, notesToAnswer, type Note, type Change, type HandBack, type Moment } from "@playthrough/change";
-import type { Listed } from "./api.ts";
+import { source, type Listed } from "./api.ts";
 import { stored, seenKey, type YourReply } from "./kept.ts";
 
 // What Send says it sends: notes and replies, by their count.
@@ -73,8 +73,8 @@ export function markSeen(change: Change, you: string, takings: string[]) {
   if (!opened.length) return;
   for (const one of opened) telling.add(`${change.id}:${takingOf(one.handBack, one.moment)}`);
   const said = opened.map(({ handBack, moment }) => (moment === LAST_STOP ? { handBack } : { handBack, moment }));
-  void fetch(`/api/changes/${encodeURIComponent(change.id)}/seen`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ by: you, moments: said }) }).then((answer) => {
-    if (!answer.ok) return;
+  void source.seen(change.id, you, said).then((problems) => {
+    if (problems.length) return;
     try {
       localStorage.removeItem(seenKey(change.id, you));
     } catch {}

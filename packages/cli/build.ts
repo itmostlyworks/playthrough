@@ -50,6 +50,7 @@ for (const file of readdirSync(types, { recursive: true, encoding: "utf8" }).fil
 }
 
 cpSync(join(cli, "viewer"), join(release, "viewer"), { recursive: true });
+cpSync(join(cli, "show"), join(release, "show"), { recursive: true });
 cpSync(join(cli, "MOMENTS.md"), join(release, "MOMENTS.md"));
 cpSync(join(packages, "../LICENSE"), join(release, "LICENSE"));
 // On npm, the README's links lead to the repo, and of a picture GitHub shows in its own light or dark theme, only the
@@ -64,8 +65,12 @@ writeFileSync(join(release, "README.md"), readme);
 const { private: _, devDependencies: __, scripts: ___, ...published } = own;
 // A command's file as npm wants it named, from the package's folder without “./”: with it, npm takes the command out.
 const bin = Object.fromEntries(Object.entries<string>(own.bin).map(([name, path]) => [name, js(path).replace(/^\.\//, "")]));
-const exports = Object.fromEntries(
-  Object.entries<string>(own.exports).map(([name, path]) => [name, { types: `./types/cli/${js(path).replace(/^\.\//, "").replace(/\.js$/, ".d.ts")}`, default: js(path) }]),
-);
+const exports = {
+  ...Object.fromEntries(
+    Object.entries<string>(own.exports).map(([name, path]) => [name, { types: `./types/cli/${js(path).replace(/^\.\//, "").replace(/\.js$/, ".d.ts")}`, default: js(path) }]),
+  ),
+  // The viewer for another page to show: `playthrough/show/viewer.js` and its styles.
+  "./show/*": "./show/*",
+};
 writeFileSync(join(release, "package.json"), `${JSON.stringify({ ...published, bin, exports, dependencies: needs }, null, 2)}\n`);
 console.log(`Playthrough ${own.version} is ready to publish in ${relative(process.cwd(), release) || "."}.`);
