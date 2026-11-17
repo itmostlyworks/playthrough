@@ -57,9 +57,10 @@ export function Getting({ since, due }: { since: number; due?: number }) {
 // over it when it's pointed at a while, or reached with Tab. Held under the pointer, it walks as its key held does;
 // pressed from the keyboard, it's one step.
 export function FrameButton({ by, disabled, onStep, held }: { by: 1 | -1; disabled: boolean; onStep: () => void; held: { press: (by: 1 | -1) => void; letGo: () => void } }) {
-  const [words, key, named] = by < 0 ? ["Frame before", "←", "ArrowLeft"] : ["Next frame", "→", "ArrowRight"];
+  const [words, key, named, part] = by < 0 ? ["Frame before", "←", "ArrowLeft", "frame-before"] : ["Next frame", "→", "ArrowRight", "next-frame"];
   return (
     <button
+      data-part={part}
       className={`${ITEM} group/tip relative w-6 px-0! text-soft! phone:w-5`}
       disabled={disabled}
       aria-label={words}

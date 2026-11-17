@@ -4,11 +4,12 @@
 // it, Send or Done, which goes on to what's next. A change seen all through has nothing left to open: / opens it there.
 // Top left on every page, how many wait on you opens every change as a sheet over the page (Waiting.tsx), from which
 // any can be gone to. Going on to the next moment is the yes; what you said goes to the agent by Send, or Done with
-// nothing to say. Here is which page, and what's next.
+// nothing to say. Here is which page, and what's next. Shown by another page, a change is shown on its own: no header,
+// no sheet of every change, and Send or Done stays where it was pressed.
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { latestOf, sentBy, type Note } from "@playthrough/change";
-import { useChanges, useYou, type Listed } from "./api.ts";
+import { shownByAnotherPage, useChanges, useYou, type Listed } from "./api.ts";
 import { Changes } from "./Changes.tsx";
 import { insideAnotherPage } from "./inside.ts";
 import { useUnsent, keepUnsent, type YourReply } from "./kept.ts";
@@ -38,8 +39,9 @@ const pathOf = ({ change, moment, note, end }: Where) =>
 
 // Where you are is kept in the page's address: its path at `playthrough open`, which answers every path with the page;
 // shown by another page, after its #, as a host serves that page alone.
-export function MomentsPage({ afterHash = false }: { afterHash?: boolean }) {
-  const address = () => (afterHash ? location.hash.slice(1) || "/" : location.pathname + location.search);
+export function MomentsPage() {
+  const shown = shownByAnotherPage();
+  const address = () => (shown ? location.hash.slice(1) || "/" : location.pathname + location.search);
   const [where, setWhere] = useState(() => whereFrom(address()));
   useEffect(() => {
     const back = () => setWhere(whereFrom(address()));
@@ -49,12 +51,13 @@ export function MomentsPage({ afterHash = false }: { afterHash?: boolean }) {
   useEffect(() => void document.documentElement.toggleAttribute("data-inside-another-page", insideAnotherPage()), []);
   const sheet = useSheet();
   // Going from one moment to the next, or one card at / to the next, replaces the address, so the browser's back is
-  // where you came from. Going anywhere closes the sheet.
+  // where you came from. Going anywhere closes the sheet. Inside another page, every going replaces it: the page's Back
+  // leaves that page, never steps through the change.
   const go: Go = (to, replace = false) => {
     sheet.close(false);
     const path = pathOf(to);
-    if (path === address()) replace = true;
-    history[replace ? "replaceState" : "pushState"](null, "", afterHash ? `#${path}` : path);
+    if (path === address() || insideAnotherPage()) replace = true;
+    history[replace ? "replaceState" : "pushState"](null, "", shown ? `#${path}` : path);
     setWhere(to);
   };
   const changes = useChanges();
@@ -73,8 +76,8 @@ export function MomentsPage({ afterHash = false }: { afterHash?: boolean }) {
     if (!asYouCame.current.has(key)) asYouCame.current.set(key, unreadOf(listed, you!));
     return asYouCame.current.get(key)!.filter((one) => !opened.includes(one.note));
   };
-  // The tab says how many changes wait on you, so it's seen from any other.
-  useEffect(() => void (document.title = waiting.length ? `${waitingSays(waiting.length)} · Playthrough` : "Playthrough"), [waiting.length]);
+  // The tab says how many changes wait on you, so it's seen from any other; shown by another page, the tab is its.
+  useEffect(() => void (!shown && (document.title = waiting.length ? `${waitingSays(waiting.length)} · Playthrough` : "Playthrough")), [waiting.length]);
   // A change by its own name alone, as addresses were before every app's were listed, is the first with that name.
   const listed = where.change ? changes?.find(({ change }) => change.id === where.change || change.id.endsWith(`/${where.change}`)) : undefined;
   useEffect(() => void (listed && listed.change.id !== where.change && go({ ...where, change: listed.change.id }, true)), [listed?.change.id]);
@@ -86,8 +89,9 @@ export function MomentsPage({ afterHash = false }: { afterHash?: boolean }) {
   if (!changes || !you) return <div className="h-dvh bg-ground" />;
 
   const opener = <Opener waiting={waiting.length} open={sheet.open} onOpen={sheet.openBy} />;
-  // On from a change to what's next, finished, as it was handed back.
-  const goOn = (from: Listed) => (setPassed((now) => [...now, passing(from)]), go({}));
+  // On from a change to what's next, finished, as it was handed back. Shown by another page, the change is all there
+  // is: it stays at its last stop.
+  const goOn = (from: Listed) => void (!shown && (setPassed((now) => [...now, passing(from)]), go({})));
   let page: ReactNode;
   if (ending || (listed && listed.change.id !== where.change)) page = <div className="h-dvh bg-ground" />;
   else if (where.change) {

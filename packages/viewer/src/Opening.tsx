@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { latestOf, type Moment } from "@playthrough/change";
 import { picture, readings as readingsOf, type Listed } from "./api.ts";
 import { TellYours } from "./Changes.tsx";
-import { Header } from "./Header.tsx";
+import { Header, headerRows } from "./Header.tsx";
 import { Key } from "./Key.tsx";
 import { inItsRoom } from "./Moment.tsx";
 import type { Go } from "./Moments.tsx";
@@ -60,7 +60,7 @@ export function Opening(props: { listed: Listed; you: string; opener: ReactNode;
     </div>
   );
   return (
-    <div className="grid h-dvh grid-rows-[auto_minmax(0,1fr)] overflow-clip bg-ground">
+    <div className={`grid h-dvh ${headerRows()} overflow-clip bg-ground`}>
       <Header opener={opener}>
         <button
           onClick={enter}
@@ -111,7 +111,7 @@ export function NothingWaiting({ changes, you, opener }: { changes: Listed[]; yo
   const on = steps.filter(({ step }) => !(step.is === "with" && step.tell));
   const unheard = steps.flatMap(({ one, step }) => (step.is === "with" && step.tell ? [{ one, tell: step.tell }] : []));
   return (
-    <div className="grid h-dvh grid-rows-[auto_minmax(0,1fr)] bg-ground">
+    <div className={`grid h-dvh ${headerRows()} bg-ground`}>
       <Header opener={opener} />
       <div className="grid animate-arrive content-start justify-items-center overflow-y-auto px-6 pt-[30dvh] pb-12">
         <div className="w-full max-w-[420px]">

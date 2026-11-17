@@ -44,6 +44,9 @@ type Framed = { handBack: number; recording: string; at: number; node?: number; 
 export let source: Source = server;
 // Handed before the viewer is drawn, and kept for as long as it's open.
 export const from = (given: Source) => void (source = given);
+// Handed a source of its own, the viewer is shown by another page: one change on its own, nothing of the list of them,
+// and where you are after the page's #.
+export const shownByAnotherPage = () => source !== server;
 
 // Every change, undefined until they've first come.
 export function useChanges(): Listed[] | undefined {

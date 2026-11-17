@@ -290,17 +290,25 @@ of its own with a source of its own (`show(element, source)`, `show.tsx`), built
 `packages/cli/show/` as `viewer.js`, one module with everything inside it, and `viewer.css`, and published as
 `playthrough/show/viewer.js` and `playthrough/show/viewer.css`. Shown so, it asks for nothing by an address of its own,
 and where you are is after the page's `#` (`#/moments/<copy>/<change>/<n>`), so it works from any folder of a plain
-static host, which answers only the page itself.
+static host, which answers only the page itself. **Shown by another page** (handed a source of its own,
+`shownByAnotherPage`, `api.ts`: the one fact all of this follows from), a change is shown on its own, with nothing of
+the list of changes: no header (no mark, nothing saying how many wait, no Next; on a phone, the change's title alone,
+as it has no other place), the recording taking the header's room; no sheet of every change (W does nothing); the tab's
+title left as the page has it; and after Send or Done, it stays at the last stop.
 
-**Inside another page's frame** (`inside.ts`), however it's served, the viewer keeps to its own: the picture's window
-stays whole, so the wheel, a drag and a swipe over it are the page around's; a scroll that has run out at an edge, the
-last stop's sheet or every change's sheet goes on out to it; and a note's field takes the keys only once they're
-already in the frame, as after a press in it. On its own, none of this applies.
+**Inside another page's frame** (`inside.ts`), shown by another page and in a frame, the viewer keeps to its own: the
+picture's window stays whole, so the wheel, a drag and a swipe over it are the page around's; a scroll that has run
+out at an edge or in the last stop's sheet goes on out to it; a note's field takes the keys only once they're already
+in the frame, as after a press in it; and going anywhere, into a change from its card included, replaces the address
+rather than adding to it, so the page's Back leaves that page instead of stepping back through the change. On its
+own, or at `playthrough open`'s in a frame (an editor's browser), none of this applies.
 
 What another page may find the viewer's parts by is `data-part`, never their words or looks: the bar's `play`,
-`step-in` (`back` once in the app), `note`, and `send` (`done` with nothing to send); a note's `pin` and `note-card`;
-the edges, `moments` and `notes`; each of the moments' cards, `moment`, and their last, `last-stop`; and over the notes
-at the last stop, `notes-heading`. Nothing in the viewer reads them.
+`step-in` (`back` once in the app), `note`, and `send` (`done` with nothing to send), the arrows by Play,
+`frame-before` and `next-frame`, and every key drawn on a button, `key` (Back's "Esc ×2" is one); a note's `pin` and
+`note-card`; the change's `title` over the recording (in the header on a phone); the edges, `moments` and `notes`; each
+of the moments' cards, `moment`, and their last, `last-stop`; and over the notes at the last stop, `notes-heading`.
+Nothing in the viewer reads them.
 
 **What's next** (`Moments.tsx`, `Opening.tsx`, `step.ts`). `/` opens on the next change waiting on you, its opening card:
 its title, what you asked, the app and when it came back, over the first moment you haven't seen, its picture softened

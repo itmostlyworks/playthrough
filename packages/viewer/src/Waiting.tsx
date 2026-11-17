@@ -5,6 +5,7 @@
 // to the next, and Enter goes in.
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { shownByAnotherPage } from "./api.ts";
 import { Key } from "./Key.tsx";
 import { Mark } from "./Mark.tsx";
 
@@ -46,6 +47,8 @@ export function useSheet() {
     return () => clearTimeout(gone);
   }, [open]);
   useEffect(() => {
+    // Shown by another page, a change is shown on its own: there's no sheet of every change to open.
+    if (shownByAnotherPage()) return;
     const down = (event: KeyboardEvent) => {
       const typing = event.target instanceof HTMLElement && event.target.closest("textarea, input, [contenteditable]");
       // A key the page has already taken (W typed while noting) opens nothing.
@@ -176,7 +179,7 @@ export function Sheet({ pointed, going, onClose, children }: { pointed: boolean;
         role="dialog"
         aria-label="Every change"
         tabIndex={-1}
-        className="absolute top-2 left-3 max-h-[calc(100dvh-16px)] w-[min(600px,calc(100vw-24px))] origin-top-left overflow-y-auto overscroll-contain inside:overscroll-auto rounded-xl bg-surface shadow-float outline-none phone:left-2 phone:w-[calc(100vw-16px)]"
+        className="absolute top-2 left-3 max-h-[calc(100dvh-16px)] w-[min(600px,calc(100vw-24px))] origin-top-left overflow-y-auto overscroll-contain rounded-xl bg-surface shadow-float outline-none phone:left-2 phone:w-[calc(100vw-16px)]"
       >
         {children}
       </div>

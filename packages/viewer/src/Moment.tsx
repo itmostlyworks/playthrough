@@ -11,7 +11,7 @@ import { glimpses, picture, readings as readingsOf, recording, type Listed } fro
 import { clamp } from "./clamp.ts";
 import { CHIP, playedTogether } from "./compare.ts";
 import { Edge, MORE, Tile, useMore } from "./Edge.tsx";
-import { Header, Title } from "./Header.tsx";
+import { Header, headerRows, Title } from "./Header.tsx";
 import type { YourReply } from "./kept.ts";
 import { Key } from "./Key.tsx";
 import { arrived, can, isPlaying, isStepped, reduce, type Action } from "./mode.ts";
@@ -805,8 +805,9 @@ export function MomentView(props: {
   const title = <Title title={change.title} asked={change.asked} quiet={`${props.app} · ${backAgain(change, you) ? "back again" : "back"} ${ago(handBack.finished!, Date.now())}`} />;
 
   return (
-    // Clipped, never scrolled: a caret put in a note's box can't move the page under you.
-    <div className="grid h-dvh grid-rows-[auto_minmax(0,1fr)] overflow-clip bg-ground phone:grid-rows-[auto_auto_minmax(0,1fr)]" onPointerDown={pressAway}>
+    // Clipped, never scrolled: a caret put in a note's box can't move the page under you. Shown by another page, with
+    // no header, the recording takes its room.
+    <div className={`grid h-dvh ${headerRows()} overflow-clip bg-ground phone:grid-rows-[auto_auto_minmax(0,1fr)]`} onPointerDown={pressAway}>
       <Header opener={props.opener} centre={phone ? title : undefined}>
         {/* The next moment, and after the last the last stop; there, nothing. */}
         {/* In the app it rests as it does where it can't be pressed, and pointed at, comes to full: it answers. */}
@@ -1100,13 +1101,11 @@ export function MomentView(props: {
             {/* On a phone, "Stepping…": its amber line says where, and the bar fits 390 wide with the arrows by Play. */}
             <button data-part={inApp ? "back" : "step-in"} className={`${ITEM} relative w-[116px] phone:w-[84px]`} disabled={!may.stepIn && !may.back} aria-pressed={stepping} aria-label={inApp ? "Back, Escape twice" : undefined} onClick={stepInOrBack}>
               {inApp ? "Back" : stepping ? <>Stepping<span className="phone:hidden"> in</span>…</> : "Step in"}{" "}
-              {/* In the app, a single Escape is the app's: twice is Back. One key and its count, as two alike side by
-                  side read as one drawn twice. */}
+              {/* In the app, a single Escape is the app's: twice is Back. */}
               {inApp ? (
-                <span ref={backKeys} className="flex items-center gap-1 phone:hidden pointer-coarse:hidden">
-                  <Key>Esc</Key>
-                  <span className="text-[11px] leading-4 text-[color-mix(in_srgb,var(--faint)_55%,var(--soft))]">×2</span>
-                </span>
+                <Key ref={backKeys} times={2} className="phone:hidden">
+                  Esc
+                </Key>
               ) : (
                 !stepping && <Key>S</Key>
               )}

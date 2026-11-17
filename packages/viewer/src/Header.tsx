@@ -3,23 +3,31 @@
 // looked at. On a phone there's no room over the recording for it: the change's title takes the room between.
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { shownByAnotherPage } from "./api.ts";
 import { usePhone } from "./phone.ts";
 
 // The header's height, and the gap between the title and what you asked.
 const HEADER = 48;
 const GAP = 6;
 
+// Shown by another page, a change is shown on its own: nothing of the list of changes, so no corners, and no header at
+// all but for a phone's title, which has no other place.
 export function Header({ opener, centre, children }: { opener: ReactNode; centre?: ReactNode; children?: ReactNode }) {
+  const alone = shownByAnotherPage();
+  if (alone && !centre) return null;
   return (
     // Never wider than the page: a title that can't wrap would otherwise widen it, on a phone, past the screen's edge,
     // and take Send's words and every note card's foot out of sight with it.
     <header className="grid h-12 min-w-0 grid-cols-[1fr_auto_1fr] items-center gap-3 px-6 phone:flex phone:px-4">
-      <div className="flex min-w-0 items-center phone:flex-none">{opener}</div>
+      <div className="flex min-w-0 items-center phone:flex-none">{!alone && opener}</div>
       <div className="flex min-w-0 justify-center phone:flex-1 phone:justify-start">{centre}</div>
-      <div className="flex min-w-0 items-center justify-end gap-3 phone:flex-none">{children}</div>
+      <div className="flex min-w-0 items-center justify-end gap-3 phone:flex-none">{!alone && children}</div>
     </header>
   );
 }
+
+// A page's rows, the header's and the room under it: shown by another page, with no header, the room alone.
+export const headerRows = () => (shownByAnotherPage() ? "grid-rows-[minmax(0,1fr)]" : "grid-rows-[auto_minmax(0,1fr)]");
 
 // The change's title, quietly, over the moment's own line on the recording's top: what this is a moment of, with what
 // it is, in one place. (On a phone, in the header's room between.) Pointed at, or with the keyboard on it, what you
@@ -43,9 +51,9 @@ export function Title({ title, asked, quiet }: { title: string; asked?: string; 
   const show = (now: boolean) => (rest(), now ? setShown(true) : (breath.current = setTimeout(() => (rest(), setShown(true)), 70)));
   const hide = () => (rest(), setShown(false));
   useEffect(() => rest, []);
-  if (phone) return <span className="min-w-0 truncate text-fg">{title}</span>;
+  if (phone) return <span data-part="title" className="min-w-0 truncate text-fg">{title}</span>;
   return (
-    <div className="relative flex min-w-0 max-w-full justify-center">
+    <div data-part="title" className="relative flex min-w-0 max-w-full justify-center">
       <span
         ref={own}
         tabIndex={0}
