@@ -25,7 +25,7 @@ export function Turns({ you, turns, unsent }: { you: string; turns: Turn[]; unse
           <span className="flex items-center gap-1.5 text-[11.5px] leading-4 text-soft">
             {turn.mine && <i className={`size-1.5 rounded-full ${turn.sent ? "bg-slate" : "bg-amber"}`} />}
             {turn.by}
-            {!turn.sent && <span>· not sent yet</span>}
+            {!turn.sent && <span>· not sent</span>}
           </span>
           <p className="text-[13px] leading-5 whitespace-pre-wrap text-fg">{turn.words}</p>
         </div>

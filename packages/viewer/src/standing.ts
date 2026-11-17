@@ -13,11 +13,11 @@ export const toSend = (notes: number, replies: number) =>
 // words, and where it stands. An answer is new if it came back after you last opened the moment it's on, as what you've
 // opened is kept with the change (`seen`), so it's the same on every device you look from.
 export function noteSays(change: Change, you: string, note: Note, sent: boolean, replies: YourReply[]) {
-  if (!sent) return { words: note.words, stands: "not sent yet", fresh: false };
+  if (!sent) return { words: note.words, stands: "not sent", fresh: false };
   const turns = conversation(change, note.id);
   const replied = replies.find((one) => one.note === note.id)?.words;
   const words = replied ?? turns.findLast((turn) => !turn.agent)?.words ?? note.words;
-  if (replied) return { words, stands: "reply not sent yet", fresh: false };
+  if (replied) return { words, stands: "reply not sent", fresh: false };
   if (!turns.at(-1)?.agent) return { words, stands: "sent", fresh: false };
   const handBack = turns.at(-1)!.handBack;
   const answeredIn = change.handBacks.find((one) => one.number === handBack);
