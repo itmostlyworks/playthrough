@@ -7,12 +7,15 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { standingOf, type Note } from "@playthrough/change";
 import type { Listed } from "./api.ts";
 import { Key } from "./Key.tsx";
+import { Notice } from "./MomentBar.tsx";
 import { FILLED_KEY, SAID, SendButton, Taken, take, tick } from "./Send.tsx";
 import { toSend } from "./standing.ts";
 import { agentOn, NO_AGENT, stepOf, tellOf } from "./step.ts";
 
 // What the bar says of a change sent on, by its tick: someone's on it, at it, or nobody is.
 const WITH_AGENTS = ["With your agent.", "Agent working", NO_AGENT];
+// What Send says it does with no agent listening.
+const NOT_LISTENING = "No agent listening. Kept for when one is.";
 
 // The step, and what pressing it has come to: one for the page, read by its card and by the bar alike.
 export function useStepLeft(listed: Listed, you: string, onSent: (notes: Note[]) => void, goOn: () => void) {
@@ -117,60 +120,56 @@ export function StepCard({ step, here, forward, tucked, dots, onPress }: { step:
   );
 }
 
-// The last stop's one thing to do, in the bar's place: Done or Send, pressed or Enter, with what it does by it; and,
-// pressed, what came of it, there.
+// The last stop's one thing to do, in the bar's place: Done or Send, pressed or Enter; and, pressed, what came of it,
+// there. What it does, or where it stands, is the bar's notice over it, so the bar holds only what's pressed.
 export function StepAction({ step }: { step: Step }) {
   const { what, said, taken, standing } = step;
-  const [line, warning] = ["truncate px-2 text-[13px] text-soft phone:hidden", "truncate px-2 text-[13px] text-amber-ink phone:hidden"];
-  if (taken) {
-    // Only where it stands, in a word: what to tell a new agent is on the sheet, not in the bar.
-    const words = what ? undefined : standing.is === "done" ? "Every moment looked good." : step.step.is === "with" && step.step.words !== "Sent" ? step.step.words : WITH_AGENTS[0];
-    return (
-      <div className="flex min-w-0 items-center">
-        <Taken>{taken}</Taken>
-        {words &&
-          (standing.is === "done" ? (
-            <span className={line}>{words}</span>
-          ) : (
-            // Held in one place with what else it turns into as an agent comes or goes, so the bar keeps its width.
-            <span className="grid min-w-0 phone:hidden">
-              {[...new Set([...WITH_AGENTS, words])].map((one) => (
-                <span key={one} className={`${one === NO_AGENT ? warning : line} [grid-area:1/1] ${one === words ? "" : "invisible"}`}>
-                  {one}
-                </span>
-              ))}
-            </span>
-          ))}
-      </div>
-    );
-  }
   const filled = what === "send";
+  // The notice: before it's pressed, what pressing it does; arrived at taken, only where it stands, in a word (what to
+  // tell a new agent is on the sheet, not by the bar). Each is held in one place with what else it turns into as an
+  // agent comes or goes, the one not true unseen, so the notice keeps its width.
+  const notice = ((): { words: string; held: string[] } | undefined => {
+    if (taken) {
+      if (what) return undefined;
+      if (standing.is === "done") return { words: "Every moment looked good.", held: [] };
+      const words = step.step.is === "with" && step.step.words !== "Sent" ? step.step.words : WITH_AGENTS[0]!;
+      return { words, held: [...new Set([...WITH_AGENTS, words])] };
+    }
+    if (said) return undefined;
+    if (!filled) return { words: "Says every moment looks good, and the change is done.", held: [] };
+    const starts = `Your agent starts on ${step.count === 1 ? "it" : "them"}.`;
+    return { words: step.agentOn ? starts : NOT_LISTENING, held: [starts, NOT_LISTENING] };
+  })();
+  const warns = (line: string) => line === NO_AGENT || line === NOT_LISTENING;
   return (
     // Space is never a press here: only pressing it, or Enter.
-    <div data-goes-on className="flex min-w-0 items-center">
-      <SendButton filled={filled} onClick={step.press} disabled={said === "sending"}>
-        {said === "sending" ? (
-          what === "send" ? "Sending…" : "Done"
-        ) : (
-          <>
-            {what === "send" ? step.words : "Done"}
-            <Key className={filled ? FILLED_KEY : ""}>↵</Key>
-          </>
-        )}
-      </SendButton>
+    <div data-goes-on className="grid min-w-0 items-center">
+      {/* Pressed, what it says stands in the button's place, the button kept there unseen, so the bar keeps its width. */}
+      {what && (
+        <SendButton filled={filled} onClick={step.press} disabled={said === "sending" || !!taken} className={`[grid-area:1/1] ${taken ? "invisible" : ""}`}>
+          {said === "sending" ? (
+            what === "send" ? "Sending…" : "Done"
+          ) : (
+            <>
+              {what === "send" ? step.words : "Done"}
+              <Key className={filled ? FILLED_KEY : ""}>↵</Key>
+            </>
+          )}
+        </SendButton>
+      )}
+      {taken && <Taken className="[grid-area:1/1]">{taken}</Taken>}
       {Array.isArray(said) ? (
-        <span className="truncate px-2 text-[13px] text-amber-ink">Not sent: {said[0]}</span>
+        <Notice className="text-amber-ink">Not sent: {said[0]}</Notice>
       ) : (
-        !said &&
-        (what !== "send" ? (
-          <span className={line}>Says every moment looks good, and the change is done.</span>
-        ) : (
-          // Both held in one place, the one not true unseen, so the bar keeps its width as an agent comes or goes.
-          <span className="grid min-w-0 phone:hidden">
-            <span className={`${line} [grid-area:1/1] ${step.agentOn ? "" : "invisible"}`}>Your agent starts on {step.count === 1 ? "it" : "them"}.</span>
-            <span className={`${warning} [grid-area:1/1] ${step.agentOn ? "invisible" : ""}`}>No agent listening. Kept for when one is.</span>
-          </span>
-        ))
+        notice && (
+          <Notice className="phone:hidden">
+            {(notice.held.length ? notice.held : [notice.words]).map((one) => (
+              <span key={one} className={`[grid-area:1/1] ${warns(one) ? "text-amber-ink" : "text-soft"} ${one === notice.words ? "" : "invisible"}`}>
+                {one}
+              </span>
+            ))}
+          </Notice>
+        )
       )}
     </div>
   );

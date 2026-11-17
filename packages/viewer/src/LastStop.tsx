@@ -42,8 +42,9 @@ export function LastStop(props: {
   }, []);
   // What you asked holds one place whatever comes under it, so nothing you do here moves it: a third of the way down
   // the frame, clear of the bar, so there's room under it. A long ask is cut at about a third of the frame (whole on
-  // hover, and to the keyboard). With nothing asked, what there is starts there.
-  const [above, below, line] = phone ? [16, 40, 23] : [32, 56, 30];
+  // hover, and to the keyboard). With nothing asked, what there is starts there. At its foot, room for the bar and,
+  // over it, its notice, so the last of the sheet scrolls clear of both.
+  const [above, below, line] = phone ? [16, 40, 23] : [32, 92, 30];
   const askedLines = Math.max(3, Math.floor(((high - above - below) * 0.34) / line));
   const top = above + (high - above - below) * 0.3;
   const todo = [

@@ -15,7 +15,7 @@ import { Header, Title } from "./Header.tsx";
 import type { YourReply } from "./kept.ts";
 import { Key } from "./Key.tsx";
 import { arrived, can, isPlaying, isStepped, reduce, type Action } from "./mode.ts";
-import { Progress, Getting, FrameButton, Tip, ITEM, BAR } from "./MomentBar.tsx";
+import { Progress, Getting, FrameButton, Tip, Notice, ITEM, BAR } from "./MomentBar.tsx";
 import { Turns, useFrames, NoteWords, NotePicture, NoteCard, Write, type Made } from "./Note.tsx";
 import { usePhone } from "./phone.ts";
 import { Picture } from "./Picture.tsx";
@@ -1063,7 +1063,7 @@ export function MomentView(props: {
                 first, or in the app that its check at the end doesn't hold now. Under the bar there's no room for it, but
                 on a phone, where over it is the picture. */}
             {(stepIn.said || stepIn.waitingOn) && (
-              <p className={`pointer-events-none absolute bottom-full left-1/2 mb-2 phone:top-full phone:bottom-auto phone:mt-2 phone:mb-0 grid w-max max-w-[min(640px,calc(100cqw-32px))] -translate-x-1/2 animate-arrive justify-items-center rounded-md bg-surface px-3 py-1.5 text-center text-xs shadow-tip ${stepIn.said ? "text-amber-ink" : "text-soft"}`}>
+              <Notice className={stepIn.said ? "text-amber-ink" : "text-soft"}>
                 {stepIn.said || (
                   // Both lines are always there, one over the other, so the note is as wide for either and the words
                   // swap without anything moving.
@@ -1076,7 +1076,7 @@ export function MomentView(props: {
                     </span>
                   </>
                 )}
-              </p>
+              </Notice>
             )}
             {/* At the last stop, the one thing to do there. */}
             {atLastStop ? (

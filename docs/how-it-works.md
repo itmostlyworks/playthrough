@@ -327,15 +327,17 @@ goes on to them); the last stop is seen as a moment is (`Seen` with no moment), 
 change opens where it would without it (`firstUnseen`, `seenThrough` leave it out): you meet the answer at the end. On
 a phone the box and the card are under the bar, as a moment's are. The bar's
 place holds the one thing to do (`StepLeft.tsx`, `StepAction`): Send while something's unsent ("Send 2 notes ↵",
-filled) or Done while it waits on you ("Done ↵"), with what it does by it ("Your agent starts on them."; "Says every
-moment looks good, and the change is done."). Send's line is true: with no agent on the change (`agentOn`: none
-listening, and none on notes it took before), it says "No agent listening. Kept for when one is." in amber, and it
-changes as an agent comes or goes, the two held in one place so the bar keeps its width. The bar takes its words'
-width (`w-max`), up to the recording's, so a line isn't cut where there's room for it. Pressed, or Enter (or Ctrl+Enter from any moment while something's
-unsent), it says Sending…, then Sent or Done with a tick in its place, what went drawn as sent at once, and after a
-pause (`SAID`) goes on to `/`; not sent, "Not sent: …" in amber. A change already with your agents or done says so
-there ("Sent" and where it stands in a word: "With your agent.", "Agent working", or "No agent listening" in amber,
-the three held in one place so the bar keeps its width as they change; "Done", "Every moment looked good."), with
+filled) or Done while it waits on you ("Done ↵"). The bar holds only what's pressed, Note and the step, centred; what
+the step does is the bar's notice (`MomentBar.tsx`, `Notice`), a quiet line of its own just over the bar and centred on
+it, drawn as Step in's is ("Your agent starts on them."; "Says every moment looks good, and the change is done."; on
+a phone, none), the sheet's foot leaving room for both so its last lines scroll clear of them. Send's line is true: with no agent on the change (`agentOn`: none listening, and none on notes it took
+before), it says "No agent listening. Kept for when one is." in amber, and it changes as an agent comes or goes, the
+two held in one place so the notice keeps its width. Pressed, or Enter (or Ctrl+Enter from any moment while something's
+unsent), it says Sending…, then Sent or Done with a tick in its place, the button kept there unseen so the bar keeps
+its width, the notice gone, what went drawn as sent at once, and after a pause (`SAID`) goes on to `/`; not sent,
+"Not sent: …" in amber, as the notice. A change already with your agents or done says so there ("Sent" in the bar and
+where it stands in a word in the notice: "With your agent.", "Agent working", or "No agent listening" in amber, the
+three held in one place so the notice keeps its width as they change; "Done", "Every moment looked good."), with
 nothing to press. What to tell a new agent is never in the bar: while what you sent waits with no agent on it
 (`tellOf`), the sheet says "Tell yours: “Pick up my notes in Playthrough.”" in a quiet line under your notes, above
 what's still to do, copying on a press as on the list; it comes and goes under what you asked, which doesn't move. On the Moments edge the list's last card is the way there (`StepCard`), as a moment's

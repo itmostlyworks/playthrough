@@ -90,6 +90,16 @@ export function Tip({ children }: { children: ReactNode }) {
   );
 }
 
+// What the bar has to say, as against what it does: a line of its own just over it, centred on it, so the bar holds
+// only what can be pressed and keeps its width whatever's said. On a phone, where over it is the picture, under it.
+export function Notice({ children, className = "text-soft" }: { children: ReactNode; className?: string }) {
+  return (
+    <p role="status" className={`pointer-events-none absolute bottom-full left-1/2 mb-2 phone:top-full phone:bottom-auto phone:mt-2 phone:mb-0 grid w-max max-w-[min(640px,calc(100cqw-32px))] -translate-x-1/2 animate-arrive justify-items-center rounded-md bg-surface px-3 py-1.5 text-center text-xs shadow-tip ${className}`}>
+      {children}
+    </p>
+  );
+}
+
 // The part of Play's line not yet played: there to be seen, a step quieter than what has.
 const UNPLAYED = "bg-[color-mix(in_srgb,var(--soft)_32%,transparent)]";
 
