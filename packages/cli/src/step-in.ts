@@ -231,7 +231,7 @@ function passOn(app: App): Promise<number> {
         const html = Buffer.concat(chunks).toString("utf8");
         const at = html.search(/<head[^>]*>/i);
         const end = at < 0 ? 0 : at + html.slice(at).indexOf(">") + 1;
-        const body = html.slice(0, end) + SAYS + (RECORDER ??= `<script>${readFileSync(recorder, "utf8")}</script>`) + html.slice(end);
+        const body = `${html.slice(0, end)}<script>${inApp()}</script>${html.slice(end)}`;
         delete told["content-length"];
         response.writeHead(answer.statusCode ?? 502, told);
         response.end(body);
@@ -275,11 +275,13 @@ function asIfDirect(request: IncomingMessage, target: URL) {
 // nothing changing for a moment), so the frame turns into it with nothing on screen changing. It tells the viewer where
 // the pointer is, and whether it's over words you can type into: the viewer draws the recording's pointer coming to
 // yours, hiding the app's own until they meet, and then only your name, beside the app's own. And as every key there
-// goes to the app, Escape twice goes back to the viewer instead.
-// rrweb's recorder, as every moment has it, for what you do here to be recorded.
-let RECORDER: string | undefined;
+// goes to the app, Escape twice goes back to the viewer instead. Then rrweb's recorder, as every moment has it, for what
+// you do here to be recorded. An app opened by its own address, not through Playthrough, includes the same as a file:
+// in-app.js, beside the viewer for another page to show (build.ts).
+let IN_APP: string | undefined;
+export const inApp = () => (IN_APP ??= `${SAYS}\n${readFileSync(recorder, "utf8")}`);
 
-export const SAYS = `<script>(() => {
+export const SAYS = `(() => {
   if (window.parent === window) return;
   ${QUIET_DEV_CHROME}
   // This page holds its step in, as long as it's open: closed, reloaded or gone to another, what was made for it is given
@@ -754,7 +756,7 @@ export const SAYS = `<script>(() => {
   const settleOnce = () => (settling ??= settle());
   addEventListener("load", () => setTimeout(settleOnce, 50));
   setTimeout(settleOnce, 10000);
-})();</script>`;
+})();`;
 
 // Whatever the app says about its own address is said about Playthrough's, so the browser stays here, and the app may show
 // in the viewer's frame.

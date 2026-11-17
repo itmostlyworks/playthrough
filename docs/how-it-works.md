@@ -651,7 +651,11 @@ browser, as it was done, before it shows,
 while what saved something or went to another address isn't done twice, and the page is scrolled where the recording
 was. Each step in has an address of its own, `/step-in/<moment>`, a name nobody could guess, on a pass-through at
 http://localhost:5830/ that hands your browser the run's page (its address, cookies and what the app kept in the browser)
-and passes everything else on to the app, answering only this machine's names. What a step in makes is that step in's:
+and passes everything else on to the app, answering only this machine's names. Into each page of the app it passes on,
+it puts what tells the viewer where the pointer is, what's done and noted there and when it has settled, and rrweb's
+recorder (`inApp`, `step-in.ts`); the package carries the same as `show/in-app.js`, for an app another page's source
+opens by an address of its own to include itself. The source's answer to a step in is that address
+(`playthrough open`'s: the pass-through's, on the machine name the page was reached by). What a step in makes is that step in's:
 held by the app's pages while they're open, Back included, and given back 15 s after the last one goes (tab closed,
 reload, another moment), or a minute after it was made if never opened; so two tabs, a reload or another moment never
 hand one person the app another is using. Every Step in asks afresh, so Step in again on the same moment is the app made

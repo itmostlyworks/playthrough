@@ -33,7 +33,7 @@ after(async () => {
 async function app(page: Page) {
   await page.route("http://app.test/**", (route) => {
     const board = new URL(route.request().url()).pathname === "/board";
-    route.fulfill({ contentType: "text/html", body: board ? BOARD.replace("<a", `${SAYS}<a`) : "<!doctype html>" });
+    route.fulfill({ contentType: "text/html", body: board ? BOARD.replace("<a", `<script>${SAYS}</script><a`) : "<!doctype html>" });
   });
 }
 
