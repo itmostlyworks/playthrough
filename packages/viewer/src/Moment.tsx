@@ -82,7 +82,12 @@ export function MomentView(props: {
   const step = useStepLeft(props.listed, you, (going) => setJustSent((now) => [...now, ...going]), props.goOn);
   // What Send sends, and only that, is what the last stop shows of what you said: your notes not sent, and the sent
   // ones you've replied to, in your words. Pressed, what went stays shown, as gone, till the page goes on.
-  const sendable = [...sent.filter((note) => replies.some((one) => one.note === note.id)).map((note) => ({ note, sent: true })), ...notes.map((note) => ({ note, sent: false }))];
+  // Come to it already sent, what you sent on this hand-back is shown as it was just after.
+  const went = new Set(change.sends.filter((one) => one.by === you && one.handBack === handBack.number).flatMap((one) => [...one.notes.map((note) => note.id), ...(one.replies ?? []).map((reply) => reply.note)]));
+  const sendable =
+    step.taken === "Sent" && !step.what
+      ? sent.filter((note) => went.has(note.id)).map((note) => ({ note, sent: true }))
+      : [...sent.filter((note) => replies.some((one) => one.note === note.id)).map((note) => ({ note, sent: true })), ...notes.map((note) => ({ note, sent: false }))];
   const sending = useRef<typeof sendable>(undefined);
   if (!step.said || !sending.current) sending.current = sendable;
   // The last stop's sheet stays drawn while it fades, as leaving it.
@@ -956,7 +961,8 @@ export function MomentView(props: {
               <LastStop
                 asked={change.asked}
                 open={atLastStop && !phone && (writing || carded) ? { id: writing ? undefined : carded ? carded.note.id : undefined, card: cards } : undefined}
-                notes={sending.current.map(({ note, sent: isSent }) => {
+                went={step.went}
+                notes={sending.current.map(({ note, sent: isSent }, i, all) => {
                   // The note's card as it is on the Notes edge forward, with the moment it's on, since here they come
                   // from several; amber while it's yours to send, slate once it's gone.
                   const on = handBack.moments.findIndex((one) => isOn(note, one.name)) + 1;
@@ -973,7 +979,12 @@ export function MomentView(props: {
                         picture={note.on && <NotePicture frame={sheetFrames[note.id]} />}
                         words={
                           <span className="flex gap-[7px]">
-                            <i className={`mt-[5px] size-[7px] flex-none rounded-full shadow-[0_0_0_1.5px_#fff] ${step.taken === "Sent" ? "bg-slate" : "bg-amber"}`} />
+                            {/* Sent, the dots settle to slate one after another down the list, all of them inside
+                                400 ms however many there are. */}
+                            <i
+                              className={`mt-[5px] size-[7px] flex-none rounded-full shadow-[0_0_0_1.5px_#fff] transition-colors duration-150 ease-calm ${step.taken === "Sent" ? "bg-slate" : "bg-amber"}`}
+                              style={{ transitionDelay: `${(i * Math.min(60, 250 / all.length)).toFixed(0)}ms` }}
+                            />
                             <span className="min-w-0">
                               <span className="block text-[12.5px] leading-[17px] text-fg">{words}</span>
                               {on > 0 && <span className="mt-0.5 block line-clamp-1 text-[11.5px] leading-4 text-soft">{handBack.moments[on - 1]!.name}</span>}
@@ -1050,7 +1061,7 @@ export function MomentView(props: {
                 <button className={ITEM} disabled={!may.note} aria-pressed={!!writing} onClick={note}>
                   Note <Key>N</Key>
                 </button>
-                <StepAction step={step} />
+                <StepAction step={step} told={sending.current!.length > 0} />
               </>
             ) : (
             <>

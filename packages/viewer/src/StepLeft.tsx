@@ -16,6 +16,12 @@ import { agentOn, NO_AGENT, stepOf, tellOf } from "./step.ts";
 const WITH_AGENTS = ["With your agent.", "Agent working", NO_AGENT];
 // What Send says it does with no agent listening.
 const NOT_LISTENING = "No agent listening. Kept for when one is.";
+// Just sent, how long the notes say they're sent before they say the agent is on them, so it's read.
+const HELD = 600;
+
+// What came of a send, as the line over the notes that went says it: sent to your agent; sent with no agent listening;
+// the agent working on them.
+export type Went = "sent" | "no agent" | "working";
 
 // The step, and what pressing it has come to: one for the page, read by its card and by the bar alike.
 export function useStepLeft(listed: Listed, you: string, onSent: (notes: Note[]) => void, goOn: () => void) {
@@ -25,6 +31,7 @@ export function useStepLeft(listed: Listed, you: string, onSent: (notes: Note[])
   // What's offered stays what was pressed, as the change moves on under it.
   const [pressed, setPressed] = useState<"send" | "done">();
   const [said, setSaid] = useState<"sending" | "Sent" | "Done" | string[]>();
+  const [held, setHeld] = useState(false);
   const what = pressed ?? (step.is === "send" ? "send" : standing.is === "waiting" ? "done" : undefined);
   // What's unsent, as it was before it went, so the words stay while it says Sent.
   const unsent = useRef({ notes: 0, replies: 0 });
@@ -36,12 +43,17 @@ export function useStepLeft(listed: Listed, you: string, onSent: (notes: Note[])
     const problems = await take(change, you, what, onSent);
     if (problems.length) return setSaid(problems);
     setSaid(what === "send" ? "Sent" : "Done");
+    setHeld(true);
+    setTimeout(() => setHeld(false), HELD);
     setTimeout(goOn, matchMedia("(prefers-reduced-motion: reduce)").matches ? 600 : SAID);
   };
   const count = unsent.current.notes + unsent.current.replies;
   // Taken: pressed and kept, or already with your agents or done before you came.
   const taken = !what ? (standing.is === "done" ? "Done" : "Sent") : said === "Sent" || said === "Done" ? said : undefined;
-  return { what, said, taken, step, standing, count, agentOn: agentOn(listed), tell: tellOf(listed, you), words: `Send ${toSend(unsent.current.notes, unsent.current.replies)}`, press: () => void press() };
+  // Before the change comes back with the send, whether an agent is on it is as it was when Send was pressed.
+  const went: Went | undefined =
+    taken !== "Sent" ? undefined : step.is !== "with" ? (agentOn(listed) ? "sent" : "no agent") : step.words === NO_AGENT ? "no agent" : step.words === "Agent working" && !held ? "working" : "sent";
+  return { what, said, taken, went, step, standing, count, agentOn: agentOn(listed), tell: tellOf(listed, you), words: `Send ${toSend(unsent.current.notes, unsent.current.replies)}`, press: () => void press() };
 }
 export type Step = ReturnType<typeof useStepLeft>;
 
@@ -121,8 +133,9 @@ export function StepCard({ step, here, forward, tucked, dots, onPress }: { step:
 }
 
 // The last stop's one thing to do, in the bar's place: Done or Send, pressed or Enter; and, pressed, what came of it,
-// there. What it does, or where it stands, is the bar's notice over it, so the bar holds only what's pressed.
-export function StepAction({ step }: { step: Step }) {
+// there. What it does is the bar's notice over it, so the bar holds only what's pressed; where it stands once sent is
+// said over the notes that went (`told`), and only with none there, by the bar.
+export function StepAction({ step, told }: { step: Step; told: boolean }) {
   const { what, said, taken, standing } = step;
   const filled = what === "send";
   // The notice: before it's pressed, what pressing it does; arrived at taken, only where it stands, in a word (what to
@@ -130,7 +143,7 @@ export function StepAction({ step }: { step: Step }) {
   // agent comes or goes, the one not true unseen, so the notice keeps its width.
   const notice = ((): { words: string; held: string[] } | undefined => {
     if (taken) {
-      if (what) return undefined;
+      if (what || (told && standing.is !== "done")) return undefined;
       if (standing.is === "done") return { words: "Every moment looked good.", held: [] };
       const words = step.step.is === "with" && step.step.words !== "Sent" ? step.step.words : WITH_AGENTS[0]!;
       return { words, held: [...new Set([...WITH_AGENTS, words])] };
@@ -144,20 +157,25 @@ export function StepAction({ step }: { step: Step }) {
   return (
     // Space is never a press here: only pressing it, or Enter.
     <div data-goes-on className="grid min-w-0 items-center">
-      {/* Pressed, what it says stands in the button's place, the button kept there unseen, so the bar keeps its width. */}
+      {/* Pressed, what it says stands in the button's own box, flat and quiet, nothing to press; the button is kept
+          under it unseen, so the box is the button's to the pixel and the bar keeps its width. */}
       {what && (
         <SendButton filled={filled} onClick={step.press} disabled={said === "sending" || !!taken} className={`[grid-area:1/1] ${taken ? "invisible" : ""}`}>
-          {said === "sending" ? (
-            what === "send" ? "Sending…" : "Done"
-          ) : (
-            <>
+          {/* Sending, its words stay under "Sending…" unseen, so the button keeps its width. */}
+          <span className="grid place-items-center">
+            <span className={`flex items-center gap-2 [grid-area:1/1] ${said === "sending" ? "invisible" : ""}`}>
               {what === "send" ? step.words : "Done"}
               <Key className={filled ? FILLED_KEY : ""}>↵</Key>
-            </>
-          )}
+            </span>
+            {said === "sending" && <span className="[grid-area:1/1]">{what === "send" ? "Sending…" : "Done"}</span>}
+          </span>
         </SendButton>
       )}
-      {taken && <Taken className="[grid-area:1/1]">{taken}</Taken>}
+      {taken && (
+        <Taken className="rounded-lg bg-[color-mix(in_srgb,var(--soft)_11%,transparent)] [grid-area:1/1]">
+          {taken}
+        </Taken>
+      )}
       {Array.isArray(said) ? (
         <Notice className="text-amber-ink">Not sent: {said[0]}</Notice>
       ) : (

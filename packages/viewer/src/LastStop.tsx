@@ -6,6 +6,8 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { TellYours } from "./Changes.tsx";
 import { useMore } from "./Edge.tsx";
 import { usePhone } from "./phone.ts";
+import { tick } from "./Send.tsx";
+import type { Went } from "./StepLeft.tsx";
 
 // A note's card at a comfortable reading width; past what one column holds, two or three across.
 const CARD = 300;
@@ -18,6 +20,8 @@ export function LastStop(props: {
   open?: { id?: string; card: ReactNode };
   // The notes Send will send, each drawn as its card on the Notes edge is; once sent, what went, till the page goes on.
   notes: { id: string; card: ReactNode }[];
+  // Sent, what came of it, said over them in their heading's place.
+  went?: Went;
   // What's still to do: the moments not watched, the answers not opened; each pressed goes to the first of them.
   // What to tell a new agent, while what you sent waits with none on it: here, under your side of it, not in the bar.
   tell?: string;
@@ -77,7 +81,7 @@ export function LastStop(props: {
           )}
           {cards.length > 0 && (
             <div className="flex w-full flex-col items-center">
-              {(notes.length > 0 || (open && !open.id)) && <p className={`${quietLine} mb-2`}>Your notes</p>}
+              {(notes.length > 0 || (open && !open.id)) && <NotesSay went={props.went} many={notes.length !== 1} />}
               {/* One column, centred, a card wide: a card kept or a box opened takes the next place down, and nothing moves. */}
               <div className="flex w-full flex-col" style={{ maxWidth: CARD, gap: APART }}>
                 {cards.map((one) => (
@@ -106,5 +110,42 @@ export function LastStop(props: {
         </div>
       </div>
     </div>
+  );
+}
+
+// The notes' heading, which is where sending them is said: "Your notes", then, sent, that they went, then that the agent
+// is on them. Every line is held in the one place, the one not true unseen, so it turns in place and nothing moves.
+function NotesSay({ went, many }: { went?: Went; many: boolean }) {
+  const lines: [Went | "yours", ReactNode][] = [
+    ["yours", "Your notes"],
+    [
+      "sent",
+      <>
+        {tick}Sent to your agent
+      </>,
+    ],
+    [
+      "no agent",
+      <>
+        {tick}Sent.&nbsp;<span className="text-amber-ink">No agent listening.</span>
+      </>,
+    ],
+    [
+      "working",
+      <>
+        <i className="mr-[7px] size-[7px] animate-breathe rounded-full bg-slate" />
+        The agent is working on your {many ? "notes" : "note"}
+      </>,
+    ],
+  ];
+  const now = went ?? "yours";
+  return (
+    <p role="status" className="mb-2 grid justify-items-center text-[12.5px] leading-[17px] text-soft">
+      {lines.map(([is, words]) => (
+        <span key={is} aria-hidden={is !== now} className={`flex items-center whitespace-nowrap transition-opacity duration-200 ease-calm [grid-area:1/1] ${is === now ? "" : "opacity-0"}`}>
+          {words}
+        </span>
+      ))}
+    </p>
   );
 }
