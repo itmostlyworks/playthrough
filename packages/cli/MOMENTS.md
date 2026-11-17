@@ -65,7 +65,8 @@ EACH CHANGE
      a script: chromium.connectOverCDP("http://localhost:9333"), then the page already open there
    Click and type as a person would. Going to an address directly is fine.
 4. When you've just done what shows the change, say so: playthrough moment "<what's there>", in under eight words.
-   Add the one thing it's about, as the page names it ("Card prefix"), the smallest that shows it. The moment is what
+   Add the one thing it's about, as the page names it: the smallest that shows what came of it, not what you pressed
+   ("Card prefix", not "Update"), and one whose name has no count or date in it, where there is one. The moment is what
    you did on this page since you arrived (or since your last moment), and nothing of the way here: typing in a field
    and pressing Update is a moment; a page you only looked at is a still, and a still is fine. Cause and effect are two
    moments: "The prefix changes to WEB", then, on the board, "Cards now say WEB-1 to WEB-5". So do the thing, mark it,
