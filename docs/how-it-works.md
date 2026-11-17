@@ -633,8 +633,12 @@ for its card comes in at its end, already there, so its newest answer is in view
 Reply box under it where it always is; one that fits whole is as it was. On a phone or at the last stop, where the
 thread runs in the page's flow, the rows or the sheet holding it are scrolled instead, just enough to bring the newest in
 clear of their fade. A note just saved
-arrives at the foot of the edge, alone, coming in from past the screen's edge to sit back with the rest, which hold still; one made in the app joins the edge the same
-way once you're back. An answer you haven't opened is new, on its picture, until you open it.
+arrives at the foot of the edge, alone: its card comes out of the edge whole, as it is forward and clear of the
+screen's edge's fade (`--clear`, `Edge.tsx`; 94px at 1440), holds 1.1 s and folds back into its place to sit back with
+the rest, about 2.2 s in all; the edge, its word and the other cards hold still, and its place is taken from the first
+frame. The list reaches that far over the recording so the card isn't cut as it comes, but only its cards answer the
+pointer there. Coming forward while it's out takes it along to its forward place as the edge moves; with reduced
+motion it's simply there. One made in the app joins the edge the same way once you're back. An answer you haven't opened is new, on its picture, until you open it.
 A note is kept in one of two places (`model.ts`): on a moment as handed back (its `handBack`, its `moment`,
 `at` in its recording, and its thing: an element, a box or a spot), or made in the app after stepping in (`handBack` and
 `moment` again, `steppedIn` where in the moment, `did`, the person's own `recording` and its `length`, `at` in that, and

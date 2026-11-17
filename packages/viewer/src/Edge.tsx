@@ -24,6 +24,8 @@ const EASED = ["8%", "22%", "42%", "68%", "100%"].map((alpha, i) => `color-mix(i
 // From the edge's top to its first picture's: the list's padding and the card's, so the first picture's top is the
 // recording's.
 const INSET = 8 + 6;
+// Between the list's sides and its cards.
+const SIDE = 10;
 // Its word's line, and the room between it and the first picture.
 const WORD = 20 + 12;
 // Where more runs on past the edge's top or foot, it fades over this much, so it reads as more to come.
@@ -175,6 +177,11 @@ export function Edge(props: {
   const shift = right ? Math.max(0, room.inner + DRAWER - room.screen) : Math.max(0, DRAWER - room.inner);
   // How far its pictures run past the screen's edge at rest.
   const cutBy = right ? room.inner + GAP + TILE - room.screen : TILE + GAP - room.inner;
+  const veil = cutBy > 0 ? Math.min(VEIL, cutBy + 24) : 0;
+  // How far a card comes out of it alone to be whole on the screen, clear of the edge's fade, as one just saved does.
+  // The list reaches that far over the recording, so the card isn't cut as it comes, though only its cards answer the
+  // pointer there.
+  const clear = Math.max(0, cutBy + TUCKED + veil);
   return (
     <>
       {!empty && (
@@ -207,11 +214,11 @@ export function Edge(props: {
         <div
           ref={list}
           onScroll={look}
-          className="h-full overflow-x-clip overflow-y-auto overscroll-contain inside:overscroll-auto px-2.5 py-2 [scrollbar-width:none]"
-          style={more.fade}
+          className="pointer-events-none h-full overflow-x-clip overflow-y-auto overscroll-contain inside:overscroll-auto py-2 [scrollbar-width:none]"
+          style={{ ...more.fade, "--clear": `${clear}px`, [right ? "marginLeft" : "marginRight"]: -clear, [right ? "paddingLeft" : "paddingRight"]: SIDE + clear, [right ? "paddingRight" : "paddingLeft"]: SIDE } as React.CSSProperties}
         >
           {/* The cards stand on nothing of their own: forward, each is its own card over the recording. */}
-          <div className="grid grid-cols-[minmax(0,1fr)] gap-1.5">
+          <div className="pointer-events-auto grid grid-cols-[minmax(0,1fr)] gap-1.5">
             <div className={`grid grid-cols-[minmax(0,1fr)] gap-1.5 transition-opacity duration-300 ease-calm ${resting}`} inert={dead}>
               {children(forward)}
             </div>
@@ -226,14 +233,14 @@ export function Edge(props: {
       </div>
       {/* The screen's edge, at rest, only where the pictures run past it: they leave over its last few pixels, quickly at
           the very edge, rather than a long grey band over pictures wholly on the screen. */}
-      {cutBy > 0 && (
+      {veil > 0 && (
         <div
           aria-hidden
           className={`pointer-events-none fixed z-30 transition-opacity duration-300 ease-calm ${forward ? "opacity-0" : ""}`}
           style={{
             top: room.top - INSET,
             height: room.height + 2 * INSET,
-            width: Math.min(VEIL, cutBy + 24),
+            width: veil,
             [right ? "right" : "left"]: 0,
             background: `linear-gradient(to ${right ? "right" : "left"}, transparent, ${EASED})`,
             ...(band && { maskImage: `linear-gradient(#000 ${band.top}px, transparent ${band.top}px, transparent ${band.bottom}px, #000 ${band.bottom}px)` }),
@@ -268,20 +275,42 @@ export function Tile(props: {
   // What it is, for another page to find it by.
   part?: "moment";
 }) {
-  const { id, label, forward, strong, quiet, lit, waiting, arriving: from, picture, words, strip, onPress, onPoint, part } = props;
-  const arriving = !!from;
+  const { id, label, forward: edgeForward, strong, quiet, lit, waiting, arriving: from, picture, words, strip, onPress, onPoint, part } = props;
   const own = useRef<HTMLButtonElement>(null);
-  // A new one comes in from past the screen's edge, so it's seen arriving where it'll stay, alone: the edge and the
-  // others hold still. It ends as it'll stay, sitting back with them or at full, so nothing jumps as it lands.
+  // A new one comes out of the edge alone, whole and as it is forward, so what was said is seen arriving; then it
+  // folds back into its place, sitting back with the rest. The edge and the others hold still, and its place is its
+  // own from the first frame, so nothing moves under it. With reduced motion it's simply there.
+  const [out, setOut] = useState(() => !!from && !matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const forward = edgeForward || out;
+  const landing = useRef<Animation>(undefined);
   useEffect(() => {
-    if (!arriving || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    own.current?.animate([{ opacity: 0, translate: `${from === "right" ? 48 : -48}px 0` }, { translate: "0 0" }], {
-      duration: 520,
-      easing: "cubic-bezier(0.2, 0.8, 0.2, 1)",
-      delay: 120,
-      fill: "backwards",
-    });
+    const card = own.current;
+    if (!out || !card) return;
+    // As far as its edge says a card comes out to be whole on the screen (a phone's rows are: it comes in where it is).
+    const by = (parseFloat(getComputedStyle(card).getPropertyValue("--clear")) || 0) * (from === "right" ? -1 : 1);
+    const [after, comes, stays, goes] = [120, 420, 1100, 560];
+    const whole = comes + stays + goes;
+    landing.current = card.animate(
+      [
+        { opacity: 0, translate: "0 0", easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" },
+        { opacity: 1, translate: `${by}px 0`, offset: comes / whole },
+        { opacity: 1, translate: `${by}px 0`, offset: (comes + stays) / whole, easing: "cubic-bezier(0.4, 0, 0.2, 1)" },
+        { translate: "0 0" },
+      ],
+      { duration: whole, delay: after, fill: "backwards" },
+    );
+    const folds = setTimeout(() => setOut(false), after + comes + stays);
+    return () => (clearTimeout(folds), landing.current?.cancel());
   }, []);
+  // The edge coming forward while it's out takes it along: from wherever it is to its place there, as the edge moves.
+  useEffect(() => {
+    const card = own.current;
+    if (!edgeForward || !card || landing.current?.playState !== "running") return;
+    const { translate, opacity } = getComputedStyle(card);
+    landing.current.cancel();
+    setOut(false);
+    card.animate([{ translate, opacity }, { translate: "0 0" }], { duration: 300, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
+  }, [edgeForward]);
   return (
     <button
       ref={own}
