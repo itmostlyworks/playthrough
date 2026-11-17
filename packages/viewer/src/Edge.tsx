@@ -26,8 +26,6 @@ const EASED = ["8%", "22%", "42%", "68%", "100%"].map((alpha, i) => `color-mix(i
 const INSET = 8 + 6;
 // Its word's line, and the room between it and the first picture.
 const WORD = 20 + 12;
-// How long an edge stays forward with what just arrived on it, in milliseconds.
-const SHOWN = 1400;
 // Where more runs on past the edge's top or foot, it fades over this much, so it reads as more to come.
 export const MORE = 64;
 
@@ -64,8 +62,6 @@ export function Edge(props: {
   empty?: boolean;
   // The tile to keep in view, by its data-tile: the moment you're on, a note opened or arriving.
   showing?: string;
-  // A tile just arrived: the edge comes forward with it, words and all, for a moment, then rests.
-  arrived?: string;
   children: (forward: boolean) => ReactNode;
   // What ends the list, its last card: told how much of it runs past the screen's edge, so its words can stand where
   // they read.
@@ -74,7 +70,7 @@ export function Edge(props: {
   // quieter, until it's pointed at, and the last card, which doesn't drive the recording, isn't quieter at all.
   answers?: boolean;
 }) {
-  const { side, label, keys, stage, quiet, phone, empty, showing, arrived, children, foot, answers } = props;
+  const { side, label, keys, stage, quiet, phone, empty, showing, children, foot, answers } = props;
   // For another page to find it by (data-part): the moments are always on the left, what you said on the right.
   const part = side === "left" ? "moments" : "notes";
   // What rests while you're in the app: every card, or where they answer, each until it's pointed at.
@@ -110,11 +106,6 @@ export function Edge(props: {
   };
   useEffect(() => () => clearTimeout(timer.current), []);
   useEffect(() => void (quiet && (clearTimeout(timer.current), setForward(false))), [quiet]);
-  useEffect(() => {
-    if (!arrived || quiet) return;
-    setForward(true);
-    if (!under.current) toward(false, SHOWN);
-  }, [arrived, quiet]);
   // A touch elsewhere sends it back.
   useEffect(() => {
     if (!forward) return;
@@ -280,16 +271,16 @@ export function Tile(props: {
   const { id, label, forward, strong, quiet, lit, waiting, arriving: from, picture, words, strip, onPress, onPoint, part } = props;
   const arriving = !!from;
   const own = useRef<HTMLButtonElement>(null);
-  // A new one comes in from past the screen's edge, so it's seen arriving where it'll stay.
+  // A new one comes in from past the screen's edge, so it's seen arriving where it'll stay, alone: the edge and the
+  // others hold still. It ends as it'll stay, sitting back with them or at full, so nothing jumps as it lands.
   useEffect(() => {
     if (!arriving || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    own.current?.animate(
-      [
-        { opacity: 0, translate: `${from === "right" ? 48 : -48}px 0` },
-        { opacity: 1, translate: "0 0" },
-      ],
-      { duration: 520, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)", delay: 120, fill: "backwards" },
-    );
+    own.current?.animate([{ opacity: 0, translate: `${from === "right" ? 48 : -48}px 0` }, { translate: "0 0" }], {
+      duration: 520,
+      easing: "cubic-bezier(0.2, 0.8, 0.2, 1)",
+      delay: 120,
+      fill: "backwards",
+    });
   }, []);
   return (
     <button

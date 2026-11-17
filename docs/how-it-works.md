@@ -633,7 +633,7 @@ for its card comes in at its end, already there, so its newest answer is in view
 Reply box under it where it always is; one that fits whole is as it was. On a phone or at the last stop, where the
 thread runs in the page's flow, the rows or the sheet holding it are scrolled instead, just enough to bring the newest in
 clear of their fade. A note just saved
-arrives at the foot of the edge, the edge forward with its words for 1.4 s; one made in the app joins the edge the same
+arrives at the foot of the edge, alone, coming in from past the screen's edge to sit back with the rest, which hold still; one made in the app joins the edge the same
 way once you're back. An answer you haven't opened is new, on its picture, until you open it.
 A note is kept in one of two places (`model.ts`): on a moment as handed back (its `handBack`, its `moment`,
 `at` in its recording, and its thing: an element, a box or a spot), or made in the app after stepping in (`handBack` and
