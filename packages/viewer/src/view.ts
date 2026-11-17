@@ -1,9 +1,8 @@
 // What part of a recorded page its room shows, and how close: a point on the page at (px, py) is drawn in the room at
-// ((px - x) * k, (py - y) * k). A window onto the page at 100% around where the recorded pointer is going, or around
-// what's held, as Compare's two sides are; or wherever the person has taken it.
+// ((px - x) * k, (py - y) * k). The whole screen; a window framed on what was done and what changed, as Compare's two
+// sides open; or wherever the person has taken it.
 
 import { clamp } from "./clamp.ts";
-import type { Replay } from "./replay.ts";
 
 export type View = { k: number; x: number; y: number; fit: number };
 export type Size = { width: number; height: number };
@@ -20,38 +19,45 @@ export function around(room: Size, page: Size, centre: Point, k = 1): View {
 
 export const centreOf = (view: View, room: Size): Point => [view.x + room.width / 2 / view.k, view.y + room.height / 2 / view.k];
 
-// Following the pointer, the view leads it a little, averaged mostly over the second to come, so what it's about to
-// click is in view before the click.
-function ahead(replay: Replay, at: number, length: number): Point {
-  let sum: Point = [0, 0];
-  let count = 0;
-  for (let u = -0.3; u <= 0.9; u += 0.1) {
-    const point = replay.pointerAt(clamp(at + u, 0, length));
-    if (!point) continue;
-    sum = [sum[0] + point[0], sum[1] + point[1]];
-    count++;
-  }
-  return count ? [sum[0] / count, sum[1] / count] : [replay.shapeAt(at).width / 2, 0];
+// A part of the page, in its pixels.
+export type Box = { left: number; top: number; width: number; height: number };
+
+// What Compare's two sides open on: what was done in the moment and what changed, together, with room around them. At
+// actual size, the page's top left moved only as far as that takes, so where they're in view already nothing moves; where
+// they don't fit, brought further out just enough, never further than FARTHEST; and where even then they don't, what
+// changed, from its top left, with what was done a drag away.
+export function framed(room: Size, page: Size, changed: Box[], done: Box[]): View {
+  const largest = (thing: Box) => Math.min(1, (room.width - 2 * AIR) / thing.width, (room.height - 2 * AIR) / thing.height);
+  const all = spanOf([...changed, ...done]);
+  if (!all) return around(room, page, [0, 0], 1);
+  if (largest(all) >= FARTHEST) return into(room, page, all, largest(all));
+  const first = spanOf(changed) ?? all;
+  const k = Math.max(FARTHEST, largest(first));
+  if (k > FARTHEST) return into(room, page, first, k);
+  return around(room, page, [first.left - AIR / k + room.width / k / 2, first.top - AIR / k + room.height / k / 2], k);
 }
 
-// At actual size, a window onto the page around where the recorded pointer is going.
-export function following(replay: Replay | undefined, at: number, length: number, room: Size, page: Size): View {
-  return around(room, page, replay ? ahead(replay, at, length) : [page.width / 2, 0], 1);
+// The view at closeness `k` from the page's top left, moved the least it takes for `thing` to be in it with room around.
+function into(room: Size, page: Size, thing: Box, k: number): View {
+  const start = around(room, page, [0, 0], k);
+  const [width, height, air] = [room.width / start.k, room.height / start.k, AIR / start.k];
+  const x = clamp(start.x, thing.left + thing.width + air - width, thing.left - air);
+  const y = clamp(start.y, thing.top + thing.height + air - height, thing.top - air);
+  return around(room, page, [x + width / 2, y + height / 2], start.k);
 }
 
-// How large something shows whole: at 100% where it fits, else zoomed out just enough, with room around it.
-const wholeAt = (room: Size, thing: Size) => Math.min(1, room.width / (thing.width + 48), room.height / (thing.height + 48));
-
-// A view moved the least it needs for something to show whole in it, with room around it, so what was in view stays
-// where both fit; where it doesn't fit as large, zoomed out around it.
-export function holding(view: View, room: Size, page: Size, thing: { left: number; top: number; width: number; height: number }): View {
-  const k = Math.min(view.k, wholeAt(room, thing));
-  if (k < view.k) return around(room, page, [thing.left + thing.width / 2, thing.top + thing.height / 2], k);
-  const [width, height] = [room.width / k, room.height / k];
-  const x = clamp(view.x, thing.left + thing.width + 24 - width, thing.left - 24);
-  const y = clamp(view.y, thing.top + thing.height + 24 - height, thing.top - 24);
-  return around(room, page, [x + width / 2, y + height / 2], k);
+// The least box that holds them all.
+function spanOf(boxes: Box[]): Box | undefined {
+  if (!boxes.length) return undefined;
+  const [left, top] = [Math.min(...boxes.map((box) => box.left)), Math.min(...boxes.map((box) => box.top))];
+  const [right, bottom] = [Math.max(...boxes.map((box) => box.left + box.width)), Math.max(...boxes.map((box) => box.top + box.height))];
+  return { left, top, width: right - left, height: bottom - top };
 }
+
+// The room kept around what a view is framed on, in the picture's pixels.
+const AIR = 24;
+// The furthest out Compare opens: further, an app's words are too small to read.
+export const FARTHEST = 0.6;
 
 // Closeness `k` brought `by` times closer: never further out than the whole screen fitted, nor closer than `closest`,
 // unless it already was.
@@ -118,11 +124,11 @@ const unmoving = () => !!globalThis.matchMedia?.("(prefers-reduced-motion: reduc
 // `from`, or else at the wheel's pace.
 type Zoom = { to: number; at: Point; off: Point; whole: boolean; last: number; length?: number; from?: number; since?: number };
 
-// One window onto a moment's page, where on it and how close, that every picture of it shows: the moment's own and
-// Compare's two sides, the one that leads saying where, so nothing shifts between them that didn't move. Once the
-// person has moved it, by the wheel or a drag on the picture, it's theirs: it stays where they put it, following
-// nothing, and every picture on it is told. How close it may go is the moment's own picture's to say, so it's the same
-// in Compare.
+// One window onto a moment's page, where on it and how close, that every picture on it shows: the moment's own, or
+// Compare's two sides, on a window of their own, the first drawn saying where, so nothing shifts between them that
+// didn't move. Once the person has moved it, by the wheel or a drag on the picture, it's theirs: it stays where they
+// put it, following nothing, and every picture on it is told. How close it may go is the moment's own picture's to
+// say, so it's the same in Compare.
 export class Together {
   centre?: Point;
   k?: number;
@@ -201,7 +207,7 @@ export class Together {
   #tell() {
     for (const tell of this.#told) tell();
   }
-  // Where the next picture on it starts again: where it leads, or where it was going to start.
+  // Where the next picture on it starts again: where the first one drawn says, or where it was going to start.
   forget() {
     this.#still();
     Object.assign(this, { centre: undefined, k: undefined, moved: false });

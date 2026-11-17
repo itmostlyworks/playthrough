@@ -116,6 +116,16 @@ function recorded(events: Events): Recorded {
   return shown;
 }
 
+// Where what's done in a recording from `from` on was done, as its click's ring is drawn: each click, and each place
+// typed at, where the text cursor was.
+export function doneIn(events: Events, from: number): Rect[] {
+  const shown = recorded(events);
+  const places = [...shown.aimed.map(([at, , x, y]) => [at, x, y]), ...shown.carets.filter(([, , , height]) => height > 0)];
+  return places.filter(([at]) => at! >= from).map(([, x, y]) => ({ left: x! - RING / 2, top: y! - RING / 2, width: RING, height: RING }));
+}
+// How wide a click's ring is drawn.
+const RING = 24;
+
 // The screen it's on at a moment.
 const shapeOf = (shapes: Shape[], at: number): Shape => shapes.findLast((shape) => shape.from <= at) ?? shapes[0]!;
 

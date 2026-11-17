@@ -653,13 +653,25 @@ Play and the line drive both sides, at the same action at the same instant: `tog
 (`packages/change/src/takings.ts`) lines two recordings up on the longest run both did in order, actions by name (one
 recorded before actions were named knows each by its place only); each pair begins and ends together, each side scaled
 to its own pace between, and what one did alone plays while the other holds before what's next. Each side is its half of
-the recording's room at actual size, a window following now's pointer, both onto the same part of the page
-(`following`), ending above the bar (on a phone, at the picture's edge, the bar under it); at rest it moves the least that shows what the moment is about whole, with its
-nearest words (`holding`). The two sides are the moment's one window: the wheel or a drag on either brings both closer
-or moves both, onto the same part of the page, in the same frame, as close as the moment's own picture goes and as far
-out as the whole screen in a side. From then on they follow nothing, playing too. Compare on or off keeps where you
-had it and how close, as near as the other's room allows (the same middle, no further out than the whole screen); not
-yet moved, Compare starts at actual size, following now's pointer, as before.
+the recording's room, ending above the bar (on a phone, at the picture's edge, the bar under it), both onto the same
+part of the page. **Compare opens framed** on what was done in the moment and what changed, together, so what differs
+is in view on both sides from the first frame (before, each side opened on the app's top left, about half its width,
+and the demo's one change, a Status column, was out of view on both). What was done is each click's and each typing's
+place on either side (`doneIn`, `replay.ts`, where the click's ring is drawn) and the whole of the last thing done to
+(`acted`, as each side's reading has it); what changed is each finding on the moment, by its thing and those changed
+alike with it, in the reading of the side it's on, and, for a finding that's a whole part of the page ("Table: 8
+things changed inside"), the things inside it that read or look different, new or gone, as the two readings tell them
+(`differences`; moved and resized only follow from those), else the part itself (`changedAt`, `compare.ts`). The rule is
+one pure function, `framed` (`view.ts`): at actual size the view moves from the top left only as far as it takes for
+all of it to be in with 24px of room around (in view already, nothing moves); where it doesn't fit, it's brought just
+far enough out that it does, never further than `FARTHEST`, 0.6 of actual size, where an app's words stop reading;
+past that, it opens on what changed, from its top left, and what was done is a drag away. A phone's sides are framed
+by the same rule at their size. The sides are drawn once both readings and recordings are in, so they never open
+anywhere else first, and they come in already framed: nothing glides. They share a window of their own
+(`compareWindow`, `Moment.tsx`), framed by whichever side is drawn first; from then on it follows nothing, playing
+too, and the wheel or a drag on either brings both closer or moves both, onto the same part of the page, in the same
+frame, as close as the moment's own picture goes and as far out as the whole screen in a side. Compare off, the
+moment's own picture is exactly as it was; on again, it's framed afresh, so C twice is the way back to what changed.
 
 **Send and Done.** Send carries every note and reply you haven't sent on the change, from its row, its card or a
 moment's page, in one send (`Send.tsx`); it never locks. Done, from the same places, sends Done (`done: true`): every moment as last handed back looks good, and

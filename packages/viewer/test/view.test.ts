@@ -3,7 +3,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { approach, around, centreFor, nearer, SETTLES, Together, wheeled, type View } from "../src/view.ts";
+import { approach, around, centreFor, FARTHEST, framed, nearer, SETTLES, Together, wheeled, type Box, type View } from "../src/view.ts";
 
 const room = { width: 1152, height: 720 };
 const page = { width: 1280, height: 800 };
@@ -130,4 +130,47 @@ test("the wheel turned during a drag zooms about what's held, and the drag goes 
   }
   assert.equal(together.k, to, "the zoom got where it was heading, the drag meanwhile");
   drag([20, -10]);
+});
+
+// Compare's side: about half the picture.
+const side = { width: 560, height: 700 };
+const topLeft = around(side, page, [0, 0], 1);
+const box = (left: number, top: number, width: number, height: number): Box => ({ left, top, width, height });
+const shows = (view: View, thing: Box, air = 0) =>
+  thing.left - air / view.k >= view.x - 1e-9 && thing.top - air / view.k >= view.y - 1e-9 && thing.left + thing.width + air / view.k <= view.x + side.width / view.k + 1e-9 && thing.top + thing.height + air / view.k <= view.y + side.height / view.k + 1e-9;
+
+test("Compare opens where it always did when what was done and what changed are in view there already", () => {
+  assert.deepEqual(framed(side, page, [box(120, 260, 90, 30)], [box(40, 100, 24, 24)]), topLeft);
+});
+
+test("Compare opens at actual size, moved only as far as it takes for what was done and what changed to be in view, with room around", () => {
+  const [changed, done] = [box(727, 275, 151, 34), box(500, 120, 24, 24)];
+  const view = framed(side, page, [changed], [done]);
+  assert.equal(view.k, 1);
+  assert.equal(view.y, 0, "nothing needed it to move down");
+  assert.equal(view.x, 727 + 151 + 24 - side.width, "moved only as far as the change's far edge and its room");
+  assert.ok(shows(view, changed, 24) && shows(view, done, 24));
+});
+
+test("where they don't fit at actual size, it opens just far enough out that they do", () => {
+  const [changed, done] = [box(727, 275, 151, 34), box(300, 120, 24, 24)];
+  const view = framed(side, page, [changed], [done]);
+  assert.ok(Math.abs(view.k - (side.width - 48) / (878 - 300)) < 1e-9, `at ${view.k}`);
+  assert.ok(view.k >= FARTHEST && shows(view, changed, 23.9) && shows(view, done, 23.9));
+});
+
+test("never further out than it can be read: there, it opens on what changed, from its top left, and what was done is a drag away", () => {
+  const [changed, done] = [box(41, 216, 1198, 227), box(1250, 700, 24, 24)];
+  const view = framed(side, page, [changed], [done]);
+  assert.equal(view.k, FARTHEST);
+  assert.ok(Math.abs(view.x - (41 - 24 / FARTHEST)) < 1e-9, "its left edge, with room");
+  assert.ok(shows(view, box(41, 216, 1, 1), 24), "its top left, with room");
+  assert.ok(!shows(view, done));
+});
+
+test("with nothing found changed, it opens on what was done", () => {
+  const done = box(1000, 600, 24, 24);
+  const view = framed(side, page, [], [done]);
+  assert.equal(view.k, 1);
+  assert.ok(shows(view, done, 24));
 });

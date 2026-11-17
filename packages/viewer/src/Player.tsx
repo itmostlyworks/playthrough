@@ -13,7 +13,7 @@ import { Replay, type Choice, type Events, type Pressed, type Rect, type Scrolle
 import type { Crop } from "./Picture.tsx";
 import { stepFrom } from "./stepping.ts";
 import { pickAt } from "./things.ts";
-import { around as aroundCentre, calm, centreOf, CLOSEST, following as followingPointer, holding, nearer, pointerScale, wheeled, type Together } from "./view.ts";
+import { around as aroundCentre, calm, centreOf, CLOSEST, framed, nearer, pointerScale, wheeled, type Box, type Together } from "./view.ts";
 
 // Nothing happening for longer than this is waiting, and is played as this long.
 const WAIT = 0.7;
@@ -86,7 +86,7 @@ export function useCut(change: string, handBack: number, moment: Moment): Cut | 
   return kept;
 }
 
-// How long the view takes to glide from one part of the page to another: Compare on or off, or a step that's elsewhere.
+// How long the view takes to glide from one part of the page to another, as a step that's elsewhere.
 const GLIDE = 0.45;
 // Where on the page the view is, how much of the page it shows across, and how much that's grown to fit the picture.
 type View = { left: number; top: number; across: number; k: number };
@@ -107,10 +107,9 @@ type Props = {
   // Another hand-back's, it follows the clock while the one it's beside plays, at the matching moment.
   following?: { clock: Clock; at: (at: number) => number };
   crop?: Crop;
-  // At actual size, a window onto the page that follows the pointer, beside another onto the same part of it: the one
-  // that leads says where, as the older page's Compare does. Holding something, at rest, it's in view whole, the view
-  // gliding there: both sides are told, so both glide.
-  actualSize?: { together: Together; leads: boolean; holds?: Mark };
+  // One of Compare's sides, beside another onto the same part of the page: both open framed on what was done in the
+  // moment and what changed, the first drawn saying where, and never move by themselves after.
+  framedOn?: { together: Together; changed: Box[]; done: Box[] };
   // Its window, which the wheel over the picture brings closer or further, about the pointer, and a drag moves once it's
   // closer than the whole screen: from where it shows, it's then the person's, and every picture on the same window goes
   // with it. A press that doesn't move is a press, as it always was.
@@ -132,9 +131,8 @@ type Props = {
   frameFrom?: RefObject<((at: number, by: 1 | -1, from: number, end: number) => number | undefined) | undefined>;
 };
 
-// A thing marked, by its node in this recording, else by its name, as one made in the app names it; or its spot, or
-// its part of the screen.
-export type Mark = { id: string; node?: number; name?: string; point?: { x: number; y: number }; box?: { x: number; y: number; width: number; height: number } };
+// A thing marked, by its node in this recording, else by its name, as one made in the app names it; or its spot.
+export type Mark = { id: string; node?: number; name?: string; point?: { x: number; y: number } };
 // Where each mark's thing is, once that's known; one it looked for and didn't find, undefined.
 export type Placed = Record<string, Rect | undefined>;
 
@@ -183,7 +181,7 @@ export function Player(props: Props) {
   const handAt = useRef<{ x: number; y: number }>(undefined);
   useEffect(() => void (props.drawn && (props.drawn.current = () => handAt.current)), []);
 
-  const { at, playing, cut, clock, following, crop, marks, actualSize } = props;
+  const { at, playing, cut, clock, following, crop, marks, framedOn } = props;
   // Inside another page its window stays whole: the wheel, a drag and a swipe over it are that page's.
   const moves = insideAnotherPage() ? undefined : props.moves;
   // Moved, by a drag on this picture or on another on the same window, it's drawn again there.
@@ -195,13 +193,11 @@ export function Player(props: Props) {
   // picture narrowing for Compare redraws it all the way. What glides is the part of the page shown, never how close it
   // is: that's the picture's width over it, so a picture still narrowing is never aimed past where it ends. It keeps the
   // browser's frame clock, as the narrowing does, from when the narrowing started, or else from the frame after it's set.
-  const glide = useRef<{ crop?: Crop; holds?: string; from?: View; set: number; since?: number }>({ crop, set: 0 });
+  const glide = useRef<{ crop?: Crop; from?: View; set: number; since?: number }>({ crop, set: 0 });
   useEffect(() => {
     if (!replay || !box.current?.clientWidth) return;
     const replayed = replay.replay;
-    const length = ((replay.events.at(-1)?.timestamp ?? 0) - (replay.events[0]?.timestamp ?? 0)) / 1000;
-    const holds = actualSize?.holds && !playing && !following ? JSON.stringify(actualSize.holds) : undefined;
-    if (crop !== glide.current.crop || holds !== glide.current.holds) glide.current = { crop, holds, from: view.current, set: frameTime() };
+    if (crop !== glide.current.crop) glide.current = { crop, from: view.current, set: frameTime() };
     const thingOf = (mark: Mark): Rect | undefined => (mark.node !== undefined ? replayed.markOf(mark.node) : undefined) ?? (mark.name ? replayed.named(mark.name) : undefined);
     const gliding = () => !!glide.current.from && frameTime() - (glide.current.since ?? frameTime()) < GLIDE * 1000;
     const draw = (time: number, moving: boolean) => {
@@ -218,18 +214,14 @@ export function Player(props: Props) {
       // The moment's own picture says how close its window may go, so it goes as close in Compare's narrower sides, and
       // how close it is whole, which stepping in goes back to.
       const fit = Math.min(room.width / shape.width, room.height / shape.height);
-      if (moves && !actualSize) Object.assign(moves, { fit, closest: CLOSEST * fit });
-      if (moves?.moved) {
-        const view = aroundCentre(room, shape, moves.centre!, moves.k);
-        [left, top, across] = [view.x, view.y, room.width / view.k];
-      } else if (actualSize) {
-        const { together, leads } = actualSize;
-        let view = leads || !together.centre ? followingPointer(replayed, time, length, room, shape) : aroundCentre(room, shape, together.centre, together.k);
-        // What's held is a thing, or a part of the page, as a thing with the words around it.
-        const part = actualSize.holds?.box;
-        const thing = leads && holds && actualSize.holds && (thingOf(actualSize.holds) ?? (part && { left: part.x * shape.width, top: part.y * shape.height, width: part.width * shape.width, height: part.height * shape.height }));
-        if (thing) view = holding(view, room, shape, thing);
-        if (leads) Object.assign(together, { centre: centreOf(view, room), k: view.k });
+      if (moves && !framedOn) Object.assign(moves, { fit, closest: CLOSEST * fit });
+      if (framedOn && !framedOn.together.centre) {
+        const view = framed(room, shape, framedOn.changed, framedOn.done);
+        Object.assign(framedOn.together, { centre: centreOf(view, room), k: view.k });
+      }
+      const together = moves?.moved ? moves : framedOn?.together;
+      if (together) {
+        const view = aroundCentre(room, shape, together.centre!, together.k);
         [left, top, across] = [view.x, view.y, room.width / view.k];
       }
       if (from && gliding()) {
@@ -306,9 +298,7 @@ export function Player(props: Props) {
     // What's noted here, where it is on the page as it rests.
     const shape = replayed.shapeAt(at);
     const { left, top, k } = view.current!;
-    const spotOf = (mark: Mark): Rect | undefined =>
-      (mark.box && { left: mark.box.x * shape.width, top: mark.box.y * shape.height, width: mark.box.width * shape.width, height: mark.box.height * shape.height }) ??
-      (mark.point && { left: mark.point.x * shape.width, top: mark.point.y * shape.height, width: 0, height: 0 });
+    const spotOf = (mark: Mark): Rect | undefined => mark.point && { left: mark.point.x * shape.width, top: mark.point.y * shape.height, width: 0, height: 0 };
     told.current?.(
       Object.fromEntries(
         (marks ?? []).map((mark) => {
@@ -331,7 +321,7 @@ export function Player(props: Props) {
         }),
       ),
     );
-  }, [replay, at, playing?.until, cut, following, crop, marked, width, glided, moved, actualSize?.together, actualSize?.holds && JSON.stringify(actualSize.holds)]);
+  }, [replay, at, playing?.until, cut, following, crop, marked, width, glided, moved, framedOn?.together]);
 
   // What's under the pointer on the page at rest, in its own pixels, and what a click there would note.
   const [hover, setHover] = useState<Rect>();
@@ -432,7 +422,7 @@ export function Player(props: Props) {
     take();
     const shownAt = box.current!.getBoundingClientRect();
     const { at, off } = pointAt(shown, event.clientX - shownAt.left, event.clientY - shownAt.top);
-    moves.zoom(now.k, to, at, off, to <= now.fit * 1.001 && !actualSize && !crop);
+    moves.zoom(now.k, to, at, off, to <= now.fit * 1.001 && !framedOn && !crop);
   };
   useEffect(() => {
     const heard = (event: WheelEvent) => wheel.current?.(event);

@@ -9,7 +9,7 @@ import { escapedTwice, foundNow, looksAsItWas, RIGHT_AFTER, type Glimpse, type R
 import { conversation, isStill, madeInApp, newId, together, type Note, type Change, type HandBack, type Moment } from "@playthrough/change";
 import { glimpses, picture, readings as readingsOf, recording, shownByAnotherPage, source, type Listed } from "./api.ts";
 import { clamp } from "./clamp.ts";
-import { CHIP, playedTogether } from "./compare.ts";
+import { calledIn, changedAt, CHIP, playedTogether } from "./compare.ts";
 import { Edge, MORE, Tile, useMore } from "./Edge.tsx";
 import { Header, headerRows, Title } from "./Header.tsx";
 import type { YourReply } from "./kept.ts";
@@ -22,7 +22,7 @@ import { Picture } from "./Picture.tsx";
 import { Pinned, type Pin } from "./Pinned.tsx";
 import { Clock, Player, useCut, type Mark, type Placed } from "./Player.tsx";
 import { Portal, TAG } from "./Portal.tsx";
-import type { Rect, Scrolled } from "./replay.ts";
+import { doneIn, type Rect, type Scrolled } from "./replay.ts";
 import { ago, noteSays, shownOn, takingOf, seenOf } from "./standing.ts";
 import { LastStop } from "./LastStop.tsx";
 import { StepAction, StepCard, useStepLeft } from "./StepLeft.tsx";
@@ -30,8 +30,8 @@ import { backAgain } from "./step.ts";
 import { useKeptReady, useStepIn } from "./stepIn.ts";
 import { useHeld } from "./held.ts";
 import { overAPause } from "./stepping.ts";
-import { startOn, aboutBox, StillPicture } from "./Still.tsx";
-import { STEPS_OUT, Together } from "./view.ts";
+import { startOn, StillPicture } from "./Still.tsx";
+import { STEPS_OUT, Together, type Box } from "./view.ts";
 
 // How long what you did takes to fade out, back to the moment.
 const FADING = 300;
@@ -191,6 +191,29 @@ export function MomentView(props: {
   const unchanged = compared ? !compared.findings.some((finding) => finding.seen.some((seen) => seen.moment === moment.name)) : !!looking && unrun;
   const then = unchanged ? undefined : looking;
   const both = useMemo(() => then && cut && playedTogether(cut, together(moment, then.moment)), [cut, then?.moment.recording, moment.recording]);
+  // Compare's two sides share a window of their own, so the moment's own picture is as it was when Compare's let go.
+  // Each time Compare opens, it opens framed on what was done in the moment and what changed, on either side, as both
+  // sides' readings and recordings tell: what was done is each click and typing, and the whole of the last thing done
+  // to. It's drawn once they've told it, so it never opens anywhere else first.
+  const compareWindow = useMemo(() => new Together(flushSync), [phone, moment.recording]);
+  const [opensOn, setOpensOn] = useState<{ recording: string; changed: Box[]; done: Box[] }>();
+  useEffect(() => {
+    const now = readings?.at(-1);
+    if (!then || !now) return;
+    let current = true;
+    const findings = compared ? compared.findings : [];
+    const was = then.handBack.number;
+    Promise.all([readingsOf(change.id, was, then.moment.recording), recording(change.id, handBack.number, moment.recording), recording(change.id, was, then.moment.recording)]).then(
+      ([readThen, eventsNow, eventsThen]) => {
+        const actedOn = (reading: Reading | undefined, acted: Moment["acted"]) => (acted ? calledIn(reading, acted) : []);
+        const done = [...doneIn(eventsNow, from), ...doneIn(eventsThen, startOf(then.moment)), ...actedOn(now, moment.acted), ...actedOn(readThen.at(-1), then.moment.acted)];
+        if (current) setOpensOn({ recording: moment.recording, changed: changedAt(findings, moment.name, readThen.at(-1), now), done });
+      },
+      () => {},
+    );
+    return () => void (current = false);
+  }, [readings, then?.moment.recording]);
+  const framedOn = opensOn?.recording === moment.recording ? opensOn : undefined;
   // How far along both it rests: where now first is, or where it was let go, as now held while the other went on.
   const along = (both && page.along) ?? both?.of(at) ?? 0;
   const atPoint = !playing && at >= end - 0.02;
@@ -382,15 +405,6 @@ export function MomentView(props: {
     return { id: note.id };
   };
   const aboutNode = nodeOf(about);
-  // Compared, at the point, what the moment is about (else the last thing done) is in view whole, as on the older page.
-  const closeNode = nodeOf(closeTo);
-  // with its nearest words, as the line under a field, which is often what changed.
-  const held = useMemo(() => {
-    const end = readings?.at(-1);
-    const box = end && aboutBox(end, closeTo);
-    return box && { x: box.x / end.screen.width, y: box.y / end.screen.height, width: box.width / end.screen.width, height: box.height / end.screen.height };
-  }, [readings, closeTo?.role, closeTo?.name]);
-  const holdsAt = atPoint && held ? { id: ABOUT, box: held } : undefined;
   const pinned = [...onEdge, ...(writing ? [{ note: writing.note, sent: false }] : [])];
   const marks: Mark[] = [...(aboutNode !== undefined ? [{ id: ABOUT, node: aboutNode }] : []), ...pinned.map(({ note }) => markOf(note))];
   const pinFor = ({ note, sent }: { note: Note; sent: boolean }): Pin => ({ id: note.id, on: [note.id], ink: sent ? "var(--slate)" : "var(--amber)", fill: sent ? "bg-slate" : "bg-amber" });
@@ -427,11 +441,10 @@ export function MomentView(props: {
   // At the last stop a note is on the change as a whole: there's nothing to point at, so it's written at once.
   const note = () => may.note && act(atLastStop ? { type: "pointed", writing: { note: { id: newId(), words: "" }, spot: { x: 0, y: 0 } } } : { type: "note" });
   const flip = () => may.flip && act({ type: "flip" });
-  // Opened or closed, it stops where it's got to. Each side starts at actual size, following now's pointer, as the older
-  // page's do; unless the person has taken the window, which then stays where they had it, as near as the sides allow.
+  // Opened or closed, it stops where it's got to. Opened, it's framed afresh, as close as the moment's own picture goes.
   const compare = () => {
     if (!may.compare) return;
-    if (!pageWindow.moved) pageWindow.forget();
+    if (!comparing) Object.assign(compareWindow, { closest: pageWindow.closest }).forget();
     act({ type: "compare" });
   };
   const goTo = (to: number, open?: string) => {
@@ -933,13 +946,12 @@ export function MomentView(props: {
                 style={{ left: aboutAt.left, top: aboutAt.top, width: aboutAt.width, height: aboutAt.height }}
               />
             )}
-            {comparing && then && both && (
-              // Now leads, so it's drawn first, on the right. Both end above the bar, so nothing they hold in view, what
-              // the moment is about above all, is ever under it.
+            {comparing && then && both && framedOn && (
+              // Now first, on the right. Both end above the bar, so nothing they're framed on is ever under it.
               <div className="absolute inset-0 z-[5] flex animate-arrive flex-row-reverse gap-3 bg-ground" style={{ paddingBottom: phone ? 0 : BAR / 2 + 8 }}>
                 {[
-                  { label: "Now", handBack: handBack.number, recording: moment.recording, side: 0, actualSize: { together: pageWindow, leads: true, holds: holdsAt } },
-                  { label: "When you last saw it", handBack: then.handBack.number, recording: then.moment.recording, side: 1, actualSize: { together: pageWindow, leads: false, holds: holdsAt } },
+                  { label: "Now", handBack: handBack.number, recording: moment.recording, side: 0 },
+                  { label: "When you last saw it", handBack: then.handBack.number, recording: then.moment.recording, side: 1 },
                 ].map((side) => (
                   <div key={side.label} className="relative min-w-0 flex-1">
                     <div className="absolute inset-0 overflow-hidden rounded-lg bg-paper shadow-frame">
@@ -949,8 +961,8 @@ export function MomentView(props: {
                         recording={side.recording}
                         at={both.at(along)[side.side]!}
                         following={playing ? { clock: bothOf, at: (along) => both.at(along)[side.side]! } : undefined}
-                        actualSize={side.actualSize}
-                        moves={pageWindow}
+                        framedOn={{ together: compareWindow, ...framedOn }}
+                        moves={compareWindow}
                       />
                       <span className={CHIP}>{side.label}</span>
                     </div>
