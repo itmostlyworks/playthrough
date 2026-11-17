@@ -37,14 +37,17 @@ export function Turns({ you, turns, unsent, was }: { you: string; turns: Turn[];
   );
 }
 
-// A note's thing as it was when the note was written, small and quiet in its card: the thing with a little air, never
-// drawn larger than it was recorded, nor taller than a line or two of words, nor wider than the card. Its room is known
-// before its picture comes, so the card holds still.
+// A note's thing as it was when the note was written, small and quiet in its card: the thing with a little air, drawn
+// as large as the recording beside it draws things (`drawn`, the recording's scale), so the two read as the same thing,
+// but never taller than a line or two of words, nor wider than the card. Its room is known before its picture comes,
+// so the card holds still.
 const [AIR, TALL, WIDE] = [8, 64, 256];
-export function NoteWas({ src, screen, box }: { src: string; screen: { width: number; height: number }; box: Box }) {
-  const [x, y] = [Math.max(0, box.x - AIR), Math.max(0, box.y - AIR)];
-  const [width, height] = [Math.min(screen.width, box.x + box.width + AIR) - x, Math.min(screen.height, box.y + box.height + AIR) - y];
-  const scale = Math.min(1, TALL / height, WIDE / width);
+export function NoteWas({ src, screen, box, drawn }: { src: string; screen: { width: number; height: number }; box: Box; drawn: number }) {
+  // The air is the card's, so it's the same on screen however the recording is drawn.
+  const air = AIR / drawn;
+  const [x, y] = [Math.max(0, box.x - air), Math.max(0, box.y - air)];
+  const [width, height] = [Math.min(screen.width, box.x + box.width + air) - x, Math.min(screen.height, box.y + box.height + air) - y];
+  const scale = Math.min(drawn, TALL / height, WIDE / width);
   return (
     <span data-part="note-was" className="relative my-1 block overflow-hidden rounded-[5px] bg-paper shadow-[0_0_0_1px_var(--edge)]" style={{ width: width * scale, maxWidth: "100%", aspectRatio: `${width} / ${height}` }}>
       <Picture shot={{ src, crop: { x: x / screen.width, y: y / screen.height, width: width / screen.width, height: height / screen.height } }} />

@@ -622,8 +622,11 @@ did) shows that thing as it was when the note was written, small, under "You" an
 were meant: "How late is each one?" over the "Overdue" badge, while the ring is on "79 days late" (`NoteWas`,
 `data-part="note-was"`). It's cut from the earlier hand-back's reading that showed the thing, that reading's picture and
 the thing's box in it (`foundNow`, which pairs the thing then with the thing now, and `looksAsItWas`, both in
-`packages/page`), with 8px of air, rounded as the edge's strips, never larger than recorded, at most 64px tall and the card's
-width; its size is known from the reading before the picture comes, so the card holds still. Written on this hand-back,
+`packages/page`), with 8px of air on screen, rounded as the edge's strips. It's drawn at the scale the recording beside it
+is drawn at right now (the picture's room over the screen, as `pageWindow.shownIn` gives it, brought closer or not, and
+again as the window is resized), so the badge in the card is the size of the badge in the recording, even above the
+app's real size, but at most 64px tall and the card's width; its size is known from the reading before the picture
+comes, so the card holds still. Written on this hand-back,
 looking the same now, not found now (it opens as it was), or made in the app (no reading of it is kept), there's
 none and no room for one. It stays through the flip. A reply waits to be clicked into, so ← → go on through the notes. A thread too long
 for its card comes in at its end, already there, so its newest answer is in view, what's before it fading above, the

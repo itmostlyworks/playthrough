@@ -763,7 +763,9 @@ export function MomentView(props: {
 
   const wasShown = (note: Note) => {
     const was = asItWas(note);
-    return was && <NoteWas src={source.file(change.id, note.on!.handBack, was.reading.picture)} screen={was.reading.screen} box={was.thing.box} />;
+    const shown = stage.current;
+    const drawn = shown ? pageWindow.shownIn({ width: shown.clientWidth, height: shown.clientHeight }, screen).k : 1;
+    return was && <NoteWas src={source.file(change.id, note.on!.handBack, was.reading.picture)} screen={was.reading.screen} box={was.thing.box} drawn={drawn} />;
   };
 
   // What's said by a pin: the note being written, or the one open. On a phone, under the bar, where there's room.
