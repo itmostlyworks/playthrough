@@ -88,6 +88,18 @@ export function NoteWords({ words, stands, fresh, short }: { words: string; stan
 // much smaller, where its words stop being read; toward the recording, as the screen's edge fades the other side at
 // rest. Its dot isn't on it: that leads the note's words.
 export function NotePicture({ frame, focus }: { frame?: NoteFrame; focus?: NoteFrame["box"] }) {
+  // As wide as it's drawn, so a strip drawn wider than its part shows more of the page round it rather than magnify it.
+  const own = useRef<HTMLSpanElement>(null);
+  const [drawn, setDrawn] = useState(0);
+  useLayoutEffect(() => {
+    const strip = own.current;
+    if (!strip) return;
+    const measure = () => setDrawn(strip.clientWidth);
+    measure();
+    const watching = new ResizeObserver(measure);
+    watching.observe(strip);
+    return () => watching.disconnect();
+  }, [!frame]);
   if (!frame) return null;
   const { screen } = frame;
   const box = frame.words ?? frame.box;
@@ -97,9 +109,9 @@ export function NotePicture({ frame, focus }: { frame?: NoteFrame; focus?: NoteF
   // where that's inside it: the strip closes in on that, as on any small thing. A note keeps what it's on, not where
   // in it you pointed.
   const inside = !!thing && !!about && about.x >= thing.x && about.y >= thing.y && about.x + about.width <= thing.x + thing.width && about.y + about.height <= thing.y + thing.height;
-  const part = stripOf(screen, thing && about && inside && tooLarge(thing) ? about : thing);
+  const part = stripOf(screen, thing && about && inside && tooLarge(thing) ? about : thing, drawn);
   return (
-    <span className="absolute inset-0 animate-arrive">
+    <span ref={own} className="absolute inset-0 animate-arrive">
       <Picture shot={{ src: frame.src, crop: part }} />
     </span>
   );
@@ -110,22 +122,31 @@ export function NotePicture({ frame, focus }: { frame?: NoteFrame; focus?: NoteF
 // - a wide line (a heading, a field), from its start, at most a little smaller than it was recorded, so it reads;
 // - something far larger than the strip (a pane, a list), its top left, at that readable size, not all of it shrunk;
 // - a spot with no thing, around the spot at the size it was recorded;
-// - all of it inside the screen, so a thing at the screen's edge sits at the strip's.
+// - all of it inside the screen, so a thing at the screen's edge sits at the strip's;
+// - and at the same size wherever it's drawn: a strip wider than the edge's (a card at the last stop) shows as much more
+//   of the page round the same middle, never the same part larger.
 const STRIP = 3.8;
+// The strip on the edge: a picture's width there, less the strip's inset.
+const ON_THE_EDGE = TILE - 2 * 8;
 
 // Too large to show whole in a strip at a size that reads.
 const tooLarge = (thing: { width: number; height: number }) => thing.width + 40 > TILE * 1.6 || (thing.height + 16) * STRIP > TILE * 1.6;
 
-function stripOf(screen: { width: number; height: number }, thing?: { x: number; y: number; width: number; height: number }): Crop {
+function stripOf(screen: { width: number; height: number }, thing: { x: number; y: number; width: number; height: number } | undefined, drawn: number): Crop {
   const [narrowest, widest, around] = [TILE, TILE * 1.6, 20];
   const spot = !thing || (!thing.width && !thing.height);
   let width = spot ? narrowest * 1.5 : Math.min(widest, Math.max(narrowest, thing.width + 2 * around, (thing.height + 16) * STRIP));
   width = Math.min(width, screen.width, screen.height * STRIP);
-  const height = width / STRIP;
+  let height = width / STRIP;
   const [middle, centre] = thing ? [thing.x + thing.width / 2, thing.y + thing.height / 2] : [screen.width / 2, screen.height / 2];
   // Toward the recording: its middle two fifths in, kept whole where it fits.
-  const x = spot || thing.width + 2 * around <= width ? Math.min(Math.max(middle - width * 0.4, (thing?.x ?? middle) + (thing?.width ?? 0) + 8 - width), (thing?.x ?? middle) - 8) : thing.x - around;
-  const y = spot || thing.height + 16 <= height ? centre - height / 2 : thing.y - 8;
+  let x = spot || thing.width + 2 * around <= width ? Math.min(Math.max(middle - width * 0.4, (thing?.x ?? middle) + (thing?.width ?? 0) + 8 - width), (thing?.x ?? middle) - 8) : thing.x - around;
+  let y = spot || thing.height + 16 <= height ? centre - height / 2 : thing.y - 8;
+  const wider = Math.min((width * drawn) / ON_THE_EDGE, screen.width, screen.height * STRIP);
+  if (wider > width) {
+    [x, y] = [x + width / 2 - wider / 2, y + height / 2 - wider / STRIP / 2];
+    [width, height] = [wider, wider / STRIP];
+  }
   return {
     x: clamp(x, 0, screen.width - width) / screen.width,
     y: clamp(y, 0, screen.height - height) / screen.height,

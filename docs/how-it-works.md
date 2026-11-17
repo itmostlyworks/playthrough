@@ -522,7 +522,9 @@ dots; pressed, the moment changes in place. A note's strip is cut for its own sh
 thing (a line of words as wide as its words), with no pin on it, as its dot leads its words: a small thing at the size it was recorded, with what's beside it; a wide line from
 its start, a little smaller at most; something far larger than the strip closed in on what its moment is about where
 that's inside it, else from its top left; a spot with no thing, around the spot; never larger than recorded, always
-inside the screen; one from an earlier hand-back is cut from the moment's picture now where its thing is found there, as it opens. It's cut from a kept picture of the frame its thing is shown on, never a recording played
+inside the screen; drawn wider than the edge's strip (a card at the last stop, 272 to its 160), the page at the same
+size as on the edge, so as much more of it round the same middle shows (17 Nov: there it had been the same part
+blown up half again, "ks · Oct 3 · $4" across the card); one from an earlier hand-back is cut from the moment's picture now where its thing is found there, as it opens. It's cut from a kept picture of the frame its thing is shown on, never a recording played
 (`useFrames`): one made at a moment's end is that hand-back's own picture; any other is drawn once by `playthrough open`
 in a browser of its own from the recording it was made on (`frames.ts`, the page's `?frame=` address, `Frame.tsx`) and
 kept with what the person did (`branches/frames/<note>.png` and `.json`). A note's pin on the recording and its picture
