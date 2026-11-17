@@ -1193,7 +1193,7 @@ export function MomentView(props: {
                   {!nowThere && <Tip>{NOT_NOW}</Tip>}
                 </span>
               ) : then ? (
-                <button className={`${ITEM} ${COMPARING}`} disabled={!may.compare} aria-pressed={comparing} onClick={compare}>
+                <button data-part="compare" className={`${ITEM} ${COMPARING}`} disabled={!may.compare} aria-pressed={comparing} onClick={compare}>
                   Compare <Key>C</Key>
                 </button>
               ) : (
