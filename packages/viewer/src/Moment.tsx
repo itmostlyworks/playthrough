@@ -7,7 +7,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 import { flushSync } from "react-dom";
 import { escapedTwice, foundNow, RIGHT_AFTER, type Glimpse, type Reading } from "@playthrough/page";
 import { conversation, isStill, madeInApp, newId, together, type Note, type Change, type HandBack, type Moment } from "@playthrough/change";
-import { glimpses, picture, readings as readingsOf, recording, type Listed } from "./api.ts";
+import { glimpses, picture, readings as readingsOf, recording, shownByAnotherPage, type Listed } from "./api.ts";
 import { clamp } from "./clamp.ts";
 import { CHIP, playedTogether } from "./compare.ts";
 import { Edge, MORE, Tile, useMore } from "./Edge.tsx";
@@ -832,7 +832,7 @@ export function MomentView(props: {
   return (
     // Clipped, never scrolled: a caret put in a note's box can't move the page under you. Shown by another page, with
     // no header, the recording takes its room.
-    <div className={`grid h-dvh ${headerRows()} overflow-clip bg-ground phone:grid-rows-[auto_auto_minmax(0,1fr)]`} onPointerDown={pressAway}>
+    <div className={`grid h-dvh ${headerRows()} overflow-clip bg-ground ${shownByAnotherPage() ? "phone:grid-rows-[auto_minmax(0,1fr)]" : "phone:grid-rows-[auto_auto_minmax(0,1fr)]"}`} onPointerDown={pressAway}>
       <Header opener={props.opener} centre={phone ? title : undefined}>
         {/* The next moment, and after the last the last stop; there, nothing. */}
         {/* In the app it rests as it does where it can't be pressed, and pointed at, comes to full: it answers. */}
@@ -860,7 +860,7 @@ export function MomentView(props: {
           <div className="absolute inset-x-0 bottom-full mb-3 flex flex-col items-center phone:mb-2 phone:items-start">
             {/* At the last stop there's no moment to name: the change's title takes the moment's line, as the sheet's
                 heading, and its own small place over it rests empty. Both stay drawn, one faded out, so nothing moves. */}
-            {!phone && <div className={`flex min-w-0 max-w-full justify-center transition-opacity duration-[240ms] ease-calm ${atLastStop ? "pointer-events-none opacity-0" : ""}`}>{title}</div>}
+            {!phone && !shownByAnotherPage() && <div className={`flex min-w-0 max-w-full justify-center transition-opacity duration-[240ms] ease-calm ${atLastStop ? "pointer-events-none opacity-0" : ""}`}>{title}</div>}
             <div className="grid w-full">
               <p className={`line-clamp-2 text-center text-[15px] leading-[22px] text-balance text-fg transition-opacity duration-[240ms] ease-calm [grid-area:1/1] phone:line-clamp-3 phone:text-left ${atLastStop ? "opacity-0" : ""}`} title={moment.name}>
                 {moment.name}
@@ -1219,11 +1219,12 @@ const UNDER = BAR / 2 + GAP;
 // Beside the recording, room for each edge's pictures at rest.
 const SIDE = "clamp(104px, 10vw, 160px)";
 
-// Over the recording, room for the change's title, who and where in two lines, and the gap under them.
-const OVER = 3 * 22 + 12;
+// Over the recording, room for the change's title, who and where in two lines, and the gap under them. Shown by
+// another page, that page says what the change is: no title, and no room for it.
+const over = () => (shownByAnotherPage() ? 2 : 3) * 22 + 12;
 
 // The recording in its room, by its shape: as wide as the edges leave, or as tall as what's over and under it does.
-export const inItsRoom = (shape: number) => ({ width: `min(calc(100cqw - 2 * ${SIDE}), calc((100cqh - ${OVER + UNDER}px) * ${shape}))`, marginTop: OVER, marginBottom: UNDER });
+export const inItsRoom = (shape: number) => ({ width: `min(calc(100cqw - 2 * ${SIDE}), calc((100cqh - ${over() + UNDER}px) * ${shape}))`, marginTop: over(), marginBottom: UNDER });
 
 // Whether something from `from` up to a note's card can still scroll its words `by` this way.
 function scrollsFirst(from: Element, by: number): boolean {

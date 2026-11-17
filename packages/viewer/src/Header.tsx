@@ -10,18 +10,17 @@ import { usePhone } from "./phone.ts";
 const HEADER = 48;
 const GAP = 6;
 
-// Shown by another page, a change is shown on its own: nothing of the list of changes, so no corners, and no header at
-// all but for a phone's title, which has no other place.
+// Shown by another page, a change is shown on its own: nothing of the list of changes, and that page says what the
+// change is, so no header at all.
 export function Header({ opener, centre, children }: { opener: ReactNode; centre?: ReactNode; children?: ReactNode }) {
-  const alone = shownByAnotherPage();
-  if (alone && !centre) return null;
+  if (shownByAnotherPage()) return null;
   return (
     // Never wider than the page: a title that can't wrap would otherwise widen it, on a phone, past the screen's edge,
     // and take Send's words and every note card's foot out of sight with it.
     <header className="grid h-12 min-w-0 grid-cols-[1fr_auto_1fr] items-center gap-3 px-6 phone:flex phone:px-4">
-      <div className="flex min-w-0 items-center phone:flex-none">{!alone && opener}</div>
+      <div className="flex min-w-0 items-center phone:flex-none">{opener}</div>
       <div className="flex min-w-0 justify-center phone:flex-1 phone:justify-start">{centre}</div>
-      <div className="flex min-w-0 items-center justify-end gap-3 phone:flex-none">{!alone && children}</div>
+      <div className="flex min-w-0 items-center justify-end gap-3 phone:flex-none">{children}</div>
     </header>
   );
 }

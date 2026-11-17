@@ -292,8 +292,9 @@ of its own with a source of its own (`show(element, source)`, `show.tsx`), built
 and where you are is after the page's `#` (`#/moments/<copy>/<change>/<n>`), so it works from any folder of a plain
 static host, which answers only the page itself. **Shown by another page** (handed a source of its own,
 `shownByAnotherPage`, `api.ts`: the one fact all of this follows from), a change is shown on its own, with nothing of
-the list of changes: no header (no mark, nothing saying how many wait, no Next; on a phone, the change's title alone,
-as it has no other place), the recording taking the header's room; no sheet of every change (W does nothing); the tab's
+the list of changes: no header (no mark, nothing saying how many wait, no Next), the recording taking the header's room;
+no change's title, that page saying what the change is, and no room kept for it over the recording (`inItsRoom` keeps
+the moment's two lines alone); no sheet of every change (W does nothing); the tab's
 title left as the page has it; and after Send or Done, it stays at the last stop.
 
 **Inside another page's frame** (`inside.ts`), shown by another page and in a frame, the viewer keeps to its own: the
@@ -307,7 +308,7 @@ What another page may find the viewer's parts by is `data-part`, never their wor
 `step-in` (`back` once in the app), `note`, and `send` (`done` with nothing to send), the arrows by Play,
 `frame-before` and `next-frame`, and every key drawn on a button, `key` (Back's "Esc ×2" is one); a note's `pin` and
 `note-card`; the rounded box the recording sits in, `picture`, always, where `data-picture` is there only while the
-picture can be moved; the change's `title` over the recording (in the header on a phone); the edges, `moments` and `notes`; each
+picture can be moved; the change's `title` over the recording (in the header on a phone; not drawn when shown by another page); the edges, `moments` and `notes`; each
 of the moments' cards, `moment`, and their last, `last-stop`; and over the notes at the last stop, `notes-heading`.
 Nothing in the viewer reads them.
 
