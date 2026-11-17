@@ -38,7 +38,13 @@ export type Source = {
   // as shares of it; and a moment's still drawn twice as fine.
   frame(change: string, note: string, framed: Framed): Promise<{ picture: string; screen: NoteFrame["screen"]; box?: NoteFrame["box"] } | undefined>;
   still(change: string, still: { handBack: number; recording: string; at: number }): Promise<string | undefined>;
+  // Where the viewer keeps what it holds between visits, your notes and replies not yet sent among it, and what it holds
+  // for this tab alone (kept.ts). With none, it's kept in memory for as long as the page is open: a page showing a
+  // change doesn't write to its own storage unasked.
+  kept?: Keeping;
+  keptForTheTab?: Keeping;
 };
+export type Keeping = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 type Framed = { handBack: number; recording: string; at: number; node?: number; point?: { x: number; y: number } };
 
 export let source: Source = server;

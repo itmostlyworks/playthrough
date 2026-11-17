@@ -22,6 +22,13 @@ export const server: Source = {
   keepBranch: (change, branch) => posted<{ length: number }>(`${of(change)}/branches`, branch).then((done) => ("problems" in done ? done.problems : done.answer.length)),
   frame: (change, note, framed) => posted<{ picture: string; screen: { width: number; height: number } }>(`${of(change)}/frames`, { note, ...framed }).then((done) => ("problems" in done ? undefined : done.answer)),
   still: (change, still) => posted<{ picture: string }>(`${of(change)}/stills`, still).then((done) => ("problems" in done ? undefined : done.answer.picture)),
+  // The browser's own, asked for only when used: a browser that refuses them throws there, where it's caught.
+  get kept() {
+    return localStorage;
+  },
+  get keptForTheTab() {
+    return sessionStorage;
+  },
 };
 const JSON_BODY = { "content-type": "application/json" };
 

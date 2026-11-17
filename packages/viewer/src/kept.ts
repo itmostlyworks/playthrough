@@ -4,15 +4,28 @@
 
 import { useEffect, useState } from "react";
 import { noteNow, type Note, type Send } from "@playthrough/change";
+import { source, type Keeping } from "./api.ts";
+
+// Kept where the source says (`playthrough open`'s: the browser's local and session storage), and where it says
+// nothing, in memory for as long as the page is open.
+function inMemory(): Keeping {
+  const held = new Map<string, string>();
+  return { getItem: (key) => held.get(key) ?? null, setItem: (key, value) => void held.set(key, String(value)), removeItem: (key) => void held.delete(key) };
+}
+const betweenVisits = inMemory();
+const forTheTab = inMemory();
+export const keeping = () => source.kept ?? betweenVisits;
+const keepingForTheTab = () => source.keptForTheTab ?? forTheTab;
 
 // What this browser keeps for a change, by its address. What it kept by the change's own name alone, before every app's
 // changes were listed, comes over to the address once.
 export function stored(key: (change: string) => string, change: string): string | null {
-  const now = localStorage.getItem(key(change));
+  const kept = keeping();
+  const now = kept.getItem(key(change));
   const own = change.slice(change.indexOf("/") + 1);
   if (now !== null || own === change) return now;
-  const before = localStorage.getItem(key(own));
-  if (before !== null) (localStorage.setItem(key(change), before), localStorage.removeItem(key(own)));
+  const before = kept.getItem(key(own));
+  if (before !== null) (kept.setItem(key(change), before), kept.removeItem(key(own)));
   return before;
 }
 
@@ -40,9 +53,10 @@ export const unsentOf = (change: string, latest: number): Unsent => ({ notes: re
 export function keepUnsent(change: string, latest: number, edit: (now: Unsent) => Unsent) {
   const next = edit(unsentOf(change, latest));
   try {
+    const kept = keeping();
     for (const [key, list] of [[unsentKey, next.notes], [repliesKey, next.replies]] as const)
-      if (list.length) localStorage.setItem(key(change), JSON.stringify(list));
-      else localStorage.removeItem(key(change));
+      if (list.length) kept.setItem(key(change), JSON.stringify(list));
+      else kept.removeItem(key(change));
   } catch {}
   dispatchEvent(new Event(CHANGED));
 }
@@ -73,13 +87,13 @@ const steppedKey = (change: string) => `playthrough:stepped-in:${change}`;
 
 export function keepSteppedIn(change: string) {
   try {
-    sessionStorage.setItem(steppedKey(change), "yes");
+    keepingForTheTab().setItem(steppedKey(change), "yes");
   } catch {}
 }
 
 export function steppedInHere(change: string) {
   try {
-    return sessionStorage.getItem(steppedKey(change)) === "yes";
+    return keepingForTheTab().getItem(steppedKey(change)) === "yes";
   } catch {
     return false;
   }

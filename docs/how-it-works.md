@@ -285,7 +285,8 @@ what's next, and a moment opens at `/moments/<copy>/<change>/<n>`, with `?note=<
 
 The page asks one source for everything (`Source`, `api.ts`): who you are, every change as it's told again, where a
 hand-back's files are, and what it says (what's sent and seen, stepping in and its branches, a note's frame and a fine
-still drawn). `playthrough open` is that source (`server.ts`, at `/api`). Another page can show the viewer on an element
+still drawn), and where what it holds between visits and for the tab is kept (`kept` and `keptForTheTab`, read and
+written only in `kept.ts`). `playthrough open` is that source (`server.ts`, at `/api`). Another page can show the viewer on an element
 of its own with a source of its own (`show(element, source)`, `show.tsx`), built beside the page into
 `packages/cli/show/` as `viewer.js`, one module with everything inside it, and `viewer.css`, and published as
 `playthrough/show/viewer.js` and `playthrough/show/viewer.css`. Shown so, it asks for nothing by an address of its own,
@@ -295,7 +296,11 @@ static host, which answers only the page itself. **Shown by another page** (hand
 the list of changes: no header (no mark, nothing saying how many wait, no Next), the recording taking the header's room;
 no change's title, that page saying what the change is, and no room kept for it over the recording (`inItsRoom` keeps
 the moment's two lines alone); no sheet of every change (W does nothing); the tab's
-title left as the page has it; and after Send or Done, it stays at the last stop.
+title left as the page has it; after Send or Done, it stays at the last stop; and what it keeps is where that source
+says, or, where it says nothing, in memory for as long as the page is open, never in the page's own storage unasked.
+`playthrough open`'s keeps it in the browser's `localStorage` and `sessionStorage`. What the app's own frame carries
+across a load after stepping in (`playthrough:stepped-in`, `:yours`, `:scroll` and the rest, `step-in.ts`) is the app's
+side, in the app's own origin, and isn't the viewer's to keep.
 
 **Inside another page's frame** (`inside.ts`), shown by another page and in a frame, the viewer keeps to its own: the
 picture's window stays whole, so the wheel, a drag and a swipe over it are the page around's; a scroll that has run
@@ -622,8 +627,8 @@ A note is kept in one of two places (`model.ts`): on a moment as handed back (it
 `at` in its recording, and its thing: an element, a box or a spot), or made in the app after stepping in (`handBack` and
 `moment` again, `steppedIn` where in the moment, `did`, the person's own `recording` and its `length`, `at` in that, and
 its thing there); an element's number is only ever read against the one recording it was read from. Which moment a note
-is on is its `moment`, either way. Notes and replies not yet sent are kept in this browser (`kept.ts`), by the change,
-until Send; what you've opened is
+is on is its `moment`, either way. Notes and replies not yet sent are kept where the source keeps things between visits
+(`kept.ts`; this browser, at `playthrough open`'s), by the change, until Send; what you've opened is
 kept with the change, per moment as handed back (`seen.json`), so a moment handed back again is unseen again.
 
 **Compare** (`compare.ts`, `view.ts`) is offered where you've opened this moment on an earlier hand-back and something

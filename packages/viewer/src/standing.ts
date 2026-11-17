@@ -3,7 +3,7 @@
 
 import { conversation, notesToAnswer, type Note, type Change, type HandBack, type Moment } from "@playthrough/change";
 import { source, type Listed } from "./api.ts";
-import { stored, seenKey, type YourReply } from "./kept.ts";
+import { keeping, stored, seenKey, type YourReply } from "./kept.ts";
 
 // What Send says it sends: notes and replies, by their count.
 export const toSend = (notes: number, replies: number) =>
@@ -76,7 +76,7 @@ export function markSeen(change: Change, you: string, takings: string[]) {
   void source.seen(change.id, you, said).then((problems) => {
     if (problems.length) return;
     try {
-      localStorage.removeItem(seenKey(change.id, you));
+      keeping().removeItem(seenKey(change.id, you));
     } catch {}
   });
 }
