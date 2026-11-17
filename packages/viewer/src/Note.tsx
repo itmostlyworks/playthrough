@@ -9,12 +9,13 @@ import { TILE } from "./Edge.tsx";
 import { mayTakeKeys } from "./inside.ts";
 import { Key } from "./Key.tsx";
 import { BAR } from "./MomentBar.tsx";
-import { Picture, type Crop } from "./Picture.tsx";
+import { Picture, type Box, type Crop } from "./Picture.tsx";
 import type { Rect } from "./replay.ts";
 
 // A note and what's been said on it since, by its pin, a turn each, as the page's cards say them: who speaks on a small
-// line of its own, you by your dot, the agent by its name, and the words under it as readable as the note's.
-export function Turns({ you, turns, unsent }: { you: string; turns: Turn[]; unsent?: string }) {
+// line of its own, you by your dot, the agent by its name, and the words under it as readable as the note's. What the
+// note was on when it was written, where that's to be shown, comes with it, over its words.
+export function Turns({ you, turns, unsent, was }: { you: string; turns: Turn[]; unsent?: string; was?: ReactNode }) {
   const all = [
     ...turns.map((turn) => ({ mine: !turn.agent && turn.by === you, by: turn.agent || turn.by !== you ? turn.by : "You", words: turn.words, sent: true })),
     ...(unsent ? [{ mine: true, by: "You", words: unsent, sent: false }] : []),
@@ -28,10 +29,26 @@ export function Turns({ you, turns, unsent }: { you: string; turns: Turn[]; unse
             {turn.by}
             {!turn.sent && <span>· not sent</span>}
           </span>
+          {i === 0 && was}
           <p className="text-[13px] leading-5 whitespace-pre-wrap text-fg">{turn.words}</p>
         </div>
       ))}
     </div>
+  );
+}
+
+// A note's thing as it was when the note was written, small and quiet in its card: the thing with a little air, never
+// drawn larger than it was recorded, nor taller than a line or two of words, nor wider than the card. Its room is known
+// before its picture comes, so the card holds still.
+const [AIR, TALL, WIDE] = [8, 64, 256];
+export function NoteWas({ src, screen, box }: { src: string; screen: { width: number; height: number }; box: Box }) {
+  const [x, y] = [Math.max(0, box.x - AIR), Math.max(0, box.y - AIR)];
+  const [width, height] = [Math.min(screen.width, box.x + box.width + AIR) - x, Math.min(screen.height, box.y + box.height + AIR) - y];
+  const scale = Math.min(1, TALL / height, WIDE / width);
+  return (
+    <span data-part="note-was" className="relative my-1 block overflow-hidden rounded-[5px] bg-paper shadow-[0_0_0_1px_var(--edge)]" style={{ width: width * scale, maxWidth: "100%", aspectRatio: `${width} / ${height}` }}>
+      <Picture shot={{ src, crop: { x: x / screen.width, y: y / screen.height, width: width / screen.width, height: height / screen.height } }} />
+    </span>
   );
 }
 

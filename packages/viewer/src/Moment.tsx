@@ -5,9 +5,9 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
-import { escapedTwice, foundNow, RIGHT_AFTER, type Glimpse, type Reading } from "@playthrough/page";
+import { escapedTwice, foundNow, looksAsItWas, RIGHT_AFTER, type Glimpse, type Reading } from "@playthrough/page";
 import { conversation, isStill, madeInApp, newId, together, type Note, type Change, type HandBack, type Moment } from "@playthrough/change";
-import { glimpses, picture, readings as readingsOf, recording, shownByAnotherPage, type Listed } from "./api.ts";
+import { glimpses, picture, readings as readingsOf, recording, shownByAnotherPage, source, type Listed } from "./api.ts";
 import { clamp } from "./clamp.ts";
 import { CHIP, playedTogether } from "./compare.ts";
 import { Edge, MORE, Tile, useMore } from "./Edge.tsx";
@@ -16,7 +16,7 @@ import type { YourReply } from "./kept.ts";
 import { Key } from "./Key.tsx";
 import { arrived, can, isPlaying, isStepped, reduce, type Action } from "./mode.ts";
 import { Progress, Getting, FrameButton, Tip, Notice, ITEM, BAR } from "./MomentBar.tsx";
-import { Turns, useFrames, NoteWords, NotePicture, NoteCard, Write, type Made } from "./Note.tsx";
+import { Turns, useFrames, NoteWords, NotePicture, NoteCard, NoteWas, Write, type Made } from "./Note.tsx";
 import { usePhone } from "./phone.ts";
 import { Picture } from "./Picture.tsx";
 import { Pinned, type Pin } from "./Pinned.tsx";
@@ -323,15 +323,19 @@ export function MomentView(props: {
   }, [wanted.join(" ")]);
   // Until they've come, nothing a note is on is known, so nothing is drawn on a thing that might be the wrong one.
   const allRead = !!readings && !wanted.length;
-  // Its thing in the picture now: made on this taking, that very thing; on an earlier one, the thing it became, as the
-  // two readings of its step tell; made in the app, where no reading of it is kept, the same thing by its role and name.
+  // A note made on an earlier taking: its thing then, and the thing it became, as the two readings of its step tell.
+  const thenAndNow = (note: Note) => {
+    const then = readThen[takenThen(note) ?? ""];
+    return then && readings && note.on?.element ? foundNow(then, readings, note.on.element, madeAt(note)!.at) : undefined;
+  };
+  // Its thing in the picture now: made on this taking, that very thing; on an earlier one, the thing it became; made in
+  // the app, where no reading of it is kept, the same thing by its role and name.
   const nodeNow = (note: Note) => {
     const on = note.on;
     if (onThisTaking(on)) return on?.element?.node;
     if (!on?.element || !readings) return undefined;
     if (madeInApp(on)) return nodeOf(on.element);
-    const then = readThen[takenThen(note) ?? ""];
-    return then && foundNow(then, readings, on.element, madeAt(note)!.at)?.node;
+    return thenAndNow(note)?.now.node;
   };
   // A note is shown on its thing as it is now wherever that thing is in the moment's picture now, found as its pin is;
   // only otherwise on the frame it was made on, which is what its kept picture is drawn from.
@@ -358,6 +362,13 @@ export function MomentView(props: {
   const nowThere = !!opened && found(opened.note);
   const flipped = flips && (!nowThere || (mode.is === "a note open" && !!mode.asItWas));
   const wasFrames = useFrames(change, opened && earlier(opened.note) && found(opened.note) ? [{ note: opened.note, shown: madeAt(opened.note) }] : []);
+  // What a note from an earlier hand-back was on as it was written, shown with its words where it looks different now,
+  // so they read as they were meant: the reading that showed it then, and where it was there. Looking the same, the
+  // ring is on it already; made in the app, no reading of it is kept.
+  const asItWas = (note: Note) => {
+    const found = earlier(note) && nowOn(note) !== undefined ? thenAndNow(note) : undefined;
+    return found && !looksAsItWas(found.then.thing, found.now) ? found.then : undefined;
+  };
   // The kept picture of the frame a note was made on.
   const wasFrame = (note: Note) => (earlier(note) && found(note) ? wasFrames[note.id] : frames[note.id]);
   // A note's pin is on the recording whenever its thing is in the picture: made on this taking, that very thing; on
@@ -750,6 +761,11 @@ export function MomentView(props: {
       );
     });
 
+  const wasShown = (note: Note) => {
+    const was = asItWas(note);
+    return was && <NoteWas src={source.file(change.id, note.on!.handBack, was.reading.picture)} screen={was.reading.screen} box={was.thing.box} />;
+  };
+
   // What's said by a pin: the note being written, or the one open. On a phone, under the bar, where there's room.
   // A thread too long for its card, and on a phone the rows under the bar, fade where there's more, as an edge does.
   const thread = useRef<HTMLDivElement>(null);
@@ -781,7 +797,7 @@ export function MomentView(props: {
           {!writing && carded && (cardBy || atLastStop) && (
             <NoteCard key={carded.note.id} by={cardBy ?? corner} stage={stage} closing={!opened} under={inFlow}>
               <div ref={thread} onScroll={threadMore.look} className="min-h-0 flex-1 overflow-y-auto px-1" style={threadMore.fade}>
-                {carded.sent ? <Turns you={you} turns={conversation(change, carded.note.id)} /> : <Turns you={you} turns={[]} unsent={carded.note.words} />}
+                {carded.sent ? <Turns you={you} turns={conversation(change, carded.note.id)} was={wasShown(carded.note)} /> : <Turns you={you} turns={[]} unsent={carded.note.words} />}
               </div>
               {carded.sent && (
                 <div className="mt-2 border-t border-line pt-2">

@@ -257,6 +257,12 @@ function compared(a: Thing, b: Thing): Difference | undefined {
   if (!near(a.page.x, b.page.x) || !near(a.page.y, b.page.y)) return { what: "moved", then: a, now: b };
 }
 
+// Whether a thing looks now as it did: saying the same, drawn and sized the same, wherever it went.
+export function looksAsItWas(then: Thing, now: Thing): boolean {
+  const difference = compared(then, now);
+  return exactly(then) === exactly(now) && then.wordsInside === now.wordsInside && (!difference || difference.what === "moved");
+}
+
 // Words alone, with no background or border to show their box, are seen by their words: the same words in a box only
 // narrower or wider, on as many lines, still starting or ending where they did, look the same (“4 left”, beside a button
 // that grew). Words that did move on the screen, the pictures find.

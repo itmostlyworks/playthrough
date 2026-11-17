@@ -51,10 +51,12 @@ export function shownAt(readings: Reading[], element: Element, at: number): Show
 // and now, say it became, as they say what changed. So a badge the agent reworded as asked is still the note's thing, and
 // the same words standing elsewhere, there before as a thing of their own, never are. Gone since, or its step no longer
 // in the moment, it's on nothing now. The steps are lined up by what was done in them, as comparing hand-backs does.
-export function foundNow(then: Reading[], now: Reading[], element: Element, at: number): Thing | undefined {
+// Found, it comes with what it was on then, in the reading that showed it.
+export function foundNow(then: Reading[], now: Reading[], element: Element, at: number): { then: Shown; now: Thing } | undefined {
   const shown = shownAt(then, element, at);
   const step = shown && now.find((reading) => reading.step === shown.reading.step);
-  return step && becameIn(shown.reading, step).get(shown.thing);
+  const thing = step && becameIn(shown.reading, step).get(shown.thing);
+  return thing && { then: shown, now: thing };
 }
 
 // Each thing then, as it is now: worked out once for two readings, however often their notes are looked for in them.
