@@ -27,5 +27,5 @@ export function playedTogether(cut: Cut, [now, then]: [number[], number[]]): Pla
   };
 }
 
-// What each side is, at its top left.
-export const CHIP = "pointer-events-none absolute top-2.5 left-2.5 z-3 rounded-md bg-ground px-2 py-0.5 text-xs leading-4 text-soft shadow-tip";
+// What each side is, at its top left, in a note card's ink and edge, so it reads over any app in either scheme.
+export const CHIP = "pointer-events-none absolute top-2.5 left-2.5 z-3 rounded-md bg-surface px-2 py-0.5 text-xs leading-4 text-fg shadow-tip";
