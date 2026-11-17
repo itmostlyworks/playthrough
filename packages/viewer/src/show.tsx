@@ -11,5 +11,5 @@ export type { Listed, Source } from "./api.ts";
 
 export function show(element: Element, source: Source) {
   from(source);
-  createRoot(element).render(<MomentsPage />);
+  createRoot(element).render(<MomentsPage afterHash />);
 }

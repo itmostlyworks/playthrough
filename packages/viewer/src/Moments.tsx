@@ -22,7 +22,8 @@ import { Opener, Sheet, useSheet, waitingSays } from "./Waiting.tsx";
 export type Where = { change?: string; moment?: number; note?: string; end?: true };
 export type Go = (to: Where, replace?: boolean) => void;
 
-const whereFrom = (path: string, search = ""): Where => {
+const whereFrom = (address: string): Where => {
+  const [path = "", search = ""] = address.split("?");
   const [first, ...parts] = path.split("/").filter(Boolean).map(decodeURIComponent);
   if (first !== "moments" || !parts.length) return {};
   if (parts.length > 1 && parts.at(-1) === "end") return { change: parts.slice(0, -1).join("/"), end: true };
@@ -34,10 +35,13 @@ const whereFrom = (path: string, search = ""): Where => {
 const pathOf = ({ change, moment, note, end }: Where) =>
   change ? `/moments/${change.split("/").map(encodeURIComponent).join("/")}/${end ? "end" : (moment ?? 1)}${note ? `?note=${encodeURIComponent(note)}` : ""}` : "/";
 
-export function MomentsPage() {
-  const [where, setWhere] = useState(() => whereFrom(location.pathname, location.search));
+// Where you are is kept in the page's address: its path at `playthrough open`, which answers every path with the page;
+// shown by another page, after its #, as a host serves that page alone.
+export function MomentsPage({ afterHash = false }: { afterHash?: boolean }) {
+  const address = () => (afterHash ? location.hash.slice(1) || "/" : location.pathname + location.search);
+  const [where, setWhere] = useState(() => whereFrom(address()));
   useEffect(() => {
-    const back = () => setWhere(whereFrom(location.pathname, location.search));
+    const back = () => setWhere(whereFrom(address()));
     addEventListener("popstate", back);
     return () => removeEventListener("popstate", back);
   }, []);
@@ -47,8 +51,8 @@ export function MomentsPage() {
   const go: Go = (to, replace = false) => {
     sheet.close(false);
     const path = pathOf(to);
-    if (path === location.pathname + location.search) replace = true;
-    history[replace ? "replaceState" : "pushState"](null, "", path);
+    if (path === address()) replace = true;
+    history[replace ? "replaceState" : "pushState"](null, "", afterHash ? `#${path}` : path);
     setWhere(to);
   };
   const changes = useChanges();

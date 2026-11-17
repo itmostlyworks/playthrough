@@ -288,7 +288,9 @@ hand-back's files are, and what it says (what's sent and seen, stepping in and i
 still drawn). `playthrough open` is that source (`server.ts`, at `/api`). Another page can show the viewer on an element
 of its own with a source of its own (`show(element, source)`, `show.tsx`), built beside the page into
 `packages/cli/show/` as `viewer.js`, one module with everything inside it, and `viewer.css`, and published as
-`playthrough/show/viewer.js` and `playthrough/show/viewer.css`.
+`playthrough/show/viewer.js` and `playthrough/show/viewer.css`. Shown so, it asks for nothing by an address of its own,
+and where you are is after the page's `#` (`#/moments/<copy>/<change>/<n>`), so it works from any folder of a plain
+static host, which answers only the page itself.
 
 **What's next** (`Moments.tsx`, `Opening.tsx`, `step.ts`). `/` opens on the next change waiting on you, its opening card:
 its title, what you asked, the app and when it came back, over the first moment you haven't seen, its picture softened
