@@ -562,7 +562,8 @@ pin never stands on whatever is there instead. A flip is
 a cross-fade in the same spot at the same size (at once with reduced motion), the pin going to its thing in the picture
 shown, the card staying where it is. ← → to another note opens it on Now. With its pin and its card, and nothing more. Escape, its picture again, or a press anywhere but its card or the edges closes it;
 Space, S and C act on the moment and close it first. An open note's thing is never under the bar: the bar moves along
-the recording's edge, or down off it. A reply waits to be clicked into, so ← → go on through the notes. A thread too long
+the recording's edge, or down off it. In its thread each turn says who on a small line of its own, you by your dot,
+the agent by its name, in soft ink (`Turns`, `Note.tsx`): in faint the names were hard to read on a dark card. A reply waits to be clicked into, so ← → go on through the notes. A thread too long
 for its card comes in at its end, already there, so its newest answer is in view, what's before it fading above, the
 Reply box under it where it always is; one that fits whole is as it was. On a phone or at the last stop, where the
 thread runs in the page's flow, the rows or the sheet holding it are scrolled instead, just enough to bring the newest in

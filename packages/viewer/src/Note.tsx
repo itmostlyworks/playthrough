@@ -22,7 +22,7 @@ export function Turns({ you, turns, unsent }: { you: string; turns: Turn[]; unse
     <div className="grid gap-2">
       {all.map((turn, i) => (
         <div key={i} className="grid gap-px">
-          <span className="flex items-center gap-1.5 text-[11.5px] leading-4 text-faint">
+          <span className="flex items-center gap-1.5 text-[11.5px] leading-4 text-soft">
             {turn.mine && <i className={`size-1.5 rounded-full ${turn.sent ? "bg-slate" : "bg-amber"}`} />}
             {turn.by}
             {!turn.sent && <span>· not sent yet</span>}
