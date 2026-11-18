@@ -61,6 +61,20 @@ test("{port} in only one of start and url is refused, saying to put it in both",
   await assert.rejects(repo(main).app(), (error: Refused) => error instanceof Refused && /in both/.test(error.problems[0]!));
 });
 
+test("app.json's url is where the app is and nothing more: one with a page of its own is refused, saying which to go to in the browser", async () => {
+  await appJson(main, { start: "npm run dev", url: "http://localhost:3000/reports?tab=1" });
+  await assert.rejects(repo(main).app(), (error: Refused) =>
+    error.problems[0] === "playthrough/app.json's url is http://localhost:3000/reports?tab=1. Give only http://localhost:3000: a moment keeps the pages it goes to, so go to /reports?tab=1 in the browser.",
+  );
+  await appJson(main, { start: "npm run dev -- --port {port}", url: "http://localhost:{port}/#/board" });
+  await assert.rejects(repo(main).app(), (error: Refused) => error.problems[0]!.includes("Give only http://localhost:{port}: a moment keeps the pages it goes to, so go to /#/board in the browser."));
+  await appJson(main, { start: "npm run dev", url: "http://localhost:3000/" });
+  assert.equal((await repo(main).app()).url, "http://localhost:3000/");
+  await appJson(main, { start: "npm run dev -- --port {port}", url: "http://localhost:{port}/" });
+  const { url, port } = await repo(main).app();
+  assert.equal(url, `http://localhost:${port}/`);
+});
+
 test("at the address the app always has, what answers is the app in the main folder, and in a worktree it's refused as maybe another copy", async () => {
   const server = createServer((_, response) => response.end("someone's app"));
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));

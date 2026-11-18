@@ -67,7 +67,9 @@ everyone starts from; both are committed with the app, and the agent asks before
 command takes a port, `{port}` in both (`{ "start": "npm run dev -- --port {port}", "url": "http://localhost:{port}" }`)
 gives each copy a free port of its own (kept in `.playthrough/port.json`), so a worktree's copy runs beside the
 person's; at the address the app always has, one already running there is used, except in a worktree, where it could
-be another copy's. `"oneAtATime": true` runs moments one after another, for an app with a page that shows what every
+be another copy's. The `url` is where the app is and nothing more: one with a page in it (a path, query or hash) is
+refused, saying which to go to in the browser instead, as a moment keeps the pages it goes to and would go to them
+inside that one (a real run, 0.7.1). `"oneAtATime": true` runs moments one after another, for an app with a page that shows what every
 run made. `setup.ts`'s default export is given the page, a request of its own, the app's address and who it's for, and
 what it returns is that run's setup; `after`, if it exports one, is given that and takes it away; `people` names who a
 moment can be done as; `signIn` signs a page in; `use` is how every page of the app is opened, as Playwright's

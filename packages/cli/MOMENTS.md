@@ -22,7 +22,8 @@ if they say so.
   manager, then run npx playwright install chromium.
 - playthrough/app.json says how to start the app. Where its command takes a port, say {port} in both, and each copy of
   the app gets its own: { "start": "npm run dev -- --port {port}", "url": "http://localhost:{port}" }. Where it can't,
-  give the address it always has: { "start": "npm run dev", "url": "http://localhost:3000" }.
+  give the address it always has: { "start": "npm run dev", "url": "http://localhost:3000" }. The url is only where the
+  app is, no page in it: go to a page in the browser.
 - playthrough/setup.ts makes what everyone starts from, fresh for each browser, and gives it back after. The same
   things every time (names, titles), and what the app needs unique (an email) unique, so a moment's way there, run
   again from a fresh start, lands in the same place. Make things through the app's API or database, not on screen;

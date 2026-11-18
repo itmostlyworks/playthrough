@@ -68,6 +68,13 @@ export function repo(root = home(process.cwd())) {
       // Otherwise it's started, and waited for, for three minutes, at an address nothing can answer at.
       if (!/^https?:$/.test(URL.parse(url)?.protocol ?? ""))
         throw new Refused([`playthrough/app.json's “url” is a whole address, as a browser takes it, like http://localhost:{port}, not “${app.url}”.`]);
+      // Where the app is, and nothing more: a moment's way goes to the pages it went to from there, so one with a page of
+      // its own in it would be gone to again inside that page's.
+      const { pathname, search, hash } = new URL(url);
+      if (pathname !== "/" || search || hash) {
+        const where = app.url.match(/^[^:]+:\/\/[^/?#]*/)![0];
+        throw new Refused([`playthrough/app.json's url is ${app.url}. Give only ${where}: a moment keeps the pages it goes to, so go to ${app.url.slice(where.length)} in the browser.`]);
+      }
       if (app.oneAtATime !== undefined && typeof app.oneAtATime !== "boolean") throw new Refused([`playthrough/app.json's “oneAtATime” is true or false: true runs each moment by itself.`]);
       return { start: given(app.start), url, ...(app.oneAtATime && { oneAtATime: true }), ...(port !== undefined && { port }) };
     },
