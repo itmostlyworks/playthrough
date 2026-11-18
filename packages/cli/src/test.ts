@@ -20,6 +20,7 @@ import { ACTIONS, ASSETS, GLIMPSES, HOLD, PERSON, PICTURED, PICTURE, READINGS, R
 import { SETTLED, stillFor, watchRest } from "./rest.ts";
 import { firstOf, make, personIn, setupIn, type Made, type Setup } from "./setup.ts";
 import { steadied } from "./steady.ts";
+import { scrollPart } from "./way.ts";
 
 // The screens besides the laptop every moment is on unless it says otherwise: a phone, tapped, and a tablet. A moment takes
 // one with test.use, and so does someone it's handed to.
@@ -615,7 +616,7 @@ const keeping: object = Object.assign(
   },
 );
 
-export const test = ((globalThis as Record<symbol, unknown>)[ALONGSIDE] ? Object.assign(keeping, { inView }) : Object.assign(withSteps(recorded), { inView })) as typeof recorded & { inView: typeof inView };
+export const test = ((globalThis as Record<symbol, unknown>)[ALONGSIDE] ? Object.assign(keeping, { inView, scrollPart }) : Object.assign(withSteps(recorded), { inView, scrollPart })) as typeof recorded & { inView: typeof inView; scrollPart: typeof scrollPart };
 
 // Something near the screen's top or bottom edge, or with offScreen, out of sight, scrolled smoothly to the middle, as a
 // person would to look at it or do something to it, and the page left to come to rest: a recording has nothing past

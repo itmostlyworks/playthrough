@@ -1,15 +1,22 @@
 // The way to a moment: what the agent did in its browser, written as a moment Playthrough runs again from a fresh start,
 // and whether running it again landed where the agent was.
 
-import { differences, type Reading, type Thing } from "@playthrough/page";
+import type { Locator } from "@playwright/test";
+import { differences, partsAround, type Reading, type Thing } from "@playthrough/page";
 import { madeBySetup, quote } from "@playthrough/change";
+import { thingIn } from "./reporter.ts";
 
 // What was done, as stepping in keeps a person's, and what it was done on as getByRole finds it: its role and name, and
 // which of those alike it was, where it isn't the only one; with no role, by its words; by its path only where it has
 // neither.
-// And the address it was done at; a page loaded, whether something done on the page before led there (a link followed, a
-// form sent) or it was gone to directly.
-export type Done = { does: string; on: string; with?: string; what?: string; role?: string; name?: string; text?: string; nth?: number; address?: string; led?: boolean; scrolled?: { x: number; y: number }; button?: "right" };
+// And the address it was done at, and where the page was scrolled; a page loaded, whether something done on the page
+// before led there (a link followed, a form sent) or it was gone to directly.
+export type Done = { does: string; on: string; with?: string; what?: string; role?: string; name?: string; text?: string; nth?: number; address?: string; led?: boolean; scrolled?: Scrolled; button?: "right" };
+
+// Where the page was scrolled, and each part of it that scrolls by itself (a panel, a long list, a dialog's body) that
+// was scrolled from its start since the page loaded: found as what's done there is, by its role and name, else its place.
+export type Scrolled = { x: number; y: number; parts?: Part[] };
+export type Part = { on: string; role?: string; name?: string; nth?: number; x: number; y: number };
 
 // What a moment is about, read where the agent is: one thing on the page, by its role and name, with what can be
 // checked of it again; or words with no role of their own (role "text"), by what they say, the first that does.
@@ -43,7 +50,7 @@ export function wayFile({
   did: Done[];
   setup: Record<string, unknown>;
   about?: About;
-  scrolled?: { x: number; y: number };
+  scrolled?: Scrolled;
   from?: number;
   tried?: boolean;
 }): string {
@@ -71,21 +78,31 @@ export function wayFile({
     if (done.does === "press") return keyboard ? `    await page.keyboard.press(${given});` : `    await page.${at}.press(${given});`;
     return `    await page.${at}.click(${done.button ? `{ button: ${JSON.stringify(done.button)} }` : ""});${what}`;
   });
-  // Scrolled where the agent had scrolled before each thing done there: on the way, at once; in what the moment shows, as
-  // a person scrolls. A page loaded starts at its top.
+  // Scrolled where the agent had scrolled before each thing done there, the page and each part of it that scrolls by
+  // itself: on the way, at once; in what the moment shows, as a person scrolls. A page loaded starts at its top.
   const xy = ({ x, y }: { x: number; y: number }) => `[${Math.round(x)}, ${Math.round(y)}]`;
+  const near = (one: { x: number; y: number }, other: { x: number; y: number }) => Math.abs(one.x - other.x) < 2 && Math.abs(one.y - other.y) < 2;
   let at = { x: 0, y: 0 };
+  const partsAt = new Map<string, { x: number; y: number }>();
+  const partsTo = (there: Scrolled, smooth: boolean) =>
+    (there.parts ?? []).flatMap((part) => {
+      const found = locatorOf(part);
+      if (near(part, partsAt.get(found) ?? { x: 0, y: 0 })) return [];
+      partsAt.set(found, part);
+      return [`    await test.scrollPart(page.${found}, ${xy(part)}${smooth ? ", { smooth: true }" : ""});`];
+    });
   const before = did.map((done, i) => {
-    if (done.does === "goto") return void (at = { x: 0, y: 0 });
+    if (done.does === "goto") return (at = { x: 0, y: 0 }), partsAt.clear(), [];
     const there = done.scrolled;
-    if (!there || (Math.abs(there.x - at.x) < 2 && Math.abs(there.y - at.y) < 2)) return;
-    at = there;
-    return i <= from ? `    await page.evaluate(([x, y]) => window.scrollTo(x, y), ${xy(there)});` : `    await page.evaluate(([x, y]) => window.scrollTo({ left: x, top: y, behavior: "smooth" }), ${xy(there)});`;
+    if (!there) return [];
+    const page = near(there, at) ? [] : [i <= from ? `    await page.evaluate(([x, y]) => window.scrollTo(x, y), ${xy(there)});` : `    await page.evaluate(([x, y]) => window.scrollTo({ left: x, top: y, behavior: "smooth" }), ${xy(there)});`];
+    if (page.length) at = there;
+    return [...page, ...partsTo(there, i > from)];
   });
-  const lines = written.flatMap((line, i) => (before[i] ? [before[i]!, line] : [line]));
-  const placed = written.slice(0, from).reduce((count, _, i) => count + (before[i] ? 2 : 1), 0) + (before[from] ? 1 : 0);
+  const lines = written.flatMap((line, i) => [...before[i]!, line]);
+  const placed = written.slice(0, from).reduce((count, _, i) => count + before[i]!.length + 1, 0) + (before[from]?.length ?? 0);
   // Where the agent is at the end: gone there by itself (a smooth scroll still under way), or else scrolled there.
-  const scrolling = scrolled && (Math.abs(scrolled.x - at.x) >= 2 || Math.abs(scrolled.y - at.y) >= 2) ? [`    await page.waitForFunction(([x, y]) => Math.abs(scrollX - x) < 2 && Math.abs(scrollY - y) < 2, ${xy(scrolled)}, { timeout: 3000 }).catch(() => page.evaluate(([x, y]) => window.scrollTo(x, y), ${xy(scrolled)}));`] : [];
+  const scrolling = scrolled && !near(scrolled, at) ? [`    await page.waitForFunction(([x, y]) => Math.abs(scrollX - x) < 2 && Math.abs(scrollY - y) < 2, ${xy(scrolled)}, { timeout: 3000 }).catch(() => page.evaluate(([x, y]) => window.scrollTo(x, y), ${xy(scrolled)}));`] : [];
   const which = about?.nth !== undefined ? `.nth(${about.nth})` : "";
   const thing = about && (about.role === "text" ? `page.getByText(${JSON.stringify(about.name)}, { exact: true })${which}` : `page.getByRole(${JSON.stringify(about.role)}, { name: ${JSON.stringify(about.name)}, exact: true })${which}`);
   const checks = !about
@@ -102,30 +119,72 @@ export function wayFile({
       ];
   // The way ends scrolled where the moment's first thing was done, or for a still, where the agent is: its first frame is
   // there. What the moment shows ends where the agent is.
-  const still = from >= did.length && from > 0 && scrolled && (scrolled.x || scrolled.y) ? [`    await page.evaluate(([x, y]) => window.scrollTo(x, y), ${xy(scrolled)});`] : [];
-  const comfortable = thing ? [`    await test.inView(${thing});`] : [];
   // A still's first frame is its only one: what it's about is brought into view on the way.
   const isStill = from >= did.length && from > 0;
+  const still = isStill && scrolled && (scrolled.x || scrolled.y) ? [`    await page.evaluate(([x, y]) => window.scrollTo(x, y), ${xy(scrolled)});`] : [];
+  const partsThere = scrolled ? partsTo(scrolled, !isStill) : [];
+  const comfortable = thing ? [`    await test.inView(${thing});`] : [];
   // The moment's first frame has what it does first, or for a still what it's about, comfortably in view.
   const first = did[from];
   const firstInView = first && first.does !== "goto" && first.on !== "body" && (first.role || first.text) ? [`    await test.inView(page.${locatorOf(first)}, { offScreen: true });`] : [];
-  const way = [...lines.slice(0, placed), ...still, ...(isStill ? comfortable : firstInView)].filter(Boolean).map((line) => line.slice(2));
+  const way = [...lines.slice(0, placed), ...still, ...(isStill ? partsThere : []), ...(isStill ? comfortable : firstInView)].filter(Boolean).map((line) => line.slice(2));
   const shown = lines.slice(placed).filter(Boolean);
+  // Tried, where it ended says too which of the parts around what it's about, if any, has it scrolled out of sight, as
+  // no reading says that either: by its place among them, the innermost first.
+  const ended = thing
+    ? `{ url: page.url(), outOfSight: await ${thing}.evaluate((element) => (${partsAround})(element).findIndex((one) => !one.shows)).catch(() => -1) }`
+    : `{ url: page.url() }`;
   return `${tried ? `import { writeFileSync } from "node:fs";\n` : ""}import { expect, test } from "playthrough/test";
 
 test.use({ person: ${JSON.stringify(person)} });
 
 test(${JSON.stringify(words)}, async ({ page, setup, baseURL }) => {
 ${way.map((line) => `${line}\n`).join("")}  await test.step(${JSON.stringify(words)}, async () => {
-${[...shown, ...(still.length ? [] : scrolling), ...(isStill ? [] : comfortable), ...checks].join("\n")}
-  });${tried ? `\n  writeFileSync(new URL("./${ENDED}", import.meta.url), JSON.stringify({ url: page.url() }));` : ""}
+${[...shown, ...(still.length ? [] : scrolling), ...(isStill ? [] : partsThere), ...(isStill ? [] : comfortable), ...checks].join("\n")}
+  });${tried ? `\n  writeFileSync(new URL("./${ENDED}", import.meta.url), JSON.stringify(${ended}));` : ""}
 });
 `;
 }
 export const ENDED = "ended.json";
+// Where the way, tried, ended: its address, and the part around what the moment is about that has it scrolled out of
+// sight, by its place among those around it, or -1.
+export type Ended = { url: string; outOfSight?: number };
+
+// A part of the page that scrolls by itself put where the agent had it, at once or smoothly as a person scrolls, and
+// there once it's there: a list that draws its rows only as they come into view gets that far only as it draws them.
+// Not there, or not getting there, it's said, as the way says what else it couldn't do.
+export async function scrollPart(part: Locator, [x, y]: [number, number], { smooth = false } = {}) {
+  const said = thingIn(String(part)) ?? "the part of the page that scrolls by itself";
+  const reached = await part
+    .evaluate(
+      (element, { x, y, smooth }) =>
+        new Promise<{ x: number; y: number }>((done) => {
+          element.scrollTo({ left: x, top: y, behavior: smooth ? "smooth" : "instant" });
+          // Three seconds of frames; stopped short for three of them, as a list stops at the rows it has drawn so far,
+          // on again from there.
+          let frames = 0, stopped = 0, last = { x: NaN, y: NaN };
+          const look = () => {
+            const at = { x: element.scrollLeft, y: element.scrollTop };
+            if ((Math.abs(at.x - x) < 2 && Math.abs(at.y - y) < 2) || ++frames > 180) return done(at);
+            stopped = at.x === last.x && at.y === last.y ? stopped + 1 : 0;
+            if (stopped >= 3) element.scrollTo({ left: x, top: y, behavior: "instant" });
+            last = at;
+            requestAnimationFrame(look);
+          };
+          requestAnimationFrame(look);
+        }),
+      { x, y, smooth },
+      { timeout: 5000 },
+    )
+    .catch((error) => {
+      throw /Timeout/.test(String(error)) ? new Error(`no ${said} was there to scroll where you had it`) : error;
+    });
+  const [way, got, wanted] = Math.abs(reached.y - y) >= 2 ? (["down", reached.y, y] as const) : (["across", reached.x, x] as const);
+  if (Math.abs(got - wanted) >= 2) throw new Error(`${said} could be scrolled only ${Math.round(got)}px ${way}, not the ${wanted}px where you had it`);
+}
 
 // What a thing was done on, as getByRole finds it, by its words where it has no role, by its path where it has neither.
-function locatorOf(done: Done): string {
+function locatorOf(done: Pick<Done, "on" | "role" | "name" | "text" | "nth">): string {
   const nth = done.nth !== undefined ? `.nth(${done.nth})` : "";
   if (done.role && done.name) return `getByRole(${JSON.stringify(done.role)}, { name: ${JSON.stringify(done.name)}, exact: true })${nth}`;
   if (done.role) return `getByRole(${JSON.stringify(done.role)})${nth}`;
@@ -169,7 +228,12 @@ export function sameAddress(here: string, again: string): string | undefined {
 // message that comes and goes by itself, as a toast, there or not by how long ago it came. Nothing differs: it landed.
 // What's out of sight where the moment ends, as a page's top is from its footer, isn't what's there: a pin that drops a
 // while after the page lands, up out of sight, doesn't keep a moment at its footer from landing.
-export function whatDiffers(here: { url: string; reading: Reading }, again: { url: string; reading: Reading }): { differ: string[]; passing: string[]; timely: string[]; address?: string } {
+// What the moment is about, in sight where the agent is, is in sight where it ends too: scrolled out of sight inside a part
+// that scrolls by itself, its picture wouldn't show it, as a panel left at its top hides what's far down it.
+export function whatDiffers(
+  here: { url: string; reading: Reading; about?: About; partsAround?: string[] },
+  again: { url: string; reading: Reading; outOfSight?: number },
+): { differ: string[]; passing: string[]; timely: string[]; address?: string } {
   const inSight = ({ box }: Thing, { width, height }: Reading["screen"]) => box.y + box.height > 0 && box.y < height && box.x + box.width > 0 && box.x < width;
   // Playthrough scrolls what's shown into view itself, so the same place is the same things saying the same, wherever
   // they sit on the screen: something moved isn't somewhere else.
@@ -188,9 +252,11 @@ export function whatDiffers(here: { url: string; reading: Reading }, again: { ur
   const picked = new Set<(typeof differing)[number]>();
   for (let i = 0; picked.size < MOST_SAID && sides.some((side) => side.length > i); i++) for (const side of sides) if (i < side.length && picked.size < MOST_SAID) picked.add(side[i]!);
   const shown = sides.flatMap((side) => side.filter((one) => picked.has(one)));
+  const hidden = here.about && again.outOfSight !== undefined && again.outOfSight >= 0 ? partSaid(here.partsAround?.[again.outOfSight]) : undefined;
   return {
     differ: [
       ...(address === undefined ? [`the address: ${new URL(here.url).pathname} where you are, ${new URL(again.url).pathname} run again`] : []),
+      ...(here.about && hidden ? [`${here.about.role} ${quote(here.about.name)} is in sight where you are, scrolled out of sight inside ${hidden} run again`] : []),
       ...shown.map(said),
       ...(differing.length > shown.length ? [`and ${differing.length - shown.length} more`] : []),
     ],
@@ -227,6 +293,9 @@ const said = (one: ReturnType<typeof differences>["differences"][number]): strin
 
 const sizeOf = ({ box }: Thing) => `${Math.round(box.width)}×${Math.round(box.height)}px`;
 const LOOK: Record<keyof Thing["look"], string> = { background: "background", color: "text colour", size: "text size", weight: "text weight", border: "border" };
+
+// A part that scrolls by itself, by its name where the page gives it one.
+export const partSaid = (name: string | undefined) => (name ? quote(name) : "the part of the page around it that scrolls by itself");
 
 export const aboutSaid = (about: About) =>
   `${about.role === "text" ? "words" : about.role} ${quote(about.name)}${about.value !== undefined ? `, saying ${quote(about.value)}` : ""}${about.disabled ? ", which can't be changed" : ""}${about.checked !== undefined ? (about.checked ? ", checked" : ", not checked") : ""}`;

@@ -6,3 +6,4 @@ export * from "./scheme.ts";
 export * from "./path.ts";
 export * from "./twice.ts";
 export * from "./clicked.ts";
+export * from "./parts.ts";

@@ -15,7 +15,7 @@ import { closeSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, writ
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { clicked, pathTo } from "@playthrough/page";
+import { clicked, partsAround, pathTo } from "@playthrough/page";
 import { allNotes, madeInApp, quote, Refused, type Change } from "@playthrough/change";
 import { keepRunning, UNUSED } from "./app.ts";
 import { changeHere, momentNamed } from "./change.ts";
@@ -23,7 +23,7 @@ import { hovering } from "./read.ts";
 import type { Repo } from "./repo.ts";
 import { giveBackLeft, make, personIn, problemsWithPeople, setupIn } from "./setup.ts";
 import { steadied } from "./steady.ts";
-import { wayIn, type Done } from "./way.ts";
+import { scrollPart, wayIn, type Done } from "./way.ts";
 
 // The debugging port a browser here is reached at: this one, unless another copy's browser has it.
 const DEBUGGING = 9333;
@@ -47,11 +47,21 @@ export const NOTING = `(() => {
   // before them, until something other than typing is done.
   let typedIn, into;
   // Where it was done, so what took the agent to another page is known, however the page got there; and where the page
-  // was scrolled, as scrolling is done by no listener here, and a moment starts where the agent was looking.
+  // was scrolled, and each part of it that scrolls by itself, as scrolling is done by no listener here, and a moment
+  // starts where the agent was looking.
   const keep = (done) => {
     if (done.does !== "type") typedIn = undefined;
     if (done.does !== "type" && done.does !== "fill") into = undefined;
-    window.__playthroughDid?.({ ...done, address: location.pathname, scrolled: { x: Math.round(scrollX), y: Math.round(scrollY) } });
+    window.__playthroughDid?.({ ...done, address: location.pathname, scrolled: scrolled() });
+  };
+  // A part that scrolls by itself, as a panel, a long list or a dialog's body does, is kept once it's scrolled from its
+  // start, and from then on while it's on the page, so one scrolled back is put back too; found again as what's done
+  // there is, by its role and name, else its place.
+  const moved = new Set();
+  const scrolled = () => {
+    for (const part of document.body?.querySelectorAll("*") ?? []) if (part.scrollTop || part.scrollLeft) moved.add(part);
+    const parts = [...moved].filter((part) => part.isConnected).map((part) => ({ on: path(part), ...asWritten(() => named(part)), x: Math.round(part.scrollLeft), y: Math.round(part.scrollTop) }));
+    return { x: Math.round(scrollX), y: Math.round(scrollY), ...(parts.length && { parts }) };
   };
   // Everything here is read as the page shows it with nothing pointed at, as Kan's links add their shortcut ("Settings
   // G S") on hover; and in its words as written, not as its style cases them, as getByRole and getByText find them again:
@@ -112,6 +122,8 @@ export const NOTING = `(() => {
   });
   window.__playthroughNamed = named;
   window.__playthroughAsWritten = asWritten;
+  window.__playthroughScrolled = scrolled;
+  window.__playthroughPartsAround = ${partsAround};
   // A page loaded from another of the app's, by a link followed or a form sent, was led there; one gone to directly wasn't.
   const led = (() => {
     try {
@@ -423,8 +435,8 @@ export function doneBy(change: Change, handBack: number, name: string, at: numbe
 // Done in the browser as the moment's way there does it, on what setup made for this browser, as far as it goes; and
 // said, where it got.
 async function takeTo(page: Page, to: Place, setup: Record<string, unknown>, baseURL: string): Promise<string> {
-  const going = new Function("page", "setup", "baseURL", `return (async () => {\n${wayIn(readFileSync(to.file, "utf8"), to.done)}\n})();`) as (page: Page, setup: unknown, baseURL: string) => Promise<void>;
-  return going(page, setup, baseURL).then(
+  const going = new Function("page", "setup", "baseURL", "test", `return (async () => {\n${wayIn(readFileSync(to.file, "utf8"), to.done)}\n})();`) as (page: Page, setup: unknown, baseURL: string, test: { scrollPart: typeof scrollPart }) => Promise<void>;
+  return going(page, setup, baseURL, { scrollPart }).then(
     () =>
       to.note && to.done !== undefined
         ? `It's where note ${to.note} was written, in the moment ${quote(to.words)}${to.done ? `, after the first ${to.done === 1 ? "thing" : `${to.done} things`} it does` : ", before it does anything"}.`

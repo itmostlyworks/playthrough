@@ -7,7 +7,7 @@ import { after, before, test } from "node:test";
 import { chromium, type Browser, type Page } from "@playwright/test";
 import { NOTING } from "../src/as.ts";
 import { aboutOn, openOn } from "../src/moments.ts";
-import { wayFile, wayIn, type Done } from "../src/way.ts";
+import { scrollPart, wayFile, wayIn, type Done } from "../src/way.ts";
 
 let browser: Browser;
 before(async () => void (browser = await chromium.launch({ args: ["--enable-blink-features=ComputedAccessibilityInfo"] })));
@@ -29,7 +29,7 @@ async function keptAndPlayed<T>(body: string, act: (page: Page) => Promise<void>
   fresh.setDefaultTimeout(2000);
   await served(fresh);
   const way = wayIn(wayFile({ words: "Here", person: "Maja", did, setup: {} }));
-  await new Function("page", "baseURL", `return (async () => {\n${way}\n})();`)(fresh, "http://app.test");
+  await new Function("page", "baseURL", "test", `return (async () => {\n${way}\n})();`)(fresh, "http://app.test", { scrollPart });
   const again = await check(fresh);
   await fresh.close();
   return { did, again };
@@ -132,6 +132,66 @@ test("what a moment is about is past an edge of the browser only when none of it
   await page.evaluate(() => window.scrollTo(0, 1500));
   assert.equal((await aboutOn(page, "Every card shows", "Every card")).past, undefined, "taller than the browser, some of it shows");
   assert.equal((await aboutOn(page, "The board", "Board")).past, "top");
+  await page.close();
+});
+
+// A page with a Results panel that scrolls by itself, its rows long past its bottom, and a list with no name that does too.
+const PANELS = `<h1>Runs</h1>
+  <section aria-label="Results" style="height: 200px; overflow: auto"><div style="height: 3000px"></div><h2>Compare curve</h2></section>
+  <ul style="height: 100px; overflow: auto">${"<li>Run</li>".repeat(40)}</ul>
+  <button>Refresh</button>`;
+
+test("each part of the page that scrolls by itself is kept where it was scrolled, by its name or else its place, and put back there from a fresh start", { timeout: 30_000 }, async () => {
+  const { did, again } = await keptAndPlayed(
+    PANELS,
+    async (page) => {
+      await page.locator("section").evaluate((part) => part.scrollTo(0, 2800));
+      await page.locator("ul").evaluate((part) => part.scrollTo(0, 400));
+      await page.getByRole("button", { name: "Refresh" }).click();
+    },
+    (page) => page.evaluate(() => [document.querySelector("section")!.scrollTop, document.querySelector("ul")!.scrollTop]),
+  );
+  assert.deepEqual(did.at(-1)?.scrolled?.parts, [
+    { on: "body:nth-of-type(1) > section:nth-of-type(1)", role: "region", name: "Results", x: 0, y: 2800 },
+    { on: "body:nth-of-type(1) > ul:nth-of-type(1)", x: 0, y: 400 },
+  ]);
+  assert.deepEqual(again, [2800, 400]);
+});
+
+test("what a moment is about is scrolled out of sight inside a part of the page that scrolls by itself only when none of it shows there, and that part is named", { timeout: 30_000 }, async () => {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  await page.addInitScript({ content: NOTING });
+  await page.route("http://app.test/**", (route) => route.fulfill({ contentType: "text/html", body: `<!doctype html>${PANELS}` }));
+  await page.goto("http://app.test/");
+  const hidden = await aboutOn(page, "The curve", "Compare curve");
+  assert.deepEqual([hidden.outOfSight, hidden.partsAround], [0, ["Results"]]);
+  await page.getByRole("heading", { name: "Compare curve" }).scrollIntoViewIfNeeded();
+  assert.equal((await aboutOn(page, "The curve", "Compare curve")).outOfSight, undefined);
+  await page.locator("section div").evaluate((tall) => tall.setAttribute("aria-label", "Every run"));
+  await page.locator("section div").evaluate((tall) => tall.setAttribute("role", "list"));
+  assert.equal((await aboutOn(page, "Every run", "Every run")).outOfSight, undefined, "bigger than its part, some of it shows");
+  await page.close();
+});
+
+test("a part of the page that scrolls by itself is put back once it's drawn far enough, and where it can't be, it says so: not there, or not that far", { timeout: 30_000 }, async () => {
+  const page = await browser.newPage();
+  await page.route("http://app.test/**", (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      // As a list that draws its rows only as they come into view: more, each time it's scrolled near its end.
+      body: `<!doctype html><div role="list" aria-label="Runs" style="height: 200px; overflow: auto"><div style="height: 400px"></div></div>
+        <div role="list" aria-label="Short" style="height: 200px; overflow: auto"><div style="height: 400px"></div></div>
+        <script>
+          const runs = document.querySelector("[aria-label=Runs]");
+          runs.addEventListener("scroll", () => runs.scrollTop + 200 > runs.scrollHeight - 50 && runs.scrollHeight < 3000 && runs.append(Object.assign(document.createElement("div"), { style: "height: 400px" })));
+        </script>`,
+    }),
+  );
+  await page.goto("http://app.test/");
+  await scrollPart(page.getByRole("list", { name: "Runs", exact: true }), [0, 2400]);
+  assert.equal(await page.getByRole("list", { name: "Runs" }).evaluate((part) => part.scrollTop), 2400);
+  await assert.rejects(scrollPart(page.getByRole("list", { name: "Short", exact: true }), [0, 900]), { message: "list “Short” could be scrolled only 200px down, not the 900px where you had it" });
+  await assert.rejects(scrollPart(page.getByRole("region", { name: "Results", exact: true }), [0, 900]), { message: "no region “Results” was there to scroll where you had it" });
   await page.close();
 });
 

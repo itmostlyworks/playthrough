@@ -34,7 +34,7 @@ import { markUnsteady, recorder, runOnce } from "./run.ts";
 import { seenChanging, SQUARE, squaresOf, type Square } from "./seen.ts";
 import { setupIn } from "./setup.ts";
 import { listening, saidTo, unheard } from "./wait.ts";
-import { aboutSaid, ENDED, fileOf, wayFile, TIMED, whatDiffers, type About, type Done } from "./way.ts";
+import { aboutSaid, ENDED, fileOf, partSaid, wayFile, TIMED, whatDiffers, type About, type Done, type Ended, type Scrolled } from "./way.ts";
 
 // What a moment says is what's there, short enough to sit under a picture of it: who and where, the person sees.
 const MOST_WORDS = 10;
@@ -57,11 +57,16 @@ export async function moment(repo: Repo, words: string, named?: string, last?: n
     .filter((page) => page.url().startsWith(browser.url))
     .at(-1);
   if (!here) throw new Refused([`No page in the browser is on the app (${browser.url}).`]);
-  const there = { url: here.url(), reading: await readAt(here), scrolled: await here.evaluate(() => ({ x: scrollX, y: scrollY })), ...(await aboutOn(here, words, named)), open: await openOn(here) };
+  const scrolled: Scrolled = await here.evaluate(() => (window as any).__playthroughScrolled?.() ?? { x: scrollX, y: scrollY });
+  const there = { url: here.url(), reading: await readAt(here), scrolled, ...(await aboutOn(here, words, named)), open: await openOn(here) };
   await open.close();
   if (named && !there.about)
     throw new Refused([`Nothing on the page is called ${quote(named)}, as a button, a field, a link or a heading is, or holds it, or says it.${there.near.length ? ` Near it: ${list(there.near.map(quote))}.` : ""} Say it as the page names it, or leave it out.`]);
-  // The picture is what the browser shows: what the moment is about, all of it past an edge, isn't in it.
+  // The picture is what the browser shows: what the moment is about, all of it past an edge, isn't in it; nor is it,
+  // scrolled out of sight inside a part of the page that scrolls by itself, which is said first, as it's that part that
+  // brings it into view.
+  if (there.about && there.outOfSight !== undefined)
+    throw new Refused([`Not kept: the ${aboutSaid(there.about)} is scrolled out of sight inside ${partSaid(there.partsAround[there.outOfSight])}, so the moment's picture wouldn't show it. Bring it into view, then mark it again.`]);
   if (there.about && there.past) throw new Refused([`Not kept: the ${aboutSaid(there.about)} is past the ${there.past} edge of your browser, so the moment's picture wouldn't show it. Bring it into view, then mark it again.`]);
 
   // Where the moment starts: what was done since arriving on this page, or since the moment before; or the last N things.
@@ -108,8 +113,8 @@ export async function moment(repo: Repo, words: string, named?: string, last?: n
     throw notKept(`it ${failed ? stoppedSaid(failed) : "couldn't get there"}.`);
   }
   const readings: Reading[] = JSON.parse(recorded.files.find((one) => one.name === readingsOf(recorded.moment))!.bytes.toString());
-  const ended: string = JSON.parse(readFileSync(join(trying, ENDED), "utf8")).url;
-  const { differ, timely, address } = whatDiffers(there, { url: ended, reading: readings.at(-1)! });
+  const ended: Ended = JSON.parse(readFileSync(join(trying, ENDED), "utf8"));
+  const { differ, timely, address } = whatDiffers(there, { ...ended, reading: readings.at(-1)! });
   if (differ.length)
     throw notKept(
       `it ended ${address !== undefined ? `on ${address} as you are, but not as it is where you are` : "on another page"}. What differs:\n${differ.map((one) => `  ${one}`).join("\n")}${differ.some((one) => one.startsWith("only where you are")) ? "\nIf what's only where you are comes a while after what you did, name it as the moment's thing: the moment waits for it." : ""}`,
@@ -259,12 +264,14 @@ async function readAt(page: Page): Promise<Reading> {
 // What the moment is about: the thing named, by its whole name, or else the smallest that holds those words, as a card
 // holds its title; or, named nothing, the thing whose name its words say, the longest, a field before a heading, of two
 // words or more: one word, as a person's name, says too little. And where nothing's found, what's near what was said.
-// Found, the edge of the browser it's past, where none of it is in view: the picture is what the browser shows.
-export async function aboutOn(page: Page, words: string, named?: string): Promise<{ about?: About; near: string[]; past?: Edge }> {
+// Found, the edge of the browser it's past, where none of it is in view: the picture is what the browser shows; the
+// parts around it that scroll by themselves, by their names, the innermost first, and which of them has it scrolled out
+// of sight, where one does.
+export async function aboutOn(page: Page, words: string, named?: string): Promise<{ about?: About; near: string[]; past?: Edge; partsAround: string[]; outOfSight?: number }> {
   return page.evaluate(
     ({ words, named }) => {
       const nameOf = (window as any).__playthroughNamed;
-      if (!nameOf) return { near: [] };
+      if (!nameOf) return { near: [], partsAround: [] };
       const said = (named ?? words).toLowerCase().trim();
       const asWritten = (window as any).__playthroughAsWritten;
       const all = asWritten(() => [...document.querySelectorAll("a, button, input, select, textarea, h1, h2, h3, h4, [role]")].map((element) => ({ element, ...nameOf(element) })).filter((one) => one.role && one.name)) as { element: Element; role: string; name: string }[];
@@ -298,12 +305,18 @@ export async function aboutOn(page: Page, words: string, named?: string): Promis
         if (!box.width && !box.height) return undefined;
         return box.left >= innerWidth ? ("right" as const) : box.right <= 0 ? ("left" as const) : box.top >= innerHeight ? ("bottom" as const) : box.bottom <= 0 ? ("top" as const) : undefined;
       };
+      // Inside a part that scrolls by itself, as at the browser's edges, a thing showing any of itself is in sight.
+      const inside = (element: Element) => {
+        const around: { part: Element; shows: boolean }[] = (window as any).__playthroughPartsAround(element);
+        const hidden = around.findIndex((one) => !one.shows);
+        return { partsAround: asWritten(() => around.map(({ part }) => (nameOf(part).name as string | undefined) ?? "")) as string[], ...(hidden >= 0 && { outOfSight: hidden }) };
+      };
       if (saying.length) {
         const { element, nth } = which(saying, saying[0]!);
-        return { near, about: { role: "text", name: asWritten(() => own(element)), disabled: false, ...(nth !== undefined && { nth }) }, past: pastOf(element) };
+        return { near, about: { role: "text", name: asWritten(() => own(element)), disabled: false, ...(nth !== undefined && { nth }) }, past: pastOf(element), ...inside(element) };
       }
       const thing = found ?? holding;
-      if (!thing) return { near };
+      if (!thing) return { near, partsAround: [] };
       const alike = all.filter((one) => one.role === thing.role && one.name === thing.name).map((one) => one.element);
       // Held, it's the field holding it of those alike, wherever it is.
       const { element: chosen, nth } = found ? which(alike, found.element) : { element: thing.element, ...(alike.length > 1 && { nth: alike.indexOf(thing.element) }) };
@@ -320,6 +333,7 @@ export async function aboutOn(page: Page, words: string, named?: string): Promis
           ...(["checkbox", "radio"].includes(element.type) && { checked: element.checked }),
         },
         past: pastOf(element),
+        ...inside(element),
       };
     },
     { words, named },

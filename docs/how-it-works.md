@@ -88,7 +88,10 @@ getByText find again, never "MY BOARDS"), a right click as one, words typed wher
 that move the caret too; the field words go into is found as it was before them, once for each run of typing, and a
 rich-text editor (Kan's comment box) never by its words, which are what's typed: by its role and name if the page gives
 it one, else by its place, and said by what it asks for ("Add comment…"); each with the address it was done at and
-where the page was scrolled, and each page loaded with whether something done before led there. A drag is kept only to
+where the page was scrolled, and each part of it that scrolls by itself (a panel, a long list, a dialog's body) once
+it's been scrolled from its start since the page loaded, so one scrolled back is put back too, found as what's done is,
+by its role and name, else its place (`scrolled`, `Scrolled` in `way.ts`); and each page loaded with whether something
+done before led there. A drag is kept only to
 be said, never done again: a press carried more than 10px and let go, with the page taking the moves for itself on the
 way (`defaultPrevented` on a move, as a drag-and-drop library does once something is picked up: dnd-kit on Kan's
 board); selecting words, a slider and a press that wobbled leave the moves be, and the click that ends a drag is the
@@ -123,8 +126,14 @@ by itself (a caret, a time the server stamps), so it's left out of every compari
 words are ten at most and never name a person, as the page already says who, unless that name is in what the moment
 types, fills or picks ("Typing sam…" in a search; 15 Nov). Before anything runs, it isn't kept where all of what it's
 about is past an edge of the agent's browser, which is the picture: `Not kept: the button “Lane 8” is past the right
-edge of your browser, so the moment's picture wouldn't show it. Bring it into view, then mark it again.` A thing bigger
-than the browser always shows some of itself, so a long list is never refused. Of several alike, the one in view is
+edge of your browser, so the moment's picture wouldn't show it. Bring it into view, then mark it again.` Nor where it's
+scrolled out of sight inside a part of the page that scrolls by itself (`partsAround`, in `packages/page`: of the parts
+around it, the innermost first, the one where none of it is left in sight), which is said first, as that part is what
+brings it into view, naming it by its name, or else as "the part of the page around it that scrolls by itself": `Not kept: the heading “Compare curve” is scrolled out of sight
+inside “Results”, so the moment's picture wouldn't show it. Bring it into view, then mark it again.` A thing bigger than
+the browser, or than its part, always shows some of itself, so a long list is never refused. From 18 Nov: an agent on
+0.7.1 scrolled a Results panel to a compare curve, the moment played with the panel at its top, and it dropped the
+moment rather than hand back a recording with the curve out of view. Of several alike, the one in view is
 already the one chosen, so on 15 Nov's board ("List name", which every list has) this wouldn't have spoken: the empty
 list cut off at the right was what was new, not what was named. A moment showing a drag isn't kept (`Not kept: the
 last thing done here was a drag, and a moment can't hold a drag.`, or "one of the things done here is a drag"); one
@@ -135,6 +144,16 @@ it was led to is waited for, then gone to; one left at once for another (Kan's s
 to at all; and the page before each thing done is taken as it is, not after waiting for it to rest. The way scrolls at
 once to where the moment's first thing was done (or, for a still, where the agent is), so the first frame is where the
 agent was looking; between the moment's things it scrolls smoothly, as a person would; and it ends where the agent is.
+Each part that scrolls by itself is put where it was in the same manner (`test.scrollPart`, `scrollPart` in `way.ts`),
+and a way that stops partway (`wayIn`) puts them there too. Each waits until the part is there, for up to three seconds,
+going on from where it stopped short, as a list that draws its rows only as they come into view gets that far only as it
+draws them; a part not found within five seconds, or not getting that far, stops the way and says so as the way says
+what else it couldn't do (`no region “Results” was there to scroll where you had it`, `list “Runs” could be scrolled only
+200px down, not the 900px where you had it`). It lands only if what the moment is about, in sight where the agent is, is
+in sight run again too: the way, tried, says which part around it has it scrolled out of sight (`Ended`), and that
+differs as `heading “Compare curve” is in sight where you are, scrolled out of sight inside “Results” run again`. The
+recording needed nothing more: it starts with the way, and rrweb keeps each scroll of a part as it keeps the page's, so
+the page's player, the moment's still and its pictures show the part as the agent had it from the first frame.
 
 **The read-back.** Kept, `moment` says its length (or that it's a still) and what it's about; `shows`, the things done,
 in plain words (`type “BS-WEB” in Card prefix → click Update`); `before`, the last of the way (kept, never shown); the

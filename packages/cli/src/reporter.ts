@@ -82,7 +82,7 @@ const DOING: Record<string, [string, string]> = {
   setChecked: ["check", "checked"],
 };
 // A locator as a person would name the thing: getByRole('link', { name: 'My cards' }) is link “My cards”.
-function thingIn(locator: string | undefined) {
+export function thingIn(locator: string | undefined) {
   const found = locator?.trim().match(/^getBy(Role|Text)\((['"])((?:\\.|(?!\2).)*)\2(?:, \{ name: (['"])((?:\\.|(?!\4).)*)\4)?/);
   if (!found) return undefined;
   const plain = (text: string) => text.replace(/\\(.)/g, "$1");

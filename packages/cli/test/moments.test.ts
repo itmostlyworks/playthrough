@@ -133,6 +133,24 @@ describe("the way to a moment", () => {
     assert.match(still.split("await test.step(")[0]!, /window\.scrollTo\(x, y\), \[0, 1200\]\);/, "a still's first frame is where the agent is");
   });
 
+  test("puts each part of the page that scrolls by itself where the agent had it, as it does the page: the way at once, the moment as a person scrolls, ending where the agent is; a page loaded starts them at their start", () => {
+    const results = { on: "#results", role: "region", name: "Results" };
+    const inside = (y: number, done: Done): Done => ({ ...done, scrolled: { x: 0, y: 0, parts: [{ ...results, x: 0, y }] } });
+    const panel = [did[0]!, inside(0, did[1]!), inside(2400, did[3]!), inside(2400, did[2]!), inside(600, did[3]!)];
+    const shown = wayFile({ words: "The curve", person: "Maja", did: panel, setup: {}, from: 3, scrolled: { x: 0, y: 0, parts: [{ ...results, x: 0, y: 1800 }, { on: "#runs > ul", x: 0, y: 300 }] } });
+    const [way, step] = shown.split('await test.step("The curve"');
+    const part = 'test.scrollPart(page.getByRole("region", { name: "Results", exact: true })';
+    assert.equal(way!.split(part).length, 2, "scrolled once, where it moved");
+    assert.match(way!, /scrollPart\(page\.getByRole\("region", \{ name: "Results", exact: true \}\), \[0, 2400\]\);\n  await page\.getByRole\("button", \{ name: "Save"/);
+    assert.match(step!, /fill\("WEB"\);\n.*scrollPart\(page\.getByRole\("region", \{ name: "Results", exact: true \}\), \[0, 600\], \{ smooth: true \}\);\n.*name: "Save"/);
+    assert.match(step!, /\[0, 1800\], \{ smooth: true \}\);\n.*test\.scrollPart\(page\.locator\("#runs > ul"\), \[0, 300\], \{ smooth: true \}\);/, "ends where the agent is, a part with no name found by its place");
+    const still = wayFile({ words: "The curve", person: "Maja", did: panel.slice(0, 3), setup: {}, from: 3, scrolled: { x: 0, y: 0, parts: [{ ...results, x: 0, y: 1800 }] } });
+    assert.match(still.split("await test.step(")[0]!, /\[0, 1800\]\);\n/, "a still's first frame is where the agent is, at once");
+    const reloaded = wayFile({ words: "Again", person: "Maja", did: [did[0]!, inside(2400, did[1]!), did[0]!, inside(2400, did[1]!)], setup: {} });
+    assert.equal(reloaded.split(part).length, 3, "a page loaded has it at its start again");
+    assert.match(wayIn(shown), /scrollPart[\s\S]*fill\("WEB"\)/, "going there by hand puts it there too");
+  });
+
   test("brings what the moment first does comfortably into view before it starts, and what it's about before it's checked; a still's on the way; never going there by hand", () => {
     const about = { role: "textbox", name: "Card prefix", value: "WEB", disabled: false };
     const file = wayFile({ words: "The prefix is WEB", person: "Maja", did: did.slice(0, 4), setup: {}, from: 2, about });
@@ -192,6 +210,14 @@ describe("a moment run again", () => {
     assert.equal(differ.filter((line) => line.startsWith("only run again")).length, 6);
     assert.equal(differ.filter((line) => line.startsWith("only where you are")).length, 6);
     assert.equal(differ.at(-1), "and 16 more");
+  });
+
+  test("doesn't land where what it's about ends scrolled out of sight inside a part of the page that scrolls by itself, and says inside which", () => {
+    const about = { role: "heading", name: "Compare curve", disabled: false };
+    const here = { url: "http://localhost/runs", reading: board, about, partsAround: ["Results", ""] };
+    assert.deepEqual(whatDiffers(here, { url: "http://localhost/runs", reading: board, outOfSight: 0 }).differ, ["heading “Compare curve” is in sight where you are, scrolled out of sight inside “Results” run again"]);
+    assert.match(whatDiffers(here, { url: "http://localhost/runs", reading: board, outOfSight: 1 }).differ[0]!, /inside the part of the page around it that scrolls by itself run again$/);
+    assert.deepEqual(whatDiffers(here, { url: "http://localhost/runs", reading: board, outOfSight: -1 }).differ, [], "in sight there too, it lands");
   });
 
   test("says first that it ended on another page, where it did", () => {
