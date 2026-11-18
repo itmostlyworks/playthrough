@@ -148,8 +148,8 @@ export function NotePicture({ frame, focus }: { frame?: NoteFrame; focus?: NoteF
 // - something far larger than the strip (a pane, a list), its top left, at that readable size, not all of it shrunk;
 // - a spot with no thing, around the spot at the size it was recorded;
 // - all of it inside the screen, so a thing at the screen's edge sits at the strip's;
-// - and at the same size wherever it's drawn: a strip wider than the edge's (a card at the last stop) shows as much more
-//   of the page round the same middle, never the same part larger.
+// - and at the same size wherever it's drawn: a strip wider than the edge's (a card at the last stop on a phone) shows
+//   as much more of the page round the same middle, never the same part larger.
 const STRIP = 3.8;
 // The strip on the edge: a picture's width there, less the strip's inset.
 const ON_THE_EDGE = TILE - 2 * 8;

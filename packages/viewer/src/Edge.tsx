@@ -270,7 +270,8 @@ export function Tile(props: {
   // A note's: what was said, and under it a slim strip of its thing, set in, both always shown, rather than a picture
   // its words come over. A note leads with its words as a moment does with its picture.
   strip?: boolean;
-  // In a wide card (at the last stop), the strip beside the words rather than under them, so it's as tall as its words.
+  // In a wide card (at the last stop), the strip beside the words rather than under them, so the card is as flat as its
+  // words. Its row may make it taller: what's in it stays at its top.
   beside?: boolean;
   onPress: () => void;
   onPoint?: (pointed: boolean) => void;
@@ -333,7 +334,7 @@ export function Tile(props: {
       className={`group/tile w-full rounded-xl ${beside ? "flex flex-col" : "block"} p-1.5 text-left transition-[background-color,box-shadow,opacity] duration-200 ease-calm focus-visible:outline-none ${forward ? `bg-surface focus-visible:shadow-[0_0_0_2px_var(--amber)] ${strong ? "shadow-[0_0_0_1.5px_var(--soft)]" : lit ? "shadow-[0_0_0_1.5px_var(--faint)]" : "shadow-[0_0_0_1px_var(--edge)] hover:shadow-[0_0_0_1.5px_var(--faint)]"}` : "bg-ground shadow-[0_0_0_0_transparent]"}`}
     >
       <span
-        className={`relative block overflow-hidden rounded-lg ${strip ? `flex bg-surface ${beside ? "items-start" : "flex-col"}` :`aspect-[1.6] bg-paper ${forward ? "rounded-b-none" : ""}`} transition-[box-shadow,opacity,scale] duration-200 ease-calm group-active/tile:scale-[0.97] group-active/tile:duration-75 ${quiet && !strong ? "opacity-80 group-hover/tile:opacity-100 group-focus-visible/tile:opacity-100" : ""} ${forward ? "shadow-[0_0_0_0_transparent]" : `group-focus-visible/tile:shadow-[0_0_0_2px_var(--surface),0_0_0_4px_var(--amber)] ${strong ? "shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--soft)]" : lit ? "shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--faint)]" : "shadow-[0_0_0_1px_var(--edge),0_1px_3px_var(--edge)] group-hover/tile:shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--faint)]"}`}`}
+        className={`relative block overflow-hidden rounded-lg ${strip ? `flex bg-surface ${beside ? "items-start" : "flex-col"}` : `aspect-[1.6] bg-paper ${forward ? "rounded-b-none" : ""}`} transition-[box-shadow,opacity,scale] duration-200 ease-calm group-active/tile:scale-[0.97] group-active/tile:duration-75 ${quiet && !strong ? "opacity-80 group-hover/tile:opacity-100 group-focus-visible/tile:opacity-100" : ""} ${forward ? "shadow-[0_0_0_0_transparent]" : `group-focus-visible/tile:shadow-[0_0_0_2px_var(--surface),0_0_0_4px_var(--amber)] ${strong ? "shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--soft)]" : lit ? "shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--faint)]" : "shadow-[0_0_0_1px_var(--edge),0_1px_3px_var(--edge)] group-hover/tile:shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--faint)]"}`}`}
       >
         {strip ? (
           // The same at rest and forward: nothing inside it moves.

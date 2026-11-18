@@ -3,16 +3,13 @@
 // what the button counts; and what's still to do, if anything. The moments stay on their edge beside it.
 
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { flushSync } from "react-dom";
 import { TellYours } from "./Changes.tsx";
 import { useMore } from "./Edge.tsx";
 import { usePhone } from "./phone.ts";
 import { tick } from "./Send.tsx";
+import { APART, notesAcross } from "./sheet.ts";
 import type { Went } from "./StepLeft.tsx";
-
-// A note's card wide and flat, its picture beside its words: two across where the frame holds two at least this wide,
-// each at most this wide; else one, a little wider.
-const [NARROWEST, WIDEST, ALONE] = [420, 480, 560];
-const APART = 16;
 
 export function LastStop(props: {
   asked?: string;
@@ -44,7 +41,8 @@ export function LastStop(props: {
     if (!at) return;
     const measure = () => setFrame({ wide: at.clientWidth, high: at.clientHeight });
     measure();
-    const watching = new ResizeObserver(measure);
+    // Resized, laid out anew before that frame is drawn, so the cards never show a frame at their old width.
+    const watching = new ResizeObserver(() => flushSync(measure));
     watching.observe(at);
     return () => watching.disconnect();
   }, []);
@@ -54,12 +52,9 @@ export function LastStop(props: {
   // so the last of the sheet scrolls clear of both.
   const [above, below, line, side] = phone ? [16, 40, 23, 16] : [48, 92, 30, 32];
   const askedLines = Math.max(3, Math.floor(((frame.high - above - below) * 0.34) / line));
-  // One left edge for all of it: a measure as wide as the cards across, which hangs on the frame's width alone, never on
-  // how many notes there are, so a note kept or a box opened takes the next place and nothing else moves.
-  const room = frame.wide - 2 * side;
-  const across = room >= 2 * NARROWEST + APART ? 2 : 1;
-  const card = across === 2 ? Math.min(WIDEST, (room - APART) / 2) : Math.max(0, Math.min(ALONE, room));
-  const measure = phone ? undefined : across * card + (across - 1) * APART;
+  // One left edge for all of it: a measure as wide as the cards across, centred in the frame. On a phone, one column
+  // the whole width.
+  const { across, card, measure } = phone ? { across: 1, card: undefined, measure: undefined } : notesAcross(frame.wide - 2 * side);
   const todo = [
     props.unwatched > 0 && { words: `${props.unwatched} ${props.unwatched === 1 ? "moment" : "moments"} not watched`, go: props.onUnwatched },
     props.unopened > 0 && { words: `${props.unopened} ${props.unopened === 1 ? "answer" : "answers"} not opened`, go: props.onUnopened },
@@ -70,26 +65,29 @@ export function LastStop(props: {
   const cards = [...notes.map((one) => (inList && one.id === open!.id ? { id: one.id, card: open!.card, open: true } : { ...one, open: false })), ...(open && !inList ? [{ id: "open", card: open.card, open: true }] : [])];
   const opened = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => opened.current?.scrollIntoView({ block: "nearest" }), [open?.id ?? (open ? "new" : undefined)]);
-  // A row of notes as tall as its tallest, so it reads as one row whatever's in it. Measured on the notes alone, before
-  // they're drawn: a box opened beside one, or a note open in its place, leaves the others as they were.
-  const placed = useRef(new Map<string, HTMLElement>());
-  const [rows, setRows] = useState<number[]>([]);
-  const laidOut = phone ? "" : `${across}:${cards.map((one) => (one.open ? "" : one.id)).join(",")}`;
+  // A row of notes as tall as its tallest, so it reads as one row whatever's in it. Grid rows can't do it alone: a box
+  // opened, or a note open in its place, is a row's too, and would stretch the notes beside it. So each note's own
+  // height is measured while it's closed and kept while it's open: what's beside it stays as it was, and what's open is
+  // as tall as its row at least.
+  const closed = useRef(new Map<string, HTMLElement>());
+  const [heights, setHeights] = useState<Record<string, number>>({});
+  const shut = phone ? "" : cards.flatMap((one) => (one.open ? [] : [one.id])).join(",");
   useLayoutEffect(() => {
-    if (!laidOut) return setRows([]);
+    if (!shut) return;
     const measure = () => {
-      const tallest: number[] = [];
-      cards.forEach((one, i) => {
-        const at = !one.open && placed.current.get(one.id);
-        if (at) tallest[Math.floor(i / across)] = Math.max(tallest[Math.floor(i / across)] ?? 0, ownHeight(at));
-      });
-      setRows((was) => (was.length === tallest.length && was.every((one, i) => one === tallest[i]) ? was : tallest));
+      const now = Object.fromEntries([...closed.current].map(([id, at]) => [id, ownHeight(at)]));
+      setHeights((was) => (Object.entries(now).every(([id, high]) => was[id] === high) ? was : { ...was, ...now }));
     };
     measure();
-    const watching = new ResizeObserver(measure);
-    placed.current.forEach((at) => at.firstElementChild?.firstElementChild && watching.observe(at.firstElementChild.firstElementChild));
+    // As text wraps anew, on a resize or once a font has come, before that frame is drawn.
+    const watching = new ResizeObserver(() => flushSync(measure));
+    closed.current.forEach((at) => watching.observe(at.firstElementChild!.firstElementChild!));
     return () => watching.disconnect();
-  }, [laidOut]);
+  }, [shut]);
+  const rowOf = (i: number) => {
+    const first = i - (i % across);
+    return phone ? undefined : Math.max(0, ...cards.slice(first, first + across).map((one) => heights[one.id] ?? 0));
+  };
   return (
     <div className="absolute inset-0 overflow-hidden rounded-lg bg-surface shadow-frame">
       <div ref={sheet} onScroll={more.look} className="h-full overflow-y-auto overscroll-contain inside:overscroll-auto [scrollbar-width:thin] [scrollbar-gutter:stable_both-edges]" style={more.fade}>
@@ -117,11 +115,11 @@ export function LastStop(props: {
                     key={one.id}
                     ref={(at) => {
                       if (one.open) opened.current = at;
-                      else if (at) placed.current.set(one.id, at);
-                      else placed.current.delete(one.id);
+                      else if (at) closed.current.set(one.id, at);
+                      else closed.current.delete(one.id);
                     }}
                     className="flex flex-col [&>*]:flex-1"
-                    style={{ scrollMarginBottom: 24, minHeight: one.open ? undefined : rows[Math.floor(i / across)] }}
+                    style={{ scrollMarginBottom: 24, minHeight: rowOf(i) }}
                   >
                     {one.card}
                   </div>
@@ -149,12 +147,12 @@ export function LastStop(props: {
   );
 }
 
-// A note's card's own height, however tall its row has made it: to the foot of what's in it, and its padding.
-function ownHeight(place: HTMLElement) {
-  const card = place.firstElementChild;
-  const inside = card?.firstElementChild;
-  if (!card || !inside) return 0;
-  return inside.getBoundingClientRect().bottom - card.getBoundingClientRect().top + parseFloat(getComputedStyle(card).paddingBottom);
+// A note's card's own height, however tall its row has made it: what's in it, and its padding (laid out, so a card
+// pressed, shrinking a little under the pointer, doesn't count as smaller).
+function ownHeight(place: Element) {
+  const card = place.firstElementChild!;
+  const { paddingTop, paddingBottom } = getComputedStyle(card);
+  return (card.firstElementChild as HTMLElement).offsetHeight + parseFloat(paddingTop) + parseFloat(paddingBottom);
 }
 
 // The notes' heading, which is where sending them is said: "Your notes", then, sent, that they went, then that the agent

@@ -434,22 +434,32 @@ edge beside it), on Playthrough's own surface, fading in over the last moment an
 does. Over it, the change's title takes the moment's line, as the sheet's heading, and its own small place above
 rests empty: both lines stay drawn, one faded out, so nothing moves (measured: the frame, both edges and both lines,
 0 px through ↓ and ↑, from a one-line and a two-line last moment). In the sheet, "You asked" and your words hold one
-place whatever comes under them, as you note, keep, open and reply while standing there: a third of the way down the
-frame (clear of the bar), bare sheet included, so there's room under them, at 21px in a measure of 30em, cut at about
+place whatever comes under them, as you note, keep, open and reply while standing there: 48px from the sheet's top (16
+on a phone), where a moment's own content would begin, bare sheet included, at 21px in a measure of 30em, cut at about
 a third of the frame's height (whole on hover and to the keyboard); with nothing asked, what there is starts there.
 Everything else comes in under them and moves nothing above it; past the frame's foot the whole
-sheet scrolls in its frame, your words going up with it, fading where there's more (`useMore`). (16 Nov: "You asked"
-had stood at four heights in four states, the sheet centring whatever it held; measured since, one y per size through
-the bare sheet, the box with one line and six, one kept, two kept and the box, a thread, and a reply typed.) Under
+sheet scrolls in its frame, your words going up with it, fading where there's more (`useMore`), the scrollbar's place
+kept on both sides whether it scrolls or not. All of it hangs from one left edge: a measure as wide as the notes
+across, centred in the frame, set by the frame's width alone, never by how many notes there are (`notesAcross`,
+`sheet.ts`): two across once the frame holds two cards of at least 420, each up to 480 (976 at most); below that one,
+up to 560; on a phone one, the whole width. (16 Nov: "You asked" had stood at four heights in four states, the sheet
+centring whatever it held; measured since, one y per size through the bare sheet, the box with one line and six, one
+kept, two kept and the box, a thread, and a reply typed. 18 Nov: it had stood a third of the way down the frame, and on
+a smaller screen that third stood empty while the third note was under the fold, so it went to the top.) Under
 them, "Your notes": the
 notes Send will send and only those (your notes not sent, and sent ones with your reply not sent), so they add up to
-the button's count; sent and answered ones aren't here, they're settled on their moments. Each is its card as the
-Notes edge has it forward (its dot, your words in full, its strip), with the moment it's on, quietly; pressed, it opens
-on its moment. One centred column a card wide (300, the whole width on a phone), the cards stacked down it: one kept
-or a box opened takes the next place down, and nothing ever moves sideways or above it. Sending is said there, by the
+the button's count; sent and answered ones aren't here, they're settled on their moments. Each is a wide, flat card:
+its dot and your words, three lines at most, with the moment it's on, quietly, and its strip beside them at the right,
+as wide as the Notes edge's (160) so it shows the same part of the page (under them on a phone); pressed, it opens on
+its moment, or, on the whole change, in its place, whole. Across, then down, and a row's cards share one height, the
+tallest one's, so a row reads as one whatever's in it (`LastStop.tsx`, measured on each card closed: a box or a note
+open in a row is at least as tall as it, and leaves the card beside it as it was). One kept or a box opened takes the
+next place, and nothing above it or beside it moves. (18 Nov: of the first try, rows of the edge's own cards, the
+picture under the words: "It feels quite unbalanced when looking at a mix of image/non-image notes like that"; so the
+picture went beside the words, and a row's cards took one height.) Sending is said there, by the
 notes that went (`NotesSay`, `LastStop.tsx`): just sent, "Your notes" turns in place into "✓ Sent to your agent" (or,
 with none on the change, "✓ Sent. No agent listening." with the last words in amber), and the cards' dots settle from
-amber to slate one after another down the list, all inside 400 ms however many (with reduced motion, at once); then,
+amber to slate one after another, across and down, all inside 400 ms however many (with reduced motion, at once); then,
 once the change says an agent took them and not before 600 ms after (`HELD`, so the first line is read), "● The agent
 is working on your notes", its dot breathing. Every line is held in the one place, the one not true unseen, so the
 heading turns without anything moving (measured: heading, cards, bar and step box the same in every frame through
@@ -501,7 +511,7 @@ bar's place, a thumb away, and one is enough. Keys there: ↑, K or Escape back 
 step, on this card too when Tab and Enter brought you there by it; N a note on the whole change; Shift ↑ ↓ through the
 notes there, then back into the moments'; Escape closes a note open there first; W as anywhere; nothing else. `/` when the next change is seen all through
 (`seenThrough`) opens at its last stop. Nothing else says anything to the agent: ↓ never does, and Space is never a
-press (`useSpaceStays`). On a phone, the sheet is two pictures to a row in the frame, the step in the bar, and the
+press (`useSpaceStays`). On a phone, the sheet is one note to a row in the frame, the step in the bar, and the
 card under the Moments strip. With nothing waiting,
 the page says so calmly, with what your agents are on ("Your agents are on:", each with its words) and apart under
 "No agent listening:" what nobody is on, each with the line to tell yours; a heading shows only over a change it's
@@ -659,7 +669,7 @@ dots; pressed, the moment changes in place. A note's strip is cut for its own sh
 thing (a line of words as wide as its words), with no pin on it, as its dot leads its words: a small thing at the size it was recorded, with what's beside it; a wide line from
 its start, a little smaller at most; something far larger than the strip closed in on what its moment is about where
 that's inside it, else from its top left; a spot with no thing, around the spot; never larger than recorded, always
-inside the screen; drawn wider than the edge's strip (a card at the last stop, 272 to its 160), the page at the same
+inside the screen; drawn wider than the edge's strip (a card at the last stop on a phone, about 300 to its 160), the page at the same
 size as on the edge, so as much more of it round the same middle shows (17 Nov: there it had been the same part
 blown up half again, "ks · Oct 3 · $4" across the card); one from an earlier hand-back is cut from the moment's picture now where its thing is found there, as it opens. It's cut from a kept picture of the frame its thing is shown on, never a recording played
 (`useFrames`): one made at a moment's end is that hand-back's own picture; any other is drawn once by `playthrough open`
