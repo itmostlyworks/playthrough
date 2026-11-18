@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, test } from "node:test";
 import { everyCopy, know, knownApps, machine } from "../src/machine.ts";
+import { thisCommand } from "../src/command.ts";
 
 let folder = "";
 const app = async (...path: string[]) => {
@@ -101,5 +102,22 @@ test("a page killed hard isn't open, even once another process has its number: c
     assert.equal(await playthrough("close"), `Playthrough is closed: ${page} no longer answers.\n`);
   } finally {
     another.kill();
+  }
+});
+
+test("a page an earlier version left open, which didn't write its port, is closed by open, which opens in its place", { skip: !viewerBuilt && "the viewer isn't built: npm run build", timeout: 30_000 }, async () => {
+  port = await freePort();
+  const page = `http://localhost:${port}/`;
+  const earlier = spawn(process.execPath, ["-e", "process.on('SIGINT', () => process.exit()); setTimeout(() => {}, 30_000)"]);
+  await new Promise((resolve) => earlier.once("spawn", resolve));
+  await mkdir(machine(), { recursive: true });
+  await writeFile(join(machine(), "open.json"), JSON.stringify({ by: earlier.pid, boot: thisCommand().boot }));
+  const closed = new Promise((resolve) => earlier.once("exit", resolve));
+  try {
+    assert.equal(await playthrough("open"), `The Playthrough an earlier version left open is closed, for this one.\nPlaythrough is open at ${page}\nIt stays open until playthrough close.\n`);
+    await closed;
+    assert.equal(await playthrough("close"), `Playthrough is closed: ${page} no longer answers.\n`);
+  } finally {
+    earlier.kill();
   }
 });

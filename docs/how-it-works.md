@@ -871,7 +871,8 @@ the page stays open until `playthrough close`, which stops it as Ctrl+C does (wh
 apps it kept that nobody is using stopped) and says so, or that it wasn't open. A page killed hard leaves `open.json`
 behind, which is taken for open only while the process that wrote it is still at it (`stillAt`, `command.ts`: its
 number, on this start of the machine, started when it was, and not ended), so neither command takes another process
-that has its number since for the page, nor one ended and never reaped. From a real run on 0.7.1: an agent ran
+that has its number since for the page, nor one ended and never reaped. A page 0.7.1 left open wrote no port, so it
+can't be said where it is: `open` closes it, saying so, and opens in its place; `close` closes it without an address. From a real run on 0.7.1: an agent ran
 `open` in its shell with a time limit, and the page went with it. It lists every change in every copy of
 every app a `playthrough` command has run in (`machine.ts`: `~/.playthrough/apps.json`, or `PLAYTHROUGH_HOME`, and an
 app gone from disk drops out), each read from the copy it's kept in; where two copies share an app's name, each says

@@ -72,8 +72,12 @@ export async function open() {
 // on it took it down (a real run, 0.7.1); open already, it's that one. What it says after is in open.log, beside apps.json.
 export async function openBehind() {
   if (process.send) return open().then(sayReady);
-  const already = await openAlready(machine());
-  if (already) return console.log(`Playthrough is already open at http://localhost:${already}/`);
+  const already = openNow(machine());
+  if (already?.port) return console.log(`Playthrough is already open at http://localhost:${already.port}/`);
+  if (already) {
+    await stop(already);
+    console.log("The Playthrough an earlier version left open is closed, for this one.");
+  }
   await startBehind(join(machine(), "open.log"), `Playthrough ended before it was open. Look at ${join(machine(), "open.log")} for why.`);
   console.log("It stays open until playthrough close.");
 }
@@ -82,12 +86,16 @@ export async function openBehind() {
 export async function close() {
   const open = openNow(machine());
   if (!open) return console.log("Playthrough isn't open.");
+  await stop(open);
+  console.log(open.port ? `Playthrough is closed: http://localhost:${open.port}/ no longer answers.` : "Playthrough is closed.");
+}
+
+async function stop(open: Open) {
   process.kill(open.by, "SIGINT");
   for (let waited = 0; stillAt(open); waited += 250) {
-    if (waited > 15_000) throw new Refused([`Playthrough, at http://localhost:${open.port}/, didn't close within 15 seconds. Stop its process, ${open.by}, then run this again.`]);
+    if (waited > 15_000) throw new Refused([`Playthrough${open.port ? `, at http://localhost:${open.port}/,` : ""} didn't close within 15 seconds. Stop its process, ${open.by}, then run this again.`]);
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
-  console.log(`Playthrough is closed: http://localhost:${open.port}/ no longer answers.`);
 }
 
 // Open, Playthrough keeps each copy's app once it's running, whoever started it, until nobody has used it for a while:
@@ -104,8 +112,9 @@ function keepsApps(port: number) {
   });
 }
 
-// Playthrough open for this machine, as its page wrote it down: the process it runs in, and its port.
-type Open = Command & { port: number };
+// Playthrough open for this machine, as its page wrote it down: the process it runs in, and its port. One opened by
+// 0.7.1 didn't write its port, so the page can't be sent there: open closes it and opens in its place.
+type Open = Command & { port?: number };
 function openNow(home: string): Open | undefined {
   try {
     const open: Open = JSON.parse(readFileSync(openFile(home), "utf8"));
