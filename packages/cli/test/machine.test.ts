@@ -2,9 +2,14 @@
 // the folder it was run from, and one gone from disk drops out by itself. Each copy has a name of its own to be found by.
 
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
+import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, test } from "node:test";
 import { everyCopy, know, knownApps } from "../src/machine.ts";
 
@@ -50,4 +55,29 @@ test("each copy is found by its folder's name, and two folders of one name by a 
     { name: "shop", root: one },
     { name: "shop-2", root: two },
   ]);
+});
+
+// The command as an agent's shell runs it, which may give up on it and take what it started with it.
+const playthrough = async (...words: string[]) =>
+  (await run(process.execPath, [fileURLToPath(new URL("../src/playthrough.ts", import.meta.url)), ...words], { cwd: folder, env: { ...process.env, PLAYTHROUGH_PORT: String(port) } })).stdout;
+const run = promisify(execFile);
+let port = 0;
+const viewerBuilt = existsSync(fileURLToPath(new URL("../viewer/index.html", import.meta.url)));
+
+test("playthrough open comes back with the page's address and leaves it open, says it again while it is, and playthrough close closes it", { skip: !viewerBuilt && "the viewer isn't built: npm run build", timeout: 30_000 }, async () => {
+  port = await new Promise<number>((resolve) => {
+    const server = createServer().listen(0, "127.0.0.1", () => {
+      const { port } = server.address() as { port: number };
+      server.close(() => resolve(port));
+    });
+  });
+  const page = `http://localhost:${port}/`;
+  const answering = () => fetch(page).then((answer) => answer.ok, () => false);
+  assert.equal(await playthrough("close"), "Playthrough isn't open.\n");
+  assert.equal(await playthrough("open"), `Playthrough is open at ${page}\nIt stays open until playthrough close.\n`);
+  assert.equal(await answering(), true);
+  assert.equal(await playthrough("open"), `Playthrough is already open at ${page}\n`);
+  assert.equal(await playthrough("close"), `Playthrough is closed: ${page} no longer answers.\n`);
+  assert.equal(await answering(), false);
+  assert.equal(await playthrough("close"), "Playthrough isn't open.\n");
 });

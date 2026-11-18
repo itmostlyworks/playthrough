@@ -91,7 +91,8 @@ EACH CHANGE
    own: set the app up so it shows, and mark it as it is now.
    Hand back: playthrough wait, in the background, with the longest time limit your shell allows. It stops the browser
    playthrough as keeps. Then tell the person their moments are ready, one line each, in your words, and give them the
-   page wait prints for this change (playthrough open, if it isn't open yet): their change, not a list to find it in.
+   page wait prints for this change (playthrough open, if it isn't open yet: it comes back at once, and the page stays
+   open until playthrough close): their change, not a list to find it in.
    Wait tells you when the person has spoken. If it's stopped before then, as a long wait can be, run it again: nothing
    is lost.
 

@@ -10,14 +10,15 @@
 //   playthrough stop                      stops it
 
 import { chromium, request as requests, type Page } from "@playwright/test";
-import { execFileSync, spawn } from "node:child_process";
-import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { clicked, partsAround, pathTo } from "@playthrough/page";
 import { allNotes, madeInApp, quote, Refused, type Change } from "@playthrough/change";
 import { keepRunning, UNUSED } from "./app.ts";
+import { sayReady, startBehind } from "./behind.ts";
 import { changeHere, momentNamed } from "./change.ts";
 import { hovering } from "./read.ts";
 import type { Repo } from "./repo.ts";
@@ -218,7 +219,8 @@ export async function as(repo: Repo, person: string, at?: string) {
   const began = Date.now();
   // Run by the agent, a browser open already starts again from a fresh start, as this person, rather than a new one
   // starting; else the browser is started behind this command (startBehind), and it's that one that goes on from here.
-  if (!process.send) return (await startAgain(repo, setup, person, began, to?.words)) || startBehind(repo);
+  if (!process.send)
+    return (await startAgain(repo, setup, person, began, to?.words)) || startBehind(join(repo.root, ".playthrough", "browser.log"), "The browser ended before it was ready. Look at .playthrough/browser.log for why.");
   await clearEarlier(repo);
   // Stopped, by Ctrl+C or a kill, what setup made is given back by app.ts's own handling, which this sets up; stopped
   // so that nothing runs after it, the next one gives it back here.
@@ -302,8 +304,7 @@ ${went ? `${went}\n` : ""}When you've just done what shows the change: playthrou
 It runs until you hand back (playthrough wait) or stop it (playthrough stop), or ${UNUSED / 60_000} minutes go by with nothing done in it. playthrough as again starts it again, fresh.`);
   // Said ready, the command the agent ran comes back. Left with nothing done in it for as long as an app is left unused,
   // it stops as Ctrl+C stops it, so an agent that ended without handing back leaves nothing running.
-  process.send!("ready");
-  process.disconnect();
+  sayReady();
   setInterval(() => Date.now() - used > UNUSED && process.kill(process.pid, "SIGINT"), 60_000);
 }
 
@@ -316,29 +317,6 @@ export function opened(browser: string, repo: Repo, setup: Setup, person: string
   const at = `${browser} on ${url} as ${person}${what}`;
   if (setup.make) return `${at}\nplaythrough/setup.ts has no signIn: they're signed in only if its default export signed them in.`;
   return `${at} Nothing signed them in: ${existsSync(repo.setup) ? "playthrough/setup.ts has no signIn" : "there's no playthrough/setup.ts"}.`;
-}
-
-// The browser, started as a process of its own that outlives this one: this command comes back once it says it's
-// ready, with everything it said, or, where it ended before then, refuses with it. Stopped before then, it stops it too.
-// What it says after is in .playthrough/browser.log.
-async function startBehind(repo: Repo) {
-  const log = join(repo.root, ".playthrough", "browser.log");
-  mkdirSync(join(repo.root, ".playthrough"), { recursive: true });
-  const output = openSync(log, "w");
-  const browser = spawn(process.execPath, [...process.execArgv, ...process.argv.slice(1)], { stdio: ["ignore", output, output, "ipc"], detached: true });
-  closeSync(output);
-  const stopping = () => browser.kill("SIGINT");
-  for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) process.once(signal, stopping);
-  const ready = await new Promise<boolean>((resolve) => {
-    browser.once("message", () => resolve(true));
-    browser.once("exit", () => resolve(false));
-  });
-  for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) process.off(signal, stopping);
-  const said = readFileSync(log, "utf8").trimEnd();
-  if (!ready) throw new Refused([said || `The browser ended before it was ready. Look at .playthrough/browser.log for why.`]);
-  browser.disconnect();
-  browser.unref();
-  console.log(said);
 }
 
 // This copy's browser, stopped as Ctrl+C stops it, giving back what was made, once the agent hands back or says stop: it

@@ -131,8 +131,8 @@ function stop(root: string) {
 }
 
 // Playthrough open on this machine, which keeps every copy's app until it's been unused a while: its own step ins let go
-// of too, as stopping it at once would make the next one start it again.
-export const openFile = () => join(machine(), "open.json");
+// of too, as stopping it at once would make the next one start it again. Where it answers, too.
+export const openFile = (home = machine()) => join(home, "open.json");
 function keptOpen(): boolean {
   try {
     const open: Command = JSON.parse(readFileSync(openFile(), "utf8"));
@@ -178,11 +178,14 @@ function usersOf(root: string): number[] {
 }
 
 // Stopped by a signal, Node ends without saying it's exiting, and what it made is left: given back first, for as long as
-// ten seconds; what isn't, the next command gives back. Then it exits, letting go of the app.
+// ten seconds; what isn't, the next command gives back. Then it exits, letting go of the app. Given no copy, it's only that
+// it exits as it would on its own, as the page does when it's closed, letting go of the apps it kept.
 const ending = new Set<string>();
-function endsWithPlaythrough(root: string) {
-  if (ending.size) return void ending.add(root);
-  ending.add(root);
+let endsSo = false;
+export function endsWithPlaythrough(root?: string) {
+  if (root) ending.add(root);
+  if (endsSo) return;
+  endsSo = true;
   const giveBack = () => Promise.all([...ending].map((root) => setupIn(repo(root).setup).then((setup) => giveBackOwn(setup, repo(root).borrowed))));
   const end = (signal: NodeJS.Signals) => void Promise.race([giveBack(), new Promise((wait) => setTimeout(wait, 10_000))]).finally(() => process.exit(128 + constants.signals[signal]));
   for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) process.once(signal, end);

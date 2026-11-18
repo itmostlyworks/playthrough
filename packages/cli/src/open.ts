@@ -1,10 +1,11 @@
 // Opens Playthrough on this machine: one page, at one address, listing what's waiting on you from every app it's known in
 // and every copy of each, as git's worktrees are. Each change is read from the copy it's kept in, and the list arrives
-// again whenever any of them changes, so a change handed over from anywhere shows by itself.
+// again whenever any of them changes, so a change handed over from anywhere shows by itself. It stays open behind the
+// command that opened it until `playthrough close`.
 
 import { asRecorded } from "@playthrough/page";
 import { execFileSync } from "node:child_process";
-import { rmSync, watch, writeFileSync, type FSWatcher } from "node:fs";
+import { readFileSync, rmSync, watch, writeFileSync, type FSWatcher } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { userInfo } from "node:os";
@@ -21,10 +22,12 @@ import { frameOf, stillOf, type Framed } from "./frames.ts";
 import { getReady, keepReady, placeOf, waitedFor } from "./step-in.ts";
 import { setupIn } from "./setup.ts";
 import { agentGone, agentWaiting } from "./wait.ts";
-import { answers, openFile, stopUnused, UNUSED } from "./app.ts";
-import { thisCommand } from "./command.ts";
+import { answers, endsWithPlaythrough, openFile, stopUnused, UNUSED } from "./app.ts";
+import { sayReady, startBehind } from "./behind.ts";
+import { stillAt, thisCommand, type Command } from "./command.ts";
 
-export const PORT = 5790;
+// The page's usual port, or another, to try Playthrough beside the one in use: PLAYTHROUGH_PORT, as PLAYTHROUGH_HOME is.
+export const PORT = Number(process.env.PLAYTHROUGH_PORT) || 5790;
 const TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -60,20 +63,55 @@ export async function open() {
     });
   });
   const port = await listen(server, PORT);
-  keepsApps();
+  keepsApps(port);
   console.log(`Playthrough is open at http://localhost:${port}/`);
 }
 
+// The command: the page started behind it (behind.ts), so it outlives the shell that ran it, as an agent's that gave up
+// on it took it down (a real run, 0.7.1); open already, it's that one. What it says after is in open.log, beside apps.json.
+export async function openBehind() {
+  if (process.send) return open().then(sayReady);
+  const already = await openAlready(machine());
+  if (already) return console.log(`Playthrough is already open at http://localhost:${already}/`);
+  await startBehind(join(machine(), "open.log"), `Playthrough ended before it was open. Look at ${join(machine(), "open.log")} for why.`);
+  console.log("It stays open until playthrough close.");
+}
+
+// Closed as Ctrl+C closes it: what its step ins made is given back, and the apps it kept that nobody is using stop.
+export async function close() {
+  const open = openNow(machine());
+  if (!open) return console.log("Playthrough isn't open.");
+  process.kill(open.by, "SIGINT");
+  for (let waited = 0; stillAt(open); waited += 250) {
+    if (waited > 15_000) throw new Refused([`Playthrough, at http://localhost:${open.port}/, didn't close within 15 seconds. Stop its process, ${open.by}, then run this again.`]);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  console.log(`Playthrough is closed: http://localhost:${open.port}/ no longer answers.`);
+}
+
 // Open, Playthrough keeps each copy's app once it's running, whoever started it, until nobody has used it for a while:
-// stepping in again, or the agent's next command, finds it there. Closed, it lets go of those nobody is using.
-function keepsApps() {
-  writeFileSync(openFile(), JSON.stringify(thisCommand()));
+// stepping in again, or the agent's next command, finds it there. Closed, by Ctrl+C or playthrough close too, it lets go
+// of those nobody is using.
+function keepsApps(port: number) {
+  writeFileSync(openFile(), JSON.stringify({ ...thisCommand(), port } satisfies Open));
   const look = (unused: number) => everyCopy().forEach(({ root }) => stopUnused(root, unused));
   setInterval(() => look(UNUSED), 60_000).unref();
+  endsWithPlaythrough();
   process.once("exit", () => {
     rmSync(openFile(), { force: true });
     look(0);
   });
+}
+
+// Playthrough open for this machine, as its page wrote it down: the process it runs in, and its port.
+type Open = Command & { port: number };
+function openNow(home: string): Open | undefined {
+  try {
+    const open: Open = JSON.parse(readFileSync(openFile(home), "utf8"));
+    return stillAt(open) ? open : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 // A change as the page has it: the change, by an address of the machine's (its copy's name, then its own), the app's
@@ -173,14 +211,9 @@ function onThisMachine() {
 }
 type Machine = ReturnType<typeof onThisMachine>;
 
-// The port of Playthrough already open for this machine, if one is: each says whose it is.
+// The port of Playthrough already open for this machine, if one is.
 export async function openAlready(home: string): Promise<number | undefined> {
-  const ports = Array.from({ length: 21 }, (_, i) => PORT + i);
-  const asked = (port: number) =>
-    fetch(`http://127.0.0.1:${port}/api/app`, { signal: AbortSignal.timeout(1000) })
-      .then((answer) => answer.json())
-      .then((said: { machine?: string }) => (said.machine === home ? port : undefined), () => undefined);
-  return (await Promise.all(ports.map(asked))).find((port) => port !== undefined);
+  return openNow(home)?.port;
 }
 
 async function answer(here: Machine, page: string, you: string, request: IncomingMessage, response: ServerResponse) {
@@ -192,7 +225,6 @@ async function answer(here: Machine, page: string, you: string, request: Incomin
   if (api !== "api") return serve(page, path, response);
 
   if (request.method === "GET" && collection === "you") return json(response, 200, { name: you });
-  if (request.method === "GET" && collection === "app") return json(response, 200, { machine: machine() });
   if (collection !== "changes") return json(response, 404, { problems: [`There's nothing at ${path}.`] });
 
   if (request.method === "GET" && !parts.length) {

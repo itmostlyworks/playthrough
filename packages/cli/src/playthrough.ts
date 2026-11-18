@@ -11,7 +11,7 @@ import { as, stop } from "./as.ts";
 import { change } from "./change.ts";
 import { again, answer, answering, drop, moment, wait } from "./moments.ts";
 import { know } from "./machine.ts";
-import { open } from "./open.ts";
+import { close, openBehind } from "./open.ts";
 import { repo } from "./repo.ts";
 import { unheardSaid } from "./wait.ts";
 
@@ -29,7 +29,8 @@ const commands = {
   again: [0, 0, "playthrough again", () => again(repo())],
   answer: [2, 2, answering("<note>"), ([note, words]) => answer(repo(), note!, words)],
   wait: [0, 0, "playthrough wait", () => wait(repo())],
-  open: [0, 0, "playthrough open", () => open()],
+  open: [0, 0, "playthrough open", () => openBehind()],
+  close: [0, 0, "playthrough close", () => close()],
 } satisfies Record<string, [number, number, string, (words: string[], last?: number) => Promise<unknown>]>;
 
 const [command, ...given] = process.argv.slice(2);
@@ -40,9 +41,9 @@ const words = lastAt < 0 ? given : given.toSpliced(lastAt, given[lastAt]!.includ
 // The app this is run in is known to the machine's one page from now on, as soon as Playthrough has a folder in it.
 know(repo().root);
 // Notes the person sent with no agent listening are said before anything else, help included, as the first thing an
-// agent runs is often the help, cut short. Wait gets them; open is the person's; and the browser `as` starts behind
-// itself (process.send, as.ts) says nothing the `as` the agent ran hasn't.
-if (!["wait", "open"].includes(command!) && !process.send) {
+// agent runs is often the help, cut short. Wait gets them; open and close are the person's; and what `as` and `open`
+// start behind themselves (process.send, behind.ts) says nothing the command that was run hasn't.
+if (!["wait", "open", "close"].includes(command!) && !process.send) {
   const unheard = await unheardSaid(repo());
   if (unheard.length) console.log(`${unheard.join("\n")}\n`);
 }

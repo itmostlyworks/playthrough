@@ -59,7 +59,8 @@ playthrough again                                  # every moment again, on the 
 playthrough answer <note> "<words>"                # answers a note
 playthrough drop "<moment>"                        # leaves a moment out
 playthrough wait                                   # hands back, then waits for what the person says
-playthrough open                                   # the page, for the person
+playthrough open                                   # the page, for the person, open until it's closed
+playthrough close                                  # closes it
 ```
 
 **The first time in an app**, the agent adds `playthrough/app.json`, how to start it, and `playthrough/setup.ts`, what
@@ -107,7 +108,7 @@ there), so a note on an open picker is stood at with the picker open, not at the
 the moment's end, or made in the app, goes the whole way. Where the moment was marked again since with other things
 done, it stops after as many of the new ones.
 
-`as` comes back once the browser is ready (`startBehind`): the browser is a process of its own, the same command
+`as` comes back once the browser is ready (`startBehind`, `behind.ts`, as `open` does too): the browser is a process of its own, the same command
 started detached with an IPC channel (which is how it knows it's the one behind), its output in `.playthrough/browser.log`;
 it says ready over the channel, and `as` prints what it said and returns, or, where it ended first, refuses with it.
 Stopped before then, `as` stops it too. The browser runs until `wait` hands back, `playthrough stop`, or 15 minutes
@@ -853,8 +854,13 @@ its pages named, `keepNamed`), and the note is on that recording, at its end.
 
 ## The page for the whole machine
 
-`playthrough open` (`open.ts`) serves one page for the whole machine at http://localhost:5790/ (or the next free port),
-and run again while it's open, says its address rather than opening another. It lists every change in every copy of
+`playthrough open` (`open.ts`) serves one page for the whole machine at http://localhost:5790/ (or the next free port;
+`PLAYTHROUGH_PORT` for another, as a check beside the one in use takes), and run again while it's open, says its address
+rather than opening another, as `open.json` says it. It's started behind the command as `as`'s browser is
+(`startBehind`, `behind.ts`), its output in `~/.playthrough/open.log`: the command prints its address and returns, and
+the page stays open until `playthrough close`, which stops it as Ctrl+C does (what its step ins made given back, the
+apps it kept that nobody is using stopped) and says so, or that it wasn't open. From a real run on 0.7.1: an agent ran
+`open` in its shell with a time limit, and the page went with it. It lists every change in every copy of
 every app a `playthrough` command has run in (`machine.ts`: `~/.playthrough/apps.json`, or `PLAYTHROUGH_HOME`, and an
 app gone from disk drops out), each read from the copy it's kept in; where two copies share an app's name, each says
 which copy it's in. It arrives again whenever any copy's folder changes, and every two seconds besides, so a change handed
@@ -875,8 +881,8 @@ was asked, when it started, and the format it's kept in), `moments/<words>.ts` (
 `hand-backs/<n>/` (each hand-back: `hand-back.json` with its moments and replies, `files/` with their recordings, readings and pictures, `since/<k>.json`
 compared with hand-back k), `sends/<id>.json` (what the person sent, never written again but once, to bring it to a newer format), `taken.json` (what the agent
 has taken of it), `seen.json` (what each person has opened), `branches/` (what the person did in the app, and notes'
-frames), `waiting/<pid>` (an agent listening), `working.json` (the agent the notes were last said to). On the machine: `~/.playthrough/apps.json` and `open.json` (the page
-running).
+frames), `waiting/<pid>` (an agent listening), `working.json` (the agent the notes were last said to). On the machine: `~/.playthrough/apps.json`, `open.json` (the page
+running, and its port) and `open.log` (what it said).
 
 **Kept in an older format**, a change is brought along once, the first time this Playthrough reads it
 (`packages/change/src/format.ts`, from the store's own queue): each file rewritten as it would have been kept now, by the
