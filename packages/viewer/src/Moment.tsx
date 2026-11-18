@@ -37,6 +37,8 @@ import { STEPS_OUT, Together, type Box } from "./view.ts";
 const FADING = 300;
 // How long a frame takes to come in over the moment, as `animate-arrive` has it.
 const ARRIVING = 240;
+// How long a recording takes to say where its things are once it's laid, as the player's settle has it, and a little.
+const SETTLING = 520;
 
 // Where a moment's recording ends, and where what's shown of it starts.
 const endOf = (moment: Moment) => Math.max(0, moment.length - 0.05);
@@ -526,6 +528,10 @@ export function MomentView(props: {
   useEffect(() => void (opened && openNow && at < end - 0.02 && act({ type: "rest", at: end })), [opened?.note.id, openNow]);
   // The note open on a frame of its own, not on the moment as it is now.
   const framed = opened && openMade && !openNow ? { ...opened, made: openMade } : undefined;
+  // A note from an earlier hand-back open, the frame it was made on is laid under the moment unseen, played there and
+  // nothing more, so As it was only has to be shown: one fade, its thing's place already known. Only the open note's.
+  const wasMade = opened && flips && nowThere ? madeAt(opened.note) : undefined;
+  const ready = wasMade && { ...opened!, made: wasMade };
   // Gone to from another note's frame, that frame stays under the new one while it comes in. Gone to from the moment,
   // nothing is under it: what was fading off the moment is older than what was showing. Both before the page is next
   // drawn, so the fade let go never shows the old frame again.
@@ -546,9 +552,13 @@ export function MomentView(props: {
     const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
     const fading = calm ? undefined : shut.current?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: FADING, easing: "ease", fill: "forwards" });
     let current = true;
-    void (fading?.finished ?? Promise.resolve()).then(() => current && (setLayers([]), setOnFrame(undefined)), () => {});
+    // Back on Now, the frame kept ready keeps what it said.
+    const readyFor = ready?.note.id;
+    void (fading?.finished ?? Promise.resolve()).then(() => current && (setLayers([]), setOnFrame((was) => (was?.note === readyFor ? was : undefined))), () => {});
     return () => void ((current = false), fading?.cancel());
   }, [!!framed]);
+  // Laid afresh for a note opened, what it says is its own.
+  useLayoutEffect(() => void (ready && setOnFrame(undefined)), [ready?.note.id]);
   // The frame shown is the open note's from the render it's opened in, before its layer is laid, so what's drawn for the
   // note, its ring and its card, stays drawn in between.
   const shownOpen = framed && layers.at(-1)?.note.id !== framed.note.id ? framed : layers.at(-1);
@@ -585,8 +595,21 @@ export function MomentView(props: {
   // Where the open note's thing is, one answer however it's found, and none until it's known: on the moment as it is
   // now, by the recording; on its own frame, by the recording there once that's drawn, by its kept picture until then.
   // Known, and not there, it's on nothing.
+  // Flipped before the recording there has said, its ring and card hold where they stood and go once, when it does; if
+  // it never does, to its kept picture's place after a settle's time. Opened on its frame, its picture's place at once.
   const onItsFrame = shownOpen && onFrame?.note === shownOpen.note.id ? onFrame.at : undefined;
-  const openAt = opened && openNow ? placed : (onItsFrame ?? (pictured ? onPicture : undefined));
+  const held = useRef<{ note: string; at: Placed }>(undefined);
+  const holding = !!opened && held.current?.note === opened.note.id;
+  const [waited, setWaited] = useState(false);
+  useEffect(() => {
+    setWaited(false);
+    if (!framed) return;
+    const after = setTimeout(() => setWaited(true), SETTLING);
+    return () => clearTimeout(after);
+  }, [framed?.note.id]);
+  const knownAt = opened && openNow ? placed : (onItsFrame ?? (pictured && (waited || !holding) ? onPicture : undefined));
+  const openAt = knownAt ?? (holding ? held.current!.at : undefined);
+  held.current = !opened ? undefined : knownAt ? { note: opened.note.id, at: knownAt } : held.current;
   // What the bar must never cover: an open note's thing while it's open; else, from the first frame shown to the last,
   // what the moment is about and the last thing done in it, where the page has them at its end, known from its reading
   // before anything is drawn. The bar is one place: over one of them, it drops just below the recording's edge for that
@@ -988,31 +1011,36 @@ export function MomentView(props: {
                 ))}
               </div>
             )}
-            {layers.length > 0 && (
+            {(layers.length > 0 || ready) && (
               // The frame the open note was made on, over the moment: the recording there, with no pointer and nothing played,
               // drawn by this browser as Now is, so a flip changes only what changed; its kept picture under it until that's
               // drawn, and in its place if it never is. Under the pins, as the moment is, so what lies over one lies over both.
-              <div ref={shut} className={`absolute inset-0 z-[5] ${opened ? "" : "pointer-events-none"}`}>
-                {layers.map(({ note, made }) => (
-                  <div key={note.id} className="absolute inset-0 animate-arrive overflow-hidden bg-paper">
-                    {wasFrame(note) &&
-                      (() => {
-                        const { src, screen } = wasFrame(note)!;
-                        const framed = framing(screen);
-                        return <img src={src} alt="" draggable={false} className={`pointer-events-none absolute ${framed ? "max-w-none" : "inset-0 size-full object-contain"}`} style={framed && { left: framed.left, top: framed.top, width: screen.width * framed.k, height: screen.height * framed.k }} />;
-                      })()}
-                    <Player
-                      change={change.id}
-                      handBack={made.handBack}
-                      recording={made.recording}
-                      at={made.at}
-                      moves={pageWindow}
-                      hand={false}
-                      marks={[{ id: note.id, ...(made.node !== undefined ? { node: made.node } : made.point && { point: made.point }) }]}
-                      onMarks={note.id === shownOpen?.note.id ? (at) => (setOnFrame({ note: note.id, at }), at && !onItsFrame && ease(ARRIVING, "var(--ease-calm)")) : undefined}
-                    />
-                  </div>
-                ))}
+              // Kept ready on Now, it's there unseen, untouchable and unread, until it's flipped to.
+              <div ref={shut} className={`absolute inset-0 z-[5] ${opened && layers.length ? "" : "pointer-events-none"}`}>
+                {(ready && !layers.some(({ note }) => note.id === ready.note.id) ? [...layers, ready] : layers).map((one) => {
+                  const { note, made } = one;
+                  const unseen = one === ready;
+                  return (
+                    <div key={note.id} className={`absolute inset-0 overflow-hidden bg-paper ${unseen ? "invisible" : "animate-arrive"}`} inert={unseen} aria-hidden={unseen || undefined}>
+                      {wasFrame(note) &&
+                        (() => {
+                          const { src, screen } = wasFrame(note)!;
+                          const framed = framing(screen);
+                          return <img src={src} alt="" draggable={false} className={`pointer-events-none absolute ${framed ? "max-w-none" : "inset-0 size-full object-contain"}`} style={framed && { left: framed.left, top: framed.top, width: screen.width * framed.k, height: screen.height * framed.k }} />;
+                        })()}
+                      <Player
+                        change={change.id}
+                        handBack={made.handBack}
+                        recording={made.recording}
+                        at={made.at}
+                        moves={pageWindow}
+                        hand={false}
+                        marks={[{ id: note.id, ...(made.node !== undefined ? { node: made.node } : made.point && { point: made.point }) }]}
+                        onMarks={note.id === (shownOpen ?? ready)?.note.id ? (at) => (setOnFrame({ note: note.id, at }), at && !unseen && !onItsFrame && ease(ARRIVING, "var(--ease-calm)")) : undefined}
+                      />
+                    </div>
+                  );
+                })}
               </div>
             )}
             <div className={`pointer-events-none absolute inset-0 ${layers.length ? "z-[6]" : ""}`}>
