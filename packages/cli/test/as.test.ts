@@ -8,7 +8,7 @@ import { chromium, type Browser, type Page } from "@playwright/test";
 import { NOTING, opened } from "../src/as.ts";
 import type { Setup } from "../src/setup.ts";
 import { aboutOn, openOn } from "../src/moments.ts";
-import { scrollPart, wayFile, wayIn, type Done } from "../src/way.ts";
+import { scrollPage, scrollPart, wayFile, wayIn, type Done } from "../src/way.ts";
 
 let browser: Browser;
 before(async () => void (browser = await chromium.launch({ args: ["--enable-blink-features=ComputedAccessibilityInfo"] })));
@@ -30,7 +30,7 @@ async function keptAndPlayed<T>(body: string, act: (page: Page) => Promise<void>
   fresh.setDefaultTimeout(2000);
   await served(fresh);
   const way = wayIn(wayFile({ words: "Here", person: "Maja", did, setup: {} }));
-  await new Function("page", "baseURL", "test", `return (async () => {\n${way}\n})();`)(fresh, "http://app.test", { scrollPart });
+  await new Function("page", "baseURL", "test", `return (async () => {\n${way}\n})();`)(fresh, "http://app.test", { scrollPart, scrollPage });
   const again = await check(fresh);
   await fresh.close();
   return { did, again };
@@ -193,6 +193,15 @@ test("a part of the page that scrolls by itself is put back once it's drawn far 
   assert.equal(await page.getByRole("list", { name: "Runs" }).evaluate((part) => part.scrollTop), 2400);
   await assert.rejects(scrollPart(page.getByRole("list", { name: "Short", exact: true }), [0, 900]), { message: "list “Short” could be scrolled only 200px down, not the 900px where you had it" });
   await assert.rejects(scrollPart(page.getByRole("region", { name: "Results", exact: true }), [0, 900]), { message: "no region “Results” was there to scroll where you had it" });
+  await page.close();
+});
+
+test("the page itself scrolled smoothly is waited for until it's there, as a part is, and where it can't get that far, it says so", { timeout: 30_000 }, async () => {
+  const page = await browser.newPage({ viewport: { width: 800, height: 600 } });
+  await page.setContent(`<body style="margin: 0"><div style="height: 2000px"></div></body>`);
+  await scrollPage(page, [0, 1200], { smooth: true });
+  assert.ok(Math.abs((await page.evaluate(() => scrollY)) - 1200) < 2);
+  await assert.rejects(scrollPage(page, [0, 1800]), { message: "the page could be scrolled only 1400px down, not the 1800px where you had it" });
   await page.close();
 });
 

@@ -157,13 +157,15 @@ replaces that moment, whatever file it was in. In the way, an address the agent 
 it was led to is waited for, then gone to; one left at once for another (Kan's sign-in page before its board) isn't gone
 to at all; and the page before each thing done is taken as it is, not after waiting for it to rest. The way scrolls at
 once to where the moment's first thing was done (or, for a still, where the agent is), so the first frame is where the
-agent was looking; between the moment's things it scrolls smoothly, as a person would; and it ends where the agent is.
-Each part that scrolls by itself is put where it was in the same manner (`test.scrollPart`, `scrollPart` in `way.ts`),
-and a way that stops partway (`wayIn`) puts them there too. Each waits until the part is there, for up to three seconds,
+agent was looking; between the moment's things it scrolls smoothly, as a person would; and it ends where the agent is
+(`test.scrollPage(page, [0, 1200], { smooth: true })`, `scrollPage` in `way.ts`). Each part that scrolls by itself is
+put where it was in the same manner (`test.scrollPart`, `scrollPart`), and a way that stops partway (`wayIn`) puts them
+there too. Moment files kept before 18 Nov scroll the page with `page.evaluate(… scrollTo …)`, which still runs, with
+nothing waiting for it. Each scroll, the page's or a part's, waits until it's there (`scrolled`), for up to three seconds,
 going on from where it stopped short, as a list that draws its rows only as they come into view gets that far only as it
-draws them; a part not found within five seconds, or not getting that far, stops the way and says so as the way says
-what else it couldn't do (`no region “Results” was there to scroll where you had it`, `list “Runs” could be scrolled only
-200px down, not the 900px where you had it`). It lands only if what the moment is about, in sight where the agent is, is
+draws them; a part not found within five seconds, or the page or a part not getting that far, stops the way and says so
+as the way says what else it couldn't do (`no region “Results” was there to scroll where you had it`, `list “Runs” could
+be scrolled only 200px down, not the 900px where you had it`, `the page could be scrolled only 1400px down, …`). It lands only if what the moment is about, in sight where the agent is, is
 in sight run again too: the way, tried, says which part around it has it scrolled out of sight (`Ended`), and that
 differs as `heading “Compare curve” is in sight where you are, scrolled out of sight inside “Results” run again`. The
 recording needed nothing more: it starts with the way, and rrweb keeps each scroll of a part as it keeps the page's, so
@@ -215,11 +217,13 @@ straight away, without this button" was told to mark a moment that shows it).
 It uses only what each hand-back keeps, never another run: a moment's frames (`framesOf`: its glimpses from where its
 step begins, named as they were pictured, `first`, `after-1`…, each with how many things had been done by then and since
 when its page was there, and its end, read once it rested). A moment is glimpsed and pictured after each thing done, and
-also once a scroll it makes in what it shows has settled (`test.scrollPart`, and Playthrough's own `inView` bringing
-what's done next into view; `scrollPartShown` in `test.ts`), which adds a reading and a picture, a few tenths of a
-second, to each such scroll, and a thing shown there is said to be shown `after clicking the button “Pick dates” and the
-scroll after it`, or `once it has scrolled, before anything is done`; the page's own smooth scroll between things done (`page.evaluate(… scrollTo …)`) isn't, as
-nothing waits for it to end. The note's frame is the one whose page was there at its time (after the thing done before
+also once a scroll it makes in what it shows has settled (`test.scrollPage`, `test.scrollPart`, and Playthrough's own
+`inView` bringing what's done next into view; `glimpsedThere` in `test.ts`), which adds a reading and a picture, a few
+tenths of a second, to each such scroll, and a thing shown there is said to be shown `after clicking the button “Pick
+dates” and the scroll after it`, or `once it has scrolled, before anything is done`. Waiting for the page's scroll
+costs little more, as what's done next waited for the page to stop moving anyway: 18 Nov, a moment that scrolled the page
+1500px between two clicks reached its last click at 5.9 s either way. A page scroll in a moment file kept
+before 18 Nov (`page.evaluate(… scrollTo …)`) isn't, as nothing waits for it to end. The note's frame is the one whose page was there at its time (after the thing done before
 it, or for a scroll's frame, from when the scroll began, which its glimpse keeps as `scrolled`, so a note written as a
 scroll ran is on the page scrolled where it went), else the one nearest its time, with its element (`writtenOn`). A thing scrolled out of sight inside a part of the
 page that scrolls by itself is read so (`outOfSight`, by `partsAround`) and, as one off the screen, is never outlined or

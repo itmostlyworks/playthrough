@@ -1,7 +1,7 @@
 // The way to a moment: what the agent did in its browser, written as a moment Playthrough runs again from a fresh start,
 // and whether running it again landed where the agent was.
 
-import type { Locator } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { differences, onScreen, partsAround, type Reading, type Thing } from "@playthrough/page";
 import { madeBySetup, quote } from "@playthrough/change";
 import { thingIn } from "./reporter.ts";
@@ -95,7 +95,7 @@ export function wayFile({
     if (done.does === "goto") return (at = { x: 0, y: 0 }), partsAt.clear(), [];
     const there = done.scrolled;
     if (!there) return [];
-    const page = near(there, at) ? [] : [i <= from ? `    await page.evaluate(([x, y]) => window.scrollTo(x, y), ${xy(there)});` : `    await page.evaluate(([x, y]) => window.scrollTo({ left: x, top: y, behavior: "smooth" }), ${xy(there)});`];
+    const page = near(there, at) ? [] : [`    await test.scrollPage(page, ${xy(there)}${i > from ? ", { smooth: true }" : ""});`];
     if (page.length) at = there;
     return [...page, ...partsTo(there, i > from)];
   });
@@ -121,7 +121,7 @@ export function wayFile({
   // there. What the moment shows ends where the agent is.
   // A still's first frame is its only one: what it's about is brought into view on the way.
   const isStill = from >= did.length && from > 0;
-  const still = isStill && scrolled && (scrolled.x || scrolled.y) ? [`    await page.evaluate(([x, y]) => window.scrollTo(x, y), ${xy(scrolled)});`] : [];
+  const still = isStill && scrolled && (scrolled.x || scrolled.y) ? [`    await test.scrollPage(page, ${xy(scrolled)});`] : [];
   const partsThere = scrolled ? partsTo(scrolled, !isStill) : [];
   const comfortable = thing ? [`    await test.inView(${thing});`] : [];
   // The moment's first frame has what it does first, or for a still what it's about, comfortably in view.
@@ -151,14 +151,20 @@ export const ENDED = "ended.json";
 export type Ended = { url: string; outOfSight?: number };
 
 // A part of the page that scrolls by itself put where the agent had it, at once or smoothly as a person scrolls, and
-// there once it's there: a list that draws its rows only as they come into view gets that far only as it draws them.
-// Not there, or not getting there, it's said, as the way says what else it couldn't do.
-export async function scrollPart(part: Locator, [x, y]: [number, number], { smooth = false } = {}) {
-  const said = thingIn(String(part)) ?? "the part of the page that scrolls by itself";
-  const reached = await part
+// there once it's there.
+export const scrollPart = (part: Locator, to: [number, number], { smooth = false } = {}) => scrolled(part, thingIn(String(part)) ?? "the part of the page that scrolls by itself", to, smooth);
+// The page itself scrolled the same way.
+export const scrollPage = (page: Page, to: [number, number], { smooth = false } = {}) => scrolled(page.locator(":root"), "the page", to, smooth);
+
+// Scrolled, and there once it's there: a list that draws its rows only as they come into view gets that far only as it
+// draws them. Not there, or not getting there, it's said, as the way says what else it couldn't do.
+async function scrolled(target: Locator, said: string, [x, y]: [number, number], smooth: boolean) {
+  const reached = await target
     .evaluate(
-      (element, { x, y, smooth }) =>
+      (root, { x, y, smooth }) =>
         new Promise<{ x: number; y: number }>((done) => {
+          // The page's own scroll is its scrolling element's.
+          const element = root === document.documentElement ? (document.scrollingElement ?? root) : root;
           element.scrollTo({ left: x, top: y, behavior: smooth ? "smooth" : "instant" });
           // Three seconds of frames; stopped short for three of them, as a list stops at the rows it has drawn so far,
           // on again from there.

@@ -27,7 +27,7 @@ import type { Repo } from "./repo.ts";
 import { glimpsesOn, readingsOn } from "./reporter.ts";
 import { giveBackLeft, make, personIn, problemsWithPeople, setupIn, type Setup } from "./setup.ts";
 import { steadied } from "./steady.ts";
-import { scrollPart, wayIn, type Done } from "./way.ts";
+import { scrollPage, scrollPart, wayIn, type Done } from "./way.ts";
 
 // The debugging port a browser here is reached at: this one, unless another copy's browser has it.
 const DEBUGGING = 9333;
@@ -436,8 +436,8 @@ export function doneBy(change: Change, handBack: number, name: string, at: numbe
 // Done in the browser as the moment's way there does it, on what setup made for this browser, as far as it goes; and
 // said, where it got.
 async function takeTo(page: Page, to: Place, setup: Record<string, unknown>, baseURL: string): Promise<string> {
-  const going = new Function("page", "setup", "baseURL", "test", `return (async () => {\n${wayIn(readFileSync(to.file, "utf8"), to.done, to.scrolled)}\n})();`) as (page: Page, setup: unknown, baseURL: string, test: { scrollPart: typeof scrollPart }) => Promise<void>;
-  return going(page, setup, baseURL, { scrollPart }).then(
+  const going = new Function("page", "setup", "baseURL", "test", `return (async () => {\n${wayIn(readFileSync(to.file, "utf8"), to.done, to.scrolled)}\n})();`) as (page: Page, setup: unknown, baseURL: string, test: { scrollPart: typeof scrollPart; scrollPage: typeof scrollPage }) => Promise<void>;
+  return going(page, setup, baseURL, { scrollPart, scrollPage }).then(
     () =>
       to.note && to.done !== undefined
         ? `It's where note ${to.note} was written, in the moment ${quote(to.words)}${to.done ? `, after the first ${to.done === 1 ? "thing" : `${to.done} things`} it does` : ", before it does anything"}${to.scrolled ? ", scrolled as it was then" : ""}.`

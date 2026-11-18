@@ -22,7 +22,7 @@ import { findsThisPlaythrough } from "./own.ts";
 import { passedThroughIn } from "./passed.ts";
 import { firstOf, make, personIn, setupIn, type Made, type Setup } from "./setup.ts";
 import { steadied } from "./steady.ts";
-import { scrollPart } from "./way.ts";
+import { scrollPage, scrollPart } from "./way.ts";
 
 // The screens besides the laptop every moment is on unless it says otherwise: a phone, tapped, and a tablet. A moment takes
 // one with test.use, and so does someone it's handed to.
@@ -619,7 +619,9 @@ const keeping: object = Object.assign(
   },
 );
 
-export const test = ((globalThis as Record<symbol, unknown>)[ALONGSIDE] ? Object.assign(keeping, { inView, scrollPart }) : Object.assign(withSteps(recorded), { inView, scrollPart: scrollPartShown })) as typeof recorded & { inView: typeof inView; scrollPart: typeof scrollPart };
+export const test = (
+  (globalThis as Record<symbol, unknown>)[ALONGSIDE] ? Object.assign(keeping, { inView, scrollPart, scrollPage }) : Object.assign(withSteps(recorded), { inView, scrollPart: glimpsedThere(scrollPart), scrollPage: glimpsedThere(scrollPage) })
+) as typeof recorded & { inView: typeof inView; scrollPart: typeof scrollPart; scrollPage: typeof scrollPage };
 
 // Something near the screen's top or bottom edge, or with offScreen, out of sight, scrolled smoothly to the middle, as a
 // person would to look at it or do something to it, and the page left to come to rest: a recording has nothing past
@@ -650,12 +652,14 @@ async function inView(target: Locator, { offScreen = false } = {}) {
   }
 }
 
-// A part of the page scrolled as the moment says, and in what it shows, the page glimpsed once it's there, as after a thing
-// done: a note written after the scroll began is on the page scrolled as the person saw it, not as it was before.
-async function scrollPartShown(...args: Parameters<typeof scrollPart>) {
-  const began = underway && recordedAt(underway);
-  await scrollPart(...args);
-  if (underway?.depth) await glimpse(began);
+// The page or a part of it scrolled as the moment says, and in what it shows, the page glimpsed once it's there, as after
+// a thing done: a note written after the scroll began is on the page scrolled as the person saw it, not as it was before.
+function glimpsedThere<Given extends unknown[]>(scroll: (...given: Given) => Promise<void>) {
+  return async (...given: Given) => {
+    const began = underway && recordedAt(underway);
+    await scroll(...given);
+    if (underway?.depth) await glimpse(began);
+  };
 }
 
 // Where the moment underway has got to, in seconds of its recording.

@@ -126,11 +126,11 @@ describe("the way to a moment", () => {
     const footer = [did[0]!, scrolled(0, did[1]!), scrolled(1200, did[3]!), scrolled(0, did[2]!)];
     const shown = wayFile({ words: "Back to top", person: "Maja", did: footer, setup: {}, from: 2, scrolled: { x: 0, y: 600 } });
     const [way, step] = shown.split('await test.step("Back to top"');
-    assert.match(way!, /window\.scrollTo\(x, y\), \[0, 1200\]\);\n  await test\.step|window\.scrollTo\(x, y\), \[0, 1200\]\);$/m);
-    assert.match(step!, /name: "Save"[\s\S]*behavior: "smooth" \}\), \[0, 0\]\);\n.*fill\("WEB"\)/);
+    assert.match(way!, /test\.scrollPage\(page, \[0, 1200\]\);\n  await test\.step|test\.scrollPage\(page, \[0, 1200\]\);$/m);
+    assert.match(step!, /name: "Save"[\s\S]*test\.scrollPage\(page, \[0, 0\], \{ smooth: true \}\);\n.*fill\("WEB"\)/);
     assert.match(step!, /waitForFunction[\s\S]*\[0, 600\], \{ timeout: 3000 \}\)\.catch/);
     const still = wayFile({ words: "The footer", person: "Maja", did: footer.slice(0, 2), setup: {}, from: 2, scrolled: { x: 0, y: 1200 } });
-    assert.match(still.split("await test.step(")[0]!, /window\.scrollTo\(x, y\), \[0, 1200\]\);/, "a still's first frame is where the agent is");
+    assert.match(still.split("await test.step(")[0]!, /test\.scrollPage\(page, \[0, 1200\]\);/, "a still's first frame is where the agent is");
   });
 
   test("puts each part of the page that scrolls by itself where the agent had it, as it does the page: the way at once, the moment as a person scrolls, ending where the agent is; a page loaded starts them at their start", () => {

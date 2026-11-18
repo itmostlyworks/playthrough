@@ -183,6 +183,12 @@ test("Pick a range", async ({ page, setup, baseURL }) => {
     assert.doesNotMatch(way, /Oct 5/);
   });
 
+  test("the page's scroll, kept as a moment file says it now, is a scroll too: gone only where the note was written after it", () => {
+    const now = file.replace(/await page\.evaluate\(.*\[0, 200\]\);/, "await test.scrollPage(page, [0, 200], { smooth: true });");
+    assert.doesNotMatch(wayIn(now, 1), /scrollPage/);
+    assert.match(wayIn(now, 1, true), /scrollPage\(page, \[0, 200\], \{ smooth: true \}\);\s*$/);
+  });
+
   test("before anything was done, stops where the moment starts; at its end, goes all of it", () => {
     assert.doesNotMatch(wayIn(file, 0), /Pick dates/);
     assert.match(wayIn(file, 0), /goto/);
