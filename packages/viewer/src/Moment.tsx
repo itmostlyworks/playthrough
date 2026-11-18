@@ -1105,6 +1105,7 @@ export function MomentView(props: {
                         forward
                         strong={false}
                         strip
+                        beside={!phone}
                         picture={note.on && <NotePicture frame={sheetFrames[note.id]} />}
                         words={
                           <span className="flex gap-[7px]">
@@ -1115,7 +1116,8 @@ export function MomentView(props: {
                               style={{ transitionDelay: `${(i * Math.min(60, 250 / all.length)).toFixed(0)}ms` }}
                             />
                             <span className="min-w-0">
-                              <span className="block text-[12.5px] leading-[17px] text-fg">{words}</span>
+                              {/* Three lines at most; pressed, the note is whole where it's open. */}
+                              <span className="line-clamp-3 text-[12.5px] leading-[17px] text-fg">{words}</span>
                               {on > 0 && <span className="mt-0.5 block line-clamp-1 text-[11.5px] leading-4 text-soft">{handBack.moments[on - 1]!.name}</span>}
                             </span>
                           </span>

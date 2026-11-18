@@ -9,10 +9,10 @@ import { usePhone } from "./phone.ts";
 import { tick } from "./Send.tsx";
 import type { Went } from "./StepLeft.tsx";
 
-// A note's card at a comfortable reading width, as many across as the frame holds, up to four.
-const CARD = 300;
+// A note's card wide and flat, its picture beside its words: two across where the frame holds two at least this wide,
+// each at most this wide; else one, a little wider.
+const [NARROWEST, WIDEST, ALONE] = [420, 480, 560];
 const APART = 16;
-const MOST = 4;
 
 export function LastStop(props: {
   asked?: string;
@@ -56,8 +56,10 @@ export function LastStop(props: {
   const askedLines = Math.max(3, Math.floor(((frame.high - above - below) * 0.34) / line));
   // One left edge for all of it: a measure as wide as the cards across, which hangs on the frame's width alone, never on
   // how many notes there are, so a note kept or a box opened takes the next place and nothing else moves.
-  const across = Math.min(MOST, Math.max(1, Math.floor((frame.wide - 2 * side + APART) / (CARD + APART))));
-  const measure = phone ? undefined : across * CARD + (across - 1) * APART;
+  const room = frame.wide - 2 * side;
+  const across = room >= 2 * NARROWEST + APART ? 2 : 1;
+  const card = across === 2 ? Math.min(WIDEST, (room - APART) / 2) : Math.max(0, Math.min(ALONE, room));
+  const measure = phone ? undefined : across * card + (across - 1) * APART;
   const todo = [
     props.unwatched > 0 && { words: `${props.unwatched} ${props.unwatched === 1 ? "moment" : "moments"} not watched`, go: props.onUnwatched },
     props.unopened > 0 && { words: `${props.unopened} ${props.unopened === 1 ? "answer" : "answers"} not opened`, go: props.onUnopened },
@@ -68,6 +70,26 @@ export function LastStop(props: {
   const cards = [...notes.map((one) => (inList && one.id === open!.id ? { id: one.id, card: open!.card, open: true } : { ...one, open: false })), ...(open && !inList ? [{ id: "open", card: open.card, open: true }] : [])];
   const opened = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => opened.current?.scrollIntoView({ block: "nearest" }), [open?.id ?? (open ? "new" : undefined)]);
+  // A row of notes as tall as its tallest, so it reads as one row whatever's in it. Measured on the notes alone, before
+  // they're drawn: a box opened beside one, or a note open in its place, leaves the others as they were.
+  const placed = useRef(new Map<string, HTMLElement>());
+  const [rows, setRows] = useState<number[]>([]);
+  const laidOut = phone ? "" : `${across}:${cards.map((one) => (one.open ? "" : one.id)).join(",")}`;
+  useLayoutEffect(() => {
+    if (!laidOut) return setRows([]);
+    const measure = () => {
+      const tallest: number[] = [];
+      cards.forEach((one, i) => {
+        const at = !one.open && placed.current.get(one.id);
+        if (at) tallest[Math.floor(i / across)] = Math.max(tallest[Math.floor(i / across)] ?? 0, ownHeight(at));
+      });
+      setRows((was) => (was.length === tallest.length && was.every((one, i) => one === tallest[i]) ? was : tallest));
+    };
+    measure();
+    const watching = new ResizeObserver(measure);
+    placed.current.forEach((at) => at.firstElementChild?.firstElementChild && watching.observe(at.firstElementChild.firstElementChild));
+    return () => watching.disconnect();
+  }, [laidOut]);
   return (
     <div className="absolute inset-0 overflow-hidden rounded-lg bg-surface shadow-frame">
       <div ref={sheet} onScroll={more.look} className="h-full overflow-y-auto overscroll-contain inside:overscroll-auto [scrollbar-width:thin] [scrollbar-gutter:stable_both-edges]" style={more.fade}>
@@ -86,12 +108,21 @@ export function LastStop(props: {
           {cards.length > 0 && (
             <div className="flex w-full flex-col items-start">
               {(notes.length > 0 || (open && !open.id)) && <NotesSay went={props.went} many={notes.length !== 1} />}
-              {/* Across, then down, tops in line: a card kept or a box opened takes the next place, and nothing moves. On a
-                  phone, one column the whole width. */}
-              <div className="grid w-full items-start" style={{ gridTemplateColumns: phone ? "100%" : `repeat(${across}, ${CARD}px)`, gap: APART }}>
-                {cards.map((one) => (
+              {/* Across, then down, a row's notes one height: a card kept or a box opened takes the next place, and nothing
+                  moves. On a phone, one column the whole width. */}
+              <div className="grid w-full items-start" style={{ gridTemplateColumns: phone ? "100%" : `repeat(${across}, ${card}px)`, gap: APART }}>
+                {cards.map((one, i) => (
                   // Brought into view clear of the bar across the frame's foot.
-                  <div key={one.id} ref={one.open ? opened : undefined} className="flex flex-col" style={{ scrollMarginBottom: 24 }}>
+                  <div
+                    key={one.id}
+                    ref={(at) => {
+                      if (one.open) opened.current = at;
+                      else if (at) placed.current.set(one.id, at);
+                      else placed.current.delete(one.id);
+                    }}
+                    className="flex flex-col [&>*]:flex-1"
+                    style={{ scrollMarginBottom: 24, minHeight: one.open ? undefined : rows[Math.floor(i / across)] }}
+                  >
                     {one.card}
                   </div>
                 ))}
@@ -116,6 +147,14 @@ export function LastStop(props: {
       </div>
     </div>
   );
+}
+
+// A note's card's own height, however tall its row has made it: to the foot of what's in it, and its padding.
+function ownHeight(place: HTMLElement) {
+  const card = place.firstElementChild;
+  const inside = card?.firstElementChild;
+  if (!card || !inside) return 0;
+  return inside.getBoundingClientRect().bottom - card.getBoundingClientRect().top + parseFloat(getComputedStyle(card).paddingBottom);
 }
 
 // The notes' heading, which is where sending them is said: "Your notes", then, sent, that they went, then that the agent

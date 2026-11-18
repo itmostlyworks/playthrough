@@ -270,12 +270,14 @@ export function Tile(props: {
   // A note's: what was said, and under it a slim strip of its thing, set in, both always shown, rather than a picture
   // its words come over. A note leads with its words as a moment does with its picture.
   strip?: boolean;
+  // In a wide card (at the last stop), the strip beside the words rather than under them, so it's as tall as its words.
+  beside?: boolean;
   onPress: () => void;
   onPoint?: (pointed: boolean) => void;
   // What it is, for another page to find it by.
   part?: "moment";
 }) {
-  const { id, label, forward: edgeForward, strong, quiet, lit, waiting, arriving: from, picture, words, strip, onPress, onPoint, part } = props;
+  const { id, label, forward: edgeForward, strong, quiet, lit, waiting, arriving: from, picture, words, strip, beside, onPress, onPoint, part } = props;
   const own = useRef<HTMLButtonElement>(null);
   // A new one comes out of the edge alone, whole and as it is forward, so what was said is seen arriving; then it
   // folds back into its place, sitting back with the rest. The edge and the others hold still, and its place is its
@@ -328,17 +330,20 @@ export function Tile(props: {
       onPointerLeave={() => onPoint?.(false)}
       onFocus={() => onPoint?.(true)}
       onBlur={() => onPoint?.(false)}
-      className={`group/tile block w-full rounded-xl p-1.5 text-left transition-[background-color,box-shadow,opacity] duration-200 ease-calm focus-visible:outline-none ${forward ? `bg-surface focus-visible:shadow-[0_0_0_2px_var(--amber)] ${strong ? "shadow-[0_0_0_1.5px_var(--soft)]" : lit ? "shadow-[0_0_0_1.5px_var(--faint)]" : "shadow-[0_0_0_1px_var(--edge)] hover:shadow-[0_0_0_1.5px_var(--faint)]"}` : "bg-ground shadow-[0_0_0_0_transparent]"}`}
+      className={`group/tile w-full rounded-xl ${beside ? "flex flex-col" : "block"} p-1.5 text-left transition-[background-color,box-shadow,opacity] duration-200 ease-calm focus-visible:outline-none ${forward ? `bg-surface focus-visible:shadow-[0_0_0_2px_var(--amber)] ${strong ? "shadow-[0_0_0_1.5px_var(--soft)]" : lit ? "shadow-[0_0_0_1.5px_var(--faint)]" : "shadow-[0_0_0_1px_var(--edge)] hover:shadow-[0_0_0_1.5px_var(--faint)]"}` : "bg-ground shadow-[0_0_0_0_transparent]"}`}
     >
       <span
-        className={`relative block overflow-hidden rounded-lg ${strip ? "flex flex-col bg-surface" : `aspect-[1.6] bg-paper ${forward ? "rounded-b-none" : ""}`} transition-[box-shadow,opacity,scale] duration-200 ease-calm group-active/tile:scale-[0.97] group-active/tile:duration-75 ${quiet && !strong ? "opacity-80 group-hover/tile:opacity-100 group-focus-visible/tile:opacity-100" : ""} ${forward ? "shadow-[0_0_0_0_transparent]" : `group-focus-visible/tile:shadow-[0_0_0_2px_var(--surface),0_0_0_4px_var(--amber)] ${strong ? "shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--soft)]" : lit ? "shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--faint)]" : "shadow-[0_0_0_1px_var(--edge),0_1px_3px_var(--edge)] group-hover/tile:shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--faint)]"}`}`}
+        className={`relative block overflow-hidden rounded-lg ${strip ? `flex bg-surface ${beside ? "items-start" : "flex-col"}` :`aspect-[1.6] bg-paper ${forward ? "rounded-b-none" : ""}`} transition-[box-shadow,opacity,scale] duration-200 ease-calm group-active/tile:scale-[0.97] group-active/tile:duration-75 ${quiet && !strong ? "opacity-80 group-hover/tile:opacity-100 group-focus-visible/tile:opacity-100" : ""} ${forward ? "shadow-[0_0_0_0_transparent]" : `group-focus-visible/tile:shadow-[0_0_0_2px_var(--surface),0_0_0_4px_var(--amber)] ${strong ? "shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--soft)]" : lit ? "shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--faint)]" : "shadow-[0_0_0_1px_var(--edge),0_1px_3px_var(--edge)] group-hover/tile:shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--faint)]"}`}`}
       >
         {strip ? (
           // The same at rest and forward: nothing inside it moves.
           <>
-            <span className="block px-2 pt-1.5 pb-[7px]">{words}</span>
-            {/* A note on the whole change is on nothing to picture: its words alone. */}
-            {picture && <span className="relative mx-2 mb-2 block aspect-[3.8] flex-none overflow-hidden rounded-[5px] bg-paper shadow-[0_0_0_1px_var(--edge)]">{picture}</span>}
+            <span className={`block px-2 pt-1.5 pb-[7px] ${beside ? "min-w-0 flex-1" : ""}`}>{words}</span>
+            {/* A note on the whole change is on nothing to picture: its words alone. Beside them, as wide as the edge's
+                strip, so it shows the same part of the page. */}
+            {picture && (
+              <span className={`relative block aspect-[3.8] flex-none overflow-hidden rounded-[5px] bg-paper shadow-[0_0_0_1px_var(--edge)] ${beside ? "my-2 mr-2 w-[160px]" : "mx-2 mb-2"}`}>{picture}</span>
+            )}
           </>
         ) : (
           <>
