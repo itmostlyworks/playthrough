@@ -5,11 +5,11 @@
 
 import { dirname, join } from "node:path";
 import { chromium, type Browser } from "@playwright/test";
-import { shownAt } from "@playthrough/page";
 import { allNotes, madeInApp, type InApp, type OnMoment, type Change } from "@playthrough/change";
+import { framesOf, writtenOn, type MomentFrame } from "./followed.ts";
 import type { Frame } from "./frames.ts";
 import type { Repo } from "./repo.ts";
-import { readingsOn } from "./reporter.ts";
+import { frameOf, glimpsesOn, readingsOn } from "./reporter.ts";
 
 type Area = { x: number; y: number; width: number; height: number };
 
@@ -46,26 +46,28 @@ export async function pictureNotes(repo: Repo, change: Change, handBack: number,
   return shown;
 }
 
-// The picture of the step the note was made at, on the hand-back it's on, and where on it: what it's on, or its spot
-// or part of the screen. One on the whole moment was made at its end, so it's the page the moment left, with nothing
-// marked.
+// The picture of the frame the note was made on, on the hand-back it's on, and where on it: what it's on, or its spot
+// or part of the screen. Made partway through, it's the frame pictured after the things done by then, as a picker open
+// there may be closed by the moment's end. One on the whole moment was made at its end, so it's the page the moment
+// left, with nothing marked.
 async function whereSeen(repo: Repo, change: Change, on: OnMoment) {
   const moment = change.handBacks.find((handBack) => handBack.number === on.handBack)?.moments.find((moment) => moment.name === on.moment);
   if (!moment) return undefined;
-  const readings = await readingsOn(repo.changes, change.id, on.handBack, moment);
-  const file = (name: string) => repo.changes.file(change.id, on.handBack, name);
+  const frames = framesOf(moment, await readingsOn(repo.changes, change.id, on.handBack, moment), await glimpsesOn(repo.changes, change.id, on.handBack, moment));
+  const file = (frame: MomentFrame) => repo.changes.file(change.id, on.handBack, frame.name ? frameOf(moment, frame.name) : frame.read.picture);
   if (on.at === undefined) {
-    const end = readings.at(-1);
-    return end && { picture: await file(end.picture), width: end.screen.width, height: end.screen.height };
+    const end = frames.at(-1);
+    return end && { picture: await file(end), width: end.read.screen.width, height: end.read.screen.height };
   }
   const at = on.at;
-  const shown = on.element ? shownAt(readings, on.element, at) : undefined;
-  const reading = shown?.reading ?? readings.reduce<(typeof readings)[number] | undefined>((best, next) => (!best || Math.abs(next.at - at) < Math.abs(best.at - at) ? next : best), undefined);
-  if (!reading || (on.element && !shown)) return undefined;
+  const shown = on.element ? writtenOn(frames, on) : undefined;
+  const frame = shown?.frame ?? frames.reduce<MomentFrame | undefined>((best, next) => (!best || Math.abs(next.read.at - at) < Math.abs(best.read.at - at) ? next : best), undefined);
+  if (!frame || (on.element && !shown)) return undefined;
+  const reading = frame.read;
   const { width, height } = reading.screen;
   const area: Area | undefined = shown?.thing.box ?? (on.box && { x: on.box.x * width, y: on.box.y * height, width: on.box.width * width, height: on.box.height * height });
   const spot = on.point && { x: on.point.x * width, y: on.point.y * height };
-  return { picture: await file(reading.picture), width, height, area, spot };
+  return { picture: await file(frame), width, height, area, spot };
 }
 
 // One made in the app is on what was there, which no recording of the moment shows: the frame the person's page drew of

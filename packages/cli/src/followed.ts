@@ -10,15 +10,15 @@ import { glimpsesOn, readingsOn } from "./reporter.ts";
 
 // A frame of a moment as it was read: as its step began ("first"), after each thing done ("after-1"…), each pictured
 // under that name, or its end, read and pictured once it rested. With how many things had been done by then.
-export type Frame = { name?: string; at: number; done: number; read: Reading };
+export type MomentFrame = { name?: string; at: number; done: number; read: Reading };
 
 // Where a note's thing is in a hand-back: the moment, the frame, and the thing there; and, where the note's own frame
 // was read, whether it looks as it did then, and if not, what's different, as comparing hand-backs says it.
-export type Followed = { moment: Moment; frame: Frame; thing: Thing; looks?: "the same" | string[] };
+export type Followed = { moment: Moment; frame: MomentFrame; thing: Thing; looks?: "the same" | string[] };
 
 // Each frame of a moment, in order. Its glimpses after its step began are its frames, as they were pictured: one
 // that couldn't be read wasn't pictured either.
-export function framesOf(moment: Moment, readings: Reading[], glimpses: Glimpse[]): Frame[] {
+export function framesOf(moment: Moment, readings: Reading[], glimpses: Glimpse[]): MomentFrame[] {
   const end = readings.at(-1);
   if (!end) return [];
   const done = (at: number) => moment.actions.filter((action) => action.at >= moment.from && action.at <= at).length;
@@ -32,13 +32,12 @@ export function framesOf(moment: Moment, readings: Reading[], glimpses: Glimpse[
 
 // The frame a note was written on, and its thing there: the frame nearest its time with its element, by the recording's
 // own numbering, or else something of its role and name.
-export function writtenOn(frames: Frame[], note: Note): { frame: Frame; thing: Thing } | undefined {
-  const on = note.on;
+export function writtenOn(frames: MomentFrame[], on: Note["on"]): { frame: MomentFrame; thing: Thing } | undefined {
   const element = on?.element;
   if (!on || madeInApp(on) || !element || on.at === undefined) return undefined;
   const at = on.at;
   const nearest = (test: (thing: Thing) => boolean) => {
-    let best: { frame: Frame; thing: Thing } | undefined;
+    let best: { frame: MomentFrame; thing: Thing } | undefined;
     for (const frame of frames) {
       const thing = frame.read.things.find(test);
       if (thing && (!best || Math.abs(frame.read.at - at) < Math.abs(best.frame.read.at - at))) best = { frame, thing };
@@ -51,12 +50,12 @@ export function writtenOn(frames: Frame[], note: Note): { frame: Frame; thing: T
 // Where it is now: on its own moment, at the frame lined up with the one it was written on by the things done, as it
 // became there; else the first frame of its own moment with something of its role and name; else, the same way, the
 // first moment marked since the note that has it. Then is what it was on, where that was read.
-export function follow(note: Note, then: { frames: Frame[]; moment?: Moment } | undefined, now: { moment: Moment; frames: Frame[]; own: boolean; since: boolean }[]): Followed | undefined {
+export function follow(note: Note, then: { frames: MomentFrame[]; moment?: Moment } | undefined, now: { moment: Moment; frames: MomentFrame[]; own: boolean; since: boolean }[]): Followed | undefined {
   const element = note.on?.element;
   if (!element) return undefined;
-  const was = then && writtenOn(then.frames, note);
+  const was = then && writtenOn(then.frames, note.on);
   const named = (thing: Thing) => thing.role === (was?.thing.role ?? element.role) && thing.name === (was?.thing.name ?? element.name);
-  const looks = (frame: Frame, thing: Thing): Followed["looks"] => {
+  const looks = (frame: MomentFrame, thing: Thing): Followed["looks"] => {
     if (!was) return undefined;
     if (looksAsItWas(was.thing, thing)) return "the same";
     return findingsAt(was.frame.read, frame.read)
@@ -78,14 +77,14 @@ export function follow(note: Note, then: { frames: Frame[]; moment?: Moment } | 
 
 // The frame of a moment now that's where the frame then was: after the same things done, where the things done that far
 // are the same, and as many frames on after them.
-function linedUp(frame: Frame, thenFrames: Frame[], then: Moment, nowFrames: Frame[], now: Moment): Frame | undefined {
+function linedUp(frame: MomentFrame, thenMomentFrames: MomentFrame[], then: Moment, nowMomentFrames: MomentFrame[], now: Moment): MomentFrame | undefined {
   const whats = (moment: Moment) => moment.actions.filter((action) => action.at >= moment.from).map((action) => action.what);
   const [before, after] = [whats(then).slice(0, frame.done), whats(now).slice(0, frame.done)];
   if (after.length < before.length || before.some((what, i) => what !== after[i])) return undefined;
-  const alike = (frames: Frame[]) => frames.filter((one) => one.done === frame.done);
-  const at = alike(thenFrames).indexOf(frame);
-  const there = alike(nowFrames);
-  return frame.name === undefined ? nowFrames.at(-1) : there[Math.min(at, there.length - 1)];
+  const alike = (frames: MomentFrame[]) => frames.filter((one) => one.done === frame.done);
+  const at = alike(thenMomentFrames).indexOf(frame);
+  const there = alike(nowMomentFrames);
+  return frame.name === undefined ? nowMomentFrames.at(-1) : there[Math.min(at, there.length - 1)];
 }
 
 // Each note waiting on this hand-back that's on a thing, followed into it from the hand-back it was written on.

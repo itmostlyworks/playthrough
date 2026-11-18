@@ -7,7 +7,7 @@ import { after, before, describe, test } from "node:test";
 import { chromium, type Browser, type Page } from "@playwright/test";
 import type { Glimpse, Reading } from "@playthrough/page";
 import type { Change, Moment, Note } from "@playthrough/change";
-import { follow, followedSaid, framesOf, type Frame } from "../src/followed.ts";
+import { follow, followedSaid, framesOf, type MomentFrame } from "../src/followed.ts";
 import { readPage } from "../src/read.ts";
 import { wayIn } from "../src/way.ts";
 
@@ -30,14 +30,14 @@ const PICK = { at: 1, what: "click button “Pick dates”" };
 const DAY = { at: 2, what: "click button “Oct 5”" };
 const picking = (name = "Pick a range", actions = [PICK, DAY]): Moment => ({ name, length: 4, recording: `${name}.json`, from: 0.5, actions });
 // The moment as kept: its first frame, a frame after each thing done, and its end.
-async function framesFor(moment: Moment, pages: string[]): Promise<Frame[]> {
+async function framesFor(moment: Moment, pages: string[]): Promise<MomentFrame[]> {
   const glimpses: Glimpse[] = [];
   for (const [i, html] of pages.slice(0, -1).entries()) glimpses.push(await read(html, i ? moment.actions[i - 1]!.at + 0.3 : 0.6));
   const end: Reading = { ...(await read(pages.at(-1)!, 3.5)), picture: "readings/end.png" };
   return framesOf(moment, [end], glimpses);
 }
 // The note, on the words in the open picker, written after Pick dates was clicked.
-const noteOn = async (frames: Frame[]): Promise<Note> => {
+const noteOn = async (frames: MomentFrame[]): Promise<Note> => {
   const thing = frames[1]!.read.things.find((one) => one.name === "Oct 5, 2026")!;
   return { id: "n2", words: "This wraps onto two lines", on: { handBack: 1, moment: "Pick a range", at: 1.3, element: { role: thing.role, name: thing.name, node: 7 } } };
 };

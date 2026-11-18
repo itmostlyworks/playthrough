@@ -211,7 +211,9 @@ has changed since they ran; otherwise it hands back, stops the `as` browser, giv
 it waits it keeps a file named by its process in the change's `waiting/`, saying which start of the machine it's on, so
 the page knows an agent is listening. When the person sends, it prints each note on its moment (one written at the
 last stop "on the change as a whole", with no picture and no way to stand there), with its conversation,
-a picture of what they saw with the thing outlined (`noted.ts`: the page the moment left, or for a note made in the
+a picture of what they saw with the thing outlined (`noted.ts`: the frame of the moment it was written on, as the
+hand-back pictured it, `writtenOn` in `followed.ts`, so a note on a picker open partway through shows the picker; until
+18 Nov only the page the moment left was looked in, and such a note went without; or for a note made in the
 app, the frame the person's page drew of it), how to stand there (`playthrough as <person> "<moment>"`, or for a note
 written partway through its moment, `playthrough as <person> <note>`, which stops where it was written), and for one
 made in the app what they did there and where the app was when they wrote it (`The app was at /boards/undefined when
