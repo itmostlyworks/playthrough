@@ -101,20 +101,21 @@ EACH CHANGE
 WHEN THE PERSON SPEAKS
 
 Wait prints each note on its moment, with a picture of what they saw and how to stand there (playthrough as <person>
-"<moment>", or for a note written partway through, playthrough as <person> <note>, which stops where it was written),
-or on the change as a whole, about all of it. Notes sent while no agent was listening are the next agent's: every command says so, and wait gets them,
-whatever change you're on, and what you run means theirs from then on. Then:
+"<moment>", or <note> for one written partway, which stops where it was written), or on the change as a whole. Notes
+sent while no agent was listening are the next agent's, whatever change you're on: every command says so, wait gets
+them, and what you run means their change from then on. Then:
 7. Where a note asks for a change, change the app. A note can be a question instead: it needs an answer, not a change,
    and if that's all there is, go straight to 9. Where you can, show the answer in a moment too, as the person can't
    check your word otherwise.
-8. Once the app has changed, playthrough again: every moment runs on the code as it is now, and each is the same, different (and how), or
-   couldn't get there. A moment the same says nothing about a note: for each note on a thing, it then says where that
-   thing shows in what you'd hand back and how it looks against when the note was written, or that it isn't in any:
-   fine if the note asked for it to go.
-   The person must be able to see what you did: in the moment it was on, run again, or in a moment you mark for it. One that couldn't get there because of your change, get to by hand and mark again
+8. Once the app has changed, playthrough again: every moment runs on the code as it is now, and each is the same,
+   different (and how), or couldn't get there. A moment the same says nothing about a note: for each note on a thing,
+   it says where that thing shows in what you'd hand back and how it looks against when the note was written, or that
+   it isn't in any, fine if the note asked for it to go. The person must see what you did: in the note's moment, run
+   again, or in one you mark for it. One that couldn't get there because of your change, get to by hand and mark again
    with the same words, or mark what's there now. Drop a moment only when what it showed no longer exists and nobody
    spoke on it. One nobody spoke on that's now different is worth a look too.
 9. playthrough answer <note> "<what you did, or your answer, in a line>" for each note: your answer is the only why the
    person sees. It says back where the note's thing shows, as again does. With nothing in the app changed since the
    person's moments ran, they go back as they are.
-10. Read your change once more beside the ask, as in 6. Then playthrough wait, in the background, again. When the person says every moment looks good, it ends: the change is done.
+10. Read your change once more beside the ask, as in 6. Then playthrough wait, in the background, again. When the
+    person says every moment looks good, it ends: the change is done.
