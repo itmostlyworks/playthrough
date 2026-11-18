@@ -9,9 +9,10 @@ import { usePhone } from "./phone.ts";
 import { tick } from "./Send.tsx";
 import type { Went } from "./StepLeft.tsx";
 
-// A note's card at a comfortable reading width; past what one column holds, two or three across.
+// A note's card at a comfortable reading width, as many across as the frame holds, up to four.
 const CARD = 300;
 const APART = 16;
+const MOST = 4;
 
 export function LastStop(props: {
   asked?: string;
@@ -33,24 +34,30 @@ export function LastStop(props: {
   const { notes, open } = props;
   const asked = props.asked?.trim();
   const phone = usePhone();
-  const own = useRef<HTMLDivElement>(null);
-  const [high, setHigh] = useState(0);
+  // Past the frame's foot, the sheet scrolls in its frame, what you asked going up with it, fading where there's more.
+  // Its room is measured inside the scrollbar's place, which is kept whether it scrolls or not, so it never shifts.
+  const sheet = useRef<HTMLDivElement>(null);
+  const more = useMore(sheet);
+  const [frame, setFrame] = useState({ wide: 0, high: 0 });
   useLayoutEffect(() => {
-    const frame = own.current;
-    if (!frame) return;
-    const measure = () => setHigh(frame.clientHeight);
+    const at = sheet.current;
+    if (!at) return;
+    const measure = () => setFrame({ wide: at.clientWidth, high: at.clientHeight });
     measure();
     const watching = new ResizeObserver(measure);
-    watching.observe(frame);
+    watching.observe(at);
     return () => watching.disconnect();
   }, []);
-  // What you asked holds one place whatever comes under it, so nothing you do here moves it: a third of the way down
-  // the frame, clear of the bar, so there's room under it. A long ask is cut at about a third of the frame (whole on
-  // hover, and to the keyboard). With nothing asked, what there is starts there. At its foot, room for the bar and,
-  // over it, its notice, so the last of the sheet scrolls clear of both.
-  const [above, below, line] = phone ? [16, 40, 23] : [32, 92, 30];
-  const askedLines = Math.max(3, Math.floor(((high - above - below) * 0.34) / line));
-  const top = above + (high - above - below) * 0.3;
+  // What you asked holds one place whatever comes under it, so nothing you do here moves it: at the sheet's top, where
+  // a moment's own content would begin. A long ask is cut at about a third of the frame (whole on hover, and to the
+  // keyboard). With nothing asked, what there is starts there. At its foot, room for the bar and, over it, its notice,
+  // so the last of the sheet scrolls clear of both.
+  const [above, below, line, side] = phone ? [16, 40, 23, 16] : [48, 92, 30, 32];
+  const askedLines = Math.max(3, Math.floor(((frame.high - above - below) * 0.34) / line));
+  // One left edge for all of it: a measure as wide as the cards across, which hangs on the frame's width alone, never on
+  // how many notes there are, so a note kept or a box opened takes the next place and nothing else moves.
+  const across = Math.min(MOST, Math.max(1, Math.floor((frame.wide - 2 * side + APART) / (CARD + APART))));
+  const measure = phone ? undefined : across * CARD + (across - 1) * APART;
   const todo = [
     props.unwatched > 0 && { words: `${props.unwatched} ${props.unwatched === 1 ? "moment" : "moments"} not watched`, go: props.onUnwatched },
     props.unopened > 0 && { words: `${props.unopened} ${props.unopened === 1 ? "answer" : "answers"} not opened`, go: props.onUnopened },
@@ -59,20 +66,17 @@ export function LastStop(props: {
   // Open, a card in the list is drawn in its place; else the open card takes the next place, where a kept note lands.
   const inList = !!open?.id && notes.some((one) => one.id === open.id);
   const cards = [...notes.map((one) => (inList && one.id === open!.id ? { id: one.id, card: open!.card, open: true } : { ...one, open: false })), ...(open && !inList ? [{ id: "open", card: open.card, open: true }] : [])];
-  // Past the frame's foot, the sheet scrolls in its frame, what you asked going up with it, fading where there's more.
-  const sheet = useRef<HTMLDivElement>(null);
-  const more = useMore(sheet);
   const opened = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => opened.current?.scrollIntoView({ block: "nearest" }), [open?.id ?? (open ? "new" : undefined)]);
   return (
-    <div ref={own} className="absolute inset-0 overflow-hidden rounded-lg bg-surface shadow-frame">
-      <div ref={sheet} onScroll={more.look} className="h-full overflow-y-auto overscroll-contain inside:overscroll-auto [scrollbar-width:thin]" style={more.fade}>
-        <div className="flex flex-col items-center gap-8 px-8 phone:gap-4 phone:px-4" style={{ paddingTop: top, paddingBottom: below }}>
+    <div className="absolute inset-0 overflow-hidden rounded-lg bg-surface shadow-frame">
+      <div ref={sheet} onScroll={more.look} className="h-full overflow-y-auto overscroll-contain inside:overscroll-auto [scrollbar-width:thin] [scrollbar-gutter:stable_both-edges]" style={more.fade}>
+        <div className="mx-auto flex flex-col items-start gap-8 phone:gap-4" style={{ width: measure && measure + 2 * side, padding: `${above}px ${side}px ${below}px` }}>
           {asked && (
-            <div className="flex w-full flex-none flex-col items-center text-center" title={asked} tabIndex={0} aria-label={`You asked: ${asked}`}>
+            <div className="flex w-full flex-none flex-col items-start" title={asked} tabIndex={0} aria-label={`You asked: ${asked}`}>
               <p className={quietLine}>You asked</p>
               <p
-                className="mt-2 max-w-[30em] overflow-hidden text-[21px] leading-[30px] text-balance text-fg phone:text-[16px] phone:leading-[23px]"
+                className="mt-2 max-w-[30em] overflow-hidden text-[21px] leading-[30px] text-pretty text-fg phone:text-[16px] phone:leading-[23px]"
                 style={{ display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: askedLines }}
               >
                 {asked}
@@ -80,10 +84,11 @@ export function LastStop(props: {
             </div>
           )}
           {cards.length > 0 && (
-            <div className="flex w-full flex-col items-center">
+            <div className="flex w-full flex-col items-start">
               {(notes.length > 0 || (open && !open.id)) && <NotesSay went={props.went} many={notes.length !== 1} />}
-              {/* One column, centred, a card wide: a card kept or a box opened takes the next place down, and nothing moves. */}
-              <div className="flex w-full flex-col" style={{ maxWidth: CARD, gap: APART }}>
+              {/* Across, then down, tops in line: a card kept or a box opened takes the next place, and nothing moves. On a
+                  phone, one column the whole width. */}
+              <div className="grid w-full items-start" style={{ gridTemplateColumns: phone ? "100%" : `repeat(${across}, ${CARD}px)`, gap: APART }}>
                 {cards.map((one) => (
                   // Brought into view clear of the bar across the frame's foot.
                   <div key={one.id} ref={one.open ? opened : undefined} className="flex flex-col" style={{ scrollMarginBottom: 24 }}>
@@ -94,12 +99,12 @@ export function LastStop(props: {
             </div>
           )}
           {props.tell && (
-            <p className="flex-none text-center">
+            <p className="flex-none">
               <TellYours words={props.tell} />
             </p>
           )}
           {todo.length > 0 && (
-            <div className="flex flex-none flex-wrap justify-center gap-x-5 gap-y-1">
+            <div className="flex flex-none flex-wrap gap-x-5 gap-y-1">
               {todo.map((one) => (
                 <button key={one.words} onClick={one.go} className="rounded-sm text-[13px] leading-5 text-soft underline decoration-line underline-offset-[3px] transition-colors duration-150 ease-calm hover:text-fg hover:decoration-current">
                   {one.words}
@@ -140,7 +145,7 @@ function NotesSay({ went, many }: { went?: Went; many: boolean }) {
   ];
   const now = went ?? "yours";
   return (
-    <p role="status" data-part="notes-heading" className="mb-2 grid justify-items-center text-[12.5px] leading-[17px] text-soft">
+    <p role="status" data-part="notes-heading" className="mb-2 grid justify-items-start text-[12.5px] leading-[17px] text-soft">
       {lines.map(([is, words]) => (
         <span key={is} aria-hidden={is !== now} className={`flex items-center whitespace-nowrap transition-opacity duration-200 ease-calm [grid-area:1/1] ${is === now ? "" : "opacity-0"}`}>
           {words}
