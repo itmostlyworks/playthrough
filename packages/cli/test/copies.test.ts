@@ -96,7 +96,7 @@ const answering = async (url: string, expected: boolean) => {
 const someoneElse = async (file: string) => {
   const other = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"]);
   await mkdir(dirname(file), { recursive: true });
-  await writeFile(file, JSON.stringify({ ...thisCommand(), by: other.pid }));
+  await writeFile(file, JSON.stringify({ by: other.pid, boot: thisCommand().boot }));
   return other;
 };
 

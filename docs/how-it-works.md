@@ -868,7 +868,10 @@ its pages named, `keepNamed`), and the note is on that recording, at its end.
 rather than opening another, as `open.json` says it. It's started behind the command as `as`'s browser is
 (`startBehind`, `behind.ts`), its output in `~/.playthrough/open.log`: the command prints its address and returns, and
 the page stays open until `playthrough close`, which stops it as Ctrl+C does (what its step ins made given back, the
-apps it kept that nobody is using stopped) and says so, or that it wasn't open. From a real run on 0.7.1: an agent ran
+apps it kept that nobody is using stopped) and says so, or that it wasn't open. A page killed hard leaves `open.json`
+behind, which is taken for open only while the process that wrote it is still at it (`stillAt`, `command.ts`: its
+number, on this start of the machine, started when it was, and not ended), so neither command takes another process
+that has its number since for the page, nor one ended and never reaped. From a real run on 0.7.1: an agent ran
 `open` in its shell with a time limit, and the page went with it. It lists every change in every copy of
 every app a `playthrough` command has run in (`machine.ts`: `~/.playthrough/apps.json`, or `PLAYTHROUGH_HOME`, and an
 app gone from disk drops out), each read from the copy it's kept in; where two copies share an app's name, each says

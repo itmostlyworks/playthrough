@@ -154,7 +154,7 @@ function runningIn(root: string): Running | undefined {
   } catch {
     return undefined;
   }
-  if (stillAt(now.app ? { ...now, by: now.app } : now)) return now;
+  if (stillAt(now.app ? { by: now.app, boot: now.boot } : now)) return now;
   rmSync(runningFile(root), { force: true });
 }
 

@@ -7,10 +7,10 @@ import { uptime } from "node:os";
 // `started`, where it's known, tells the process from another given its number since on the same start of the machine.
 export type Command = { by: number; boot?: string | number; started?: number };
 
-export const thisCommand = (): Command => ({ by: process.pid, boot: boot() });
+export const thisCommand = (): Command => ({ by: process.pid, boot: boot(), started: processOf(process.pid)?.started });
 
 // The command is still at it: its process is running, and is the same one, not another that has its number since the
-// machine started again, or since it ended.
+// machine started again, or since it ended, as one killed hard leaves what it wrote for another to be taken for it.
 export const stillAt = (command: Command) => sameBoot(command.boot) && running(command.by) && (command.started === undefined || (processOf(command.by)?.started ?? command.started) === command.started);
 
 // The agent that ran this command, which goes on after it: the nearest process above it that isn't only how it was run.
@@ -41,13 +41,14 @@ function givenCommand(words: string[]): boolean {
   return SHELLS.includes(nameOf(first)) && words.slice(1).some((word) => /^-[a-z]*c[a-z]*$/.test(word));
 }
 
-// A process as /proc says it: its parent, its session, when it started since the machine did, and the words it runs.
-function processOf(pid: number): { parent: number; session: number; started: number; words: string[] } | undefined {
+// A process as /proc says it: its parent, its session, when it started since the machine did, the words it runs, and
+// whether it has ended, waiting only for its parent to see it (a zombie).
+function processOf(pid: number): { parent: number; session: number; started: number; words: string[]; ended: boolean } | undefined {
   try {
     const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
     const fields = stat.slice(stat.lastIndexOf(")") + 2).split(" ");
     const words = readFileSync(`/proc/${pid}/cmdline`, "utf8").split("\0").filter(Boolean);
-    return { parent: Number(fields[1]), session: Number(fields[3]), started: Number(fields[19]), words };
+    return { parent: Number(fields[1]), session: Number(fields[3]), started: Number(fields[19]), words, ended: fields[0] === "Z" || fields[0] === "X" };
   } catch {
     return undefined;
   }
@@ -69,7 +70,9 @@ function sameBoot(then: string | number | undefined, now = boot()): boolean {
   return then === undefined || then === now;
 }
 
+// Killed hard where nothing reaps it, as under a container's first process, a process has ended but is still there.
 function running(pid: number): boolean {
+  if (processOf(pid)?.ended) return false;
   try {
     return process.kill(pid, 0);
   } catch (error) {

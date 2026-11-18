@@ -2,16 +2,16 @@
 // the folder it was run from, and one gone from disk drops out by itself. Each copy has a name of its own to be found by.
 
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, test } from "node:test";
-import { everyCopy, know, knownApps } from "../src/machine.ts";
+import { everyCopy, know, knownApps, machine } from "../src/machine.ts";
 
 let folder = "";
 const app = async (...path: string[]) => {
@@ -64,13 +64,16 @@ const run = promisify(execFile);
 let port = 0;
 const viewerBuilt = existsSync(fileURLToPath(new URL("../viewer/index.html", import.meta.url)));
 
-test("playthrough open comes back with the page's address and leaves it open, says it again while it is, and playthrough close closes it", { skip: !viewerBuilt && "the viewer isn't built: npm run build", timeout: 30_000 }, async () => {
-  port = await new Promise<number>((resolve) => {
+const freePort = () =>
+  new Promise<number>((resolve) => {
     const server = createServer().listen(0, "127.0.0.1", () => {
       const { port } = server.address() as { port: number };
       server.close(() => resolve(port));
     });
   });
+
+test("playthrough open comes back with the page's address and leaves it open, says it again while it is, and playthrough close closes it", { skip: !viewerBuilt && "the viewer isn't built: npm run build", timeout: 30_000 }, async () => {
+  port = await freePort();
   const page = `http://localhost:${port}/`;
   const answering = () => fetch(page).then((answer) => answer.ok, () => false);
   assert.equal(await playthrough("close"), "Playthrough isn't open.\n");
@@ -80,4 +83,23 @@ test("playthrough open comes back with the page's address and leaves it open, sa
   assert.equal(await playthrough("close"), `Playthrough is closed: ${page} no longer answers.\n`);
   assert.equal(await answering(), false);
   assert.equal(await playthrough("close"), "Playthrough isn't open.\n");
+});
+
+test("a page killed hard isn't open, even once another process has its number: close says so and stops nothing, and open opens it again", { skip: !viewerBuilt && "the viewer isn't built: npm run build", timeout: 30_000 }, async () => {
+  port = await freePort();
+  const page = `http://localhost:${port}/`;
+  await playthrough("open");
+  const left = join(machine(), "open.json");
+  const killed = JSON.parse(await readFile(left, "utf8"));
+  process.kill(killed.by, "SIGKILL");
+  const another = spawn(process.execPath, ["-e", "setTimeout(() => {}, 30_000)"]);
+  await writeFile(left, JSON.stringify({ ...killed, by: another.pid }));
+  try {
+    assert.equal(await playthrough("close"), "Playthrough isn't open.\n");
+    assert.equal(another.exitCode ?? another.signalCode, null);
+    assert.equal(await playthrough("open"), `Playthrough is open at ${page}\nIt stays open until playthrough close.\n`);
+    assert.equal(await playthrough("close"), `Playthrough is closed: ${page} no longer answers.\n`);
+  } finally {
+    another.kill();
+  }
 });
