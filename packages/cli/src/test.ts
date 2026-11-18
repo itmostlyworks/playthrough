@@ -18,6 +18,7 @@ import { readPage, unhovered } from "./read.ts";
 import { repo } from "./repo.ts";
 import { ACTIONS, ASSETS, GLIMPSES, HOLD, PERSON, PICTURED, PICTURE, READINGS, RECORDING, seconds, whyStopped, type Failed, type Acted } from "./reporter.ts";
 import { SETTLED, stillFor, watchRest } from "./rest.ts";
+import { findsThisPlaythrough } from "./own.ts";
 import { firstOf, make, personIn, setupIn, type Made, type Setup } from "./setup.ts";
 import { steadied } from "./steady.ts";
 import { scrollPart } from "./way.ts";
@@ -384,6 +385,7 @@ let collecting: Map<string, Kept> | undefined;
 let around: { use: Kept["use"] }[] = [];
 let loading = Promise.resolve();
 export function momentsIn(file: string, written: number): Promise<Map<string, Kept>> {
+  findsThisPlaythrough();
   findsAsPlaywright();
   const moments = new Map<string, Kept>();
   const loaded = loading.then(async () => {

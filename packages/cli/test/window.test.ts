@@ -44,6 +44,12 @@ test("stepped into, a moment is kept with what its file says with test.use, befo
   assert.deepEqual(windows["Pay on a phone"], phone);
 });
 
+test("stepped into, a moment's playthrough/test is this Playthrough's, in an app that has nothing of Playthrough installed", async () => {
+  await writeFile(join(folder, "sign-up.ts"), `import { test } from "playthrough/test";\ntest("Signed up", async () => {});\n`);
+  const { momentsIn } = await import("../src/test.ts");
+  assert.deepEqual([...(await momentsIn(join(folder, "sign-up.ts"), 1)).keys()], ["Signed up"]);
+});
+
 test("what a describe() says holds for the moments in it, over what's said around it", () => {
   assert.deepEqual(windows["Pay in Swedish"], { ...phone, ...swedish });
   assert.deepEqual(windows["Pay with a mouse, in Swedish"], { ...phone, ...swedish, hasTouch: false });

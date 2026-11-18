@@ -15,6 +15,7 @@ import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promise
 import * as modules from "node:module";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { findsThisPlaythrough } from "./own.ts";
 import { firstLine } from "./reporter.ts";
 
 type Make = (given: { page: Page; request: APIRequestContext; baseURL?: string; person?: string }) => unknown;
@@ -36,6 +37,7 @@ export async function setupIn(file: string, written?: number): Promise<Setup> {
   if (!existsSync(file)) return {};
   const href = pathToFileURL(file).href;
   asModule(href);
+  findsThisPlaythrough();
   // In an app whose package.json doesn't say it's a module, Playwright loads the file as CommonJS, its exports one level down.
   type Module = { default?: Make; after?: After; signIn?: SignIn; people?: People; use?: BrowserContextOptions };
   const module: Omit<Module, "default"> & { default?: Make | Module } = await import(`${href}${written ? `?${written}` : ""}`).catch((error) => {

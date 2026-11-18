@@ -4,9 +4,11 @@
 import { defineConfig } from "@playwright/test";
 import { fileURLToPath } from "node:url";
 import { availableParallelism } from "node:os";
+import { findsThisPlaythrough } from "./own.ts";
 import { WAITS, type Run } from "./run.ts";
 
 const run: Run = JSON.parse(process.env.PLAYTHROUGH_RUN ?? "null");
+findsThisPlaythrough();
 
 export default defineConfig({
   testDir: run.moments,

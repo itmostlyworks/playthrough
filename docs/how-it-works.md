@@ -64,7 +64,13 @@ playthrough close                                  # closes it
 ```
 
 **The first time in an app**, the agent adds `playthrough/app.json`, how to start it, and `playthrough/setup.ts`, what
-everyone starts from; both are committed with the app, and the agent asks before committing them. Where the app's
+everyone starts from; both are committed with the app, and the agent asks before committing them. Nothing is added to
+the app's packages to try it: `npx playthrough` runs it, `npx -p playthrough playwright install chromium` gets its own
+Playwright's browser, and `playthrough/test`, as a moment or `setup.ts` imports it, is always the running Playthrough's
+(`own.ts`, a resolve hook in Playwright's runner, through its config, and in Playthrough itself), so the app's manifest,
+lockfile and workspace settings stay as they are; the agent asks whether to add it to the devDependencies only once the
+person keeps `playthrough/`, so everyone runs the same version (a real run on 0.7.1 was left with all three changed and
+uncommitted, just to try it). Where the app's
 command takes a port, `{port}` in both (`{ "start": "npm run dev -- --port {port}", "url": "http://localhost:{port}" }`)
 gives each copy a free port of its own (kept in `.playthrough/port.json`), so a worktree's copy runs beside the
 person's; at the address the app always has, one already running there is used, except in a worktree, where it could

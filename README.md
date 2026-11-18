@@ -12,7 +12,7 @@ Ask your agent for a change in your web app, as you would anyway, and add:
 
 > Show me this change with `npx playthrough`.
 
-The agent does the rest. The first time, it adds Playthrough to your app and writes down how to start it and who its people are, for you to commit. Then it makes the change, checks it in a browser as one of those people, and marks each moment that shows it. When it's done, it gives you a link. If the page isn't open yet:
+The agent does the rest. The first time, it writes down how to start your app and who its people are, for you to commit if you keep them; nothing is added to your app's packages unless you say so. Then it makes the change, checks it in a browser as one of those people, and marks each moment that shows it. When it's done, it gives you a link. If the page isn't open yet:
 
 ```bash
 npx playthrough open

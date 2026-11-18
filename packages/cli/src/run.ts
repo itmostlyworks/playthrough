@@ -97,12 +97,6 @@ export async function runOnce(run: Omit<Run, "folder">): Promise<Ran> {
 }
 
 async function playwright(run: Run): Promise<boolean> {
-  // Moments import playthrough/test from the app, so it has to be one of the app's packages.
-  try {
-    createRequire(join(run.root, "package.json")).resolve("playthrough/test");
-  } catch {
-    throw new Refused(["Playthrough isn't installed in this app. Install it as a dev dependency, with the app's own package manager (npm install --save-dev playthrough), then run this again."]);
-  }
   await keepRunning(run.app, run.root);
   // What an earlier command made and didn't give back, it gives back first, now the app is there to take it.
   const { setup, borrowed } = repo(run.root);

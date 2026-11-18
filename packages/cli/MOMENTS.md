@@ -18,8 +18,10 @@ THE FIRST TIME IN AN APP
 
 If the app has no playthrough/ folder, set it up. It's the person's app: tell them what you added, and commit it only
 if they say so.
-- Unless the app has node_modules/playthrough already, add playthrough to its devDependencies with its own package
-  manager, then run npx playwright install chromium.
+- Nothing needs adding to the app's packages: npx playthrough runs it, and npx -p playthrough playwright install chromium
+  gets the browser it uses, once. Leave the app's package.json, lockfile and workspace settings as they are. If the
+  person keeps playthrough/ with the app, ask them too whether to add playthrough to its devDependencies, with its own
+  package manager, so everyone runs the same version.
 - playthrough/app.json says how to start the app. Where its command takes a port, say {port} in both, and each copy of
   the app gets its own: { "start": "npm run dev -- --port {port}", "url": "http://localhost:{port}" }. Where it can't,
   give the address it always has: { "start": "npm run dev", "url": "http://localhost:3000" }. The url is only where the
