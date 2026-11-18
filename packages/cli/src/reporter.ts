@@ -55,8 +55,8 @@ export function firstLine(said: string) {
 // Why a step stopped, in Playthrough's words, naming the thing as the moment does: a check that failed says what it
 // looked for and what it found ("no link “My cards” was to be seen", "button “Save” was disabled, not enabled"); an
 // action that waited in vain, what it was to be done to ("no button “Close” was there to click"). Anything else, as
-// Playwright or the app said it, in its first line.
-export function whyStopped(said: string): { why: string; checked?: true } {
+// Playwright or the app said it, in its first line, and marked so (`asSaid`): those aren't words to show a person.
+export function whyStopped(said: string): { why: string; checked?: true; asSaid?: true } {
   const lines = said.replace(/\x1b\[[0-9;]*m/g, "").split("\n").map((line) => line.trim());
   const thing = thingIn(lines.find((line) => line.startsWith("Locator:"))?.slice("Locator:".length) ?? lines.find((line) => line.startsWith("- waiting for "))?.slice("- waiting for ".length));
   const [expected, received] = ["Expected:", "Received:"].map((label) => lines.find((line) => line.startsWith(label))?.slice(label.length).trim());
@@ -66,7 +66,7 @@ export function whyStopped(said: string): { why: string; checked?: true } {
   const action = lines[0]?.match(/^TimeoutError: locator\.(\w+): Timeout/)?.[1];
   const doing = action && DOING[action];
   if (thing && doing) return { why: lines.some((line) => line.startsWith("- locator resolved to")) ? `${thing} ${was} there, but couldn't be ${doing[1]}` : `no ${thing} ${was} there to ${doing[0]}` };
-  return { why: firstLine(said) };
+  return { why: firstLine(said), asSaid: true };
 }
 const DOING: Record<string, [string, string]> = {
   click: ["click", "clicked"],
@@ -89,7 +89,7 @@ export function thingIn(locator: string | undefined) {
   return found[1] === "Text" ? `words ${quote(plain(found[3]!))}` : found[5] !== undefined ? `${found[3]} ${quote(plain(found[5]))}` : found[3];
 }
 
-export type Failed = { moment: string; at?: string; why?: string; checked?: true; broken?: true };
+export type Failed = { moment: string; at?: string; why?: string; checked?: true; asSaid?: true; broken?: true };
 // What Playwright says when the browser stops a moment, not the app: the page crashed or closed, or the app stopped answering.
 const BROKEN = /Page crashed|Target crashed|Target page, context or browser has been closed|net::ERR_CONNECTION_REFUSED/;
 export type Recorded = { moment: Moment; files: string[] };

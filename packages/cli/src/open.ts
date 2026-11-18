@@ -15,7 +15,7 @@ import type { Reading } from "@playthrough/page";
 import { Refused, type Did, type Change, type Seen, type Send } from "@playthrough/change";
 import { BEAT } from "./run.ts";
 import { repo as copyAt, type Repo } from "./repo.ts";
-import { readyIn } from "./following.ts";
+import { CantStepIn, cantStepIn, readyIn } from "./following.ts";
 import { everyCopy, machine } from "./machine.ts";
 import { keepNamed, type Assets } from "./assets.ts";
 import { frameOf, stillOf, type Framed } from "./frames.ts";
@@ -293,10 +293,15 @@ async function shownOf(repo: Repo): Promise<{ app: string; people: Record<string
 
 // A moment stepped into: the viewer asks as Step in is pressed where the playhead rests, and shows the app there, through
 // Playthrough, at the port and moment this answers with; and where the moment's checks at its end don't hold on the app
-// as it is now, what they say. A tab closed or reloaded meanwhile stops it.
+// as it is now, what they say. A tab closed or reloaded meanwhile stops it. One that can't be, whatever stopped it, says
+// why in a line for the person and whole for the agent (following.ts).
 async function stepInto(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
   const { moment, after } = await body<{ moment: string; after?: number }>(request);
-  const { port, name, setup, checked } = await getReady(repo, id, await placeOf(repo, id, moment, after), waitedFor(response));
+  const ready = await placeOf(repo, id, moment, after)
+    .then((to) => getReady(repo, id, to, waitedFor(response)))
+    .catch(cantStepIn.other);
+  if (ready instanceof CantStepIn) return json(response, 400, { problems: ready.problems, plainly: ready.plainly });
+  const { port, name, setup, checked } = ready;
   json(response, 200, { port, name, setup, ...(checked && { checked }) });
 }
 

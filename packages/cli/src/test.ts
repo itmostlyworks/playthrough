@@ -424,7 +424,7 @@ export async function runAlongside(
   { request, baseURL, started, setup: appSetup, borrowed, person }: { request: APIRequestContext; baseURL: string; started: string; setup: Setup; borrowed: string; person?: string },
   body: Body,
   orders: Orders,
-): Promise<{ handed?: Handed; stopped?: Pick<Failed, "at" | "why">; made?: Made; checked?: string }> {
+): Promise<{ handed?: Handed; stopped?: Pick<Failed, "at" | "why" | "asSaid">; made?: Made; checked?: string }> {
   // The page, readied as the moment's was when it was recorded, and what it writes noted.
   const stepping: SteppingIn = { page, going: false, depth: 0, rest: await watchRest(page), done: 0, again: [], wrote: false, orders };
   await page.addInitScript({ content: steadied(started) });
@@ -456,14 +456,14 @@ export async function runAlongside(
       return { handed: stepping.handed, made };
     } catch (error) {
       if (error instanceof Stopped || orders.stopped) return { handed: stepping.handed, made };
-      const { why } = whyStopped(String((error as Error)?.message ?? error));
+      const { why, asSaid } = whyStopped(String((error as Error)?.message ?? error));
       // Everything the moment does is done, and only a check of how it ended fails: that's the place a person steps in
       // to look at, so it's handed over as it is, with what didn't hold.
       if (isCheck(error) && stepping.step) {
         await handOver(stepping);
         return { handed: stepping.handed, made, checked: `This stepping's check of how it ends doesn't hold on the app as it is now: ${why}.` };
       }
-      return { stopped: { at: stepping.step, why }, made };
+      return { stopped: { at: stepping.step, why, ...(asSaid && { asSaid }) }, made };
     }
   });
 }

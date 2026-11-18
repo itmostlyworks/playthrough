@@ -108,7 +108,7 @@ describe("the way to a moment", () => {
     assert.deepEqual(missing, { why: "no button “Close” was there to click" });
     const stuck = whyStopped("TimeoutError: locator.fill: Timeout 10000ms exceeded.\nCall log:\n  - waiting for getByRole('textbox', { name: 'Title', exact: true })\n  - locator resolved to <input disabled/>\n  - element is not enabled\n");
     assert.equal(stuck.why, "textbox “Title” was there, but couldn't be filled in");
-    assert.deepEqual(whyStopped("page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/"), { why: "page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/" });
+    assert.deepEqual(whyStopped("page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/"), { why: "page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/", asSaid: true });
   });
 
   test("does the way there before the moment's step, and only what the moment shows in it; going there by hand does both", () => {
@@ -530,6 +530,26 @@ describe("a note that only asks something", () => {
     await quietly(() => answer(here, "q1", "Yes."));
     writeFileSync(join(here.root, "list.tsx"), "export const List = () => 'changed again';\n");
     await assert.rejects(wait(here), /list\.tsx has changed since the moments were run\. Run playthrough again, so the person sees them as they are now\./);
+  });
+});
+
+describe("a note made where Step in didn't work", () => {
+  test("says, under the person's words, why it didn't work, whole, as Playthrough said it then", async () => {
+    const here = repo(await mkdtemp(join(tmpdir(), "playthrough-cant-step-in-")));
+    folders.push(here.root);
+    await quietly(() => change(here, "Overdue invoices are easy to chase", "Make overdue invoices easy to see and chase."));
+    const id = "overdue-invoices-are-easy-to-chase";
+    await here.changes.saveHandBack(id, { number: 1, by: "Claude Code", moments: [{ name: "A reminder goes to Alder Dental", length: 2, actions: [], recording: "a-reminder.json", person: "Sam", from: 0 }], replies: [] });
+    await here.changes.finish(id, 1);
+    const why = "playthrough/moments/a-reminder.ts couldn't be loaded, because Node says “Cannot find package 'kan-utils' imported from /tmp/kan/a-reminder.ts”.";
+    await here.changes.send(id, { id: newId(), handBack: 1, by: "Anna", sent: new Date().toISOString(), notes: [{ id: "s1", words: "Step in doesn't work on this moment.", on: { handBack: 1, moment: "A reminder goes to Alder Dental", at: 1, cantStepIn: why } }] });
+    const lines: string[] = [];
+    const log = console.log;
+    console.log = (...words: unknown[]) => void lines.push(words.join(" "));
+    await wait(here).finally(() => (console.log = log));
+    const told = lines.join("\n");
+    assert.match(told, /s1 {2}on the moment “A reminder goes to Alder Dental”, as Sam\n {4}Anna: Step in doesn't work on this moment\.\n/);
+    assert.ok(told.includes(`\n    They pressed Step in on this moment and it didn't work: ${why}\n`), told);
   });
 });
 

@@ -76,6 +76,9 @@ export const OnMoment = z
     element: Element.optional().describe("Its node is in the moment's recording on that hand-back"),
     box: Box.optional().describe("Something with no words of its own"),
     point: Point.optional().describe("Empty space"),
+    cantStepIn: text("needs why Step in didn't work, or no cantStepIn")
+      .optional()
+      .describe("Why Step in didn't work here, whole, as Playthrough said it for the agent: kept on the note the person made of it with Tell the agent, and never shown them"),
   })
   .refine(onOneThing, { error: ONE_THING })
   .refine(atSomeMoment, { error: "is on something but at no time. Give it one" });

@@ -11,7 +11,7 @@ import { answerAs, asRecorded, clicked, escapedTwice, pathTo, RIGHT_AFTER } from
 import { doneBefore, quote, Refused } from "@playthrough/change";
 import { running, using } from "./app.ts";
 import { QUIET_DEV_CHROME, recorder, type Handed, type To } from "./run.ts";
-import { LONGEST, runTo, writtenOf } from "./following.ts";
+import { cantStepIn, LONGEST, runTo, writtenOf } from "./following.ts";
 import { listen, thisMachine } from "./open.ts";
 import { read } from "./read.ts";
 import type { App, Repo } from "./repo.ts";
@@ -49,7 +49,7 @@ export async function getReady(repo: Repo, id: string, to: To, waiting?: AbortSi
 export async function placeOf(repo: Repo, id: string, moment: string, after?: number): Promise<To> {
   const handBack = await recorded(repo, id);
   const kept = handBack.moments.find((one) => one.name === moment);
-  if (!kept) throw new Refused([`${quote(moment)} isn't among the moments the agent last handed back: they've changed since this page was loaded. Reload it, then step in again.`]);
+  if (!kept) throw cantStepIn.changed(`${quote(moment)} isn't among the moments you last handed back: they changed after the person's page was loaded.`);
   return { moment, ...(after !== undefined && { after: doneBefore(kept) + after }) };
 }
 
@@ -110,10 +110,11 @@ function letGoAhead(repo: Repo, id: string, one: Ahead) {
 async function make(repo: Repo, id: string, to: To, until: number, waiting?: AbortSignal) {
   const done = using(repo.root);
   try {
-    const app = await repo.app();
-    await inTime(running(app, repo.root), until, waiting, [
-      `The app hadn't answered at ${app.url} within ${LONGEST / 1000} seconds of being asked for: it may still be starting. Step in again in a moment; if it's as slow again, look at .playthrough/app.log for why.`,
-    ]);
+    // Its app.json, the app's start and its answer within the minute: anything amiss there, the app didn't start.
+    await repo
+      .app()
+      .then((app) => inTime(running(app, repo.root), until, waiting, [`The app hadn't answered at ${app.url} within ${LONGEST / 1000} seconds of being asked for: it may still have been starting. .playthrough/app.log has what it said.`]))
+      .catch((error) => Promise.reject(waiting?.aborted ? error : cantStepIn.started(error)));
     const made = await runTo(repo, id, to, until, waiting);
     return { ...made, done: using(repo.root) };
   } finally {

@@ -4,6 +4,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { Key } from "./Key.tsx";
 import { Clock } from "./Player.tsx";
+import { SendButton } from "./Send.tsx";
 
 // How far through what's shown playing is: a slim line inside Play, there once the moment has left its end, filling
 // as it plays, and gone again once it rests there.
@@ -98,6 +99,39 @@ export function Notice({ children, className = "text-soft" }: { children: ReactN
     <p role="status" className={`pointer-events-none absolute bottom-full left-1/2 mb-2 phone:top-full phone:bottom-auto phone:mt-2 phone:mb-0 grid w-max max-w-[min(640px,calc(100cqw-32px))] -translate-x-1/2 animate-arrive justify-items-center rounded-md bg-surface px-3 py-1.5 text-center text-xs shadow-tip ${className}`}>
       {children}
     </p>
+  );
+}
+
+// Step in couldn't open the app: said where it was pressed, over the bar, drawn as the page's other small sheets are,
+// with the one thing to do about it. Why is in a person's words, never the file or Node's, which are the agent's: Tell
+// the agent saves a note saying so, which carries them. With one waiting already, it says so in the button's place, at
+// its size, and the line has room for two lines either way, so it's the same size for any reason. Escape or a press
+// anywhere else closes it; Step in again is trying again.
+export function CantStepIn({ plainly, told, onTell, onClose }: { plainly: string; told: boolean; onTell: () => void; onClose: () => void }) {
+  const own = useRef<HTMLDivElement>(null);
+  const close = useRef(onClose);
+  close.current = onClose;
+  useEffect(() => {
+    const away = (event: PointerEvent) => !own.current?.contains(event.target as Node) && close.current();
+    addEventListener("pointerdown", away, { capture: true });
+    return () => removeEventListener("pointerdown", away, { capture: true });
+  }, []);
+  return (
+    <div ref={own} role="dialog" aria-label="Can't step in here" className="absolute bottom-full left-1/2 mb-2 phone:top-full phone:bottom-auto phone:mt-2 phone:mb-0 w-[288px] max-w-[calc(100cqw-32px)] -translate-x-1/2 animate-arrive rounded-xl bg-surface p-3 shadow-float">
+      <p className="text-[13px] leading-5 font-medium text-fg">Can't step in here</p>
+      <p className="mt-0.5 line-clamp-2 h-[34px] text-[12.5px] leading-[17px] text-soft">{plainly}</p>
+      <div className="mt-3 h-8">
+        {told ? (
+          <p role="status" className="flex h-full animate-arrive items-center justify-center text-[12.5px] text-soft">
+            Noted. It goes with your next Send.
+          </p>
+        ) : (
+          <SendButton filled className="w-full justify-center" disabled={false} onClick={onTell}>
+            Tell the agent
+          </SendButton>
+        )}
+      </div>
+    </div>
   );
 }
 

@@ -15,7 +15,7 @@ import { Header, headerRows, Title } from "./Header.tsx";
 import type { YourReply } from "./kept.ts";
 import { Key } from "./Key.tsx";
 import { arrived, can, isPlaying, isStepped, reduce, type Action } from "./mode.ts";
-import { Progress, Getting, FrameButton, Tip, Notice, ITEM, BAR } from "./MomentBar.tsx";
+import { Progress, Getting, FrameButton, Tip, Notice, CantStepIn, ITEM, BAR } from "./MomentBar.tsx";
 import { Turns, useFrames, NoteWords, NotePicture, NoteCard, NoteWas, Write, type Made } from "./Note.tsx";
 import { usePhone } from "./phone.ts";
 import { Picture } from "./Picture.tsx";
@@ -518,12 +518,22 @@ export function MomentView(props: {
   const close = () => act({ type: "close" });
   const save = (words: string) => {
     if (!writing) return;
-    const kept = { ...writing.note, words };
+    keep({ ...writing.note, words });
+    act({ type: "written" });
+  };
+  const keep = (kept: Note) => {
     if (!atLastStop && !phone) lightSend();
     setNotes((all) => [...all, kept]);
-    act({ type: "written" });
     stepIn.saved(kept, mine.length + 1);
   };
+  // Step in didn't work here: the note saying so is the person's own, saved as any is, and carries why for the agent.
+  const tellAgent = () => {
+    const cant = stepIn.cant;
+    if (!cant) return;
+    keep({ id: newId(), on: { handBack: handBack.number, moment: moment.name, at: Math.round(Math.min(cant.from, moment.length) * 100) / 100, cantStepIn: cant.why }, words: "Step in doesn't work on this moment." });
+    stepIn.closeCant();
+  };
+  const toldAgent = mine.some((one) => !!one.on && !madeInApp(one.on) && !!one.on.cantStepIn);
   // Saved on a moment, the note goes to the Notes edge, and the Moments' last card, saying Send one more as it's saved,
   // lights where it stands, with its edge at full while it's lit: nothing goes to it, since the note didn't. At the last
   // stop Send is right there, and on a phone there's no edge.
@@ -702,7 +712,8 @@ export function MomentView(props: {
       return;
     }
     if (key === "escape") {
-      if (open) close();
+      if (stepIn.cant) stepIn.closeCant();
+      else if (open) close();
       else if (comparing) compare();
       else if (noting) act({ type: "note" });
       // While the app is yours, Escape twice is Back, as it is in the app (step-in.ts); getting there, once calls it off.
@@ -1153,9 +1164,10 @@ export function MomentView(props: {
             ref={toolbar}
             style={{ height: BAR, translate: phone ? "-50% 0" : `calc(-50% + ${clear?.x ?? 0}px) calc(-50% + ${clear?.y ?? 0}px)`, opacity: clear ? 1 : 0 }}
           >
-            {/* What Step in has to say, just over the bar, where it was pressed: why it couldn't open, that the app starts
-                first, or in the app that its check at the end doesn't hold now. Under the bar there's no room for it, but
-                on a phone, where over it is the picture. */}
+            {/* What Step in has to say, just over the bar, where it was pressed: that the app starts first, or in the app
+                that its check at the end doesn't hold now; or, as a sheet, that it couldn't open, with what to do about
+                it. Under the bar there's no room for it, but on a phone, where over it is the picture. */}
+            {stepIn.cant && <CantStepIn plainly={stepIn.cant.plainly} told={toldAgent} onTell={tellAgent} onClose={stepIn.closeCant} />}
             {(stepIn.said || stepIn.waitingOn) && (
               <Notice className={stepIn.said ? "text-amber-ink" : "text-soft"}>
                 {stepIn.said || (

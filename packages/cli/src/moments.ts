@@ -613,6 +613,8 @@ async function sayNotes(repo: Repo, change: Change, number: number, asking: stri
     // the agent looks. What their run's setup made is said as setup's, the same place in the agent's own run.
     if (on && madeInApp(on) && on.address)
       console.log(`    The app was at ${on.address} when they wrote it${on.address.includes("${setup.") ? ", setup being what playthrough/setup.ts made for the run, as playthrough as prints it" : ""}.`);
+    // They were told only that it didn't work: why is for the agent, whole, as Playthrough said it then.
+    if (on && !madeInApp(on) && on.cantStepIn) console.log(`    They pressed Step in on this moment and it didn't work: ${on.cantStepIn}`);
   }
   console.log(
     `\nWhere a note asks for a change, change the app, then run every moment again: playthrough again, which says what's different. Where it only asks something, answer it: nothing has to change. Answer each: ${answering("<note>")}; then hand back with playthrough wait, in the background.`,

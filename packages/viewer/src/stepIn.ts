@@ -7,7 +7,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { doneAt, madeBySetup, madeInApp, newId, type Did, type InApp, type Note, type Moment } from "@playthrough/change";
-import { keepBranch, source } from "./api.ts";
+import { keepBranch, source, type CantStepIn } from "./api.ts";
 import { keepSteppedIn, steppedInHere } from "./kept.ts";
 import { isPlaying, keptReadyAt, type Action, type Facts, type Page } from "./mode.ts";
 import type { Clock } from "./Player.tsx";
@@ -15,9 +15,10 @@ import type { App, Heard } from "./Portal.tsx";
 
 // One step in: on which moment, from where, since when, and as it goes, when it should be there, if that can be known;
 // the app's address once it's ready, what setup made for it, and what its check at the end says where it doesn't hold
-// now, or what stopped it; and where your pointer was in the app as you left it. Whether the app wasn't running, so it
-// starts first, and whether it has answered since, so the way there is being redone.
-type Run = { moment: string; from: number; since: number; due?: number; starting?: boolean; answered?: boolean; address?: string; setup?: Record<string, unknown>; checked?: string; problems?: string[]; at?: { x: number; y: number } };
+// now, or why it can't be, until that's closed; what stopped a note made there being kept; and where your pointer was in
+// the app as you left it. Whether the app wasn't running, so it starts first, and whether it has answered since, so the
+// way there is being redone.
+type Run = { moment: string; from: number; since: number; due?: number; starting?: boolean; answered?: boolean; address?: string; setup?: Record<string, unknown>; checked?: string; cant?: CantStepIn; unkept?: string[]; at?: { x: number; y: number } };
 
 export function useStepIn({ change, handBack, moment, page, clock, act, pointing, escapedOnce }: { change: string; handBack: number; moment: Moment; page: Page; clock: Clock; act: (action: Action) => void; pointing: () => void; escapedOnce: () => void }) {
   const [run, setRun] = useState<Run>();
@@ -63,7 +64,7 @@ export function useStepIn({ change, handBack, moment, page, clock, act, pointing
     source.stepIn(change, moment.name, after, asked.signal).then((answer) => {
       if (asked.signal.aborted) return;
       if ("address" in answer) return ours((now) => ({ ...now, address: answer.address, setup: answer.setup, checked: answer.checked }));
-      ours((now) => ({ ...now, problems: answer.problems }));
+      ours((now) => ({ ...now, cant: answer }));
       act({ type: "back", since });
     });
   };
@@ -82,7 +83,8 @@ export function useStepIn({ change, handBack, moment, page, clock, act, pointing
   useEffect(() => {
     if (opening === undefined) return;
     const late = setTimeout(() => {
-      setRun((now) => (now?.since === opening ? { ...now, address: undefined, problems: [`The app's page didn't settle within ${SETTLING / 1000} seconds of being opened. Step in again; if it's as slow again, look at what the app says where it runs.`] } : now));
+      const cant = { plainly: "The app's page didn't finish loading.", why: `The app's page didn't settle within ${SETTLING / 1000} seconds of being opened in their browser.` };
+      setRun((now) => (now?.since === opening ? { ...now, address: undefined, cant } : now));
       act({ type: "back", since: opening });
     }, SETTLING);
     return () => clearTimeout(late);
@@ -113,7 +115,7 @@ export function useStepIn({ change, handBack, moment, page, clock, act, pointing
       const file = `${kept.id}-${++kept.kept}.json`;
       const now = { type: 5, data: { tag: "now", payload: {} }, timestamp: kept.events.at(-1)!.timestamp };
       const length = await keepBranch(change, handBack, from, [...kept.events, now], file);
-      if (typeof length !== "number") return setRun((run) => run && { ...run, problems: length });
+      if (typeof length !== "number") return setRun((run) => run && { ...run, unkept: length });
       // Where the app was, with the ids this step in's setup made said as setup's, for the agent to go there in its own run.
       const on: InApp = { handBack, moment: moment.name, steppedIn: from.at, did: said.did, ...(said.address && { address: madeBySetup(said.address, here?.setup ?? {}) }), recording: `branches/${file}`, length, at: Math.floor(length * 100) / 100, ...(said.element ? { element: said.element } : said.point && { point: said.point }) };
       const [corner, far] = said.box ? [at(said.box.x, said.box.y), at(said.box.x + said.box.width, said.box.y + said.box.height)] : [];
@@ -133,9 +135,12 @@ export function useStepIn({ change, handBack, moment, page, clock, act, pointing
     saved,
     // Kept off the edge until you're back.
     madeThere: (note: Note) => shown && madeThere.current.has(note.id),
-    // What it says under the bar: why it couldn't open, back on the recording; in the app, that its check at the end
+    // What it says over the bar: that a note made in the app couldn't be kept; in the app, that its check at the end
     // doesn't hold now.
-    said: yours ? here?.checked : here?.problems?.join(" "),
+    said: here?.unkept?.join(" ") ?? (yours ? here?.checked : undefined),
+    // Why it couldn't open, back on the recording, and where it was pressed, until it's closed.
+    cant: !shown && here?.cant ? { ...here.cant, from: here.from } : undefined,
+    closeCant: () => setRun((now) => now && { ...now, cant: undefined }),
     // Getting there with the app not running, what the longer wait is on: the app starting, then, once it answers, the
     // way there being redone.
     waitingOn: mode.is === "getting there" && here?.starting ? (here.answered ? ("the way there" as const) : ("the app" as const)) : undefined,

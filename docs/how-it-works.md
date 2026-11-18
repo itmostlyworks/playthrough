@@ -254,7 +254,10 @@ they wrote it.`: its path, query and hash, kept on the note as `address` when it
 the address itself, gone by the time the agent looks). The ids the person's step in made are their run's own, so the
 address is kept with what that run's setup made written as setup's (`madeBySetup`, in `@playthrough/change`, as a
 moment's way writes them; the step in's answer carries its setup to the viewer): `The app was at /boards/${setup.board}
-when they wrote it, setup being what playthrough/setup.ts made for the run, as playthrough as prints it.` A note on a recording says no address: a recording knows only
+when they wrote it, setup being what playthrough/setup.ts made for the run, as playthrough as prints it.` A note made
+with Tell the agent, where Step in didn't work, says under its words why, whole, as Playthrough said it then: `They
+pressed Step in on this moment and it didn't work: playthrough/moments/a-reminder.ts couldn't be loaded, because Node
+says “Cannot find package …”.` A note on a recording says no address: a recording knows only
 the pages it loaded, not where the app's own links went since, and how to stand there takes the agent to it. What a
 click there is on is decided as in the agent's browser (`clicked`, in `@playthrough/page`): what was pressed, or the
 nearest words of their own, never a part of the page that only holds others' (Kan's board, holding its toolbar's
@@ -817,12 +820,18 @@ while it waits leaves the one ahead where it was. Nothing of it shows on the pag
 to say why. **Every wait
 ends in words.** A step in has a minute from its asking, the app's start included ("The app hadn't answered … it may still
 be starting", "This moment didn't open within 60 seconds…"), each page load on the way 30 s, and it stops as soon as the
-asking request closes, though a setup already making its world finishes first, so what it made is given back whole; a
-moment that can't get there says where it stopped and why, in the same words as `again`, and to say so in a note so the agent marks it
-again; one whose check of how it ends doesn't hold on the code as it is now opens where it got to, with that said
-(`checked`); an app that won't start says what it said last and to check `app.json`; a moment that's gone from the
-change says to reload, or to wait for the agent to hand back; a page of a step in from before the page's server restarted says so
-in the frame, and Escape. A page in the frame that never says it has loaded settles after ten seconds.
+asking request closes, though a setup already making its world finishes first, so what it made is given back whole. One
+that can't happen says why twice, where it's known which reason it is (`CantStepIn`, `cantStepIn` in `following.ts`): a
+line for the person (`plainly`) and the whole of it for the agent (`problems`). A moment's file, or `setup.ts`, that
+can't be loaded: "This moment's steps couldn't be loaded." (the agent: the file, and Node's words); `app.json` amiss or
+the app not answering within the minute: "The app didn't start." (the agent: what it said, and `app.log`); a moment that
+stops on the way: Playthrough's own words for where, "On the way here, no link “Settings” was there to click." (the
+agent: the step and why, in the same words as `again`), or, where it has none (`whyStopped`'s `asSaid`), "Something went
+wrong getting there."; over the minute: "It took more than a minute getting there."; a moment gone from the change, or
+not among the last handed back: "This moment has changed since it was handed back."; anything else: "Something went
+wrong getting there." One whose check of how it ends doesn't hold on the code as it is now opens where it got to, with
+that said (`checked`); a page of a step in from before the page's server restarted says so in the frame, and Escape. A
+page in the frame that never says it has loaded settles after ten seconds.
 
 **One app per copy** (`app.ts`), shared by the person stepping in, the agent's browser and every moment run, each in a
 world of its own, as the app always runs the working copy as it is now. Whoever wants it first starts it, on its own,
@@ -842,10 +851,20 @@ drawn one over the other, so neither moves the note; a quick cross-fade, none wi
 first line stays. No countdown. Escape, or
 going to another moment, calls it off: the request ends, which stops the run, and a page of the app already opening
 unseen goes with it; the bar is at rest at once. The page waits 70 s for the answer (the server always gives one within a
-minute) and 30 s for the app's page to settle, then says so just over the bar, beside Step in (under it, at a desktop size, it was off the
-screen), with what to do; so does Playthrough no longer
-running. Whatever stopped it is said there in the server's words; in the app, so is a check at the end that
-doesn't hold now. The app opens in the recording's place, at the same size,
+minute: past that, "Playthrough stopped answering.") and 30 s for the app's page to settle ("The app's page didn't
+finish loading."); Playthrough no longer running is "Playthrough isn't running any more." **Can't step in here.**
+Whatever stopped it, it's said just over the bar, beside Step in (under it, at a desktop size, it was off the screen; on
+a phone, under the bar), as a small sheet drawn as the note card is (`MomentBar.tsx`, `CantStepIn`): "Can't step in
+here", the reason's line under it, quiet, and one button, Tell the agent, filled. Its line has room for two lines, so
+it's the same size for any reason; it stays, playing too, until Escape, a press anywhere else, or Step in again, which
+is trying again. Until 18 Nov it was an amber box with the file's path and Node's words, telling the person to write a
+note themselves ("This state is no bueno… give the user an easy thing to do"). Tell the agent saves a note on the
+moment, at where Step in was pressed, as the person's own, exactly as one they wrote (not sent: it waits with their
+other notes, Send counts it, and it lands on the Notes edge as any does): "Step in doesn't work on this moment.", with
+the whole reason kept on it for the agent as `cantStepIn`, never shown to the person; they can open it and add words.
+With such a note on the moment not yet sent, the sheet says "Noted. It goes with your next Send." in the button's
+place, at its size, and makes no second note. In the app, a check at the end that doesn't hold now is said just over
+the bar, in amber, and so is a note made there that couldn't be kept. The app opens in the recording's place, at the same size,
 and the recording's pointer comes to yours wherever yours has gone, and gives way to it. In the app the bar says "You,
 as …" beside Back, whose key reads Esc ×2: one keycap and its count in the keycap's own small, quiet letters (two
 keycaps side by side read as a bug, the user said), heard as "Back, Escape twice". Back, the keyboard comes back to the page, and the app kept ready underneath

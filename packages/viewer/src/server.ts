@@ -59,11 +59,11 @@ async function stepIn(change: string, moment: string, after: number | undefined,
     const answer = await fetch(`${of(change)}/step-in`, { method: "POST", headers: JSON_BODY, body: JSON.stringify({ moment, after }), signal: AbortSignal.any([asked, AbortSignal.timeout(ANSWERED)]) });
     const said = await answer.json().catch(() => ({}));
     if (answer.ok) return { address: `${location.protocol}//${location.hostname}:${said.port}/step-in/${said.name}`, setup: said.setup ?? {}, checked: said.checked };
-    return { problems: said.problems ?? [`Playthrough couldn't open the app here: it answered ${answer.status}. Step in again; if it says so again, start Playthrough again with playthrough open.`] };
+    return { plainly: said.plainly ?? "Something went wrong getting there.", why: said.problems?.join(" ") ?? `Playthrough answered the step in with ${answer.status}.` };
   } catch (error) {
     if ((error as Error)?.name === "TimeoutError")
-      return { problems: [`Playthrough hasn't answered in ${ANSWERED / 1000} seconds, when it always says within a minute. Look at where playthrough open runs: if it's stuck there, start it again, then step in again.`] };
-    return { problems: ["Playthrough isn't running here any more. Start it again with playthrough open, then step in again."] };
+      return { plainly: "Playthrough stopped answering.", why: `Playthrough hadn't answered the step in after ${ANSWERED / 1000} seconds, when it always does within a minute: playthrough open may be stuck.` };
+    return { plainly: "Playthrough isn't running any more.", why: "Playthrough wasn't running when they pressed it: playthrough open had stopped." };
   }
 }
 

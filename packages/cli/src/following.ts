@@ -29,9 +29,34 @@ export async function runTo(repo: Repo, id: string, to: To, until: number, waiti
   }
   void made?.giveBack();
   if (waiting?.aborted) throw new Refused(["Nobody's waiting for it any more."]);
-  if (late) throw new Refused([`This moment didn't open within ${LONGEST / 1000} seconds: the app was still on its way there. Step in again; if it's as slow again, the app may be stuck, so look at what it says where it runs.`]);
-  throw new Refused([`This moment can't be opened on the app as it is now: ${stopped ? stoppedAt(stopped) : "its way there ended before it got there."} Say so in a note, so the agent marks it again.`]);
+  if (late) throw cantStepIn.late();
+  throw cantStepIn.stopped(stopped);
 }
+
+// Why a step in didn't happen, said twice where it's known which reason it is: in a line for the person, over the bar
+// where they pressed Step in (`plainly`), and whole for the agent, which a note the person makes of it keeps.
+export class CantStepIn extends Refused {
+  plainly: string;
+  constructor(plainly: string, why: string) {
+    super([why]);
+    this.plainly = plainly;
+  }
+}
+
+// Each reason, in the person's words: never a file, a stack or what Node said, which are the agent's to read. Where
+// Playthrough has its own words for where a moment stopped, those; where it has none, that something went wrong.
+export const cantStepIn = {
+  loaded: (file: string, error: unknown) =>
+    new CantStepIn("This moment's steps couldn't be loaded.", `${file} couldn't be loaded, because ${error instanceof Refused ? error.problems.join(" ") : `Node says “${firstLine(String((error as Error)?.message ?? error))}”.`}`),
+  started: (error: unknown) => new CantStepIn("The app didn't start.", reasonOf(error)),
+  stopped: (stopped?: { at?: string; why?: string; asSaid?: true }) =>
+    new CantStepIn(stopped?.why && !stopped.asSaid ? `On the way here, ${stopped.why}.` : SOMETHING, `This moment can't be opened on the app as it is now: ${stopped ? stoppedAt(stopped) : "its way there ended before it got there."}`),
+  late: () => new CantStepIn("It took more than a minute getting there.", `This moment didn't open within ${LONGEST / 1000} seconds: the app was still on its way there, so it may be stuck.`),
+  changed: (why: string) => new CantStepIn("This moment has changed since it was handed back.", why),
+  other: (error: unknown) => (error instanceof CantStepIn ? error : new CantStepIn(SOMETHING, reasonOf(error))),
+};
+const SOMETHING = "Something went wrong getting there.";
+const reasonOf = (error: unknown) => (error instanceof Refused ? error.problems.join(" ") : String((error as Error)?.message ?? error));
 // From the step in's start, the app started if it wasn't running: Kan's longest way there takes ten seconds, and its
 // first, while Next starts and compiles its pages, twenty. The viewer waits a little longer than this for the answer.
 export const LONGEST = 60_000;
@@ -52,7 +77,7 @@ async function run(repo: Repo, id: string, to: To, files: string[], written: num
   const { runAlongside, pageFor } = await alongside();
   const { moments, setup } = await loadedOf(repo, id, files, written);
   const kept = moments.get(to.moment);
-  if (!kept) throw new Refused([`${quote(to.moment)} isn't among this change's moments in ${repo.show(repo.moments(id))} any more: the agent may be marking them again. Once it has handed them back, step in again.`]);
+  if (!kept) throw cantStepIn.changed(`${quote(to.moment)} isn't among this change's moments in ${repo.show(repo.moments(id))} any more: you may be marking them again.`);
   // As the moment is recorded: in the window its file asks for with test.use, like a phone's screen and touch, where an
   // action that can't happen fails in seconds. What else the file says with test.use, Playwright leaves aside.
   const { context, page } = await pageFor(await browser(), app.url, kept.use, setup.use);
@@ -125,8 +150,7 @@ function loadedOf(repo: Repo, id: string, files: string[], written: number) {
   // less than Playwright's does.
   const load = <T>(file: string, by: (file: string, written: number) => Promise<T>) =>
     by(file, written).catch((error) => {
-      if (error instanceof Refused) throw error;
-      throw new Refused([`${repo.show(file)} couldn't be loaded, because Node says “${firstLine(String(error?.message ?? error))}”, so no moment of this change can be stepped into. Say so in a note, so the agent fixes it.`]);
+      throw cantStepIn.loaded(repo.show(file), error);
     });
   const moments = alongside().then(({ momentsIn }) => Promise.all([Promise.all(files.map((file) => load(file, momentsIn))), load(repo.setup, setupIn)])).then(
     ([each, setup]) => {

@@ -27,10 +27,11 @@ export type Source = {
   seen(change: string, by: string, moments: { handBack: number; moment?: string }[]): Promise<string[]>;
   // Stepping in at a moment, after its step's action `after` (none: before them all): how long until it's ready, as long
   // as the last took, and whether the app starts first; kept ready there, for a step in to come; and the app's address
-  // there, what setup made for it, and what its check at the end says where it doesn't hold now. Called off by `asked`.
+  // there, what setup made for it, and what its check at the end says where it doesn't hold now; or why it can't be, in a
+  // line for the person (`plainly`) and whole for the agent (`why`). Called off by `asked`.
   readyIn(change: string, moment: string, after: number | undefined, asked: AbortSignal): Promise<{ in?: number; starting: boolean } | undefined>;
   keepReady(change: string, moment: string, after: number | undefined): void;
-  stepIn(change: string, moment: string, after: number | undefined, asked: AbortSignal): Promise<{ address: string; setup: Record<string, unknown>; checked?: string } | { problems: string[] }>;
+  stepIn(change: string, moment: string, after: number | undefined, asked: AbortSignal): Promise<{ address: string; setup: Record<string, unknown>; checked?: string } | CantStepIn>;
   // What you did in the app, kept as your branch off the moment you stepped in at, as the file `recording` of the
   // hand-back: its length in seconds.
   keepBranch(change: string, branch: { handBack: number; moment: string; at: number; events: unknown[]; recording: string }): Promise<number | string[]>;
@@ -45,6 +46,7 @@ export type Source = {
   keptForTheTab?: Keeping;
 };
 export type Keeping = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+export type CantStepIn = { plainly: string; why: string };
 type Framed = { handBack: number; recording: string; at: number; node?: number; point?: { x: number; y: number } };
 
 export let source: Source = server;

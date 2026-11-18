@@ -1,5 +1,6 @@
 // What stepping in promises: what a moment did only in the page's memory is done again in the person's browser as the
 // moment did it, so they land where the recording rests. Each page is a small board, served in Chromium as the app.
+// And where it can't, why, said to the person plainly and to the agent whole.
 
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -7,6 +8,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { chromium, type Browser, type Page } from "@playwright/test";
+import { Refused } from "@playthrough/change";
+import { cantStepIn } from "../src/following.ts";
+import { whyStopped } from "../src/reporter.ts";
 import { SAYS } from "../src/step-in.ts";
 import { runAlongside } from "../src/test.ts";
 
@@ -121,4 +125,35 @@ test("on the way to where it's stepped into, a key is pressed once the page has 
   );
   assert.equal(handed?.url, "http://app.test/board?back-to=launch");
   await running.close();
+});
+
+// Where a step in can't happen, the person reads why in a line of their own, over the bar; the agent gets it whole.
+test("a moment's file that can't be loaded is said to the person as its steps not loading; the file and Node's words are the agent's", () => {
+  const cant = cantStepIn.loaded("playthrough/moments/a-reminder.ts", new Error("Cannot find package 'kan-utils' imported from /tmp/kan/a-reminder.ts\n    at packageResolve (node:internal)"));
+  assert.equal(cant.plainly, "This moment's steps couldn't be loaded.");
+  assert.deepEqual(cant.problems, ["playthrough/moments/a-reminder.ts couldn't be loaded, because Node says “Cannot find package 'kan-utils' imported from /tmp/kan/a-reminder.ts”."]);
+});
+
+test("an app that doesn't start is said to the person as that, whatever stopped it", () => {
+  const cant = cantStepIn.started(new Refused(["The app didn't answer at http://localhost:3000 within three minutes of being started. Look at .playthrough/app.log for why."]));
+  assert.equal(cant.plainly, "The app didn't start.");
+  assert.match(cant.problems[0]!, /app\.log/);
+});
+
+test("a moment that stops on the way is said in Playthrough's own words for where it stopped, and in none it doesn't have", () => {
+  const missing = cantStepIn.stopped({ at: "Open the settings", ...whyStopped("TimeoutError: locator.click: Timeout 10000ms exceeded.\nCall log:\n  - waiting for getByRole('link', { name: 'Settings', exact: true })\n") });
+  assert.equal(missing.plainly, "On the way here, no link “Settings” was there to click.");
+  assert.deepEqual(missing.problems, ["This moment can't be opened on the app as it is now: it stopped at “Open the settings”: no link “Settings” was there to click."]);
+  const crashed = cantStepIn.stopped({ at: "Open the settings", ...whyStopped("page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/") });
+  assert.equal(crashed.plainly, "Something went wrong getting there.");
+  assert.match(crashed.problems[0]!, /ERR_CONNECTION_REFUSED/);
+});
+
+test("anything else that stops a step in is said to the person as something going wrong, and whole to the agent", () => {
+  const cant = cantStepIn.other(new Error("listen EADDRINUSE: address already in use 127.0.0.1:5830"));
+  assert.equal(cant.plainly, "Something went wrong getting there.");
+  assert.deepEqual(cant.problems, ["listen EADDRINUSE: address already in use 127.0.0.1:5830"]);
+  const late = cantStepIn.late();
+  assert.equal(late.plainly, "It took more than a minute getting there.");
+  assert.equal(cantStepIn.other(late), late, "one said where it was made stays as it was said");
 });
