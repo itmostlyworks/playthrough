@@ -568,9 +568,10 @@ export function MomentView(props: {
     return { [shownOpen.note.id]: { left: left + box.x * screen.width * k, top: top + box.y * screen.height * k, width: box.width * screen.width * k, height: box.height * screen.height * k } };
   })();
   // Where the open note's thing is, one answer however it's found, and none until it's known: on the moment as it is
-  // now, by the recording; on its own frame, by its kept picture, or the recording there until that's drawn. Known,
-  // and not there, it's on nothing.
-  const openAt = opened && openNow ? placed : pictured ? onPicture : shownOpen && onFrame?.note === shownOpen.note.id ? onFrame.at : undefined;
+  // now, by the recording; on its own frame, by the recording there once that's drawn, by its kept picture until then.
+  // Known, and not there, it's on nothing.
+  const onItsFrame = shownOpen && onFrame?.note === shownOpen.note.id ? onFrame.at : undefined;
+  const openAt = opened && openNow ? placed : (onItsFrame ?? (pictured ? onPicture : undefined));
   // What the bar must never cover: an open note's thing while it's open; else, from the first frame shown to the last,
   // what the moment is about and the last thing done in it, where the page has them at its end, known from its reading
   // before anything is drawn. The bar is one place: over one of them, it drops just below the recording's edge for that
@@ -969,29 +970,28 @@ export function MomentView(props: {
               </div>
             )}
             {layers.length > 0 && (
-              // The frame the open note was made on, over the moment: its kept picture, the same one its edge shows, or the
-              // recording there until that's drawn, with no pointer and nothing played.
+              // The frame the open note was made on, over the moment: the recording there, with no pointer and nothing played,
+              // drawn by this browser as Now is, so a flip changes only what changed; its kept picture under it until that's
+              // drawn, and in its place if it never is. Under the pins, as the moment is, so what lies over one lies over both.
               <div ref={shut} className={`absolute inset-0 z-[5] ${opened ? "" : "pointer-events-none"}`}>
                 {layers.map(({ note, made }) => (
                   <div key={note.id} className="absolute inset-0 animate-arrive overflow-hidden bg-paper">
-                    {wasFrame(note) ? (
+                    {wasFrame(note) &&
                       (() => {
                         const { src, screen } = wasFrame(note)!;
                         const framed = framing(screen);
                         return <img src={src} alt="" draggable={false} className={`pointer-events-none absolute ${framed ? "max-w-none" : "inset-0 size-full object-contain"}`} style={framed && { left: framed.left, top: framed.top, width: screen.width * framed.k, height: screen.height * framed.k }} />;
-                      })()
-                    ) : (
-                      <Player
-                        change={change.id}
-                        handBack={made.handBack}
-                        recording={made.recording}
-                        at={made.at}
-                        moves={pageWindow}
-                        hand={false}
-                        marks={[{ id: note.id, ...(made.node !== undefined ? { node: made.node } : made.point && { point: made.point }) }]}
-                        onMarks={note.id === shownOpen?.note.id ? (at) => setOnFrame({ note: note.id, at }) : undefined}
-                      />
-                    )}
+                      })()}
+                    <Player
+                      change={change.id}
+                      handBack={made.handBack}
+                      recording={made.recording}
+                      at={made.at}
+                      moves={pageWindow}
+                      hand={false}
+                      marks={[{ id: note.id, ...(made.node !== undefined ? { node: made.node } : made.point && { point: made.point }) }]}
+                      onMarks={note.id === shownOpen?.note.id ? (at) => setOnFrame({ note: note.id, at }) : undefined}
+                    />
                   </div>
                 ))}
               </div>

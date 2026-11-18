@@ -614,7 +614,9 @@ away, in place: while it's open, Compare's place on the bar holds a two-part swi
 pressing it, or C, flips. Where its thing isn't in the moment now (the agent took it away, or you'd stepped in and gone
 to another page before noting), there's no now to show it on: it opens as it was, on the frame it was made on, its
 strip on the edge cut from that frame, and Now rests, saying "Not in this moment now" when the switch is pointed at; a
-pin never stands on whatever is there instead. A flip is
+pin never stands on whatever is there instead. As it was is the earlier recording played to that frame, drawn by your
+browser with your fonts just as Now is, so a flip changes only what changed in the app; its kept picture, taken where
+it was recorded, is under it until it's drawn, and in its place if it can't be. A flip is
 a cross-fade in the same spot at the same size (at once with reduced motion), the pin going to its thing in the picture
 shown, the card staying where it is. ← → to another note opens it on Now. With its pin and its card, and nothing more. Escape, its picture again, or a press anywhere but its card or the edges closes it;
 Space, S and C act on the moment and close it first. An open note's thing is never under the bar: the bar moves along
