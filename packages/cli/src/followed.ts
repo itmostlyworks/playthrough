@@ -12,7 +12,7 @@ import { glimpsesOn, readingsOn } from "./reporter.ts";
 // settled ("after-1"…), each pictured under that name, or its end, read and pictured once it rested. With how many things
 // had been done by then, and since when the page it shows was there: from the thing done it follows, or for a scroll's,
 // from when the scroll began.
-export type MomentFrame = { name?: string; at: number; done: number; since: number; read: Reading };
+export type MomentFrame = { name?: string; at: number; done: number; since: number; scrolled?: true; read: Reading };
 
 // Where a note's thing is in a hand-back: the moment, the frame, and the thing there; and, where the note's own frame
 // was read, whether it looks as it did then, and if not, what's different, as comparing hand-backs says it.
@@ -30,8 +30,9 @@ export function framesOf(moment: Moment, readings: Reading[], glimpses: Glimpse[
   const frames: MomentFrame[] = [];
   for (const [i, glimpse] of inStep.entries()) {
     const [count, before] = [done(glimpse.at), frames.at(-1)];
-    const since = !before ? -Infinity : count > before.done ? shown[count - 1]!.at : (glimpse.scrolled ?? before.at);
-    frames.push({ name: i ? `after-${i}` : "first", at: glimpse.at, done: count, since, read: { ...glimpse, picture: "" } });
+    const scrolled = !!before && count === before.done;
+    const since = !before ? -Infinity : scrolled ? (glimpse.scrolled ?? before.at) : shown[count - 1]!.at;
+    frames.push({ name: i ? `after-${i}` : "first", at: glimpse.at, done: count, since, ...(scrolled && { scrolled: true as const }), read: { ...glimpse, picture: "" } });
   }
   const last = frames.at(-1);
   const since = !last ? -Infinity : shown.length > last.done ? shown.at(-1)!.at : last.at;
@@ -60,10 +61,7 @@ export function writtenOn(frames: MomentFrame[], on: Note["on"]): { frame: Momen
 }
 
 // Whether the page at a time in a moment was where a scroll it made had brought it, with nothing done since.
-export function scrolledAt(frames: MomentFrame[], at: number): boolean {
-  const i = frames.findLastIndex((frame) => frame.since <= at);
-  return i > 0 && frames[i]!.name !== undefined && frames[i]!.done === frames[i - 1]!.done;
-}
+export const scrolledAt = (frames: MomentFrame[], at: number): boolean => !!frames.findLast((frame) => frame.since <= at)?.scrolled;
 
 // Where it is now: on its own moment, at the frame lined up with the one it was written on by the things done, as it
 // became there; else the first frame of its own moment with something of its role and name; else, the same way, the
@@ -145,7 +143,7 @@ export function followedSaid(change: Change, id: string, followed: Followed | un
   if (!followed)
     return `${which}: isn't in that moment or any marked since the note was written. Fine if the note asked for it to go; otherwise the person has your answer and nothing to look at, so mark a moment that shows what you did.`;
   const { moment, frame, looks } = followed;
-  const where = `${moment.name === on.moment ? "" : `in ${quote(moment.name)} `}${frame.name === undefined ? "at its end" : frame.done ? `after ${doneSaid(moment, frame.done)}` : "as it begins"}`;
+  const where = `${moment.name === on.moment ? "" : `in ${quote(moment.name)} `}${frame.name === undefined ? "at its end" : frame.done ? `after ${doneSaid(moment, frame.done)}${frame.scrolled ? " and the scroll after it" : ""}` : frame.scrolled ? "once it has scrolled, before anything is done" : "as it begins"}`;
   const how = looks === undefined ? "" : looks === "the same" ? ", and looks the same as when the note was written" : `, and looks different from when the note was written${looks.length ? `: ${looks.join("; ")}` : ""}`;
   return `${which}: shown ${where}${how}.`;
 }

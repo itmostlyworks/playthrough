@@ -217,7 +217,8 @@ step begins, named as they were pictured, `first`, `after-1`…, each with how m
 when its page was there, and its end, read once it rested). A moment is glimpsed and pictured after each thing done, and
 also once a scroll it makes in what it shows has settled (`test.scrollPart`, and Playthrough's own `inView` bringing
 what's done next into view; `scrollPartShown` in `test.ts`), which adds a reading and a picture, a few tenths of a
-second, to each such scroll; the page's own smooth scroll between things done (`page.evaluate(… scrollTo …)`) isn't, as
+second, to each such scroll, and a thing shown there is said to be shown `after clicking the button “Pick dates” and the
+scroll after it`, or `once it has scrolled, before anything is done`; the page's own smooth scroll between things done (`page.evaluate(… scrollTo …)`) isn't, as
 nothing waits for it to end. The note's frame is the one whose page was there at its time (after the thing done before
 it, or for a scroll's frame, from when the scroll began, which its glimpse keeps as `scrolled`, so a note written as a
 scroll ran is on the page scrolled where it went), else the one nearest its time, with its element (`writtenOn`). A thing scrolled out of sight inside a part of the

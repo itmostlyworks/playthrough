@@ -108,6 +108,8 @@ describe("a note followed into what's handed back", () => {
     assert.equal(written?.frame.name, "after-2");
     assert.equal(written?.thing.outOfSight, undefined);
     assert.equal(scrolledAt(frames, 1.6), true);
+    const note: Note = { id: "n2", words: "Make it stand out", on };
+    assert.match(followedSaid(change(note), "n2", follow(note, { moment, frames }, [{ moment, frames, own: true, since: false }]))!, /: shown after clicking the button “Pick dates” and the scroll after it, and looks the same/);
     assert.equal(writtenOn(frames, { ...on, at: 1.4 })?.frame.name, "after-1");
     assert.equal(scrolledAt(frames, 1.4), false);
   });
