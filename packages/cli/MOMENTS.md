@@ -109,7 +109,8 @@ whatever change you're on, and what you run means theirs from then on. Then:
    check your word otherwise.
 8. Once the app has changed, playthrough again: every moment runs on the code as it is now, and each is the same, different (and how), or
    couldn't get there. A moment the same says nothing about a note: for each note on a thing, it then says where that
-   thing shows in what you'd hand back and how it looks against when the note was written, or that it isn't in any.
+   thing shows in what you'd hand back and how it looks against when the note was written, or that it isn't in any:
+   fine if the note asked for it to go.
    The person must be able to see what you did: in the moment it was on, run again, or in a moment you mark for it. One that couldn't get there because of your change, get to by hand and mark again
    with the same words, or mark what's there now. Drop a moment only when what it showed no longer exists and nobody
    spoke on it. One nobody spoke on that's now different is worth a look too.

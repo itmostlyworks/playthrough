@@ -85,14 +85,14 @@ describe("a note followed into what's handed back", () => {
     assert.match(followedSaid(change(note), "n2", found)!, /^Note n2, the text “Oct 5, 2026” on “Pick a range”: shown in “A range across two months” after clicking the button “Pick dates”/);
   });
 
-  test("shown nowhere, tells the agent the person would have its answer and nothing to look at", async () => {
+  test("shown nowhere, says so, fine if the note asked for it to go, and otherwise that the person would have its answer and nothing to look at", async () => {
     const then = await framesFor(picking(), [closed, open(), open(), closed]);
     const note = await noteOn(then);
     const now = await framesFor(picking(), [closed, closed, closed, closed]);
     const found = follow(note, { moment: picking(), frames: then }, [{ moment: picking(), frames: now, own: true, since: false }]);
     assert.equal(
       followedSaid(change(note), "n2", found),
-      "Note n2, the text “Oct 5, 2026” on “Pick a range”: isn't in that moment or any marked since the note was written, so the person will have your answer and nothing to look at. If it asked for a change, mark a moment that shows it.",
+      "Note n2, the text “Oct 5, 2026” on “Pick a range”: isn't in that moment or any marked since the note was written. Fine if the note asked for it to go; otherwise the person has your answer and nothing to look at, so mark a moment that shows what you did.",
     );
   });
 

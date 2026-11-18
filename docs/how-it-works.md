@@ -206,7 +206,11 @@ nothing more for it (a note can be a question, and "I left it, because…" is an
     Note n2, the text “Oct 5, 2026” on “Pick a range”: shown after clicking the button “Pick dates”, and looks different from when the note was written: <what's different>.
     Note n2, …: shown after clicking the button “Pick dates”, and looks the same as when the note was written.
     Note n2, …: shown in “A range across two months” at its end, …
-    Note n2, …: isn't in that moment or any marked since the note was written, so the person will have your answer and nothing to look at. If it asked for a change, mark a moment that shows it.
+    Note n2, …: isn't in that moment or any marked since the note was written. Fine if the note asked for it to go; otherwise the person has your answer and nothing to look at, so mark a moment that shows what you did.
+
+Not being there is the fact, said with both its readings, in the voice of `Nothing you can see changed in it. Fine if
+that's the point`: a note asking for the thing to be taken away is answered by its absence (18 Nov: "Open the calendar
+straight away, without this button" was told to mark a moment that shows it).
 
 It uses only what each hand-back keeps, never another run: a moment's frames (`framesOf`: its glimpses from where its
 step begins, named as they were pictured, `first`, `after-1`…, each with how many things had been done by then and since

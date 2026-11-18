@@ -143,7 +143,7 @@ export function followedSaid(change: Change, id: string, followed: Followed | un
   if (!on?.element) return undefined;
   const which = `Note ${id}, the ${on.element.role} ${quote(on.element.name)} on ${quote(on.moment)}`;
   if (!followed)
-    return `${which}: isn't in that moment or any marked since the note was written, so the person will have your answer and nothing to look at. If it asked for a change, mark a moment that shows it.`;
+    return `${which}: isn't in that moment or any marked since the note was written. Fine if the note asked for it to go; otherwise the person has your answer and nothing to look at, so mark a moment that shows what you did.`;
   const { moment, frame, looks } = followed;
   const where = `${moment.name === on.moment ? "" : `in ${quote(moment.name)} `}${frame.name === undefined ? "at its end" : frame.done ? `after ${doneSaid(moment, frame.done)}` : "as it begins"}`;
   const how = looks === undefined ? "" : looks === "the same" ? ", and looks the same as when the note was written" : `, and looks different from when the note was written${looks.length ? `: ${looks.join("; ")}` : ""}`;
