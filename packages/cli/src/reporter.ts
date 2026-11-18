@@ -30,7 +30,8 @@ export async function readingsOn(changes: Changes, change: string, handBack: num
 }
 const picturesOf = (moment: Moment) => `readings/${moment.recording.replace(/\.json$/, "")}`;
 // A moment's frames, beside its step's pictures: the page as its step began, at rest ("first"); the same a beat later, with
-// nothing done ("a-beat-later"); after each thing it does ("after-1"…); and once its end has held ("held").
+// nothing done ("a-beat-later"); after each thing it does, and once each scroll it makes has settled ("after-1"…); and
+// once its end has held ("held").
 export const frameOf = (moment: Moment, name: string) => `${picturesOf(moment)}/${name}.png`;
 // And what was glimpsed after each action, beside them.
 export const glimpsesOf = (moment: Moment) => `${picturesOf(moment)}.glimpses.json`;

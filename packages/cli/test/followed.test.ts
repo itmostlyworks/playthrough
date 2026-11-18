@@ -7,7 +7,7 @@ import { after, before, describe, test } from "node:test";
 import { chromium, type Browser, type Page } from "@playwright/test";
 import type { Glimpse, Reading } from "@playthrough/page";
 import type { Change, Moment, Note } from "@playthrough/change";
-import { follow, followedSaid, framesOf, type MomentFrame } from "../src/followed.ts";
+import { follow, followedSaid, framesOf, scrolledAt, writtenOn, type MomentFrame } from "../src/followed.ts";
 import { readPage } from "../src/read.ts";
 import { wayIn } from "../src/way.ts";
 
@@ -96,6 +96,22 @@ describe("a note followed into what's handed back", () => {
     );
   });
 
+  test("written once a scroll after a thing done had settled, is on the page scrolled as it was, where a thing it had scrolled into sight was out of sight before", async () => {
+    const moment = picking();
+    const days = (top: number) => `<h1>Trip</h1><button>Pick dates</button><div id="days" style="height: 60px; overflow: auto"><div style="height: 200px"></div><button>Oct 5</button></div><script>days.scrollTop = ${top}</script>`;
+    const glimpses = [await read(closed, 0.6), await read(days(0), 1.3), { ...(await read(days(200), 1.8)), scrolled: 1.5 }, await read(days(200), 2.3)];
+    const frames = framesOf(moment, [{ ...(await read(days(200), 3.5)), picture: "readings/end.png" }], glimpses);
+    const oct5 = (frame: MomentFrame) => frame.read.things.find((one) => one.name === "Oct 5")!;
+    assert.equal(oct5(frames[1]!).outOfSight, true);
+    const on = { handBack: 1, moment: "Pick a range", at: 1.6, element: { role: "button", name: "Oct 5" } };
+    const written = writtenOn(frames, on);
+    assert.equal(written?.frame.name, "after-2");
+    assert.equal(written?.thing.outOfSight, undefined);
+    assert.equal(scrolledAt(frames, 1.6), true);
+    assert.equal(writtenOn(frames, { ...on, at: 1.4 })?.frame.name, "after-1");
+    assert.equal(scrolledAt(frames, 1.4), false);
+  });
+
   test("on no thing, a moment as a whole or the change, says nothing", () => {
     const whole: Note = { id: "n3", words: "Feels slow", on: { handBack: 1, moment: "Pick a range" } };
     assert.equal(followedSaid(change(whole), "n3", undefined), undefined);
@@ -122,6 +138,13 @@ test("Pick a range", async ({ page, setup, baseURL }) => {
   test("goes the way of its moment and stops after the things done by the time it was written", () => {
     const way = wayIn(file, 1);
     assert.match(way, /Pick dates/);
+    assert.doesNotMatch(way, /Oct 5/);
+    assert.doesNotMatch(way, /scrollTo/);
+  });
+
+  test("written once the scroll after those had settled, goes that scroll too, and stops before the next thing done", () => {
+    const way = wayIn(file, 1, true);
+    assert.match(way, /scrollTo/);
     assert.doesNotMatch(way, /Oct 5/);
   });
 

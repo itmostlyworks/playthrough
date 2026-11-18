@@ -8,9 +8,11 @@ import { allNotes, madeInApp, quote, type Change, type Changes, type HandBack, t
 import { findingsAt } from "./findings.ts";
 import { glimpsesOn, readingsOn } from "./reporter.ts";
 
-// A frame of a moment as it was read: as its step began ("first"), after each thing done ("after-1"…), each pictured
-// under that name, or its end, read and pictured once it rested. With how many things had been done by then.
-export type MomentFrame = { name?: string; at: number; done: number; read: Reading };
+// A frame of a moment as it was read: as its step began ("first"), after each thing done or once a scroll it made had
+// settled ("after-1"…), each pictured under that name, or its end, read and pictured once it rested. With how many things
+// had been done by then, and since when the page it shows was there: from the thing done it follows, or for a scroll's,
+// from when the scroll began.
+export type MomentFrame = { name?: string; at: number; done: number; since: number; read: Reading };
 
 // Where a note's thing is in a hand-back: the moment, the frame, and the thing there; and, where the note's own frame
 // was read, whether it looks as it did then, and if not, what's different, as comparing hand-backs says it.
@@ -21,22 +23,32 @@ export type Followed = { moment: Moment; frame: MomentFrame; thing: Thing; looks
 export function framesOf(moment: Moment, readings: Reading[], glimpses: Glimpse[]): MomentFrame[] {
   const end = readings.at(-1);
   if (!end) return [];
-  const done = (at: number) => moment.actions.filter((action) => action.at >= moment.from && action.at <= at).length;
+  const shown = moment.actions.filter((action) => action.at >= moment.from);
+  const done = (at: number) => shown.filter((action) => action.at <= at).length;
   const begun = glimpses.findIndex((glimpse) => glimpse.at >= moment.from);
   const inStep = begun < 0 ? [] : glimpses.slice(begun).filter((glimpse) => glimpse.at <= end.at);
-  return [
-    ...inStep.map((glimpse, i) => ({ name: i ? `after-${i}` : "first", at: glimpse.at, done: done(glimpse.at), read: { ...glimpse, picture: "" } })),
-    { at: moment.length, done: moment.actions.filter((action) => action.at >= moment.from).length, read: end },
-  ];
+  const frames: MomentFrame[] = [];
+  for (const [i, glimpse] of inStep.entries()) {
+    const [count, before] = [done(glimpse.at), frames.at(-1)];
+    const since = !before ? -Infinity : count > before.done ? shown[count - 1]!.at : (glimpse.scrolled ?? before.at);
+    frames.push({ name: i ? `after-${i}` : "first", at: glimpse.at, done: count, since, read: { ...glimpse, picture: "" } });
+  }
+  const last = frames.at(-1);
+  const since = !last ? -Infinity : shown.length > last.done ? shown.at(-1)!.at : last.at;
+  return [...frames, { at: moment.length, done: shown.length, since, read: end }];
 }
 
-// The frame a note was written on, and its thing there: the frame nearest its time with its element, by the recording's
-// own numbering, or else something of its role and name.
+// The frame a note was written on, and its thing there: the frame whose page was there at its time, else the one nearest
+// its time, with its element, by the recording's own numbering, or else something of its role and name. Written while a
+// scroll was under way, it's the page scrolled where it was going.
 export function writtenOn(frames: MomentFrame[], on: Note["on"]): { frame: MomentFrame; thing: Thing } | undefined {
   const element = on?.element;
   if (!on || madeInApp(on) || !element || on.at === undefined) return undefined;
   const at = on.at;
   const nearest = (test: (thing: Thing) => boolean) => {
+    const there = frames.findLast((frame) => frame.since <= at);
+    const found = there?.read.things.find(test);
+    if (there && found) return { frame: there, thing: found };
     let best: { frame: MomentFrame; thing: Thing } | undefined;
     for (const frame of frames) {
       const thing = frame.read.things.find(test);
@@ -45,6 +57,12 @@ export function writtenOn(frames: MomentFrame[], on: Note["on"]): { frame: Momen
     return best;
   };
   return (element.node === undefined ? undefined : nearest((thing) => thing.node === element.node)) ?? nearest((thing) => thing.role === element.role && thing.name === element.name);
+}
+
+// Whether the page at a time in a moment was where a scroll it made had brought it, with nothing done since.
+export function scrolledAt(frames: MomentFrame[], at: number): boolean {
+  const i = frames.findLastIndex((frame) => frame.since <= at);
+  return i > 0 && frames[i]!.name !== undefined && frames[i]!.done === frames[i - 1]!.done;
 }
 
 // Where it is now: on its own moment, at the frame lined up with the one it was written on by the things done, as it

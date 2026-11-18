@@ -619,13 +619,15 @@ const keeping: object = Object.assign(
   },
 );
 
-export const test = ((globalThis as Record<symbol, unknown>)[ALONGSIDE] ? Object.assign(keeping, { inView, scrollPart }) : Object.assign(withSteps(recorded), { inView, scrollPart })) as typeof recorded & { inView: typeof inView; scrollPart: typeof scrollPart };
+export const test = ((globalThis as Record<symbol, unknown>)[ALONGSIDE] ? Object.assign(keeping, { inView, scrollPart }) : Object.assign(withSteps(recorded), { inView, scrollPart: scrollPartShown })) as typeof recorded & { inView: typeof inView; scrollPart: typeof scrollPart };
 
 // Something near the screen's top or bottom edge, or with offScreen, out of sight, scrolled smoothly to the middle, as a
 // person would to look at it or do something to it, and the page left to come to rest: a recording has nothing past
 // what the browser showed. Already comfortably in view, too tall to be, or out of sight without offScreen, it stays.
+// Scrolled in what a moment shows, it's glimpsed there, as scrollPart's is.
 const EDGE = 0.15;
 async function inView(target: Locator, { offScreen = false } = {}) {
+  const began = underway && recordedAt(underway);
   const moved = await target
     .first()
     .evaluate(
@@ -644,8 +646,20 @@ async function inView(target: Locator, { offScreen = false } = {}) {
   if (moved && underway) {
     await underway.page.waitForTimeout(100);
     await underway.rest();
+    if (underway.depth) await glimpse(began);
   }
 }
+
+// A part of the page scrolled as the moment says, and in what it shows, the page glimpsed once it's there, as after a thing
+// done: a note written after the scroll began is on the page scrolled as the person saw it, not as it was before.
+async function scrollPartShown(...args: Parameters<typeof scrollPart>) {
+  const began = underway && recordedAt(underway);
+  await scrollPart(...args);
+  if (underway?.depth) await glimpse(began);
+}
+
+// Where the moment underway has got to, in seconds of its recording.
+const recordedAt = (moment: Underway) => seconds(Date.now() - (moment.events[0]?.timestamp ?? Date.now()));
 
 // Every action on an element glides there first and pauses after, and once it's done is a place to step into the moment.
 // Patched once in each worker, for every locator.
@@ -822,13 +836,14 @@ const doneOn = (target: Locator): Promise<On | undefined> =>
 // at the moment of the click, and the pointer glided towards a spot below the window first.
 // Recorded, the page is read just after each action as well, for what a note can be on: a menu or a dialog can come
 // and go inside a step, gone by its end, where the page is read for the comparison. It takes a few hundredths of a
-// second, after the beat; a page on its way to another address has nothing to read.
-async function glimpse() {
+// second, after the beat; a page on its way to another address has nothing to read. And once a scroll has settled, with
+// when it began.
+async function glimpse(scrolled?: number) {
   const moment = underway;
   if (!pointer || !moment) return;
-  const at = seconds(Date.now() - (moment.events[0]?.timestamp ?? Date.now()));
+  const at = recordedAt(moment);
   const read = await readPage(moment.page).catch(() => undefined);
-  if (read) moment.glimpses.push({ step: moment.step ?? "", at, ...read });
+  if (read) moment.glimpses.push({ step: moment.step ?? "", at, ...read, ...(scrolled !== undefined && { scrolled }) });
   // In a moment, pictured too, for what it changes that you can see on the way, as a Copied that goes again.
   if (read && moment.frames.size && !moment.readings.length && moment.depth)
     moment.frames.set(`after-${moment.frames.size - 1}`, await unhovered(moment.page, () => moment.page.screenshot({ animations: "disabled", caret: "hide" })));

@@ -3,7 +3,7 @@
 // you pause, and is already over where you jump to. Its pointer and clicks are read from the recording's own
 // events, for Playthrough to draw over it.
 
-import { answerAs, pathTo, type Answered } from "@playthrough/page";
+import { answerAs, partsAround, pathTo, type Answered } from "@playthrough/page";
 import { EventType, IncrementalSource, MouseInteractions, Replayer, type eventWithTime } from "rrweb";
 import { changesOf, isStep, FRAME } from "./stepping.ts";
 
@@ -577,9 +577,11 @@ export class Replay {
   // background, border or shadow, is what's in it: a heading is its words, not the page's width it's laid out across,
   // which outlined the whole width and had Compare frame the whole page. With words, just those words in it, where
   // they're found.
+  // Scrolled out of sight inside a part of the page that scrolls by itself, it's not in the picture, as one off the
+  // screen isn't: outlined, it was drawn below the calendar that hid it.
   markOf(node: number, words?: string): Rect | undefined {
     const element = this.#replayer.getMirror().getNode(node) as Element | null;
-    if (!element?.getBoundingClientRect) return undefined;
+    if (!element?.getBoundingClientRect || outOfSight(element)) return undefined;
     const found = words ? wordsIn(element, words) : undefined;
     if (found) return rectOf(found.getBoundingClientRect());
     if (drawsItself(element)) return rectOf(element.getBoundingClientRect());
@@ -603,7 +605,7 @@ export class Replay {
     // Everything holding the words says them too: the thing is the smallest.
     const all = [...page.body.querySelectorAll("*")];
     const whole = all.filter(said);
-    const found = (whole.length || words.length < CUT - 1 ? whole : all.filter(begins)).flatMap((element) => rectOf(element.getBoundingClientRect()) ?? []);
+    const found = (whole.length || words.length < CUT - 1 ? whole : all.filter(begins)).flatMap((element) => (outOfSight(element) ? [] : (rectOf(element.getBoundingClientRect()) ?? [])));
     return found.sort((a, b) => a.width * a.height - b.width * b.height)[0];
   }
 
@@ -748,6 +750,7 @@ function wordsIn(element: Element, words: string): Range | undefined {
 }
 
 const rectOf = (box: DOMRect | undefined): Rect | undefined => (box && (box.width || box.height) ? { left: box.left, top: box.top, width: box.width, height: box.height } : undefined);
+const outOfSight = (element: Element) => partsAround(element).some((part) => !part.shows);
 
 // Whether an element is seen as a shape of its own, as a card, a field or a button is, and not only by what's in it.
 function drawsItself(element: Element): boolean {

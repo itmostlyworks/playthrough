@@ -3,11 +3,14 @@
 // everything it can tell apart.
 
 import type { Page } from "@playwright/test";
-import type { Item, Reading, Thing } from "@playthrough/page";
+import { partsAround, type Item, type Reading, type Thing } from "@playthrough/page";
 
 export function readPage(page: Page): Promise<{ screen: Reading["screen"]; things: Thing[]; items: Item[] }> {
-  return page.evaluate(read);
+  return page.evaluate(readHere);
 }
+
+// read, as it's put into a page: with what finds the parts around a thing that scroll by themselves.
+export const readHere = `(${read})(${partsAround})`;
 
 // The page as the app shows it, not as the pointer happens to rest on it: its :hover rules are set aside while it's read
 // and pictured, and put back. Moved by a change, the pointer rests on something else, which lit up only for it. What the
@@ -50,8 +53,9 @@ export function hovering(on: boolean) {
   for (const animation of document.getAnimations()) if (animation instanceof CSSTransition) animation.finish();
 }
 
-// Runs in the page, so everything it uses is inside it: a moment's, and the app stepped into, where it's said as words.
-export function read() {
+// Runs in the page, so everything it uses is inside it, or given: a moment's, and the app stepped into, where it's said
+// as words, with partsAround.
+export function read(around: typeof partsAround) {
   const ROLES = /^(button|link|dialog|alertdialog|group|radiogroup|table|grid|treegrid|heading|status|alert|textbox|searchbox|combobox|checkbox|radio|switch|slider|listbox|option|tab|menu|menuitem|img)$/;
   const HOLDERS = /^(dialog|alertdialog|status|alert|group|radiogroup|table|grid|treegrid|listbox|menu|box)$/;
   const NAMED_BY_WORDS = /^(button|link|heading|option|tab|menuitem|radio|checkbox|switch)$/;
@@ -278,6 +282,7 @@ export function read() {
           ...(column && { column }),
           ...(known?.role === "box" && labelOf(child) && { labelled: true }),
           ...(child.closest('[aria-live]:not([aria-live="off"]), [role="status"], [role="alert"], [role="log"]') && { live: true }),
+          ...(around(child).some((part) => !part.shows) && { outOfSight: true }),
           ...(node !== undefined && node >= 0 && { node }),
           ...(ofItem !== undefined && { item: ofItem }),
         });

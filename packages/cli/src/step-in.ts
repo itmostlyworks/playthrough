@@ -13,7 +13,7 @@ import { running, using } from "./app.ts";
 import { QUIET_DEV_CHROME, recorder, type Handed, type To } from "./run.ts";
 import { cantStepIn, LONGEST, runTo, writtenOf } from "./following.ts";
 import { listen, thisMachine } from "./open.ts";
-import { read } from "./read.ts";
+import { readHere } from "./read.ts";
 import type { App, Repo } from "./repo.ts";
 import type { Made } from "./setup.ts";
 
@@ -522,7 +522,7 @@ export const SAYS = `(() => {
   };
   // What's on the page, read as a moment's page is after each step, once what you did has settled: a note on your
   // recording is on a thing there, as on any moment's.
-  const read = ${read};
+  const read = () => ${readHere};
   let recording = false, reading;
   const readNow = () => recording && window.rrwebRecord.record.addCustomEvent("reading", read());
   const readSoon = () => (clearTimeout(reading), (reading = setTimeout(() => rested().then(readNow), 300)));

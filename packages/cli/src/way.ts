@@ -194,18 +194,19 @@ function locatorOf(done: Pick<Done, "on" | "role" | "name" | "text" | "nth">): s
 
 // The way there of a moment's file, and what the moment does, without what it checks: for going there by hand, not for
 // proving it.
-// Given how many of the things the moment shows to do, it stops after them, where a note written partway was written.
-export function wayIn(file: string, done?: number): string {
+// Given how many of the things the moment shows to do, it stops after them, where a note written partway was written; and
+// where the note was written once the scroll after them had settled, it stops after that scroll, just before the next.
+export function wayIn(file: string, done?: number, scrolled = false): string {
   const lines = file.split("\n");
   const from = lines.findIndex((line) => line.startsWith("test("));
   const step = lines.findIndex((line, i) => i > from && line.includes("await test.step("));
   const thingDone = (line: string) => /^\s*await page\.(?!evaluate\(|waitForFunction\(|waitForURL\(|goto\()/.test(line);
   let until = lines.findIndex((line, i) => i > from && line === "  });");
-  if (step >= 0 && done === 0) until = step;
-  else if (step >= 0 && done) {
-    let counted = 0;
-    const last = lines.findIndex((line, i) => i > step && i < until && thingDone(line) && ++counted === done);
-    if (last >= 0) until = last + 1;
+  if (step >= 0 && done !== undefined) {
+    const things = lines.flatMap((line, i) => (i > step && i < until && thingDone(line) ? [i] : []));
+    if (scrolled) until = things[done] ?? until;
+    else if (done === 0) until = step;
+    else if (things[done - 1] !== undefined) until = things[done - 1]! + 1;
   }
   return lines
     .slice(from + 1, until)

@@ -20,9 +20,11 @@ import { allNotes, madeInApp, quote, Refused, type Change } from "@playthrough/c
 import { keepRunning, UNUSED } from "./app.ts";
 import { sayReady, startBehind } from "./behind.ts";
 import { changeHere, momentNamed } from "./change.ts";
+import { framesOf, scrolledAt } from "./followed.ts";
 import { passedThrough } from "./passed.ts";
 import { hovering } from "./read.ts";
 import type { Repo } from "./repo.ts";
+import { glimpsesOn, readingsOn } from "./reporter.ts";
 import { giveBackLeft, make, personIn, problemsWithPeople, setupIn, type Setup } from "./setup.ts";
 import { steadied } from "./steady.ts";
 import { scrollPart, wayIn, type Done } from "./way.ts";
@@ -406,16 +408,21 @@ async function freeFrom(port: number): Promise<number> {
 }
 
 // Where `as` goes: a moment, by its words, or a note, by its id, which is its moment as far as the note was written:
-// after as many of the things the moment shows as had been done by then.
-type Place = { words: string; file: string; note?: string; done?: number };
+// after as many of the things the moment shows as had been done by then, and the scroll after them, where it had
+// settled by then.
+type Place = { words: string; file: string; note?: string; done?: number; scrolled?: boolean };
 async function placeNamed(repo: Repo, at: string): Promise<Place> {
   const id = await changeHere(repo);
   const change = await repo.changes.get(id);
   const noted = allNotes(change).get(at.trim())?.note;
   if (!noted?.on) return momentNamed(repo, id, at);
   const on = noted.on;
-  const moment = momentNamed(repo, id, on.moment);
-  return { ...moment, note: noted.id, ...(!madeInApp(on) && on.at !== undefined && { done: doneBy(change, on.handBack, on.moment, on.at) }) };
+  const place = { ...momentNamed(repo, id, on.moment), note: noted.id };
+  if (madeInApp(on) || on.at === undefined) return place;
+  const done = doneBy(change, on.handBack, on.moment, on.at);
+  const taken = change.handBacks.find((one) => one.number === on.handBack)?.moments.find((one) => one.name === on.moment);
+  const frames = done !== undefined && taken ? framesOf(taken, await readingsOn(repo.changes, id, on.handBack, taken), await glimpsesOn(repo.changes, id, on.handBack, taken)) : [];
+  return { ...place, done, ...(scrolledAt(frames, on.at) && { scrolled: true }) };
 }
 
 // How many of the things a moment shows had been done by a time in its recording on a hand-back: all of them, if that's
@@ -430,11 +437,11 @@ export function doneBy(change: Change, handBack: number, name: string, at: numbe
 // Done in the browser as the moment's way there does it, on what setup made for this browser, as far as it goes; and
 // said, where it got.
 async function takeTo(page: Page, to: Place, setup: Record<string, unknown>, baseURL: string): Promise<string> {
-  const going = new Function("page", "setup", "baseURL", "test", `return (async () => {\n${wayIn(readFileSync(to.file, "utf8"), to.done)}\n})();`) as (page: Page, setup: unknown, baseURL: string, test: { scrollPart: typeof scrollPart }) => Promise<void>;
+  const going = new Function("page", "setup", "baseURL", "test", `return (async () => {\n${wayIn(readFileSync(to.file, "utf8"), to.done, to.scrolled)}\n})();`) as (page: Page, setup: unknown, baseURL: string, test: { scrollPart: typeof scrollPart }) => Promise<void>;
   return going(page, setup, baseURL, { scrollPart }).then(
     () =>
       to.note && to.done !== undefined
-        ? `It's where note ${to.note} was written, in the moment ${quote(to.words)}${to.done ? `, after the first ${to.done === 1 ? "thing" : `${to.done} things`} it does` : ", before it does anything"}.`
+        ? `It's where note ${to.note} was written, in the moment ${quote(to.words)}${to.done ? `, after the first ${to.done === 1 ? "thing" : `${to.done} things`} it does` : ", before it does anything"}${to.scrolled ? ", scrolled as it was then" : ""}.`
         : `It's at the moment ${quote(to.words)}, by the way the moment got there.`,
     (error) => `It couldn't get all the way to ${quote(to.words)}: ${String(error?.message ?? error).split("\n")[0]}. Go on from there by hand.`,
   );

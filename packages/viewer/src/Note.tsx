@@ -79,7 +79,8 @@ export function useFrames(change: Change, notes: { note: Note; shown?: Made }[])
       // Its picture, as the hand-back took it, and where its thing is on it, as the page there was read.
       const pictured = (src: string, read: Glimpse | undefined) => {
         if (!read) return;
-        const found = made.node !== undefined ? read.things.find((one) => one.node === made.node) : undefined;
+        // Scrolled out of sight inside a part of the page, it's not in the picture, as off the screen.
+        const found = made.node !== undefined ? read.things.find((one) => one.node === made.node && !one.outOfSight) : undefined;
         const { width, height } = read.screen;
         const share = (one: { x: number; y: number; width: number; height: number }) => ({ x: one.x / width, y: one.y / height, width: one.width / width, height: one.height / height });
         const box = found ? share(found.box) : made.point && { ...made.point, width: 0, height: 0 };

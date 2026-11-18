@@ -15,6 +15,7 @@ export type Thing = {
   column?: string; // the heading over it, in a table the page marks as one
   labelled?: true; // a panel with a label of its own, which names it, drawn or not
   live?: true; // in a message the page announces and takes away by itself, a toast: aria-live, or a status or an alert
+  outOfSight?: true; // scrolled out of sight inside a part of the page that scrolls by itself, as days past a calendar's
   node?: number; // its element in the recording
   item?: number; // the item it's in, a row or one of a list's, by its place in the reading's items
 };
@@ -34,5 +35,6 @@ export type Item = {
 // The page the step left. Its moment is in seconds from the recording's start, like a step's.
 export type Reading = { step: string; at: number; screen: { width: number; height: number }; picture: string; things: Thing[]; items?: Item[] };
 // The page just after an action, read on the way through a step for what a note can be on, as a menu or a dialog that's
-// gone by the step's end: its step's reading, without the picture.
-export type Glimpse = Omit<Reading, "picture">;
+// gone by the step's end: its step's reading, without the picture. Or read once a scroll the step made had settled, with
+// when that scroll began: from then on, the page was on its way to this one.
+export type Glimpse = Omit<Reading, "picture"> & { scrolled?: number };

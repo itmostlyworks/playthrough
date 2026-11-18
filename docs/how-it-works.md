@@ -177,7 +177,7 @@ put back anything that worked before and now works differently or is gone withou
 ask does need it, set the app up so it shows and mark it as a moment of its own. From 15 Nov's user testing: asked for
 boards in alphabetical order, an agent also took away starred boards coming first, said so only in its chat, and the
 person, with none starred, accepted. What was taken away arrives as an ordinary moment, nothing marked as unasked. Its frames (`first`, `a-beat-later` with
-nothing done, `after-1`… after each thing done, the last, `held` once the end has held) are pictures the page took of
+nothing done, `after-1`… after each thing done and each scroll settled, the last, `held` once the end has held) are pictures the page took of
 itself, in both runs (`seen.ts`): where nothing changed from the first frame to any after it, in both runs, it says
 `Nothing you can see changed in it. Fine if that's the point`, leaving out squares that change with nothing done, that
 differ between the runs at either end, and where words tell the time, so a colour counts and a clock doesn't; what was
@@ -209,8 +209,18 @@ nothing more for it (a note can be a question, and "I left it, because…" is an
     Note n2, …: isn't in that moment or any marked since the note was written, so the person will have your answer and nothing to look at. If it asked for a change, mark a moment that shows it.
 
 It uses only what each hand-back keeps, never another run: a moment's frames (`framesOf`: its glimpses from where its
-step begins, named as they were pictured, `first`, `after-1`…, each with how many things had been done by then, and its
-end, read once it rested). The note's frame is the one nearest its time with its element (`writtenOn`). Then, on its own
+step begins, named as they were pictured, `first`, `after-1`…, each with how many things had been done by then and since
+when its page was there, and its end, read once it rested). A moment is glimpsed and pictured after each thing done, and
+also once a scroll it makes in what it shows has settled (`test.scrollPart`, and Playthrough's own `inView` bringing
+what's done next into view; `scrollPartShown` in `test.ts`), which adds a reading and a picture, a few tenths of a
+second, to each such scroll; the page's own smooth scroll between things done (`page.evaluate(… scrollTo …)`) isn't, as
+nothing waits for it to end. The note's frame is the one whose page was there at its time (after the thing done before
+it, or for a scroll's frame, from when the scroll began, which its glimpse keeps as `scrolled`, so a note written as a
+scroll ran is on the page scrolled where it went), else the one nearest its time, with its element (`writtenOn`). A thing scrolled out of sight inside a part of the
+page that scrolls by itself is read so (`outOfSight`, by `partsAround`) and, as one off the screen, is never outlined or
+ringed: not in the agent's picture of the note, its strip, or the person's page (`markOf`, `named` in `replay.ts`). 18
+Nov: a note on a day in a calendar that had scrolled to it was pictured with the calendar unscrolled and the day's
+outline drawn under it. Then, on its own
 moment, the frame lined up with it (after the same things done, where they're the same, and as many frames on), and
 there the thing it became, as comparing pairs them (`differences`); else the first frame of its own moment with
 something of its role and name; else, the same way, the first moment new since the note. It looks the same where
@@ -248,7 +258,8 @@ a picture of what they saw with the thing outlined (`noted.ts`: the frame of the
 hand-back pictured it, `writtenOn` in `followed.ts`, so a note on a picker open partway through shows the picker; until
 18 Nov only the page the moment left was looked in, and such a note went without; or for a note made in the
 app, the frame the person's page drew of it), how to stand there (`playthrough as <person> "<moment>"`, or for a note
-written partway through its moment, `playthrough as <person> <note>`, which stops where it was written), and for one
+written partway through its moment, `playthrough as <person> <note>`, which stops where it was written, after the
+scroll that came before it where it was written once that had settled: `scrolledAt`, `wayIn`), and for one
 made in the app what they did there and where the app was when they wrote it (`The app was at /boards/undefined when
 they wrote it.`: its path, query and hash, kept on the note as `address` when it's made, as what went wrong is often
 the address itself, gone by the time the agent looks). The ids the person's step in made are their run's own, so the

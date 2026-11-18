@@ -65,7 +65,8 @@ async function whereSeen(repo: Repo, change: Change, on: OnMoment) {
   if (!frame || (on.element && !shown)) return undefined;
   const reading = frame.read;
   const { width, height } = reading.screen;
-  const area: Area | undefined = shown?.thing.box ?? (on.box && { x: on.box.x * width, y: on.box.y * height, width: on.box.width * width, height: on.box.height * height });
+  // Scrolled out of sight inside a part of the page, as off the screen, it's not in the picture: nothing is outlined.
+  const area: Area | undefined = shown ? (shown.thing.outOfSight ? undefined : shown.thing.box) : on.box && { x: on.box.x * width, y: on.box.y * height, width: on.box.width * width, height: on.box.height * height };
   const spot = on.point && { x: on.point.x * width, y: on.point.y * height };
   return { picture: await file(frame), width, height, area, spot };
 }
