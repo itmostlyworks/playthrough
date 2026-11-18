@@ -2,7 +2,7 @@
 // and whether running it again landed where the agent was.
 
 import type { Locator } from "@playwright/test";
-import { differences, partsAround, type Reading, type Thing } from "@playthrough/page";
+import { differences, onScreen, partsAround, type Reading, type Thing } from "@playthrough/page";
 import { madeBySetup, quote } from "@playthrough/change";
 import { thingIn } from "./reporter.ts";
 
@@ -235,11 +235,10 @@ export function whatDiffers(
   here: { url: string; reading: Reading; about?: About; partsAround?: string[] },
   again: { url: string; reading: Reading; outOfSight?: number },
 ): { differ: string[]; passing: string[]; timely: string[]; address?: string } {
-  const inSight = ({ box }: Thing, { width, height }: Reading["screen"]) => box.y + box.height > 0 && box.y < height && box.x + box.width > 0 && box.x < width;
   // Playthrough scrolls what's shown into view itself, so the same place is the same things saying the same, wherever
   // they sit on the screen: something moved isn't somewhere else.
   const all = differences(here.reading, again.reading).differences.filter(
-    (one) => one.what !== "moved" && (("then" in one && inSight(one.then, here.reading.screen)) || ("now" in one && inSight(one.now, again.reading.screen))),
+    (one) => one.what !== "moved" && (("then" in one && onScreen(one.then.box, here.reading.screen)) || ("now" in one && onScreen(one.now.box, again.reading.screen))),
   );
   // Words that say a time, reworded only in their numbers (“Synced 3 s ago”, “12:04”), change with time, not with the work.
   const timely = (one: (typeof all)[number]) =>

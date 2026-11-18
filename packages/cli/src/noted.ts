@@ -6,6 +6,7 @@
 import { dirname, join } from "node:path";
 import { chromium, type Browser } from "@playwright/test";
 import { allNotes, madeInApp, type InApp, type OnMoment, type Change } from "@playthrough/change";
+import { inSight } from "@playthrough/page";
 import { framesOf, writtenOn, type MomentFrame } from "./followed.ts";
 import type { Frame } from "./frames.ts";
 import type { Repo } from "./repo.ts";
@@ -65,8 +66,8 @@ async function whereSeen(repo: Repo, change: Change, on: OnMoment) {
   if (!frame || (on.element && !shown)) return undefined;
   const reading = frame.read;
   const { width, height } = reading.screen;
-  // Scrolled out of sight inside a part of the page, as off the screen, it's not in the picture: nothing is outlined.
-  const area: Area | undefined = shown ? (shown.thing.outOfSight ? undefined : shown.thing.box) : on.box && { x: on.box.x * width, y: on.box.y * height, width: on.box.width * width, height: on.box.height * height };
+  // Scrolled out of sight inside a part of the page, or off the screen, it's not in the picture: nothing is outlined.
+  const area: Area | undefined = shown ? (inSight(shown.thing, reading.screen) ? shown.thing.box : undefined) : on.box && { x: on.box.x * width, y: on.box.y * height, width: on.box.width * width, height: on.box.height * height };
   const spot = on.point && { x: on.point.x * width, y: on.point.y * height };
   return { picture: await file(frame), width, height, area, spot };
 }

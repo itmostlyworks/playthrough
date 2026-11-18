@@ -38,3 +38,8 @@ export type Reading = { step: string; at: number; screen: { width: number; heigh
 // gone by the step's end: its step's reading, without the picture. Or read once a scroll the step made had settled, with
 // when that scroll began: from then on, the page was on its way to this one.
 export type Glimpse = Omit<Reading, "picture"> & { scrolled?: number };
+
+// Whether any of a box is on the screen: the browser showed nothing past its edges.
+export const onScreen = ({ x, y, width, height }: Thing["box"], screen: Reading["screen"]): boolean => y + height > 0 && y < screen.height && x + width > 0 && x < screen.width;
+// Whether a thing was there to see when the page was read: on the screen, and not scrolled out of sight inside a part.
+export const inSight = (thing: Thing, screen: Reading["screen"]): boolean => !thing.outOfSight && onScreen(thing.box, screen);

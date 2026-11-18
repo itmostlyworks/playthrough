@@ -92,13 +92,12 @@ describe("a note followed into what's handed back", () => {
     const found = follow(note, { moment: picking(), frames: then }, [{ moment: picking(), frames: now, own: true, since: false }]);
     assert.equal(
       followedSaid(change(note), "n2", found),
-      "Note n2, the text “Oct 5, 2026” on “Pick a range”: isn't in that moment or any marked since the note was written. Fine if the note asked for it to go; otherwise the person has your answer and nothing to look at, so mark a moment that shows what you did.",
+      "Note n2, the text “Oct 5, 2026” on “Pick a range”: isn't in sight in that moment or any marked since the note was written. Fine if the note asked for it to go; otherwise the person has your answer and nothing to look at, so mark a moment that shows what you did.",
     );
   });
 
   test("written once a scroll after a thing done had settled, is on the page scrolled as it was, where a thing it had scrolled into sight was out of sight before", async () => {
     const moment = picking();
-    const days = (top: number) => `<h1>Trip</h1><button>Pick dates</button><div id="days" style="height: 60px; overflow: auto"><div style="height: 200px"></div><button>Oct 5</button></div><script>days.scrollTop = ${top}</script>`;
     const glimpses = [await read(closed, 0.6), await read(days(0), 1.3), { ...(await read(days(200), 1.8)), scrolled: 1.5 }, await read(days(200), 2.3)];
     const frames = framesOf(moment, [{ ...(await read(days(200), 3.5)), picture: "readings/end.png" }], glimpses);
     const oct5 = (frame: MomentFrame) => frame.read.things.find((one) => one.name === "Oct 5")!;
@@ -112,6 +111,40 @@ describe("a note followed into what's handed back", () => {
     assert.match(followedSaid(change(note), "n2", follow(note, { moment, frames }, [{ moment, frames, own: true, since: false }]))!, /: shown after clicking the button “Pick dates” and the scroll after it, and looks the same/);
     assert.equal(writtenOn(frames, { ...on, at: 1.4 })?.frame.name, "after-1");
     assert.equal(scrolledAt(frames, 1.4), false);
+  });
+
+  // A calendar scrolled to Oct 5 once Pick dates was clicked, where the note was written.
+  const days = (top: number) => `<h1>Trip</h1><button>Pick dates</button><div id="days" style="height: 60px; overflow: auto"><div style="height: 200px"></div><button>Oct 5</button></div><script>days.scrollTop = ${top}</script>`;
+  const scrolledTo = async (then: string[]) => {
+    const glimpses = [await read(then[0]!, 0.6), await read(then[1]!, 1.3), { ...(await read(then[2]!, 1.8)), scrolled: 1.5 }, await read(then[3]!, 2.3)];
+    return framesOf(picking(), [{ ...(await read(then[4]!, 3.5)), picture: "readings/end.png" }], glimpses);
+  };
+  const onOct5: Note = { id: "n2", words: "Make it stand out", on: { handBack: 1, moment: "Pick a range", at: 1.6, element: { role: "button", name: "Oct 5" } } };
+
+  test("out of sight in a frame, scrolled away inside a part, isn't said to be shown there, but where it comes into sight later in its moment", async () => {
+    const then = await scrolledTo([closed, days(0), days(200), days(200), days(200)]);
+    const now = await framesFor(picking(), [closed, days(0), days(0), days(200)]);
+    const found = follow(onOct5, { moment: picking(), frames: then }, [{ moment: picking(), frames: now, own: true, since: false }]);
+    assert.equal(found?.frame.name, undefined);
+    assert.match(followedSaid(change(onOct5), "n2", found)!, /: shown at its end, and looks the same/);
+  });
+
+  test("out of sight in every frame of its moment, inside a part or past the screen's edge, isn't said to be shown at all", async () => {
+    const then = await scrolledTo([closed, days(0), days(200), days(200), days(200)]);
+    const never = await framesFor(picking(), [closed, days(0), days(0), days(0)]);
+    const said = followedSaid(change(onOct5), "n2", follow(onOct5, { moment: picking(), frames: then }, [{ moment: picking(), frames: never, own: true, since: false }]));
+    assert.match(said!, /: isn't in sight in that moment or any marked since the note was written\./);
+    const below = `<h1>Trip</h1><button>Pick dates</button><div style="height: 2000px"></div><button>Oct 5</button>`;
+    const offScreen = await framesFor(picking(), [closed, below, below, below]);
+    const past = follow(onOct5, { moment: picking(), frames: then }, [{ moment: picking(), frames: offScreen, own: true, since: false }]);
+    assert.equal(past, undefined);
+  });
+
+  test("written where its thing was out of sight, says where it's shown and nothing about how it looks", async () => {
+    const then = await framesFor(picking(), [closed, days(0), days(0), days(0)]);
+    const now = await framesFor(picking(), [closed, days(200), days(200), days(200)]);
+    const note: Note = { ...onOct5, on: { ...onOct5.on!, at: 1.3 } };
+    assert.equal(followedSaid(change(note), "n2", follow(note, { moment: picking(), frames: then }, [{ moment: picking(), frames: now, own: true, since: false }])), "Note n2, the button “Oct 5” on “Pick a range”: shown after clicking the button “Pick dates”.");
   });
 
   test("on no thing, a moment as a whole or the change, says nothing", () => {

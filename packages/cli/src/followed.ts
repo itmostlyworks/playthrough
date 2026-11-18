@@ -3,7 +3,7 @@
 // ends, so its thing is looked for in every frame the hand-back already keeps, never by running anything again. It's
 // told as a fact, in Playthrough's words; where the frames don't allow it, nothing is said.
 
-import { differences, looksAsItWas, type Glimpse, type Reading, type Thing } from "@playthrough/page";
+import { differences, inSight, looksAsItWas, type Glimpse, type Reading, type Thing } from "@playthrough/page";
 import { allNotes, madeInApp, quote, type Change, type Changes, type HandBack, type Moment, type Note, type Shown } from "@playthrough/change";
 import { findingsAt } from "./findings.ts";
 import { glimpsesOn, readingsOn } from "./reporter.ts";
@@ -64,30 +64,41 @@ export function writtenOn(frames: MomentFrame[], on: Note["on"]): { frame: Momen
 export const scrolledAt = (frames: MomentFrame[], at: number): boolean => !!frames.findLast((frame) => frame.since <= at)?.scrolled;
 
 // Where it is now: on its own moment, at the frame lined up with the one it was written on by the things done, as it
-// became there; else the first frame of its own moment with something of its role and name; else, the same way, the
-// first moment marked since the note that has it. Then is what it was on, where that was read.
+// became there, or the first frame after that where it's in sight; else the first frame of its own moment with something
+// of its role and name in sight; else, the same way, the first moment marked since the note that has it. A frame where
+// it's out of sight, past the screen's edge or scrolled away inside a part, doesn't show it. Then is what it was on,
+// where that was read; how it looks against that is said only where it was in sight then too.
 export function follow(note: Note, then: { frames: MomentFrame[]; moment?: Moment } | undefined, now: { moment: Moment; frames: MomentFrame[]; own: boolean; since: boolean }[]): Followed | undefined {
   const element = note.on?.element;
   if (!element) return undefined;
   const was = then && writtenOn(then.frames, note.on);
   const named = (thing: Thing) => thing.role === (was?.thing.role ?? element.role) && thing.name === (was?.thing.name ?? element.name);
   const looks = (frame: MomentFrame, thing: Thing): Followed["looks"] => {
-    if (!was) return undefined;
+    if (!was || !inSight(was.thing, was.frame.read.screen)) return undefined;
     if (looksAsItWas(was.thing, thing)) return "the same";
     return findingsAt(was.frame.read, frame.read)
       .filter((found) => [found.element, ...(found.alike ?? [])].some((one) => one && one.node === thing.node && one.role === thing.role))
       .map((found) => found.words);
   };
+  const shownIn = (moment: Moment, frame: MomentFrame, test: (thing: Thing) => boolean): Followed | undefined => {
+    const thing = frame.read.things.find((one) => test(one) && inSight(one, frame.read.screen));
+    return thing && { moment, frame, thing, looks: looks(frame, thing) };
+  };
   const own = now.find((one) => one.own);
   if (own && was && then?.moment) {
     const lined = linedUp(was.frame, then.frames, then.moment, own.frames, own.moment);
     const became = lined && [...differences(was.frame.read, lined.read).was].find(([, before]) => before === was.thing)?.[0];
-    if (lined && became) return { moment: own.moment, frame: lined, thing: became, looks: looks(lined, became) };
+    const same = (thing: Thing) => (became?.node !== undefined ? thing.node === became.node : thing.role === became?.role && thing.name === became.name);
+    if (lined && became)
+      for (const frame of own.frames.slice(own.frames.indexOf(lined))) {
+        const found = shownIn(own.moment, frame, same);
+        if (found) return found;
+      }
   }
   for (const { moment, frames } of [...(own ? [own] : []), ...now.filter((one) => one.since)])
     for (const frame of frames) {
-      const thing = frame.read.things.find(named);
-      if (thing) return { moment, frame, thing, looks: looks(frame, thing) };
+      const found = shownIn(moment, frame, named);
+      if (found) return found;
     }
 }
 
@@ -141,7 +152,7 @@ export function followedSaid(change: Change, id: string, followed: Followed | un
   if (!on?.element) return undefined;
   const which = `Note ${id}, the ${on.element.role} ${quote(on.element.name)} on ${quote(on.moment)}`;
   if (!followed)
-    return `${which}: isn't in that moment or any marked since the note was written. Fine if the note asked for it to go; otherwise the person has your answer and nothing to look at, so mark a moment that shows what you did.`;
+    return `${which}: isn't in sight in that moment or any marked since the note was written. Fine if the note asked for it to go; otherwise the person has your answer and nothing to look at, so mark a moment that shows what you did.`;
   const { moment, frame, looks } = followed;
   const where = `${moment.name === on.moment ? "" : `in ${quote(moment.name)} `}${frame.name === undefined ? "at its end" : frame.done ? `after ${doneSaid(moment, frame.done)}${frame.scrolled ? " and the scroll after it" : ""}` : frame.scrolled ? "once it has scrolled, before anything is done" : "as it begins"}`;
   const how = looks === undefined ? "" : looks === "the same" ? ", and looks the same as when the note was written" : `, and looks different from when the note was written${looks.length ? `: ${looks.join("; ")}` : ""}`;

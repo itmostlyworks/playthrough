@@ -206,7 +206,7 @@ nothing more for it (a note can be a question, and "I left it, because…" is an
     Note n2, the text “Oct 5, 2026” on “Pick a range”: shown after clicking the button “Pick dates”, and looks different from when the note was written: <what's different>.
     Note n2, …: shown after clicking the button “Pick dates”, and looks the same as when the note was written.
     Note n2, …: shown in “A range across two months” at its end, …
-    Note n2, …: isn't in that moment or any marked since the note was written. Fine if the note asked for it to go; otherwise the person has your answer and nothing to look at, so mark a moment that shows what you did.
+    Note n2, …: isn't in sight in that moment or any marked since the note was written. Fine if the note asked for it to go; otherwise the person has your answer and nothing to look at, so mark a moment that shows what you did.
 
 Not being there is the fact, said with both its readings, in the voice of `Nothing you can see changed in it. Fine if
 that's the point`: a note asking for the thing to be taken away is answered by its absence (18 Nov: "Open the calendar
@@ -227,9 +227,12 @@ ringed: not in the agent's picture of the note, its strip, or the person's page 
 Nov: a note on a day in a calendar that had scrolled to it was pictured with the calendar unscrolled and the day's
 outline drawn under it. Then, on its own
 moment, the frame lined up with it (after the same things done, where they're the same, and as many frames on), and
-there the thing it became, as comparing pairs them (`differences`); else the first frame of its own moment with
-something of its role and name; else, the same way, the first moment new since the note. It looks the same where
-`looksAsItWas` says so; else different, with what comparing would say of that thing there (`findingsAt`, kept to the
+there the thing it became, as comparing pairs them (`differences`), or the first frame after that where it's in sight;
+else the first frame of its own moment with something of its role and name in sight; else, the same way, the first
+moment new since the note. A frame where the thing is off the screen or scrolled out of sight inside a part (`inSight`
+in `reading.ts`) doesn't show it, so it's passed over as if the thing weren't there: 18 Nov, a day in a calendar
+scrolled out of sight was said to be `shown … as it begins`. Where it was out of sight on the note's own frame, nothing
+is said about how it looks. It looks the same where `looksAsItWas` says so; else different, with what comparing would say of that thing there (`findingsAt`, kept to the
 findings on it), or nothing more where comparing says nothing of it. A note made in the app, where no reading of its
 frame is kept, gets where it's shown and nothing on how it looks. A note on no thing (a moment as a whole, a spot, the
 change) gets no line. From a real run with 0.7.1: three notes on a date picker, every moment "the same", the moment
