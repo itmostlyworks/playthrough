@@ -313,7 +313,9 @@ rather than adding to it, so the page's Back leaves that page instead of steppin
 own, or at `playthrough open`'s in a frame (an editor's browser), none of this applies.
 
 What another page may find the viewer's parts by is `data-part`, never their words or looks: the bar's `play`,
-`step-in` (`back` once in the app), `note`, `compare`, and `send` (`done` with nothing to send), the arrows by Play,
+`step-in` (`back` once in the app), `note`, `compare`, and `send` (`done` with nothing to send), in Compare's place
+while a note from an earlier hand-back is open the switch `shown` with its `as-it-was` and `now`, the one shown pressed
+(`aria-pressed`), the arrows by Play,
 `frame-before` and `next-frame`, and every key drawn on a button, `key` (Back's "Esc ×2" is one); a note's `pin` and
 `note-card`; the rounded box the recording sits in, `picture`, always, where `data-picture` is there only while the
 picture can be moved; the change's `title` over the recording (in the header on a phone; not drawn when shown by another page); the edges, `moments` and `notes`; each

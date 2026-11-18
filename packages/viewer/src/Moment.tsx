@@ -1219,12 +1219,13 @@ export function MomentView(props: {
               (flips ? (
                 // A note from an earlier hand-back open: how it was, or now, flipped in place. Each part chooses itself.
                 // Its thing not in the moment now, Now rests, and says why when the switch is pointed at.
-                <span role="group" aria-label="Shown" className={`${COMPARING} group/tip relative flex items-stretch rounded-lg bg-hover p-0.5`}>
+                <span role="group" aria-label="Shown" data-part="shown" className={`${COMPARING} group/tip relative flex items-stretch rounded-lg bg-hover p-0.5`}>
                   {(["As it was", "Now"] as const).map((words) => {
                     const chosen = (words === "As it was") === flipped;
                     return (
                       <button
                         key={words}
+                        data-part={words === "Now" ? "now" : "as-it-was"}
                         aria-pressed={chosen}
                         disabled={!chosen && !nowThere}
                         aria-description={!chosen && !nowThere ? NOT_NOW : undefined}
