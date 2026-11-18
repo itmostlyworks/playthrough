@@ -52,7 +52,7 @@ and a *reply* the agent's answer, or the person's back. *Handing back* gives the
 
 ```bash
 playthrough change "<title>" "<what was asked>"   # names the change; every command in this copy means it until another is named
-playthrough as <person> ["<moment>" or <note>]    # the app, and a browser signed in as them, for the agent's own tool
+playthrough as <person> ["<moment>" or <note>]    # the app, and a browser as them, for the agent's own tool
 playthrough stop                                   # stops that browser
 playthrough moment "<what's there>" ["<thing>"] [--last N]   # keeps what was just done as a moment
 playthrough again                                  # every moment again, on the code as it is now
@@ -81,8 +81,10 @@ left, the next one gives back.
 **`change`** (`change.ts`) names it, and refuses a title whose name is a folder Playthrough keeps for itself, or makes
 the name of another change here with a different title, saying which; the same title again goes back on it.
 
-**`as <person>`** (`as.ts`) starts the app if nobody has, and a Chromium signed in as them (1280 by 800, English, UTC),
-on a debugging port from 9333 that the agent's own browser tool attaches to, and keeps everything done there as it's
+**`as <person>`** (`as.ts`) starts the app if nobody has, and a Chromium as them (1280 by 800, English, UTC), saying
+only what it knows of who that is: signed in by `setup.ts`'s `signIn` where it has one, and otherwise open as them,
+saying nothing signed them in, or, where its default export made something, that only it could have (`opened`: a real
+run on a fixture with no sign-in was told "signed in as" its person, 0.7.1). It's on a debugging port from 9333 that the agent's own browser tool attaches to, and keeps everything done there as it's
 done: each thing by its role and name (a switch, checkbox, radio or slider with no name by its role and which it is), or
 by its words where nothing names it, both read as the page shows them with nothing hovered and as they're written, not
 as the page's style cases them (`asWritten`: a fold upper-cased by CSS is "My boards", which is what getByRole and
@@ -761,7 +763,7 @@ rule beside it, `standingOf`, which every part of the page reads; the agent's `w
 ## Stepping in
 
 Step in (S) turns the recording into the real app at the moment it rests on, or where it has got to if it's playing, as
-the moment's person, signed in, a fresh copy made the way every moment starts. Nothing runs before your first step in on
+the moment's person (signed in where `setup.ts` has `signIn`), a fresh copy made the way every moment starts. Nothing runs before your first step in on
 a change: watching does nothing to the app, so the first is made while you wait. After it, Playthrough keeps the app
 ready where the recording rests, so the next is quick. Each step in is still the app made fresh, never one left behind.
 

@@ -4,7 +4,7 @@ Read this once, to its end.
 
   playthrough change "<title>" "<what was asked>"   name the change you're making, once: a title, as a pull request's,
                                                      and what you were asked, in the person's words
-  playthrough as <person> ["<moment>" or <note>]    a browser on the app, signed in as one of its people, back once
+  playthrough as <person> ["<moment>" or <note>]    a browser on the app as one of its people, back once
                                                      it's ready; given a moment, it goes there the way the moment did;
                                                      given a note, as far as where it was written
   playthrough stop                                   stop that browser
@@ -35,13 +35,19 @@ if they say so.
     export const people = { Maja: "the owner", Sam: "a member" };
 
     // Given the page, a request of its own, the app's address and who it's for; what it returns is the moment's setup.
-    // page.request shares the page's cookies, so signing up or in there signs the page in.
-    export default async function ({ page, request, person }: { page: Page; request: APIRequestContext; baseURL?: string; person?: string }) {
+    export default async function ({ request, person }: { page: Page; request: APIRequestContext; baseURL?: string; person?: string }) {
       const email = `${person!.toLowerCase()}.${Date.now().toString(36)}@example.com`;
-      const signedUp = await page.request.post("/api/sign-up", { data: { email, password: "launch-week", name: person } });
+      const signedUp = await request.post("/api/sign-up", { data: { email, password: "launch-week", name: person } });
       if (!signedUp.ok()) throw new Error(`Sign-up: ${await signedUp.text()}`);
-      const board = await (await page.request.post("/api/boards", { data: { name: "Website launch" } })).json();
+      const board = await (await request.post("/api/boards", { data: { name: "Website launch" } })).json();
       return { board: board.id, email };
+    }
+
+    // Signs the page in as them, where the app has signing in: only then is the browser said to be signed in.
+    // page.request shares the page's cookies.
+    export async function signIn({ page, setup }: { page: Page; person: string; setup: Record<string, any> }) {
+      const signedIn = await page.request.post("/api/sign-in", { data: { email: setup.email, password: "launch-week" } });
+      if (!signedIn.ok()) throw new Error(`Sign-in: ${await signedIn.text()}`);
     }
 
     // Takes away what was made, once it's done with: told what the default export returned.

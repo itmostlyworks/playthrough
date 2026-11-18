@@ -1,8 +1,8 @@
-// The agent's browser: the app, signed in as one of its people, open to the agent's own tool over Chrome's debugging
+// The agent's browser: the app, as one of its people, open to the agent's own tool over Chrome's debugging
 // port, so it checks its work as someone would use it. Whatever drives it, what's done there is kept as it's done, for
 // `playthrough moment` to write as the way there.
 //
-//   playthrough as <person> ["<moment>"]  starts the app and the browser, signed in as them, and, named, goes a kept
+//   playthrough as <person> ["<moment>"]  starts the app and the browser, as them, and, named, goes a kept
 //                                         moment's way there; the browser open already starts again, fresh. It comes
 //                                         back once the browser is ready, and the browser runs on behind it
 //   playthrough as <person> <note>        the same, going the way of the note's moment and stopping where it was
@@ -11,7 +11,7 @@
 
 import { chromium, request as requests, type Page } from "@playwright/test";
 import { execFileSync, spawn } from "node:child_process";
-import { closeSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -21,7 +21,7 @@ import { keepRunning, UNUSED } from "./app.ts";
 import { changeHere, momentNamed } from "./change.ts";
 import { hovering } from "./read.ts";
 import type { Repo } from "./repo.ts";
-import { giveBackLeft, make, personIn, problemsWithPeople, setupIn } from "./setup.ts";
+import { giveBackLeft, make, personIn, problemsWithPeople, setupIn, type Setup } from "./setup.ts";
 import { steadied } from "./steady.ts";
 import { scrollPart, wayIn, type Done } from "./way.ts";
 
@@ -29,7 +29,7 @@ import { scrollPart, wayIn, type Done } from "./way.ts";
 const DEBUGGING = 9333;
 const LAPTOP = { width: 1280, height: 800 };
 
-// What the browser keeps while the agent works, for `moment` to read: who it's signed in as, what setup made for them,
+// What the browser keeps while the agent works, for `moment` to read: who it's open as, what setup made for them,
 // and what's been done since it started.
 export type Browser = { pid: number; person: string; started: string; setup: Record<string, unknown>; url: string; debugging: number; profile: string; did: Done[]; began: number };
 export const browserFile = (repo: Repo) => join(repo.root, ".playthrough", "browser.json");
@@ -218,7 +218,7 @@ export async function as(repo: Repo, person: string, at?: string) {
   const began = Date.now();
   // Run by the agent, a browser open already starts again from a fresh start, as this person, rather than a new one
   // starting; else the browser is started behind this command (startBehind), and it's that one that goes on from here.
-  if (!process.send) return (await startAgain(repo, person, began, to?.words)) || startBehind(repo);
+  if (!process.send) return (await startAgain(repo, setup, person, began, to?.words)) || startBehind(repo);
   await clearEarlier(repo);
   // Stopped, by Ctrl+C or a kill, what setup made is given back by app.ts's own handling, which this sets up; stopped
   // so that nothing runs after it, the next one gives it back here.
@@ -228,7 +228,7 @@ export async function as(repo: Repo, person: string, at?: string) {
   const debugging = await freeFrom(DEBUGGING);
   process.once("exit", () => rmSync(profile, { recursive: true, force: true }));
   // The browser's own first window, rather than one of Playwright's: a tool attaching over the debugging port finds the
-  // pages there, signed in, with what's set up here on them, and any page it opens there gets the same.
+  // pages there, as the person, with what's set up here on them, and any page it opens there gets the same.
   const context = await chromium.launchPersistentContext(profile, {
     headless: !process.env.PLAYTHROUGH_HEADED,
     args: [`--remote-debugging-port=${debugging}`, "--enable-blink-features=ComputedAccessibilityInfo"],
@@ -256,7 +256,7 @@ export async function as(repo: Repo, person: string, at?: string) {
   const save = () => writeFileSync(browserFile(repo), JSON.stringify(live, null, 2));
   // When something was last done in it, or it last started again: what its end, left alone, is counted from.
   let used = began;
-  // Asked to start again (startAgain): what was made is given back, the browser forgets who it was signed in as, and
+  // Asked to start again (startAgain): what was made is given back, the browser forgets who it was open as, and
   // what every moment starts from is made again, for whoever's asked for; the way there starts again from the app's start.
   process.on("SIGUSR1", async () => {
     try {
@@ -293,8 +293,7 @@ export async function as(repo: Repo, person: string, at?: string) {
   await page.goto(app.url);
   const went = to && (await takeTo(page, to, made.setup, app.url));
   save();
-  console.log(`Ready in ${((Date.now() - began) / 1000).toFixed(1)}s: a browser signed in as ${person}, on ${app.url}, what they start from made by playthrough/setup.ts:
-  ${JSON.stringify(made.setup)}
+  console.log(`Ready in ${((Date.now() - began) / 1000).toFixed(1)}s: ${opened("a browser", repo, setup, person, app.url, made.setup)}
 Drive it with your own tool over its debugging port, http://localhost:${debugging}${debugging === DEBUGGING ? "" : `, as another copy's browser has ${DEBUGGING}`}:
   agent-browser --cdp ${debugging} snapshot
   or Playwright: chromium.connectOverCDP("http://localhost:${debugging}"), then its first context's page
@@ -306,6 +305,17 @@ It runs until you hand back (playthrough wait) or stop it (playthrough stop), or
   process.send!("ready");
   process.disconnect();
   setInterval(() => Date.now() - used > UNUSED && process.kill(process.pid, "SIGINT"), 60_000);
+}
+
+// Who the browser is, saying only what Playthrough knows: "as Sam" is who the moment is done as, and signed in is said
+// only where setup's signIn signed them in. Its default export may have, as signing up on page.request does, but nothing
+// tells Playthrough so.
+export function opened(browser: string, repo: Repo, setup: Setup, person: string, url: string, made: Record<string, unknown>): string {
+  const what = setup.make ? `, what they start from made by playthrough/setup.ts:\n  ${JSON.stringify(made)}` : ".";
+  if (setup.signIn) return `${browser} signed in as ${person} by playthrough/setup.ts's signIn, on ${url}${what}`;
+  const at = `${browser} on ${url} as ${person}${what}`;
+  if (setup.make) return `${at}\nplaythrough/setup.ts has no signIn: they're signed in only if its default export signed them in.`;
+  return `${at} Nothing signed them in: ${existsSync(repo.setup) ? "playthrough/setup.ts has no signIn" : "there's no playthrough/setup.ts"}.`;
 }
 
 // The browser, started as a process of its own that outlives this one: this command comes back once it says it's
@@ -358,7 +368,7 @@ export async function stop(repo: Repo) {
 
 // The browser open already, told to start again as this person, and said ready once it has: in a few seconds, where a
 // new one takes ten.
-async function startAgain(repo: Repo, person: string, began: number, at?: string): Promise<boolean> {
+async function startAgain(repo: Repo, setup: Setup, person: string, began: number, at?: string): Promise<boolean> {
   let live: Browser;
   try {
     live = JSON.parse(readFileSync(browserFile(repo), "utf8"));
@@ -375,8 +385,7 @@ async function startAgain(repo: Repo, person: string, began: number, at?: string
     if (again.failed) throw new Refused([`The browser open already couldn't start again as ${person}: ${again.failed}. Stop it (playthrough stop), then run this again.`]);
     if (now.began > began)
       return (
-        console.log(`Started again in ${((Date.now() - began) / 1000).toFixed(1)}s, in the browser open already: signed in as ${person}, on ${now.url}, from a fresh start made by playthrough/setup.ts:
-  ${JSON.stringify(now.setup)}
+        console.log(`Started again in ${((Date.now() - began) / 1000).toFixed(1)}s, from a fresh start: ${opened("the browser open already", repo, setup, person, now.url, now.setup)}
 ${again.went ? `${again.went}\n` : ""}Your tool stays attached at http://localhost:${now.debugging}. When you've just done what shows the change: playthrough moment "<what's there>"`),
         true
       );
