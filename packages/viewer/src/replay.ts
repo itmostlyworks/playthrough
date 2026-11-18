@@ -219,6 +219,8 @@ export class Replay {
   #exactAt: number | undefined;
   #began = new WeakMap<Animation, number>();
   #until = new Map<number, number>();
+  // Whether the browser it was recorded in was dark: what a page asking for either light or dark is shown in.
+  #dark: boolean;
 
   // Built where it will show: rrweb builds its page only in one that's already in the document.
   constructor(events: Events, into: HTMLElement) {
@@ -263,8 +265,11 @@ export class Replay {
     // viewer's browser, and a site recorded light played dark in a dark viewer.
     const page = this.#replayer.iframe.contentWindow as (Window & typeof globalThis) | null;
     if (page) answerAs(page, shows.browser);
+    this.#dark = shows.browser.dark;
+    this.#replayer.iframe.style.backgroundColor = "Canvas";
     this.#keepKeys();
     this.#replayer.pause(this.#drawn);
+    this.#onCanvas();
   }
 
   // The page at a moment of its recording, in seconds. Before its start, while the moment's name is up, its first frame.
@@ -314,6 +319,7 @@ export class Replay {
     if (ms < this.#at) (this.#replayer as unknown as { service: { state: { context: { lastPlayedEvent: unknown } } } }).service.state.context.lastPlayedEvent = null;
     this.#replayer.pause(ms);
     this.#at = ms;
+    this.#onCanvas();
     this.#scrollBetween(ms / 1000);
     const shape = this.shapeAt(ms / 1000);
     const resized = shape !== this.#shape;
@@ -322,6 +328,21 @@ export class Replay {
       Object.assign(this.host.style, { width: `${shape.width}px`, height: `${shape.height}px` });
     }
     this.#fit(resized);
+  }
+
+  // A page that paints no background of its own is drawn on the browser's canvas, light or dark as the page asks, as a
+  // real browser draws it, so the frame it's played in is never see-through onto anything behind it: a light app played
+  // in a light viewer showed the moment's end through it, text over text. The frame is given the page's own scheme, so
+  // the browser keeps the page's canvas clear and the frame's own shows.
+  #onCanvas() {
+    const frame = this.#replayer.iframe;
+    const root = frame.contentDocument?.documentElement;
+    if (!root) return;
+    const css = frame.contentWindow!.getComputedStyle(root).colorScheme;
+    const asked = (css && css !== "normal" ? css : (frame.contentDocument!.querySelector('meta[name="color-scheme"]')?.getAttribute("content") ?? "")).split(/\s+/);
+    const preferred = this.#dark ? "dark" : "light";
+    const scheme = asked.includes(preferred) ? preferred : (asked.find((one) => one === "light" || one === "dark") ?? "light");
+    if (frame.style.colorScheme !== scheme) frame.style.colorScheme = scheme;
   }
 
   // The page as it was at a step, its motion where it had got to then, in the recording's own time: what the page set

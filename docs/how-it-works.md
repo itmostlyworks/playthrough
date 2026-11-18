@@ -329,7 +329,9 @@ what moved its field has stopped; the page places it from the field it's in, aft
 nothing typed yet, so one measured as a picker eased open stands at the field's start) and each key that does something (Escape, Enter, Tab, arrows, shortcuts), never letters typed, and hides a dev server's own badge
 (Next's), never touching the app; it and the agent's browser may write to the clipboard. The fonts, images and
 stylesheets each page loads are kept with its recording, once each by what's in them (`assets.ts`), so it looks the same
-with the app gone; it plays light or dark, still or moving, as its browser was (`page/src/scheme.ts`). Each thing done named
+with the app gone; it plays light or dark, still or moving, as its browser was (`page/src/scheme.ts`), and a page that
+paints no background is played on the browser's own canvas for the scheme it asks, as a real browser draws it, so nothing
+behind the recording ever shows through it (`replay.ts`'s `#onCanvas`). Each thing done named
 as it's done (its `what`: `click button “Update”`, `type textbox “Card prefix”`, never the words) is how two
 recordings of a moment are lined up. The page at the step's end is read once it rests (`rest.ts`: nothing it asked for
 on its way, and nothing changing for 300 ms of the frames it draws), as the app shows it, not as the pointer hovers it,
