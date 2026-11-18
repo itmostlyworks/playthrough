@@ -14,6 +14,8 @@ let browser: Browser;
 before(async () => void (browser = await chromium.launch({ args: ["--enable-blink-features=ComputedAccessibilityInfo"] })));
 after(() => browser.close());
 
+declare const __playthroughDid: () => Promise<void>;
+
 // The page at http://app.test/, done in by `act` with what's done kept, then opened fresh and gone through again by the way
 // written from what was kept: what `check` reads there.
 async function keptAndPlayed<T>(body: string, act: (page: Page) => Promise<void>, check: (page: Page) => Promise<T>): Promise<{ did: Done[]; again: T }> {
@@ -21,10 +23,13 @@ async function keptAndPlayed<T>(body: string, act: (page: Page) => Promise<void>
   const did: Done[] = [];
   const agent = await browser.newPage();
   await served(agent);
-  await agent.exposeBinding("__playthroughDid", (_source, done: Done) => void did.push(done));
+  await agent.exposeBinding("__playthroughDid", (_source, done?: Done) => void (done && did.push(done)));
   await agent.addInitScript({ content: NOTING });
   await agent.goto("http://app.test/");
   await act(agent);
+  // What the page keeps is told on a way of its own, often after the press that did it has come back, and lost if the
+  // page is closed first. Told in order, it's all heard once one more call, telling nothing, comes back.
+  await agent.evaluate(() => __playthroughDid());
   await agent.close();
   const fresh = await browser.newPage();
   fresh.setDefaultTimeout(2000);
