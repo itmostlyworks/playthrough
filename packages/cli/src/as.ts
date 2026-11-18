@@ -20,6 +20,7 @@ import { allNotes, madeInApp, quote, Refused, type Change } from "@playthrough/c
 import { keepRunning, UNUSED } from "./app.ts";
 import { sayReady, startBehind } from "./behind.ts";
 import { changeHere, momentNamed } from "./change.ts";
+import { passedThrough } from "./passed.ts";
 import { hovering } from "./read.ts";
 import type { Repo } from "./repo.ts";
 import { giveBackLeft, make, personIn, problemsWithPeople, setupIn, type Setup } from "./setup.ts";
@@ -283,11 +284,7 @@ export async function as(repo: Repo, person: string, at?: string) {
     }
   });
   await context.exposeBinding("__playthroughDid", (_source, done: Done) => {
-    const last = live.did.at(-1);
-    // A field's words, typed a key at a time, are what it says once typed; and what's typed at the caret, one run of it.
-    if (done.does === "fill" && last?.does === "fill" && last.on === done.on) live.did.pop();
-    if (done.does === "type" && last?.does === "type" && last.on === done.on) last.with = `${last.with}${done.with}`;
-    else live.did.push(done);
+    keep(live.did, done);
     used = Date.now();
     save();
   });
@@ -306,6 +303,17 @@ It runs until you hand back (playthrough wait) or stop it (playthrough stop), or
   // it stops as Ctrl+C stops it, so an agent that ended without handing back leaves nothing running.
   sayReady();
   setInterval(() => Date.now() - used > UNUSED && process.kill(process.pid, "SIGINT"), 60_000);
+}
+
+// What's done in the browser, kept after what was done before it.
+export function keep(did: Done[], done: Done) {
+  const last = did.at(-1);
+  // A field's words, typed a key at a time, are what it says once typed; and what's typed at the caret, one run of it.
+  if (done.does === "fill" && last?.does === "fill" && last.on === done.on) did.pop();
+  // A page left at once for another was only passed through (passed.ts).
+  if (done.does === "goto" && last?.does === "goto") last.with = passedThrough(String(last.with));
+  if (done.does === "type" && last?.does === "type" && last.on === done.on) last.with = `${last.with}${done.with}`;
+  else did.push(done);
 }
 
 // Who the browser is, saying only what Playthrough knows: "as Sam" is who the moment is done as, and signed in is said

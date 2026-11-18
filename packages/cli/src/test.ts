@@ -19,6 +19,7 @@ import { repo } from "./repo.ts";
 import { ACTIONS, ASSETS, GLIMPSES, HOLD, PERSON, PICTURED, PICTURE, READINGS, RECORDING, seconds, whyStopped, type Failed, type Acted } from "./reporter.ts";
 import { SETTLED, stillFor, watchRest } from "./rest.ts";
 import { findsThisPlaythrough } from "./own.ts";
+import { passedThroughIn } from "./passed.ts";
 import { firstOf, make, personIn, setupIn, type Made, type Setup } from "./setup.ts";
 import { steadied } from "./steady.ts";
 import { scrollPart } from "./way.ts";
@@ -259,7 +260,7 @@ const recorded = base.extend<{ person: string | undefined; rest: () => Promise<v
       // Nothing changes while the end holds, so a last event makes the recording long enough to include it.
       await last.evaluate(() => (window as any).rrwebRecord.record.addCustomEvent("end", {}));
       await last.waitForTimeout(100);
-      await testInfo.attach(RECORDING, { body: JSON.stringify(events), contentType: "application/json" });
+      await testInfo.attach(RECORDING, { body: JSON.stringify(passedThroughIn(events)), contentType: "application/json" });
       await testInfo.attach(READINGS, { body: JSON.stringify(readings), contentType: "application/json" });
       await testInfo.attach(GLIMPSES, { body: JSON.stringify(glimpses), contentType: "application/json" });
       await testInfo.attach(ASSETS, { body: JSON.stringify(await assets()), contentType: "application/json" });

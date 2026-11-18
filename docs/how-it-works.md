@@ -102,8 +102,11 @@ it one, else by its place, and said by what it asks for ("Add comment…"); each
 where the page was scrolled, and each part of it that scrolls by itself (a panel, a long list, a dialog's body) once
 it's been scrolled from its start since the page loaded, so one scrolled back is put back too, found as what's done is,
 by its role and name, else its place (`scrolled`, `Scrolled` in `way.ts`); and each page loaded with whether something
-done before led there. A drag is kept only to
-be said, never done again: a press carried more than 10px and let go, with the page taking the moves for itself on the
+done before led there. One left at once for another is kept without its query and hash (`passed.ts`), as a moment's
+recording keeps a page left before anything was clicked or typed there, and a step in's too: a sign-in's redirect, an
+OAuth callback's `state`, `nonce` or `code`, on any origin, which nothing goes back to, never reaches what can be
+committed and shown (a real run on 0.7.1 kept them). Where something was done, or a moment rests, the address is kept
+whole, as it's gone back to. A drag is kept only to be said, never done again: a press carried more than 10px and let go, with the page taking the moves for itself on the
 way (`defaultPrevented` on a move, as a drag-and-drop library does once something is picked up: dnd-kit on Kan's
 board); selecting words, a slider and a press that wobbled leave the moves be, and the click that ends a drag is the
 drag's. (The agent's browser is headless, which hides scrollbars.) Run again, the browser open already starts again,

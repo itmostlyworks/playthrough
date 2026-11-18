@@ -24,6 +24,7 @@ import { setupIn } from "./setup.ts";
 import { agentGone, agentWaiting } from "./wait.ts";
 import { answers, endsWithPlaythrough, openFile, stopUnused, UNUSED } from "./app.ts";
 import { sayReady, startBehind } from "./behind.ts";
+import { passedThroughIn } from "./passed.ts";
 import { stillAt, thisCommand, type Command } from "./command.ts";
 
 // The page's usual port, or another, to try Playthrough beside the one in use: PLAYTHROUGH_PORT, as PLAYTHROUGH_HOME is.
@@ -313,7 +314,7 @@ async function branch(repo: Repo, id: string, request: IncomingMessage, response
   const shift = then + 1 - events[0]!.timestamp;
   const yours = paced(events).map((event) => ({ ...event, timestamp: event.timestamp + shift }));
   const joined = [...before.filter((event) => event.timestamp <= then), ...yours.filter((event) => !readingOf(event))];
-  await repo.changes.saveBranch(id, recording, Buffer.from(JSON.stringify(joined)));
+  await repo.changes.saveBranch(id, recording, Buffer.from(JSON.stringify(passedThroughIn(joined))));
   // As the app read itself while you were in it. Only yours: the page there is recorded afresh, its elements numbered
   // anew, so the moment's readings from before would name the wrong things.
   const readings = yours.filter(readingOf).map((event) => ({ step: "In the app", at: (event.timestamp - start) / 1000, ...readingOf(event)! }));
