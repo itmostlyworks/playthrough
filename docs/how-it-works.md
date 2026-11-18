@@ -52,7 +52,7 @@ and a *reply* the agent's answer, or the person's back. *Handing back* gives the
 
 ```bash
 playthrough change "<title>" "<what was asked>"   # names the change; every command in this copy means it until another is named
-playthrough as <person> ["<moment>"]              # the app, and a browser signed in as them, for the agent's own tool
+playthrough as <person> ["<moment>" or <note>]    # the app, and a browser signed in as them, for the agent's own tool
 playthrough stop                                   # stops that browser
 playthrough moment "<what's there>" ["<thing>"] [--last N]   # keeps what was just done as a moment
 playthrough again                                  # every moment again, on the code as it is now
@@ -93,7 +93,12 @@ be said, never done again: a press carried more than 10px and let go, with the p
 way (`defaultPrevented` on a move, as a drag-and-drop library does once something is picked up: dnd-kit on Kan's
 board); selecting words, a slider and a press that wobbled leave the moves be, and the click that ends a drag is the
 drag's. (The agent's browser is headless, which hides scrollbars.) Run again, the browser open already starts again,
-fresh, as whoever is named; given a moment, it goes that moment's way there first.
+fresh, as whoever is named; given a moment, it goes that moment's way there first. Given a note, by its id as
+`answer` takes it (`placeNamed`), it goes its moment's way and stops after as many of the things the moment shows as had
+been done when the note was written (`doneBy`, counted on the hand-back it was written on; `wayIn` cuts the file's step
+there), so a note on an open picker is stood at with the picker open, not at the moment's end where it closed. A note on
+the moment's end, or made in the app, goes the whole way. Where the moment was marked again since with other things
+done, it stops after as many of the new ones.
 
 `as` comes back once the browser is ready (`startBehind`): the browser is a process of its own, the same command
 started detached with an IPC channel (which is how it knows it's the one behind), its output in `.playthrough/browser.log`;
@@ -157,10 +162,39 @@ before (below), and says each is the same, different (in Playthrough's words), n
 and why in Playthrough's words, never Playwright's (`whyStopped`, `reporter.ts`: "couldn't get there: no link “Settings”
 was there to click", "got there, but not through what it shows: …", "got there, but no heading “INV-1043” was to be
 seen"; anything else as it was said, in its first line), and how to
-get there by hand and mark it again or drop it. **`drop`** on a moment a note is waiting on, and **`answer`** to a note
+get there by hand and mark it again or drop it.
+
+**A note followed through** (`followed.ts`). A moment is known by where it ends, and people note on what happens along
+the way, so "the same" says nothing about a note. After the moments, `again` says, for each note waiting on the agent
+that's on a thing, where that thing shows in what's about to be handed back and how it looks against the frame the note
+was written on, as a fact; `answer` says the same back for the note it answers, after taking the answer, and refuses
+nothing more for it (a note can be a question, and "I left it, because…" is an answer):
+
+    Note n2, the text “Oct 5, 2026” on “Pick a range”: shown after clicking the button “Pick dates”, and looks different from when the note was written: <what's different>.
+    Note n2, …: shown after clicking the button “Pick dates”, and looks the same as when the note was written.
+    Note n2, …: shown in “A range across two months” at its end, …
+    Note n2, …: isn't in that moment or any marked since the note was written, so the person will have your answer and nothing to look at. If it asked for a change, mark a moment that shows it.
+
+It uses only what each hand-back keeps, never another run: a moment's frames (`framesOf`: its glimpses from where its
+step begins, named as they were pictured, `first`, `after-1`…, each with how many things had been done by then, and its
+end, read once it rested). The note's frame is the one nearest its time with its element (`writtenOn`). Then, on its own
+moment, the frame lined up with it (after the same things done, where they're the same, and as many frames on), and
+there the thing it became, as comparing pairs them (`differences`); else the first frame of its own moment with
+something of its role and name; else, the same way, the first moment new since the note. It looks the same where
+`looksAsItWas` says so; else different, with what comparing would say of that thing there (`findingsAt`, kept to the
+findings on it), or nothing more where comparing says nothing of it. A note made in the app, where no reading of its
+frame is kept, gets where it's shown and nothing on how it looks. A note on no thing (a moment as a whole, a spot, the
+change) gets no line. From a real run with 0.7.1: three notes on a date picker, every moment "the same", the moment
+ending with the picker closed, and the agent took that as proof and answered in words; the person had nothing to look at.
+
+When `wait` hands back, each answer keeps where its note's thing was followed to (`shown` on the reply: the moment, the
+frame's time and name, and the thing there), which the person's page opens the note on (below).
+
+**`drop`** on a moment a note is waiting on, and **`answer`** to a note
 whose moment won't be handed back, refuse until a moment has been marked since the note reached the agent: the person
-sees what was done in a moment, not only in words. That's where such a note is then (`shownOn`, `standing.ts`): on the
-first moment of the hand-back that's new since the note was made, else the last, with its answer, its pin on its thing
+sees what was done in a moment, not only in words. That's where such a note is then (`shownOn`, `standing.ts`): where
+its answer says its thing shows, else on the first moment of the hand-back that's new since the note was made, else the
+last, with its answer, its pin on its thing
 there as it is now, and "As it was" the frame it was written on; a note the person sent is never
 left with no moment to be on (15 Nov: Lena's "This isn't what I meant" was answered, its moment dropped, and the page
 showed it nowhere). A note can be a question: what's printed after the notes says a note asking for a change wants the
@@ -178,7 +212,8 @@ it waits it keeps a file named by its process in the change's `waiting/`, saying
 the page knows an agent is listening. When the person sends, it prints each note on its moment (one written at the
 last stop "on the change as a whole", with no picture and no way to stand there), with its conversation,
 a picture of what they saw with the thing outlined (`noted.ts`: the page the moment left, or for a note made in the
-app, the frame the person's page drew of it), how to stand there (`playthrough as <person> "<moment>"`), and for one
+app, the frame the person's page drew of it), how to stand there (`playthrough as <person> "<moment>"`, or for a note
+written partway through its moment, `playthrough as <person> <note>`, which stops where it was written), and for one
 made in the app what they did there and where the app was when they wrote it (`The app was at /boards/undefined when
 they wrote it.`: its path, query and hash, kept on the note as `address` when it's made, as what went wrong is often
 the address itself, gone by the time the agent looks). The ids the person's step in made are their run's own, so the
@@ -611,7 +646,11 @@ made on the hand-back you're looking at shows the moment at its end where it was
 picture, the frame it was made on. Gone through quickly, the latest note wins: a frame comes in over the note's frame just
 left, or over the moment alone, never over an older one, and off every frame the moment comes back in one fade that going on
 through notes on the moment's end neither restarts nor undoes. **A note from an earlier hand-back opens on the moment as it is now**, at its
-end, so what came of it is what you see, wherever its thing is found there, as its pin is. How it was is one flip
+end, so what came of it is what you see, wherever its thing is found there, as its pin is; where its answer keeps where
+its thing was followed to (`shown`, from `wait`), on that moment, the moment resting at that frame, its pin on the thing
+there (`shownIn`, `standing.ts`), and its strip on the edge cut from the picture the hand-back took of that frame
+(`framePicture`): a note on an open date picker, in a moment that ends with it closed, opens with the picker open. It's
+rested there before it's drawn, so the end never shows first. How it was is one flip
 away, in place: while it's open, Compare's place on the bar holds a two-part switch, "As it was" and "Now", Now chosen;
 pressing it, or C, flips. Where its thing isn't in the moment now (the agent took it away, or you'd stepped in and gone
 to another page before noting), there's no now to show it on: it opens as it was, on the frame it was made on, its
