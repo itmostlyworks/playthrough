@@ -118,6 +118,8 @@ export const readings = (change: string, handBack: number, recording: string) =>
 // None for a hand-back recorded before Playthrough glimpsed the page after each action.
 export const glimpses = (change: string, handBack: number, recording: string) => file<Glimpse[]>(change, handBack, `${readingsName(recording)}.glimpses.json`).catch((): Glimpse[] => []);
 export const picture = (change: string, handBack: number, recording: string, reading: number) => source.file(change, handBack, `${readingsName(recording)}/${reading + 1}.png`);
+// One of a moment's frames as it was pictured on the way through it (“first”, “after-1”…).
+export const framePicture = (change: string, handBack: number, recording: string, frame: string) => source.file(change, handBack, `${readingsName(recording)}/${frame}.png`);
 
 // What's wrong in plain words, or nothing once it's kept.
 export const send = (change: string, send: Send): Promise<string[]> => source.send(change, send);

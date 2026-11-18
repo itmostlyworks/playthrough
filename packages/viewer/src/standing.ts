@@ -1,7 +1,7 @@
 // Where a change stands for you, read from it as it's kept: its latest moments, what you've sent on them and seen of
 // them, what's different since, and what each note says now, in the page's words.
 
-import { conversation, notesToAnswer, type Note, type Change, type HandBack, type Moment } from "@playthrough/change";
+import { conversation, notesToAnswer, type Note, type Change, type HandBack, type Moment, type Shown } from "@playthrough/change";
 import { source, type Listed } from "./api.ts";
 import { keeping, stored, seenKey, type YourReply } from "./kept.ts";
 
@@ -27,15 +27,24 @@ export function noteSays(change: Change, you: string, note: Note, sent: boolean,
   return { words, stands: fresh ? "new answer" : "answered", fresh };
 }
 
-// The moment of a hand-back a note is shown on: its own, or, where the agent took that one out, the first moment new
-// since the note was made, which is what the agent must mark before it can answer such a note (`answer`), else the
-// last. A note the person sent is never left with nowhere to be. None for a note on the change as a whole.
+// The moment of a hand-back a note is shown on: where its answer says its thing shows (`shown`, followed there as it was
+// handed back); else its own, or, where the agent took that one out, the first moment new since the note was made,
+// which is what the agent must mark before it can answer such a note (`answer`), else the last. A note the person sent
+// is never left with nowhere to be. None for a note on the change as a whole.
 export function shownOn(change: Change, handBack: HandBack, note: Note): string | undefined {
   const on = note.on;
+  const shown = shownIn(handBack, note);
+  if (shown) return shown.moment;
   if (!on || handBack.moments.some((one) => one.name === on.moment)) return on?.moment;
   const then = change.handBacks.find((one) => one.number === on.handBack);
   return (handBack.moments.find((one) => !then?.moments.some((was) => was.name === one.name)) ?? handBack.moments.at(-1))?.name;
 }
+
+// Where a note from an earlier hand-back is shown in this one, as its answer here keeps it, on a moment still handed back.
+export const shownIn = (handBack: HandBack, note: Note): Shown | undefined => {
+  const shown = handBack.replies.find((reply) => reply.note === note.id)?.shown;
+  return shown && note.on && note.on.handBack < handBack.number && handBack.moments.some((one) => one.name === shown.moment) ? shown : undefined;
+};
 
 // Each moment's taking: seen per taking, so one that's different since asks for you again, once. A hand-back's last
 // stop is seen as a taking with no moment.

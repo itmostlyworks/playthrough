@@ -20,9 +20,10 @@ import { basename, dirname, join } from "node:path";
 import type { Glimpse, Reading } from "@playthrough/page";
 import { allNotes, conversation, list, madeInApp, MOST_SHOWN, notesToAnswer, saidDone, quote, Refused, handBackInProgress, sendsNotTaken, startOf, toAccountFor, type Finding, type Change, type HandBack, type Moment } from "@playthrough/change";
 import { agent } from "./agent.ts";
-import { browserFile, stopBrowser, type Browser } from "./as.ts";
+import { browserFile, doneBy, stopBrowser, type Browser } from "./as.ts";
 import { changeHere, meanHere, meantHere, momentNamed, momentsOf } from "./change.ts";
 import { compareWithEarlier } from "./compare.ts";
+import { followEach, followedSaid, shownOf } from "./followed.ts";
 import { everyCopy, machine } from "./machine.ts";
 import { pictureNotes } from "./noted.ts";
 import { openAlready, PORT } from "./open.ts";
@@ -397,12 +398,16 @@ export async function again(repo: Repo) {
     })
     .sort((a, b) => order(a) - order(b));
   const kept = change.handBacks.find((handBack) => handBack.number === number);
-  await repo.changes.saveHandBack(id, { number, by: agent(kept?.by), moments, replies: kept?.replies ?? [] });
+  const handingBack = { number, by: agent(kept?.by), moments, replies: kept?.replies ?? [] };
+  await repo.changes.saveHandBack(id, handingBack);
   const comparisons = await compareAll(repo, id, number, moments);
   const since = comparisons.find((comparison) => comparison.since === handedBack.number);
 
   // What only the pictures show is the person's to look at: the agent can't see more of it than Playthrough did.
   console.log(`\n${howEachWent(moments, ran.failed, handedBack, toAccountFor(since)).join("\n")}`);
+  // A moment the same is no proof a note's thing shows: it's followed through, note by note.
+  const followed = await followedSaidEach(repo, change, handingBack, notesToAnswer(change, number));
+  if (followed.length) console.log(`\n${followed.join("\n")}`);
   console.log(`\n${beforeHandingBack}`);
   const unanswered = notesToAnswer(change, number).filter((note) => !kept?.replies.some((reply) => reply.note === note && reply.words.trim()));
   console.log(
@@ -453,8 +458,17 @@ export async function answer(repo: Repo, note: string, words: string | undefined
     throw new Refused([
       `Note ${note} is on ${quote(named)}, which isn't in what you'd hand back: the person would read your answer with nothing to see it in. Mark a moment that shows what you did (playthrough moment "<what's there>"), or get ${quote(named)} there again and mark it with the same words; then answer.`,
     ]);
-  await repo.changes.saveHandBack(id, { ...kept, replies: [...kept.replies.filter((one) => one.note !== note), { note, words: words.trim() }] });
+  const answered = { ...kept, replies: [...kept.replies.filter((one) => one.note !== note), { note, words: words.trim() }] };
+  await repo.changes.saveHandBack(id, answered);
   console.log(`Answered ${note}.`);
+  // Told, never refused: a note can be a question, and leaving it as it was, with why, is an answer.
+  for (const line of await followedSaidEach(repo, change, answered, [note])) console.log(line);
+}
+
+// Each note followed into what's about to be handed back, in a line each.
+async function followedSaidEach(repo: Repo, change: Change, handBack: HandBack, notes: string[]): Promise<string[]> {
+  const followed = await followEach(repo.changes, change, handBack, notes);
+  return [...followed].flatMap(([note, found]) => followedSaid(change, note, found) ?? []);
 }
 
 // A note that only asks something is answered with nothing changed: where nothing in the app has changed since the
@@ -505,6 +519,13 @@ export async function wait(repo: Repo) {
     const unrun = last.number > 1 && !change.comparisons.some((comparison) => comparison.handBack === last.number);
     const changed = unrun && changedSince(repo, id, change.handBacks.findLast((handBack) => handBack.finished)!);
     if (changed) throw new Refused([`${changed} has changed since the moments were run. Run playthrough again, so the person sees them as they are now.`]);
+    // Each answer goes with where its note's thing shows in these moments, which the person's page opens it on.
+    const followed = await followEach(changes, change, last, last.replies.map((reply) => reply.note));
+    const replies = last.replies.map(({ shown: _, ...reply }) => {
+      const found = followed.get(reply.note);
+      return found ? { ...reply, shown: shownOf(found) } : reply;
+    });
+    await changes.saveHandBack(id, { ...last, replies });
     await changes.finish(id, last.number);
     console.log(`Handed back: the person sees ${last.moments.length > 1 ? `the ${last.moments.length} moments` : "the moment"} as they are now${last.replies.length ? ", and your answers" : ""}.`);
     if (await stopBrowser(repo)) console.log("The browser from playthrough as is stopped: it starts again when you need it.");
@@ -569,7 +590,9 @@ async function sayNotes(repo: Repo, change: Change, number: number, asking: stri
     console.log(`\n  ${note}  on ${name ? `the moment ${quote(name)}` : "the change as a whole"}${moment?.person ? `, as ${moment.person}` : ""}${thing}`);
     for (const turn of conversation(change, note)) console.log(`    ${turn.agent ? "You" : turn.by}: ${turn.words}`);
     if (pictures.get(note)) console.log(`    As they saw it: ${pictures.get(note)}`);
-    if (moment?.person) console.log(`    To be there: playthrough as ${moment.person} ${JSON.stringify(moment.name)}`);
+    // Written partway through, where it was written is after the things done by then, not the moment's end.
+    const partway = on && !madeInApp(on) && on.at !== undefined && moment && doneBy(change, on.handBack, on.moment, on.at) !== undefined;
+    if (moment?.person) console.log(`    To be there: playthrough as ${moment.person} ${partway ? note : JSON.stringify(moment.name)}${partway ? `, which goes the way of ${quote(moment.name)} and stops where the note was written` : ""}`);
     if (on && madeInApp(on) && on.did.length)
       console.log(`    They stepped into the app there, then: ${on.did.map((did) => `${did.does}${did.what ? ` ${quote(did.what)}` : did.does === "click" ? " the page" : ""}${typeof did.with === "string" && did.does !== "click" ? ` ${quote(did.with)}` : ""}`).join(", then ")}.`);
     // Where they were is often the whole clue, as an address the app made wrong: what was there is gone by the time

@@ -148,9 +148,19 @@ export const Comparison = z.strictObject({
   findings: z.array(Finding, { error: "needs its findings, a list, even if it's empty" }),
 });
 
+// Where an answered note's thing is in the hand-back its answer goes with, as Playthrough followed it there: its moment,
+// the time of the frame it's seen at, the thing by its role, name and element there, and that frame's picture.
+export const Shown = z.strictObject({
+  moment: text("needs the moment it's shown on"),
+  at: seconds("needs its time, in seconds").describe("Seconds into the moment's recording on that hand-back"),
+  element: Element.describe("Its node is in the moment's recording on that hand-back"),
+  frame: text("needs the name of the frame's picture").optional().describe("The moment's frame it's seen at, as pictured (“first”, “after-1”…); without it, the moment's end"),
+});
+
 export const Reply = z.strictObject({
   note: text("needs the note it answers"),
   words: z.string({ error: "needs its words, even if empty until it's answered" }),
+  shown: Shown.optional().describe("Where what it's on shows in this hand-back; without it, as it's shown on its moment"),
 });
 
 // A note is a conversation about one thing. A person starts it in a send; then the agent's replies and people's replies
@@ -217,6 +227,7 @@ export type Moment = z.infer<typeof Moment>;
 export type Finding = z.infer<typeof Finding>;
 export type Comparison = z.infer<typeof Comparison>;
 export type Reply = z.infer<typeof Reply>;
+export type Shown = z.infer<typeof Shown>;
 export type Note = z.infer<typeof Note>;
 export type HandBack = z.infer<typeof HandBack>;
 export type Send = z.infer<typeof Send>;

@@ -3,7 +3,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import type { Turn, Note, Change } from "@playthrough/change";
-import { noteFrame, picture, readings as readingsOf, type NoteFrame } from "./api.ts";
+import type { Glimpse } from "@playthrough/page";
+import { framePicture, glimpses as glimpsesOf, noteFrame, picture, readings as readingsOf, type NoteFrame } from "./api.ts";
 import { clamp } from "./clamp.ts";
 import { TILE } from "./Edge.tsx";
 import { mayTakeKeys } from "./inside.ts";
@@ -57,7 +58,8 @@ export function NoteWas({ src, screen, box, drawn }: { src: string; screen: { wi
 
 // Where a note was made: the recording it was made on (a taking of the moment, or yours, stepped in), the moment in it,
 // and its thing there, by that recording's own numbering, or its spot.
-export type Made = { handBack: number; recording: string; at: number; node?: number; point?: { x: number; y: number } };
+// With the name of the frame the hand-back pictured there, where it's one it pictured on the way through a moment.
+export type Made = { handBack: number; recording: string; at: number; node?: number; point?: { x: number; y: number }; frame?: string };
 
 // Each note's kept picture, by its id: the frame it was made on. One made at the end of a taking is that taking's own
 // picture, there at once; any other, drawn once by `playthrough open` (frames.ts) and kept.
@@ -74,19 +76,20 @@ export function useFrames(change: Change, notes: { note: Note; shown?: Made }[])
       asked.current.set(note.id, keyOf(made));
       const taking = change.handBacks.find((one) => one.number === made.handBack)?.moments.find((one) => one.recording === made.recording);
       const kept = (frame: NoteFrame | undefined) => frame && asked.current.get(note.id) === keyOf(made) && setFrames((all) => ({ ...all, [note.id]: frame }));
-      if (taking && Math.abs(made.at - taking.length) < 0.1)
-        void readingsOf(change.id, made.handBack, made.recording).then((read) => {
-          const end = read.at(-1);
-          if (!end) return;
-          const found = made.node !== undefined ? end.things.find((one) => one.node === made.node) : undefined;
-          const { width, height } = end.screen;
-          const share = (one: { x: number; y: number; width: number; height: number }) => ({ x: one.x / width, y: one.y / height, width: one.width / width, height: one.height / height });
-          const box = found ? share(found.box) : made.point && { ...made.point, width: 0, height: 0 };
-          // A line of words is laid out across its whole column: its words are as wide as they are, as near as can be
-          // told, which is what its strip shows and its pin stands clear of.
-          const said = found?.words && /^(text|heading)$/.test(found.role) && share({ ...found.box, width: Math.min(found.box.width, found.words.length * parseFloat(found.look.size) * 0.55) });
-          kept({ src: picture(change.id, made.handBack, made.recording, 0), screen: end.screen, ...(box && { box }), ...(said && { words: said }) });
-        });
+      // Its picture, as the hand-back took it, and where its thing is on it, as the page there was read.
+      const pictured = (src: string, read: Glimpse | undefined) => {
+        if (!read) return;
+        const found = made.node !== undefined ? read.things.find((one) => one.node === made.node) : undefined;
+        const { width, height } = read.screen;
+        const share = (one: { x: number; y: number; width: number; height: number }) => ({ x: one.x / width, y: one.y / height, width: one.width / width, height: one.height / height });
+        const box = found ? share(found.box) : made.point && { ...made.point, width: 0, height: 0 };
+        // A line of words is laid out across its whole column: its words are as wide as they are, as near as can be
+        // told, which is what its strip shows and its pin stands clear of.
+        const said = found?.words && /^(text|heading)$/.test(found.role) && share({ ...found.box, width: Math.min(found.box.width, found.words.length * parseFloat(found.look.size) * 0.55) });
+        kept({ src, screen: read.screen, ...(box && { box }), ...(said && { words: said }) });
+      };
+      if (made.frame) void glimpsesOf(change.id, made.handBack, made.recording).then((read) => pictured(framePicture(change.id, made.handBack, made.recording, made.frame!), read.find((one) => Math.abs(one.at - made.at) < 0.01)));
+      else if (taking && Math.abs(made.at - taking.length) < 0.1) void readingsOf(change.id, made.handBack, made.recording).then((read) => pictured(picture(change.id, made.handBack, made.recording, 0), read.at(-1)));
       else void noteFrame(change.id, note.id, made).then(kept);
     }
   }, [wanted.map(({ note, shown }) => `${note.id}:${shown && keyOf(shown)}`).join(" ")]);

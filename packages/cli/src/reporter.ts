@@ -34,6 +34,11 @@ const picturesOf = (moment: Moment) => `readings/${moment.recording.replace(/\.j
 export const frameOf = (moment: Moment, name: string) => `${picturesOf(moment)}/${name}.png`;
 // And what was glimpsed after each action, beside them.
 export const glimpsesOf = (moment: Moment) => `${picturesOf(moment)}.glimpses.json`;
+// As kept: none for a moment recorded before Playthrough glimpsed.
+export async function glimpsesOn(changes: Changes, change: string, handBack: number, moment: Moment): Promise<Glimpse[]> {
+  const bytes = await changes.file(change, handBack, glimpsesOf(moment));
+  return bytes ? JSON.parse(Buffer.from(bytes).toString()) : [];
+}
 
 // Why, in Playwright's words: the first line of what it says, and for a wait that ran out, what it was waiting for, from
 // the lines under it; as much of it as can be read, which an error's text an app sends back, stack and all, may not be.

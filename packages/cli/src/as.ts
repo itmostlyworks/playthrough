@@ -5,6 +5,8 @@
 //   playthrough as <person> ["<moment>"]  starts the app and the browser, signed in as them, and, named, goes a kept
 //                                         moment's way there; the browser open already starts again, fresh. It comes
 //                                         back once the browser is ready, and the browser runs on behind it
+//   playthrough as <person> <note>        the same, going the way of the note's moment and stopping where it was
+//                                         written
 //   playthrough stop                      stops it
 
 import { chromium, request as requests, type Page } from "@playwright/test";
@@ -14,7 +16,7 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { clicked, pathTo } from "@playthrough/page";
-import { quote, Refused } from "@playthrough/change";
+import { allNotes, madeInApp, quote, Refused, type Change } from "@playthrough/change";
 import { keepRunning, UNUSED } from "./app.ts";
 import { changeHere, momentNamed } from "./change.ts";
 import { hovering } from "./read.ts";
@@ -195,7 +197,7 @@ export const NOTING = `(() => {
 })();`;
 
 export async function as(repo: Repo, person: string, at?: string) {
-  const to = at === undefined ? undefined : await momentNamed(repo, await changeHere(repo), at);
+  const to = at === undefined ? undefined : await placeNamed(repo, at);
   const setup = await setupIn(repo.setup);
   const problems = problemsWithPeople(setup);
   if (problems.length) throw new Refused(problems);
@@ -257,7 +259,7 @@ export async function as(repo: Repo, person: string, at?: string) {
       await setup.signIn?.({ page, person: next, setup: made.setup });
       Object.assign(live, { person: next, setup: made.setup, did: [] });
       await page.goto(app.url);
-      const went = there ? await takeTo(page, await momentNamed(repo, await changeHere(repo), there), made.setup, app.url) : undefined;
+      const went = there ? await takeTo(page, await placeNamed(repo, there), made.setup, app.url) : undefined;
       writeFileSync(againFile(repo), JSON.stringify({ went }));
       // Ready only now: what's kept as it goes there is saved on the way, and the one waiting goes by this.
       live.began = used = Date.now();
@@ -396,12 +398,37 @@ async function freeFrom(port: number): Promise<number> {
   return free ? port : freeFrom(port + 1);
 }
 
+// Where `as` goes: a moment, by its words, or a note, by its id, which is its moment as far as the note was written:
+// after as many of the things the moment shows as had been done by then.
+type Place = { words: string; file: string; note?: string; done?: number };
+async function placeNamed(repo: Repo, at: string): Promise<Place> {
+  const id = await changeHere(repo);
+  const change = await repo.changes.get(id);
+  const noted = allNotes(change).get(at.trim())?.note;
+  if (!noted?.on) return momentNamed(repo, id, at);
+  const on = noted.on;
+  const moment = momentNamed(repo, id, on.moment);
+  return { ...moment, note: noted.id, ...(!madeInApp(on) && on.at !== undefined && { done: doneBy(change, on.handBack, on.moment, on.at) }) };
+}
+
+// How many of the things a moment shows had been done by a time in its recording on a hand-back: all of them, if that's
+// its end.
+export function doneBy(change: Change, handBack: number, name: string, at: number): number | undefined {
+  const moment = change.handBacks.find((one) => one.number === handBack)?.moments.find((one) => one.name === name);
+  const shown = moment?.actions.filter((action) => action.at >= moment.from) ?? [];
+  const done = shown.filter((action) => action.at <= at).length;
+  return moment && done < shown.length ? done : undefined;
+}
+
 // Done in the browser as the moment's way there does it, on what setup made for this browser, as far as it goes; and
 // said, where it got.
-async function takeTo(page: Page, to: { words: string; file: string }, setup: Record<string, unknown>, baseURL: string): Promise<string> {
-  const going = new Function("page", "setup", "baseURL", `return (async () => {\n${wayIn(readFileSync(to.file, "utf8"))}\n})();`) as (page: Page, setup: unknown, baseURL: string) => Promise<void>;
+async function takeTo(page: Page, to: Place, setup: Record<string, unknown>, baseURL: string): Promise<string> {
+  const going = new Function("page", "setup", "baseURL", `return (async () => {\n${wayIn(readFileSync(to.file, "utf8"), to.done)}\n})();`) as (page: Page, setup: unknown, baseURL: string) => Promise<void>;
   return going(page, setup, baseURL).then(
-    () => `It's at the moment ${quote(to.words)}, by the way the moment got there.`,
+    () =>
+      to.note && to.done !== undefined
+        ? `It's where note ${to.note} was written, in the moment ${quote(to.words)}${to.done ? `, after the first ${to.done === 1 ? "thing" : `${to.done} things`} it does` : ", before it does anything"}.`
+        : `It's at the moment ${quote(to.words)}, by the way the moment got there.`,
     (error) => `It couldn't get all the way to ${quote(to.words)}: ${String(error?.message ?? error).split("\n")[0]}. Go on from there by hand.`,
   );
 }

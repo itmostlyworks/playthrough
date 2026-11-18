@@ -135,10 +135,19 @@ function locatorOf(done: Done): string {
 
 // The way there of a moment's file, and what the moment does, without what it checks: for going there by hand, not for
 // proving it.
-export function wayIn(file: string): string {
+// Given how many of the things the moment shows to do, it stops after them, where a note written partway was written.
+export function wayIn(file: string, done?: number): string {
   const lines = file.split("\n");
   const from = lines.findIndex((line) => line.startsWith("test("));
-  const until = lines.findIndex((line, i) => i > from && line === "  });");
+  const step = lines.findIndex((line, i) => i > from && line.includes("await test.step("));
+  const thingDone = (line: string) => /^\s*await page\.(?!evaluate\(|waitForFunction\(|waitForURL\(|goto\()/.test(line);
+  let until = lines.findIndex((line, i) => i > from && line === "  });");
+  if (step >= 0 && done === 0) until = step;
+  else if (step >= 0 && done) {
+    let counted = 0;
+    const last = lines.findIndex((line, i) => i > step && i < until && thingDone(line) && ++counted === done);
+    if (last >= 0) until = last + 1;
+  }
   return lines
     .slice(from + 1, until)
     .filter((line) => !line.trim().startsWith("await expect(") && !line.includes("await test.step(") && !line.includes("await test.inView("))

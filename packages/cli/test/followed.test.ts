@@ -1,0 +1,133 @@
+// What following a note promises: before it's handed back, the agent is told where each note's thing shows in its
+// moments, and how it looks against the frame the note was written on, from what the hand-back already keeps; and it
+// can stand where a note was written. Each frame is a small page read in Chromium, as a moment's would be.
+
+import assert from "node:assert/strict";
+import { after, before, describe, test } from "node:test";
+import { chromium, type Browser, type Page } from "@playwright/test";
+import type { Glimpse, Reading } from "@playthrough/page";
+import type { Change, Moment, Note } from "@playthrough/change";
+import { follow, followedSaid, framesOf, type Frame } from "../src/followed.ts";
+import { readPage } from "../src/read.ts";
+import { wayIn } from "../src/way.ts";
+
+let browser: Browser;
+let page: Page;
+before(async () => {
+  browser = await chromium.launch();
+  page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+});
+after(() => browser.close());
+
+const read = async (html: string, at: number): Promise<Glimpse> => {
+  await page.setContent(`<style>body { font: 16px sans-serif; margin: 24px }</style>${html}`);
+  return { step: "Pick a range", at, ...(await readPage(page)) };
+};
+// A date picker: closed, opened by Pick dates, a day chosen in it, and closed again at the end.
+const closed = `<h1>Trip</h1><button>Pick dates</button>`;
+const open = (day = `<span>Oct 5, 2026</span>`) => `<h1>Trip</h1><button>Pick dates</button><div role="dialog" aria-label="Calendar"><button>Oct 5</button>${day}</div>`;
+const PICK = { at: 1, what: "click button “Pick dates”" };
+const DAY = { at: 2, what: "click button “Oct 5”" };
+const picking = (name = "Pick a range", actions = [PICK, DAY]): Moment => ({ name, length: 4, recording: `${name}.json`, from: 0.5, actions });
+// The moment as kept: its first frame, a frame after each thing done, and its end.
+async function framesFor(moment: Moment, pages: string[]): Promise<Frame[]> {
+  const glimpses: Glimpse[] = [];
+  for (const [i, html] of pages.slice(0, -1).entries()) glimpses.push(await read(html, i ? moment.actions[i - 1]!.at + 0.3 : 0.6));
+  const end: Reading = { ...(await read(pages.at(-1)!, 3.5)), picture: "readings/end.png" };
+  return framesOf(moment, [end], glimpses);
+}
+// The note, on the words in the open picker, written after Pick dates was clicked.
+const noteOn = async (frames: Frame[]): Promise<Note> => {
+  const thing = frames[1]!.read.things.find((one) => one.name === "Oct 5, 2026")!;
+  return { id: "n2", words: "This wraps onto two lines", on: { handBack: 1, moment: "Pick a range", at: 1.3, element: { role: thing.role, name: thing.name, node: 7 } } };
+};
+const change = (note: Note): Change => ({ id: "trip", title: "Trip dates", started: new Date().toISOString(), handBacks: [], comparisons: [], taken: [], sends: [{ id: "s1", handBack: 1, by: "Sam", sent: new Date().toISOString(), notes: [note] }] });
+
+describe("a note followed into what's handed back", () => {
+  test("is found on its own moment at the frame lined up with the one it was written on, by the things done, and said to look the same where it does", async () => {
+    const moment = picking();
+    const then = await framesFor(moment, [closed, open(), open(), closed]);
+    const note = await noteOn(then);
+    const now = await framesFor(moment, [closed, open(), open(), closed]);
+    const found = follow(note, { moment, frames: then }, [{ moment, frames: now, own: true, since: false }]);
+    assert.equal(found?.frame.name, "after-1");
+    assert.equal(followedSaid(change(note), "n2", found), "Note n2, the text “Oct 5, 2026” on “Pick a range”: shown after clicking the button “Pick dates”, and looks the same as when the note was written.");
+  });
+
+  test("looking different, says what's different as comparing hand-backs says it", async () => {
+    const moment = picking();
+    const then = await framesFor(moment, [closed, open(), open(), closed]);
+    const note = await noteOn(then);
+    const now = await framesFor(moment, [closed, open(`<span style="color: rgb(200, 0, 0)">Oct 5, 2026</span>`), open(), closed]);
+    const said = followedSaid(change(note), "n2", follow(note, { moment, frames: then }, [{ moment, frames: now, own: true, since: false }]));
+    assert.match(said!, /^Note n2, the text “Oct 5, 2026” on “Pick a range”: shown after clicking the button “Pick dates”, and looks different from when the note was written: .*Oct 5, 2026.* looks different/);
+  });
+
+  test("marked again with other things done, is found at the first frame of its moment that has it", async () => {
+    const then = await framesFor(picking(), [closed, open(), open(), closed]);
+    const note = await noteOn(then);
+    const again = picking("Pick a range", [{ at: 1, what: "press ArrowDown button “Pick dates”" }]);
+    const now = await framesFor(again, [closed, open(), closed]);
+    const found = follow(note, { moment: picking(), frames: then }, [{ moment: again, frames: now, own: true, since: false }]);
+    assert.equal(followedSaid(change(note), "n2", found), "Note n2, the text “Oct 5, 2026” on “Pick a range”: shown after pressing ArrowDown in the button “Pick dates”, and looks the same as when the note was written.");
+  });
+
+  test("gone from its own moment, is found in a moment marked since, and said so", async () => {
+    const then = await framesFor(picking(), [closed, open(), open(), closed]);
+    const note = await noteOn(then);
+    const own = await framesFor(picking(), [closed, closed, closed, closed]);
+    const marked = picking("A range across two months", [PICK]);
+    const since = await framesFor(marked, [closed, open(), open()]);
+    const found = follow(note, { moment: picking(), frames: then }, [
+      { moment: picking(), frames: own, own: true, since: false },
+      { moment: marked, frames: since, own: false, since: true },
+    ]);
+    assert.match(followedSaid(change(note), "n2", found)!, /^Note n2, the text “Oct 5, 2026” on “Pick a range”: shown in “A range across two months” after clicking the button “Pick dates”/);
+  });
+
+  test("shown nowhere, tells the agent the person would have its answer and nothing to look at", async () => {
+    const then = await framesFor(picking(), [closed, open(), open(), closed]);
+    const note = await noteOn(then);
+    const now = await framesFor(picking(), [closed, closed, closed, closed]);
+    const found = follow(note, { moment: picking(), frames: then }, [{ moment: picking(), frames: now, own: true, since: false }]);
+    assert.equal(
+      followedSaid(change(note), "n2", found),
+      "Note n2, the text “Oct 5, 2026” on “Pick a range”: isn't in that moment or any marked since the note was written, so the person will have your answer and nothing to look at. If it asked for a change, mark a moment that shows it.",
+    );
+  });
+
+  test("on no thing, a moment as a whole or the change, says nothing", () => {
+    const whole: Note = { id: "n3", words: "Feels slow", on: { handBack: 1, moment: "Pick a range" } };
+    assert.equal(followedSaid(change(whole), "n3", undefined), undefined);
+    const general: Note = { id: "n4", words: "Nice work" };
+    assert.equal(followedSaid(change(general), "n4", undefined), undefined);
+  });
+});
+
+describe("standing where a note was written", () => {
+  const file = `import { expect, test } from "playthrough/test";
+
+test.use({ person: "Sam" });
+
+test("Pick a range", async ({ page, setup, baseURL }) => {
+  await page.goto(\`\${baseURL}/trip\`);
+  await test.step("Pick a range", async () => {
+    await page.getByRole("button", { name: "Pick dates", exact: true }).click();
+    await page.evaluate(([x, y]) => window.scrollTo({ left: x, top: y, behavior: "smooth" }), [0, 200]);
+    await page.getByRole("button", { name: "Oct 5", exact: true }).click();
+    await expect(page.getByText("Oct 5, 2026", { exact: true })).toBeVisible();
+  });
+});
+`;
+  test("goes the way of its moment and stops after the things done by the time it was written", () => {
+    const way = wayIn(file, 1);
+    assert.match(way, /Pick dates/);
+    assert.doesNotMatch(way, /Oct 5/);
+  });
+
+  test("before anything was done, stops where the moment starts; at its end, goes all of it", () => {
+    assert.doesNotMatch(wayIn(file, 0), /Pick dates/);
+    assert.match(wayIn(file, 0), /goto/);
+    assert.match(wayIn(file), /name: "Oct 5"/);
+  });
+});

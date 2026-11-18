@@ -22,7 +22,7 @@ const HELP = readFileSync(new URL("../MOMENTS.md", import.meta.url), "utf8").tri
 // refused rather than ignored, so a stray word never starts something that wasn't meant.
 const commands = {
   change: [2, 2, `playthrough change "<a title, as a pull request's>" "<what you were asked, in the person's words>"`, ([title, asked]) => change(repo(), title, asked)],
-  as: [1, 2, `playthrough as <person> ["<moment>"]`, ([person, at]) => as(repo(), person!, at)],
+  as: [1, 2, `playthrough as <person> ["<moment>" or <note>]`, ([person, at]) => as(repo(), person!, at)],
   stop: [0, 0, "playthrough stop", () => stop(repo())],
   moment: [1, 2, `playthrough moment "<what's there, in under eight words>" ["<what it's about, as the page names it>"] [--last N]`, ([words, named], last) => moment(repo(), words!, named, last)],
   drop: [1, 1, `playthrough drop "<moment>"`, ([words]) => drop(repo(), words!)],

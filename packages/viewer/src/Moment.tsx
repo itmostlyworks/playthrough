@@ -23,7 +23,7 @@ import { Pinned, type Pin } from "./Pinned.tsx";
 import { Clock, Player, useCut, type Mark, type Placed } from "./Player.tsx";
 import { Portal, TAG } from "./Portal.tsx";
 import { doneIn, type Rect, type Scrolled } from "./replay.ts";
-import { ago, noteSays, shownOn, takingOf, seenOf } from "./standing.ts";
+import { ago, noteSays, shownIn, shownOn, takingOf, seenOf } from "./standing.ts";
 import { LastStop } from "./LastStop.tsx";
 import { StepAction, StepCard, useStepLeft } from "./StepLeft.tsx";
 import { backAgain } from "./step.ts";
@@ -353,11 +353,19 @@ export function MomentView(props: {
     const then = readThen[takenThen(note) ?? ""];
     return then && readings && note.on?.element ? foundNow(then, readings, note.on.element, madeAt(note)!.at) : undefined;
   };
-  // Its thing in the picture now: made on this taking, that very thing; on an earlier one, the thing it became; made in
-  // the app, where no reading of it is kept, the same thing by its role and name.
+  // Where its answer says its thing shows in this moment: followed there as it was handed back, at the frame it's on.
+  const followed = (note: Note) => {
+    const shown = shownIn(handBack, note);
+    return shown?.moment === moment.name ? shown : undefined;
+  };
+  // Its thing in the picture now: made on this taking, that very thing; on an earlier one, where its answer says it
+  // shows, or else the thing it became; made in the app, where no reading of it is kept, the same thing by its role and
+  // name.
   const nodeNow = (note: Note) => {
     const on = note.on;
     if (onThisTaking(on)) return on?.element?.node;
+    const shown = followed(note);
+    if (shown) return shown.element.node;
     if (!on?.element || !readings) return undefined;
     if (madeInApp(on)) return nodeOf(on.element);
     return thenAndNow(note)?.now.node;
@@ -366,11 +374,15 @@ export function MomentView(props: {
   // only otherwise on the frame it was made on, which is what its kept picture is drawn from.
   const nowOn = (note: Note) => {
     const node = nodeNow(note);
+    if (followed(note)) return node;
     return node !== undefined && readings?.at(-1)?.things.some((thing) => thing.node === node) ? node : undefined;
   };
+  // Where on the moment as it is now: at the frame its answer says it shows at, else at its end.
+  const nowAt = (note: Note) => followed(note)?.at ?? moment.length;
   const shownAt = (note: Note): Made | undefined => {
     const node = nowOn(note);
-    return node !== undefined ? { handBack: handBack.number, recording: moment.recording, at: moment.length, node } : madeAt(note);
+    const frame = followed(note)?.frame;
+    return node !== undefined ? { handBack: handBack.number, recording: moment.recording, at: nowAt(note), node, ...(frame && { frame }) } : madeAt(note);
   };
   const isNow = (shown?: Made) => !!shown && shown.handBack === handBack.number && shown.recording === moment.recording && Math.abs(shown.at - moment.length) < 0.1;
   const frames = useFrames(change, allRead ? onEdge.map(({ note }) => ({ note, shown: shownAt(note) })) : []);
@@ -414,9 +426,10 @@ export function MomentView(props: {
   // A note open shows where it's shown, its pin on its thing and what's been said on it, and nothing more: from an
   // earlier hand-back, the moment as it is now, or flipped, the frame it was made on; else the frame it was made on,
   // wherever that was. A frame fades in over the moment, and out again where it was.
-  const openMade = opened && (!earlier(opened.note) ? shownAt(opened.note) : flipped ? madeAt(opened.note) : { handBack: handBack.number, recording: moment.recording, at: moment.length });
-  // The moment, at its end, is where it's shown.
-  const openNow = isNow(openMade);
+  const openMade = opened && (!earlier(opened.note) ? shownAt(opened.note) : flipped ? madeAt(opened.note) : { handBack: handBack.number, recording: moment.recording, at: nowAt(opened.note) });
+  // The moment itself is where it's shown: at its end, or for a note from an earlier hand-back, at the frame its thing
+  // shows at now, the moment resting there.
+  const openNow = !!opened && (earlier(opened.note) ? !flipped : isNow(openMade));
   // Open on a frame of its own, not on the moment as it is now.
   const elsewhere = !!opened && !openNow;
 
@@ -525,7 +538,9 @@ export function MomentView(props: {
   // Where the recording on the open note's own frame has its thing, once it has said, and for which note.
   const [onFrame, setOnFrame] = useState<{ note: string; at?: Placed }>();
   const shut = useRef<HTMLDivElement>(null);
-  useEffect(() => void (opened && openNow && at < end - 0.02 && act({ type: "rest", at: end })), [opened?.note.id, openNow]);
+  // Opened on the moment itself, it rests where the note is shown: before it's drawn, so it never shows its end first.
+  const openNowAt = opened && openNow ? (earlier(opened.note) ? Math.min(end, nowAt(opened.note)) : end) : undefined;
+  useLayoutEffect(() => void (openNowAt !== undefined && Math.abs(at - openNowAt) > 0.02 && act({ type: "rest", at: openNowAt })), [opened?.note.id, openNowAt]);
   // The note open on a frame of its own, not on the moment as it is now.
   const framed = opened && openMade && !openNow ? { ...opened, made: openMade } : undefined;
   // A note from an earlier hand-back open, the frame it was made on is laid under the moment unseen, played there and
