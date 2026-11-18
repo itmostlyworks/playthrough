@@ -5,11 +5,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { chromium, type Browser, type Page } from "@playwright/test";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { NOTING, opened } from "../src/as.ts";
-import { repo } from "../src/repo.ts";
 import type { Setup } from "../src/setup.ts";
 import { aboutOn, openOn } from "../src/moments.ts";
 import { scrollPart, wayFile, wayIn, type Done } from "../src/way.ts";
@@ -233,14 +229,10 @@ test("a drag is kept to be said, never done again: a press the page carries off,
   assert.equal(again, "opened ", "the wobbled press is a click, done again; the drag isn't");
 });
 
-test("the browser is said to be signed in only where setup's signIn signed them in; otherwise it's open as them, saying what didn't", () => {
-  const app = repo(mkdtempSync(join(tmpdir(), "playthrough-as-")));
-  const said = (setup: Setup) => opened("a browser", app, setup, "Sam", "http://localhost:3000", { board: 1 });
+test("the browser is said to be signed in only where setup's signIn signed them in; otherwise it's open as them, and nothing more", () => {
+  const said = (setup: Setup) => opened("a browser", setup, "Sam", "http://localhost:3000", { board: 1 });
   assert.equal(said({ make: () => {}, signIn: () => {} }), `a browser signed in as Sam by playthrough/setup.ts's signIn, on http://localhost:3000, what they start from made by playthrough/setup.ts:\n  {"board":1}`);
-  assert.match(said({ make: () => {} }), /^a browser on http:\/\/localhost:3000 as Sam, what they start from .*\nplaythrough\/setup.ts has no signIn: they're signed in only if its default export signed them in\.$/s);
-  assert.equal(said({}), "a browser on http://localhost:3000 as Sam. Nothing signed them in: there's no playthrough/setup.ts.");
-  mkdirSync(join(app.root, "playthrough"));
-  writeFileSync(app.setup, `export const people = { Sam: "a member" };\n`);
-  assert.equal(said({ people: { Sam: "a member" } }), "a browser on http://localhost:3000 as Sam. Nothing signed them in: playthrough/setup.ts has no signIn.");
-  rmSync(app.root, { recursive: true });
+  assert.equal(said({ make: () => {} }), `a browser on http://localhost:3000 as Sam, what they start from made by playthrough/setup.ts:\n  {"board":1}`);
+  assert.equal(said({}), "a browser on http://localhost:3000 as Sam.");
+  assert.equal(said({ people: { Sam: "a member" } }), "a browser on http://localhost:3000 as Sam.");
 });

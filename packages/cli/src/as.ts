@@ -11,7 +11,7 @@
 
 import { chromium, request as requests, type Page } from "@playwright/test";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -294,7 +294,7 @@ export async function as(repo: Repo, person: string, at?: string) {
   await page.goto(app.url);
   const went = to && (await takeTo(page, to, made.setup, app.url));
   save();
-  console.log(`Ready in ${((Date.now() - began) / 1000).toFixed(1)}s: ${opened("a browser", repo, setup, person, app.url, made.setup)}
+  console.log(`Ready in ${((Date.now() - began) / 1000).toFixed(1)}s: ${opened("a browser", setup, person, app.url, made.setup)}
 Drive it with your own tool over its debugging port, http://localhost:${debugging}${debugging === DEBUGGING ? "" : `, as another copy's browser has ${DEBUGGING}`}:
   agent-browser --cdp ${debugging} snapshot
   or Playwright: chromium.connectOverCDP("http://localhost:${debugging}"), then its first context's page
@@ -319,14 +319,13 @@ export function keep(did: Done[], done: Done) {
 }
 
 // Who the browser is, saying only what Playthrough knows: "as Sam" is who the moment is done as, and signed in is said
-// only where setup's signIn signed them in. Its default export may have, as signing up on page.request does, but nothing
-// tells Playthrough so.
-export function opened(browser: string, repo: Repo, setup: Setup, person: string, url: string, made: Record<string, unknown>): string {
+// only where setup's signIn signed them in. Otherwise it's open as them, and nothing more is said: an app with no
+// signing in has nothing missing, and one whose default export signed them in, as signing up on page.request does, is
+// seen to be in the browser.
+export function opened(browser: string, setup: Setup, person: string, url: string, made: Record<string, unknown>): string {
   const what = setup.make ? `, what they start from made by playthrough/setup.ts:\n  ${JSON.stringify(made)}` : ".";
   if (setup.signIn) return `${browser} signed in as ${person} by playthrough/setup.ts's signIn, on ${url}${what}`;
-  const at = `${browser} on ${url} as ${person}${what}`;
-  if (setup.make) return `${at}\nplaythrough/setup.ts has no signIn: they're signed in only if its default export signed them in.`;
-  return `${at} Nothing signed them in: ${existsSync(repo.setup) ? "playthrough/setup.ts has no signIn" : "there's no playthrough/setup.ts"}.`;
+  return `${browser} on ${url} as ${person}${what}`;
 }
 
 // This copy's browser, stopped as Ctrl+C stops it, giving back what was made, once the agent hands back or says stop: it
@@ -373,7 +372,7 @@ async function startAgain(repo: Repo, setup: Setup, person: string, began: numbe
     if (again.failed) throw new Refused([`The browser open already couldn't start again as ${person}: ${again.failed}. Stop it (playthrough stop), then run this again.`]);
     if (now.began > began)
       return (
-        console.log(`Started again in ${((Date.now() - began) / 1000).toFixed(1)}s, from a fresh start: ${opened("the browser open already", repo, setup, person, now.url, now.setup)}
+        console.log(`Started again in ${((Date.now() - began) / 1000).toFixed(1)}s, from a fresh start: ${opened("the browser open already", setup, person, now.url, now.setup)}
 ${again.went ? `${again.went}\n` : ""}Your tool stays attached at http://localhost:${now.debugging}. When you've just done what shows the change: playthrough moment "<what's there>"`),
         true
       );

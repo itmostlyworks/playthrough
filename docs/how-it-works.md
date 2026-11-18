@@ -89,9 +89,9 @@ left, the next one gives back.
 the name of another change here with a different title, saying which; the same title again goes back on it.
 
 **`as <person>`** (`as.ts`) starts the app if nobody has, and a Chromium as them (1280 by 800, English, UTC), saying
-only what it knows of who that is: signed in by `setup.ts`'s `signIn` where it has one, and otherwise open as them,
-saying nothing signed them in, or, where its default export made something, that only it could have (`opened`: a real
-run on a fixture with no sign-in was told "signed in as" its person, 0.7.1). It's on a debugging port from 9333 that the agent's own browser tool attaches to, and keeps everything done there as it's
+only what it knows of who that is: signed in by `setup.ts`'s `signIn` where it has one, and otherwise just open as
+them, with no line on what didn't sign them in (`opened`: a real run on a fixture with no sign-in was told "signed in
+as" its person, 0.7.1; then, on 18 Nov, every app without `signIn`, signing in or not, was told what hadn't). It's on a debugging port from 9333 that the agent's own browser tool attaches to, and keeps everything done there as it's
 done: each thing by its role and name (a switch, checkbox, radio or slider with no name by its role and which it is), or
 by its words where nothing names it, both read as the page shows them with nothing hovered and as they're written, not
 as the page's style cases them (`asWritten`: a fold upper-cased by CSS is "My boards", which is what getByRole and
