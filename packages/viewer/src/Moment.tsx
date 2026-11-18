@@ -35,6 +35,8 @@ import { STEPS_OUT, Together, type Box } from "./view.ts";
 
 // How long what you did takes to fade out, back to the moment.
 const FADING = 300;
+// How long a frame takes to come in over the moment, as `animate-arrive` has it.
+const ARRIVING = 240;
 
 // Where a moment's recording ends, and where what's shown of it starts.
 const endOf = (moment: Moment) => Math.max(0, moment.length - 0.05);
@@ -438,7 +440,18 @@ export function MomentView(props: {
   const back = () => may.back && stepIn.back();
   // At the last stop a note is on the change as a whole: there's nothing to point at, so it's written at once.
   const note = () => may.note && act(atLastStop ? { type: "pointed", writing: { note: { id: newId(), words: "" }, spot: { x: 0, y: 0 } } } : { type: "note" });
-  const flip = () => may.flip && act({ type: "flip" });
+  // Flipped, its ring and card go to its thing in the picture coming in as that cross-fades in or out, in step with it;
+  // and from its kept picture to the recording there, once that has said where it is, as As it was comes in. Only then:
+  // as the view moves, they never trail it.
+  const [easing, setEasing] = useState<string>();
+  const easeFor = useRef(0);
+  const ease = (ms: number, curve: string) => {
+    if (unmoving()) return;
+    clearTimeout(easeFor.current);
+    setEasing(`${ms}ms ${curve}`);
+    easeFor.current = window.setTimeout(() => setEasing(undefined), ms);
+  };
+  const flip = () => may.flip && (act({ type: "flip" }), openNow ? ease(ARRIVING, "var(--ease-calm)") : ease(FADING, "ease"));
   // Opened or closed, it stops where it's got to, and the picture stays where the person has it.
   const compare = () => {
     if (!may.compare) return;
@@ -536,7 +549,9 @@ export function MomentView(props: {
     void (fading?.finished ?? Promise.resolve()).then(() => current && (setLayers([]), setOnFrame(undefined)), () => {});
     return () => void ((current = false), fading?.cancel());
   }, [!!framed]);
-  const shownOpen = layers.at(-1);
+  // The frame shown is the open note's from the render it's opened in, before its layer is laid, so what's drawn for the
+  // note, its ring and its card, stays drawn in between.
+  const shownOpen = framed && layers.at(-1)?.note.id !== framed.note.id ? framed : layers.at(-1);
   // On its picture, its thing is where the picture says, as the picture's drawn in the recording's room.
   const [, resized] = useState(0);
   useEffect(() => {
@@ -603,7 +618,11 @@ export function MomentView(props: {
   // Its card comes in by its thing, so it waits until where that is is known: it never stands somewhere else first and
   // moves. Only a note that turns out to be on nothing stands in the corner.
   const corner = spotAt({ x: 24, y: 24 });
-  const cardBy = !carded ? undefined : phone ? corner : openAt && (openAt[carded.note.id] ?? corner);
+  // Flipped to a frame whose thing isn't known yet, it stays where it stood until it is.
+  const stood = useRef<{ note: string; by: Rect }>(undefined);
+  const byThing = !carded ? undefined : phone ? corner : openAt && (openAt[carded.note.id] ?? corner);
+  const cardBy = byThing ?? (carded && stood.current?.note === carded.note.id ? stood.current.by : undefined);
+  stood.current = carded && cardBy ? { note: carded.note.id, by: cardBy } : undefined;
   // What it's about is outlined only at the point: midway, it may not be there yet. Out of view, with the picture brought
   // closer, there's nothing of it to outline.
   const aboutPlaced = placed?.[ABOUT];
@@ -809,7 +828,7 @@ export function MomentView(props: {
           {writing && <NoteCard by={(!(writing.note.on && madeInApp(writing.note.on)) && placed?.[writing.note.id]) || writing.box || spotAt(writing.spot)} stage={stage} under={inFlow}><Write onSave={save} onDrop={() => act({ type: "written" })} /></NoteCard>}
           {/* Closing, it fades where it stood; under the bar on a phone, it goes at once, so it never holds its room. */}
           {!writing && carded && (cardBy || atLastStop) && (
-            <NoteCard key={carded.note.id} by={cardBy ?? corner} stage={stage} closing={!opened} under={inFlow}>
+            <NoteCard key={carded.note.id} by={cardBy ?? corner} stage={stage} closing={!opened} under={inFlow} easing={easing}>
               <div ref={thread} onScroll={threadMore.look} className="min-h-0 flex-1 overflow-y-auto px-1" style={threadMore.fade}>
                 {carded.sent ? <Turns you={you} turns={conversation(change, carded.note.id)} was={wasShown(carded.note)} /> : <Turns you={you} turns={[]} unsent={carded.note.words} />}
               </div>
@@ -990,7 +1009,7 @@ export function MomentView(props: {
                       moves={pageWindow}
                       hand={false}
                       marks={[{ id: note.id, ...(made.node !== undefined ? { node: made.node } : made.point && { point: made.point }) }]}
-                      onMarks={note.id === shownOpen?.note.id ? (at) => setOnFrame({ note: note.id, at }) : undefined}
+                      onMarks={note.id === shownOpen?.note.id ? (at) => (setOnFrame({ note: note.id, at }), at && !onItsFrame && ease(ARRIVING, "var(--ease-calm)")) : undefined}
                     />
                   </div>
                 ))}
@@ -998,9 +1017,9 @@ export function MomentView(props: {
             )}
             <div className={`pointer-events-none absolute inset-0 ${layers.length ? "z-[6]" : ""}`}>
               {shownOpen && !openNow ? (
-                <Pinned pins={[pinFor(shownOpen)]} placed={openAt} open={shownOpen.note.id} faded={!opened} onOpen={close} />
+                <Pinned pins={[pinFor(shownOpen)]} placed={openAt} open={shownOpen.note.id} faded={!opened} onOpen={close} easing={easing} />
               ) : (
-                <Pinned pins={(opened && openNow ? [opened] : pinned).map(pinFor)} placed={placed} open={writing?.note.id ?? (openNow ? opened?.note.id : undefined)} faded={!!playing || away} lit={pointed} onPoint={pointPin} onOpen={(id) => id && openNote(id)} quiet />
+                <Pinned pins={(opened && openNow ? [opened] : pinned).map(pinFor)} placed={placed} open={writing?.note.id ?? (openNow ? opened?.note.id : undefined)} faded={!!playing || away} lit={pointed} onPoint={pointPin} onOpen={(id) => id && openNote(id)} quiet easing={easing} />
               )}
             </div>
           </div>

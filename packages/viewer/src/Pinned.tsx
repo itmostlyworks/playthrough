@@ -13,10 +13,11 @@ export type Pin = { id: string; on: string[]; ink: string; fill: string };
 
 // Lit: what's drawn for it elsewhere, as a note's picture on the moment's edge, is pointed at; pointed at here, it says so.
 // Quiet, a pin's thing is outlined only while it's open or lit, so many notes on one picture are many pins, not a page of
-// boxes.
-type Props = { pins: Pin[]; placed: Placed | undefined; open?: string; faded: boolean; onOpen: (id?: string) => void; lit?: string; onPoint?: (id?: string) => void; quiet?: boolean };
+// boxes. Easing, an outline and its pin go to where they're placed next over that time and curve, as a picture comes in.
+type Props = { pins: Pin[]; placed: Placed | undefined; open?: string; faded: boolean; onOpen: (id?: string) => void; lit?: string; onPoint?: (id?: string) => void; quiet?: boolean; easing?: string };
 
-export function Pinned({ pins, placed, open, faded, onOpen, lit, onPoint, quiet }: Props) {
+export function Pinned({ pins, placed, open, faded, onOpen, lit, onPoint, quiet, easing }: Props) {
+  const going = easing && { transition: ["left", "top", "width", "height"].map((one) => `${one} ${easing}`).join(", ") };
   const room = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   useEffect(() => {
@@ -65,7 +66,7 @@ export function Pinned({ pins, placed, open, faded, onOpen, lit, onPoint, quiet 
                   <div
                     key={id}
                     className={`absolute animate-arrive rounded-[4px] outline-offset-4 outline-solid transition-[outline-color] duration-150 ease-calm ${chosen || lit === pin.id ? "outline-[1.5px] outline-(--c)" : "outline-1 outline-[color-mix(in_srgb,var(--c)_50%,transparent)]"}`}
-                    style={{ left: thing.left, top: thing.top, width: thing.width, height: thing.height }}
+                    style={{ left: thing.left, top: thing.top, width: thing.width, height: thing.height, ...going }}
                   />
                 )
               );
@@ -76,7 +77,7 @@ export function Pinned({ pins, placed, open, faded, onOpen, lit, onPoint, quiet 
               data-pin={pin.id}
               data-part="pin"
               className={`pointer-events-auto absolute grid size-[18px] cursor-pointer place-items-center transition duration-150 ease-calm hover:scale-112 ${lit === pin.id ? "scale-112" : ""}`}
-              style={{ left, top }}
+              style={{ left, top, ...going }}
               onClick={() => onOpen(chosen ? undefined : pin.id)}
               onPointerEnter={() => onPoint?.(pin.id)}
               onPointerLeave={() => onPoint?.(undefined)}

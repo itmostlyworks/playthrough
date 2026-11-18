@@ -178,7 +178,8 @@ function stripOf(screen: { width: number; height: number }, thing: { x: number; 
 
 // A note's card by its thing: beside it where there's room, else under or over it, never on it, nor past the recording's edge.
 // Under: in the page's flow, as wide as it is, as on a phone.
-export function NoteCard({ by, stage, closing, under, children }: { by: Rect; stage: React.RefObject<HTMLDivElement | null>; closing?: boolean; under?: boolean; children: ReactNode }) {
+// Easing, it goes to where it's placed next over that time and curve, as its thing's outline does.
+export function NoteCard({ by, stage, closing, under, easing, children }: { by: Rect; stage: React.RefObject<HTMLDivElement | null>; closing?: boolean; under?: boolean; easing?: string; children: ReactNode }) {
   const own = useRef<HTMLDivElement>(null);
   // Its own height, as it grows with its words, so it's always placed whole; and the height it came in at, which it's
   // placed by, growing from there upward, so its foot holds still: Save, and the line being typed, stay under the hand.
@@ -224,7 +225,7 @@ export function NoteCard({ by, stage, closing, under, children }: { by: Rect; st
       data-note-card
       data-part="note-card"
       className={`${under ? "relative" : "absolute z-40"} flex animate-arrive flex-col rounded-xl bg-surface p-2 shadow-float transition-opacity duration-300 ease-calm ${closing ? "pointer-events-none opacity-0" : ""}`}
-      style={under ? undefined : { ...place, width, maxHeight: foot - edge }}
+      style={under ? undefined : { ...place, width, maxHeight: foot - edge, ...(easing && { transition: `left ${easing}, top ${easing}` }) }}
       onClick={(event) => event.stopPropagation()}
     >
       {children}

@@ -617,8 +617,9 @@ strip on the edge cut from that frame, and Now rests, saying "Not in this moment
 pin never stands on whatever is there instead. As it was is the earlier recording played to that frame, drawn by your
 browser with your fonts just as Now is, so a flip changes only what changed in the app; its kept picture, taken where
 it was recorded, is under it until it's drawn, and in its place if it can't be. A flip is
-a cross-fade in the same spot at the same size (at once with reduced motion), the pin going to its thing in the picture
-shown, the card staying where it is. ← → to another note opens it on Now. With its pin and its card, and nothing more. Escape, its picture again, or a press anywhere but its card or the edges closes it;
+a cross-fade in the same spot at the same size (at once with reduced motion); the ring, the pin and the card go to its
+thing in the picture coming in over the same time and curve, in step with it, the card open and whole all the way (a
+reply being typed stays), and from the kept picture's place to the recording's, once that has said, the same way. ← → to another note opens it on Now. With its pin and its card, and nothing more. Escape, its picture again, or a press anywhere but its card or the edges closes it;
 Space, S and C act on the moment and close it first. An open note's thing is never under the bar: the bar moves along
 the recording's edge, or down off it. In its thread each turn says who on a small line of its own, you by your dot,
 the agent by its name, in soft ink (`Turns`, `Note.tsx`): in faint the names were hard to read on a dark card. A note
