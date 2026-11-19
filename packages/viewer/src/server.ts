@@ -1,6 +1,6 @@
 // `playthrough open` as the viewer's source: the page it serves asks it at /api, on the same machine.
 
-import type { Listed, Source } from "./api.ts";
+import type { AskedVideo, Listed, Source } from "./api.ts";
 
 const of = (change: string) => `/api/changes/${encodeURIComponent(change)}`;
 
@@ -22,6 +22,7 @@ export const server: Source = {
   keepBranch: (change, branch) => posted<{ length: number }>(`${of(change)}/branches`, branch).then((done) => ("problems" in done ? done.problems : done.answer.length)),
   frame: (change, note, framed) => posted<{ picture: string; screen: { width: number; height: number } }>(`${of(change)}/frames`, { note, ...framed }).then((done) => ("problems" in done ? undefined : done.answer)),
   still: (change, still) => posted<{ picture: string }>(`${of(change)}/stills`, still).then((done) => ("problems" in done ? undefined : done.answer.picture)),
+  video,
   // The browser's own, asked for only when used: a browser that refuses them throws there, where it's caught.
   get kept() {
     return localStorage;
@@ -64,6 +65,28 @@ async function stepIn(change: string, moment: string, after: number | undefined,
     if ((error as Error)?.name === "TimeoutError")
       return { plainly: "Playthrough stopped answering.", why: `Playthrough hadn't answered the step in after ${ANSWERED / 1000} seconds, when it always does within a minute: playthrough open may be stuck.` };
     return { plainly: "Playthrough isn't running any more.", why: "Playthrough wasn't running when they pressed it: playthrough open had stopped." };
+  }
+}
+
+// Told a line at a time as it's made: how long it has left, then the video, or what went wrong.
+async function video(change: string, asked: AskedVideo, onLeft: (seconds: number) => void): Promise<Blob | string[]> {
+  try {
+    const answer = await fetch(`${of(change)}/video`, { method: "POST", headers: JSON_BODY, body: JSON.stringify(asked) });
+    if (!answer.ok || !answer.body) return (await answer.json()).problems ?? [`It wasn't made (${answer.status}).`];
+    let said = "";
+    for await (const part of answer.body.pipeThrough(new TextDecoderStream())) {
+      const lines = (said += part).split("\n");
+      said = lines.pop()!;
+      for (const line of lines) {
+        const told: { left?: number; video?: string; problems?: string[] } = JSON.parse(line);
+        if (told.left !== undefined) onLeft(told.left);
+        if (told.problems) return told.problems;
+        if (told.video) return (await fetch(`data:video/mp4;base64,${told.video}`)).blob();
+      }
+    }
+    return ["The video stopped before it was made. Try again."];
+  } catch {
+    return ["Playthrough isn't running here any more. Start it again with playthrough open, then try again."];
   }
 }
 

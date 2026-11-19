@@ -26,6 +26,7 @@ import { answers, endsWithPlaythrough, openFile, stopUnused, UNUSED } from "./ap
 import { sayReady, startBehind } from "./behind.ts";
 import { passedThroughIn } from "./passed.ts";
 import { stillAt, thisCommand, type Command } from "./command.ts";
+import { videoOf, type Asked } from "./video.ts";
 
 // The page's usual port, or another, to try Playthrough beside the one in use: PLAYTHROUGH_PORT, as PLAYTHROUGH_HOME is.
 export const PORT = Number(process.env.PLAYTHROUGH_PORT) || 5790;
@@ -278,7 +279,23 @@ async function answer(here: Machine, page: string, you: string, request: Incomin
     await changes.send(id, await body<Send>(request));
     return json(response, 200, {});
   }
+  if (request.method === "POST" && rest[0] === "video") return video(repo, id, address, request, response);
   return json(response, 404, { problems: [`There's nothing at ${path}.`] });
+}
+
+// What you're watching as a video, a line at a time while it's made: how long it has left, then the video, or what went
+// wrong.
+async function video(repo: Repo, id: string, address: string, request: IncomingMessage, response: ServerResponse) {
+  const asked = await body<Asked>(request);
+  response.writeHead(200, { "content-type": "application/x-ndjson", "cache-control": "no-store" });
+  const say = (line: { left: number } | { video: string } | { problems: string[] }) => response.write(`${JSON.stringify(line)}\n`);
+  try {
+    const made = await videoOf(repo, id, address, asked, request.socket.localPort!, (left) => say({ left: Math.round(left * 10) / 10 }));
+    say({ video: Buffer.from(made).toString("base64") });
+  } catch (error) {
+    say({ problems: [`The video couldn't be made: ${(error as Error).message.split("\n")[0]}`] });
+  }
+  response.end();
 }
 
 // How the person sees the app and its people: the app by its package's name, and each person by their name and who they

@@ -35,7 +35,7 @@ export async function frameOf(repo: Repo, id: string, address: string, note: str
 }
 
 // The screen the recording had at that moment, as its last word on its size before then says.
-async function shapeAt(repo: Repo, id: string, { handBack, recording, at }: Framed) {
+export async function shapeAt(repo: Repo, id: string, { handBack, recording, at }: Framed) {
   const branch = recording.match(/^branches\/(.+)$/);
   const bytes = branch ? await repo.changes.branch(id, branch[1]!) : await repo.changes.file(id, handBack, recording);
   if (!bytes) throw new Error(`Hand-back ${handBack} of ${id} has no recording called “${recording}”.`);

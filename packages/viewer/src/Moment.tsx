@@ -10,6 +10,7 @@ import { conversation, isStill, madeInApp, newId, together, type Note, type Chan
 import { glimpses, picture, readings as readingsOf, recording, shownByAnotherPage, source, type Listed } from "./api.ts";
 import { clamp } from "./clamp.ts";
 import { calledIn, changedAt, CHIP, playedTogether } from "./compare.ts";
+import { DownloadVideo } from "./DownloadVideo.tsx";
 import { Edge, MORE, Tile, useMore } from "./Edge.tsx";
 import { Header, headerRows, Title } from "./Header.tsx";
 import type { YourReply } from "./kept.ts";
@@ -41,8 +42,8 @@ const ARRIVING = 240;
 const SETTLING = 520;
 
 // Where a moment's recording ends, and where what's shown of it starts.
-const endOf = (moment: Moment) => Math.max(0, moment.length - 0.05);
-const startOf = (moment: Moment) => Math.min(moment.from, endOf(moment));
+export const endOf = (moment: Moment) => Math.max(0, moment.length - 0.05);
+export const startOf = (moment: Moment) => Math.min(moment.from, endOf(moment));
 
 export function MomentView(props: {
   change: Change;
@@ -932,6 +933,17 @@ export function MomentView(props: {
     // no header, the recording takes its room.
     <div className={`grid h-dvh ${headerRows()} overflow-clip bg-ground ${shownByAnotherPage() ? "phone:grid-rows-[auto_minmax(0,1fr)]" : "phone:grid-rows-[auto_auto_minmax(0,1fr)]"}`} onPointerDown={pressAway}>
       <Header opener={props.opener} centre={phone ? title : undefined}>
+        {/* What you're watching as a video: this moment as it's shown, or the whole change. */}
+        <DownloadVideo
+          change={change}
+          handBack={handBack}
+          n={atLastStop ? undefined : n}
+          rests={away}
+          asShown={() => ({
+            ...(comparing && then && framedOn && { beside: { handBack: then.handBack.number, framedOn: { changed: framedOn.changed, done: framedOn.done } } }),
+            ...(pageWindow.moved && { window: { centre: pageWindow.centre!, k: pageWindow.k! } }),
+          })}
+        />
         {/* The next moment, and after the last the last stop; there, nothing. */}
         {/* In the app it rests as it does where it can't be pressed, and pointed at, comes to full: it answers. */}
         <button
