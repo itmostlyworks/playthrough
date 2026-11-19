@@ -4,7 +4,8 @@
 // `after`, if it has one, is given what was made, and takes it away, so the app, shared or not, isn't left with a world
 // for every run. The app's people, if it names them, are who a moment can be done as: `signIn` makes a page theirs. And
 // `use`, if it says, is how every page of the app is opened, as
-// Playwright's test.use would: an app that serves a test its own way, told by the browser's user agent, say.
+// Playwright's test.use would: an app that serves a test its own way, told by the browser's user agent, say. What
+// becomes of each of its options, recorded and stepped into, is use.ts's.
 
 import { request as requests, type APIRequestContext, type BrowserContextOptions, type Page } from "@playwright/test";
 import { list, quote, Refused } from "@playthrough/change";
@@ -17,6 +18,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { findsThisPlaythrough } from "./own.ts";
 import { firstLine } from "./reporter.ts";
+import { playthroughs } from "./use.ts";
 
 type Make = (given: { page: Page; request: APIRequestContext; baseURL?: string; person?: string }) => unknown;
 // Given a request of its own, not the run's, so it's the same whether it's the run's end or a later command's: what
@@ -28,9 +30,6 @@ type SignIn = (given: { page: Page; person: string; setup: Record<string, any> }
 export type People = Record<string, string>;
 const FEWEST_WORDS = 6;
 export type Setup = { make?: Make; after?: After; signIn?: SignIn; people?: People; use?: BrowserContextOptions };
-
-// What Playthrough keeps the same for every moment, or a moment says with test.use, isn't the setup's to set for them all.
-const OURS = ["baseURL", "viewport", "screen", "isMobile", "hasTouch", "deviceScaleFactor", "locale", "timezoneId", "colorScheme", "reducedMotion", "forcedColors", "contrast"];
 
 // Loaded again in Playthrough once it's written again, by when.
 export async function setupIn(file: string, written?: number): Promise<Setup> {
@@ -45,7 +44,8 @@ export async function setupIn(file: string, written?: number): Promise<Setup> {
   });
   const inner = typeof module.default === "object" ? module.default : undefined;
   const use = module.use ?? inner?.use;
-  const ours = Object.keys(use ?? {}).filter((option) => OURS.includes(option));
+  // What Playthrough keeps the same for every moment, or a moment says with test.use, isn't the setup's to set for them all.
+  const ours = playthroughs(use);
   if (ours.length)
     throw new Refused([`playthrough/setup.ts's use sets ${list(ours)}, which Playthrough keeps the same everywhere, like the screen. Take ${ours.length > 1 ? "them" : "it"} out of use.`]);
   return {

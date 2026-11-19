@@ -23,7 +23,7 @@ const askedAt = ({ changes, of, app, streamed, gone }: Asked) =>
     readyIn: (change, moment, after, asked) =>
       fetch(`${of(change)}/ready-in`, { method: "POST", headers: JSON_BODY, body: JSON.stringify({ moment, after }), signal: asked })
         .then((answer) => (answer.ok ? answer.json() : Promise.reject()))
-        .then((said) => ({ in: said.in ?? undefined, starting: said.starting === true }), () => undefined),
+        .then((said) => ({ in: said.in ?? undefined, starting: said.starting === true, unlike: said.unlike ?? undefined }), () => undefined),
     keepReady: (change, moment, after) => void fetch(`${of(change)}/keep-ready`, { method: "POST", headers: JSON_BODY, body: JSON.stringify({ moment, after }) }).catch(() => {}),
     stepIn: (change, moment, after, asked) => stepIn(of(change), app, gone, moment, after, asked),
     keepBranch: (change, branch) => posted<{ length: number }>(`${of(change)}/branches`, branch, gone).then((done) => ("problems" in done ? done.problems : done.answer.length)),

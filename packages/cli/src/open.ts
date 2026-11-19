@@ -15,7 +15,7 @@ import type { Reading } from "@playthrough/page";
 import { Refused, type Did, type Change, type Seen, type Send } from "@playthrough/change";
 import { BEAT } from "./run.ts";
 import { repo as copyAt, type Repo } from "./repo.ts";
-import { CantStepIn, cantStepIn, readyIn } from "./following.ts";
+import { CantStepIn, cantStepIn, readyIn, unlikeAt } from "./following.ts";
 import { everyCopy, machine } from "./machine.ts";
 import { keepNamed, type Assets } from "./assets.ts";
 import { frameOf, stillOf, type Framed } from "./frames.ts";
@@ -416,11 +416,13 @@ const readingOf = (event: Event) => (event.type === 5 && event.data?.tag === "re
 
 // How long until a moment asked for is ready, for the viewer to count down to, if it can be known; or that the app isn't
 // running, as after it's gone unused a while, so it starts first, for as long as it takes, which the person is told.
+// And what their browser can't be of the one the moment ran in, for them to read before they're in.
 async function readyInFor(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
   const { moment, after } = await body<{ moment: string; after?: number }>(request);
   const to = await placeOf(repo, id, moment, after).catch(() => undefined);
-  if (!(await repo.app().then((app) => answers(app.url), () => true))) return json(response, 200, { starting: true });
-  json(response, 200, { in: to && (await readyIn(repo, id, to)) });
+  const unlike = to && (await unlikeAt(repo, id, to).catch(() => undefined));
+  if (!(await repo.app().then((app) => answers(app.url), () => true))) return json(response, 200, { starting: true, ...(unlike && { unlike }) });
+  json(response, 200, { in: to && (await readyIn(repo, id, to)), ...(unlike && { unlike }) });
 }
 
 // The viewer is one page: any address that isn't one of its files is the page, which reads the address itself. Served

@@ -17,8 +17,8 @@ import type { App, Heard } from "./Portal.tsx";
 // the app's address once it's ready, what setup made for it, and what its check at the end says where it doesn't hold
 // now, or why it can't be, until that's closed; what stopped a note made there being kept; and where your pointer was in
 // the app as you left it. Whether the app wasn't running, so it starts first, and whether it has answered since, so the
-// way there is being redone.
-type Run = { moment: string; from: number; since: number; due?: number; starting?: boolean; answered?: boolean; address?: string; setup?: Record<string, unknown>; checked?: string; cant?: CantStepIn; unkept?: string[]; at?: { x: number; y: number } };
+// way there is being redone. And what your browser can't be of the one the moment ran in, known as it's asked for.
+type Run = { moment: string; from: number; since: number; due?: number; starting?: boolean; answered?: boolean; unlike?: string; address?: string; setup?: Record<string, unknown>; checked?: string; cant?: CantStepIn; unkept?: string[]; at?: { x: number; y: number } };
 
 export function useStepIn({ change, handBack, moment, page, clock, act, pointing, escapedOnce }: { change: string; handBack: number; moment: Moment; page: Page; clock: Clock; act: (action: Action) => void; pointing: () => void; escapedOnce: () => void }) {
   const [run, setRun] = useState<Run>();
@@ -51,6 +51,7 @@ export function useStepIn({ change, handBack, moment, page, clock, act, pointing
     const ours = (update: (run: Run) => Run) => setRun((now) => (now?.since === since ? update(now) : now));
     // How long it should take is known as long as the last took, unless the app isn't running and starts first.
     source.readyIn(change, moment.name, after, asked.signal).then(async (answer) => {
+      if (answer?.unlike) ours((now) => ({ ...now, unlike: answer.unlike }));
       if (answer?.in) return ours((now) => ({ ...now, due: since + answer.in! }));
       if (!answer?.starting) return;
       ours((now) => ({ ...now, starting: true }));
@@ -135,9 +136,10 @@ export function useStepIn({ change, handBack, moment, page, clock, act, pointing
     saved,
     // Kept off the edge until you're back.
     madeThere: (note: Note) => shown && madeThere.current.has(note.id),
-    // What it says over the bar: that a note made in the app couldn't be kept; in the app, that its check at the end
-    // doesn't hold now.
-    said: here?.unkept?.join(" ") ?? (yours ? here?.checked : undefined),
+    // What it says over the bar: that a note made in the app couldn't be kept; from the moment it's asked for until
+    // you're back, what your browser can't be of the one the moment ran in, so you never land on an app that differs
+    // wondering why; and in the app, that its check at the end doesn't hold now.
+    said: here?.unkept?.join(" ") ?? ([shown && here?.unlike, yours && here?.checked].filter(Boolean).join(" ") || undefined),
     // Why it couldn't open, back on the recording, and where it was pressed, until it's closed.
     cant: !shown && here?.cant ? { ...here.cant, from: here.from } : undefined,
     closeCant: () => setRun((now) => now && { ...now, cant: undefined }),

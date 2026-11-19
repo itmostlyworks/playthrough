@@ -4,7 +4,7 @@
 // each in a window of its own, with its own cookies and storage, in one browser kept open while Playthrough runs: a window
 // opens in a moment, where a run of its own took a second and half a gigabyte.
 
-import { chromium, request as requests, type Browser } from "@playwright/test";
+import { chromium, request as requests, type Browser, type BrowserContextOptions } from "@playwright/test";
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { quote, Refused } from "@playthrough/change";
@@ -13,19 +13,21 @@ import { firstLine, whyStopped } from "./reporter.ts";
 import type { Repo } from "./repo.ts";
 import { giveBackLeft, setupIn, type Made, type Setup } from "./setup.ts";
 import type { Kept, Orders } from "./test.ts";
+import { unlike } from "./use.ts";
 
 // Runs one moment to where a person steps in, on the app as it is now: quickly and unrecorded, from what every moment
 // starts from, so they carry on from a fresh copy of the moment rather than a picture of it. Never past `until`, and
 // stopped once nobody's waiting for it.
 // With what the run made for it (setup.ts), which is the app the person has, theirs to give back; and where the
 // moment's own checks at its end don't hold now, what they say.
-export async function runTo(repo: Repo, id: string, to: To, until: number, waiting?: AbortSignal): Promise<{ handed: Handed; made?: Made; checked?: string }> {
+// And how its page was opened, for the person's browser to talk to the app as it did (use.ts).
+export async function runTo(repo: Repo, id: string, to: To, until: number, waiting?: AbortSignal): Promise<{ handed: Handed; made?: Made; checked?: string; use: BrowserContextOptions }> {
   const { files, written } = await writtenOf(repo, id);
   const began = Date.now();
-  const { handed, stopped, made, checked, late } = await run(repo, id, to, files, written, until, waiting);
+  const { handed, stopped, made, checked, late, use } = await run(repo, id, to, files, written, until, waiting);
   if (handed && !waiting?.aborted) {
     took.set(timeOf(repo, id, to, written), Date.now() - began);
-    return { handed, made, checked };
+    return { handed, made, checked, use };
   }
   void made?.giveBack();
   if (waiting?.aborted) throw new Refused(["Nobody's waiting for it any more."]);
@@ -68,6 +70,19 @@ export async function readyIn(repo: Repo, id: string, to: To) {
   return took.get(timeOf(repo, id, to, written));
 }
 const took = new Map<string, number>();
+
+// What the person's browser can't be of the one the moment ran in, in a sentence for them to read before they're in
+// (use.ts), or nothing; nothing too where the moment can't be loaded, which its step in says.
+export async function unlikeAt(repo: Repo, id: string, to: To) {
+  const { files, written } = await writtenOf(repo, id);
+  const { moments, setup } = await loadedOf(repo, id, files, written);
+  const kept = moments.get(to.moment);
+  return kept && unlike(openedWith(setup, kept));
+}
+
+// How the moment's page is opened: as setup.ts's use says, under what its own file says with test.use, as pageFor
+// opens it.
+const openedWith = (setup: Setup, kept: Kept) => ({ ...setup.use, ...kept.use });
 const timeOf = (repo: Repo, id: string, { moment, after }: To, written: number) => JSON.stringify([repo.root, id, moment, after, written]);
 const key = (repo: Repo, id: string) => `${repo.root}\n${id}`;
 
@@ -97,7 +112,7 @@ async function run(repo: Repo, id: string, to: To, files: string[], written: num
     const ran = await runAlongside(page, { request, baseURL: app.url, started, setup, borrowed: repo.borrowed, person: kept.use.person }, kept.body, orders).catch(
       (error) => ({ stopped: { why: whyStopped(String(error?.message ?? error)).why } }) as Awaited<ReturnType<typeof runAlongside>>,
     );
-    return { ...ran, late };
+    return { ...ran, late, use: openedWith(setup, kept) };
   } finally {
     clearTimeout(limit);
     waiting?.removeEventListener("abort", stop);
