@@ -1170,8 +1170,9 @@ export function MomentView(props: {
             ref={toolbar}
             style={{ height: BAR, translate: phone ? "-50% 0" : `calc(-50% + ${clear?.x ?? 0}px) calc(-50% + ${clear?.y ?? 0}px)`, opacity: clear ? 1 : 0 }}
           >
-            {/* What Step in has to say, just over the bar, where it was pressed: that the app starts first, or in the app
-                that its check at the end doesn't hold now; or, as a sheet, that it couldn't open, with what to do about
+            {/* What Step in has to say, just over the bar, where it was pressed: that the app starts first, what your
+                browser can't be of the one the moment ran in, or in the app that its check at the end doesn't hold
+                now; or, as a sheet, that it couldn't open, with what to do about
                 it. Under the bar there's no room for it, but on a phone, where over it is the picture. */}
             {stepIn.cant && <CantStepIn plainly={stepIn.cant.plainly} told={toldAgent} onTell={tellAgent} onClose={stepIn.closeCant} />}
             {(stepIn.said || stepIn.waitingOn) && (

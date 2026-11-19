@@ -2,7 +2,10 @@
 // there to the person, in their own browser, to carry on from. It's the real app under their hands, a fresh copy of the
 // moment made the way every moment starts, not a picture of it. Playthrough passes everything on to the app, and at
 // /step-in gives the browser what the moment's page had: its address, its cookies, and what the app kept in the browser.
+// What the page was opened with that's how a browser talks to the app, a header that routes it, say, is added on the way
+// to the app here, never given to the browser (use.ts).
 
+import type { BrowserContextOptions } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createServer, request as ask, type IncomingMessage, type ServerResponse } from "node:http";
@@ -16,6 +19,7 @@ import { listen, thisMachine } from "./open.ts";
 import { readHere } from "./read.ts";
 import type { App, Repo } from "./repo.ts";
 import type { Made } from "./setup.ts";
+import { onTheWay } from "./use.ts";
 
 // Clear of the viewer's, which takes the next free one from 5790 when several are open.
 const PORT = 5830;
@@ -27,7 +31,8 @@ const PORT = 5830;
 // With it, what setup made for it, so where the person writes a note is said as the same place in the agent's own run.
 export async function getReady(repo: Repo, id: string, to: To, waiting?: AbortSignal): Promise<{ port: number; name: string; setup: Record<string, unknown>; checked?: string }> {
   const app = await repo.app();
-  const { handed, made, checked, done } = await madeFor(repo, id, to, waiting);
+  const { handed, made, checked, done, use } = await madeFor(repo, id, to, waiting);
+  asTheRun(app.url, use);
   // One way through for each copy of the app, as each answers at an address of its own.
   if (!passings.has(app.url)) passings.set(app.url, passOn(app));
   const port = await passings.get(app.url)!.catch((error) => {
@@ -176,7 +181,8 @@ async function opening(name: string, waiting: AbortSignal): Promise<Handed | und
   clearTimeout(one.letGo);
   const opened = (one.opening ?? Promise.resolve()).then(async () => {
     if (one.opened || !one.handed) {
-      const { handed, made, done } = await madeFor(one.repo, one.id, one.to, waiting);
+      const { handed, made, done, use } = await madeFor(one.repo, one.id, one.to, waiting);
+      asTheRun((await one.repo.app()).url, use);
       void one.made?.giveBack();
       one.done?.();
       Object.assign(one, { handed, made, done });
@@ -263,13 +269,19 @@ function turnAway(response: ServerResponse) {
   response.end("Playthrough passes the app on to this machine alone, by its name: open it at localhost.");
 }
 
+// With what the page the latest step in was handed from added on the way, as its browser added it (use.ts).
 function asIfDirect(request: IncomingMessage, target: URL) {
   const headers = { ...request.headers, host: target.host };
   const from = `http://${request.headers.host}`;
   if (headers.origin) headers.origin = target.origin;
   if (headers.referer?.startsWith(from)) headers.referer = target.origin + headers.referer.slice(from.length);
-  return headers;
+  return (onTheWayTo.get(target.origin) ?? ((same) => same))(headers);
 }
+
+// What the app's way through adds to what goes to it, for each copy of the app by its address: kept here, in this
+// process, and never in anything sent back, written down or said.
+const onTheWayTo = new Map<string, ReturnType<typeof onTheWay>>();
+const asTheRun = (app: string, use: BrowserContextOptions) => onTheWayTo.set(new URL(app).origin, onTheWay(use, app));
 
 // Taken over in the viewer, the app sits in its frame, and this goes into each of its pages, first. Scrolled where the
 // moment's page was, it tells the viewer once it has settled (loaded, its fonts and pictures in, nothing on its way and

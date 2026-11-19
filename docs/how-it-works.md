@@ -86,7 +86,15 @@ run made. `setup.ts`'s default export is given the page, a request of its own, t
 what it returns is that run's setup; `after`, if it exports one, is given that and takes it away; `people` names who a
 moment can be done as; `signIn` signs a page in; `use` is how every page of the app is opened, as Playwright's
 `test.use` would be, but never what Playthrough keeps the same everywhere (the screen, language and time zone, light or
-dark, motion), which it refuses, naming it (`setup.ts`). Each run makes its own world and gives it back when it's over;
+dark, motion), which it refuses, naming it. What becomes of each of Playwright's options there, a moment's own
+`test.use` under it, is one table (`use.ts`), typed over every option Playwright has, so one it adds can't be used
+until it's said there: Playthrough's (refused); on the way to the app (headers, a sign-in for the server, the user
+agent), which stepping in adds on this computer; handed over (a storage state, in the page the run hands over);
+Playwright's own (downloads, HAR, video, its logger, strict selectors), nothing the app sees; and the browser's own
+(where it is, permissions, offline, scripts off, CSP bypassed, service workers blocked, a proxy, a client certificate,
+certificate errors overlooked), which a person's browser can't be made to be, said before they step in. MOMENTS.md
+tells the agent that what every request needs goes in `use`: added on the page instead, as a real review on 0.7.2's
+routing header was, it's invisible to Playthrough, as the run's window is closed once it has handed over. Each run makes its own world and gives it back when it's over;
 until then it's written down in `.playthrough/borrowed/` under the process it was made for, so what a stopped command
 left, the next one gives back.
 
@@ -880,7 +888,15 @@ away from is shut; a look only CSS `:hover` gives shows only where your own poin
 while what saved something or went to another address isn't done twice, and the page is scrolled where the recording
 was. Each step in has an address of its own, `/step-in/<moment>`, a name nobody could guess, on a pass-through at
 http://localhost:5830/ that hands your browser the run's page (its address, cookies and what the app kept in the browser)
-and passes everything else on to the app, answering only this machine's names. Into each page of the app it passes on,
+and passes everything else on to the app, answering only this machine's names. **It talks to the app as the run did:**
+what the run's page was opened with on the way to the app (`use.ts`'s `onTheWay`, from the latest step in on that copy
+of the app) is added to every request and live connection it passes on, there and nowhere else: `use`'s headers over
+the browser's own, as Playwright puts them (the recording had the run's), its user agent, and its sign-in for the
+server where it's for the app's address and the request has none of its own. It's held in this process alone, never
+handed to the browser, written down, logged or said in an error; a guest uses it as the person does, through the same
+way through, and can't read it either, unless the app itself shows what it was sent. On 0.7.2 the pass-through
+forwarded only the browser's own headers, so an app behind a routing header answered every step in with its error
+page (a real review). Into each page of the app it passes on,
 it puts what tells the viewer where the pointer is, what's done and noted there and when it has settled, and rrweb's
 recorder (`inApp`, `step-in.ts`); the package carries the same as `show/in-app.js`, for an app another page's source
 opens by an address of its own to include itself. The source's answer to a step in is that address
@@ -953,7 +969,11 @@ the app, which can take a minute.", the line inside Step in not filling, as the 
 start. `ready-in` is asked again every second until the app answers, when the server goes on to redo the way there;
 then the note's words swap, in the same place and size, to "Getting to this moment." until it's there (both lines are
 drawn one over the other, so neither moves the note; a quick cross-fade, none with reduced motion). Unanswered, the
-first line stays. No countdown. Escape, or
+first line stays. No countdown. **What can't come along** is said as soon as Step in is pressed, from `ready-in`'s
+answer (`unlikeAt`, `following.ts`), over the bar in amber, until you're back: "Your browser can't be as the
+recording's was, which was told where it is and was allowed notifications, so the app may not be as it was there.",
+each of the browser's own options named in what it did, never what it was set to; nothing where it's as any browser
+is. It takes the place of the starting line, and in the app sits before a check that doesn't hold. Escape, or
 going to another moment, calls it off: the request ends, which stops the run, and a page of the app already opening
 unseen goes with it; the bar is at rest at once. The page waits 70 s for the answer (the server always gives one within a
 minute: past that, "Playthrough stopped answering.") and 30 s for the app's page to settle ("The app's page didn't
@@ -1061,7 +1081,8 @@ every file from what their browser really loaded, and would lose nothing, but th
 only what the app has, and a font or picture from elsewhere (a font service, an avatar) still comes from there when
 they play.
 
-**Stepping in, a guest** gets the owner's real app, run on this computer with the moment's setup, as the person does:
+**Stepping in, a guest** gets the owner's real app, run on this computer with the moment's setup, as the person does,
+talked to as the run did (what `use` adds, a routing header or the server's sign-in, is added here, never sent to them):
 the app and the guest's page are one address, the tunnel's, so the app's cookies, its sign-in among them, go with its
 pages in the guest's browser (between two addresses, a frame's cookies wouldn't). Everything at the door outside the
 link's folder is the app's, passed to Playthrough's way through to it (`step-in.ts`) as if asked at localhost, by its

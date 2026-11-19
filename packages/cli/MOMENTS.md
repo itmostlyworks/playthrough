@@ -61,6 +61,14 @@ if they say so.
 
   Someone who joins another's things (a member of an owner's workspace) is made with them: the owner first, on
   request, then the member on page.request. Stub what's outside the app at the network: page.route(…).
+
+  What every request to the app needs, a header that routes it to another backend or a password the server asks for,
+  goes in use, as Playwright's test.use, and nowhere else:
+
+    export const use = { extraHTTPHeaders: { "x-backend": "staging" }, httpCredentials: { username: "staging", password: "…" } };
+
+  Stepping in, the person's browser talks to the app with it too, without being able to read it. Added on the page
+  instead (page.setExtraHTTPHeaders, or a page.route that adds it), it's in your moments but not in their browser.
 - Then try it: playthrough as <each person>, and look at what they see, before you change anything else.
 
 EACH CHANGE

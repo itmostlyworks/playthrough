@@ -33,10 +33,11 @@ export type Source = {
   // The moments opened by you, the last stop as a hand-back alone.
   seen(change: string, by: string, moments: { handBack: number; moment?: string }[]): Promise<string[]>;
   // Stepping in at a moment, after its step's action `after` (none: before them all): how long until it's ready, as long
-  // as the last took, and whether the app starts first; kept ready there, for a step in to come; and the app's address
+  // as the last took, whether the app starts first, and what your browser can't be of the one the moment ran in, in a
+  // sentence; kept ready there, for a step in to come; and the app's address
   // there, what setup made for it, and what its check at the end says where it doesn't hold now; or why it can't be, in a
   // line for the person (`plainly`) and whole for the agent (`why`). Called off by `asked`.
-  readyIn(change: string, moment: string, after: number | undefined, asked: AbortSignal): Promise<{ in?: number; starting: boolean } | undefined>;
+  readyIn(change: string, moment: string, after: number | undefined, asked: AbortSignal): Promise<{ in?: number; starting: boolean; unlike?: string } | undefined>;
   keepReady(change: string, moment: string, after: number | undefined): void;
   stepIn(change: string, moment: string, after: number | undefined, asked: AbortSignal): Promise<{ address: string; setup: Record<string, unknown>; checked?: string } | CantStepIn>;
   // What you did in the app, kept as your branch off the moment you stepped in at, as the file `recording` of the
