@@ -945,7 +945,7 @@ export function MomentView(props: {
             ...(pageWindow.moved && { window: { centre: pageWindow.centre!, k: pageWindow.k! } }),
           })}
         />
-        <Share change={change.id} />
+        <Share change={change.id} rests={away} />
       </Header>
       {/* The recording, as large as the room beside the edges lets it be: the same size from one moment to the next. */}
       <div className="relative grid min-h-0 place-items-center [container-type:size] phone:[container-type:inline-size]">

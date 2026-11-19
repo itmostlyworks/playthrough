@@ -2,9 +2,10 @@
 // where it is: this moment, as it's shown (beside how it was, with Compare on), or the whole change, its moments in
 // order; a change of one moment, or the last stop, has nothing to choose. Making one takes as long as the video, and the
 // button says so where you pressed it: it counts down to the download a second at a time, filling as it goes, and ends
-// on a tick, “Downloaded”. Only it redraws while it counts.
+// on a tick, “Downloaded”. Only it redraws while it counts, and nothing in it moves: one box, as wide as its widest
+// words, the arrow, the seconds and the tick in one slot before them, and the words always starting where they start.
 
-import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import type { Change, HandBack } from "@playthrough/change";
 import { source, type AskedVideo } from "./api.ts";
 import { usePhone } from "./phone.ts";
@@ -15,7 +16,9 @@ type Making = { since: number; due?: number } | { downloaded: true } | { problem
 
 // A count shorter than this isn't worth counting.
 const COUNTED = 1500;
-const GROW = "cubic-bezier(0.22, 0.8, 0.24, 1)";
+
+// What it says, each in turn; all of them held in one place, so the button is as wide as the widest and never changes.
+const WORDS = { rest: "Download video", making: "Downloading…", downloaded: "Downloaded", failed: "Didn’t work" } as const;
 
 type Props = {
   change: Change;
@@ -53,53 +56,51 @@ export function DownloadVideo({ change, handBack, n, asShown, rests }: Props) {
   const press = () => (n === undefined || handBack.moments.length === 1 ? make(true) : setChoosing((now) => !now));
 
   const left = useCount(busy ? (making as { due?: number }).due : undefined);
-  const words = !making
-    ? "Download video"
-    : "downloaded" in making
-      ? "Downloaded"
-      : "problems" in making
-        ? "Couldn’t make the video"
-        : left
-          ? <>Downloading in <Rising key={left}>{left}</Rising>…</>
-          : "Downloading…";
+  const said: keyof typeof WORDS = !making ? "rest" : "downloaded" in making ? "downloaded" : "problems" in making ? "failed" : "making";
+  // Before the words, in one slot: the arrow, the seconds left once they're worth counting, then the tick.
+  const slot = said === "downloaded" ? "tick" : left ? "seconds" : "arrow";
+  const shows = (here: boolean) => (here ? "" : "opacity-0");
 
-  // The button grows and shrinks to its words, from its right edge, rather than jumping.
-  const width = useRef(0);
-  useLayoutEffect(() => {
-    const now = button.current!.getBoundingClientRect().width;
-    if (width.current && Math.abs(width.current - now) > 0.5 && !matchMedia("(prefers-reduced-motion: reduce)").matches)
-      button.current!.animate([{ width: `${width.current}px` }, { width: `${now}px` }], { duration: 380, easing: GROW });
-    width.current = now;
-  });
+  // Closed as the app becomes yours: the pair rests then.
+  useEffect(() => void (rests && setChoosing(false)), [rests]);
 
   if (!source.video) return null;
   return (
     <div className="relative flex flex-none">
       <button
         ref={button}
-        className={`relative flex items-center gap-1.5 overflow-hidden rounded-lg px-2 py-1 whitespace-nowrap phone:h-[27.5px] phone:w-8 phone:justify-center phone:px-0 text-soft transition-[background-color,color,opacity] duration-150 ease-calm enabled:hover:bg-hover enabled:hover:text-fg aria-busy:text-fg aria-expanded:bg-hover aria-expanded:text-fg disabled:cursor-default ${rests ? "opacity-50" : ""}`}
+        className={`relative flex items-center gap-1.5 overflow-hidden rounded-lg px-2 py-1 whitespace-nowrap phone:h-[27.5px] phone:w-8 phone:justify-center phone:px-0 text-soft transition-[background-color,color,opacity] duration-150 ease-calm enabled:hover:bg-hover enabled:hover:text-fg aria-busy:text-fg aria-expanded:bg-hover aria-expanded:text-fg disabled:cursor-default ${rests ? "opacity-(--resting)" : ""}`}
         disabled={rests || busy}
         aria-busy={busy}
         aria-expanded={choosing}
         aria-haspopup={n !== undefined && handBack.moments.length > 1 ? "menu" : undefined}
-        aria-label={phone ? (typeof words === "string" ? words : `Downloading in ${left}`) : undefined}
+        aria-label={slot === "seconds" ? `Downloading, ${left} ${left === 1 ? "second" : "seconds"} left` : WORDS[said]}
         title={making && "problems" in making ? making.problems.join(" ") : undefined}
         onClick={press}
       >
         <Fill making={making} />
-        {making && "downloaded" in making ? (
-          <span className="relative -mr-1 flex phone:mr-0 phone:[&>svg]:mr-0">{tick}</span>
-        ) : phone && left ? (
-          // On a phone, at the button's one width, the seconds left take the arrow's place.
-          <span className="relative tabular-nums">
-            <Rising key={left}>{left}</Rising>
-          </span>
-        ) : (
-          <svg viewBox="0 0 16 16" className="relative size-3.5 flex-none" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <span aria-hidden className="relative grid size-3.5 flex-none place-items-center *:[grid-area:1/1] *:transition-opacity *:duration-150 *:ease-calm [&_svg]:mr-0">
+          <svg viewBox="0 0 16 16" className={`size-3.5 ${shows(slot === "arrow")}`} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M8 2.5v7.5M4.75 7l3.25 3.25L11.25 7M3 13h10" />
           </svg>
+          {/* Each second comes in where the last stood, at the width every digit has, centred on the slot without
+              widening it, so 10 or more takes no room from the words. */}
+          <span className={`absolute top-1/2 left-1/2 -translate-1/2 text-[12px] leading-none tabular-nums ${shows(slot === "seconds")}`}>
+            <span key={left} className="block animate-arrive" style={{ animationDuration: "200ms" }}>
+              {left}
+            </span>
+          </span>
+          <span className={`flex ${shows(slot === "tick")}`}>{tick}</span>
+        </span>
+        {!phone && (
+          <span aria-hidden className="relative grid justify-items-start *:[grid-area:1/1] *:transition-opacity *:duration-150 *:ease-calm">
+            {Object.entries(WORDS).map(([is, words]) => (
+              <span key={is} className={shows(is === said)}>
+                {words}
+              </span>
+            ))}
+          </span>
         )}
-        {!phone && <span className="relative tabular-nums">{words}</span>}
       </button>
       {choosing && <Choices count={handBack.moments.length} comparing={!!asShown().beside} onChoose={make} onClose={() => (setChoosing(false), button.current?.focus())} button={button} />}
     </div>
@@ -155,8 +156,9 @@ function save(video: Blob, name: string) {
   setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 }
 
-// The seconds left, a whole one at a time, the first shown for at least half of one, only ever going down; nothing once
-// the count is done or not worth counting.
+// The seconds left, a whole one at a time, the first shown for at least half of one, only ever going down and staying
+// on 1 until it's downloaded, so the arrow never comes back between the count and the tick; nothing when it isn't worth
+// counting.
 function useCount(due: number | undefined): number | undefined {
   const [shown, setShown] = useState<number>();
   useEffect(() => {
@@ -166,7 +168,7 @@ function useCount(due: number | undefined): number | undefined {
         const seconds = (due - Date.now()) / 1000;
         if (!shown && seconds * 1000 < COUNTED) return undefined;
         const left = shown ? Math.min(shown, Math.ceil(seconds)) : Math.ceil(seconds - 0.5);
-        return left < 1 ? undefined : left;
+        return Math.max(left, 1);
       });
     count();
     const counting = setInterval(count, 100);
@@ -202,19 +204,5 @@ function Fill({ making }: { making?: Making }) {
       className={`absolute inset-0 origin-left bg-[color-mix(in_srgb,var(--fg)_8%,transparent)] ${busy ? "opacity-100" : "opacity-0"} ${downloaded ? "[transition:transform_200ms_var(--ease-calm),opacity_500ms_var(--ease-calm)_700ms]" : "transition-opacity duration-500 ease-calm"}`}
       style={{ transform: "scaleX(0)" }}
     />
-  );
-}
-
-// A number rises into place as it changes.
-function Rising({ children }: { children: number }) {
-  const number = useRef<HTMLSpanElement>(null);
-  useLayoutEffect(() => {
-    if (!matchMedia("(prefers-reduced-motion: reduce)").matches)
-      number.current!.animate([{ opacity: 0, transform: "translateY(3px)" }, { opacity: 1, transform: "none" }], { duration: 280, easing: GROW });
-  }, []);
-  return (
-    <span ref={number} className="inline-block">
-      {children}
-    </span>
   );
 }

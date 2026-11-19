@@ -569,13 +569,16 @@ waiting and the right corner, and there's no card for what you asked.
 **Download video** (`DownloadVideo.tsx`), left of Share, makes what you're watching an MP4 your browser downloads. Pressed,
 it asks where it is, in a small card hanging from it: **This moment**, as it's shown ("with Compare" when Compare is on:
 both sides, framed as they are, and the window where you took it), or **The whole change**, its moments in order ("3
-moments"); with one moment, or at the last stop, there's nothing to choose. Then it counts down where you pressed it,
-"Downloading in 5…", filling as it goes, and ends on a tick, "Downloaded", for 2.5 s; one that couldn't be made says
-"Couldn’t make the video", why when pointed at. On a phone it's the arrow alone, the seconds left in its place, at one
-width, so the title beside it never moves. It rests in the app, dimmed and not to be pressed, and isn't there shown by
-another page, a guest's included. With Share it's one pair, the same height, size and ink, 12px apart: Share keeps one
-width whatever it says and Download video grows and shrinks to its left, so neither moves the other; either open shows on
-its button, both cards hang 8px under it, and opening either's card closes the other's.
+moments"); with one moment, or at the last stop, there's nothing to choose. Then it says "Downloading…", counts down
+the seconds left where the arrow was, filling as it goes (holding on 1 until it's there), and ends on a tick in the same
+place, "Downloaded", for 2.5 s; one that couldn't be made says "Didn’t work", why when pointed at. Nothing in it moves
+while it does (`DownloadVideo.tsx`, `WORDS`): its four words are held in one place, so it's as wide as "Download video"
+in every state and the words always start at the same x; the arrow, the seconds (in digits of one width, centred
+without widening the slot) and the tick share one 14px slot; what changes crossfades in 150 ms, and only the fill grows.
+On a phone it's that slot alone, at one width, so the title beside it never moves. It rests in the app, as Share does,
+at the resting ink and not to be pressed, and isn't there shown by another page, a guest's included. With Share it's
+one pair, the same height, size and ink, 12px apart, each one width whatever it says, so neither moves the other;
+either open shows on its button, both cards hang 8px under it, and opening either's card closes the other's.
 `playthrough open` films it (`video.ts`): the viewer plays it in a browser of its own (`?video=`, `Video.tsx`), light or
 dark as your page is, at the largest screen its moments were recorded on, drawn larger up to 1920 wide (or tall), and
 what it draws is filmed as it plays and put together by that browser's own H.264 (`mp4.ts`): nothing to install. In it:
@@ -1037,8 +1040,13 @@ its moments do. It runs on this computer, for as long as it's on." Under them on
 the button says "Getting a link…" at its size, with "This takes a few seconds." beside it (about 5 s); then the link, in
 a field that selects whole, Copy (Copied, with a tick, for 1.4 s, in its place) and, top right of the card, Stop
 sharing. Failed, the words say why and what to do ("Sharing needs cloudflared, which isn't on this computer. Install it
-with brew install cloudflared, or from Cloudflare's site, then try again."), and the button is Try again. While a change
-is shared the button says "Shared", with a tick, both words held in one place so nothing moves. The page asks where it
+with brew install cloudflared, or from Cloudflare's site, then try again."), and the button is Try again. The button
+always says "Share", with a small light before it: gray and still while nothing is shared, through "Getting a link…"
+and after a failure; green, with a faint ring of its own green slowly coming and going (`live`, 3.2 s, `style.css`),
+while the link works; green and still under reduced motion. Only the light changes, so nothing moves. It's kept from
+being taken for a note's dot, which means a note and nothing else: 6px, no white ring, and green, which no note ever
+is (theirs are 7px, amber or slate, ringed in white); the green meets 3:1 on the page in light (3.8) and dark (8.6), and
+the ring never dims it. It rests in the app, as Download video does. The page asks where it
 stands as it opens, every 600 ms while starting and every 5 s while on, as a tunnel can end.
 
 **Underneath** (`share.ts`): `playthrough open` (`POST`, `GET`, `DELETE` on `/api/changes/<address>/share`, answered
