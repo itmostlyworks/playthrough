@@ -1,37 +1,36 @@
-// What you're watching as a video: the page `playthrough open` films when you download one (video.ts). Only the
-// recording, as the moment's page plays it, or beside how it was, as Compare shows it; over it what it is, the change's
-// title and the moment's name, as the page has them on the recording's top. Each moment opens on its name, standing a
-// moment before it plays, and comes in over the one before as going to it does; the last closes on its end softened, with
-// Playthrough's mark and playthrough.sh over it. Nothing else Playthrough draws over a recording is in it: no bar, no
-// edges, no pins, no outline round what it's about.
+// What you're watching as a video: the page `playthrough open` films when you download one (video.ts). The app and
+// nothing else, edge to edge, exactly as it looked when it was recorded, as the moment's page plays it (the pointer, its
+// clicks and keys); or Compare's two sides, each saying which it is. Each moment comes in over the one before as going to
+// it does, its name in a small pill at its bottom left for its first second; the last holds on its end while a pill with
+// Playthrough's mark and playthrough.sh comes in at its bottom right.
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { isStill, together, type Change, type HandBack, type Moment as Taken } from "@playthrough/change";
 import { readings, useChanges, type AskedVideo, type Listed } from "./api.ts";
-import { CHIP, playedTogether } from "./compare.ts";
+import { playedTogether } from "./compare.ts";
+import { ARRIVE, END, LAST, NAME, STILL, videoLength } from "./filming.ts";
 import { Mark } from "./Mark.tsx";
 import { endOf, startOf } from "./Moment.tsx";
 import { Clock, cutFor, Player, type Cut } from "./Player.tsx";
-import { whoIn } from "./standing.ts";
 import { Together } from "./view.ts";
 
-// Drawn `larger` times its size, as Chromium films a page only at the size of its screen.
-export type Filmed = Omit<AskedVideo, "dark"> & { change: string; larger: number };
+// Drawn `larger` times its size, as Chromium films a page only at the size of its screen. Always the whole app, light or
+// dark as it was recorded, wherever the person had taken the window and whatever their page is.
+export type Filmed = Pick<AskedVideo, "handBack" | "moments" | "beside"> & { change: string; larger: number };
+
+// What the video says in its own words, in one shape: on its own surface, so it reads over any app, light or dark.
+const PILL = "pointer-events-none absolute z-30 rounded-md bg-surface px-2.5 py-1 text-[13px] leading-5 text-fg shadow-tip";
 
 declare global {
   interface Window {
     // Played once everything on it has arrived; done `length` seconds of video later.
     video?: { length: number; play: () => Promise<void> };
+    // Told when what it draws over the app has come to rest, a pill or a moment come or gone, so the filming makes the
+    // next frame whole (video.ts).
+    settled?: () => void;
   }
 }
-
-// In the video's own seconds: a moment's name stands this long before it plays, its end this long after, a still
-// (nothing to play) this long between, and the mark this long at the close.
-const NAME = 1;
-const LAST = 0.8;
-const STILL = 1;
-const MARK = 1.8;
 
 // The change as it was when the video was asked for: what arrives after changes nothing being filmed.
 export function VideoPage({ filmed }: { filmed: Filmed }) {
@@ -56,14 +55,14 @@ function Filming({ listed, handBack, filmed }: { listed: Listed; handBack: HandB
     void Promise.all(moments.map(async (moment) => ({ cut: await cutFor(change.id, handBack.number, moment), shape: await shapeOf(moment).then(({ width, height }) => width / height) }))).then(setReady);
   }, []);
   const both = useMemo(() => (ready && then ? playedTogether(ready[0]!.cut, together(moments[0]!, then.moment)) : undefined), [ready]);
-  // One window for both of Compare's sides, framed on what changed or where you took it; alone, the whole screen, or
-  // where you took it.
-  const [pageWindow] = useState(() => Object.assign(new Together(flushSync), filmed.window && { moved: true, ...filmed.window }));
-  const moves = then || filmed.window ? pageWindow : undefined;
+  // One window for both of Compare's sides, framed on what changed, as Compare opens; alone, the whole screen.
+  const [bothSides] = useState(() => new Together(flushSync));
   const [along] = useState(() => new Clock(0));
 
-  // Which moment is shown, which is playing, how many have played to their end, and whether it's closing.
+  // Which moment is shown, whose name stands, which is playing, how many have played to their end, and whether it's
+  // closing.
   const [on, setOn] = useState(0);
+  const [named, setNamed] = useState<number | undefined>(0);
   const [playing, setPlaying] = useState<number>();
   const [played, setPlayed] = useState(0);
   const [closing, setClosing] = useState(false);
@@ -93,22 +92,24 @@ function Filming({ listed, handBack, filmed }: { listed: Listed; handBack: HandB
     const play = async () => {
       for (const [i, moment] of moments.entries()) {
         setOn(i);
-        await wait(NAME);
+        setNamed(i);
+        setTimeout(() => setNamed((was) => (was === i ? undefined : was)), NAME * 1000);
+        await wait(ARRIVE);
         if (both) await playBoth(both.of(startOf(moment)), both.of(endOf(moment)));
         else if (isStill(moment)) await wait(STILL);
         else await new Promise<void>((done) => ((stopped.current = done), setPlaying(i)));
         setPlayed(i + 1);
         setPlaying(undefined);
-        await wait(LAST);
+        if (i < moments.length - 1) await wait(LAST);
       }
       setClosing(true);
-      await wait(MARK);
+      await wait(END);
     };
     // Ready once the first moment's recording is drawn: each side's, compared.
     let frame = 0;
     const drawn = () => {
       if (document.querySelectorAll("[data-filmed='0'] iframe").length < (then ? 2 : 1)) return void (frame = requestAnimationFrame(drawn));
-      window.video = { length: moments.reduce((sum, moment, i) => sum + NAME + lengthOf(moment, i) + LAST, MARK), play };
+      window.video = { length: videoLength(moments.map(lengthOf)), play };
     };
     drawn();
     return () => cancelAnimationFrame(frame);
@@ -116,70 +117,73 @@ function Filming({ listed, handBack, filmed }: { listed: Listed; handBack: HandB
 
   if (!ready) return <div className="h-dvh bg-ground" />;
   // The moment before stays under the one coming in, which fades in over it, and the next waits unseen, drawn and ready.
+  // Compared, its two sides are each the shape of the app's screen, a 2px line between them, as video.ts sizes it.
   const shown = moments.map((moment, i) => ({ moment, i })).filter(({ i }) => i >= on - 1 && i <= on + 1);
   const { larger } = filmed;
+  // Pills are the same size in every video, as on a laptop's screen filmed 1920 wide, whatever screen the app was on and
+  // however many sides there are.
+  const pill = { zoom: 1.5 / larger };
   return (
-    <div className="grid origin-top-left grid-rows-[78px_minmax(0,1fr)] bg-ground p-8" style={{ width: `${100 / larger}vw`, height: `${100 / larger}vh`, transform: `scale(${larger})` }}>
-      {/* What this is, as on the recording's top: the change's title, quietly, and under it the moment's name, then as
-          whom, in two lines at most, growing up into the room kept for them. */}
-      <div className="grid pb-3">
-        {shown.map(({ moment, i }) => (
-          <div key={i} className={`flex min-w-0 flex-col items-center justify-end self-end transition-opacity duration-[240ms] ease-calm [grid-area:1/1] ${i === on ? "" : "opacity-0"}`}>
-            <span className="max-w-full truncate px-1 text-[13px] leading-[22px] text-soft">{change.title}</span>
-            <p className="line-clamp-2 text-center text-[15px] leading-[22px] text-balance text-fg">
-              {moment.name}
-              {whoIn(listed, moment) && <span className="text-soft"> as {whoIn(listed, moment)}</span>}
-            </p>
-          </div>
-        ))}
-      </div>
-      <div className="grid min-h-0 place-items-center [container-type:size]">
-        {shown.map(({ moment, i }) => {
-          const [from, end] = [startOf(moment), endOf(moment)];
-          const at = i < played ? end : from;
-          return (
-            <div
-              key={i}
-              data-filmed={i}
-              className={`relative flex flex-row-reverse gap-3 [grid-area:1/1] ${i <= on ? "" : "opacity-0"} ${i < on ? "invisible transition-[visibility] delay-[240ms]" : "transition-opacity duration-[240ms] ease-calm"}`}
-              style={{ zIndex: i, aspectRatio: then ? undefined : ready[i]!.shape, ...(then ? { width: "100cqw", height: "100cqh" } : { width: `min(100cqw, calc(100cqh * ${ready[i]!.shape}))` }) }}
-            >
-              {then && both ? (
-                [
-                  { label: "Now", handBack: handBack.number, recording: moment.recording, side: 0 },
-                  { label: "When you last saw it", handBack: then.handBack, recording: then.moment.recording, side: 1 },
-                ].map((side) => (
-                  <Framed key={side.label} closing={closing} marked={side.side === 0}>
-                    <Player
-                      change={change.id}
-                      handBack={side.handBack}
-                      recording={side.recording}
-                      at={both.at(along.at)[side.side]!}
-                      following={{ clock: along, at: (going) => both.at(going)[side.side]! }}
-                      framedOn={filmed.beside!.framedOn}
-                      moves={moves}
-                    />
-                    <span className={CHIP}>{side.label}</span>
-                  </Framed>
-                ))
-              ) : (
-                <Framed closing={closing && i === on} marked>
+    <div
+      className="relative grid origin-top-left place-items-center bg-ground [container-type:size]"
+      style={{ width: `${100 / larger}vw`, height: `${100 / larger}vh`, transform: `scale(${larger})` }}
+      onTransitionEnd={() => window.settled?.()}
+    >
+      {shown.map(({ moment, i }) => {
+        const [from, end] = [startOf(moment), endOf(moment)];
+        const at = i < played ? end : from;
+        return (
+          <div
+            key={i}
+            data-filmed={i}
+            className={`relative flex flex-row-reverse [grid-area:1/1] ${then ? "gap-0.5 bg-track" : ""} ${i <= on ? "" : "opacity-0"} ${i < on ? "invisible transition-[visibility] delay-[240ms]" : "transition-opacity duration-[240ms] ease-calm"}`}
+            style={{ zIndex: i, aspectRatio: then ? undefined : ready[i]!.shape, ...(then ? { width: "100cqw", height: "100cqh" } : { width: `min(100cqw, calc(100cqh * ${ready[i]!.shape}))` }) }}
+          >
+            {then && both ? (
+              [
+                { label: "Now", handBack: handBack.number, recording: moment.recording, side: 0 },
+                { label: "When you last saw it", handBack: then.handBack, recording: then.moment.recording, side: 1 },
+              ].map((side) => (
+                <div key={side.label} className="relative min-w-0 flex-1 overflow-hidden bg-paper">
                   <Player
                     change={change.id}
-                    handBack={handBack.number}
-                    recording={moment.recording}
-                    at={at}
-                    playing={playing === i ? { until: end } : undefined}
-                    cut={ready[i]!.cut}
-                    onStop={() => stopped.current()}
-                    moves={moves}
+                    handBack={side.handBack}
+                    recording={side.recording}
+                    at={both.at(along.at)[side.side]!}
+                    following={{ clock: along, at: (going) => both.at(going)[side.side]! }}
+                    framedOn={filmed.beside!.framedOn}
+                    moves={bothSides}
                   />
-                </Framed>
-              )}
-            </div>
-          );
-        })}
-      </div>
+                  <span className={`${PILL} top-4 left-4`} style={pill}>
+                    {side.label}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <div className="relative min-w-0 flex-1 overflow-hidden bg-paper">
+                <Player
+                  change={change.id}
+                  handBack={handBack.number}
+                  recording={moment.recording}
+                  at={at}
+                  playing={playing === i ? { until: end } : undefined}
+                  cut={ready[i]!.cut}
+                  onStop={() => stopped.current()}
+                />
+              </div>
+            )}
+            {/* The moment's name, in two lines at most. */}
+            <p className={`${PILL} bottom-4 left-4 line-clamp-2 max-w-[min(60%,420px)] text-balance transition-opacity duration-300 ease-calm ${named === i ? "" : "opacity-0"}`} style={pill}>
+              {moment.name}
+            </p>
+          </div>
+        );
+      })}
+      {/* Drawn once, over every moment: the mark's shape is cut by a mask found by its name. */}
+      <span className={`${PILL} right-4 bottom-4 flex items-center gap-1.5 pl-2 font-medium transition-opacity delay-200 duration-[400ms] ease-calm ${closing ? "" : "opacity-0"}`} style={{ ...pill, zIndex: moments.length + 1 }}>
+        <Mark className="size-4" />
+        playthrough.sh
+      </span>
     </div>
   );
 }
@@ -188,27 +192,4 @@ function Filming({ listed, handBack, filmed }: { listed: Listed; handBack: HandB
 function earlier(change: Change, number: number, moment: Taken) {
   const kept = change.handBacks.find((one) => one.number === number)?.moments.find((one) => one.name === moment.name);
   return kept && { handBack: number, moment: kept };
-}
-
-// A recording in its frame, as the page draws it; closing, softened, with the mark and playthrough.sh over it in the
-// light colours it's always over.
-function Framed({ closing, marked, children }: { closing: boolean; marked: boolean; children: ReactNode }) {
-  return (
-    <div className="relative min-w-0 flex-1">
-      <div className="absolute inset-0 overflow-hidden rounded-lg bg-paper shadow-frame">
-        {children}
-        <div className={`absolute inset-0 z-30 bg-[rgba(247,247,245,.45)] backdrop-blur-[6px] transition-opacity duration-500 ease-calm ${closing ? "" : "opacity-0"}`} />
-        {/* Drawn only as it closes: the mark's shape is cut by a mask found by its name, and one in a moment gone
-            from sight is no shape at all. */}
-        {marked && closing && (
-          <div className="absolute inset-0 z-30 grid animate-arrive place-items-center" style={{ "--fg": "#2b2e35", "--amber": "#d9a23a", animationDuration: "500ms", animationDelay: "150ms" } as CSSProperties}>
-            <span className="grid justify-items-center gap-3">
-              <Mark className="size-11" />
-              <span className="text-[17px] font-medium tracking-[-0.01em] text-fg">playthrough.sh</span>
-            </span>
-          </div>
-        )}
-      </div>
-    </div>
-  );
 }
