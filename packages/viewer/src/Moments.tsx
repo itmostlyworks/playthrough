@@ -8,8 +8,8 @@
 // no sheet of every change, and Send or Done stays where it was pressed.
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { latestOf, sentBy, type Note } from "@playthrough/change";
-import { shownByAnotherPage, useChanges, useYou, type Listed } from "./api.ts";
+import { latestOf, type Note } from "@playthrough/change";
+import { isGuest, shownByAnotherPage, useChanges, useYou, type Listed } from "./api.ts";
 import { Changes } from "./Changes.tsx";
 import { insideAnotherPage } from "./inside.ts";
 import { useUnsent, keepUnsent, type YourReply } from "./kept.ts";
@@ -66,7 +66,7 @@ export function MomentsPage() {
   // changes come back with where it stands now.
   const [passed, setPassed] = useState<string[]>([]);
   const passing = (listed: Listed) => `${listed.change.id}:${latestOf(listed.change)?.number}`;
-  const waiting = changes && you ? waitingInOrder(changes, you).filter((one) => !passed.includes(passing(one))) : [];
+  const waiting = changes && you !== undefined ? waitingInOrder(changes, you).filter((one) => !passed.includes(passing(one))) : [];
   // The answers that were new as you came to a change, each on its moment, kept from the first look in, and the ones
   // you've opened since: one gone past unopened is still new, on its note and under the change's last moment.
   const asYouCame = useRef(new Map<string, { note: string; moment: number }[]>());
@@ -81,12 +81,13 @@ export function MomentsPage() {
   // A change by its own name alone, as addresses were before every app's were listed, is the first with that name.
   const listed = where.change ? changes?.find(({ change }) => change.id === where.change || change.id.endsWith(`/${where.change}`)) : undefined;
   useEffect(() => void (listed && listed.change.id !== where.change && go({ ...where, change: listed.change.id }, true)), [listed?.change.id]);
-  const card = waiting[0];
+  // A guest's / is the one change shared, waiting on them or not: nothing of what's waiting on the person.
+  const card = waiting[0] ?? (isGuest() ? changes?.[0] : undefined);
   // At /, a change seen all through has nothing left to open: it opens at its last stop.
-  const ending = !where.change && card && you && seenThrough(card, you) ? card : undefined;
+  const ending = !where.change && card && you !== undefined && seenThrough(card, you) ? card : undefined;
   useEffect(() => void (ending && go({ change: ending.change.id, end: true }, true)), [ending?.change.id, where.change]);
   useSpaceStays();
-  if (!changes || !you) return <div className="h-dvh bg-ground" />;
+  if (!changes || you === undefined) return <div className="h-dvh bg-ground" />;
 
   const opener = <Opener waiting={waiting.length} open={sheet.open} onOpen={sheet.openBy} />;
   // On from a change to what's next, finished, as it was handed back. Shown by another page, the change is all there
@@ -161,7 +162,8 @@ function Change(props: { listed: Listed; you: string; moment: number; atLastStop
   useEffect(() => void (taking && markSeen(change, you, [taking])), [taking]);
   if (!handBack || !n) return <div className="grid h-dvh place-items-center bg-ground text-soft">Nothing is waiting on you here.</div>;
   const shown = handBack.moments[n - 1]!;
-  const sent = sentBy(change, you).flatMap((one) => one.notes);
+  // Everyone's, as a guest's on a change you shared is on it as yours are, saying whose.
+  const sent = change.sends.flatMap((one) => one.notes);
   return (
     <MomentView
       key={`${handBack.number}`}

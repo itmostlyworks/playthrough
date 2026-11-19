@@ -433,7 +433,7 @@ while a note from an earlier hand-back is open the switch `shown` with its `as-i
 (`aria-pressed`), the arrows by Play,
 `frame-before` and `next-frame`, and every key drawn on a button, `key` (Back's "Esc ×2" is one); a note's `pin` and
 `note-card`; the rounded box the recording sits in, `picture`, always, where `data-picture` is there only while the
-picture can be moved; the change's `title` over the recording (in the header on a phone; not drawn when shown by another page); the edges, `moments` and `notes`; each
+picture can be moved; `share` top right; the change's `title` over the recording (in the header on a phone; not drawn when shown by another page); the edges, `moments` and `notes`; each
 of the moments' cards, `moment`, and their last, `last-stop`; and over the notes at the last stop, `notes-heading`.
 Nothing in the viewer reads them.
 
@@ -541,7 +541,8 @@ press on it in a row doesn't open the change. Opened over plain http (a tailnet)
 clipboard, it copies the older way; failing that, it selects the sentence for Ctrl+C and doesn't say Copied.
 
 **The top of every page** (`Header.tsx`) is its two corners: at the left Playthrough and what's waiting in it, the way
-to every other change; at the right what's next (Next). Between them, nothing: what
+to every other change; at the right what to do with this one: Next on the opening card, Share on a moment's page.
+Between them, nothing: what
 this is stands on the recording's top. The left is one thing to press, the opener (`Waiting.tsx`): Playthrough's mark
 (`Mark.tsx`, as `public/logo.svg`, in the page's colours) and name, then "6 changes waiting" (or "Every change") and its
 key; on a phone the mark and "6 waiting" alone.
@@ -598,8 +599,9 @@ on a phone the keys go, Step in on its way says "Stepping…", and the bar fits 
 (`PHONE_BAR`): as wide as at 390, or the room where that's less, each place its words at their widest and a share of the
 rest that's the air it has at 390, so narrower the air goes from every place together, no place moving as its words
 change and no word cut, down to about 285 wide. A click on the recording
-plays and pauses it. Send and Done are at the last stop (above); top right, Next: the next moment,
-after the last, the last stop, and dimmed there. What the page is doing is one value (`mode.ts`): resting, playing, a note open, pointing,
+plays and pauses it. Send and Done are at the last stop (above); top right, Share (below, **Sharing a change**). The
+next moment is ↓ (J), its card on the Moments edge (a row under the recording on a phone), and after the last, the
+last stop's card; Next was top right until 19 Nov, when Share took its place. What the page is doing is one value (`mode.ts`): resting, playing, a note open, pointing,
 writing, comparing, getting there or the app yours; every press is an action on it, carrying where the recording has got
 to, so whatever stops it playing stops it there, and one rule (`can`) says what may be pressed, which the keys and the
 buttons alike ask. **Stepping** (`stepping.ts`) goes by change, not by time: each press rests on the next instant the
@@ -983,6 +985,65 @@ back from anywhere shows by itself, and whether an agent is listening is read fr
 restarted reads exactly what's on disk. It serves the page to this machine alone, and answers only the page itself: asked
 by any name but localhost's, as a site that has made its own name lead here (DNS rebinding) would ask, or sent something
 from another site's page, it refuses, as what's sent there reaches the agent in the person's name.
+
+## Sharing a change
+
+**Share** (`Share.tsx`), top right of a moment's page, gives a change to someone else by a link straight to this
+computer. Pressed, a card opens under it, closed by Escape or a press elsewhere. It says what sharing does, in words that
+stay put through every state: "Anyone with the link can watch this change, leave notes, and step in to use your app as
+its moments do. It runs on this computer, for as long as it's on." Under them one step: Start sharing; while it starts,
+the button says "Getting a link…" at its size, with "This takes a few seconds." beside it (about 5 s); then the link, in
+a field that selects whole, Copy (Copied, with a tick, for 1.4 s, in its place) and, top right of the card, Stop
+sharing. Failed, the words say why and what to do ("Sharing needs cloudflared, which isn't on this computer. Install it
+with brew install cloudflared, or from Cloudflare's site, then try again."), and the button is Try again. While a change
+is shared the button says "Shared", with a tick, both words held in one place so nothing moves. The page asks where it
+stands as it opens, every 600 ms while starting and every 5 s while on, as a tunnel can end.
+
+**Underneath** (`share.ts`): `playthrough open` (`POST`, `GET`, `DELETE` on `/api/changes/<address>/share`, answered
+only at localhost, as everything there is) opens a door of its own for the change, a listener on 127.0.0.1 at a free
+port, and runs `cloudflared tunnel --url` to it, the binary the shell finds, no account: a quick tunnel, a new
+`https://….trycloudflare.com` each time. Stopped, or `open` ending however it ends, the tunnel and the door go. The
+link is `<tunnel>/.playthrough/shared/<token>/`, the token 18 random bytes. **A guest is told from the person by the
+door they came through,** never by anything in their request, and the door answers an allowlist and nothing else, the
+same 404 for what's there and what isn't: under the link's folder, the page's own files (its `index.html` asking for
+them from there, `serve`), and of the one change (`ASKS`): its list of one, its hand-backs' files, and `seen`, `sends`,
+`step-in`, `ready-in`, `keep-ready`, `branches`, `frames` and `stills`, each answered by the same code as the person's
+(`answerOn`, `open.ts`), the change found by its whole address alone (`only`), so a guest's request never reads another
+change nor the machine's list of them. Never another change, who the person is, or sharing itself. What a guest may send
+is one rule (`sends`, `share.ts`): notes and replies in a name of their own, never the person's ("Ludwig is the name of
+the person who shared this. Say yours.") and never Done, which is the person's alone ("Done is for the person who
+shared this to say. Send your notes instead.").
+
+**Stepping in, a guest** gets the owner's real app, run on this computer with the moment's setup, as the person does:
+the app and the guest's page are one address, the tunnel's, so the app's cookies, its sign-in among them, go with its
+pages in the guest's browser (between two addresses, a frame's cookies wouldn't). Everything at the door outside the
+link's folder is the app's, passed to Playthrough's way through to it (`step-in.ts`) as if asked at localhost, by its
+name and from its address: `/step-in/<name>` and `/.playthrough/held/<name>` only for step ins made at this link, and
+the rest of the app only for a browser carrying the cookie the first of those left it (`playthrough-shared`, the token,
+HttpOnly, never passed on to the app). What a guest can do there is what the app lets that person do: it is the app,
+on this computer. A guest and the person stepping in at once each have their own app, in their own browsers; one kept
+ready per change, so they take turns at the quick one.
+
+**The guest's page** is the viewer shown by another page (`guest`, `server.ts`; `main.tsx` knows it by the link's
+folder): the change on its own, no header, its opening card first (their `/` is always the change shared, waiting on
+them or not), the tab titled with the change. A tunnel holds a
+stream back until it ends, so the change is asked for every two seconds instead (`listen`). Who a guest is: nobody
+(`""`) until, the first time they say anything (a note's or a reply's Save, or Tell the agent where Step in couldn't
+open the app), they're asked where they are, under what they said: "Your name, so they know who said it". Every way of
+saying something goes through the one ask (`useSaying`, `Naming.tsx`), so no send of theirs lacks a name; it's kept in
+their browser (`playthrough:name`) and told to the whole page (`nameYou`, `api.ts`). From then on their sends are in that name: the agent's `wait` says "Sam said:" and "Sam: …", and every
+note on the change, anyone's, is on its Notes edge, someone else's saying whose before where it stands ("Sam · sent",
+`noteSays`), and in its thread, by name.
+
+**What a guest is told** is what they can use (`isGuest`, `api.ts`, the one rule: a source that asks your name). Done
+is never offered: the step left is Send while something's unsent, and with nothing, "No notes yet" in Send's place, at
+its size, on the bar and on the Moments' last card, over it "Your notes go to the agent with your name." Sent, it's
+"Sent to the agent" and "With the agent.", never whether one is listening nor what to tell one, which are the person's
+to act on. The last stop's heading is "What was asked", not "You asked". When nothing at the link answers (sharing
+stopped, `playthrough open` ended, the computer off), a send says "The person who shared this has stopped sharing, or
+their computer is off. Ask them for a new link." and Step in "Sharing has stopped here. Ask for a new link." (`gone`,
+`server.ts`), where the person is told to start `playthrough open` again. The frame's own words when the app doesn't
+answer name no address of this machine's.
 
 ## What's kept where
 

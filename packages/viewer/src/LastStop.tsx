@@ -4,6 +4,7 @@
 
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
+import { isGuest } from "./api.ts";
 import { TellYours } from "./Changes.tsx";
 import { useMore } from "./Edge.tsx";
 import { usePhone } from "./phone.ts";
@@ -92,9 +93,10 @@ export function LastStop(props: {
     <div className="absolute inset-0 overflow-hidden rounded-lg bg-surface shadow-frame">
       <div ref={sheet} onScroll={more.look} className="h-full overflow-y-auto overscroll-contain inside:overscroll-auto [scrollbar-width:thin] [scrollbar-gutter:stable_both-edges]" style={more.fade}>
         <div className="mx-auto flex flex-col items-start gap-8 phone:gap-4" style={{ width: measure && measure + 2 * side, padding: `${above}px ${side}px ${below}px` }}>
+          {/* A guest didn't ask it: the person who shared the change did. */}
           {asked && (
-            <div className="flex w-full flex-none flex-col items-start" title={asked} tabIndex={0} aria-label={`You asked: ${asked}`}>
-              <p className={quietLine}>You asked</p>
+            <div className="flex w-full flex-none flex-col items-start" title={asked} tabIndex={0} aria-label={`${ASKED()}: ${asked}`}>
+              <p className={quietLine}>{ASKED()}</p>
               <p
                 className="mt-2 max-w-[30em] overflow-hidden text-[21px] leading-[30px] text-pretty text-fg phone:text-[16px] phone:leading-[23px]"
                 style={{ display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: askedLines }}
@@ -155,6 +157,8 @@ function ownHeight(place: Element) {
   return (card.firstElementChild as HTMLElement).offsetHeight + parseFloat(paddingTop) + parseFloat(paddingBottom);
 }
 
+const ASKED = () => (isGuest() ? "What was asked" : "You asked");
+
 // The notes' heading, which is where sending them is said: "Your notes", then, sent, that they went, then that the agent
 // is on them. Every line is held in the one place, the one not true unseen, so it turns in place and nothing moves.
 function NotesSay({ went, many }: { went?: Went; many: boolean }) {
@@ -163,7 +167,7 @@ function NotesSay({ went, many }: { went?: Went; many: boolean }) {
     [
       "sent",
       <>
-        {tick}Sent to your agent
+        {tick}Sent to {isGuest() ? "the" : "your"} agent
       </>,
     ],
     [

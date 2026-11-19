@@ -25,6 +25,7 @@ import { Portal, TAG } from "./Portal.tsx";
 import { doneIn, type Rect, type Scrolled } from "./replay.ts";
 import { ago, noteSays, shownIn, shownOn, takingOf, seenOf } from "./standing.ts";
 import { LastStop } from "./LastStop.tsx";
+import { Share } from "./Share.tsx";
 import { StepAction, StepCard, useStepLeft } from "./StepLeft.tsx";
 import { backAgain } from "./step.ts";
 import { useKeptReady, useStepIn } from "./stepIn.ts";
@@ -478,7 +479,7 @@ export function MomentView(props: {
     act({ type: "moment", moment: other.name, starts: startOf(other), end: endOf(other), open });
     onMoment(to);
   };
-  // While the app is yours, or on its way, a moment, the step left or Next pressed leaves it as Back does, on the way
+  // While the app is yours, or on its way, a moment or the step left pressed leaves it as Back does, on the way
   // there: one press for Back and the press. The keys stay the app's. It says whether to go on.
   const leaving = () => (away ? may.back && (stepIn.back(), true) : may.move);
   // After the last moment, the last stop; from it, ↑ is the last moment again and there's nothing further on.
@@ -487,8 +488,8 @@ export function MomentView(props: {
     props.onLastStop();
   };
   const toLastStop = (open?: string) => !atLastStop && leaving() && lastStop(open);
-  const next = (by: number, pressed = false) => {
-    if (!(pressed ? leaving() : may.move)) return;
+  const next = (by: number) => {
+    if (!may.move) return;
     if (atLastStop) return void (by < 0 && goTo(count));
     const to = n + by;
     if (to < 1) return;
@@ -813,7 +814,7 @@ export function MomentView(props: {
   // At the last stop you're on no moment: the edge holds the notes on the whole change.
   const noteTiles = (forward: boolean) =>
     onEdge.map(({ note, sent: isSent }) => {
-      const { words, stands, fresh } = says(note, isSent);
+      const { words, stands, fresh, by } = says(note, isSent);
       return (
         <Tile
           key={note.id}
@@ -831,7 +832,7 @@ export function MomentView(props: {
             <span className="flex gap-[7px]">
               <i className={`mt-[5px] size-[7px] flex-none rounded-full shadow-[0_0_0_1.5px_#fff] ${isSent ? "bg-slate" : "bg-amber"}`} />
               <span className="min-w-0">
-                <NoteWords words={words} stands={stands} fresh={fresh} short />
+                <NoteWords words={words} stands={stands} fresh={fresh} by={by} short />
               </span>
             </span>
           }
@@ -932,16 +933,7 @@ export function MomentView(props: {
     // no header, the recording takes its room.
     <div className={`grid h-dvh ${headerRows()} overflow-clip bg-ground ${shownByAnotherPage() ? "phone:grid-rows-[auto_minmax(0,1fr)]" : "phone:grid-rows-[auto_auto_minmax(0,1fr)]"}`} onPointerDown={pressAway}>
       <Header opener={props.opener} centre={phone ? title : undefined}>
-        {/* The next moment, and after the last the last stop; there, nothing. */}
-        {/* In the app it rests as it does where it can't be pressed, and pointed at, comes to full: it answers. */}
-        <button
-          onClick={() => next(1, true)}
-          disabled={!(may.move || (away && may.back)) || atLastStop}
-          className={`-mr-2 flex flex-none items-center gap-1.5 rounded-lg px-2 py-1 text-soft transition-[color,background-color,opacity] duration-150 ease-calm enabled:hover:bg-hover enabled:hover:text-fg disabled:opacity-50 ${away ? "opacity-50 hover:opacity-100" : ""}`}
-        >
-          Next
-          <Key>↓</Key>
-        </button>
+        <Share change={change.id} />
       </Header>
       {/* The recording, as large as the room beside the edges lets it be: the same size from one moment to the next. */}
       <div className="relative grid min-h-0 place-items-center [container-type:size] phone:[container-type:inline-size]">
