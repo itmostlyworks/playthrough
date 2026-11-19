@@ -17,6 +17,7 @@ import { guestDoor, opened, sharing } from "../src/share.ts";
 
 const TOTAL = "total-under-the-invoices-table";
 const OTHER = "a-change-not-shared";
+const RECORDED = JSON.stringify([{ type: 4, data: { href: "http://127.0.0.1:1/", width: 1280, height: 800 }, timestamp: 1000 }]);
 const quietly = async <T>(run: () => Promise<T>) => {
   const log = console.log;
   console.log = () => {};
@@ -60,13 +61,14 @@ describe("a shared change's link", () => {
     const root = join(folder, "shop");
     await mkdir(join(root, "playthrough"), { recursive: true });
     await mkdir(join(root, ".playthrough"), { recursive: true });
+    await writeFile(join(root, "playthrough", "app.json"), JSON.stringify({ start: "true", url: "http://127.0.0.1:1" }));
     know(root);
     here = repo(root);
     for (const [id, title] of [[OTHER, "A change not shared"], [TOTAL, "Total under the invoices table"]])
       await quietly(async () => {
         await change(here, title!, "Show the total under the table.");
         await here.changes.saveHandBack(id!, { number: 1, by: "Claude Code", moments: [{ name: "The total of all eight", length: 2, actions: [], recording: "the-total-of-all-eight.json", person: "Ana", from: 0 }], replies: [] });
-        await here.changes.saveFile(id!, 1, "the-total-of-all-eight.json", Buffer.from("[]"));
+        await here.changes.saveFile(id!, 1, "the-total-of-all-eight.json", Buffer.from(RECORDED));
         await here.changes.finish(id!, 1);
       });
     const page = join(folder, "viewer");
@@ -99,7 +101,7 @@ describe("a shared change's link", () => {
     assert.deepEqual(listed.map((one: { change: { id: string } }) => one.change.id), [`shop/${TOTAL}`]);
     const file = await asked(`${home}api/change/hand-backs/1/files/the-total-of-all-eight.json`);
     assert.equal(file.status, 200);
-    assert.equal(await file.text(), "[]");
+    assert.equal(await file.text(), RECORDED);
   });
 
   test("reads only the shared change: it's there for a guest even where the machine's list of changes can't be read", async () => {
@@ -223,6 +225,13 @@ describe("a shared change's link", () => {
     } finally {
       process.env.PATH = path;
     }
+  });
+
+  test("what a guest does in the app is kept as a new recording under shared/, and only there, never in place of another", async () => {
+    const branch = (recording: string) => post(`${home}api/change/branches`, { handBack: 1, moment: "The total of all eight", at: 0, events: [{ type: 3, data: {}, timestamp: 5000 }], recording });
+    assert.equal((await branch("yours-1.json")).status, 400, "not outside shared/");
+    assert.equal((await branch("shared/theirs-1.json")).status, 200);
+    assert.equal((await branch("shared/theirs-1.json")).status, 400, "not over one kept already");
   });
 
   test("cloudflared is given a link's way in and nothing of this shell's but where to find things, and stops with sharing", async () => {

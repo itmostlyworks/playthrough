@@ -198,13 +198,22 @@ export function problemsWithFileName(name: string): string[] {
     : [`“${name}” can't be a file's name: use letters, digits, dots, dashes and underscores, and slashes between folders.`];
 }
 
+// The agents Playthrough knows by name (how each says so is the command's, `agent.ts`), and what one goes by that
+// nobody can name, until it writes its name in a hand-back.
+export const knownAgents = ["Claude Code", "Codex", "Cursor", "Gemini CLI"] as const;
+export const unnamedAgent = "Agent";
+
+// Where what a guest did in the app is kept among a change's branches, and only theirs: a recording kept there plays
+// with nothing but its own files.
+export const SHARED = "shared/";
+
 // Who someone says they are, as a send or what they've seen says it: one short line, with nothing in it to make it read
 // as anything but a name where it's printed. A guest, who came by a shared link, can't go by a name that reads as the
 // person who asked for the change, the agent or Playthrough: those who sent here other than as guests, every agent
 // named in the change, and the names that are always someone else's. Names are the same once folded: spaces, case and
 // the Unicode forms that look alike.
 const LONGEST_NAME = 60;
-const NEVER_A_GUEST = ["You", "Playthrough", "The person", "Agent", "Claude", "Claude Code", "Codex", "Cursor", "Gemini", "Gemini CLI"];
+const NEVER_A_GUEST = ["You", "Playthrough", "The person", "Claude", "Gemini", unnamedAgent, ...knownAgents];
 const folded = (name: string) => name.normalize("NFKC").replace(/[\p{Cf}]/gu, "").replace(/\s+/g, " ").trim().toLowerCase();
 export const sameName = (one: string, other: string) => folded(one) === folded(other);
 

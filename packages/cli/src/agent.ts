@@ -1,16 +1,16 @@
 // Which agent is running the commands, by the name it goes by, so each answer shows whose it is when a change passes
 // between agents. The best-known ones say so in their shell; any other writes its name in the hand-back, as `by`.
 
-const known: { name: string; says: string[] }[] = [
-  { name: "Claude Code", says: ["CLAUDECODE"] },
-  { name: "Codex", says: ["CODEX_THREAD_ID", "CODEX_SANDBOX"] },
-  { name: "Cursor", says: ["CURSOR_AGENT"] },
-  { name: "Gemini CLI", says: ["GEMINI_CLI"] },
-];
+import { knownAgents, unnamedAgent } from "@playthrough/change";
 
-// An agent nobody can name, until it writes its name.
-export const unnamed = "Agent";
+// What each agent Playthrough knows by name (`knownAgents`) sets in its shell: one for every name, and only those.
+const says: Record<(typeof knownAgents)[number], string[]> = {
+  "Claude Code": ["CLAUDECODE"],
+  Codex: ["CODEX_THREAD_ID", "CODEX_SANDBOX"],
+  Cursor: ["CURSOR_AGENT"],
+  "Gemini CLI": ["GEMINI_CLI"],
+};
 
 export function agent(written?: string, shell: NodeJS.ProcessEnv = process.env): string {
-  return known.find((agent) => agent.says.some((name) => shell[name]))?.name ?? written ?? unnamed;
+  return knownAgents.find((name) => says[name].some((variable) => shell[variable])) ?? written ?? unnamedAgent;
 }

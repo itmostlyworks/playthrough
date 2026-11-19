@@ -982,7 +982,14 @@ Any body is 64 MB at most (`body`, `open.ts`). cloudflared is given only `PATH` 
 kept with the fonts, pictures and stylesheets it names asked of the app alone, at its own address, by the path they were
 named at, never following a redirect (`keepNamed`, `assets.ts`); one from elsewhere (a font service) isn't kept, and the
 viewer's browser asks for it there. The browser that draws a note's picture or a fine still asks for nothing but
-Playthrough's own page and files (`draw`, `frames.ts`).
+Playthrough's own page and files (`draw`, `frames.ts`). What a guest does in the app is kept under `branches/shared/` and only
+there, never in place of another recording (`branch`, `open.ts`; `SHARED`), and a recording kept there is played, in
+anyone's browser, with nothing but its own files: its frame's policy (`keptOnly`, `replay.ts`) lets the page it rebuilds
+ask for nothing but the hand-back's files and what it makes itself, so an address it names (a router on the person's
+network, say) is never asked for by the browser playing it. It's a guest's recordings only: the agent's moments keep
+every file from what their browser really loaded, and would lose nothing, but the person's own steps into the app keep
+only what the app has, and a font or picture from elsewhere (a font service, an avatar) still comes from there when
+they play.
 
 **Stepping in, a guest** gets the owner's real app, run on this computer with the moment's setup, as the person does:
 the app and the guest's page are one address, the tunnel's, so the app's cookies, its sign-in among them, go with its

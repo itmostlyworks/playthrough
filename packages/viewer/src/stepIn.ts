@@ -6,8 +6,8 @@
 // there.
 
 import { useEffect, useRef, useState } from "react";
-import { doneAt, madeBySetup, madeInApp, newId, type Did, type InApp, type Note, type Moment } from "@playthrough/change";
-import { keepBranch, source, type CantStepIn } from "./api.ts";
+import { doneAt, madeBySetup, madeInApp, newId, SHARED, type Did, type InApp, type Note, type Moment } from "@playthrough/change";
+import { isGuest, keepBranch, source, type CantStepIn } from "./api.ts";
 import { keepSteppedIn, steppedInHere } from "./kept.ts";
 import { isPlaying, keptReadyAt, type Action, type Facts, type Page } from "./mode.ts";
 import type { Clock } from "./Player.tsx";
@@ -112,7 +112,8 @@ export function useStepIn({ change, handBack, moment, page, clock, act, pointing
       if (!kept.events.length) return;
       kept.did = said.did;
       const from = { moment: moment.name, at: Math.round((here?.from ?? page.end) * 100) / 100 };
-      const file = `${kept.id}-${++kept.kept}.json`;
+      // A guest's is kept where only a guest's is (`byAGuest`).
+      const file = `${isGuest() ? SHARED : ""}${kept.id}-${++kept.kept}.json`;
       const now = { type: 5, data: { tag: "now", payload: {} }, timestamp: kept.events.at(-1)!.timestamp };
       const length = await keepBranch(change, handBack, from, [...kept.events, now], file);
       if (typeof length !== "number") return setRun((run) => run && { ...run, unkept: length });

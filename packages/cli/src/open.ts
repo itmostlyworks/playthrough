@@ -12,7 +12,7 @@ import { userInfo } from "node:os";
 import { basename, extname, join, normalize, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Reading } from "@playthrough/page";
-import { problemsWithGuestsName, problemsWithName, Refused, type Did, type Change, type Seen, type Send } from "@playthrough/change";
+import { problemsWithGuestsName, problemsWithName, Refused, SHARED, type Did, type Change, type Seen, type Send } from "@playthrough/change";
 import { BEAT } from "./run.ts";
 import { repo as copyAt, type Repo } from "./repo.ts";
 import { CantStepIn, cantStepIn, readyIn } from "./following.ts";
@@ -330,7 +330,7 @@ async function answerOn(held: Held, request: IncomingMessage, response: ServerRe
   if (request.method === "POST" && rest[0] === "step-in") return stepInto(repo, id, request, response, guest);
   if (request.method === "POST" && rest[0] === "ready-in") return readyInFor(repo, id, request, response);
   if (request.method === "POST" && rest[0] === "keep-ready") return keptReady(repo, id, request, response);
-  if (request.method === "POST" && rest[0] === "branches") return branch(repo, id, request, response);
+  if (request.method === "POST" && rest[0] === "branches") return branch(repo, id, request, response, guest);
   // Drawn by a browser opening the person's own page, on this machine, whoever asked.
   if (request.method === "POST" && rest[0] === "stills") return json(response, 200, { picture: await stillOf(repo, id, address, await body<Framed>(request), port) });
   if (request.method === "POST" && rest[0] === "frames") {
@@ -384,8 +384,12 @@ async function keptReady(repo: Repo, id: string, request: IncomingMessage, respo
 // took it over, then theirs, going on from there. It plays like any moment, with what the moment's recording kept of the
 // app's files, and a note on it is on what they saw. Each time it's kept, it's kept whole, under a new name, as what
 // the viewer has fetched once it keeps.
-async function branch(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
+// A guest's is kept under shared/ and only there, never in place of another: the viewer plays what's there with nothing
+// but its own files (`byAGuest`).
+async function branch(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse, guest?: Guest) {
   const { handBack, moment: name, at, events, recording } = await body<{ handBack: number; moment: string; at: number; events: Event[]; recording: string }>(request);
+  if (!guest !== !recording.startsWith(SHARED) || (guest && (await repo.changes.branch(id, recording))))
+    throw new Refused([guest ? `What a guest does in the app is kept as a new recording under ${SHARED}.` : `${SHARED} is where a guest's recordings are kept.`]);
   const moment = (await repo.changes.get(id)).handBacks.find((kept) => kept.number === handBack)?.moments.find((moment) => moment.name === name);
   const was = moment && (await repo.changes.file(id, handBack, moment.recording));
   if (!moment || !was || !events.length) return json(response, 404, { problems: [`Hand-back ${handBack} of ${id} has no recording of “${name}” to branch off.`] });
