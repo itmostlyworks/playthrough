@@ -561,13 +561,16 @@ waiting and the right corner, and there's no card for what you asked.
 **Download video** (`DownloadVideo.tsx`), left of Share, makes what you're watching an MP4 your browser downloads. Pressed,
 it asks where it is, in a small card hanging from it: **This moment**, as it's shown ("with Compare" when Compare is on:
 both sides, framed as they are, and the window where you took it), or **The whole change**, its moments in order ("3
-moments"); with one moment, or at the last stop, there's nothing to choose. Then it counts down where you pressed it,
-"Downloading in 5…", filling as it goes, and ends on a tick, "Downloaded", for 2.5 s; one that couldn't be made says
-"Couldn’t make the video", why when pointed at. On a phone it's the arrow alone, the seconds left in its place, at one
-width, so the title beside it never moves. It rests in the app, dimmed and not to be pressed, and isn't there shown by
-another page, a guest's included. With Share it's one pair, the same height, size and ink, 12px apart: Share keeps one
-width whatever it says and Download video grows and shrinks to its left, so neither moves the other; either open shows on
-its button, both cards hang 8px under it, and opening either's card closes the other's.
+moments"); with one moment, or at the last stop, there's nothing to choose. Then it says "Downloading…", counts down
+the seconds left where the arrow was, filling as it goes (holding on 1 until it's there), and ends on a tick in the same
+place, "Downloaded", for 2.5 s; one that couldn't be made says "Didn’t work", why when pointed at. Nothing in it moves
+while it does (`DownloadVideo.tsx`, `WORDS`): its four words are held in one place, so it's as wide as "Download video"
+in every state and the words always start at the same x; the arrow, the seconds (in digits of one width, centred
+without widening the slot) and the tick share one 14px slot; what changes crossfades in 150 ms, and only the fill grows.
+On a phone it's that slot alone, at one width, so the title beside it never moves. It rests in the app, as Share does,
+at the resting ink and not to be pressed, and isn't there shown by another page, a guest's included. With Share it's
+one pair, the same height, size and ink, 12px apart, each one width whatever it says, so neither moves the other;
+either open shows on its button, both cards hang 8px under it, and opening either's card closes the other's.
 `playthrough open` films it (`video.ts`): the viewer plays it in a browser of its own (`?video=`, `Video.tsx`), light or
 dark as your page is, at the largest screen its moments were recorded on, drawn larger up to 1920 wide (or tall), and
 what it draws is filmed as it plays and put together by that browser's own H.264 (`mp4.ts`): nothing to install. In it:
