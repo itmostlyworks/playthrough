@@ -4,16 +4,16 @@
 
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
-import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 import { Refused } from "@playthrough/change";
-import { answers, keepRunning, openFile, running, stopUnused, UNUSED, using } from "../src/app.ts";
+import { keepRunning, openFile, running, stopUnused, UNUSED, using } from "../src/app.ts";
 import { thisCommand } from "../src/command.ts";
 import { copies, inWorktree, repo } from "../src/repo.ts";
-import { serving } from "../src/serving.ts";
+import { answers, serving } from "../src/serving.ts";
 
 let main = "";
 let worktree = "";
@@ -157,6 +157,26 @@ test("an app already running from this copy's folder is used where it is, not st
     await yours.stop();
   }
   assert.notEqual((await repo(worktree).app()).url, yours.url);
+});
+
+test("the app found running is remembered for as long as its own process is, and another taking its address after is never taken for it", knowsFolders, async () => {
+  await appJson(worktree, ported);
+  const port = await free();
+  const yours = await theirs(worktree, port);
+  await mkdir(join(worktree, ".playthrough"), { recursive: true });
+  try {
+    assert.equal((await repo(worktree).app()).url, yours.url);
+    const kept = JSON.parse(await readFile(join(worktree, ".playthrough", "running.json"), "utf8"));
+    assert.deepEqual([kept.url, kept.found, kept.app], [yours.url, true, undefined]);
+  } finally {
+    await yours.stop();
+  }
+  const another = await theirs(main, port, BESIDE);
+  try {
+    assert.notEqual((await repo(worktree).app()).url, yours.url);
+  } finally {
+    await another.stop();
+  }
 });
 
 test("an app Playthrough didn't start is never stopped by it", knowsFolders, async () => {

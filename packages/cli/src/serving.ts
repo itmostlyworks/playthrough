@@ -6,7 +6,7 @@
 import { spawnSync } from "node:child_process";
 import { readdirSync, readFileSync, readlinkSync } from "node:fs";
 
-export type Serving = { port: number; folder: string; command: string };
+export type Serving = { pid: number; port: number; folder: string; command: string };
 
 export function serving(): Serving[] | undefined {
   if (process.platform === "linux") return fromProc();
@@ -45,7 +45,7 @@ function fromLsof(): Serving[] | undefined {
     const folder = folders.get(pid)?.[0];
     if (!folder) return [];
     const each = new Set(names.map((name) => Number(name.split(":").at(-1))));
-    return [...each].map((port) => ({ port, folder, command: commands.get(pid) ?? "" }));
+    return [...each].map((port) => ({ pid, port, folder, command: commands.get(pid) ?? "" }));
   });
 }
 
@@ -78,12 +78,20 @@ function fromProc(): Serving[] {
       if (!held.size) return [];
       const folder = readlinkSync(`/proc/${pid}/cwd`);
       const command = readFileSync(`/proc/${pid}/cmdline`, "utf8").split("\0").filter(Boolean).join(" ");
-      return [...held].map((port) => ({ port, folder, command }));
+      return [...held].map((port) => ({ pid: Number(pid), port, folder, command }));
     } catch {
       return [];
     }
   });
 }
+
+// Whether something serves there: it answers, or it took the request and is still at it after two seconds, as a dev
+// server building a page for the first time is. Taken for nothing there, it was started again beside itself.
+export const answers = (url: string) =>
+  fetch(url, { signal: AbortSignal.timeout(2000) }).then(
+    (response) => (response.body?.cancel(), true),
+    (error) => (error as Error)?.name === "TimeoutError",
+  );
 
 // Whether what answers there serves pages, as a web app does at its start: a page, or a way to one. Still at it after two
 // seconds, as a dev server building a page for the first time is, it's taken to be.

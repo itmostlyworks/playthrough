@@ -889,7 +889,14 @@ the folder each runs from (`serving.ts`: `lsof` and `ps` on macOS, `/proc` on Li
 `app.json`'s address is the app; elsewhere, it is where it's the one thing from the folder serving pages (a page or a
 redirect at `/`), so an API beside it isn't taken for it; Playthrough's own page and a browser opened for debugging
 never are. Found, the app is used at its address, by every command and step in, and never stopped: Playthrough stops
-only the app it started. A real run on 0.7.2, knowing the app by its address, started a second dev server on the
+only the app it started. Where it was found is kept in `running.json` too, marked `found`, with no `app`, which is
+what Playthrough stops, and with the process serving it: kept while that same process runs (its number, the machine's
+start and, on Linux, when it started) and still answers there, so the machine is looked over only when nothing is kept
+(once for a whole run on a found app; twice where Playthrough starts it, by `as` and the browser it starts behind it),
+and a server from another folder that later takes the port, a process of its own, never passes for it. The page asking
+every second while the app starts reads only the file. Found app stopped while the agent's browser is open on it, the
+next app is somewhere else, and `moment` says so and refuses, as what's in the browser is on an app that's gone:
+`playthrough as` again opens it where the app is now. A real run on 0.7.2, knowing the app by its address, started a second dev server on the
 copy's own port beside the one already running from the folder; the framework refused it, and the agent had to stop
 the first. Windows says which process listens where but not the folder it runs from, so there nothing is found this
 way: what answers at `app.json`'s address is used in the main folder and refused in a worktree, as before, and with

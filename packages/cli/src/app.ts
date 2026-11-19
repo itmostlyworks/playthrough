@@ -12,13 +12,9 @@ import { join } from "node:path";
 import { quote, Refused } from "@playthrough/change";
 import { stillAt, thisCommand, type Command } from "./command.ts";
 import { machine } from "./machine.ts";
-import { copyServing, inWorktree, PORTED, repo, servingHere, type App } from "./repo.ts";
-import { serving } from "./serving.ts";
+import { copyServing, inWorktree, PORTED, repo, runningFile, runningIn, servingHere, type App, type Running } from "./repo.ts";
+import { answers, serving } from "./serving.ts";
 import { giveBackOwn, setupIn } from "./setup.ts";
-
-// The app running in a copy, as every command there sees it: the process that started it, the app's own (the head of
-// everything it runs), where it answers, and when it was last let go of. Nothing yet where it's still being started.
-type Running = Command & { app?: number; url: string; used: number };
 
 // For a command: the app, used until the command ends. How long it took to answer, in milliseconds, when it's started
 // here; nothing when it was running already.
@@ -106,7 +102,7 @@ async function whatNext(app: App, root: string): Promise<string> {
   const stopIt = "whoever started it stops it, then try again";
   if (!serving()) return `If the app is already running, as it may be saying, Playthrough can't tell here which folder it runs from, so it can't use it: ${stopIt}.`;
   const here = await servingHere(root, app.url);
-  if (here.length > 1) return `Serving pages from this folder already: ${here.join(", ")}. If one is the app, Playthrough can't tell which, so it can't use it: ${stopIt}.`;
+  if (here.length > 1) return `Serving pages from this folder already: ${here.map((one) => one.url).join(", ")}. If one is the app, Playthrough can't tell which, so it can't use it: ${stopIt}.`;
   return "Check that playthrough/app.json starts the app there.";
 }
 
@@ -164,21 +160,7 @@ function keptOpen(): boolean {
   }
 }
 
-const runningFile = (root: string) => join(root, ".playthrough", "running.json");
 const usingFolder = (root: string) => join(root, ".playthrough", "using");
-
-// The copy's app, while it, or the command starting it, is running on this start of the machine; one that's gone is
-// forgotten.
-function runningIn(root: string): Running | undefined {
-  let now: Running;
-  try {
-    now = JSON.parse(readFileSync(runningFile(root), "utf8"));
-  } catch {
-    return undefined;
-  }
-  if (stillAt(now.app ? { by: now.app, boot: now.boot } : now)) return now;
-  rmSync(runningFile(root), { force: true });
-}
 
 // Everyone else using the copy's app now.
 function usersOf(root: string): number[] {
@@ -212,11 +194,3 @@ export function endsWithPlaythrough(root?: string) {
   const end = (signal: NodeJS.Signals) => void Promise.race([giveBack(), new Promise((wait) => setTimeout(wait, 10_000))]).finally(() => process.exit(128 + constants.signals[signal]));
   for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) process.once(signal, end);
 }
-
-// Whether something serves there: it answers, or it took the request and is still at it after two seconds, as a dev
-// server building a page for the first time is. Taken for nothing there, it was started again beside itself.
-export const answers = (url: string) =>
-  fetch(url, { signal: AbortSignal.timeout(2000) }).then(
-    (response) => (response.body?.cancel(), true),
-    (error) => (error as Error)?.name === "TimeoutError",
-  );
