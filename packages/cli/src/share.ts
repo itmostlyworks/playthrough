@@ -19,17 +19,18 @@ import { answered, json, serve } from "./open.ts";
 // Where a shared change stands, as its Share says it.
 export type Shared = { is: "off" } | { is: "starting" } | { is: "on"; link: string } | { is: "failed"; why: string };
 
-// What the door asks of `playthrough open`: its page, whose it is, every change listed, and what's asked of one change,
-// answered as the person's are but as a guest.
+// What the door asks of `playthrough open`: its page, whose it is, the shared change as listed, and what's asked of it,
+// answered as the person's are but as a guest. Each by the change's address alone: nothing else on the machine is read.
 export type Door = {
   page: string;
   owner: string;
-  list(): Promise<{ change: { id: string } }[]>;
+  listed(address: string): Promise<unknown[]>;
   answerOn(address: string, rest: string[], request: IncomingMessage, response: ServerResponse, guest: Guest): Promise<unknown>;
 };
 
-// A guest, as the change's own answers know them: in any name but the person's, and stepping in for themselves.
-export type Guest = { speaksAs(by: string): void; steppedIn(name: string, port: number): void };
+// A guest, as the change's own answers know them: in any name but the person's, sending notes and replies but never
+// Done, which is the person's alone, and stepping in for themselves.
+export type Guest = { speaksAs(by: string): void; sends(send: { by: string; done?: true }): void; steppedIn(name: string, port: number): void };
 
 // What a guest may ask of the change, and nothing else: watching it (its files), saying what they opened and sending
 // notes, and stepping in (how long it takes, kept ready, what they did there, and a note's picture of it).
@@ -105,6 +106,10 @@ export function guestDoor(share: Pick<Share, "address" | "token" | "steppedIn" |
     speaksAs: (by) => {
       if (by.trim() === door.owner) throw new Refused([`${door.owner} is the name of the person who shared this. Say yours.`]);
     },
+    sends: (send) => {
+      guest.speaksAs(send.by);
+      if (send.done) throw new Refused(["Done is for the person who shared this to say. Send your notes instead."]);
+    },
     steppedIn: (name, port) => (share.steppedIn.add(name), (share.passing = port)),
   };
   const server = createServer((request, response) =>
@@ -135,7 +140,7 @@ export function guestDoor(share: Pick<Share, "address" | "token" | "steppedIn" |
     if (second !== "change") return nothing(response);
     // The change alone, as the person's page has every change: asked for again and again, as the tunnel holds a stream
     // back until it ends.
-    if (!rest.length && request.method === "GET") return json(response, 200, (await door.list()).filter((one) => one.change.id === share.address));
+    if (!rest.length && request.method === "GET") return json(response, 200, await door.listed(share.address));
     if (!ASKS[request.method ?? ""]?.includes(rest[0] ?? "")) return nothing(response);
     return door.answerOn(share.address, rest, request, response, guest);
   }

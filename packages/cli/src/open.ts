@@ -142,6 +142,30 @@ function onThisMachine() {
     throw new Refused([`There's no change at ${first} on this machine.`]);
   }
 
+  // A shared change, by its whole address and nothing else: its copy by name, and only that change read in it, never
+  // another, nor the list of them.
+  function only(address: string, rest: string[] = []): { repo: Repo; id: string; address: string; rest: string[] } {
+    const [name, id] = address.split("/");
+    const copy = copiesNow().find((one) => one.name === name);
+    if (!copy || !id) throw new Refused([`There's no change at ${address} on this machine.`]);
+    return { repo: copy.repo, id, address, rest };
+  }
+
+  // A change as the page has it, by its address.
+  const listedAs = async (name: string, repo: Repo, change: Change, shown: Awaited<ReturnType<typeof shownOf>>): Promise<Listed> => ({
+    change: { ...change, id: `${name}/${change.id}` },
+    ...shown,
+    agentWaiting: await agentWaiting(repo, change.id),
+    agentGone: await agentGone(repo, change.id),
+  });
+
+  // The shared change alone, as listed (gone, none), its app by its own name.
+  async function listedOnly(address: string): Promise<Listed[]> {
+    const { repo, id } = only(address);
+    const change = await repo.changes.get(id).catch(() => undefined);
+    return change ? [await listedAs(address.split("/")[0]!, repo, change, await shownOf(repo))] : [];
+  }
+
   // One that can't be read is left out, and says why when it's opened. Where two copies' changes share the app's name,
   // as two copies of Kan do, each says which copy it's in.
   async function list(): Promise<Listed[]> {
@@ -149,15 +173,7 @@ function onThisMachine() {
       copiesNow().map(async ({ name, repo }) => {
         const shown = await shownOf(repo);
         const changes = await Promise.all((await repo.changes.list()).map((id) => repo.changes.get(id).catch(() => undefined)));
-        return {
-          name,
-          shown,
-          changes: await Promise.all(
-            changes
-              .filter((change) => !!change)
-              .map(async (change) => ({ change: { ...change, id: `${name}/${change.id}` }, ...shown, agentWaiting: await agentWaiting(repo, change.id), agentGone: await agentGone(repo, change.id) })),
-          ),
-        };
+        return { name, shown, changes: await Promise.all(changes.filter((change) => !!change).map((change) => listedAs(name, repo, change, shown))) };
       }),
     );
     const listing = each.filter(({ changes }) => changes.length);
@@ -198,7 +214,9 @@ function onThisMachine() {
 
   return {
     holding,
+    only,
     list,
+    listedOnly,
     // The list now, then each time it changes, until stopped.
     follow(tell: (said: string) => void): () => void {
       listening.add(tell);
@@ -230,8 +248,8 @@ export function doorOf(page: string, owner: string, port: number, here = onThisM
   return {
     page,
     owner,
-    list: here.list,
-    answerOn: async (address, rest, request, response, guest) => answerOn(await here.holding([...address.split("/"), ...rest]), request, response, port, guest),
+    listed: here.listedOnly,
+    answerOn: (address, rest, request, response, guest) => answerOn(here.only(address, rest), request, response, port, guest),
   };
 }
 
@@ -313,7 +331,7 @@ async function answerOn(held: Held, request: IncomingMessage, response: ServerRe
   }
   if (request.method === "POST" && rest[0] === "sends") {
     const send = await body<Send>(request);
-    guest?.speaksAs(send.by);
+    guest?.sends(send);
     await changes.send(id, send);
     return json(response, 200, {});
   }

@@ -238,7 +238,7 @@ function passOn(app: App): Promise<number> {
         response.end(body);
       });
     });
-    forward.on("error", () => notAnswering(response, app, page));
+    forward.on("error", () => notAnswering(response, page));
     request.pipe(forward);
   });
   server.on("upgrade", (request, socket, head) => {
@@ -811,9 +811,10 @@ export function waitedFor(response: ServerResponse): AbortSignal {
 
 const GONE = "Playthrough was started again since this moment was stepped into, so the app made for it is gone. Press Esc, then step in again.";
 
-function notAnswering(response: ServerResponse, app: App, page: boolean) {
+// Said in the frame, to whoever stepped in, here or through a shared link: no address of this machine's in it.
+function notAnswering(response: ServerResponse, page: boolean) {
   if (response.headersSent) return response.end();
-  const words = `The app isn't answering at ${app.url}: it may have stopped. Press Esc, then step in again, which starts it.`;
+  const words = "The app isn't answering: it may have stopped. Press Esc, then step in again, which starts it.";
   if (page) return said(response, 502, words);
   response.writeHead(502, { "content-type": "text/plain; charset=utf-8" });
   response.end(words);

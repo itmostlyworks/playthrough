@@ -62,6 +62,9 @@ export const from = (given: Source) => void (source = given);
 // Handed a source of its own, the viewer is shown by another page: one change on its own, nothing of the list of them,
 // and where you are after the page's #.
 export const shownByAnotherPage = () => source !== server;
+// A guest on a shared change, whose source asks who they are: they send notes and replies, never Done, which is the
+// person's alone, and what's said to them is what they can use, not what the person at this computer can.
+export const isGuest = () => source.name !== undefined;
 
 // Every change, undefined until they've first come.
 export function useChanges(): Listed[] | undefined {

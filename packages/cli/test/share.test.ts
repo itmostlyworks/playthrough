@@ -2,7 +2,7 @@
 // reaches the agent in their own name, never the person's; and the app is theirs only as they stepped into it there.
 
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { createServer, request, type IncomingHttpHeaders, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -87,6 +87,25 @@ describe("a shared change's link", () => {
     const file = await asked(`${home}api/change/hand-backs/1/files/the-total-of-all-eight.json`);
     assert.equal(file.status, 200);
     assert.equal(await file.text(), "[]");
+  });
+
+  test("reads only the shared change: it's there for a guest even where the machine's list of changes can't be read", async () => {
+    const changes = join(here.root, ".playthrough");
+    await chmod(changes, 0o300);
+    try {
+      const listed = await (await asked(`${home}api/change`)).json();
+      assert.deepEqual(listed.map((one: { change: { id: string } }) => one.change.id), [`shop/${TOTAL}`]);
+      assert.equal((await asked(`${home}api/change/hand-backs/1/files/the-total-of-all-eight.json`)).status, 200);
+    } finally {
+      await chmod(changes, 0o755);
+    }
+  });
+
+  test("a guest can't say Done: their sends carry notes and replies, never Done", async () => {
+    const done = await post(`${home}api/change/sends`, { id: newId(), handBack: 1, by: "Sam", sent: new Date().toISOString(), notes: [], done: true });
+    assert.equal(done.status, 400);
+    assert.match((await done.json()).problems[0], /Done is for the person who shared this to say/);
+    assert.equal((await here.changes.get(TOTAL)).sends.length, 0, "nothing was kept");
   });
 
   test("reaches nothing else on this machine: not another change, not the list of them, not who the person is, not sharing, not with another token", async () => {

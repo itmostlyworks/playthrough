@@ -2,10 +2,11 @@
 // place is the last stop, after the last moment, where the bar holds it (`StepAction`); on the Moments edge, the
 // list's last card is the way there (`StepCard`), as a moment's card is for a moment. Pressed, it says Sent or Done
 // where it was, then goes on to what's next. Already with your agents, or done, it says so, and there's nothing to press.
+// A guest on a shared change only sends: with nothing to send, it says how their notes go, and there's nothing to press.
 
 import { useLayoutEffect, useRef, useState } from "react";
 import { standingOf, type Note } from "@playthrough/change";
-import type { Listed } from "./api.ts";
+import { isGuest, type Listed } from "./api.ts";
 import { Key } from "./Key.tsx";
 import { Notice } from "./MomentBar.tsx";
 import { FILLED_KEY, SAID, SendButton, Taken, take, tick } from "./Send.tsx";
@@ -16,6 +17,10 @@ import { agentOn, NO_AGENT, stepOf, tellOf } from "./step.ts";
 const WITH_AGENTS = ["With your agent.", "Agent working", NO_AGENT];
 // What Send says it does with no agent listening.
 const NOT_LISTENING = "No agent listening. Kept for when one is.";
+// What a guest is told of their notes, before and after they go: whether an agent is listening is the person's to act on.
+const GUEST_SENDS = "Your notes go to the agent with your name.";
+const GUEST_SENT = "With the agent.";
+const NOTHING_YET = "No notes yet";
 // Just sent, how long the notes say they're sent before they say the agent is on them, so it's read.
 const HELD = 600;
 
@@ -32,7 +37,8 @@ export function useStepLeft(listed: Listed, you: string, onSent: (notes: Note[])
   const [pressed, setPressed] = useState<"send" | "done">();
   const [said, setSaid] = useState<"sending" | "Sent" | "Done" | string[]>();
   const [held, setHeld] = useState(false);
-  const what = pressed ?? (step.is === "send" ? "send" : standing.is === "waiting" ? "done" : undefined);
+  // Done is the person's alone (`isGuest`): a guest is offered Send, or nothing.
+  const what = pressed ?? (step.is === "send" ? "send" : standing.is === "waiting" && !isGuest() ? "done" : undefined);
   // What's unsent, as it was before it went, so the words stay while it says Sent.
   const unsent = useRef({ notes: 0, replies: 0 });
   if (step.is === "send") unsent.current = step;
@@ -49,11 +55,12 @@ export function useStepLeft(listed: Listed, you: string, onSent: (notes: Note[])
   };
   const count = unsent.current.notes + unsent.current.replies;
   // Taken: pressed and kept, or already with your agents or done before you came.
-  const taken = !what ? (standing.is === "done" ? "Done" : "Sent") : said === "Sent" || said === "Done" ? said : undefined;
+  const taken = !what ? (standing.is === "done" ? "Done" : standing.is === "sent" ? "Sent" : undefined) : said === "Sent" || said === "Done" ? said : undefined;
   // Before the change comes back with the send, whether an agent is on it is as it was when Send was pressed.
+  // A guest isn't told nobody's listening: it's the person's to start one.
   const went: Went | undefined =
-    taken !== "Sent" ? undefined : step.is !== "with" ? (agentOn(listed) ? "sent" : "no agent") : step.words === NO_AGENT ? "no agent" : step.words === "Agent working" && !held ? "working" : "sent";
-  return { what, said, taken, went, step, standing, count, agentOn: agentOn(listed), tell: tellOf(listed, you), words: `Send ${toSend(unsent.current.notes, unsent.current.replies)}`, press: () => void press() };
+    taken !== "Sent" ? undefined : step.is !== "with" ? (agentOn(listed) || isGuest() ? "sent" : "no agent") : step.words === NO_AGENT ? (isGuest() ? "sent" : "no agent") : step.words === "Agent working" && !held ? "working" : "sent";
+  return { what, said, taken, went, step, standing, count, agentOn: agentOn(listed), tell: isGuest() ? undefined : tellOf(listed, you), words: `Send ${toSend(unsent.current.notes, unsent.current.replies)}`, press: () => void press() };
 }
 export type Step = ReturnType<typeof useStepLeft>;
 
@@ -91,15 +98,17 @@ export function StepCard({ step, here, forward, tucked, dots, onPress }: { step:
     step.what === "send" ? "Sending…" : "Done"
   ) : sends ? (
     !tucked || fullWidth + (dots.length ? 8 + 10 * Math.min(5, dots.length) : 0) <= shows ? step.words : `Send ${step.count}`
-  ) : (
+  ) : step.what ? (
     "Done"
+  ) : (
+    NOTHING_YET
   );
   return (
     <button
       data-tile="the last stop"
       data-part="last-stop"
       data-waiting={sends || undefined}
-      aria-label={step.what === "send" ? step.words : step.taken ?? "Done"}
+      aria-label={step.what === "send" ? step.words : (step.taken ?? (step.what ? "Done" : NOTHING_YET))}
       aria-pressed={here}
       onClick={(event) => {
         // Pressed with the pointer, the keys go back to the page; with the keyboard, it stays.
@@ -146,10 +155,12 @@ export function StepAction({ step, told }: { step: Step; told: boolean }) {
     if (taken) {
       if (what || (told && standing.is !== "done")) return undefined;
       if (standing.is === "done") return { words: "Every moment looked good.", held: [] };
+      if (isGuest()) return { words: GUEST_SENT, held: [] };
       const words = step.step.is === "with" && step.step.words !== "Sent" ? step.step.words : WITH_AGENTS[0]!;
       return { words, held: [...new Set([...WITH_AGENTS, words])] };
     }
     if (said) return undefined;
+    if (!what || (filled && isGuest())) return { words: GUEST_SENDS, held: [] };
     if (!filled) return { words: "Says every moment looks good, and the change is done.", held: [] };
     const starts = `Your agent starts on ${step.count === 1 ? "it" : "them"}.`;
     return { words: step.agentOn ? starts : NOT_LISTENING, held: [starts, NOT_LISTENING] };
@@ -172,6 +183,8 @@ export function StepAction({ step, told }: { step: Step; told: boolean }) {
           </span>
         </SendButton>
       )}
+      {/* A guest with nothing to send: in the button's place, at its size, that there's nothing yet. */}
+      {!what && !taken && <span className="flex h-8 flex-none items-center justify-center px-3 text-[13px] whitespace-nowrap text-soft">{NOTHING_YET}</span>}
       {taken && (
         // Over the button it's the button's box, and never widens it where its words are the wider (Done, with its key
         // hidden on a phone): it counts for nothing in the bar's width, and takes all of the button's.

@@ -9,7 +9,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { latestOf, type Note } from "@playthrough/change";
-import { shownByAnotherPage, useChanges, useYou, type Listed } from "./api.ts";
+import { isGuest, shownByAnotherPage, useChanges, useYou, type Listed } from "./api.ts";
 import { Changes } from "./Changes.tsx";
 import { insideAnotherPage } from "./inside.ts";
 import { useUnsent, keepUnsent, type YourReply } from "./kept.ts";
@@ -81,7 +81,8 @@ export function MomentsPage() {
   // A change by its own name alone, as addresses were before every app's were listed, is the first with that name.
   const listed = where.change ? changes?.find(({ change }) => change.id === where.change || change.id.endsWith(`/${where.change}`)) : undefined;
   useEffect(() => void (listed && listed.change.id !== where.change && go({ ...where, change: listed.change.id }, true)), [listed?.change.id]);
-  const card = waiting[0];
+  // A guest's / is the one change shared, waiting on them or not: nothing of what's waiting on the person.
+  const card = waiting[0] ?? (isGuest() ? changes?.[0] : undefined);
   // At /, a change seen all through has nothing left to open: it opens at its last stop.
   const ending = !where.change && card && you !== undefined && seenThrough(card, you) ? card : undefined;
   useEffect(() => void (ending && go({ change: ending.change.id, end: true }, true)), [ending?.change.id, where.change]);

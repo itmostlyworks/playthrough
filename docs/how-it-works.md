@@ -960,8 +960,11 @@ door they came through,** never by anything in their request, and the door answe
 same 404 for what's there and what isn't: under the link's folder, the page's own files (its `index.html` asking for
 them from there, `serve`), and of the one change (`ASKS`): its list of one, its hand-backs' files, and `seen`, `sends`,
 `step-in`, `ready-in`, `keep-ready`, `branches`, `frames` and `stills`, each answered by the same code as the person's
-(`answerOn`, `open.ts`). Never the list of changes, another change, who the person is, or sharing itself; a send or a
-`seen` in the person's own name is refused ("Ludwig is the name of the person who shared this. Say yours.").
+(`answerOn`, `open.ts`), the change found by its whole address alone (`only`), so a guest's request never reads another
+change nor the machine's list of them. Never another change, who the person is, or sharing itself. What a guest may send
+is one rule (`sends`, `share.ts`): notes and replies in a name of their own, never the person's ("Ludwig is the name of
+the person who shared this. Say yours.") and never Done, which is the person's alone ("Done is for the person who
+shared this to say. Send your notes instead.").
 
 **Stepping in, a guest** gets the owner's real app, run on this computer with the moment's setup, as the person does:
 the app and the guest's page are one address, the tunnel's, so the app's cookies, its sign-in among them, go with its
@@ -974,13 +977,25 @@ on this computer. A guest and the person stepping in at once each have their own
 ready per change, so they take turns at the quick one.
 
 **The guest's page** is the viewer shown by another page (`guest`, `server.ts`; `main.tsx` knows it by the link's
-folder): the change on its own, no header, its opening card first, the tab titled with the change. A tunnel holds a
+folder): the change on its own, no header, its opening card first (their `/` is always the change shared, waiting on
+them or not), the tab titled with the change. A tunnel holds a
 stream back until it ends, so the change is asked for every two seconds instead (`listen`). Who a guest is: nobody
-(`""`) until, the first time they save a note or a reply, the card asks under their words, "Your name, so they know who
-said it" (`Write`, `Note.tsx`), kept in their browser (`playthrough:name`) and told to the whole page (`nameYou`,
-`api.ts`). From then on their sends are in that name: the agent's `wait` says "Sam said:" and "Sam: …", and every
+(`""`) until, the first time they say anything (a note's or a reply's Save, or Tell the agent where Step in couldn't
+open the app), they're asked where they are, under what they said: "Your name, so they know who said it". Every way of
+saying something goes through the one ask (`useSaying`, `Naming.tsx`), so no send of theirs lacks a name; it's kept in
+their browser (`playthrough:name`) and told to the whole page (`nameYou`, `api.ts`). From then on their sends are in that name: the agent's `wait` says "Sam said:" and "Sam: …", and every
 note on the change, anyone's, is on its Notes edge, someone else's saying whose before where it stands ("Sam · sent",
 `noteSays`), and in its thread, by name.
+
+**What a guest is told** is what they can use (`isGuest`, `api.ts`, the one rule: a source that asks your name). Done
+is never offered: the step left is Send while something's unsent, and with nothing, "No notes yet" in Send's place, at
+its size, on the bar and on the Moments' last card, over it "Your notes go to the agent with your name." Sent, it's
+"Sent to the agent" and "With the agent.", never whether one is listening nor what to tell one, which are the person's
+to act on. The last stop's heading is "What was asked", not "You asked". When nothing at the link answers (sharing
+stopped, `playthrough open` ended, the computer off), a send says "The person who shared this has stopped sharing, or
+their computer is off. Ask them for a new link." and Step in "Sharing has stopped here. Ask for a new link." (`gone`,
+`server.ts`), where the person is told to start `playthrough open` again. The frame's own words when the app doesn't
+answer name no address of this machine's.
 
 ## What's kept where
 
