@@ -12,7 +12,7 @@ import { userInfo } from "node:os";
 import { basename, extname, join, normalize, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Reading } from "@playthrough/page";
-import { Refused, type Did, type Change, type Seen, type Send } from "@playthrough/change";
+import { problemsWithGuestsName, problemsWithName, Refused, type Did, type Change, type Seen, type Send } from "@playthrough/change";
 import { BEAT } from "./run.ts";
 import { repo as copyAt, type Repo } from "./repo.ts";
 import { CantStepIn, cantStepIn, readyIn } from "./following.ts";
@@ -297,6 +297,7 @@ async function answer(here: Machine, page: string, you: string, shares: Sharing,
 // them, and whose sends and what they've opened are in a name of their own, never the person's.
 async function answerOn(held: Held, request: IncomingMessage, response: ServerResponse, port: number, guest?: Guest) {
   const { repo, id, address, rest } = held;
+  if (guest) guests.set(request, guest);
   const changes = repo.changes;
   const path = `/api/changes/${address}/${rest.join("/")}`;
   const asked = new URL(request.url ?? "/", "http://localhost");
@@ -319,6 +320,13 @@ async function answerOn(held: Held, request: IncomingMessage, response: ServerRe
     await changes.see(id, by, moments);
     return json(response, 200, {});
   }
+  // A guest's name, before it's theirs: what's wrong with it, as a send in it would be told.
+  if (request.method === "POST" && rest[0] === "name" && guest) {
+    const { by } = await body<{ by: string }>(request);
+    guest.speaksAs(by);
+    const change = await changes.get(id);
+    return json(response, 200, { problems: [...problemsWithName(by), ...problemsWithGuestsName(change, by)] });
+  }
   if (request.method === "POST" && rest[0] === "step-in") return stepInto(repo, id, request, response, guest);
   if (request.method === "POST" && rest[0] === "ready-in") return readyInFor(repo, id, request, response);
   if (request.method === "POST" && rest[0] === "keep-ready") return keptReady(repo, id, request, response);
@@ -330,9 +338,9 @@ async function answerOn(held: Held, request: IncomingMessage, response: ServerRe
     return json(response, 200, await frameOf(repo, id, address, note, framed, port));
   }
   if (request.method === "POST" && rest[0] === "sends") {
-    const send = await body<Send>(request);
-    guest?.sends(send);
-    await changes.send(id, send);
+    // Whether it's a guest's is this side's to say, never what was sent.
+    const { guest: _, ...said } = await body<Send>(request);
+    await changes.send(id, guest ? guest.sends(said) : said);
     return json(response, 200, {});
   }
   return json(response, 404, { problems: [`There's nothing at ${path}.`] });
@@ -448,10 +456,23 @@ function fromElsewhere(request: IncomingMessage): string | undefined {
 // This machine, by the names it's reached by here.
 export const thisMachine = (host: string | undefined) => /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(host ?? "");
 
-// Its shape is checked by the store, at the door, like anything else that's kept.
+// Its shape is checked by the store, at the door, like anything else that's kept. Never more than a person's longest
+// time in the app records, read as far as that and no further; a guest's counted against what their link may keep.
+const LARGEST = 64 * 1024 * 1024;
+const guests = new WeakMap<IncomingMessage, Guest>();
 async function body<T>(request: IncomingMessage): Promise<T> {
   const chunks: Buffer[] = [];
-  for await (const chunk of request) chunks.push(chunk);
+  let size = 0;
+  for await (const chunk of request) {
+    size += chunk.length;
+    if (size > LARGEST) {
+      // Not read on: the rest is let go with the connection, which says so to whoever's sending.
+      request.socket.destroy();
+      throw new Refused([`What was sent is larger than ${LARGEST / 1024 / 1024} MB, more than Playthrough ever takes at once.`]);
+    }
+    chunks.push(chunk);
+  }
+  guests.get(request)?.took(size);
   try {
     return JSON.parse(Buffer.concat(chunks).toString("utf8"));
   } catch {

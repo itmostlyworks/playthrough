@@ -62,6 +62,10 @@ async function draw(port: number, address: string, framed: Framed, shape: { widt
   browser ??= chromium.launch();
   const page = await (await browser).newPage({ viewport: shape, deviceScaleFactor: scale });
   try {
+    // It draws only what Playthrough has: the page and the recording's files kept with it. Anything else a recording
+    // names (a guest's, through a shared link, can name any address) isn't asked for by this machine.
+    const own = `http://localhost:${port}`;
+    await page.route("**/*", (route) => (new URL(route.request().url()).origin === own ? route.continue() : route.abort()));
     await page.goto(`http://localhost:${port}/?frame=${encodeURIComponent(JSON.stringify({ change: address, ...framed }))}`);
     await page.waitForFunction(() => "framed" in window, undefined, { timeout: 20_000 });
     await page.evaluate(() => document.fonts.ready);

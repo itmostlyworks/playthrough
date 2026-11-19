@@ -12,27 +12,28 @@ export function handBackInProgress(change: Change): number {
   return last.finished ? last.number + 1 : last.number;
 }
 
-// Every note in the change, with the hand-back it was written on and who wrote it.
-export function allNotes(change: Change): Map<string, { note: Note; handBack: number; by: string }> {
-  const notes = new Map<string, { note: Note; handBack: number; by: string }>();
-  for (const send of change.sends) for (const note of send.notes) notes.set(note.id, { note, handBack: send.handBack, by: send.by });
+// Every note in the change, with the hand-back it was written on and who wrote it, a guest or not.
+export function allNotes(change: Change): Map<string, { note: Note; handBack: number; by: string; guest?: true }> {
+  const notes = new Map<string, { note: Note; handBack: number; by: string; guest?: true }>();
+  for (const send of change.sends) for (const note of send.notes) notes.set(note.id, { note, handBack: send.handBack, by: send.by, ...(send.guest && { guest: true as const }) });
   return notes;
 }
 
 // A note's conversation, oldest first: the note, then hand-back by hand-back the agent's reply and what people said about it.
-// Each turn says who: a person, or the agent that recorded the hand-back, whatever their names.
-export type Turn = { by: string; agent: boolean; handBack: number; words: string };
+// Each turn says who: a person, a guest who came by a shared link, or the agent that recorded the hand-back, whatever
+// their names.
+export type Turn = { by: string; agent: boolean; guest?: true; handBack: number; words: string };
 
 export function conversation(change: Change, id: string): Turn[] {
   const started = allNotes(change).get(id);
   if (!started) return [];
-  const turns: { turn: Turn; order: number }[] = [{ turn: { by: started.by, agent: false, handBack: started.handBack, words: started.note.words }, order: 0 }];
+  const turns: { turn: Turn; order: number }[] = [{ turn: { by: started.by, agent: false, ...(started.guest && { guest: true as const }), handBack: started.handBack, words: started.note.words }, order: 0 }];
   for (const handBack of change.handBacks.filter((handBack) => handBack.number > started.handBack)) {
     const reply = handBack.replies.find((reply) => reply.note === id);
     if (reply?.words.trim()) turns.push({ turn: { by: handBack.by, agent: true, handBack: handBack.number, words: reply.words }, order: 1 });
   }
   for (const send of change.sends)
-    for (const reply of (send.replies ?? []).filter((reply) => reply.note === id)) turns.push({ turn: { by: send.by, agent: false, handBack: send.handBack, words: reply.words }, order: 2 });
+    for (const reply of (send.replies ?? []).filter((reply) => reply.note === id)) turns.push({ turn: { by: send.by, agent: false, ...(send.guest && { guest: true as const }), handBack: send.handBack, words: reply.words }, order: 2 });
   return turns.sort((a, b) => a.turn.handBack - b.turn.handBack || a.order - b.order).map(({ turn }) => turn);
 }
 
@@ -197,10 +198,50 @@ export function problemsWithFileName(name: string): string[] {
     : [`“${name}” can't be a file's name: use letters, digits, dots, dashes and underscores, and slashes between folders.`];
 }
 
+// Who someone says they are, as a send or what they've seen says it: one short line, with nothing in it to make it read
+// as anything but a name where it's printed. A guest, who came by a shared link, can't go by a name that reads as the
+// person who asked for the change, the agent or Playthrough: those who sent here other than as guests, every agent
+// named in the change, and the names that are always someone else's. Names are the same once folded: spaces, case and
+// the Unicode forms that look alike.
+const LONGEST_NAME = 60;
+const NEVER_A_GUEST = ["You", "Playthrough", "The person", "Agent", "Claude", "Claude Code", "Codex", "Cursor", "Gemini", "Gemini CLI"];
+const folded = (name: string) => name.normalize("NFKC").replace(/[\p{Cf}]/gu, "").replace(/\s+/g, " ").trim().toLowerCase();
+export const sameName = (one: string, other: string) => folded(one) === folded(other);
+
+export function problemsWithName(by: string): string[] {
+  if (/[\p{Cc}\p{Zl}\p{Zp}]/u.test(by)) return ["A name is one line, with nothing but its words in it."];
+  if (by.trim().length > LONGEST_NAME) return [`A name is ${LONGEST_NAME} characters at most.`];
+  return [];
+}
+
+export function problemsWithGuestsName(change: Change, by: string): string[] {
+  const taken = [...NEVER_A_GUEST, ...change.handBacks.map((handBack) => handBack.by), ...change.sends.filter((send) => !send.guest).map((send) => send.by)];
+  return taken.some((name) => sameName(name, by)) ? [`“${by.trim()}” is someone else here. Say your own name.`] : [];
+}
+
+// What someone wrote, as it's kept: what a keyboard doesn't type (anything but its words, new lines and tabs) taken out.
+export const LONGEST_WORDS = 4000;
+const typed = (words: string) => words.replace(/\r\n?/g, "\n").replace(/[^\P{Cc}\n\t]/gu, "");
+export function asWritten(send: Send): Send {
+  return {
+    ...send,
+    notes: send.notes.map((note) => ({ ...note, words: typed(note.words) })),
+    ...(send.replies && { replies: send.replies.map((reply) => ({ ...reply, words: typed(reply.words) })) }),
+  };
+}
+
 // A send says new notes and replies to notes it can see, or Done: that every moment of a finished hand-back looks good.
 export function problemsWithSend(change: Change, send: Send): string[] {
   const shape = problemsWithShape(Send, send, "This send");
   if (shape.length) return shape;
+  const named = problemsWithName(send.by);
+  if (named.length) return named;
+  if (send.guest && send.done) return ["Done is for the person who shared this to say. Send your notes instead."];
+  if (send.guest) {
+    const someoneElse = problemsWithGuestsName(change, send.by);
+    if (someoneElse.length) return someoneElse;
+  }
+  if ([...send.notes, ...(send.replies ?? [])].some((said) => said.words.length > LONGEST_WORDS)) return [`A note or a reply is ${LONGEST_WORDS} characters at most: say the rest in another.`];
   if (change.sends.some((other) => other.id === send.id)) return [`Something else was already sent as ${send.id}. Send this with a new id.`];
   const replies = send.replies ?? [];
   if (!send.notes.length && !replies.length && !send.done) return ["There's nothing in this send."];
@@ -231,6 +272,7 @@ export function problemsWithSend(change: Change, send: Send): string[] {
 // change are.
 export function problemsSeeing(change: Change, by: string, seen: Seen[]): string[] {
   if (!isText(by)) return ["Seeing needs to say who saw it."];
+  if (problemsWithName(by).length) return problemsWithName(by);
   return seen.flatMap((one) => {
     const shape = problemsWithShape(Seen, one, "What's seen");
     if (shape.length) return shape;

@@ -18,8 +18,9 @@ export type Source = {
   // Who you are, as what you say and see is kept by: nobody yet (“”) for a guest on a shared change, until they say
   // who, the first time they keep a note (`name`).
   you(): Promise<string>;
-  // A guest's name, said once: kept with what they keep between visits, and who they are from then on.
-  name?(name: string): void;
+  // A guest's name, said once: what's wrong with it, or nothing once it's kept with what they keep between visits, and
+  // who they are from then on.
+  name?(name: string): Promise<string[]>;
   // Sharing a change, the person's alone (share.ts): where it stands, started, and stopped.
   share?: { of(change: string): Promise<Shared>; start(change: string): Promise<Shared>; stop(change: string): Promise<Shared> };
   // Every change, told now and again whenever any of them changes, until stopped.
@@ -85,9 +86,10 @@ export function useYou(): string | undefined {
 
 // A guest saying who they are, told to every part of the page that knows who you are.
 const naming = new Set<(name: string) => void>();
-export function nameYou(name: string) {
-  source.name?.(name);
-  for (const tell of naming) tell(name);
+export async function nameYou(name: string): Promise<string[]> {
+  const problems = (await source.name?.(name)) ?? [];
+  if (!problems.length) for (const tell of naming) tell(name);
+  return problems;
 }
 
 // A hand-back's files never change once it's finished, so each is fetched once, once it's come: one that didn't is asked

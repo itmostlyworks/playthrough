@@ -9,6 +9,9 @@ import { keeping, stored, seenKey, type YourReply } from "./kept.ts";
 export const toSend = (notes: number, replies: number) =>
   [notes && `${notes} ${notes === 1 ? "note" : "notes"}`, replies && `${replies} ${replies === 1 ? "reply" : "replies"}`].filter(Boolean).join(" and ");
 
+// Someone's name, a guest's saying they came by a shared link, as plainly wherever it's shown.
+export const whose = ({ by, guest }: { by: string; guest?: true }) => (guest ? `${by} (guest)` : by);
+
 // What a note says wherever it's shown, its picture's words or its pin pointed at: your latest
 // words, and where it stands. An answer is new if it came back after you last opened the moment it's on, as what you've
 // opened is kept with the change (`seen`), so it's the same on every device you look from. Someone else's, as a guest's
@@ -16,7 +19,7 @@ export const toSend = (notes: number, replies: number) =>
 export function noteSays(change: Change, you: string, note: Note, sent: boolean, replies: YourReply[]): { words: string; stands: string; fresh: boolean; by?: string } {
   if (!sent) return { words: note.words, stands: "not sent", fresh: false };
   const turns = conversation(change, note.id);
-  const by = turns[0] && turns[0].by !== you ? turns[0].by : undefined;
+  const by = turns[0] && turns[0].by !== you ? whose(turns[0]) : undefined;
   const replied = replies.find((one) => one.note === note.id)?.words;
   const words = replied ?? turns.findLast((turn) => !turn.agent)?.words ?? note.words;
   if (replied) return { words, stands: "reply not sent", fresh: false, by };

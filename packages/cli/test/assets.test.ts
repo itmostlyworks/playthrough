@@ -6,7 +6,7 @@ import { createServer } from "node:http";
 import { test } from "node:test";
 import { keepNamed } from "../src/assets.ts";
 
-test("a font your recording names is kept, fetched from the app at the same path once the address it was seen at is gone", async () => {
+test("a font your recording names is kept, asked of the app by the path it was named at", async () => {
   const app = createServer((request, response) => {
     if (request.url === "/_next/static/media/sans.woff2") return response.writeHead(200, { "content-type": "font/woff2" }).end("font");
     response.writeHead(404).end();
@@ -24,5 +24,33 @@ test("a font your recording names is kept, fetched from the app at the same path
     assert.equal(kept["http://127.0.0.1:1/boards"], undefined);
   } finally {
     app.close();
+  }
+});
+
+test("an address a recording names is never asked as it is, only the app by its path, never where the app sends it on, and never another address by a path that looks like one", async () => {
+  const asked: string[] = [];
+  const elsewhere = createServer((request, response) => (asked.push(`elsewhere ${request.url}`), response.writeHead(200, { "content-type": "image/png" }).end("secret")));
+  const app = createServer((request, response) => {
+    asked.push(`app ${request.url}`);
+    if (request.url === "/moved.png") return response.writeHead(302, { location: `http://127.0.0.1:${port(elsewhere)}/secret.png` }).end();
+    response.writeHead(404).end();
+  });
+  const port = (server: typeof app) => (server.address() as { port: number }).port;
+  await Promise.all([app, elsewhere].map((server) => new Promise<void>((done) => server.listen(0, "127.0.0.1", done))));
+  try {
+    const saved: string[] = [];
+    const recorded = JSON.stringify([
+      { src: `http://127.0.0.1:${port(elsewhere)}/metadata.png` },
+      { src: `http://127.0.0.1:${port(app)}/moved.png` },
+      { src: `http://127.0.0.1:${port(app)}//127.0.0.1:${port(elsewhere)}/x.png` },
+    ]);
+    const kept = await keepNamed(recorded, {}, `http://127.0.0.1:${port(app)}`, async (file) => void saved.push(file));
+    assert.deepEqual(kept, {});
+    assert.deepEqual(saved, []);
+    assert.ok(!asked.some((one) => one.startsWith("elsewhere")), `asked: ${asked.join(", ")}`);
+    assert.deepEqual(asked.sort(), ["app //127.0.0.1:" + port(elsewhere) + "/x.png", "app /metadata.png", "app /moved.png"].sort());
+  } finally {
+    app.close();
+    elsewhere.close();
   }
 });

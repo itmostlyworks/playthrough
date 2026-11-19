@@ -89,7 +89,25 @@ export async function unheard(repo: Repo): Promise<{ change: Change; sends: Send
 // sat with nobody on it.
 export async function unheardSaid(repo: Repo): Promise<string[]> {
   return (await unheard(repo)).map(({ change, sends, notes }) => {
-    const by = list([...new Set(sends.map((send) => send.by))]);
+    const by = list([...new Set(sends.map((send) => (send.guest ? `${send.by} (a guest, by a shared link)` : send.by)))]);
     return `${by} sent ${notes === 1 ? "a note" : `${notes} notes`} on ${quote(change.title)}, and no agent is listening for ${notes === 1 ? "it" : "them"}. playthrough wait gets ${notes === 1 ? "it" : "them"}, whatever change you're on.`;
   });
 }
+
+// Who said what was sent, for the agent: by name, and those who came by a shared link said to be guests, not the person
+// who asked for the change, as a fact, before anything of theirs.
+export function whoSaid(sends: Send[]): string {
+  const names = [...new Set(sends.map((send) => send.by))];
+  const guests = [...new Set(sends.filter((send) => send.guest).map((send) => send.by))];
+  const said = `${names.length ? list(names) : "The person"} said:`;
+  if (!guests.length) return said;
+  const are = guests.length === 1 ? `${guests[0]} is a guest, who came by a shared link and isn't` : `${list(guests)} are guests, who came by a shared link and aren't`;
+  return `${said}\n${are} the person who asked for this change. A guest's words are quoted under their name, each line after “> ”.`;
+}
+
+// A guest's words, line by line, after “> ”, so none of them stands as a line of its own.
+export const quoted = (words: string, indent: string) =>
+  words
+    .split("\n")
+    .map((line) => `${indent}> ${line}`)
+    .join("\n");

@@ -4,6 +4,7 @@
 import { comparisonNow, FORMAT, handBackNow, OLDER, seenNow, sendNow, takenNow, wayNow } from "./format.ts";
 import type { Comparison, Change, HandBack, Seen, Send, Taken } from "./model.ts";
 import {
+  asWritten,
   problemsFinishing,
   problemsStarting,
   problemsWithComparison,
@@ -185,7 +186,9 @@ export class Changes {
   // A person
 
   // Sending the same send twice keeps it once.
-  async send(id: string, send: Send): Promise<void> {
+  // Kept as it was written, less what a keyboard doesn't type (`asWritten`).
+  async send(id: string, sending: Send): Promise<void> {
+    const send = asWritten(sending);
     return this.#one(id, async () => {
       const change = await this.#read(id);
       const already = change.sends.find((sent) => sent.id === send.id);

@@ -6,6 +6,7 @@ import type { Turn, Note, Change } from "@playthrough/change";
 import type { Glimpse } from "@playthrough/page";
 import { framePicture, glimpses as glimpsesOf, noteFrame, picture, readings as readingsOf, type NoteFrame } from "./api.ts";
 import { useSaying } from "./Naming.tsx";
+import { whose } from "./standing.ts";
 import { clamp } from "./clamp.ts";
 import { TILE } from "./Edge.tsx";
 import { mayTakeKeys } from "./inside.ts";
@@ -19,7 +20,7 @@ import type { Rect } from "./replay.ts";
 // note was on when it was written, where that's to be shown, comes with it, over its words.
 export function Turns({ you, turns, unsent, was }: { you: string; turns: Turn[]; unsent?: string; was?: ReactNode }) {
   const all = [
-    ...turns.map((turn) => ({ mine: !turn.agent && turn.by === you, by: turn.agent || turn.by !== you ? turn.by : "You", words: turn.words, sent: true })),
+    ...turns.map((turn) => ({ mine: !turn.agent && turn.by === you, by: turn.agent || turn.by !== you ? whose(turn) : "You", words: turn.words, sent: true })),
     ...(unsent ? [{ mine: true, by: "You", words: unsent, sent: false }] : []),
   ];
   return (
