@@ -403,7 +403,7 @@ what's next, and a moment opens at `/moments/<copy>/<change>/<n>`, with `?note=<
 
 The page asks one source for everything (`Source`, `api.ts`): who you are, every change as it's told again, where a
 hand-back's files are, and what it says (what's sent and seen, stepping in and its branches, a note's frame and a fine
-still drawn), and where what it holds between visits and for the tab is kept (`kept` and `keptForTheTab`, read and
+still drawn, and a video made, which only `playthrough open` can), and where what it holds between visits and for the tab is kept (`kept` and `keptForTheTab`, read and
 written only in `kept.ts`). `playthrough open` is that source (`server.ts`, at `/api`). Another page can show the viewer on an element
 of its own with a source of its own (`show(element, source)`, `show.tsx`), built beside the page into
 `packages/cli/show/` as `viewer.js`, one module with everything inside it, and `viewer.css`, and published as
@@ -541,8 +541,8 @@ press on it in a row doesn't open the change. Opened over plain http (a tailnet)
 clipboard, it copies the older way; failing that, it selects the sentence for Ctrl+C and doesn't say Copied.
 
 **The top of every page** (`Header.tsx`) is its two corners: at the left Playthrough and what's waiting in it, the way
-to every other change; at the right what to do with this one: Next on the opening card, Share on a moment's page.
-Between them, nothing: what
+to every other change; at the right what to do with this one: Next on the opening card, Download video and Share on a
+moment's page. Between them, nothing: what
 this is stands on the recording's top. The left is one thing to press, the opener (`Waiting.tsx`): Playthrough's mark
 (`Mark.tsx`, as `public/logo.svg`, in the page's colours) and name, then "6 changes waiting" (or "Every change") and its
 key; on a phone the mark and "6 waiting" alone.
@@ -556,7 +556,28 @@ in too, so going in moves nothing). The title, pointed at (after 70 ms) or reach
 card with what you asked in your own words and the app and when it came back: over the title where it fits under the
 header, covering nothing of the moment, else under it. The opening card's page has no title: the card says it. On a
 phone there's no room over the recording for it: the title, in full colour, takes the header's room between what's
-waiting and Next, and there's no card for what you asked.
+waiting and the right corner, and there's no card for what you asked.
+
+**Download video** (`DownloadVideo.tsx`), left of Share, makes what you're watching an MP4 your browser downloads. Pressed,
+it asks where it is, in a small card hanging from it: **This moment**, as it's shown ("with Compare" when Compare is on:
+both sides, framed as they are, and the window where you took it), or **The whole change**, its moments in order ("3
+moments"); with one moment, or at the last stop, there's nothing to choose. Then it counts down where you pressed it,
+"Downloading in 5…", filling as it goes, and ends on a tick, "Downloaded", for 2.5 s; one that couldn't be made says
+"Couldn’t make the video", why when pointed at. On a phone it's the arrow alone, the seconds left in its place, at one
+width, so the title beside it never moves. It rests in the app, dimmed and not to be pressed, and isn't there shown by
+another page, a guest's included. With Share it's one pair, the same height, size and ink, 12px apart; each holds its
+own place as its words change, and opening either's card closes the other's.
+`playthrough open` films it (`video.ts`): the viewer plays it in a browser of its own (`?video=`, `Video.tsx`), light or
+dark as your page is, at the largest screen its moments were recorded on, drawn larger up to 1920 wide (or tall), and
+what it draws is filmed as it plays and put together by that browser's own H.264 (`mp4.ts`): nothing to install. In it:
+the recording as the moment's page plays it (the pointer, its clicks and keys), or Compare's two sides with their "Now"
+and "When you last saw it", and over it the change's title and the moment's name as on the page; nothing else Playthrough
+draws (no bar, edges, pins, or outline round what it's about). Each moment's name stands 1 s before it plays, its end 0.8 s
+after (a still, 1 s between), the next coming in over it as going to it does; the last closes on its end softened, with
+the mark and playthrough.sh over it in its light colours, for 1.8 s. 60 frames a second ("the point of playthrough is
+that we more accurately simulate what it feels in real life"); BT.709 at a TV's range, said in the file too, as full
+range looked "blown out" in players. It takes about as long as the video and a few seconds more to start (a 6 s moment,
+8 s; 16 s of three moments, 26 s).
 
 **Every change** (`Waiting.tsx`, `Changes.tsx`). Top left on every page, "6 changes waiting" (or "Every change") opens every
 change as a sheet over the page, the page under it softened and inert. Pressed or from the keyboard, it stays until
@@ -702,7 +723,7 @@ the app, or while it's getting there, the edges rest, quieter, and don't come fo
 than the edge's and its own together. The notes can't be pressed. The
 moments can, with the pointer: each stays dimmed until it's pointed at, then comes to full, and pressed it leaves the
 app as Back does and goes to that moment, at rest, in one move (a step in on its way is called off as Escape does); the
-moment you're in the app on is just Back. Next, dimmed in the app, does the same, coming to full when pointed at. The
+moment you're in the app on is just Back. The
 moments' last card (Send, or Done), which doesn't drive the recording, isn't dimmed at all: pressed, it leaves the app
 the same way and goes on to the last stop, the app fading into it (`leaving`, `Moment.tsx`; `answers`, `Edge.tsx`). It
 doesn't press Send or Done. Writing a note in the app, none of them answer, as Back doesn't. The keys are the app's all

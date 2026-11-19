@@ -108,7 +108,7 @@ describe("a shared change's link", () => {
     assert.equal((await here.changes.get(TOTAL)).sends.length, 0, "nothing was kept");
   });
 
-  test("reaches nothing else on this machine: not another change, not the list of them, not who the person is, not sharing, not with another token", async () => {
+  test("reaches nothing else on this machine: not another change, not the list of them, not who the person is, not sharing, not a video, not with another token", async () => {
     for (const path of [
       "/",
       "/api/changes",
@@ -126,6 +126,7 @@ describe("a shared change's link", () => {
       ["POST", `${home}api/change/share`],
       ["DELETE", `${home}api/change/share`],
       ["GET", `${home}api/change/share`],
+      ["POST", `${home}api/change/video`],
       ["POST", `${home}api/change/hand-backs`],
       ["PUT", `${home}api/change/sends`],
     ])

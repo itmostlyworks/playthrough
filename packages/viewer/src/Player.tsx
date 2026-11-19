@@ -74,13 +74,15 @@ function cutOf(events: Events, length: number, starts: number[]): Cut {
   };
 }
 
+export const cutFor = (change: string, handBack: number, moment: Moment): Promise<Cut> => recording(change, handBack, moment.recording).then((events) => cutOf(events, moment.length, [moment.from]));
+
 export function useCut(change: string, handBack: number, moment: Moment): Cut | undefined {
   const [kept, setKept] = useState<Cut>();
   useEffect(() => {
     let current = true;
     // Another recording's isn't this one's while it comes.
     setKept(undefined);
-    recording(change, handBack, moment.recording).then((events) => current && setKept(cutOf(events, moment.length, [moment.from])));
+    cutFor(change, handBack, moment).then((cut) => current && setKept(cut));
     return () => void (current = false);
   }, [change, handBack, moment.recording]);
   return kept;

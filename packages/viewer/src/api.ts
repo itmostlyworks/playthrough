@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import type { Glimpse, Reading } from "@playthrough/page";
 import type { Change, Send } from "@playthrough/change";
 import type { Events } from "./replay.ts";
+import type { Box, Point } from "./view.ts";
 import { server } from "./server.ts";
 
 // A change as `playthrough open` lists it: the change, at its address on this machine, the app's name and its people as the person
@@ -44,6 +45,9 @@ export type Source = {
   // as shares of it; and a moment's still drawn twice as fine.
   frame(change: string, note: string, framed: Framed): Promise<{ picture: string; screen: NoteFrame["screen"]; box?: NoteFrame["box"] } | undefined>;
   still(change: string, still: { handBack: number; recording: string; at: number }): Promise<string | undefined>;
+  // What you're watching made into an MP4, telling the seconds it has left as it's made (Video.tsx); none where a
+  // source can't make one.
+  video?(change: string, asked: AskedVideo, onLeft: (seconds: number) => void): Promise<Blob | string[]>;
   // Where the viewer keeps what it holds between visits, your notes and replies not yet sent among it, and what it holds
   // for this tab alone (kept.ts). With none, it's kept in memory for as long as the page is open: a page showing a
   // change doesn't write to its own storage unasked.
@@ -54,6 +58,15 @@ export type Keeping = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 // Where a shared change stands: the link while it's on, or why it couldn't be, with what to do.
 export type Shared = { is: "off" } | { is: "starting" } | { is: "on"; link: string } | { is: "failed"; why: string };
 export type CantStepIn = { plainly: string; why: string };
+// Which moments of a hand-back, by their place from 1; beside one, how it was when you last saw it, as Compare opens
+// framed on it; where you've taken the window, if you have; and light or dark, as the page is.
+export type AskedVideo = {
+  handBack: number;
+  moments: number[];
+  beside?: { handBack: number; framedOn: { changed: Box[]; done: Box[] } };
+  window?: { centre: Point; k: number };
+  dark: boolean;
+};
 type Framed = { handBack: number; recording: string; at: number; node?: number; point?: { x: number; y: number } };
 
 export let source: Source = server;

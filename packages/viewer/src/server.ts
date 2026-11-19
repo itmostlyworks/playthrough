@@ -1,7 +1,7 @@
 // `playthrough open` as the viewer's source: the page it serves asks it at /api, on the same machine; and a guest's, at
 // a shared change's link, asks it there, of that change alone (share.ts).
 
-import type { Listed, Shared, Source } from "./api.ts";
+import type { AskedVideo, Listed, Shared, Source } from "./api.ts";
 
 // Playthrough answers a step in within a minute, made or with why not (following.ts); past this, it isn't going to.
 const ANSWERED = 70_000;
@@ -53,6 +53,7 @@ export const server: Source = Object.assign(askedAt({ changes: "/api/changes", o
     start: (change: string) => shared(change, "POST"),
     stop: (change: string) => shared(change, "DELETE"),
   },
+  video,
 });
 
 // A guest at a shared change's link (`home`, its folder): the change alone, asked for there; the app stepped into at
@@ -131,6 +132,28 @@ async function stepIn(of: string, app: Asked["app"], gone: Gone, moment: string,
     if ((error as Error)?.name === "TimeoutError")
       return { plainly: "Playthrough stopped answering.", why: `Playthrough hadn't answered the step in after ${ANSWERED / 1000} seconds, when it always does within a minute: playthrough open may be stuck.` };
     return { plainly: gone.plainly, why: gone.why };
+  }
+}
+
+// Told a line at a time as it's made: how long it has left, then the video, or what went wrong.
+async function video(change: string, asked: AskedVideo, onLeft: (seconds: number) => void): Promise<Blob | string[]> {
+  try {
+    const answer = await fetch(`${of(change)}/video`, { method: "POST", headers: JSON_BODY, body: JSON.stringify(asked) });
+    if (!answer.ok || !answer.body) return (await answer.json()).problems ?? [`It wasn't made (${answer.status}).`];
+    let said = "";
+    for await (const part of answer.body.pipeThrough(new TextDecoderStream())) {
+      const lines = (said += part).split("\n");
+      said = lines.pop()!;
+      for (const line of lines) {
+        const told: { left?: number; video?: string; problems?: string[] } = JSON.parse(line);
+        if (told.left !== undefined) onLeft(told.left);
+        if (told.problems) return told.problems;
+        if (told.video) return (await fetch(`data:video/mp4;base64,${told.video}`)).blob();
+      }
+    }
+    return ["The video stopped before it was made. Try again."];
+  } catch {
+    return ["Playthrough isn't running here any more. Start it again with playthrough open, then try again."];
   }
 }
 
