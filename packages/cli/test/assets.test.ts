@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { test } from "node:test";
 import { keepNamed } from "../src/assets.ts";
+import { onTheWay } from "../src/use.ts";
 
 test("a font your recording names is kept, asked of the app by the path it was named at", async () => {
   const app = createServer((request, response) => {
@@ -22,6 +23,25 @@ test("a font your recording names is kept, asked of the app by the path it was n
     assert.equal(saved.get(font!), "font");
     assert.equal(kept["http://127.0.0.1:1/logo.png"], "assets/logo.png");
     assert.equal(kept["http://127.0.0.1:1/boards"], undefined);
+  } finally {
+    app.close();
+  }
+});
+
+test("what's named is asked of the app as stepping in asks it, with what setup.ts's use adds on the way, so an app that answers only with it still gives its stylesheet", async () => {
+  const app = createServer((request, response) => {
+    const asTheRun = request.headers["x-backend"] === "staging" && request.headers.authorization === `Basic ${Buffer.from("sam:launch").toString("base64")}`;
+    if (asTheRun && request.url === "/style.css") return response.writeHead(200, { "content-type": "text/css" }).end("body{}");
+    response.writeHead(401).end();
+  });
+  await new Promise<void>((done) => app.listen(0, "127.0.0.1", done));
+  const address = `http://127.0.0.1:${(app.address() as { port: number }).port}`;
+  try {
+    const recorded = JSON.stringify([{ href: `${address}/style.css` }]);
+    const use = { extraHTTPHeaders: { "X-Backend": "staging" }, httpCredentials: { username: "sam", password: "launch" } };
+    assert.deepEqual(await keepNamed(recorded, {}, address, async () => {}), {}, "without it, the app gives nothing");
+    const kept = await keepNamed(recorded, {}, address, async () => {}, onTheWay(use, address));
+    assert.match(kept[`${address}/style.css`] ?? "", /^assets\/[0-9a-f]{16}\.css$/);
   } finally {
     app.close();
   }

@@ -3,6 +3,7 @@
 
 import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
+import type { IncomingHttpHeaders } from "node:http";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
 
@@ -61,9 +62,11 @@ export function keepAssets(page: Page, folder: string): () => Promise<Assets> {
 // app, at its own address, by the path it was named at. Never fetched from the address as it's named: what's recorded
 // is whatever the page had in it, a guest's choosing or words the page shows, and Playthrough asks nothing of an address
 // someone else chose, on this machine or anywhere. Nor where the app sends it on. One the app doesn't have (a font from
-// elsewhere) isn't kept: the recording names it, and the viewer's browser asks for it there.
+// elsewhere) isn't kept: the recording names it, and the viewer's browser asks for it there. Asked as stepping in asks
+// the app (`onTheWay`, use.ts), with what the run's browser added, as an app that needs it answers nothing without.
 const NAMED = /\.(woff2?|ttf|otf|png|jpe?g|gif|webp|avif|svg|ico|css)$/i;
-export async function keepNamed(recorded: string, kept: Assets, app: string, save: (file: string, bytes: Uint8Array) => Promise<void>): Promise<Assets> {
+export async function keepNamed(recorded: string, kept: Assets, app: string, save: (file: string, bytes: Uint8Array) => Promise<void>, onTheWay: (headers: IncomingHttpHeaders) => IncomingHttpHeaders = (same) => same): Promise<Assets> {
+  const headers = Object.fromEntries(Object.entries(onTheWay({})).flatMap(([name, value]) => (typeof value === "string" ? [[name, value]] : [])));
   const addresses = [...new Set(recorded.match(/https?:\/\/[^\s"'()\\]+/g) ?? [])].filter((address) => !(address in kept) && URL.canParse(address) && NAMED.test(new URL(address).pathname));
   const found = await Promise.all(
     addresses.map(async (address): Promise<[string, string] | undefined> => {
@@ -71,7 +74,7 @@ export async function keepNamed(recorded: string, kept: Assets, app: string, sav
       const named = new URL(address);
       // Set, not joined: a path beginning “//” would be another address altogether.
       Object.assign(at, { pathname: named.pathname, search: named.search, hash: "" });
-      const answer = await fetch(at, { redirect: "manual", signal: AbortSignal.timeout(5000) }).catch(() => undefined);
+      const answer = await fetch(at, { headers, redirect: "manual", signal: AbortSignal.timeout(5000) }).catch(() => undefined);
       const type = answer?.ok ? (answer.headers.get("content-type")?.split(";")[0]?.trim() ?? "") : "";
       if (!answer || !(type in ENDINGS)) return undefined;
       const bytes = new Uint8Array(await answer.arrayBuffer());

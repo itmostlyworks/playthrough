@@ -275,13 +275,15 @@ function asIfDirect(request: IncomingMessage, target: URL) {
   const from = `http://${request.headers.host}`;
   if (headers.origin) headers.origin = target.origin;
   if (headers.referer?.startsWith(from)) headers.referer = target.origin + headers.referer.slice(from.length);
-  return (onTheWayTo.get(target.origin) ?? ((same) => same))(headers);
+  return onTheWayTo(target.origin)(headers);
 }
 
 // What the app's way through adds to what goes to it, for each copy of the app by its address: kept here, in this
-// process, and never in anything sent back, written down or said.
-const onTheWayTo = new Map<string, ReturnType<typeof onTheWay>>();
-const asTheRun = (app: string, use: BrowserContextOptions) => onTheWayTo.set(new URL(app).origin, onTheWay(use, app));
+// process, and never in anything sent back, written down or said. Whatever else this machine asks of the app for a step
+// in (what its pages named, as a note there is kept) goes the same way, and only to the app.
+const ways = new Map<string, ReturnType<typeof onTheWay>>();
+const asTheRun = (app: string, use: BrowserContextOptions) => ways.set(new URL(app).origin, onTheWay(use, app));
+export const onTheWayTo = (origin: string): ReturnType<typeof onTheWay> => ways.get(origin) ?? ((same) => same);
 
 // Taken over in the viewer, the app sits in its frame, and this goes into each of its pages, first. Scrolled where the
 // moment's page was, it tells the viewer once it has settled (loaded, its fonts and pictures in, nothing on its way and

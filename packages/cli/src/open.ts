@@ -19,7 +19,7 @@ import { CantStepIn, cantStepIn, readyIn, unlikeAt } from "./following.ts";
 import { everyCopy, machine } from "./machine.ts";
 import { keepNamed, type Assets } from "./assets.ts";
 import { frameOf, stillOf, type Framed } from "./frames.ts";
-import { getReady, keepReady, placeOf, waitedFor } from "./step-in.ts";
+import { getReady, keepReady, onTheWayTo, placeOf, waitedFor } from "./step-in.ts";
 import { setupIn } from "./setup.ts";
 import { agentGone, agentWaiting } from "./wait.ts";
 import { endsWithPlaythrough, openFile, stopUnused, UNUSED } from "./app.ts";
@@ -426,7 +426,8 @@ async function branch(repo: Repo, id: string, request: IncomingMessage, response
   // What the moment's recording kept, and what yours names besides, as fonts of a page the moment never showed.
   const kept = await repo.changes.file(id, handBack, `assets/${moment.recording}`);
   const theirs: Assets = kept ? JSON.parse(Buffer.from(kept).toString("utf8")) : {};
-  const all = await keepNamed(JSON.stringify(yours), theirs, (await repo.app()).url, (file, bytes) => repo.changes.saveBranch(id, file, bytes));
+  const app = (await repo.app()).url;
+  const all = await keepNamed(JSON.stringify(yours), theirs, app, (file, bytes) => repo.changes.saveBranch(id, file, bytes), onTheWayTo(new URL(app).origin));
   // Read from the hand-back's files, a branch's own are under branches/.
   const named = Object.fromEntries(Object.entries(all).map(([address, file]) => [address, address in theirs ? file : `branches/${file}`]));
   if (Object.keys(named).length) await repo.changes.saveBranch(id, `assets/${recording}`, Buffer.from(JSON.stringify(named)));

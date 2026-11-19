@@ -1070,7 +1070,8 @@ Any body is 64 MB at most (`body`, `open.ts`). cloudflared is given only `PATH` 
 
 **What this machine fetches** for a recording is never an address found in it: what you or a guest did in the app is
 kept with the fonts, pictures and stylesheets it names asked of the app alone, at its own address, by the path they were
-named at, never following a redirect (`keepNamed`, `assets.ts`); one from elsewhere (a font service) isn't kept, and the
+named at, never following a redirect (`keepNamed`, `assets.ts`), with what `use` adds on the way to the app as stepping
+in sends it (`onTheWayTo`, `step-in.ts`), so an app that answers only with it still gives them; one from elsewhere (a font service) isn't kept, and the
 viewer's browser asks for it there. The browser that draws a note's picture or a fine still asks for nothing but
 Playthrough's own page and files (`draw`, `frames.ts`). What a guest does in the app is kept under `branches/shared/` and only
 there, never in place of another recording (`branch`, `open.ts`; `SHARED`), and a recording kept there is played, in
