@@ -73,7 +73,9 @@ EACH CHANGE
      agent-browser --cdp 9333 <command>
      Playwright MCP: --cdp-endpoint http://localhost:9333
      a script: chromium.connectOverCDP("http://localhost:9333"), then the page already open there
-   Click and type as a person would. Going to an address directly is fine.
+   Click, type and point at things as a person would. Pointing at something (a hover) is kept, and what it opens, as a
+   preview, is there in the moment; moving the pointer off onto nothing isn't: point at something else. Going to an
+   address directly is fine.
 4. When you've just done what shows the change, say so: playthrough moment "<what's there>", in under eight words.
    Add the one thing it's about, as the page names it: the smallest that shows what came of it, not what you pressed
    ("Card prefix", not "Update"), and one whose name has no count or date in it, where there is one. The moment is what

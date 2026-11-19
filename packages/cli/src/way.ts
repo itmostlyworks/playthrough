@@ -76,6 +76,7 @@ export function wayFile({
     if (done.does === "type") return keyboard ? `    await page.keyboard.type(${given});` : `    await page.${at}.pressSequentially(${given});`;
     if (done.does === "selectOption") return `    await page.${at}.selectOption(${given});${what}`;
     if (done.does === "press") return keyboard ? `    await page.keyboard.press(${given});` : `    await page.${at}.press(${given});`;
+    if (done.does === "hover") return `    await page.${at}.hover();${what}`;
     return `    await page.${at}.click(${done.button ? `{ button: ${JSON.stringify(done.button)} }` : ""});${what}`;
   });
   // Scrolled where the agent had scrolled before each thing done there, the page and each part of it that scrolls by

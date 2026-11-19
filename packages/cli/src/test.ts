@@ -14,7 +14,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import type { Glimpse, Reading } from "@playthrough/page";
 import { keepAssets, type Assets } from "./assets.ts";
 import { ALONGSIDE, BEAT, QUIET_DEV_CHROME, type Action, type Handed, type On, type Run, type To } from "./run.ts";
-import { readPage, unhovered } from "./read.ts";
+import { asShown, pointing, readPage } from "./read.ts";
 import { repo } from "./repo.ts";
 import { ACTIONS, ASSETS, GLIMPSES, HOLD, PERSON, PICTURED, PICTURE, READINGS, RECORDING, seconds, whyStopped, type Failed, type Acted } from "./reporter.ts";
 import { SETTLED, stillFor, watchRest } from "./rest.ts";
@@ -247,7 +247,7 @@ const recorded = base.extend<{ person: string | undefined; rest: () => Promise<v
       if ((await stillFor(last)) < HOLD - 100 && moment.readings.length) {
         await moment.rest();
         const at = seconds(Date.now() - (moment.events[0]?.timestamp ?? Date.now()));
-        await unhovered(last, async () => {
+        await asShown(last, async () => {
           const { screen, things, items } = await readPage(last);
           moment.readings.splice(-1, 1, { step: moment.readings.at(-1)!.step, at, screen, things, items });
           moment.pictures.splice(-1, 1, await last.screenshot({ animations: "disabled", caret: "hide" }));
@@ -256,7 +256,7 @@ const recorded = base.extend<{ person: string | undefined; rest: () => Promise<v
         // Changing still, it's ended anyway, and said so.
       }
       // A moment's end once it has held: what still changes there, it ended before.
-      if (moment.frames.size) moment.frames.set("held", await unhovered(last, () => last.screenshot({ animations: "disabled", caret: "hide" })));
+      if (moment.frames.size) moment.frames.set("held", await asShown(last, () => last.screenshot({ animations: "disabled", caret: "hide" })));
       // Nothing changes while the end holds, so a last event makes the recording long enough to include it.
       await last.evaluate(() => (window as any).rrwebRecord.record.addCustomEvent("end", {}));
       await last.waitForTimeout(100);
@@ -554,13 +554,13 @@ const step = Object.assign(async (title: string, body: (info: unknown) => unknow
       if (!moment.readings.length && !moment.frames.size) {
         const at = seconds(Date.now() - (moment.events[0]?.timestamp ?? Date.now()));
         const picture = () => moment.page.screenshot({ animations: "disabled", caret: "hide" });
-        await unhovered(moment.page, async () => {
+        await asShown(moment.page, async () => {
           const { screen, things, items } = await readPage(moment.page);
           moment.glimpses.push({ step: title, at, screen, things, items });
           moment.frames.set("first", await picture());
         });
         if (pointer) await moment.page.waitForTimeout(BEAT);
-        moment.frames.set("a-beat-later", await unhovered(moment.page, picture));
+        moment.frames.set("a-beat-later", await asShown(moment.page, picture));
       }
       moment.step = title;
       moment.depth++;
@@ -572,7 +572,7 @@ const step = Object.assign(async (title: string, body: (info: unknown) => unknow
       }
       await moment.rest();
       const at = seconds(Date.now() - (moment.events[0]?.timestamp ?? Date.now()));
-      await unhovered(moment.page, async () => {
+      await asShown(moment.page, async () => {
         const { screen, things, items } = await readPage(moment.page);
         moment.readings.push({ step: title, at, screen, things, items });
         moment.pictures.push(await moment.page.screenshot({ animations: "disabled", caret: "hide" }));
@@ -793,6 +793,8 @@ async function acted(does: string, target: (page: Page) => Promise<string | unde
     await dialog;
   });
   underway?.actions.push({ action, began, at: Date.now() });
+  // Pointed at, it's left pointed at until anything else is done, and read so (read.ts).
+  await underway?.page.evaluate(pointing, does === "hover").catch(() => {});
   if (keeping) {
     // Done again where the person steps in, it needn't wait for the page to be still here: only to see whether it
     // saved something or went to another page, which shows at once. The next action's page is waited for as it's taken.
@@ -850,7 +852,7 @@ async function glimpse(scrolled?: number) {
   if (read) moment.glimpses.push({ step: moment.step ?? "", at, ...read, ...(scrolled !== undefined && { scrolled }) });
   // In a moment, pictured too, for what it changes that you can see on the way, as a Copied that goes again.
   if (read && moment.frames.size && !moment.readings.length && moment.depth)
-    moment.frames.set(`after-${moment.frames.size - 1}`, await unhovered(moment.page, () => moment.page.screenshot({ animations: "disabled", caret: "hide" })));
+    moment.frames.set(`after-${moment.frames.size - 1}`, await asShown(moment.page, () => moment.page.screenshot({ animations: "disabled", caret: "hide" })));
 }
 
 // A dropdown's list of options is the browser's, not the page's, so rrweb never sees it open, as with a dialog: the

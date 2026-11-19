@@ -14,11 +14,13 @@ import { whyStopped } from "../src/reporter.ts";
 import { SAYS } from "../src/step-in.ts";
 import { runAlongside } from "../src/test.ts";
 
-// A card a left click opens and a right click opens a menu on, as on Kan's board.
-const BOARD = `<!doctype html><a id="card" href="#">Write the launch post</a><div id="said"></div>
+// A card a left click opens and a right click opens a menu on, as on Kan's board, and pointed at, previews what's in it.
+const BOARD = `<!doctype html><p>Doing</p><a id="card" href="#">Write the launch post</a><div id="said"></div><p id="preview" hidden>Due Friday</p>
 <script>
   card.addEventListener("click", (e) => (e.preventDefault(), (said.innerHTML = "<h1>Write the launch post</h1>")));
   card.addEventListener("contextmenu", (e) => (e.preventDefault(), (said.innerHTML = '<div role="menu">Move to another list</div>')));
+  card.addEventListener("mouseenter", () => (preview.hidden = false));
+  card.addEventListener("mouseleave", () => (preview.hidden = true));
 </script>`;
 
 let browser: Browser;
@@ -69,6 +71,37 @@ test("a moment that ends in a menu opened by a right click is stepped into with 
   assert.equal(await board.getByRole("menu").textContent(), "Move to another list");
   assert.equal(await board.getByRole("heading").count(), 0, "the card isn't opened");
   await person.close();
+});
+
+test("a moment that ends pointing at something is stepped into pointed at, with what the page shows for it, as a preview on mouseenter; pointed away, it's gone", async () => {
+  for (const [away, shown] of [[false, true], [true, false]] as const) {
+    const running = await browser.newPage();
+    await app(running);
+    const { handed } = await runAlongside(
+      running,
+      { request: running.request, baseURL: "http://app.test", started: new Date().toISOString(), setup: {}, borrowed },
+      async ({ page }) => {
+        await page.goto("http://app.test/board");
+        await page.getByRole("link", { name: "Write the launch post" }).hover();
+        if (away) await page.getByText("Doing", { exact: true }).hover();
+      },
+      { to: { moment: "The card's preview" } },
+    );
+    assert.deepEqual(handed?.again?.map(({ does }) => does), away ? ["hover", "hover"] : ["hover"]);
+    await running.close();
+
+    const person = await browser.newPage();
+    await app(person);
+    await person.goto("http://app.test/");
+    const settled = person.evaluate(() => new Promise((done) => addEventListener("message", ({ data }) => data?.playthrough === "settled" && done(true))));
+    await person.evaluate((again) => {
+      sessionStorage.setItem("playthrough:again", JSON.stringify(again));
+      document.body.append(Object.assign(document.createElement("iframe"), { src: "/board" }));
+    }, handed!.again!);
+    await settled;
+    assert.equal(await person.frameLocator("iframe").getByText("Due Friday").isVisible(), shown, away ? "pointed away, the preview is gone" : "pointed at, the preview is open");
+    await person.close();
+  }
 });
 
 test("in the app, a single Escape is the app's, and twice is Back, the app hearing only the first", async () => {

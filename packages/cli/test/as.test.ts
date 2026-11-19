@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { chromium, type Browser, type Page } from "@playwright/test";
-import { NOTING, opened } from "../src/as.ts";
+import { keep, NOTING, opened } from "../src/as.ts";
 import type { Setup } from "../src/setup.ts";
 import { aboutOn, openOn } from "../src/moments.ts";
 import { scrollPage, scrollPart, wayFile, wayIn, type Done } from "../src/way.ts";
@@ -23,7 +23,7 @@ async function keptAndPlayed<T>(body: string, act: (page: Page) => Promise<void>
   const did: Done[] = [];
   const agent = await browser.newPage();
   await served(agent);
-  await agent.exposeBinding("__playthroughDid", (_source, done?: Done) => void (done && did.push(done)));
+  await agent.exposeBinding("__playthroughDid", (_source, done?: Done) => void (done && keep(did, done)));
   await agent.addInitScript({ content: NOTING });
   await agent.goto("http://app.test/");
   await act(agent);
@@ -119,6 +119,18 @@ test("what a moment is about can be named by the words a field holds, as Kan's l
   assert.deepEqual((await aboutOn(page, "Each list shows its count", "doing")).about, { role: "textbox", name: "List name", nth: 1, value: "Doing", disabled: false });
   assert.equal((await aboutOn(page, "Each list shows its count", "Done soon")).about?.role, "heading", "what's called that comes first");
   assert.equal((await aboutOn(page, "Each list shows its count", "Done")).about?.role, "heading", "and what's called something like it");
+  await page.close();
+});
+
+test("what a moment is about, pointed at, is found as the pointer shows it, and a picture as getByRole finds it, though Chrome calls it an image", { timeout: 30_000 }, async () => {
+  const page = await browser.newPage();
+  await page.addInitScript({ content: NOTING });
+  await page.route("http://app.test/**", (route) =>
+    route.fulfill({ contentType: "text/html", body: `<!doctype html><style>#costs { display: none } button:hover + #costs { display: block }</style><button>Costs</button><figure id="costs" role="img" aria-label="Costs chart">Down 4%</figure>` }),
+  );
+  await page.goto("http://app.test/");
+  await page.getByRole("button", { name: "Costs" }).hover();
+  assert.deepEqual((await aboutOn(page, "Costs shown on pointing", "Costs chart")).about, { role: "img", name: "Costs chart", disabled: false });
   await page.close();
 });
 
@@ -241,6 +253,34 @@ test("a drag is kept to be said, never done again: a press the page carries off,
   assert.deepEqual(did.filter((one) => one.does === "drag").map(({ what }) => what), ["Card A"]);
   assert.ok(did.some((one) => one.does === "click" && one.what === "Card A"));
   assert.equal(again, "opened ", "the wobbled press is a click, done again; the drag isn't");
+});
+
+test("pointing at something is kept, and pointed at again from a fresh start: a chart previewed on mouseenter, and one shown by :hover", { timeout: 30_000 }, async () => {
+  const { did, again } = await keptAndPlayed(
+    `<style>#costs { display: none } button:hover + #costs { display: block }</style>
+    <button id="revenue">Revenue</button><p id="said"></p>
+    <button>Costs</button><figure id="costs" role="img" aria-label="Costs chart">Down 4%</figure>
+    <script>revenue.addEventListener("mouseenter", () => said.append("revenue previewed"))</script>`,
+    async (page) => {
+      await page.getByRole("button", { name: "Revenue" }).hover();
+      await page.getByRole("button", { name: "Costs" }).hover();
+    },
+    async (page) => [await page.locator("#said").textContent(), await page.getByRole("img", { name: "Costs chart" }).isVisible()],
+  );
+  assert.deepEqual(did.filter((one) => one.does === "hover").map(({ name }) => name), ["Revenue", "Costs"]);
+  assert.deepEqual(again, ["revenue previewed", true]);
+});
+
+test("what's pressed straight after it's pointed at was only the hand on its way, and what comes under a pointer that hasn't moved isn't pointed at", { timeout: 30_000 }, async () => {
+  const { did } = await keptAndPlayed(
+    `<button id="pin" style="height: 60px" onclick="this.replaceWith(Object.assign(document.createElement('button'), { textContent: 'Unpin', style: 'height: 200px' }))">Pin</button>`,
+    async (page) => {
+      await page.getByRole("button", { name: "Pin" }).click();
+      await page.waitForTimeout(300);
+    },
+    async () => undefined,
+  );
+  assert.deepEqual(did.filter((one) => one.does !== "goto").map(({ does, name }) => `${does} ${name}`), ["click Pin"]);
 });
 
 test("the browser is said to be signed in only where setup's signIn signed them in; otherwise it's open as them, and nothing more", () => {
