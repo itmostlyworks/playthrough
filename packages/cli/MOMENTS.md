@@ -13,6 +13,7 @@ Read this once, to its end.
   playthrough again                                  every moment again on the code as it is now: the same, or what's different
   playthrough answer <note> "<words>"               answer one of the person's notes, in a line
   playthrough drop "<moment>"                        leave a moment out
+  playthrough --version                              the version running here
 
 THE FIRST TIME IN AN APP
 

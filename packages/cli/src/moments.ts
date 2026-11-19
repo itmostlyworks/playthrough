@@ -46,6 +46,10 @@ export async function moment(repo: Repo, words: string, named?: string, last?: n
   const counted = words.trim().split(/\s+/).length;
   if (counted > MOST_WORDS) throw new Refused([`That's ${counted} words. Say only what's there, in under eight (“Cards now say WEB-1 to WEB-5”): the person already sees who it is and where.`]);
   const markAgain = `playthrough moment ${JSON.stringify(words)}${named ? ` ${JSON.stringify(named)}` : ""}`;
+  // The app it was opened on, found running, can stop while it's open, and the app is then started at another address.
+  const app = await repo.app();
+  if (app.url !== browser.url)
+    throw new Refused([`The app the browser from playthrough as is on, at ${browser.url}, isn't running there any more, so what's in it can't be kept: the app is at ${app.url} now. Start the browser again there, then do it again: playthrough as ${browser.person}`]);
 
   // Where the agent is now, as the page is read at a step's end.
   const open = await chromium.connectOverCDP(`http://localhost:${browser.debugging}`).catch(() => {
@@ -101,7 +105,7 @@ export async function moment(repo: Repo, words: string, named?: string, last?: n
   const way = { words, person: browser.person, did: done, setup: browser.setup, about: there.about, scrolled: there.scrolled, from };
   writeFileSync(join(trying, file), wayFile({ ...way, tried: true }));
   console.log(`Running the way there again, from a fresh start, as ${browser.person}…`);
-  const ran = await runOnce({ moments: trying, only: [words], app: await repo.app(), root: repo.root, recorder, started: change.started });
+  const ran = await runOnce({ moments: trying, only: [words], app, root: repo.root, recorder, started: change.started });
   const notKept = (why: string) => {
     rmSync(trying, { recursive: true, force: true });
     return new Refused([`Not kept: run again from a fresh start, ${why}`, ...(draggedOnTheWay ? ["A drag was done on the way here, and a moment can't hold a drag."] : []), "Tell the person only about moments that were kept. Fix what's said, or get there another way, and mark it again."]);

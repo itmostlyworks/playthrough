@@ -8,7 +8,9 @@ import { uptime } from "node:os";
 // `started`, where it's known, tells the process from another given its number since on the same start of the machine.
 export type Command = { by: number; boot?: string | number; started?: number };
 
-export const thisCommand = (): Command => ({ by: process.pid, boot: boot(), started: startOf(process.pid) });
+export const thisCommand = (): Command => processNamed(process.pid);
+// Any process, as a command is known, to know it for the same one later: the app's server found running, say.
+export const processNamed = (pid: number): Command => ({ by: pid, boot: boot(), started: startOf(pid) });
 
 // The command is still at it: its process is running, and is the same one, not another that has its number since the
 // machine started again, or since it ended, as one killed hard leaves what it wrote for another to be taken for it.

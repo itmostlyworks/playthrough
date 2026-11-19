@@ -17,6 +17,8 @@ import { unheardSaid } from "./wait.ts";
 
 // Everything an agent needs to know, read once: bare, the command says it.
 const HELP = readFileSync(new URL("../MOMENTS.md", import.meta.url), "utf8").trimEnd();
+// The version running, as its package.json says, which the release sets, beside this in the checkout and in the package.
+const VERSION: string = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
 
 // Each command, how many words it takes after its name, at least and at most, and how it's said: anything more is
 // refused rather than ignored, so a stray word never starts something that wasn't meant.
@@ -31,6 +33,7 @@ const commands = {
   wait: [0, 0, "playthrough wait", () => wait(repo())],
   open: [0, 0, "playthrough open", () => openBehind()],
   close: [0, 0, "playthrough close", () => close()],
+  "--version": [0, 0, "playthrough --version", async () => console.log(VERSION)],
 } satisfies Record<string, [number, number, string, (words: string[], last?: number) => Promise<unknown>]>;
 
 const [command, ...given] = process.argv.slice(2);
@@ -41,9 +44,10 @@ const words = lastAt < 0 ? given : given.toSpliced(lastAt, given[lastAt]!.includ
 // The app this is run in is known to the machine's one page from now on, as soon as Playthrough has a folder in it.
 know(repo().root);
 // Notes the person sent with no agent listening are said before anything else, help included, as the first thing an
-// agent runs is often the help, cut short. Wait gets them; open and close are the person's; and what `as` and `open`
-// start behind themselves (process.send, behind.ts) says nothing the command that was run hasn't.
-if (!["wait", "open", "close"].includes(command!) && !process.send) {
+// agent runs is often the help, cut short. Wait gets them; open and close are the person's; the version is all
+// --version says; and what `as` and `open` start behind themselves (process.send, behind.ts) says nothing the command
+// that was run hasn't.
+if (!["wait", "open", "close", "--version"].includes(command!) && !process.send) {
   const unheard = await unheardSaid(repo());
   if (unheard.length) console.log(`${unheard.join("\n")}\n`);
 }
