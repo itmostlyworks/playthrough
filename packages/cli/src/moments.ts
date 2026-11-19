@@ -27,7 +27,7 @@ import { followEach, followedSaid, shownOf } from "./followed.ts";
 import { everyCopy, machine } from "./machine.ts";
 import { pictureNotes } from "./noted.ts";
 import { openAlready, PORT } from "./open.ts";
-import { readPage, unhovered } from "./read.ts";
+import { readPage, asShown } from "./read.ts";
 import type { Repo } from "./repo.ts";
 import { frameOf, glimpsesOf, readingsOf, type Failed } from "./reporter.ts";
 import { markUnsteady, recorder, runOnce } from "./run.ts";
@@ -237,6 +237,7 @@ function saidOf(one: Done): string {
   if (one.does === "selectOption") return `choose ${quote(one.with ?? "")}${into}`;
   if (one.does === "press") return `press ${one.with}${into}`;
   if (one.does === "drag") return `drag ${on || (one.role ? `a ${one.role} with no name` : "something")}`;
+  if (one.does === "hover") return `point at ${on || `a ${one.role} with no name`}`;
   return `${one.button === "right" ? "right-click" : "click"} ${on || (one.role ? `a ${one.role} with no name` : "the page")}`;
 }
 
@@ -262,7 +263,7 @@ function lastActedOn(did: Done[], end: Reading): { role: string; name: string } 
 async function readAt(page: Page): Promise<Reading> {
   await page.waitForLoadState().catch(() => {});
   await page.waitForTimeout(500);
-  return { step: "here", at: 0, picture: "", ...(await unhovered(page, () => readPage(page))) };
+  return { step: "here", at: 0, picture: "", ...(await asShown(page, () => readPage(page))) };
 }
 
 // What the moment is about: the thing named, by its whole name, or else the smallest that holds those words, as a card

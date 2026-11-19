@@ -22,7 +22,7 @@ import { sayReady, startBehind } from "./behind.ts";
 import { changeHere, momentNamed } from "./change.ts";
 import { framesOf, scrolledAt } from "./followed.ts";
 import { passedThrough } from "./passed.ts";
-import { hovering } from "./read.ts";
+import { hovering, pointing } from "./read.ts";
 import type { Repo } from "./repo.ts";
 import { glimpsesOn, readingsOn } from "./reporter.ts";
 import { giveBackLeft, make, personIn, problemsWithPeople, setupIn, type Setup } from "./setup.ts";
@@ -56,8 +56,13 @@ export const NOTING = `(() => {
   const keep = (done) => {
     if (done.does !== "type") typedIn = undefined;
     if (done.does !== "type" && done.does !== "fill") into = undefined;
+    pointing(done.does === "hover");
     window.__playthroughDid?.({ ...done, address: location.pathname, scrolled: scrolled() });
   };
+  // Pointing at something is the last thing done until anything else begins: what's done next is named with nothing
+  // pointed at, as everything is.
+  const pointing = ${pointing};
+  for (const type of ["pointerdown", "keydown", "beforeinput"]) addEventListener(type, () => pointing(false), true);
   // A part that scrolls by itself, as a panel, a long list or a dialog's body does, is kept once it's scrolled from its
   // start, and from then on while it's on the page, so one scrolled back is put back too; found again as what's done
   // there is, by its role and name, else its place.
@@ -96,11 +101,14 @@ export const NOTING = `(() => {
   // As getByRole finds it, from Chrome's own accessibility tree (ComputedAccessibilityInfo, switched on at launch): by
   // its role and name, and a field or a switch the page gives no name by its role alone, which of them it is.
   const nameOf = (element) => (element.computedName || "").trim().replace(/\\s+/g, " ");
+  // Chrome calls a picture an "image", as ARIA now does, where getByRole still knows it as "img": a chart named as an
+  // image was never found again.
+  const roleOf = (element) => (element.computedRole === "image" ? "img" : element.computedRole);
   const named = (element) => {
-    const role = element.computedRole, name = nameOf(element);
+    const role = roleOf(element), name = nameOf(element);
     const field = ["textbox", "searchbox", "combobox", "spinbutton", "switch", "checkbox", "radio", "slider"].includes(role);
     if (!role || (!name && !field) || ["generic", "none", "presentation", "StaticText", "paragraph", "group"].includes(role)) return {};
-    const alike = [...document.querySelectorAll("*")].filter((other) => other.computedRole === role && (!name || nameOf(other) === name));
+    const alike = [...document.querySelectorAll("*")].filter((other) => roleOf(other) === role && (!name || nameOf(other) === name));
     const nth = alike.indexOf(element);
     return { role, ...(name && { name }), ...((alike.length > 1 || !name) && nth >= 0 && { nth }) };
   };
@@ -157,6 +165,20 @@ export const NOTING = `(() => {
     const { target, what } = thing(from.target);
     keep({ does: "drag", ...on(target), what });
     dragged = true;
+  }, true);
+  // Pointing at something, as a tool's hover does: the pointer moved onto something named or with words of its own, no
+  // button held. Pressed straight after, it was only the hand on its way there (keep, below). What comes under a pointer
+  // that hasn't moved, as the page scrolls or redraws beneath it, isn't pointed at.
+  let at;
+  addEventListener("pointermove", (e) => (at = { x: e.clientX, y: e.clientY }), true);
+  addEventListener("pointerover", (e) => {
+    const moved = !at || at.x !== e.clientX || at.y !== e.clientY;
+    at = { x: e.clientX, y: e.clientY };
+    if (!e.isTrusted || e.pointerType !== "mouse" || e.buttons || !moved) return;
+    pointing(false);
+    const { target, what } = thing(e.target);
+    const found = on(target);
+    if (found.role || found.text) keep({ does: "hover", ...found, what });
   }, true);
   addEventListener("click", (e) => {
     if (dragged) return void (dragged = false);
@@ -309,6 +331,9 @@ It runs until you hand back (playthrough wait) or stop it (playthrough stop), or
 
 // What's done in the browser, kept after what was done before it.
 export function keep(did: Done[], done: Done) {
+  // Pointing again at what's pointed at is still pointing at it; and what's pressed straight after it is pointed at was
+  // only the hand on its way there.
+  if (did.at(-1)?.does === "hover" && did.at(-1)!.on === done.on && ["hover", "click", "drag"].includes(done.does)) did.pop();
   const last = did.at(-1);
   // A field's words, typed a key at a time, are what it says once typed; and what's typed at the caret, one run of it.
   if (done.does === "fill" && last?.does === "fill" && last.on === done.on) did.pop();

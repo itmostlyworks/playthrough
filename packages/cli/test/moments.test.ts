@@ -167,6 +167,11 @@ describe("the way to a moment", () => {
     assert.match(menu, /getByRole\("link", \{ name: "Write the launch post", exact: true \}\)\.click\(\{ button: "right" \}\);/);
   });
 
+  test("pointing at something is done again as pointing at it, as a chart previews while its button is pointed at", () => {
+    const preview = wayFile({ words: "Revenue previewed", person: "Maja", did: [{ does: "hover", on: "#revenue", role: "button", name: "Revenue" }], setup: {} });
+    assert.match(preview, /await page\.getByRole\("button", \{ name: "Revenue", exact: true \}\)\.hover\(\);/);
+  });
+
   test("writes where it ended only while it's tried, never in the moment that's kept", () => {
     assert.match(wayFile({ words: "Here", person: "Maja", did, setup: {}, tried: true }), /writeFileSync\(new URL\("\.\/ended\.json"/);
     assert.doesNotMatch(way, /writeFileSync|ended\.json/);

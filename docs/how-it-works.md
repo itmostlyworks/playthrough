@@ -114,7 +114,13 @@ committed and shown (a real run on 0.7.1 kept them). Where something was done, o
 whole, as it's gone back to. A drag is kept only to be said, never done again: a press carried more than 10px and let go, with the page taking the moves for itself on the
 way (`defaultPrevented` on a move, as a drag-and-drop library does once something is picked up: dnd-kit on Kan's
 board); selecting words, a slider and a press that wobbled leave the moves be, and the click that ends a drag is the
-drag's. (The agent's browser is headless, which hides scrollbars.) Run again, the browser open already starts again,
+drag's. Pointing at something is kept as `hover`, done again as pointing at it: the pointer moved onto something named or
+with words of its own, no button held. Pressed straight after, it was only the hand on its way there, and the press
+takes its place (`keep`); pointed at again, it's the one pointing. What comes under a pointer that hasn't moved, as the
+page scrolls or redraws beneath it, isn't pointed at, and nor is moving onto nothing named. Until 19 Nov nothing pointed
+at was kept, so a chart a button previewed while pointed at was never there run again, and the moment was "Not kept".
+Chrome calls a picture an "image" where getByRole knows it as "img", so it's kept as an img. (The agent's browser is
+headless, which hides scrollbars.) Run again, the browser open already starts again,
 fresh, as whoever is named; given a moment, it goes that moment's way there first. Given a note, by its id as
 `answer` takes it (`placeNamed`), it goes its moment's way and stops after as many of the things the moment shows as had
 been done when the note was written (`doneBy`, counted on the hand-back it was written on; `wayIn` cuts the file's step
@@ -363,7 +369,13 @@ behind the recording ever shows through it (`replay.ts`'s `#onCanvas`). Each thi
 as it's done (its `what`: `click button “Update”`, `type textbox “Card prefix”`, never the words) is how two
 recordings of a moment are lined up. The page at the step's end is read once it rests (`rest.ts`: nothing it asked for
 on its way, and nothing changing for 300 ms of the frames it draws), as the app shows it, not as the pointer hovers it,
-with a picture; after each action it's glimpsed too, read without a picture.
+with a picture; after each action it's glimpsed too, read without a picture. One rule says what the pointer counts for
+(`asShown`, `read.ts`): its `:hover` look is set aside, as it only rests where the last thing done left it, unless the
+last thing done was pointing at something, when what it lights up is what's there (a chart previewed while its button
+is pointed at). Whatever does things in a page says so there (`pointing`: the agent's browser as it keeps each thing,
+a recording as it does each), and everything that reads where a moment is or ends goes by it: the agent's browser
+where it's marked and what it's about, each reading and picture of the step, its first frames and the end held, so
+both sides of Compare.
 
 ## What's different
 
@@ -834,8 +846,10 @@ Chromium Playthrough keeps open while it runs, each run a window of its own with
 it's stepped into, each thing it does waiting for the page to come to rest first, as when it was recorded (`acted`,
 `test.ts`): done at once, Escape pressed on a Kan card still loading went back to a board that wasn't there, `/boards/undefined`.
 That costs Kan's runs about 1.5 to 3.5 seconds more. What the way and the step did only in the page's memory (a
-field typed into, a panel opened, a menu a right click opened, a key pressed with nothing focused) is done again in your
-browser, as it was done, before it shows,
+field typed into, a panel opened, a menu a right click opened, a key pressed with nothing focused, something pointed
+at) is done again in your browser, as it was done, before it shows: pointing as a browser says a pointer came onto
+something, `mouseenter` too, so a preview the page opens for it is open, and left what it was on before, so one pointed
+away from is shut; a look only CSS `:hover` gives shows only where your own pointer is,
 while what saved something or went to another address isn't done twice, and the page is scrolled where the recording
 was. Each step in has an address of its own, `/step-in/<moment>`, a name nobody could guess, on a pass-through at
 http://localhost:5830/ that hands your browser the run's page (its address, cookies and what the app kept in the browser)

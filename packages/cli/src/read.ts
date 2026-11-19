@@ -15,7 +15,9 @@ export const readHere = `(${read})(${partsAround})`;
 // The page as the app shows it, not as the pointer happens to rest on it: its :hover rules are set aside while it's read
 // and pictured, and put back. Moved by a change, the pointer rests on something else, which lit up only for it. What the
 // app does on hovering itself, a tooltip it opens, stays. rrweb doesn't record a rule's selector changing.
-export async function unhovered<T>(page: Page, look: () => Promise<T>): Promise<T> {
+// Where the last thing done was pointing at something, the pointer is where it was meant to be, and what it lights up is
+// what's there: a chart previewed while a button is pointed at (`hovering`).
+export async function asShown<T>(page: Page, look: () => Promise<T>): Promise<T> {
   await page.evaluate(hovering, false);
   try {
     return await look();
@@ -24,14 +26,21 @@ export async function unhovered<T>(page: Page, look: () => Promise<T>): Promise<
   }
 }
 
+// Said in the page by whatever does things there, the agent's browser and a recording alike: whether the last thing done
+// was pointing at something. A page loaded says nothing, as nothing has been pointed at there.
+export function pointing(meant: boolean) {
+  (window as unknown as { __playthroughPointing?: boolean }).__playthroughPointing = meant;
+}
+
 export function hovering(on: boolean) {
-  const kept = window as unknown as { __playthroughHover?: [CSSStyleRule, string][] };
+  const kept = window as unknown as { __playthroughHover?: [CSSStyleRule, string][]; __playthroughPointing?: boolean };
   if (on) {
     for (const [rule, selector] of kept.__playthroughHover ?? []) rule.selectorText = selector;
     kept.__playthroughHover = [];
     return;
   }
   const set: [CSSStyleRule, string][] = (kept.__playthroughHover = []);
+  if (kept.__playthroughPointing) return;
   const visit = (rules: CSSRuleList) => {
     for (const rule of rules) {
       // Nothing matches :not(*), so it reads as nothing hovered, and :not(:hover) as everything not.

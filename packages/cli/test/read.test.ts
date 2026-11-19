@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
 import { chromium, type Browser, type Page } from "@playwright/test";
 import type { Thing } from "@playthrough/page";
-import { readPage, unhovered } from "../src/read.ts";
+import { asShown, pointing, readPage } from "../src/read.ts";
 import { watchRest } from "../src/rest.ts";
 
 let browser: Browser;
@@ -136,10 +136,22 @@ describe("Reading a page", () => {
     const lit = () => page.waitForFunction(() => getComputedStyle(document.querySelector(".card")!).backgroundColor === "rgb(244, 244, 245)");
     await page.mouse.move(60, 40);
     await lit();
-    const { things } = await unhovered(page, () => readPage(page));
+    const { things } = await asShown(page, () => readPage(page));
     assert.ok(!things.some((thing) => thing.role === "box"), "a background only the pointer gives it doesn't make it a panel");
     assert.equal(find(things, "text", "Taxi to the station").look.background, "rgba(0, 0, 0, 0)");
     await lit();
+  });
+
+  test("a moment that ends pointing at something is read as pointed at: what the pointer lights up is what's there", async () => {
+    const { page } = await open(
+      `<style>#preview { display: none } button:hover + #preview { display: block }</style><button>Revenue</button><figure id="preview" role="img" aria-label="Revenue chart">Up 12%</figure>`,
+    );
+    await page.getByRole("button", { name: "Revenue" }).hover();
+    await page.evaluate(pointing, true);
+    find((await asShown(page, () => readPage(page))).things, "img", "Revenue chart");
+    await page.evaluate(pointing, false);
+    const { things } = await asShown(page, () => readPage(page));
+    assert.ok(!things.some((thing) => thing.role === "img"), "what the pointer only rests on is still set aside");
   });
 
   test("what isn't shown isn't read, and what's below the fold is, where it is on the page", async () => {

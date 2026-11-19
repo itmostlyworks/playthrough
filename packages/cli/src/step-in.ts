@@ -663,14 +663,24 @@ export const SAYS = `(() => {
     const box = element.getBoundingClientRect();
     const [which, held] = buttons[button];
     const at = { bubbles: true, cancelable: true, composed: true, view: window, clientX: box.x + box.width / 2, clientY: box.y + box.height / 2, button: which, pointerId: 1, pointerType: "mouse", isPrimary: true };
-    // The button is held from its down until its up, as the page reads it in buttons.
-    for (const type of types) element.dispatchEvent(new (type.startsWith("pointer") ? PointerEvent : MouseEvent)(type, { ...at, buttons: /down$|contextmenu/.test(type) ? held : 0 }));
+    // The button is held from its down until its up, as the page reads it in buttons; entering and leaving are said only
+    // to what's entered or left.
+    for (const type of types) element.dispatchEvent(new (type.startsWith("pointer") ? PointerEvent : MouseEvent)(type, { ...at, bubbles: !/enter|leave/.test(type), buttons: /down$|contextmenu/.test(type) ? held : 0 }));
+  };
+  // The pointer coming onto something, as a browser says so, a page listening for any of it, as a chart previewed on
+  // mouseenter; and, being in one place, leaving what it was on, as the preview goes again.
+  let under;
+  const arrive = (element, button) => {
+    if (under && under !== element && under.isConnected) press(under, button, "pointerout", "pointerleave", "mouseout", "mouseleave");
+    under = element;
+    press(element, button, "pointerover", "pointerenter", "mouseover", "mouseenter", "pointermove", "mousemove");
   };
   // With the button it was done with, as a browser sends it: a right click opens what the page shows for it, as a card's
   // menu, and is never a click, which would open the card. Focused without scrolling to it: made ready unseen in the
   // viewer, it would scroll the viewer's page to its frame.
   const click = (element, button = "left") => {
-    press(element, button, "pointerover", "pointerenter", "mouseover", "pointermove", "mousemove", "pointerdown", "mousedown", ...(button === "right" ? ["contextmenu"] : []));
+    arrive(element, button);
+    press(element, button, "pointerdown", "mousedown", ...(button === "right" ? ["contextmenu"] : []));
     element.focus?.({ preventScroll: true });
     press(element, button, "pointerup", "mouseup", button === "left" ? "click" : "auxclick");
   };
@@ -711,7 +721,7 @@ export const SAYS = `(() => {
     else if (does === "fill") type(element, given);
     else if (does === "type") type(element, given, true);
     else if (does === "press") key(element, given);
-    else if (does === "hover") press(element, "left", "pointerover", "pointerenter", "mouseover", "pointermove", "mousemove");
+    else if (does === "hover") arrive(element, "left");
     else if (does === "selectOption") (element.value = [given].flat()[0], changed(element));
     else if (element.checked !== (does === "check" || (does === "setChecked" && given))) click(element);
     stir();
