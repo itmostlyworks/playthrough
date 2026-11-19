@@ -62,7 +62,7 @@ export function FrameButton({ by, disabled, onStep, held }: { by: 1 | -1; disabl
   return (
     <button
       data-part={part}
-      className={`${ITEM} group/tip relative w-6 px-0! text-soft! phone:w-5`}
+      className={`${ITEM} group/tip relative w-6 px-0! text-soft! phone:[flex:10_1_10px]`}
       disabled={disabled}
       aria-label={words}
       aria-keyshortcuts={named}
@@ -138,7 +138,14 @@ export function CantStepIn({ plainly, told, onTell, onClose }: { plainly: string
 // The part of Play's line not yet played: there to be seen, a step quieter than what has.
 const UNPLAYED = "bg-[color-mix(in_srgb,var(--soft)_32%,transparent)]";
 
-// On a phone, the keys go and the buttons sit a little closer, so the bar fits with all of them in 390 wide.
+// On a phone, the bar fits the room it's given under the picture. It's as wide as all of it is at 390, or the room where
+// that's less, and each place on it is its words at their widest, in any state, and a share of the rest that's the air
+// it has at 390: so from 390 up it's as it always was, narrower the air goes from every place together, and at any one
+// width no place moves as its words change. Words are never cut, so under about 285 wide it runs over. Each place says
+// both, as `phone:[flex:<air>_1_<words>px]`, its own padding left to its share (`phone:px-0!`).
+export const PHONE_BAR = "phone:w-[min(355px,100%)]";
+
+// On a phone, the keys go and the buttons sit a little closer.
 export const ITEM =
   "phone:[&_kbd]:hidden inline-flex items-center justify-center gap-2 rounded-lg px-2.5 py-1.5 phone:px-2 whitespace-nowrap text-fg transition-colors duration-150 ease-calm enabled:hover:bg-hover disabled:cursor-default disabled:opacity-50 aria-pressed:bg-hover [&_kbd]:text-[color-mix(in_srgb,var(--faint)_55%,var(--soft))]";
 

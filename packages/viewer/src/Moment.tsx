@@ -15,7 +15,7 @@ import { Header, headerRows, Title } from "./Header.tsx";
 import type { YourReply } from "./kept.ts";
 import { Key } from "./Key.tsx";
 import { arrived, can, isPlaying, isStepped, reduce, type Action } from "./mode.ts";
-import { Progress, Getting, FrameButton, Tip, Notice, CantStepIn, ITEM, BAR } from "./MomentBar.tsx";
+import { Progress, Getting, FrameButton, Tip, Notice, CantStepIn, ITEM, BAR, PHONE_BAR } from "./MomentBar.tsx";
 import { Turns, useFrames, NoteWords, NotePicture, NoteCard, NoteWas, Write, type Made } from "./Note.tsx";
 import { usePhone } from "./phone.ts";
 import { Picture } from "./Picture.tsx";
@@ -1162,7 +1162,7 @@ export function MomentView(props: {
             role="toolbar"
             aria-label="This moment"
             onClick={(event) => (event.target as Element).closest("button")?.blur()}
-            className={`absolute top-full left-1/2 z-20 flex w-max max-w-full gap-0.5 rounded-xl transition-[translate,opacity] duration-300 ease-calm bg-surface p-1 text-[13px] select-none ${inApp ? "outline-2 outline-[rgba(236,178,72,0.95)] outline-solid shadow-[0_6px_20px_rgba(20,24,34,0.12)]" : "shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]"}`}
+            className={`absolute top-full left-1/2 z-20 flex w-max max-w-full ${atLastStop ? "" : PHONE_BAR} gap-0.5 rounded-xl transition-[translate,opacity] duration-300 ease-calm bg-surface p-1 text-[13px] select-none ${inApp ? "outline-2 outline-[rgba(236,178,72,0.95)] outline-solid shadow-[0_6px_20px_rgba(20,24,34,0.12)]" : "shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]"}`}
             ref={toolbar}
             style={{ height: BAR, translate: phone ? "-50% 0" : `calc(-50% + ${clear?.x ?? 0}px) calc(-50% + ${clear?.y ?? 0}px)`, opacity: clear ? 1 : 0 }}
           >
@@ -1218,8 +1218,8 @@ export function MomentView(props: {
               <>
                 <FrameButton by={-1} disabled={!may.frameBefore} onStep={() => frame(-1)} held={arrow} />
                 {/* The tip stands beside Play, not in it, so it's as clear as any other while Play rests. */}
-                <span className="group/tip relative flex">
-                  <button data-part="play" className={`${ITEM} relative w-[96px] phone:w-[56px]`} disabled={!may.play} aria-description={still ? STILL : undefined} onClick={play}>
+                <span className="group/tip relative flex phone:[flex:20_1_36px]">
+                  <button data-part="play" className={`${ITEM} relative w-[96px] phone:w-auto phone:flex-auto phone:px-0!`} disabled={!may.play} aria-description={still ? STILL : undefined} onClick={play}>
                     <span className="w-9 text-left">{playing ? "Pause" : "Play"}</span> <Key className="min-w-9">Space</Key>
                     {!still && <Progress clock={clockOf} share={shareOf(at)} shareOf={shareOf} moving={!!playing} shown={!atPoint && !away} />}
                   </button>
@@ -1228,8 +1228,8 @@ export function MomentView(props: {
                 <FrameButton by={1} disabled={!may.nextFrame} onStep={() => frame(1)} held={arrow} />
               </>
             )}
-            {/* On a phone, "Stepping…": its amber line says where, and the bar fits 390 wide with the arrows by Play. */}
-            <button data-part={inApp ? "back" : "step-in"} className={`${ITEM} relative w-[116px] phone:w-[84px]`} disabled={!may.stepIn && !may.back} aria-pressed={stepping} aria-label={inApp ? "Back, Escape twice" : undefined} onClick={stepInOrBack}>
+            {/* On a phone, "Stepping…": its amber line says where, and the bar has room for the arrows by Play. */}
+            <button data-part={inApp ? "back" : "step-in"} className={`${ITEM} relative w-[116px] phone:px-0! phone:[flex:19_1_65px]`} disabled={!may.stepIn && !may.back} aria-pressed={stepping} aria-label={inApp ? "Back, Escape twice" : undefined} onClick={stepInOrBack}>
               {inApp ? "Back" : stepping ? <>Stepping<span className="phone:hidden"> in</span>…</> : "Step in"}{" "}
               {/* In the app, a single Escape is the app's: twice is Back. */}
               {inApp ? (
@@ -1241,7 +1241,7 @@ export function MomentView(props: {
               )}
               {stepIn.getting && <Getting {...stepIn.getting} />}
             </button>
-            <button data-part="note" className={`${ITEM}`} disabled={!may.note} aria-pressed={noting} onClick={note}>
+            <button data-part="note" className={`${ITEM} phone:px-0! phone:[flex:16_1_29px]`} disabled={!may.note} aria-pressed={noting} onClick={note}>
               Note <Key>N</Key>
             </button>
             {(anyLook || sent.some(earlier)) &&
@@ -1259,7 +1259,7 @@ export function MomentView(props: {
                         disabled={!chosen && !nowThere}
                         aria-description={!chosen && !nowThere ? NOT_NOW : undefined}
                         onClick={() => !chosen && flip()}
-                        className={`flex flex-auto items-center justify-center rounded-md px-2 phone:px-[5px] whitespace-nowrap transition-[background-color,color,box-shadow] duration-200 ease-calm ${chosen ? "cursor-default bg-surface text-fg shadow-[0_0_0_1px_var(--edge),0_1px_2px_var(--drop)]" : "text-soft enabled:hover:text-fg disabled:cursor-default disabled:opacity-50"}`}
+                        className={`flex flex-auto items-center justify-center rounded-md px-2 phone:px-0 whitespace-nowrap transition-[background-color,color,box-shadow] duration-200 ease-calm ${chosen ? "cursor-default bg-surface text-fg shadow-[0_0_0_1px_var(--edge),0_1px_2px_var(--drop)]" : "text-soft enabled:hover:text-fg disabled:cursor-default disabled:opacity-50"}`}
                       >
                         {words}
                       </button>
@@ -1268,7 +1268,7 @@ export function MomentView(props: {
                   {!nowThere && <Tip>{NOT_NOW}</Tip>}
                 </span>
               ) : then ? (
-                <button data-part="compare" className={`${ITEM} ${COMPARING}`} disabled={!may.compare} aria-pressed={comparing} onClick={compare}>
+                <button data-part="compare" className={`${ITEM} ${COMPARING} phone:px-0!`} disabled={!may.compare} aria-pressed={comparing} onClick={compare}>
                   Compare <Key>C</Key>
                 </button>
               ) : (
@@ -1303,8 +1303,9 @@ const ABOUT = "about";
 // The last stop's card on the Moments edge, by its name there.
 const LAST_STOP = "the last stop";
 
-// Compare's place on the bar, as wide as what it holds at its widest, so the bar is the same width whatever's there.
-const COMPARING = "w-[124px] phone:w-[112px]";
+// Compare's place on the bar, as wide as what it holds at its widest, so the bar is the same width whatever's there; on
+// a phone, its words are the switch's.
+const COMPARING = "w-[124px] phone:[flex:27_1_85px]";
 
 // Why Now rests for a note whose thing isn't in the moment's picture now.
 const NOT_NOW = "Not in this moment now";
@@ -1313,8 +1314,8 @@ const NOT_NOW = "Not in this moment now";
 const STILL = "A still: nothing to play";
 
 // Play's place, with the arrows either side: in the app, who you are there takes all of it, so the bar is the same
-// width there too.
-const PLAYS = "w-[148px] phone:w-[100px]";
+// width there too: on a phone, their words, shares and the two gaps between them.
+const PLAYS = "w-[148px] min-w-0 phone:[flex:40_1_60px]";
 
 // Under the recording, room for the lower half of the bar that hangs across its edge, and a little more; on a phone,
 // where the bar hangs under the edge so as not to cover the picture, the whole bar and the same more.
