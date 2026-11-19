@@ -148,9 +148,11 @@ export const shownOf = ({ moment, frame, thing }: Followed): Shown => ({
 // The fact, in a line: where the thing shows in what's about to be handed back and how it looks there, or that it
 // doesn't. A note that isn't on a thing gets none.
 export function followedSaid(change: Change, id: string, followed: Followed | undefined): string | undefined {
-  const on = allNotes(change).get(id)?.note.on;
+  const noted = allNotes(change).get(id);
+  const on = noted?.note.on;
   if (!on?.element) return undefined;
-  const which = `Note ${id}, the ${on.element.role} ${quote(on.element.name)} on ${quote(on.moment)}`;
+  // A guest's thing is theirs to name, and only `wait` says it, in their quotes: here it's the thing they pointed at.
+  const which = noted?.guest ? `Note ${id}, a guest's, the thing they pointed at` : `Note ${id}, the ${on.element.role} ${quote(on.element.name)} on ${quote(on.moment)}`;
   if (!followed)
     return `${which}: isn't in sight in that moment or any marked since the note was written. Fine if the note asked for it to go; otherwise the person has your answer and nothing to look at, so mark a moment that shows what you did.`;
   const { moment, frame, looks } = followed;

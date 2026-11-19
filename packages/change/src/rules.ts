@@ -3,7 +3,7 @@
 
 import type { z } from "zod";
 import { Comparison, fileName, madeInApp, HandBack, Seen, Send, type Finding, type InApp, type Note, type OnMoment, type Change, type Moment } from "./model.ts";
-import { quote } from "./words.ts";
+import { list, quote } from "./words.ts";
 
 // The hand-back the agent is working on: the last one until it's finished, then the next; the first is 1.
 export function handBackInProgress(change: Change): number {
@@ -189,7 +189,34 @@ export function problemsFinishing(change: Change, number: number): string[] {
 export function problemsWithFile(change: Change, handBack: number, name: string): string[] {
   const due = handBackInProgress(change);
   if (handBack !== due) return [`Files go in the hand-back being worked on, ${due}, not hand-back ${handBack}.`];
-  return problemsWithFileName(name);
+  return problemsWithKeptName(name);
+}
+
+// What a kept file is, by how its name ends, and what it's served as: recordings and what's read and said of them,
+// pictures, and the stylesheets and fonts a recording plays with. Only these are kept, and served as these; anything
+// else on disk goes out as bytes. Never a document: no page, nothing that runs.
+export const KEPT: Record<string, string> = {
+  ".json": "application/json",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".avif": "image/avif",
+  ".ico": "image/x-icon",
+  ".svg": "image/svg+xml",
+  ".css": "text/css; charset=utf-8",
+  ".woff2": "font/woff2",
+  ".woff": "font/woff",
+  ".ttf": "font/ttf",
+  ".otf": "font/otf",
+};
+export const servedAs = (name: string): string => KEPT[name.slice(name.lastIndexOf(".")).toLowerCase()] ?? "application/octet-stream";
+
+// A file Playthrough keeps is named for what it is: one of the kinds it keeps (`KEPT`), or, where only one will do, that one.
+export function problemsWithKeptName(name: string, kinds: string[] = Object.keys(KEPT)): string[] {
+  const named = problemsWithFileName(name);
+  if (named.length) return named;
+  return kinds.some((ending) => name.toLowerCase().endsWith(ending)) ? [] : [`“${name}” isn't a kind of file Playthrough keeps: its name ends in ${list(kinds)}.`];
 }
 
 export function problemsWithFileName(name: string): string[] {
@@ -214,7 +241,7 @@ export const SHARED = "shared/";
 // the Unicode forms that look alike.
 const LONGEST_NAME = 60;
 const NEVER_A_GUEST = ["You", "Playthrough", "The person", "Claude", "Gemini", unnamedAgent, ...knownAgents];
-const folded = (name: string) => name.normalize("NFKC").replace(/[\p{Cf}]/gu, "").replace(/\s+/g, " ").trim().toLowerCase();
+const folded = (name: string) => String(name).normalize("NFKC").replace(/[\p{Cf}]/gu, "").replace(/\s+/g, " ").trim().toLowerCase();
 export const sameName = (one: string, other: string) => folded(one) === folded(other);
 
 export function problemsWithName(by: string): string[] {
@@ -228,16 +255,8 @@ export function problemsWithGuestsName(change: Change, by: string): string[] {
   return taken.some((name) => sameName(name, by)) ? [`“${by.trim()}” is someone else here. Say your own name.`] : [];
 }
 
-// What someone wrote, as it's kept: what a keyboard doesn't type (anything but its words, new lines and tabs) taken out.
+// What a person writes in a note or a reply is shorter than words can be: a note, not a document.
 export const LONGEST_WORDS = 4000;
-const typed = (words: string) => words.replace(/\r\n?/g, "\n").replace(/[^\P{Cc}\n\t]/gu, "");
-export function asWritten(send: Send): Send {
-  return {
-    ...send,
-    notes: send.notes.map((note) => ({ ...note, words: typed(note.words) })),
-    ...(send.replies && { replies: send.replies.map((reply) => ({ ...reply, words: typed(reply.words) })) }),
-  };
-}
 
 // A send says new notes and replies to notes it can see, or Done: that every moment of a finished hand-back looks good.
 export function problemsWithSend(change: Change, send: Send): string[] {
@@ -345,7 +364,8 @@ function problemsWithNotePlace(change: Change, send: Send, id: string, on: OnMom
   if (on.handBack > send.handBack) return [`Note ${id} is on hand-back ${on.handBack}, but it's sent on hand-back ${send.handBack}.`];
   if (!madeInApp(on)) return problemsWithPlace(on, handedBack.moments, `Note ${id}`);
   const problems = problemsWithPlace({ moment: on.moment, at: on.steppedIn }, handedBack.moments, `Note ${id}'s step in`);
-  if (!on.recording.startsWith("branches/")) problems.push(`Note ${id} is in the app, so its recording is one of the person's own, “branches/…”, not “${on.recording}”.`);
+  const own = send.guest ? `branches/${SHARED}` : "branches/";
+  if (!on.recording.startsWith(own) || !on.recording.endsWith(".json")) problems.push(`Note ${id} is in the app, so its recording is one of ${send.guest ? "the guest's" : "the person's"} own, “${own}….json”, not “${on.recording}”.`);
   if (on.at > on.length) problems.push(`Note ${id} is at ${on.at}s, but the person's own recording is ${on.length}s long.`);
   return problems;
 }

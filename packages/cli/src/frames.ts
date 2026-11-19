@@ -20,8 +20,10 @@ let resting: NodeJS.Timeout | undefined;
 const IDLE = 30_000;
 
 // The page asks by the change's address on this machine, which the browser drawing it opens it by.
-export async function frameOf(repo: Repo, id: string, address: string, note: string, framed: Framed, port: number): Promise<Frame> {
-  const name = `frames/${note}`;
+// A guest's asking draws theirs, apart (`under` shared/): what they say a note was made on is theirs to say, and never
+// becomes the picture of anyone else's note.
+export async function frameOf(repo: Repo, id: string, address: string, note: string, framed: Framed, port: number, under = ""): Promise<Frame> {
+  const name = `frames/${under}${note}`;
   const kept = await repo.changes.branch(id, `${name}.json`);
   if (kept) return JSON.parse(Buffer.from(kept).toString("utf8"));
   const shape = await shapeAt(repo, id, framed);

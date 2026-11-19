@@ -12,7 +12,7 @@ import { userInfo } from "node:os";
 import { basename, extname, join, normalize, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Reading } from "@playthrough/page";
-import { problemsWithGuestsName, problemsWithName, Refused, SHARED, type Did, type Change, type Seen, type Send } from "@playthrough/change";
+import { problemsWithGuestsName, problemsWithKeptName, problemsWithName, Refused, servedAs, SHARED, type Did, type Change, type Seen, type Send } from "@playthrough/change";
 import { BEAT } from "./run.ts";
 import { repo as copyAt, type Repo } from "./repo.ts";
 import { CantStepIn, cantStepIn, readyIn } from "./following.ts";
@@ -293,11 +293,28 @@ async function answer(here: Machine, page: string, you: string, shares: Sharing,
   return answerOn(held, request, response, request.socket.localPort!);
 }
 
+// A kept file goes out as what it is (`servedAs`), and never as a document: opened by itself, it's sandboxed with
+// nothing allowed, whatever it holds, and it's read as nothing but the type it's sent as.
+const KEPT_FILE = { "x-content-type-options": "nosniff", "content-security-policy": "default-src 'none'; sandbox", "cross-origin-resource-policy": "same-origin" };
+
+// A guest's change, whose every write is counted against their link before it's written: their sends, what they've
+// opened, their recordings and the files kept with them, and the pictures drawn of their notes.
+function countedFor(repo: Repo, guest: Guest): Repo {
+  const changes = repo.changes;
+  const counted: Partial<typeof changes> = {
+    saveBranch: (id, name, bytes) => (guest.took(bytes.length), changes.saveBranch(id, name, bytes)),
+    send: (id, send) => (guest.took(JSON.stringify(send).length), changes.send(id, send)),
+    see: (id, by, seen) => (guest.took(JSON.stringify(seen).length), changes.see(id, by, seen)),
+  };
+  return { ...repo, changes: new Proxy(changes, { get: (kept, key) => (key in counted ? counted[key as keyof typeof counted] : Reflect.get(kept, key, kept)?.bind?.(kept) ?? Reflect.get(kept, key, kept)) }) };
+}
+
 // What's asked of one change, by the person or by a guest on it, shared (share.ts), who asks only what sharing lets
 // them, and whose sends and what they've opened are in a name of their own, never the person's.
 async function answerOn(held: Held, request: IncomingMessage, response: ServerResponse, port: number, guest?: Guest) {
-  const { repo, id, address, rest } = held;
-  if (guest) guests.set(request, guest);
+  const { id, address, rest } = held;
+  // What a guest's request writes is counted against their link, all of it, as it's written.
+  const repo = guest ? countedFor(held.repo, guest) : held.repo;
   const changes = repo.changes;
   const path = `/api/changes/${address}/${rest.join("/")}`;
   const asked = new URL(request.url ?? "/", "http://localhost");
@@ -308,7 +325,7 @@ async function answerOn(held: Held, request: IncomingMessage, response: ServerRe
     const branch = name.match(/^(assets\/|readings\/)?branches\/(.+)$/);
     const bytes = branch ? await changes.branch(id, `${branch[1] ?? ""}${branch[2]}`) : await changes.file(id, Number(rest[1]), name);
     if (!bytes) return json(response, 404, { problems: [`Hand-back ${rest[1]} of ${id} has no file called “${name}”.`] });
-    response.writeHead(200, { "content-type": TYPES[extname(name)] ?? "application/octet-stream", "cache-control": "max-age=31536000, immutable" });
+    response.writeHead(200, { ...KEPT_FILE, "content-type": servedAs(name), "cache-control": "max-age=31536000, immutable" });
     // An SVG asks for light or dark itself: asked for as recorded (?as=dark,still), it's answered that way.
     const as = asked.searchParams.get("as");
     if (as !== null && extname(name) === ".svg") return response.end(asRecorded(Buffer.from(bytes).toString("utf8"), { dark: as.includes("dark"), still: as.includes("still") }));
@@ -335,7 +352,7 @@ async function answerOn(held: Held, request: IncomingMessage, response: ServerRe
   if (request.method === "POST" && rest[0] === "stills") return json(response, 200, { picture: await stillOf(repo, id, address, await body<Framed>(request), port) });
   if (request.method === "POST" && rest[0] === "frames") {
     const { note, ...framed } = await body<Framed & { note: string }>(request);
-    return json(response, 200, await frameOf(repo, id, address, note, framed, port));
+    return json(response, 200, await frameOf(repo, id, address, note, framed, port, guest ? SHARED : ""));
   }
   if (request.method === "POST" && rest[0] === "sends") {
     // Whether it's a guest's is this side's to say, never what was sent.
@@ -388,6 +405,8 @@ async function keptReady(repo: Repo, id: string, request: IncomingMessage, respo
 // but its own files (`byAGuest`).
 async function branch(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse, guest?: Guest) {
   const { handBack, moment: name, at, events, recording } = await body<{ handBack: number; moment: string; at: number; events: Event[]; recording: string }>(request);
+  const misnamed = problemsWithKeptName(recording, [".json"]);
+  if (misnamed.length) throw new Refused(misnamed);
   if (!guest !== !recording.startsWith(SHARED) || (guest && (await repo.changes.branch(id, recording))))
     throw new Refused([guest ? `What a guest does in the app is kept as a new recording under ${SHARED}.` : `${SHARED} is where a guest's recordings are kept.`]);
   const moment = (await repo.changes.get(id)).handBacks.find((kept) => kept.number === handBack)?.moments.find((moment) => moment.name === name);
@@ -461,9 +480,8 @@ function fromElsewhere(request: IncomingMessage): string | undefined {
 export const thisMachine = (host: string | undefined) => /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(host ?? "");
 
 // Its shape is checked by the store, at the door, like anything else that's kept. Never more than a person's longest
-// time in the app records, read as far as that and no further; a guest's counted against what their link may keep.
+// time in the app records, read as far as that and no further.
 const LARGEST = 64 * 1024 * 1024;
-const guests = new WeakMap<IncomingMessage, Guest>();
 async function body<T>(request: IncomingMessage): Promise<T> {
   const chunks: Buffer[] = [];
   let size = 0;
@@ -476,7 +494,6 @@ async function body<T>(request: IncomingMessage): Promise<T> {
     }
     chunks.push(chunk);
   }
-  guests.get(request)?.took(size);
   try {
     return JSON.parse(Buffer.concat(chunks).toString("utf8"));
   } catch {

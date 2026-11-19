@@ -18,7 +18,7 @@ import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import type { Glimpse, Reading } from "@playthrough/page";
-import { allNotes, conversation, list, madeInApp, MOST_SHOWN, notesToAnswer, saidDone, quote, Refused, handBackInProgress, sendsNotTaken, startOf, toAccountFor, type Finding, type Change, type HandBack, type Moment, type Send } from "@playthrough/change";
+import { allNotes, conversation, list, madeInApp, MOST_SHOWN, notesToAnswer, saidDone, quote, Refused, handBackInProgress, sendsNotTaken, startOf, toAccountFor, type Finding, type Change, type HandBack, type Moment, type Note, type Send } from "@playthrough/change";
 import { agent } from "./agent.ts";
 import { browserFile, doneBy, stopBrowser, type Browser } from "./as.ts";
 import { changeHere, meanHere, meantHere, momentNamed, momentsOf } from "./change.ts";
@@ -33,7 +33,7 @@ import { frameOf, glimpsesOf, readingsOf, type Failed } from "./reporter.ts";
 import { markUnsteady, recorder, runOnce } from "./run.ts";
 import { seenChanging, SQUARE, squaresOf, type Square } from "./seen.ts";
 import { setupIn } from "./setup.ts";
-import { listening, quoted, saidTo, unheard, whoSaid } from "./wait.ts";
+import { aGuests, listening, saidTo, unheard, whoSaid } from "./wait.ts";
 import { aboutSaid, ENDED, fileOf, partSaid, wayFile, TIMED, whatDiffers, type About, type Done, type Ended, type Scrolled } from "./way.ts";
 
 // What a moment says is what's there, short enough to sit under a picture of it: who and where, the person sees.
@@ -590,8 +590,10 @@ async function addressOf(repo: Repo, id: string): Promise<string> {
   return port ? `Give the person its own page: ${address}` : `Give the person its own page, open once playthrough open runs: ${address}`;
 }
 
-// Who said them first, by name, and of those who came by a shared link, that they're guests, as a fact, with their words
-// quoted line by line under their name, so nothing a guest writes can read as a line of the person's or Playthrough's.
+// Who said them, then each note: what Playthrough knows of it, from the change itself (its id, which moment by the
+// moment's own name, as whom, the picture, how to be there), and what was said, turn by turn. Everything of a guest's,
+// who came by a shared link, is printed by `aGuests` alone, each line quoted: their name, what their note is on, what
+// they did in the app, and their words. Nothing of a guest's is ever part of a line of Playthrough's own.
 async function sayNotes(repo: Repo, change: Change, number: number, asking: string[], sends: Send[]) {
   await saidTo(repo, change.id);
   const notes = allNotes(change);
@@ -599,29 +601,40 @@ async function sayNotes(repo: Repo, change: Change, number: number, asking: stri
   const handedBack = change.handBacks.findLast((handBack) => handBack.finished);
   console.log(`\n${whoSaid(sends)}`);
   for (const note of asking) {
-    const on = notes.get(note)!.note.on;
-    const name = on?.moment;
-    const moment = handedBack?.moments.find((one) => one.name === name);
-    const thing = on?.element ? `, on the ${on.element.role} ${quote(on.element.name)}` : "";
-    console.log(`\n  ${note}  on ${name ? `the moment ${quote(name)}` : "the change as a whole"}${moment?.person ? `, as ${moment.person}` : ""}${thing}`);
-    for (const turn of conversation(change, note))
-      console.log(turn.guest ? `    ${turn.by}, a guest:\n${quoted(turn.words, "      ")}` : `    ${turn.agent ? "You" : turn.by}: ${turn.words}`);
+    const { note: noted, guest } = notes.get(note)!;
+    const on = noted.on;
+    const moment = on && handedBack?.moments.find((one) => one.name === on.moment);
+    const where = !on ? "on the change as a whole" : moment ? `on the moment ${quote(moment.name)}${moment.person ? `, as ${moment.person}` : ""}` : "on a moment not handed back now";
+    console.log(`\n  ${note}  ${guest ? `a guest's note, ${where}` : `${where}${on?.element ? `, on the ${on.element.role} ${quote(on.element.name)}` : ""}`}`);
+    for (const [i, turn] of conversation(change, note).entries()) {
+      if (turn.guest) console.log(aGuests(turn.by, [...(i === 0 && on ? onSaid(on) : []), turn.words], "    "));
+      else console.log(`    ${turn.agent ? "You" : turn.by}: ${turn.words}`);
+    }
     if (pictures.get(note)) console.log(`    As they saw it: ${pictures.get(note)}`);
     // Written partway through, where it was written is after the things done by then, not the moment's end.
-    const partway = on && !madeInApp(on) && on.at !== undefined && moment && doneBy(change, on.handBack, on.moment, on.at) !== undefined;
+    const partway = on && !madeInApp(on) && on.at !== undefined && moment && doneBy(change, on.handBack, moment.name, on.at) !== undefined;
     if (moment?.person) console.log(`    To be there: playthrough as ${moment.person} ${partway ? note : JSON.stringify(moment.name)}${partway ? `, which goes the way of ${quote(moment.name)} and stops where the note was written` : ""}`);
-    if (on && madeInApp(on) && on.did.length)
-      console.log(`    They stepped into the app there, then: ${on.did.map((did) => `${did.does}${did.what ? ` ${quote(did.what)}` : did.does === "click" ? " the page" : ""}${typeof did.with === "string" && did.does !== "click" ? ` ${quote(did.with)}` : ""}`).join(", then ")}.`);
-    // Where they were is often the whole clue, as an address the app made wrong: what was there is gone by the time
-    // the agent looks. What their run's setup made is said as setup's, the same place in the agent's own run.
-    if (on && madeInApp(on) && on.address)
-      console.log(`    The app was at ${on.address} when they wrote it${on.address.includes("${setup.") ? ", setup being what playthrough/setup.ts made for the run, as playthrough as prints it" : ""}.`);
-    // They were told only that it didn't work: why is for the agent, whole, as Playthrough said it then.
-    if (on && !madeInApp(on) && on.cantStepIn) console.log(`    They pressed Step in on this moment and it didn't work: ${on.cantStepIn}`);
+    if (!guest && on) for (const said of onSaid(on, false)) console.log(`    ${said}`);
   }
   console.log(
     `\nWhere a note asks for a change, change the app, then run every moment again: playthrough again, which says what's different. Where it only asks something, answer it: nothing has to change. Answer each: ${answering("<note>")}; then hand back with playthrough wait, in the background.`,
   );
+}
+
+// What a note's place says beyond its moment, as the note has it: its thing (a guest's only: the person's is on its
+// first line), what they did after stepping in, where the app was, and why Step in didn't work.
+function onSaid(on: NonNullable<Note["on"]>, thing = true): string[] {
+  return [
+    ...(thing && on.element ? [`On the ${on.element.role} ${quote(on.element.name)}.`] : []),
+    ...(madeInApp(on) && on.did.length
+      ? [`They stepped into the app there, then: ${on.did.map((did) => `${did.does}${did.what ? ` ${quote(did.what)}` : did.does === "click" ? " the page" : ""}${typeof did.with === "string" && did.does !== "click" ? ` ${quote(did.with)}` : ""}`).join(", then ")}.`]
+      : []),
+    // Where they were is often the whole clue, as an address the app made wrong: what was there is gone by the time
+    // the agent looks. What their run's setup made is said as setup's, the same place in the agent's own run.
+    ...(madeInApp(on) && on.address ? [`The app was at ${on.address} when they wrote it${on.address.includes("${setup.") ? ", setup being what playthrough/setup.ts made for the run, as playthrough as prints it" : ""}.`] : []),
+    // They were told only that it didn't work: why is for the agent, whole, as Playthrough said it then.
+    ...(!madeInApp(on) && on.cantStepIn ? [`They pressed Step in on this moment and it didn't work: ${on.cantStepIn}`] : []),
+  ];
 }
 
 // How a note is answered: a line saying what was done, or answering what was asked.
