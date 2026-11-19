@@ -1020,8 +1020,13 @@ its moments do. It runs on this computer, for as long as it's on." Under them on
 the button says "Getting a link…" at its size, with "This takes a few seconds." beside it (about 5 s); then the link, in
 a field that selects whole, Copy (Copied, with a tick, for 1.4 s, in its place) and, top right of the card, Stop
 sharing. Failed, the words say why and what to do ("Sharing needs cloudflared, which isn't on this computer. Install it
-with brew install cloudflared, or from Cloudflare's site, then try again."), and the button is Try again. While a change
-is shared the button says "Shared", with a tick, both words held in one place so nothing moves. The page asks where it
+with brew install cloudflared, or from Cloudflare's site, then try again."), and the button is Try again. The button
+always says "Share", with a small light before it: gray and still while nothing is shared, through "Getting a link…"
+and after a failure; green, with a faint ring of its own green slowly coming and going (`live`, 3.2 s, `style.css`),
+while the link works; green and still under reduced motion. Only the light changes, so nothing moves. It's kept from
+being taken for a note's dot, which means a note and nothing else: 6px, no white ring, and green, which no note ever
+is (theirs are 7px, amber or slate, ringed in white); the green meets 3:1 on the page in light (3.8) and dark (8.6), and
+the ring never dims it. It rests in the app, as Download video does. The page asks where it
 stands as it opens, every 600 ms while starting and every 5 s while on, as a tunnel can end.
 
 **Underneath** (`share.ts`): `playthrough open` (`POST`, `GET`, `DELETE` on `/api/changes/<address>/share`, answered

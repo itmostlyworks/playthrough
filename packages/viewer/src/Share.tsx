@@ -1,7 +1,8 @@
 // Share, top right of a moment's page: the change to someone else, by a link straight to this computer, for as long as
 // it's on (share.ts). Pressed, its card opens under it, where it lives: what sharing does and the one step to take now,
-// start, copy the link, or try again. While the change is shared, the button says so. Only the person whose machine it
-// is shares: a guest's page, or another page's, has no Share.
+// start, copy the link, or try again. A light before its word says whether the change is shared: green, breathing,
+// while the link works; gray and still otherwise. Only the light changes. Only the person whose machine it is shares: a
+// guest's page, or another page's, has no Share.
 
 import { useEffect, useRef, useState } from "react";
 import { source, type Shared } from "./api.ts";
@@ -11,7 +12,8 @@ import { SendButton, tick } from "./Send.tsx";
 // What sharing does, the same words whatever it's doing, so nothing under them moves.
 const DOES = "Anyone with the link can watch this change, leave notes, and step in to use your app as its moments do. It runs on this computer, for as long as it's on.";
 
-export function Share({ change }: { change: string }) {
+// In the app, it rests, as Download video beside it does.
+export function Share({ change, rests }: { change: string; rests: boolean }) {
   const share = source.share;
   const [shared, setShared] = useState<Shared>({ is: "off" });
   const [open, setOpen] = useState(false);
@@ -38,6 +40,7 @@ export function Share({ change }: { change: string }) {
     addEventListener("keydown", escape, { capture: true });
     return () => (removeEventListener("pointerdown", away, { capture: true }), removeEventListener("keydown", escape, { capture: true }));
   }, [open]);
+  useEffect(() => void (rests && setOpen(false)), [rests]);
   if (!share) return null;
   const start = () => (setShared({ is: "starting" }), void share.start(change).then(setShared));
   const stop = () => void share.stop(change).then(setShared);
@@ -49,15 +52,14 @@ export function Share({ change }: { change: string }) {
         data-part="share"
         aria-haspopup="dialog"
         aria-expanded={open}
+        aria-label={on ? "Share, sharing now" : undefined}
+        disabled={rests}
         onClick={() => setOpen((now) => !now)}
-        className={`-mr-2 grid rounded-lg px-2 py-1 transition-colors duration-150 ease-calm hover:bg-hover hover:text-fg aria-expanded:bg-hover ${on || open ? "text-fg" : "text-soft"}`}
+        className={`-mr-2 flex items-center gap-1.5 rounded-lg px-2 py-1 text-soft transition-[background-color,color,opacity] duration-150 ease-calm enabled:hover:bg-hover enabled:hover:text-fg aria-expanded:bg-hover aria-expanded:text-fg disabled:cursor-default ${rests ? "opacity-(--resting)" : ""}`}
       >
-        {/* Both words held in one place, so saying it's shared moves nothing. */}
-        <span className={`[grid-area:1/1] ${on ? "invisible" : ""}`}>Share</span>
-        <span className={`flex items-center [grid-area:1/1] ${on ? "" : "invisible"}`}>
-          {tick}
-          Shared
-        </span>
+        {/* A light, not a note's dot: smaller, with no ring, and green, which no note ever is. Gray until there's a link. */}
+        <i aria-hidden className={`size-1.5 flex-none rounded-full transition-colors duration-300 ease-calm ${on ? "animate-live bg-green" : "bg-faint"}`} />
+        Share
       </button>
       {open && (
         <div
