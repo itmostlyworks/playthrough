@@ -3,16 +3,18 @@
 // is a copy of the app with changes of its own, beside the work they're about.
 
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createServer, type AddressInfo } from "node:net";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { Refused, Changes } from "@playthrough/change";
 import { folder } from "@playthrough/change/folder";
+import { servesPages, serving } from "./serving.ts";
 
 // And whether its moments run one at a time: on an app with a page that shows what every run made, as a blog's index lists
 // every post, moments run side by side would see each other's. Where app.json lets Playthrough give the app a port, the
-// port it gave this copy, and start and url say it.
+// port it gave this copy, and start says it. The url is where the app is: app.json's, or where it's already running
+// from this copy's folder.
 export type App = { start: string; url: string; oneAtATime?: boolean; port?: number };
 export type Repo = ReturnType<typeof repo>;
 
@@ -76,7 +78,7 @@ export function repo(root = home(process.cwd())) {
         throw new Refused([`playthrough/app.json's url is ${app.url}. Give only ${where}: a moment keeps the pages it goes to, so go to ${app.url.slice(where.length)} in the browser.`]);
       }
       if (app.oneAtATime !== undefined && typeof app.oneAtATime !== "boolean") throw new Refused([`playthrough/app.json's “oneAtATime” is true or false: true runs each moment by itself.`]);
-      return { start: given(app.start), url, ...(app.oneAtATime && { oneAtATime: true }), ...(port !== undefined && { port }) };
+      return { start: given(app.start), url: (await runningHere(root, url)) ?? url, ...(app.oneAtATime && { oneAtATime: true }), ...(port !== undefined && { port }) };
     },
   };
 }
@@ -141,5 +143,38 @@ export function copies(root: string): string[] {
 
 // A worktree beside the main one, where whatever answers at the app's address can be another copy of it, or yours.
 export const inWorktree = (root: string) => copies(root)[0] !== resolve(root);
+
+// The copy a folder is in, of those given: the innermost one, as a worktree can be inside the main one's folder. None for
+// a folder outside every copy.
+const copyOf = (folder: string, all: string[]) => all.filter((copy) => folder === copy || folder.startsWith(copy + sep)).sort((one, other) => other.length - one.length)[0];
+const realCopies = (root: string) => copies(root).map((copy) => realpathSync(copy));
+
+// The copy serving at an address, where it's known: the folder of what listens there says it. Nothing where that's
+// something else, or can't be known.
+export function copyServing(url: string, root: string): string | undefined {
+  const there = serving()?.find((one) => one.port === portOf(url));
+  return there && copyOf(there.folder, realCopies(root));
+}
+
+// This copy's app, already running from its folder, wherever it answers: the person's own dev server, say, which runs
+// the work as it is now, as the app's own command would, and which the app may refuse to run beside (Next does). At
+// app.json's address first; elsewhere only where it's the one serving pages from this folder, as an API beside it doesn't.
+const runningHere = (root: string, url: string) => servingHere(root, url).then((here) => (here[0] === url || here.length === 1 ? here[0] : undefined));
+
+// Where something serves from this copy's folder: at app.json's address, or serving pages. Never Playthrough's own page
+// or a browser opened for debugging, as the agent's is.
+export async function servingHere(root: string, url: string): Promise<string[]> {
+  const [here, all] = [realpathSync(root), realCopies(root)];
+  const ports = new Set(serving()?.filter((one) => copyOf(one.folder, all) === here && !PLAYTHROUGH.test(one.command)).map((one) => one.port).sort((one, other) => one - other));
+  if (ports.has(portOf(url))) return [url];
+  return (await Promise.all([...ports].map(async (port) => ((await servesPages(at(url, port))) ? at(url, port) : [])))).flat();
+}
+const PLAYTHROUGH = /\/(playthrough\.[jt]s|\.bin\/playthrough)(\s|$)|--remote-debugging-port=/;
+
+const portOf = (url: string) => {
+  const { port, protocol } = new URL(url);
+  return Number(port || (protocol === "https:" ? 443 : 80));
+};
+const at = (url: string, port: number) => url.replace(new URL(url).host, `${new URL(url).hostname}:${port}`);
 
 const isText = (value: unknown): value is string => typeof value === "string" && value.trim() !== "";

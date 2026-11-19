@@ -73,8 +73,8 @@ person keeps `playthrough/`, so everyone runs the same version (a real run on 0.
 uncommitted, just to try it). Where the app's
 command takes a port, `{port}` in both (`{ "start": "npm run dev -- --port {port}", "url": "http://localhost:{port}" }`)
 gives each copy a free port of its own (kept in `.playthrough/port.json`), so a worktree's copy runs beside the
-person's; at the address the app always has, one already running there is used, except in a worktree, where it could
-be another copy's. The `url` is where the app is and nothing more: one with a page in it (a path, query or hash) is
+person's. An app already running from the copy's folder is that copy's app, wherever it answers, and is used there,
+never started again (see One app per copy). The `url` is where the app is and nothing more: one with a page in it (a path, query or hash) is
 refused, saying which to go to in the browser instead, as a moment keeps the pages it goes to and would go to them
 inside that one (a real run, 0.7.1). `"oneAtATime": true` runs moments one after another, for an app with a page that shows what every
 run made. `setup.ts`'s default export is given the page, a request of its own, the app's address and who it's for, and
@@ -875,6 +875,23 @@ its output in `.playthrough/app.log`, and writes `.playthrough/running.json`; ev
 most, then it says so, pointing at `app.log`). Nobody stops it under anyone: once nobody is using it, it's stopped at
 once, or with `playthrough open` running, which keeps every copy's app, once it's gone fifteen minutes unused; closing
 `open` stops those nobody is using.
+
+Whether the copy's app is running already is the copy's folder's to say, not an address's (`repo.ts`, `servingHere`):
+what's serving from that folder runs the work as it is now, as the app's own command would, so it's this copy's app,
+whoever started it and however; and another copy's runs from another folder, which is how a worktree's is told from
+the main one's, even inside it. Before starting it, Playthrough looks at what's listening on the machine as you, and
+the folder each runs from (`serving.ts`: `lsof` and `ps` on macOS, `/proc` on Linux): something from this folder at
+`app.json`'s address is the app; elsewhere, it is where it's the one thing from the folder serving pages (a page or a
+redirect at `/`), so an API beside it isn't taken for it; Playthrough's own page and a browser opened for debugging
+never are. Found, the app is used at its address, by every command and step in, and never stopped: Playthrough stops
+only the app it started. A real run on 0.7.2, knowing the app by its address, started a second dev server on the
+copy's own port beside the one already running from the folder; the framework refused it, and the agent had to stop
+the first. Windows says which process listens where but not the folder it runs from, so there nothing is found this
+way: what answers at `app.json`'s address is used in the main folder and refused in a worktree, as before, and with
+`{port}` the app is started on the copy's own port. Where the app
+doesn't start, what it said last is said, without a terminal's colours, then what to do: where nothing can say which
+folder a running app is from, that if it's already running whoever started it stops it; where several things serve
+pages from the folder, which ones, as Playthrough can't tell which is the app; otherwise to check `app.json`.
 
 **In your browser** (`stepIn.ts`, `Portal.tsx`). While it's getting there, a line inside Step in fills as it goes, at
 the pace of the last run where that's known, the picture's edge breathes and the recording's pointer waits. Where the

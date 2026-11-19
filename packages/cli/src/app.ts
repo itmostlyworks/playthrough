@@ -1,18 +1,19 @@
-// The app, as playthrough/app.json starts it, or the one already running there. One for each copy, shared by everyone
-// using it: the person stepping in, the agent's browser, and each moment run, each in a world of its own, as the app
-// always runs the working copy as it is now. Whoever wants it first starts it, on its own, so it outlives the command that
-// started it while anyone else is using it; it's stopped once nobody is. With Playthrough open, which keeps every copy's,
-// once nobody has used it for fifteen minutes; without, as the last one using it ends. Given a port, each copy of the app
-// is started on its own; at the address it always has, one already running is used only where it can't be another copy's.
+// The app, as playthrough/app.json starts it, or the one already running from the copy's folder (repo.ts says where).
+// One for each copy, shared by everyone using it: the person stepping in, the agent's browser, and each moment run, each
+// in a world of its own, as the app always runs the working copy as it is now. Whoever wants it first starts it, on its
+// own, so it outlives the command that started it while anyone else is using it; it's stopped once nobody is. With
+// Playthrough open, which keeps every copy's, once nobody has used it for fifteen minutes; without, as the last one using
+// it ends. One Playthrough didn't start, it never stops.
 
 import { spawn } from "node:child_process";
-import { closeSync, mkdirSync, openSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { closeSync, mkdirSync, openSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { constants } from "node:os";
 import { join } from "node:path";
 import { quote, Refused } from "@playthrough/change";
 import { stillAt, thisCommand, type Command } from "./command.ts";
 import { machine } from "./machine.ts";
-import { inWorktree, PORTED, repo, type App } from "./repo.ts";
+import { copyServing, inWorktree, PORTED, repo, servingHere, type App } from "./repo.ts";
+import { serving } from "./serving.ts";
 import { giveBackOwn, setupIn } from "./setup.ts";
 
 // The app running in a copy, as every command there sees it: the process that started it, the app's own (the head of
@@ -43,12 +44,18 @@ export async function running(app: App, root: string): Promise<number | undefine
       continue;
     }
     if (await answers(app.url)) {
-      // There, what answers in the main folder is the app as you run it, following the work, as a dev server does; in a
-      // worktree, it's as likely another copy's, and recording that would show the wrong work.
-      if (app.port !== undefined || !inWorktree(root)) return;
+      // Running from this copy's folder, it's this copy's app, used where it is, and never stopped by Playthrough, which
+      // didn't start it. Another copy's would show the wrong work. Where its folder can't be known, what answers in the
+      // main folder is the app as you run it, following the work, as a dev server does; in a worktree, it's as likely
+      // another copy's.
+      const from = copyServing(app.url, root);
+      if (from === realpathSync(root)) return;
+      if (from === undefined && (app.port !== undefined || !inWorktree(root))) return;
       throw new Refused([
-        `Something else answers at ${app.url}, most likely the app running from another folder. This is a worktree, so Playthrough runs this copy of the app there itself: whoever started what's there can stop it, then try again.`,
-        `Or give each copy a port of its own in playthrough/app.json: ${PORTED}.`,
+        from
+          ? `The app answering at ${app.url} is another copy's, running from ${from}. Whoever started it there can stop it, then try again.`
+          : `Something else answers at ${app.url}, most likely the app running from another folder. This is a worktree, so Playthrough runs this copy of the app there itself: whoever started what's there can stop it, then try again.`,
+        ...(app.port === undefined ? [`Or give each copy a port of its own in playthrough/app.json: ${PORTED}.`] : []),
       ]);
     }
     // Taken, so nobody else starts it meanwhile.
@@ -70,23 +77,38 @@ export async function running(app: App, root: string): Promise<number | undefine
   writeFileSync(runningFile(root), JSON.stringify({ ...thisCommand(), app: started.pid!, url: app.url, used: Date.now() } satisfies Running));
   let ended = false;
   started.once("exit", () => (ended = true));
-  // What it last said, for when it doesn't answer, without a stack trace's frames, which would hide its error.
-  const saying = () => {
-    const said = readFileSync(log, "utf8").split("\n").filter((line) => line.trim() && !/^\s+at /.test(line)).slice(-10);
-    return said.length ? ["It said, last:", ...said.map((line) => `  ${line}`)] : [];
+  // What it last said, for when it doesn't answer, without a stack trace's frames, which would hide its error, or what
+  // only moves a terminal's cursor or colours its words. Then what to do.
+  const saying = async () => {
+    const said = readFileSync(log, "utf8")
+      .replace(/\x1b\[[\d;?]*[A-Za-z]/g, "")
+      .split("\n")
+      .filter((line) => line.trim() && !/^\s+at /.test(line))
+      .slice(-10);
+    return [...(said.length ? ["It said, last:", ...said.map((line) => `  ${line}`)] : []), await whatNext(app, root)];
   };
   while (Date.now() - began < STARTING) {
     if (await answers(app.url)) return Date.now() - began;
     if (ended) {
       rmSync(runningFile(root), { force: true });
-      throw new Refused([`${quote(app.start)} ended before the app answered at ${app.url}.`, ...saying(), "Check that playthrough/app.json starts the app there."]);
+      throw new Refused([`${quote(app.start)} ended before the app answered at ${app.url}.`, ...(await saying())]);
     }
     await new Promise((wait) => setTimeout(wait, 250));
   }
   stop(root);
-  throw new Refused([`The app didn't answer at ${app.url} within three minutes of ${quote(app.start)}.`, ...saying(), "Check that playthrough/app.json starts it there."]);
+  throw new Refused([`The app didn't answer at ${app.url} within three minutes of ${quote(app.start)}.`, ...(await saying())]);
 }
 const STARTING = 180_000;
+
+// After the app didn't start: an app already running from this folder that couldn't be told for this one may be why, as
+// one that won't run twice says. Where nothing says which folder a running app is from (Windows), it may be too.
+async function whatNext(app: App, root: string): Promise<string> {
+  const stopIt = "whoever started it stops it, then try again";
+  if (!serving()) return `If the app is already running, as it may be saying, Playthrough can't tell here which folder it runs from, so it can't use it: ${stopIt}.`;
+  const here = await servingHere(root, app.url);
+  if (here.length > 1) return `Serving pages from this folder already: ${here.join(", ")}. If one is the app, Playthrough can't tell which, so it can't use it: ${stopIt}.`;
+  return "Check that playthrough/app.json starts the app there.";
+}
 
 // This process using the copy's app, until what's given back is called: a file for each process using it, as the
 // agents waiting are, so every command and Playthrough open sees who is. Let go of by the last one using it, it's stopped,
