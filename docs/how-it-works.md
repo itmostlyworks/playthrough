@@ -61,7 +61,12 @@ playthrough drop "<moment>"                        # leaves a moment out
 playthrough wait                                   # hands back, then waits for what the person says
 playthrough open                                   # the page, for the person, open until it's closed
 playthrough close                                  # closes it
+playthrough --version                              # the version, and nothing else
 ```
+
+The version is the package's own `package.json`'s, beside the command in the checkout and in the package, which the
+release sets: one place, as an agent on 0.7.2, asked which it ran, had to read the installed package and its processes
+to know.
 
 **The first time in an app**, the agent adds `playthrough/app.json`, how to start it, and `playthrough/setup.ts`, what
 everyone starts from; both are committed with the app, and the agent asks before committing them. Nothing is added to
