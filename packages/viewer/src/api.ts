@@ -60,8 +60,9 @@ export type Keeping = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 // Where a shared change stands: the link while it's on, or why it couldn't be, with what to do.
 export type Shared = { is: "off" } | { is: "starting" } | { is: "on"; link: string } | { is: "failed"; why: string };
 export type CantStepIn = { plainly: string; why: string };
-// Which moments of a hand-back, by their place from 1; beside one, how it was when you last saw it, as Compare opens
-// framed on it; where you've taken the window, if you have; and light or dark, as the page is.
+// Which moments of a hand-back, by their place from 1; and beside one, how it was when you last saw it, as Compare opens
+// framed on it. Where you've taken the window and light or dark go unused: the video is always the whole app, as it was
+// recorded (video.ts). They go once Download video stops sending them.
 export type AskedVideo = {
   handBack: number;
   moments: number[];

@@ -567,8 +567,8 @@ phone there's no room over the recording for it: the title, in full colour, take
 waiting and the right corner, and there's no card for what you asked.
 
 **Download video** (`DownloadVideo.tsx`), left of Share, makes what you're watching an MP4 your browser downloads. Pressed,
-it asks where it is, in a small card hanging from it: **This moment**, as it's shown ("with Compare" when Compare is on:
-both sides, framed as they are, and the window where you took it), or **The whole change**, its moments in order ("3
+it asks where it is, in a small card hanging from it: **This moment** ("with Compare" when Compare is on: both
+sides), or **The whole change**, its moments in order ("3
 moments"); with one moment, or at the last stop, there's nothing to choose. Then it says "Downloading…", counts down
 the seconds left where the arrow was, filling as it goes (holding on 1 until it's there), and ends on a tick in the same
 place, "Downloaded", for 2.5 s; one that couldn't be made says "Didn’t work", why when pointed at. Nothing in it moves
@@ -579,17 +579,27 @@ On a phone it's that slot alone, at one width, so the title beside it never move
 at the resting ink and not to be pressed, and isn't there shown by another page, a guest's included. With Share it's
 one pair, the same height, size and ink, 12px apart, each one width whatever it says, so neither moves the other;
 either open shows on its button, both cards hang 8px under it, and opening either's card closes the other's.
-`playthrough open` films it (`video.ts`): the viewer plays it in a browser of its own (`?video=`, `Video.tsx`), light or
-dark as your page is, at the largest screen its moments were recorded on, drawn larger up to 1920 wide (or tall), and
-what it draws is filmed as it plays and put together by that browser's own H.264 (`mp4.ts`): nothing to install. In it:
-the recording as the moment's page plays it (the pointer, its clicks and keys), or Compare's two sides with their "Now"
-and "When you last saw it", and over it the change's title and the moment's name as on the page; nothing else Playthrough
-draws (no bar, edges, pins, or outline round what it's about). Each moment's name stands 1 s before it plays, its end 0.8 s
-after (a still, 1 s between), the next coming in over it as going to it does; the last closes on its end softened, with
-the mark and playthrough.sh over it in its light colours, for 1.8 s. 60 frames a second ("the point of playthrough is
-that we more accurately simulate what it feels in real life"); BT.709 at a TV's range, said in the file too, as full
-range looked "blown out" in players. It takes about as long as the video and a few seconds more to start (a 6 s moment,
-8 s; 16 s of three moments, 26 s).
+`playthrough open` films it (`video.ts`): the viewer plays it in a browser of its own (`?video=`, `Video.tsx`) and what it
+draws is filmed as it plays and put together by that browser's own H.264 (`mp4.ts`): nothing to install. The video is
+the app and nothing else, edge to edge, exactly as it looked when it was recorded: the whole screen, wherever you'd
+taken the window, light or dark as the recording's browser was (its first moment's), whatever your page is; the
+recording as the moment's page plays it (the pointer, its clicks and keys), and none of Playthrough's page around it.
+It's the recording's screen half as large again, as large as fits 1920 wide (or tall), never more than twice: a laptop's
+1280×800 is 1920×1200 (`sizeOf`). Compare is the one exception, two apps not one: its two sides, "When you last saw it"
+on the left and "Now" on the right, each the shape of the app's screen and filled by it, framed on what changed as
+Compare opens, a 2px line between them, so 1920×600 for a laptop's. Over the app, only small pills, the same shape as
+Compare's labels (the page's surface and ink, edged, so they read over any app, light or dark, in its scheme), at the
+same size in every video: the moment's name at the bottom left, two lines at most, from its first frame for a second,
+then fading over 0.3 s; Compare's labels at each side's top left throughout; and at the close, the last frame held
+sharp for 1.6 s while a pill with the mark and playthrough.sh fades in at the bottom right. In the whole change, each
+moment's end holds 0.8 s (a still, 1 s, as it has nothing to play) and the next comes in over it in 0.24 s as going to it
+does, its name with it; the close is only at the very end (`filming.ts`: a 4 s moment is a 5.8 s video; three moments
+playing 9 s, about 13 s). 60 frames a second ("the point of playthrough is that we more accurately simulate what it feels in
+real life"); BT.709 at a TV's range, said in the file too, as full range looked "blown out" in players. A frame made from
+the one before leaves a faint shape of what went where nothing changes after (a pill faded out, the pointer moved on), so
+the frame the page comes to rest on is made whole, and so is the one after anything the video draws over the app has
+settled (`settled`). It takes about as long as the video and a few seconds more to start (a 6 s moment, 8.5 s; 13 s of
+three moments, 20 s); 0.6 MB for a 6 s moment, 2 MB for 13 s of three.
 
 **Every change** (`Waiting.tsx`, `Changes.tsx`). Top left on every page, "6 changes waiting" (or "Every change") opens every
 change as a sheet over the page, the page under it softened and inert. Pressed or from the keyboard, it stays until

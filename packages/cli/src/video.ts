@@ -1,21 +1,21 @@
 // What you're watching as a video: a moment as it's shown, alone or beside how it was as Compare shows it, or the whole
-// change, its moments in order. The viewer plays it in a browser of its own (`?video=`, Video.tsx), each moment opening
-// on its name and the last closing on Playthrough's mark, and what it shows is filmed as it plays and made into an MP4 as
-// it's filmed, by that browser's own H.264: nothing more to install.
+// change, its moments in order. The viewer plays it in a browser of its own (`?video=`, Video.tsx), the app edge to edge
+// as it was recorded, each moment's name in a small pill as it starts and Playthrough's in another at the close, and what
+// it shows is filmed as it plays and made into an MP4 as it's filmed, by that browser's own H.264: nothing more to
+// install.
 
 import { chromium, type Page } from "@playwright/test";
-import { shapeAt } from "./frames.ts";
+import { recordedDark, shapeAt } from "./frames.ts";
 import { mp4 } from "./mp4.ts";
 import type { Repo } from "./repo.ts";
 
-// What the page asks for: which moments of a hand-back, by their place from 1; beside one, how it was on an earlier
-// hand-back, opening framed on what changed; where the person has taken the window, if they have; and light or dark.
+// What the page asks for: which moments of a hand-back, by their place from 1; and beside one, how it was on an earlier
+// hand-back, opening framed on what changed. The video is always the whole app, light or dark as it was recorded, so
+// where the person took the window and how their page is aren't asked.
 export type Asked = {
   handBack: number;
   moments: number[];
   beside?: { handBack: number; framedOn: { changed: Box[]; done: Box[] } };
-  window?: { centre: [number, number]; k: number };
-  dark: boolean;
 };
 type Box = { left: number; top: number; width: number; height: number };
 type Size = { width: number; height: number };
@@ -26,18 +26,16 @@ const FPS = 60;
 // As wide as most places that show a video play it, and no taller than a phone's video is.
 const WIDEST = 1920;
 const TALLEST = 1920;
-// As the page lays it out (Video.tsx): room on every side, and over the recording, the change's title and the moment's
-// name in two lines at most.
-const ROOM = 32;
-const LINES = 3 * 22 + 12;
 // Chromium films a page at the size of its screen, never its pixels, so the page draws itself at the size the video is,
 // never more than twice its own. Drawn no larger than that, it keeps up with every frame as it plays.
 const LARGEST = 2;
+// The line between Compare's two sides, as the page draws it (Video.tsx).
+const BETWEEN = 2;
 // About how long a frame takes to go into the video here, for what's waiting to go in.
 const PER_FRAME = 0.009;
 
-// The video, as the largest screen any of its moments was recorded on, saying as it's made how many seconds it has left,
-// as best it knows by then.
+// The video, as the largest screen any of its moments was recorded on, light or dark as the first was, saying as it's
+// made how many seconds it has left, as best it knows by then.
 export async function videoOf(repo: Repo, id: string, address: string, asked: Asked, port: number, onLeft: (seconds: number) => void): Promise<Uint8Array> {
   const change = await repo.changes.get(id);
   const momentsOf = (number: number) => change.handBacks.find((one) => one.number === number)?.moments ?? [];
@@ -45,13 +43,22 @@ export async function videoOf(repo: Repo, id: string, address: string, asked: As
   if (!filmed.length || filmed.some((moment) => !moment)) throw new Error(`Hand-back ${asked.handBack} of ${id} has no moments ${asked.moments.join(", ")}.`);
   const screens = await Promise.all(filmed.map((moment) => shapeAt(repo, id, { handBack: asked.handBack, recording: moment!.recording, at: moment!.length })));
   const shape = { width: Math.max(...screens.map((one) => one.width)), height: Math.max(...screens.map((one) => one.height)) };
-  return film(port, address, asked, shape, onLeft);
+  const dark = await recordedDark(repo, id, { handBack: asked.handBack, recording: filmed[0]!.recording });
+  const { handBack, moments, beside } = asked;
+  return film(port, address, { handBack, moments, beside }, sizeOf(shape, !!beside), dark, onLeft);
 }
 
-async function film(port: number, address: string, { dark, ...shown }: Asked, shape: Size, onLeft: (seconds: number) => void): Promise<Uint8Array> {
-  const room = { width: shape.width + 2 * ROOM, height: shape.height + LINES + 2 * ROOM };
-  const larger = Math.min(WIDEST / room.width, TALLEST / room.height, LARGEST);
-  const viewport = { width: Math.round(larger * room.width), height: Math.round(larger * room.height) };
+// How large a video of a screen this shape is, and how much larger than the screen it's drawn: as large as fits the
+// widest and tallest a video is played, never more than twice, its sides even, as H.264 asks. Compared, it's two such
+// screens side by side, a line between them, each filled by its app.
+export function sizeOf(screen: Size, compared = false): Size & { larger: number } {
+  const shape = compared ? { width: 2 * screen.width + BETWEEN, height: screen.height } : screen;
+  const larger = Math.min(WIDEST / shape.width, TALLEST / shape.height, LARGEST);
+  const even = (value: number) => 2 * Math.round(value / 2);
+  return { width: even(larger * shape.width), height: even(larger * shape.height), larger };
+}
+
+async function film(port: number, address: string, shown: Asked, { larger, ...viewport }: Size & { larger: number }, dark: boolean, onLeft: (seconds: number) => void): Promise<Uint8Array> {
   const browser = await chromium.launch();
   try {
     const page = await browser.newPage({ viewport, colorScheme: dark ? "dark" : "light" });
@@ -69,10 +76,8 @@ async function film(port: number, address: string, { dark, ...shown }: Asked, sh
   }
 }
 
-// The page that puts the video together, at the filmed page's size, made even, as H.264 asks.
-async function encoder(page: Page, viewport: Size): Promise<{ page: Page; size: Size }> {
-  const even = (value: number) => 2 * Math.round(value / 2);
-  const size = { width: even(viewport.width), height: even(viewport.height) };
+// The page that puts the video together, at the filmed page's size.
+async function encoder(page: Page, size: Size): Promise<{ page: Page; size: Size }> {
   await page.route("https://video.playthrough/", (route) => route.fulfill({ contentType: "text/html", body: "" }));
   await page.goto("https://video.playthrough/");
   await page.evaluate(start, { ...size, fps: FPS, bitrate: BITRATE, allAtOnce: ALL_AT_ONCE });
@@ -90,16 +95,23 @@ async function filmed(page: Page, { page: putting, size }: { page: Page; size: S
   let last: string | undefined;
   let made = 0;
   let done = 0;
+  let still = 0;
+  let wholeAt = Infinity;
   let going = Promise.resolve();
   // Every frame of the video up to this moment, in its seconds, a whole one every two seconds, for a player to start
-  // anywhere.
+  // anywhere, and one once the page comes to rest or what the video draws over the app has.
   const upTo = (at: number) => {
     for (; made / FPS <= at; made++) {
-      const [jpeg, key] = [drawn === last ? undefined : drawn, made % (2 * FPS) === 0];
+      still = drawn === last ? still + 1 : 0;
+      const settled = made / FPS >= wholeAt;
+      if (settled) wholeAt = Infinity;
+      const [jpeg, key] = [drawn === last ? undefined : drawn, made % (2 * FPS) === 0 || still === SETTLED || settled];
       last = drawn;
       going = going.then(() => putting.evaluate(add, { jpeg, key })).then(() => void done++);
     }
   };
+  // Two frames on, once the browser has drawn it.
+  await page.exposeFunction("settled", () => void (wholeAt = Math.min(wholeAt, Date.now() / 1000 - start + 2 / FPS)));
   let firstDrawn = () => {};
   browser.on("Page.screencastFrame", ({ data, metadata, sessionId }) => {
     upTo((metadata.timestamp ?? Date.now() / 1000) - start);
@@ -134,6 +146,11 @@ const BITRATE = 12_000_000;
 // screen, contentHint "text", leaves nothing behind, but takes five times as long a frame: a 16 second video came 40
 // seconds after it was asked for.)
 const ALL_AT_ONCE = 10_000;
+// Frames with nothing new drawn after which the page has come to rest. Made from the one before, a pill fading out or
+// the pointer moving on left a faint shape of itself where nothing changed after, until the next whole frame: so the
+// frame the page rests on is made whole, and so is the one after what the video draws over the app has come to rest
+// (Video.tsx), whatever the app is doing.
+const SETTLED = 6;
 
 // In the page that encodes, each run there on its own: the frames go in one at a time, the last one drawn again where
 // nothing new was. Each picture goes in as HD video's own colours, BT.709 in the range a TV shows, which is what every

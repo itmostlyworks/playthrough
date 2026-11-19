@@ -36,13 +36,26 @@ export async function frameOf(repo: Repo, id: string, address: string, note: str
 
 // The screen the recording had at that moment, as its last word on its size before then says.
 export async function shapeAt(repo: Repo, id: string, { handBack, recording, at }: Framed) {
-  const branch = recording.match(/^branches\/(.+)$/);
-  const bytes = branch ? await repo.changes.branch(id, branch[1]!) : await repo.changes.file(id, handBack, recording);
-  if (!bytes) throw new Error(`Hand-back ${handBack} of ${id} has no recording called “${recording}”.`);
-  const events: { type: number; timestamp: number; data: { width?: number; height?: number } }[] = JSON.parse(Buffer.from(bytes).toString("utf8"));
+  const events = await eventsOf(repo, id, handBack, recording);
   const start = events[0]?.timestamp ?? 0;
   const sized = events.filter((event) => event.type === 4 && event.data.width && (event.timestamp - start) / 1000 <= at + 0.05).at(-1) ?? events.find((event) => event.type === 4);
   return { width: sized?.data.width ?? 1280, height: sized?.data.height ?? 800 };
+}
+
+// Whether the browser it was recorded in was dark, as the recording says first; light where it doesn't, as Playwright's
+// browser is.
+export async function recordedDark(repo: Repo, id: string, { handBack, recording }: Pick<Framed, "handBack" | "recording">) {
+  const said = (await eventsOf(repo, id, handBack, recording)).find((event) => event.type === 5 && event.data.tag === "browser");
+  return !!said?.data.payload?.dark;
+}
+
+type Recorded = { type: number; timestamp: number; data: { width?: number; height?: number; tag?: string; payload?: { dark?: boolean } } }[];
+
+async function eventsOf(repo: Repo, id: string, handBack: number, recording: string): Promise<Recorded> {
+  const branch = recording.match(/^branches\/(.+)$/);
+  const bytes = branch ? await repo.changes.branch(id, branch[1]!) : await repo.changes.file(id, handBack, recording);
+  if (!bytes) throw new Error(`Hand-back ${handBack} of ${id} has no recording called “${recording}”.`);
+  return JSON.parse(Buffer.from(bytes).toString("utf8"));
 }
 
 // A moment's still, its recording at its end drawn twice as fine as the picture kept as it was recorded, which a list
