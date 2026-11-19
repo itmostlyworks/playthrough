@@ -594,7 +594,10 @@ recording or in the app); Compare (C), or in its place "Unchanged" or "New", sai
 the soft ink, nothing to press or reach with Tab, at Compare's width), or while a note from an earlier hand-back is
 open, its "As it was" and "Now" switch; Compare's place is as wide as the switch, and in the app who you are takes
 Play's room and its arrows', so the bar is the same width from one moment to the next, in every state;
-on a phone its buttons sit closer and Step in on its way says "Stepping…", so all of it fits 390 wide. A click on the recording
+on a phone the keys go, Step in on its way says "Stepping…", and the bar fits the room it's given under the picture
+(`PHONE_BAR`): as wide as at 390, or the room where that's less, each place its words at their widest and a share of the
+rest that's the air it has at 390, so narrower the air goes from every place together, no place moving as its words
+change and no word cut, down to about 285 wide. A click on the recording
 plays and pauses it. Send and Done are at the last stop (above); top right, Next: the next moment,
 after the last, the last stop, and dimmed there. What the page is doing is one value (`mode.ts`): resting, playing, a note open, pointing,
 writing, comparing, getting there or the app yours; every press is an action on it, carrying where the recording has got
