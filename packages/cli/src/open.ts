@@ -26,6 +26,7 @@ import { answers, endsWithPlaythrough, openFile, stopUnused, UNUSED } from "./ap
 import { sayReady, startBehind } from "./behind.ts";
 import { passedThroughIn } from "./passed.ts";
 import { stillAt, thisCommand, type Command } from "./command.ts";
+import { sharing, type Door, type Guest, type Sharing } from "./share.ts";
 
 // The page's usual port, or another, to try Playthrough beside the one in use: PLAYTHROUGH_PORT, as PLAYTHROUGH_HOME is.
 export const PORT = Number(process.env.PLAYTHROUGH_PORT) || 5790;
@@ -56,14 +57,10 @@ export async function open() {
     throw new Refused(["The viewer isn't built yet. Build it from core with npm run build."]);
   const you = whoYouAre();
   const here = onThisMachine();
-  const server = createServer((request, response) => {
-    answer(here, page, you, request, response).catch((error) => {
-      if (response.headersSent) return response.end();
-      const problems = error instanceof Refused ? error.problems : [String(error?.message ?? error)];
-      json(response, error instanceof Refused ? 400 : 500, { problems });
-    });
-  });
+  let shares: Sharing | undefined;
+  const server = createServer((request, response) => void answered(response, () => answer(here, page, you, shares!, request, response)));
   const port = await listen(server, PORT);
+  shares = sharing(doorOf(page, you, port, here));
   keepsApps(port);
   console.log(`Playthrough is open at http://localhost:${port}/`);
 }
@@ -220,13 +217,36 @@ function onThisMachine() {
   };
 }
 type Machine = ReturnType<typeof onThisMachine>;
+type Held = Awaited<ReturnType<Machine["holding"]>>;
 
 // The port of Playthrough already open for this machine, if one is.
 export async function openAlready(home: string): Promise<number | undefined> {
   return openNow(home)?.port;
 }
 
-async function answer(here: Machine, page: string, you: string, request: IncomingMessage, response: ServerResponse) {
+// What a shared change's door asks of this machine (share.ts): the page, whose it is, the changes, and one change's
+// answers, as a guest's, its pictures drawn by the person's own page at `port`.
+export function doorOf(page: string, owner: string, port: number, here = onThisMachine()): Door {
+  return {
+    page,
+    owner,
+    list: here.list,
+    answerOn: async (address, rest, request, response, guest) => answerOn(await here.holding([...address.split("/"), ...rest]), request, response, port, guest),
+  };
+}
+
+// Whatever stopped an answer, said in plain words: what's refused as asked, anything else as Playthrough's own.
+export async function answered(response: ServerResponse, answering: () => Promise<unknown>) {
+  try {
+    await answering();
+  } catch (error) {
+    if (response.headersSent) return void response.end();
+    const problems = error instanceof Refused ? error.problems : [String((error as Error)?.message ?? error)];
+    json(response, error instanceof Refused ? 400 : 500, { problems });
+  }
+}
+
+async function answer(here: Machine, page: string, you: string, shares: Sharing, request: IncomingMessage, response: ServerResponse) {
   const stranger = fromElsewhere(request);
   if (stranger) return json(response, 403, { problems: [stranger] });
   const asked = new URL(request.url ?? "/", "http://localhost");
@@ -245,37 +265,56 @@ async function answer(here: Machine, page: string, you: string, request: Incomin
     return void request.on("close", stop);
   }
   if (!parts.length) return json(response, 404, { problems: [`There's nothing at ${path}.`] });
-  const { repo, id, address, rest } = await here.holding(parts);
+  const held = await here.holding(parts);
+  // Sharing is the person's alone: asked for here, on this machine, never through what's shared.
+  if (held.rest.length === 1 && held.rest[0] === "share") {
+    if (request.method === "GET") return json(response, 200, shares.of(held.address));
+    if (request.method === "POST") return json(response, 200, shares.start(held.address));
+    if (request.method === "DELETE") return json(response, 200, shares.stop(held.address));
+  }
+  return answerOn(held, request, response, request.socket.localPort!);
+}
+
+// What's asked of one change, by the person or by a guest on it, shared (share.ts), who asks only what sharing lets
+// them, and whose sends and what they've opened are in a name of their own, never the person's.
+async function answerOn(held: Held, request: IncomingMessage, response: ServerResponse, port: number, guest?: Guest) {
+  const { repo, id, address, rest } = held;
   const changes = repo.changes;
+  const path = `/api/changes/${address}/${rest.join("/")}`;
+  const asked = new URL(request.url ?? "/", "http://localhost");
 
   if (request.method === "GET" && rest[0] === "hand-backs" && rest[2] === "files" && rest[3]) {
     // Your branches play beside the hand-back's recordings, as if they were its own.
     const name = rest.slice(3).join("/");
     const branch = name.match(/^(assets\/|readings\/)?branches\/(.+)$/);
     const bytes = branch ? await changes.branch(id, `${branch[1] ?? ""}${branch[2]}`) : await changes.file(id, Number(rest[1]), name);
-    if (!bytes) return json(response, 404, { problems: [`Hand-back ${rest[1]} of ${id} has no file called “${rest.slice(3).join("/")}”.`] });
-    response.writeHead(200, { "content-type": TYPES[extname(path)] ?? "application/octet-stream", "cache-control": "max-age=31536000, immutable" });
+    if (!bytes) return json(response, 404, { problems: [`Hand-back ${rest[1]} of ${id} has no file called “${name}”.`] });
+    response.writeHead(200, { "content-type": TYPES[extname(name)] ?? "application/octet-stream", "cache-control": "max-age=31536000, immutable" });
     // An SVG asks for light or dark itself: asked for as recorded (?as=dark,still), it's answered that way.
     const as = asked.searchParams.get("as");
-    if (as !== null && extname(path) === ".svg") return response.end(asRecorded(Buffer.from(bytes).toString("utf8"), { dark: as.includes("dark"), still: as.includes("still") }));
+    if (as !== null && extname(name) === ".svg") return response.end(asRecorded(Buffer.from(bytes).toString("utf8"), { dark: as.includes("dark"), still: as.includes("still") }));
     return response.end(bytes);
   }
   if (request.method === "POST" && rest[0] === "seen") {
     const { by, moments } = await body<{ by: string; moments: Seen[] }>(request);
+    guest?.speaksAs(by);
     await changes.see(id, by, moments);
     return json(response, 200, {});
   }
-  if (request.method === "POST" && rest[0] === "step-in") return stepInto(repo, id, request, response);
+  if (request.method === "POST" && rest[0] === "step-in") return stepInto(repo, id, request, response, guest);
   if (request.method === "POST" && rest[0] === "ready-in") return readyInFor(repo, id, request, response);
   if (request.method === "POST" && rest[0] === "keep-ready") return keptReady(repo, id, request, response);
   if (request.method === "POST" && rest[0] === "branches") return branch(repo, id, request, response);
-  if (request.method === "POST" && rest[0] === "stills") return json(response, 200, { picture: await stillOf(repo, id, address, await body<Framed>(request), request.socket.localPort!) });
+  // Drawn by a browser opening the person's own page, on this machine, whoever asked.
+  if (request.method === "POST" && rest[0] === "stills") return json(response, 200, { picture: await stillOf(repo, id, address, await body<Framed>(request), port) });
   if (request.method === "POST" && rest[0] === "frames") {
     const { note, ...framed } = await body<Framed & { note: string }>(request);
-    return json(response, 200, await frameOf(repo, id, address, note, framed, request.socket.localPort!));
+    return json(response, 200, await frameOf(repo, id, address, note, framed, port));
   }
   if (request.method === "POST" && rest[0] === "sends") {
-    await changes.send(id, await body<Send>(request));
+    const send = await body<Send>(request);
+    guest?.speaksAs(send.by);
+    await changes.send(id, send);
     return json(response, 200, {});
   }
   return json(response, 404, { problems: [`There's nothing at ${path}.`] });
@@ -294,14 +333,16 @@ async function shownOf(repo: Repo): Promise<{ app: string; people: Record<string
 // A moment stepped into: the viewer asks as Step in is pressed where the playhead rests, and shows the app there, through
 // Playthrough, at the port and moment this answers with; and where the moment's checks at its end don't hold on the app
 // as it is now, what they say. A tab closed or reloaded meanwhile stops it. One that can't be, whatever stopped it, says
-// why in a line for the person and whole for the agent (following.ts).
-async function stepInto(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
+// why in a line for the person and whole for the agent (following.ts). A guest's is theirs to reach, through what's
+// shared, and only theirs.
+async function stepInto(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse, guest?: Guest) {
   const { moment, after } = await body<{ moment: string; after?: number }>(request);
   const ready = await placeOf(repo, id, moment, after)
     .then((to) => getReady(repo, id, to, waitedFor(response)))
     .catch(cantStepIn.other);
   if (ready instanceof CantStepIn) return json(response, 400, { problems: ready.problems, plainly: ready.plainly });
   const { port, name, setup, checked } = ready;
+  guest?.steppedIn(name, port);
   json(response, 200, { port, name, setup, ...(checked && { checked }) });
 }
 
@@ -364,8 +405,9 @@ async function readyInFor(repo: Repo, id: string, request: IncomingMessage, resp
   json(response, 200, { in: to && (await readyIn(repo, id, to)) });
 }
 
-// The viewer is one page: any address that isn't one of its files is the page, which reads the address itself.
-async function serve(page: string, path: string, response: ServerResponse) {
+// The viewer is one page: any address that isn't one of its files is the page, which reads the address itself. Served
+// from a folder of an address (`home`), as to a guest, its files are asked for from there.
+export async function serve(page: string, path: string, response: ServerResponse, home = "/") {
   const file = normalize(join(page, path));
   const bytes = file.startsWith(page + sep) ? await readFile(file).catch(() => undefined) : undefined;
   if (bytes) {
@@ -373,7 +415,7 @@ async function serve(page: string, path: string, response: ServerResponse) {
     return response.end(bytes);
   }
   response.writeHead(200, { "content-type": TYPES[".html"], "cache-control": "no-store" });
-  response.end(await readFile(join(page, "index.html")));
+  response.end((await readFile(join(page, "index.html"), "utf8")).replace(/(src|href)="\//g, `$1="${home}`));
 }
 
 // What's sent here reaches the agent in the person's name, so only the viewer, on this machine, may ask: by this
@@ -399,7 +441,7 @@ async function body<T>(request: IncomingMessage): Promise<T> {
   }
 }
 
-function json(response: ServerResponse, status: number, value: unknown) {
+export function json(response: ServerResponse, status: number, value: unknown) {
   response.writeHead(status, { "content-type": TYPES[".json"], "cache-control": "no-store" });
   response.end(JSON.stringify(value));
 }

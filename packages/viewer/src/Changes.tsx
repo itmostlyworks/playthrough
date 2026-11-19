@@ -387,7 +387,7 @@ export function TellYours({ words }: { words: string }) {
 }
 
 // On a page opened over plain http, as on a tailnet, the browser gives no clipboard: the older way still copies there.
-async function copyText(words: string, focused: HTMLElement): Promise<boolean> {
+export async function copyText(words: string, focused: HTMLElement): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(words);
     return true;

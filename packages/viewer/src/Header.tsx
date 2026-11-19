@@ -1,6 +1,6 @@
 // The top of every page, its two corners: at the left Playthrough and what's waiting in it, the way to every other
-// change; at the right what's next. Between them, nothing: what this is stands on the recording's top, where it's
-// looked at. On a phone there's no room over the recording for it: the change's title takes the room between.
+// change; at the right what to do with this one: Next on its opening card, Share on its moments. Between them, nothing:
+// what this is stands on the recording's top, where it's looked at. On a phone there's no room over the recording for it: the change's title takes the room between.
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { shownByAnotherPage } from "./api.ts";

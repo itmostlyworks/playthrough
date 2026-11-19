@@ -15,8 +15,13 @@ export type Listed = { change: Change; app: string; people: Record<string, strin
 
 // Each answer is what was asked for, or what's wrong in plain words; nothing at all where it can't be known or drawn.
 export type Source = {
-  // Who you are, as what you say and see is kept by.
+  // Who you are, as what you say and see is kept by: nobody yet (“”) for a guest on a shared change, until they say
+  // who, the first time they keep a note (`name`).
   you(): Promise<string>;
+  // A guest's name, said once: kept with what they keep between visits, and who they are from then on.
+  name?(name: string): void;
+  // Sharing a change, the person's alone (share.ts): where it stands, started, and stopped.
+  share?: { of(change: string): Promise<Shared>; start(change: string): Promise<Shared>; stop(change: string): Promise<Shared> };
   // Every change, told now and again whenever any of them changes, until stopped.
   changes(told: (changes: Listed[]) => void): () => void;
   // Where a hand-back's file is, for the browser to ask for: its recordings, what was read and glimpsed of each, their
@@ -46,6 +51,8 @@ export type Source = {
   keptForTheTab?: Keeping;
 };
 export type Keeping = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+// Where a shared change stands: the link while it's on, or why it couldn't be, with what to do.
+export type Shared = { is: "off" } | { is: "starting" } | { is: "on"; link: string } | { is: "failed"; why: string };
 export type CantStepIn = { plainly: string; why: string };
 type Framed = { handBack: number; recording: string; at: number; node?: number; point?: { x: number; y: number } };
 
@@ -65,8 +72,19 @@ export function useChanges(): Listed[] | undefined {
 
 export function useYou(): string | undefined {
   const [you, setYou] = useState<string>();
-  useEffect(() => void source.you().then(setYou), []);
+  useEffect(() => {
+    void source.you().then(setYou);
+    naming.add(setYou);
+    return () => void naming.delete(setYou);
+  }, []);
   return you;
+}
+
+// A guest saying who they are, told to every part of the page that knows who you are.
+const naming = new Set<(name: string) => void>();
+export function nameYou(name: string) {
+  source.name?.(name);
+  for (const tell of naming) tell(name);
 }
 
 // A hand-back's files never change once it's finished, so each is fetched once, once it's come: one that didn't is asked

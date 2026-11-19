@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 import { flushSync } from "react-dom";
 import type { Turn, Note, Change } from "@playthrough/change";
 import type { Glimpse } from "@playthrough/page";
-import { framePicture, glimpses as glimpsesOf, noteFrame, picture, readings as readingsOf, type NoteFrame } from "./api.ts";
+import { framePicture, glimpses as glimpsesOf, nameYou, noteFrame, picture, readings as readingsOf, source, useYou, type NoteFrame } from "./api.ts";
 import { clamp } from "./clamp.ts";
 import { TILE } from "./Edge.tsx";
 import { mayTakeKeys } from "./inside.ts";
@@ -99,11 +99,15 @@ export function useFrames(change: Change, notes: { note: Note; shown?: Made }[])
 
 // A note's words, as its picture on the edge says them and its pin does pointed at.
 // Under its strip on the edge, two lines; by its pin, three.
-export function NoteWords({ words, stands, fresh, short }: { words: string; stands: string; fresh: boolean; short?: boolean }) {
+// Someone else's says whose first, as its thread does.
+export function NoteWords({ words, stands, fresh, short, by }: { words: string; stands: string; fresh: boolean; short?: boolean; by?: string }) {
   return (
     <>
       <span className={`${short ? "line-clamp-2" : "line-clamp-3"} text-[12.5px] leading-[17px] text-fg`}>{words}</span>
-      <span className={`block text-[11.5px] leading-4 ${fresh ? "font-medium text-fg" : "text-soft"}`}>{stands}</span>
+      <span className={`block truncate text-[11.5px] leading-4 ${fresh ? "font-medium text-fg" : "text-soft"}`}>
+        {by && `${by} · `}
+        {stands}
+      </span>
     </>
   );
 }
@@ -240,11 +244,17 @@ export function NoteCard({ by, stage, closing, under, easing, children }: { by: 
 // Writing a note: Enter saves it, with Ctrl or ⌘ too, Shift+Enter is a new line, Escape lets it go.
 // A reply waits to be clicked into, so the keys stay the page's while a note is open (← → go on through the notes).
 // Enter and Escape stop here: the page hears a key after the save has closed the field, and Ctrl+Enter there sends.
+// A guest on a shared change who hasn't said who they are is asked, once, as they first save: in the card, under their
+// words, and saved with it.
 export function Write({ onSave, onDrop, placeholder = "What's right or wrong here?", rows = 3, start = "", focus = true }: { onSave: (words: string) => void; onDrop: () => void; placeholder?: string; rows?: number; start?: string; focus?: boolean }) {
   const [words, setWords] = useState(start);
+  const you = useYou();
+  const [naming, setNaming] = useState(false);
+  const save = (said: string) => (source.name && you === "" ? setNaming(true) : onSave(said));
   return (
     <div>
       <textarea
+        readOnly={naming}
         ref={(area) => void (focus && area && !area.dataset.focused && mayTakeKeys() && ((area.dataset.focused = "1"), area.focus({ preventScroll: true })))}
         rows={rows}
         value={words}
@@ -256,15 +266,55 @@ export function Write({ onSave, onDrop, placeholder = "What's right or wrong her
           if (event.key === "Enter" && !event.shiftKey) {
             event.preventDefault();
             event.stopPropagation();
-            if (words.trim()) onSave(words.trim());
+            if (words.trim()) save(words.trim());
           }
         }}
       />
-      <div className="mt-1 flex items-center justify-end gap-1 text-xs">
-        <button className="rounded-md px-2 py-1 text-soft hover:bg-hover hover:text-fg" onClick={onDrop}>
-          Cancel
-        </button>
-        <button className="rounded-md px-2 py-1 font-medium text-fg enabled:hover:bg-hover disabled:opacity-50" disabled={!words.trim()} onClick={() => onSave(words.trim())}>
+      {naming ? (
+        <YourName onSaid={(name) => (nameYou(name), onSave(words.trim()))} onBack={() => setNaming(false)} />
+      ) : (
+        <div className="mt-1 flex items-center justify-end gap-1 text-xs">
+          <button className="rounded-md px-2 py-1 text-soft hover:bg-hover hover:text-fg" onClick={onDrop}>
+            Cancel
+          </button>
+          <button className="rounded-md px-2 py-1 font-medium text-fg enabled:hover:bg-hover disabled:opacity-50" disabled={!words.trim()} onClick={() => save(words.trim())}>
+            Save <Key>↵</Key>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Who's saying it, asked once: the name every note and reply of theirs carries from then on, to the agent and to the
+// person who shared the change. Escape goes back to the words.
+function YourName({ onSaid, onBack }: { onSaid: (name: string) => void; onBack: () => void }) {
+  const [name, setName] = useState("");
+  const said = name.trim();
+  return (
+    <div className="mt-2 animate-arrive border-t border-line px-1 pt-2" style={{ animationDuration: "160ms" }}>
+      <label htmlFor="your-name" className="block text-[11.5px] leading-4 text-soft">
+        Your name, so they know who said it
+      </label>
+      <div className="mt-1 flex items-center gap-1 text-xs">
+        <input
+          id="your-name"
+          ref={(field) => void (field && !field.dataset.focused && ((field.dataset.focused = "1"), field.focus({ preventScroll: true })))}
+          value={name}
+          autoComplete="name"
+          maxLength={60}
+          className="h-7 min-w-0 flex-1 rounded-md bg-ground px-2 text-[13px] text-fg shadow-[0_0_0_1px_var(--edge)] outline-none placeholder:text-faint focus:shadow-[0_0_0_1.5px_var(--soft)]"
+          onChange={(event) => setName(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") return (event.stopPropagation(), onBack());
+            if (event.key === "Enter") {
+              event.preventDefault();
+              event.stopPropagation();
+              if (said) onSaid(said);
+            }
+          }}
+        />
+        <button className="rounded-md px-2 py-1 font-medium text-fg enabled:hover:bg-hover disabled:opacity-50" disabled={!said} onClick={() => onSaid(said)}>
           Save <Key>↵</Key>
         </button>
       </div>

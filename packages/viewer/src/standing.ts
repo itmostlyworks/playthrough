@@ -11,20 +11,22 @@ export const toSend = (notes: number, replies: number) =>
 
 // What a note says wherever it's shown, its picture's words or its pin pointed at: your latest
 // words, and where it stands. An answer is new if it came back after you last opened the moment it's on, as what you've
-// opened is kept with the change (`seen`), so it's the same on every device you look from.
-export function noteSays(change: Change, you: string, note: Note, sent: boolean, replies: YourReply[]) {
+// opened is kept with the change (`seen`), so it's the same on every device you look from. Someone else's, as a guest's
+// on a change you shared, says whose (`by`).
+export function noteSays(change: Change, you: string, note: Note, sent: boolean, replies: YourReply[]): { words: string; stands: string; fresh: boolean; by?: string } {
   if (!sent) return { words: note.words, stands: "not sent", fresh: false };
   const turns = conversation(change, note.id);
+  const by = turns[0] && turns[0].by !== you ? turns[0].by : undefined;
   const replied = replies.find((one) => one.note === note.id)?.words;
   const words = replied ?? turns.findLast((turn) => !turn.agent)?.words ?? note.words;
-  if (replied) return { words, stands: "reply not sent", fresh: false };
-  if (!turns.at(-1)?.agent) return { words, stands: "sent", fresh: false };
+  if (replied) return { words, stands: "reply not sent", fresh: false, by };
+  if (!turns.at(-1)?.agent) return { words, stands: "sent", fresh: false, by };
   const handBack = turns.at(-1)!.handBack;
   const answeredIn = change.handBacks.find((one) => one.number === handBack);
   // Where it's seen: its moment, or for one on the whole change, the last stop.
   const on = (answeredIn ? shownOn(change, answeredIn, note) : note.on?.moment) ?? LAST_STOP;
   const fresh = !seenOf(change, you).some((taking) => Number(taking.slice(0, taking.indexOf(":"))) >= handBack && taking.slice(taking.indexOf(":") + 1) === on);
-  return { words, stands: fresh ? "new answer" : "answered", fresh };
+  return { words, stands: fresh ? "new answer" : "answered", fresh, by };
 }
 
 // The moment of a hand-back a note is shown on: where its answer says its thing shows (`shown`, followed there as it was
@@ -70,6 +72,8 @@ const telling = new Set<string>();
 // Those this browser kept before they were kept with the change go to it with the first moments told, and are then
 // forgotten here.
 export function markSeen(change: Change, you: string, takings: string[]) {
+  // A guest who hasn't said who they are yet: nobody to keep it for.
+  if (!you) return;
   let here: string[] = [];
   try {
     here = JSON.parse(stored((id) => seenKey(id, you), change.id) ?? "[]");
