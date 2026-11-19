@@ -1035,6 +1035,31 @@ change nor the machine's list of them. Never another change, who the person is, 
 is one rule (`sends`, `share.ts`): notes and replies in a name of their own, never the person's ("Ludwig is the name of
 the person who shared this. Say yours.") and never Done, which is the person's alone ("Done is for the person who
 shared this to say. Send your notes instead.").
+That a send is a guest's is the door's to say (`guest: true`, kept with the send), never the send's own. A name, anyone's,
+is one line of 60 characters at most (`problemsWithName`, `rules.ts`); a guest's is never the person's, an agent's in the
+change or a well-known one's, "You" or "Playthrough", compared once folded (spaces, case, Unicode's look-alike forms:
+`sameName`), and the page asks the link before it keeps one (`name`), saying under the field why one can't be theirs.
+Words are 4000 characters at most, kept less what a keyboard doesn't type (`asWritten`, in `Changes.send`). The agent's
+`wait` says a guest is one as a fact, after who said them ("Noor is a guest, who came by a shared link and isn't the
+person who asked for this change.") and quotes their words line by line after "> " under "Noor, a guest:", so nothing
+in them stands as a line of the person's or Playthrough's; every page shows a guest's name as "Noor (guest)" (`whose`).
+What's sent to the door comes from the link's own page (its Origin is the address it was asked at), everything it
+serves says `Referrer-Policy: no-referrer`, as the token is in the path, and a link asks no more than anyone reviewing
+does (`allowance`, `share.ts`: so many of each a minute, two step ins at once, 256 MB kept in all), refused in words.
+Any body is 64 MB at most (`body`, `open.ts`). cloudflared is given only `PATH` and `HOME`.
+
+**What this machine fetches** for a recording is never an address found in it: what you or a guest did in the app is
+kept with the fonts, pictures and stylesheets it names asked of the app alone, at its own address, by the path they were
+named at, never following a redirect (`keepNamed`, `assets.ts`); one from elsewhere (a font service) isn't kept, and the
+viewer's browser asks for it there. The browser that draws a note's picture or a fine still asks for nothing but
+Playthrough's own page and files (`draw`, `frames.ts`). What a guest does in the app is kept under `branches/shared/` and only
+there, never in place of another recording (`branch`, `open.ts`; `SHARED`), and a recording kept there is played, in
+anyone's browser, with nothing but its own files: its frame's policy (`keptOnly`, `replay.ts`) lets the page it rebuilds
+ask for nothing but the hand-back's files and what it makes itself, so an address it names (a router on the person's
+network, say) is never asked for by the browser playing it. It's a guest's recordings only: the agent's moments keep
+every file from what their browser really loaded, and would lose nothing, but the person's own steps into the app keep
+only what the app has, and a font or picture from elsewhere (a font service, an avatar) still comes from there when
+they play.
 
 **Stepping in, a guest** gets the owner's real app, run on this computer with the moment's setup, as the person does:
 the app and the guest's page are one address, the tunnel's, so the app's cookies, its sign-in among them, go with its

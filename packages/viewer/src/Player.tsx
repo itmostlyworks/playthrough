@@ -7,7 +7,7 @@
 import { useEffect, useRef, useState, type MouseEvent, type PointerEvent, type RefObject } from "react";
 import { elementOf, type Glimpse } from "@playthrough/page";
 import type { Element, Moment, Point } from "@playthrough/change";
-import { recording } from "./api.ts";
+import { byAGuest, keptFor, recording } from "./api.ts";
 import { insideAnotherPage } from "./inside.ts";
 import { Replay, type Choice, type Events, type Pressed, type Rect, type Scrolled } from "./replay.ts";
 import type { Crop } from "./Picture.tsx";
@@ -167,7 +167,7 @@ export function Player(props: Props) {
     let made: Replay | undefined;
     recording(props.change, props.handBack, props.recording).then((events) => {
       if (!current || !box.current) return;
-      made = new Replay(events, box.current);
+      made = new Replay(events, box.current, byAGuest(props.recording) ? keptFor(props.change, props.handBack) : undefined);
       // Moved on every frame, the page is drawn once, as it is, and only shifted.
       made.host.style.willChange = "transform";
       setReplay({ replay: made, events });

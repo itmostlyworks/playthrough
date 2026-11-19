@@ -18,7 +18,7 @@ import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import type { Glimpse, Reading } from "@playthrough/page";
-import { allNotes, conversation, list, madeInApp, MOST_SHOWN, notesToAnswer, saidDone, quote, Refused, handBackInProgress, sendsNotTaken, startOf, toAccountFor, type Finding, type Change, type HandBack, type Moment } from "@playthrough/change";
+import { allNotes, conversation, list, madeInApp, MOST_SHOWN, notesToAnswer, saidDone, quote, Refused, handBackInProgress, sendsNotTaken, startOf, toAccountFor, type Finding, type Change, type HandBack, type Moment, type Send } from "@playthrough/change";
 import { agent } from "./agent.ts";
 import { browserFile, doneBy, stopBrowser, type Browser } from "./as.ts";
 import { changeHere, meanHere, meantHere, momentNamed, momentsOf } from "./change.ts";
@@ -33,7 +33,7 @@ import { frameOf, glimpsesOf, readingsOf, type Failed } from "./reporter.ts";
 import { markUnsteady, recorder, runOnce } from "./run.ts";
 import { seenChanging, SQUARE, squaresOf, type Square } from "./seen.ts";
 import { setupIn } from "./setup.ts";
-import { listening, saidTo, unheard } from "./wait.ts";
+import { listening, quoted, saidTo, unheard, whoSaid } from "./wait.ts";
 import { aboutSaid, ENDED, fileOf, partSaid, wayFile, TIMED, whatDiffers, type About, type Done, type Ended, type Scrolled } from "./way.ts";
 
 // What a moment says is what's there, short enough to sit under a picture of it: who and where, the person sees.
@@ -553,7 +553,7 @@ export async function wait(repo: Repo) {
     // Notes taken by a wait that stopped before they were answered are said again.
     const kept = change;
     const asking = notesToAnswer(kept, last.number + 1);
-    if (asking.length) return sayNotes(repo, kept, last.number + 1, asking, kept.sends.find((send) => kept.taken.some((taken) => taken.send === send.id && taken.handBack === last.number + 1))?.by);
+    if (asking.length) return sayNotes(repo, kept, last.number + 1, asking, kept.sends.filter((send) => kept.taken.some((taken) => taken.send === send.id && taken.handBack === last.number + 1)));
   }
   // Notes sent while no agent was listening are the next agent's, whichever change it's on, or with none named: the
   // person was told to ask any agent for them.
@@ -568,7 +568,7 @@ export async function wait(repo: Repo) {
       console.log(`\nThese notes are on ${quote(change.title)}: what you run here means it now.`);
     }
     const number = handBackInProgress(change);
-    return sayNotes(repo, change, number, notesToAnswer(change, number), nobodys.sends[0]!.by);
+    return sayNotes(repo, change, number, notesToAnswer(change, number), nobodys.sends);
   }
   const id = await changeHere(repo);
   if (!last?.moments.length) throw new Refused(["There are no moments to hand back yet. Mark one: playthrough as <person>, then playthrough moment \"<what's there>\""]);
@@ -581,7 +581,7 @@ export async function wait(repo: Repo) {
     change = await changes.get(id);
     const number = handBackInProgress(change);
     const asking = notesToAnswer(change, number);
-    if (asking.length) return sayNotes(repo, change, number, asking, taken[0]?.by);
+    if (asking.length) return sayNotes(repo, change, number, asking, taken);
     const done = saidDone(change);
     if (done) return console.log(`\n${done.by} says every moment looks good: the change is done. Nothing more to do.`);
   }
@@ -595,19 +595,22 @@ async function addressOf(repo: Repo, id: string): Promise<string> {
   return port ? `Give the person its own page: ${address}` : `Give the person its own page, open once playthrough open runs: ${address}`;
 }
 
-async function sayNotes(repo: Repo, change: Change, number: number, asking: string[], by = "The person") {
+// Who said them first, by name, and of those who came by a shared link, that they're guests, as a fact, with their words
+// quoted line by line under their name, so nothing a guest writes can read as a line of the person's or Playthrough's.
+async function sayNotes(repo: Repo, change: Change, number: number, asking: string[], sends: Send[]) {
   await saidTo(repo, change.id);
   const notes = allNotes(change);
   const pictures = await pictureNotes(repo, change, number, asking);
   const handedBack = change.handBacks.findLast((handBack) => handBack.finished);
-  console.log(`\n${by} said:`);
+  console.log(`\n${whoSaid(sends)}`);
   for (const note of asking) {
     const on = notes.get(note)!.note.on;
     const name = on?.moment;
     const moment = handedBack?.moments.find((one) => one.name === name);
     const thing = on?.element ? `, on the ${on.element.role} ${quote(on.element.name)}` : "";
     console.log(`\n  ${note}  on ${name ? `the moment ${quote(name)}` : "the change as a whole"}${moment?.person ? `, as ${moment.person}` : ""}${thing}`);
-    for (const turn of conversation(change, note)) console.log(`    ${turn.agent ? "You" : turn.by}: ${turn.words}`);
+    for (const turn of conversation(change, note))
+      console.log(turn.guest ? `    ${turn.by}, a guest:\n${quoted(turn.words, "      ")}` : `    ${turn.agent ? "You" : turn.by}: ${turn.words}`);
     if (pictures.get(note)) console.log(`    As they saw it: ${pictures.get(note)}`);
     // Written partway through, where it was written is after the things done by then, not the moment's end.
     const partway = on && !madeInApp(on) && on.at !== undefined && moment && doneBy(change, on.handBack, on.moment, on.at) !== undefined;

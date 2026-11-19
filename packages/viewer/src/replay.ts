@@ -175,6 +175,16 @@ const MOTION = 1;
 // How long after a change its step is, in milliseconds: the frame after it.
 const CHANGE_SHOWN = Math.ceil(FRAME * 1000);
 
+// The frame a recording is played in asks for nothing but what's under `kept`: its own files, and what's made in the
+// page itself (data: and blob: addresses, its own styles). Nothing it names runs.
+function keptOnly(frame: HTMLIFrameElement, kept: string) {
+  const page = frame.contentDocument!;
+  const policy = page.createElement("meta");
+  policy.httpEquiv = "Content-Security-Policy";
+  policy.content = `default-src ${kept} data: blob: 'unsafe-inline'; script-src 'none'; frame-src 'none'; object-src 'none'; form-action 'none'`;
+  page.head.append(policy);
+}
+
 export class Replay {
   readonly host = document.createElement("div");
   readonly shapes: Shape[];
@@ -222,8 +232,12 @@ export class Replay {
   // Whether the browser it was recorded in was dark: what a page asking for either light or dark is shown in.
   #dark: boolean;
 
-  // Built where it will show: rrweb builds its page only in one that's already in the document.
-  constructor(events: Events, into: HTMLElement) {
+  // Built where it will show: rrweb builds its page only in one that's already in the document. A recording a guest
+  // made through a shared link plays with what was kept with it, its files (`kept`, where they're asked for) and
+  // nothing else: whatever else it names (an address on this computer's network, say) isn't asked for by the browser
+  // playing it, whoever's it is. Every load the page could make is one rule, its frame's own policy, set before it's
+  // drawn.
+  constructor(events: Events, into: HTMLElement, kept?: string) {
     const start = events[0]?.timestamp ?? 0;
     for (const event of events) {
       // rrweb drops a removal from the event itself when it can't find the node in the middle of a jump, and the next
@@ -259,6 +273,7 @@ export class Replay {
         "* { overflow-anchor: none !important; }",
       ],
     });
+    if (kept) keptOnly(this.#replayer.iframe, kept);
     (this.#replayer as unknown as { cache: typeof styles }).cache = styles;
     this.#replayer.on("event-cast", () => (this.#changed = true));
     // Light or dark, still or moving, as it was recorded, as the app stepped into is: the page's own styles asked the

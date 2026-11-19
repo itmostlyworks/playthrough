@@ -198,6 +198,10 @@ export const Send = z.strictObject({
     .optional()
     .describe("A person's words back on a note's latest answer: what's still not right, or an answer to a question the agent asked. They judge nothing, and ask the agent again"),
   done: z.literal(true, { error: "is true or left out" }).optional().describe("Done: every moment of its hand-back looks good, and that's all it says"),
+  guest: z
+    .literal(true, { error: "is true or left out" })
+    .optional()
+    .describe("Sent by a guest through a shared link, as the Playthrough that took it says, never as the send says: not the person who asked for the change"),
 });
 
 // The agent took a send, and answers it in this hand-back.

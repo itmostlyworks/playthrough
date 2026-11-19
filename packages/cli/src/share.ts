@@ -13,7 +13,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { createServer, request as ask, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { connect } from "node:net";
-import { Refused } from "@playthrough/change";
+import { Refused, sameName } from "@playthrough/change";
 import { answered, json, serve } from "./open.ts";
 
 // Where a shared change stands, as its Share says it.
@@ -30,11 +30,12 @@ export type Door = {
 
 // A guest, as the change's own answers know them: in any name but the person's, sending notes and replies but never
 // Done, which is the person's alone, and stepping in for themselves.
-export type Guest = { speaksAs(by: string): void; sends(send: { by: string; done?: true }): void; steppedIn(name: string, port: number): void };
+// What they send is marked as theirs here, never by what it says; what they have kept on this computer is counted.
+export type Guest = { speaksAs(by: string): void; sends<T extends { by: string }>(send: T): T & { guest: true }; steppedIn(name: string, port: number): void; took(bytes: number): void };
 
-// What a guest may ask of the change, and nothing else: watching it (its files), saying what they opened and sending
-// notes, and stepping in (how long it takes, kept ready, what they did there, and a note's picture of it).
-const ASKS: Record<string, string[]> = { GET: ["hand-backs"], POST: ["seen", "sends", "step-in", "ready-in", "keep-ready", "branches", "frames", "stills"] };
+// What a guest may ask of the change, and nothing else: watching it (its files), whether a name may be theirs, saying
+// what they opened and sending notes, and stepping in (how long it takes, kept ready, what they did there, and a note's picture of it).
+const ASKS: Record<string, string[]> = { GET: ["hand-backs"], POST: ["name", "seen", "sends", "step-in", "ready-in", "keep-ready", "branches", "frames", "stills"] };
 
 // The page's folder, beside /step-in, Playthrough's already in the app's address.
 const HOME = "/.playthrough/shared/";
@@ -102,18 +103,20 @@ export function opened(server: Server): Promise<number> {
 // else, the same nothing whether it's there or not.
 export function guestDoor(share: Pick<Share, "address" | "token" | "steppedIn" | "passing">, door: Door): Server {
   const home = `${HOME}${share.token}/`;
+  const allowed = allowance();
   const guest: Guest = {
     speaksAs: (by) => {
-      if (by.trim() === door.owner) throw new Refused([`${door.owner} is the name of the person who shared this. Say yours.`]);
+      if (sameName(by, door.owner)) throw new Refused([`${door.owner} is the name of the person who shared this. Say yours.`]);
     },
-    sends: (send) => {
-      guest.speaksAs(send.by);
-      if (send.done) throw new Refused(["Done is for the person who shared this to say. Send your notes instead."]);
-    },
+    // What else a guest may send, their name and never Done, is the rule every send goes through (`problemsWithSend`).
+    sends: (send) => (guest.speaksAs(send.by), { ...send, guest: true }),
     steppedIn: (name, port) => (share.steppedIn.add(name), (share.passing = port)),
+    took: allowed.took,
   };
   const server = createServer((request, response) =>
     void answered(response, async () => {
+      // The link's token is in its path: nothing a page here loads, or a link on it leads to, is told the page's address.
+      response.setHeader("referrer-policy", "no-referrer");
       const path = new URL(request.url ?? "/", "http://shared").pathname;
       if (path === home.slice(0, -1)) return void (response.writeHead(308, { location: home }), response.end());
       if (path.startsWith(home)) return theChange(decodeURIComponent(path.slice(home.length)), request, response);
@@ -142,6 +145,11 @@ export function guestDoor(share: Pick<Share, "address" | "token" | "steppedIn" |
     // back until it ends.
     if (!rest.length && request.method === "GET") return json(response, 200, await door.listed(share.address));
     if (!ASKS[request.method ?? ""]?.includes(rest[0] ?? "")) return nothing(response);
+    if (request.method !== "GET") {
+      const elsewhere = fromElsewhere(request);
+      if (elsewhere) return json(response, 403, { problems: [elsewhere] });
+      response.once("close", allowed.asks(rest[0]!));
+    }
     return door.answerOn(share.address, rest, request, response, guest);
   }
 
@@ -154,13 +162,53 @@ export function guestDoor(share: Pick<Share, "address" | "token" | "steppedIn" |
   }
 }
 
+// What's sent through the link comes from the link's own page: another site's, that knows the link, can't send it, as
+// its page's address (Origin) is its own. The address a request came to is the link's, through the tunnel by https,
+// asked directly on this machine by http.
+function fromElsewhere(request: IncomingMessage): string | undefined {
+  const { host, origin } = request.headers;
+  if (origin === `https://${host}` || origin === `http://${host}`) return undefined;
+  return `Only the link's own page can send this, not ${origin ?? "a page that doesn't say where it is"}.`;
+}
+
+// What one link can ask, more than a person reviewing ever does, so a guest can't wear this computer out: so many of
+// each a minute, step ins so many at once, and what it keeps on this computer, all told. Refused in words, and over
+// in a minute.
+const PER_MINUTE: Record<string, number> = { name: 30, "step-in": 10, "keep-ready": 30, "ready-in": 240, branches: 20, frames: 60, stills: 60, sends: 30, seen: 120 };
+const AT_ONCE: Record<string, number> = { "step-in": 2 };
+const KEEPS = 256 * 1024 * 1024;
+
+function allowance() {
+  const asked = new Map<string, number[]>();
+  const running = new Map<string, number>();
+  let kept = 0;
+  return {
+    // Asked for now: what to call once it's answered.
+    asks(what: string): () => void {
+      const now = Date.now();
+      const lately = (asked.get(what) ?? []).filter((at) => now - at < 60_000);
+      if (lately.length >= (PER_MINUTE[what] ?? Infinity)) throw new Refused(["This link has asked that more often in the last minute than anyone reviewing does. Wait a minute, then try again."]);
+      if ((running.get(what) ?? 0) >= (AT_ONCE[what] ?? Infinity)) throw new Refused([`Only ${AT_ONCE[what]} of those at once through a link. Wait for one to finish, then try again.`]);
+      asked.set(what, [...lately, now]);
+      running.set(what, (running.get(what) ?? 0) + 1);
+      let done = false;
+      return () => void (!done && ((done = true), running.set(what, running.get(what)! - 1)));
+    },
+    took(bytes: number) {
+      kept += bytes;
+      if (kept > KEEPS) throw new Refused(["This link has kept all it can on this computer. Ask the person who shared it for a new one."]);
+    },
+  };
+}
+
 // On to Playthrough's way through to the app (step-in.ts), as if asked on this machine, which is all it answers; a step
 // in handed over leaves the browser the cookie that lets it on to the rest of the app.
 function passOn(share: Pick<Share, "token" | "passing">, request: IncomingMessage, response: ServerResponse) {
   if (!share.passing) return nothing(response);
   const handing = new URL(request.url ?? "/", "http://shared").pathname.startsWith("/step-in/");
   const forward = ask({ host: "127.0.0.1", port: share.passing, method: request.method, path: request.url, headers: asThisMachine(request, share) }, (answer) => {
-    const headers = { ...answer.headers };
+    // The app's own word on it gives way: the link's token stays here.
+    const headers = { ...answer.headers, "referrer-policy": "no-referrer" };
     if (handing) headers["set-cookie"] = [...(headers["set-cookie"] ?? []), `${COOKIE}=${share.token}; Path=/; HttpOnly; Secure; SameSite=Lax`];
     response.writeHead(answer.statusCode ?? 502, headers);
     answer.pipe(response);
@@ -199,7 +247,9 @@ function nothing(response: ServerResponse, status = 404) {
 // A quick tunnel to the door, by cloudflared, found where the shell finds it: no account, a new address each time. Its
 // address, once Cloudflare has a connection to it open; or why there's none, with what to do.
 function tunnelTo(port: number, given: (address: string) => void, failed: (why: string) => void): ChildProcess {
-  const tunnel = spawn("cloudflared", ["tunnel", "--no-autoupdate", "--url", `http://127.0.0.1:${port}`], { stdio: ["ignore", "ignore", "pipe"] });
+  // Given only what it needs to find itself and its folder: nothing else of this shell's, its tokens among it.
+  const env = { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "" };
+  const tunnel = spawn("cloudflared", ["tunnel", "--no-autoupdate", "--url", `http://127.0.0.1:${port}`], { env, stdio: ["ignore", "ignore", "pipe"] });
   let address: string | undefined;
   let last = "";
   let on = false;

@@ -72,10 +72,15 @@ export function guest(home: string): Source {
         return "";
       }
     },
-    name: (name: string) => {
-      try {
-        localStorage.setItem(NAME, name);
-      } catch {}
+    // Asked of the link first, which says whether it can be theirs: kept only once it can.
+    name: async (name: string) => {
+      const said = await posted<{ problems: string[] }>(`${home}api/change/name`, { by: name }, GONE);
+      const problems = "problems" in said ? said.problems : said.answer.problems;
+      if (!problems.length)
+        try {
+          localStorage.setItem(NAME, name);
+        } catch {}
+      return problems;
     },
   });
 }
