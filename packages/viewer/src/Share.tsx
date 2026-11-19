@@ -50,7 +50,7 @@ export function Share({ change }: { change: string }) {
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen((now) => !now)}
-        className={`-mr-2 grid rounded-lg px-2 py-1 transition-colors duration-150 ease-calm hover:bg-hover hover:text-fg ${on || open ? "text-fg" : "text-soft"}`}
+        className={`-mr-2 grid rounded-lg px-2 py-1 transition-colors duration-150 ease-calm hover:bg-hover hover:text-fg aria-expanded:bg-hover ${on || open ? "text-fg" : "text-soft"}`}
       >
         {/* Both words held in one place, so saying it's shared moves nothing. */}
         <span className={`[grid-area:1/1] ${on ? "invisible" : ""}`}>Share</span>

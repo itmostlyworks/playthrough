@@ -122,8 +122,8 @@ function Choices({ count, comparing, onChoose, onClose, button }: { count: numbe
       ref={own}
       role="menu"
       aria-label="Download video"
-      className="absolute top-[calc(100%+6px)] right-0 z-40 flex min-w-[220px] animate-arrive flex-col rounded-xl bg-surface p-1 shadow-float"
-      style={{ animationDuration: "150ms" }}
+      className="absolute top-[calc(100%+8px)] right-0 z-40 flex min-w-[220px] animate-arrive flex-col rounded-xl bg-surface p-1 shadow-float"
+      style={{ animationDuration: "160ms" }}
       onKeyDown={(event) => {
         event.stopPropagation();
         if (event.key === "Escape") return onClose();

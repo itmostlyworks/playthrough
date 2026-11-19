@@ -565,8 +565,9 @@ moments"); with one moment, or at the last stop, there's nothing to choose. Then
 "Downloading in 5…", filling as it goes, and ends on a tick, "Downloaded", for 2.5 s; one that couldn't be made says
 "Couldn’t make the video", why when pointed at. On a phone it's the arrow alone, the seconds left in its place, at one
 width, so the title beside it never moves. It rests in the app, dimmed and not to be pressed, and isn't there shown by
-another page, a guest's included. With Share it's one pair, the same height, size and ink, 12px apart; each holds its
-own place as its words change, and opening either's card closes the other's.
+another page, a guest's included. With Share it's one pair, the same height, size and ink, 12px apart: Share keeps one
+width whatever it says and Download video grows and shrinks to its left, so neither moves the other; either open shows on
+its button, both cards hang 8px under it, and opening either's card closes the other's.
 `playthrough open` films it (`video.ts`): the viewer plays it in a browser of its own (`?video=`, `Video.tsx`), light or
 dark as your page is, at the largest screen its moments were recorded on, drawn larger up to 1920 wide (or tall), and
 what it draws is filmed as it plays and put together by that browser's own H.264 (`mp4.ts`): nothing to install. In it:
