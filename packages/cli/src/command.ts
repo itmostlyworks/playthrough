@@ -1,17 +1,33 @@
 // A playthrough command, as another one sees it: the process it runs in, on which start of the machine. What a command
 // writes in .playthrough/ for the others, it writes as this, so they know it for its own for as long as it's still at it.
 
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { uptime } from "node:os";
 
 // `started`, where it's known, tells the process from another given its number since on the same start of the machine.
 export type Command = { by: number; boot?: string | number; started?: number };
 
-export const thisCommand = (): Command => ({ by: process.pid, boot: boot(), started: processOf(process.pid)?.started });
+export const thisCommand = (): Command => ({ by: process.pid, boot: boot(), started: startOf(process.pid) });
 
 // The command is still at it: its process is running, and is the same one, not another that has its number since the
 // machine started again, or since it ended, as one killed hard leaves what it wrote for another to be taken for it.
-export const stillAt = (command: Command) => sameBoot(command.boot) && running(command.by) && (command.started === undefined || (processOf(command.by)?.started ?? command.started) === command.started);
+export const stillAt = (command: Command) => sameBoot(command.boot) && running(command.by) && (command.started === undefined || (startOf(command.by) ?? command.started) === command.started);
+
+// When a process started, as a number the same process always gives: in clock ticks since the machine started where
+// /proc says it, and to the second where `ps` does (macOS), so another given its number in a later second gives another.
+// Windows says neither without starting PowerShell, too slow for a page that asks every quarter second: there it isn't known.
+function startOf(pid: number): number | undefined {
+  if (process.platform === "linux") return processOf(pid)?.started;
+  if (process.platform === "win32") return undefined;
+  try {
+    // In English, whatever the machine's language, so it reads as a date.
+    const started = Date.parse(execFileSync("ps", ["-o", "lstart=", "-p", String(pid)], { encoding: "utf8", env: { ...process.env, LC_ALL: "C" }, stdio: ["ignore", "pipe", "ignore"] }));
+    return Number.isNaN(started) ? undefined : started / 1000;
+  } catch {
+    return undefined;
+  }
+}
 
 // The agent that ran this command, which goes on after it: the nearest process above it that isn't only how it was run.
 // What only runs it ends with it: anything in its session, which an agent starts for each command (Claude Code does),

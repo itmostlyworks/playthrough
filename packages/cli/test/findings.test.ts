@@ -16,8 +16,9 @@ before(async () => {
 });
 after(() => browser.close());
 
+// A table's rows have room for a button, as an app's do, so a small one in a row doesn't make it taller with any machine's fonts.
 async function reading(html: string, scrolled = 0): Promise<Reading> {
-  await page.setContent(`<style>body { font: 16px sans-serif; margin: 24px } .panel { border: 1px solid #ccc; padding: 8px }</style>${html}`);
+  await page.setContent(`<style>body { font: 16px sans-serif; margin: 24px } td { height: 36px } .panel { border: 1px solid #ccc; padding: 8px }</style>${html}`);
   if (scrolled) await page.evaluate((y) => scrollTo(0, y), scrolled);
   return { step: "Open the invoices", at: 1, picture: "", ...(await readPage(page)) };
 }

@@ -93,6 +93,9 @@ test("a page killed hard isn't open, even once another process has its number: c
   const left = join(machine(), "open.json");
   const killed = JSON.parse(await readFile(left, "utf8"));
   process.kill(killed.by, "SIGKILL");
+  // A number comes round again only after thousands of others, so never in the second its last process started: the
+  // one second macOS tells a process's start by.
+  await new Promise((resolve) => setTimeout(resolve, 1000 - (Date.now() % 1000)));
   const another = spawn(process.execPath, ["-e", "setTimeout(() => {}, 30_000)"]);
   await writeFile(left, JSON.stringify({ ...killed, by: another.pid }));
   try {
