@@ -93,6 +93,12 @@ export async function moment(repo: Repo, words: string, named?: string, last?: n
   const given = done.slice(from).flatMap((one) => (["fill", "type", "selectOption"].includes(one.does) && one.with ? [one.with] : []));
   const people = Object.keys((await setupIn(repo.setup)).people ?? {}).filter((name) => says(words, name) && !given.some((text) => says(text, name)));
   if (people.length) throw new Refused([`Who a moment is signed in as is kept with it, apart from its words: leave ${list(people.map(quote))} out of them, and say only what's there.`]);
+  const asking = named && { began: browser.began, at: done.length, words, named };
+  const asked = asking && whatCameOfIt(done.slice(from), there.about, asking, askedBefore(repo), markAgain);
+  if (asking && asked) {
+    writeFileSync(askedFile(repo), JSON.stringify(asking));
+    throw new Refused([asked]);
+  }
 
   // The way there, run from a fresh start as the same person and recorded: tried in a folder of its own, and kept only
   // if it lands, in place of one with the same words.
@@ -212,6 +218,27 @@ function markedSince(repo: Repo, browser: Browser): number {
     return marked.began === browser.began ? Math.min(marked.at, browser.did.length) : 0;
   } catch {
     return 0;
+  }
+}
+
+// Named as about the very thing the moment last pressed, it's asked once what came of it: that's usually elsewhere, as
+// the list a filter narrows, and the player outlines what a moment is about. Said again straight after, the same words
+// and thing with nothing done since, it's kept, as a toggle that changes its own label is what came of it.
+export type Asked = { began: number; at: number; words: string; named: string };
+export function whatCameOfIt(shown: Done[], about: About | undefined, now: Asked, before: Asked | undefined, again: string): string | undefined {
+  const pressed = shown.findLast((one) => one.does === "click");
+  if (!about || !pressed) return undefined;
+  const same = about.role === "text" ? !pressed.role && pressed.text === about.name : pressed.role === about.role && pressed.name === about.name;
+  if (!same || pressed.nth !== about.nth) return undefined;
+  if (before && (Object.keys(now) as (keyof Asked)[]).every((key) => before[key] === now[key])) return undefined;
+  return `${quote(about.name)} is what you pressed. Name what shows what came of it (the list, a total, a message), or say it again if the thing you pressed is itself what changed: ${again}`;
+}
+const askedFile = (repo: Repo) => join(repo.root, ".playthrough", "browser-asked.json");
+function askedBefore(repo: Repo): Asked | undefined {
+  try {
+    return JSON.parse(readFileSync(askedFile(repo), "utf8"));
+  } catch {
+    return undefined;
   }
 }
 

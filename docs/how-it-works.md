@@ -174,7 +174,13 @@ already the one chosen, so on 15 Nov's board ("List name", which every list has)
 list cut off at the right was what was new, not what was named. A moment showing a drag isn't kept (`Not kept: the
 last thing done here was a drag, and a moment can't hold a drag.`, or "one of the things done here is a drag"); one
 on the way there is left out of the way and of `before`, and said only where the moment doesn't land (`A drag was done
-on the way here, and a moment can't hold a drag.`). Marked again with the same words, it
+on the way here, and a moment can't hold a drag.`). Named as about the very thing it last clicked (the same role, name
+and which of those alike, `whatCameOfIt`), it isn't kept yet, as what came of pressing something is usually elsewhere
+and the player outlines what a moment is about: `“Overdue” is what you pressed. Name what shows what came of it (the
+list, a total, a message), or say it again if the thing you pressed is itself what changed: playthrough moment "…"
+"Overdue"`. Said again straight after (the same words and thing, nothing done in the browser since, remembered in
+`browser-asked.json`), it's kept, as a toggle that changes its own label is what came of it. Typing, pointing, a still,
+or a moment named nothing or something else, is never asked. Marked again with the same words, it
 replaces that moment, whatever file it was in. In the way, an address the agent went to directly is gone to at once; one
 it was led to is waited for, then gone to; one left at once for another (Kan's sign-in page before its board) isn't gone
 to at all; and the page before each thing done is taken as it is, not after waiting for it to rest. The way scrolls at
@@ -1244,7 +1250,7 @@ Committed with the app: `playthrough/app.json` and `playthrough/setup.ts`. Out o
 `.playthrough/` (its own `.gitignore` says `*`, and a `README.md` tells an agent who looks there not to read or change the
 files but to run `npx playthrough`, as on 15 Nov one told to pick up the notes "in Playthrough" read the note's file and
 did it with nobody told): `working-on.json` (the change its commands mean), `port.json` (the app's port),
-`browser.json` (what `as` did; `browser-marked.json`, where the last moment was marked in it; `browser.log`, what its browser said), `running.json`, `using/`
+`browser.json` (what `as` did; `browser-marked.json`, where the last moment was marked in it; `browser-asked.json`, the moment last asked what came of it; `browser.log`, what its browser said), `running.json`, `using/`
 and `app.log` (the app), `borrowed/` (worlds not yet given back), and a folder per change: `change.json` (its title, what
 was asked, when it started, and the format it's kept in), `moments/<words>.ts` (each moment's way there, then its step),
 `hand-backs/<n>/` (each hand-back: `hand-back.json` with its moments and replies, `files/` with their recordings, readings and pictures, `since/<k>.json`
