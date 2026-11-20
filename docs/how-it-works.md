@@ -557,8 +557,15 @@ key; on a phone the mark and "6 waiting" alone.
 
 **What this is** is the recording's, not the header's, in one stack on its top, centred over it, 12px above its edge,
 wherever the recording's place stands in its room (while the app is yours, it goes there, **Taking over**): the change's title, quiet and small, and under it the moment's name, then
-who it's done as, quieter ("Words typed at the start stay there as Maja, a workspace owner"), on the line the edges'
-words are on. Those take two lines at most (three on a phone, at the left),
+whose hands it's in and as whom, quieter ("Words typed at the start stay there · Your agent, as Maja, a workspace
+owner"; "· Your agent" with no person; a guest reads "The agent", as everywhere a guest is told of it), on the line the
+edges' words are on. It's the same shape of words the bar says once the app is yours, "You, as Maja", so the change of
+hands reads as one: the agent's hands on the recording, yours on the app (20 Nov: in a user test it wasn't clear who
+was acting when, the agent, Maja or you). They stay in two places because there's no one place for both that holds still:
+the bar's place for "You, as …" is Play's while you watch, and over the recording is where the app grows to. On a
+phone, where what this is stays in sight over the app, its hands go quiet while the bar says it's you. A still says
+only as whom it's seen ("as Maja, …"): nobody acts in it. The Moments edge's cards, Compare's sides, the last stop and
+a downloaded video's pills don't name the agent: it's said once, where the recording is. Those take two lines at most (three on a phone, at the left),
 growing up into room kept over the recording (`inItsRoom`, three lines' worth, which the opening card's picture stands
 in too, so going in moves nothing). The title, pointed at (after 70 ms) or reached with the keyboard, brings a small
 card with what you asked in your own words and the app and when it came back: over the title where it fits under the

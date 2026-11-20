@@ -7,7 +7,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 import { flushSync } from "react-dom";
 import { escapedTwice, foundNow, looksAsItWas, RIGHT_AFTER, type Glimpse, type Reading } from "@playthrough/page";
 import { conversation, isStill, madeInApp, newId, together, type Note, type Change, type HandBack, type Moment } from "@playthrough/change";
-import { glimpses, picture, readings as readingsOf, recording, shownByAnotherPage, source, type Listed } from "./api.ts";
+import { glimpses, isGuest, picture, readings as readingsOf, recording, shownByAnotherPage, source, type Listed } from "./api.ts";
 import { clamp } from "./clamp.ts";
 import { calledIn, changedAt, CHIP, playedTogether } from "./compare.ts";
 import { DownloadVideo } from "./DownloadVideo.tsx";
@@ -937,6 +937,10 @@ export function MomentView(props: {
   // How wide the recording is, against its place: all of it, or while the app is yours, the page's room for it.
   const wide = takes ? inTheAppsRoom(screen) : "100%";
 
+  // Whose hands the recording is in, as the bar says yours are once the app is yours: the agent's, as the moment's
+  // person. A guest's isn't their agent. Nobody acts in a still: it's only as whom it's seen.
+  const hands = still ? who && ` as ${who}` : ` · ${isGuest() ? "The agent" : "Your agent"}${who ? `, as ${who}` : ""}`;
+
   const title = <Title title={change.title} asked={change.asked} quiet={`${props.app} · ${backAgain(change, you) ? "back again" : "back"} ${ago(handBack.finished!, Date.now())}`} />;
 
   return (
@@ -968,9 +972,10 @@ export function MomentView(props: {
           style={{ aspectRatio: `${screen.width} / ${screen.height}`, ...(phone ? { width: "calc(100cqw - 32px)", marginTop: 3 * 22 + 8, marginBottom: BAR + GAP } : inItsRoom(screen.width / screen.height)) }}
         >
           {/* What this is, on the recording's top, wherever that stands: the change's title, quietly, and under it the
-              moment in the agent's words, then as whom ("… as Maja, the admin"). Those take two lines at most, three on a phone, growing up into room kept
-              for them, so nothing under them moves. While the app is yours it goes where it stands, under the app coming over it;
-              who you are there is the bar's to say. Coming back, it waits for the recording's edge to pass under it, so
+              moment in the agent's words, then whose hands it is in, as whom ("… · Your agent, as Maja, the admin"). Those take two
+              lines at most, three on a phone, growing up into room kept for them, so nothing under them moves. While the app is
+              yours it goes where it stands, under the app coming over it, and the bar says it's you ("You, as Maja"); on a
+              phone, where it stays, its hands go quiet while the bar says so. Coming back, it waits for the recording's edge to pass under it, so
               the edge never runs across words coming in. */}
           <div className={`absolute inset-x-0 bottom-full mb-3 flex flex-col items-center phone:mb-2 phone:items-start ${GOES} ${takes ? "opacity-0" : ""}`} style={takes ? { transitionDuration: `${STEPS_OUT}ms` } : { transitionDuration: `${STEPS_OUT / 2}ms`, transitionDelay: `${STEPS_OUT / 2}ms` }} inert={takes}>
             {/* At the last stop there's no moment to name: the change's title takes the moment's line, as the sheet's
@@ -979,7 +984,7 @@ export function MomentView(props: {
             <div className="grid w-full">
               <p className={`line-clamp-2 text-center text-[15px] leading-[22px] text-balance text-fg transition-opacity duration-[240ms] ease-calm [grid-area:1/1] phone:line-clamp-3 phone:text-left ${atLastStop ? "opacity-0" : ""}`} title={moment.name}>
                 {moment.name}
-                {who && <span className="text-soft"> as {who}</span>}
+                {hands && <span data-part="hands" className={`text-soft transition-opacity duration-[240ms] ease-calm ${inApp ? "opacity-0" : ""}`}>{hands}</span>}
               </p>
               <p aria-hidden={!atLastStop} className={`min-w-0 self-end truncate text-center text-[15px] leading-[22px] text-fg transition-opacity duration-[240ms] ease-calm [grid-area:1/1] phone:text-left ${atLastStop ? "" : "opacity-0"}`}>
                 {change.title}
