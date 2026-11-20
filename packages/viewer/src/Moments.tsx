@@ -15,7 +15,7 @@ import { insideAnotherPage } from "./inside.ts";
 import { useUnsent, keepUnsent, type YourReply } from "./kept.ts";
 import { MomentView } from "./Moment.tsx";
 import { NothingWaiting, Opening } from "./Opening.tsx";
-import { LAST_STOP, takingOf, markSeen, whoIn } from "./standing.ts";
+import { LAST_STOP, takingOf, markSeen } from "./standing.ts";
 import { seenThrough, unreadOf, unseenOf, waitingInOrder } from "./step.ts";
 import { Opener, Sheet, useSheet, waitingSays } from "./Waiting.tsx";
 
@@ -172,7 +172,6 @@ function Change(props: { listed: Listed; you: string; moment: number; atLastStop
       handBack={handBack}
       n={n}
       about={shown.about}
-      who={whoIn(listed, shown)}
       notes={notes}
       sent={sent}
       setNotes={setNotes}

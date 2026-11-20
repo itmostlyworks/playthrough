@@ -1,8 +1,8 @@
 // Where a change stands for you, read from it as it's kept: its latest moments, what you've sent on them and seen of
 // them, what's different since, and what each note says now, in the page's words.
 
-import { conversation, notesToAnswer, type Note, type Change, type HandBack, type Moment, type Shown } from "@playthrough/change";
-import { source, type Listed } from "./api.ts";
+import { conversation, notesToAnswer, type Note, type Change, type HandBack, type Shown } from "@playthrough/change";
+import { source } from "./api.ts";
 import { keeping, stored, seenKey, type YourReply } from "./kept.ts";
 
 // What Send says it sends: notes and replies, by their count.
@@ -101,9 +101,6 @@ export function markSeen(change: Change, you: string, takings: string[]) {
 // something, as a send that only says things look good asks for no next hand-back.
 export const workingSince = (change: Change, latest: HandBack) =>
   change.taken.find((taken) => taken.handBack > latest.number && notesToAnswer(change, taken.handBack).length > 0)?.at;
-
-// Who a moment is done as, as the page says them ("Sam, a member").
-export const whoIn = (listed: Listed, moment: Moment) => (moment.person ? (listed.people[moment.person] ?? moment.person) : "");
 
 // How long ago, as a person says it.
 export function ago(iso: string, now: number): string {

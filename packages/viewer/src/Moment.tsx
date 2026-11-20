@@ -22,7 +22,8 @@ import { usePhone } from "./phone.ts";
 import { Picture } from "./Picture.tsx";
 import { Pinned, type Pin } from "./Pinned.tsx";
 import { Clock, Player, useCut, type Mark, type Placed } from "./Player.tsx";
-import { Portal, TAG } from "./Portal.tsx";
+import { TAG } from "./PointerTag.tsx";
+import { Portal } from "./Portal.tsx";
 import { doneIn, type Rect, type Scrolled } from "./replay.ts";
 import { ago, noteSays, shownIn, shownOn, takingOf, seenOf } from "./standing.ts";
 import { LastStop } from "./LastStop.tsx";
@@ -31,6 +32,7 @@ import { StepAction, StepCard, useStepLeft } from "./StepLeft.tsx";
 import { backAgain } from "./step.ts";
 import { useKeptReady, useTakeOver } from "./takeOver.ts";
 import { useHeld } from "./held.ts";
+import { agentTo, tagged, TAGGED_WHILE_PLAYING } from "./tag.ts";
 import { overAPause } from "./stepping.ts";
 import { startOn, StillPicture } from "./Still.tsx";
 import { STEPPING_BACK, STEPPING_OUT, STEPS_OUT, Together, type Box } from "./view.ts";
@@ -53,7 +55,6 @@ export function MomentView(props: {
   handBack: HandBack;
   n: number;
   about?: { role: string; name: string };
-  who: string;
   notes: Note[];
   sent: Note[];
   setNotes: (edit: (notes: Note[]) => Note[]) => void;
@@ -79,7 +80,7 @@ export function MomentView(props: {
   // The moments you haven't watched, by their place from 1.
   unwatched: number[];
 }) {
-  const { change, handBack, n, about, who, notes, setNotes, replies, setReplies, you, onMoment, atLastStop } = props;
+  const { change, handBack, n, about, notes, setNotes, replies, setReplies, you, onMoment, atLastStop } = props;
   // What was sent is drawn as sent at once, as the change comes back with it.
   const [justSent, setJustSent] = useState<Note[]>([]);
   const sent = [...props.sent, ...justSent.filter((note) => !props.sent.some((one) => one.id === note.id))];
@@ -257,8 +258,17 @@ export function MomentView(props: {
   }, [comparing, playing, both]);
   const scrolled = useRef<(() => Scrolled) | undefined>(undefined);
   // The recording's pointer, and whether the app's stands in for it.
-  const drawn = useRef<(() => { x: number; y: number } | undefined) | undefined>(undefined);
+  const drawn = useRef<(() => { x: number; y: number; worn: number } | undefined) | undefined>(undefined);
   const [standIn, setStandIn] = useState(false);
+  // Whose hands it is, on its tag: at rest, and for the first second of playing.
+  const [playedASecond, setPlayedASecond] = useState(false);
+  useEffect(() => {
+    setPlayedASecond(false);
+    if (!playing) return;
+    const after = setTimeout(() => setPlayedASecond(true), TAGGED_WHILE_PLAYING);
+    return () => clearTimeout(after);
+  }, [!!playing]);
+  const agent = agentTo(isGuest());
   // Where the recording rests, which the edges and what this is stand by; and the recording, which fills it but while
   // the app is yours, when it takes the page.
   const itsPlace = useRef<HTMLDivElement>(null);
@@ -312,8 +322,6 @@ export function MomentView(props: {
     if (was.current.recording !== moment.recording && !phone && !matchMedia("(prefers-reduced-motion: reduce)").matches) setBehind({ recording: was.current.recording, at: clockOf.at });
     was.current = moment;
   }
-
-  const person = moment.person;
 
   // What you said on this moment, sent and then unsent, in the order said: the edge's pictures, and the pins.
   const mine = notes.filter((one) => isOn(one, moment.name));
@@ -801,11 +809,8 @@ export function MomentView(props: {
           }
           words={
             <>
-              {/* What happens, then as whom, as over the recording: here by their name alone, who they are is said there. */}
-              <span className="line-clamp-2 text-[12.5px] leading-[17px] text-fg">
-                {other.name}
-                {other.person && <span className="text-soft"> as {other.person}</span>}
-              </span>
+              {/* What happens. */}
+              <span className="line-clamp-2 text-[12.5px] leading-[17px] text-fg">{other.name}</span>
             </>
           }
           onPress={() => toMoment(i + 1)}
@@ -937,10 +942,6 @@ export function MomentView(props: {
   // How wide the recording is, against its place: all of it, or while the app is yours, the page's room for it.
   const wide = takes ? inTheAppsRoom(screen) : "100%";
 
-  // Whose hands the recording is in, as the bar says yours are once the app is yours: the agent's, as the moment's
-  // person. A guest's isn't their agent. Nobody acts in a still: it's only as whom it's seen.
-  const hands = still ? who && ` as ${who}` : ` · ${isGuest() ? "The agent" : "Your agent"}${who ? `, as ${who}` : ""}`;
-
   const title = <Title title={change.title} asked={change.asked} quiet={`${props.app} · ${backAgain(change, you) ? "back again" : "back"} ${ago(handBack.finished!, Date.now())}`} />;
 
   return (
@@ -972,11 +973,10 @@ export function MomentView(props: {
           style={{ aspectRatio: `${screen.width} / ${screen.height}`, ...(phone ? { width: "calc(100cqw - 32px)", marginTop: 3 * 22 + 8, marginBottom: BAR + GAP } : inItsRoom(screen.width / screen.height)) }}
         >
           {/* What this is, on the recording's top, wherever that stands: the change's title, quietly, and under it the
-              moment in the agent's words, then whose hands it is in, as whom ("… · Your agent, as Maja, the admin"). Those take two
-              lines at most, three on a phone, growing up into room kept for them, so nothing under them moves. While the app is
-              yours it goes where it stands, under the app coming over it, and the bar says it's you ("You, as Maja"); on a
-              phone, where it stays, its hands go quiet while the bar says so. Coming back, it waits for the recording's edge to pass under it, so
-              the edge never runs across words coming in. */}
+              moment in the agent's words: whose hands it's in is the pointer's to say. Those take two lines at most, three on a
+              phone, growing up into room kept for them, so nothing under them moves. While the app is yours it goes where it
+              stands, under the app coming over it. Coming back, it waits for the recording's edge to pass under it, so the edge
+              never runs across words coming in. */}
           <div className={`absolute inset-x-0 bottom-full mb-3 flex flex-col items-center phone:mb-2 phone:items-start transition-opacity ${takes ? "opacity-0" : ""}`} style={takes ? STEPPING_OUT : STEPPING_BACK} inert={takes}>
             {/* At the last stop there's no moment to name: the change's title takes the moment's line, as the sheet's
                 heading, and its own small place over it rests empty. Both stay drawn, one faded out, so nothing moves. */}
@@ -984,7 +984,6 @@ export function MomentView(props: {
             <div className="grid w-full">
               <p className={`line-clamp-2 text-center text-[15px] leading-[22px] text-balance text-fg transition-opacity duration-[240ms] ease-calm [grid-area:1/1] phone:line-clamp-3 phone:text-left ${atLastStop ? "opacity-0" : ""}`} title={moment.name}>
                 {moment.name}
-                {hands && <span data-part="hands" className={`text-soft transition-opacity duration-[240ms] ease-calm ${inApp ? "opacity-0" : ""}`}>{hands}</span>}
               </p>
               <p aria-hidden={!atLastStop} className={`min-w-0 self-end truncate text-center text-[15px] leading-[22px] text-fg transition-opacity duration-[240ms] ease-calm [grid-area:1/1] phone:text-left ${atLastStop ? "" : "opacity-0"}`}>
                 {change.title}
@@ -1035,6 +1034,8 @@ export function MomentView(props: {
                 onPlace={aimingNote ? (on) => act({ type: "pointed", writing: { note: { id: newId(), on: { handBack: handBack.number, moment: moment.name, at, ...on }, words: "" }, spot: { ...pointer.current } } }) : undefined}
                 scrolled={scrolled}
                 hand={!standIn}
+                tag={agent}
+                tagged={tagged({ still, playing: !!playing, playedASecond, comparing, noting, atLastStop })}
                 drawn={drawn}
                 frameFrom={frameFrom}
               />
@@ -1115,6 +1116,7 @@ export function MomentView(props: {
             scrolled={() => scrolled.current?.()}
             theirs={() => drawn.current?.()}
             onStandIn={setStandIn}
+            tag={still ? undefined : agent}
           />
           {/* The last stop's sheet, in the recording's very frame, coming in over it and going as a moment does. */}
           {sheetDrawn && (
@@ -1240,27 +1242,19 @@ export function MomentView(props: {
               </div>
             )}
             <div className="contents" inert={noting}>
-            {inApp ? (
-              // In the app, who you are there, beside Back.
-              <span className={`${ITEM} ${PLAYS} cursor-default px-1!`}>
-                <span className="truncate rounded-full bg-[#EDB654] px-[7px] text-[11.5px] leading-[19px] text-[#3B2A07]">{person ? `You, as ${person}` : "You"}</span>
-              </span>
-            ) : (
-              // A still has nothing to play: Play and its arrows rest where they are, as anything that can't be pressed
-              // does, and Play says why when it's pointed at.
-              <>
-                <FrameButton by={-1} disabled={!may.frameBefore} onStep={() => frame(-1)} held={arrow} />
-                {/* The tip stands beside Play, not in it, so it's as clear as any other while Play rests. */}
-                <span className="group/tip relative flex phone:[flex:20_1_36px]">
-                  <button data-part="play" className={`${ITEM} relative w-[96px] phone:w-auto phone:flex-auto phone:px-0!`} disabled={!may.play} aria-description={still ? STILL : undefined} onClick={play}>
-                    <span className="w-9 text-left">{playing ? "Pause" : "Play"}</span> <Key className="min-w-9">Space</Key>
-                    {!still && <Progress clock={clockOf} share={shareOf(at)} shareOf={shareOf} moving={!!playing} shown={!atPoint && !away} />}
-                  </button>
-                  {still && <Tip>{STILL}</Tip>}
-                </span>
-                <FrameButton by={1} disabled={!may.nextFrame} onStep={() => frame(1)} held={arrow} />
-              </>
-            )}
+            {/* A still has nothing to play, and while the app is yours nothing drives the recording: Play and its arrows
+                rest where they are, as anything that can't be pressed does, and on a still Play says why when it's
+                pointed at. */}
+            <FrameButton by={-1} disabled={!may.frameBefore} onStep={() => frame(-1)} held={arrow} />
+            {/* The tip stands beside Play, not in it, so it's as clear as any other while Play rests. */}
+            <span className="group/tip relative flex phone:[flex:20_1_36px]">
+              <button data-part="play" className={`${ITEM} relative w-[96px] phone:w-auto phone:flex-auto phone:px-0!`} disabled={!may.play} aria-description={still ? STILL : undefined} onClick={play}>
+                <span className="w-9 text-left">{playing ? "Pause" : "Play"}</span> <Key className="min-w-9">Space</Key>
+                {!still && <Progress clock={clockOf} share={shareOf(at)} shareOf={shareOf} moving={!!playing} shown={!atPoint && !away} />}
+              </button>
+              {still && <Tip>{STILL}</Tip>}
+            </span>
+            <FrameButton by={1} disabled={!may.nextFrame} onStep={() => frame(1)} held={arrow} />
             {/* On a phone, "Taking…": its amber line says where, and the bar has room for the arrows by Play. Its words are
                 one item of the bar's, so they read as words, not spaced apart as the bar spaces its items. */}
             <button data-part={inApp ? "back" : "take-over"} className={`${ITEM} relative w-[116px] phone:px-0! phone:[flex:19_1_65px]`} disabled={!may.takeOver && !may.back} aria-pressed={stepping} aria-label={inApp ? "Back, Escape twice" : undefined} onClick={takeOverOrBack}>
@@ -1348,10 +1342,6 @@ const NOT_NOW = "Not in this moment now";
 // Why Play rests on a still.
 const STILL = "A still: nothing to play";
 
-// Play's place, with the arrows either side: in the app, who you are there takes all of it, so the bar is the same
-// width there too: on a phone, their words, shares and the two gaps between them.
-const PLAYS = "w-[148px] min-w-0 phone:[flex:40_1_60px]";
-
 // Under the recording, room for the lower half of the bar that hangs across its edge, and a little more; on a phone,
 // where the bar hangs under the edge so as not to cover the picture, the whole bar and the same more.
 const GAP = 20;
@@ -1360,7 +1350,7 @@ const UNDER = BAR / 2 + GAP;
 // Beside the recording, room for each edge's pictures at rest.
 const SIDE = "clamp(104px, 10vw, 160px)";
 
-// Over the recording, room for the change's title, who and where in two lines, and the gap under them. Shown by
+// Over the recording, room for the change's title, and the moment's name in two lines, and the gap under them. Shown by
 // another page, that page says what the change is: no title, and no room for it.
 const over = () => (shownByAnotherPage() ? 2 : 3) * 22 + 12;
 

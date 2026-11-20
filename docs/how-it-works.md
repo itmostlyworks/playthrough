@@ -559,16 +559,8 @@ this is stands on the recording's top. The left is one thing to press, the opene
 key; on a phone the mark and "6 waiting" alone.
 
 **What this is** is the recording's, not the header's, in one stack on its top, centred over it, 12px above its edge,
-wherever the recording's place stands in its room (while the app is yours, it goes there, **Taking over**): the change's title, quiet and small, and under it the moment's name, then
-whose hands it's in and as whom, quieter ("Words typed at the start stay there · Your agent, as Maja, a workspace
-owner"; "· Your agent" with no person; a guest reads "The agent", as everywhere a guest is told of it), on the line the
-edges' words are on. It's the same shape of words the bar says once the app is yours, "You, as Maja", so the change of
-hands reads as one: the agent's hands on the recording, yours on the app (20 Nov: in a user test it wasn't clear who
-was acting when, the agent, Maja or you). They stay in two places because there's no one place for both that holds still:
-the bar's place for "You, as …" is Play's while you watch, and over the recording is where the app grows to. On a
-phone, where what this is stays in sight over the app, its hands go quiet while the bar says it's you. A still says
-only as whom it's seen ("as Maja, …"): nobody acts in it. The Moments edge's cards, Compare's sides, the last stop and
-a downloaded video's pills don't name the agent: it's said once, where the recording is. Those take two lines at most (three on a phone, at the left),
+wherever the recording's place stands in its room (while the app is yours, it goes there, **Taking over**): the change's title, quiet and small, and under it the moment's name, on the line the
+edges' words are on, and nothing more: whose hands are on the app is the pointer's to say (**Whose hands**, below). Those take two lines at most (three on a phone, at the left),
 growing up into room kept over the recording (`inItsRoom`, three lines' worth, which the opening card's picture stands
 in too, so going in moves nothing). The title, pointed at (after 70 ms) or reached with the keyboard, brings a small
 card with what you asked in your own words and the app and when it came back: over the title where it fits under the
@@ -717,7 +709,21 @@ the bar still drops below the edge only for what's in view (`kept`, `Moment.tsx`
 size against the app: brought closer than actual size it grows with the picture, in the same frames, about its tip,
 which stays on what it points at, as does a click's ring; at or below actual size (fitted, Compare at rest, a phone)
 it stays a pointer's own 20px (`pointerScale`, `view.ts`, the rule and the floor in one line; in the app, the
-stand-in pointer is drawn the same size). The wheel over a note's pin or an
+stand-in pointer is drawn the same size).
+
+**Whose hands** are said on the pointer and nowhere else (`tag.ts`, `PointerTag.tsx`; 20 Nov: in a user test it wasn't
+clear who was acting when, and words for it beside the moment's name and in the bar, tried that day, were one more
+thing to read). The recording's pointer wears a small tag just below and right of its tip, as a name on someone else's
+pointer, in the look your pointer's "Note on this" has: "Your agent" ("The agent" to a guest, whose agent it isn't).
+It's there at rest and for the first second of playing (`TAGGED_WHILE_PLAYING`), then fades with everything else over
+the recording, and comes back once it stops; a key pressed as it plays stands where the tag would, so the key is shown
+and the tag waits. It's one size at any closeness, as far from the tip as the pointer has grown, and turns to the left
+of the tip or above it where the picture's right or bottom edge would cut it off (`besideTip`). Never on a still, where
+nobody acts, nor with the pointer out of the picture, in Compare, while noting, at the last stop, on the moment fading
+out as the next comes, or in a downloaded video. Who a moment is signed in as (`setup.ts`'s people, "Maja, the owner")
+is kept with it and told to the agent, but not said on the page for now: nowhere showed it without crowding the moment
+(the Moments edge's cards had "… as Maja", the moment's name "· Your agent, as Maja", the bar "You, as Maja"). Taking
+over, the tag rolls to "You" (**Taking over**). The wheel over a note's pin or an
 open card on the picture is the picture's too, Ctrl or not, never the page's (it was the page's zoom with Ctrl): it's
 handed to the picture under it, and only a card's words that can still scroll that way take a plain turn first. The wheel over the bar, the edges or
 the page around the picture does what it did before; in the app, the wheel and a drag are the app's.
@@ -736,7 +742,7 @@ you stays at full: a note's card saying "new answer", and the last card while it
 answer opened, the notes sent) it settles back with the rest, in the cards' own calm fade; nothing moves. With every card
 waiting, the edge looks as it did before it sat back (`data-waiting`, `Tile` and `StepCard`, dimmed by `Edge`). Pointed at (after 70 ms; going back after 220 ms), or reached with
 Tab, an edge comes forward, coming to full as it slides (300 ms, calm; with reduced motion, at once): it slides until its pictures are 16px from the screen's edge, a little over the recording,
-its cards alone, each a little apart. A moment's card's words, its name and then as whom, by their name alone ("… as Maja"), come up over its picture's
+its cards alone, each a little apart. A moment's card's words, its name, come up over its picture's
 lower part. A note's card is the same at rest and forward, and leads with what it is as a moment leads with its picture: its dot, its latest words in two lines
 and where it stands ("not sent", "sent", "answered" in soft ink, "new answer" in full ink and heavier: in faint they
 were hard to read on a dark card; `NoteWords`, the same by its pin and at the last stop), over a slim strip of its picture, set in; a new answer's New mark shows at rest. A touch brings an edge forward first. Many scroll in their
@@ -1044,7 +1050,7 @@ it, every box on the page is where it was. Coming back, what this is over the re
 to pass under it, fading in over the move's second half (until 20 Nov it came in with the move, and the edge ran
 across its second line as it did). It goes on the press, not on the app's arrival: that keeps it one move with
 the picture going whole, and calling off, a press of its own, is answered by the way back. The menu at the top left
-stays, as it opens what's waiting over the app; who you are is the bar's to say; a note made there is pinned in the app,
+stays, as it opens what's waiting over the app; who you are is the pointer's to say; a note made there is pinned in the app,
 and its card is on the Notes edge once you're back. On a phone, with no edges beside it, nothing of this changes.
 
 The app opens in the recording's place, at its size. With your pointer on the app, the recording's comes to yours
@@ -1053,8 +1059,18 @@ picture, out of the window, not yet moved, or a touch screen), the recording's p
 opens from it, and yours is simply yours as it comes into the app: it's the app, not the box it's in, that counts, as
 the topmost thing under your pointer (until 20 Nov the box counted, so with the pointer on Take over's upper half the
 agent's pointer came to it, and on its lower half it stayed on the app until you moved). Coming back, your pointer, if
-it's in the app, goes back to where the recording has it; if not, the recording's fades in there. In the app the bar says "You,
-as …" beside Back, whose key reads Esc ×2: one keycap and its count in the keycap's own small, quiet letters (two
+it's in the app, goes back to where the recording has it; if not, the recording's fades in there. **The pointer's tag
+says the change of hands.** As the agent's pointer becomes yours, its tag rolls in place, upward, nothing moving
+sideways, from "Your agent" to "You", one line at the same small size, in the amber the app's edge has while it's yours
+with dark words, over the same 420 ms (`HANDING`, `Portal.tsx`). With your pointer on the app it goes with it; anywhere
+else, or on a touch screen, it rolls where the agent's pointer stood, and goes with yours once yours comes in. It stays
+a second once the app is yours, then fades, or goes at once at your first click or key in the app (the app tells the
+page `key`, once a press). Coming back, the agent's pointer returns wearing "Your agent" in grey, coming in as it leaves
+where yours was. The tag is drawn once, by the pointer that wears it: the one standing in for the recording's takes its
+place in the very frame the recording's goes, both ways, so the two are one tag (`worn`: taken over as it fades in or
+out with playing, it carries on from as much of it as was seen). With reduced motion it doesn't roll: the words are
+simply yours. While the app is yours, Play and its arrows rest greyed in their place, as Compare does, so Back and Note
+never move. Back's key reads Esc ×2: one keycap and its count in the keycap's own small, quiet letters (two
 keycaps side by side read as a bug, the user said), heard as "Back, Escape twice". Back, the keyboard comes back to the page, and the app kept ready underneath
 is inert until it's yours again, so Tab never walks an app nobody can see. A single Escape is the app's, whatever the app does with it, or nothing,
 and Playthrough does nothing with it; Escape twice, the second within half a second of the first, is Back, and the app

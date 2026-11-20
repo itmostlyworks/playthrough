@@ -406,6 +406,9 @@ export const SAYS = `(() => {
   });
   // A click here is a click elsewhere, to what the viewer has open.
   addEventListener("pointerdown", (e) => e.isTrusted && parent.postMessage({ playthrough: "down" }, "*"), true);
+  // A key pressed here, held down or not, is told once: with that or a click, you've started, and the pointer's tag
+  // saying it's you goes.
+  addEventListener("keydown", (e) => e.isTrusted && !e.repeat && parent.postMessage({ playthrough: "key" }, "*"), true);
   document.addEventListener("pointerleave", () => parent.postMessage({ playthrough: "pointer", x, y, inside: false }, "*"));
   // Escape is the app's, every single press, whatever the app does with it. Pressed twice, the second right after the
   // first, it's Back, and the app never hears that second one, held or let go: coming back finds the app as the first

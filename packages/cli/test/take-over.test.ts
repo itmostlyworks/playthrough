@@ -130,6 +130,28 @@ test("in the app, a single Escape is the app's, and twice is Back, the app heari
   await person.close();
 });
 
+test("in the app, a key pressed is told once, held down or not, and a click too: you've started, and the pointer's tag goes", async () => {
+  const person = await browser.newPage();
+  await app(person);
+  await person.goto("http://app.test/");
+  const settled = person.evaluate(() => new Promise((done) => addEventListener("message", ({ data }) => data?.playthrough === "settled" && done(true))));
+  await person.evaluate(() => {
+    Object.assign(window, { told: [] });
+    addEventListener("message", ({ data }) => ["key", "down"].includes(data?.playthrough) && (window as unknown as { told: string[] }).told.push(data.playthrough));
+    document.body.append(Object.assign(document.createElement("iframe"), { src: "/board" }));
+  });
+  await settled;
+  const board = person.frames().find((frame) => frame.url().endsWith("/board"))!;
+  await board.focus("#card");
+  await person.keyboard.down("a");
+  await person.keyboard.down("a");
+  await person.keyboard.up("a");
+  await board.click("text=Doing");
+  await person.waitForTimeout(100);
+  assert.deepEqual(await person.evaluate(() => (window as unknown as { told: string[] }).told), ["key", "down"]);
+  await person.close();
+});
+
 test("on the way to where it's taken over, a key is pressed once the page has come to rest, as it was recorded", async () => {
   const running = await browser.newPage();
   // A card that takes a moment to load which board it's on, and Escape goes back to that board.

@@ -13,6 +13,8 @@ import { insideAnotherPage } from "./inside.ts";
 import { Replay, type Choice, type Events, type Pressed, type Rect, type Scrolled } from "./replay.ts";
 import type { Crop } from "./Picture.tsx";
 import { stepFrom } from "./stepping.ts";
+import { PointerTag, sizeOf, turn } from "./PointerTag.tsx";
+import { besideTip } from "./tag.ts";
 import { pickAt } from "./things.ts";
 import { around as aroundCentre, calm, CLOSEST, nearer, pointerScale, seenThrough, wheeled, type Box, type Together } from "./view.ts";
 
@@ -127,9 +129,14 @@ type Props = {
   // Where its page and each part of it that scrolls on its own is scrolled, as it rests: the app taken over there is too.
   scrolled?: RefObject<(() => Scrolled) | undefined>;
   // Whether its pointer is drawn: not on a note's own frame, nor while the app's pointer stands in for it. And where it
-  // draws it, in its own pixels, if it does: where the app's comes from.
+  // draws it, in its own pixels, if it does: where the app's comes from, and how much of its tag is seen.
   hand?: boolean;
-  drawn?: RefObject<(() => { x: number; y: number } | undefined) | undefined>;
+  drawn?: RefObject<(() => { x: number; y: number; worn: number } | undefined) | undefined>;
+  // Whose hands the pointer is, on its tag (tag.ts), while `tagged`: it fades in and out, and is only ever where the
+  // pointer is drawn and in the picture. A key pressed as it plays stands where the tag would: the key is shown, and
+  // the tag waits.
+  tag?: string;
+  tagged?: boolean;
   // Where a frame on (1) or back (-1) from a time rests, within what's shown from `from` to `end`; nothing past either.
   frameFrom?: RefObject<((at: number, by: 1 | -1, from: number, end: number) => number | undefined) | undefined>;
 };
@@ -146,6 +153,8 @@ export function Player(props: Props) {
   const caret = useRef<HTMLSpanElement>(null);
   const list = useRef<HTMLDivElement>(null);
   const pressed = useRef<HTMLElement>(null);
+  const tagAt = useRef<HTMLSpanElement>(null);
+  const tag = useRef<HTMLSpanElement>(null);
   const [replay, setReplay] = useState<{ replay: Replay; events: Events }>();
   // Drawn to its width, and again as that changes: Compare on or off, the app taking the page, the window resized. Drawn
   // again before that frame is shown, so it's never a frame behind its picture's edges as they move.
@@ -183,7 +192,9 @@ export function Player(props: Props) {
     props.frameFrom.current = replayed && ((at, by, from, end) => stepFrom(at, by, { from, end, changes: replayed.changes }, (change) => replayed.movingUntil(change)));
   }, [replay]);
   const handAt = useRef<{ x: number; y: number }>(undefined);
-  useEffect(() => void (props.drawn && (props.drawn.current = () => handAt.current)), []);
+  // How much of the tag is seen now: none where it's out of the picture or waits for a key.
+  const worn = () => (tagAt.current && tag.current?.style.visibility === "" && tag.current.style.opacity === "" ? Number(getComputedStyle(tagAt.current).opacity) : 0);
+  useEffect(() => void (props.drawn && (props.drawn.current = () => handAt.current && { ...handAt.current, worn: worn() })), []);
 
   const { at, playing, cut, clock, following, crop, marks, framedOn } = props;
   // Inside another page its window stays whole: the wheel, a drag and a swipe over it are that page's.
@@ -236,15 +247,21 @@ export function Player(props: Props) {
       replayed.placeCaret(caret.current!, time, left, top, k);
       const pointer = replayed.pointerAt(time);
       placeList(list.current!, replayed.choices.find((choice) => time >= choice.from && time < choice.until + SHUTS), pointer, left, top, k);
-      placeKey(pressed.current!, moving ? replayed.keys.findLast((one) => time >= one.at && time - one.at < KEY_SHOWN) : undefined, time, pointer, shape, left, top, k);
+      const keyShown = placeKey(pressed.current!, moving ? replayed.keys.findLast((one) => time >= one.at && time - one.at < KEY_SHOWN) : undefined, time, pointer, shape, left, top, k);
       const hand = cursor.current!;
       handAt.current = pointer && { x: (pointer[0] - left) * k, y: (pointer[1] - top) * k };
       hand.style.opacity = pointer ? "1" : "0";
+      const inSight = !!handAt.current && handAt.current.x >= 0 && handAt.current.y >= 0 && handAt.current.x <= room.width && handAt.current.y <= room.height;
+      if (tag.current) Object.assign(tag.current.style, { visibility: inSight ? "" : "hidden", opacity: keyShown ? "0" : "" });
       if (!handAt.current) return;
       const { x, y } = handAt.current;
       // Grown with the picture, about its tip, which stays on what it points at.
       const grown = pointerScale(k);
       hand.style.transform = `translate(${x - 3 * grown}px, ${y - 2 * grown}px) scale(${grown})`;
+      if (tag.current && inSight) {
+        tagAt.current!.style.transform = `translate(${x}px, ${y}px)`;
+        turn(tag.current, besideTip({ x, y }, sizeOf(tag.current), room, grown), grown);
+      }
       // A click rings out over half a second of the recording.
       const click = replayed.clicks.find((click) => time >= click && time - click < 0.5);
       const u = click === undefined ? 1 : (time - click) / 0.5;
@@ -452,6 +469,17 @@ export function Player(props: Props) {
           <path d="M3 2l13 7.5-5.6 1.3L7.6 16z" fill="#FFFFFF" stroke="#1E2330" strokeWidth="1.3" strokeLinejoin="round" />
         </svg>
       </div>
+      {/* Gone at once with the pointer, as the app's takes its place wearing the same. */}
+      {props.tag && (
+        <PointerTag
+          at={tagAt}
+          tag={tag}
+          words={props.tag}
+          unplaced
+          className={`z-1 transition-opacity duration-[240ms] ease-calm ${props.tagged ? "" : "opacity-0"}`}
+          style={props.hand === false ? { visibility: "hidden" } : undefined}
+        />
+      )}
     </div>
   );
 }
@@ -476,15 +504,16 @@ const KEY_FADES = 0.3;
 
 // A key pressed, small and quiet, beside what it went to and never over it: right of the field it was pressed in, or
 // under it where the screen ends first; else just below and right of the pointer, where a name tag would sit. Shown as
-// the recording plays, never at rest.
+// the recording plays, never at rest. Whether it's shown.
 function placeKey(element: HTMLElement, pressed: Pressed | undefined, time: number, pointer: [number, number] | undefined, shape: { width: number }, left: number, top: number, k: number) {
   const by = pressed?.field ?? (pointer && { x: pointer[0] + 10, y: pointer[1] + 16, width: 0, height: 0 });
-  if (!pressed || !by) return void (element.style.opacity = "0");
+  if (!pressed || !by) return ((element.style.opacity = "0"), false);
   if (element.textContent !== pressed.key) element.textContent = pressed.key;
   const wide = element.offsetWidth / k;
   const [x, y] = !pressed.field ? [by.x, by.y] : by.x + by.width + 8 + wide <= shape.width ? [by.x + by.width + 8, by.y + by.height / 2 - 8.5 / k] : [by.x, by.y + by.height + 6];
   element.style.opacity = String(0.9 * Math.min(1, (KEY_SHOWN - (time - pressed.at)) / KEY_FADES));
   element.style.transform = `translate(${((x - left) * k).toFixed(1)}px, ${((y - top) * k).toFixed(1)}px)`;
+  return true;
 }
 
 // How long a dropdown's list stays after its choice is made, in seconds: the choice is seen lit as it closes.
