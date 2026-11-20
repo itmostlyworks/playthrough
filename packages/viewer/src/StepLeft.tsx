@@ -212,7 +212,6 @@ export function StepBox({ step, anyway, onPress, className = "" }: { step: Step;
   const now =
     said === "sending" ? "sending" : taken === "Sent" ? (working ? "working" : "sent") : taken === "Done" ? "done taken" : what === "send" ? "send" : what === "done" ? (anyway ? "anyway" : "done") : "nothing";
   const pressable = !!what && !taken && said !== "sending";
-  const filled = now === "send";
   return (
     <button
       data-part="step"
@@ -220,13 +219,9 @@ export function StepBox({ step, anyway, onPress, className = "" }: { step: Step;
       disabled={!pressable}
       onMouseDown={(event) => event.preventDefault()}
       onClick={(event) => (event.detail && event.currentTarget.blur(), onPress())}
-      className={`grid h-10 flex-none items-center rounded-xl px-3.5 text-[13px] font-medium whitespace-nowrap transition-[background-color,color,box-shadow] duration-200 ease-calm ${
-        filled
-          ? "bg-fg text-ground shadow-[0_1px_2px_var(--drop),0_6px_20px_var(--drop)] hover:bg-[color-mix(in_srgb,var(--fg)_86%,var(--ground))]"
-          : pressable
-            ? "bg-surface text-fg shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)] hover:bg-hover"
-            : "cursor-default bg-surface text-soft shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]"
-      } ${className}`}
+      // Of the bar's own material, so the two read as one bar and its neighbour: what says there's something to send is
+      // its words in full ink, and the amber light as a note is saved.
+      className={`grid h-10 flex-none items-center rounded-xl bg-surface px-3.5 text-[13px] whitespace-nowrap shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)] transition-[background-color,color] duration-150 ease-calm ${pressable ? "text-fg enabled:hover:bg-hover" : "cursor-default text-soft"} ${className}`}
     >
       {faces.map(([is, words]) => (
         <span key={is} aria-hidden={is !== now} className={`flex items-center justify-center [grid-area:1/1] ${is === now ? (taken ? "text-fg" : "") : "invisible"}`}>
