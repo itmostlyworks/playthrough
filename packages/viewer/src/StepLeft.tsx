@@ -4,7 +4,7 @@
 // where it was, then goes on to what's next. Already with your agents, or done, it says so, and there's nothing to press.
 // A guest on a shared change only sends: with nothing to send, it says how their notes go, and there's nothing to press.
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { TellYours } from "./Changes.tsx";
 import { standingOf, type Note } from "@playthrough/change";
 import { isGuest, type Listed } from "./api.ts";
@@ -190,6 +190,50 @@ export function StepNotice({ step, todo, faded }: { step: Step; todo?: { words: 
         {working ? "The agent is working on your notes" : WITH_AGENTS[0]}
       </span>
     </Notice>
+  );
+}
+
+// The step left, in a box of its own beside the bar, one slot that changes in place: Send, Sent, the agent working once
+// it has them, Done, Done anyway, Done with its tick. Every face is laid in it, all but one unseen, so it's as wide as
+// its widest and nothing moves as it turns. Pressed: what it says.
+export function StepBox({ step, anyway, onPress, className = "" }: { step: Step; anyway: boolean; onPress: () => void; className?: string }) {
+  const { what, said, taken } = step;
+  const working = step.went === "working" || (step.step.is === "with" && step.step.words === "Agent working");
+  const faces: [string, ReactNode][] = [
+    ["send", step.words],
+    ["sending", "Sending…"],
+    ["sent", <>{tick}Sent</>],
+    ["working", <><i className="mr-[7px] size-[7px] animate-breathe rounded-full bg-slate" />Agent working</>],
+    ["done", "Done"],
+    ["anyway", "Done anyway"],
+    ["done taken", <>{tick}Done</>],
+    ["nothing", NOTHING_YET],
+  ];
+  const now =
+    said === "sending" ? "sending" : taken === "Sent" ? (working ? "working" : "sent") : taken === "Done" ? "done taken" : what === "send" ? "send" : what === "done" ? (anyway ? "anyway" : "done") : "nothing";
+  const pressable = !!what && !taken && said !== "sending";
+  const filled = now === "send";
+  return (
+    <button
+      data-part="step"
+      data-goes-on
+      disabled={!pressable}
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={(event) => (event.detail && event.currentTarget.blur(), onPress())}
+      className={`grid h-10 flex-none items-center rounded-xl px-3.5 text-[13px] font-medium whitespace-nowrap transition-[background-color,color,box-shadow] duration-200 ease-calm ${
+        filled
+          ? "bg-fg text-ground shadow-[0_1px_2px_var(--drop),0_6px_20px_var(--drop)] hover:bg-[color-mix(in_srgb,var(--fg)_86%,var(--ground))]"
+          : pressable
+            ? "bg-surface text-fg shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)] hover:bg-hover"
+            : "cursor-default bg-surface text-soft shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]"
+      } ${className}`}
+    >
+      {faces.map(([is, words]) => (
+        <span key={is} aria-hidden={is !== now} className={`flex items-center justify-center [grid-area:1/1] ${is === now ? (taken ? "text-fg" : "") : "invisible"}`}>
+          {words}
+        </span>
+      ))}
+    </button>
   );
 }
 

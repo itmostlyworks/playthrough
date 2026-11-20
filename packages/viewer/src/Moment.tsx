@@ -28,7 +28,7 @@ import { doneIn, type Rect, type Scrolled } from "./replay.ts";
 import { ago, noteSays, shownIn, shownOn, takingOf, seenOf } from "./standing.ts";
 import { LastStop } from "./LastStop.tsx";
 import { Share } from "./Share.tsx";
-import { StepAction, StepCard, StepNotice, useStepLeft } from "./StepLeft.tsx";
+import { StepAction, StepBox, StepNotice, useStepLeft } from "./StepLeft.tsx";
 import { backAgain } from "./step.ts";
 import { useKeptReady, useTakeOver } from "./takeOver.ts";
 import { useHeld } from "./held.ts";
@@ -573,9 +573,7 @@ export function MomentView(props: {
   // lights where it stands, with its edge at full while it's lit: nothing goes to it, since the note didn't. At the last
   // stop Send is right there, and on a phone there's no edge.
   const lightSend = () => {
-    const card = document.querySelector('[data-tile="the last stop"]');
-    card?.firstElementChild?.animate([{ backgroundColor: "color-mix(in srgb, var(--amber) 22%, transparent)" }, {}], { duration: 700, easing: unmoving() ? "steps(1, end)" : "ease-out" });
-    card?.closest("[role=region]")?.animate([{ opacity: 1 }, { opacity: 1 }], { duration: 700 });
+    document.querySelector('[data-part="step"]')?.animate([{ boxShadow: "0 0 0 2px var(--amber), 0 0 0 6px color-mix(in srgb, var(--amber) 30%, transparent)" }, {}], { duration: 700, easing: unmoving() ? "steps(1, end)" : "ease-out" });
   };
   // The open note's frame over the moment, and the one before it while that fades: only ever this moment's.
   const [layered, setLayers] = useState<{ note: Note; sent: boolean; made: Made }[]>([]);
@@ -946,8 +944,6 @@ export function MomentView(props: {
       quiet={away}
       phone={phone}
       showing={atLastStop ? LAST_STOP : moment.name}
-      // At the last stop on a phone, its Send or Done is the bar's, a thumb away: one is enough.
-      foot={phone && atLastStop ? undefined : (forward, tucked) => <StepCard step={step} here={false} forward={forward} tucked={tucked} dots={onTheWhole.map(({ note, sent: isSent }) => ({ id: note.id, sent: isSent }))} anyway={doneAnyway} onPress={pressStep} />}
       answers={away && may.back}
     >
       {momentTiles}
@@ -957,6 +953,44 @@ export function MomentView(props: {
   // How wide the recording is, against its place: all of it, or while the app is yours, the page's room for it.
   const wide = takes ? inTheAppsRoom(screen) : "100%";
 
+  // Compare, or a note from an earlier hand-back's As it was and Now, or what the moment is to you if neither: in the
+  // recording's top left on hover, or in the bar on a phone, where nothing hovers.
+  const comparer = (anyLook || sent.some(earlier)) &&
+              (flips ? (
+                // A note from an earlier hand-back open: how it was, or now, flipped in place. Each part chooses itself.
+                // Its thing not in the moment now, Now rests, and says why when the switch is pointed at.
+                <span role="group" aria-label="Shown" data-part="shown" className={`${COMPARING} group/tip relative flex items-stretch rounded-lg bg-hover p-0.5`}>
+                  {(["As it was", "Now"] as const).map((words) => {
+                    const chosen = (words === "As it was") === flipped;
+                    return (
+                      <button
+                        key={words}
+                        data-part={words === "Now" ? "now" : "as-it-was"}
+                        aria-pressed={chosen}
+                        disabled={!chosen && !nowThere}
+                        aria-description={!chosen && !nowThere ? NOT_NOW : undefined}
+                        onClick={() => !chosen && flip()}
+                        className={`flex flex-auto items-center justify-center rounded-md px-2 phone:px-0 whitespace-nowrap transition-[background-color,color,box-shadow] duration-200 ease-calm ${chosen ? "cursor-default bg-surface text-fg shadow-[0_0_0_1px_var(--edge),0_1px_2px_var(--drop)]" : "text-soft enabled:hover:text-fg disabled:cursor-default disabled:opacity-50"}`}
+                      >
+                        {words}
+                      </button>
+                    );
+                  })}
+                  {!nowThere && <Tip>{NOT_NOW}</Tip>}
+                </span>
+              ) : then ? (
+                <button data-part="compare" className={`${ITEM} ${COMPARING} phone:px-0!`} disabled={!may.compare} aria-pressed={comparing} onClick={compare}>
+                  Compare <Key>C</Key>
+                </button>
+              ) : (
+                // Nothing to compare: what it is, in Compare's place, at its width. Said, not offered: smaller, in the
+                // soft ink of words that say what something is, so it can't be taken for a button resting.
+                <span className={`${COMPARING} inline-flex cursor-default items-center justify-center text-xs text-soft`}>{looking ? "Unchanged" : "New"}</span>
+              ));
+  // Shown in the recording's corner while the pointer is over it, or while Compare or As it was is on, so the way out is
+  // in sight; never while it plays or the app is yours.
+  const [overRecording, setOverRecording] = useState(false);
+  const cornerShown = !phone && !!comparer && !playing && !away && (overRecording || comparing || flipped);
   const title = <Title title={change.title} asked={change.asked} quiet={`${props.app} · ${backAgain(change, you) ? "back again" : "back"} ${ago(handBack.finished!, Date.now())}`} />;
 
   return (
@@ -1013,7 +1047,8 @@ export function MomentView(props: {
             className={`absolute bottom-0 left-1/2 overflow-visible rounded-lg transition-[width,margin-left] ${takes ? "z-31" : ""}`}
             style={{ aspectRatio: `${screen.width} / ${screen.height}`, width: wide, marginLeft: `calc(${wide} / -2)`, ...STEPPING_OUT }}
             onPointerMove={(event) => (movePill(event), setAiming(!(event.target as Element).closest("[role=toolbar]")))}
-            onPointerLeave={() => setAiming(false)}
+            onPointerEnter={() => setOverRecording(true)}
+            onPointerLeave={() => (setAiming(false), setOverRecording(false))}
           >
           {/* At the last stop, once its sheet has come in over it, the moment is put away: its edge showed round the sheet's
               rounded corners, light on dark. Leaving, it's back at once, under the sheet fading out. */}
@@ -1073,7 +1108,8 @@ export function MomentView(props: {
                         framedOn={framedOn}
                         moves={pageWindow}
                       />
-                      <span className={CHIP}>{side.label}</span>
+                      {/* The left side's label stands clear of Compare, in the corner over it. */}
+                      <span className={CHIP} style={side.side === 1 && !phone ? { top: 58 } : undefined}>{side.label}</span>
                     </div>
                   </div>
                 ))}
@@ -1119,6 +1155,12 @@ export function MomentView(props: {
               )}
             </div>
           </div>
+          {/* Compare, and As it was and Now, in the recording's top left: over the left side's label while comparing. */}
+          {!phone && comparer && (
+            <div data-part="corner" className={`absolute top-2.5 left-2.5 z-[16] flex rounded-xl bg-surface p-1 text-[13px] shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)] transition-opacity duration-200 ease-calm select-none ${then || flips ? "" : "bg-transparent! shadow-none!"} ${cornerShown ? "" : "pointer-events-none opacity-0"}`} inert={!cornerShown} onClick={(event) => (event.target as Element).closest("button")?.blur()}>
+              {comparer}
+            </div>
+          )}
           <Portal
             {...takeOver.portal}
             screen={screen}
@@ -1232,6 +1274,12 @@ export function MomentView(props: {
             )}
             {/* Where the change stands, over the bar on every moment, but where Take over or noting has its say there. */}
             {!atLastStop && !takeOver.cant && !takeOver.said && !takeOver.waitingOn && !noting && !writing && <StepNotice step={step} todo={doneAnyway && !step.said ? toDo : undefined} faded={!!playing} />}
+            {/* The step left, in its own box at the bar's right, on its line: with the bar always, playing or in the app. */}
+            {!atLastStop && !phone && (
+              <div className="absolute top-0 left-full ml-3">
+                <StepBox step={step} anyway={doneAnyway} onPress={pressStep} />
+              </div>
+            )}
             {/* At the last stop, the one thing to do there. */}
             {atLastStop ? (
               // Note, as on a moment, on the whole change; beside it the step left.
@@ -1289,38 +1337,7 @@ export function MomentView(props: {
             <button data-part="note" className={`${ITEM} phone:px-0! phone:[flex:16_1_29px]`} disabled={!may.note} aria-pressed={noting} onClick={note}>
               Note <Key>N</Key>
             </button>
-            {(anyLook || sent.some(earlier)) &&
-              (flips ? (
-                // A note from an earlier hand-back open: how it was, or now, flipped in place. Each part chooses itself.
-                // Its thing not in the moment now, Now rests, and says why when the switch is pointed at.
-                <span role="group" aria-label="Shown" data-part="shown" className={`${COMPARING} group/tip relative flex items-stretch rounded-lg bg-hover p-0.5`}>
-                  {(["As it was", "Now"] as const).map((words) => {
-                    const chosen = (words === "As it was") === flipped;
-                    return (
-                      <button
-                        key={words}
-                        data-part={words === "Now" ? "now" : "as-it-was"}
-                        aria-pressed={chosen}
-                        disabled={!chosen && !nowThere}
-                        aria-description={!chosen && !nowThere ? NOT_NOW : undefined}
-                        onClick={() => !chosen && flip()}
-                        className={`flex flex-auto items-center justify-center rounded-md px-2 phone:px-0 whitespace-nowrap transition-[background-color,color,box-shadow] duration-200 ease-calm ${chosen ? "cursor-default bg-surface text-fg shadow-[0_0_0_1px_var(--edge),0_1px_2px_var(--drop)]" : "text-soft enabled:hover:text-fg disabled:cursor-default disabled:opacity-50"}`}
-                      >
-                        {words}
-                      </button>
-                    );
-                  })}
-                  {!nowThere && <Tip>{NOT_NOW}</Tip>}
-                </span>
-              ) : then ? (
-                <button data-part="compare" className={`${ITEM} ${COMPARING} phone:px-0!`} disabled={!may.compare} aria-pressed={comparing} onClick={compare}>
-                  Compare <Key>C</Key>
-                </button>
-              ) : (
-                // Nothing to compare: what it is, in Compare's place, at its width. Said, not offered: smaller, in the
-                // soft ink of words that say what something is, so it can't be taken for a button resting.
-                <span className={`${COMPARING} inline-flex cursor-default items-center justify-center text-xs text-soft`}>{looking ? "Unchanged" : "New"}</span>
-              ))}
+            {phone && comparer}
             </div>
             </>
             )}
@@ -1331,6 +1348,8 @@ export function MomentView(props: {
       {/* Beside the recording, or under it on a phone: the change's moments, and this one's notes. */}
       <div ref={rows} onScroll={rowsMore.look} className={phone ? "grid min-h-0 grid-cols-[minmax(0,1fr)] content-start gap-6 overflow-y-auto px-4 pt-6 pb-8" : "contents"} style={phone ? rowsMore.fade : undefined}>
         {phone && cards}
+        {/* On a phone, the step left is a row of its own under the bar. */}
+        {phone && !atLastStop && <StepBox step={step} anyway={doneAnyway} onPress={pressStep} className="w-full" />}
         {/* Tab reaches them as they read, left to right; on a phone, the notes come first, nearest what they're on. */}
         {!phone && momentsEdge}
         {(!phone || (!atLastStop && onEdge.length > 0)) && (
