@@ -566,13 +566,28 @@ export const SAYS = `(() => {
   // Where a page zooms itself whole (html { zoom }), the marks undo it: they're placed where the page says its things
   // are, which is already zoomed, and drawn at their own size.
   const unzoomed = () => (holder.style.zoom = String(1 / (parseFloat(getComputedStyle(document.documentElement).zoom) || 1)));
+  // What a click there notes: the thing it's on, named as the page is read for every moment, so a later hand-back's
+  // moment finds it by the same name (a reminder's message box is "Message" there, where its own words named it here).
+  // What the page's reading doesn't count as a thing, as the part of a panel around what's in it or an empty cell, is
+  // the spot, never the words of everything in it.
+  const notedAt = (target) => {
+    const on = thing(target);
+    const node = window.rrwebRecord?.record?.mirror?.getId(on);
+    const known = node > 0 && recording ? read().things.find((one) => one.node === node) : undefined;
+    const [kind, name] = known ? [known.role, known.name] : recording ? [] : [role(on), words(on)];
+    return { on, node, ...(name && { kind, name }) };
+  };
+  // Noting, what a click would note is outlined, as on the recording: a thing, and nothing over a spot. Read once for
+  // each thing pointed at, not each move.
   const ring = document.createElement("div");
   ring.style.cssText = "position:fixed;z-index:2147483647;pointer-events:none;border-radius:6px;box-shadow:0 0 0 2px rgba(236,178,72,.95),0 0 0 6px rgba(236,178,72,.18);display:none;transition:all 90ms ease-out";
   marks.appendChild(ring);
+  let aimed;
   const ringed = (target) => {
-    if (!noting) return void (ring.style.display = "none");
+    aimed = noting && target ? (aimed?.target === target ? aimed : { target, ...notedAt(target) }) : undefined;
+    if (!aimed?.name) return void (ring.style.display = "none");
     unzoomed();
-    const box = thing(target).getBoundingClientRect();
+    const box = aimed.on.getBoundingClientRect();
     Object.assign(ring.style, { display: "block", left: box.left - 3 + "px", top: box.top - 3 + "px", width: box.width + 6 + "px", height: box.height + 6 + "px" });
   };
   addEventListener("message", ({ source, data }) => {
@@ -586,18 +601,14 @@ export const SAYS = `(() => {
     e.preventDefault();
     e.stopImmediatePropagation();
     if (e.type === "pointerdown") {
-      const on = thing(e.target);
       // Noted before the recording's pointer has come to yours, the recording starts here, so the note has one to be on.
       record(true);
       readNow();
       send();
-      const node = window.rrwebRecord?.record?.mirror?.getId(on);
-      // Named as the page is read for every moment, so a later hand-back's moment finds it by the same name: a reminder's
-      // message box is "Message" there, where its own words named it here. What the page's reading doesn't count as a
-      // thing, as the part of a panel around what's in it, is the spot, never the words of everything in it.
-      const known = node > 0 && recording ? read().things.find((thing) => thing.node === node) : undefined;
-      const [kind, name] = known ? [known.role, known.name] : recording ? [] : [role(on), words(on)];
-      noted = on;
+      const { on, node, kind, name } = notedAt(e.target);
+      // A spot is on the page where it was put, held by what's under it there.
+      const under = e.target.getBoundingClientRect();
+      noted = name ? { on } : { on: e.target, from: { x: e.clientX - under.left, y: e.clientY - under.top } };
       parent.postMessage({ playthrough: "noted", ...(name ? { element: { role: kind, name, css: path(on), ...(node > 0 && { node }) } } : { point: { x: e.clientX / innerWidth, y: e.clientY / innerHeight } }), did, x: e.clientX, y: e.clientY, ...(name && { box: (({ left, top, width, height }) => ({ x: left, y: top, width, height }))(on.getBoundingClientRect()) }), address: location.pathname + location.search + location.hash }, "*");
       noting = false;
       swallowing = true;
@@ -609,7 +620,8 @@ export const SAYS = `(() => {
   // A note's pin, on what it's on, and where it is, for its card to sit by: drawn as on the recording, a note's dot just
   // outside its thing's top right corner. It's on the thing itself, as it was noted:
   // drawn again by the app, the same role and name, it's still that thing; gone, the pin goes until it's back, and never
-  // moves onto whatever sits where it was, as the next card does once one is deleted. A note on a spot stays there.
+  // moves onto whatever sits where it was, as the next card does once one is deleted. A note on a spot stays on that spot
+  // of the page, with what's under it, as it scrolls or moves, and goes while that's gone.
   let noted;
   const pins = new Map();
   addEventListener("message", ({ source, data }) => {
@@ -617,7 +629,7 @@ export const SAYS = `(() => {
     const pin = pins.get(data.id) ?? { mark: document.createElement("div") };
     pin.mark.style.cssText = "position:fixed;z-index:2147483646;pointer-events:none;display:none;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:#d9a23a;box-shadow:0 0 0 2px #fff,0 1px 4px rgba(0,0,0,.25)";
     unzoomed();
-    Object.assign(pin, data.thing ? { named: data.thing, on: noted } : { point: data.point });
+    Object.assign(pin, noted, data.thing && { named: data.thing });
     marks.appendChild(pin.mark);
     pins.set(data.id, pin);
   });
@@ -642,12 +654,12 @@ export const SAYS = `(() => {
   requestAnimationFrame(function place() {
     if (pageChanged && pins.size && performance.now() - looked > 250) (pageChanged = false, (looked = performance.now()), lookAgain());
     const at = {};
-    for (const [id, { mark: pin, on, point }] of pins) {
+    for (const [id, { mark: pin, on, from }] of pins) {
       const box = on?.isConnected ? on.getBoundingClientRect() : undefined;
       // As on the recording: out from the top right corner, at the bottom where the top is out of view, and pulled in
-      // where the right or the bottom is, so it's never cut off.
+      // where the right or the bottom is, so it's never cut off. On a spot, the spot.
       const out = (room) => Math.min(${OUT}, room - 11);
-      const spot = box?.width ? { x: box.right + out(innerWidth - box.right), y: box.top - ${OUT} >= 11 ? box.top - ${OUT} : box.bottom + out(innerHeight - box.bottom) } : point ? { x: point.x * innerWidth, y: point.y * innerHeight } : undefined;
+      const spot = !box ? undefined : from ? { x: box.left + from.x, y: box.top + from.y } : box.width ? { x: box.right + out(innerWidth - box.right), y: box.top - ${OUT} >= 11 ? box.top - ${OUT} : box.bottom + out(innerHeight - box.bottom) } : undefined;
       pin.style.display = spot ? "block" : "none";
       if (!spot) continue;
       Object.assign(pin.style, { left: spot.x + "px", top: spot.y + "px" });

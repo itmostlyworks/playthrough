@@ -128,7 +128,7 @@ export function useTakeOver({ change, handBack, moment, page, clock, act, pointi
   // Saved there, a note made in the app shows in it as a pin on what it's on, as on the recording.
   const saved = (note: Note) => {
     if (shown) madeThere.current.add(note.id);
-    if (note.on && madeInApp(note.on) && yours) app.current?.post({ playthrough: "pin", id: note.id, thing: note.on.element && { role: note.on.element.role, name: note.on.element.name }, point: note.on.point });
+    if (note.on && madeInApp(note.on) && yours) app.current?.post({ playthrough: "pin", id: note.id, thing: note.on.element && { role: note.on.element.role, name: note.on.element.name } });
   };
 
   return {

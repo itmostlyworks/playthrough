@@ -1052,12 +1052,16 @@ over exactly the half second in which a second would take you back (the app tell
 reduced motion it's lit, then unlit. Nothing in the bar changes size. A key held down is one press; with Note on,
 Escape is Playthrough's and turns it off, without counting as a first press, and lights nothing. A link out of it opens in a tab of your own. The app is drawn with
 `will-change: transform`, so its words keep their spaces, and the clipboard is the page's, on the way there and in your
-browser. In a moment recorded on a phone's screen, a mouse drag is a swipe. Note works there as on the recording: what you did in the app is
+browser. In a moment recorded on a phone's screen, a mouse drag is a swipe. Note works there as on the recording: what a
+click would note is outlined, a thing the page's reading counts, named as it does (`notedAt`), and over anything else,
+as blank space or an empty cell, nothing, as the click notes the spot (until 20 Nov any part of the page was outlined,
+so a note on an empty cell promised the cell and landed on a spot). What you did in the app is
 recorded from when it was handed to you (or from the note, made before the recording's pointer had come to yours) and kept with the change (`branches/`, with the fonts, pictures and stylesheets
 its pages named, `keepNamed`), and the note is on that recording, at its end. Saved there, its pin stands on its thing
 in the app at once, drawn as on the recording, a note's amber dot just out from the thing's top right corner (until 20
 Nov an 18px amber disc with its number, which a dot isn't); it follows its thing as the app redraws it, goes while it's
-gone, and is what the outline that shows what you're pointing at is drawn with (`playthrough-marks`, `take-over.ts`). An
+gone. One on a spot stands on the spot, held by what's under it on the page, so it scrolls and moves with that and goes
+while it's gone (until 20 Nov it stayed where it was in the frame as the page scrolled under it). The pins and the outline that shows what you're pointing at are drawn in a layer of their own (`playthrough-marks`, `take-over.ts`). An
 app that zooms its whole page (`html { zoom }`, as the site's demo app does at 1.28) has both undone, as they're placed
 where the page says its things are, already zoomed: until 20 Nov the outline and the pin stood that much further from
 the page's top left corner than their thing, the pin off it altogether, so a note saved in the app ended with nothing
