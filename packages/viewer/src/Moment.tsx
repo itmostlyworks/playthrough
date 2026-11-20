@@ -808,6 +808,8 @@ export function MomentView(props: {
           forward={forward}
           strong={i + 1 === n && !atLastStop}
           quiet
+          // Watched, by the same count Done's "not watched" is: softer forward, never at rest. Not on a phone.
+          watched={!phone && !props.unwatched.includes(i + 1)}
           picture={
             <>
               <StillPicture change={change} handBack={handBack} moment={other} about={other.about ?? other.acted} />
