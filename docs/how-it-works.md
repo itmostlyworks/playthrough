@@ -744,8 +744,9 @@ in a browser of its own from the recording it was made on (`frames.ts`, the page
 kept with what the person did (`branches/frames/<note>.png` and `.json`). A note's pin on the recording and its picture
 are one thing: pointing at either lights both, the thing outlined only then or while open (`Pinned.tsx`). While you're in
 the app, or while it's getting there, the edges go where they stand, the recording taking their room (**Stepping in**),
-and come back as they were. On a phone, where they're rows under it, they rest instead, quieter, each card at the same
-40% rather than the row's and its own together. The notes can't be pressed. The moments can, with the pointer:
+and come back as they were; nothing on them can be pressed meanwhile. On a phone, where they're rows under it, they rest
+instead, quieter, each card at the same 40% rather than the row's and its own together. The notes can't be pressed. The
+moments can, with the pointer:
 each stays dimmed until it's pointed at, then comes to full, and pressed it leaves the app as Back does and goes to that
 moment, at rest, in one move (a step in on its way is called off as Escape does); the moment you're in the app on is
 just Back. The moments' last card (Send, or Done), which doesn't drive the recording, isn't dimmed at all: pressed, it
@@ -1019,7 +1020,9 @@ by and which never moves, and the recording, which fills its place, or while the
 width the rule gives; the recording's picture, its pins and the app are drawn at each size in the frame it's laid out in
 (`flushSync` from their resize observers), so nothing is a frame behind its edges. Back, Escape twice, a step in called
 off or one that can't happen, all of it comes back in one move, the way in reversed, from wherever it has got to; after
-it, every box on the page is where it was. It goes on the press, not on the app's arrival: that keeps it one move with
+it, every box on the page is where it was. Coming back, what this is over the recording waits for the recording's edge
+to pass under it, fading in over the move's second half (until 20 Nov it came in with the move, and the edge ran
+across its second line as it did). It goes on the press, not on the app's arrival: that keeps it one move with
 the picture going whole, and calling off, a press of its own, is answered by the way back. The menu at the top left
 stays, as it opens what's waiting over the app; who you are is the bar's to say; a note made there is pinned in the app,
 and its card is on the Notes edge once you're back. On a phone, with no edges beside it, nothing of this changes.
@@ -1038,7 +1041,14 @@ Escape is Playthrough's and turns it off, without counting as a first press, and
 `will-change: transform`, so its words keep their spaces, and the clipboard is the page's, on the way there and in your
 browser. In a moment recorded on a phone's screen, a mouse drag is a swipe. Note works there as on the recording: what you did in the app is
 recorded from when it was handed to you (or from the note, made before the recording's pointer had come to yours) and kept with the change (`branches/`, with the fonts, pictures and stylesheets
-its pages named, `keepNamed`), and the note is on that recording, at its end.
+its pages named, `keepNamed`), and the note is on that recording, at its end. Saved there, its pin stands on its thing
+in the app at once, drawn as on the recording, a note's amber dot just out from the thing's top right corner (until 20
+Nov an 18px amber disc with its number, which a dot isn't); it follows its thing as the app redraws it, goes while it's
+gone, and is what the outline that shows what you're pointing at is drawn with (`playthrough-marks`, `step-in.ts`). An
+app that zooms its whole page (`html { zoom }`, as the site's demo app does at 1.28) has both undone, as they're placed
+where the page says its things are, already zoomed: until 20 Nov the outline and the pin stood that much further from
+the page's top left corner than their thing, the pin off it altogether, so a note saved in the app ended with nothing
+on screen where you'd acted.
 
 ## The page for the whole machine
 

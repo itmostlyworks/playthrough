@@ -532,7 +532,7 @@ export function MomentView(props: {
   const keep = (kept: Note) => {
     if (!atLastStop && !phone) lightSend();
     setNotes((all) => [...all, kept]);
-    stepIn.saved(kept, mine.length + 1);
+    stepIn.saved(kept);
   };
   // Step in didn't work here: the note saying so is the person's own, saved as any is, and carries why for the agent.
   const tellAgent = () => {
@@ -970,8 +970,9 @@ export function MomentView(props: {
           {/* What this is, on the recording's top, wherever that stands: the change's title, quietly, and under it the
               moment in the agent's words, then as whom ("… as Maja, the admin"). Those take two lines at most, three on a phone, growing up into room kept
               for them, so nothing under them moves. While the app is yours it goes where it stands, under the app coming over it;
-              who you are there is the bar's to say. */}
-          <div className={`absolute inset-x-0 bottom-full mb-3 flex flex-col items-center phone:mb-2 phone:items-start ${GOES} ${takes ? "opacity-0" : ""}`} style={{ transitionDuration: `${STEPS_OUT}ms` }} inert={takes}>
+              who you are there is the bar's to say. Coming back, it waits for the recording's edge to pass under it, so
+              the edge never runs across words coming in. */}
+          <div className={`absolute inset-x-0 bottom-full mb-3 flex flex-col items-center phone:mb-2 phone:items-start ${GOES} ${takes ? "opacity-0" : ""}`} style={takes ? { transitionDuration: `${STEPS_OUT}ms` } : { transitionDuration: `${STEPS_OUT / 2}ms`, transitionDelay: `${STEPS_OUT / 2}ms` }} inert={takes}>
             {/* At the last stop there's no moment to name: the change's title takes the moment's line, as the sheet's
                 heading, and its own small place over it rests empty. Both stay drawn, one faded out, so nothing moves. */}
             {!phone && !shownByAnotherPage() && <div className={`flex min-w-0 max-w-full justify-center transition-opacity duration-[240ms] ease-calm ${atLastStop ? "pointer-events-none opacity-0" : ""}`}>{title}</div>}

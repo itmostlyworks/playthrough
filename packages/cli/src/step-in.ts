@@ -294,6 +294,8 @@ export const onTheWayTo = (origin: string): ReturnType<typeof onTheWay> => ways.
 // goes to the app, Escape twice goes back to the viewer instead. Then rrweb's recorder, as every moment has it, for what
 // you do here to be recorded. An app opened by its own address, not through Playthrough, includes the same as a file:
 // in-app.js, beside the viewer for another page to show (build.ts).
+// How far out from its thing's top right corner a note's pin stands in the app, as on the recording (`OUT`, Pinned.tsx).
+const OUT = 14;
 let IN_APP: string | undefined;
 export const inApp = () => (IN_APP ??= `${SAYS}\n${readFileSync(recorder, "utf8")}`);
 
@@ -561,11 +563,15 @@ export const SAYS = `(() => {
   const holder = document.createElement("playthrough-marks");
   const marks = holder.attachShadow({ mode: "closed" });
   document.documentElement.appendChild(holder);
+  // Where a page zooms itself whole (html { zoom }), the marks undo it: they're placed where the page says its things
+  // are, which is already zoomed, and drawn at their own size.
+  const unzoomed = () => (holder.style.zoom = String(1 / (parseFloat(getComputedStyle(document.documentElement).zoom) || 1)));
   const ring = document.createElement("div");
   ring.style.cssText = "position:fixed;z-index:2147483647;pointer-events:none;border-radius:6px;box-shadow:0 0 0 2px rgba(236,178,72,.95),0 0 0 6px rgba(236,178,72,.18);display:none;transition:all 90ms ease-out";
   marks.appendChild(ring);
   const ringed = (target) => {
     if (!noting) return void (ring.style.display = "none");
+    unzoomed();
     const box = thing(target).getBoundingClientRect();
     Object.assign(ring.style, { display: "block", left: box.left - 3 + "px", top: box.top - 3 + "px", width: box.width + 6 + "px", height: box.height + 6 + "px" });
   };
@@ -600,7 +606,8 @@ export const SAYS = `(() => {
     if (e.type === "click") swallowing = false;
   };
   for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup", "click"]) addEventListener(type, swallow, true);
-  // A note's pin, on what it's on, and where it is, for its card to sit by. It's on the thing itself, as it was noted:
+  // A note's pin, on what it's on, and where it is, for its card to sit by: drawn as on the recording, a note's dot just
+  // outside its thing's top right corner. It's on the thing itself, as it was noted:
   // drawn again by the app, the same role and name, it's still that thing; gone, the pin goes until it's back, and never
   // moves onto whatever sits where it was, as the next card does once one is deleted. A note on a spot stays there.
   let noted;
@@ -608,8 +615,8 @@ export const SAYS = `(() => {
   addEventListener("message", ({ source, data }) => {
     if (source !== parent || data?.playthrough !== "pin") return;
     const pin = pins.get(data.id) ?? { mark: document.createElement("div") };
-    pin.mark.textContent = data.number;
-    pin.mark.style.cssText = "position:fixed;z-index:2147483646;pointer-events:none;display:none;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;background:#e0a33a;color:#fff;font:600 11px/18px system-ui,sans-serif;text-align:center;box-shadow:0 0 0 2px #fff";
+    pin.mark.style.cssText = "position:fixed;z-index:2147483646;pointer-events:none;display:none;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:#d9a23a;box-shadow:0 0 0 2px #fff,0 1px 4px rgba(0,0,0,.25)";
+    unzoomed();
     Object.assign(pin, data.thing ? { named: data.thing, on: noted } : { point: data.point });
     marks.appendChild(pin.mark);
     pins.set(data.id, pin);
@@ -637,7 +644,10 @@ export const SAYS = `(() => {
     const at = {};
     for (const [id, { mark: pin, on, point }] of pins) {
       const box = on?.isConnected ? on.getBoundingClientRect() : undefined;
-      const spot = box?.width ? { x: box.right, y: box.top } : point ? { x: point.x * innerWidth, y: point.y * innerHeight } : undefined;
+      // As on the recording: out from the top right corner, at the bottom where the top is out of view, and pulled in
+      // where the right or the bottom is, so it's never cut off.
+      const out = (room) => Math.min(${OUT}, room - 11);
+      const spot = box?.width ? { x: box.right + out(innerWidth - box.right), y: box.top - ${OUT} >= 11 ? box.top - ${OUT} : box.bottom + out(innerHeight - box.bottom) } : point ? { x: point.x * innerWidth, y: point.y * innerHeight } : undefined;
       pin.style.display = spot ? "block" : "none";
       if (!spot) continue;
       Object.assign(pin.style, { left: spot.x + "px", top: spot.y + "px" });
