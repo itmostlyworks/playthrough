@@ -4,7 +4,7 @@
 
 import { useEffect, useState } from "react";
 import type { Glimpse, Reading } from "@playthrough/page";
-import { SHARED, type Change, type Send } from "@playthrough/change";
+import type { Change, Send } from "@playthrough/change";
 import type { Events } from "./replay.ts";
 import { server } from "./server.ts";
 
@@ -111,12 +111,6 @@ function file<T>(change: string, handBack: number, name: string): Promise<T> {
   const path = source.file(change, handBack, name);
   return once(path, () => text(path).then((read) => JSON.parse(read) as T));
 }
-
-// What a guest did in the app through a shared link, kept where only a guest's is: the server keeps them there and
-// nowhere else (`branch`, open.ts), and the viewer plays them with nothing but their own files (`Replay`).
-export const byAGuest = (recording: string) => recording.startsWith(`branches/${SHARED}`);
-// Where a hand-back's files are, all of them, as an address a page's policy can name.
-export const keptFor = (change: string, handBack: number) => new URL(source.file(change, handBack, ""), location.href).href;
 
 // A recording plays with the fonts, images and stylesheets kept with it, never the app's own, which may be gone or
 // somewhere else. Of the sizes an image offered, the one it was recorded at is the one it shows.

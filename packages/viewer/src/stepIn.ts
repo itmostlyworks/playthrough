@@ -112,7 +112,7 @@ export function useStepIn({ change, handBack, moment, page, clock, act, pointing
       if (!kept.events.length) return;
       kept.did = said.did;
       const from = { moment: moment.name, at: Math.round((here?.from ?? page.end) * 100) / 100 };
-      // A guest's is kept where only a guest's is (`byAGuest`).
+      // A guest's is kept where only a guest's is (`SHARED`).
       const file = `${isGuest() ? SHARED : ""}${kept.id}-${++kept.kept}.json`;
       const now = { type: 5, data: { tag: "now", payload: {} }, timestamp: kept.events.at(-1)!.timestamp };
       const length = await keepBranch(change, handBack, from, [...kept.events, now], file);
