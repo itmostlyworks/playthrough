@@ -2,15 +2,14 @@
 // and what was said over a slim strip of its thing, all one size, one after another. At rest they sit beside the recording, never
 // over it, fading into the screen's edge. Pointed at, or reached with Tab, they come forward, all the way onto the
 // screen and a little over the recording, a moment's words coming up over its picture, a note's card as it was; a
-// touch brings them forward first. At rest they sit back, quieter, so the recording has your eye, and forward come to
-// full; a card that waits on you (a new answer, Send) is at full all along. While you're in the app they go where they
-// stand, the app taking their room; on a phone, where they're under it, they rest, quieter, as everything that drives the
-// recording does, and the moments still answer a press, which leaves the app on the way, each coming to full as it's
-// pointed at, and their step left, which doesn't drive the recording, isn't quieter at all. Over each, what it holds, in a word, at its pictures' outer side, or where the header's own words
-// stand when they run past the screen's edge: it stays put as the edge comes forward, and an edge with nothing on it
-// says nothing. What ends a list (the moments' step left) is its last card, a short one, tucked and forward with the
-// rest, its words held where they read at rest. On a phone there's no room beside the recording: they're rows under
-// it, words and all, and the foot under them.
+// touch brings them forward first. At rest they sit back, all alike, so the recording has your eye; forward they come
+// to full, but the moments you've already watched, which stay softer until pointed at, so what's left to see stands out
+// only when you look for it. A card that waits on you (a new answer) is at full all along. While you're in the app they
+// go where they stand, the app taking their room; on a phone, where they're under it, they rest, quieter, as everything
+// that drives the recording does, and the moments still answer a press, which leaves the app on the way, each coming to
+// full as it's pointed at. Over each, what it holds, in a word, at its pictures' outer side, or where the header's own
+// words stand when they run past the screen's edge: it stays put as the edge comes forward, and an edge with nothing on
+// it says nothing. On a phone there's no room beside the recording: they're rows under it, words and all.
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Key } from "./Key.tsx";
@@ -67,14 +66,11 @@ export function Edge(props: {
   // The tile to keep in view, by its data-tile: the moment you're on, a note opened or arriving.
   showing?: string;
   children: (forward: boolean) => ReactNode;
-  // What ends the list, its last card: told how much of it runs past the screen's edge, so its words can stand where
-  // they read.
-  foot?: (forward: boolean, tucked: number) => ReactNode;
-  // On a phone, while the app is yours, its cards still answer a press, which leaves the app first, as Back does: the moments'. Each
-  // rests, quieter, until it's pointed at, and the last card, which doesn't drive the recording, isn't quieter at all.
+  // On a phone, while the app is yours, its cards still answer a press, which leaves the app first, as Back does: the
+  // moments'. Each rests, quieter, until it's pointed at.
   answers?: boolean;
 }) {
-  const { side, label, keys, place, quiet, phone, empty, showing, children, foot, answers } = props;
+  const { side, label, keys, place, quiet, phone, empty, showing, children, answers } = props;
   // For another page to find it by (data-part): the moments are always on the left, what you said on the right.
   const part = side === "left" ? "moments" : "notes";
   // On a phone, what rests while you're in the app: every card, or where they answer, each until it's pointed at.
@@ -116,27 +112,15 @@ export function Edge(props: {
     addEventListener("pointerdown", away, true);
     return () => removeEventListener("pointerdown", away, true);
   }, [forward]);
-  // What's overflowing fades where it's cut, above and below. The foot's card, where it is on the list's height, is
-  // where the screen's edge doesn't fade: its words read at rest.
+  // What's overflowing fades where it's cut, above and below.
   const more = useMore(list);
-  const footing = useRef<HTMLDivElement>(null);
-  const [band, setBand] = useState<{ top: number; bottom: number }>();
-  const look = () => {
-    more.look();
-    const [card, region] = [footing.current?.getBoundingClientRect(), own.current?.getBoundingClientRect()];
-    const at = card && region && { top: Math.round(card.top - region.top), bottom: Math.round(card.bottom - region.top) };
-    setBand((now) => (now?.top === at?.top && now?.bottom === at?.bottom ? now : at));
-  };
-  useLayoutEffect(look);
   const placed = useRef(false);
   useEffect(() => {
     const tile = showing && list.current?.querySelector<HTMLElement>(`[data-tile="${CSS.escape(showing)}"]`);
     const shown = list.current;
     if (!tile || !shown) return;
-    // Only the edge's own list scrolls, never the page around it, by as little as brings it in; the last one, with
-    // the foot's card after it.
-    const last = !tile.nextElementSibling && footing.current;
-    const [box, room] = [last ? { top: tile.getBoundingClientRect().top, bottom: last.getBoundingClientRect().bottom, left: 0, right: 0 } : tile.getBoundingClientRect(), shown.getBoundingClientRect()];
+    // Only the edge's own list scrolls, never the page around it, by as little as brings it in.
+    const [box, room] = [tile.getBoundingClientRect(), shown.getBoundingClientRect()];
     // As it's first drawn, it's drawn there, not scrolled to.
     const behavior = matchMedia("(prefers-reduced-motion: reduce)").matches || !placed.current ? "auto" : "smooth";
     placed.current = true;
@@ -165,11 +149,6 @@ export function Edge(props: {
             {children(true)}
           </div>
         </div>
-        {foot && (
-          <div className={`mt-7 max-w-[280px] transition-opacity duration-200 ease-calm ${dead ? "opacity-(--resting)" : ""}`} inert={dead}>
-            {foot(true, 0)}
-          </div>
-        )}
       </section>
     );
   if (!room) return null;
@@ -216,7 +195,7 @@ export function Edge(props: {
       >
         <div
           ref={list}
-          onScroll={look}
+          onScroll={more.look}
           className="pointer-events-none h-full overflow-x-clip overflow-y-auto overscroll-contain inside:overscroll-auto py-2 [scrollbar-width:none]"
           style={{ ...more.fade, "--clear": `${clear}px`, [right ? "marginLeft" : "marginRight"]: -clear, [right ? "paddingLeft" : "paddingRight"]: SIDE + clear, [right ? "paddingRight" : "paddingLeft"]: SIDE } as React.CSSProperties}
         >
@@ -225,12 +204,6 @@ export function Edge(props: {
             <div className={`grid grid-cols-[minmax(0,1fr)] gap-1.5 transition-opacity duration-300 ease-calm ${sitsBack}`}>
               {children(forward)}
             </div>
-            {/* The list's last card, at rest as far past the screen's edge as the others are. */}
-            {foot && (
-              <div ref={footing} className={`transition-opacity duration-300 ease-calm ${sitsBack}`}>
-                {foot(forward, forward ? 0 : Math.max(0, cutBy + TUCKED))}
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -246,7 +219,6 @@ export function Edge(props: {
             width: veil,
             [right ? "right" : "left"]: 0,
             background: `linear-gradient(to ${right ? "right" : "left"}, transparent, ${EASED})`,
-            ...(band && { maskImage: `linear-gradient(#000 ${band.top}px, transparent ${band.top}px, transparent ${band.bottom}px, #000 ${band.bottom}px)` }),
           }}
         />
       )}
@@ -276,15 +248,12 @@ export function Tile(props: {
   // A note's: what was said, and under it a slim strip of its thing, set in, both always shown, rather than a picture
   // its words come over. A note leads with its words as a moment does with its picture.
   strip?: boolean;
-  // In a wide card (at the last stop), the strip beside the words rather than under them, so the card is as flat as its
-  // words. Its row may make it taller: what's in it stays at its top.
-  beside?: boolean;
   onPress: () => void;
   onPoint?: (pointed: boolean) => void;
   // What it is, for another page to find it by.
   part?: "moment";
 }) {
-  const { id, label, forward: edgeForward, strong, quiet, lit, waiting, watched, arriving: from, picture, words, strip, beside, onPress, onPoint, part } = props;
+  const { id, label, forward: edgeForward, strong, quiet, lit, waiting, watched, arriving: from, picture, words, strip, onPress, onPoint, part } = props;
   const own = useRef<HTMLButtonElement>(null);
   // A new one comes out of the edge alone, whole and as it is forward, so what was said is seen arriving; then it
   // folds back into its place, sitting back with the rest. The edge and the others hold still, and its place is its
@@ -337,19 +306,18 @@ export function Tile(props: {
       onPointerLeave={() => onPoint?.(false)}
       onFocus={() => onPoint?.(true)}
       onBlur={() => onPoint?.(false)}
-      className={`group/tile relative w-full rounded-xl ${beside ? "flex flex-col" : "block"} p-1.5 text-left transition-[background-color,box-shadow,opacity] duration-200 ease-calm focus-visible:outline-none ${forward ? `bg-surface focus-visible:shadow-[0_0_0_2px_var(--amber)] ${strong ? "shadow-[0_0_0_1.5px_var(--soft)]" : lit ? "shadow-[0_0_0_1.5px_var(--faint)]" : "shadow-[0_0_0_1px_var(--edge)] hover:shadow-[0_0_0_1.5px_var(--faint)]"}` : "bg-ground shadow-[0_0_0_0_transparent]"}`}
+      className={`group/tile relative w-full rounded-xl block p-1.5 text-left transition-[background-color,box-shadow,opacity] duration-200 ease-calm focus-visible:outline-none ${forward ? `bg-surface focus-visible:shadow-[0_0_0_2px_var(--amber)] ${strong ? "shadow-[0_0_0_1.5px_var(--soft)]" : lit ? "shadow-[0_0_0_1.5px_var(--faint)]" : "shadow-[0_0_0_1px_var(--edge)] hover:shadow-[0_0_0_1.5px_var(--faint)]"}` : "bg-ground shadow-[0_0_0_0_transparent]"}`}
     >
       <span
-        className={`relative block overflow-hidden rounded-lg ${strip ? `flex bg-surface ${beside ? "items-start" : "flex-col"}` : `aspect-[1.6] bg-paper ${forward ? "rounded-b-none" : ""}`} transition-[box-shadow,opacity,scale] duration-200 ease-calm group-active/tile:scale-[0.97] group-active/tile:duration-75 ${quiet && !strong ? "opacity-80 group-hover/tile:opacity-100 group-focus-visible/tile:opacity-100" : ""} ${forward ? "shadow-[0_0_0_0_transparent]" : `group-focus-visible/tile:shadow-[0_0_0_2px_var(--surface),0_0_0_4px_var(--amber)] ${strong ? "shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--soft)]" : lit ? "shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--faint)]" : "shadow-[0_0_0_1px_var(--edge),0_1px_3px_var(--edge)] group-hover/tile:shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--faint)]"}`}`}
+        className={`relative block overflow-hidden rounded-lg ${strip ? "flex flex-col bg-surface" : `aspect-[1.6] bg-paper ${forward ? "rounded-b-none" : ""}`} transition-[box-shadow,opacity,scale] duration-200 ease-calm group-active/tile:scale-[0.97] group-active/tile:duration-75 ${quiet && !strong ? "opacity-80 group-hover/tile:opacity-100 group-focus-visible/tile:opacity-100" : ""} ${forward ? "shadow-[0_0_0_0_transparent]" : `group-focus-visible/tile:shadow-[0_0_0_2px_var(--surface),0_0_0_4px_var(--amber)] ${strong ? "shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--soft)]" : lit ? "shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--faint)]" : "shadow-[0_0_0_1px_var(--edge),0_1px_3px_var(--edge)] group-hover/tile:shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--faint)]"}`}`}
       >
         {strip ? (
           // The same at rest and forward: nothing inside it moves.
           <>
-            <span className={`block px-2 pt-1.5 pb-[7px] ${beside ? "min-w-0 flex-1" : ""}`}>{words}</span>
-            {/* A note on the whole change is on nothing to picture: its words alone. Beside them, as wide as the edge's
-                strip, so it shows the same part of the page. */}
+            <span className="block px-2 pt-1.5 pb-[7px]">{words}</span>
+            {/* Under its words, as wide as the edge's strip. */}
             {picture && (
-              <span className={`relative block aspect-[3.8] flex-none overflow-hidden rounded-[5px] bg-paper shadow-[0_0_0_1px_var(--edge)] ${beside ? "my-2 mr-2 w-[160px]" : "mx-2 mb-2"}`}>{picture}</span>
+              <span className={`relative block aspect-[3.8] flex-none overflow-hidden rounded-[5px] bg-paper shadow-[0_0_0_1px_var(--edge)] mx-2 mb-2`}>{picture}</span>
             )}
           </>
         ) : (

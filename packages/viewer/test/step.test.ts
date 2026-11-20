@@ -68,16 +68,17 @@ test("a sent note whose moment the agent took out is on the first moment new sin
   assert.equal(lookOf(having([2, "Admin opens settings"], [2, "Boards as a list"]), you), "All 2 seen");
 });
 
-test("an answer to a note on the whole change is at the last stop: counted, but the change opens where it would without it, and the last stop seen reads it", () => {
+test("a note on the whole change, as earlier versions kept them, is on the last moment, its answer unread until that's seen", () => {
   const note = { id: "w1", words: "Does it also close with Escape?" };
-  const answered = handBack(2, ["Admin opens settings"], { replies: [{ note: "w1", words: "Yes." }] });
-  const change = listed({ handBacks: [handBack(1, ["Admin opens settings"]), answered], sends: [send(1, { notes: [note] })] });
+  const names = ["Admin opens settings", "Admin turns numbers off"];
+  const answered = handBack(2, names, { replies: [{ note: "w1", words: "Yes." }] });
+  const change = listed({ handBacks: [handBack(1, names), answered], sends: [send(1, { notes: [note] })] });
+  assert.equal(shownOn(change.change, answered, note), "Admin turns numbers off");
   const having = (...moments: [number, string?][]) => ({ ...change, change: { ...change.change, seen: { [you]: moments.map(([handBack, moment]) => ({ handBack, ...(moment && { moment }) })) } } });
-  assert.deepEqual(unreadOf(having([2, "Admin opens settings"]), you), [{ note: "w1", moment: 2 }], "after the last moment");
-  assert.equal(lookOf(having([2, "Admin opens settings"]), you), "Read 1 answer");
-  assert.deepEqual(firstUnseen(having(), you), { moment: 1 });
-  assert.ok(seenThrough(having([2, "Admin opens settings"]), you), "so / opens at the last stop");
-  assert.deepEqual(unreadOf(having([2, "Admin opens settings"], [2]), you), []);
+  assert.deepEqual(unreadOf(having([2, "Admin opens settings"]), you), [{ note: "w1", moment: 2 }]);
+  assert.deepEqual(unreadOf(having([2, "Admin opens settings"], [2]), you), [{ note: "w1", moment: 2 }], "the hand-back seen as a whole reads nothing now");
+  assert.equal(lookOf(having([2, "Admin opens settings"]), you), "See 1 more moment, 1 answer");
+  assert.ok(seenThrough(having([2, "Admin opens settings"], [2, "Admin turns numbers off"]), you));
 });
 
 test("the step says what's left to see, as so many more once some are seen, and all seen at the end", () => {

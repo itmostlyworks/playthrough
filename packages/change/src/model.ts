@@ -285,7 +285,7 @@ export const Asked = {
 export const Taken = z.strictObject({ send: ofId("needs the send it took"), handBack: z.number().int(), at: z.iso.datetime() });
 
 // A moment someone has opened, as it was handed back in one hand-back: one handed back again, different, asks to be seen again.
-export const Seen = z.strictObject({ handBack: z.number().int().min(1), moment: line("needs the moment it's of").optional().describe("Without it, the last stop: the change as a whole") });
+export const Seen = z.strictObject({ handBack: z.number().int().min(1), moment: line("needs the moment it's of").optional().describe("Without it, the hand-back as a whole, as its last stop was once kept") });
 
 export const Change = z.strictObject({
   id: fileName("needs its id: the name of its folder"),

@@ -155,7 +155,7 @@ for (const [kept, storage] of storages) {
       await assert.rejects(changes.see("invoice-export", "Ana", [{ handBack: 2, moment: "Export a quarter" }]), refused(/^Hand-back 2 hands back no “Export a quarter” to see\.$/));
     });
 
-    test("a hand-back's last stop, where the notes on the whole change are, is seen as a moment is, once handed back", async () => {
+    test("a hand-back seen as a whole, as earlier versions kept its last stop, is seen as a moment is, once handed back", async () => {
       const changes = await recorded();
       await changes.see("invoice-export", "Ana", [{ handBack: 1 }]);
       assert.deepEqual((await changes.get("invoice-export")).seen, { Ana: [{ handBack: 1 }] });
@@ -198,6 +198,15 @@ for (const [kept, storage] of storages) {
       await assert.rejects(changes.send("invoice-export", send(1, { notes: [note("Hm", 9)] })), refused(/is at 9s, but “Export a quarter” is 6s long/));
       const twice = { ...note("Hm"), on: { handBack: 1, moment: "Export a quarter", at: 1, point: { x: 0.5, y: 0.5 }, box: { x: 0, y: 0, width: 1, height: 1 } } };
       await assert.rejects(changes.send("invoice-export", send(1, { notes: [twice] })), refused(/more than one thing/));
+    });
+
+    test("a note on a moment as a whole is on its hand-back and moment alone, at no time and on no thing", async () => {
+      const changes = await recorded();
+      const whole = { id: newId(), on: { handBack: 1, moment: "Export a quarter" }, words: "This whole page feels slow." };
+      await changes.send("invoice-export", send(1, { notes: [whole] }));
+      assert.deepEqual((await changes.get("invoice-export")).sends.at(-1)?.notes, [whole]);
+      const pointed = { ...whole, id: newId(), on: { ...whole.on, point: { x: 0.5, y: 0.5 } } };
+      await assert.rejects(changes.send("invoice-export", send(1, { id: newId(), notes: [pointed] })), refused(/on something but at no time/));
     });
 
     test("a hand-back can't finish until every note it took is answered", async () => {

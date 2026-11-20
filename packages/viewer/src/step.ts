@@ -37,8 +37,7 @@ export function unseenOf(listed: Listed, you: string): number[] {
   });
 }
 
-// The answers you haven't opened, each with the moment it's on, in the order the moments come; one on the whole change
-// is at the last stop, after the last moment.
+// The answers you haven't opened, each with the moment it's on, in the order the moments come.
 export function unreadOf(listed: Listed, you: string): { note: string; moment: number }[] {
   const { change } = listed;
   const handBack = latestOf(change);
@@ -47,24 +46,20 @@ export function unreadOf(listed: Listed, you: string): { note: string; moment: n
   return [...allNotes(change)]
     .flatMap(([id, kept]) => {
       const on = shownOn(change, handBack, kept.note);
-      const moment = kept.note.on ? handBack.moments.findIndex((one) => one.name === on) + 1 : handBack.moments.length + 1;
+      const moment = handBack.moments.findIndex((one) => one.name === on) + 1;
       return moment && noteSays(change, you, kept.note, true, replies).fresh ? [{ note: id, moment }] : [];
     })
     .sort((a, b) => a.moment - b.moment);
 }
 
-// The answers on its moments you haven't opened: one on the whole change is met at the end, so where a change opens
-// is where it would without it.
-const unreadOnMoments = (listed: Listed, you: string) => unreadOf(listed, you).filter((one) => one.moment <= (latestOf(listed.change)?.moments.length ?? 0));
-
-// Every moment seen and every answer on them read: all that's left on it is at the last stop.
-export const seenThrough = (listed: Listed, you: string) => !unseenOf(listed, you).length && !unreadOnMoments(listed, you).length;
+// Every moment seen and every answer read: all that's left on it is Send or Done.
+export const seenThrough = (listed: Listed, you: string) => !unseenOf(listed, you).length && !unreadOf(listed, you).length;
 
 // Where pressing a change takes you: the first of its moments with something on it you haven't seen, a moment or an
 // answer, so Next goes on through the rest in order and none is left behind; else its first. Going in lands on the
 // moment itself, so an answer's card isn't over what it's about: its note says it's new, and → opens it.
 export function firstUnseen(listed: Listed, you: string): { moment: number } {
-  const answer = unreadOnMoments(listed, you)[0];
+  const answer = unreadOf(listed, you)[0];
   const moment = unseenOf(listed, you)[0];
   if (answer && (!moment || answer.moment <= moment)) return { moment: answer.moment };
   return { moment: moment ?? 1 };

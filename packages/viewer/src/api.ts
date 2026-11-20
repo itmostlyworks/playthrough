@@ -30,8 +30,8 @@ export type Source = {
   // pictures, the fonts and images kept with them, and what you did in the app.
   file(change: string, handBack: number, name: string): string;
   send(change: string, send: Send): Promise<string[]>;
-  // The moments opened by you, the last stop as a hand-back alone.
-  seen(change: string, by: string, moments: { handBack: number; moment?: string }[]): Promise<string[]>;
+  // The moments opened by you.
+  seen(change: string, by: string, moments: { handBack: number; moment: string }[]): Promise<string[]>;
   // Taking over at a moment, after its step's action `after` (none: before them all): how long until it's ready, as long
   // as the last took, whether the app starts first, and what your browser can't be of the one the moment ran in, in a
   // sentence; kept ready there, for a take-over to come; and the app's address

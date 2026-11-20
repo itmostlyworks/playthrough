@@ -6,11 +6,11 @@
 export const agentTo = (guest: boolean) => (guest ? "The agent" : "Your agent");
 
 // Whether the recording's pointer wears it: only as a moment starts playing, a beat under two seconds, when the hands are
-// seen at work; at rest the pointer is simply where it stopped. Never on a still, where nobody acts, nor in Compare,
-// while noting, or at the last stop, where what it's on isn't the moment's pointer.
-export function tagged(moment: { still: boolean; playing: boolean; playedAWhile: boolean; comparing: boolean; noting: boolean; atLastStop: boolean }) {
-  const { still, playing, playedAWhile, comparing, noting, atLastStop } = moment;
-  return playing && !playedAWhile && !still && !comparing && !noting && !atLastStop;
+// seen at work; at rest the pointer is simply where it stopped. Never on a still, where nobody acts, nor in Compare or while
+// noting, where what it's on isn't the moment's pointer.
+export function tagged(moment: { still: boolean; playing: boolean; playedAWhile: boolean; comparing: boolean; noting: boolean }) {
+  const { still, playing, playedAWhile, comparing, noting } = moment;
+  return playing && !playedAWhile && !still && !comparing && !noting;
 }
 
 // How long it stays once a moment starts playing, in milliseconds: long enough to read, then out of the way.

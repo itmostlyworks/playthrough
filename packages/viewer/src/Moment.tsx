@@ -1,7 +1,7 @@
-// A moment's page: the recording as large as the window lets it be, the bar across its foot, the change's moments on
-// the left, ending in the step left for it, and this one's notes on the right. From here: play the few seconds that led
-// here, take over (the real app there, as that person), note what you click, compare with how it was when you last saw
-// it, go on, or say Done or Send.
+// A moment's page: the recording as large as the window lets it be, the bar across its foot and beside it the step left
+// for the change, the change's moments on the left, and this one's notes on the right. From here: play the few seconds
+// that led here, take over (the real app there, as that person), note what you click or the moment as a whole, compare
+// with how it was when you last saw it, go on, or say Send or Done.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
@@ -26,9 +26,8 @@ import { TAG } from "./PointerTag.tsx";
 import { Portal } from "./Portal.tsx";
 import { doneIn, type Rect, type Scrolled } from "./replay.ts";
 import { ago, noteSays, shownIn, shownOn, takingOf, seenOf } from "./standing.ts";
-import { LastStop } from "./LastStop.tsx";
 import { Share } from "./Share.tsx";
-import { StepAction, StepBox, StepNotice, useStepLeft } from "./StepLeft.tsx";
+import { StepBox, StepNotice, useStepLeft } from "./StepLeft.tsx";
 import { backAgain } from "./step.ts";
 import { useKeptReady, useTakeOver } from "./takeOver.ts";
 import { useHeld } from "./held.ts";
@@ -73,58 +72,31 @@ export function MomentView(props: {
   // The change as listed, for the step left, and on to what's next once it's taken.
   listed: Listed;
   goOn: () => void;
-  // At the last stop, after the last moment (`n` is the last moment then): the whole change in the recording's place,
-  // the step left in the bar's. Gone to and from it as between moments.
-  atLastStop: boolean;
-  onLastStop: () => void;
   // The moments you haven't watched, by their place from 1.
   unwatched: number[];
 }) {
-  const { change, handBack, n, about, notes, setNotes, replies, setReplies, you, onMoment, atLastStop } = props;
+  const { change, handBack, n, about, notes, setNotes, replies, setReplies, you, onMoment } = props;
   // What was sent is drawn as sent at once, as the change comes back with it.
   const [justSent, setJustSent] = useState<Note[]>([]);
   const sent = [...props.sent, ...justSent.filter((note) => !props.sent.some((one) => one.id === note.id))];
   const unsent = notes.length + replies.length;
-  // The step left: at the last stop, pressed or Enter; from anywhere, Ctrl+Enter while something's unsent.
+  // The step left: its box beside the bar, pressed; from anywhere, Ctrl+Enter while something's unsent.
   const step = useStepLeft(props.listed, you, (going) => setJustSent((now) => [...now, ...going]), props.goOn);
-  // Done pressed with moments not watched or answers not opened: the bar says which, and the card says Done anyway.
+  // Done pressed with moments not watched or answers not opened: the bar says which, and the box says Done anyway.
   // Gone to another moment, it's asked again.
   const [doneAnyway, setDoneAnyway] = useState(false);
   useEffect(() => setDoneAnyway(false), [n]);
   const unwatched = props.unwatched.filter((one) => one !== n);
-  // An answer on the change as a whole has no moment to go to now: only those on a moment are counted.
-  const unopened = props.unopened.filter((one) => one.moment <= handBack.moments.length);
+  const unopened = props.unopened;
   const toDo = [
     unwatched.length > 0 && { words: `${unwatched.length} ${unwatched.length === 1 ? "moment" : "moments"} not watched`, go: () => may.move && goTo(unwatched[0]!) },
     unopened.length > 0 && { words: `${unopened.length} ${unopened.length === 1 ? "answer" : "answers"} not opened`, go: () => may.move && goTo(unopened[0]!.moment, unopened[0]!.note) },
   ].filter((one) => !!one);
-  // The card does what it says, from wherever you are, the app yours or not: Send sends, Done ends the change.
+  // The box does what it says, from wherever you are, the app yours or not: Send sends, Done ends the change.
   const pressStep = () => {
     if (step.what === "done" && !step.taken && !step.said && !doneAnyway && toDo.length) return setDoneAnyway(true);
     step.press();
   };
-  // What Send sends, and only that, is what the last stop shows of what you said: your notes not sent, and the sent
-  // ones you've replied to, in your words. Pressed, what went stays shown, as gone, till the page goes on.
-  // Come to it already sent, what you sent on this hand-back is shown as it was just after.
-  const went = new Set(change.sends.filter((one) => one.by === you && one.handBack === handBack.number).flatMap((one) => [...one.notes.map((note) => note.id), ...(one.replies ?? []).map((reply) => reply.note)]));
-  const sendable =
-    step.taken === "Sent" && !step.what
-      ? sent.filter((note) => went.has(note.id)).map((note) => ({ note, sent: true }))
-      : [...sent.filter((note) => replies.some((one) => one.note === note.id)).map((note) => ({ note, sent: true })), ...notes.map((note) => ({ note, sent: false }))];
-  const sending = useRef<typeof sendable>(undefined);
-  if (!step.said || !sending.current) sending.current = sendable;
-  // The last stop's sheet stays drawn while it fades, as leaving it.
-  const sheet = useRef<HTMLDivElement>(null);
-  const [sheetDrawn, setSheetDrawn] = useState(atLastStop);
-  useEffect(() => {
-    if (atLastStop) return setSheetDrawn(true);
-    const shown = sheet.current;
-    if (!shown || matchMedia("(prefers-reduced-motion: reduce)").matches) return setSheetDrawn(false);
-    const fading = shown.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 240, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)", fill: "forwards" });
-    let current = true;
-    fading.finished.then(() => current && setSheetDrawn(false), () => {});
-    return () => void ((current = false), fading.cancel());
-  }, [atLastStop]);
   const moment = handBack.moments[n - 1]!;
   const count = handBack.moments.length;
   const end = endOf(moment);
@@ -303,7 +275,7 @@ export function MomentView(props: {
     const watching = new ResizeObserver(measure);
     watching.observe(ruler);
     return () => watching.disconnect();
-  }, [phone, atLastStop]);
+  }, [phone]);
   const [aiming, setAiming] = useState(false);
   // One Escape in the app, Back's Esc key lights, and fades over the time a second one would take you back.
   const backKeys = useRef<HTMLSpanElement>(null);
@@ -355,9 +327,7 @@ export function MomentView(props: {
   const mine = notes.filter((one) => isOn(one, moment.name));
   const theirs = sent.filter((one) => isOn(one, moment.name));
   const said = [...theirs.map((note) => ({ note, sent: true })), ...mine.map((note) => ({ note, sent: false }))];
-  // What you said on the change as a whole, on no moment: the last stop's, as a moment's notes are its own.
-  const onTheWhole = [...sent.filter((one) => !one.on).map((note) => ({ note, sent: true })), ...notes.filter((one) => !one.on).map((note) => ({ note, sent: false }))];
-  const onEdge = atLastStop ? onTheWhole : said.filter(({ note }) => !takeOver.madeThere(note));
+  const onEdge = said.filter(({ note }) => !takeOver.madeThere(note));
   // What was new as you came to the change stays new here until you open it: coming to its moment counts as seeing it,
   // for what's next and for next time.
   useEffect(() => void (open && props.onOpened(open)), [open]);
@@ -366,8 +336,11 @@ export function MomentView(props: {
     const fresh = sent && said.stands !== "sent" && said.stands !== "reply not sent" && props.unopened.some((one) => one.note === note.id);
     return { ...said, fresh, stands: said.stands === "new answer" || said.stands === "answered" ? (fresh ? "new answer" : "answered") : said.stands };
   };
-  const madeAt = ({ on }: Note): Made | undefined => {
-    if (!on) return undefined;
+  // A note on nothing in it, the whole moment, is shown on the moment as it is now, at its end; so is one on the change
+  // as a whole, which earlier versions kept, shown on the last moment.
+  const madeAt = (note: Note): Made | undefined => {
+    const on = note.on;
+    if (!on || onNothing(note)) return { handBack: handBack.number, recording: moment.recording, at: moment.length };
     const thing = on.element?.node !== undefined ? { node: on.element.node } : on.point && { point: on.point };
     if (madeInApp(on)) return { handBack: on.handBack, recording: on.recording, at: Math.min(on.length, on.at), ...thing };
     const taking = change.handBacks.find((one) => one.number === on.handBack)?.moments.find((one) => one.name === on.moment);
@@ -430,13 +403,11 @@ export function MomentView(props: {
   };
   const isNow = (shown?: Made) => !!shown && shown.handBack === handBack.number && shown.recording === moment.recording && Math.abs(shown.at - moment.length) < 0.1;
   const frames = useFrames(change, allRead ? onEdge.map(({ note }) => ({ note, shown: shownAt(note) })) : []);
-  // The last stop's notes, from across the change, each on the frame it was made on.
-  const sheetFrames = useFrames(change, atLastStop ? sending.current!.map(({ note }) => ({ note, shown: madeAt(note) })) : []);
   // A note from an earlier hand-back is shown on the moment as it is now, at its end, on its thing where that's found
   // there; how it was, the frame it was made on, is one flip away, asked for only once it's open. Its thing not
   // there now (gone since, or on a page you went to after taking over), there's no now to show it on: it's shown as
   // it was, and a pin never stands on whatever is there instead.
-  const earlier = (note: Note) => !!note.on && note.on.handBack < handBack.number;
+  const earlier = (note: Note) => !!note.on && !onNothing(note) && note.on.handBack < handBack.number;
   const found = (note: Note) => nowOn(note) !== undefined;
   const opened = onEdge.find(({ note }) => note.id === open);
   const flips = !!opened && earlier(opened.note);
@@ -496,8 +467,7 @@ export function MomentView(props: {
   // picture for the moment's and open the app there. Closed, Take over answers again. In the app, it's Back.
   const takeOverOrBack = () => (inApp ? may.back && takeOver.back() : may.takeOver && takeOver.takeOver());
   const back = () => may.back && takeOver.back();
-  // At the last stop a note is on the change as a whole: there's nothing to point at, so it's written at once.
-  const note = () => may.note && act(atLastStop ? { type: "pointed", writing: { note: { id: newId(), words: "" }, spot: { x: 0, y: 0 } } } : { type: "note" });
+  const note = () => may.note && act({ type: "note" });
   // Flipped, its ring and card go to its thing in the picture coming in as that cross-fades in or out, in step with it;
   // and from its kept picture to the recording there, once that has said where it is, as As it was comes in. Only then:
   // as the view moves, they never trail it.
@@ -521,47 +491,42 @@ export function MomentView(props: {
     act({ type: "moment", moment: other.name, starts: startOf(other), end: endOf(other), open });
     onMoment(to);
   };
-  // While the app is yours, or on its way, a moment or the step left pressed leaves it as Back does, on the way
-  // there: one press for Back and the press. The keys stay the app's. It says whether to go on.
+  // While the app is yours, or on its way, a moment pressed leaves it as Back does, on the way there: one press for Back
+  // and the press. The keys stay the app's. It says whether to go on.
   const leaving = () => (away ? may.back && (takeOver.back(), true) : may.move);
-  // After the last moment, the last stop; from it, ↑ is the last moment again and there's nothing further on.
-  const lastStop = (open?: string) => {
-    act({ type: "moment", moment: moment.name, starts: from, end, open });
-    props.onLastStop();
-  };
-  const toLastStop = (open?: string) => !atLastStop && leaving() && lastStop(open);
+  // Past the first moment or the last, nothing: the step left is the box beside the bar.
   const next = (by: number) => {
     if (!may.move) return;
-    if (atLastStop) return void (by < 0 && goTo(count));
     const to = n + by;
-    // Nothing after the last moment: its card on the Moments edge is the step left.
     if (to < 1 || to > count) return;
     goTo(to);
   };
   // The moment you're on, pressed in the app, is Back.
-  const toMoment = (to: number) => (to === n && !atLastStop ? away && back() : leaving() && goTo(to));
+  const toMoment = (to: number) => (to === n ? away && back() : leaving() && goTo(to));
   const openNote = (id: string) => may.move && act({ type: "open", note: id });
   // What you said on a moment of the change, in the order its edge has it: one made in the app joins once you're back.
-  const notesOn = (other: Moment) => (other === moment && !atLastStop ? onEdge.map(({ note }) => note) : [...sent, ...notes].filter((one) => isOn(one, other.name)));
+  const notesOn = (other: Moment) => (other === moment ? onEdge.map(({ note }) => note) : [...sent, ...notes].filter((one) => isOn(one, other.name)));
   // The note before or the next, through the whole change: this moment's one after another, then on to the nearest
-  // moment that has one, its first going on, its last going back; after the last moment, the notes on the whole change,
-  // at the last stop. Past the change's last or first, nothing.
+  // moment that has one, its first going on, its last going back. Past the change's last or first, nothing.
   const nextNote = (by: 1 | -1) => {
     if (!may.move) return;
-    const here = atLastStop ? onTheWhole.map(({ note }) => note) : notesOn(moment);
+    const here = notesOn(moment);
     const i = here.findIndex((one) => one.id === open);
     const to = here[i < 0 ? (by > 0 ? 0 : here.length - 1) : i + by];
     if (to) return openNote(to.id);
-    for (let other = atLastStop ? (by < 0 ? count : count + 1) : n + by; other >= 1 && other <= count; other += by) {
+    for (let other = n + by; other >= 1 && other <= count; other += by) {
       const there = notesOn(handBack.moments[other - 1]!).at(by > 0 ? 0 : -1);
       if (there) return goTo(other, there.id);
     }
   };
-  // A note on the moment as a whole: on its hand-back and moment, at no time and on no thing, so it has no pin.
-  const wholeMoment = () => {
+  // Where a note on nothing stands, being written or open: over the bar's middle, as wide as a note's box.
+  const overTheBar = () => {
     const [wide, high] = [stage.current?.clientWidth ?? 0, stage.current?.clientHeight ?? 0];
-    act({ type: "pointed", writing: { note: { id: newId(), on: { handBack: handBack.number, moment: moment.name }, words: "" }, spot: { x: Math.max(8, wide / 2 - 140) + 24, y: high - BAR / 2 - 8 } } });
+    return spotAt({ x: Math.max(8, wide / 2 - 140) + 24, y: high - BAR / 2 - 8 });
   };
+  // A note on the moment as a whole: on its hand-back and moment, at no time and on no thing, so it has no pin. Its box
+  // stands where a note on nothing does, over the bar's middle.
+  const wholeMoment = () => act({ type: "pointed", writing: { note: { id: newId(), on: { handBack: handBack.number, moment: moment.name }, words: "" }, spot: { x: overTheBar().left, y: overTheBar().top } } });
   const close = () => act({ type: "close" });
   const save = (words: string) => {
     if (!writing) return;
@@ -569,7 +534,7 @@ export function MomentView(props: {
     act({ type: "written" });
   };
   const keep = (kept: Note) => {
-    if (!atLastStop && !phone) lightSend();
+    if (!phone) lightSend();
     setNotes((all) => [...all, kept]);
     takeOver.saved(kept);
   };
@@ -707,14 +672,14 @@ export function MomentView(props: {
     return { x: 0, y: covers ? BAR / 2 : 0 };
   })());
   // The note whose card shows: open on the moment as it is now, or on the frame it was made on, until that has faded.
-  // At the last stop, a note on the whole change, on the sheet.
-  const carded = atLastStop ? opened : opened && openNow ? opened : shownOpen && (opened ? shownOpen.note.id === opened.note.id && shownOpen : !phone && shownOpen);
+  const carded = opened && openNow ? opened : shownOpen && (opened ? shownOpen.note.id === opened.note.id && shownOpen : !phone && shownOpen);
   // Its card comes in by its thing, so it waits until where that is is known: it never stands somewhere else first and
-  // moves. Only a note that turns out to be on nothing stands in the corner.
+  // moves. One on the whole moment stands over the bar's middle, as its box was written; only a note whose thing turns
+  // out not to be there stands in the corner.
   const corner = spotAt({ x: 24, y: 24 });
   // Flipped to a frame whose thing isn't known yet, it stays where it stood until it is.
   const stood = useRef<{ note: string; by: Rect }>(undefined);
-  const byThing = !carded ? undefined : phone ? corner : openAt && (openAt[carded.note.id] ?? corner);
+  const byThing = !carded ? undefined : phone ? corner : onNothing(carded.note) ? overTheBar() : openAt && (openAt[carded.note.id] ?? corner);
   const cardBy = byThing ?? (carded && stood.current?.note === carded.note.id ? stood.current.by : undefined);
   stood.current = carded && cardBy ? { note: carded.note.id, by: cardBy } : undefined;
 
@@ -730,29 +695,13 @@ export function MomentView(props: {
     const typing = event.target instanceof HTMLElement && event.target.closest("textarea, input, [contenteditable]");
     // Ctrl+Enter sends, wherever the keyboard is but in a note being written, where it saves (`Write`).
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !writing) return (event.preventDefault(), void (unsent && step.what === "send" && step.press()));
-    // A picture on an edge with the keyboard on it is pressed with Enter or Space, as any button is; but the last
-    // stop's own card, there, is where you came by it, and Enter on it is the step.
+    // A picture on an edge with the keyboard on it is pressed with Enter or Space, as any button is.
     const tile = event.target instanceof HTMLElement && event.target.closest("[data-tile]");
-    const ownTile = atLastStop && tile && tile.getAttribute("data-tile") === "the last stop";
-    if (tile && !ownTile && /^( |enter)$/i.test(event.key)) return;
+    if (tile && /^( |enter)$/i.test(event.key)) return;
     if (typing || event.ctrlKey || event.metaKey || event.altKey) return;
     const key = event.key.toLowerCase();
     // Any other key pressed lets go of an arrow held; its own repeat is nothing, the page keeps its own pace.
     if (!event.repeat) arrow.letGo();
-    // At the last stop there's no recording to drive: Enter presses the step left, N notes on the whole change, ↑ or
-    // Escape go back to the last moment (Escape closing a note open first), and with Shift ↑ ↓ the notes are gone
-    // through as anywhere; nothing else on it answers.
-    if (atLastStop) {
-      const pressing = key === "enter" && (ownTile || !(event.target instanceof HTMLElement && event.target.closest("button, a")));
-      const did = pressing
-        ? step.press
-        : event.shiftKey
-          ? { arrowup: () => nextNote(-1), k: () => nextNote(-1), arrowdown: () => nextNote(1), j: () => nextNote(1) }[key]
-          : { arrowup: () => next(-1), k: () => next(-1), escape: () => (open ? close() : next(-1)), n: note }[key];
-      if (/^( |arrowdown|arrowleft|arrowright|j)$/.test(key) || did) event.preventDefault();
-      if (!event.repeat) did?.();
-      return;
-    }
     if (key === "escape") {
       if (takeOver.cant) takeOver.closeCant();
       else if (open) close();
@@ -788,11 +737,9 @@ export function MomentView(props: {
   }, []);
 
   // A note's picture is new on the edge when it wasn't there the last time this moment was drawn: it arrives.
-  // The last stop is a place of its own, after the last moment.
-  const place = atLastStop ? count + 1 : n;
   const known = useRef<{ n: number; ids: Set<string> }>(undefined);
-  const before = known.current?.n === place ? known.current.ids : undefined;
-  useEffect(() => void (known.current = { n: place, ids: new Set(onEdge.map(({ note }) => note.id)) }));
+  const before = known.current?.n === n ? known.current.ids : undefined;
+  useEffect(() => void (known.current = { n, ids: new Set(onEdge.map(({ note }) => note.id)) }));
   const newest = before && onEdge.findLast(({ note }) => !before.has(note.id))?.note.id;
   const [lastArrived, setLastArrived] = useState<string>();
   useEffect(() => void (newest && setLastArrived(newest)), [newest]);
@@ -818,7 +765,7 @@ export function MomentView(props: {
           id={other.name}
           label={other.name}
           forward={forward}
-          strong={i + 1 === n && !atLastStop}
+          strong={i + 1 === n}
           quiet
           // Watched, by the same count Done's "not watched" is: softer forward, never at rest. Not on a phone.
           watched={!phone && !props.unwatched.includes(i + 1)}
@@ -866,7 +813,7 @@ export function MomentView(props: {
           waiting={fresh}
           arriving={before && !before.has(note.id) ? "right" : undefined}
           strip
-          picture={note.on && <NotePicture frame={frames[note.id]} focus={isNow(shownAt(note)) ? aboutHere : undefined} />}
+          picture={<NotePicture frame={frames[note.id]} focus={isNow(shownAt(note)) ? aboutHere : undefined} />}
           words={
             // Its dot first, as on the recording and on its moment's picture: a dot means a note.
             <span className="flex gap-[7px]">
@@ -894,9 +841,9 @@ export function MomentView(props: {
   const thread = useRef<HTMLDivElement>(null);
   const threadMore = useMore(thread);
   // Opened, a thread comes in at its end, so its newest answer is what you see, what's before it fading above. In the
-  // page's flow (on a phone, at the last stop) it doesn't scroll by itself: what holds it brings the newest in instead,
+  // page's flow (on a phone) it doesn't scroll by itself: what holds it brings the newest in instead,
   // clear of its own fade.
-  const threadShown = !writing && !!carded && !!(cardBy || atLastStop);
+  const threadShown = !writing && !!carded && !!cardBy;
   useLayoutEffect(() => {
     const shown = thread.current;
     if (!shown) return;
@@ -911,14 +858,12 @@ export function MomentView(props: {
   }, [threadShown && carded.note.id]);
   const rows = useRef<HTMLDivElement>(null);
   const rowsMore = useMore(rows);
-  // At the last stop a card isn't by a thing: it's in the sheet's flow, as on a phone it's in the rows under the bar.
-  const inFlow = phone || atLastStop;
   const cards = (
     <>
-          {writing && <NoteCard by={(!(writing.note.on && madeInApp(writing.note.on)) && placed?.[writing.note.id]) || writing.box || spotAt(writing.spot)} stage={stage} under={inFlow}><Write onSave={save} onDrop={() => act({ type: "written" })} /></NoteCard>}
+          {writing && <NoteCard by={(!(writing.note.on && madeInApp(writing.note.on)) && placed?.[writing.note.id]) || writing.box || spotAt(writing.spot)} stage={stage} under={phone}><Write onSave={save} onDrop={() => act({ type: "written" })} /></NoteCard>}
           {/* Closing, it fades where it stood; under the bar on a phone, it goes at once, so it never holds its room. */}
-          {!writing && carded && (cardBy || atLastStop) && (
-            <NoteCard key={carded.note.id} by={cardBy ?? corner} stage={stage} closing={!opened} under={inFlow} easing={easing}>
+          {!writing && carded && cardBy && (
+            <NoteCard key={carded.note.id} by={cardBy ?? corner} stage={stage} closing={!opened} under={phone} easing={easing}>
               <div ref={thread} onScroll={threadMore.look} className="min-h-0 flex-1 overflow-y-auto px-1" style={threadMore.fade}>
                 {carded.sent ? <Turns you={you} turns={conversation(change, carded.note.id)} was={wasShown(carded.note)} /> : <Turns you={you} turns={[]} unsent={carded.note.words} />}
               </div>
@@ -937,7 +882,7 @@ export function MomentView(props: {
               )}
               {!carded.sent && (
                 <div className="mt-2 flex items-center gap-2 px-1 text-xs text-soft">
-                  <span>Sent with Send, under Moments</span>
+                  <span>Sent with Send, by the bar</span>
                   {/* A button as the reply box's Save is, its padding taken from the row so the card stays its size. */}
                   <button className="-my-0.5 ml-auto rounded-md px-2 py-1 font-medium text-fg hover:bg-hover" onClick={() => (setNotes((all) => all.filter((one) => one.id !== carded.note.id)), close())}>
                     Remove
@@ -957,7 +902,7 @@ export function MomentView(props: {
       place={itsPlace}
       quiet={away}
       phone={phone}
-      showing={atLastStop ? LAST_STOP : moment.name}
+      showing={moment.name}
       answers={away && may.back}
     >
       {momentTiles}
@@ -1024,7 +969,7 @@ export function MomentView(props: {
         <DownloadVideo
           change={change}
           handBack={handBack}
-          n={atLastStop ? undefined : n}
+          n={n}
           rests={away}
           asShown={() => ({
             ...(comparing && then && framedOn && { beside: { handBack: then.handBack.number, framedOn: { changed: framedOn.changed, done: framedOn.done } } }),
@@ -1047,17 +992,10 @@ export function MomentView(props: {
               stands, under the app coming over it. Coming back, it waits for the recording's edge to pass under it, so the edge
               never runs across words coming in. */}
           <div className={`absolute inset-x-0 bottom-full mb-3 flex flex-col items-center phone:mb-2 phone:items-start transition-opacity ${takes ? "opacity-0" : ""}`} style={takes ? STEPPING_OUT : STEPPING_BACK} inert={takes}>
-            {/* At the last stop there's no moment to name: the change's title takes the moment's line, as the sheet's
-                heading, and its own small place over it rests empty. Both stay drawn, one faded out, so nothing moves. */}
-            {!phone && !shownByAnotherPage() && <div className={`flex min-w-0 max-w-full justify-center transition-opacity duration-[240ms] ease-calm ${atLastStop ? "pointer-events-none opacity-0" : ""}`}>{title}</div>}
-            <div className="grid w-full">
-              <p className={`line-clamp-2 text-center text-[15px] leading-[22px] text-balance text-fg transition-opacity duration-[240ms] ease-calm [grid-area:1/1] phone:line-clamp-3 phone:text-left ${atLastStop ? "opacity-0" : ""}`} title={moment.name}>
-                {moment.name}
-              </p>
-              <p aria-hidden={!atLastStop} className={`min-w-0 self-end truncate text-center text-[15px] leading-[22px] text-fg transition-opacity duration-[240ms] ease-calm [grid-area:1/1] phone:text-left ${atLastStop ? "" : "opacity-0"}`}>
-                {change.title}
-              </p>
-            </div>
+            {!phone && !shownByAnotherPage() && <div className="flex min-w-0 max-w-full justify-center">{title}</div>}
+            <p className="line-clamp-2 w-full text-center text-[15px] leading-[22px] text-balance text-fg phone:line-clamp-3 phone:text-left" title={moment.name}>
+              {moment.name}
+            </p>
           </div>
           {/* The recording, filling its place; while the app is yours, taking the page from it in the very move that
               takes the picture out to the whole screen, its foot, and the bar across it, where they were. Over the
@@ -1070,11 +1008,9 @@ export function MomentView(props: {
             onPointerEnter={() => setOverRecording(true)}
             onPointerLeave={() => (setAiming(false), setOverRecording(false))}
           >
-          {/* At the last stop, once its sheet has come in over it, the moment is put away: its edge showed round the sheet's
-              rounded corners, light on dark. Leaving, it's back at once, under the sheet fading out. */}
           <div
             data-part="picture"
-            className={`absolute inset-0 overflow-hidden rounded-lg bg-paper shadow-frame transition-[visibility] duration-0 ${atLastStop ? "invisible delay-300" : "delay-0"}`}
+            className="absolute inset-0 overflow-hidden rounded-lg bg-paper shadow-frame"
             onClick={(event) => !noting && !(event.target as Element).closest("button") && (opened ? close() : play())}
           >
             {/* The very layer the moment left was drawn in, kept by its key and laid out as it was, picture and all, so its
@@ -1105,7 +1041,7 @@ export function MomentView(props: {
                 scrolled={scrolled}
                 hand={!standIn}
                 tag={agent}
-                tagged={tagged({ still, playing: !!playing, playedAWhile, comparing, noting, atLastStop })}
+                tagged={tagged({ still, playing: !!playing, playedAWhile, comparing, noting })}
                 drawn={drawn}
                 frameFrom={frameFrom}
               />
@@ -1189,61 +1125,6 @@ export function MomentView(props: {
             onStandIn={setStandIn}
             tag={still ? undefined : agent}
           />
-          {/* The last stop's sheet, in the recording's very frame, coming in over it and going as a moment does. */}
-          {sheetDrawn && (
-            <div ref={sheet} className={`absolute inset-0 z-[15] ${atLastStop ? "animate-arrive" : "pointer-events-none"}`}>
-              <LastStop
-                asked={change.asked}
-                open={atLastStop && !phone && (writing || carded) ? { id: writing ? undefined : carded ? carded.note.id : undefined, card: cards } : undefined}
-                went={step.went}
-                notes={sending.current.map(({ note, sent: isSent }, i, all) => {
-                  // The note's card as it is on the Notes edge forward, with the moment it's on, since here they come
-                  // from several; amber while it's yours to send, slate once it's gone.
-                  const on = handBack.moments.findIndex((one) => isOn(note, one.name)) + 1;
-                  const words = says(note, isSent).words;
-                  return {
-                    id: note.id,
-                    card: (
-                      <Tile
-                        id={note.id}
-                        label={words}
-                        forward
-                        strong={false}
-                        strip
-                        beside={!phone}
-                        picture={note.on && <NotePicture frame={sheetFrames[note.id]} />}
-                        words={
-                          <span className="flex gap-[7px]">
-                            {/* Sent, the dots settle to slate one after another down the list, all of them inside
-                                400 ms however many there are. */}
-                            <i
-                              className={`mt-[5px] size-[7px] flex-none rounded-full shadow-[0_0_0_1.5px_#fff] transition-colors duration-150 ease-calm ${step.taken === "Sent" ? "bg-slate" : "bg-amber"}`}
-                              style={{ transitionDelay: `${(i * Math.min(60, 250 / all.length)).toFixed(0)}ms` }}
-                            />
-                            <span className="min-w-0">
-                              {/* Three lines at most; pressed, the note is whole where it's open. */}
-                              <span className="line-clamp-3 text-[12.5px] leading-[17px] text-fg">{words}</span>
-                              {on > 0 && <span className="mt-0.5 block line-clamp-1 text-[11.5px] leading-4 text-soft">{handBack.moments[on - 1]!.name}</span>}
-                            </span>
-                          </span>
-                        }
-                        onPress={() => (on ? may.move && goTo(on, note.id) : !note.on && openNote(note.id))}
-                      />
-                    ),
-                  };
-                })}
-                tell={step.tell}
-                unwatched={props.unwatched.length}
-                unopened={props.unopened.length}
-                onUnwatched={() => props.unwatched[0] && may.move && goTo(props.unwatched[0])}
-                onUnopened={() => {
-                  const first = props.unopened[0];
-                  // One on the whole change is here, at the last stop.
-                  if (first && may.move) first.moment > count ? openNote(first.note) : goTo(first.moment, first.note);
-                }}
-              />
-            </div>
-          )}
           {(() => {
             const one = saying && !opened && !writing && !playing && !away ? onEdge.find(({ note }) => note.id === saying) : undefined;
             const thing = one && placed?.[one.note.id];
@@ -1261,15 +1142,15 @@ export function MomentView(props: {
           <span ref={pill} aria-hidden className={`pointer-events-none absolute top-0 left-0 z-30 transition-opacity duration-150 ease-calm ${aimingNote && aiming ? "" : "opacity-0"}`}>
             <span className={TAG}>Note on this</span>
           </span>
-          {!phone && !atLastStop && cards}
+          {!phone && cards}
           {/* What you can do here, across the recording's bottom edge, as on the older page; on a phone, just under it. */}
           <div
             role="toolbar"
             aria-label="This moment"
             onClick={(event) => (event.target as Element).closest("button")?.blur()}
-            className={`absolute top-full left-1/2 z-20 flex w-max max-w-full ${atLastStop ? "" : `${PHONE_BAR} justify-evenly`} gap-0.5 rounded-xl transition-[translate,opacity] duration-300 ease-calm bg-surface p-1 text-[13px] select-none ${inApp ? "outline-2 outline-[rgba(236,178,72,0.95)] outline-solid shadow-[0_6px_20px_rgba(20,24,34,0.12)]" : "shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]"}`}
+            className={`absolute top-full left-1/2 z-20 flex w-max max-w-full ${PHONE_BAR} justify-evenly gap-0.5 rounded-xl transition-[translate,opacity] duration-300 ease-calm bg-surface p-1 text-[13px] select-none ${inApp ? "outline-2 outline-[rgba(236,178,72,0.95)] outline-solid shadow-[0_6px_20px_rgba(20,24,34,0.12)]" : "shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]"}`}
             ref={toolbar}
-            style={{ height: BAR, minWidth: !phone && !atLastStop && notingWide ? notingWide + 8 : undefined, translate: phone ? "-50% 0" : `calc(-50% + ${clear?.x ?? 0}px) calc(-50% + ${clear?.y ?? 0}px)`, opacity: clear ? 1 : 0 }}
+            style={{ height: BAR, minWidth: !phone && notingWide ? notingWide + 8 : undefined, translate: phone ? "-50% 0" : `calc(-50% + ${clear?.x ?? 0}px) calc(-50% + ${clear?.y ?? 0}px)`, opacity: clear ? 1 : 0 }}
           >
             {/* What Take over has to say, just over the bar, where it was pressed: that the app starts first, what your
                 browser can't be of the one the moment ran in, or in the app that its check at the end doesn't hold
@@ -1293,24 +1174,13 @@ export function MomentView(props: {
               </Notice>
             )}
             {/* Where the change stands, over the bar on every moment, but where Take over or noting has its say there. */}
-            {!atLastStop && !takeOver.cant && !takeOver.said && !takeOver.waitingOn && !noting && !writing && <StepNotice step={step} todo={doneAnyway && !step.said ? toDo : undefined} faded={!!playing} />}
+            {!takeOver.cant && !takeOver.said && !takeOver.waitingOn && !noting && !writing && <StepNotice step={step} todo={doneAnyway && !step.said ? toDo : undefined} faded={!!playing} />}
             {/* The step left, in its own box at the bar's right, on its line: with the bar always, playing or in the app. */}
-            {!atLastStop && !phone && (
+            {!phone && (
               <div className="absolute top-0 left-full ml-3">
                 <StepBox step={step} anyway={doneAnyway} onPress={pressStep} />
               </div>
             )}
-            {/* At the last stop, the one thing to do there. */}
-            {atLastStop ? (
-              // Note, as on a moment, on the whole change; beside it the step left.
-              <>
-                <button className={ITEM} disabled={!may.note} aria-pressed={!!writing} onClick={note}>
-                  Note <Key>N</Key>
-                </button>
-                <StepAction step={step} told={sending.current!.length > 0} />
-              </>
-            ) : (
-            <>
             {/* What noting says, laid out unseen, so the bar is always as wide as its widest state and never cuts it. */}
             {!phone && (
               <div ref={notingRuler} aria-hidden className="pointer-events-none invisible absolute top-0 left-0 flex w-max items-center gap-2 pl-2.5">
@@ -1371,8 +1241,6 @@ export function MomentView(props: {
             </button>
             {phone && comparer}
             </div>
-            </>
-            )}
           </div>
           </div>
         </div>
@@ -1381,11 +1249,11 @@ export function MomentView(props: {
       <div ref={rows} onScroll={rowsMore.look} className={phone ? "grid min-h-0 grid-cols-[minmax(0,1fr)] content-start gap-6 overflow-y-auto px-4 pt-6 pb-8" : "contents"} style={phone ? rowsMore.fade : undefined}>
         {phone && cards}
         {/* On a phone, the step left is a row of its own under the bar. */}
-        {phone && !atLastStop && <StepBox step={step} anyway={doneAnyway} onPress={pressStep} className="w-full" />}
+        {phone && <StepBox step={step} anyway={doneAnyway} onPress={pressStep} className="w-full" />}
         {/* Tab reaches them as they read, left to right; on a phone, the notes come first, nearest what they're on. */}
         {!phone && momentsEdge}
-        {(!phone || (!atLastStop && onEdge.length > 0)) && (
-          <Edge side="right" label="Notes" keys={["Shift", "↑", "↓"]} place={itsPlace} quiet={away} phone={phone} empty={atLastStop ? !sent.length && !notes.length : !onEdge.length} showing={open ?? lastArrived}>
+        {(!phone || onEdge.length > 0) && (
+          <Edge side="right" label="Notes" keys={["Shift", "↑", "↓"]} place={itsPlace} quiet={away} phone={phone} empty={!onEdge.length} showing={open ?? lastArrived}>
             {noteTiles}
           </Edge>
         )}
@@ -1395,8 +1263,6 @@ export function MomentView(props: {
   );
 }
 
-// The last stop's card on the Moments edge, by its name there.
-const LAST_STOP = "the last stop";
 
 // Compare's place on the bar, as wide as what it holds at its widest, so the bar is the same width whatever's there; on
 // a phone, its words are the switch's.
@@ -1449,5 +1315,7 @@ function scrollsFirst(from: Element, by: number): boolean {
 
 // A spot, as a thing with no size.
 const spotAt = ({ x, y }: { x: number; y: number }): Rect => ({ left: x, top: y, width: 0, height: 0 });
+// A note on nothing in the moment: the whole moment, or, kept by earlier versions, the whole change.
+const onNothing = ({ on }: Note) => !on || (!madeInApp(on) && on.at === undefined && !on.element && !on.box && !on.point);
 // Asked for reduced motion.
 const unmoving = () => matchMedia("(prefers-reduced-motion: reduce)").matches;

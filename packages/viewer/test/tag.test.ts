@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { agentTo, besideTip, tagged } from "../src/tag.ts";
 
-const starting = { still: false, playing: true, playedAWhile: false, comparing: false, noting: false, atLastStop: false };
+const starting = { still: false, playing: true, playedAWhile: false, comparing: false, noting: false };
 
 test("the agent is yours to the person, and the agent to a guest on a change shared with them", () => {
   assert.equal(agentTo(false), "Your agent");
@@ -21,8 +21,8 @@ test("at rest it wears none: not before playing, nor once stopped", () => {
   assert.equal(tagged({ ...starting, playing: false, playedAWhile: true }), false);
 });
 
-test("not on a still, in Compare, while noting, or at the last stop", () => {
-  for (const one of ["still", "comparing", "noting", "atLastStop"] as const) assert.equal(tagged({ ...starting, [one]: true }), false, one);
+test("not on a still, in Compare, or while noting", () => {
+  for (const one of ["still", "comparing", "noting"] as const) assert.equal(tagged({ ...starting, [one]: true }), false, one);
 });
 
 test("it stands below and right of the tip, and turns left or above where the picture's right or bottom edge would cut it off", () => {

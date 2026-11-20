@@ -1,4 +1,4 @@
-// Sending, from every change's row and the foot of a change's moments alike.
+// Sending, from every change's row and the box beside a moment's bar alike.
 
 import type { ReactNode } from "react";
 import { latestOf, newId, type Change, type Note } from "@playthrough/change";
@@ -61,9 +61,6 @@ export function Taken({ children, className = "" }: { children: ReactNode; class
     </span>
   );
 }
-
-// A key's cap on the filled button, in its words' colour.
-export const FILLED_KEY = "text-[inherit]! opacity-70 shadow-[0_0_0_1px_color-mix(in_srgb,currentColor_45%,transparent)]!";
 
 // How long what you sent says so where you pressed, before it goes where it goes.
 export const SAID = 1400;

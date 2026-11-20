@@ -301,8 +301,7 @@ export function problemsWithSend(change: Change, send: Send): string[] {
   return problems;
 }
 
-// What's seen is a moment handed back, a moment of a finished hand-back, or its last stop, where the notes on the whole
-// change are.
+// What's seen is a moment of a finished hand-back, or, as earlier versions kept its last stop, the hand-back as a whole.
 export function problemsSeeing(change: Change, by: string, seen: Seen[]): string[] {
   if (!isText(by)) return ["Seeing needs to say who saw it."];
   if (problemsWithName(by).length) return problemsWithName(by);

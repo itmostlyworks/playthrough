@@ -1,6 +1,6 @@
 // What you're watching as a video your browser downloads, at the top right of a moment's page. Pressed, it asks which
 // where it is: this moment, as it's shown (beside how it was, with Compare on), or the whole change, its moments in
-// order; a change of one moment, or the last stop, has nothing to choose. Making one takes as long as the video, and the
+// order; a change of one moment has nothing to choose. Making one takes as long as the video, and the
 // button says so where you pressed it: it counts down to the download a second at a time, filling as it goes, and ends
 // on a tick, “Downloaded”. Only it redraws while it counts, and nothing in it moves: one box, as wide as its widest
 // words, the arrow, the seconds and the tick in one slot before them, and the words always starting where they start.
@@ -23,8 +23,8 @@ const WORDS = { rest: "Download video", making: "Downloading…", downloaded: "D
 type Props = {
   change: Change;
   handBack: HandBack;
-  // The moment you're on, by its place from 1; none at the last stop, where the whole change is what's shown.
-  n?: number;
+  // The moment you're on, by its place from 1.
+  n: number;
   // How it's shown now: beside how it was, and where you've taken the window.
   asShown: () => Pick<AskedVideo, "beside" | "window">;
   // In the app, it rests: closed and not to be pressed, and on a phone, where it stays in sight, quieter.
@@ -40,9 +40,9 @@ export function DownloadVideo({ change, handBack, n, asShown, rests }: Props) {
   const make = (whole: boolean) => {
     setChoosing(false);
     if (busy || !source.video) return;
-    const moment = n !== undefined && !whole ? handBack.moments[n - 1] : undefined;
+    const moment = whole ? undefined : handBack.moments[n - 1];
     const shown = moment ? asShown() : {};
-    const asked: AskedVideo = { handBack: handBack.number, moments: moment ? [n!] : handBack.moments.map((_, i) => i + 1), ...shown, dark: matchMedia("(prefers-color-scheme: dark)").matches };
+    const asked: AskedVideo = { handBack: handBack.number, moments: moment ? [n] : handBack.moments.map((_, i) => i + 1), ...shown, dark: matchMedia("(prefers-color-scheme: dark)").matches };
     const name = moment ? `${moment.name}${shown.beside ? ", now and when you last saw it" : ""}` : change.title;
     setMaking({ since: Date.now() });
     void source.video(change.id, asked, (left) => setMaking((now) => (now && "since" in now ? { ...now, due: Date.now() + left * 1000 } : now))).then((made) => {
@@ -52,8 +52,8 @@ export function DownloadVideo({ change, handBack, n, asShown, rests }: Props) {
       setTimeout(() => setMaking((now) => (now && !("since" in now) ? undefined : now)), problems.length ? 6000 : 2500);
     });
   };
-  // One moment, or none to be on, is nothing to choose between.
-  const press = () => (n === undefined || handBack.moments.length === 1 ? make(true) : setChoosing((now) => !now));
+  // One moment is nothing to choose between.
+  const press = () => (handBack.moments.length === 1 ? make(true) : setChoosing((now) => !now));
 
   const left = useCount(busy ? (making as { due?: number }).due : undefined);
   const said: keyof typeof WORDS = !making ? "rest" : "downloaded" in making ? "downloaded" : "problems" in making ? "failed" : "making";
