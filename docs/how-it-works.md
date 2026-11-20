@@ -99,7 +99,10 @@ until then it's written down in `.playthrough/borrowed/` under the process it wa
 left, the next one gives back.
 
 **`change`** (`change.ts`) names it, and refuses a title whose name is a folder Playthrough keeps for itself, or makes
-the name of another change here with a different title, saying which; the same title again goes back on it.
+the name of another change here with a different title, saying which; the same title again goes back on it. It keeps
+only the title, what was asked and when (the day each run's clock is set to), nothing of the app, so a change named
+after it's made is the same change, and MOMENTS.md says so at step 1: an agent asked "When you're done, show me with npx
+playthrough" made its change first, and had to work out alone that step 2 was behind it.
 
 **`as <person>`** (`as.ts`) starts the app if nobody has, and a Chromium as them (1280 by 800, English, UTC), saying
 only what it knows of who that is: signed in by `setup.ts`'s `signIn` where it has one, and otherwise just open as

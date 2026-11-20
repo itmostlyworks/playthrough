@@ -69,12 +69,13 @@ if they say so.
 
   Taking over, the person's browser talks to the app with it too, without being able to read it. Added on the page
   instead (page.setExtraHTTPHeaders, or a page.route that adds it), it's in your moments but not in their browser.
-- Then try it: playthrough as <each person>, and look at what they see, before you change anything else.
+- Then try it: playthrough as <each person>, and look at what they see, before you go on.
 
 EACH CHANGE
 
 1. Name the change: playthrough change "<a title, as a pull request's>" "<what you were asked, word for word>". Every
-   command after it means this change, until you name another.
+   command after it means this change, until you name another. Named after it's made, it's the same change, and nothing
+   is lost: Playthrough keeps nothing of the app from before. Then go on from 3.
 2. Change the app as asked.
 3. Check it as someone would use it: run playthrough as <person>, which comes back once its browser is ready, and drive
    that browser with your own tool, attached to it, never a browser of your own, at the port it says (9333, unless
