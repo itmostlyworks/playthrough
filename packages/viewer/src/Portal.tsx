@@ -52,12 +52,15 @@ export function Portal({ live, screen, scrolled, theirs, onStandIn, app: talk, o
   const waiting = !!live?.shown && !inPortal;
   const open = useRef(false);
   const taking = useRef(false);
-  // Where you last pointed, on the page; and your hand in the picture while you're in the app.
+  // Where you last pointed, on the page; and your hand in the app while you're there. The hand's
+  // places are in the app's own pixels, and it's drawn over the app scaled as the app is, so as the picture grows or
+  // shrinks around it, taking over and giving back, it stays on what it points at.
   const pointed = useRef<{ x: number; y: number }>(undefined);
   const yourHand = useRef<{ x: number; y: number }>(undefined);
+  const inTheApp = (point: { x: number; y: number }) => ({ x: point.x / k, y: point.y / k });
+  const tip = (point: { x: number; y: number }) => `translate(${point.x.toFixed(1)}px,${point.y.toFixed(1)}px)`;
   // As large as the recording's pointer is over the picture, so it doesn't change size as it comes into the app.
   const grown = pointerScale(k);
-  const tip = (point: { x: number; y: number }) => `translate(${(point.x - 3 * grown).toFixed(1)}px,${(point.y - 2 * grown).toFixed(1)}px) scale(${grown})`;
   // The recording's pointer, in the app, until it has come to yours: where it stands, and what follows once it's there.
   const theirHand = useRef<{ from: { x: number; y: number }; then: () => void; coming?: Animation }>(undefined);
   // On its way to yours, it's as far along from where it stood to where yours is now: homing in, wherever yours goes.
@@ -98,13 +101,13 @@ export function Portal({ live, screen, scrolled, theirs, onStandIn, app: talk, o
       const box = open.current && room.current?.getBoundingClientRect();
       if (!box) return;
       const at = { x: event.clientX - box.left, y: event.clientY - box.top };
-      handTo(at, at.x >= 0 && at.y >= 0 && at.x <= box.width && at.y <= box.height, false);
+      handTo(inTheApp(at), at.x >= 0 && at.y >= 0 && at.x <= box.width && at.y <= box.height, false);
     };
     // In the app, the hand goes where your pointer is, and leaves the picture with it. All else it says is the page's.
     const told = ({ data, source }: MessageEvent) => {
       if (!data?.playthrough || !iframe.current || source !== iframe.current.contentWindow) return;
       if (data.playthrough !== "pointer") return heard.current?.(data, (x, y) => ({ x: x * k, y: y * k }));
-      if (open.current) handTo({ x: data.x * k, y: data.y * k }, data.inside, !!data.text);
+      if (open.current) handTo({ x: data.x, y: data.y }, data.inside, !!data.text);
     };
     addEventListener("pointermove", aimed, true);
     addEventListener("pointerdown", aimed, true);
@@ -136,17 +139,20 @@ export function Portal({ live, screen, scrolled, theirs, onStandIn, app: talk, o
     for (const part of [door, glow, rim, edging, yours]) part.getAnimations().forEach((animation) => animation.cancel());
     theirHand.current = undefined;
     yours.style.translate = door.style.clipPath = "";
-    const { width, height, left: x0, top: y0 } = box.getBoundingClientRect();
-    const mine = pointed.current && { x: pointed.current.x - x0, y: pointed.current.y - y0 };
+    // Where you're pointing, and where the recording's pointer and the ring are: in the app's own pixels.
+    const { left: x0, top: y0 } = box.getBoundingClientRect();
+    const [width, height] = [screen.width, screen.height];
+    const mine = pointed.current && inTheApp({ x: pointed.current.x - x0, y: pointed.current.y - y0 });
     const onIt = mine && mine.x >= 0 && mine.y >= 0 && mine.x <= width && mine.y <= height ? mine : undefined;
-    const recorded = theirs();
-    const left = live?.at && { x: live.at.x * k, y: live.at.y * k };
+    const drawnAt = theirs();
+    const recorded = drawnAt && inTheApp(drawnAt);
+    const left = live?.at;
     const at = (inPortal ? (onIt ?? recorded) : (yourHand.current ?? left ?? onIt)) ?? { x: width / 2, y: height / 2 };
     // The ring and the glow set around a point, and the circle the app shows through, from nothing out to the picture's
-    // farthest corner.
+    // farthest corner. The circle and the glow are the app's, drawn scaled as it is; the ring is the picture's.
     const around = (at: { x: number; y: number }) => {
       const reach = Math.max(...[[0, 0], [width, 0], [0, height], [width, height]].map(([x, y]) => Math.hypot(x! - at.x, y! - at.y)));
-      Object.assign(rim.style, { left: `${at.x - reach}px`, top: `${at.y - reach}px`, width: `${reach * 2}px`, height: `${reach * 2}px` });
+      Object.assign(rim.style, { left: `${(at.x - reach) * k}px`, top: `${(at.y - reach) * k}px`, width: `${reach * 2 * k}px`, height: `${reach * 2 * k}px` });
       glow.style.setProperty("--x", `${at.x}px`);
       glow.style.setProperty("--y", `${at.y}px`);
       const circle = (r: number) => `circle(${r.toFixed(1)}px at ${at.x.toFixed(1)}px ${at.y.toFixed(1)}px)`;
@@ -182,7 +188,7 @@ export function Portal({ live, screen, scrolled, theirs, onStandIn, app: talk, o
       };
       // Yours on the picture, the recording's comes to it and the portal opens from where they meet, wherever that turns
       // out to be. Yours elsewhere, it opens from the recording's, which waits there for yours.
-      const apart = recorded && (!onIt || Math.hypot(onIt.x - recorded.x, onIt.y - recorded.y) > 4);
+      const apart = recorded && (!onIt || Math.hypot(onIt.x - recorded.x, onIt.y - recorded.y) > 4 / k);
       if (apart && onIt) {
         door.style.clipPath = around(at)[0]!;
         theirHand.current = { from: recorded, then: () => (real(true), opening(yourHand.current ?? at)) };
@@ -208,7 +214,7 @@ export function Portal({ live, screen, scrolled, theirs, onStandIn, app: talk, o
     if (still) return void (shut(), hide());
     // Your hand goes back to where the recording has it, and goes.
     const [gone, whole] = around(at);
-    const back = recorded ? tip(recorded) : tip(at);
+    const back = tip(recorded ?? at);
     // It rests where it's going, so once there it never shows where it was; and it goes in the very frame the recording's own
     // is drawn again, in its place.
     Object.assign(yours.style, { transform: back, opacity: recorded ? "1" : "0" });
@@ -229,7 +235,7 @@ export function Portal({ live, screen, scrolled, theirs, onStandIn, app: talk, o
     taking.current = waiting;
     if (waiting) {
       const recorded = theirs();
-      if (recorded) (Object.assign(yours.style, { transform: tip(recorded), opacity: "1" }), onStandIn(true));
+      if (recorded) (Object.assign(yours.style, { transform: tip(inTheApp(recorded)), opacity: "1" }), onStandIn(true));
       if (matchMedia("(prefers-reduced-motion: reduce)").matches) return void (edging.style.opacity = "1");
       edging.animate([{ opacity: 0.25 }, { opacity: 1, boxShadow: BREATH }], { duration: 1000, easing: "ease-in-out", direction: "alternate", iterations: Infinity });
       return;
@@ -245,7 +251,15 @@ export function Portal({ live, screen, scrolled, theirs, onStandIn, app: talk, o
       {/* See-through rather than hidden until it's yours, as a hidden frame from another address never settles; and
           out of the keyboard's way till then, so Tab never walks an app nobody can see. */}
       {live?.address && (
-        <div ref={app} data-live inert={!inPortal} className="pointer-events-none absolute inset-0 overflow-hidden opacity-0">
+        // The app, at its own size and scaled as a picture is, as the recording is, with what's drawn over it: scaled as
+        // it's drawn, its words are set at one size and drawn at another, the spaces between them lost ("BrightStudio").
+        <div
+          ref={app}
+          data-live
+          inert={!inPortal}
+          className="pointer-events-none absolute top-0 left-0 origin-top-left overflow-hidden opacity-0"
+          style={{ width: screen.width, height: screen.height, transform: `scale(${k})`, willChange: "transform" }}
+        >
           <div ref={sheen} className="pointer-events-none absolute inset-0 z-1 opacity-0 [background:radial-gradient(circle_at_var(--x)_var(--y),rgba(255,232,190,0.15),rgba(255,214,150,0.5))]" />
           <iframe
             ref={iframe}
@@ -254,16 +268,16 @@ export function Portal({ live, screen, scrolled, theirs, onStandIn, app: talk, o
             title="The app, taken over"
             // As in a recording, a click there may copy, the app being yours.
             allow="clipboard-read; clipboard-write"
-            className="absolute top-0 left-0 origin-top-left border-0 bg-paper"
-            // Drawn at its own size and scaled as a picture is, as the recording is: scaled as it's drawn, its words are
-            // set at one size and drawn at another, the spaces between them lost ("BrightStudio").
-            style={{ width: screen.width, height: screen.height, transform: `scale(${k})`, willChange: "transform" }}
+            className="absolute inset-0 size-full border-0 bg-paper"
           />
         </div>
       )}
       <div ref={ring} className="pointer-events-none absolute top-0 left-0 rounded-full opacity-0 [border:2.5px_solid_rgba(236,178,72,0.95)] [box-shadow:0_0_40px_14px_rgba(226,170,70,0.38),inset_0_0_36px_10px_rgba(255,214,150,0.4)]" />
       <div ref={edge} className="pointer-events-none absolute inset-0 rounded-lg opacity-0 [box-shadow:inset_0_0_0_1.5px_rgba(217,162,58,0.75),inset_0_0_22px_rgba(217,162,58,0.16)]" />
-      <div ref={hand} className="pointer-events-none absolute top-0 left-0 z-2 size-5 origin-top-left opacity-0 will-change-transform [&[data-yours]>svg]:invisible [filter:drop-shadow(0_1px_1px_rgba(0,0,0,.3))]">
+      {/* The hand, over the app and scaled as it is, where it points in it; at the recording's pointer's size whatever the app's is. */}
+      <div className="pointer-events-none absolute top-0 left-0 z-2 origin-top-left" style={{ width: screen.width, height: screen.height, transform: `scale(${k})` }}>
+      <div ref={hand} className="absolute top-0 left-0 opacity-0 will-change-transform [&[data-yours]_svg]:invisible">
+      <div className="relative size-5 origin-top-left [filter:drop-shadow(0_1px_1px_rgba(0,0,0,.3))]" style={{ transform: `scale(${grown / (k || 1)}) translate(-3px, -2px)` }}>
         <svg data-arrow viewBox="0 0 20 20" width="20" height="20" aria-hidden>
           <path d="M3 2l13 7.5-5.6 1.3L7.6 16z" fill="#FFFFFF" stroke="#1E2330" strokeWidth="1.3" strokeLinejoin="round" />
         </svg>
@@ -272,6 +286,8 @@ export function Portal({ live, screen, scrolled, theirs, onStandIn, app: talk, o
           <path d="M7 3.5h6M10 3.5v13M7 16.5h6" fill="none" stroke="#FFFFFF" strokeWidth="3.2" strokeLinecap="round" />
           <path d="M7 3.5h6M10 3.5v13M7 16.5h6" fill="none" stroke="#1E2330" strokeWidth="1.4" strokeLinecap="round" />
         </svg>
+      </div>
+      </div>
       </div>
     </div>
   );

@@ -1034,7 +1034,11 @@ moment's own, so its layout is the moment's. Already that large, it doesn't grow
 two boxes (`inItsRoom` and `inTheAppsRoom`, `Moment.tsx`): the recording's place, which the edges and what this is stand
 by and which never moves, and the recording, which fills its place, or while the app is yours stands on its foot at the
 width the rule gives; the recording's picture, its pins and the app are drawn at each size in the frame it's laid out in
-(`flushSync` from their resize observers), so nothing is a frame behind its edges. Back, Escape twice, a take-over called
+(`flushSync` from their resize observers), so nothing is a frame behind its edges. The pointer that stands in for the
+recording's while the app is on its way and yours, and the circle the app opens and closes through, are drawn over the
+app in its own pixels and scaled as it is (`Portal.tsx`), so through the move they stay on what they point at, both
+ways (until 20 Nov they were placed in the picture's pixels as they were when Take over or Back was pressed, and the
+pointer slid some 45px off its spot as the picture grew, then jumped back once the recording drew its own). Back, Escape twice, a take-over called
 off or one that can't happen, all of it comes back in one move, the way in reversed, from wherever it has got to; after
 it, every box on the page is where it was. Coming back, what this is over the recording waits for the recording's edge
 to pass under it, fading in over the move's second half (until 20 Nov it came in with the move, and the edge ran
