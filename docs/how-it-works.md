@@ -627,7 +627,9 @@ your agents and done ones have no pictures. A line with room either side of it s
 one above: its pictures are the heaviest thing in the sheet, and with nothing between they read as the next change's. The sheet keeps itself current, but never moves what's under your
 pointer: one that arrives there says at once where it stands and moves when the pointer leaves.
 
-**A moment's page** (`Moment.tsx`, the bar in `MomentBar.tsx`). A moment opens at rest on its end. **A moment is only
+**A moment's page** (`Moment.tsx`, the bar in `MomentBar.tsx`). A moment opens at rest on its end, and at rest the
+recording is just the recording: nothing is drawn on what the moment is about (until 20 Nov a grey outline was, at its
+end). **A moment is only
 what it shows:** its recording plays from `from` to its end; one with nothing done from `from` on is a still: Play and
 its arrows rest there, dimmed where they always are, and Play says "A still: nothing to play" when pointed at. The recording sits in the middle, as large as the room beside its edges lets it be
 (`SIDE`, 10vw, 104 to 160px each side), and never moves or changes size: not as an edge comes forward, a note opens or

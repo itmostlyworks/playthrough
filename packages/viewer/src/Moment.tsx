@@ -434,9 +434,8 @@ export function MomentView(props: {
     if (onThisTaking(on) && on?.point && Math.abs((on.at ?? end) - at) < 0.06) return { id: note.id, point: on.point };
     return { id: note.id };
   };
-  const aboutNode = nodeOf(about);
   const pinned = [...onEdge, ...(writing ? [{ note: writing.note, sent: false }] : [])];
-  const marks: Mark[] = [...(aboutNode !== undefined ? [{ id: ABOUT, node: aboutNode }] : []), ...pinned.map(({ note }) => markOf(note))];
+  const marks: Mark[] = pinned.map(({ note }) => markOf(note));
   const pinFor = ({ note, sent }: { note: Note; sent: boolean }): Pin => ({ id: note.id, on: [note.id], ink: sent ? "var(--slate)" : "var(--amber)", fill: sent ? "bg-slate" : "bg-amber" });
 
   // A note open shows where it's shown, its pin on its thing and what's been said on it, and nothing more: from an
@@ -688,10 +687,6 @@ export function MomentView(props: {
   const byThing = !carded ? undefined : phone ? corner : openAt && (openAt[carded.note.id] ?? corner);
   const cardBy = byThing ?? (carded && stood.current?.note === carded.note.id ? stood.current.by : undefined);
   stood.current = carded && cardBy ? { note: carded.note.id, by: cardBy } : undefined;
-  // What it's about is outlined only at the point: midway, it may not be there yet. Out of view, with the picture brought
-  // closer, there's nothing of it to outline.
-  const aboutPlaced = placed?.[ABOUT];
-  const aboutAt = atPoint && !away && !opened && aboutPlaced && (aboutPlaced.width || aboutPlaced.height) ? aboutPlaced : undefined;
 
   // Pressing away from what's open, anywhere but its card and its picture on the edge, closes it.
   const pressAway = (event: React.PointerEvent) => opened && !(event.target as Element).closest("[data-note-card], [data-tile]") && !stage.current?.contains(event.target as Node) && close();
@@ -1040,12 +1035,6 @@ export function MomentView(props: {
                 frameFrom={frameFrom}
               />
             </div>
-            {aboutAt && (
-              <div
-                className="pointer-events-none absolute animate-arrive rounded-[4px] outline-[1.5px] outline-offset-4 outline-slate outline-solid"
-                style={{ left: aboutAt.left, top: aboutAt.top, width: aboutAt.width, height: aboutAt.height }}
-              />
-            )}
             {comparing && then && both && framedOn && (
               // Now first, on the right. Both end above the bar, so nothing they're framed on is ever under it.
               <div className="absolute inset-0 z-[5] flex animate-arrive flex-row-reverse gap-3 bg-ground" style={{ paddingBottom: phone ? 0 : BAR / 2 + 8 }}>
@@ -1326,8 +1315,6 @@ export function MomentView(props: {
     </div>
   );
 }
-
-const ABOUT = "about";
 
 // The last stop's card on the Moments edge, by its name there.
 const LAST_STOP = "the last stop";
