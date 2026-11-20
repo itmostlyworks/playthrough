@@ -220,8 +220,8 @@ export function StepBox({ step, anyway, onPress, className = "" }: { step: Step;
       onMouseDown={(event) => event.preventDefault()}
       onClick={(event) => (event.detail && event.currentTarget.blur(), onPress())}
       // Of the bar's own material, so the two read as one bar and its neighbour: what says there's something to send is
-      // its words in full ink, and the amber light as a note is saved.
-      className={`grid h-10 flex-none items-center rounded-xl bg-surface px-3.5 text-[13px] whitespace-nowrap shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)] transition-[background-color,color] duration-150 ease-calm ${pressable ? "text-fg enabled:hover:bg-hover" : "cursor-default text-soft"} ${className}`}
+      // its words in full ink, and the amber light as a note is saved. Pointed at, the tint lies over its surface.
+      className={`grid h-10 flex-none items-center rounded-xl bg-surface px-3.5 text-[13px] whitespace-nowrap shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)] transition-[background-color,color] duration-150 ease-calm ${pressable ? "text-fg enabled:hover:bg-[image:linear-gradient(var(--hover),var(--hover))] enabled:active:bg-[image:linear-gradient(var(--hover),var(--hover)),linear-gradient(var(--hover),var(--hover))]" : "cursor-default text-soft"} ${className}`}
     >
       {faces.map(([is, words]) => (
         <span key={is} aria-hidden={is !== now} className={`flex items-center justify-center [grid-area:1/1] ${is === now ? (taken ? "text-fg" : "") : "invisible"}`}>

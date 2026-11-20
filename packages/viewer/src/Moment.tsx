@@ -991,12 +991,12 @@ export function MomentView(props: {
                 // soft ink of words that say what something is, so it can't be taken for a button resting.
                 <span className={`${COMPARING} inline-flex cursor-default items-center justify-center text-xs text-soft`}>{looking ? "Unchanged" : "New"}</span>
               ));
-  // With nothing to press, what the moment is to you, in the small label the two sides' names stand in.
-  const inCorner = offered && (then || shownSwitch ? <>{compareButton}{shownSwitch}</> : <span className={CHIP.replace(/pointer-events-none absolute top-2.5 left-2.5 z-3 /, "")}>{looking ? "Unchanged" : "New"}</span>);
+  // Only something to press: on a moment with nothing to compare, the corner shows nothing.
+  const inCorner = offered && (then || shownSwitch) ? <>{compareButton}{shownSwitch}</> : undefined;
   // Shown in the recording's corner while the pointer is over it, or while Compare or As it was is on, so the way out is
   // in sight; never while it plays or the app is yours.
   const [overRecording, setOverRecording] = useState(false);
-  const cornerShown = !phone && !!comparer && !playing && !away && (overRecording || comparing || flipped);
+  const cornerShown = !phone && !!inCorner && !playing && !away && (overRecording || comparing || flipped);
   const title = <Title title={change.title} asked={change.asked} quiet={`${props.app} · ${backAgain(change, you) ? "back again" : "back"} ${ago(handBack.finished!, Date.now())}`} />;
 
   return (
@@ -1162,8 +1162,8 @@ export function MomentView(props: {
             </div>
           </div>
           {/* Compare, and As it was and Now, in the recording's top left: over the left side's label while comparing. */}
-          {!phone && comparer && (
-            <div data-part="corner" className={`absolute top-2.5 left-2.5 z-[16] flex rounded-xl bg-surface p-1 text-[13px] shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)] transition-opacity duration-200 ease-calm select-none gap-1 ${then || flips ? "" : "bg-transparent! p-0! shadow-none!"} ${cornerShown ? "" : "pointer-events-none opacity-0"}`} inert={!cornerShown} onClick={(event) => (event.target as Element).closest("button")?.blur()}>
+          {!phone && inCorner && (
+            <div data-part="corner" className={`absolute top-2.5 left-2.5 z-[16] flex rounded-xl bg-surface p-1 text-[13px] shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)] transition-opacity duration-200 ease-calm select-none gap-1 ${cornerShown ? "" : "pointer-events-none opacity-0"}`} inert={!cornerShown} onClick={(event) => (event.target as Element).closest("button")?.blur()}>
               {inCorner}
             </div>
           )}
