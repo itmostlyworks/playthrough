@@ -142,7 +142,7 @@ export function NothingWaiting({ changes, you, opener }: { changes: Listed[]; yo
               </ul>
             </>
           )}
-          {!changes.length && <p className="mt-1 text-[15px] leading-[22px] text-soft">To see an agent's work here, tell it: “Show me this change with npx playthrough.”</p>}
+          {!changes.length && <p className="mt-1 text-[15px] leading-[22px] text-soft">To see an agent's work here, tell it: “When you're done, show me with npx playthrough.”</p>}
         </div>
       </div>
     </div>

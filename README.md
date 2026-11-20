@@ -10,7 +10,7 @@ It runs on your machine, with any coding agent that has a shell. Keep your code 
 
 Ask your agent for a change in your web app, as you would anyway, and add:
 
-> Show me this change with `npx playthrough`.
+> When you're done, show me with `npx playthrough`.
 
 The agent does the rest. The first time, it writes down how to start your app and who its people are, for you to commit if you keep them; nothing is added to your app's packages unless you say so. Then it makes the change, checks it in a browser as one of those people, and marks each moment that shows it. When it's done, it gives you a link. If the page isn't open yet:
 
@@ -20,7 +20,7 @@ npx playthrough open
 
 Everything stays in `.playthrough/` in your app's folder; nothing is uploaded. Playthrough needs Node 22.18 or later.
 
-To teach your agent Playthrough once, so “Show me this change” is enough from then on:
+To teach your agent Playthrough once, so “When you're done, show me” is enough from then on:
 
 ```bash
 npx skills add itmostlyworks/playthrough
