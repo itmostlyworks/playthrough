@@ -9,8 +9,8 @@ import type { Events } from "./replay.ts";
 import type { Box, Point } from "./view.ts";
 import { server } from "./server.ts";
 
-// A change as `playthrough open` lists it: the change, at its address on this machine, the app's name and its people as the person
-// sees them ("Sam, a member"), whether an agent is waiting for what's sent, and whether the one it was last said to is
+// A change as `playthrough open` lists it: the change, at its address on this machine, the app's name, its people, each
+// by name and who they are ("Sam, a member"), whether an agent is waiting for what's sent, and whether the one it was last said to is
 // known to have ended.
 export type Listed = { change: Change; app: string; people: Record<string, string>; agentWaiting: boolean; agentGone: boolean };
 

@@ -559,7 +559,7 @@ describe("a note made where Take over didn't work", () => {
 });
 
 describe("the app's people", () => {
-  test("say who each is in a few words, as the person reviewing sees it beside their name", () => {
+  test("say who each is in a few words", () => {
     assert.deepEqual(problemsWithPeople({ people: { Maja: "the admin", Sam: "a member" } }), []);
     const [problem] = problemsWithPeople({ people: { Maja: "the admin", Sam: "Designs for Bright Studio: a member of the workspace, not an admin. On a laptop." } });
     assert.match(problem!, /in 6 words at most, as \{ Maja: "the admin", Sam: "a member" \}\. Say “Sam” so/);

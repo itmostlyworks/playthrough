@@ -34,7 +34,7 @@ if they say so.
 
     import type { APIRequestContext, Page } from "@playwright/test";
 
-    // The app's people, and who each is, in a few words: the person reviewing sees "Sam, a member".
+    // The app's people, who a moment can be signed in as, and who each is, in a few words.
     export const people = { Maja: "the owner", Sam: "a member" };
 
     // Given the page, a request of its own, the app's address and who it's for; what it returns is the moment's setup.

@@ -87,12 +87,12 @@ export async function moment(repo: Repo, words: string, named?: string, last?: n
   if (drags(from).includes(true))
     throw new Refused([`Not kept: ${drags(from).at(-1) ? "the last thing done here was a drag" : "one of the things done here is a drag"}, and a moment can't hold a drag.`]);
   const draggedOnTheWay = drags(0, from).includes(true);
-  // A person's name in its words, unless it's what the moment types or picks, as a search for them is: the person sees
-  // who it is beside the moment.
+  // A person's name in its words, unless it's what the moment types or picks, as a search for them is: who it's signed
+  // in as is kept with the moment, apart from what it shows.
   const says = (text: string, name: string) => new RegExp(`(^|\\W)${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\W|$)`, "i").test(text);
   const given = done.slice(from).flatMap((one) => (["fill", "type", "selectOption"].includes(one.does) && one.with ? [one.with] : []));
   const people = Object.keys((await setupIn(repo.setup)).people ?? {}).filter((name) => says(words, name) && !given.some((text) => says(text, name)));
-  if (people.length) throw new Refused([`The person sees who it is beside the moment: leave ${list(people.map(quote))} out of its words, and say only what's there.`]);
+  if (people.length) throw new Refused([`Who a moment is signed in as is kept with it, apart from its words: leave ${list(people.map(quote))} out of them, and say only what's there.`]);
 
   // The way there, run from a fresh start as the same person and recorded: tried in a folder of its own, and kept only
   // if it lands, in place of one with the same words.

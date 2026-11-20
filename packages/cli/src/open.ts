@@ -125,7 +125,7 @@ function openNow(home: string): Open | undefined {
 }
 
 // A change as the page has it: the change, by an address of the machine's (its copy's name, then its own), the app's
-// name and its people as the person sees them ("Sam, a member"), whether an agent is waiting for what's sent, and
+// name, its people, each by name and who they are ("Sam, a member"), whether an agent is waiting for what's sent, and
 // whether the one it was last said to is known to have ended.
 export type Listed = { change: Change; app: string; people: Record<string, string>; agentWaiting: boolean; agentGone: boolean };
 
@@ -390,8 +390,8 @@ async function video({ repo, id, address }: Held, request: IncomingMessage, resp
   response.end();
 }
 
-// How the person sees the app and its people: the app by its package's name, and each person by their name and who they
-// are, as setup.ts says it ("Sam, a member").
+// The app, as the person sees it, by its package's name; and its people, each by their name and who they are, as
+// setup.ts says it ("Sam, a member").
 async function shownOf(repo: Repo): Promise<{ app: string; people: Record<string, string> }> {
   const named = await readFile(join(repo.root, "package.json"), "utf8").then((text) => String(JSON.parse(text).name ?? ""), () => "");
   const app = named.replace(/^@[^/]+\//, "") || basename(repo.root);
