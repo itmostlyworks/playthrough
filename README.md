@@ -2,7 +2,7 @@
 
 The agent says it's done. You decide if it's good.
 
-Your coding agent shows you its change to your web app as moments: a few seconds of someone using it, each one thing happening, recorded in the real app. You watch them, leave a note on what you see, take over the real app at any moment, and the agent answers with the next ones.
+Your coding agent shows you its change to your web app as moments: a few seconds of itself using it, each one thing happening, recorded in the real app. You watch them, leave a note on what you see, take over the real app at any moment, and the agent answers with the next ones.
 
 It runs on your machine, with any coding agent that has a shell. Keep your code review: it reads the code; Playthrough shows what the change does.
 
