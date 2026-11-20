@@ -12,7 +12,7 @@ import { after, describe, test } from "node:test";
 import type { Reading, Thing } from "@playthrough/page";
 import { madeBySetup, newId, Refused, type HandBack, type Moment, type Send } from "@playthrough/change";
 import { change, changeHere, idOf, momentNamed, titleOf, momentsOf } from "../src/change.ts";
-import { answer, howEachWent, wait } from "../src/moments.ts";
+import { answer, howEachWent, wait, whatCameOfIt } from "../src/moments.ts";
 import { repo } from "../src/repo.ts";
 import { problemsWithPeople } from "../src/setup.ts";
 import { agentGone, agentWaiting, listening, unheardSaid } from "../src/wait.ts";
@@ -175,6 +175,38 @@ describe("the way to a moment", () => {
   test("writes where it ended only while it's tried, never in the moment that's kept", () => {
     assert.match(wayFile({ words: "Here", person: "Maja", did, setup: {}, tried: true }), /writeFileSync\(new URL\("\.\/ended\.json"/);
     assert.doesNotMatch(way, /writeFileSync|ended\.json/);
+  });
+});
+
+describe("a moment named as about what it pressed", () => {
+  const overdue: Done = { does: "click", on: "#filters button", role: "button", name: "Overdue" };
+  const about = (role: string, name: string) => ({ role, name, disabled: false });
+  const now = { began: 1, at: 3, words: "Only overdue cards show", named: "Overdue" };
+  const again = `playthrough moment "Only overdue cards show" "Overdue"`;
+
+  test("is asked once what came of it, never kept", () => {
+    assert.equal(
+      whatCameOfIt([overdue], about("button", "Overdue"), now, undefined, again),
+      `“Overdue” is what you pressed. Name what shows what came of it (the list, a total, a message), or say it again if the thing you pressed is itself what changed: ${again}`,
+    );
+  });
+
+  test("said again straight after, with the same words and thing, is kept: what was pressed can be what changed", () => {
+    assert.equal(whatCameOfIt([overdue], about("button", "Overdue"), now, now, again), undefined);
+    assert.ok(whatCameOfIt([overdue], about("button", "Overdue"), now, { ...now, at: 2 }, again), "something done since, it's asked again");
+  });
+
+  test("about a different thing, or another of the same name, is kept", () => {
+    assert.equal(whatCameOfIt([overdue], about("list", "Cards"), now, undefined, again), undefined);
+    assert.equal(whatCameOfIt([overdue], { ...about("button", "Overdue"), nth: 1 }, now, undefined, again), undefined);
+  });
+
+  test("where nothing was pressed, as typing, pointing or a still, is kept", () => {
+    const typed: Done = { does: "fill", on: "input", role: "textbox", name: "Card prefix", with: "WEB" };
+    const pointed: Done = { does: "hover", on: "button", role: "button", name: "Overdue" };
+    assert.equal(whatCameOfIt([typed], about("textbox", "Card prefix"), now, undefined, again), undefined);
+    assert.equal(whatCameOfIt([pointed], about("button", "Overdue"), now, undefined, again), undefined);
+    assert.equal(whatCameOfIt([], about("button", "Overdue"), now, undefined, again), undefined);
   });
 });
 
