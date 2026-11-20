@@ -292,6 +292,18 @@ export function MomentView(props: {
   const pointer = useRef({ x: 0, y: 0 });
   const pill = useRef<HTMLSpanElement>(null);
   const toolbar = useRef<HTMLDivElement>(null);
+  // How wide noting's words are, whole: the bar's one width, which its places spread evenly across at rest.
+  const notingRuler = useRef<HTMLDivElement>(null);
+  const [notingWide, setNotingWide] = useState(0);
+  useLayoutEffect(() => {
+    const ruler = notingRuler.current;
+    if (!ruler) return;
+    const measure = () => setNotingWide(ruler.offsetWidth);
+    measure();
+    const watching = new ResizeObserver(measure);
+    watching.observe(ruler);
+    return () => watching.disconnect();
+  }, [phone, atLastStop]);
   const [aiming, setAiming] = useState(false);
   // One Escape in the app, Back's Esc key lights, and fades over the time a second one would take you back.
   const backKeys = useRef<HTMLSpanElement>(null);
@@ -1255,9 +1267,9 @@ export function MomentView(props: {
             role="toolbar"
             aria-label="This moment"
             onClick={(event) => (event.target as Element).closest("button")?.blur()}
-            className={`absolute top-full left-1/2 z-20 flex w-max max-w-full ${atLastStop ? "" : PHONE_BAR} gap-0.5 rounded-xl transition-[translate,opacity] duration-300 ease-calm bg-surface p-1 text-[13px] select-none ${inApp ? "outline-2 outline-[rgba(236,178,72,0.95)] outline-solid shadow-[0_6px_20px_rgba(20,24,34,0.12)]" : "shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]"}`}
+            className={`absolute top-full left-1/2 z-20 flex w-max max-w-full ${atLastStop ? "" : `${PHONE_BAR} justify-evenly`} gap-0.5 rounded-xl transition-[translate,opacity] duration-300 ease-calm bg-surface p-1 text-[13px] select-none ${inApp ? "outline-2 outline-[rgba(236,178,72,0.95)] outline-solid shadow-[0_6px_20px_rgba(20,24,34,0.12)]" : "shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]"}`}
             ref={toolbar}
-            style={{ height: BAR, translate: phone ? "-50% 0" : `calc(-50% + ${clear?.x ?? 0}px) calc(-50% + ${clear?.y ?? 0}px)`, opacity: clear ? 1 : 0 }}
+            style={{ height: BAR, minWidth: !phone && !atLastStop && notingWide ? notingWide + 8 : undefined, translate: phone ? "-50% 0" : `calc(-50% + ${clear?.x ?? 0}px) calc(-50% + ${clear?.y ?? 0}px)`, opacity: clear ? 1 : 0 }}
           >
             {/* What Take over has to say, just over the bar, where it was pressed: that the app starts first, what your
                 browser can't be of the one the moment ran in, or in the app that its check at the end doesn't hold
@@ -1299,6 +1311,18 @@ export function MomentView(props: {
               </>
             ) : (
             <>
+            {/* What noting says, laid out unseen, so the bar is always as wide as its widest state and never cuts it. */}
+            {!phone && (
+              <div ref={notingRuler} aria-hidden className="pointer-events-none invisible absolute top-0 left-0 flex w-max items-center gap-2 pl-2.5">
+                <span className="flex items-center gap-1.5">
+                  <span>Point at what it's about</span>
+                  <span>or the whole moment</span>
+                </span>
+                <span className={ITEM}>
+                  Cancel <Key>Esc</Key>
+                </span>
+              </div>
+            )}
             {/* Noting, the bar says what to do and how to leave, over what it holds, at its width. */}
             {noting && (
               <div className="absolute inset-1 z-1 flex animate-arrive items-center justify-between gap-2 rounded-lg bg-surface pl-2.5">
