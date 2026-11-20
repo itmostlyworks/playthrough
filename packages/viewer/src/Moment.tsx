@@ -28,7 +28,7 @@ import { doneIn, type Rect, type Scrolled } from "./replay.ts";
 import { ago, noteSays, shownIn, shownOn, takingOf, seenOf } from "./standing.ts";
 import { LastStop } from "./LastStop.tsx";
 import { Share } from "./Share.tsx";
-import { StepAction, StepCard, useStepLeft } from "./StepLeft.tsx";
+import { StepAction, StepCard, StepNotice, useStepLeft } from "./StepLeft.tsx";
 import { backAgain } from "./step.ts";
 import { useKeptReady, useTakeOver } from "./takeOver.ts";
 import { useHeld } from "./held.ts";
@@ -87,6 +87,22 @@ export function MomentView(props: {
   const unsent = notes.length + replies.length;
   // The step left: at the last stop, pressed or Enter; from anywhere, Ctrl+Enter while something's unsent.
   const step = useStepLeft(props.listed, you, (going) => setJustSent((now) => [...now, ...going]), props.goOn);
+  // Done pressed with moments not watched or answers not opened: the bar says which, and the card says Done anyway.
+  // Gone to another moment, it's asked again.
+  const [doneAnyway, setDoneAnyway] = useState(false);
+  useEffect(() => setDoneAnyway(false), [n]);
+  const unwatched = props.unwatched.filter((one) => one !== n);
+  // An answer on the change as a whole has no moment to go to now: only those on a moment are counted.
+  const unopened = props.unopened.filter((one) => one.moment <= handBack.moments.length);
+  const toDo = [
+    unwatched.length > 0 && { words: `${unwatched.length} ${unwatched.length === 1 ? "moment" : "moments"} not watched`, go: () => may.move && goTo(unwatched[0]!) },
+    unopened.length > 0 && { words: `${unopened.length} ${unopened.length === 1 ? "answer" : "answers"} not opened`, go: () => may.move && goTo(unopened[0]!.moment, unopened[0]!.note) },
+  ].filter((one) => !!one);
+  // The card does what it says, from wherever you are, the app yours or not: Send sends, Done ends the change.
+  const pressStep = () => {
+    if (step.what === "done" && !step.taken && !step.said && !doneAnyway && toDo.length) return setDoneAnyway(true);
+    step.press();
+  };
   // What Send sends, and only that, is what the last stop shows of what you said: your notes not sent, and the sent
   // ones you've replied to, in your words. Pressed, what went stays shown, as gone, till the page goes on.
   // Come to it already sent, what you sent on this hand-back is shown as it was just after.
@@ -506,8 +522,8 @@ export function MomentView(props: {
     if (!may.move) return;
     if (atLastStop) return void (by < 0 && goTo(count));
     const to = n + by;
-    if (to < 1) return;
-    if (to > count) return lastStop();
+    // Nothing after the last moment: its card on the Moments edge is the step left.
+    if (to < 1 || to > count) return;
     goTo(to);
   };
   // The moment you're on, pressed in the app, is Back.
@@ -528,7 +544,11 @@ export function MomentView(props: {
       const there = notesOn(handBack.moments[other - 1]!).at(by > 0 ? 0 : -1);
       if (there) return goTo(other, there.id);
     }
-    if (by > 0 && !atLastStop && onTheWhole[0]) toLastStop(onTheWhole[0].note.id);
+  };
+  // A note on the moment as a whole: on its hand-back and moment, at no time and on no thing, so it has no pin.
+  const wholeMoment = () => {
+    const [wide, high] = [stage.current?.clientWidth ?? 0, stage.current?.clientHeight ?? 0];
+    act({ type: "pointed", writing: { note: { id: newId(), on: { handBack: handBack.number, moment: moment.name }, words: "" }, spot: { x: Math.max(8, wide / 2 - 140) + 24, y: high - BAR / 2 - 8 } } });
   };
   const close = () => act({ type: "close" });
   const save = (words: string) => {
@@ -927,7 +947,7 @@ export function MomentView(props: {
       phone={phone}
       showing={atLastStop ? LAST_STOP : moment.name}
       // At the last stop on a phone, its Send or Done is the bar's, a thumb away: one is enough.
-      foot={phone && atLastStop ? undefined : (forward, tucked) => <StepCard step={step} here={atLastStop} forward={forward} tucked={tucked} dots={onTheWhole.map(({ note, sent: isSent }) => ({ id: note.id, sent: isSent }))} onPress={() => toLastStop()} />}
+      foot={phone && atLastStop ? undefined : (forward, tucked) => <StepCard step={step} here={false} forward={forward} tucked={tucked} dots={onTheWhole.map(({ note, sent: isSent }) => ({ id: note.id, sent: isSent }))} anyway={doneAnyway} onPress={pressStep} />}
       answers={away && may.back}
     >
       {momentTiles}
@@ -1210,6 +1230,8 @@ export function MomentView(props: {
                 )}
               </Notice>
             )}
+            {/* Where the change stands, over the bar on every moment, but where Take over or noting has its say there. */}
+            {!atLastStop && !takeOver.cant && !takeOver.said && !takeOver.waitingOn && !noting && !writing && <StepNotice step={step} todo={doneAnyway && !step.said ? toDo : undefined} faded={!!playing} />}
             {/* At the last stop, the one thing to do there. */}
             {atLastStop ? (
               // Note, as on a moment, on the whole change; beside it the step left.
@@ -1224,7 +1246,13 @@ export function MomentView(props: {
             {/* Noting, the bar says what to do and how to leave, over what it holds, at its width. */}
             {noting && (
               <div className="absolute inset-1 z-1 flex animate-arrive items-center justify-between gap-2 rounded-lg bg-surface pl-2.5">
-                <span className="truncate text-soft">Point at what it's about</span>
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span className="truncate text-soft">Point at what it's about</span>
+                  {/* Or the moment as a whole: written at once, on no one thing, its box just over the bar. */}
+                  <button data-part="whole-moment" className="flex-none rounded-sm text-fg underline decoration-line underline-offset-[3px] transition-colors duration-150 ease-calm hover:decoration-current" onClick={wholeMoment}>
+                    or the whole moment
+                  </button>
+                </span>
                 <button className={ITEM} onClick={() => act({ type: "note" })}>
                   Cancel <Key>Esc</Key>
                 </button>

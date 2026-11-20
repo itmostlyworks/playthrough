@@ -4,7 +4,8 @@
 // where it was, then goes on to what's next. Already with your agents, or done, it says so, and there's nothing to press.
 // A guest on a shared change only sends: with nothing to send, it says how their notes go, and there's nothing to press.
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { TellYours } from "./Changes.tsx";
 import { standingOf, type Note } from "@playthrough/change";
 import { isGuest, type Listed } from "./api.ts";
 import { Key } from "./Key.tsx";
@@ -51,8 +52,13 @@ export function useStepLeft(listed: Listed, you: string, onSent: (notes: Note[])
     setSaid(what === "send" ? "Sent" : "Done");
     setHeld(true);
     setTimeout(() => setHeld(false), HELD);
-    setTimeout(goOn, matchMedia("(prefers-reduced-motion: reduce)").matches ? 600 : SAID);
+    // Sent, you stay where you pressed it, the bar saying where it stands; Done ends the change, and goes on.
+    if (what === "done") setTimeout(goOn, matchMedia("(prefers-reduced-motion: reduce)").matches ? 600 : SAID);
   };
+  // Sent, and something new said since: Send again.
+  useEffect(() => {
+    if (said === "Sent" && step.is === "send") (setPressed(undefined), setSaid(undefined));
+  }, [said, step.is]);
   const count = unsent.current.notes + unsent.current.replies;
   // Taken: pressed and kept, or already with your agents or done before you came.
   const taken = !what ? (standing.is === "done" ? "Done" : standing.is === "sent" ? "Sent" : undefined) : said === "Sent" || said === "Done" ? said : undefined;
@@ -73,7 +79,8 @@ const CARD = 188;
 // The last stop's card on the Moments edge: always one short line, quiet, and where you are while you're there, with
 // the line a moment's card has then. Pressed, it goes there.
 // Its notes' dots, the notes on the whole change, as a moment's card carries its notes'.
-export function StepCard({ step, here, forward, tucked, dots, onPress }: { step: Step; here: boolean; forward: boolean; tucked: number; dots: { id: string; sent: boolean }[]; onPress: () => void }) {
+// Done pressed once with something not yet seen, it says Done anyway (`anyway`): pressed again, it ends the change.
+export function StepCard({ step, here, forward, tucked, dots, anyway = false, onPress }: { step: Step; here: boolean; forward: boolean; tucked: number; dots: { id: string; sent: boolean }[]; anyway?: boolean; onPress: () => void }) {
   // Send's words in full, measured: where they don't fit in what shows at rest, it says only how many ("Send 12"),
   // in full as the edge comes forward.
   const full = useRef<HTMLSpanElement>(null);
@@ -99,7 +106,7 @@ export function StepCard({ step, here, forward, tucked, dots, onPress }: { step:
   ) : sends ? (
     !tucked || fullWidth + (dots.length ? 8 + 10 * Math.min(5, dots.length) : 0) <= shows ? step.words : `Send ${step.count}`
   ) : step.what ? (
-    "Done"
+    anyway ? "Done anyway" : "Done"
   ) : (
     NOTHING_YET
   );
@@ -108,7 +115,7 @@ export function StepCard({ step, here, forward, tucked, dots, onPress }: { step:
       data-tile="the last stop"
       data-part="last-stop"
       data-waiting={sends || undefined}
-      aria-label={step.what === "send" ? step.words : (step.taken ?? (step.what ? "Done" : NOTHING_YET))}
+      aria-label={step.what === "send" ? step.words : (step.taken ?? (step.what ? (anyway ? "Done anyway" : "Done") : NOTHING_YET))}
       aria-pressed={here}
       onClick={(event) => {
         // Pressed with the pointer, the keys go back to the page; with the keyboard, it stays.
@@ -118,7 +125,7 @@ export function StepCard({ step, here, forward, tucked, dots, onPress }: { step:
       className={`group/tile block w-full rounded-xl p-1.5 text-left transition-[background-color,box-shadow,opacity] duration-200 ease-calm focus-visible:outline-none ${forward ? `bg-surface focus-visible:shadow-[0_0_0_2px_var(--amber)] ${here ? "shadow-[0_0_0_1.5px_var(--soft)]" : "shadow-[0_0_0_1px_var(--edge)] hover:shadow-[0_0_0_1.5px_var(--faint)]"}` : "bg-ground shadow-[0_0_0_0_transparent]"}`}
     >
       <span
-        className={`relative flex h-7 items-center rounded-lg px-2 text-[12.5px] font-medium transition-[box-shadow,color] duration-200 ease-calm ${here || step.taken ? "text-fg" : "text-soft"} ${forward ? "shadow-[0_0_0_0_transparent]" : `group-focus-visible/tile:shadow-[0_0_0_2px_var(--surface),0_0_0_4px_var(--amber)] ${here ? "shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--soft)]" : "shadow-[0_0_0_1px_var(--edge)] group-hover/tile:shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--faint)]"}`}`}
+        className={`relative flex h-7 items-center rounded-lg px-2 text-[12.5px] font-medium transition-[box-shadow,color,background-color] duration-200 ease-calm ${step.taken ? "bg-[color-mix(in_srgb,var(--soft)_11%,transparent)]" : ""} ${here || step.taken ? "text-fg" : "text-soft"} ${forward ? "shadow-[0_0_0_0_transparent]" : `group-focus-visible/tile:shadow-[0_0_0_2px_var(--surface),0_0_0_4px_var(--amber)] ${here ? "shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--soft)]" : "shadow-[0_0_0_1px_var(--edge)] group-hover/tile:shadow-[0_0_0_2px_var(--surface),0_0_0_3.5px_var(--faint)]"}`}`}
       >
         {/* The words held where they read at rest, settling where a card's words stand as it comes forward, with it. */}
         <span className="flex items-center whitespace-nowrap transition-[translate] duration-300 ease-calm" style={{ translate: `${Math.max(0, tucked + AT_REST - WORDS)}px 0` }}>
@@ -139,6 +146,50 @@ export function StepCard({ step, here, forward, tucked, dots, onPress }: { step:
         </span>
       </span>
     </button>
+  );
+}
+
+// Over the bar on every moment, where the change stands once you've said something: sent, and whether an agent has it
+// (with none, what to tell a new one); done; or, Done pressed with something not yet seen, what that is, each pressed
+// going to the first of it. Nothing before then. Faded while the recording plays, as all over it but the bar is.
+export function StepNotice({ step, todo, faded }: { step: Step; todo?: { words: string; go: () => void }[]; faded: boolean }) {
+  const { taken, said, standing } = step;
+  const fade = `transition-opacity duration-200 ease-calm ${faded ? "opacity-0" : ""}`;
+  if (Array.isArray(said)) return <Notice className={`text-amber-ink ${fade}`}>Not sent: {said[0]}</Notice>;
+  if (todo?.length)
+    return (
+      <Notice className={`text-soft ${fade}`}>
+        <span className="pointer-events-auto flex flex-wrap justify-center gap-x-4">
+          {todo.map((one) => (
+            <button key={one.words} onClick={one.go} className="rounded-sm underline decoration-line underline-offset-[3px] transition-colors duration-150 ease-calm hover:text-fg hover:decoration-current">
+              {one.words}
+            </button>
+          ))}
+        </span>
+      </Notice>
+    );
+  if (taken === "Done" || (!taken && standing.is === "done")) return <Notice className={`text-soft ${fade}`}>Every moment looked good.</Notice>;
+  if (taken !== "Sent" && standing.is !== "sent") return null;
+  if (isGuest()) return <Notice className={`text-soft ${fade}`}>{GUEST_SENT}</Notice>;
+  if (step.went === "no agent" || (!step.went && !step.agentOn))
+    return (
+      <Notice className={fade}>
+        <span className="text-amber-ink">{NOT_LISTENING}</span>
+        {step.tell && (
+          <span className="mt-0.5 block">
+            <TellYours words={step.tell} />
+          </span>
+        )}
+      </Notice>
+    );
+  const working = step.went === "working" || (step.step.is === "with" && step.step.words === "Agent working");
+  return (
+    <Notice className={`text-soft ${fade}`}>
+      <span className="flex items-center">
+        {working && <i className="mr-[7px] size-[7px] animate-breathe rounded-full bg-slate" />}
+        {working ? "The agent is working on your notes" : WITH_AGENTS[0]}
+      </span>
+    </Notice>
   );
 }
 

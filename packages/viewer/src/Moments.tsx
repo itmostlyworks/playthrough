@@ -103,8 +103,9 @@ export function MomentsPage() {
           key={where.change}
           listed={listed}
           you={you}
-          moment={where.moment ?? 1}
-          atLastStop={!!where.end}
+          // Nothing leads to the last stop now: its address, and a change seen through, open on the last moment.
+          moment={where.end ? Infinity : (where.moment ?? 1)}
+          atLastStop={false}
           note={where.note}
           go={go}
           goOn={() => goOn(listed)}
