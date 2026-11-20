@@ -1,25 +1,24 @@
-// Whose hands the pointer is is said on it and nowhere else: a small tag on the recording's pointer, for the first
-// second of playing, standing where the picture's edges never cut it off.
+// Whose hands the pointer is is said on it and nowhere else: a small tag on the recording's pointer, as play starts, standing where the picture's edges never cut it off.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { agentTo, besideTip, tagged } from "../src/tag.ts";
 
-const starting = { still: false, playing: true, playedASecond: false, comparing: false, noting: false, atLastStop: false };
+const starting = { still: false, playing: true, playedAWhile: false, comparing: false, noting: false, atLastStop: false };
 
 test("the agent is yours to the person, and the agent to a guest on a change shared with them", () => {
   assert.equal(agentTo(false), "Your agent");
   assert.equal(agentTo(true), "The agent");
 });
 
-test("the recording's pointer wears it for the first second of playing, and not once it's played longer", () => {
+test("the recording's pointer wears it as play starts, and not once it's played a while", () => {
   assert.equal(tagged(starting), true);
-  assert.equal(tagged({ ...starting, playedASecond: true }), false);
+  assert.equal(tagged({ ...starting, playedAWhile: true }), false);
 });
 
 test("at rest it wears none: not before playing, nor once stopped", () => {
   assert.equal(tagged({ ...starting, playing: false }), false);
-  assert.equal(tagged({ ...starting, playing: false, playedASecond: true }), false);
+  assert.equal(tagged({ ...starting, playing: false, playedAWhile: true }), false);
 });
 
 test("not on a still, in Compare, while noting, or at the last stop", () => {

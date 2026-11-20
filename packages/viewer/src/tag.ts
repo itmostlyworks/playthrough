@@ -5,16 +5,16 @@
 // The agent's words on it, to whoever is watching.
 export const agentTo = (guest: boolean) => (guest ? "The agent" : "Your agent");
 
-// Whether the recording's pointer wears it: only as a moment starts playing, for its first second, when the hands are
+// Whether the recording's pointer wears it: only as a moment starts playing, a beat under two seconds, when the hands are
 // seen at work; at rest the pointer is simply where it stopped. Never on a still, where nobody acts, nor in Compare,
 // while noting, or at the last stop, where what it's on isn't the moment's pointer.
-export function tagged(moment: { still: boolean; playing: boolean; playedASecond: boolean; comparing: boolean; noting: boolean; atLastStop: boolean }) {
-  const { still, playing, playedASecond, comparing, noting, atLastStop } = moment;
-  return playing && !playedASecond && !still && !comparing && !noting && !atLastStop;
+export function tagged(moment: { still: boolean; playing: boolean; playedAWhile: boolean; comparing: boolean; noting: boolean; atLastStop: boolean }) {
+  const { still, playing, playedAWhile, comparing, noting, atLastStop } = moment;
+  return playing && !playedAWhile && !still && !comparing && !noting && !atLastStop;
 }
 
 // How long it stays once a moment starts playing, in milliseconds: long enough to read, then out of the way.
-export const TAGGED_WHILE_PLAYING = 1000;
+export const TAGGED_WHILE_PLAYING = 1800;
 
 // Where it stands from the tip, in a pointer drawn `grown` times its own size: below and right of it, clear of the
 // arrow, as the note's name on your pointer stands; left of the tip where the picture's right edge would cut it off,

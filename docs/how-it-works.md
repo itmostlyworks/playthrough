@@ -723,8 +723,8 @@ stand-in pointer is drawn the same size).
 clear who was acting when, and words for it beside the moment's name and in the bar, tried that day, were one more
 thing to read). The recording's pointer wears a small tag just below and right of its tip, as a name on someone else's
 pointer, in the look your pointer's "Note on this" has: "Your agent" ("The agent" to a guest, whose agent it isn't).
-It's there only as play starts: it fades in as a moment starts playing, stays its first second
-(`TAGGED_WHILE_PLAYING`) and fades with everything else over the recording, and comes again each time play starts
+It's there only as play starts: it fades in as a moment starts playing, stays 1.8 s
+(`TAGGED_WHILE_PLAYING`; a second was a beat too short, the owner said) and fades with everything else over the recording, and comes again each time play starts
 (20 Nov, the owner: "Dont show "your agent" at rest after playing a moment, only when starting to play"). At rest, before
 playing, paused or at the end, the pointer wears nothing; a key pressed as it plays stands where the tag would, so the key is shown
 and the tag waits. It's one size at any closeness, as far from the tip as the pointer has grown, and turns to the left

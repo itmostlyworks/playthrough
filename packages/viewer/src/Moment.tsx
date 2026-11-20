@@ -260,12 +260,12 @@ export function MomentView(props: {
   // The recording's pointer, and whether the app's stands in for it.
   const drawn = useRef<(() => { x: number; y: number; worn: number } | undefined) | undefined>(undefined);
   const [standIn, setStandIn] = useState(false);
-  // Whose hands it is, on its tag: for the first second of playing.
-  const [playedASecond, setPlayedASecond] = useState(false);
+  // Whose hands it is, on its tag: as it starts playing, for a little under two seconds.
+  const [playedAWhile, setPlayedAWhile] = useState(false);
   useEffect(() => {
-    setPlayedASecond(false);
+    setPlayedAWhile(false);
     if (!playing) return;
-    const after = setTimeout(() => setPlayedASecond(true), TAGGED_WHILE_PLAYING);
+    const after = setTimeout(() => setPlayedAWhile(true), TAGGED_WHILE_PLAYING);
     return () => clearTimeout(after);
   }, [!!playing]);
   const agent = agentTo(isGuest());
@@ -1030,7 +1030,7 @@ export function MomentView(props: {
                 scrolled={scrolled}
                 hand={!standIn}
                 tag={agent}
-                tagged={tagged({ still, playing: !!playing, playedASecond, comparing, noting, atLastStop })}
+                tagged={tagged({ still, playing: !!playing, playedAWhile, comparing, noting, atLastStop })}
                 drawn={drawn}
                 frameFrom={frameFrom}
               />
