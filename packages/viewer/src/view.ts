@@ -89,8 +89,13 @@ export const pointerScale = (k: number) => Math.max(1, k);
 // there fast, then gently, never past it; notches in quick succession add up to one place it carries on toward, and a
 // trackpad's small turns are behind it by a fraction of this, too little to feel.
 export const SETTLES = 110;
-// How long taking over takes to bring the picture out to the whole screen, in milliseconds, while the app's on its way.
-export const STEPS_OUT = 280;
+// How long taking over takes to bring the picture out to the whole screen, in milliseconds, while the app's on its way,
+// and the curve it moves on: setting off gently and landing softly, slow enough to follow the recording growing and the
+// sides going. Back moves the same way.
+export const STEPS_OUT = 600;
+const STEPS_OUT_ON = [0.4, 0, 0.2, 1] as const;
+// The move as CSS has it, for everything that goes or grows with it, so it's all one move.
+export const STEPPING_OUT = { transitionDuration: `${STEPS_OUT}ms`, transitionTimingFunction: `cubic-bezier(${STEPS_OUT_ON.join(", ")})` };
 // Close enough to where it's heading that the rest is less than half a pixel, it's there.
 const THERE = 0.0004;
 // The ease's pace: a notch comes within THERE of where it's heading in SETTLES.
@@ -103,24 +108,30 @@ export function approach(k: number, to: number, since: number): number {
   return Math.abs(left) < THERE ? to : to * Math.exp(-left);
 }
 
-// The page's own curve, --ease-calm, cubic-bezier(0.2, 0.8, 0.2, 1), at `t` of the way through: the view glides on it,
-// as the picture narrows and widens around it for Compare, so the two move in step.
-export function calm(t: number): number {
-  const along = (s: number, a: number, b: number) => 3 * (1 - s) ** 2 * s * a + 3 * (1 - s) * s * s * b + s ** 3;
-  let [low, high] = [0, 1];
-  for (let i = 0; i < 20; i++) {
-    const s = (low + high) / 2;
-    if (along(s, 0.2, 0.2) < t) low = s;
-    else high = s;
-  }
-  return along((low + high) / 2, 0.8, 1);
-}
+// A curve as CSS's cubic-bezier draws it, how far along it is at `t` of the way through.
+const curve =
+  ([x1, y1, x2, y2]: readonly [number, number, number, number]) =>
+  (t: number): number => {
+    const along = (s: number, a: number, b: number) => 3 * (1 - s) ** 2 * s * a + 3 * (1 - s) * s * s * b + s ** 3;
+    let [low, high] = [0, 1];
+    for (let i = 0; i < 20; i++) {
+      const s = (low + high) / 2;
+      if (along(s, x1, x2) < t) low = s;
+      else high = s;
+    }
+    return along((low + high) / 2, y1, y2);
+  };
+// The page's own curve, --ease-calm: the view glides on it, as the picture narrows and widens around it for Compare, so
+// the two move in step.
+export const calm = curve([0.2, 0.8, 0.2, 1]);
+// Taking over's, so the picture goes out to the whole screen in step with the recording growing.
+const steppingOut = curve(STEPS_OUT_ON);
 
 // Asked for reduced motion: nothing eases.
 const unmoving = () => !!globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
 // Where a zoom is going: to closeness `to`, about the page's point `at`, which stays `off` from the room's middle, so under
-// the pointer; the whole screen again once it's there, if `whole`. Over `length` milliseconds on the calm curve from
+// the pointer; the whole screen again once it's there, if `whole`. Over `length` milliseconds on taking over's curve from
 // `from`, or else at the wheel's pace.
 type Zoom = { to: number; at: Point; off: Point; whole: boolean; last: number; length?: number; from?: number; since?: number };
 
@@ -157,7 +168,7 @@ export class Together {
     return this.#zoom?.to;
   }
   // Brought to closeness `to`, from `from` where it shows now, about the page's point `at` held `off` from the room's
-  // middle: at the wheel's pace, or over `length` milliseconds on the calm curve; at once with reduced motion.
+  // middle: at the wheel's pace, or over `length` milliseconds on taking over's curve; at once with reduced motion.
   zoom(from: number, to: number, at: Point, off: Point, whole: boolean, length?: number) {
     const last = performance.now();
     const going = this.#zoom;
@@ -166,7 +177,7 @@ export class Together {
     if (unmoving()) return void this.#step(Infinity, (draw) => draw());
     if (!this.#frame) this.#frame = requestAnimationFrame(this.#on);
   }
-  // To the whole screen, on the calm curve, from wherever it's been brought, as taking over starts: the app comes in whole.
+  // To the whole screen, on taking over's curve, from wherever it's been brought, as taking over starts: the app comes in whole.
   wholeAgain(length: number) {
     if (!this.moved || this.k === undefined || this.fit === undefined || this.k <= this.fit * 1.001) return this.letGo();
     this.zoom(this.k, this.fit, this.centre!, [0, 0], true, length);
@@ -179,7 +190,7 @@ export class Together {
   // Where the zoom has got to by `now`, drawn as `draw` draws; whether it's still on its way.
   #step(now: number, draw: (draw: () => void) => void) {
     const zoom = this.#zoom!;
-    const k = zoom.length ? Math.exp(Math.log(zoom.from!) + Math.log(zoom.to / zoom.from!) * calm(Math.min(1, (now - zoom.since!) / zoom.length))) : approach(this.k!, zoom.to, now - zoom.last);
+    const k = zoom.length ? Math.exp(Math.log(zoom.from!) + Math.log(zoom.to / zoom.from!) * steppingOut(Math.min(1, (now - zoom.since!) / zoom.length))) : approach(this.k!, zoom.to, now - zoom.last);
     const there = zoom.length ? now - zoom.since! >= zoom.length : k === zoom.to;
     zoom.last = now;
     if (there) this.#zoom = undefined;

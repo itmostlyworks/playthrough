@@ -704,7 +704,7 @@ own edges; whole, there's nowhere for it to go and a drag does what it always di
 under it), and the click that ends a drag is the drag's, so only a press notes. While dragging the pointer is a closed
 hand; nothing on the page is selected. Only what's inside the picture moves: its frame, the bar and the edges stay
 put. Once moved, the view is yours: it stays put as the moment plays, and another moment starts afresh. Take over (or T)
-takes the picture out to the whole screen at once, on the calm curve over 280 ms (`STEPS_OUT`, `view.ts`; at once with
+takes the picture out to the whole screen at once, over 600 ms on a curve that sets off gently and lands softly (`STEPS_OUT`, `view.ts`; at once with
 reduced motion), while "Taking over…" shows, in the same move as the recording takes the page (**Taking over**): the
 app shows whole, so it comes in over the very picture it replaces,
 with no jump (before, it opened whole over a picture still brought closer). Called off, the picture stays whole; Back
@@ -1022,8 +1022,10 @@ the bar, in amber, and so is a note made there that couldn't be kept.
 
 **The app takes the page.** From Take over, while "Taking over…" shows and the app is yours, the Moments and Notes edges,
 what this is over the recording and Download video and Share go where they stand, and the recording grows into their
-room: one move, the calm curve over 280 ms (`STEPS_OUT`), the very one that takes the picture out to the whole screen,
-the fades on it too; at once with reduced motion. The recording stands on its foot where it was, so the bar across it
+room: one move, 600 ms on a curve that sets off gently and lands softly (`STEPS_OUT` and `STEPPING_OUT`), slow enough to
+follow the recording growing and the sides going, the very one that takes the picture out to the whole screen, the fades
+on it too; Back the same, what's over the recording coming back over its last 40%, once the recording's edge has
+passed under it; at once with reduced motion. The recording stands on its foot where it was, so the bar across it
 doesn't move by a pixel, and the bar stays where it was dropped, if it was (`clear`, `Moment.tsx`). It grows as large as
 the page lets it be, 24px from the screen's sides, where the header's words stand, and 12px under the header, and never
 larger than the app's own size, so the app is drawn as large as fits and never past actual size; its window is the

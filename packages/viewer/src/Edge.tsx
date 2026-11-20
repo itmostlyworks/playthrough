@@ -14,7 +14,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Key } from "./Key.tsx";
-import { STEPS_OUT } from "./view.ts";
+import { STEPPING_OUT } from "./view.ts";
 
 // A picture's size, and the room around it.
 export const TILE = 176;
@@ -186,7 +186,7 @@ export function Edge(props: {
   return (
     // While the app is yours it goes where it stands, in the move that takes the recording over its room, and comes back
     // as it was.
-    <div className={`transition-opacity ease-calm ${quiet ? "opacity-0" : ""}`} style={{ transitionDuration: `${STEPS_OUT}ms` }} inert={quiet}>
+    <div className={`transition-opacity ${quiet ? "opacity-0" : ""}`} style={STEPPING_OUT} inert={quiet}>
       {!empty && (
         // Its keys are on the word's inner side, so the word itself stays at the pictures' outer one.
         <h2 className={`pointer-events-none fixed z-30 flex items-center gap-1 text-[13px] leading-5 font-semibold text-soft transition-opacity duration-300 ease-calm ${right ? "flex-row-reverse" : ""} ${forward ? "" : "opacity-(--resting)"}`} style={{ top: room.top - WORD, [right ? "right" : "left"]: Math.max(24, -cutBy) }}>
