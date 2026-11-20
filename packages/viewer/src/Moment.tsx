@@ -1260,9 +1260,10 @@ export function MomentView(props: {
                 <FrameButton by={1} disabled={!may.nextFrame} onStep={() => frame(1)} held={arrow} />
               </>
             )}
-            {/* On a phone, "Taking…": its amber line says where, and the bar has room for the arrows by Play. */}
+            {/* On a phone, "Taking…": its amber line says where, and the bar has room for the arrows by Play. Its words are
+                one item of the bar's, so they read as words, not spaced apart as the bar spaces its items. */}
             <button data-part={inApp ? "back" : "take-over"} className={`${ITEM} relative w-[116px] phone:px-0! phone:[flex:19_1_65px]`} disabled={!may.takeOver && !may.back} aria-pressed={stepping} aria-label={inApp ? "Back, Escape twice" : undefined} onClick={takeOverOrBack}>
-              {inApp ? "Back" : stepping ? <>Taking<span className="phone:hidden"> over</span>…</> : "Take over"}{" "}
+              {inApp ? "Back" : stepping ? <span>Taking<span className="phone:hidden"> over</span>…</span> : "Take over"}{" "}
               {/* In the app, a single Escape is the app's: twice is Back. */}
               {inApp ? (
                 <Key ref={backKeys} times={2} className="phone:hidden">
