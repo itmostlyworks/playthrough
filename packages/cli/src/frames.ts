@@ -73,15 +73,27 @@ export async function stillOf(repo: Repo, id: string, address: string, framed: F
   return `branches/${name}`;
 }
 
-async function draw(port: number, address: string, framed: Framed, shape: { width: number; height: number }, scale: number) {
+// What the browser drawing a picture may ask for, for anyone's drawing: the viewer's own page and its files, and the
+// files kept with this one change, nothing else this machine answers (the list of changes, another change, who the
+// person is, sharing) and nothing anywhere else, as what it draws is a recording someone else may have made. Asked
+// for by any other address, or any other way than reading, it's refused.
+export function mayDraw(method: string, address: string, port: number, change: string): boolean {
+  if (method !== "GET" || !URL.canParse(address)) return false;
+  const { origin, pathname } = new URL(address);
+  if (origin !== `http://localhost:${port}`) return false;
+  const files = `/api/changes/${change.split("/").map(encodeURIComponent).join("/")}/hand-backs/`;
+  return pathname === "/" || pathname === "/logo.svg" || /^\/assets\/[\w.-]+$/.test(pathname) || (pathname.startsWith(files) && /^\d+\/files\/[\w.%-]+(\/[\w.%-]+)*$/.test(pathname.slice(files.length)));
+}
+
+export async function draw(port: number, address: string, framed: Framed, shape: { width: number; height: number }, scale: number) {
   clearTimeout(resting);
   browser ??= chromium.launch();
-  const page = await (await browser).newPage({ viewport: shape, deviceScaleFactor: scale });
+  // No service worker to answer in its place, and nothing live: every request goes through the one rule.
+  const context = await (await browser).newContext({ viewport: shape, deviceScaleFactor: scale, serviceWorkers: "block" });
+  const page = await context.newPage();
   try {
-    // It draws only what Playthrough has: the page and the recording's files kept with it. Anything else a recording
-    // names (a guest's, through a shared link, can name any address) isn't asked for by this machine.
-    const own = `http://localhost:${port}`;
-    await page.route("**/*", (route) => (new URL(route.request().url()).origin === own ? route.continue() : route.abort()));
+    await context.route("**/*", (route) => (mayDraw(route.request().method(), route.request().url(), port, address) ? route.continue() : route.abort()));
+    await context.routeWebSocket(/.*/, (socket) => socket.close());
     // The change is the one asked by its address, whatever else came with what's framed.
     await page.goto(`http://localhost:${port}/?frame=${encodeURIComponent(JSON.stringify({ ...framed, change: address }))}`);
     await page.waitForFunction(() => "framed" in window, undefined, { timeout: 20_000 });
@@ -91,7 +103,7 @@ async function draw(port: number, address: string, framed: Framed, shape: { widt
     const box = await page.evaluate(() => (window as unknown as { framed?: Frame["box"] }).framed);
     return { png: await page.screenshot(), box };
   } finally {
-    await page.close();
+    await context.close();
     resting = setTimeout(() => {
       const going = browser;
       browser = undefined;

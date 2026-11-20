@@ -1116,15 +1116,16 @@ opened by itself (`default-src 'none'; sandbox`); a guest's note pictures are dr
 kept with the fonts, pictures and stylesheets it names asked of the app alone, at its own address, by the path they were
 named at, never following a redirect (`keepNamed`, `assets.ts`), with what `use` adds on the way to the app as stepping
 in sends it (`onTheWayTo`, `step-in.ts`), so an app that answers only with it still gives them; one from elsewhere (a font service) isn't kept, and the
-viewer's browser asks for it there. The browser that draws a note's picture or a fine still asks for nothing but
-Playthrough's own page and files (`draw`, `frames.ts`). What a guest does in the app is kept under `branches/shared/` and only
-there, never in place of another recording (`branch`, `open.ts`; `SHARED`), and a recording kept there is played, in
-anyone's browser, with nothing but its own files: its frame's policy (`keptOnly`, `replay.ts`) lets the page it rebuilds
-ask for nothing but the hand-back's files and what it makes itself, so an address it names (a router on the person's
-network, say) is never asked for by the browser playing it. It's a guest's recordings only: the agent's moments keep
-every file from what their browser really loaded, and would lose nothing, but the person's own steps into the app keep
-only what the app has, and a font or picture from elsewhere (a font service, an avatar) still comes from there when
-they play.
+viewer's browser asks for it there. **The browser that draws a note's picture or a fine still** (for the person's page
+or a guest's, the same rule) asks for nothing but the viewer's own page and its files and the files kept with that one
+change, by path, and only reads them (`mayDraw`, `frames.ts`): never the list of changes, another change, who the
+person is or sharing, nothing elsewhere, no live connection, no service worker; anything else is refused. A recording
+someone made can name any of those, and the picture of it goes back to whoever asked. What a guest does in the app is
+kept under `branches/shared/` and only there, never in place of another recording (`branch`, `open.ts`; `SHARED`).
+Played in someone's own browser, a recording, a guest's included, asks that browser for what it names: what was kept
+with it comes from Playthrough, and anything else from where it's named. Until 20 Nov the viewer put a policy on the
+frame it plays in to stop that for a guest's recordings, but rrweb builds the page, and its pictures start loading,
+before such a policy can take hold, so it held nothing and was taken out.
 
 **Stepping in, a guest** gets the owner's real app, run on this computer with the moment's setup, as the person does,
 talked to as the run did (what `use` adds, a routing header or the server's sign-in, is added here, never sent to them):
