@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { createServer, request as ask, type IncomingMessage, type ServerResponse } from "node:http";
 import { connect } from "node:net";
 import { answerAs, asRecorded, clicked, escapedTwice, pathTo, RIGHT_AFTER } from "@playthrough/page";
-import { doneBefore, quote, Refused } from "@playthrough/change";
+import { asLine, doneBefore, quote, Refused } from "@playthrough/change";
 import { running, using } from "./app.ts";
 import { QUIET_DEV_CHROME, recorder, type Handed, type To } from "./run.ts";
 import { cantStepIn, LONGEST, runTo, writtenOf } from "./following.ts";
@@ -213,7 +213,8 @@ function passOn(app: App): Promise<number> {
     if (first === "step-in")
       return void opening(second ?? "", waitedFor(response)).then(
         (handed) => (handed ? handOver(second ?? "", handed, response) : said(response, 404, GONE)),
-        (error) => said(response, 500, error instanceof Refused ? error.problems.join(" ") : String((error as Error)?.message ?? error)),
+        // What went wrong is this machine's: said in a line that names none of it, and whole in open.log.
+        (error) => (error instanceof Refused || console.error(`A step in went wrong: ${asLine(String((error as Error)?.message ?? error)).slice(0, 500)}`), said(response, 500, error instanceof Refused ? error.problems.join(" ") : "Something went wrong getting there. Press Esc, then step in again.")),
       );
     if (first === ".playthrough" && second === "held") return held(name ?? "", request, response);
     // A page is asked for whole, so a word can be added to it: the app is told not to squeeze it.

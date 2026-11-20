@@ -12,7 +12,7 @@ import { userInfo } from "node:os";
 import { basename, extname, join, normalize, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Reading } from "@playthrough/page";
-import { problemsWithGuestsName, problemsWithKeptName, problemsWithName, Refused, servedAs, SHARED, type Did, type Change, type Seen, type Send } from "@playthrough/change";
+import { asAsked, asLine, Asked, problemsWithGuestsName, problemsWithKeptName, problemsWithName, Refused, servedAs, SHARED, SHARED_RECORDING, type Did, type Change, type Seen, type Send } from "@playthrough/change";
 import { BEAT } from "./run.ts";
 import { repo as copyAt, type Repo } from "./repo.ts";
 import { CantStepIn, cantStepIn, readyIn } from "./following.ts";
@@ -27,6 +27,7 @@ import { sayReady, startBehind } from "./behind.ts";
 import { passedThroughIn } from "./passed.ts";
 import { stillAt, thisCommand, type Command } from "./command.ts";
 import { sharing, type Door, type Guest, type Sharing } from "./share.ts";
+import type { z } from "zod";
 
 // The page's usual port, or another, to try Playthrough beside the one in use: PLAYTHROUGH_PORT, as PLAYTHROUGH_HOME is.
 export const PORT = Number(process.env.PLAYTHROUGH_PORT) || 5790;
@@ -254,13 +255,18 @@ export function doorOf(page: string, owner: string, port: number, here = onThisM
 }
 
 // Whatever stopped an answer, said in plain words: what's refused as asked, anything else as Playthrough's own.
-export async function answered(response: ServerResponse, answering: () => Promise<unknown>) {
+// To a guest, anything but Playthrough's own refusals is one line, the same every time, as what went wrong is this
+// machine's (its folders, its names); it's written in open.log, in a line of its own, for the person.
+export const WENT_WRONG = "Something went wrong on the computer this is shared from. Try again, or tell the person who shared it.";
+export async function answered(response: ServerResponse, answering: () => Promise<unknown>, guest = false) {
   try {
     await answering();
   } catch (error) {
     if (response.headersSent) return void response.end();
-    const problems = error instanceof Refused ? error.problems : [String((error as Error)?.message ?? error)];
-    json(response, error instanceof Refused ? 400 : 500, { problems });
+    if (error instanceof Refused) return json(response, 400, { problems: error.problems });
+    const message = String((error as Error)?.message ?? error);
+    if (guest) console.error(`A guest's request went wrong: ${asLine(message).slice(0, 500)}`);
+    json(response, 500, { problems: [guest ? WENT_WRONG : message] });
   }
 }
 
@@ -332,14 +338,14 @@ async function answerOn(held: Held, request: IncomingMessage, response: ServerRe
     return response.end(bytes);
   }
   if (request.method === "POST" && rest[0] === "seen") {
-    const { by, moments } = await body<{ by: string; moments: Seen[] }>(request);
+    const { by, moments } = await read(request, Asked.seen, "What's seen");
     guest?.speaksAs(by);
     await changes.see(id, by, moments);
     return json(response, 200, {});
   }
   // A guest's name, before it's theirs: what's wrong with it, as a send in it would be told.
   if (request.method === "POST" && rest[0] === "name" && guest) {
-    const { by } = await body<{ by: string }>(request);
+    const { by } = await read(request, Asked.name, "A name");
     guest.speaksAs(by);
     const change = await changes.get(id);
     return json(response, 200, { problems: [...problemsWithName(by), ...problemsWithGuestsName(change, by)] });
@@ -349,15 +355,17 @@ async function answerOn(held: Held, request: IncomingMessage, response: ServerRe
   if (request.method === "POST" && rest[0] === "keep-ready") return keptReady(repo, id, request, response);
   if (request.method === "POST" && rest[0] === "branches") return branch(repo, id, request, response, guest);
   // Drawn by a browser opening the person's own page, on this machine, whoever asked.
-  if (request.method === "POST" && rest[0] === "stills") return json(response, 200, { picture: await stillOf(repo, id, address, await body<Framed>(request), port) });
+  if (request.method === "POST" && rest[0] === "stills") return json(response, 200, { picture: await stillOf(repo, id, address, await read(request, Asked.still, "A still"), port, guest ? SHARED : "") });
   if (request.method === "POST" && rest[0] === "frames") {
-    const { note, ...framed } = await body<Framed & { note: string }>(request);
+    const { note, ...framed } = await read(request, Asked.frame, "A note's picture");
     return json(response, 200, await frameOf(repo, id, address, note, framed, port, guest ? SHARED : ""));
   }
   if (request.method === "POST" && rest[0] === "sends") {
     // Whether it's a guest's is this side's to say, never what was sent.
-    const { guest: _, ...said } = await body<Send>(request);
-    await changes.send(id, guest ? guest.sends(said) : said);
+    // A guest's is what they said alone, and the rest is Playthrough's to say; the person's is theirs whole.
+    const said = guest ? guest.sends(await read(request, Asked.guestSend, "This send"), await changes.get(id)) : await body<Send>(request);
+    if (!guest) delete (said as { guest?: true }).guest;
+    await changes.send(id, said);
     return json(response, 200, {});
   }
   return json(response, 404, { problems: [`There's nothing at ${path}.`] });
@@ -379,11 +387,12 @@ async function shownOf(repo: Repo): Promise<{ app: string; people: Record<string
 // why in a line for the person and whole for the agent (following.ts). A guest's is theirs to reach, through what's
 // shared, and only theirs.
 async function stepInto(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse, guest?: Guest) {
-  const { moment, after } = await body<{ moment: string; after?: number }>(request);
+  const { moment, after } = await read(request, Asked.stepIn, "Where to step in");
   const ready = await placeOf(repo, id, moment, after)
     .then((to) => getReady(repo, id, to, waitedFor(response)))
     .catch(cantStepIn.other);
-  if (ready instanceof CantStepIn) return json(response, 400, { problems: ready.problems, plainly: ready.plainly });
+  // Why, whole, is for the person's own agent: a guest is told the line alone.
+  if (ready instanceof CantStepIn) return json(response, 400, { problems: guest ? [ready.plainly] : ready.problems, plainly: ready.plainly });
   const { port, name, setup, checked } = ready;
   guest?.steppedIn(name, port);
   json(response, 200, { port, name, setup, ...(checked && { checked }) });
@@ -392,7 +401,7 @@ async function stepInto(repo: Repo, id: string, request: IncomingMessage, respon
 // Where the recording rests, once someone has stepped in on the change, for the next step in there to be quick. Answered at
 // once, and nothing said of it: one that can't be made is the step in's to say why.
 async function keptReady(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
-  const { moment, after } = await body<{ moment: string; after?: number }>(request);
+  const { moment, after } = await read(request, Asked.stepIn, "Where to step in");
   json(response, 200, {});
   await placeOf(repo, id, moment, after).then((to) => keepReady(repo, id, to)).catch(() => {});
 }
@@ -404,10 +413,11 @@ async function keptReady(repo: Repo, id: string, request: IncomingMessage, respo
 // A guest's is kept under shared/ and only there, never in place of another: the viewer plays what's there with nothing
 // but its own files (`byAGuest`).
 async function branch(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse, guest?: Guest) {
-  const { handBack, moment: name, at, events, recording } = await body<{ handBack: number; moment: string; at: number; events: Event[]; recording: string }>(request);
+  const { handBack, moment: name, at, events: recorded, recording } = await read(request, Asked.branch, "What was done in the app");
+  const events = recorded as Event[];
   const misnamed = problemsWithKeptName(recording, [".json"]);
   if (misnamed.length) throw new Refused(misnamed);
-  if (!guest !== !recording.startsWith(SHARED) || (guest && (await repo.changes.branch(id, recording))))
+  if (!guest !== !recording.startsWith(SHARED) || (guest && (!SHARED_RECORDING.test(recording) || (await repo.changes.branch(id, recording)))))
     throw new Refused([guest ? `What a guest does in the app is kept as a new recording under ${SHARED}.` : `${SHARED} is where a guest's recordings are kept.`]);
   const moment = (await repo.changes.get(id)).handBacks.find((kept) => kept.number === handBack)?.moments.find((moment) => moment.name === name);
   const was = moment && (await repo.changes.file(id, handBack, moment.recording));
@@ -448,7 +458,7 @@ const readingOf = (event: Event) => (event.type === 5 && event.data?.tag === "re
 // How long until a moment asked for is ready, for the viewer to count down to, if it can be known; or that the app isn't
 // running, as after it's gone unused a while, so it starts first, for as long as it takes, which the person is told.
 async function readyInFor(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
-  const { moment, after } = await body<{ moment: string; after?: number }>(request);
+  const { moment, after } = await read(request, Asked.stepIn, "Where to step in");
   const to = await placeOf(repo, id, moment, after).catch(() => undefined);
   if (!(await repo.app().then((app) => answers(app.url), () => true))) return json(response, 200, { starting: true });
   json(response, 200, { in: to && (await readyIn(repo, id, to)) });
@@ -482,7 +492,14 @@ export const thisMachine = (host: string | undefined) => /^(localhost|127\.0\.0\
 // Its shape is checked by the store, at the door, like anything else that's kept. Never more than a person's longest
 // time in the app records, read as far as that and no further.
 const LARGEST = 64 * 1024 * 1024;
-async function body<T>(request: IncomingMessage): Promise<T> {
+// What was asked, read as its shape reads it (`Asked`, model.ts): only the fields it names, each its kind.
+async function read<T>(request: IncomingMessage, shape: z.ZodType<T>, subject: string): Promise<T> {
+  const read = asAsked(shape, await body(request), subject);
+  if ("problems" in read) throw new Refused(read.problems);
+  return read.asked;
+}
+
+async function body<T = unknown>(request: IncomingMessage): Promise<T> {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of request) {

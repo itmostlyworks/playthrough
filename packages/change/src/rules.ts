@@ -233,6 +233,8 @@ export const unnamedAgent = "Agent";
 // Where what a guest did in the app is kept among a change's branches, and only theirs: a recording kept there plays
 // with nothing but its own files.
 export const SHARED = "shared/";
+// A guest's recording is named as their page names it, and nothing else: its step in's id, then how many it has kept.
+export const SHARED_RECORDING = /^shared\/[a-z][a-z0-9]{7,23}-\d{1,4}\.json$/;
 
 // Who someone says they are, as a send or what they've seen says it: one short line, with nothing in it to make it read
 // as anything but a name where it's printed. A guest, who came by a shared link, can't go by a name that reads as the
@@ -245,6 +247,8 @@ const folded = (name: string) => String(name).normalize("NFKC").replace(/[\p{Cf}
 export const sameName = (one: string, other: string) => folded(one) === folded(other);
 
 export function problemsWithName(by: string): string[] {
+  // What every object already has (“__proto__”, “constructor”) is never a name: names key what each person has seen.
+  if (by === "__proto__" || by in Object.prototype) return [`“${by}” isn't a name. Say yours.`];
   if (/[\p{Cc}\p{Zl}\p{Zp}]/u.test(by)) return ["A name is one line, with nothing but its words in it."];
   if (by.trim().length > LONGEST_NAME) return [`A name is ${LONGEST_NAME} characters at most.`];
   return [];
@@ -270,7 +274,8 @@ export function problemsWithSend(change: Change, send: Send): string[] {
     if (someoneElse.length) return someoneElse;
   }
   if ([...send.notes, ...(send.replies ?? [])].some((said) => said.words.length > LONGEST_WORDS)) return [`A note or a reply is ${LONGEST_WORDS} characters at most: say the rest in another.`];
-  if (change.sends.some((other) => other.id === send.id)) return [`Something else was already sent as ${send.id}. Send this with a new id.`];
+  // Ids are told apart as the disk tells them apart, whatever case one kept before was in.
+  if (change.sends.some((other) => other.id.toLowerCase() === send.id.toLowerCase())) return [`Something else was already sent as ${send.id}. Send this with a new id.`];
   const replies = send.replies ?? [];
   if (!send.notes.length && !replies.length && !send.done) return ["There's nothing in this send."];
   if (send.done && (send.notes.length || replies.length)) return ["Done says every moment looks good, and nothing more: send the notes and replies on their own."];
@@ -282,7 +287,7 @@ export function problemsWithSend(change: Change, send: Send): string[] {
   const notes = allNotes(change);
   problems.push(...duplicates(send.notes.map((note) => note.id), (id) => `This send has two notes with the id ${id}.`));
   for (const note of send.notes) {
-    if (notes.has(note.id)) problems.push(`The id ${note.id} is already a note's. Make a new one.`);
+    if ([...notes.keys()].some((kept) => kept.toLowerCase() === note.id.toLowerCase())) problems.push(`The id ${note.id} is already a note's. Make a new one.`);
     if (note.on) problems.push(...problemsWithNotePlace(change, send, note.id, note.on));
   }
 
@@ -311,6 +316,12 @@ export function problemsSeeing(change: Change, by: string, seen: Seen[]): string
 }
 
 // What's wrong with something's shape: its name, then what it needs, as in “Hand-back 2: moment 3 needs a name.”
+// What was asked, as its shape reads it (`Asked`): only its fields, each its kind; or what's wrong with it.
+export function asAsked<T>(schema: z.ZodType<T>, value: unknown, subject: string): { asked: T } | { problems: string[] } {
+  const result = schema.safeParse(value, { error: plainly });
+  return result.success ? { asked: result.data } : { problems: problemsWithShape(schema, value, subject) };
+}
+
 function problemsWithShape(schema: z.ZodType, value: unknown, subject: string): string[] {
   const result = schema.safeParse(value, { error: plainly });
   if (result.success) return [];
@@ -365,7 +376,7 @@ function problemsWithNotePlace(change: Change, send: Send, id: string, on: OnMom
   if (!madeInApp(on)) return problemsWithPlace(on, handedBack.moments, `Note ${id}`);
   const problems = problemsWithPlace({ moment: on.moment, at: on.steppedIn }, handedBack.moments, `Note ${id}'s step in`);
   const own = send.guest ? `branches/${SHARED}` : "branches/";
-  if (!on.recording.startsWith(own) || !on.recording.endsWith(".json")) problems.push(`Note ${id} is in the app, so its recording is one of ${send.guest ? "the guest's" : "the person's"} own, “${own}….json”, not “${on.recording}”.`);
+  if (!on.recording.startsWith(own) || !on.recording.endsWith(".json") || (send.guest && !SHARED_RECORDING.test(on.recording.slice("branches/".length)))) problems.push(`Note ${id} is in the app, so its recording is one of ${send.guest ? "the guest's" : "the person's"} own, “${own}….json”, not “${on.recording}”.`);
   if (on.at > on.length) problems.push(`Note ${id} is at ${on.at}s, but the person's own recording is ${on.length}s long.`);
   return problems;
 }

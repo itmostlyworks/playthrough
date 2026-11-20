@@ -213,7 +213,7 @@ export class Changes {
       const change = await this.#read(id);
       const problems = problemsSeeing(change, by, opened);
       if (problems.length) throw new Refused(problems);
-      const theirs = change.seen?.[by] ?? [];
+      const theirs = (change.seen && Object.hasOwn(change.seen, by) ? change.seen[by] : undefined) ?? [];
       const fresh = opened.filter((one) => !theirs.some((kept) => kept.handBack === one.handBack && kept.moment === one.moment));
       if (fresh.length) await this.#writeJson(`${id}/seen.json`, { ...change.seen, [by]: [...theirs, ...fresh] });
     });

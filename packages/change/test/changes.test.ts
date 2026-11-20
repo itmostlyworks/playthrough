@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, test } from "node:test";
 import { folder } from "../src/folder.ts";
-import { conversation, memory, newId, Refused, Changes, type Finding, type Moment, type HandBack, type Send, type Storage } from "../src/index.ts";
+import { asLine, asWords, conversation, memory, newId, Refused, Changes, type Finding, type Moment, type HandBack, type Send, type Storage } from "../src/index.ts";
 
 const folders: string[] = [];
 after(() => Promise.all(folders.map((path) => rm(path, { recursive: true }))));
@@ -242,10 +242,15 @@ for (const [kept, storage] of storages) {
       await assert.rejects(changes.send("invoice-export", send(2, { replies: [{ note: asked.id, words: " " }] })), refused(/needs words/));
     });
 
+    test("a line is one line of what shows, and words keep their lines and spaces but nothing that shows as nothing", () => {
+      assert.equal(asLine("a\u2800\u3164 b\u00a0\u3000c\u200b\nd\u2028e\u202e"), "a b c d e");
+      assert.equal(asWords("a\u2800\u3164 b\u00a0\u3000c\u200b\u2028d\r\ne\u0007\tf"), "a b\u00a0\u3000c\nd\ne\tf");
+    });
+
     test("Done says nothing more, and a send says something", async () => {
       const changes = await recorded();
       await changes.send("invoice-export", send(1, { done: true }));
-      await assert.rejects(changes.send("invoice-export", send(1, { done: true, notes: [{ id: "n1", words: "Hm" }] })), refused(/Done says every moment looks good, and nothing more/));
+      await assert.rejects(changes.send("invoice-export", send(1, { done: true, notes: [{ id: newId(), words: "Hm" }] })), refused(/Done says every moment looks good, and nothing more/));
       await assert.rejects(changes.send("invoice-export", send(1, {})), refused(/nothing in this send/));
     });
 
@@ -291,8 +296,11 @@ for (const [kept, storage] of storages) {
 
     test("a send's id and a note's are words a file can be called, as they name the files they're kept in", async () => {
       const changes = await recorded();
-      await assert.rejects(changes.send("invoice-export", send(1, { id: "../../playthrough/app", notes: [note("Hm")] })), refused(/needs an id of letters, digits and dashes/));
-      await assert.rejects(changes.send("invoice-export", send(1, { notes: [{ ...note("Hm"), id: "a/b" }] })), refused(/needs an id of letters, digits and dashes/));
+      await assert.rejects(changes.send("invoice-export", send(1, { id: "../../playthrough/app", notes: [note("Hm")] })), refused(/needs an id as Playthrough makes them/));
+      await assert.rejects(changes.send("invoice-export", send(1, { notes: [{ ...note("Hm"), id: "a/b" }] })), refused(/needs an id as Playthrough makes them/));
+      // An id is what newId makes, and nothing else: never a case, an option or a sentence, whoever sends it.
+      for (const id of ["OWNSENDAA", "--last", "-h", "a-sentence-as-an-id", "a".repeat(25), "1ownsenda", "ownsend"])
+        await assert.rejects(changes.send("invoice-export", send(1, { id, notes: [note("Hm")] })), refused(/needs an id as Playthrough makes them/), id);
     });
 
     test("sending the same send twice keeps it once, and a different send can't reuse its id", async () => {

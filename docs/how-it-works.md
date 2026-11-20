@@ -965,6 +965,19 @@ change nor the machine's list of them. Never another change, who the person is, 
 is one rule (`sends`, `share.ts`): notes and replies in a name of their own, never the person's ("Ludwig is the name of
 the person who shared this. Say yours.") and never Done, which is the person's alone ("Done is for the person who
 shared this to say. Send your notes instead.").
+**A guest supplies only what they said and what they pointed at.** Each route reads the fields it names and nothing
+else, each its kind (`Asked`, `model.ts`); the change is always the link's. Of a send, a guest gives its id, their name,
+notes and replies; when it came, on which hand-back, and that it's a guest's are Playthrough's to say, so a guest can't
+date a send to hide the person's Done. An id is what `newId` makes, for everyone: a letter, then lowercase letters and
+digits, 8 to 24 in all (`ID`), so it's never an option, a sentence, a case-twin on a disk that doesn't tell case apart,
+or too long for a file's name; it's checked on what's sent, and ids kept by an earlier Playthrough still read and can
+be referred to. A command's word where it takes an id is that id, never an option (`playthrough.ts`). A guest's
+recording is named as their page names it (`SHARED_RECORDING`). One send holds 50 notes and 50 replies at most, a note
+made in the app 500 things done, and no more than 200 of a link's notes wait for the agent at once, each reserving
+room in the link's count for the picture `wait` draws of it (`says`, `share.ts`). Anything that goes wrong for a
+guest that isn't one of Playthrough's own refusals is one line, the same every time (`WENT_WRONG`, `open.ts`), and a
+clean line of it is written to open.log; Step in's own pages say a fixed line too. A guest's still is theirs, under
+`stills/shared/`. A name is never a key every object has ("__proto__"), and what's seen is read by its own keys.
 That a send is a guest's is the door's to say (`guest: true`, kept with the send), never the send's own. **Every string
 Playthrough keeps is one of two kinds** (`model.ts`), whoever writes it: a line (a name, a role, what was done, an
 address, a reason in a line: one line, nothing unseen, every break a space, 1000 characters at most) or words (what

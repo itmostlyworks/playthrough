@@ -5,7 +5,7 @@
 
 import { dirname, join } from "node:path";
 import { chromium, type Browser } from "@playwright/test";
-import { allNotes, madeInApp, type InApp, type OnMoment, type Change } from "@playthrough/change";
+import { allNotes, madeInApp, SHARED, type InApp, type OnMoment, type Change } from "@playthrough/change";
 import { inSight } from "@playthrough/page";
 import { framesOf, writtenOn, type MomentFrame } from "./followed.ts";
 import type { Frame } from "./frames.ts";
@@ -74,8 +74,11 @@ async function whereSeen(repo: Repo, change: Change, on: OnMoment) {
 
 // One made in the app is on what was there, which no recording of the moment shows: the frame the person's page drew of
 // it, as it shows the note, kept with what they did. Not drawn yet, it goes without.
+// A guest's own page drew theirs apart, under shared/ (frames.ts): the person's page's drawing of it, where there is one,
+// first.
 async function whereMade(repo: Repo, change: Change, id: string, on: InApp) {
-  const kept = await repo.changes.branch(change.id, `frames/${id}.json`);
+  const guests = allNotes(change).get(id)?.guest;
+  const kept = (await repo.changes.branch(change.id, `frames/${id}.json`)) ?? (guests ? await repo.changes.branch(change.id, `frames/${SHARED}${id}.json`) : undefined);
   if (!kept) return undefined;
   const frame: Frame = JSON.parse(Buffer.from(kept).toString("utf8"));
   const { width, height } = frame.screen;

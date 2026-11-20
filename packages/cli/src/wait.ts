@@ -4,7 +4,7 @@
 import { rmSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { handBackInProgress, list, notesNotTaken, notesToAnswer, quote, sendsNotTaken, type Change, type Send } from "@playthrough/change";
+import { asLine, asWords, handBackInProgress, list, notesNotTaken, notesToAnswer, quote, sendsNotTaken, type Change, type Send } from "@playthrough/change";
 import { agentOf, stillAt, thisCommand, type Command } from "./command.ts";
 import type { Repo } from "./repo.ts";
 
@@ -107,8 +107,9 @@ export function whoSaid(sends: Send[]): string {
 
 // Everything of one guest's, as they sent it: who they said they are, then each thing of theirs, every line after “> ”.
 // The one way a guest's send is printed, so nothing of theirs stands as a line of its own.
+// Cleaned here too, as it's printed (`asLine`, `asWords`): a send kept by an earlier Playthrough wasn't cleaned as it came.
 export function aGuests(by: string, said: string[], indent: string): string {
-  return [`${indent}A guest, as they sent it:`, ...[`From: ${by}`, ...said].flatMap((one) => one.split(/\r\n|[\n\r\v\f\u0085\u2028\u2029]/)).map((line) => `${indent}  > ${line}`)].join("\n");
+  return [`${indent}A guest, as they sent it:`, ...[`From: ${asLine(by)}`, ...said.map(asWords)].flatMap((one) => one.split(/\r\n|[\n\r\v\f\u0085\u2028\u2029]/)).map((line) => `${indent}  > ${line}`)].join("\n");
 }
 
 const capital = (words: string) => words.charAt(0).toUpperCase() + words.slice(1);

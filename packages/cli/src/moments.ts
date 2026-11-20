@@ -18,7 +18,7 @@ import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import type { Glimpse, Reading } from "@playthrough/page";
-import { allNotes, conversation, list, madeInApp, MOST_SHOWN, notesToAnswer, saidDone, quote, Refused, handBackInProgress, sendsNotTaken, startOf, toAccountFor, type Finding, type Change, type HandBack, type Moment, type Note, type Send } from "@playthrough/change";
+import { allNotes, asLine, asWords, conversation, list, madeInApp, MOST_SHOWN, notesToAnswer, saidDone, quote, Refused, handBackInProgress, sendsNotTaken, startOf, toAccountFor, type Finding, type Change, type HandBack, type Moment, type Note, type Send } from "@playthrough/change";
 import { agent } from "./agent.ts";
 import { browserFile, doneBy, stopBrowser, type Browser } from "./as.ts";
 import { changeHere, meanHere, meantHere, momentNamed, momentsOf } from "./change.ts";
@@ -605,10 +605,10 @@ async function sayNotes(repo: Repo, change: Change, number: number, asking: stri
     const on = noted.on;
     const moment = on && handedBack?.moments.find((one) => one.name === on.moment);
     const where = !on ? "on the change as a whole" : moment ? `on the moment ${quote(moment.name)}${moment.person ? `, as ${moment.person}` : ""}` : "on a moment not handed back now";
-    console.log(`\n  ${note}  ${guest ? `a guest's note, ${where}` : `${where}${on?.element ? `, on the ${on.element.role} ${quote(on.element.name)}` : ""}`}`);
+    console.log(`\n  ${note}  ${guest ? `a guest's note, ${where}` : `${where}${on?.element ? `, on the ${asLine(on.element.role)} ${quote(asLine(on.element.name))}` : ""}`}`);
     for (const [i, turn] of conversation(change, note).entries()) {
       if (turn.guest) console.log(aGuests(turn.by, [...(i === 0 && on ? onSaid(on) : []), turn.words], "    "));
-      else console.log(`    ${turn.agent ? "You" : turn.by}: ${turn.words}`);
+      else console.log(`    ${turn.agent ? "You" : asLine(turn.by)}: ${asWords(turn.words)}`);
     }
     if (pictures.get(note)) console.log(`    As they saw it: ${pictures.get(note)}`);
     // Written partway through, where it was written is after the things done by then, not the moment's end.
@@ -625,15 +625,15 @@ async function sayNotes(repo: Repo, change: Change, number: number, asking: stri
 // first line), what they did after stepping in, where the app was, and why Step in didn't work.
 function onSaid(on: NonNullable<Note["on"]>, thing = true): string[] {
   return [
-    ...(thing && on.element ? [`On the ${on.element.role} ${quote(on.element.name)}.`] : []),
+    ...(thing && on.element ? [`On the ${asLine(on.element.role)} ${quote(asLine(on.element.name))}.`] : []),
     ...(madeInApp(on) && on.did.length
-      ? [`They stepped into the app there, then: ${on.did.map((did) => `${did.does}${did.what ? ` ${quote(did.what)}` : did.does === "click" ? " the page" : ""}${typeof did.with === "string" && did.does !== "click" ? ` ${quote(did.with)}` : ""}`).join(", then ")}.`]
+      ? [`They stepped into the app there, then: ${on.did.map((did) => `${asLine(did.does)}${did.what ? ` ${quote(asLine(did.what))}` : did.does === "click" ? " the page" : ""}${typeof did.with === "string" && did.does !== "click" ? ` ${quote(asWords(did.with))}` : ""}`).join(", then ")}.`]
       : []),
     // Where they were is often the whole clue, as an address the app made wrong: what was there is gone by the time
     // the agent looks. What their run's setup made is said as setup's, the same place in the agent's own run.
-    ...(madeInApp(on) && on.address ? [`The app was at ${on.address} when they wrote it${on.address.includes("${setup.") ? ", setup being what playthrough/setup.ts made for the run, as playthrough as prints it" : ""}.`] : []),
+    ...(madeInApp(on) && on.address ? [`The app was at ${asLine(on.address)} when they wrote it${on.address.includes("${setup.") ? ", setup being what playthrough/setup.ts made for the run, as playthrough as prints it" : ""}.`] : []),
     // They were told only that it didn't work: why is for the agent, whole, as Playthrough said it then.
-    ...(!madeInApp(on) && on.cantStepIn ? [`They pressed Step in on this moment and it didn't work: ${on.cantStepIn}`] : []),
+    ...(!madeInApp(on) && on.cantStepIn ? [`They pressed Step in on this moment and it didn't work: ${asWords(on.cantStepIn)}`] : []),
   ];
 }
 

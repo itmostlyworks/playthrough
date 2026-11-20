@@ -16,12 +16,19 @@ import { z } from "zod";
 // in one can pass for a line of anything else where it's printed.
 const LONGEST_LINE = 1000;
 const LONGEST_WORDS = 20_000;
+// Letters that show as nothing (Hangul fillers, the blank Braille cell): in a line, a space like any other; in words,
+// nothing. Ordinary spaces, the no-break and the ideographic, stay in words as they were written.
+const BLANK = "\\u115F\\u1160\\u2800\\u3164\\uFFA0";
 export const asLine = (value: string) =>
-  value
-    .replace(/[\s\p{Zl}\p{Zp}]+/gu, " ")
+  String(value)
+    .replace(new RegExp(`[\\s\\p{Zs}\\p{Zl}\\p{Zp}${BLANK}]+`, "gu"), " ")
     .replace(/[\p{Cc}\p{Cf}]/gu, "")
+    .replace(/ {2,}/g, " ")
     .trim();
-export const asWords = (value: string) => value.replace(/\r\n?|[\p{Zl}\p{Zp}]/gu, "\n").replace(/[^\P{Cc}\n\t]|\p{Cf}/gu, "");
+export const asWords = (value: string) =>
+  String(value)
+    .replace(/\r\n?|[\p{Zl}\p{Zp}]/gu, "\n")
+    .replace(new RegExp(`[^\\P{Cc}\\n\\t]|\\p{Cf}|[${BLANK}]`, "gu"), "");
 const line = (error: string) =>
   z
     .string({ error })
@@ -37,8 +44,14 @@ const words = (error: string, empty = false) =>
         .refine((value) => empty || value.trim() !== "", { error })
         .refine((value) => value.length <= LONGEST_WORDS, { error: `is ${LONGEST_WORDS} characters at most` }),
     );
-// A send's id names the file it's kept in, and a note's the pictures of it: words a file can be called.
-const id = (error: string) => z.string({ error }).regex(/^[\w-]+$/, { error });
+// An id is what `newId` makes, and nothing else, whoever makes it: a letter, then letters and digits, all lowercase,
+// 8 to 24 of them. It names the file a send is kept in and a note's pictures, on disks that don't tell case apart; it's
+// printed where Playthrough speaks and typed as a command's word, so it's never an option, a sentence or a path. It's
+// checked on what's made from now on; what was kept before, by an earlier Playthrough, still reads, and a reference
+// to it (`ofId`) is any id that was ever kept.
+export const ID = /^[a-z][a-z0-9]{7,23}$/;
+const id = (error: string) => z.string({ error }).regex(ID, { error });
+const ofId = (error: string) => z.string({ error }).regex(/^[\w-]{1,64}$/, { error });
 const seconds = (error: string) => z.number({ error }).min(0, { error });
 const share = (error: string) => z.number({ error }).min(0, { error }).max(1, { error });
 export const fileName = (error: string) =>
@@ -115,7 +128,7 @@ export const InApp = z
     handBack: handBackNumber,
     moment: line("needs the moment it was stepped into"),
     steppedIn: seconds("needs where they stepped in, in seconds").describe("Seconds into the moment's recording on that hand-back"),
-    did: z.array(Did, { error: "needs what they did there, a list, even if it's empty" }).describe("What the person did there, in order"),
+    did: z.array(Did, { error: "needs what they did there, a list, even if it's empty" }).max(500, { error: "is 500 things done at most" }).describe("What the person did there, in order"),
     address: line("needs where the app was, or no address").optional().describe("Where the app was when the note was made: its path, query and hash, as the agent's browser would go there, with what setup made for that run written as setup's (${setup.board})"),
     recording: fileName("needs its recording: the name of one of the person's own files").describe("The moment up to where they stepped in, then what they did"),
     length: z.number({ error: "needs its length, in seconds" }).positive({ error: "needs its length, in seconds" }),
@@ -189,7 +202,7 @@ export const Shown = z.strictObject({
 });
 
 export const Reply = z.strictObject({
-  note: id("needs the note it answers"),
+  note: ofId("needs the note it answers"),
   words: words("needs its words, even if empty until it's answered", true),
   shown: Shown.optional().describe("Where what it's on shows in this hand-back; without it, as it's shown on its moment"),
 });
@@ -197,7 +210,7 @@ export const Reply = z.strictObject({
 // A note is a conversation about one thing. A person starts it in a send; then the agent's replies and people's replies
 // take turns on it.
 export const Note = z.strictObject({
-  id: id("needs an id of letters, digits and dashes"),
+  id: id("needs an id as Playthrough makes them: a letter, then lowercase letters and digits, 8 to 24 in all"),
   on: z
     .union([OnMoment, InApp], { error: "is on a moment as handed back (its hand-back, moment and at) or in the app (its hand-back, moment, steppedIn, did, recording, length and at)" })
     .optional()
@@ -216,13 +229,13 @@ export const HandBack = z.strictObject({
 
 // What one person sent about one hand-back, at once: notes and replies, or Done. Once sent, it never changes.
 export const Send = z.strictObject({
-  id: id("needs an id of letters, digits and dashes").describe("Chosen by the sender, so sending twice sends once"),
+  id: id("needs an id as Playthrough makes them: a letter, then lowercase letters and digits, 8 to 24 in all").describe("Chosen by the sender, so sending twice sends once"),
   handBack: z.number().int().min(1),
   by: line("needs to say who sent it"),
   sent: z.iso.datetime({ error: "needs to say when it was sent, as an ISO date" }),
   notes: z.array(Note).describe("New ones"),
   replies: z
-    .array(z.strictObject({ note: id("needs the note it's on"), words: words("needs words") }))
+    .array(z.strictObject({ note: ofId("needs the note it's on"), words: words("needs words") }))
     .optional()
     .describe("A person's words back on a note's latest answer: what's still not right, or an answer to a question the agent asked. They judge nothing, and ask the agent again"),
   done: z.literal(true, { error: "is true or left out" }).optional().describe("Done: every moment of its hand-back looks good, and that's all it says"),
@@ -232,8 +245,42 @@ export const Send = z.strictObject({
     .describe("Sent by a guest through a shared link, as the Playthrough that took it says, never as the send says: not the person who asked for the change"),
 });
 
+// What the page asks of a change, each by the fields it names and nothing else, each its kind: who someone says they
+// are, what they said and what they pointed at, and where in the change. Anything else that comes with it isn't read;
+// the change is always the one asked by its address. A guest's send is what they said alone: Playthrough says when it
+// came, on which hand-back, and that it's a guest's (`share.ts`).
+const handBackOf = z.number({ error: "needs a hand-back" }).int().min(1, { error: "needs a hand-back, from 1" });
+const placeAsked = z.object({ moment: line("needs the moment"), after: z.number({ error: "is how many things are done before it" }).int().min(0).max(10_000).optional() });
+export const Asked = {
+  name: z.object({ by: line("needs a name") }),
+  seen: z.object({ by: line("needs who saw it"), moments: z.array(z.object({ handBack: handBackOf, moment: line("needs the moment it's of").optional() })).max(500, { error: "is 500 at most" }) }),
+  stepIn: placeAsked,
+  branch: z.object({
+    handBack: handBackOf,
+    moment: line("needs the moment it branches off"),
+    at: seconds("needs where it branches off, in seconds"),
+    events: z.array(z.record(z.string(), z.unknown()), { error: "needs what was recorded" }).min(1, { error: "needs what was recorded" }),
+    recording: fileName("needs the recording's name"),
+  }),
+  frame: z.object({
+    note: ofId("needs the note it pictures"),
+    handBack: handBackOf,
+    recording: fileName("needs the recording it's on"),
+    at: seconds("needs its time, in seconds"),
+    node: z.number().int().min(0).optional(),
+    point: Point.optional(),
+  }),
+  still: z.object({ handBack: handBackOf, recording: fileName("needs the recording it's of"), at: seconds("needs its time, in seconds") }),
+  guestSend: z.object({
+    id: id("needs an id as Playthrough makes them: a letter, then lowercase letters and digits, 8 to 24 in all"),
+    by: line("needs to say who sent it"),
+    notes: z.array(Note).max(50, { error: "is 50 notes at most in one send" }),
+    replies: z.array(z.strictObject({ note: ofId("needs the note it's on"), words: words("needs words") })).max(50, { error: "is 50 replies at most in one send" }).optional(),
+  }),
+};
+
 // The agent took a send, and answers it in this hand-back.
-export const Taken = z.strictObject({ send: id("needs the send it took"), handBack: z.number().int(), at: z.iso.datetime() });
+export const Taken = z.strictObject({ send: ofId("needs the send it took"), handBack: z.number().int(), at: z.iso.datetime() });
 
 // A moment someone has opened, as it was handed back in one hand-back: one handed back again, different, asks to be seen again.
 export const Seen = z.strictObject({ handBack: z.number().int().min(1), moment: line("needs the moment it's of").optional().describe("Without it, the last stop: the change as a whole") });
@@ -275,6 +322,8 @@ export const madeInApp = (on: OnMoment | InApp): on is InApp => "recording" in o
 
 // Ids are made where the thing is made, by whoever makes it, so nobody has to ask anyone for one.
 export function newId(): string {
-  const letters = "abcdefghijkmnpqrstuvwxyz23456789"; // none that read alike
-  return Array.from(crypto.getRandomValues(new Uint8Array(8)), (byte) => letters[byte % 32]).join("");
+  const letters = "abcdefghijkmnpqrstuvwxyz";
+  const more = `${letters}23456789`; // none that read alike
+  const [first, ...rest] = crypto.getRandomValues(new Uint8Array(8));
+  return letters[first! % letters.length] + rest.map((byte) => more[byte % more.length]).join("");
 }
