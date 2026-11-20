@@ -1047,8 +1047,13 @@ the picture going whole, and calling off, a press of its own, is answered by the
 stays, as it opens what's waiting over the app; who you are is the bar's to say; a note made there is pinned in the app,
 and its card is on the Notes edge once you're back. On a phone, with no edges beside it, nothing of this changes.
 
-The app opens in the recording's place, at its size,
-and the recording's pointer comes to yours wherever yours has gone, and gives way to it. In the app the bar says "You,
+The app opens in the recording's place, at its size. With your pointer on the app, the recording's comes to yours
+wherever yours has gone, and gives way to it. Anywhere else (on the bar, which hangs across the picture's foot, off the
+picture, out of the window, not yet moved, or a touch screen), the recording's pointer fades where it stands as the app
+opens from it, and yours is simply yours as it comes into the app: it's the app, not the box it's in, that counts, as
+the topmost thing under your pointer (until 20 Nov the box counted, so with the pointer on Take over's upper half the
+agent's pointer came to it, and on its lower half it stayed on the app until you moved). Coming back, your pointer, if
+it's in the app, goes back to where the recording has it; if not, the recording's fades in there. In the app the bar says "You,
 as …" beside Back, whose key reads Esc ×2: one keycap and its count in the keycap's own small, quiet letters (two
 keycaps side by side read as a bug, the user said), heard as "Back, Escape twice". Back, the keyboard comes back to the page, and the app kept ready underneath
 is inert until it's yours again, so Tab never walks an app nobody can see. A single Escape is the app's, whatever the app does with it, or nothing,

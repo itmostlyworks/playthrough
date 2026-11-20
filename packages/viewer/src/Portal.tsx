@@ -1,8 +1,9 @@
 // Taking over, the app opens in its picture like a portal. Asked for before it's ready, the picture's edge breathes and
 // the recording's pointer waits where it is. Once it's there, the recording's pointer comes to yours, wherever yours has
-// gone meanwhile and goes on the way, and the app opens from where they meet, a ring going out to the picture's edges.
-// Who you are there is the bar's to say. Given back, it closes on where your pointer was in the app, and the pointer goes
-// back to where the recording has it.
+// gone meanwhile on the app and goes on the way, and the app opens from where they meet, a ring going out to the
+// picture's edges; yours anywhere else, it opens from the recording's, which goes where it stands. Who you are there is
+// the bar's to say. Given back, it closes on where your pointer was in the app, and the pointer goes back to where the
+// recording has it; yours not in the app, the recording's comes back where it is.
 
 import { flushSync } from "react-dom";
 import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type Ref } from "react";
@@ -15,8 +16,8 @@ export type App = { post: (message: object) => void };
 export type Heard = (said: any, at: (x: number, y: number) => { x: number; y: number }) => void;
 
 type Props = {
-  // The app: made ready unseen, being made ready while you wait, or yours; and where your pointer was in it as you left.
-  live?: { address?: string; shown: boolean; inApp: boolean; at?: { x: number; y: number } };
+  // The app: made ready unseen, being made ready while you wait, or yours.
+  live?: { address?: string; shown: boolean; inApp: boolean };
   // The page the recording was made of, at its size.
   screen: { width: number; height: number };
   scrolled: () => Scrolled | undefined;
@@ -52,7 +53,7 @@ export function Portal({ live, screen, scrolled, theirs, onStandIn, app: talk, o
   const waiting = !!live?.shown && !inPortal;
   const open = useRef(false);
   const taking = useRef(false);
-  // Where you last pointed, on the page; and your hand in the app while you're there. The hand's
+  // Where you last pointed, on the page, if it's still on it; and your hand in the app while you're there. The hand's
   // places are in the app's own pixels, and it's drawn over the app scaled as the app is, so as the picture grows or
   // shrinks around it, taking over and giving back, it stays on what it points at.
   const pointed = useRef<{ x: number; y: number }>(undefined);
@@ -63,6 +64,8 @@ export function Portal({ live, screen, scrolled, theirs, onStandIn, app: talk, o
   const grown = pointerScale(k);
   // The recording's pointer, in the app, until it has come to yours: where it stands, and what follows once it's there.
   const theirHand = useRef<{ from: { x: number; y: number }; then: () => void; coming?: Animation }>(undefined);
+  // Or, yours not on the app as it becomes yours, going where it stands; yours is your own as soon as it comes in.
+  const theirsGoing = useRef<{ going: Animation; then: () => void }>(undefined);
   // On its way to yours, it's as far along from where it stood to where yours is now: homing in, wherever yours goes.
   const onItsWay = () => {
     const [yours, their, to] = [hand.current!, theirHand.current, yourHand.current];
@@ -88,6 +91,13 @@ export function Portal({ live, screen, scrolled, theirs, onStandIn, app: talk, o
     const their = theirHand.current;
     // Yours not in the picture yet, the recording's waits where it is, and comes once yours is.
     if (their && !their.coming && !inside) return;
+    const going = theirsGoing.current;
+    if (going && !inside) return;
+    if (going) {
+      theirsGoing.current = undefined;
+      going.going.cancel();
+      going.then();
+    }
     yourHand.current = at;
     Object.assign(hand.current!.style, { transform: tip(at), opacity: inside || their ? "1" : "0" });
     shape(hand.current!, text && !their);
@@ -103,6 +113,8 @@ export function Portal({ live, screen, scrolled, theirs, onStandIn, app: talk, o
       const at = { x: event.clientX - box.left, y: event.clientY - box.top };
       handTo(inTheApp(at), at.x >= 0 && at.y >= 0 && at.x <= box.width && at.y <= box.height, false);
     };
+    // Gone out of the window, it's pointing at nothing here.
+    const left = () => (pointed.current = undefined);
     // In the app, the hand goes where your pointer is, and leaves the picture with it. All else it says is the page's.
     const told = ({ data, source }: MessageEvent) => {
       if (!data?.playthrough || !iframe.current || source !== iframe.current.contentWindow) return;
@@ -111,10 +123,12 @@ export function Portal({ live, screen, scrolled, theirs, onStandIn, app: talk, o
     };
     addEventListener("pointermove", aimed, true);
     addEventListener("pointerdown", aimed, true);
+    document.documentElement.addEventListener("pointerleave", left);
     addEventListener("message", told);
     return () => {
       removeEventListener("pointermove", aimed, true);
       removeEventListener("pointerdown", aimed, true);
+      document.documentElement.removeEventListener("pointerleave", left);
       removeEventListener("message", told);
     };
   }, [k]);
@@ -137,7 +151,7 @@ export function Portal({ live, screen, scrolled, theirs, onStandIn, app: talk, o
     // Waited for, the edge is already glowing, and the opening carries on from there.
     const glowing = { opacity: getComputedStyle(edging).opacity, boxShadow: getComputedStyle(edging).boxShadow };
     for (const part of [door, glow, rim, edging, yours]) part.getAnimations().forEach((animation) => animation.cancel());
-    theirHand.current = undefined;
+    theirHand.current = theirsGoing.current = undefined;
     yours.style.translate = door.style.clipPath = "";
     // Where you're pointing, and where the recording's pointer and the ring are: in the app's own pixels.
     const { left: x0, top: y0 } = box.getBoundingClientRect();
@@ -146,8 +160,7 @@ export function Portal({ live, screen, scrolled, theirs, onStandIn, app: talk, o
     const onIt = mine && mine.x >= 0 && mine.y >= 0 && mine.x <= width && mine.y <= height ? mine : undefined;
     const drawnAt = theirs();
     const recorded = drawnAt && inTheApp(drawnAt);
-    const left = live?.at;
-    const at = (inPortal ? (onIt ?? recorded) : (yourHand.current ?? left ?? onIt)) ?? { x: width / 2, y: height / 2 };
+    const centre = { x: width / 2, y: height / 2 };
     // The ring and the glow set around a point, and the circle the app shows through, from nothing out to the picture's
     // farthest corner. The circle and the glow are the app's, drawn scaled as it is; the ring is the picture's.
     const around = (at: { x: number; y: number }) => {
@@ -172,8 +185,12 @@ export function Portal({ live, screen, scrolled, theirs, onStandIn, app: talk, o
       Object.assign(door.style, { opacity: "1", pointerEvents: "auto" });
       iframe.current?.focus();
       edging.style.opacity = "1";
+      // Yours is on the app only where the app is what's under it: not over the bar across the picture's foot, nor
+      // pointing nowhere, as before the mouse first moves, once it has left the window, or on a touch screen.
+      const onTheApp = onIt && pointed.current && document.elementFromPoint(pointed.current.x, pointed.current.y) === iframe.current ? onIt : undefined;
+      const at = onTheApp ?? recorded ?? centre;
       // The recording's pointer becomes yours: where your hand is.
-      yourHand.current = at;
+      yourHand.current = onTheApp;
       Object.assign(yours.style, { transform: tip(at), opacity: "1" });
       onStandIn(true);
       if (still) return void real(true);
@@ -186,17 +203,23 @@ export function Portal({ live, screen, scrolled, theirs, onStandIn, app: talk, o
         rim.animate([{ transform: "scale(0)", opacity: 0 }, { opacity: 1, offset: 0.1 }, { opacity: 0.85, offset: 0.7 }, { transform: "scale(1)", opacity: 0 }], { ...eased, duration: OPENING });
         edging.animate([glowing, { ...glowing, offset: 0.5 }, { opacity: 1, boxShadow: "inset 0 0 0 2px rgba(236,178,72,0.95), inset 0 0 40px rgba(255,214,150,0.45)", offset: 0.75 }, { opacity: 1 }], { ...eased, duration: OPENING + 500 });
       };
-      // Yours on the picture, the recording's comes to it and the portal opens from where they meet, wherever that turns
-      // out to be. Yours elsewhere, it opens from the recording's, which waits there for yours.
-      const apart = recorded && (!onIt || Math.hypot(onIt.x - recorded.x, onIt.y - recorded.y) > 4 / k);
-      if (apart && onIt) {
+      // Yours on the app, the recording's comes to it and the portal opens from where they meet, wherever that turns
+      // out to be. Yours anywhere else, it opens from the recording's, which goes where it stands: there's nothing of
+      // yours for it to come to, and left there it would read as the agent's hands still on the app.
+      const apart = recorded && (!onTheApp || Math.hypot(onTheApp.x - recorded.x, onTheApp.y - recorded.y) > 4 / k);
+      if (apart && onTheApp) {
         door.style.clipPath = around(at)[0]!;
         theirHand.current = { from: recorded, then: () => (real(true), opening(yourHand.current ?? at)) };
         come();
+      } else if (apart) {
+        const going = yours.animate([{ opacity: 1 }, { opacity: 0 }], { duration: HANDING, easing: PORTAL });
+        yours.style.opacity = "0";
+        theirsGoing.current = { going, then: () => real(true) };
+        going.onfinish = () => theirsGoing.current?.going === going && ((theirsGoing.current = undefined), real(true));
+        opening(at);
       } else {
-        if (apart) theirHand.current = { from: recorded, then: () => real(true) };
-        else if (!recorded) yours.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200 });
-        if (!apart) real(true);
+        if (!recorded) yours.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200 });
+        real(true);
         opening(at);
       }
       return;
@@ -207,18 +230,24 @@ export function Portal({ live, screen, scrolled, theirs, onStandIn, app: talk, o
     // The keyboard comes back with you: left in the app waiting underneath, S and every other key would go to it.
     if (document.activeElement === iframe.current) iframe.current?.blur();
     shape(yours, false);
+    // Your hand, if it's in the app, goes back to where the recording has it; not there, the recording's comes back
+    // where it is.
+    const from = yours.style.opacity !== "0" ? yourHand.current : undefined;
+    const at = from ?? recorded ?? centre;
     yourHand.current = undefined;
     door.style.pointerEvents = "none";
     const shut = () => (door.style.opacity = "0");
     const hide = () => ((yours.style.opacity = "0"), onStandIn(false));
     if (still) return void (shut(), hide());
-    // Your hand goes back to where the recording has it, and goes.
     const [gone, whole] = around(at);
     const back = tip(recorded ?? at);
     // It rests where it's going, so once there it never shows where it was; and it goes in the very frame the recording's own
     // is drawn again, in its place.
     Object.assign(yours.style, { transform: back, opacity: recorded ? "1" : "0" });
-    yours.animate([{ transform: tip(at), opacity: 1 }, { transform: tip(at), opacity: 1, offset: 0.3 }, { transform: back, opacity: recorded ? 1 : 0 }], { duration: CLOSING + HANDING, easing: PORTAL }).finished.then(() => flushSync(hide), () => {});
+    const returning = from
+      ? [{ transform: tip(from), opacity: 1 }, { transform: tip(from), opacity: 1, offset: 0.3 }, { transform: back, opacity: recorded ? 1 : 0 }]
+      : [{ transform: back, opacity: 0 }, { transform: back, opacity: recorded ? 1 : 0 }];
+    yours.animate(returning, { duration: CLOSING + HANDING, easing: PORTAL }).finished.then(() => flushSync(hide), () => {});
     const closing = { duration: CLOSING, easing: "cubic-bezier(0.55, 0, 0.7, 0.2)" };
     edging.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, easing: "ease-in" });
     rim.animate([{ transform: "scale(1)", opacity: 0 }, { opacity: 0.9, offset: 0.65 }, { transform: "scale(0)", opacity: 0 }], closing);

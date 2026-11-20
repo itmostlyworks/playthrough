@@ -15,10 +15,10 @@ import type { App, Heard } from "./Portal.tsx";
 
 // One take-over: on which moment, from where, since when, and as it goes, when it should be there, if that can be known;
 // the app's address once it's ready, what setup made for it, and what its check at the end says where it doesn't hold
-// now, or why it can't be, until that's closed; what stopped a note made there being kept; and where your pointer was in
-// the app as you left it. Whether the app wasn't running, so it starts first, and whether it has answered since, so the
+// now, or why it can't be, until that's closed; and what stopped a note made there being kept.
+// Whether the app wasn't running, so it starts first, and whether it has answered since, so the
 // way there is being redone. And what your browser can't be of the one the moment ran in, known as it's asked for.
-type Run = { moment: string; from: number; since: number; due?: number; starting?: boolean; answered?: boolean; unlike?: string; address?: string; setup?: Record<string, unknown>; checked?: string; cant?: CantTakeOver; unkept?: string[]; at?: { x: number; y: number } };
+type Run = { moment: string; from: number; since: number; due?: number; starting?: boolean; answered?: boolean; unlike?: string; address?: string; setup?: Record<string, unknown>; checked?: string; cant?: CantTakeOver; unkept?: string[] };
 
 export function useTakeOver({ change, handBack, moment, page, clock, act, pointing, escapedOnce }: { change: string; handBack: number; moment: Moment; page: Page; clock: Clock; act: (action: Action) => void; pointing: () => void; escapedOnce: () => void }) {
   const [run, setRun] = useState<Run>();
@@ -90,10 +90,8 @@ export function useTakeOver({ change, handBack, moment, page, clock, act, pointi
     }, SETTLING);
     return () => clearTimeout(late);
   }, [opening]);
-  // Given back, the app closes on where your pointer was in it.
-  const back = (at?: { x: number; y: number }) => {
+  const back = () => {
     act({ type: "back" });
-    setRun((now) => now && { ...now, at });
     window.focus();
   };
 
@@ -102,7 +100,7 @@ export function useTakeOver({ change, handBack, moment, page, clock, act, pointi
   useEffect(() => app.current?.post({ playthrough: "noting", on: noting }), [noting]);
   const heard: Heard = async (said, at) => {
     if (said.playthrough === "settled") act({ type: "yours" });
-    if (said.playthrough === "escape") noting ? act({ type: "note" }) : back({ x: said.x, y: said.y });
+    if (said.playthrough === "escape") noting ? act({ type: "note" }) : back();
     if (said.playthrough === "escaped once") escapedOnce();
     if (said.playthrough === "note") pointing();
     if (said.playthrough === "recorded") session.current.events.push(...said.events);
@@ -150,7 +148,7 @@ export function useTakeOver({ change, handBack, moment, page, clock, act, pointi
     // How far it is on its way, for Take over's line.
     getting: mode.is === "getting there" && here ? { since: here.since, due: here.due } : undefined,
     // The app, for the portal that holds it.
-    portal: { live: here && { address: here.address, shown, inApp: yours, at: here.at }, app, onHeard: heard },
+    portal: { live: here && { address: here.address, shown, inApp: yours }, app, onHeard: heard },
   };
 }
 
