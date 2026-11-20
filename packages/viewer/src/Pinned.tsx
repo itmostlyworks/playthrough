@@ -2,6 +2,7 @@
 // top right corner like a badge, or on its spot. While it plays they fade, and come back once it stops.
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { flushSync } from "react-dom";
 import type { Placed } from "./Player.tsx";
 import type { Rect } from "./replay.ts";
 
@@ -22,7 +23,8 @@ export function Pinned({ pins, placed, open, faded, onOpen, lit, onPoint, quiet,
   const [size, setSize] = useState({ width: 0, height: 0 });
   useEffect(() => {
     const picture = room.current!;
-    const watching = new ResizeObserver(() => setSize({ width: picture.clientWidth, height: picture.clientHeight }));
+    // Placed again in the frame the picture's resized in, so its pins move with it.
+    const watching = new ResizeObserver(() => flushSync(() => setSize({ width: picture.clientWidth, height: picture.clientHeight })));
     watching.observe(picture);
     return () => watching.disconnect();
   }, []);

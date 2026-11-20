@@ -39,7 +39,8 @@ export function Portal({ live, screen, scrolled, theirs, onStandIn, app: talk, o
   const hand = useRef<HTMLDivElement>(null);
   const [wide, setWide] = useState(0);
   useEffect(() => {
-    const watching = new ResizeObserver(() => setWide(room.current?.clientWidth ?? 0));
+    // Drawn at its new size in the frame its picture's resized in, as the app takes the page and gives it back.
+    const watching = new ResizeObserver(() => flushSync(() => setWide(room.current?.clientWidth ?? 0)));
     watching.observe(room.current!);
     return () => watching.disconnect();
   }, []);

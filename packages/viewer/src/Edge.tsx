@@ -3,8 +3,9 @@
 // over it, fading into the screen's edge. Pointed at, or reached with Tab, they come forward, all the way onto the
 // screen and a little over the recording, a moment's words coming up over its picture, a note's card as it was; a
 // touch brings them forward first. At rest they sit back, quieter, so the recording has your eye, and forward come to
-// full; a card that waits on you (a new answer, Send) is at full all along. While you're in the app they rest, quieter, as everything that drives the
-// recording does; the moments still answer a press, which leaves the app on the way, each coming to full as it's
+// full; a card that waits on you (a new answer, Send) is at full all along. While you're in the app they go where they
+// stand, the app taking their room; on a phone, where they're under it, they rest, quieter, as everything that drives the
+// recording does, and the moments still answer a press, which leaves the app on the way, each coming to full as it's
 // pointed at, and their step left, which doesn't drive the recording, isn't quieter at all. Over each, what it holds, in a word, at its pictures' outer side, or where the header's own words
 // stand when they run past the screen's edge: it stays put as the edge comes forward, and an edge with nothing on it
 // says nothing. What ends a list (the moments' step left) is its last card, a short one, tucked and forward with the
@@ -13,6 +14,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Key } from "./Key.tsx";
+import { STEPS_OUT } from "./view.ts";
 
 // A picture's size, and the room around it.
 export const TILE = 176;
@@ -55,9 +57,9 @@ export function Edge(props: {
   label: string;
   // The keys that go through what it holds, drawn by its word.
   keys: string[];
-  // The recording, which the edge sits beside.
-  stage: RefObject<HTMLDivElement | null>;
-  // Stepped in: what drives the recording rests.
+  // Where the recording rests, which the edge sits beside, and stays by while the app takes the page.
+  place: RefObject<HTMLDivElement | null>;
+  // Stepped in: it goes, or on a phone rests, as what drives the recording does.
   quiet: boolean;
   phone: boolean;
   // Nothing on it yet.
@@ -68,22 +70,21 @@ export function Edge(props: {
   // What ends the list, its last card: told how much of it runs past the screen's edge, so its words can stand where
   // they read.
   foot?: (forward: boolean, tucked: number) => ReactNode;
-  // Stepped in, its cards still answer a press, which leaves the app first, as Back does: the moments'. Each rests,
-  // quieter, until it's pointed at, and the last card, which doesn't drive the recording, isn't quieter at all.
+  // Stepped in on a phone, its cards still answer a press, which leaves the app first, as Back does: the moments'. Each
+  // rests, quieter, until it's pointed at, and the last card, which doesn't drive the recording, isn't quieter at all.
   answers?: boolean;
 }) {
-  const { side, label, keys, stage, quiet, phone, empty, showing, children, foot, answers } = props;
+  const { side, label, keys, place, quiet, phone, empty, showing, children, foot, answers } = props;
   // For another page to find it by (data-part): the moments are always on the left, what you said on the right.
   const part = side === "left" ? "moments" : "notes";
-  // What rests while you're in the app: every card, or where they answer, each until it's pointed at.
+  // On a phone, what rests while you're in the app: every card, or where they answer, each until it's pointed at.
   const dead = quiet && !answers;
   const [forward, setForward] = useState(false);
   // At rest, each card sits back but what waits on you, which stays at full: it's what's left to do.
-  const sitsBack = !quiet && !forward ? "*:not-data-waiting:opacity-(--resting)" : "";
-  const resting = dead ? "opacity-(--resting)" : quiet ? "*:opacity-(--resting) *:hover:opacity-100" : sitsBack;
+  const sitsBack = !forward ? "*:not-data-waiting:opacity-(--resting)" : "";
   const [room, setRoom] = useState<Room>();
   useLayoutEffect(() => {
-    const shown = stage.current;
+    const shown = place.current;
     if (!shown || phone) return;
     const measure = () => {
       const box = shown.getBoundingClientRect();
@@ -183,7 +184,9 @@ export function Edge(props: {
   // pointer there.
   const clear = Math.max(0, cutBy + TUCKED + veil);
   return (
-    <>
+    // While the app is yours it goes where it stands, in the move that takes the recording over its room, and comes back
+    // as it was.
+    <div className={`transition-opacity ease-calm ${quiet ? "opacity-0" : ""}`} style={{ transitionDuration: `${STEPS_OUT}ms` }} inert={quiet}>
       {!empty && (
         // Its keys are on the word's inner side, so the word itself stays at the pictures' outer one.
         <h2 className={`pointer-events-none fixed z-30 flex items-center gap-1 text-[13px] leading-5 font-semibold text-soft transition-opacity duration-300 ease-calm ${right ? "flex-row-reverse" : ""} ${forward ? "" : "opacity-(--resting)"}`} style={{ top: room.top - WORD, [right ? "right" : "left"]: Math.max(24, -cutBy) }}>
@@ -219,12 +222,12 @@ export function Edge(props: {
         >
           {/* The cards stand on nothing of their own: forward, each is its own card over the recording. */}
           <div className="pointer-events-auto grid grid-cols-[minmax(0,1fr)] gap-1.5">
-            <div className={`grid grid-cols-[minmax(0,1fr)] gap-1.5 transition-opacity duration-300 ease-calm ${resting}`} inert={dead}>
+            <div className={`grid grid-cols-[minmax(0,1fr)] gap-1.5 transition-opacity duration-300 ease-calm ${sitsBack}`}>
               {children(forward)}
             </div>
             {/* The list's last card, at rest as far past the screen's edge as the others are. */}
             {foot && (
-              <div ref={footing} className={`transition-opacity duration-300 ease-calm ${dead ? "opacity-(--resting)" : sitsBack}`} inert={dead}>
+              <div ref={footing} className={`transition-opacity duration-300 ease-calm ${sitsBack}`}>
                 {foot(forward, forward ? 0 : Math.max(0, cutBy + TUCKED))}
               </div>
             )}
@@ -247,7 +250,7 @@ export function Edge(props: {
           }}
         />
       )}
-    </>
+    </div>
   );
 }
 

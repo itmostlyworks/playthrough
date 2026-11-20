@@ -556,7 +556,7 @@ this is stands on the recording's top. The left is one thing to press, the opene
 key; on a phone the mark and "6 waiting" alone.
 
 **What this is** is the recording's, not the header's, in one stack on its top, centred over it, 12px above its edge,
-wherever the recording stands in its room: the change's title, quiet and small, and under it the moment's name, then
+wherever the recording's place stands in its room (while the app is yours, it goes there, **Stepping in**): the change's title, quiet and small, and under it the moment's name, then
 who it's done as, quieter ("Words typed at the start stay there as Maja, a workspace owner"), on the line the edges'
 words are on. Those take two lines at most (three on a phone, at the left),
 growing up into room kept over the recording (`inItsRoom`, three lines' worth, which the opening card's picture stands
@@ -575,8 +575,9 @@ place, "Downloaded", for 2.5 s; one that couldn't be made says "Didn’t work", 
 while it does (`DownloadVideo.tsx`, `WORDS`): its four words are held in one place, so it's as wide as "Download video"
 in every state and the words always start at the same x; the arrow, the seconds (in digits of one width, centred
 without widening the slot) and the tick share one 14px slot; what changes crossfades in 150 ms, and only the fill grows.
-On a phone it's that slot alone, at one width, so the title beside it never moves. It rests in the app, as Share does,
-at the resting ink and not to be pressed, and isn't there shown by another page, a guest's included. With Share it's
+On a phone it's that slot alone, at one width, so the title beside it never moves. In the app it goes with Share, as
+what this is does (**Stepping in**), and on a phone, where it stays in sight, rests, as Share does, at the resting ink and
+not to be pressed; it isn't there shown by another page, a guest's included. With Share it's
 one pair, the same height, size and ink, 12px apart, each one width whatever it says, so neither moves the other;
 either open shows on its button, both cards hang 8px under it, and opening either's card closes the other's.
 `playthrough open` films it (`video.ts`): the viewer plays it in a browser of its own (`?video=`, `Video.tsx`) and what it
@@ -694,7 +695,8 @@ under it), and the click that ends a drag is the drag's, so only a press notes. 
 hand; nothing on the page is selected. Only what's inside the picture moves: its frame, the bar and the edges stay
 put. Once moved, the view is yours: it stays put as the moment plays, and another moment starts afresh. Step in (or S)
 takes the picture out to the whole screen at once, on the calm curve over 280 ms (`STEPS_OUT`, `view.ts`; at once with
-reduced motion), while "Stepping in…" shows: the app shows whole, so it comes in over the very picture it replaces,
+reduced motion), while "Stepping in…" shows, in the same move as the recording takes the page (**Stepping in**): the
+app shows whole, so it comes in over the very picture it replaces,
 with no jump (before, it opened whole over a picture still brought closer). Called off, the picture stays whole; Back
 from the app is to the whole moment, let go of while the app still covers it. From Compare, Step in closes Compare and
 the same holds. It's
@@ -741,15 +743,15 @@ blown up half again, "ks · Oct 3 · $4" across the card); one from an earlier h
 in a browser of its own from the recording it was made on (`frames.ts`, the page's `?frame=` address, `Frame.tsx`) and
 kept with what the person did (`branches/frames/<note>.png` and `.json`). A note's pin on the recording and its picture
 are one thing: pointing at either lights both, the thing outlined only then or while open (`Pinned.tsx`). While you're in
-the app, or while it's getting there, the edges rest, quieter, and don't come forward, each card at the same 40% rather
-than the edge's and its own together. The notes can't be pressed. The
-moments can, with the pointer: each stays dimmed until it's pointed at, then comes to full, and pressed it leaves the
-app as Back does and goes to that moment, at rest, in one move (a step in on its way is called off as Escape does); the
-moment you're in the app on is just Back. The
-moments' last card (Send, or Done), which doesn't drive the recording, isn't dimmed at all: pressed, it leaves the app
-the same way and goes on to the last stop, the app fading into it (`leaving`, `Moment.tsx`; `answers`, `Edge.tsx`). It
-doesn't press Send or Done. Writing a note in the app, none of them answer, as Back doesn't. The keys are the app's all
-the while. The menu at the top left still opens what's waiting over the app. **On a phone** (820px or less) there's no room beside the
+the app, or while it's getting there, the edges go where they stand, the recording taking their room (**Stepping in**),
+and come back as they were. On a phone, where they're rows under it, they rest instead, quieter, each card at the same
+40% rather than the row's and its own together. The notes can't be pressed. The moments can, with the pointer:
+each stays dimmed until it's pointed at, then comes to full, and pressed it leaves the app as Back does and goes to that
+moment, at rest, in one move (a step in on its way is called off as Escape does); the moment you're in the app on is
+just Back. The moments' last card (Send, or Done), which doesn't drive the recording, isn't dimmed at all: pressed, it
+leaves the app the same way and goes on to the last stop, the app fading into it (`leaving`, `Moment.tsx`; `answers`,
+`Edge.tsx`). It doesn't press Send or Done. Writing a note in the app, none of them answer, as Back doesn't. The keys
+are the app's all the while. The menu at the top left still opens what's waiting over the app. **On a phone** (820px or less) there's no room beside the
 recording: under the bar, the notes and then the moments are rows of the same pictures, words always under them,
 scrolled sideways. The recording and its bar stay; what's under them scrolls, fading where there's more above or below,
 as an edge's list does and a note's thread too long for its card (`useMore`, `Edge.tsx`). The whole screen is too small to
@@ -1002,7 +1004,27 @@ other notes, Send counts it, and it lands on the Notes edge as any does): "Step 
 the whole reason kept on it for the agent as `cantStepIn`, never shown to the person; they can open it and add words.
 With such a note on the moment not yet sent, the sheet says "Noted. It goes with your next Send." in the button's
 place, at its size, and makes no second note. In the app, a check at the end that doesn't hold now is said just over
-the bar, in amber, and so is a note made there that couldn't be kept. The app opens in the recording's place, at the same size,
+the bar, in amber, and so is a note made there that couldn't be kept.
+
+**The app takes the page.** From Step in, while "Stepping in…" shows and the app is yours, the Moments and Notes edges,
+what this is over the recording and Download video and Share go where they stand, and the recording grows into their
+room: one move, the calm curve over 280 ms (`STEPS_OUT`), the very one that takes the picture out to the whole screen,
+the fades on it too; at once with reduced motion. The recording stands on its foot where it was, so the bar across it
+doesn't move by a pixel, and the bar stays where it was dropped, if it was (`clear`, `Moment.tsx`). It grows as large as
+the page lets it be, 24px from the screen's sides, where the header's words stand, and 12px under the header, and never
+larger than the app's own size, so the app is drawn as large as fits and never past actual size; its window is the
+moment's own, so its layout is the moment's. Already that large, it doesn't grow: the rest just goes. The rule is CSS on
+two boxes (`inItsRoom` and `inTheAppsRoom`, `Moment.tsx`): the recording's place, which the edges and what this is stand
+by and which never moves, and the recording, which fills its place, or while the app is yours stands on its foot at the
+width the rule gives; the recording's picture, its pins and the app are drawn at each size in the frame it's laid out in
+(`flushSync` from their resize observers), so nothing is a frame behind its edges. Back, Escape twice, a step in called
+off or one that can't happen, all of it comes back in one move, the way in reversed, from wherever it has got to; after
+it, every box on the page is where it was. It goes on the press, not on the app's arrival: that keeps it one move with
+the picture going whole, and calling off, a press of its own, is answered by the way back. The menu at the top left
+stays, as it opens what's waiting over the app; who you are is the bar's to say; a note made there is pinned in the app,
+and its card is on the Notes edge once you're back. On a phone, with no edges beside it, nothing of this changes.
+
+The app opens in the recording's place, at its size,
 and the recording's pointer comes to yours wherever yours has gone, and gives way to it. In the app the bar says "You,
 as …" beside Back, whose key reads Esc ×2: one keycap and its count in the keycap's own small, quiet letters (two
 keycaps side by side read as a bug, the user said), heard as "Back, Escape twice". Back, the keyboard comes back to the page, and the app kept ready underneath
@@ -1056,7 +1078,7 @@ and after a failure; green, with a faint ring of its own green slowly coming and
 while the link works; green and still under reduced motion. Only the light changes, so nothing moves. It's kept from
 being taken for a note's dot, which means a note and nothing else: 6px, no white ring, and green, which no note ever
 is (theirs are 7px, amber or slate, ringed in white); the green meets 3:1 on the page in light (3.8) and dark (8.6), and
-the ring never dims it. It rests in the app, as Download video does. The page asks where it
+the ring never dims it. In the app it goes, or on a phone rests, as Download video does. The page asks where it
 stands as it opens, every 600 ms while starting and every 5 s while on, as a tunnel can end.
 
 **Underneath** (`share.ts`): `playthrough open` (`POST`, `GET`, `DELETE` on `/api/changes/<address>/share`, answered

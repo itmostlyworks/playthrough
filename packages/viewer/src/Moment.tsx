@@ -177,6 +177,9 @@ export function MomentView(props: {
   // Pointing at what a note is on, on the recording or in the app.
   const noting = mode.is === "pointing" || (mode.is === "the app yours" && !!mode.pointing);
   const away = isStepped(mode);
+  // Stepped in, the app takes the page: what's beside the recording and over it goes, and the recording grows into
+  // their room. On a phone there's none beside it to take.
+  const takes = away && !phone;
   const inApp = mode.is === "the app yours";
   const stepping = mode.is === "getting there";
   // Compare: this moment as it was when you last looked at it, before this hand-back, beside how it is now, played
@@ -256,6 +259,9 @@ export function MomentView(props: {
   // The recording's pointer, and whether the app's stands in for it.
   const drawn = useRef<(() => { x: number; y: number } | undefined) | undefined>(undefined);
   const [standIn, setStandIn] = useState(false);
+  // Where the recording rests, which the edges and what this is stand by; and the recording, which fills it but while
+  // the app is yours, when it takes the page.
+  const itsPlace = useRef<HTMLDivElement>(null);
   const stage = useRef<HTMLDivElement>(null);
   const pointer = useRef({ x: 0, y: 0 });
   const pill = useRef<HTMLSpanElement>(null);
@@ -652,9 +658,10 @@ export function MomentView(props: {
       return thing ? [{ left: (thing.box.x - x) * k, top: (thing.box.y - y) * k, width: thing.box.width * k, height: thing.box.height * k }] : [];
     });
   })();
-  // Until this moment's reading has come, the bar stays where it was; on the page's first moment, it waits unseen.
+  // Until this moment's reading has come, the bar stays where it was; on the page's first moment, it waits unseen. While
+  // the app is yours, or on its way, it stays where it was too: the app takes the page around it.
   const lastClear = useRef<{ x: number; y: number }>(undefined);
-  const clear = !readings && !openThing ? lastClear.current : (lastClear.current = (() => {
+  const clear = (!readings && !openThing) || (away && lastClear.current) ? lastClear.current : (lastClear.current = (() => {
     const [wide, high, barWide] = [stage.current?.clientWidth ?? 0, stage.current?.clientHeight ?? 0, toolbar.current?.offsetWidth ?? 0];
     const [left, right] = [(wide - barWide) / 2, (wide + barWide) / 2];
     // What's below the picture, brought closer, isn't in it to be covered.
@@ -915,7 +922,7 @@ export function MomentView(props: {
       side="left"
       label="Moments"
       keys={["↑", "↓"]}
-      stage={stage}
+      place={itsPlace}
       quiet={away}
       phone={phone}
       showing={atLastStop ? LAST_STOP : moment.name}
@@ -927,6 +934,9 @@ export function MomentView(props: {
     </Edge>
   );
 
+  // How wide the recording is, against its place: all of it, or while the app is yours, the page's room for it.
+  const wide = takes ? inTheAppsRoom(screen) : "100%";
+
   const title = <Title title={change.title} asked={change.asked} quiet={`${props.app} · ${backAgain(change, you) ? "back again" : "back"} ${ago(handBack.finished!, Date.now())}`} />;
 
   return (
@@ -934,6 +944,8 @@ export function MomentView(props: {
     // no header, the recording takes its room.
     <div className={`grid h-dvh ${headerRows()} overflow-clip bg-ground ${shownByAnotherPage() ? "phone:grid-rows-[auto_minmax(0,1fr)]" : "phone:grid-rows-[auto_auto_minmax(0,1fr)]"}`} onPointerDown={pressAway}>
       <Header opener={props.opener} centre={phone ? title : undefined}>
+        {/* Nothing to do while the app is yours: they go with what this is, and come back with it. */}
+        <div className={`flex items-center gap-3 ${GOES} ${takes ? "opacity-0" : ""}`} style={{ transitionDuration: `${STEPS_OUT}ms` }} inert={takes}>
         {/* What you're watching as a video: this moment as it's shown, or the whole change. */}
         <DownloadVideo
           change={change}
@@ -946,20 +958,20 @@ export function MomentView(props: {
           })}
         />
         <Share change={change.id} rests={away} />
+        </div>
       </Header>
-      {/* The recording, as large as the room beside the edges lets it be: the same size from one moment to the next. */}
+      {/* Where the recording rests, as large as the room beside the edges lets it be: the same size from one moment to the next. */}
       <div className="relative grid min-h-0 place-items-center [container-type:size] phone:[container-type:inline-size]">
         <div
-          ref={stage}
-          className="relative overflow-visible rounded-lg"
+          ref={itsPlace}
+          className="relative"
           style={{ aspectRatio: `${screen.width} / ${screen.height}`, ...(phone ? { width: "calc(100cqw - 32px)", marginTop: 3 * 22 + 8, marginBottom: BAR + GAP } : inItsRoom(screen.width / screen.height)) }}
-          onPointerMove={(event) => (movePill(event), setAiming(!(event.target as Element).closest("[role=toolbar]")))}
-          onPointerLeave={() => setAiming(false)}
         >
           {/* What this is, on the recording's top, wherever that stands: the change's title, quietly, and under it the
               moment in the agent's words, then as whom ("… as Maja, the admin"). Those take two lines at most, three on a phone, growing up into room kept
-              for them, so nothing under them moves. */}
-          <div className="absolute inset-x-0 bottom-full mb-3 flex flex-col items-center phone:mb-2 phone:items-start">
+              for them, so nothing under them moves. While the app is yours it goes where it stands, under the app coming over it;
+              who you are there is the bar's to say. */}
+          <div className={`absolute inset-x-0 bottom-full mb-3 flex flex-col items-center phone:mb-2 phone:items-start ${GOES} ${takes ? "opacity-0" : ""}`} style={{ transitionDuration: `${STEPS_OUT}ms` }} inert={takes}>
             {/* At the last stop there's no moment to name: the change's title takes the moment's line, as the sheet's
                 heading, and its own small place over it rests empty. Both stay drawn, one faded out, so nothing moves. */}
             {!phone && !shownByAnotherPage() && <div className={`flex min-w-0 max-w-full justify-center transition-opacity duration-[240ms] ease-calm ${atLastStop ? "pointer-events-none opacity-0" : ""}`}>{title}</div>}
@@ -973,6 +985,15 @@ export function MomentView(props: {
               </p>
             </div>
           </div>
+          {/* The recording, filling its place; while the app is yours, taking the page from it in the very move that
+              takes the picture out to the whole screen, its foot, and the bar across it, where they were. */}
+          <div
+            ref={stage}
+            className="absolute bottom-0 left-1/2 overflow-visible rounded-lg transition-[width,margin-left] ease-calm"
+            style={{ aspectRatio: `${screen.width} / ${screen.height}`, width: wide, marginLeft: `calc(${wide} / -2)`, transitionDuration: `${STEPS_OUT}ms` }}
+            onPointerMove={(event) => (movePill(event), setAiming(!(event.target as Element).closest("[role=toolbar]")))}
+            onPointerLeave={() => setAiming(false)}
+          >
           {/* At the last stop, once its sheet has come in over it, the moment is put away: its edge showed round the sheet's
               rounded corners, light on dark. Leaving, it's back at once, under the sheet fading out. */}
           <div
@@ -1285,6 +1306,7 @@ export function MomentView(props: {
             </>
             )}
           </div>
+          </div>
         </div>
       </div>
       {/* Beside the recording, or under it on a phone: the change's moments, and this one's notes. */}
@@ -1293,7 +1315,7 @@ export function MomentView(props: {
         {/* Tab reaches them as they read, left to right; on a phone, the notes come first, nearest what they're on. */}
         {!phone && momentsEdge}
         {(!phone || (!atLastStop && onEdge.length > 0)) && (
-          <Edge side="right" label="Notes" keys={["Shift", "↑", "↓"]} stage={stage} quiet={away} phone={phone} empty={atLastStop ? !sent.length && !notes.length : !onEdge.length} showing={open ?? lastArrived}>
+          <Edge side="right" label="Notes" keys={["Shift", "↑", "↓"]} place={itsPlace} quiet={away} phone={phone} empty={atLastStop ? !sent.length && !notes.length : !onEdge.length} showing={open ?? lastArrived}>
             {noteTiles}
           </Edge>
         )}
@@ -1336,6 +1358,24 @@ const over = () => (shownByAnotherPage() ? 2 : 3) * 22 + 12;
 
 // The recording in its room, by its shape: as wide as the edges leave, or as tall as what's over and under it does.
 export const inItsRoom = (shape: number) => ({ width: `min(calc(100cqw - 2 * ${SIDE}), calc((100cqh - ${over() + UNDER}px) * ${shape}))`, marginTop: over(), marginBottom: UNDER });
+
+// While the app is yours, how wide the recording is against its place (100%): standing on the place's foot, so the bar
+// across it doesn't move, as large as the page lets it be, and never larger than the app's own size, where its words are
+// as they were recorded; already that large, as it was.
+const inTheAppsRoom = (screen: { width: number; height: number }) => {
+  const shape = screen.width / screen.height;
+  // As wide as its shape allows from its foot up to the room's top: the place stands in the room's middle with what's
+  // over and under it, so its foot is half its own height and half what's over it less what's under it below the middle.
+  const tall = `calc(50% + ((100cqh + ${over() - UNDER}px) / 2 - ${ABOVE}px) * ${shape})`;
+  return `max(100%, min(calc(100cqw - ${2 * BESIDE}px), ${tall}, ${screen.width}px))`;
+};
+// While the app is yours, the room left beside the recording, where the header's words stand from the screen's edge,
+// and over it.
+const BESIDE = 24;
+const ABOVE = 12;
+
+// What goes while the app is yours, fading where it stands.
+const GOES = "transition-opacity ease-calm";
 
 // Whether something from `from` up to a note's card can still scroll its words `by` this way.
 function scrollsFirst(from: Element, by: number): boolean {

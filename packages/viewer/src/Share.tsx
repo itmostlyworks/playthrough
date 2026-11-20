@@ -12,7 +12,8 @@ import { SendButton, tick } from "./Send.tsx";
 // What sharing does, the same words whatever it's doing, so nothing under them moves.
 const DOES = "Anyone with the link can watch this change, leave notes, and step in to use your app as its moments do. It runs on this computer, for as long as it's on.";
 
-// In the app, it rests, as Download video beside it does.
+// In the app, it rests, as Download video beside it does: closed and not to be pressed, and on a phone, where it stays in
+// sight, quieter. Elsewhere the page around it takes it away.
 export function Share({ change, rests }: { change: string; rests: boolean }) {
   const share = source.share;
   const [shared, setShared] = useState<Shared>({ is: "off" });
@@ -55,7 +56,7 @@ export function Share({ change, rests }: { change: string; rests: boolean }) {
         aria-label={on ? "Share, sharing now" : undefined}
         disabled={rests}
         onClick={() => setOpen((now) => !now)}
-        className={`-mr-2 flex items-center gap-1.5 rounded-lg px-2 py-1 text-soft transition-[background-color,color,opacity] duration-150 ease-calm enabled:hover:bg-hover enabled:hover:text-fg aria-expanded:bg-hover aria-expanded:text-fg disabled:cursor-default ${rests ? "opacity-(--resting)" : ""}`}
+        className={`-mr-2 flex items-center gap-1.5 rounded-lg px-2 py-1 text-soft transition-[background-color,color,opacity] duration-150 ease-calm enabled:hover:bg-hover enabled:hover:text-fg aria-expanded:bg-hover aria-expanded:text-fg disabled:cursor-default ${rests ? "phone:opacity-(--resting)" : ""}`}
       >
         {/* A light, not a note's dot: smaller, with no ring, and green, which no note ever is. Gray until there's a link. */}
         <i aria-hidden className={`size-1.5 flex-none rounded-full transition-colors duration-300 ease-calm ${on ? "animate-live bg-green" : "bg-faint"}`} />

@@ -5,6 +5,7 @@
 // would note is outlined.
 
 import { useEffect, useRef, useState, type MouseEvent, type PointerEvent, type RefObject } from "react";
+import { flushSync } from "react-dom";
 import { elementOf, type Glimpse } from "@playthrough/page";
 import type { Element, Moment, Point } from "@playthrough/change";
 import { recording } from "./api.ts";
@@ -146,10 +147,11 @@ export function Player(props: Props) {
   const list = useRef<HTMLDivElement>(null);
   const pressed = useRef<HTMLElement>(null);
   const [replay, setReplay] = useState<{ replay: Replay; events: Events }>();
-  // Drawn to its width, and again as that changes: Compare on or off, the window resized.
+  // Drawn to its width, and again as that changes: Compare on or off, the app taking the page, the window resized. Drawn
+  // again before that frame is shown, so it's never a frame behind its picture's edges as they move.
   const [width, setWidth] = useState(0);
   useEffect(() => {
-    const watching = new ResizeObserver(() => setWidth(box.current?.clientWidth ?? 0));
+    const watching = new ResizeObserver(() => flushSync(() => setWidth(box.current?.clientWidth ?? 0)));
     watching.observe(box.current!);
     return () => watching.disconnect();
   }, []);

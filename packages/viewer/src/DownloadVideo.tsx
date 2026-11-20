@@ -27,7 +27,7 @@ type Props = {
   n?: number;
   // How it's shown now: beside how it was, and where you've taken the window.
   asShown: () => Pick<AskedVideo, "beside" | "window">;
-  // In the app, it rests.
+  // In the app, it rests: closed and not to be pressed, and on a phone, where it stays in sight, quieter.
   rests: boolean;
 };
 
@@ -69,7 +69,7 @@ export function DownloadVideo({ change, handBack, n, asShown, rests }: Props) {
     <div className="relative flex flex-none">
       <button
         ref={button}
-        className={`relative flex items-center gap-1.5 overflow-hidden rounded-lg px-2 py-1 whitespace-nowrap phone:h-[27.5px] phone:w-8 phone:justify-center phone:px-0 text-soft transition-[background-color,color,opacity] duration-150 ease-calm enabled:hover:bg-hover enabled:hover:text-fg aria-busy:text-fg aria-expanded:bg-hover aria-expanded:text-fg disabled:cursor-default ${rests ? "opacity-(--resting)" : ""}`}
+        className={`relative flex items-center gap-1.5 overflow-hidden rounded-lg px-2 py-1 whitespace-nowrap phone:h-[27.5px] phone:w-8 phone:justify-center phone:px-0 text-soft transition-[background-color,color,opacity] duration-150 ease-calm enabled:hover:bg-hover enabled:hover:text-fg aria-busy:text-fg aria-expanded:bg-hover aria-expanded:text-fg disabled:cursor-default ${rests ? "phone:opacity-(--resting)" : ""}`}
         disabled={rests || busy}
         aria-busy={busy}
         aria-expanded={choosing}
