@@ -955,8 +955,9 @@ export function MomentView(props: {
 
   // Compare, or a note from an earlier hand-back's As it was and Now, or what the moment is to you if neither: in the
   // recording's top left on hover, or in the bar on a phone, where nothing hovers.
-  const comparer = (anyLook || sent.some(earlier)) &&
-              (flips ? (
+  // In the corner, Compare stays beside As it was and Now; in a phone's bar, the switch takes Compare's place.
+  const offered = anyLook || sent.some(earlier);
+  const shownSwitch = flips && (
                 // A note from an earlier hand-back open: how it was, or now, flipped in place. Each part chooses itself.
                 // Its thing not in the moment now, Now rests, and says why when the switch is pointed at.
                 <span role="group" aria-label="Shown" data-part="shown" className={`${COMPARING} group/tip relative flex items-stretch rounded-lg bg-hover p-0.5`}>
@@ -978,15 +979,19 @@ export function MomentView(props: {
                   })}
                   {!nowThere && <Tip>{NOT_NOW}</Tip>}
                 </span>
-              ) : then ? (
-                <button data-part="compare" className={`${ITEM} ${COMPARING} phone:px-0!`} disabled={!may.compare} aria-pressed={comparing} onClick={compare}>
+  );
+  // On, pressed plainly: filled, as the way out of the two sides.
+  const compareButton = then && (
+                <button data-part="compare" className={`${ITEM} ${COMPARING} phone:px-0! aria-pressed:bg-fg! aria-pressed:text-ground! aria-pressed:[&_kbd]:text-[inherit]! aria-pressed:[&_kbd]:opacity-70`} disabled={!may.compare} aria-pressed={comparing} onClick={compare}>
                   Compare <Key>C</Key>
                 </button>
-              ) : (
+  );
+  const comparer = offered && (shownSwitch || compareButton || (
                 // Nothing to compare: what it is, in Compare's place, at its width. Said, not offered: smaller, in the
                 // soft ink of words that say what something is, so it can't be taken for a button resting.
                 <span className={`${COMPARING} inline-flex cursor-default items-center justify-center text-xs text-soft`}>{looking ? "Unchanged" : "New"}</span>
               ));
+  const inCorner = offered && (then || shownSwitch ? <>{compareButton}{shownSwitch}</> : comparer);
   // Shown in the recording's corner while the pointer is over it, or while Compare or As it was is on, so the way out is
   // in sight; never while it plays or the app is yours.
   const [overRecording, setOverRecording] = useState(false);
@@ -1108,8 +1113,8 @@ export function MomentView(props: {
                         framedOn={framedOn}
                         moves={pageWindow}
                       />
-                      {/* The left side's label stands clear of Compare, in the corner over it. */}
-                      <span className={CHIP} style={side.side === 1 && !phone ? { top: 58 } : undefined}>{side.label}</span>
+                      {/* The left side's label stands just right of Compare in the corner, on the line "Now" stands on. */}
+                      <span className={CHIP} style={side.side === 1 && !phone ? { left: 152 } : undefined}>{side.label}</span>
                     </div>
                   </div>
                 ))}
@@ -1157,8 +1162,8 @@ export function MomentView(props: {
           </div>
           {/* Compare, and As it was and Now, in the recording's top left: over the left side's label while comparing. */}
           {!phone && comparer && (
-            <div data-part="corner" className={`absolute top-2.5 left-2.5 z-[16] flex rounded-xl bg-surface p-1 text-[13px] shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)] transition-opacity duration-200 ease-calm select-none ${then || flips ? "" : "bg-transparent! shadow-none!"} ${cornerShown ? "" : "pointer-events-none opacity-0"}`} inert={!cornerShown} onClick={(event) => (event.target as Element).closest("button")?.blur()}>
-              {comparer}
+            <div data-part="corner" className={`absolute top-2.5 left-2.5 z-[16] flex rounded-xl bg-surface p-1 text-[13px] shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)] transition-opacity duration-200 ease-calm select-none gap-1 ${then || flips ? "" : "bg-transparent! shadow-none!"} ${cornerShown ? "" : "pointer-events-none opacity-0"}`} inert={!cornerShown} onClick={(event) => (event.target as Element).closest("button")?.blur()}>
+              {inCorner}
             </div>
           )}
           <Portal
