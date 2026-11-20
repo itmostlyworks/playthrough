@@ -13,7 +13,8 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { createServer, request as ask, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { connect } from "node:net";
-import { Refused, sameName } from "@playthrough/change";
+import { latestOf, Refused, sameName, waitingForTheAgent, type Asked, type Change, type Send } from "@playthrough/change";
+import type { z } from "zod";
 import { answered, json, serve } from "./open.ts";
 
 // Where a shared change stands, as its Share says it.
@@ -31,7 +32,9 @@ export type Door = {
 // A guest, as the change's own answers know them: in any name but the person's, sending notes and replies but never
 // Done, which is the person's alone, and stepping in for themselves.
 // What they send is marked as theirs here, never by what it says; what they have kept on this computer is counted.
-export type Guest = { speaksAs(by: string): void; sends<T extends { by: string }>(send: T): T & { guest: true }; steppedIn(name: string, port: number): void; took(bytes: number): void };
+// What they send is what they said alone: when it came, on which hand-back, and that it's a guest's are Playthrough's.
+export type Guest = { speaksAs(by: string): void; sends(said: GuestSaid, change: Change): Send; steppedIn(name: string, port: number): void; took(bytes: number): void };
+type GuestSaid = z.infer<typeof Asked.guestSend>;
 
 // What a guest may ask of the change, and nothing else: watching it (its files), whether a name may be theirs, saying
 // what they opened and sending notes, and stepping in (how long it takes, kept ready, what they did there, and a note's picture of it).
@@ -109,7 +112,11 @@ export function guestDoor(share: Pick<Share, "address" | "token" | "steppedIn" |
       if (sameName(by, door.owner)) throw new Refused([`${door.owner} is the name of the person who shared this. Say yours.`]);
     },
     // What else a guest may send, their name and never Done, is the rule every send goes through (`problemsWithSend`).
-    sends: (send) => (guest.speaksAs(send.by), { ...send, guest: true }),
+    sends: (said, change) => {
+      guest.speaksAs(said.by);
+      allowed.says(said, change);
+      return { ...said, handBack: latestOf(change)?.number ?? 1, sent: new Date().toISOString(), guest: true };
+    },
     steppedIn: (name, port) => (share.steppedIn.add(name), (share.passing = port)),
     took: allowed.took,
   };
@@ -122,7 +129,7 @@ export function guestDoor(share: Pick<Share, "address" | "token" | "steppedIn" |
       if (path.startsWith(home)) return theChange(decodeURIComponent(path.slice(home.length)), request, response);
       if (!toTheApp(request)) return nothing(response);
       passOn(share, request, response);
-    }),
+    }, true),
   );
   server.on("upgrade", (request, socket, head) => {
     if (!toTheApp(request) || !share.passing) return void socket.destroy();
@@ -174,9 +181,12 @@ function fromElsewhere(request: IncomingMessage): string | undefined {
 // What one link can ask, more than a person reviewing ever does, so a guest can't wear this computer out: so many of
 // each a minute, step ins so many at once, and what it keeps on this computer, all told. Refused in words, and over
 // in a minute.
-const PER_MINUTE: Record<string, number> = { name: 30, "step-in": 10, "keep-ready": 30, "ready-in": 240, branches: 20, frames: 60, stills: 60, sends: 30, seen: 120 };
+const PER_MINUTE: Record<string, number> = { name: 30, "step-in": 10, "keep-ready": 30, "ready-in": 240, branches: 20, frames: 60, stills: 60, sends: 120, seen: 120 };
 const AT_ONCE: Record<string, number> = { "step-in": 2 };
 const KEEPS = 256 * 1024 * 1024;
+// A link's notes and replies waiting for the agent at once, and the room each note's picture takes.
+const WAITING = 200;
+const PICTURE = 1024 * 1024;
 
 function allowance() {
   const asked = new Map<string, number[]>();
@@ -193,6 +203,15 @@ function allowance() {
       running.set(what, (running.get(what) ?? 0) + 1);
       let done = false;
       return () => void (!done && ((done = true), running.set(what, running.get(what)! - 1)));
+    },
+    // What one send may hold, and what of a link's may wait for the agent at once, past what anyone reviewing writes.
+    // Each note reserves room for the picture the agent's `wait` draws of it, which is written outside this door.
+    says(said: GuestSaid, change: Change) {
+      const notes = said.notes.length + (said.replies?.length ?? 0);
+      const guests = new Set(change.sends.filter((send) => send.guest).flatMap((send) => [...send.notes.map((note) => note.id), ...(send.replies ?? []).map((reply) => reply.note)]));
+      if (waitingForTheAgent(change).filter((note) => guests.has(note)).length + notes > WAITING)
+        throw new Refused([`There are ${WAITING} notes waiting for the agent already. Send these once it has answered some.`]);
+      this.took(notes * PICTURE);
     },
     took(bytes: number) {
       kept += bytes;

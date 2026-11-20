@@ -1073,7 +1073,28 @@ change nor the machine's list of them. Never another change, who the person is, 
 is one rule (`sends`, `share.ts`): notes and replies in a name of their own, never the person's ("Ludwig is the name of
 the person who shared this. Say yours.") and never Done, which is the person's alone ("Done is for the person who
 shared this to say. Send your notes instead.").
-That a send is a guest's is the door's to say (`guest: true`, kept with the send), never the send's own. A name, anyone's,
+**A guest supplies only what they said and what they pointed at.** Each route reads the fields it names and nothing
+else, each its kind (`Asked`, `model.ts`); the change is always the link's. Of a send, a guest gives its id, their name,
+notes and replies; when it came, on which hand-back, and that it's a guest's are Playthrough's to say, so a guest can't
+date a send to hide the person's Done. An id is what `newId` makes, for everyone: a letter, then lowercase letters and
+digits, 8 to 24 in all (`ID`), so it's never an option, a sentence, a case-twin on a disk that doesn't tell case apart,
+or too long for a file's name; it's checked on what's sent, and ids kept by an earlier Playthrough still read and can
+be referred to. A command's word where it takes an id is that id, never an option (`playthrough.ts`). A guest's
+recording is named as their page names it (`SHARED_RECORDING`). One send holds 50 notes and 50 replies at most, a note
+made in the app 500 things done, and no more than 200 of a link's notes wait for the agent at once, each reserving
+room in the link's count for the picture `wait` draws of it (`says`, `share.ts`). Anything that goes wrong for a
+guest that isn't one of Playthrough's own refusals is one line, the same every time (`WENT_WRONG`, `open.ts`), and a
+clean line of it is written to open.log; Step in's own pages say a fixed line too. A guest's still is theirs, under
+`stills/shared/`. A name is never a key every object has ("__proto__"), and what's seen is read by its own keys.
+That a send is a guest's is the door's to say (`guest: true`, kept with the send), never the send's own. **Every string
+Playthrough keeps is one of two kinds** (`model.ts`), whoever writes it: a line (a name, a role, what was done, an
+address, a reason in a line: one line, nothing unseen, every break a space, 1000 characters at most) or words (what
+someone wrote: its lines kept, nothing unseen, 20000 at most), and the store keeps each as its kind keeps it
+(`keptAs`, `store.ts`). **`wait` never puts a guest's string in a line of its own:** what Playthrough says of a guest's
+note comes from the change (its id, its moment by the moment's own name, as whom, the picture, how to be there), and
+everything of the guest's, their name, what their note is on, what they did in the app, where it was, why Step in
+didn't work and their words, is printed by one function (`aGuests`, `wait.ts`) under "A guest, as they sent it:", each
+line after "> ". `answer` and `again` say a guest's note is on "the thing they pointed at". A name, anyone's,
 is one line of 60 characters at most (`problemsWithName`, `rules.ts`); a guest's is never the person's, an agent's in the
 change or a well-known one's, "You" or "Playthrough", compared once folded (spaces, case, Unicode's look-alike forms:
 `sameName`), and the page asks the link before it keeps one (`name`), saying under the field why one can't be theirs.
@@ -1084,7 +1105,12 @@ in them stands as a line of the person's or Playthrough's; every page shows a gu
 What's sent to the door comes from the link's own page (its Origin is the address it was asked at), everything it
 serves says `Referrer-Policy: no-referrer`, as the token is in the path, and a link asks no more than anyone reviewing
 does (`allowance`, `share.ts`: so many of each a minute, two step ins at once, 256 MB kept in all), refused in words.
-Any body is 64 MB at most (`body`, `open.ts`). cloudflared is given only `PATH` and `HOME`.
+Any body is 64 MB at most (`body`, `open.ts`), and what a guest's request writes, all of it (their sends, recordings,
+the files kept with them, the pictures drawn), is counted as it's written (`countedFor`, `open.ts`). cloudflared is
+given only `PATH` and `HOME`. **A kept file is never a document**, for anyone: it's kept only as one of the kinds
+Playthrough keeps (`KEPT`, `rules.ts`: JSON, pictures, stylesheets, fonts; a recording is `.json`), served as that
+kind and anything else on disk as bytes (`servedAs`), always with `nosniff` and a policy that leaves it inert if it's
+opened by itself (`default-src 'none'; sandbox`); a guest's note pictures are drawn apart, under `frames/shared/`.
 
 **What this machine fetches** for a recording is never an address found in it: what you or a guest did in the app is
 kept with the fonts, pictures and stylesheets it names asked of the app alone, at its own address, by the path they were

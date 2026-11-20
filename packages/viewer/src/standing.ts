@@ -67,7 +67,7 @@ export function differentSince(change: Change, handBack: HandBack): Map<string, 
 
 // The moments you've opened, kept with the change for you, so they're seen from every browser, each as it was handed
 // back: one handed back again, different, asks for you again.
-export const seenOf = (change: Change, you: string): string[] => (change.seen?.[you] ?? []).map((one) => takingOf(one.handBack, one.moment ?? LAST_STOP));
+export const seenOf = (change: Change, you: string): string[] => ((change.seen && Object.hasOwn(change.seen, you) ? change.seen[you] : undefined) ?? []).map((one) => takingOf(one.handBack, one.moment ?? LAST_STOP));
 
 // Once each: the page asks again as it draws until the change comes back with it.
 const telling = new Set<string>();

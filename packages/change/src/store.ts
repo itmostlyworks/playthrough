@@ -2,14 +2,22 @@
 // Where things are kept is a Storage, so a folder, memory and later a hosted store all keep changes the same way.
 
 import { comparisonNow, FORMAT, handBackNow, OLDER, seenNow, sendNow, takenNow, wayNow } from "./format.ts";
-import type { Comparison, Change, HandBack, Seen, Send, Taken } from "./model.ts";
+import { asLine, Comparison as ComparisonShape, HandBack as HandBackShape, Seen as SeenShape, Send as SendShape, type Comparison, type Change, type HandBack, type Seen, type Send, type Taken } from "./model.ts";
+import type { z } from "zod";
+
+// Kept as its shape keeps it (`model.ts`): each line one line, each piece of words without what isn't seen. One that
+// doesn't fit its shape is the checks' to refuse, as it is.
+function keptAs<T>(shape: z.ZodType<T>, value: T): T {
+  const kept = shape.safeParse(value);
+  return kept.success ? kept.data : value;
+}
 import {
-  asWritten,
   problemsFinishing,
   problemsStarting,
   problemsWithComparison,
   problemsWithFile,
   problemsWithFileName,
+  problemsWithKeptName,
   problemsWithId,
   problemsWithHandBack,
   problemsWithSend,
@@ -119,7 +127,7 @@ export class Changes {
   async saveHandBack(id: string, handBack: HandBack): Promise<void> {
     return this.#one(id, async () => {
       const change = await this.#read(id);
-      const kept = { ...handBack, finished: undefined };
+      const kept = keptAs(HandBackShape, { ...handBack, finished: undefined });
       const problems = problemsWithHandBack(change, kept);
       if (problems.length) throw new Refused(problems);
       await this.#writeJson(`${id}/hand-backs/${handBack.number}/hand-back.json`, kept);
@@ -137,7 +145,7 @@ export class Changes {
   // What a person did in the app, kept as their branch off a moment: theirs, not a hand-back's, so it's kept beside the hand-backs
   // and can be kept again, longer, while the hand-back it branches off never changes.
   async saveBranch(id: string, name: string, bytes: Uint8Array): Promise<void> {
-    const problems = [...problemsWithId(id), ...problemsWithFileName(name)];
+    const problems = [...problemsWithId(id), ...problemsWithKeptName(name)];
     if (problems.length) throw new Refused(problems);
     await this.storage.write(`${id}/branches/${name}`, bytes);
   }
@@ -179,16 +187,15 @@ export class Changes {
     return this.#one(id, async () => {
       const problems = problemsWithComparison(await this.#read(id), comparison);
       if (problems.length) throw new Refused(problems);
-      await this.#writeJson(`${id}/hand-backs/${comparison.handBack}/since/${comparison.since}.json`, comparison);
+      await this.#writeJson(`${id}/hand-backs/${comparison.handBack}/since/${comparison.since}.json`, keptAs(ComparisonShape, comparison));
     });
   }
 
   // A person
 
   // Sending the same send twice keeps it once.
-  // Kept as it was written, less what a keyboard doesn't type (`asWritten`).
   async send(id: string, sending: Send): Promise<void> {
-    const send = asWritten(sending);
+    const send = keptAs(SendShape, sending);
     return this.#one(id, async () => {
       const change = await this.#read(id);
       const already = change.sends.find((sent) => sent.id === send.id);
@@ -200,12 +207,13 @@ export class Changes {
   }
 
   // Kept with the change, so it holds in every browser they look from.
-  async see(id: string, by: string, opened: Seen[]): Promise<void> {
+  async see(id: string, seer: string, seeing: Seen[]): Promise<void> {
+    const [by, opened] = [asLine(seer), seeing.map((one) => keptAs(SeenShape, one))];
     return this.#one(id, async () => {
       const change = await this.#read(id);
       const problems = problemsSeeing(change, by, opened);
       if (problems.length) throw new Refused(problems);
-      const theirs = change.seen?.[by] ?? [];
+      const theirs = (change.seen && Object.hasOwn(change.seen, by) ? change.seen[by] : undefined) ?? [];
       const fresh = opened.filter((one) => !theirs.some((kept) => kept.handBack === one.handBack && kept.moment === one.moment));
       if (fresh.length) await this.#writeJson(`${id}/seen.json`, { ...change.seen, [by]: [...theirs, ...fresh] });
     });

@@ -483,7 +483,7 @@ describe("notes sent with no agent listening", () => {
 
 describe("a note that only asks something", () => {
   const COUNT = "count-on-every-list";
-  const asked = (): Send => ({ id: newId(), handBack: 1, by: "Ivo", sent: new Date().toISOString(), notes: [{ id: "q1", words: "Does the count also update straight away when a card is moved?", on: { handBack: 1, moment: "Counts on every list", at: 1 } }] });
+  const asked = (): Send => ({ id: newId(), handBack: 1, by: "Ivo", sent: new Date().toISOString(), notes: [{ id: "qcountsx1", words: "Does the count also update straight away when a card is moved?", on: { handBack: 1, moment: "Counts on every list", at: 1 } }] });
   const heard = async (run: () => Promise<unknown>) => {
     const lines: string[] = [];
     const log = console.log;
@@ -520,19 +520,19 @@ describe("a note that only asks something", () => {
 
   test("is answered with nothing changed, the moments the person saw going on into the next hand-back as they are", async () => {
     const { here } = await questioned();
-    await quietly(() => answer(here, "q1", "Yes: it moves with the card, before the page is loaded again."));
+    await quietly(() => answer(here, "qcountsx1", "Yes: it moves with the card, before the page is loaded again."));
     const next = (await here.changes.get(COUNT)).handBacks.find((handBack) => handBack.number === 2)!;
     assert.deepEqual(next.moments.map((moment) => moment.name), ["Counts on every list"]);
-    assert.deepEqual(next.replies, [{ note: "q1", words: "Yes: it moves with the card, before the page is loaded again." }]);
+    assert.deepEqual(next.replies, [{ note: "qcountsx1", words: "Yes: it moves with the card, before the page is loaded again." }]);
     assert.ok(await here.changes.file(COUNT, 2, "counts-on-every-list.json"), "with its recording");
   });
 
   test("waits for the moments to run again where the app has changed since they ran, before the answer or after it", async () => {
     const { here } = await questioned();
     writeFileSync(join(here.root, "list.tsx"), "export const List = () => 'changed';\n");
-    await assert.rejects(answer(here, "q1", "Yes."), /Run playthrough again first: list\.tsx has changed since the moments were run, and the answer goes with the moments as they are now\./);
+    await assert.rejects(answer(here, "qcountsx1", "Yes."), /Run playthrough again first: list\.tsx has changed since the moments were run, and the answer goes with the moments as they are now\./);
     aMinuteAgo(join(here.root, "list.tsx"));
-    await quietly(() => answer(here, "q1", "Yes."));
+    await quietly(() => answer(here, "qcountsx1", "Yes."));
     writeFileSync(join(here.root, "list.tsx"), "export const List = () => 'changed again';\n");
     await assert.rejects(wait(here), /list\.tsx has changed since the moments were run\. Run playthrough again, so the person sees them as they are now\./);
   });
@@ -547,13 +547,13 @@ describe("a note made where Step in didn't work", () => {
     await here.changes.saveHandBack(id, { number: 1, by: "Claude Code", moments: [{ name: "A reminder goes to Alder Dental", length: 2, actions: [], recording: "a-reminder.json", person: "Sam", from: 0 }], replies: [] });
     await here.changes.finish(id, 1);
     const why = "playthrough/moments/a-reminder.ts couldn't be loaded, because Node says “Cannot find package 'kan-utils' imported from /tmp/kan/a-reminder.ts”.";
-    await here.changes.send(id, { id: newId(), handBack: 1, by: "Anna", sent: new Date().toISOString(), notes: [{ id: "s1", words: "Step in doesn't work on this moment.", on: { handBack: 1, moment: "A reminder goes to Alder Dental", at: 1, cantStepIn: why } }] });
+    await here.changes.send(id, { id: newId(), handBack: 1, by: "Anna", sent: new Date().toISOString(), notes: [{ id: "stepnote1", words: "Step in doesn't work on this moment.", on: { handBack: 1, moment: "A reminder goes to Alder Dental", at: 1, cantStepIn: why } }] });
     const lines: string[] = [];
     const log = console.log;
     console.log = (...words: unknown[]) => void lines.push(words.join(" "));
     await wait(here).finally(() => (console.log = log));
     const told = lines.join("\n");
-    assert.match(told, /s1 {2}on the moment “A reminder goes to Alder Dental”, as Sam\n {4}Anna: Step in doesn't work on this moment\.\n/);
+    assert.match(told, /stepnote1 {2}on the moment “A reminder goes to Alder Dental”, as Sam\n {4}Anna: Step in doesn't work on this moment\.\n/);
     assert.ok(told.includes(`\n    They pressed Step in on this moment and it didn't work: ${why}\n`), told);
   });
 });

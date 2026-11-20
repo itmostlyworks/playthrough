@@ -20,8 +20,10 @@ let resting: NodeJS.Timeout | undefined;
 const IDLE = 30_000;
 
 // The page asks by the change's address on this machine, which the browser drawing it opens it by.
-export async function frameOf(repo: Repo, id: string, address: string, note: string, framed: Framed, port: number): Promise<Frame> {
-  const name = `frames/${note}`;
+// A guest's asking draws theirs, apart (`under` shared/): what they say a note was made on is theirs to say, and never
+// becomes the picture of anyone else's note.
+export async function frameOf(repo: Repo, id: string, address: string, note: string, framed: Framed, port: number, under = ""): Promise<Frame> {
+  const name = `frames/${under}${note}`;
   const kept = await repo.changes.branch(id, `${name}.json`);
   if (kept) return JSON.parse(Buffer.from(kept).toString("utf8"));
   const shape = await shapeAt(repo, id, framed);
@@ -60,8 +62,9 @@ async function eventsOf(repo: Repo, id: string, handBack: number, recording: str
 
 // A moment's still, its recording at its end drawn twice as fine as the picture kept as it was recorded, which a list
 // closing in on what it's about shows larger than it was taken on a screen of twice the dots: drawn once and kept.
-export async function stillOf(repo: Repo, id: string, address: string, framed: Framed, port: number): Promise<string> {
-  const name = `stills/${framed.handBack}-${framed.recording.replace(/^branches\//, "").replace(/\.json$/, "")}.png`;
+// A guest's asking, drawn at their time, is theirs, apart (`under` shared/): never the moment's own still.
+export async function stillOf(repo: Repo, id: string, address: string, framed: Framed, port: number, under = ""): Promise<string> {
+  const name = `stills/${under}${framed.handBack}-${framed.recording.replace(/^branches\//, "").replace(/\.json$/, "")}.png`;
   if (await repo.changes.branch(id, name)) return `branches/${name}`;
   const shape = await shapeAt(repo, id, framed);
   const drawn = drawing.then(() => draw(port, address, framed, shape, 2));
@@ -79,7 +82,8 @@ async function draw(port: number, address: string, framed: Framed, shape: { widt
     // names (a guest's, through a shared link, can name any address) isn't asked for by this machine.
     const own = `http://localhost:${port}`;
     await page.route("**/*", (route) => (new URL(route.request().url()).origin === own ? route.continue() : route.abort()));
-    await page.goto(`http://localhost:${port}/?frame=${encodeURIComponent(JSON.stringify({ change: address, ...framed }))}`);
+    // The change is the one asked by its address, whatever else came with what's framed.
+    await page.goto(`http://localhost:${port}/?frame=${encodeURIComponent(JSON.stringify({ ...framed, change: address }))}`);
     await page.waitForFunction(() => "framed" in window, undefined, { timeout: 20_000 });
     await page.evaluate(() => document.fonts.ready);
     // What the page's own images take to come in, once it's drawn.

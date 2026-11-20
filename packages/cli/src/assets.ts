@@ -43,7 +43,11 @@ export function keepAssets(page: Page, folder: string): () => Promise<Assets> {
         .body()
         .then((bytes) => {
           const type = response.headers()["content-type"]?.split(";")[0]?.trim() ?? "";
-          const file = `assets/${createHash("sha256").update(bytes).digest("hex").slice(0, 16)}${ENDINGS[type] ?? ""}`;
+          // Named for what it is, by what it was served as, else by its address's ending (a font served as bytes); one
+          // that's neither isn't kept, as Playthrough keeps only what it can say the kind of (`KEPT`).
+          const ending = ENDINGS[type] ?? Object.values(ENDINGS).find((one) => new URL(address).pathname.toLowerCase().endsWith(one));
+          if (!ending) return void delete kept[address];
+          const file = `assets/${createHash("sha256").update(bytes).digest("hex").slice(0, 16)}${ending}`;
           writeFileSync(join(folder, file), bytes);
           kept[address] = file;
         })

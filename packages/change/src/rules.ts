@@ -3,7 +3,7 @@
 
 import type { z } from "zod";
 import { Comparison, fileName, madeInApp, HandBack, Seen, Send, type Finding, type InApp, type Note, type OnMoment, type Change, type Moment } from "./model.ts";
-import { quote } from "./words.ts";
+import { list, quote } from "./words.ts";
 
 // The hand-back the agent is working on: the last one until it's finished, then the next; the first is 1.
 export function handBackInProgress(change: Change): number {
@@ -189,7 +189,34 @@ export function problemsFinishing(change: Change, number: number): string[] {
 export function problemsWithFile(change: Change, handBack: number, name: string): string[] {
   const due = handBackInProgress(change);
   if (handBack !== due) return [`Files go in the hand-back being worked on, ${due}, not hand-back ${handBack}.`];
-  return problemsWithFileName(name);
+  return problemsWithKeptName(name);
+}
+
+// What a kept file is, by how its name ends, and what it's served as: recordings and what's read and said of them,
+// pictures, and the stylesheets and fonts a recording plays with. Only these are kept, and served as these; anything
+// else on disk goes out as bytes. Never a document: no page, nothing that runs.
+export const KEPT: Record<string, string> = {
+  ".json": "application/json",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".avif": "image/avif",
+  ".ico": "image/x-icon",
+  ".svg": "image/svg+xml",
+  ".css": "text/css; charset=utf-8",
+  ".woff2": "font/woff2",
+  ".woff": "font/woff",
+  ".ttf": "font/ttf",
+  ".otf": "font/otf",
+};
+export const servedAs = (name: string): string => KEPT[name.slice(name.lastIndexOf(".")).toLowerCase()] ?? "application/octet-stream";
+
+// A file Playthrough keeps is named for what it is: one of the kinds it keeps (`KEPT`), or, where only one will do, that one.
+export function problemsWithKeptName(name: string, kinds: string[] = Object.keys(KEPT)): string[] {
+  const named = problemsWithFileName(name);
+  if (named.length) return named;
+  return kinds.some((ending) => name.toLowerCase().endsWith(ending)) ? [] : [`“${name}” isn't a kind of file Playthrough keeps: its name ends in ${list(kinds)}.`];
 }
 
 export function problemsWithFileName(name: string): string[] {
@@ -206,6 +233,8 @@ export const unnamedAgent = "Agent";
 // Where what a guest did in the app is kept among a change's branches, and only theirs: a recording kept there plays
 // with nothing but its own files.
 export const SHARED = "shared/";
+// A guest's recording is named as their page names it, and nothing else: its step in's id, then how many it has kept.
+export const SHARED_RECORDING = /^shared\/[a-z][a-z0-9]{7,23}-\d{1,4}\.json$/;
 
 // Who someone says they are, as a send or what they've seen says it: one short line, with nothing in it to make it read
 // as anything but a name where it's printed. A guest, who came by a shared link, can't go by a name that reads as the
@@ -214,10 +243,12 @@ export const SHARED = "shared/";
 // the Unicode forms that look alike.
 const LONGEST_NAME = 60;
 const NEVER_A_GUEST = ["You", "Playthrough", "The person", "Claude", "Gemini", unnamedAgent, ...knownAgents];
-const folded = (name: string) => name.normalize("NFKC").replace(/[\p{Cf}]/gu, "").replace(/\s+/g, " ").trim().toLowerCase();
+const folded = (name: string) => String(name).normalize("NFKC").replace(/[\p{Cf}]/gu, "").replace(/\s+/g, " ").trim().toLowerCase();
 export const sameName = (one: string, other: string) => folded(one) === folded(other);
 
 export function problemsWithName(by: string): string[] {
+  // What every object already has (“__proto__”, “constructor”) is never a name: names key what each person has seen.
+  if (by === "__proto__" || by in Object.prototype) return [`“${by}” isn't a name. Say yours.`];
   if (/[\p{Cc}\p{Zl}\p{Zp}]/u.test(by)) return ["A name is one line, with nothing but its words in it."];
   if (by.trim().length > LONGEST_NAME) return [`A name is ${LONGEST_NAME} characters at most.`];
   return [];
@@ -228,16 +259,8 @@ export function problemsWithGuestsName(change: Change, by: string): string[] {
   return taken.some((name) => sameName(name, by)) ? [`“${by.trim()}” is someone else here. Say your own name.`] : [];
 }
 
-// What someone wrote, as it's kept: what a keyboard doesn't type (anything but its words, new lines and tabs) taken out.
+// What a person writes in a note or a reply is shorter than words can be: a note, not a document.
 export const LONGEST_WORDS = 4000;
-const typed = (words: string) => words.replace(/\r\n?/g, "\n").replace(/[^\P{Cc}\n\t]/gu, "");
-export function asWritten(send: Send): Send {
-  return {
-    ...send,
-    notes: send.notes.map((note) => ({ ...note, words: typed(note.words) })),
-    ...(send.replies && { replies: send.replies.map((reply) => ({ ...reply, words: typed(reply.words) })) }),
-  };
-}
 
 // A send says new notes and replies to notes it can see, or Done: that every moment of a finished hand-back looks good.
 export function problemsWithSend(change: Change, send: Send): string[] {
@@ -251,7 +274,8 @@ export function problemsWithSend(change: Change, send: Send): string[] {
     if (someoneElse.length) return someoneElse;
   }
   if ([...send.notes, ...(send.replies ?? [])].some((said) => said.words.length > LONGEST_WORDS)) return [`A note or a reply is ${LONGEST_WORDS} characters at most: say the rest in another.`];
-  if (change.sends.some((other) => other.id === send.id)) return [`Something else was already sent as ${send.id}. Send this with a new id.`];
+  // Ids are told apart as the disk tells them apart, whatever case one kept before was in.
+  if (change.sends.some((other) => other.id.toLowerCase() === send.id.toLowerCase())) return [`Something else was already sent as ${send.id}. Send this with a new id.`];
   const replies = send.replies ?? [];
   if (!send.notes.length && !replies.length && !send.done) return ["There's nothing in this send."];
   if (send.done && (send.notes.length || replies.length)) return ["Done says every moment looks good, and nothing more: send the notes and replies on their own."];
@@ -263,7 +287,7 @@ export function problemsWithSend(change: Change, send: Send): string[] {
   const notes = allNotes(change);
   problems.push(...duplicates(send.notes.map((note) => note.id), (id) => `This send has two notes with the id ${id}.`));
   for (const note of send.notes) {
-    if (notes.has(note.id)) problems.push(`The id ${note.id} is already a note's. Make a new one.`);
+    if ([...notes.keys()].some((kept) => kept.toLowerCase() === note.id.toLowerCase())) problems.push(`The id ${note.id} is already a note's. Make a new one.`);
     if (note.on) problems.push(...problemsWithNotePlace(change, send, note.id, note.on));
   }
 
@@ -292,6 +316,12 @@ export function problemsSeeing(change: Change, by: string, seen: Seen[]): string
 }
 
 // What's wrong with something's shape: its name, then what it needs, as in “Hand-back 2: moment 3 needs a name.”
+// What was asked, as its shape reads it (`Asked`): only its fields, each its kind; or what's wrong with it.
+export function asAsked<T>(schema: z.ZodType<T>, value: unknown, subject: string): { asked: T } | { problems: string[] } {
+  const result = schema.safeParse(value, { error: plainly });
+  return result.success ? { asked: result.data } : { problems: problemsWithShape(schema, value, subject) };
+}
+
 function problemsWithShape(schema: z.ZodType, value: unknown, subject: string): string[] {
   const result = schema.safeParse(value, { error: plainly });
   if (result.success) return [];
@@ -345,7 +375,8 @@ function problemsWithNotePlace(change: Change, send: Send, id: string, on: OnMom
   if (on.handBack > send.handBack) return [`Note ${id} is on hand-back ${on.handBack}, but it's sent on hand-back ${send.handBack}.`];
   if (!madeInApp(on)) return problemsWithPlace(on, handedBack.moments, `Note ${id}`);
   const problems = problemsWithPlace({ moment: on.moment, at: on.steppedIn }, handedBack.moments, `Note ${id}'s step in`);
-  if (!on.recording.startsWith("branches/")) problems.push(`Note ${id} is in the app, so its recording is one of the person's own, “branches/…”, not “${on.recording}”.`);
+  const own = send.guest ? `branches/${SHARED}` : "branches/";
+  if (!on.recording.startsWith(own) || !on.recording.endsWith(".json") || (send.guest && !SHARED_RECORDING.test(on.recording.slice("branches/".length)))) problems.push(`Note ${id} is in the app, so its recording is one of ${send.guest ? "the guest's" : "the person's"} own, “${own}….json”, not “${on.recording}”.`);
   if (on.at > on.length) problems.push(`Note ${id} is at ${on.at}s, but the person's own recording is ${on.length}s long.`);
   return problems;
 }

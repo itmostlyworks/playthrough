@@ -37,8 +37,11 @@ const commands = {
 } satisfies Record<string, [number, number, string, (words: string[], last?: number) => Promise<unknown>]>;
 
 const [command, ...given] = process.argv.slice(2);
+// A word where a command takes a note's id is that id, whatever it looks like: never an option, nor a call for help.
+const ids: Record<string, number> = { answer: 0, as: 1 };
+const option = (word: string, at: number) => ids[command!] !== at && word.startsWith("-");
 // --last N, which only moment takes: how many of the last things done the moment shows.
-const lastAt = given.findIndex((word) => word === "--last" || word.startsWith("--last="));
+const lastAt = command === "moment" ? given.findIndex((word, at) => option(word, at) && (word === "--last" || word.startsWith("--last="))) : -1;
 const lastSaid = lastAt < 0 ? undefined : given[lastAt]!.includes("=") ? given[lastAt]!.split("=")[1] : given[lastAt + 1];
 const words = lastAt < 0 ? given : given.toSpliced(lastAt, given[lastAt]!.includes("=") ? 1 : 2);
 // The app this is run in is known to the machine's one page from now on, as soon as Playthrough has a folder in it.
@@ -53,13 +56,13 @@ if (!["wait", "open", "close", "--version"].includes(command!) && !process.send)
 }
 try {
   // Asked for help anywhere, as by reflex after a command, it's the help, never the command.
-  if (!command || ["help", "--help", "-h"].includes(command) || words.some((word) => ["--help", "-h"].includes(word))) console.log(HELP);
+  if (!command || ["help", "--help", "-h"].includes(command) || words.some((word, at) => option(word, at) && ["--help", "-h"].includes(word))) console.log(HELP);
   else if (!Object.hasOwn(commands, command)) throw new Refused([`There's no command “${command}”. Run playthrough alone for what each one does.`]);
   else {
     const [least, most, said, run] = commands[command as keyof typeof commands];
     if (words.length > most) throw new Refused([`That's more than it takes: ${said}`]);
     if (words.length < least) throw new Refused([`That needs more: ${said}`]);
-    if (lastAt >= 0 && command !== "moment") throw new Refused([`Only playthrough moment takes --last: ${said}`]);
+    if (command !== "moment" && given.some((word, at) => option(word, at) && (word === "--last" || word.startsWith("--last=")))) throw new Refused([`Only playthrough moment takes --last: ${said}`]);
     if (lastAt >= 0 && !/^\d+$/.test(lastSaid ?? "")) throw new Refused([`--last takes how many of the last things done the moment shows, 0 for a still: ${said}`]);
     await run(words, lastAt < 0 ? undefined : Number(lastSaid));
     know(repo().root);

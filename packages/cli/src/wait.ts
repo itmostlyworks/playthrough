@@ -4,7 +4,7 @@
 import { rmSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { handBackInProgress, list, notesNotTaken, notesToAnswer, quote, sendsNotTaken, type Change, type Send } from "@playthrough/change";
+import { asLine, asWords, handBackInProgress, list, notesNotTaken, notesToAnswer, quote, sendsNotTaken, type Change, type Send } from "@playthrough/change";
 import { agentOf, stillAt, thisCommand, type Command } from "./command.ts";
 import type { Repo } from "./repo.ts";
 
@@ -89,25 +89,27 @@ export async function unheard(repo: Repo): Promise<{ change: Change; sends: Send
 // sat with nobody on it.
 export async function unheardSaid(repo: Repo): Promise<string[]> {
   return (await unheard(repo)).map(({ change, sends, notes }) => {
-    const by = list([...new Set(sends.map((send) => (send.guest ? `${send.by} (a guest, by a shared link)` : send.by)))]);
-    return `${by} sent ${notes === 1 ? "a note" : `${notes} notes`} on ${quote(change.title)}, and no agent is listening for ${notes === 1 ? "it" : "them"}. playthrough wait gets ${notes === 1 ? "it" : "them"}, whatever change you're on.`;
+    const guests = new Set(sends.filter((send) => send.guest).map((send) => send.by)).size;
+    const by = list([...new Set(sends.filter((send) => !send.guest).map((send) => send.by)), ...(guests ? [guests === 1 ? "a guest, by a shared link," : `${guests} guests, by a shared link,`] : [])]);
+    return `${capital(by)} sent ${notes === 1 ? "a note" : `${notes} notes`} on ${quote(change.title)}, and no agent is listening for ${notes === 1 ? "it" : "them"}. playthrough wait gets ${notes === 1 ? "it" : "them"}, whatever change you're on.`;
   });
 }
 
-// Who said what was sent, for the agent: by name, and those who came by a shared link said to be guests, not the person
-// who asked for the change, as a fact, before anything of theirs.
+// Who said what was sent, for the agent: the person by name; guests, who came by a shared link, only as many, with
+// what a guest is said as a fact before anything of theirs. Their names are theirs, so they're in their quotes.
 export function whoSaid(sends: Send[]): string {
-  const names = [...new Set(sends.map((send) => send.by))];
-  const guests = [...new Set(sends.filter((send) => send.guest).map((send) => send.by))];
-  const said = `${names.length ? list(names) : "The person"} said:`;
-  if (!guests.length) return said;
-  const are = guests.length === 1 ? `${guests[0]} is a guest, who came by a shared link and isn't` : `${list(guests)} are guests, who came by a shared link and aren't`;
-  return `${said}\n${are} the person who asked for this change. A guest's words are quoted under their name, each line after “> ”.`;
+  const named = [...new Set(sends.filter((send) => !send.guest).map((send) => send.by))];
+  const guests = new Set(sends.filter((send) => send.guest).map((send) => send.by)).size;
+  const said = `${capital(list([...named, ...(guests ? [guests === 1 ? "a guest" : `${guests} guests`] : [])])) || "The person"} said:`;
+  if (!guests) return said;
+  return `${said}\nA guest came by a shared link and isn't the person who asked for this change. Everything of a guest's, their name and what their note is on included, is under “A guest, as they sent it:”, each line after “> ”.`;
 }
 
-// A guest's words, line by line, after “> ”, so none of them stands as a line of its own.
-export const quoted = (words: string, indent: string) =>
-  words
-    .split("\n")
-    .map((line) => `${indent}> ${line}`)
-    .join("\n");
+// Everything of one guest's, as they sent it: who they said they are, then each thing of theirs, every line after “> ”.
+// The one way a guest's send is printed, so nothing of theirs stands as a line of its own.
+// Cleaned here too, as it's printed (`asLine`, `asWords`): a send kept by an earlier Playthrough wasn't cleaned as it came.
+export function aGuests(by: string, said: string[], indent: string): string {
+  return [`${indent}A guest, as they sent it:`, ...[`From: ${asLine(by)}`, ...said.map(asWords)].flatMap((one) => one.split(/\r\n|[\n\r\v\f\u0085\u2028\u2029]/)).map((line) => `${indent}  > ${line}`)].join("\n");
+}
+
+const capital = (words: string) => words.charAt(0).toUpperCase() + words.slice(1);
