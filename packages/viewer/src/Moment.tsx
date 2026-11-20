@@ -33,7 +33,7 @@ import { useKeptReady, useTakeOver } from "./takeOver.ts";
 import { useHeld } from "./held.ts";
 import { overAPause } from "./stepping.ts";
 import { startOn, StillPicture } from "./Still.tsx";
-import { STEPPING_OUT, STEPS_OUT, Together, type Box } from "./view.ts";
+import { STEPPING_BACK, STEPPING_OUT, STEPS_OUT, Together, type Box } from "./view.ts";
 
 // How long what you did takes to fade out, back to the moment.
 const FADING = 300;
@@ -977,7 +977,7 @@ export function MomentView(props: {
               yours it goes where it stands, under the app coming over it, and the bar says it's you ("You, as Maja"); on a
               phone, where it stays, its hands go quiet while the bar says so. Coming back, it waits for the recording's edge to pass under it, so
               the edge never runs across words coming in. */}
-          <div className={`absolute inset-x-0 bottom-full mb-3 flex flex-col items-center phone:mb-2 phone:items-start transition-opacity ${takes ? "opacity-0" : ""}`} style={takes ? STEPPING_OUT : { ...STEPPING_OUT, transitionDuration: `${STEPS_OUT * 0.4}ms`, transitionDelay: `${STEPS_OUT * 0.6}ms` }} inert={takes}>
+          <div className={`absolute inset-x-0 bottom-full mb-3 flex flex-col items-center phone:mb-2 phone:items-start transition-opacity ${takes ? "opacity-0" : ""}`} style={takes ? STEPPING_OUT : STEPPING_BACK} inert={takes}>
             {/* At the last stop there's no moment to name: the change's title takes the moment's line, as the sheet's
                 heading, and its own small place over it rests empty. Both stay drawn, one faded out, so nothing moves. */}
             {!phone && !shownByAnotherPage() && <div className={`flex min-w-0 max-w-full justify-center transition-opacity duration-[240ms] ease-calm ${atLastStop ? "pointer-events-none opacity-0" : ""}`}>{title}</div>}
@@ -992,10 +992,11 @@ export function MomentView(props: {
             </div>
           </div>
           {/* The recording, filling its place; while the app is yours, taking the page from it in the very move that
-              takes the picture out to the whole screen, its foot, and the bar across it, where they were. */}
+              takes the picture out to the whole screen, its foot, and the bar across it, where they were. Over the
+              edges meanwhile, so it grows over them as they go, never under. */}
           <div
             ref={stage}
-            className="absolute bottom-0 left-1/2 overflow-visible rounded-lg transition-[width,margin-left]"
+            className={`absolute bottom-0 left-1/2 overflow-visible rounded-lg transition-[width,margin-left] ${takes ? "z-31" : ""}`}
             style={{ aspectRatio: `${screen.width} / ${screen.height}`, width: wide, marginLeft: `calc(${wide} / -2)`, ...STEPPING_OUT }}
             onPointerMove={(event) => (movePill(event), setAiming(!(event.target as Element).closest("[role=toolbar]")))}
             onPointerLeave={() => setAiming(false)}

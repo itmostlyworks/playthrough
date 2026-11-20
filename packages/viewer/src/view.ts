@@ -96,6 +96,9 @@ export const STEPS_OUT = 600;
 const STEPS_OUT_ON = [0.4, 0, 0.2, 1] as const;
 // The move as CSS has it, for everything that goes or grows with it, so it's all one move.
 export const STEPPING_OUT = { transitionDuration: `${STEPS_OUT}ms`, transitionTimingFunction: `cubic-bezier(${STEPS_OUT_ON.join(", ")})` };
+// Coming back, what the recording grew over comes back in the move's last 40%, once the recording's edge has passed
+// it, so it never shows across the recording.
+export const STEPPING_BACK = { ...STEPPING_OUT, transitionDuration: `${STEPS_OUT * 0.4}ms`, transitionDelay: `${STEPS_OUT * 0.6}ms` };
 // Close enough to where it's heading that the rest is less than half a pixel, it's there.
 const THERE = 0.0004;
 // The ease's pace: a notch comes within THERE of where it's heading in SETTLES.

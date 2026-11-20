@@ -1024,8 +1024,9 @@ the bar, in amber, and so is a note made there that couldn't be kept.
 what this is over the recording and Download video and Share go where they stand, and the recording grows into their
 room: one move, 600 ms on a curve that sets off gently and lands softly (`STEPS_OUT` and `STEPPING_OUT`), slow enough to
 follow the recording growing and the sides going, the very one that takes the picture out to the whole screen, the fades
-on it too; Back the same, what's over the recording coming back over its last 40%, once the recording's edge has
-passed under it; at once with reduced motion. The recording stands on its foot where it was, so the bar across it
+on it too. The recording is over the edges while the app is yours, so it grows over them as they go, never under
+them. Back is the same move, what the recording grew over (the edges and what's over it) coming back in its last 40%,
+once the recording's edge has passed (`STEPPING_BACK`); at once with reduced motion. The recording stands on its foot where it was, so the bar across it
 doesn't move by a pixel, and the bar stays where it was dropped, if it was (`clear`, `Moment.tsx`). It grows as large as
 the page lets it be, 24px from the screen's sides, where the header's words stand, and 12px under the header, and never
 larger than the app's own size, so the app is drawn as large as fits and never past actual size; its window is the
