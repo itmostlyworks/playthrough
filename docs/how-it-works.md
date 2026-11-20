@@ -723,8 +723,10 @@ stand-in pointer is drawn the same size).
 clear who was acting when, and words for it beside the moment's name and in the bar, tried that day, were one more
 thing to read). The recording's pointer wears a small tag just below and right of its tip, as a name on someone else's
 pointer, in the look your pointer's "Note on this" has: "Your agent" ("The agent" to a guest, whose agent it isn't).
-It's there at rest and for the first second of playing (`TAGGED_WHILE_PLAYING`), then fades with everything else over
-the recording, and comes back once it stops; a key pressed as it plays stands where the tag would, so the key is shown
+It's there only as play starts: it fades in as a moment starts playing, stays its first second
+(`TAGGED_WHILE_PLAYING`) and fades with everything else over the recording, and comes again each time play starts
+(20 Nov, the owner: "Dont show "your agent" at rest after playing a moment, only when starting to play"). At rest, before
+playing, paused or at the end, the pointer wears nothing; a key pressed as it plays stands where the tag would, so the key is shown
 and the tag waits. It's one size at any closeness, as far from the tip as the pointer has grown, and turns to the left
 of the tip or above it where the picture's right or bottom edge would cut it off (`besideTip`). Never on a still, where
 nobody acts, nor with the pointer out of the picture, in Compare, while noting, at the last stop, on the moment fading
@@ -1070,11 +1072,11 @@ agent's pointer came to it, and on its lower half it stayed on the app until you
 it's in the app, goes back to where the recording has it; if not, the recording's fades in there. **The pointer's tag
 says the change of hands.** As the agent's pointer becomes yours, its tag rolls in place, upward, nothing moving
 sideways, from "Your agent" to "You", one line at the same small size, in the amber the app's edge has while it's yours
-with dark words, over the same 420 ms (`HANDING`, `Portal.tsx`). With your pointer on the app it goes with it; anywhere
+with dark words, over the same 420 ms (`HANDING`, `Portal.tsx`); taken over at rest, where the pointer wears nothing,
+"Your agent" comes in on it as it starts to roll, so "You" never simply pops. With your pointer on the app it goes with it; anywhere
 else, or on a touch screen, it rolls where the agent's pointer stood, and goes with yours once yours comes in. It stays
 a second once the app is yours, then fades, or goes at once at your first click or key in the app (the app tells the
-page `key`, once a press). Coming back, the agent's pointer returns wearing "Your agent" in grey, coming in as it leaves
-where yours was. The tag is drawn once, by the pointer that wears it: the one standing in for the recording's takes its
+page `key`, once a press). Coming back, the agent's pointer returns bare, as it is at rest. The tag is drawn once, by the pointer that wears it: the one standing in for the recording's takes its
 place in the very frame the recording's goes, both ways, so the two are one tag (`worn`: taken over as it fades in or
 out with playing, it carries on from as much of it as was seen). With reduced motion it doesn't roll: the words are
 simply yours. While the app is yours, Play and its arrows rest greyed in their place, as Compare does, so Back and Note

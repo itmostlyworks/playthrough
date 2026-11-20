@@ -3,8 +3,8 @@
 // gone meanwhile on the app and goes on the way, and the app opens from where they meet, a ring going out to the
 // picture's edges; yours anywhere else, it opens from the recording's, which goes where it stands. Its tag says so: the
 // agent's words roll to "You" as it becomes yours, stay a second and go. Given back, it closes on where your pointer was
-// in the app, and the pointer goes back to where the recording has it, wearing the agent's words again; yours not in the
-// app, the recording's comes back where it is.
+// in the app, and the pointer goes back to where the recording has it; yours not in the app, the recording's comes back
+// where it is.
 
 import { flushSync } from "react-dom";
 import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type Ref } from "react";
@@ -79,7 +79,7 @@ export function Portal({ live, screen, scrolled, theirs, onStandIn, tag: words, 
   const inSight = (at: { x: number; y: number } | undefined) => !!at && at.x >= 0 && at.y >= 0 && at.x <= screen.width && at.y <= screen.height;
 
   // The tag, in the agent's words as the recording's pointer wears it, coming on from as much of it as is seen now,
-  // here or on the recording's (none while it plays); or not there.
+  // here or on the recording's (none at rest, so taken over from rest it comes in as it rolls); or not there.
   const tagShows = (shown: boolean, seen = 0) => {
     const [at, pill] = [tagAt.current, tag.current];
     if (!at || !pill) return;
@@ -316,8 +316,6 @@ export function Portal({ live, screen, scrolled, theirs, onStandIn, tag: words, 
     const coming = recorded ? 1 : 0;
     yours.animate([{ transform: tip(from ?? back) }, { transform: tip(from ?? back), offset: 0.3 }, { transform: tip(back) }], returning).finished.then(() => flushSync(hide), () => {});
     mark.animate(from ? [{ opacity: 1 }, { opacity: 1, offset: 0.3 }, { opacity: coming }] : [{ opacity: 0 }, { opacity: coming }], returning);
-    // The agent's pointer comes back wearing its words, which come on as it leaves where yours was.
-    if (tagged) tagAt.current!.animate([{ opacity: 0 }, { opacity: 0, offset: from ? 0.3 : 0 }, { opacity: 1 }], { ...returning, fill: "forwards" });
     const closing = { duration: CLOSING, easing: "cubic-bezier(0.55, 0, 0.7, 0.2)" };
     edging.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, easing: "ease-in" });
     rim.animate([{ transform: "scale(1)", opacity: 0 }, { opacity: 0.9, offset: 0.65 }, { transform: "scale(0)", opacity: 0 }], closing);

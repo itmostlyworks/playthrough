@@ -260,7 +260,7 @@ export function MomentView(props: {
   // The recording's pointer, and whether the app's stands in for it.
   const drawn = useRef<(() => { x: number; y: number; worn: number } | undefined) | undefined>(undefined);
   const [standIn, setStandIn] = useState(false);
-  // Whose hands it is, on its tag: at rest, and for the first second of playing.
+  // Whose hands it is, on its tag: for the first second of playing.
   const [playedASecond, setPlayedASecond] = useState(false);
   useEffect(() => {
     setPlayedASecond(false);

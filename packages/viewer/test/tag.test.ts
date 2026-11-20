@@ -1,26 +1,29 @@
-// Whose hands the pointer is is said on it and nowhere else: a small tag on the recording's pointer, at rest and for the
-// first second of playing, standing where the picture's edges never cut it off.
+// Whose hands the pointer is is said on it and nowhere else: a small tag on the recording's pointer, for the first
+// second of playing, standing where the picture's edges never cut it off.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { agentTo, besideTip, tagged } from "../src/tag.ts";
 
-const atRest = { still: false, playing: false, playedASecond: false, comparing: false, noting: false, atLastStop: false };
+const starting = { still: false, playing: true, playedASecond: false, comparing: false, noting: false, atLastStop: false };
 
 test("the agent is yours to the person, and the agent to a guest on a change shared with them", () => {
   assert.equal(agentTo(false), "Your agent");
   assert.equal(agentTo(true), "The agent");
 });
 
-test("the recording's pointer wears it at rest and for the first second of playing, and not once it's played longer", () => {
-  assert.equal(tagged(atRest), true);
-  assert.equal(tagged({ ...atRest, playing: true }), true);
-  assert.equal(tagged({ ...atRest, playing: true, playedASecond: true }), false);
-  assert.equal(tagged({ ...atRest, playedASecond: true }), true, "stopped, it's back");
+test("the recording's pointer wears it for the first second of playing, and not once it's played longer", () => {
+  assert.equal(tagged(starting), true);
+  assert.equal(tagged({ ...starting, playedASecond: true }), false);
+});
+
+test("at rest it wears none: not before playing, nor once stopped", () => {
+  assert.equal(tagged({ ...starting, playing: false }), false);
+  assert.equal(tagged({ ...starting, playing: false, playedASecond: true }), false);
 });
 
 test("not on a still, in Compare, while noting, or at the last stop", () => {
-  for (const one of ["still", "comparing", "noting", "atLastStop"] as const) assert.equal(tagged({ ...atRest, [one]: true }), false, one);
+  for (const one of ["still", "comparing", "noting", "atLastStop"] as const) assert.equal(tagged({ ...starting, [one]: true }), false, one);
 });
 
 test("it stands below and right of the tip, and turns left or above where the picture's right or bottom edge would cut it off", () => {
