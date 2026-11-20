@@ -233,7 +233,7 @@ export const unnamedAgent = "Agent";
 // Where what a guest did in the app is kept among a change's branches, and only theirs: a recording kept there plays
 // with nothing but its own files.
 export const SHARED = "shared/";
-// A guest's recording is named as their page names it, and nothing else: its step in's id, then how many it has kept.
+// A guest's recording is named as their page names it, and nothing else: its take-over's id, then how many it has kept.
 export const SHARED_RECORDING = /^shared\/[a-z][a-z0-9]{7,23}-\d{1,4}\.json$/;
 
 // Who someone says they are, as a send or what they've seen says it: one short line, with nothing in it to make it read
@@ -367,14 +367,14 @@ function nameOf(list: string, item: Record<string, unknown> | undefined, index: 
   return named[list] || `${singular[list] ?? list} ${index + 1}`;
 }
 
-// A note is on a moment of a hand-back the person could see: on it, within its recording; or in the app, stepped into
+// A note is on a moment of a hand-back the person could see: on it, within its recording; or in the app, taken over
 // within it, and within the person's own recording, which is one of their own files.
 function problemsWithNotePlace(change: Change, send: Send, id: string, on: OnMoment | InApp): string[] {
   const handedBack = change.handBacks.find((handBack) => handBack.number === on.handBack && handBack.finished);
   if (!handedBack) return [`Note ${id} is on hand-back ${on.handBack}, which hasn't been handed back.`];
   if (on.handBack > send.handBack) return [`Note ${id} is on hand-back ${on.handBack}, but it's sent on hand-back ${send.handBack}.`];
   if (!madeInApp(on)) return problemsWithPlace(on, handedBack.moments, `Note ${id}`);
-  const problems = problemsWithPlace({ moment: on.moment, at: on.steppedIn }, handedBack.moments, `Note ${id}'s step in`);
+  const problems = problemsWithPlace({ moment: on.moment, at: on.steppedIn }, handedBack.moments, `Note ${id}'s take-over`);
   const own = send.guest ? `branches/${SHARED}` : "branches/";
   if (!on.recording.startsWith(own) || !on.recording.endsWith(".json") || (send.guest && !SHARED_RECORDING.test(on.recording.slice("branches/".length)))) problems.push(`Note ${id} is in the app, so its recording is one of ${send.guest ? "the guest's" : "the person's"} own, “${own}….json”, not “${on.recording}”.`);
   if (on.at > on.length) problems.push(`Note ${id} is at ${on.at}s, but the person's own recording is ${on.length}s long.`);

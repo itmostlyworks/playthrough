@@ -1,4 +1,4 @@
-// Stepping in, the app opens in its picture like a portal. Asked for before it's ready, the picture's edge breathes and
+// Taking over, the app opens in its picture like a portal. Asked for before it's ready, the picture's edge breathes and
 // the recording's pointer waits where it is. Once it's there, the recording's pointer comes to yours, wherever yours has
 // gone meanwhile and goes on the way, and the app opens from where they meet, a ring going out to the picture's edges.
 // Who you are there is the bar's to say. Given back, it closes on where your pointer was in the app, and the pointer goes
@@ -21,7 +21,7 @@ type Props = {
   screen: { width: number; height: number };
   scrolled: () => Scrolled | undefined;
   // Where the recording draws its pointer, in the picture, if it does. The pointer here stands in for it from when
-  // it's stepped into until it's given back, and says so, so the recording's isn't drawn meanwhile: there's one
+  // it's taken over until it's given back, and says so, so the recording's isn't drawn meanwhile: there's one
   // pointer, never one left where it was.
   theirs: () => { x: number; y: number } | undefined;
   onStandIn: (standing: boolean) => void;
@@ -251,7 +251,7 @@ export function Portal({ live, screen, scrolled, theirs, onStandIn, app: talk, o
             ref={iframe}
             key={live.address}
             src={live.address}
-            title="The app, stepped into"
+            title="The app, taken over"
             // As in a recording, a click there may copy, the app being yours.
             allow="clipboard-read; clipboard-write"
             className="absolute top-0 left-0 origin-top-left border-0 bg-paper"

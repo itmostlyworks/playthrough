@@ -3,7 +3,7 @@
 // and "New list", is no more what was clicked than the page is). Something you press that holds others isn't one control
 // but what holds them, as Kan's list is one you drag, with its name field, its + and its cards in it; a box you write in
 // that an editor draws, as Kan's comment box, is one too. Nothing, where it's on none of these. Written for the page it
-// runs in, as the agent's browser (as.ts) and stepping in (step-in.ts) put it in the app's.
+// runs in, as the agent's browser (as.ts) and taking over (take-over.ts) put it in the app's.
 export function clicked(target: Element): Element | undefined {
   const pressable = "a, button, input, select, textarea, label, summary, [role=button], [role=link], [role=checkbox], [role=radio], [role=switch], [role=tab], [role=menuitem], [role=option], [role=combobox], [role=textbox], [contenteditable=''], [contenteditable=true]";
   const pressed = target.closest?.(pressable) ?? undefined;

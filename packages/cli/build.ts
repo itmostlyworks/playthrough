@@ -8,7 +8,7 @@ import { cpSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:f
 import { builtinModules } from "node:module";
 import { dirname, join, relative } from "node:path";
 import { build } from "rolldown";
-import { inApp } from "./src/step-in.ts";
+import { inApp } from "./src/take-over.ts";
 
 const cli = import.meta.dirname;
 const packages = dirname(cli);
@@ -52,7 +52,7 @@ for (const file of readdirSync(types, { recursive: true, encoding: "utf8" }).fil
 
 cpSync(join(cli, "viewer"), join(release, "viewer"), { recursive: true });
 cpSync(join(cli, "show"), join(release, "show"), { recursive: true });
-// And for an app it steps into by the app's own address, what Playthrough puts into each of its pages when it's reached
+// And for an app it takes over by the app's own address, what Playthrough puts into each of its pages when it's reached
 // through Playthrough.
 writeFileSync(join(release, "show", "in-app.js"), inApp());
 cpSync(join(cli, "MOMENTS.md"), join(release, "MOMENTS.md"));

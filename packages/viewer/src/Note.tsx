@@ -58,7 +58,7 @@ export function NoteWas({ src, screen, box, drawn }: { src: string; screen: { wi
   );
 }
 
-// Where a note was made: the recording it was made on (a taking of the moment, or yours, stepped in), the moment in it,
+// Where a note was made: the recording it was made on (a taking of the moment, or yours in the app you took over), the moment in it,
 // and its thing there, by that recording's own numbering, or its spot.
 // With the name of the frame the hand-back pictured there, where it's one it pictured on the way through a moment.
 export type Made = { handBack: number; recording: string; at: number; node?: number; point?: { x: number; y: number }; frame?: string };

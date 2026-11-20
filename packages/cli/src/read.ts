@@ -62,7 +62,7 @@ export function hovering(on: boolean) {
   for (const animation of document.getAnimations()) if (animation instanceof CSSTransition) animation.finish();
 }
 
-// Runs in the page, so everything it uses is inside it, or given: a moment's, and the app stepped into, where it's said
+// Runs in the page, so everything it uses is inside it, or given: a moment's, and the app taken over, where it's said
 // as words, with partsAround.
 export function read(around: typeof partsAround) {
   const ROLES = /^(button|link|dialog|alertdialog|group|radiogroup|table|grid|treegrid|heading|status|alert|textbox|searchbox|combobox|checkbox|radio|switch|slider|listbox|option|tab|menu|menuitem|img)$/;

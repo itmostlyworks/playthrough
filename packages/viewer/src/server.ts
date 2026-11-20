@@ -3,14 +3,14 @@
 
 import type { AskedVideo, Listed, Shared, Source } from "./api.ts";
 
-// Playthrough answers a step in within a minute, made or with why not (following.ts); past this, it isn't going to.
+// Playthrough answers a take-over within a minute, made or with why not (following.ts); past this, it isn't going to.
 const ANSWERED = 70_000;
 
-// Where it's asked: for every change, for one, and where a step in's app is, as Playthrough answers it; and whether
+// Where it's asked: for every change, for one, and where a take-over's app is, as Playthrough answers it; and whether
 // the changes can come as a stream, which a tunnel holds back until it ends; and what's true once nothing answers, in
 // words for whoever's asking.
 type Asked = { changes: string; of: (change: string) => string; app: (said: { port: number; name: string }) => string; streamed: boolean; gone: Gone };
-// `said` where what was sent isn't kept, `plainly` and `why` where a step in couldn't be, as `CantStepIn` has them.
+// `said` where what was sent isn't kept, `plainly` and `why` where a take-over couldn't be, as `CantTakeOver` has them.
 type Gone = { said: string; plainly: string; why: string };
 
 // What's asked of `playthrough open` the same way by the person and a guest.
@@ -25,7 +25,7 @@ const askedAt = ({ changes, of, app, streamed, gone }: Asked) =>
         .then((answer) => (answer.ok ? answer.json() : Promise.reject()))
         .then((said) => ({ in: said.in ?? undefined, starting: said.starting === true, unlike: said.unlike ?? undefined }), () => undefined),
     keepReady: (change, moment, after) => void fetch(`${of(change)}/keep-ready`, { method: "POST", headers: JSON_BODY, body: JSON.stringify({ moment, after }) }).catch(() => {}),
-    stepIn: (change, moment, after, asked) => stepIn(of(change), app, gone, moment, after, asked),
+    takeOver: (change, moment, after, asked) => takeOver(of(change), app, gone, moment, after, asked),
     keepBranch: (change, branch) => posted<{ length: number }>(`${of(change)}/branches`, branch, gone).then((done) => ("problems" in done ? done.problems : done.answer.length)),
     frame: (change, note, framed) => posted<{ picture: string; screen: { width: number; height: number } }>(`${of(change)}/frames`, { note, ...framed }, gone).then((done) => ("problems" in done ? undefined : done.answer)),
     still: (change, still) => posted<{ picture: string }>(`${of(change)}/stills`, still, gone).then((done) => ("problems" in done ? undefined : done.answer.picture)),
@@ -42,7 +42,7 @@ const askedAt = ({ changes, of, app, streamed, gone }: Asked) =>
 const of = (change: string) => `/api/changes/${change.split("/").map(encodeURIComponent).join("/")}`;
 
 // Added to, not spread: the storage is asked for only when it's used.
-export const server: Source = Object.assign(askedAt({ changes: "/api/changes", of, app: ({ port, name }) => `${location.protocol}//${location.hostname}:${port}/step-in/${name}`, streamed: true, gone: {
+export const server: Source = Object.assign(askedAt({ changes: "/api/changes", of, app: ({ port, name }) => `${location.protocol}//${location.hostname}:${port}/take-over/${name}`, streamed: true, gone: {
     said: "Playthrough isn't running here any more. Start it again with playthrough open, then try again.",
     plainly: "Playthrough isn't running any more.",
     why: "Playthrough wasn't running when they pressed it: playthrough open had stopped.",
@@ -56,11 +56,11 @@ export const server: Source = Object.assign(askedAt({ changes: "/api/changes", o
   video,
 });
 
-// A guest at a shared change's link (`home`, its folder): the change alone, asked for there; the app stepped into at
+// A guest at a shared change's link (`home`, its folder): the change alone, asked for there; the app taken over at
 // the same address, which is the app's to them, as the tunnel leads both here; and who they are as they said it, kept
 // in this browser.
 export function guest(home: string): Source {
-  const asked = askedAt({ changes: `${home}api/change`, of: () => `${home}api/change`, app: ({ name }) => `${location.origin}/step-in/${name}`, streamed: false, gone: GONE });
+  const asked = askedAt({ changes: `${home}api/change`, of: () => `${home}api/change`, app: ({ name }) => `${location.origin}/take-over/${name}`, streamed: false, gone: GONE });
   const listen = asked.changes;
   return Object.assign(asked, {
     // With no page around it to say what it is, the tab says it.
@@ -125,17 +125,17 @@ function listen(changes: string, streamed: boolean, told: (changes: Listed[]) =>
 }
 
 // The app at that moment is through Playthrough, where Playthrough says it is.
-async function stepIn(of: string, app: Asked["app"], gone: Gone, moment: string, after: number | undefined, asked: AbortSignal) {
+async function takeOver(of: string, app: Asked["app"], gone: Gone, moment: string, after: number | undefined, asked: AbortSignal) {
   try {
-    const answer = await fetch(`${of}/step-in`, { method: "POST", headers: JSON_BODY, body: JSON.stringify({ moment, after }), signal: AbortSignal.any([asked, AbortSignal.timeout(ANSWERED)]) });
+    const answer = await fetch(`${of}/take-over`, { method: "POST", headers: JSON_BODY, body: JSON.stringify({ moment, after }), signal: AbortSignal.any([asked, AbortSignal.timeout(ANSWERED)]) });
     const said = await answer.json().catch(() => ({}));
     if (answer.ok) return { address: app(said), setup: said.setup ?? {}, checked: said.checked };
     // Answered with none of Playthrough's words, it's not Playthrough answering: through a tunnel, the tunnel's gone.
     if (!said.plainly && !said.problems) return { plainly: gone.plainly, why: `${gone.why} (${answer.status})` };
-    return { plainly: said.plainly ?? "Something went wrong getting there.", why: said.problems?.join(" ") ?? `Playthrough answered the step in with ${answer.status}.` };
+    return { plainly: said.plainly ?? "Something went wrong getting there.", why: said.problems?.join(" ") ?? `Playthrough answered the take-over with ${answer.status}.` };
   } catch (error) {
     if ((error as Error)?.name === "TimeoutError")
-      return { plainly: "Playthrough stopped answering.", why: `Playthrough hadn't answered the step in after ${ANSWERED / 1000} seconds, when it always does within a minute: playthrough open may be stuck.` };
+      return { plainly: "Playthrough stopped answering.", why: `Playthrough hadn't answered the take-over after ${ANSWERED / 1000} seconds, when it always does within a minute: playthrough open may be stuck.` };
     return { plainly: gone.plainly, why: gone.why };
   }
 }

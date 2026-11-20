@@ -15,11 +15,11 @@ import type { Reading } from "@playthrough/page";
 import { asAsked, asLine, Asked, problemsWithGuestsName, problemsWithKeptName, problemsWithName, Refused, servedAs, SHARED, SHARED_RECORDING, type Did, type Change, type Seen, type Send } from "@playthrough/change";
 import { BEAT } from "./run.ts";
 import { repo as copyAt, type Repo } from "./repo.ts";
-import { CantStepIn, cantStepIn, readyIn, unlikeAt } from "./following.ts";
+import { CantTakeOver, cantTakeOver, readyIn, unlikeAt } from "./following.ts";
 import { everyCopy, machine } from "./machine.ts";
 import { keepNamed, type Assets } from "./assets.ts";
 import { frameOf, stillOf, type Framed } from "./frames.ts";
-import { getReady, keepReady, onTheWayTo, placeOf, waitedFor } from "./step-in.ts";
+import { getReady, keepReady, onTheWayTo, placeOf, waitedFor } from "./take-over.ts";
 import { setupIn } from "./setup.ts";
 import { agentGone, agentWaiting } from "./wait.ts";
 import { endsWithPlaythrough, openFile, stopUnused, UNUSED } from "./app.ts";
@@ -82,7 +82,7 @@ export async function openBehind() {
   console.log("It stays open until playthrough close.");
 }
 
-// Closed as Ctrl+C closes it: what its step ins made is given back, and the apps it kept that nobody is using stop.
+// Closed as Ctrl+C closes it: what its take-overs made is given back, and the apps it kept that nobody is using stop.
 export async function close() {
   const open = openNow(machine());
   if (!open) return console.log("Playthrough isn't open.");
@@ -99,7 +99,7 @@ async function stop(open: Open) {
 }
 
 // Open, Playthrough keeps each copy's app once it's running, whoever started it, until nobody has used it for a while:
-// stepping in again, or the agent's next command, finds it there. Closed, by Ctrl+C or playthrough close too, it lets go
+// taking over again, or the agent's next command, finds it there. Closed, by Ctrl+C or playthrough close too, it lets go
 // of those nobody is using.
 function keepsApps(port: number) {
   writeFileSync(openFile(), JSON.stringify({ ...thisCommand(), port } satisfies Open));
@@ -354,7 +354,7 @@ async function answerOn(held: Held, request: IncomingMessage, response: ServerRe
     const change = await changes.get(id);
     return json(response, 200, { problems: [...problemsWithName(by), ...problemsWithGuestsName(change, by)] });
   }
-  if (request.method === "POST" && rest[0] === "step-in") return stepInto(repo, id, request, response, guest);
+  if (request.method === "POST" && rest[0] === "take-over") return takeOver(repo, id, request, response, guest);
   if (request.method === "POST" && rest[0] === "ready-in") return readyInFor(repo, id, request, response);
   if (request.method === "POST" && rest[0] === "keep-ready") return keptReady(repo, id, request, response);
   if (request.method === "POST" && rest[0] === "branches") return branch(repo, id, request, response, guest);
@@ -400,32 +400,32 @@ async function shownOf(repo: Repo): Promise<{ app: string; people: Record<string
 }
 
 
-// A moment stepped into: the viewer asks as Step in is pressed where the playhead rests, and shows the app there, through
+// A moment taken over: the viewer asks as Take over is pressed where the playhead rests, and shows the app there, through
 // Playthrough, at the port and moment this answers with; and where the moment's checks at its end don't hold on the app
 // as it is now, what they say. A tab closed or reloaded meanwhile stops it. One that can't be, whatever stopped it, says
 // why in a line for the person and whole for the agent (following.ts). A guest's is theirs to reach, through what's
 // shared, and only theirs.
-async function stepInto(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse, guest?: Guest) {
-  const { moment, after } = await read(request, Asked.stepIn, "Where to step in");
+async function takeOver(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse, guest?: Guest) {
+  const { moment, after } = await read(request, Asked.takeOver, "Where to take over");
   const ready = await placeOf(repo, id, moment, after)
     .then((to) => getReady(repo, id, to, waitedFor(response)))
-    .catch(cantStepIn.other);
+    .catch(cantTakeOver.other);
   // Why, whole, is for the person's own agent: a guest is told the line alone.
-  if (ready instanceof CantStepIn) return json(response, 400, { problems: guest ? [ready.plainly] : ready.problems, plainly: ready.plainly });
+  if (ready instanceof CantTakeOver) return json(response, 400, { problems: guest ? [ready.plainly] : ready.problems, plainly: ready.plainly });
   const { port, name, setup, checked } = ready;
-  guest?.steppedIn(name, port);
+  guest?.tookOver(name, port);
   json(response, 200, { port, name, setup, ...(checked && { checked }) });
 }
 
-// Where the recording rests, once someone has stepped in on the change, for the next step in there to be quick. Answered at
-// once, and nothing said of it: one that can't be made is the step in's to say why.
+// Where the recording rests, once someone has taken over on the change, for the next take-over there to be quick. Answered at
+// once, and nothing said of it: one that can't be made is the take-over's to say why.
 async function keptReady(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
-  const { moment, after } = await read(request, Asked.stepIn, "Where to step in");
+  const { moment, after } = await read(request, Asked.takeOver, "Where to take over");
   json(response, 200, {});
   await placeOf(repo, id, moment, after).then((to) => keepReady(repo, id, to)).catch(() => {});
 }
 
-// What a person did in the app, stepped into, kept as a recording of its own: the moment as it was recorded up to where they
+// What a person did in the app, taken over, kept as a recording of its own: the moment as it was recorded up to where they
 // took it over, then theirs, going on from there. It plays like any moment, with what the moment's recording kept of the
 // app's files, and a note on it is on what they saw. Each time it's kept, it's kept whole, under a new name, as what
 // the viewer has fetched once it keeps.
@@ -479,7 +479,7 @@ const readingOf = (event: Event) => (event.type === 5 && event.data?.tag === "re
 // running, as after it's gone unused a while, so it starts first, for as long as it takes, which the person is told.
 // And what their browser can't be of the one the moment ran in, for them to read before they're in.
 async function readyInFor(repo: Repo, id: string, request: IncomingMessage, response: ServerResponse) {
-  const { moment, after } = await read(request, Asked.stepIn, "Where to step in");
+  const { moment, after } = await read(request, Asked.takeOver, "Where to take over");
   const to = await placeOf(repo, id, moment, after).catch(() => undefined);
   const unlike = to && (await unlikeAt(repo, id, to).catch(() => undefined));
   if (!(await repo.app().then((app) => answers(app.url), () => true))) return json(response, 200, { starting: true, ...(unlike && { unlike }) });

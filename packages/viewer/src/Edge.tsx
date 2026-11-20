@@ -59,7 +59,7 @@ export function Edge(props: {
   keys: string[];
   // Where the recording rests, which the edge sits beside, and stays by while the app takes the page.
   place: RefObject<HTMLDivElement | null>;
-  // Stepped in: it goes, or on a phone rests, as what drives the recording does.
+  // While the app is yours, it goes, or on a phone rests, as what drives the recording does.
   quiet: boolean;
   phone: boolean;
   // Nothing on it yet.
@@ -70,7 +70,7 @@ export function Edge(props: {
   // What ends the list, its last card: told how much of it runs past the screen's edge, so its words can stand where
   // they read.
   foot?: (forward: boolean, tucked: number) => ReactNode;
-  // Stepped in on a phone, its cards still answer a press, which leaves the app first, as Back does: the moments'. Each
+  // On a phone, while the app is yours, its cards still answer a press, which leaves the app first, as Back does: the moments'. Each
   // rests, quieter, until it's pointed at, and the last card, which doesn't drive the recording, isn't quieter at all.
   answers?: boolean;
 }) {

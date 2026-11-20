@@ -2,7 +2,7 @@
 // the step the way a person would watch it: rrweb in every page, the pointer gliding to what it acts on, and a beat after
 // each action so its result can be seen. The step ends once the page is at rest, and the page it left is read there, with
 // a picture of it: what the comparison compares. Run as plain tests, it does nothing. Each recording and its readings go
-// to the reporter, which makes them a moment (reporter.ts). Stepped into, a moment runs in Playthrough itself instead
+// to the reporter, which makes them a moment (reporter.ts). Taken over, a moment runs in Playthrough itself instead
 // (following.ts), on the same pace and steps.
 
 import { test as base, expect as playwrightExpect, type APIRequestContext, type Browser, type BrowserContext, type BrowserContextOptions, type Dialog, type Locator, type Page } from "@playwright/test";
@@ -176,7 +176,7 @@ const FRAME = 16; // a move each frame while gliding or scrolling
 const REST = 140; // the pointer rests on its target before acting
 const KEY = 60; // words are typed a key at a time, this far apart
 const TYPED = 1500; // and a long text no slower than this, all told
-const SAVING = 100; // stepping in, how soon an action that saves or goes to another page shows it
+const SAVING = 100; // taking over, how soon an action that saves or goes to another page shows it
 const OPENED = 350; // a dropdown's list is seen open this long before the pointer goes to its choice
 const OPTION = 22; // and each of its options is this tall, in the page's pixels, as the viewer draws it
 
@@ -285,7 +285,7 @@ async function readied(page: Page, run: Run) {
 // A window of its own, in one language and time zone as every moment is, on the laptop unless it's on another screen, and
 // opened as the app's setup says.
 export async function pageFor(browser: Browser, baseURL: string, screen: Screen, use?: BrowserContextOptions) {
-  // Stepping in, the clipboard is the page's to write to, as it is in a recording.
+  // Taking over, the clipboard is the page's to write to, as it is in a recording.
   const context = await browser.newContext({ permissions: CLIPBOARD, ...use, baseURL, locale: "en-US", timezoneId: "UTC", viewport: LAPTOP, ...screen });
   return { context, page: await context.newPage() };
 }
@@ -336,7 +336,7 @@ function answers(dialog: Dialog) {
 }
 
 // A moment can import a module of its own as Playwright finds it, without its ending (“../history”) or by its .js name, so
-// the moments that record can be stepped into: Node, which loads them here, finds a module only by its whole name. And it's
+// the moments that record can be taken over: Node, which loads them here, finds a module only by its whole name. And it's
 // loaded again whenever the moments are, as an agent changes it with them: Node keeps a module by its address, so it's
 // asked for at the moments' time (`?written`). Each is kept in `imported`, whose times say when the moments were written too.
 export const imported = new Set<string>();
@@ -369,7 +369,7 @@ function foundAsPlaywright(specifier: string, context: modules.ResolveHookContex
   }
 }
 
-// Stepped into, a moment runs in Playthrough (following.ts), unrecorded, on the recordings' clock, which the person carries
+// Taken over, a moment runs in Playthrough (following.ts), unrecorded, on the recordings' clock, which the person carries
 // on with: told where to hand its page over, and to stop, once it's no longer wanted.
 // Stopped while the app's setup is making its world, it goes on until that's made, so what it made can be given back
 // whole: `made` says it is.
@@ -402,19 +402,19 @@ export function momentsIn(file: string, written: number): Promise<Map<string, Ke
   return loaded;
 }
 
-// The moment being stepped into: whether its own run has begun, past the app's setup and signing in; how deep in its
+// The moment being taken over: whether its own run has begun, past the app's setup and signing in; how deep in its
 // steps it is, as only what's done in its own steps is counted; the step it's in; and how many things it has done there.
 // What's only in the page's memory, like a search typed or a form opened, wouldn't survive loading it in the person's
 // browser. So it's handed over as it was before the actions that only changed what's on it (`from`), however many steps
 // back or on the way to the first, and they're done again there. One that wrote something, or went to another address,
 // isn't, nor anything before it: a fresh load of the page has those already. `address` is where the last of them left
 // the page.
-// Several run at once, one for each step in, each in its own window, and each knows its own by what it was called from.
-type SteppingIn = { page: Page; going: boolean; depth: number; rest: () => Promise<void>; step?: string; done: number; from?: Handed; again: Action[]; address?: string; wrote: boolean; orders: Orders; handed?: Handed };
-const steppingIn = new AsyncLocalStorage<SteppingIn>();
+// Several run at once, one for each take-over, each in its own window, and each knows its own by what it was called from.
+type TakingOver = { page: Page; going: boolean; depth: number; rest: () => Promise<void>; step?: string; done: number; from?: Handed; again: Action[]; address?: string; wrote: boolean; orders: Orders; handed?: Handed };
+const takingOver = new AsyncLocalStorage<TakingOver>();
 
 // What's kept to do again holds while the page is still where the last of it left it, and nothing has been saved since.
-const holds = (stepping: SteppingIn) => !stepping.wrote && stepping.page.url() === stepping.address;
+const holds = (stepping: TakingOver) => !stepping.wrote && stepping.page.url() === stepping.address;
 
 // It's been handed over, it's past where it's handed over, or it's no longer wanted: the moment goes no further.
 class Stopped extends Error {}
@@ -426,18 +426,18 @@ export async function runAlongside(
   orders: Orders,
 ): Promise<{ handed?: Handed; stopped?: Pick<Failed, "at" | "why" | "asSaid">; made?: Made; checked?: string }> {
   // The page, readied as the moment's was when it was recorded, and what it writes noted.
-  const stepping: SteppingIn = { page, going: false, depth: 0, rest: await watchRest(page), done: 0, again: [], wrote: false, orders };
+  const stepping: TakingOver = { page, going: false, depth: 0, rest: await watchRest(page), done: 0, again: [], wrote: false, orders };
   await page.addInitScript({ content: steadied(started) });
   page.on("request", (request) => void (["GET", "HEAD", "OPTIONS"].includes(request.method()) || (stepping.wrote = true)));
   pace(page);
-  // A page gone to in a step is the first place a step that starts on a blank page can be stepped into.
+  // A page gone to in a step is the first place a step that starts on a blank page can be taken over.
   const goto = page.goto.bind(page);
   page.goto = async (...args) => {
     const went = await goto(...args);
     if (stepping.depth) await reached(stepping);
     return went;
   };
-  return steppingIn.run(stepping, async () => {
+  return takingOver.run(stepping, async () => {
     let made: Made | undefined;
     try {
       // Who the moment is done as, as when it was recorded: who its file names, or else the first the app names.
@@ -457,7 +457,7 @@ export async function runAlongside(
     } catch (error) {
       if (error instanceof Stopped || orders.stopped) return { handed: stepping.handed, made };
       const { why, asSaid } = whyStopped(String((error as Error)?.message ?? error));
-      // Everything the moment does is done, and only a check of how it ended fails: that's the place a person steps in
+      // Everything the moment does is done, and only a check of how it ended fails: that's the place a person takes over
       // to look at, so it's handed over as it is, with what didn't hold.
       if (isCheck(error) && stepping.step) {
         await handOver(stepping);
@@ -468,11 +468,11 @@ export async function runAlongside(
   });
 }
 
-// As a step starts, after each thing done in it, and after each page gone to there: once it has done as many as it's stepped in after, on a page with
+// As a step starts, after each thing done in it, and after each page gone to there: once it has done as many as it's taken over after, on a page with
 // something loaded, it's handed over there and goes no further. On a page with nothing loaded yet, as a moment's step
-// that starts its recording begins, it goes on to the first page gone to, or thing done, that loads one. Stepped in at
+// that starts its recording begins, it goes on to the first page gone to, or thing done, that loads one. Taken over at
 // the end, it's handed over once it's done everything (runAlongside).
-async function reached(stepping: SteppingIn) {
+async function reached(stepping: TakingOver) {
   const { to, stopped } = stepping.orders;
   if (stopped) throw new Stopped();
   if (to.after === undefined || stepping.done < to.after || stepping.page.url() === "about:blank") return;
@@ -483,7 +483,7 @@ async function reached(stepping: SteppingIn) {
 // A check's failure, as expect throws it, rather than an action's.
 const isCheck = (error: unknown) => !!error && typeof error === "object" && "matcherResult" in error;
 
-// The page as it is once it's at rest, as each step's is read, for the person to carry on from (step-in.ts).
+// The page as it is once it's at rest, as each step's is read, for the person to carry on from (take-over.ts).
 // Straight after its last action, it was still on its way to the next page.
 async function kept(page: Page, rest: () => Promise<void>): Promise<Handed> {
   await rest();
@@ -504,7 +504,7 @@ async function asItIs(page: Page): Promise<Handed> {
 
 // The moment goes no further: its page is handed over as it was before what only changed the page's memory, with that to
 // do again, or else as it is once it's at rest.
-async function handOver(stepping: SteppingIn) {
+async function handOver(stepping: TakingOver) {
   const { page, rest, from, again } = stepping;
   stepping.handed = from && again.length && holds(stepping) ? { ...from, again } : await kept(page, rest);
 }
@@ -527,9 +527,9 @@ const pathTo = (target: Locator) =>
 // it left is read there, unless the step failed.
 const playwrightStep = base.step;
 const step = Object.assign(async (title: string, body: (info: unknown) => unknown, options?: object) => {
-  const stepping = steppingIn.getStore();
+  const stepping = takingOver.getStore();
   if (stepping) {
-    // A moment's way there done, it can be stepped into where its step starts, before anything it shows is done.
+    // A moment's way there done, it can be taken over where its step starts, before anything it shows is done.
     if (!stepping.depth) {
       stepping.step = title;
       await reached(stepping);
@@ -665,7 +665,7 @@ function glimpsedThere<Given extends unknown[]>(scroll: (...given: Given) => Pro
 // Where the moment underway has got to, in seconds of its recording.
 const recordedAt = (moment: Underway) => seconds(Date.now() - (moment.events[0]?.timestamp ?? Date.now()));
 
-// Every action on an element glides there first and pauses after, and once it's done is a place to step into the moment.
+// Every action on an element glides there first and pauses after, and once it's done is a place to take over the moment.
 // Patched once in each worker, for every locator.
 const actions = ["click", "dblclick", "check", "uncheck", "setChecked", "hover", "tap", "fill", "selectOption", "press"] as const;
 const paced = new WeakSet<object>();
@@ -712,8 +712,8 @@ function pace(page: Page) {
     };
   }
   // Words typed into an element go a key at a time on a recording too, unless the moment said how fast; and typing them is
-  // an action, as filling them in is, done again in your browser where the moment is stepped into: Kan's card prefix, cleared
-  // and then typed a key at a time, was stepped into cleared. pressSequentially is Playwright's type by a newer name, and
+  // an action, as filling them in is, done again in your browser where the moment is taken over: Kan's card prefix, cleared
+  // and then typed a key at a time, was taken over cleared. pressSequentially is Playwright's type by a newer name, and
   // types with it, so type alone is the action: both, Kan's prefix came back typed twice.
   for (const action of ["pressSequentially", "type"] as const) {
     const original = prototype[action];
@@ -739,8 +739,8 @@ function pace(page: Page) {
     await pointer.page.waitForTimeout(BEAT);
     await glimpse();
   };
-  // Typing and pressing keys are actions too, on whatever has the focus, on the page stepped into; with nothing focused, on
-  // the page itself, which hears them there, as Kan's ⌘K opens its search: left out, its search was closed, stepped into.
+  // Typing and pressing keys are actions too, on whatever has the focus, on the page taken over; with nothing focused, on
+  // the page itself, which hears them there, as Kan's ⌘K opens its search: left out, its search was closed, taken over.
   const keyboard = Object.getPrototypeOf(page.keyboard);
   const focused = async (page: Page) => {
     const on = page.locator(":focus").first();
@@ -769,12 +769,12 @@ function pace(page: Page) {
 // An action is done, and when, and kept to be done again in the person's browser if it only changed what's on the page;
 // the moment is handed over once it's done as many as the recording had.
 async function acted(does: string, target: (page: Page) => Promise<string | undefined>, act: () => Promise<unknown>, given: unknown, action: string) {
-  const stepping = steppingIn.getStore();
+  const stepping = takingOver.getStore();
   // The moment's own actions, on its way to a step as in one: a panel the way opened is part of the moment it leads to.
   // What made the app and signed in before it isn't the moment's.
   const keeping = stepping?.going ? stepping : undefined;
   // Each action waits for the page to come to rest, as a person waits for it, recorded or on the way to where someone
-  // steps in: run at once, Escape pressed on a Kan card that hadn't loaded yet went back to a board that wasn't there.
+  // takes over: run at once, Escape pressed on a Kan card that hadn't loaded yet went back to a board that wasn't there.
   await (keeping ?? underway)?.rest();
   let on: string | undefined, address: string | undefined;
   if (keeping) {
@@ -796,7 +796,7 @@ async function acted(does: string, target: (page: Page) => Promise<string | unde
   // Pointed at, it's left pointed at until anything else is done, and read so (read.ts).
   await underway?.page.evaluate(pointing, does === "hover").catch(() => {});
   if (keeping) {
-    // Done again where the person steps in, it needn't wait for the page to be still here: only to see whether it
+    // Done again where the person takes over, it needn't wait for the page to be still here: only to see whether it
     // saved something or went to another page, which shows at once. The next action's page is waited for as it's taken.
     await keeping.page.waitForTimeout(SAVING);
     const plain = typeof given === "string" || typeof given === "boolean" || (Array.isArray(given) && given.every((one) => typeof one === "string"));

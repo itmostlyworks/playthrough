@@ -82,7 +82,7 @@ function atSomeMoment(place: { at?: number; element?: unknown; box?: unknown; po
   return place.at !== undefined || !(place.element || place.box || place.point);
 }
 
-// Something a person did in the app, stepped into: what, on the element at that path, with what, and its words.
+// Something a person did in the app they took over: what, on the element at that path, with what, and its words.
 export const Did = z.strictObject({
   does: line("needs what it did"),
   on: line("needs the path to what it was done on"),
@@ -105,7 +105,7 @@ export const Place = z
   .refine(onOneThing, { error: ONE_THING })
   .refine(atSomeMoment, { error: "is on something but at no time. Give it one" });
 
-// Where a note is: on a moment as it was handed back, or on what was there after stepping into the app from one. Either
+// Where a note is: on a moment as it was handed back, or on what was there after taking over the app from one. Either
 // way it names the hand-back and the moment, so which moment a note is on is always its `moment`, and the recording its
 // thing's element number belongs to is said outright.
 const handBackNumber = z.number({ error: "needs the hand-back it's on" }).int().min(1, { error: "needs the hand-back it's on, from 1" });
@@ -117,20 +117,22 @@ export const OnMoment = z
     element: Element.optional().describe("Its node is in the moment's recording on that hand-back"),
     box: Box.optional().describe("Something with no words of its own"),
     point: Point.optional().describe("Empty space"),
-    cantStepIn: words("needs why Step in didn't work, or no cantStepIn")
+    // Named as when Take over was Step in: notes kept on disk say it so.
+    cantStepIn: words("needs why Take over didn't work, or no cantStepIn")
       .optional()
-      .describe("Why Step in didn't work here, whole, as Playthrough said it for the agent: kept on the note the person made of it with Tell the agent, and never shown them"),
+      .describe("Why Take over didn't work here, whole, as Playthrough said it for the agent: kept on the note the person made of it with Tell the agent, and never shown them"),
   })
   .refine(onOneThing, { error: ONE_THING })
   .refine(atSomeMoment, { error: "is on something but at no time. Give it one" });
 export const InApp = z
   .strictObject({
     handBack: handBackNumber,
-    moment: line("needs the moment it was stepped into"),
-    steppedIn: seconds("needs where they stepped in, in seconds").describe("Seconds into the moment's recording on that hand-back"),
+    moment: line("needs the moment it was taken over"),
+    // Named as when taking over was stepping in: notes kept on disk say it so.
+    steppedIn: seconds("needs where they took over, in seconds").describe("Seconds into the moment's recording on that hand-back"),
     did: z.array(Did, { error: "needs what they did there, a list, even if it's empty" }).max(500, { error: "is 500 things done at most" }).describe("What the person did there, in order"),
     address: line("needs where the app was, or no address").optional().describe("Where the app was when the note was made: its path, query and hash, as the agent's browser would go there, with what setup made for that run written as setup's (${setup.board})"),
-    recording: fileName("needs its recording: the name of one of the person's own files").describe("The moment up to where they stepped in, then what they did"),
+    recording: fileName("needs its recording: the name of one of the person's own files").describe("The moment up to where they took over, then what they did"),
     length: z.number({ error: "needs its length, in seconds" }).positive({ error: "needs its length, in seconds" }),
     at: seconds("needs its time, in seconds").describe("Seconds into the person's own recording"),
     element: Element.optional().describe("Its node is in the person's own recording"),
@@ -142,7 +144,7 @@ export const InApp = z
 // Something done in a moment as it was recorded: when it was done, and, recorded since Playthrough kept them, what it was,
 // as another recording of the moment knows the same thing done, and when it began. Two recordings are lined up by these.
 export const Action = z.strictObject({
-  at: seconds("needs the time it was done, in seconds").describe("Between two, the page rests, and a person can step in there"),
+  at: seconds("needs the time it was done, in seconds").describe("Between two, the page rests, and a person can take over there"),
   what: line("needs what was done").optional().describe("As a recording names it: “click link “Settings””"),
   began: seconds("needs the time it began, in seconds").optional(),
 });
@@ -153,7 +155,7 @@ export const Moment = z.strictObject({
   recording: fileName("needs its recording: the name of a file in the hand-back"),
   person: line("needs the name of who it acts as, or no person")
     .optional()
-    .describe("Who the moment is done as, as its file or the app's setup names them: the name on the recorded pointer, handed to you when you step in"),
+    .describe("Who the moment is done as, as its file or the app's setup names them: the name on the recorded pointer, handed to you when you take over"),
   about: Element.optional().describe("A moment's: the one thing that shows it, as the page names it, which the person sees it closed in on"),
   acted: Element.optional().describe("A moment's: the last thing done something to on the way that's still there at its point, which its still closes in on where it's about nothing"),
   from: seconds("needs where the moment starts, in seconds").describe(
@@ -254,7 +256,7 @@ const placeAsked = z.object({ moment: line("needs the moment"), after: z.number(
 export const Asked = {
   name: z.object({ by: line("needs a name") }),
   seen: z.object({ by: line("needs who saw it"), moments: z.array(z.object({ handBack: handBackOf, moment: line("needs the moment it's of").optional() })).max(500, { error: "is 500 at most" }) }),
-  stepIn: placeAsked,
+  takeOver: placeAsked,
   branch: z.object({
     handBack: handBackOf,
     moment: line("needs the moment it branches off"),
@@ -317,7 +319,7 @@ export type Taken = z.infer<typeof Taken>;
 export type Seen = z.infer<typeof Seen>;
 export type Change = z.infer<typeof Change>;
 
-// A note made in the app after stepping in, rather than on a moment as handed back.
+// A note made in the app after taking over, rather than on a moment as handed back.
 export const madeInApp = (on: OnMoment | InApp): on is InApp => "recording" in on;
 
 // Ids are made where the thing is made, by whoever makes it, so nobody has to ask anyone for one.

@@ -1,10 +1,10 @@
 // How every page of the app is opened, as playthrough/setup.ts's use says, and a moment's own test.use under it: each of
 // the options Playwright opens a browser with, and what becomes of it. One rule for the recording, the agent's browser
-// and stepping in, so an option can't be honoured by one and dropped by another without being said: it's every option
+// and taking over, so an option can't be honoured by one and dropped by another without being said: it's every option
 // Playwright has, so one it adds can't be used until it's said here what becomes of it.
 //
 // - Playthrough's: kept the same everywhere, like the screen; use is refused it.
-// - On the way to the app: how the browser talks to the app. Stepping in, it's added on this computer to what goes to
+// - On the way to the app: how the browser talks to the app. Taking over, it's added on this computer to what goes to
 //   the app's own address, and nowhere else: never told to the browser, which only uses it.
 // - Handed over: what the page starts with, which is in the page the run hands over.
 // - Playwright's: about running a moment, nothing the app sees.

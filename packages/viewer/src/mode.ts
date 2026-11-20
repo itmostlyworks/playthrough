@@ -20,13 +20,13 @@ export type Mode =
   | { is: "writing"; writing: Writing }
   // Beside how it was when you last saw it, still or played together.
   | { is: "comparing"; playing?: { until: number } }
-  // Step in pressed, the app on its way.
+  // Take over pressed, the app on its way.
   | { is: "getting there"; since: number }
   // The app yours, pointing or writing there as on the recording.
   | { is: "the app yours"; since: number; pointing?: true; writing?: Writing };
 
-// `starts` is where what's shown of the moment starts, `end` where it ends; `at` where it rests, and stepped in, where
-// it was stepped into; `along`, compared, how far along both it rests.
+// `starts` is where what's shown of the moment starts, `end` where it ends; `at` where it rests, and once you take over, where
+// you took it over; `along`, compared, how far along both it rests.
 export type Page = { moment: string; starts: number; end: number; at: number; along?: number; mode: Mode };
 
 // A moment arrived at: at rest on its end, or with a note open.
@@ -49,9 +49,9 @@ export type Action =
   | { type: "compare" }
   // A note from an earlier hand-back open: now, or as it was.
   | { type: "flip" }
-  | { type: "step in"; since: number }
+  | { type: "take over"; since: number }
   | { type: "yours" }
-  // Back, or Escape; or, for one step in, the app couldn't be made ready.
+  // Back, or Escape; or, for one take-over, the app couldn't be made ready.
   | { type: "back"; since?: number };
 
 // Where the recording has got to as it's pressed, and how far along both, compared.
@@ -101,7 +101,7 @@ export function reduce(page: Page, action: Action & Now): Page {
       return mode.is === "a note open" ? { ...page, mode: { is: "a note open", note: mode.note, ...(!mode.asItWas && { asItWas: true }) } } : page;
     case "compare":
       return { ...stopped, mode: mode.is === "comparing" ? { is: "resting" } : { is: "comparing" } };
-    case "step in":
+    case "take over":
       return { ...stopped, mode: { is: "getting there", since: action.since } };
     case "yours":
       return mode.is === "getting there" ? { ...page, mode: { is: "the app yours", since: mode.since } } : page;
@@ -118,7 +118,7 @@ export function reduce(page: Page, action: Action & Now): Page {
 // and whether it's from an earlier hand-back, with how it was to flip to.
 export type Facts = { still: boolean; ready: boolean; compares: boolean; elsewhere: boolean; flips: boolean };
 
-// What may be pressed now. Stepping in, everything that drives the recording rests, and only the app, Note and Back
+// What may be pressed now. Taking over, everything that drives the recording rests, and only the app, Note and Back
 // answer; writing, nothing but the note.
 export function can(page: Page, facts: Facts) {
   const { mode } = page;
@@ -130,8 +130,8 @@ export function can(page: Page, facts: Facts) {
     // The frame before, or the next: none before what's shown starts, nor after its end.
     frameBefore: plays && (playing(mode) || page.at > page.starts + 0.001),
     nextFrame: plays && (playing(mode) || page.at < page.end - 0.001),
-    // Pressed again while it's getting there, Step in does nothing: Back and Escape stop it.
-    stepIn: !away && !writing && !facts.elsewhere,
+    // Pressed again while it's getting there, Take over does nothing: Back and Escape stop it.
+    takeOver: !away && !writing && !facts.elsewhere,
     back: mode.is === "getting there" || (mode.is === "the app yours" && !writing),
     note: !writing && mode.is !== "getting there" && mode.is !== "comparing" && mode.is !== "a note open",
     compare: facts.compares && !away && !writing,
@@ -141,9 +141,9 @@ export function can(page: Page, facts: Facts) {
   };
 }
 
-// Where the app is kept ready for the next step in: nowhere before this tab's first on the change, and after it, where
-// the recording rests whenever Step in could be pressed there.
-export const keptReadyAt = (page: Page, facts: Facts, steppedIn: boolean) => (steppedIn && can(page, facts).stepIn && !playing(page.mode) ? page.at : undefined);
+// Where the app is kept ready for the next take-over: nowhere before this tab's first on the change, and after it, where
+// the recording rests whenever Take over could be pressed there.
+export const keptReadyAt = (page: Page, facts: Facts, takenOver: boolean) => (takenOver && can(page, facts).takeOver && !playing(page.mode) ? page.at : undefined);
 
 // The page's words for what it's doing, as the bar and the recording ask them.
 export const isPlaying = playing;

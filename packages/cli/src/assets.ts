@@ -61,12 +61,12 @@ export function keepAssets(page: Page, folder: string): () => Promise<Assets> {
   };
 }
 
-// What a recording made outside Playthrough's own browser names (yours, stepping into the app, or a guest's through a
+// What a recording made outside Playthrough's own browser names (yours, taking over the app, or a guest's through a
 // shared link) kept as a recording's are: each font, image and stylesheet it names that isn't kept already, asked of the
 // app, at its own address, by the path it was named at. Never fetched from the address as it's named: what's recorded
 // is whatever the page had in it, a guest's choosing or words the page shows, and Playthrough asks nothing of an address
 // someone else chose, on this machine or anywhere. Nor where the app sends it on. One the app doesn't have (a font from
-// elsewhere) isn't kept: the recording names it, and the viewer's browser asks for it there. Asked as stepping in asks
+// elsewhere) isn't kept: the recording names it, and the viewer's browser asks for it there. Asked as taking over asks
 // the app (`onTheWay`, use.ts), with what the run's browser added, as an app that needs it answers nothing without.
 const NAMED = /\.(woff2?|ttf|otf|png|jpe?g|gif|webp|avif|svg|ico|css)$/i;
 export async function keepNamed(recorded: string, kept: Assets, app: string, save: (file: string, bytes: Uint8Array) => Promise<void>, onTheWay: (headers: IncomingHttpHeaders) => IncomingHttpHeaders = (same) => same): Promise<Assets> {

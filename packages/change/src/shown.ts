@@ -1,5 +1,5 @@
 // What of a moment's recording is shown: the thing the agent tagged happening, and nothing of the way there, which stays
-// kept underneath for stepping in and running it again. The rule is the agent's, as it marks a moment; what's kept is
+// kept underneath for taking over and running it again. The rule is the agent's, as it marks a moment; what's kept is
 // where it starts in its recording (`from`), which everything that shows it reads.
 
 import type { Moment } from "./model.ts";

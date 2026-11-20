@@ -81,7 +81,7 @@ test("words typed into a rich-text editor are kept on the editor as it was befor
   assert.deepEqual(again, ["half written", "Looks good to me"]);
 });
 
-test("a click is on what was pressed, or the nearest words of their own, never a part of the page holding others' words, as stepping in keeps it too", { timeout: 30_000 }, async () => {
+test("a click is on what was pressed, or the nearest words of their own, never a part of the page holding others' words, as taking over keeps it too", { timeout: 30_000 }, async () => {
   const { did } = await keptAndPlayed(
     `<div id="board"><div><button>Visibility</button> <button>New list</button></div><div id="space" style="height: 100px"><span>Write the <b>launch</b> post</span></div></div>`,
     async (page) => {

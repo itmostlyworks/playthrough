@@ -44,7 +44,7 @@ Update), and nothing more, or a *still*, where nothing does: a few words saying 
 one thing it's about. Cause and effect are two moments. A *person* is one of the app's people, named in
 `playthrough/setup.ts` with who they are (`people = { Sam: "a member" }`). A *note* is what the person says on a moment,
 and a *reply* the agent's answer, or the person's back. *Handing back* gives the person the moments as they are now.
-*Stepping in* opens the real app at a moment, as that person. *Done* is the person saying every moment looks good.
+*Taking over* opens the real app at a moment, as that person. *Done* is the person saying every moment looks good.
 
 ## The agent's side
 
@@ -89,10 +89,10 @@ moment can be done as; `signIn` signs a page in; `use` is how every page of the 
 dark, motion), which it refuses, naming it. What becomes of each of Playwright's options there, a moment's own
 `test.use` under it, is one table (`use.ts`), typed over every option Playwright has, so one it adds can't be used
 until it's said there: Playthrough's (refused); on the way to the app (headers, a sign-in for the server, the user
-agent), which stepping in adds on this computer; handed over (a storage state, in the page the run hands over);
+agent), which taking over adds on this computer; handed over (a storage state, in the page the run hands over);
 Playwright's own (downloads, HAR, video, its logger, strict selectors), nothing the app sees; and the browser's own
 (where it is, permissions, offline, scripts off, CSP bypassed, service workers blocked, a proxy, a client certificate,
-certificate errors overlooked), which a person's browser can't be made to be, said before they step in. MOMENTS.md
+certificate errors overlooked), which a person's browser can't be made to be, said before they take over. MOMENTS.md
 tells the agent that what every request needs goes in `use`: added on the page instead, as a real review on 0.7.2's
 routing header was, it's invisible to Playthrough, as the run's window is closed once it has handed over. Each run makes its own world and gives it back when it's over;
 until then it's written down in `.playthrough/borrowed/` under the process it was made for, so what a stopped command
@@ -116,7 +116,7 @@ where the page was scrolled, and each part of it that scrolls by itself (a panel
 it's been scrolled from its start since the page loaded, so one scrolled back is put back too, found as what's done is,
 by its role and name, else its place (`scrolled`, `Scrolled` in `way.ts`); and each page loaded with whether something
 done before led there. One left at once for another is kept without its query and hash (`passed.ts`), as a moment's
-recording keeps a page left before anything was clicked or typed there, and a step in's too: a sign-in's redirect, an
+recording keeps a page left before anything was clicked or typed there, and a take-over's too: a sign-in's redirect, an
 OAuth callback's `state`, `nonce` or `code`, on any origin, which nothing goes back to, never reaches what can be
 committed and shown (a real run on 0.7.1 kept them). Where something was done, or a moment rests, the address is kept
 whole, as it's gone back to. A drag is kept only to be said, never done again: a press carried more than 10px and let go, with the page taking the moves for itself on the
@@ -293,12 +293,12 @@ written partway through its moment, `playthrough as <person> <note>`, which stop
 scroll that came before it where it was written once that had settled: `scrolledAt`, `wayIn`), and for one
 made in the app what they did there and where the app was when they wrote it (`The app was at /boards/undefined when
 they wrote it.`: its path, query and hash, kept on the note as `address` when it's made, as what went wrong is often
-the address itself, gone by the time the agent looks). The ids the person's step in made are their run's own, so the
+the address itself, gone by the time the agent looks). The ids the person's take-over made are their run's own, so the
 address is kept with what that run's setup made written as setup's (`madeBySetup`, in `@playthrough/change`, as a
-moment's way writes them; the step in's answer carries its setup to the viewer): `The app was at /boards/${setup.board}
+moment's way writes them; the take-over's answer carries its setup to the viewer): `The app was at /boards/${setup.board}
 when they wrote it, setup being what playthrough/setup.ts made for the run, as playthrough as prints it.` A note made
-with Tell the agent, where Step in didn't work, says under its words why, whole, as Playthrough said it then: `They
-pressed Step in on this moment and it didn't work: playthrough/moments/a-reminder.ts couldn't be loaded, because Node
+with Tell the agent, where Take over didn't work, says under its words why, whole, as Playthrough said it then: `They
+pressed Take over on this moment and it didn't work: playthrough/moments/a-reminder.ts couldn't be loaded, because Node
 says “Cannot find package …”.` A note on a recording says no address: a recording knows only
 the pages it loaded, not where the app's own links went since, and how to stand there takes the agent to it. What a
 click there is on is decided as in the agent's browser (`clicked`, in `@playthrough/page`): what was pressed, or the
@@ -410,7 +410,7 @@ what's next, and a moment opens at `/moments/<copy>/<change>/<n>`, with `?note=<
 (`Moments.tsx`); any other address is what's next.
 
 The page asks one source for everything (`Source`, `api.ts`): who you are, every change as it's told again, where a
-hand-back's files are, and what it says (what's sent and seen, stepping in and its branches, a note's frame and a fine
+hand-back's files are, and what it says (what's sent and seen, taking over and its branches, a note's frame and a fine
 still drawn, and a video made, which only `playthrough open` can), and where what it holds between visits and for the tab is kept (`kept` and `keptForTheTab`, read and
 written only in `kept.ts`). `playthrough open` is that source (`server.ts`, at `/api`). Another page can show the viewer on an element
 of its own with a source of its own (`show(element, source)`, `show.tsx`), built beside the page into
@@ -425,7 +425,7 @@ the moment's two lines alone); no sheet of every change (W does nothing); the ta
 title left as the page has it; after Send or Done, it stays at the last stop; and what it keeps is where that source
 says, or, where it says nothing, in memory for as long as the page is open, never in the page's own storage unasked.
 `playthrough open`'s keeps it in the browser's `localStorage` and `sessionStorage`. What the app's own frame carries
-across a load after stepping in (`playthrough:stepped-in`, `:yours`, `:scroll` and the rest, `step-in.ts`) is the app's
+across a load after taking over (`playthrough:taken-over`, `:yours`, `:scroll` and the rest, `take-over.ts`) is the app's
 side, in the app's own origin, and isn't the viewer's to keep.
 
 **Inside another page's frame** (`inside.ts`), shown by another page and in a frame, the viewer keeps to its own: the
@@ -436,7 +436,7 @@ rather than adding to it, so the page's Back leaves that page instead of steppin
 own, or at `playthrough open`'s in a frame (an editor's browser), none of this applies.
 
 What another page may find the viewer's parts by is `data-part`, never their words or looks: the bar's `play`,
-`step-in` (`back` once in the app), `note`, `compare`, and `send` (`done` with nothing to send), in Compare's place
+`take-over` (`back` once in the app), `note`, `compare`, and `send` (`done` with nothing to send), in Compare's place
 while a note from an earlier hand-back is open the switch `shown` with its `as-it-was` and `now`, the one shown pressed
 (`aria-pressed`), the arrows by Play,
 `frame-before` and `next-frame`, and every key drawn on a button, `key` (Back's "Esc ×2" is one); a note's `pin` and
@@ -510,7 +510,7 @@ a phone the box and the card are under the bar, as a moment's are. The bar's
 place holds the one thing to do (`StepLeft.tsx`, `StepAction`): Send while something's unsent ("Send 2 notes ↵",
 filled) or Done while it waits on you ("Done ↵"). The bar holds only what's pressed, Note and the step, centred; what
 the step does is the bar's notice (`MomentBar.tsx`, `Notice`), a quiet line of its own just over the bar and centred on
-it, drawn as Step in's is ("Your agent starts on them."; "Says every moment looks good, and the change is done."; on
+it, drawn as Take over's is ("Your agent starts on them."; "Says every moment looks good, and the change is done."; on
 a phone, none), the sheet's foot leaving room for both so its last lines scroll clear of them. Send's line is true: with no agent on the change (`agentOn`: none listening, and none on notes it took
 before), it says "No agent listening. Kept for when one is." in amber, and it changes as an agent comes or goes, the
 two held in one place so the notice keeps its width. Pressed, or Enter (or Ctrl+Enter from any moment while something's
@@ -536,7 +536,7 @@ bar's place, a thumb away, and one is enough. Keys there: ↑, K or Escape back 
 step, on this card too when Tab and Enter brought you there by it; N a note on the whole change; Shift ↑ ↓ through the
 notes there, then back into the moments'; Escape closes a note open there first; W as anywhere; nothing else. `/` when the next change is seen all through
 (`seenThrough`) opens at its last stop. Nothing else says anything to the agent: ↓ never does, and Space is never a
-press (`useSpaceStays`). On a phone, the sheet is one note to a row in the frame, the step in the bar, and the
+press (`useSpaceStays`). On a phone, the sheet is one note to a row in the frame, the take-over the bar, and the
 card under the Moments strip. With nothing waiting,
 the page says so calmly, with what your agents are on ("Your agents are on:", each with its words) and apart under
 "No agent listening:" what nobody is on, each with the line to tell yours; a heading shows only over a change it's
@@ -556,7 +556,7 @@ this is stands on the recording's top. The left is one thing to press, the opene
 key; on a phone the mark and "6 waiting" alone.
 
 **What this is** is the recording's, not the header's, in one stack on its top, centred over it, 12px above its edge,
-wherever the recording's place stands in its room (while the app is yours, it goes there, **Stepping in**): the change's title, quiet and small, and under it the moment's name, then
+wherever the recording's place stands in its room (while the app is yours, it goes there, **Taking over**): the change's title, quiet and small, and under it the moment's name, then
 who it's done as, quieter ("Words typed at the start stay there as Maja, a workspace owner"), on the line the edges'
 words are on. Those take two lines at most (three on a phone, at the left),
 growing up into room kept over the recording (`inItsRoom`, three lines' worth, which the opening card's picture stands
@@ -576,7 +576,7 @@ while it does (`DownloadVideo.tsx`, `WORDS`): its four words are held in one pla
 in every state and the words always start at the same x; the arrow, the seconds (in digits of one width, centred
 without widening the slot) and the tick share one 14px slot; what changes crossfades in 150 ms, and only the fill grows.
 On a phone it's that slot alone, at one width, so the title beside it never moves. In the app it goes with Share, as
-what this is does (**Stepping in**), and on a phone, where it stays in sight, rests, as Share does, at the resting ink and
+what this is does (**Taking over**), and on a phone, where it stays in sight, rests, as Share does, at the resting ink and
 not to be pressed; it isn't there shown by another page, a guest's included. With Share it's
 one pair, the same height, size and ink, 12px apart, each one width whatever it says, so neither moves the other;
 either open shows on its button, both cards hang 8px under it, and opening either's card closes the other's.
@@ -632,14 +632,14 @@ its arrows rest there, dimmed where they always are, and Play says "A still: not
 the moment changes (its shape is kept until the next one's is known, and the one you were on stays under the new one,
 drawn just as it was, never swapped for its picture, until the new one has faded in: two moments that look alike change
 with nothing moving in what's the same). The bar across its bottom edge (on a phone, just under it, touching it, so it
-covers none of the picture; Step in's few words then come under the bar, not over it): Play (Space), whose slim line along its own bottom edge fills as
+covers none of the picture; Take over's few words then come under the bar, not over it): Play (Space), whose slim line along its own bottom edge fills as
 it plays, there only once the moment has left its end, with a small arrow either side, the frame before (←) and the
-next frame (→), their words and keys coming up over them when pointed at a while; Step in (S); Note (N, on the
+next frame (→), their words and keys coming up over them when pointed at a while; Take over (T); Note (N, on the
 recording or in the app); Compare (C), or in its place "Unchanged" or "New", said rather than offered (smaller, in
 the soft ink, nothing to press or reach with Tab, at Compare's width), or while a note from an earlier hand-back is
 open, its "As it was" and "Now" switch; Compare's place is as wide as the switch, and in the app who you are takes
 Play's room and its arrows', so the bar is the same width from one moment to the next, in every state;
-on a phone the keys go, Step in on its way says "Stepping…", and the bar fits the room it's given under the picture
+on a phone the keys go, Take over on its way says "Taking…", and the bar fits the room it's given under the picture
 (`PHONE_BAR`): as wide as at 390, or the room where that's less, each place its words at their widest and a share of the
 rest that's the air it has at 390, so narrower the air goes from every place together, no place moving as its words
 change and no word cut, down to about 285 wide. A click on the recording
@@ -662,12 +662,12 @@ and pressed again it goes on; compared, both sides go there together; with a not
 Space does, it acts on the moment and closes the note first, as it was or now. At rest on a step the
 page is that very frame, motion and all (`Replay.show`): rebuilt to just before the changes of the second before it and
 those played back on one at a time, so a fade stepped back into is shown mid-way, not at its end, and what the page set
-moving is placed by when its change was. A note made there keeps that picture. Keys: Space, S, N, C; ← → the frame before and
+moving is placed by when its change was. A note made there keeps that picture. Keys: Space, T, N, C; ← → the frame before and
 the next, along the moment, and never on into another; ↑ ↓ (and K, J) the moment before and next, ↓ on the last
 going to the last stop; with Shift, ↑ ↓ the note before and the next through the whole change, opening each: this
 moment's one after another, then on to the nearest moment that has one (its first going on, its last going back), and
 nothing past the change's first or last; W what's waiting; Escape closes what's open, leaves Compare or noting, or
-calls off a step in on its way; while the app is yours, Escape twice is Back; Ctrl+Enter (⌘↵) sends, wherever the
+calls off a take-over on its way; while the app is yours, Escape twice is Back; Ctrl+Enter (⌘↵) sends, wherever the
 keyboard is but in a note or reply being written: there Enter saves, with Ctrl or ⌘ too, Shift+Enter is a new line, and
 neither reaches the page, so one key never both saves and sends. Noting, while the bar says "Point at what it's about", only N and Escape answer, so words typed before
 pointing and the arrows run nothing; there's no key yet to point with. Reduced motion: nothing slides or fades.
@@ -693,12 +693,12 @@ own edges; whole, there's nowhere for it to go and a drag does what it always di
 (`SLOP`, `Player.tsx`) is a press, at any closeness (it plays or pauses, or with Note on places the note on what's
 under it), and the click that ends a drag is the drag's, so only a press notes. While dragging the pointer is a closed
 hand; nothing on the page is selected. Only what's inside the picture moves: its frame, the bar and the edges stay
-put. Once moved, the view is yours: it stays put as the moment plays, and another moment starts afresh. Step in (or S)
+put. Once moved, the view is yours: it stays put as the moment plays, and another moment starts afresh. Take over (or T)
 takes the picture out to the whole screen at once, on the calm curve over 280 ms (`STEPS_OUT`, `view.ts`; at once with
-reduced motion), while "Stepping in…" shows, in the same move as the recording takes the page (**Stepping in**): the
+reduced motion), while "Taking over…" shows, in the same move as the recording takes the page (**Taking over**): the
 app shows whole, so it comes in over the very picture it replaces,
 with no jump (before, it opened whole over a picture still brought closer). Called off, the picture stays whole; Back
-from the app is to the whole moment, let go of while the app still covers it. From Compare, Step in closes Compare and
+from the app is to the whole moment, let go of while the app still covers it. From Compare, Take over closes Compare and
 the same holds. It's
 one window, `Together` (`view.ts`), which every picture of the moment is drawn from (`Player.tsx`), the kept picture of
 a note's own frame too, and which the wheel and a drag move; its pins and outlines go with it, a note's thing moved out
@@ -743,12 +743,12 @@ blown up half again, "ks · Oct 3 · $4" across the card); one from an earlier h
 in a browser of its own from the recording it was made on (`frames.ts`, the page's `?frame=` address, `Frame.tsx`) and
 kept with what the person did (`branches/frames/<note>.png` and `.json`). A note's pin on the recording and its picture
 are one thing: pointing at either lights both, the thing outlined only then or while open (`Pinned.tsx`). While you're in
-the app, or while it's getting there, the edges go where they stand, the recording taking their room (**Stepping in**),
+the app, or while it's getting there, the edges go where they stand, the recording taking their room (**Taking over**),
 and come back as they were; nothing on them can be pressed meanwhile. On a phone, where they're rows under it, they rest
 instead, quieter, each card at the same 40% rather than the row's and its own together. The notes can't be pressed. The
 moments can, with the pointer:
 each stays dimmed until it's pointed at, then comes to full, and pressed it leaves the app as Back does and goes to that
-moment, at rest, in one move (a step in on its way is called off as Escape does); the moment you're in the app on is
+moment, at rest, in one move (a take-over on its way is called off as Escape does); the moment you're in the app on is
 just Back. The moments' last card (Send, or Done), which doesn't drive the recording, isn't dimmed at all: pressed, it
 leaves the app the same way and goes on to the last stop, the app fading into it (`leaving`, `Moment.tsx`; `answers`,
 `Edge.tsx`). It doesn't press Send or Done. Writing a note in the app, none of them answer, as Back doesn't. The keys
@@ -793,7 +793,7 @@ there (`shownIn`, `standing.ts`), and its strip on the edge cut from the picture
 (`framePicture`): a note on an open date picker, in a moment that ends with it closed, opens with the picker open. It's
 rested there before it's drawn, so the end never shows first. How it was is one flip
 away, in place: while it's open, Compare's place on the bar holds a two-part switch, "As it was" and "Now", Now chosen;
-pressing it, or C, flips. Where its thing isn't in the moment now (the agent took it away, or you'd stepped in and gone
+pressing it, or C, flips. Where its thing isn't in the moment now (the agent took it away, or you'd taken over and gone
 to another page before noting), there's no now to show it on: it opens as it was, on the frame it was made on, its
 strip on the edge cut from that frame, and Now rests, saying "Not in this moment now" when the switch is pointed at; a
 pin never stands on whatever is there instead. As it was is the earlier recording played to that frame, drawn by your
@@ -805,7 +805,7 @@ a cross-fade in the same spot at the same size (at once with reduced motion); th
 thing in the picture coming in over the same time and curve, in step with it, the card open and whole all the way (a
 reply being typed stays). Flipped before the recording there has said where its thing is, they hold where they stood
 and go once, when it does; if it never does, to the kept picture's place after a settle's time. ← → to another note opens it on Now. With its pin and its card, and nothing more. Escape, its picture again, or a press anywhere but its card or the edges closes it;
-Space, S and C act on the moment and close it first. An open note's thing is never under the bar: the bar moves along
+Space, T and C act on the moment and close it first. An open note's thing is never under the bar: the bar moves along
 the recording's edge, or down off it. In its thread each turn says who on a small line of its own, you by your dot,
 the agent by its name, in soft ink (`Turns`, `Note.tsx`): in faint the names were hard to read on a dark card. A note
 from an earlier hand-back whose thing looks different now (reworded, drawn or sized otherwise; only moved, it looks as it
@@ -831,8 +831,8 @@ frame. The list reaches that far over the recording so the card isn't cut as it 
 pointer there. Coming forward while it's out takes it along to its forward place as the edge moves; with reduced
 motion it's simply there. One made in the app joins the edge the same way once you're back. An answer you haven't opened is new, on its picture, until you open it.
 A note is kept in one of two places (`model.ts`): on a moment as handed back (its `handBack`, its `moment`,
-`at` in its recording, and its thing: an element, a box or a spot), or made in the app after stepping in (`handBack` and
-`moment` again, `steppedIn` where in the moment, `did`, the person's own `recording` and its `length`, `at` in that, and
+`at` in its recording, and its thing: an element, a box or a spot), or made in the app after taking over (`handBack` and
+`moment` again, `steppedIn` where in the moment (the name it was kept under before this was called taking over, which files on disk still have), `did`, the person's own `recording` and its `length`, `at` in that, and
 its thing there); an element's number is only ever read against the one recording it was read from. Which moment a note
 is on is its `moment`, either way. Notes and replies not yet sent are kept where the source keeps things between visits
 (`kept.ts`; this browser, at `playthrough open`'s), by the change, until Send; what you've opened is
@@ -876,12 +876,15 @@ nothing more (a send saying Done with a note or a reply is refused). Whether a c
 or a new hand-back, opens the change again. Where a change stands for you (waiting on you, with your agents, done) is one
 rule beside it, `standingOf`, which every part of the page reads; the agent's `wait` ends by `saidDone`.
 
-## Stepping in
+## Taking over
 
-Step in (S) turns the recording into the real app at the moment it rests on, or where it has got to if it's playing, as
-the moment's person (signed in where `setup.ts` has `signIn`), a fresh copy made the way every moment starts. Nothing runs before your first step in on
+Take over (T) turns the recording into the real app at the moment it rests on, or where it has got to if it's playing, as
+the moment's person (signed in where `setup.ts` has `signIn`), a fresh copy made the way every moment starts. Nothing runs before your first take-over on
 a change: watching does nothing to the app, so the first is made while you wait. After it, Playthrough keeps the app
-ready where the recording rests, so the next is quick. Each step in is still the app made fresh, never one left behind.
+ready where the recording rests, so the next is quick. Each take-over is still the app made fresh, never one left behind. Until 20 Nov it was called Step in, on S,
+which developers in a user test read as a debugger's step into, the next step, and which didn't say whose hands were on
+the app; it had been Take over, on T, before. Everything Playthrough says now says take over, its code too, but for the
+two fields notes already kept on disk have, `steppedIn` and `cantStepIn`.
 
 **Where it stands is one count.** The page says how many of the things the moment shows are done where the recording
 rests (`doneAt`, `packages/change/src/takings.ts`): none at its start, one after the first, nothing at all at its end or once
@@ -891,10 +894,10 @@ the way's too, `doneBefore`), or, with no count, once everything is done; never 
 that starts on a blank page goes on to the first page it goes to (`reached`, `test.ts`). Done fewer things now than it
 showed, it's handed over at its end.
 
-**On the server** (`step-in.ts`, `following.ts`). The page POSTs `step-in` with the moment and its count, and asks
+**On the server** (`take-over.ts`, `following.ts`). The page POSTs `take-over` with the moment and its count, and asks
 `ready-in` how long it should take: as long as the last run to that point took. The moment's file runs, in one headless
 Chromium Playthrough keeps open while it runs, each run a window of its own with its own cookies and storage, to where
-it's stepped into, each thing it does waiting for the page to come to rest first, as when it was recorded (`acted`,
+it's taken over, each thing it does waiting for the page to come to rest first, as when it was recorded (`acted`,
 `test.ts`): done at once, Escape pressed on a Kan card still loading went back to a board that wasn't there, `/boards/undefined`.
 That costs Kan's runs about 1.5 to 3.5 seconds more. What the way and the step did only in the page's memory (a
 field typed into, a panel opened, a menu a right click opened, a key pressed with nothing focused, something pointed
@@ -902,39 +905,39 @@ at) is done again in your browser, as it was done, before it shows: pointing as 
 something, `mouseenter` too, so a preview the page opens for it is open, and left what it was on before, so one pointed
 away from is shut; a look only CSS `:hover` gives shows only where your own pointer is,
 while what saved something or went to another address isn't done twice, and the page is scrolled where the recording
-was. Each step in has an address of its own, `/step-in/<moment>`, a name nobody could guess, on a pass-through at
+was. Each take-over has an address of its own, `/take-over/<moment>`, a name nobody could guess, on a pass-through at
 http://localhost:5830/ that hands your browser the run's page (its address, cookies and what the app kept in the browser)
 and passes everything else on to the app, answering only this machine's names. **It talks to the app as the run did:**
-what the run's page was opened with on the way to the app (`use.ts`'s `onTheWay`, from the latest step in on that copy
+what the run's page was opened with on the way to the app (`use.ts`'s `onTheWay`, from the latest take-over on that copy
 of the app) is added to every request and live connection it passes on, there and nowhere else: `use`'s headers over
 the browser's own, as Playwright puts them (the recording had the run's), its user agent, and its sign-in for the
 server where it's for the app's address and the request has none of its own. It's held in this process alone, never
 handed to the browser, written down, logged or said in an error; a guest uses it as the person does, through the same
 way through, and can't read it either, unless the app itself shows what it was sent. On 0.7.2 the pass-through
-forwarded only the browser's own headers, so an app behind a routing header answered every step in with its error
+forwarded only the browser's own headers, so an app behind a routing header answered every take-over with its error
 page (a real review). Into each page of the app it passes on,
 it puts what tells the viewer where the pointer is, what's done and noted there and when it has settled, and rrweb's
-recorder (`inApp`, `step-in.ts`); the package carries the same as `show/in-app.js`, for an app another page's source
-opens by an address of its own to include itself. The source's answer to a step in is that address
-(`playthrough open`'s: the pass-through's, on the machine name the page was reached by). What a step in makes is that step in's:
+recorder (`inApp`, `take-over.ts`); the package carries the same as `show/in-app.js`, for an app another page's source
+opens by an address of its own to include itself. The source's answer to a take-over is that address
+(`playthrough open`'s: the pass-through's, on the machine name the page was reached by). What a take-over makes is that take-over's:
 held by the app's pages while they're open, Back included, and given back 15 s after the last one goes (tab closed,
 reload, another moment), or a minute after it was made if never opened; so two tabs, a reload or another moment never
-hand one person the app another is using. Every Step in asks afresh, so Step in again on the same moment is the app made
+hand one person the app another is using. Every Take over asks afresh, so Take over again on the same moment is the app made
 again, never the world left behind; an address opened again (by hand) runs afresh too, never a missing page. **Kept
-ready** (`keepReady`): once a tab has stepped in on a change (`kept.ts` remembers it for the tab's life), whenever the page
-is somewhere Step in could be pressed, not playing, and has rested there 600 ms (so going through moments with the keys
-doesn't start a run for each), it POSTs `keep-ready` with the place Step in would ask for there, once for each place, and
-again once back from the app. The server makes one ahead for each change, the way any step in is made, within its own
-minute. A step in to the same place, with the moments written as they were when it was made, takes it: it waits for it if
-it's still on its way, within the step in's own minute, and runs afresh if it failed; taken, it's that step in's, as one
+ready** (`keepReady`): once a tab has taken over on a change (`kept.ts` remembers it for the tab's life), whenever the page
+is somewhere Take over could be pressed, not playing, and has rested there 600 ms (so going through moments with the keys
+doesn't start a run for each), it POSTs `keep-ready` with the place Take over would ask for there, once for each place, and
+again once back from the app. The server makes one ahead for each change, the way any take-over is made, within its own
+minute. A take-over to the same place, with the moments written as they were when it was made, takes it: it waits for it if
+it's still on its way, within the take-over's own minute, and runs afresh if it failed; taken, it's that take-over's, as one
 it ran itself. Asked for another place, the one before is stopped and given back; not taken within five minutes of last
-being asked for, it's given back and lets go of the app, so the app's own time unused can start. A step in called off
-while it waits leaves the one ahead where it was. Nothing of it shows on the page: one that can't be made is the step in's
+being asked for, it's given back and lets go of the app, so the app's own time unused can start. A take-over called off
+while it waits leaves the one ahead where it was. Nothing of it shows on the page: one that can't be made is the take-over's
 to say why. **Every wait
-ends in words.** A step in has a minute from its asking, the app's start included ("The app hadn't answered … it may still
+ends in words.** A take-over has a minute from its asking, the app's start included ("The app hadn't answered … it may still
 be starting", "This moment didn't open within 60 seconds…"), each page load on the way 30 s, and it stops as soon as the
 asking request closes, though a setup already making its world finishes first, so what it made is given back whole. One
-that can't happen says why twice, where it's known which reason it is (`CantStepIn`, `cantStepIn` in `following.ts`): a
+that can't happen says why twice, where it's known which reason it is (`CantTakeOver`, `cantTakeOver` in `following.ts`): a
 line for the person (`plainly`) and the whole of it for the agent (`problems`). A moment's file, or `setup.ts`, that
 can't be loaded: "This moment's steps couldn't be loaded." (the agent: the file, and Node's words); `app.json` amiss or
 the app not answering within the minute: "The app didn't start." (the agent: what it said, and `app.log`); a moment that
@@ -943,10 +946,10 @@ agent: the step and why, in the same words as `again`), or, where it has none (`
 wrong getting there."; over the minute: "It took more than a minute getting there."; a moment gone from the change, or
 not among the last handed back: "This moment has changed since it was handed back."; anything else: "Something went
 wrong getting there." One whose check of how it ends doesn't hold on the code as it is now opens where it got to, with
-that said (`checked`); a page of a step in from before the page's server restarted says so in the frame, and Escape. A
+that said (`checked`); a page of a take-over from before the page's server restarted says so in the frame, and Escape. A
 page in the frame that never says it has loaded settles after ten seconds.
 
-**One app per copy** (`app.ts`), shared by the person stepping in, the agent's browser and every moment run, each in a
+**One app per copy** (`app.ts`), shared by the person taking over, the agent's browser and every moment run, each in a
 world of its own, as the app always runs the working copy as it is now. Whoever wants it first starts it, on its own,
 its output in `.playthrough/app.log`, and writes `.playthrough/running.json`; everyone using it writes
 `.playthrough/using/<pid>`; two wanting it at once, one starts it and the other waits for it to answer (three minutes at
@@ -961,7 +964,7 @@ the main one's, even inside it. Before starting it, Playthrough looks at what's 
 the folder each runs from (`serving.ts`: `lsof` and `ps` on macOS, `/proc` on Linux): something from this folder at
 `app.json`'s address is the app; elsewhere, it is where it's the one thing from the folder serving pages (a page or a
 redirect at `/`), so an API beside it isn't taken for it; Playthrough's own page and a browser opened for debugging
-never are. Found, the app is used at its address, by every command and step in, and never stopped: Playthrough stops
+never are. Found, the app is used at its address, by every command and take-over, and never stopped: Playthrough stops
 only the app it started. Where it was found is kept in `running.json` too, marked `found`, with no `app`, which is
 what Playthrough stops, and with the process serving it: kept while that same process runs (its number, the machine's
 start and when it started, asked as a command's is: `startOf`, `command.ts`) and still answers there, so the machine is looked over only when nothing is kept
@@ -978,14 +981,14 @@ doesn't start, what it said last is said, without a terminal's colours, then wha
 folder a running app is from, that if it's already running whoever started it stops it; where several things serve
 pages from the folder, which ones, as Playthrough can't tell which is the app; otherwise to check `app.json`.
 
-**In your browser** (`stepIn.ts`, `Portal.tsx`). While it's getting there, a line inside Step in fills as it goes, at
+**In your browser** (`takeOver.ts`, `Portal.tsx`). While it's getting there, a line inside Take over fills as it goes, at
 the pace of the last run where that's known, the picture's edge breathes and the recording's pointer waits. Where the
 app isn't running (stopped after fifteen minutes unused, say), `ready-in` says so, and over the bar it says "Starting
-the app, which can take a minute.", the line inside Step in not filling, as the last run's pace says nothing of a
+the app, which can take a minute.", the line inside Take over not filling, as the last run's pace says nothing of a
 start. `ready-in` is asked again every second until the app answers, when the server goes on to redo the way there;
 then the note's words swap, in the same place and size, to "Getting to this moment." until it's there (both lines are
 drawn one over the other, so neither moves the note; a quick cross-fade, none with reduced motion). Unanswered, the
-first line stays. No countdown. **What can't come along** is said as soon as Step in is pressed, from `ready-in`'s
+first line stays. No countdown. **What can't come along** is said as soon as Take over is pressed, from `ready-in`'s
 answer (`unlikeAt`, `following.ts`), over the bar in amber, until you're back: "Your browser can't be as the
 recording's was, which was told where it is and was allowed notifications, so the app may not be as it was there.",
 each of the browser's own options named in what it did, never what it was set to; nothing where it's as any browser
@@ -993,21 +996,21 @@ is. It takes the place of the starting line, and in the app sits before a check 
 going to another moment, calls it off: the request ends, which stops the run, and a page of the app already opening
 unseen goes with it; the bar is at rest at once. The page waits 70 s for the answer (the server always gives one within a
 minute: past that, "Playthrough stopped answering.") and 30 s for the app's page to settle ("The app's page didn't
-finish loading."); Playthrough no longer running is "Playthrough isn't running any more." **Can't step in here.**
-Whatever stopped it, it's said just over the bar, beside Step in (under it, at a desktop size, it was off the screen; on
-a phone, under the bar), as a small sheet drawn as the note card is (`MomentBar.tsx`, `CantStepIn`): "Can't step in
+finish loading."); Playthrough no longer running is "Playthrough isn't running any more." **Can't take over here.**
+Whatever stopped it, it's said just over the bar, beside Take over (under it, at a desktop size, it was off the screen; on
+a phone, under the bar), as a small sheet drawn as the note card is (`MomentBar.tsx`, `CantTakeOver`): "Can't take over
 here", the reason's line under it, quiet, and one button, Tell the agent, filled. Its line has room for two lines, so
-it's the same size for any reason; it stays, playing too, until Escape, a press anywhere else, or Step in again, which
+it's the same size for any reason; it stays, playing too, until Escape, a press anywhere else, or Take over again, which
 is trying again. Until 18 Nov it was an amber box with the file's path and Node's words, telling the person to write a
 note themselves ("This state is no bueno… give the user an easy thing to do"). Tell the agent saves a note on the
-moment, at where Step in was pressed, as the person's own, exactly as one they wrote (not sent: it waits with their
-other notes, Send counts it, and it lands on the Notes edge as any does): "Step in doesn't work on this moment.", with
-the whole reason kept on it for the agent as `cantStepIn`, never shown to the person; they can open it and add words.
+moment, at where Take over was pressed, as the person's own, exactly as one they wrote (not sent: it waits with their
+other notes, Send counts it, and it lands on the Notes edge as any does): "Take over doesn't work on this moment.", with
+the whole reason kept on it for the agent as `cantStepIn` (kept under its old name, as files on disk have it), never shown to the person; they can open it and add words.
 With such a note on the moment not yet sent, the sheet says "Noted. It goes with your next Send." in the button's
 place, at its size, and makes no second note. In the app, a check at the end that doesn't hold now is said just over
 the bar, in amber, and so is a note made there that couldn't be kept.
 
-**The app takes the page.** From Step in, while "Stepping in…" shows and the app is yours, the Moments and Notes edges,
+**The app takes the page.** From Take over, while "Taking over…" shows and the app is yours, the Moments and Notes edges,
 what this is over the recording and Download video and Share go where they stand, and the recording grows into their
 room: one move, the calm curve over 280 ms (`STEPS_OUT`), the very one that takes the picture out to the whole screen,
 the fades on it too; at once with reduced motion. The recording stands on its foot where it was, so the bar across it
@@ -1018,7 +1021,7 @@ moment's own, so its layout is the moment's. Already that large, it doesn't grow
 two boxes (`inItsRoom` and `inTheAppsRoom`, `Moment.tsx`): the recording's place, which the edges and what this is stand
 by and which never moves, and the recording, which fills its place, or while the app is yours stands on its foot at the
 width the rule gives; the recording's picture, its pins and the app are drawn at each size in the frame it's laid out in
-(`flushSync` from their resize observers), so nothing is a frame behind its edges. Back, Escape twice, a step in called
+(`flushSync` from their resize observers), so nothing is a frame behind its edges. Back, Escape twice, a take-over called
 off or one that can't happen, all of it comes back in one move, the way in reversed, from wherever it has got to; after
 it, every box on the page is where it was. Coming back, what this is over the recording waits for the recording's edge
 to pass under it, fading in over the move's second half (until 20 Nov it came in with the move, and the edge ran
@@ -1044,7 +1047,7 @@ recorded from when it was handed to you (or from the note, made before the recor
 its pages named, `keepNamed`), and the note is on that recording, at its end. Saved there, its pin stands on its thing
 in the app at once, drawn as on the recording, a note's amber dot just out from the thing's top right corner (until 20
 Nov an 18px amber disc with its number, which a dot isn't); it follows its thing as the app redraws it, goes while it's
-gone, and is what the outline that shows what you're pointing at is drawn with (`playthrough-marks`, `step-in.ts`). An
+gone, and is what the outline that shows what you're pointing at is drawn with (`playthrough-marks`, `take-over.ts`). An
 app that zooms its whole page (`html { zoom }`, as the site's demo app does at 1.28) has both undone, as they're placed
 where the page says its things are, already zoomed: until 20 Nov the outline and the pin stood that much further from
 the page's top left corner than their thing, the pin off it altogether, so a note saved in the app ended with nothing
@@ -1056,7 +1059,7 @@ on screen where you'd acted.
 `PLAYTHROUGH_PORT` for another, as a check beside the one in use takes), and run again while it's open, says its address
 rather than opening another, as `open.json` says it. It's started behind the command as `as`'s browser is
 (`startBehind`, `behind.ts`), its output in `~/.playthrough/open.log`: the command prints its address and returns, and
-the page stays open until `playthrough close`, which stops it as Ctrl+C does (what its step ins made given back, the
+the page stays open until `playthrough close`, which stops it as Ctrl+C does (what its take-overs made given back, the
 apps it kept that nobody is using stopped) and says so, or that it wasn't open. A page killed hard leaves `open.json`
 behind, which is taken for open only while the process that wrote it is still at it (`stillAt`, `command.ts`: its
 number, on this start of the machine, started when it was, and not ended), so neither command takes another process
@@ -1077,7 +1080,7 @@ from another site's page, it refuses, as what's sent there reaches the agent in 
 
 **Share** (`Share.tsx`), top right of a moment's page, gives a change to someone else by a link straight to this
 computer. Pressed, a card opens under it, closed by Escape or a press elsewhere. It says what sharing does, in words that
-stay put through every state: "Anyone with the link can watch this change, leave notes, and step in to use your app as
+stay put through every state: "Anyone with the link can watch this change, leave notes, and take over to use your app as
 its moments do. It runs on this computer, for as long as it's on." Under them one step: Start sharing; while it starts,
 the button says "Getting a link…" at its size, with "This takes a few seconds." beside it (about 5 s); then the link, in
 a field that selects whole, Copy (Copied, with a tick, for 1.4 s, in its place) and, top right of the card, Stop
@@ -1099,7 +1102,7 @@ link is `<tunnel>/.playthrough/shared/<token>/`, the token 18 random bytes. **A 
 door they came through,** never by anything in their request, and the door answers an allowlist and nothing else, the
 same 404 for what's there and what isn't: under the link's folder, the page's own files (its `index.html` asking for
 them from there, `serve`), and of the one change (`ASKS`): its list of one, its hand-backs' files, and `seen`, `sends`,
-`step-in`, `ready-in`, `keep-ready`, `branches`, `frames` and `stills`, each answered by the same code as the person's
+`take-over`, `ready-in`, `keep-ready`, `branches`, `frames` and `stills`, each answered by the same code as the person's
 (`answerOn`, `open.ts`), the change found by its whole address alone (`only`), so a guest's request never reads another
 change nor the machine's list of them. Never another change, who the person is, or sharing itself. What a guest may send
 is one rule (`sends`, `share.ts`): notes and replies in a name of their own, never the person's ("Ludwig is the name of
@@ -1116,7 +1119,7 @@ recording is named as their page names it (`SHARED_RECORDING`). One send holds 5
 made in the app 500 things done, and no more than 200 of a link's notes wait for the agent at once, each reserving
 room in the link's count for the picture `wait` draws of it (`says`, `share.ts`). Anything that goes wrong for a
 guest that isn't one of Playthrough's own refusals is one line, the same every time (`WENT_WRONG`, `open.ts`), and a
-clean line of it is written to open.log; Step in's own pages say a fixed line too. A guest's still is theirs, under
+clean line of it is written to open.log; Take over's own pages say a fixed line too. A guest's still is theirs, under
 `stills/shared/`. A name is never a key every object has ("__proto__"), and what's seen is read by its own keys.
 That a send is a guest's is the door's to say (`guest: true`, kept with the send), never the send's own. **Every string
 Playthrough keeps is one of two kinds** (`model.ts`), whoever writes it: a line (a name, a role, what was done, an
@@ -1124,7 +1127,7 @@ address, a reason in a line: one line, nothing unseen, every break a space, 1000
 someone wrote: its lines kept, nothing unseen, 20000 at most), and the store keeps each as its kind keeps it
 (`keptAs`, `store.ts`). **`wait` never puts a guest's string in a line of its own:** what Playthrough says of a guest's
 note comes from the change (its id, its moment by the moment's own name, as whom, the picture, how to be there), and
-everything of the guest's, their name, what their note is on, what they did in the app, where it was, why Step in
+everything of the guest's, their name, what their note is on, what they did in the app, where it was, why Take over
 didn't work and their words, is printed by one function (`aGuests`, `wait.ts`) under "A guest, as they sent it:", each
 line after "> ". `answer` and `again` say a guest's note is on "the thing they pointed at". A name, anyone's,
 is one line of 60 characters at most (`problemsWithName`, `rules.ts`); a guest's is never the person's, an agent's in the
@@ -1136,7 +1139,7 @@ person who asked for this change.") and quotes their words line by line after ">
 in them stands as a line of the person's or Playthrough's; every page shows a guest's name as "Noor (guest)" (`whose`).
 What's sent to the door comes from the link's own page (its Origin is the address it was asked at), everything it
 serves says `Referrer-Policy: no-referrer`, as the token is in the path, and a link asks no more than anyone reviewing
-does (`allowance`, `share.ts`: so many of each a minute, two step ins at once, 256 MB kept in all), refused in words.
+does (`allowance`, `share.ts`: so many of each a minute, two take-overs at once, 256 MB kept in all), refused in words.
 Any body is 64 MB at most (`body`, `open.ts`), and what a guest's request writes, all of it (their sends, recordings,
 the files kept with them, the pictures drawn), is counted as it's written (`countedFor`, `open.ts`). cloudflared is
 given only `PATH` and `HOME`. **A kept file is never a document**, for anyone: it's kept only as one of the kinds
@@ -1147,7 +1150,7 @@ opened by itself (`default-src 'none'; sandbox`); a guest's note pictures are dr
 **What this machine fetches** for a recording is never an address found in it: what you or a guest did in the app is
 kept with the fonts, pictures and stylesheets it names asked of the app alone, at its own address, by the path they were
 named at, never following a redirect (`keepNamed`, `assets.ts`), with what `use` adds on the way to the app as stepping
-in sends it (`onTheWayTo`, `step-in.ts`), so an app that answers only with it still gives them; one from elsewhere (a font service) isn't kept, and the
+in sends it (`onTheWayTo`, `take-over.ts`), so an app that answers only with it still gives them; one from elsewhere (a font service) isn't kept, and the
 viewer's browser asks for it there. **The browser that draws a note's picture or a fine still** (for the person's page
 or a guest's, the same rule) asks for nothing but the viewer's own page and its files and the files kept with that one
 change, by path, and only reads them (`mayDraw`, `frames.ts`): never the list of changes, another change, who the
@@ -1159,22 +1162,22 @@ with it comes from Playthrough, and anything else from where it's named. Until 2
 frame it plays in to stop that for a guest's recordings, but rrweb builds the page, and its pictures start loading,
 before such a policy can take hold, so it held nothing and was taken out.
 
-**Stepping in, a guest** gets the owner's real app, run on this computer with the moment's setup, as the person does,
+**Taking over, a guest** gets the owner's real app, run on this computer with the moment's setup, as the person does,
 talked to as the run did (what `use` adds, a routing header or the server's sign-in, is added here, never sent to them):
 the app and the guest's page are one address, the tunnel's, so the app's cookies, its sign-in among them, go with its
 pages in the guest's browser (between two addresses, a frame's cookies wouldn't). Everything at the door outside the
-link's folder is the app's, passed to Playthrough's way through to it (`step-in.ts`) as if asked at localhost, by its
-name and from its address: `/step-in/<name>` and `/.playthrough/held/<name>` only for step ins made at this link, and
+link's folder is the app's, passed to Playthrough's way through to it (`take-over.ts`) as if asked at localhost, by its
+name and from its address: `/take-over/<name>` and `/.playthrough/held/<name>` only for take-overs made at this link, and
 the rest of the app only for a browser carrying the cookie the first of those left it (`playthrough-shared`, the token,
 HttpOnly, never passed on to the app). What a guest can do there is what the app lets that person do: it is the app,
-on this computer. A guest and the person stepping in at once each have their own app, in their own browsers; one kept
+on this computer. A guest and the person taking over at once each have their own app, in their own browsers; one kept
 ready per change, so they take turns at the quick one.
 
 **The guest's page** is the viewer shown by another page (`guest`, `server.ts`; `main.tsx` knows it by the link's
 folder): the change on its own, no header, its opening card first (their `/` is always the change shared, waiting on
 them or not), the tab titled with the change. A tunnel holds a
 stream back until it ends, so the change is asked for every two seconds instead (`listen`). Who a guest is: nobody
-(`""`) until, the first time they say anything (a note's or a reply's Save, or Tell the agent where Step in couldn't
+(`""`) until, the first time they say anything (a note's or a reply's Save, or Tell the agent where Take over couldn't
 open the app), they're asked where they are, under what they said: "Your name, so they know who said it". Every way of
 saying something goes through the one ask (`useSaying`, `Naming.tsx`), so no send of theirs lacks a name; it's kept in
 their browser (`playthrough:name`) and told to the whole page (`nameYou`, `api.ts`). From then on their sends are in that name: the agent's `wait` says "Sam said:" and "Sam: …", and every
@@ -1187,7 +1190,7 @@ its size, on the bar and on the Moments' last card, over it "Your notes go to th
 "Sent to the agent" and "With the agent.", never whether one is listening nor what to tell one, which are the person's
 to act on. The last stop's heading is "What was asked", not "You asked". When nothing at the link answers (sharing
 stopped, `playthrough open` ended, the computer off), a send says "The person who shared this has stopped sharing, or
-their computer is off. Ask them for a new link." and Step in "Sharing has stopped here. Ask for a new link." (`gone`,
+their computer is off. Ask them for a new link." and Take over "Sharing has stopped here. Ask for a new link." (`gone`,
 `server.ts`), where the person is told to start `playthrough open` again. The frame's own words when the app doesn't
 answer name no address of this machine's.
 

@@ -10,7 +10,7 @@ import { copyText } from "./Changes.tsx";
 import { SendButton, tick } from "./Send.tsx";
 
 // What sharing does, the same words whatever it's doing, so nothing under them moves.
-const DOES = "Anyone with the link can watch this change, leave notes, and step in to use your app as its moments do. It runs on this computer, for as long as it's on.";
+const DOES = "Anyone with the link can watch this change, leave notes, and take over to use your app as its moments do. It runs on this computer, for as long as it's on.";
 
 // In the app, it rests, as Download video beside it does: closed and not to be pressed, and on a phone, where it stays in
 // sight, quieter. Elsewhere the page around it takes it away.

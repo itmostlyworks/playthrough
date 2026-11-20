@@ -6,7 +6,7 @@ import { differences, onScreen, partsAround, type Reading, type Thing } from "@p
 import { madeBySetup, quote } from "@playthrough/change";
 import { thingIn } from "./reporter.ts";
 
-// What was done, as stepping in keeps a person's, and what it was done on as getByRole finds it: its role and name, and
+// What was done, as taking over keeps a person's, and what it was done on as getByRole finds it: its role and name, and
 // which of those alike it was, where it isn't the only one; with no role, by its words; by its path only where it has
 // neither.
 // And the address it was done at, and where the page was scrolled; a page loaded, whether something done on the page

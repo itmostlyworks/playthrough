@@ -30,8 +30,8 @@ export function take(change: Change, you: string, what: "send" | "done", sent?: 
   return sendOn(change.id, handBack, you, saying, sent && (() => sent(saying.notes)));
 }
 
-// Send, filled while something is unsent; else plain, as Done is. Filled too, the one thing to do where Step in couldn't
-// open the app: Tell the agent (`CantStepIn`).
+// Send, filled while something is unsent; else plain, as Done is. Filled too, the one thing to do where Take over couldn't
+// open the app: Tell the agent (`CantTakeOver`).
 export function SendButton({ filled, className = "", children, ...rest }: { filled: boolean; className?: string; children: ReactNode; onClick: () => void; disabled: boolean }) {
   return (
     <button

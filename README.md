@@ -2,7 +2,7 @@
 
 The agent says it's done. You decide if it's good.
 
-Your coding agent shows you its change to your web app as moments: a few seconds of someone using it, each one thing happening, recorded in the real app. You watch them, leave a note on what you see, step into the real app at any moment, and the agent answers with the next ones.
+Your coding agent shows you its change to your web app as moments: a few seconds of someone using it, each one thing happening, recorded in the real app. You watch them, leave a note on what you see, take over the real app at any moment, and the agent answers with the next ones.
 
 It runs on your machine, with any coding agent that has a shell. Keep your code review: it reads the code; Playthrough shows what the change does.
 
@@ -38,7 +38,7 @@ The page opens on the next change waiting on you, from any app and agent on your
 |---|---|
 | Space, or a click | Play and pause |
 | ← → | The frame before, the next: each where the screen changed |
-| S | Step in: the real app at this moment, as that person |
+| T | Take over: the real app at this moment, as that person |
 | N | Note: click what it's about, say what's off |
 | C | Compare with how it was when you last saw it |
 | ↓ ↑ | The next moment, the one before; after the last, your notes and Send or Done |

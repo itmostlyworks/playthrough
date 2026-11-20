@@ -1,4 +1,4 @@
-// What you did stepping into the app is kept with the fonts and pictures its pages named, so a note made there looks as
+// What you did taking over the app is kept with the fonts and pictures its pages named, so a note made there looks as
 // it did once you've left the app.
 
 import assert from "node:assert/strict";
@@ -28,7 +28,7 @@ test("a font your recording names is kept, asked of the app by the path it was n
   }
 });
 
-test("what's named is asked of the app as stepping in asks it, with what setup.ts's use adds on the way, so an app that answers only with it still gives its stylesheet", async () => {
+test("what's named is asked of the app as taking over asks it, with what setup.ts's use adds on the way, so an app that answers only with it still gives its stylesheet", async () => {
   const app = createServer((request, response) => {
     const asTheRun = request.headers["x-backend"] === "staging" && request.headers.authorization === `Basic ${Buffer.from("sam:launch").toString("base64")}`;
     if (asTheRun && request.url === "/style.css") return response.writeHead(200, { "content-type": "text/css" }).end("body{}");

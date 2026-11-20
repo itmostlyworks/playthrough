@@ -1,7 +1,7 @@
-// Stepping in: runs the moment's moment to where it's stepped into on the app as it is now, then hands the page as it was
+// Taking over: runs the moment's moment to where it's taken over on the app as it is now, then hands the page as it was
 // there to the person, in their own browser, to carry on from. It's the real app under their hands, a fresh copy of the
 // moment made the way every moment starts, not a picture of it. Playthrough passes everything on to the app, and at
-// /step-in gives the browser what the moment's page had: its address, its cookies, and what the app kept in the browser.
+// /take-over gives the browser what the moment's page had: its address, its cookies, and what the app kept in the browser.
 // What the page was opened with that's how a browser talks to the app, a header that routes it, say, is added on the way
 // to the app here, never given to the browser (use.ts).
 
@@ -14,7 +14,7 @@ import { answerAs, asRecorded, clicked, escapedTwice, pathTo, RIGHT_AFTER } from
 import { asLine, doneBefore, quote, Refused } from "@playthrough/change";
 import { running, using } from "./app.ts";
 import { QUIET_DEV_CHROME, recorder, type Handed, type To } from "./run.ts";
-import { cantStepIn, LONGEST, runTo, writtenOf } from "./following.ts";
+import { cantTakeOver, LONGEST, runTo, writtenOf } from "./following.ts";
 import { listen, thisMachine } from "./open.ts";
 import { readHere } from "./read.ts";
 import type { App, Repo } from "./repo.ts";
@@ -24,10 +24,10 @@ import { onTheWay } from "./use.ts";
 // Clear of the viewer's, which takes the next free one from 5790 when several are open.
 const PORT = 5830;
 
-// Runs the moment to where it's stepped into and passes the app on, then says where: each step in has an address of its
-// own, /step-in/<moment>, with the app made for it, so two tabs, or a reload, never share one or take one from the
-// other. In the viewer, Step in asks for it where the playhead rests and turns the frame into the app there: nothing is
-// run before the first step in on a change, and after it, the one made ahead there is taken (keepReady).
+// Runs the moment to where it's taken over and passes the app on, then says where: each take-over has an address of its
+// own, /take-over/<moment>, with the app made for it, so two tabs, or a reload, never share one or take one from the
+// other. In the viewer, Take over asks for it where the playhead rests and turns the frame into the app there: nothing is
+// run before the first take-over on a change, and after it, the one made ahead there is taken (keepReady).
 // With it, what setup made for it, so where the person writes a note is said as the same place in the agent's own run.
 export async function getReady(repo: Repo, id: string, to: To, waiting?: AbortSignal): Promise<{ port: number; name: string; setup: Record<string, unknown>; checked?: string }> {
   const app = await repo.app();
@@ -43,7 +43,7 @@ export async function getReady(repo: Repo, id: string, to: To, waiting?: AbortSi
   });
   // Not counted, so it can't be guessed.
   const name = randomBytes(12).toString("base64url");
-  steppedIn.set(name, { repo, id, to, handed, made, done, opened: false, holding: 0 });
+  takenOver.set(name, { repo, id, to, handed, made, done, opened: false, holding: 0 });
   // Never opened, as when the tab closed before the app was there, it's given back a minute on.
   letGoSoon(name, UNOPENED);
   return { port, name, setup: made?.setup ?? {}, ...(checked && { checked }) };
@@ -54,11 +54,11 @@ export async function getReady(repo: Repo, id: string, to: To, waiting?: AbortSi
 export async function placeOf(repo: Repo, id: string, moment: string, after?: number): Promise<To> {
   const handBack = await recorded(repo, id);
   const kept = handBack.moments.find((one) => one.name === moment);
-  if (!kept) throw cantStepIn.changed(`${quote(moment)} isn't among the moments you last handed back: they changed after the person's page was loaded.`);
+  if (!kept) throw cantTakeOver.changed(`${quote(moment)} isn't among the moments you last handed back: they changed after the person's page was loaded.`);
   return { moment, ...(after !== undefined && { after: doneBefore(kept) + after }) };
 }
 
-// The app made for a step in: the one made ahead to the same place, from the moments as they're written now, if there
+// The app made for a take-over: the one made ahead to the same place, from the moments as they're written now, if there
 // is one; else run there. Within one limit from its asking, waiting on the one ahead included, and stopped once nobody's
 // waiting for it, which leaves the one ahead where it was: still ahead.
 async function madeFor(repo: Repo, id: string, to: To, waiting?: AbortSignal) {
@@ -69,7 +69,7 @@ async function madeFor(repo: Repo, id: string, to: To, waiting?: AbortSignal) {
       const made = await inTime(one.made, until, waiting, []).catch((error) => {
         if (waiting?.aborted) throw error;
       });
-      // Not dropped meanwhile, it's this step in's from now on, as one it ran itself; one that failed is run again, so
+      // Not dropped meanwhile, it's this take-over's from now on, as one it ran itself; one that failed is run again, so
       // it's said why in words.
       if (made && ahead.get(key(repo, id)) === one) return (clearTimeout(one.untaken), ahead.delete(key(repo, id)), made);
     } else letGoAhead(repo, id, one);
@@ -77,8 +77,8 @@ async function madeFor(repo: Repo, id: string, to: To, waiting?: AbortSignal) {
   return make(repo, id, to, until, waiting);
 }
 
-// Once someone has stepped in on a change, the app is kept ready where its recording rests, for the next step in there
-// to take at once: one place for each change, made the way any step in is, and given back when it's moved on from, or
+// Once someone has taken over on a change, the app is kept ready where its recording rests, for the next take-over there
+// to take at once: one place for each change, made the way any take-over is, and given back when it's moved on from, or
 // not taken within five minutes of last being asked for, so the app's own time unused can start.
 export async function keepReady(repo: Repo, id: string, to: To) {
   const { written } = await writtenOf(repo, id);
@@ -88,7 +88,7 @@ export async function keepReady(repo: Repo, id: string, to: To) {
   const stop = new AbortController();
   const one: Ahead = { to, written, made: make(repo, id, to, Date.now() + LONGEST, stop.signal), stop };
   ahead.set(key(repo, id), one);
-  // One that fails is dropped: the step in there runs afresh, and says why.
+  // One that fails is dropped: the take-over there runs afresh, and says why.
   one.made.catch(() => ahead.get(key(repo, id)) === one && letGoAhead(repo, id, one));
   untakenSoon(repo, id, one);
 }
@@ -119,7 +119,7 @@ async function make(repo: Repo, id: string, to: To, until: number, waiting?: Abo
     await repo
       .app()
       .then((app) => inTime(running(app, repo.root), until, waiting, [`The app hadn't answered at ${app.url} within ${LONGEST / 1000} seconds of being asked for: it may still have been starting. .playthrough/app.log has what it said.`]))
-      .catch((error) => Promise.reject(waiting?.aborted ? error : cantStepIn.started(error)));
+      .catch((error) => Promise.reject(waiting?.aborted ? error : cantTakeOver.started(error)));
     const made = await runTo(repo, id, to, until, waiting);
     return { ...made, done: using(repo.root) };
   } finally {
@@ -138,18 +138,18 @@ function inTime<T>(started: Promise<T>, until: number, waiting: AbortSignal | un
   });
 }
 
-// Each step in, by its address: where it's to, what its run handed over and what it made, whether its page has been
+// Each take-over, by its address: where it's to, what its run handed over and what it made, whether its page has been
 // opened, and how many of its pages hold it now. What it made is the app the person has: given back once no page holds
-// it for a while, as when its tab is closed, reloaded, or stepped in elsewhere, and never while one does, as one
+// it for a while, as when its tab is closed, reloaded, or taken over elsewhere, and never while one does, as one
 // waiting under the recording after Back. Its address is kept, so opened again it's made afresh, never missing.
-type SteppedIn = { repo: Repo; id: string; to: To; handed?: Handed; made?: Made; done?: () => void; opened: boolean; holding: number; letGo?: ReturnType<typeof setTimeout>; opening?: Promise<void> };
-const steppedIn = new Map<string, SteppedIn>();
+type TakenOver = { repo: Repo; id: string; to: To; handed?: Handed; made?: Made; done?: () => void; opened: boolean; holding: number; letGo?: ReturnType<typeof setTimeout>; opening?: Promise<void> };
+const takenOver = new Map<string, TakenOver>();
 // Long enough for a page of the app to load the next, which holds it again.
 const LEFT = 15_000;
 const UNOPENED = 60_000;
 
 function letGoSoon(name: string, after: number) {
-  const one = steppedIn.get(name);
+  const one = takenOver.get(name);
   if (!one) return;
   clearTimeout(one.letGo);
   one.letGo = setTimeout(() => {
@@ -161,9 +161,9 @@ function letGoSoon(name: string, after: number) {
   one.letGo.unref();
 }
 
-// A page of the app holds its step in for as long as it's open (SAYS).
+// A page of the app holds its take-over for as long as it's open (SAYS).
 function held(name: string, request: IncomingMessage, response: ServerResponse) {
-  const one = steppedIn.get(name);
+  const one = takenOver.get(name);
   response.writeHead(one?.handed ? 200 : 404, { "content-type": "text/event-stream", "cache-control": "no-store" });
   if (!one?.handed) return void response.end();
   response.write(":\n\n");
@@ -172,11 +172,11 @@ function held(name: string, request: IncomingMessage, response: ServerResponse) 
   request.on("close", () => --one.holding || letGoSoon(name, LEFT));
 }
 
-// Opened again, as stepping in again on the same moment reloads its address, it's the app afresh: what the person did
-// there before isn't where they step in now; and so it is once what was made has been given back. One opening at a
+// Opened again, as taking over again on the same moment reloads its address, it's the app afresh: what the person did
+// there before isn't where they take over now; and so it is once what was made has been given back. One opening at a
 // time, stopped once nobody's waiting for it.
 async function opening(name: string, waiting: AbortSignal): Promise<Handed | undefined> {
-  const one = steppedIn.get(name);
+  const one = takenOver.get(name);
   if (!one) return undefined;
   clearTimeout(one.letGo);
   const opened = (one.opening ?? Promise.resolve()).then(async () => {
@@ -198,17 +198,17 @@ async function opening(name: string, waiting: AbortSignal): Promise<Handed | und
   }
 }
 
-// One way through to the app for as long as Playthrough runs, handing over each step in, by its address.
+// One way through to the app for as long as Playthrough runs, handing over each take-over, by its address.
 const passings = new Map<string, Promise<number>>();
 
 async function recorded(repo: Repo, id: string) {
   const change = await repo.changes.get(id);
   const handBack = change.handBacks.at(-1);
-  if (!handBack) throw new Refused([`${id} has no moments yet, so there's nothing to step into.`]);
+  if (!handBack) throw new Refused([`${id} has no moments yet, so there's nothing to take over.`]);
   return handBack;
 }
 
-// Everything that isn't /step-in goes to the app as it is, answers and live connections both, as if the browser
+// Everything that isn't /take-over goes to the app as it is, answers and live connections both, as if the browser
 // were talking to it directly, so the app sees nothing unusual: its own address, and its own address as where a
 // request came from. Only to this machine.
 function passOn(app: App): Promise<number> {
@@ -216,11 +216,11 @@ function passOn(app: App): Promise<number> {
   const server = createServer((request, response) => {
     if (!named(request)) return turnAway(response);
     const [first, second, name] = new URL(request.url ?? "/", "http://playthrough").pathname.split("/").filter(Boolean);
-    if (first === "step-in")
+    if (first === "take-over")
       return void opening(second ?? "", waitedFor(response)).then(
         (handed) => (handed ? handOver(second ?? "", handed, response) : said(response, 404, GONE)),
         // What went wrong is this machine's: said in a line that names none of it, and whole in open.log.
-        (error) => (error instanceof Refused || console.error(`A step in went wrong: ${asLine(String((error as Error)?.message ?? error)).slice(0, 500)}`), said(response, 500, error instanceof Refused ? error.problems.join(" ") : "Something went wrong getting there. Press Esc, then step in again.")),
+        (error) => (error instanceof Refused || console.error(`A take-over went wrong: ${asLine(String((error as Error)?.message ?? error)).slice(0, 500)}`), said(response, 500, error instanceof Refused ? error.problems.join(" ") : "Something went wrong getting there. Press Esc, then take over again.")),
       );
     if (first === ".playthrough" && second === "held") return held(name ?? "", request, response);
     // A page is asked for whole, so a word can be added to it: the app is told not to squeeze it.
@@ -270,7 +270,7 @@ function turnAway(response: ServerResponse) {
   response.end("Playthrough passes the app on to this machine alone, by its name: open it at localhost.");
 }
 
-// With what the page the latest step in was handed from added on the way, as its browser added it (use.ts).
+// With what the page the latest take-over was handed from added on the way, as its browser added it (use.ts).
 function asIfDirect(request: IncomingMessage, target: URL) {
   const headers = { ...request.headers, host: target.host };
   const from = `http://${request.headers.host}`;
@@ -302,9 +302,9 @@ export const inApp = () => (IN_APP ??= `${SAYS}\n${readFileSync(recorder, "utf8"
 export const SAYS = `(() => {
   if (window.parent === window) return;
   ${QUIET_DEV_CHROME}
-  // This page holds its step in, as long as it's open: closed, reloaded or gone to another, what was made for it is given
+  // This page holds its take-over, as long as it's open: closed, reloaded or gone to another, what was made for it is given
   // back once no page holds it.
-  const holding = sessionStorage.getItem("playthrough:stepped-in");
+  const holding = sessionStorage.getItem("playthrough:taken-over");
   if (holding) new EventSource("/.playthrough/held/" + encodeURIComponent(holding));
   // On the recordings' clock, so what the page says about time reads as it did there.
   const ahead = Number(sessionStorage.getItem("playthrough:clock")) || 0;
@@ -754,7 +754,7 @@ export const SAYS = `(() => {
   };
   // Once it's yours, what you do is recorded, as a moment is, from the page as it was handed over: a note you make here
   // is on your own recording. Each page records itself, from its own first frame, or made ready unseen, from when you
-  // step into it, where your recording starts.
+  // take over it, where your recording starts.
   let recorded = [];
   const send = () => recorded.length && (parent.postMessage({ playthrough: "recorded", events: recorded }, "*"), (recorded = []));
   const record = (noted = false) =>
@@ -821,7 +821,7 @@ function handOver(name: string, handed: Handed, response: ServerResponse) {
   );
   const keep = JSON.stringify({ name, local, session, scroll, clock, browser, again, to: pathname + search + hash }).replace(/</g, "\\u003c");
   response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "set-cookie": setCookies });
-  response.end(`<!doctype html><meta name="viewport" content="width=device-width"><title>Stepping in…</title>
+  response.end(`<!doctype html><meta name="viewport" content="width=device-width"><title>Taking over…</title>
 <script>
 const { name, local, session, scroll, clock, browser, again, to } = ${keep};
 for (const [key, value] of Object.entries(local)) localStorage.setItem(key, value);
@@ -832,7 +832,7 @@ sessionStorage.setItem("playthrough:browser", JSON.stringify(browser));
 sessionStorage.removeItem("playthrough:yours");
 if (again.length) sessionStorage.setItem("playthrough:again", JSON.stringify(again));
 sessionStorage.removeItem("playthrough:did");
-sessionStorage.setItem("playthrough:stepped-in", name);
+sessionStorage.setItem("playthrough:taken-over", name);
 location.replace(to);
 </script>`);
 }
@@ -844,12 +844,12 @@ export function waitedFor(response: ServerResponse): AbortSignal {
   return waiting.signal;
 }
 
-const GONE = "Playthrough was started again since this moment was stepped into, so the app made for it is gone. Press Esc, then step in again.";
+const GONE = "Playthrough was started again since this moment was taken over, so the app made for it is gone. Press Esc, then take over again.";
 
-// Said in the frame, to whoever stepped in, here or through a shared link: no address of this machine's in it.
+// Said in the frame, to whoever took over, here or through a shared link: no address of this machine's in it.
 function notAnswering(response: ServerResponse, page: boolean) {
   if (response.headersSent) return response.end();
-  const words = "The app isn't answering: it may have stopped. Press Esc, then step in again, which starts it.";
+  const words = "The app isn't answering: it may have stopped. Press Esc, then take over again, which starts it.";
   if (page) return said(response, 502, words);
   response.writeHead(502, { "content-type": "text/plain; charset=utf-8" });
   response.end(words);

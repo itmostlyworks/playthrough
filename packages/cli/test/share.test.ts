@@ -1,5 +1,5 @@
 // What a shared change's link promises: a guest reaches the one change and nothing else on this machine; what they say
-// reaches the agent in their own name, never the person's; and the app is theirs only as they stepped into it there.
+// reaches the agent in their own name, never the person's; and the app is theirs only as they took it over there.
 
 import assert from "node:assert/strict";
 import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
@@ -37,7 +37,7 @@ describe("a shared change's link", () => {
   let base = "";
   // What reached the app, as Playthrough's way through to it was asked.
   const reached: { path: string; headers: IncomingHttpHeaders }[] = [];
-  const share = { address: `shop/${TOTAL}`, token: "an-unguessable-token", steppedIn: new Set<string>(), passing: undefined as number | undefined };
+  const share = { address: `shop/${TOTAL}`, token: "an-unguessable-token", takenOver: new Set<string>(), passing: undefined as number | undefined };
   const home = `/.playthrough/shared/${share.token}/`;
   const asked = (path: string, init?: RequestInit) => fetch(`${base}${path}`, { redirect: "manual", ...init });
   const sent = (by: string): Send => ({ id: newId(), handBack: 1, by, sent: new Date().toISOString(), notes: [{ id: newId(), words: "Say what it's the total of.", on: { handBack: 1, moment: "The total of all eight", at: 1 } }] });
@@ -374,18 +374,18 @@ describe("a shared change's link", () => {
     }
   });
 
-  test("lets a guest's browser on to the app only through a step in made at the link, as if asked on this machine", async () => {
-    assert.equal((await asked("/boards")).status, 404, "nobody stepped in");
-    assert.equal((await asked("/step-in/someone-elses")).status, 404, "another's step in");
-    share.steppedIn.add("theirs");
-    const handed = await asked("/step-in/theirs");
+  test("lets a guest's browser on to the app only through a take-over made at the link, as if asked on this machine", async () => {
+    assert.equal((await asked("/boards")).status, 404, "nobody took over");
+    assert.equal((await asked("/take-over/someone-elses")).status, 404, "another's take-over");
+    share.takenOver.add("theirs");
+    const handed = await asked("/take-over/theirs");
     assert.equal(handed.status, 200);
     const cookie = handed.headers.getSetCookie().find((one) => one.startsWith("playthrough-shared="));
     assert.match(cookie ?? "", /^playthrough-shared=an-unguessable-token; Path=\/; HttpOnly; Secure; SameSite=Lax$/);
     assert.ok(handed.headers.getSetCookie().includes("session=theirs; Path=/"), "the app's own cookies come too");
     assert.equal((await asked("/.playthrough/held/someone-elses")).status, 404);
     assert.equal((await asked("/boards", { headers: { cookie: "playthrough-shared=a-guess" } })).status, 404);
-    assert.equal((await asked("/step-in/someone-elses", { headers: { cookie: "playthrough-shared=an-unguessable-token" } })).status, 404, "the cookie never opens another's step in");
+    assert.equal((await asked("/take-over/someone-elses", { headers: { cookie: "playthrough-shared=an-unguessable-token" } })).status, 404, "the cookie never opens another's take-over");
     // As the tunnel brings it: by the link's own name, from its page.
     const board = await new Promise<string>((done, failed) =>
       request(`${base}/boards`, { headers: { cookie: "session=theirs; playthrough-shared=an-unguessable-token", host: "shared.example", origin: "https://shared.example" } }, (answer) => {

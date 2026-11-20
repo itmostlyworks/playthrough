@@ -538,23 +538,23 @@ describe("a note that only asks something", () => {
   });
 });
 
-describe("a note made where Step in didn't work", () => {
+describe("a note made where Take over didn't work", () => {
   test("says, under the person's words, why it didn't work, whole, as Playthrough said it then", async () => {
-    const here = repo(await mkdtemp(join(tmpdir(), "playthrough-cant-step-in-")));
+    const here = repo(await mkdtemp(join(tmpdir(), "playthrough-cant-take-over-")));
     folders.push(here.root);
     await quietly(() => change(here, "Overdue invoices are easy to chase", "Make overdue invoices easy to see and chase."));
     const id = "overdue-invoices-are-easy-to-chase";
     await here.changes.saveHandBack(id, { number: 1, by: "Claude Code", moments: [{ name: "A reminder goes to Alder Dental", length: 2, actions: [], recording: "a-reminder.json", person: "Sam", from: 0 }], replies: [] });
     await here.changes.finish(id, 1);
     const why = "playthrough/moments/a-reminder.ts couldn't be loaded, because Node says “Cannot find package 'kan-utils' imported from /tmp/kan/a-reminder.ts”.";
-    await here.changes.send(id, { id: newId(), handBack: 1, by: "Anna", sent: new Date().toISOString(), notes: [{ id: "stepnote1", words: "Step in doesn't work on this moment.", on: { handBack: 1, moment: "A reminder goes to Alder Dental", at: 1, cantStepIn: why } }] });
+    await here.changes.send(id, { id: newId(), handBack: 1, by: "Anna", sent: new Date().toISOString(), notes: [{ id: "stepnote1", words: "Take over doesn't work on this moment.", on: { handBack: 1, moment: "A reminder goes to Alder Dental", at: 1, cantStepIn: why } }] });
     const lines: string[] = [];
     const log = console.log;
     console.log = (...words: unknown[]) => void lines.push(words.join(" "));
     await wait(here).finally(() => (console.log = log));
     const told = lines.join("\n");
-    assert.match(told, /stepnote1 {2}on the moment “A reminder goes to Alder Dental”, as Sam\n {4}Anna: Step in doesn't work on this moment\.\n/);
-    assert.ok(told.includes(`\n    They pressed Step in on this moment and it didn't work: ${why}\n`), told);
+    assert.match(told, /stepnote1 {2}on the moment “A reminder goes to Alder Dental”, as Sam\n {4}Anna: Take over doesn't work on this moment\.\n/);
+    assert.ok(told.includes(`\n    They pressed Take over on this moment and it didn't work: ${why}\n`), told);
   });
 });
 

@@ -1,5 +1,5 @@
 // Running a change's moments on the app, the way a person would use it, each its way there and its one step, as Playwright
-// moments; and what the recorder, the runner and stepping in share.
+// moments; and what the recorder, the runner and taking over share.
 
 import { spawn } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
@@ -14,7 +14,7 @@ import { glimpsesOf, readingsOf, type Failed, type Recorded } from "./reporter.t
 import { repo, type App } from "./repo.ts";
 import { giveBackLeft, setupIn } from "./setup.ts";
 
-// rrweb's recorder, which goes into every page a moment opens, and every page of the app stepped into.
+// rrweb's recorder, which goes into every page a moment opens, and every page of the app taken over.
 export const recorder = join(dirname(createRequire(import.meta.url).resolve("@rrweb/record")), "record.umd.min.cjs");
 
 // What the run needs to know, passed to Playwright whole: where the moments are and which of them to run, the folder the
@@ -26,7 +26,7 @@ export type Run = { moments: string; only?: string[]; folder: string; app: App; 
 export type On = { role: string; name: string };
 
 // What a dev server draws over the app of its own, as Next's "N" badge, isn't the app: it's hidden in every page a moment
-// records and every page of the app stepped into, never in the app itself. A sheet the page adopts, not an element in it,
+// records and every page of the app taken over, never in the app itself. A sheet the page adopts, not an element in it,
 // so nothing the app renders is changed.
 export const QUIET_DEV_CHROME = `{
   const quiet = new CSSStyleSheet();
@@ -34,7 +34,7 @@ export const QUIET_DEV_CHROME = `{
   document.adoptedStyleSheets = [...document.adoptedStyleSheets, quiet];
 }`;
 
-// Where a person steps into a moment: after so many things done in its step, counting those of its way there that the
+// Where a person takes over a moment: after so many things done in its step, counting those of its way there that the
 // step does (doneAt, doneBefore); or, with none said, at its end, everything done.
 export type To = { moment: string; after?: number };
 // The moment's page there, as a browser keeps it: its address, its cookies, what the app kept in the browser, how far it
@@ -48,8 +48,8 @@ export type Browser = { dark: boolean; still: boolean; languages: string[]; touc
 // and a click with which button, where it wasn't the left.
 export type Action = { does: string; on: string; with?: string | boolean | string[]; button?: "right" | "middle" };
 export type Cookie = { name: string; value: string; path: string; expires: number; httpOnly: boolean };
-// Set in Playthrough before it loads what moments import, so test() there keeps each moment to step into (following.ts).
-export const ALONGSIDE = Symbol.for("playthrough: moments stepped into here");
+// Set in Playthrough before it loads what moments import, so test() there keeps each moment to take over (following.ts).
+export const ALONGSIDE = Symbol.for("playthrough: moments taken over here");
 // A moment pauses this long after each action, so its result can be seen: the pace every recording is watched at.
 export const BEAT = 650;
 // How long an action waits for what it acts on.

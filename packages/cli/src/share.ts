@@ -1,13 +1,13 @@
-// Sharing a change: anyone with its link watches it, steps into the app from its moments and leaves notes, through a
+// Sharing a change: anyone with its link watches it, takes over the app from its moments and leaves notes, through a
 // Cloudflare quick tunnel straight to this machine, for as long as `playthrough open` runs and sharing isn't stopped.
 // What's shared answers at a door of its own, a listener only the tunnel reaches, so a guest is told from the person by
 // where they knocked, never by anything they could say. Through it, only the one change (the page, its files, and what
-// the person can do on it but share) and the app as a guest stepped into it; nothing of the rest of the machine.
+// the person can do on it but share) and the app as a guest took it over; nothing of the rest of the machine.
 //
 // The app and the guest's page are one address, as they are to the person, both on this machine's name: the app's
 // cookies, its sign-in among them, go with its pages in the guest's browser as they do in the person's, which they
-// wouldn't between two addresses. The page is in a folder the app doesn't use, beside /step-in, which is Playthrough's
-// already; everything else is the app's, for a browser that stepped in here.
+// wouldn't between two addresses. The page is in a folder the app doesn't use, beside /take-over, which is Playthrough's
+// already; everything else is the app's, for a browser that took over here.
 
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
@@ -30,25 +30,25 @@ export type Door = {
 };
 
 // A guest, as the change's own answers know them: in any name but the person's, sending notes and replies but never
-// Done, which is the person's alone, and stepping in for themselves.
+// Done, which is the person's alone, and taking over for themselves.
 // What they send is marked as theirs here, never by what it says; what they have kept on this computer is counted.
 // What they send is what they said alone: when it came, on which hand-back, and that it's a guest's are Playthrough's.
-export type Guest = { speaksAs(by: string): void; sends(said: GuestSaid, change: Change): Send; steppedIn(name: string, port: number): void; took(bytes: number): void };
+export type Guest = { speaksAs(by: string): void; sends(said: GuestSaid, change: Change): Send; tookOver(name: string, port: number): void; took(bytes: number): void };
 type GuestSaid = z.infer<typeof Asked.guestSend>;
 
 // What a guest may ask of the change, and nothing else: watching it (its files), whether a name may be theirs, saying
-// what they opened and sending notes, and stepping in (how long it takes, kept ready, what they did there, and a note's picture of it).
-const ASKS: Record<string, string[]> = { GET: ["hand-backs"], POST: ["name", "seen", "sends", "step-in", "ready-in", "keep-ready", "branches", "frames", "stills"] };
+// what they opened and sending notes, and taking over (how long it takes, kept ready, what they did there, and a note's picture of it).
+const ASKS: Record<string, string[]> = { GET: ["hand-backs"], POST: ["name", "seen", "sends", "take-over", "ready-in", "keep-ready", "branches", "frames", "stills"] };
 
-// The page's folder, beside /step-in, Playthrough's already in the app's address.
+// The page's folder, beside /take-over, Playthrough's already in the app's address.
 const HOME = "/.playthrough/shared/";
-// The cookie a browser that stepped in through the link carries, which lets it on to the app.
+// The cookie a browser that took over through the link carries, which lets it on to the app.
 const COOKIE = "playthrough-shared";
 // How long Cloudflare has to give a link.
 const GIVEN = 30_000;
 const NOT_INSTALLED = "Sharing needs cloudflared, which isn't on this computer. Install it with brew install cloudflared, or from Cloudflare's site, then try again.";
 
-type Share = { address: string; token: string; shared: Shared; door?: Server; tunnel?: ChildProcess; steppedIn: Set<string>; passing?: number };
+type Share = { address: string; token: string; shared: Shared; door?: Server; tunnel?: ChildProcess; takenOver: Set<string>; passing?: number };
 
 export type Sharing = ReturnType<typeof sharing>;
 
@@ -70,12 +70,12 @@ export function sharing(door: Door) {
     const now = shares.get(address);
     if (now?.shared.is === "starting" || now?.shared.is === "on") return now.shared;
     stop(address);
-    const share: Share = { address, token: randomBytes(18).toString("base64url"), shared: { is: "starting" }, steppedIn: new Set() };
+    const share: Share = { address, token: randomBytes(18).toString("base64url"), shared: { is: "starting" }, takenOver: new Set() };
     shares.set(address, share);
     const failed = (why: string) => {
       if (shares.get(address) !== share) return;
       stop(address);
-      shares.set(address, { address, token: share.token, steppedIn: new Set(), shared: { is: "failed", why } });
+      shares.set(address, { address, token: share.token, takenOver: new Set(), shared: { is: "failed", why } });
     };
     share.door = guestDoor(share, door);
     void opened(share.door).then((port) => {
@@ -104,7 +104,7 @@ export function opened(server: Server): Promise<number> {
 
 // The door the tunnel leads to, for one shared change: answers only what's on the allowlist, and nothing for anything
 // else, the same nothing whether it's there or not.
-export function guestDoor(share: Pick<Share, "address" | "token" | "steppedIn" | "passing">, door: Door): Server {
+export function guestDoor(share: Pick<Share, "address" | "token" | "takenOver" | "passing">, door: Door): Server {
   const home = `${HOME}${share.token}/`;
   const allowed = allowance();
   const guest: Guest = {
@@ -117,7 +117,7 @@ export function guestDoor(share: Pick<Share, "address" | "token" | "steppedIn" |
       allowed.says(said, change);
       return { ...said, handBack: latestOf(change)?.number ?? 1, sent: new Date().toISOString(), guest: true };
     },
-    steppedIn: (name, port) => (share.steppedIn.add(name), (share.passing = port)),
+    tookOver: (name, port) => (share.takenOver.add(name), (share.passing = port)),
     took: allowed.took,
   };
   const server = createServer((request, response) =>
@@ -160,11 +160,11 @@ export function guestDoor(share: Pick<Share, "address" | "token" | "steppedIn" |
     return door.answerOn(share.address, rest, request, response, guest);
   }
 
-  // The app, to a browser that stepped in here: its own step ins by their names, and once it has, the rest of the app.
+  // The app, to a browser that took over here: its own take-overs by their names, and once it has, the rest of the app.
   function toTheApp(request: IncomingMessage): boolean {
     const [first, second, third] = new URL(request.url ?? "/", "http://shared").pathname.split("/").filter(Boolean);
-    if (first === "step-in") return share.steppedIn.has(second ?? "");
-    if (first === ".playthrough") return second === "held" && share.steppedIn.has(third ?? "");
+    if (first === "take-over") return share.takenOver.has(second ?? "");
+    if (first === ".playthrough") return second === "held" && share.takenOver.has(third ?? "");
     return cookiesOf(request).get(COOKIE) === share.token;
   }
 }
@@ -179,10 +179,10 @@ function fromElsewhere(request: IncomingMessage): string | undefined {
 }
 
 // What one link can ask, more than a person reviewing ever does, so a guest can't wear this computer out: so many of
-// each a minute, step ins so many at once, and what it keeps on this computer, all told. Refused in words, and over
+// each a minute, take-overs so many at once, and what it keeps on this computer, all told. Refused in words, and over
 // in a minute.
-const PER_MINUTE: Record<string, number> = { name: 30, "step-in": 10, "keep-ready": 30, "ready-in": 240, branches: 20, frames: 60, stills: 60, sends: 120, seen: 120 };
-const AT_ONCE: Record<string, number> = { "step-in": 2 };
+const PER_MINUTE: Record<string, number> = { name: 30, "take-over": 10, "keep-ready": 30, "ready-in": 240, branches: 20, frames: 60, stills: 60, sends: 120, seen: 120 };
+const AT_ONCE: Record<string, number> = { "take-over": 2 };
 const KEEPS = 256 * 1024 * 1024;
 // A link's notes and replies waiting for the agent at once, and the room each note's picture takes.
 const WAITING = 200;
@@ -220,11 +220,11 @@ function allowance() {
   };
 }
 
-// On to Playthrough's way through to the app (step-in.ts), as if asked on this machine, which is all it answers; a step
+// On to Playthrough's way through to the app (take-over.ts), as if asked on this machine, which is all it answers; a step
 // in handed over leaves the browser the cookie that lets it on to the rest of the app.
 function passOn(share: Pick<Share, "token" | "passing">, request: IncomingMessage, response: ServerResponse) {
   if (!share.passing) return nothing(response);
-  const handing = new URL(request.url ?? "/", "http://shared").pathname.startsWith("/step-in/");
+  const handing = new URL(request.url ?? "/", "http://shared").pathname.startsWith("/take-over/");
   const forward = ask({ host: "127.0.0.1", port: share.passing, method: request.method, path: request.url, headers: asThisMachine(request, share) }, (answer) => {
     // The app's own word on it gives way: the link's token stays here.
     const headers = { ...answer.headers, "referrer-policy": "no-referrer" };

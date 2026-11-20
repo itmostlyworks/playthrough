@@ -1,6 +1,6 @@
 // The path back to an element, by its tag and its place among those beside it, up to the nearest id the app chose: the
 // same element in a page drawn again from its recording and in the app itself, so what's done in one, or where it's
-// scrolled, is found in the other. Written for the page it runs in, as stepping in puts it in the app's (step-in.ts).
+// scrolled, is found in the other. Written for the page it runs in, as taking over puts it in the app's (take-over.ts).
 export function pathTo(element: Element): string {
   const parts: string[] = [];
   for (let at: Element | null = element; at && at !== at.ownerDocument.documentElement; at = at.parentElement) {

@@ -1,5 +1,5 @@
-// Stepping in: a run of the moment's moment to where the person steps in, or, once they have stepped in on the change,
-// to where its recording rests, ready for the next (step-in.ts); never before, as watching a recording does nothing to
+// Taking over: a run of the moment's moment to where the person takes over, or, once they have taken over on the change,
+// to where its recording rests, ready for the next (take-over.ts); never before, as watching a recording does nothing to
 // the app. The moments run here, in Playthrough,
 // each in a window of its own, with its own cookies and storage, in one browser kept open while Playthrough runs: a window
 // opens in a moment, where a run of its own took a second and half a gigabyte.
@@ -15,7 +15,7 @@ import { giveBackLeft, setupIn, type Made, type Setup } from "./setup.ts";
 import type { Kept, Orders } from "./test.ts";
 import { unlike } from "./use.ts";
 
-// Runs one moment to where a person steps in, on the app as it is now: quickly and unrecorded, from what every moment
+// Runs one moment to where a person takes over, on the app as it is now: quickly and unrecorded, from what every moment
 // starts from, so they carry on from a fresh copy of the moment rather than a picture of it. Never past `until`, and
 // stopped once nobody's waiting for it.
 // With what the run made for it (setup.ts), which is the app the person has, theirs to give back; and where the
@@ -31,13 +31,13 @@ export async function runTo(repo: Repo, id: string, to: To, until: number, waiti
   }
   void made?.giveBack();
   if (waiting?.aborted) throw new Refused(["Nobody's waiting for it any more."]);
-  if (late) throw cantStepIn.late();
-  throw cantStepIn.stopped(stopped);
+  if (late) throw cantTakeOver.late();
+  throw cantTakeOver.stopped(stopped);
 }
 
-// Why a step in didn't happen, said twice where it's known which reason it is: in a line for the person, over the bar
-// where they pressed Step in (`plainly`), and whole for the agent, which a note the person makes of it keeps.
-export class CantStepIn extends Refused {
+// Why a take-over didn't happen, said twice where it's known which reason it is: in a line for the person, over the bar
+// where they pressed Take over (`plainly`), and whole for the agent, which a note the person makes of it keeps.
+export class CantTakeOver extends Refused {
   plainly: string;
   constructor(plainly: string, why: string) {
     super([why]);
@@ -47,19 +47,19 @@ export class CantStepIn extends Refused {
 
 // Each reason, in the person's words: never a file, a stack or what Node said, which are the agent's to read. Where
 // Playthrough has its own words for where a moment stopped, those; where it has none, that something went wrong.
-export const cantStepIn = {
+export const cantTakeOver = {
   loaded: (file: string, error: unknown) =>
-    new CantStepIn("This moment's steps couldn't be loaded.", `${file} couldn't be loaded, because ${error instanceof Refused ? error.problems.join(" ") : `Node says “${firstLine(String((error as Error)?.message ?? error))}”.`}`),
-  started: (error: unknown) => new CantStepIn("The app didn't start.", reasonOf(error)),
+    new CantTakeOver("This moment's steps couldn't be loaded.", `${file} couldn't be loaded, because ${error instanceof Refused ? error.problems.join(" ") : `Node says “${firstLine(String((error as Error)?.message ?? error))}”.`}`),
+  started: (error: unknown) => new CantTakeOver("The app didn't start.", reasonOf(error)),
   stopped: (stopped?: { at?: string; why?: string; asSaid?: true }) =>
-    new CantStepIn(stopped?.why && !stopped.asSaid ? `On the way here, ${stopped.why}.` : SOMETHING, `This moment can't be opened on the app as it is now: ${stopped ? stoppedAt(stopped) : "its way there ended before it got there."}`),
-  late: () => new CantStepIn("It took more than a minute getting there.", `This moment didn't open within ${LONGEST / 1000} seconds: the app was still on its way there, so it may be stuck.`),
-  changed: (why: string) => new CantStepIn("This moment has changed since it was handed back.", why),
-  other: (error: unknown) => (error instanceof CantStepIn ? error : new CantStepIn(SOMETHING, reasonOf(error))),
+    new CantTakeOver(stopped?.why && !stopped.asSaid ? `On the way here, ${stopped.why}.` : SOMETHING, `This moment can't be opened on the app as it is now: ${stopped ? stoppedAt(stopped) : "its way there ended before it got there."}`),
+  late: () => new CantTakeOver("It took more than a minute getting there.", `This moment didn't open within ${LONGEST / 1000} seconds: the app was still on its way there, so it may be stuck.`),
+  changed: (why: string) => new CantTakeOver("This moment has changed since it was handed back.", why),
+  other: (error: unknown) => (error instanceof CantTakeOver ? error : new CantTakeOver(SOMETHING, reasonOf(error))),
 };
 const SOMETHING = "Something went wrong getting there.";
 const reasonOf = (error: unknown) => (error instanceof Refused ? error.problems.join(" ") : String((error as Error)?.message ?? error));
-// From the step in's start, the app started if it wasn't running: Kan's longest way there takes ten seconds, and its
+// From the take-over's start, the app started if it wasn't running: Kan's longest way there takes ten seconds, and its
 // first, while Next starts and compiles its pages, twenty. The viewer waits a little longer than this for the answer.
 export const LONGEST = 60_000;
 
@@ -72,7 +72,7 @@ export async function readyIn(repo: Repo, id: string, to: To) {
 const took = new Map<string, number>();
 
 // What the person's browser can't be of the one the moment ran in, in a sentence for them to read before they're in
-// (use.ts), or nothing; nothing too where the moment can't be loaded, which its step in says.
+// (use.ts), or nothing; nothing too where the moment can't be loaded, which its take-over says.
 export async function unlikeAt(repo: Repo, id: string, to: To) {
   const { files, written } = await writtenOf(repo, id);
   const { moments, setup } = await loadedOf(repo, id, files, written);
@@ -92,7 +92,7 @@ async function run(repo: Repo, id: string, to: To, files: string[], written: num
   const { runAlongside, pageFor } = await alongside();
   const { moments, setup } = await loadedOf(repo, id, files, written);
   const kept = moments.get(to.moment);
-  if (!kept) throw cantStepIn.changed(`${quote(to.moment)} isn't among this change's moments in ${repo.show(repo.moments(id))} any more: you may be marking them again.`);
+  if (!kept) throw cantTakeOver.changed(`${quote(to.moment)} isn't among this change's moments in ${repo.show(repo.moments(id))} any more: you may be marking them again.`);
   // As the moment is recorded: in the window its file asks for with test.use, like a phone's screen and touch, where an
   // action that can't happen fails in seconds. What else the file says with test.use, Playwright leaves aside.
   const { context, page } = await pageFor(await browser(), app.url, kept.use, setup.use);
@@ -121,7 +121,7 @@ async function run(repo: Repo, id: string, to: To, files: string[], written: num
 }
 
 // A way there written as “wait to be there, else go” (way.ts) waits three seconds for an address the page may never
-// reach by itself, as every one did before moments knew whether something done led there. Stepping in, nobody sees the
+// reach by itself, as every one did before moments knew whether something done led there. Taking over, nobody sees the
 // way: on a page nothing has loaded in yet, nothing done can lead anywhere, so it goes at once; anywhere else, it waits
 // a second for where it's led, then goes. Going is always to the same address, so the next thing done finds the page it
 // needs either way: only the waiting is cut.
@@ -165,7 +165,7 @@ function loadedOf(repo: Repo, id: string, files: string[], written: number) {
   // less than Playwright's does.
   const load = <T>(file: string, by: (file: string, written: number) => Promise<T>) =>
     by(file, written).catch((error) => {
-      throw cantStepIn.loaded(repo.show(file), error);
+      throw cantTakeOver.loaded(repo.show(file), error);
     });
   const moments = alongside().then(({ momentsIn }) => Promise.all([Promise.all(files.map((file) => load(file, momentsIn))), load(repo.setup, setupIn)])).then(
     ([each, setup]) => {

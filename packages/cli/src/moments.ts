@@ -627,18 +627,18 @@ async function sayNotes(repo: Repo, change: Change, number: number, asking: stri
 }
 
 // What a note's place says beyond its moment, as the note has it: its thing (a guest's only: the person's is on its
-// first line), what they did after stepping in, where the app was, and why Step in didn't work.
+// first line), what they did after taking over, where the app was, and why Take over didn't work.
 function onSaid(on: NonNullable<Note["on"]>, thing = true): string[] {
   return [
     ...(thing && on.element ? [`On the ${asLine(on.element.role)} ${quote(asLine(on.element.name))}.`] : []),
     ...(madeInApp(on) && on.did.length
-      ? [`They stepped into the app there, then: ${on.did.map((did) => `${asLine(did.does)}${did.what ? ` ${quote(asLine(did.what))}` : did.does === "click" ? " the page" : ""}${typeof did.with === "string" && did.does !== "click" ? ` ${quote(asWords(did.with))}` : ""}`).join(", then ")}.`]
+      ? [`They took over the app there, then: ${on.did.map((did) => `${asLine(did.does)}${did.what ? ` ${quote(asLine(did.what))}` : did.does === "click" ? " the page" : ""}${typeof did.with === "string" && did.does !== "click" ? ` ${quote(asWords(did.with))}` : ""}`).join(", then ")}.`]
       : []),
     // Where they were is often the whole clue, as an address the app made wrong: what was there is gone by the time
     // the agent looks. What their run's setup made is said as setup's, the same place in the agent's own run.
     ...(madeInApp(on) && on.address ? [`The app was at ${asLine(on.address)} when they wrote it${on.address.includes("${setup.") ? ", setup being what playthrough/setup.ts made for the run, as playthrough as prints it" : ""}.`] : []),
     // They were told only that it didn't work: why is for the agent, whole, as Playthrough said it then.
-    ...(!madeInApp(on) && on.cantStepIn ? [`They pressed Step in on this moment and it didn't work: ${asWords(on.cantStepIn)}`] : []),
+    ...(!madeInApp(on) && on.cantStepIn ? [`They pressed Take over on this moment and it didn't work: ${asWords(on.cantStepIn)}`] : []),
   ];
 }
 

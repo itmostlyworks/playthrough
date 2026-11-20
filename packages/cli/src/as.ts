@@ -40,8 +40,8 @@ export const browserFile = (repo: Repo) => join(repo.root, ".playthrough", "brow
 // Asked to start again, as whom, and where to: written by the next `as`, read by the one running.
 const againFile = (repo: Repo) => join(repo.root, ".playthrough", "browser-again.json");
 
-// What's done in any of the browser's pages, kept as a person's is when they step into a moment (step-in.ts), whoever
-// drives: a click, words in a field, Enter in a field, and past what stepping in keeps, a key with Ctrl or ⌘ or Escape,
+// What's done in any of the browser's pages, kept as a person's is when they take over a moment (take-over.ts), whoever
+// drives: a click, words in a field, Enter in a field, and past what taking over keeps, a key with Ctrl or ⌘ or Escape,
 // on whatever has the focus or the page itself. And each page loaded, with its address, as a way of getting there
 // that no listener hears. Nothing here is replayed, so what isn't trusted is kept too: a tool may set a field's words
 // from a script.

@@ -1,4 +1,4 @@
-// The bar across a moment's foot: its size and its buttons' look, the slim lines inside Play and Step in, and the
+// The bar across a moment's foot: its size and its buttons' look, the slim lines inside Play and Take over, and the
 // arrows either side of Play.
 
 import { useEffect, useRef, type ReactNode } from "react";
@@ -29,7 +29,7 @@ export function Progress({ clock, share, shareOf, moving, shown }: { clock: Cloc
   );
 }
 
-// How far the app is on its way, a slim line inside Step in as Play's is inside Play: by how long it took the last
+// How far the app is on its way, a slim line inside Take over as Play's is inside Play: by how long it took the last
 // time, where that's known, else easing on towards its end; never quite there until it is, and never still.
 export function Getting({ since, due }: { since: number; due?: number }) {
   const fill = useRef<HTMLSpanElement>(null);
@@ -103,13 +103,13 @@ export function Notice({ children, className = "text-soft" }: { children: ReactN
   );
 }
 
-// Step in couldn't open the app: said where it was pressed, over the bar, drawn as the page's other small sheets are,
+// Take over couldn't open the app: said where it was pressed, over the bar, drawn as the page's other small sheets are,
 // with the one thing to do about it. Why is in a person's words, never the file or Node's, which are the agent's: Tell
 // the agent saves a note saying so, which carries them. With one waiting already, it says so in the button's place, at
 // its size, and the line has room for two lines either way, so it's the same size for any reason. Escape or a press
-// anywhere else closes it; Step in again is trying again.
+// anywhere else closes it; Take over again is trying again.
 // A guest who hasn't said who they are is asked here first, as anywhere they say something (`useSaying`).
-export function CantStepIn({ plainly, told, onTell, onClose }: { plainly: string; told: boolean; onTell: () => void; onClose: () => void }) {
+export function CantTakeOver({ plainly, told, onTell, onClose }: { plainly: string; told: boolean; onTell: () => void; onClose: () => void }) {
   const own = useRef<HTMLDivElement>(null);
   const saying = useSaying();
   const close = useRef(onClose);
@@ -120,8 +120,8 @@ export function CantStepIn({ plainly, told, onTell, onClose }: { plainly: string
     return () => removeEventListener("pointerdown", away, { capture: true });
   }, []);
   return (
-    <div ref={own} role="dialog" aria-label="Can't step in here" className="absolute bottom-full left-1/2 mb-2 phone:top-full phone:bottom-auto phone:mt-2 phone:mb-0 w-[288px] max-w-[calc(100cqw-32px)] -translate-x-1/2 animate-arrive rounded-xl bg-surface p-3 shadow-float">
-      <p className="text-[13px] leading-5 font-medium text-fg">Can't step in here</p>
+    <div ref={own} role="dialog" aria-label="Can't take over here" className="absolute bottom-full left-1/2 mb-2 phone:top-full phone:bottom-auto phone:mt-2 phone:mb-0 w-[288px] max-w-[calc(100cqw-32px)] -translate-x-1/2 animate-arrive rounded-xl bg-surface p-3 shadow-float">
+      <p className="text-[13px] leading-5 font-medium text-fg">Can't take over here</p>
       <p className="mt-0.5 line-clamp-2 h-[34px] text-[12.5px] leading-[17px] text-soft">{plainly}</p>
       <div className={`mt-3 ${saying.ask ? "" : "h-8"}`}>
         {saying.ask ??

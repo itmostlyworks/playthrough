@@ -1,5 +1,5 @@
 // playthrough/test, as a moment's file or playthrough/setup.ts imports it, is always this Playthrough's, the one running
-// it, wherever it's loaded (Playwright's runner, or Playthrough itself, stepping in or setting up): so nothing has to be
+// it, wherever it's loaded (Playwright's runner, or Playthrough itself, taking over or setting up): so nothing has to be
 // added to the app to try Playthrough, and an app with one of its own never loads a second beside it, which Playwright,
 // loaded twice, refuses.
 

@@ -67,7 +67,7 @@ if they say so.
 
     export const use = { extraHTTPHeaders: { "x-backend": "staging" }, httpCredentials: { username: "staging", password: "…" } };
 
-  Stepping in, the person's browser talks to the app with it too, without being able to read it. Added on the page
+  Taking over, the person's browser talks to the app with it too, without being able to read it. Added on the page
   instead (page.setExtraHTTPHeaders, or a page.route that adds it), it's in your moments but not in their browser.
 - Then try it: playthrough as <each person>, and look at what they see, before you change anything else.
 

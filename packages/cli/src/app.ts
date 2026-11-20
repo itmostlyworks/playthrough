@@ -1,5 +1,5 @@
 // The app, as playthrough/app.json starts it, or the one already running from the copy's folder (repo.ts says where).
-// One for each copy, shared by everyone using it: the person stepping in, the agent's browser, and each moment run, each
+// One for each copy, shared by everyone using it: the person taking over, the agent's browser, and each moment run, each
 // in a world of its own, as the app always runs the working copy as it is now. Whoever wants it first starts it, on its
 // own, so it outlives the command that started it while anyone else is using it; it's stopped once nobody is. With
 // Playthrough open, which keeps every copy's, once nobody has used it for fifteen minutes; without, as the last one using
@@ -148,7 +148,7 @@ function stop(root: string) {
   rmSync(runningFile(root), { force: true });
 }
 
-// Playthrough open on this machine, which keeps every copy's app until it's been unused a while: its own step ins let go
+// Playthrough open on this machine, which keeps every copy's app until it's been unused a while: its own take-overs let go
 // of too, as stopping it at once would make the next one start it again. Where it answers, too.
 export const openFile = (home = machine()) => join(home, "open.json");
 function keptOpen(): boolean {

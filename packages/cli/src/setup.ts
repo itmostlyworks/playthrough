@@ -5,7 +5,7 @@
 // for every run. The app's people, if it names them, are who a moment can be done as: `signIn` makes a page theirs. And
 // `use`, if it says, is how every page of the app is opened, as
 // Playwright's test.use would: an app that serves a test its own way, told by the browser's user agent, say. What
-// becomes of each of its options, recorded and stepped into, is use.ts's.
+// becomes of each of its options, recorded and taken over, is use.ts's.
 
 import { request as requests, type APIRequestContext, type BrowserContextOptions, type Page } from "@playwright/test";
 import { list, quote, Refused } from "@playthrough/change";

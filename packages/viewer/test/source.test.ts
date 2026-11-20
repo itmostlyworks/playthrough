@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { from, keepBranch, noteFrame, picture, source, type Keeping, type Source } from "../src/api.ts";
-import { keepSteppedIn, steppedInHere, stored } from "../src/kept.ts";
+import { keepTakenOver, takenOverHere, stored } from "../src/kept.ts";
 import { server } from "../src/server.ts";
 
 const files = (change: string, handBack: number) => `demo/changes/${change}/${handBack}/`;
@@ -16,7 +16,7 @@ const handed: Source = {
   seen: async () => [],
   readyIn: async () => ({ in: 400, starting: false }),
   keepReady: () => {},
-  stepIn: async () => ({ address: "demo/app/", setup: {} }),
+  takeOver: async () => ({ address: "demo/app/", setup: {} }),
   keepBranch: async (_, branch) => branch.events.length,
   frame: async () => ({ picture: "readings/invoices/1.png", screen: { width: 1280, height: 800 } }),
   still: async () => undefined,
@@ -33,23 +33,23 @@ test("what the viewer keeps between visits and for the tab is kept where its sou
     Object.defineProperty(globalThis, name, { configurable: true, value: { getItem: (key: string) => held.get(key) ?? null, setItem: (key: string, value: string) => held.set(key, value), removeItem: (key: string) => held.delete(key) } });
   const kept = (mine: Map<string, string>): Keeping => ({ getItem: (key) => mine.get(key) ?? null, setItem: (key, value) => void mine.set(key, value), removeItem: (key) => void mine.delete(key) });
   try {
-    keepSteppedIn("invoices/checks");
+    keepTakenOver("invoices/checks");
     browser.localStorage.set("playthrough:moments:invoices/checks", "[]");
-    assert.equal(browser.sessionStorage.get("playthrough:stepped-in:invoices/checks"), "yes");
+    assert.equal(browser.sessionStorage.get("playthrough:taken-over:invoices/checks"), "yes");
     assert.equal(stored((change) => `playthrough:moments:${change}`, "invoices/checks"), "[]");
 
     const betweenVisits = new Map<string, string>();
     const forTheTab = new Map<string, string>();
     from({ ...handed, kept: kept(betweenVisits), keptForTheTab: kept(forTheTab) });
-    assert.equal(steppedInHere("invoices/checks"), false);
-    keepSteppedIn("invoices/lake");
-    assert.equal(forTheTab.get("playthrough:stepped-in:invoices/lake"), "yes");
+    assert.equal(takenOverHere("invoices/checks"), false);
+    keepTakenOver("invoices/lake");
+    assert.equal(forTheTab.get("playthrough:taken-over:invoices/lake"), "yes");
     assert.equal(stored((change) => `playthrough:moments:${change}`, "invoices/checks"), null);
 
     from(handed);
-    keepSteppedIn("invoices/trip");
-    assert.equal(steppedInHere("invoices/trip"), true);
-    assert.deepEqual([...browser.sessionStorage.keys()], ["playthrough:stepped-in:invoices/checks"]);
+    keepTakenOver("invoices/trip");
+    assert.equal(takenOverHere("invoices/trip"), true);
+    assert.deepEqual([...browser.sessionStorage.keys()], ["playthrough:taken-over:invoices/checks"]);
   } finally {
     from(server);
     for (const name of Object.keys(browser)) delete (globalThis as Record<string, unknown>)[name];

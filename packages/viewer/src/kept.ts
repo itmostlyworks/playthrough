@@ -82,18 +82,18 @@ export function useUnsent(change: string, latest: number): Unsent {
 // The moments you opened, as this browser kept them before they were kept with the change.
 export const seenKey = (change: string, you: string) => `playthrough:moments-seen:${change}:${you}`;
 
-// The changes this tab has stepped in on: from then on, the app is kept ready where the recording rests (stepIn.ts).
-const steppedKey = (change: string) => `playthrough:stepped-in:${change}`;
+// The changes this tab has taken over on: from then on, the app is kept ready where the recording rests (takeOver.ts).
+const takenKey = (change: string) => `playthrough:taken-over:${change}`;
 
-export function keepSteppedIn(change: string) {
+export function keepTakenOver(change: string) {
   try {
-    keepingForTheTab().setItem(steppedKey(change), "yes");
+    keepingForTheTab().setItem(takenKey(change), "yes");
   } catch {}
 }
 
-export function steppedInHere(change: string) {
+export function takenOverHere(change: string) {
   try {
-    return keepingForTheTab().getItem(steppedKey(change)) === "yes";
+    return keepingForTheTab().getItem(takenKey(change)) === "yes";
   } catch {
     return false;
   }

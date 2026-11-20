@@ -1,4 +1,4 @@
-// What stepping in promises about setup.ts's use: the person's browser talks to the app as the run's did, what use adds
+// What taking over promises about setup.ts's use: the person's browser talks to the app as the run's did, what use adds
 // to every request added on this computer, on the way to the app alone, and never where a browser could read it.
 
 import assert from "node:assert/strict";
@@ -10,7 +10,7 @@ import { after, before, describe, test } from "node:test";
 import { chromium, type Browser } from "@playwright/test";
 import { change } from "../src/change.ts";
 import { guestDoor, opened } from "../src/share.ts";
-import { getReady } from "../src/step-in.ts";
+import { getReady } from "../src/take-over.ts";
 import { repo, type Repo } from "../src/repo.ts";
 import { onTheWay, playthroughs, unlike } from "../src/use.ts";
 
@@ -27,7 +27,7 @@ const quietly = async <T>(run: () => Promise<T>) => {
   }
 };
 
-describe("stepping in talks to the app as the run did", () => {
+describe("taking over talks to the app as the run did", () => {
   let folder = "";
   let here: Repo;
   let app: Server;
@@ -83,9 +83,9 @@ describe("stepping in talks to the app as the run did", () => {
     setTimeout(() => process.exit(), 100).unref();
   });
 
-  // Stepped in at `from`, in a browser of its own, reloaded once: everything the browser sent and was sent, and what it
+  // Taken over at `from`, in a browser of its own, reloaded once: everything the browser sent and was sent, and what it
   // keeps, as anyone with devtools open could read it.
-  async function steppedIn(from: (port: number, name: string) => Promise<string>) {
+  async function takenOver(from: (port: number, name: string) => Promise<string>) {
     const { port, name } = await getReady(here, id, { moment: MOMENT });
     const context = await browser.newContext();
     const page = await context.newPage();
@@ -93,7 +93,7 @@ describe("stepping in talks to the app as the run did", () => {
     page.on("request", (request) => void request.allHeaders().then((headers) => seen.push(request.url(), JSON.stringify(headers), request.postData() ?? "")));
     page.on("response", (response) => void response.allHeaders().then(async (headers) => seen.push(JSON.stringify(headers), await response.text().catch(() => ""))));
     const at = await from(port, name);
-    await page.goto(`${at}/step-in/${name}`);
+    await page.goto(`${at}/take-over/${name}`);
     await page.waitForURL(`${at}/`);
     const fetched = page.locator("#fetched");
     await fetched.filter({ hasText: /./ }).waitFor();
@@ -107,31 +107,31 @@ describe("stepping in talks to the app as the run did", () => {
   }
 
   test("talks to the app as the run did: what use adds to every request is added on this computer, to the page, a reload and its script", async () => {
-    const { shown, reloaded } = await steppedIn(async (port) => `http://localhost:${port}`);
+    const { shown, reloaded } = await takenOver(async (port) => `http://localhost:${port}`);
     assert.deepEqual(shown, { heading: "Website launch", fetched: "Website launch" });
     assert.deepEqual(reloaded, shown, "reloaded, still the app");
   });
 
-  test("what use adds never reaches the browser stepped in from, in what it sends, what it's sent or what it keeps", async () => {
-    const { shown, seen } = await steppedIn(async (port) => `http://localhost:${port}`);
+  test("what use adds never reaches the browser that took over, in what it sends, what it's sent or what it keeps", async () => {
+    const { shown, seen } = await takenOver(async (port) => `http://localhost:${port}`);
     assert.equal(shown.fetched, "Website launch", "used, all the same");
     for (const secret of [ROUTE, PASSWORD, Buffer.from(`staging:${PASSWORD}`).toString("base64")]) assert.ok(!seen.includes(secret), `${secret} reached the browser`);
   });
 
   test("what use adds goes only to the app, never to another address its pages ask", async () => {
     reachedElsewhere.length = 0;
-    const { shown } = await steppedIn(async (port) => `http://localhost:${port}`);
+    const { shown } = await takenOver(async (port) => `http://localhost:${port}`);
     assert.equal(shown.fetched, "Website launch", "the app had it");
     assert.ok(reachedElsewhere.length > 0, "the page asked another address");
     for (const headers of reachedElsewhere) assert.ok(!headers["x-backend"] && !headers.authorization, JSON.stringify(headers));
   });
 
-  test("a guest stepping in through a shared link talks to the app the same way, and can't read what's added either", async () => {
-    const share = { address: `board/${id}`, token: "an-unguessable-token", steppedIn: new Set<string>(), passing: undefined as number | undefined };
+  test("a guest taking over through a shared link talks to the app the same way, and can't read what's added either", async () => {
+    const share = { address: `board/${id}`, token: "an-unguessable-token", takenOver: new Set<string>(), passing: undefined as number | undefined };
     const door = guestDoor(share, { page: folder, owner: "Ludwig", listed: async () => [], answerOn: async () => {} });
     const doorAt = await opened(door);
     try {
-      const { shown, reloaded, seen } = await steppedIn(async (port, name) => (share.steppedIn.add(name), (share.passing = port), `http://localhost:${doorAt}`));
+      const { shown, reloaded, seen } = await takenOver(async (port, name) => (share.takenOver.add(name), (share.passing = port), `http://localhost:${doorAt}`));
       assert.deepEqual(shown, { heading: "Website launch", fetched: "Website launch" });
       assert.deepEqual(reloaded, shown);
       for (const secret of [ROUTE, PASSWORD]) assert.ok(!seen.includes(secret), `${secret} reached the guest's browser`);

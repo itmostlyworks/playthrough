@@ -25,8 +25,8 @@ test("played to its end, it rests there", () => {
   assert.deepEqual([ended.mode, ended.at], [{ is: "resting" }, 10]);
 });
 
-test("Step in pressed while it plays steps in where the recording has got to", () => {
-  const stepping = press(press(moment(), { type: "play" }), { type: "step in", since: 1 }, 4.2);
+test("Take over pressed while it plays takes over where the recording has got to", () => {
+  const stepping = press(press(moment(), { type: "play" }), { type: "take over", since: 1 }, 4.2);
   assert.deepEqual([stepping.mode, stepping.at], [{ is: "getting there", since: 1 }, 4.2]);
 });
 
@@ -50,11 +50,11 @@ test("Compare, played and paused, rests both sides where they've got to, and so 
   assert.deepEqual([off.mode, off.at, off.along], [{ is: "resting" }, 7, 6.2]);
 });
 
-test("while a note is open on a frame of its own, Step in and Note rest", () => {
+test("while a note is open on a frame of its own, Take over and Note rest", () => {
   const open = press(moment(), { type: "open", note: "n1" });
   const may = can(open, { ...facts, elsewhere: true });
-  assert.deepEqual([may.stepIn, may.note], [false, false]);
-  assert.equal(can(open, facts).stepIn, true, "on the moment as it is now, Step in closes it and steps in");
+  assert.deepEqual([may.takeOver, may.note], [false, false]);
+  assert.equal(can(open, facts).takeOver, true, "on the moment as it is now, Take over closes it and takes over");
 });
 
 test("a note from an earlier hand-back opens on the moment as it is now, flips to as it was and back, and opens another on now", () => {
@@ -67,37 +67,37 @@ test("a note from an earlier hand-back opens on the moment as it is now, flips t
   assert.deepEqual(press(flipped, { type: "open", note: "n2" }).mode, { is: "a note open", note: "n2" });
 });
 
-test("while writing a note, nothing but the note answers: not Play, Step in, Note, Compare or another moment", () => {
+test("while writing a note, nothing but the note answers: not Play, Take over, Note, Compare or another moment", () => {
   const page = press(press(moment(), { type: "note" }), { type: "pointed", writing });
   const may = can(page, facts);
-  assert.deepEqual([may.play, may.stepIn, may.back, may.note, may.compare, may.move], [false, false, false, false, false, false]);
+  assert.deepEqual([may.play, may.takeOver, may.back, may.note, may.compare, may.move], [false, false, false, false, false, false]);
 });
 
 test("while comparing, Note rests", () => {
   assert.equal(can(press(moment(), { type: "compare" }), facts).note, false);
 });
 
-test("Step in pressed again while it's getting there does nothing; Back and Escape still stop it", () => {
-  const stepping = press(moment(), { type: "step in", since: 1 });
+test("Take over pressed again while it's getting there does nothing; Back and Escape still stop it", () => {
+  const stepping = press(moment(), { type: "take over", since: 1 });
   const may = can(stepping, facts);
-  assert.deepEqual([may.stepIn, may.back], [false, true]);
+  assert.deepEqual([may.takeOver, may.back], [false, true]);
   assert.deepEqual(press(stepping, { type: "back" }).mode, { is: "resting" });
 });
 
-test("stepped in, what drives the recording rests: only Note and Back answer", () => {
-  const yours = press(press(moment(), { type: "step in", since: 1 }), { type: "yours" });
+test("while the app is yours, what drives the recording rests: only Note and Back answer", () => {
+  const yours = press(press(moment(), { type: "take over", since: 1 }), { type: "yours" });
   const may = can(yours, facts);
-  assert.deepEqual([may.play, may.stepIn, may.compare, may.move, may.note, may.back], [false, false, false, false, true, true]);
+  assert.deepEqual([may.play, may.takeOver, may.compare, may.move, may.note, may.back], [false, false, false, false, true, true]);
 });
 
-test("the app not made ready, it rests where it was stepped into; an answer for an earlier step in changes nothing", () => {
-  const again = press(press(press(moment(), { type: "step in", since: 1 }), { type: "back" }), { type: "step in", since: 2 });
+test("the app not made ready, it rests where it was taken over; an answer for an earlier take-over changes nothing", () => {
+  const again = press(press(press(moment(), { type: "take over", since: 1 }), { type: "back" }), { type: "take over", since: 2 });
   assert.deepEqual(press(again, { type: "back", since: 1 }).mode, { is: "getting there", since: 2 });
   assert.deepEqual(press(again, { type: "back", since: 2 }).mode, { is: "resting" });
 });
 
 test("a note being written in the app is still being written once you're back", () => {
-  const yours = press(press(moment(), { type: "step in", since: 1 }), { type: "yours" });
+  const yours = press(press(moment(), { type: "take over", since: 1 }), { type: "yours" });
   const there = press(press(yours, { type: "note" }), { type: "pointed", writing });
   assert.deepEqual(there.mode, { is: "the app yours", since: 1, writing });
   assert.deepEqual(press(there, { type: "back" }).mode, { is: "writing", writing });
@@ -113,15 +113,15 @@ test("a still has no Play", () => {
   assert.equal(can(moment(), { ...facts, still: true }).play, false);
 });
 
-test("nothing is kept ready before this tab's first step in on the change, wherever the recording rests", () => {
+test("nothing is kept ready before this tab's first take-over on the change, wherever the recording rests", () => {
   const paused = press(press(moment(), { type: "play" }), { type: "play" }, 5.5);
   for (const page of [moment(), paused, press(moment(), { type: "rest", at: 3 })]) assert.equal(keptReadyAt(page, facts, false), undefined);
 });
 
-test("after the first step in, the app is kept ready where the recording rests, Back included, and nowhere while it plays, gets there or is yours", () => {
-  const stepping = press(moment(), { type: "step in", since: 1 });
+test("after the first take-over, the app is kept ready where the recording rests, Back included, and nowhere while it plays, gets there or is yours", () => {
+  const stepping = press(moment(), { type: "take over", since: 1 });
   assert.equal(keptReadyAt(press(moment(), { type: "rest", at: 3 }), facts, true), 3);
-  assert.equal(keptReadyAt(press(stepping, { type: "back" }), facts, true), 10, "back, where it was stepped into");
+  assert.equal(keptReadyAt(press(stepping, { type: "back" }), facts, true), 10, "back, where it was taken over");
   for (const page of [press(moment(), { type: "play" }), stepping, press(stepping, { type: "yours" }), press(press(moment(), { type: "note" }), { type: "pointed", writing })])
     assert.equal(keptReadyAt(page, facts, true), undefined);
   assert.equal(keptReadyAt(moment(), { ...facts, elsewhere: true }, true), undefined, "nor on a note open on a frame of its own");

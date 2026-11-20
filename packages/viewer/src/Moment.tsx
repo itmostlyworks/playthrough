@@ -1,6 +1,6 @@
 // A moment's page: the recording as large as the window lets it be, the bar across its foot, the change's moments on
 // the left, ending in the step left for it, and this one's notes on the right. From here: play the few seconds that led
-// here, step in (the real app there, as that person), note what you click, compare with how it was when you last saw
+// here, take over (the real app there, as that person), note what you click, compare with how it was when you last saw
 // it, go on, or say Done or Send.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -16,7 +16,7 @@ import { Header, headerRows, Title } from "./Header.tsx";
 import type { YourReply } from "./kept.ts";
 import { Key } from "./Key.tsx";
 import { arrived, can, isPlaying, isStepped, reduce, type Action } from "./mode.ts";
-import { Progress, Getting, FrameButton, Tip, Notice, CantStepIn, ITEM, BAR, PHONE_BAR } from "./MomentBar.tsx";
+import { Progress, Getting, FrameButton, Tip, Notice, CantTakeOver, ITEM, BAR, PHONE_BAR } from "./MomentBar.tsx";
 import { Turns, useFrames, NoteWords, NotePicture, NoteCard, NoteWas, Write, type Made } from "./Note.tsx";
 import { usePhone } from "./phone.ts";
 import { Picture } from "./Picture.tsx";
@@ -29,7 +29,7 @@ import { LastStop } from "./LastStop.tsx";
 import { Share } from "./Share.tsx";
 import { StepAction, StepCard, useStepLeft } from "./StepLeft.tsx";
 import { backAgain } from "./step.ts";
-import { useKeptReady, useStepIn } from "./stepIn.ts";
+import { useKeptReady, useTakeOver } from "./takeOver.ts";
 import { useHeld } from "./held.ts";
 import { overAPause } from "./stepping.ts";
 import { startOn, StillPicture } from "./Still.tsx";
@@ -177,7 +177,7 @@ export function MomentView(props: {
   // Pointing at what a note is on, on the recording or in the app.
   const noting = mode.is === "pointing" || (mode.is === "the app yours" && !!mode.pointing);
   const away = isStepped(mode);
-  // Stepped in, the app takes the page: what's beside the recording and over it goes, and the recording grows into
+  // Once you take over, the app takes the page: what's beside the recording and over it goes, and the recording grows into
   // their room. On a phone there's none beside it to take.
   const takes = away && !phone;
   const inApp = mode.is === "the app yours";
@@ -274,7 +274,7 @@ export function MomentView(props: {
       duration: RIGHT_AFTER,
       easing: matchMedia("(prefers-reduced-motion: reduce)").matches ? "steps(1, end)" : "ease-in",
     });
-  const stepIn = useStepIn({ change: change.id, handBack: handBack.number, moment, page, clock: clockOf, act, pointing: () => note(), escapedOnce });
+  const takeOver = useTakeOver({ change: change.id, handBack: handBack.number, moment, page, clock: clockOf, act, pointing: () => note(), escapedOnce });
 
   // The app shows whole, so Back is to the whole moment, as fresh: let go of while the app still covers it, so the
   // picture it closes onto is the screen it was.
@@ -283,7 +283,7 @@ export function MomentView(props: {
     if (wasInApp.current && !inApp) pageWindow.letGo();
     wasInApp.current = inApp;
   }, [inApp]);
-  // Brought closer, the picture goes out to the whole screen as soon as Step in is pressed, while the app is on its way,
+  // Brought closer, the picture goes out to the whole screen as soon as Take over is pressed, while the app is on its way,
   // so the app comes in over the same picture it shows, without a jump; called off, it stays whole.
   useLayoutEffect(() => {
     if (stepping) pageWindow.wholeAgain(STEPS_OUT);
@@ -321,7 +321,7 @@ export function MomentView(props: {
   const said = [...theirs.map((note) => ({ note, sent: true })), ...mine.map((note) => ({ note, sent: false }))];
   // What you said on the change as a whole, on no moment: the last stop's, as a moment's notes are its own.
   const onTheWhole = [...sent.filter((one) => !one.on).map((note) => ({ note, sent: true })), ...notes.filter((one) => !one.on).map((note) => ({ note, sent: false }))];
-  const onEdge = atLastStop ? onTheWhole : said.filter(({ note }) => !stepIn.madeThere(note));
+  const onEdge = atLastStop ? onTheWhole : said.filter(({ note }) => !takeOver.madeThere(note));
   // What was new as you came to the change stays new here until you open it: coming to its moment counts as seeing it,
   // for what's next and for next time.
   useEffect(() => void (open && props.onOpened(open)), [open]);
@@ -398,7 +398,7 @@ export function MomentView(props: {
   const sheetFrames = useFrames(change, atLastStop ? sending.current!.map(({ note }) => ({ note, shown: madeAt(note) })) : []);
   // A note from an earlier hand-back is shown on the moment as it is now, at its end, on its thing where that's found
   // there; how it was, the frame it was made on, is one flip away, asked for only once it's open. Its thing not
-  // there now (gone since, or on a page you went to after stepping in), there's no now to show it on: it's shown as
+  // there now (gone since, or on a page you went to after taking over), there's no now to show it on: it's shown as
   // it was, and a pin never stands on whatever is there instead.
   const earlier = (note: Note) => !!note.on && note.on.handBack < handBack.number;
   const found = (note: Note) => nowOn(note) !== undefined;
@@ -457,10 +457,10 @@ export function MomentView(props: {
     return true;
   };
   const arrow = useHeld(frame);
-  // A note open on a frame of its own shows somewhere the app can't be taken to: stepping in from it would swap the
-  // picture for the moment's and open the app there. Closed, Step in answers again. In the app, it's Back.
-  const stepInOrBack = () => (inApp ? may.back && stepIn.back() : may.stepIn && stepIn.stepIn());
-  const back = () => may.back && stepIn.back();
+  // A note open on a frame of its own shows somewhere the app can't be taken to: taking over from it would swap the
+  // picture for the moment's and open the app there. Closed, Take over answers again. In the app, it's Back.
+  const takeOverOrBack = () => (inApp ? may.back && takeOver.back() : may.takeOver && takeOver.takeOver());
+  const back = () => may.back && takeOver.back();
   // At the last stop a note is on the change as a whole: there's nothing to point at, so it's written at once.
   const note = () => may.note && act(atLastStop ? { type: "pointed", writing: { note: { id: newId(), words: "" }, spot: { x: 0, y: 0 } } } : { type: "note" });
   // Flipped, its ring and card go to its thing in the picture coming in as that cross-fades in or out, in step with it;
@@ -488,7 +488,7 @@ export function MomentView(props: {
   };
   // While the app is yours, or on its way, a moment or the step left pressed leaves it as Back does, on the way
   // there: one press for Back and the press. The keys stay the app's. It says whether to go on.
-  const leaving = () => (away ? may.back && (stepIn.back(), true) : may.move);
+  const leaving = () => (away ? may.back && (takeOver.back(), true) : may.move);
   // After the last moment, the last stop; from it, ↑ is the last moment again and there's nothing further on.
   const lastStop = (open?: string) => {
     act({ type: "moment", moment: moment.name, starts: from, end, open });
@@ -532,14 +532,14 @@ export function MomentView(props: {
   const keep = (kept: Note) => {
     if (!atLastStop && !phone) lightSend();
     setNotes((all) => [...all, kept]);
-    stepIn.saved(kept);
+    takeOver.saved(kept);
   };
-  // Step in didn't work here: the note saying so is the person's own, saved as any is, and carries why for the agent.
+  // Take over didn't work here: the note saying so is the person's own, saved as any is, and carries why for the agent.
   const tellAgent = () => {
-    const cant = stepIn.cant;
+    const cant = takeOver.cant;
     if (!cant) return;
-    keep({ id: newId(), on: { handBack: handBack.number, moment: moment.name, at: Math.round(Math.min(cant.from, moment.length) * 100) / 100, cantStepIn: cant.why }, words: "Step in doesn't work on this moment." });
-    stepIn.closeCant();
+    keep({ id: newId(), on: { handBack: handBack.number, moment: moment.name, at: Math.round(Math.min(cant.from, moment.length) * 100) / 100, cantStepIn: cant.why }, words: "Take over doesn't work on this moment." });
+    takeOver.closeCant();
   };
   const toldAgent = mine.some((one) => !!one.on && !madeInApp(one.on) && !!one.on.cantStepIn);
   // Saved on a moment, the note goes to the Notes edge, and the Moments' last card, saying Send one more as it's saved,
@@ -688,7 +688,7 @@ export function MomentView(props: {
   // Pressing away from what's open, anywhere but its card and its picture on the edge, closes it.
   const pressAway = (event: React.PointerEvent) => opened && !(event.target as Element).closest("[data-note-card], [data-tile]") && !stage.current?.contains(event.target as Node) && close();
 
-  // The keys: Space plays, ← and → go a frame back and on (held, on and on), S steps in and back, N notes, C compares,
+  // The keys: Space plays, ← and → go a frame back and on (held, on and on), T takes over and back, N notes, C compares,
   // ↑ and ↓ go a moment back and on, and with Shift a note back and on, Escape lets go. Left and right are along the
   // moment, up and down through what's listed at its edges, and neither runs on into the other.
   const keys = useRef<(event: KeyboardEvent) => void>(() => {});
@@ -721,11 +721,11 @@ export function MomentView(props: {
       return;
     }
     if (key === "escape") {
-      if (stepIn.cant) stepIn.closeCant();
+      if (takeOver.cant) takeOver.closeCant();
       else if (open) close();
       else if (comparing) compare();
       else if (noting) act({ type: "note" });
-      // While the app is yours, Escape twice is Back, as it is in the app (step-in.ts); getting there, once calls it off.
+      // While the app is yours, Escape twice is Back, as it is in the app (take-over.ts); getting there, once calls it off.
       else if (!inApp) back();
       else if (!event.repeat) escapes.current(performance.now()) ? back() : escapedOnce();
       return;
@@ -740,7 +740,7 @@ export function MomentView(props: {
     if (key === "arrowleft" || key === "arrowright") return (event.preventDefault(), void (!event.repeat && arrow.press(key === "arrowleft" ? -1 : 1)));
     const down = () => (event.shiftKey ? nextNote(1) : next(1));
     const up = () => (event.shiftKey ? nextNote(-1) : next(-1));
-    const did = { " ": play, s: stepInOrBack, n: note, c: () => (flips ? flip() : compare()), arrowdown: down, j: down, arrowup: up, k: up }[key];
+    const did = { " ": play, t: takeOverOrBack, n: note, c: () => (flips ? flip() : compare()), arrowdown: down, j: down, arrowup: up, k: up }[key];
     if (!did || event.repeat) return;
     event.preventDefault();
     did();
@@ -1104,7 +1104,7 @@ export function MomentView(props: {
             </div>
           </div>
           <Portal
-            {...stepIn.portal}
+            {...takeOver.portal}
             screen={screen}
             scrolled={() => scrolled.current?.()}
             theirs={() => drawn.current?.()}
@@ -1192,21 +1192,21 @@ export function MomentView(props: {
             ref={toolbar}
             style={{ height: BAR, translate: phone ? "-50% 0" : `calc(-50% + ${clear?.x ?? 0}px) calc(-50% + ${clear?.y ?? 0}px)`, opacity: clear ? 1 : 0 }}
           >
-            {/* What Step in has to say, just over the bar, where it was pressed: that the app starts first, what your
+            {/* What Take over has to say, just over the bar, where it was pressed: that the app starts first, what your
                 browser can't be of the one the moment ran in, or in the app that its check at the end doesn't hold
                 now; or, as a sheet, that it couldn't open, with what to do about
                 it. Under the bar there's no room for it, but on a phone, where over it is the picture. */}
-            {stepIn.cant && <CantStepIn plainly={stepIn.cant.plainly} told={toldAgent} onTell={tellAgent} onClose={stepIn.closeCant} />}
-            {(stepIn.said || stepIn.waitingOn) && (
-              <Notice className={stepIn.said ? "text-amber-ink" : "text-soft"}>
-                {stepIn.said || (
+            {takeOver.cant && <CantTakeOver plainly={takeOver.cant.plainly} told={toldAgent} onTell={tellAgent} onClose={takeOver.closeCant} />}
+            {(takeOver.said || takeOver.waitingOn) && (
+              <Notice className={takeOver.said ? "text-amber-ink" : "text-soft"}>
+                {takeOver.said || (
                   // Both lines are always there, one over the other, so the note is as wide for either and the words
                   // swap without anything moving.
                   <>
-                    <span className={`transition-opacity duration-200 ease-calm [grid-area:1/1] ${stepIn.waitingOn === "the app" ? "" : "opacity-0"}`} aria-hidden={stepIn.waitingOn !== "the app"}>
+                    <span className={`transition-opacity duration-200 ease-calm [grid-area:1/1] ${takeOver.waitingOn === "the app" ? "" : "opacity-0"}`} aria-hidden={takeOver.waitingOn !== "the app"}>
                       Starting the app, which can take a minute.
                     </span>
-                    <span className={`transition-opacity duration-200 ease-calm [grid-area:1/1] ${stepIn.waitingOn === "the way there" ? "" : "opacity-0"}`} aria-hidden={stepIn.waitingOn !== "the way there"}>
+                    <span className={`transition-opacity duration-200 ease-calm [grid-area:1/1] ${takeOver.waitingOn === "the way there" ? "" : "opacity-0"}`} aria-hidden={takeOver.waitingOn !== "the way there"}>
                       Getting to this moment.
                     </span>
                   </>
@@ -1255,18 +1255,18 @@ export function MomentView(props: {
                 <FrameButton by={1} disabled={!may.nextFrame} onStep={() => frame(1)} held={arrow} />
               </>
             )}
-            {/* On a phone, "Stepping…": its amber line says where, and the bar has room for the arrows by Play. */}
-            <button data-part={inApp ? "back" : "step-in"} className={`${ITEM} relative w-[116px] phone:px-0! phone:[flex:19_1_65px]`} disabled={!may.stepIn && !may.back} aria-pressed={stepping} aria-label={inApp ? "Back, Escape twice" : undefined} onClick={stepInOrBack}>
-              {inApp ? "Back" : stepping ? <>Stepping<span className="phone:hidden"> in</span>…</> : "Step in"}{" "}
+            {/* On a phone, "Taking…": its amber line says where, and the bar has room for the arrows by Play. */}
+            <button data-part={inApp ? "back" : "take-over"} className={`${ITEM} relative w-[116px] phone:px-0! phone:[flex:19_1_65px]`} disabled={!may.takeOver && !may.back} aria-pressed={stepping} aria-label={inApp ? "Back, Escape twice" : undefined} onClick={takeOverOrBack}>
+              {inApp ? "Back" : stepping ? <>Taking<span className="phone:hidden"> over</span>…</> : "Take over"}{" "}
               {/* In the app, a single Escape is the app's: twice is Back. */}
               {inApp ? (
                 <Key ref={backKeys} times={2} className="phone:hidden">
                   Esc
                 </Key>
               ) : (
-                !stepping && <Key>S</Key>
+                !stepping && <Key>T</Key>
               )}
-              {stepIn.getting && <Getting {...stepIn.getting} />}
+              {takeOver.getting && <Getting {...takeOver.getting} />}
             </button>
             <button data-part="note" className={`${ITEM} phone:px-0! phone:[flex:16_1_29px]`} disabled={!may.note} aria-pressed={noting} onClick={note}>
               Note <Key>N</Key>

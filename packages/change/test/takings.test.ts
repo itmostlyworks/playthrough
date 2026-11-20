@@ -58,16 +58,16 @@ test("recordings kept without what each action was line up action by action wher
   assert.ok(!passTogether(then, fewer, 3, 1.5), "with another number of them, none is taken for another by its place");
 });
 
-// Where a moment is stepped into: after so many of the things it shows done, the way there done whole before them.
+// Where a moment is taken over: after so many of the things it shows done, the way there done whole before them.
 // A moment marked since moments had a start: its way before where it starts, at 4s; it shows a click at 5s and a
 // fill at 7s, and ends at 10s.
 const marked: Moment = { name: "Hides the card numbers", length: 10, from: 4, actions: [{ at: 5 }, { at: 7 }], recording: "hides.json" };
 
-test("stepped into at rest on a moment's end, everything it shows is done and checked", () => {
+test("taken over at rest on a moment's end, everything it shows is done and checked", () => {
   assert.equal(doneAt(marked, 10), undefined);
 });
 
-test("stepped into at a moment's start, nothing it shows is done yet: the app is where the way there left it", () => {
+test("taken over at a moment's start, nothing it shows is done yet: the app is where the way there left it", () => {
   assert.equal(doneAt(marked, 4), 0);
   assert.equal(doneBefore(marked), 0, "its way is before its step, done whole by the time it starts");
 });
@@ -78,7 +78,7 @@ test("paused after a thing done, or pressed while playing past it, the app is af
   assert.equal(doneAt(marked, 7.5), undefined, "after the last, it's the end");
 });
 
-test("a still is stepped into at its end, wherever it rests", () => {
+test("a still is taken over at its end, wherever it rests", () => {
   const still: Moment = { ...marked, actions: [] };
   assert.equal(doneAt(still, 4), undefined);
 });

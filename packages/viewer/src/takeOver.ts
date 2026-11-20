@@ -1,28 +1,28 @@
-// Stepping in: the moment where its recording rests made ready, as the latest hand-back has it, and the picture turned
-// into the app there; given back, the recording again. Nothing runs before the first step in on a change: watching does
+// Taking over: the moment where its recording rests made ready, as the latest hand-back has it, and the picture turned
+// into the app there; given back, the recording again. Nothing runs before the first take-over on a change: watching does
 // nothing to the app. After it, the app is kept ready where the recording rests, so the next is quick. Each is the app
-// made afresh for that step in, from the same start as every moment. Everything the page does to get the app and give it
+// made afresh for that take-over, from the same start as every moment. Everything the page does to get the app and give it
 // back is here: asking for it, calling it off, keeping it ready, how long it should take, what the app says, a note made
 // there.
 
 import { useEffect, useRef, useState } from "react";
 import { doneAt, madeBySetup, madeInApp, newId, SHARED, type Did, type InApp, type Note, type Moment } from "@playthrough/change";
-import { isGuest, keepBranch, source, type CantStepIn } from "./api.ts";
-import { keepSteppedIn, steppedInHere } from "./kept.ts";
+import { isGuest, keepBranch, source, type CantTakeOver } from "./api.ts";
+import { keepTakenOver, takenOverHere } from "./kept.ts";
 import { isPlaying, keptReadyAt, type Action, type Facts, type Page } from "./mode.ts";
 import type { Clock } from "./Player.tsx";
 import type { App, Heard } from "./Portal.tsx";
 
-// One step in: on which moment, from where, since when, and as it goes, when it should be there, if that can be known;
+// One take-over: on which moment, from where, since when, and as it goes, when it should be there, if that can be known;
 // the app's address once it's ready, what setup made for it, and what its check at the end says where it doesn't hold
 // now, or why it can't be, until that's closed; what stopped a note made there being kept; and where your pointer was in
 // the app as you left it. Whether the app wasn't running, so it starts first, and whether it has answered since, so the
 // way there is being redone. And what your browser can't be of the one the moment ran in, known as it's asked for.
-type Run = { moment: string; from: number; since: number; due?: number; starting?: boolean; answered?: boolean; unlike?: string; address?: string; setup?: Record<string, unknown>; checked?: string; cant?: CantStepIn; unkept?: string[]; at?: { x: number; y: number } };
+type Run = { moment: string; from: number; since: number; due?: number; starting?: boolean; answered?: boolean; unlike?: string; address?: string; setup?: Record<string, unknown>; checked?: string; cant?: CantTakeOver; unkept?: string[]; at?: { x: number; y: number } };
 
-export function useStepIn({ change, handBack, moment, page, clock, act, pointing, escapedOnce }: { change: string; handBack: number; moment: Moment; page: Page; clock: Clock; act: (action: Action) => void; pointing: () => void; escapedOnce: () => void }) {
+export function useTakeOver({ change, handBack, moment, page, clock, act, pointing, escapedOnce }: { change: string; handBack: number; moment: Moment; page: Page; clock: Clock; act: (action: Action) => void; pointing: () => void; escapedOnce: () => void }) {
   const [run, setRun] = useState<Run>();
-  // A step in is its moment's: going to another lets it go, and nothing of it is drawn there meanwhile.
+  // A take-over is its moment's: going to another lets it go, and nothing of it is drawn there meanwhile.
   const here = run?.moment === moment.name ? run : undefined;
   useEffect(() => setRun((now) => (now?.moment === moment.name ? now : undefined)), [moment.name]);
   const { mode } = page;
@@ -36,15 +36,15 @@ export function useStepIn({ change, handBack, moment, page, clock, act, pointing
 
   // What's asking for the app now, to be called off.
   const asking = useRef<AbortController>(undefined);
-  // Pressed while it plays, it's where the recording has got to that's stepped into, and it stops there. Every press
-  // asks afresh: the app is made for this step in, whatever was made for one before.
-  const stepIn = () => {
+  // Pressed while it plays, it's where the recording has got to that's taken over, and it stops there. Every press
+  // asks afresh: the app is made for this take-over, whatever was made for one before.
+  const takeOver = () => {
     const where = isPlaying(mode) ? clock.at : page.at;
     const after = doneAt(moment, where);
     session.current = { id: newId(), events: [], did: [], kept: 0 };
-    keepSteppedIn(change);
+    keepTakenOver(change);
     const since = Date.now();
-    act({ type: "step in", since });
+    act({ type: "take over", since });
     setRun({ moment: moment.name, from: where, since });
     asking.current?.abort();
     const asked = (asking.current = new AbortController());
@@ -62,7 +62,7 @@ export function useStepIn({ change, handBack, moment, page, clock, act, pointing
       }
       ours((now) => ({ ...now, answered: true }));
     });
-    source.stepIn(change, moment.name, after, asked.signal).then((answer) => {
+    source.takeOver(change, moment.name, after, asked.signal).then((answer) => {
       if (asked.signal.aborted) return;
       if ("address" in answer) return ours((now) => ({ ...now, address: answer.address, setup: answer.setup, checked: answer.checked }));
       ours((now) => ({ ...now, cant: answer }));
@@ -118,7 +118,7 @@ export function useStepIn({ change, handBack, moment, page, clock, act, pointing
       const now = { type: 5, data: { tag: "now", payload: {} }, timestamp: kept.events.at(-1)!.timestamp };
       const length = await keepBranch(change, handBack, from, [...kept.events, now], file);
       if (typeof length !== "number") return setRun((run) => run && { ...run, unkept: length });
-      // Where the app was, with the ids this step in's setup made said as setup's, for the agent to go there in its own run.
+      // Where the app was, with the ids this take-over's setup made said as setup's, for the agent to go there in its own run.
       const on: InApp = { handBack, moment: moment.name, steppedIn: from.at, did: said.did, ...(said.address && { address: madeBySetup(said.address, here?.setup ?? {}) }), recording: `branches/${file}`, length, at: Math.floor(length * 100) / 100, ...(said.element ? { element: said.element } : said.point && { point: said.point }) };
       const [corner, far] = said.box ? [at(said.box.x, said.box.y), at(said.box.x + said.box.width, said.box.y + said.box.height)] : [];
       act({ type: "pointed", writing: { note: { id: newId(), on, words: "" }, spot: at(said.x, said.y), ...(corner && far && { box: { left: corner.x, top: corner.y, width: far.x - corner.x, height: far.y - corner.y } }) } });
@@ -132,7 +132,7 @@ export function useStepIn({ change, handBack, moment, page, clock, act, pointing
   };
 
   return {
-    stepIn,
+    takeOver,
     back,
     saved,
     // Kept off the edge until you're back.
@@ -147,18 +147,18 @@ export function useStepIn({ change, handBack, moment, page, clock, act, pointing
     // Getting there with the app not running, what the longer wait is on: the app starting, then, once it answers, the
     // way there being redone.
     waitingOn: mode.is === "getting there" && here?.starting ? (here.answered ? ("the way there" as const) : ("the app" as const)) : undefined,
-    // How far it is on its way, for Step in's line.
+    // How far it is on its way, for Take over's line.
     getting: mode.is === "getting there" && here ? { since: here.since, due: here.due } : undefined,
     // The app, for the portal that holds it.
     portal: { live: here && { address: here.address, shown, inApp: yours, at: here.at }, app, onHeard: heard },
   };
 }
 
-// Once this tab has stepped in on the change, the place the recording has rested at for a beat is kept ready, asked for
-// as Step in there would ask, so moving through moments with the keys doesn't start a run for each. Asked once for each
+// Once this tab has taken over on the change, the place the recording has rested at for a beat is kept ready, asked for
+// as Take over there would ask, so moving through moments with the keys doesn't start a run for each. Asked once for each
 // place it rests at, and again once back from the app, where what was made there was taken.
 export function useKeptReady({ change, moment, page, facts }: { change: string; moment: Moment; page: Page; facts: Facts }) {
-  const at = page.moment === moment.name ? keptReadyAt(page, facts, steppedInHere(change)) : undefined;
+  const at = page.moment === moment.name ? keptReadyAt(page, facts, takenOverHere(change)) : undefined;
   const after = at === undefined ? undefined : doneAt(moment, at);
   const place = at === undefined ? undefined : `${moment.name} ${after}`;
   const asked = useRef<string>(undefined);

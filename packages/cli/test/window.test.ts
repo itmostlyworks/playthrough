@@ -40,11 +40,11 @@ after(() => rm(folder, { recursive: true }));
 const phone = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
 const swedish = { locale: "sv-SE", timezoneId: "Europe/Stockholm" };
 
-test("stepped into, a moment is kept with what its file says with test.use, before the moment or after it", () => {
+test("taken over, a moment is kept with what its file says with test.use, before the moment or after it", () => {
   assert.deepEqual(windows["Pay on a phone"], phone);
 });
 
-test("stepped into, a moment's playthrough/test is this Playthrough's, in an app that has nothing of Playthrough installed", async () => {
+test("taken over, a moment's playthrough/test is this Playthrough's, in an app that has nothing of Playthrough installed", async () => {
   await writeFile(join(folder, "sign-up.ts"), `import { test } from "playthrough/test";\ntest("Signed up", async () => {});\n`);
   const { momentsIn } = await import("../src/test.ts");
   assert.deepEqual([...(await momentsIn(join(folder, "sign-up.ts"), 1)).keys()], ["Signed up"]);

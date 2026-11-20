@@ -261,7 +261,7 @@ export class Replay {
     });
     (this.#replayer as unknown as { cache: typeof styles }).cache = styles;
     this.#replayer.on("event-cast", () => (this.#changed = true));
-    // Light or dark, still or moving, as it was recorded, as the app stepped into is: the page's own styles asked the
+    // Light or dark, still or moving, as it was recorded, as the app taken over is: the page's own styles asked the
     // viewer's browser, and a site recorded light played dark in a dark viewer.
     const page = this.#replayer.iframe.contentWindow as (Window & typeof globalThis) | null;
     if (page) answerAs(page, shows.browser);

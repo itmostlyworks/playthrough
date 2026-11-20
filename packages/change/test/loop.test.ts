@@ -84,7 +84,7 @@ describe("the loop", () => {
     await assert.rejects(handsBack(changes, [PREFIX, STILL]), (error: unknown) => error instanceof Refused && new RegExp(`needs an answer to note ${note.id}, “Say what the prefix is for”`).test(error.message));
   });
 
-  test("a note made after stepping into the app is on that moment, at a time in the person's own recording, however long", async () => {
+  test("a note made after taking over the app is on that moment, at a time in the person's own recording, however long", async () => {
     const changes = await handedBack();
     const there: Note = {
       id: newId(),
@@ -95,10 +95,10 @@ describe("the loop", () => {
     await changes.take(CHANGE);
     const change = await changes.get(CHANGE);
     assert.deepEqual(notesToAnswer(change, 2), [there.id]);
-    assert.equal(allNotes(change).get(there.id)?.note.on?.moment, PREFIX.name, "on the moment it was stepped into");
+    assert.equal(allNotes(change).get(there.id)?.note.on?.moment, PREFIX.name, "on the moment it was taken over");
     const elsewhere = (on: Partial<Extract<Note["on"], { steppedIn: number }>>) => ({ ...there, id: newId(), on: { ...(there.on as Extract<Note["on"], { steppedIn: number }>), ...on } });
     await assert.rejects(changes.send(CHANGE, said(1, { notes: [elsewhere({ moment: "Gone" })] })), /on the moment “Gone”, which isn't there/);
-    await assert.rejects(changes.send(CHANGE, said(1, { notes: [elsewhere({ steppedIn: 9 })] })), /s step in is at 9s, but “Cards now say WEB-1” is 6s long/);
+    await assert.rejects(changes.send(CHANGE, said(1, { notes: [elsewhere({ steppedIn: 9 })] })), /s take-over is at 9s, but “Cards now say WEB-1” is 6s long/);
     await assert.rejects(changes.send(CHANGE, said(1, { notes: [elsewhere({ at: 60 })] })), /is at 60s, but the person's own recording is 52s long/);
     await assert.rejects(changes.send(CHANGE, said(1, { notes: [elsewhere({ recording: "cards.json" })] })), /its recording is one of the person's own/);
   });

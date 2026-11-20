@@ -1,5 +1,5 @@
 // What the viewer knows and says, from the one source it's handed: every change as it's kept, arriving again whenever
-// one changes, their recordings, what a person sends, and the app stepped into. `playthrough open` is the source
+// one changes, their recordings, what a person sends, and the app taken over. `playthrough open` is the source
 // (server.ts) unless another page hands the viewer its own (show.tsx).
 
 import { useEffect, useState } from "react";
@@ -32,15 +32,15 @@ export type Source = {
   send(change: string, send: Send): Promise<string[]>;
   // The moments opened by you, the last stop as a hand-back alone.
   seen(change: string, by: string, moments: { handBack: number; moment?: string }[]): Promise<string[]>;
-  // Stepping in at a moment, after its step's action `after` (none: before them all): how long until it's ready, as long
+  // Taking over at a moment, after its step's action `after` (none: before them all): how long until it's ready, as long
   // as the last took, whether the app starts first, and what your browser can't be of the one the moment ran in, in a
-  // sentence; kept ready there, for a step in to come; and the app's address
+  // sentence; kept ready there, for a take-over to come; and the app's address
   // there, what setup made for it, and what its check at the end says where it doesn't hold now; or why it can't be, in a
   // line for the person (`plainly`) and whole for the agent (`why`). Called off by `asked`.
   readyIn(change: string, moment: string, after: number | undefined, asked: AbortSignal): Promise<{ in?: number; starting: boolean; unlike?: string } | undefined>;
   keepReady(change: string, moment: string, after: number | undefined): void;
-  stepIn(change: string, moment: string, after: number | undefined, asked: AbortSignal): Promise<{ address: string; setup: Record<string, unknown>; checked?: string } | CantStepIn>;
-  // What you did in the app, kept as your branch off the moment you stepped in at, as the file `recording` of the
+  takeOver(change: string, moment: string, after: number | undefined, asked: AbortSignal): Promise<{ address: string; setup: Record<string, unknown>; checked?: string } | CantTakeOver>;
+  // What you did in the app, kept as your branch off the moment where you took over, as the file `recording` of the
   // hand-back: its length in seconds.
   keepBranch(change: string, branch: { handBack: number; moment: string; at: number; events: unknown[]; recording: string }): Promise<number | string[]>;
   // A note's frame drawn as a picture, a file of its hand-back, with the screen it was on and where its thing is there,
@@ -59,7 +59,7 @@ export type Source = {
 export type Keeping = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 // Where a shared change stands: the link while it's on, or why it couldn't be, with what to do.
 export type Shared = { is: "off" } | { is: "starting" } | { is: "on"; link: string } | { is: "failed"; why: string };
-export type CantStepIn = { plainly: string; why: string };
+export type CantTakeOver = { plainly: string; why: string };
 // Which moments of a hand-back, by their place from 1; and beside one, how it was when you last saw it, as Compare opens
 // framed on it. Where you've taken the window and light or dark go unused: the video is always the whole app, as it was
 // recorded (video.ts). They go once Download video stops sending them.
