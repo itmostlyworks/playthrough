@@ -97,7 +97,7 @@ export function newerSays(change: Change, on: HandBack, newer: HandBack): string
   return [...moments, ...(answered ? [answered] : [])].join(", ");
 }
 
-// Handed back again since you last looked:an earlier hand-back of it was seen or sent on by you, so this one is the
+// Handed back again since you last looked: an earlier hand-back of it was seen or sent on by you, so this one is the
 // agent's answer, not its first word.
 export function backAgain(change: Change, you: string): boolean {
   const handBack = latestOf(change);

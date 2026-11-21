@@ -6,7 +6,7 @@ import { test } from "node:test";
 import type { Change, HandBack, Moment, Send } from "@playthrough/change";
 import type { Listed } from "../src/api.ts";
 import { shownOn } from "../src/standing.ts";
-import { agentOn, firstUnseen, lookOf, sectionOf, seenThrough, stepOf, unreadOf, unseenOf, waitingInOrder } from "../src/step.ts";
+import { agentOn, firstUnseen, lookOf, newerSays, sectionOf, seenThrough, stepOf, unreadOf, unseenOf, waitingInOrder } from "../src/step.ts";
 
 const you = "Ana";
 
@@ -136,4 +136,18 @@ test("what's next is a change with something to see before one seen through, and
     change("kan/sent", "2026-11-09T09:00:00.000Z", { sends: [send(1, { done: true })] }),
   ];
   assert.deepEqual(waitingInOrder(changes, you).map(({ change }) => change.id), ["kan/older", "kan/newer", "kan/seen-through-oldest"]);
+});
+
+test("a new version handed back while you're on an older one says what came: moments changed, new or gone, and answers", () => {
+  const names = ["Admin opens settings", "Admin turns numbers off", "Member sees no numbers"];
+  const on = handBack(1, names);
+  const differ = (...moments: string[]) => ({ handBack: 2, since: 1, findings: moments.map((name, i) => ({ id: `f${i}`, words: "Looks different", seen: [{ moment: name, at: 3 }] })) });
+  const says = (newer: HandBack, comparisons: unknown[] = []) => newerSays(listed({ handBacks: [on, newer], comparisons: comparisons as Change["comparisons"] }).change, on, newer);
+  const answer = { replies: [{ note: "n1", words: "Moved it to the top." }] };
+  assert.equal(says(handBack(2, names, answer), [differ(...names)]), "3 moments changed, 1 answer");
+  assert.equal(says(handBack(2, names), [differ(names[0]!, names[1]!)]), "2 moments changed");
+  assert.equal(says(handBack(2, [...names, "Member sees a hint"])), "1 new moment");
+  assert.equal(says(handBack(2, names.slice(0, 2))), "1 moment gone");
+  assert.equal(says(handBack(2, names, answer)), "1 answer, no moment changed");
+  assert.equal(says(handBack(2, names)), "Nothing changed");
 });

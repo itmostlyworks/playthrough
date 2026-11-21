@@ -470,8 +470,8 @@ stands directly over it. It stays while a recording plays; while the app is your
 and Done wait until you're back. It's one slot that changes
 in place, every face laid in it and all but one unseen, so it's as wide as its widest and nothing moves as it turns:
 "Send 2 notes" while something's unsent, its words in full ink; "Sending…"; "✓ Sent"; "● Agent working" once an agent
-has taken them; "Done" while it waits on you with nothing unsent; "Done anyway"; "✓ Done"; and for a guest with
-nothing to send, "No notes yet", resting. It turns one way whatever it turns from: the words going fade out over
+has taken them; "New version" once one is handed back while you're on an older one; "Done" while it waits on you with
+nothing unsent; "Done anyway"; "✓ Done"; and for a guest with nothing to send, "No notes yet", resting. It turns one way whatever it turns from: the words going fade out over
 100 ms, and those coming fade in over 200 ms once they have, so two never lie over each other and a face there only for
 an instant, as the change catches up, never shows (with reduced motion, a plain swap). Just sent, "✓ Sent" stays as long
 as anything pressed says so (`SAID`) before it gives way to "Agent working", even when the change comes back with the
@@ -482,7 +482,17 @@ stay where you are, the notes' cards turning from "not sent" to "sent"; Done end
 (`SAID`), goes on to `/`. With moments not watched or answers not opened, Done's first press says so instead: the box
 turns to "Done anyway" and the line over the box says what's left ("2 moments not watched", "1 answer not opened", each
 pressed going to the first of them, by the same count the Moments edge shows, `unseenOf`, `unreadOf`); the second press
-ends the change, and going to another moment asks again. What the box can't hold is the step's notice (`StepNotice`),
+ends the change, and going to another moment asks again. **A version handed back while you're on a moment** never
+changes it under you: you stay on the one you opened (`Change`, `Moments.tsx`), and until you go, "New version" is the
+step, whatever else is (what you'd send may already be answered in it), and Ctrl+Enter doesn't send. The line over the
+box says what came, against the version you're on (`newerSays`, `step.ts`): the moments Playthrough's comparison of the
+two finds different, the new and the gone, and the agent's answers ("3 moments changed, 1 answer", "1 new moment", "1
+moment gone", "1 answer, no moment changed", "Nothing changed"). Pressed, it goes to the same moment in the new version
+(by name, else the same place, else its last), as far into it as you were, or at its end if you were at the end; the
+page held still until the new one is drawn and its notes placed, then faded into it (the browser's view transition, up
+to 1.5 s; with reduced motion or without one, a plain swap). Then the box shows the step as it truly is. Going to
+another moment instead lands on the new version too (until 21 Nov that was the only way to it, and nothing said one
+had come). What the box can't hold is the step's notice (`StepNotice`),
 a quiet line directly over the box at the Moments side's foot, wrapping in the side's width, on every moment while it's
 true, fading while a recording plays as everything over it but the bar does: what's left before Done (above); sent with no agent on the change (`agentOn`: none listening, and none on notes it took
 before), "No agent listening. Kept for when one is." in amber, and under it, while what you sent waits for one
