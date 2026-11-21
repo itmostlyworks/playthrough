@@ -8,6 +8,7 @@
 // no sheet of every change, and Send or Done stays where it was pressed.
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { flushSync } from "react-dom";
 import { latestOf, type Note } from "@playthrough/change";
 import { isGuest, shownByAnotherPage, useChanges, useYou, type Listed } from "./api.ts";
 import { Changes } from "./Changes.tsx";
@@ -16,7 +17,7 @@ import { useUnsent, keepUnsent, type YourReply } from "./kept.ts";
 import { MomentView } from "./Moment.tsx";
 import { NothingWaiting, Opening } from "./Opening.tsx";
 import { takingOf, markSeen } from "./standing.ts";
-import { seenThrough, unreadOf, unseenOf, waitingInOrder } from "./step.ts";
+import { newerSays, seenThrough, unreadOf, unseenOf, waitingInOrder } from "./step.ts";
 import { Opener, Sheet, useSheet, waitingSays } from "./Waiting.tsx";
 
 // Where you are: what's next, or a change's moment, by the change's address and the moment's place in it from 1, and a
@@ -140,8 +141,8 @@ function useSpaceStays() {
   }, []);
 }
 
-// A change's moments, one at a time. What the agent hands back while you're on one waits until you go to another, so
-// nothing changes under you.
+// A change's moments, one at a time. What the agent hands back while you're on one waits until you go to another, or
+// press New version, so nothing changes under you.
 function Change(props: { listed: Listed; you: string; moment: number; note?: string; go: Go; goOn: () => void; opener: ReactNode; unopened: { note: string; moment: number }[]; onOpened: (note: string) => void }) {
   const { listed, you, note, go, moment } = props;
   const { change } = listed;
@@ -150,9 +151,25 @@ function Change(props: { listed: Listed; you: string; moment: number; note?: str
   const { notes, replies } = useUnsent(id, latest?.number ?? 1);
   const setNotes = (edit: (notes: Note[]) => Note[]) => keepUnsent(id, latest?.number ?? 1, (now) => ({ ...now, notes: edit(now.notes) }));
   const setReplies = (edit: (replies: YourReply[]) => YourReply[]) => keepUnsent(id, latest?.number ?? 1, (now) => ({ ...now, replies: edit(now.replies) }));
-  const at = useRef<{ moment: number; handBack?: number }>(undefined);
+  const at = useRef<{ moment: number; handBack?: number; into?: number }>(undefined);
   if (at.current?.moment !== moment) at.current = { moment, handBack: latest?.number };
   const handBack = change.handBacks.find((one) => one.number === at.current!.handBack);
+  // Handed back since you came: the step says so, and pressing it goes to the same moment in the new version, as far
+  // into it as you were. The page you're on stays, still, until the new one's drawn and its notes placed, and fades into it.
+  const drawn = useRef<() => void>(undefined);
+  const newer =
+    handBack && latest && latest.number > handBack.number
+      ? {
+          line: newerSays(change, handBack, latest),
+          go: (into?: number) => {
+            const name = handBack.moments[moment - 1]?.name;
+            const to = latest.moments.findIndex((one) => one.name === name) + 1 || Math.min(moment, latest.moments.length);
+            const swap = () => flushSync(() => ((at.current = { moment: to, handBack: latest.number, into }), go({ change: id, moment: to }, true)));
+            if (!document.startViewTransition || matchMedia("(prefers-reduced-motion: reduce)").matches) return swap();
+            document.startViewTransition(() => (swap(), new Promise<void>((done) => ((drawn.current = done), setTimeout(done, 1500)))));
+          },
+        }
+      : undefined;
   const n = handBack && Math.min(moment, handBack.moments.length);
   // Opened, it's seen: for what's next, and for next time.
   const taking = handBack && n && takingOf(handBack.number, handBack.moments[n - 1]!.name);
@@ -185,6 +202,9 @@ function Change(props: { listed: Listed; you: string; moment: number; note?: str
       listed={listed}
       goOn={props.goOn}
       unwatched={unseenOf(listed, you)}
+      newer={newer}
+      into={at.current.into}
+      onDrawn={() => drawn.current?.()}
     />
   );
 }

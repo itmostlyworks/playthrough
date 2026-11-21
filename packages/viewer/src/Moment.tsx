@@ -74,6 +74,12 @@ export function MomentView(props: {
   goOn: () => void;
   // The moments you haven't watched, by their place from 1.
   unwatched: number[];
+  // A newer version handed back while you're on this one: what it holds, and the way to it, from how far into this
+  // moment you are (none at its end).
+  newer?: { line: string; go: (into?: number) => void };
+  // Come from an older version: how far into the moment it opens, and told once it's drawn there, its notes placed.
+  into?: number;
+  onDrawn?: () => void;
 }) {
   const { change, handBack, n, about, notes, setNotes, replies, setReplies, you, onMoment } = props;
   // What was sent is drawn as sent at once, as the change comes back with it.
@@ -81,7 +87,8 @@ export function MomentView(props: {
   const sent = [...props.sent, ...justSent.filter((note) => !props.sent.some((one) => one.id === note.id))];
   const unsent = notes.length + replies.length;
   // The step left: its box at the Moments' foot, pressed; from anywhere, Ctrl+Enter while something's unsent.
-  const step = useStepLeft(props.listed, you, (going) => setJustSent((now) => [...now, ...going]), props.goOn);
+  const newer = props.newer && { line: props.newer.line, go: () => props.newer!.go(Math.abs(clockOf.at - end) < 0.05 ? undefined : clockOf.at - from) };
+  const step = useStepLeft(props.listed, you, (going) => setJustSent((now) => [...now, ...going]), props.goOn, newer);
   // Done pressed with moments not watched or answers not opened: the bar says which, and the box says Done anyway.
   // Gone to another moment, it's asked again.
   const [doneAnyway, setDoneAnyway] = useState(false);
@@ -94,7 +101,7 @@ export function MomentView(props: {
   ].filter((one) => !!one);
   // The box does what it says, from wherever you are, the app yours or not: Send sends, Done ends the change.
   const pressStep = () => {
-    if (step.what === "done" && !step.taken && !step.said && !doneAnyway && toDo.length) return setDoneAnyway(true);
+    if (!step.newer && step.what === "done" && !step.taken && !step.said && !doneAnyway && toDo.length) return setDoneAnyway(true);
     step.press();
   };
   const moment = handBack.moments[n - 1]!;
@@ -144,7 +151,10 @@ export function MomentView(props: {
   // on this moment; another moment, going to it is an action too, so nothing of this one is drawn there.
   // Which moment of this hand-back a note is on: its own, or where it's shown since the agent took its own out.
   const isOn = (note: Note, name: string) => shownOn(change, handBack, note) === name;
-  const [page, setPage] = useState(() => arrived(moment.name, from, end, [...props.sent, ...notes].some((one) => one.id === props.opening && isOn(one, moment.name)) ? props.opening : undefined));
+  const [page, setPage] = useState(() => {
+    const opened = arrived(moment.name, from, end, [...props.sent, ...notes].some((one) => one.id === props.opening && isOn(one, moment.name)) ? props.opening : undefined);
+    return props.into === undefined ? opened : { ...opened, at: Math.min(Math.max(from + props.into, from), end) };
+  });
   // Come to another moment other than by going to it here, it's arrived at as it would have been, before it's drawn.
   if (page.moment !== moment.name) setPage(arrived(moment.name, from, end));
   // An action from a moment left behind, as the app answering late, changes nothing on this one.
@@ -218,6 +228,7 @@ export function MomentView(props: {
   // Where the moment's marks are on it, once its recording has said.
   const [placedOn, setPlaced] = useState<{ recording: string; placed?: Placed }>();
   const placed = placedOn?.recording === moment.recording ? placedOn.placed : undefined;
+  useEffect(() => void (placed && props.onDrawn?.()), [!!placed]);
   // A note's pin on the recording and its picture on the edge are one thing: pointing at either lights both. A pin
   // pointed at says its note right there, as its picture does, after a breath, so passing over one says nothing.
   const [pointed, setPointed] = useState<string>();
@@ -694,7 +705,7 @@ export function MomentView(props: {
   keys.current = (event) => {
     const typing = event.target instanceof HTMLElement && event.target.closest("textarea, input, [contenteditable]");
     // Ctrl+Enter sends, wherever the keyboard is but in a note being written, where it saves (`Write`).
-    if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !writing) return (event.preventDefault(), void (unsent && step.what === "send" && step.press()));
+    if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !writing) return (event.preventDefault(), void (unsent && !step.newer && step.what === "send" && step.press()));
     // A picture on an edge with the keyboard on it is pressed with Enter or Space, as any button is.
     const tile = event.target instanceof HTMLElement && event.target.closest("[data-tile]");
     if (tile && /^( |enter)$/i.test(event.key)) return;

@@ -1,7 +1,7 @@
 // The one step you can take on a change now, in as few words as say it, and where pressing the change takes you: the
 // first thing on it you haven't seen. Read from where it stands (standing.ts) and what this browser keeps unsent.
 
-import { allNotes, latestOf, standingOf, waitingForTheAgent, type Change } from "@playthrough/change";
+import { allNotes, latestOf, standingOf, waitingForTheAgent, type Change, type HandBack } from "@playthrough/change";
 import type { Listed } from "./api.ts";
 import { unsentOf } from "./kept.ts";
 import { differentSince, noteSays, seenOf, shownOn, takingOf, workingSince } from "./standing.ts";
@@ -78,7 +78,26 @@ export function lookOf(listed: Listed, you: string): string {
   return count === 1 ? "Seen" : `All ${count} seen`;
 }
 
-// Handed back again since you last looked: an earlier hand-back of it was seen or sent on by you, so this one is the
+// What a newer hand-back holds against the one you're on, in a line: the moments that look different, are new or are
+// gone, as Playthrough's own comparison of the two says, and the agent's answers in it; or that nothing changed.
+export function newerSays(change: Change, on: HandBack, newer: HandBack): string {
+  const compared = change.comparisons.find((one) => one.handBack === newer.number && one.since === on.number);
+  const names = (handBack: HandBack) => handBack.moments.map((one) => one.name);
+  const changed = new Set(compared?.findings.flatMap((finding) => finding.seen.map((seen) => seen.moment)).filter((name) => names(on).includes(name)));
+  const added = names(newer).filter((name) => !names(on).includes(name)).length;
+  const gone = names(on).filter((name) => !names(newer).includes(name)).length;
+  const answers = newer.replies.length;
+  const moments = [
+    changed.size && `${counted(changed.size, "moment", "moments")} changed`,
+    added && `${added} new ${added === 1 ? "moment" : "moments"}`,
+    gone && `${counted(gone, "moment", "moments")} gone`,
+  ].filter((one): one is string => !!one);
+  const answered = answers ? counted(answers, "answer", "answers") : "";
+  if (!moments.length) return answered ? `${answered}, no moment changed` : "Nothing changed";
+  return [...moments, ...(answered ? [answered] : [])].join(", ");
+}
+
+// Handed back again since you last looked:an earlier hand-back of it was seen or sent on by you, so this one is the
 // agent's answer, not its first word.
 export function backAgain(change: Change, you: string): boolean {
   const handBack = latestOf(change);
