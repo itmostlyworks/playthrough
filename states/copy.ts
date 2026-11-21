@@ -1,15 +1,24 @@
 // The copy a state runs on: the app, and in its .playthrough/ the change as the state starts it, made beside the one
 // there and put in its place in one move, so the page never reads half of one.
 
-import { chmod, copyFile, cp, mkdir, readdir, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { copyFile, cp, mkdir, readdir, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { dirname, join, relative, sep } from "node:path";
 import { FORMAT, type Change, type Comparison, type HandBack } from "@playthrough/change";
 import { KEPT_HERE } from "../packages/cli/src/repo.ts";
 import type { MadeFrom } from "./as-it-was.ts";
 
-// The app as it is, but for what Playthrough keeps beside it and git's own; its packages, which can be large, linked.
+// The app as git would have it, its files tracked and new but never what it ignores (builds, caches), or, outside git,
+// all of it; never what Playthrough keeps beside it. Its packages, which can be large, are linked.
 export async function copyApp(app: string, into: string, port: number) {
-  await cp(app, into, { recursive: true, filter: (from) => !/(^|\/)(\.playthrough|\.git|node_modules)$/.test(from.slice(app.length)) });
+  const files = gitFiles(app);
+  if (files) {
+    for (const file of files.filter((one) => !/^\.playthrough(\/|$)/.test(one))) {
+      await mkdir(dirname(join(into, file)), { recursive: true });
+      await copyFile(join(app, file), join(into, file)).catch(missing);
+    }
+  } else await cp(app, into, { recursive: true, filter: (from) => !/(^|\/)(\.playthrough|\.git|node_modules)$/.test(from.slice(app.length)) });
+  await mkdir(into, { recursive: true });
   for (const name of await readdir(app)) if (name === "node_modules") await symlink(join(app, name), join(into, name));
   const kept = join(into, ".playthrough");
   await mkdir(kept, { recursive: true });
@@ -19,9 +28,18 @@ export async function copyApp(app: string, into: string, port: number) {
   await writeFile(join(kept, "port.json"), `${JSON.stringify({ port })}\n`);
 }
 
+// The app's files as git sees them from its folder, or nothing outside git.
+function gitFiles(app: string): string[] | undefined {
+  try {
+    const listed = execFileSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], { cwd: app, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], maxBuffer: 256 * 1024 * 1024 });
+    return [...new Set(listed.split("\0").filter(Boolean))];
+  } catch {
+    return undefined;
+  }
+}
+
 // The change in the copy's .playthrough/ made fresh: as `change` says, its files the kept ones; none at all without one.
-// `sendFails` leaves its sends' folder unwritable.
-export async function freshChange(kept: string, into: string, id: string, change: Change | undefined, madeFrom: MadeFrom[], sendFails = false) {
+export async function freshChange(kept: string, into: string, id: string, change: Change | undefined, madeFrom: MadeFrom[] = []) {
   const [folder, making, gone] = [join(into, id), join(into, `.${id}.making`), join(into, `.${id}.gone`)];
   await rm(making, { recursive: true, force: true });
   if (change) {
@@ -33,10 +51,7 @@ export async function freshChange(kept: string, into: string, id: string, change
     if (change.taken.length) await json(join(making, "taken.json"), change.taken);
     if (change.seen && Object.keys(change.seen).length) await json(join(making, "seen.json"), change.seen);
     for (const part of ["moments", "branches"]) await cp(join(kept, part), join(making, part), { recursive: true }).catch(missing);
-    if (sendFails) await chmod(join(making, "sends"), 0o555);
   }
-  // A folder left unwritable by the state before is made writable again, so it can go.
-  await chmod(join(folder, "sends"), 0o755).catch(missing);
   await rename(folder, gone).catch(missing);
   if (change) await rename(making, folder);
   await rm(gone, { recursive: true, force: true });
