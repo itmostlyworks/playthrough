@@ -1,0 +1,32 @@
+{
+  "handBack": 3,
+  "since": 2,
+  "findings": [
+    {
+      "id": "5z3b4n4c",
+      "words": "Message is gone",
+      "gone": true,
+      "seen": [
+        {
+          "moment": "Alder Dental's invoice is marked paid",
+          "at": 4.853,
+          "box": {
+            "x": 0.39765625,
+            "y": 0.90125,
+            "width": 0.20546875,
+            "height": 0.05875
+          }
+        }
+      ]
+    },
+    {
+      "id": "pwi4fp76",
+      "words": "“Undo puts the invoice back” isn't a moment any more",
+      "seen": [
+        {
+          "moment": "Undo puts the invoice back"
+        }
+      ]
+    }
+  ]
+}

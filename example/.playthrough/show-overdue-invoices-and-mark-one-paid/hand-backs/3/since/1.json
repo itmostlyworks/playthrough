@@ -1,0 +1,130 @@
+{
+  "handBack": 3,
+  "since": 1,
+  "findings": [
+    {
+      "id": "gjp7htd4",
+      "words": "Rows in the table are in a new order",
+      "seen": [
+        {
+          "moment": "Overdue invoices are marked",
+          "at": 1.794,
+          "box": {
+            "x": 0.18125,
+            "y": 0.13625,
+            "width": 0.6375,
+            "height": 0.5475
+          }
+        }
+      ]
+    },
+    {
+      "id": "jdsvq4us",
+      "words": "“Harbor & Finch” moved down",
+      "seen": [
+        {
+          "moment": "Overdue invoices are marked",
+          "at": 1.794,
+          "element": {
+            "role": "text",
+            "name": "Harbor & Finch",
+            "node": 81
+          }
+        }
+      ]
+    },
+    {
+      "id": "veund3br",
+      "words": "“$1,840.00” moved down",
+      "seen": [
+        {
+          "moment": "Overdue invoices are marked",
+          "at": 1.794,
+          "element": {
+            "role": "text",
+            "name": "$1,840.00",
+            "node": 86
+          }
+        }
+      ]
+    },
+    {
+      "id": "dns7i4yx",
+      "words": "“Harbor & Finch” moved up",
+      "seen": [
+        {
+          "moment": "Overdue invoices are marked",
+          "at": 1.794,
+          "element": {
+            "role": "text",
+            "name": "Harbor & Finch",
+            "node": 117
+          }
+        },
+        {
+          "moment": "Alder Dental's invoice is marked paid",
+          "at": 4.853,
+          "element": {
+            "role": "text",
+            "name": "Harbor & Finch",
+            "node": 372
+          }
+        }
+      ]
+    },
+    {
+      "id": "sadg24u6",
+      "words": "“$1,840.00” moved up",
+      "seen": [
+        {
+          "moment": "Overdue invoices are marked",
+          "at": 1.794,
+          "element": {
+            "role": "text",
+            "name": "$1,840.00",
+            "node": 122
+          }
+        },
+        {
+          "moment": "Alder Dental's invoice is marked paid",
+          "at": 4.853,
+          "element": {
+            "role": "text",
+            "name": "$1,840.00",
+            "node": 369
+          }
+        }
+      ]
+    },
+    {
+      "id": "g7cfz8ks",
+      "words": "“INV-1045 Harbor Finch Sep 15, 2026 $1,840.00 Overdue Mark p…” moved up 4 places",
+      "seen": [
+        {
+          "moment": "Alder Dental's invoice is marked paid",
+          "at": 4.853,
+          "element": {
+            "role": "row",
+            "name": "INV-1045 Harbor Finch Sep 15, 2026 $1,840.00 Overdue Mark paid",
+            "node": 332
+          }
+        }
+      ]
+    },
+    {
+      "id": "fhc48quk",
+      "words": "“INV-1046 Juniper Books Oct 3, 2026 $460.00 Overdue Mark paid” moved up 4 places",
+      "seen": [
+        {
+          "moment": "Alder Dental's invoice is marked paid",
+          "at": 4.853,
+          "element": {
+            "role": "row",
+            "name": "INV-1046 Juniper Books Oct 3, 2026 $460.00 Overdue Mark paid",
+            "node": 331
+          }
+        }
+      ]
+    }
+  ]
+}

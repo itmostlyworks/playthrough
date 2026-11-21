@@ -1,0 +1,97 @@
+{
+  "number": 3,
+  "by": "Claude Code",
+  "moments": [
+    {
+      "name": "Overdue invoices are marked",
+      "length": 3.372,
+      "recording": "overdue-invoices-are-marked.json",
+      "person": "Rosa",
+      "about": {
+        "role": "text",
+        "name": "Status"
+      },
+      "from": 1.054,
+      "actions": []
+    },
+    {
+      "name": "Only overdue invoices show",
+      "length": 5.169,
+      "recording": "only-overdue-invoices-show.json",
+      "person": "Rosa",
+      "acted": {
+        "role": "button",
+        "name": "Overdue"
+      },
+      "from": 1.059,
+      "actions": [
+        {
+          "at": 2.918,
+          "what": "click button “Overdue”",
+          "began": 2.875
+        }
+      ]
+    },
+    {
+      "name": "Alder Dental's invoice is marked paid",
+      "length": 6.435,
+      "recording": "alder-dentals-invoice-is-marked-paid.json",
+      "person": "Rosa",
+      "acted": {
+        "role": "button",
+        "name": "Mark paid"
+      },
+      "from": 1.042,
+      "actions": [
+        {
+          "at": 2.829,
+          "what": "click button “Mark paid”",
+          "began": 2.738
+        },
+        {
+          "at": 4.152,
+          "what": "click button “Yes”",
+          "began": 4.106
+        }
+      ]
+    },
+    {
+      "name": "How late an invoice is",
+      "length": 6.065,
+      "recording": "how-late-an-invoice-is.json",
+      "person": "Rosa",
+      "acted": {
+        "role": "button",
+        "name": "Overdue"
+      },
+      "from": 2.144,
+      "actions": [
+        {
+          "at": 3.8,
+          "what": "hover cell “Overdue 69 days late”",
+          "began": 3.751
+        }
+      ]
+    }
+  ],
+  "replies": [
+    {
+      "note": "i9eqqxm9",
+      "words": "Mark paid now asks first, in the row, with Yes and No; the toast and its Undo are gone, so I left that moment out."
+    },
+    {
+      "note": "srrt5wwe",
+      "words": "Yes, calendar days, weekends included, as due dates are written.",
+      "shown": {
+        "moment": "How late an invoice is",
+        "at": 6.065,
+        "element": {
+          "role": "text",
+          "name": "Status",
+          "node": 54
+        }
+      }
+    }
+  ],
+  "finished": "2026-11-21T16:34:43.441Z"
+}
