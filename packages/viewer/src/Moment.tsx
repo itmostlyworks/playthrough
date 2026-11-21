@@ -16,7 +16,7 @@ import { Header, headerRows, Title } from "./Header.tsx";
 import type { YourReply } from "./kept.ts";
 import { Key } from "./Key.tsx";
 import { arrived, can, isPlaying, isStepped, reduce, type Action } from "./mode.ts";
-import { Progress, Getting, FrameButton, Tip, Notice, CantTakeOver, ITEM, BAR, PHONE_BAR } from "./MomentBar.tsx";
+import { Progress, Getting, FrameButton, Tip, Notice, CantTakeOver, ITEM, BAR, PHONE_BAR, PLACES, PROMPT } from "./MomentBar.tsx";
 import { Turns, useFrames, NoteWords, NotePicture, NoteCard, NoteWas, Write, type Made } from "./Note.tsx";
 import { usePhone } from "./phone.ts";
 import { Picture } from "./Picture.tsx";
@@ -264,19 +264,6 @@ export function MomentView(props: {
   const pointer = useRef({ x: 0, y: 0 });
   const pill = useRef<HTMLSpanElement>(null);
   const toolbar = useRef<HTMLDivElement>(null);
-  // How wide noting's words are, whole: the bar's one width, which its places spread evenly across at rest.
-  const notingRuler = useRef<HTMLDivElement>(null);
-  const [notingWide, setNotingWide] = useState(0);
-  useLayoutEffect(() => {
-    const ruler = notingRuler.current;
-    if (!ruler) return;
-    // Up to the next whole pixel, never down as offsetWidth rounds: words a fraction wider than their room are cut.
-    const measure = () => setNotingWide(Math.ceil(ruler.getBoundingClientRect().width));
-    measure();
-    const watching = new ResizeObserver(measure);
-    watching.observe(ruler);
-    return () => watching.disconnect();
-  }, [phone]);
   const [aiming, setAiming] = useState(false);
   // One Escape in the app, Back's Esc key lights, and fades over the time a second one would take you back.
   const backKeys = useRef<HTMLSpanElement>(null);
@@ -1161,9 +1148,9 @@ export function MomentView(props: {
             role="toolbar"
             aria-label="This moment"
             onClick={(event) => (event.target as Element).closest("button")?.blur()}
-            className={`absolute top-full left-1/2 z-20 flex w-max max-w-full ${PHONE_BAR} justify-evenly gap-0.5 rounded-xl transition-[translate,opacity] duration-300 ease-calm bg-surface p-1 text-[13px] select-none ${inApp ? "outline-2 outline-[rgba(236,178,72,0.95)] outline-solid shadow-[0_6px_20px_rgba(20,24,34,0.12)]" : "shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]"}`}
+            className={`absolute top-full left-1/2 z-20 grid w-max phone:max-w-full ${PHONE_BAR} rounded-xl transition-[translate,opacity] duration-300 ease-calm bg-surface p-1 text-[13px] select-none ${inApp ? "outline-2 outline-[rgba(236,178,72,0.95)] outline-solid shadow-[0_6px_20px_rgba(20,24,34,0.12)]" : "shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]"}`}
             ref={toolbar}
-            style={{ height: BAR, minWidth: !phone && notingWide ? notingWide + 8 : undefined, translate: phone ? "-50% 0" : `calc(-50% + ${clear?.x ?? 0}px) calc(-50% + ${clear?.y ?? 0}px)`, opacity: clear ? 1 : 0 }}
+            style={{ height: BAR, translate: phone ? "-50% 0" : `calc(-50% + ${clear?.x ?? 0}px) calc(-50% + ${clear?.y ?? 0}px)`, opacity: clear ? 1 : 0 }}
           >
             {/* What Take over has to say, just over the bar, where it was pressed: that the app starts first, what your
                 browser can't be of the one the moment ran in, or in the app that its check at the end doesn't hold
@@ -1186,50 +1173,36 @@ export function MomentView(props: {
                 )}
               </Notice>
             )}
-            {/* What noting says, laid out unseen, so the bar is always as wide as its widest state and never cuts it. */}
-            {!phone && (
-              <div ref={notingRuler} aria-hidden className="pointer-events-none invisible absolute top-0 left-0 flex w-max items-center gap-2 pl-2.5">
-                <span className="flex items-center gap-1.5">
-                  <span>Point at what it's about</span>
-                  <span>or the whole moment</span>
-                </span>
-                <span className={ITEM}>
-                  Cancel <Key>Esc</Key>
-                </span>
-              </div>
-            )}
-            {/* Noting, the bar says what to do and how to leave, over what it holds, at its width. */}
-            {noting && (
-              <div className="absolute inset-1 z-1 flex animate-arrive items-center justify-between gap-2 rounded-lg bg-surface pl-2.5">
-                <span className="flex min-w-0 items-center gap-1.5">
-                  <span className="truncate text-soft">Point at what it's about</span>
-                  {/* Or the moment as a whole: written at once, on no one thing, its box just over the bar. */}
-                  <button data-part="whole-moment" className="flex-none rounded-sm text-fg underline decoration-line underline-offset-[3px] transition-colors duration-150 ease-calm hover:decoration-current" onClick={wholeMoment}>
-                    or the whole moment
-                  </button>
-                </span>
-                <button className={ITEM} onClick={() => act({ type: "note" })}>
-                  Cancel <Key>Esc</Key>
-                </button>
-              </div>
-            )}
-            <div className="contents" inert={noting}>
+            {/* Noting, the bar says what to do and how to leave, over what it holds; there unseen the rest of the time, so
+                the bar is always as wide as noting needs. */}
+            <div className={`${PLACES} ${PROMPT} z-1 bg-surface ${noting ? "animate-arrive" : "invisible"}`} inert={!noting}>
+              <span className="self-center truncate px-2.5 text-soft">Point at what it's about</span>
+              {/* Or the moment as a whole: written at once, on no one thing, its box just over the bar. */}
+              <button data-part="whole-moment" className={ITEM} onClick={wholeMoment}>
+                or the whole moment
+              </button>
+              <button className={ITEM} onClick={() => act({ type: "note" })}>
+                Cancel <Key>Esc</Key>
+              </button>
+            </div>
+            <div className={`${PLACES} isolate`} inert={noting}>
             {/* A still has nothing to play, and while the app is yours nothing drives the recording: Play and its arrows
                 rest where they are, as anything that can't be pressed does, and on a still Play says why when it's
-                pointed at. */}
-            <FrameButton by={-1} disabled={!may.frameBefore} onStep={() => frame(-1)} held={arrow} />
-            {/* The tip stands beside Play, not in it, so it's as clear as any other while Play rests. */}
-            <span className="group/tip relative flex phone:[flex:20_1_36px]">
-              <button data-part="play" className={`${ITEM} relative w-[96px] phone:w-auto phone:flex-auto phone:px-0!`} disabled={!may.play} aria-description={still ? STILL : undefined} onClick={play}>
-                <span className="w-9 text-left">{playing ? "Pause" : "Play"}</span> <Key className="min-w-9">Space</Key>
-                {!still && <Progress clock={clockOf} share={shareOf(at)} shareOf={shareOf} moving={!!playing} shown={!atPoint && !away} />}
-              </button>
-              {still && <Tip>{STILL}</Tip>}
+                pointed at. Play is its whole place, the arrows small buttons over its ends, its words clear of them. */}
+            <span className="relative grid">
+              <FrameButton by={-1} disabled={!may.frameBefore} onStep={() => frame(-1)} held={arrow} />
+              {/* The tip stands beside Play, not in it, so it's as clear as any other while Play rests. */}
+              <span className="group/tip relative grid">
+                <button data-part="play" className={`${ITEM} relative px-6!`} disabled={!may.play} aria-description={still ? STILL : undefined} onClick={play}>
+                  <span className="w-9 text-left">{playing ? "Pause" : "Play"}</span> <Key className="min-w-9">Space</Key>
+                  {!still && <Progress clock={clockOf} share={shareOf(at)} shareOf={shareOf} moving={!!playing} shown={!atPoint && !away} />}
+                </button>
+                {still && <Tip>{STILL}</Tip>}
+              </span>
+              <FrameButton by={1} disabled={!may.nextFrame} onStep={() => frame(1)} held={arrow} />
             </span>
-            <FrameButton by={1} disabled={!may.nextFrame} onStep={() => frame(1)} held={arrow} />
-            {/* On a phone, "Taking…": its amber line says where, and the bar has room for the arrows by Play. Its words are
-                one item of the bar's, so they read as words, not spaced apart as the bar spaces its items. */}
-            <button data-part={inApp ? "back" : "take-over"} className={`${ITEM} relative w-[116px] phone:px-0! phone:[flex:19_1_65px]`} disabled={!may.takeOver && !may.back} aria-pressed={stepping} aria-label={inApp ? "Back, Escape twice" : undefined} onClick={takeOverOrBack}>
+            {/* On a phone, "Taking…": its amber line says where. */}
+            <button data-part={inApp ? "back" : "take-over"} className={`${ITEM} relative`} disabled={!may.takeOver && !may.back} aria-pressed={stepping} aria-label={inApp ? "Back, Escape twice" : undefined} onClick={takeOverOrBack}>
               {inApp ? "Back" : stepping ? <span>Taking<span className="phone:hidden"> over</span>…</span> : "Take over"}{" "}
               {/* In the app, a single Escape is the app's: twice is Back. */}
               {inApp ? (
@@ -1241,7 +1214,7 @@ export function MomentView(props: {
               )}
               {takeOver.getting && <Getting {...takeOver.getting} />}
             </button>
-            <button data-part="note" className={`${ITEM} phone:px-0! phone:[flex:16_1_29px]`} disabled={!may.note} aria-pressed={noting} onClick={note}>
+            <button data-part="note" className={ITEM} disabled={!may.note} aria-pressed={noting} onClick={note}>
               Note <Key>N</Key>
             </button>
             {phone && comparer}
@@ -1274,9 +1247,8 @@ export function MomentView(props: {
 }
 
 
-// Compare's place on the bar, as wide as what it holds at its widest, so the bar is the same width whatever's there; on
-// a phone, its words are the switch's.
-const COMPARING = "w-[124px] phone:[flex:27_1_85px]";
+// Compare's place in the corner, as wide as what it holds at its widest; on a phone, a place on the bar like any other.
+const COMPARING = "w-[124px] phone:w-auto";
 
 // Why Now rests for a note whose thing isn't in the moment's picture now.
 const NOT_NOW = "Not in this moment now";

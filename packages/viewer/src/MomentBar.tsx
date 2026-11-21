@@ -1,5 +1,5 @@
-// The bar across a moment's foot: its size and its buttons' look, the slim lines inside Play and Take over, and the
-// arrows either side of Play.
+// The bar across a moment's foot: its size, its places and its buttons' look, the slim lines inside Play and Take over,
+// and the arrows at Play's ends.
 
 import { useEffect, useRef, type ReactNode } from "react";
 import { Key } from "./Key.tsx";
@@ -55,15 +55,15 @@ export function Getting({ since, due }: { since: number; due?: number }) {
   );
 }
 
-// A small arrow either side of Play: the frame before, or the next. Quiet beside Play, its words and its key come up
-// over it when it's pointed at a while, or reached with Tab. Held under the pointer, it walks as its key held does;
-// pressed from the keyboard, it's one step.
+// A small arrow at either end of Play's place: the frame before, or the next. Quiet over Play, its words and its key
+// come up over it when it's pointed at a while, or reached with Tab. Held under the pointer, it walks as its key held
+// does; pressed from the keyboard, it's one step.
 export function FrameButton({ by, disabled, onStep, held }: { by: 1 | -1; disabled: boolean; onStep: () => void; held: { press: (by: 1 | -1) => void; letGo: () => void } }) {
   const [words, key, named, part] = by < 0 ? ["Frame before", "←", "ArrowLeft", "frame-before"] : ["Next frame", "→", "ArrowRight", "next-frame"];
   return (
     <button
       data-part={part}
-      className={`${ITEM} group/tip relative w-6 px-0! text-soft! phone:[flex:10_1_10px]`}
+      className={`${ITEM} group/tip absolute inset-y-0 z-1 w-6 px-0! text-soft! ${by < 0 ? "left-0" : "right-0"}`}
       disabled={disabled}
       aria-label={words}
       aria-keyshortcuts={named}
@@ -142,11 +142,16 @@ export function CantTakeOver({ plainly, told, onTell, onClose }: { plainly: stri
 // The part of Play's line not yet played: there to be seen, a step quieter than what has.
 const UNPLAYED = "bg-[color-mix(in_srgb,var(--soft)_32%,transparent)]";
 
-// On a phone, the bar fits the room it's given under the picture. It's as wide as all of it is at 390, or the room where
-// that's less, and each place on it is its words at their widest, in any state, and a share of the rest that's the air
-// it has at 390: so from 390 up it's as it always was, narrower the air goes from every place together, and at any one
-// width no place moves as its words change. Words are never cut, so under about 285 wide it runs over. Each place says
-// both, as `phone:[flex:<air>_1_<words>px]`, its own padding left to its share (`phone:px-0!`).
+// The bar's one rule, in every state: what can be pressed shares the bar in equal places that fill it edge to edge, each
+// one's surface its whole place, as far from its neighbours as from the bar's edge, its corners the bar's less that.
+// Words that only say what to do (`PROMPT`) come first and take just their room. Each state is laid over the others,
+// unseen but there, so the bar is as wide as its widest state needs, whole, and never changes width between them.
+export const PLACES = "grid grid-flow-col auto-cols-[minmax(max-content,1fr)] gap-1 [grid-area:1/1]";
+export const PROMPT = "grid-cols-[minmax(0,max-content)]";
+
+// On a phone, the bar fits the room it's given under the picture: as wide as at 390, or the room where that's less, its
+// places sharing it equally. Actions' words are never cut, so where one can't fit its share it takes its own room and
+// the rest share what's left; a prompt gives way first.
 export const PHONE_BAR = "phone:w-[min(355px,100%)]";
 
 // On a phone, the keys go and the buttons sit a little closer.

@@ -596,11 +596,19 @@ the moment changes (its shape is kept until the next one's is known, and the one
 drawn just as it was, never swapped for its picture, until the new one has faded in: two moments that look alike change
 with nothing moving in what's the same). The bar across its bottom edge (on a phone, just under it, touching it, so it
 covers none of the picture; Take over's few words then come under the bar, not over it): Play (Space), whose slim line along its own bottom edge fills as
-it plays, there only once the moment has left its end, with a small arrow either side, the frame before (←) and the
-next frame (→), their words and keys coming up over them when pointed at a while; Take over (T); Note (N, on the
-recording or in the app). The bar is one width on every moment and in every state, the width its widest state needs:
-noting's "Point at what it's about", "or the whole moment" and Cancel with its key, whole (measured unseen, `notingWide`),
-the places spreading evenly across it at rest; in the app who you are takes Play's room and its arrows'. Beside it, at
+it plays, there only once the moment has left its end, with a small arrow at either end of its place, the frame before
+(←) and the next frame (→), their words and keys coming up over them when pointed at a while; Take over (T); Note (N, on
+the recording or in the app). The bar has one rule in every state (`PLACES` in `MomentBar.tsx`): what can be pressed
+shares it in equal places that fill it edge to edge, each one's surface its whole place, 4px from its neighbours and from
+the bar's edge, its corners the bar's 12px less that, its words centred; so pointing at Play lights exactly its third,
+arrows and all (an arrow pointed at lights just its own end). Words that only say what to do (`PROMPT`: noting's "Point
+at what it's about") come first and take just their room, and the actions beside them ("or the whole moment", Cancel)
+share the rest. Each state is laid over the others, there unseen, so the bar is as wide as its widest state needs, every
+word whole, and never changes width between them: noting is the widest, so it sets the width for all (until 21 Nov the
+places had widths of their own, spread evenly in a width measured from noting, `notingWide`, so a pointed-at surface
+started and ended nowhere in particular). With the keys and arrows hidden (the site's demo) the places are still equal
+and the words centred. The keys drawn on buttons are 10.5px on a 14px line (until 21 Nov 11px on 16px), the same
+everywhere they're drawn. Beside it, at
 its right, the step left (**What's next**, above). **Compare** (C) isn't on the bar: it sits in the recording's top
 left (`corner`), on the bar's own material at the size of the sides' labels, shown while the pointer is over the
 recording, fading in and out calmly, only on a moment that has something to compare. A small switch before its word
@@ -611,10 +619,10 @@ stands just right of it, on the line "Now" stands on across the way. While a not
 there beside Compare. Like everything over the recording but the bar, it fades while a recording plays, and it's gone
 while the app is yours. With nothing to compare, the corner shows nothing (until 21 Nov "New" or "Unchanged" stood in
 Compare's place on the bar). On a phone, where nothing hovers, Compare, the switch, or "Unchanged" or "New" (smaller,
-in the soft ink, nothing to press) stay in the bar at Compare's width, as before. On a phone the keys go, Take over on its way says "Taking…", and the bar fits the room it's given under the picture
-(`PHONE_BAR`): as wide as at 390, or the room where that's less, each place its words at their widest and a share of the
-rest that's the air it has at 390, so narrower the air goes from every place together, no place moving as its words
-change and no word cut, down to about 285 wide. A click on the recording
+in the soft ink, nothing to press) stay in the bar, a place like the others. On a phone the keys go, Take over on its way says "Taking…", and the bar fits the room it's given under the picture
+(`PHONE_BAR`): as wide as at 390, or the room where that's less, its places sharing it equally by the same rule. An
+action's words are never cut: one that can't fit its share takes its own room and the rest share what's left, and a
+prompt gives way first (noting on a phone reads "Point at what it's …"). A click on the recording
 plays and pauses it. Send and Done are in the box at the Moments side's foot (above); top right, Share (below, **Sharing a
 change**). The next moment is ↓ (J), its card on the Moments edge (a row under the recording on a phone), and after the
 last, nothing; Next was top right until 19 Nov, when Share took its place. What the page is doing is one value (`mode.ts`): resting, playing, a note open, pointing,
