@@ -1285,26 +1285,33 @@ While working on the page, `npm run dev --workspace @playthrough/viewer` serves 
 `playthrough open`.
 
 **States** (`states/`) show the real player in a chosen state without touching a real change. `npm run states` (or
-`npm run states -- <app folder>`, `example/` when none is given) prints one address, http://localhost:5800: a quiet
-strip (the state, what to do there and what you'll see, Start over, Desktop or Phone) over the player itself, untouched,
-in a frame. Behind it: a copy of the app in the machine's temp folder (its packages linked, not copied), a real
-`playthrough open` from this checkout on a home and port of its own, the viewer's dev server, so edits to the player
-show at once, and a pretend agent (`agent.ts`). Its ports are each the next from `STATES_PORT` (5800): the strip, the
-player, Playthrough's page, the app, and where it's taken over (`PLAYTHROUGH_TAKE_OVER_PORT`), so a worktree can run
-its own. **Reload is the reset**: every load makes the change in the copy afresh from the app's kept change (the one
-with the most versions, read once at the start), clears what the player kept in the browser, then shows it, so nothing
-done in one load reaches the next. The state is the address after `#`, so a state is a link. Ctrl+C stops it all and
-throws the copy away. An agent checking its work headlessly opens http://localhost:5801/states/<state>: one load, and
-it's at the player's own address, in that state.
+`npm run states -- <app folder> [change]`; `example/` when no folder is given, and the change with the most versions
+when none is named, which it says beside the address) prints one address, http://localhost:5800: a quiet strip (the
+state, in the loop's order then what's beside it; what to do there and what you'll see; Hand back now, Start over,
+Desktop or Phone) over the player itself, untouched, in a frame. Behind it: a copy of the app in the machine's temp
+folder, a real `playthrough open` from this checkout on a home and port of its own, the viewer's dev server, so edits to
+the player and the strip show at once, and a pretend agent (`agent.ts`). The copy is the app as git has it, tracked and
+new files but nothing it ignores, so builds and caches stay behind and a start stays quick; `node_modules` is linked.
+Take over runs the app from that copy: an app that needs a file git ignores (a `.env`, a build) can't be taken over
+there. Its ports are each the next from `STATES_PORT` (5800): the strip, the player, Playthrough's page, the app, and
+where it's taken over (`PLAYTHROUGH_TAKE_OVER_PORT`), so a worktree can run its own. **Reload is the reset**: every
+load makes the changes in the copy afresh from the app's kept change (read once at the start), clears what the player
+kept in the browser, and shows the player once Playthrough's page tells the fresh list, so nothing done in one load
+reaches the next. The state is the address after `#`, so a state is a link. Ctrl+C stops it all and throws the copy
+away. An agent checking its work headlessly opens http://localhost:5801/states/<state>: one load, and it's at the
+player's own address, in that state.
 
 A state (`list.ts`) is a name, a sentence and how the copy starts, in the loop's own steps rather than one change's
 particulars, so the same states hold on any app with a kept change: the change as it was when a version was handed
 back (the first with notes sent on it, or the latest; `as-it-was.ts`, its times moved so that was just now), the
-person's kept notes on it written in the page, sent, taken or answered with Done, what they've watched, and whether
-the agent is listening, working or nobody. Listening, the pretend agent says so as `playthrough wait` does, takes what's
-sent, and a few seconds later hands back the next kept version, its kept answers given to the notes really sent; when
-the kept versions run out, it just keeps working. To add a state, add it to `list.ts` in those words; a new kind of
-start is a new field there, read in `asItWas`.
+person's kept notes on it written in the page, sent, taken or answered with Done, what they've watched, whether the
+agent is listening, working or nobody, and changes beside it, each made as another state makes it under a title of its
+own. Listening, the pretend agent says so as `playthrough wait` does, takes what's sent, and a few seconds later hands
+back the next kept version, its kept answers given to the notes really sent; when the kept versions run out, it just
+keeps working. Hand back now makes it hand back the next one at once, wherever you stand, taking what's sent first, or,
+with nothing sent, a version nobody asked for; with none left, it's greyed and says why. Where sending fails, the
+player's sends never reach Playthrough, as when it has stopped. To add a state, add it to `list.ts` in those words; a
+new kind of start is a new field there, read in `asItWas` or where the state arrives (`states.ts`).
 
 `npm run build` builds the page and the viewer for another page to show, then the package in `packages/cli/release` (`packages/cli/build.ts`): Node runs
 TypeScript from a checkout but not from inside an installed package, so there the command is JavaScript, with the change
