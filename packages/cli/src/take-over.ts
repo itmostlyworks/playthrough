@@ -21,8 +21,9 @@ import type { App, Repo } from "./repo.ts";
 import type { Made } from "./setup.ts";
 import { onTheWay } from "./use.ts";
 
-// Clear of the viewer's, which takes the next free one from 5790 when several are open.
-const PORT = 5830;
+// Clear of the viewer's, which takes the next free one from 5790 when several are open; or another, as PLAYTHROUGH_PORT
+// moves the page's, so a Playthrough tried beside the one in use keeps to ports of its own.
+const PORT = Number(process.env.PLAYTHROUGH_TAKE_OVER_PORT) || 5830;
 
 // Runs the moment to where it's taken over and passes the app on, then says where: each take-over has an address of its
 // own, /take-over/<moment>, with the app made for it, so two tabs, or a reload, never share one or take one from the
