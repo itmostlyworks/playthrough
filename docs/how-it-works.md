@@ -476,14 +476,14 @@ stay where you are, the notes' cards turning from "not sent" to "sent"; Done end
 (`SAID`), goes on to `/`. With moments not watched or answers not opened, Done's first press says so instead: the box
 turns to "Done anyway" and the line over the bar says what's left ("2 moments not watched", "1 answer not opened", each
 pressed going to the first of them, by the same count the Moments edge shows, `unseenOf`, `unreadOf`); the second press
-ends the change, and going to another moment asks again. Where the change stands is the bar's notice (`StepNotice`;
-`Notice`, `MomentBar.tsx`), a quiet line just over the bar, drawn as Take over's is, on every moment once there's
-something to say, fading while a recording plays as everything over it but the bar does, and giving way to Take
-over's and to noting: "With your agent."; "● The agent is working on your notes" once it has taken them; with no agent
-on the change (`agentOn`: none listening, and none on notes it took before), "No agent listening. Kept for when one
-is." in amber, and under it, while what you sent waits for one (`tellOf`), "Tell yours: “Pick up my notes in
-Playthrough.”", copying on a press; "Every moment looked good." once done; "Not sent: …" in amber where a send didn't
-go. On a phone the box is a row of its own under the bar, the whole width, and the notice a line in the page under
+ends the change, and going to another moment asks again. What the box can't hold is the bar's notice (`StepNotice`;
+`Notice`, `MomentBar.tsx`), a quiet line just over the bar, drawn as Take over's is, on every moment while it's true,
+fading while a recording plays as everything over it but the bar does, and giving way to Take over's and to noting:
+what's left before Done (above); sent with no agent on the change (`agentOn`: none listening, and none on notes it took
+before), "No agent listening. Kept for when one is." in amber, and under it, while what you sent waits for one
+(`tellOf`), "Tell yours: “Pick up my notes in Playthrough.”", copying on a press; "Not sent: …" in amber where a send
+didn't go. Sent, the agent working and Done are the box's alone, said once (21 Nov: "The agent is working on your
+notes" had stood over the bar beside the box's "Agent working"). On a phone the box is a row of its own under the bar, the whole width, and the notice a line in the page under
 it, so neither covers the other. Nothing
 else says anything to the agent: ↓ never does, and Space is never a press (`useSpaceStays`). `/` when the next change
 is seen all through (`seenThrough`) opens on its last moment, and an address from before, `/…/end`, lands there too.
@@ -1199,7 +1199,7 @@ note on the change, anyone's, is on its Notes edge, someone else's saying whose 
 
 **What a guest is told** is what they can use (`isGuest`, `api.ts`, the one rule: a source that asks your name). Done
 is never offered: the step left is Send while something's unsent, and with nothing, "No notes yet" in the box, resting.
-Sent, it's "✓ Sent" and "With the agent.", never whether one is listening nor what to tell one, which are the
+Sent, it's "✓ Sent", never whether one is listening nor what to tell one, which are the
 person's to act on. When nothing at the link answers (sharing
 stopped, `playthrough open` ended, the computer off), a send says "The person who shared this has stopped sharing, or
 their computer is off. Ask them for a new link." and Take over "Sharing has stopped here. Ask for a new link." (`gone`,

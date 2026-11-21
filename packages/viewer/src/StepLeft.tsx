@@ -1,6 +1,6 @@
 // The step left for a change, Send while something's unsent, Done while it waits on you: what the change ends in. It
-// stands in a box of its own beside the bar on every moment (`StepBox`), and the line just over the bar says where the
-// change stands once it's pressed (`StepNotice`). Sent, you stay where you are; Done says it was, then goes on to
+// stands in a box of its own beside the bar on every moment (`StepBox`), and the line just over the bar says only what
+// the box can't hold (`StepNotice`). Sent, you stay where you are; Done says it was, then goes on to
 // what's next. Already with your agents, or done, it says so, and there's nothing to press. A guest on a shared change
 // only sends: with nothing to send, there's nothing to press.
 
@@ -13,11 +13,8 @@ import { SAID, take, tick } from "./Send.tsx";
 import { toSend } from "./standing.ts";
 import { agentOn, NO_AGENT, stepOf, tellOf } from "./step.ts";
 
-// Where a change sent on stands, over the bar: someone's on it, or nobody is.
-const WITH_YOUR_AGENT = "With your agent.";
+// Over the bar, once sent with no agent on the change.
 const NOT_LISTENING = "No agent listening. Kept for when one is.";
-// What a guest is told once their notes went: whether an agent is listening is the person's to act on.
-const GUEST_SENT = "With the agent.";
 const NOTHING_YET = "No notes yet";
 // Just sent, how long the notes say they're sent before they say the agent is on them, so it's read.
 const HELD = 600;
@@ -67,9 +64,8 @@ export function useStepLeft(listed: Listed, you: string, onSent: (notes: Note[])
 }
 export type Step = ReturnType<typeof useStepLeft>;
 
-// Over the bar on every moment, where the change stands once you've said something: sent, and whether an agent has it
-// (with none, what to tell a new one); done; or, Done pressed with something not yet seen, what that is, each pressed
-// going to the first of it. Nothing before then. Faded while the recording plays, as all over it but the bar is. On a
+// Over the bar, what the box beside it can't hold: sent with no agent listening, and what to tell a new one; Done
+// pressed with something not yet seen, what that is, each pressed going to the first of it; a send that didn't go. Faded while the recording plays, as all over it but the bar is. On a
 // phone, where under the bar is the box, it's a line in the page under the box instead (`inFlow`).
 export function StepNotice({ step, todo, faded, inFlow = false }: { step: Step; todo?: { words: string; go: () => void }[]; faded: boolean; inFlow?: boolean }) {
   const { taken, said, standing } = step;
@@ -88,26 +84,17 @@ export function StepNotice({ step, todo, faded, inFlow = false }: { step: Step; 
         </span>
       </Notice>
     );
-  if (taken === "Done" || (!taken && standing.is === "done")) return <Notice className={`text-soft ${fade}`}>Every moment looked good.</Notice>;
-  if (taken !== "Sent" && standing.is !== "sent") return null;
-  if (isGuest()) return <Notice className={`text-soft ${fade}`}>{GUEST_SENT}</Notice>;
-  if (step.went === "no agent" || (!step.went && !step.agentOn))
-    return (
-      <Notice className={fade}>
-        <span className="text-amber-ink">{NOT_LISTENING}</span>
-        {step.tell && (
-          <span className="mt-0.5 block">
-            <TellYours words={step.tell} />
-          </span>
-        )}
-      </Notice>
-    );
+  // The box says Sent, the agent working and Done itself: over the bar only what it can't hold, nobody listening, with
+  // what to tell a new agent. A guest isn't told it: it's the person's to start one.
+  if ((taken !== "Sent" && standing.is !== "sent") || isGuest() || !(step.went === "no agent" || (!step.went && !step.agentOn))) return null;
   return (
-    <Notice className={`text-soft ${fade}`}>
-      <span className="flex items-center">
-        {step.working && <i className="mr-[7px] size-[7px] animate-breathe rounded-full bg-slate" />}
-        {step.working ? "The agent is working on your notes" : WITH_YOUR_AGENT}
-      </span>
+    <Notice className={fade}>
+      <span className="text-amber-ink">{NOT_LISTENING}</span>
+      {step.tell && (
+        <span className="mt-0.5 block">
+          <TellYours words={step.tell} />
+        </span>
+      )}
     </Notice>
   );
 }
