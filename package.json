@@ -6,9 +6,10 @@
   "workspaces": ["packages/*"],
   "engines": { "node": ">=24" },
   "scripts": {
-    "test": "node --test \"packages/*/test/*.test.ts\"",
-    "quick": "node --test \"packages/*/test/*.test.ts\"",
+    "test": "node --test \"packages/*/test/*.test.ts\" \"states/test/*.test.ts\"",
+    "quick": "node --test \"packages/*/test/*.test.ts\" \"states/test/*.test.ts\"",
     "check": "tsc",
+    "states": "node states/states.ts",
     "build": "npm run build --workspace @playthrough/viewer && npm run build --workspace playthrough"
   },
   "devDependencies": {
