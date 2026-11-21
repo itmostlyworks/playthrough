@@ -33,16 +33,17 @@ export function playedTogether(cut: Cut, [now, then]: [number[], number[]]): Pla
 // What changed in a moment since it was last seen, where it is on either side at the moment's point: each thing found
 // changed, and what it changed alike with; something gone, where it was. Found as a part of the page, a whole table with
 // “8 things changed inside”, it's the things the hand-back counted inside it, on whichever side each is, else the part
-// itself.
+// itself, by its name or its place.
 export function changedAt(findings: Finding[], moment: string, then: Reading | undefined, now: Reading): Box[] {
   return findings.flatMap((finding) =>
     finding.seen.flatMap((place) => {
       if (place.moment !== moment) return [];
+      const inside = (place.inside ?? []).flatMap((named) => [...calledIn(now, named), ...calledIn(then, named)]);
+      if (inside.length) return inside;
       if (place.element) return [place.element, ...(place.alike ?? [])].flatMap((named) => calledIn(finding.gone ? then : now, named));
       if (place.point) return [{ left: place.point.x * now.screen.width, top: place.point.y * now.screen.height, width: 0, height: 0 }];
       if (!place.box) return [];
-      const things = (place.inside ?? []).flatMap((named) => [...calledIn(now, named), ...calledIn(then, named)]);
-      return things.length ? things : [{ left: place.box.x * now.screen.width, top: place.box.y * now.screen.height, width: place.box.width * now.screen.width, height: place.box.height * now.screen.height }];
+      return [{ left: place.box.x * now.screen.width, top: place.box.y * now.screen.height, width: place.box.width * now.screen.width, height: place.box.height * now.screen.height }];
     }),
   );
 }

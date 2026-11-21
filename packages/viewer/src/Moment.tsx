@@ -937,10 +937,15 @@ export function MomentView(props: {
                   {!nowThere && <Tip>{NOT_NOW}</Tip>}
                 </span>
   );
-  // On, pressed plainly: filled, as the way out of the two sides.
+  // Off or on as a switch says it, its knob over and its track filled, and in its words' ink, soft till it's on: in the
+  // corner it's read over the recording at a glance, so it says which by its shape, quietly. On a phone, in the bar,
+  // it's pressed as before, filled.
   const compareButton = then && (
-                <button data-part="compare" className={`${ITEM} ${COMPARING} phone:px-0! aria-pressed:bg-fg! aria-pressed:text-ground! aria-pressed:[&_kbd]:text-[inherit]! aria-pressed:[&_kbd]:opacity-70`} disabled={!may.compare} aria-pressed={comparing} onClick={compare}>
-                  Compare <Key>C</Key>
+                <button data-part="compare" className={`${ITEM} ${COMPARING} w-[106px]! gap-1.5! px-2! py-0.5! text-soft! enabled:hover:text-fg! aria-pressed:text-fg! phone:w-auto! phone:px-0! phone:py-1.5! phone:text-fg! phone:aria-pressed:bg-fg! phone:aria-pressed:text-ground!`} disabled={!may.compare} aria-pressed={comparing} onClick={compare}>
+                  <span aria-hidden className="relative h-3 w-5 flex-none rounded-full shadow-[inset_0_0_0_1px_var(--line)] transition-colors duration-200 ease-calm in-aria-pressed:bg-fg in-aria-pressed:shadow-none phone:hidden">
+                    <span className="absolute top-0.5 left-0.5 size-2 rounded-full bg-soft transition-[translate,background-color] duration-200 ease-calm in-aria-pressed:translate-x-2 in-aria-pressed:bg-surface" />
+                  </span>
+                  Compare <Key className="phone:hidden">C</Key>
                 </button>
   );
   const comparer = offered && (shownSwitch || compareButton || (
@@ -1063,7 +1068,7 @@ export function MomentView(props: {
                         moves={pageWindow}
                       />
                       {/* The left side's label stands just right of Compare in the corner, on the line "Now" stands on. */}
-                      <span className={CHIP} style={side.side === 1 && !phone ? { left: 152 } : undefined}>{side.label}</span>
+                      <span className={CHIP} style={side.side === 1 && !phone ? { left: 130 } : undefined}>{side.label}</span>
                     </div>
                   </div>
                 ))}
@@ -1111,7 +1116,7 @@ export function MomentView(props: {
           </div>
           {/* Compare, and As it was and Now, in the recording's top left: over the left side's label while comparing. */}
           {!phone && inCorner && (
-            <div data-part="corner" className={`absolute top-2.5 left-2.5 z-[16] flex rounded-xl bg-surface p-1 text-[13px] shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)] transition-opacity duration-200 ease-calm select-none gap-1 ${cornerShown ? "" : "pointer-events-none opacity-0"}`} inert={!cornerShown} onClick={(event) => (event.target as Element).closest("button")?.blur()}>
+            <div data-part="corner" className={`absolute top-2 left-2.5 z-[16] flex rounded-[10px] bg-surface p-0.5 text-xs shadow-[0_0_0_1px_var(--edge),0_2px_8px_var(--drop)] transition-opacity duration-200 ease-calm select-none gap-0.5 ${cornerShown ? "" : "pointer-events-none opacity-0"}`} inert={!cornerShown} onClick={(event) => (event.target as Element).closest("button")?.blur()}>
               {inCorner}
             </div>
           )}

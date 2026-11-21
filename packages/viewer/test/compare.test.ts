@@ -21,6 +21,12 @@ test("a part counted as one change frames the things the hand-back counted insid
   assert.deepEqual(changed.map((box) => box.top), [260, 240]);
 });
 
+test("a part known by its name, counted as one change, frames what was counted inside it, not the whole part (the demo's Invoices table)", () => {
+  const now = reading(text("79 days late", 260), { ...text("Invoices", 200), role: "table", box: { x: 40, y: 200, width: 900, height: 400 } });
+  const named: Finding[] = [{ id: "c9ig4j2a", words: "Invoices table: 3 things changed inside", seen: [{ moment: "Only overdue invoices show", at: 3, element: { role: "table", name: "Invoices" }, inside: [{ role: "text", name: "79 days late" }] }] }];
+  assert.deepEqual(changedAt(named, "Only overdue invoices show", reading(), now).map((box) => box.top), [260]);
+});
+
 test("kept before the hand-back counted what's inside a part, it frames the part itself", () => {
   const changed = changedAt(counted(), "Only overdue invoices show", reading(text("Paid", 280)), reading(text("Status", 220)));
   assert.deepEqual(changed, [{ left: 40, top: 200, width: 900, height: 400 }]);

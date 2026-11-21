@@ -595,10 +595,12 @@ recording or in the app). The bar is one width on every moment and in every stat
 noting's "Point at what it's about", "or the whole moment" and Cancel with its key, whole (measured unseen, `notingWide`),
 the places spreading evenly across it at rest; in the app who you are takes Play's room and its arrows'. Beside it, at
 its right, the step left (**What's next**, above). **Compare** (C) isn't on the bar: it sits in the recording's top
-left (`corner`), on the bar's own material, shown while the pointer is over the recording, fading in and out calmly,
-only on a moment that has something to compare; while Compare is on it stays shown without the pointer, pressed (filled,
-in the ground's ink), so the way out is always in sight, and "When you last saw it" stands just right of it, on the line
-"Now" stands on across the way. While a note from an earlier hand-back is open, its "As it was" and "Now" switch is
+left (`corner`), on the bar's own material at the size of the sides' labels, shown while the pointer is over the
+recording, fading in and out calmly, only on a moment that has something to compare. A small switch before its word
+says off or on (its track filled and knob over when on, its word soft till then), so it reads at a glance; until 21 Nov
+it was a bar-sized button filled in the ground's ink when on, too big over the recording and unclear which it was.
+While Compare is on it stays shown without the pointer, so the way out is always in sight, and "When you last saw it"
+stands just right of it, on the line "Now" stands on across the way. While a note from an earlier hand-back is open, its "As it was" and "Now" switch is
 there beside Compare. Like everything over the recording but the bar, it fades while a recording plays, and it's gone
 while the app is yours. With nothing to compare, the corner shows nothing (until 21 Nov "New" or "Unchanged" stood in
 Compare's place on the bar). On a phone, where nothing hovers, Compare, the switch, or "Unchanged" or "New" (smaller,
@@ -844,8 +846,10 @@ and the demo's one change, a Status column, was out of view on both). What was d
 place on either side (`doneIn`, `replay.ts`, where the click's ring is drawn) and the whole of the last thing done to
 (`acted`, as each side's reading has it); what changed is each finding on the moment, by its thing and those changed
 alike with it, in the reading of the side it's on, and, for a finding that's a whole part of the page ("Table: 8
-things changed inside"), the things the hand-back counted inside it, on whichever side each is, else, kept before
-those were, the part itself (`changedAt`, `compare.ts`). The rule is
+things changed inside"), the things the hand-back counted inside it, on whichever side each is, whether the part is
+kept by its name or its place, else, kept before those were, the part itself (`changedAt`, `compare.ts`). Until 21 Nov
+a part kept by its name (the demo's Invoices table) lost what it counted on the way into the change, so Compare framed
+the whole table, too wide to fit, from its top left, with the changed Status out of view on both sides. The rule is
 one pure function, `framed` (`view.ts`): at actual size the view moves from the top left only as far as it takes for
 all of it to be in with 24px of room around (in view already, nothing moves); where it doesn't fit, it's brought just
 far enough out that it does, never further than `FARTHEST`, 0.6 of actual size, where an app's words stop reading;
