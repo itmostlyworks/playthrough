@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 import { Changes, latestOf } from "@playthrough/change";
 import { folder } from "@playthrough/change/folder";
 import { build, createServer as createVite, type Plugin } from "vite";
+import type { Listed } from "../packages/cli/src/open.ts";
 import { repo as copyAt } from "../packages/cli/src/repo.ts";
 import { pretendAgent } from "./agent.ts";
 import { asItWas } from "./as-it-was.ts";
@@ -92,11 +93,35 @@ async function arrive(state: State): Promise<{ kept: Record<string, string>; add
   for (const one of made) await freshChange(kept.folder, changes, one.id, one.change, one.madeFrom);
   agents = made.filter((one) => one.change).map((one) => pretendAgent(repo, one.id, kept, one.state, stopAgents.signal));
   sending = !state.sendFails;
+  await seenByPlaythrough();
   const address = (one: string) => `${basename(copy)}/${one}`;
   return {
     kept: Object.fromEntries(made.filter((one) => one.unsent.length).map((one) => [`playthrough:moments:${address(one.id)}`, JSON.stringify(one.unsent)])),
     address: state.opens === "first moment" ? `/moments/${address(id!)}/1` : "/",
   };
+}
+
+// Playthrough's page tells a player that comes the list it last told anyone, until it has looked again; one arriving
+// straight after the copy is made afresh would be told the state before. So the player comes only once Playthrough
+// says the changes as they are now, or after a few seconds whatever it says.
+async function seenByPlaythrough() {
+  const changes = `http://localhost:${opened}/api/changes`;
+  const now = async () => JSON.stringify(((await (await fetch(changes)).json()) as Listed[]).map((one) => one.change));
+  const fresh = await now();
+  const told = await fetch(`${changes}?live`, { signal: AbortSignal.timeout(3000) }).catch(() => undefined);
+  try {
+    let said = "";
+    for await (const bytes of told?.body ?? []) {
+      said += new TextDecoder().decode(bytes);
+      const lines = said.split("\n\n");
+      said = lines.pop()!;
+      if (lines.some((line) => JSON.stringify((JSON.parse(line.replace(/^data: /, "")) as Listed[]).map((one) => one.change)) === fresh)) return;
+    }
+  } catch {
+    // waited long enough
+  } finally {
+    told?.body?.cancel().catch(() => {});
+  }
 }
 
 // On the player's own address, so what it keeps in the browser is what's cleared: /states/<name>. Opened by itself,
