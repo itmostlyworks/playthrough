@@ -357,9 +357,7 @@ export function ShowMe() {
   return (
     <>
       <p className="text-soft">To see an agent's work here, tell it:</p>
-      <p>
-        <Copyable words="When you're done, show me with npx playthrough." />
-      </p>
+      <Copyable words="When you're done, show me with npx playthrough." className="mt-2" />
     </>
   );
 }
@@ -367,21 +365,22 @@ export function ShowMe() {
 // Sent, and nothing is listening for it: what to say to your agent, word for word, on a line of its own under the row's.
 export function TellYours({ words }: { words: string }) {
   return (
-    <span className="pointer-events-none w-full text-[13px] leading-5 text-soft">
-      Tell yours: <Copyable words={words} />
-    </span>
+    <div className="pointer-events-none w-full text-[13px] leading-5 text-soft">
+      Tell yours:
+      <Copyable words={words} className="mt-1" />
+    </div>
   );
 }
 
-// Words to say to an agent, in quotes. They copy on a press, said "Copied" in their place for a moment, at their size,
-// so nothing moves.
-function Copyable({ words }: { words: string }) {
+// Words to say to an agent, as the site's own prompt shows them: plain words to read or select, in a box with Copy
+// beside them, which says "Copied" for a moment in its own room, so nothing moves. Where it's narrow, the words wrap
+// and Copy goes under them.
+function Copyable({ words, className = "" }: { words: string; className?: string }) {
   const [copied, setCopied] = useState(false);
   const sentence = useRef<HTMLSpanElement>(null);
   const shown = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(shown.current), []);
   const copy = async (event: MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation();
     const button = event.currentTarget;
     if (!(await copyText(words, button))) return void window.getSelection()?.selectAllChildren(sentence.current!);
     clearTimeout(shown.current);
@@ -389,20 +388,29 @@ function Copyable({ words }: { words: string }) {
     shown.current = setTimeout(() => setCopied(false), 1400);
   };
   return (
-    <button
-      onClick={copy}
-      aria-label={`Copy “${words}”`}
-      // Its hover and ring are drawn round it, not padded into it: it takes up only its words' room, in a line that
-      // cuts what doesn't fit.
-      className="pointer-events-auto relative cursor-pointer rounded-sm text-left text-fg transition-[background-color,box-shadow] duration-150 ease-calm hover:bg-hover hover:shadow-[0_0_0_3px_var(--hover)] focus-visible:shadow-[0_0_0_2px_var(--amber)] focus-visible:outline-none"
+    // Its own: a press or a selection in it isn't one on the row it sits in.
+    <div
+      onClick={(event) => event.stopPropagation()}
+      className={`pointer-events-auto flex w-fit max-w-full cursor-auto flex-wrap items-center gap-x-2 gap-y-1 rounded-md bg-surface py-1 pr-1 pl-3 text-left shadow-frame ${className}`}
     >
-      <span className={`transition-opacity duration-150 ease-calm ${copied ? "opacity-0" : ""}`}>
-        “<span ref={sentence}>{words}</span>”
+      <span ref={sentence} className="min-w-[min(100%,8em)] flex-1 py-0.5 font-mono text-[0.87em] text-fg select-text">
+        {words}
       </span>
-      <span aria-live="polite" className={`absolute inset-y-0 left-0 text-soft transition-opacity duration-150 ease-calm ${copied ? "" : "opacity-0"}`}>
-        {copied ? "Copied" : ""}
-      </span>
-    </button>
+      <button
+        onClick={copy}
+        aria-label={`Copy “${words}”`}
+        className="ml-auto grid flex-none cursor-pointer rounded-sm bg-fg px-2 py-0.5 text-[12px] leading-5 font-semibold text-ground shadow-[0_1px_2px_var(--drop)] transition-colors duration-150 ease-calm hover:bg-[color-mix(in_srgb,var(--fg)_86%,var(--ground))] focus-visible:shadow-[0_0_0_2px_var(--amber)] focus-visible:outline-none"
+      >
+        {/* Both words in one place, the one not said hidden, so it's as wide as the wider. */}
+        <span className={`col-start-1 row-start-1 ${copied ? "invisible" : ""}`}>Copy</span>
+        <span aria-hidden className={`col-start-1 row-start-1 ${copied ? "" : "invisible"}`}>
+          Copied
+        </span>
+        <span aria-live="polite" className="sr-only">
+          {copied ? "Copied" : ""}
+        </span>
+      </button>
+    </div>
   );
 }
 

@@ -119,7 +119,7 @@ export function NothingWaiting({ changes, you, opener }: { changes: Listed[]; yo
           <AtRest done={changes.length > 0} />
           <p className="mt-5 text-[20px] leading-[28px] font-medium text-fg">{restingWords(changes.length > 0)}</p>
           {!steps.length && (
-            <div className="mt-2 text-[15px] leading-[22px]">
+            <div className="mt-2 flex flex-col items-center text-[15px] leading-[22px]">
               <ShowMe />
             </div>
           )}
