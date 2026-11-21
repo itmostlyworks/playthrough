@@ -493,10 +493,15 @@ places, scrolling out of view on a long change.) Notes on the whole change, whic
 on the last moment (`shownOn`) as a note on the whole moment is (**A note**, below): on its Notes edge with no pin,
 reached by Shift ↑ ↓, their answers counted in "1 answer not opened" and read by seeing the last moment (a hand-back
 seen as a whole, as the last stop was, reads nothing now). They reach the agent as they always did. With nothing waiting,
-the page says so calmly, with what your agents are on ("Your agents are on:", each with its words) and apart under
-"No agent listening:" what nobody is on, each with the line to tell yours; a heading shows only over a change it's
-true of. Its first line stays put as a change moves between the two when an agent arrives: the rest grows and shrinks
-under it, rather than the whole being centred.
+the page rests: in the middle of the window, Playthrough's mark quietly, with a green tick where the note would be (it
+lands once, as the page arrives), and "You're all caught up." (Before any agent's work has come: the mark with nothing
+in it, and "Nothing here yet.") Under it, what your agents are on ("Your agents are on:", each with its words) and apart
+under "No agent listening:" what nobody is on, each with the line to tell yours; a heading shows only over a change it's
+true of. With neither list, how to bring an agent's work here instead: "To see an agent's work here, tell it:" and
+under it “When you're done, show me with npx playthrough.”, which copies on a press as "Tell yours" does. The
+every-change sheet says the same words under "Waiting on you". The
+mark and first line stay put as a change moves between the lists when an agent arrives: the rest grows and shrinks
+under them, rather than the whole being centred.
 
 **"Tell yours: “Pick up my notes in Playthrough.”"**, wherever it shows, copies the sentence on a press (`TellYours`,
 `Changes.tsx`): a button of the sentence's own size, so "Copied" shows in its place for 1.4 s with nothing moving, and a
