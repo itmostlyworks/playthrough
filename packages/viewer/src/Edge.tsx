@@ -46,6 +46,9 @@ export function useMore(list: RefObject<HTMLElement | null>) {
   const mask = `linear-gradient(to bottom, ${cut.above ? "transparent" : "#000"}, #000 ${cut.above ? MORE : 0}px, #000 calc(100% - ${cut.below ? MORE : 0}px), ${cut.below ? "transparent" : "#000"})`;
   return { look, fade: { maskImage: mask, WebkitMaskImage: mask } };
 }
+// The foot keeps this far from the screen's edge, and this far from the recording.
+const FOOT_GUTTER = 16;
+const FOOT_GAP = 8;
 // From the pictures' outer side to their card's: the card runs this much further past the screen's edge.
 const TUCKED = 6;
 
@@ -69,8 +72,10 @@ export function Edge(props: {
   // On a phone, while the app is yours, its cards still answer a press, which leaves the app first, as Back does: the
   // moments'. Each rests, quieter, until it's pointed at.
   answers?: boolean;
+  // Under what it holds, pinned at its foot as its list scrolls above: what's done with all of it. Not on a phone.
+  foot?: ReactNode;
 }) {
-  const { side, label, keys, place, quiet, phone, empty, showing, children, answers } = props;
+  const { side, label, keys, place, quiet, phone, empty, showing, children, answers, foot } = props;
   // For another page to find it by (data-part): the moments are always on the left, what you said on the right.
   const part = side === "left" ? "moments" : "notes";
   // On a phone, what rests while you're in the app: every card, or where they answer, each until it's pointed at.
@@ -92,6 +97,18 @@ export function Edge(props: {
     addEventListener("resize", measure);
     return () => (watching.disconnect(), removeEventListener("resize", measure));
   }, [phone, side]);
+  // The foot's height, which the list above it gives up, as what it says wraps or changes.
+  const footing = useRef<HTMLDivElement>(null);
+  const [footHigh, setFootHigh] = useState(0);
+  useLayoutEffect(() => {
+    const shown = footing.current;
+    if (!shown) return setFootHigh(0);
+    const measure = () => setFootHigh(shown.offsetHeight);
+    measure();
+    const watching = new ResizeObserver(measure);
+    watching.observe(shown);
+    return () => watching.disconnect();
+  }, [!!foot, !!room, phone]);
   const timer = useRef(0);
   const own = useRef<HTMLDivElement>(null);
   // Whether the pointer is over it: a picture pressed lets go of the keys, which mustn't send it back from under the pointer.
@@ -182,7 +199,7 @@ export function Edge(props: {
         data-part={part}
         // At rest its cards sit back, so the recording has your eye; in the app they rest as all that drives it does.
         className="fixed z-30 transition-[translate] duration-300 ease-calm"
-        style={{ top: room.top - INSET, height: room.height + 2 * INSET, width: DRAWER, left: right ? room.inner : room.inner - DRAWER, translate: forward ? `${right ? -shift : shift}px 0` : "0 0" }}
+        style={{ top: room.top - INSET, height: room.height + 2 * INSET - (footHigh && footHigh + INSET), width: DRAWER, left: right ? room.inner : room.inner - DRAWER, translate: forward ? `${right ? -shift : shift}px 0` : "0 0" }}
         {...pointing}
         onPointerDownCapture={(event) => {
           if (event.pointerType !== "touch" || forward || quiet) return;
@@ -207,6 +224,21 @@ export function Edge(props: {
           </div>
         </div>
       </div>
+      {/* Its foot, under the pictures and across the room beside the recording that's on the screen, a line between: it
+          stays put as the list scrolls and as the edge comes forward, the recording's foot its own. */}
+      {foot && (
+        <div
+          ref={footing}
+          className="fixed z-30 grid gap-2.5 border-t border-line pt-3"
+          style={{
+            top: room.top + room.height - footHigh,
+            [right ? "right" : "left"]: Math.max(FOOT_GUTTER, -cutBy),
+            width: (right ? room.screen - room.inner : room.inner) - FOOT_GAP - Math.max(FOOT_GUTTER, -cutBy),
+          }}
+        >
+          {foot}
+        </div>
+      )}
       {/* The screen's edge, at rest, only where the pictures run past it: they leave over its last few pixels, quickly at
           the very edge, rather than a long grey band over pictures wholly on the screen. */}
       {veil > 0 && (

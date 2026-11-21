@@ -102,7 +102,8 @@ export function StepNotice({ step, todo, faded, inFlow = false }: { step: Step; 
 // The step left, in a box of its own beside the bar, one slot that changes in place: Send, Sent, the agent working once
 // it has them, Done, Done anyway, Done with its tick. Every face is laid in it, all but one unseen, so it's as wide as
 // its widest and nothing moves as it turns. Pressed: what it says.
-export function StepBox({ step, anyway, onPress, className = "" }: { step: Step; anyway: boolean; onPress: () => void; className?: string }) {
+// Flat, it lies on the page rather than floating over it, as at the Moments' foot.
+export function StepBox({ step, anyway, onPress, flat = false, className = "" }: { step: Step; anyway: boolean; onPress: () => void; flat?: boolean; className?: string }) {
   const { what, said, taken, working } = step;
   const faces: [string, ReactNode][] = [
     ["send", step.words],
@@ -126,7 +127,7 @@ export function StepBox({ step, anyway, onPress, className = "" }: { step: Step;
       onClick={(event) => (event.detail && event.currentTarget.blur(), onPress())}
       // Of the bar's own material, so the two read as one bar and its neighbour: what says there's something to send is
       // its words in full ink, and the amber light as a note is saved. Pointed at, the tint lies over its surface.
-      className={`grid h-10 flex-none items-center rounded-xl bg-surface px-3.5 text-[13px] whitespace-nowrap shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)] transition-[background-color,color] duration-150 ease-calm ${pressable ? "text-fg enabled:hover:bg-[image:linear-gradient(var(--hover),var(--hover))] enabled:active:bg-[image:linear-gradient(var(--hover),var(--hover)),linear-gradient(var(--hover),var(--hover))]" : "cursor-default text-soft"} ${className}`}
+      className={`grid h-10 flex-none items-center rounded-xl bg-surface px-3.5 text-[13px] whitespace-nowrap ${flat ? "shadow-[0_0_0_1px_var(--edge)]" : "shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]"} transition-[background-color,color] duration-150 ease-calm ${pressable ? "text-fg enabled:hover:bg-[image:linear-gradient(var(--hover),var(--hover))] enabled:active:bg-[image:linear-gradient(var(--hover),var(--hover)),linear-gradient(var(--hover),var(--hover))]" : "cursor-default text-soft"} ${className}`}
     >
       {faces.map(([is, words]) => (
         <span key={is} aria-hidden={is !== now} className={`flex items-center justify-center [grid-area:1/1] ${is === now ? (taken ? "text-fg" : "") : "invisible"}`}>
