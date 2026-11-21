@@ -471,7 +471,11 @@ and Done wait until you're back. It's one slot that changes
 in place, every face laid in it and all but one unseen, so it's as wide as its widest and nothing moves as it turns:
 "Send 2 notes" while something's unsent, its words in full ink; "Sending…"; "✓ Sent"; "● Agent working" once an agent
 has taken them; "Done" while it waits on you with nothing unsent; "Done anyway"; "✓ Done"; and for a guest with
-nothing to send, "No notes yet", resting. Pointed at, a tint lies over its surface, never in its place. A note saved
+nothing to send, "No notes yet", resting. It turns one way whatever it turns from: the words going fade out over
+100 ms, and those coming fade in over 200 ms once they have, so two never lie over each other and a face there only for
+an instant, as the change catches up, never shows (with reduced motion, a plain swap). Just sent, "✓ Sent" stays as long
+as anything pressed says so (`SAID`) before it gives way to "Agent working", even when the change comes back with the
+agent already on it. Pointed at, a tint lies over its surface, never in its place. A note saved
 lights it amber where it stands, fading over 700 ms, as its words take one more (with reduced motion, lit then unlit;
 `lightSend`, `Moment.tsx`). Pressed, or Ctrl+Enter from anywhere while something's unsent: Send sends at once and you
 stay where you are, the notes' cards turning from "not sent" to "sent"; Done ends the change and, after a pause

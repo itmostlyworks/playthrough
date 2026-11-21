@@ -16,8 +16,6 @@ import { agentOn, NO_AGENT, stepOf, tellOf } from "./step.ts";
 // Over the box, once sent with no agent on the change.
 const NOT_LISTENING = "No agent listening. Kept for when one is.";
 const NOTHING_YET = "No notes yet";
-// Just sent, how long the notes say they're sent before they say the agent is on them, so it's read.
-const HELD = 600;
 
 // What came of a send: sent to your agent; sent with no agent listening; the agent working on them.
 type Went = "sent" | "no agent" | "working";
@@ -44,7 +42,8 @@ export function useStepLeft(listed: Listed, you: string, onSent: (notes: Note[])
     if (problems.length) return setSaid(problems);
     setSaid(what === "send" ? "Sent" : "Done");
     setHeld(true);
-    setTimeout(() => setHeld(false), HELD);
+    // Sent says so as long as anything pressed does, before it says the agent is on them.
+    setTimeout(() => setHeld(false), SAID);
     // Sent, you stay where you pressed it, the bar saying where it stands; Done ends the change, and goes on.
     if (what === "done") setTimeout(goOn, matchMedia("(prefers-reduced-motion: reduce)").matches ? 600 : SAID);
   };
@@ -59,7 +58,8 @@ export function useStepLeft(listed: Listed, you: string, onSent: (notes: Note[])
   // A guest isn't told nobody's listening: it's the person's to start one.
   const went: Went | undefined =
     taken !== "Sent" ? undefined : step.is !== "with" ? (agentOn(listed) || isGuest() ? "sent" : "no agent") : step.words === NO_AGENT ? (isGuest() ? "sent" : "no agent") : step.words === "Agent working" && !held ? "working" : "sent";
-  const working = went === "working" || (step.is === "with" && step.words === "Agent working");
+  // Just sent, it says Sent until that's been read, even when the change comes back with the agent already on it.
+  const working = went ? went === "working" : step.is === "with" && step.words === "Agent working";
   return { what, said, taken, went, working, step, standing, count, agentOn: agentOn(listed), tell: isGuest() ? undefined : tellOf(listed, you), words: `Send ${toSend(unsent.current.notes, unsent.current.replies)}`, press: () => void press() };
 }
 export type Step = ReturnType<typeof useStepLeft>;
@@ -127,10 +127,16 @@ export function StepBox({ step, anyway, onPress, flat = false, className = "" }:
       onClick={(event) => (event.detail && event.currentTarget.blur(), onPress())}
       // Of the bar's own material, so the two read as one bar and its neighbour: what says there's something to send is
       // its words in full ink, and the amber light as a note is saved. Pointed at, the tint lies over its surface.
-      className={`grid h-10 flex-none items-center rounded-xl bg-surface px-3.5 text-[13px] whitespace-nowrap ${flat ? "shadow-[0_0_0_1px_var(--edge)]" : "shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]"} transition-[background-color,color] duration-150 ease-calm ${pressable ? "text-fg enabled:hover:bg-[image:linear-gradient(var(--hover),var(--hover))] enabled:active:bg-[image:linear-gradient(var(--hover),var(--hover)),linear-gradient(var(--hover),var(--hover))]" : "cursor-default text-soft"} ${className}`}
+      className={`grid h-10 flex-none items-center rounded-xl bg-surface px-3.5 text-[13px] whitespace-nowrap ${flat ? "shadow-[0_0_0_1px_var(--edge)]" : "shadow-[0_0_0_1px_var(--edge),0_6px_20px_var(--drop)]"} transition-[background-color,color] duration-150 ease-calm ${pressable ? "text-fg enabled:hover:bg-[image:linear-gradient(var(--hover),var(--hover))] enabled:active:bg-[image:linear-gradient(var(--hover),var(--hover)),linear-gradient(var(--hover),var(--hover))]" : `cursor-default ${taken ? "text-fg" : "text-soft"}`} ${className}`}
     >
+      {/* Turning, the face going goes first and the one coming follows it in, so two never lie over each other; a face
+          there only for an instant, as the change catches up, never shows at all. */}
       {faces.map(([is, words]) => (
-        <span key={is} aria-hidden={is !== now} className={`flex items-center justify-center [grid-area:1/1] ${is === now ? (taken ? "text-fg" : "") : "invisible"}`}>
+        <span
+          key={is}
+          aria-hidden={is !== now}
+          className={`flex items-center justify-center transition-opacity ease-calm [grid-area:1/1] ${is === now ? "delay-100 duration-200" : "opacity-0 duration-100"}`}
+        >
           {words}
         </span>
       ))}
