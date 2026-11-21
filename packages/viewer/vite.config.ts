@@ -15,5 +15,7 @@ export default defineConfig(({ mode }) => ({
       : { outDir: "../cli/viewer", emptyOutDir: true },
   // As the page's own build does, the libraries' asking after Node's process is answered for a browser.
   define: mode === "show" ? { "process.env.NODE_ENV": JSON.stringify("production"), "process.env": "{}" } : {},
-  server: { proxy: { "/api": "http://localhost:5790" } },
+  // Asked for by the page's own address, as Playthrough only answers its own page: the shorthand would say it's asked at
+  // the page's port, and every send would be refused.
+  server: { proxy: { "/api": { target: "http://localhost:5790" } } },
 }));
