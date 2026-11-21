@@ -463,9 +463,10 @@ else the first. The next change is one with something you haven't seen or read, 
 unsent, then one seen through with nothing said, each longest waiting first (`waitingInOrder`); one you've finished here
 stays finished as it was handed back, so the next card comes at once. In a change, its moments go one by one with Next;
 past the last there's nothing further. **The step left** for the change (`StepLeft.tsx`) is on every moment, in a box of
-its own at the foot of the Moments side (`StepBox`, on desktop): pinned under a hairline while the list of moments scrolls
-above it, flat (its surface and hairline edge, no shadow, 40px, its corners, 13px) as wide as the side, and so the bar
-holds only this moment's actions. It stays while a recording plays; while the app is yours it goes with the side, so Send
+its own at the foot of the Moments side (`StepBox`, on desktop): pinned under the list of moments, which scrolls above
+it, on the bar's line: as tall as the bar (40px) and centred, as it is, on the line of the recording's bottom edge, so the two read as one row of actions. Flat (its surface and hairline edge, no shadow, its corners,
+13px), as wide as the side, with no line over it, and so the bar holds only this moment's actions; what it can't say
+stands directly over it. It stays while a recording plays; while the app is yours it goes with the side, so Send
 and Done wait until you're back. It's one slot that changes
 in place, every face laid in it and all but one unseen, so it's as wide as its widest and nothing moves as it turns:
 "Send 2 notes" while something's unsent, its words in full ink; "Sending…"; "✓ Sent"; "● Agent working" once an agent

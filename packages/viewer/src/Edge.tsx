@@ -13,6 +13,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Key } from "./Key.tsx";
+import { BAR } from "./MomentBar.tsx";
 import { STEPPING_BACK, STEPPING_OUT } from "./view.ts";
 
 // A picture's size, and the room around it.
@@ -46,9 +47,12 @@ export function useMore(list: RefObject<HTMLElement | null>) {
   const mask = `linear-gradient(to bottom, ${cut.above ? "transparent" : "#000"}, #000 ${cut.above ? MORE : 0}px, #000 calc(100% - ${cut.below ? MORE : 0}px), ${cut.below ? "transparent" : "#000"})`;
   return { look, fade: { maskImage: mask, WebkitMaskImage: mask } };
 }
-// The foot keeps this far from the screen's edge, and this far from the recording.
+// The foot keeps this far from the screen's edge, and this far from the recording and from the list above it.
 const FOOT_GUTTER = 16;
 const FOOT_GAP = 8;
+// The foot stands on the bar's line: what's last in it, the box, as tall as the bar and centred on the recording's
+// bottom edge as the bar is, so the two read as one row.
+const FOOT_DROP = BAR / 2;
 // From the pictures' outer side to their card's: the card runs this much further past the screen's edge.
 const TUCKED = 6;
 
@@ -199,7 +203,7 @@ export function Edge(props: {
         data-part={part}
         // At rest its cards sit back, so the recording has your eye; in the app they rest as all that drives it does.
         className="fixed z-30 transition-[translate] duration-300 ease-calm"
-        style={{ top: room.top - INSET, height: room.height + 2 * INSET - (footHigh && footHigh + INSET), width: DRAWER, left: right ? room.inner : room.inner - DRAWER, translate: forward ? `${right ? -shift : shift}px 0` : "0 0" }}
+        style={{ top: room.top - INSET, height: footHigh ? room.height + INSET + FOOT_DROP - footHigh - FOOT_GAP : room.height + 2 * INSET, width: DRAWER, left: right ? room.inner : room.inner - DRAWER, translate: forward ? `${right ? -shift : shift}px 0` : "0 0" }}
         {...pointing}
         onPointerDownCapture={(event) => {
           if (event.pointerType !== "touch" || forward || quiet) return;
@@ -224,14 +228,14 @@ export function Edge(props: {
           </div>
         </div>
       </div>
-      {/* Its foot, under the pictures and across the room beside the recording that's on the screen, a line between: it
-          stays put as the list scrolls and as the edge comes forward, the recording's foot its own. */}
+      {/* Its foot, under the pictures and across the room beside the recording that's on the screen: it stays put as the
+          list scrolls and as the edge comes forward, on the bar's line. */}
       {foot && (
         <div
           ref={footing}
-          className="fixed z-30 grid gap-2.5 border-t border-line pt-3"
+          className="fixed z-30 grid gap-2.5"
           style={{
-            top: room.top + room.height - footHigh,
+            top: room.top + room.height + FOOT_DROP - footHigh,
             [right ? "right" : "left"]: Math.max(FOOT_GUTTER, -cutBy),
             width: (right ? room.screen - room.inner : room.inner) - FOOT_GAP - Math.max(FOOT_GUTTER, -cutBy),
           }}
