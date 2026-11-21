@@ -36,7 +36,7 @@
       html, body { margin: 0; height: 100%; }
       body {
         display: grid;
-        grid-template-rows: 52px minmax(0, 1fr);
+        grid-template-rows: auto minmax(0, 1fr);
         background: var(--ground);
         color: var(--fg);
         font: 13px/18px system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
@@ -45,7 +45,8 @@
         display: flex;
         align-items: center;
         gap: 16px;
-        padding: 0 16px;
+        min-height: 44px;
+        padding: 6px 16px;
         border-bottom: 1px solid var(--line);
         background: var(--surface);
         min-width: 0;
@@ -60,22 +61,26 @@
         padding: 0 8px;
         cursor: pointer;
       }
-      select:hover, button:hover { background: var(--hover); }
-      select { font-weight: 600; max-width: 220px; flex: none; }
+      select:hover, button:hover:not(:disabled) { background: var(--hover); }
+      button:disabled { color: var(--faint); cursor: default; }
+      select { font-weight: 600; field-sizing: content; flex: none; }
       p {
         margin: 0;
         flex: 1;
         min-width: 0;
         color: var(--soft);
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
+        text-wrap: pretty;
+      }
+      /* Narrower, what to do there is a line of its own under the controls, wrapping to a second whole line at most. */
+      @media (max-width: 1100px) {
+        header { flex-wrap: wrap; row-gap: 0; padding-bottom: 10px; }
+        header p { order: 1; flex-basis: 100%; padding: 0 8px; }
+        .hand-back { margin-left: auto; }
       }
       .size { display: flex; flex: none; gap: 2px; }
       .size button { color: var(--faint); }
       .size button[aria-pressed="true"] { color: var(--fg); background: var(--hover); }
-      button.again { color: var(--soft); flex: none; }
+      button.again, button.hand-back { color: var(--soft); flex: none; }
       main { display: grid; place-items: stretch; min-height: 0; overflow: auto; }
       iframe { border: 0; width: 100%; height: 100%; display: block; background: var(--ground); }
       /* As on a phone: its width and height, with room around it. */
@@ -87,6 +92,7 @@
     <header>
       <select aria-label="State"></select>
       <p></p>
+      <button class="hand-back">Hand back now</button>
       <button class="again" title="Start this state afresh, as a reload does">Start over</button>
       <div class="size" role="group" aria-label="Size">
         <button data-size="desktop">Desktop</button>
@@ -96,19 +102,39 @@
     <main><iframe title="Playthrough"></iframe></main>
     <script>
       /* the states */
-      const [picker, says, again, frame] = ["select", "p", ".again", "iframe"].map((one) => document.querySelector(one));
-      for (const state of states) picker.add(new Option(state.title, state.name));
+      const [picker, says, again, handBack, frame] = ["select", "p", ".again", ".hand-back", "iframe"].map((one) => document.querySelector(one));
+      for (const group of new Set(states.map((state) => state.group))) {
+        const options = document.createElement("optgroup");
+        options.label = group;
+        for (const state of states.filter((one) => one.group === group)) options.append(new Option(state.title, state.name));
+        picker.append(options);
+      }
 
       // The state is the address after its #: a load, or another picked, starts it afresh in the frame.
       function show() {
         const state = states.find((one) => one.name === location.hash.slice(1)) ?? states[0];
         picker.value = state.name;
-        says.textContent = says.title = state.says;
+        says.textContent = state.says;
+        document.title = `${state.title} · Playthrough states`;
         frame.src = `${player}/states/${state.name}`;
       }
       picker.addEventListener("change", () => (location.hash = picker.value));
       addEventListener("hashchange", show);
       again.addEventListener("click", () => location.reload());
+
+      // Hand back now: the pretend agent hands back the next kept version where you stand. Pressed, the keys stay with
+      // the player; with none left, it says why.
+      async function handingBack(method = "GET") {
+        try {
+          const { left, why } = await (await fetch("/hand-back", { method })).json();
+          handBack.disabled = !left;
+          handBack.title = left ? "The agent hands back the next version now, taking what's sent first" : why;
+        } catch {}
+      }
+      handBack.addEventListener("click", () => handingBack("POST"));
+      for (const button of document.querySelectorAll("button")) button.addEventListener("mousedown", (event) => event.preventDefault());
+      setInterval(handingBack, 1000);
+      frame.addEventListener("load", () => handingBack());
       // The keys are the player's, once it's there and after anything here is used.
       frame.addEventListener("load", () => frame.focus());
       for (const control of [picker, again]) control.addEventListener("blur", () => setTimeout(() => document.activeElement === document.body && frame.focus()));
@@ -120,7 +146,7 @@
         for (const one of sizes) one.setAttribute("aria-pressed", String(one.dataset.size === to));
         try { localStorage.setItem("states:size", to); } catch {}
       }
-      for (const one of sizes) one.addEventListener("click", () => (size(one.dataset.size), frame.focus()));
+      for (const one of sizes) one.addEventListener("click", () => size(one.dataset.size));
       let kept = "desktop";
       try { kept = localStorage.getItem("states:size") ?? kept; } catch {}
       size(kept);

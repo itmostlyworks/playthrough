@@ -1,6 +1,7 @@
 // The pretend agent: in a state's copy, it stands in for the coding agent. Listening, it says so as playthrough wait
 // does, takes what's sent as wait would, and a few seconds later hands back the next kept version, answering what was
-// actually sent. When the kept versions run out, it just keeps working.
+// actually sent. When the kept versions run out, it just keeps working. Hand back now hands back at once, whatever it
+// was doing: what's sent taken first, and with nothing sent, a version nobody asked for.
 
 import { handBackInProgress, notesToAnswer, saidDone, sendsNotTaken, type Change } from "@playthrough/change";
 import { join } from "node:path";
@@ -14,32 +15,76 @@ import type { State } from "./list.ts";
 // How long it works on what it took before handing back.
 const WORKING = 4;
 
-// Runs until the change is done, there's nothing more it would do, or it's stopped.
-export function pretendAgent(repo: Repo, id: string, kept: { change: Change; folder: string }, state: State, signal: AbortSignal) {
-  const run = async () => {
-    for (let first = true; ; first = false) {
-      const change = await repo.changes.get(id);
-      if (saidDone(change)) return;
-      const working = handBackInProgress(change);
-      if (notesToAnswer(change, working).length) {
-        const next = kept.change.handBacks.find((one) => one.number === working && one.finished);
-        if (state.agent === "working" || !next) return;
-        await sleep(((first && state.landsIn) || WORKING) * 1000, undefined, { signal });
-        const replies = answersFor(kept.change, next, await repo.changes.get(id));
-        await keepHandBack(kept.folder, join(repo.root, ".playthrough", id), { ...next, replies, finished: new Date().toISOString() }, kept.change.comparisons);
-        continue;
+export type Kept = { change: Change; folder: string };
+
+export function pretendAgent(repo: Repo, id: string, kept: Kept, state: State, signal: AbortSignal) {
+  let pressed = Promise.withResolvers<void>();
+  let running = false;
+  // Working on what it took, until it hands it back.
+  let working = false;
+  let first = true;
+
+  // The next kept version, handed back now, answering what it took. None left, it hands back nothing.
+  async function handBack(): Promise<void> {
+    const number = handBackInProgress(await repo.changes.get(id));
+    const next = kept.change.handBacks.find((one) => one.number === number && one.finished);
+    if (!next) return;
+    const replies = answersFor(kept.change, next, await repo.changes.get(id));
+    await keepHandBack(kept.folder, join(repo.root, ".playthrough", id), { ...next, replies, finished: new Date().toISOString() }, kept.change.comparisons);
+  }
+
+  async function run() {
+    running = true;
+    try {
+      for (;;) {
+        const change = await repo.changes.get(id);
+        if (saidDone(change)) return;
+        if (notesToAnswer(change, handBackInProgress(change)).length) {
+          // Working for good, it's as long as a timer runs.
+          const seconds = state.agent === "working" ? 2_000_000 : (first && state.landsIn) || WORKING;
+          first = false;
+          working = true;
+          await Promise.race([pressed.promise, sleep(seconds * 1000, undefined, { signal })]).finally(() => (working = false));
+          signal.throwIfAborted();
+          if (!hasNext(await repo.changes.get(id))) return;
+          await handBack();
+          continue;
+        }
+        if (state.agent === "nobody") return;
+        const stop = await listening(repo, id);
+        try {
+          await repo.changes.wait(id, (change) => sendsNotTaken(change).length > 0, signal);
+        } finally {
+          stop();
+        }
+        await repo.changes.take(id);
       }
-      if (state.agent !== "listening") return;
-      const stop = await listening(repo, id);
-      try {
-        await repo.changes.wait(id, (change) => sendsNotTaken(change).length > 0, signal);
-      } finally {
-        stop();
-      }
-      await repo.changes.take(id);
+    } finally {
+      running = false;
     }
+  }
+
+  const hasNext = (change: Change) => kept.change.handBacks.some((one) => one.number === handBackInProgress(change) && one.finished);
+  const started = () =>
+    run().catch((error) => {
+      if (!signal.aborted) console.error(`The pretend agent stopped: ${(error as Error).message}`);
+    });
+  void started();
+
+  return {
+    // Whether there's a kept version left to hand back.
+    left: async () => hasNext(await repo.changes.get(id)),
+    async handBackNow() {
+      await repo.changes.take(id);
+      if (!hasNext(await repo.changes.get(id))) return;
+      // Working on what it took, it stops working and hands back; otherwise it hands back here, and goes on listening.
+      if (working) {
+        const now = pressed;
+        pressed = Promise.withResolvers();
+        return now.resolve();
+      }
+      await handBack();
+      if (!running && state.agent !== "nobody") void started();
+    },
   };
-  return run().catch((error) => {
-    if (!signal.aborted) console.error(`The pretend agent stopped: ${(error as Error).message}`);
-  });
 }
