@@ -481,7 +481,7 @@ ends the change, and going to another moment asks again. What the box can't hold
 fading while a recording plays as everything over it but the bar does, and giving way to Take over's and to noting:
 what's left before Done (above); sent with no agent on the change (`agentOn`: none listening, and none on notes it took
 before), "No agent listening. Kept for when one is." in amber, and under it, while what you sent waits for one
-(`tellOf`), "Tell yours: “Pick up my notes in Playthrough.”", copying on a press; "Not sent: …" in amber where a send
+(`tellOf`), "Tell yours:" and the words with Copy beside them; "Not sent: …" in amber where a send
 didn't go. Sent, the agent working and Done are the box's alone, said once (21 Nov: "The agent is working on your
 notes" had stood over the bar beside the box's "Agent working"). On a phone the box is a row of its own under the bar, the whole width, and the notice a line in the page under
 it, so neither covers the other. Nothing
@@ -498,15 +498,17 @@ lands once, as the page arrives), and "You're all caught up." (Before any agent'
 in it, and "Nothing here yet.") Under it, what your agents are on ("Your agents are on:", each with its words) and apart
 under "No agent listening:" what nobody is on, each with the line to tell yours; a heading shows only over a change it's
 true of. With neither list, how to bring an agent's work here instead: "To see an agent's work here, tell it:" and
-under it “When you're done, show me with npx playthrough.”, which copies on a press as "Tell yours" does. The
+under it the words to say, with Copy beside them, as "Tell yours" shows its own (below). The
 every-change sheet says the same words under "Waiting on you". The
 mark and first line stay put as a change moves between the lists when an agent arrives: the rest grows and shrinks
 under them, rather than the whole being centred.
 
-**"Tell yours: “Pick up my notes in Playthrough.”"**, wherever it shows, copies the sentence on a press (`TellYours`,
-`Changes.tsx`): a button of the sentence's own size, so "Copied" shows in its place for 1.4 s with nothing moving, and a
-press on it in a row doesn't open the change. Opened over plain http (a tailnet), where the browser gives no
-clipboard, it copies the older way; failing that, it selects the sentence for Ctrl+C and doesn't say Copied.
+**Words to say to an agent** ("Tell yours:", and the resting page's "To see an agent's work here, tell it:") sit under
+their lead in a box as the site's own prompt does (`Copyable`, `Changes.tsx`): the words plain and selectable, in mono,
+and Copy beside them, a small solid button that says "Copied" for 1.4 s, as wide either way, so nothing moves. Where
+it's narrow the words wrap and Copy goes under them at the right. A press or a selection in the box doesn't open the
+row's change. Opened over plain http (a tailnet), where the browser gives no clipboard, it copies the older way;
+failing that, it selects the words for Ctrl+C and doesn't say Copied.
 
 **The top of every page** (`Header.tsx`) is its two corners: at the left Playthrough and what's waiting in it, the way
 to every other change; at the right what to do with this one: Next on the opening card, Download video and Share on a
