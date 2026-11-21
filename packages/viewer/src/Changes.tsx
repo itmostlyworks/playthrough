@@ -147,8 +147,8 @@ export function Changes({ changes, you, keyboardOn, onOpen }: { changes: Listed[
         <h1 className="text-[13px] leading-5 font-semibold text-soft">Waiting on you</h1>
         {!waiting.length && (
           <div className="mt-3 animate-arrive text-[15px] leading-[22px]">
-            <p className="text-fg">Nothing's waiting on you.</p>
-            {!all.length && <p className="text-soft">To see an agent's work here, tell it: “When you're done, show me with npx playthrough.”</p>}
+            <p className="text-fg">{restingWords(all.length > 0)}</p>
+            {!all.length && <p className="text-soft">{SHOW_ME}</p>}
           </div>
         )}
         <div className="-mt-1.5">{waiting.map(row)}</div>
@@ -349,6 +349,11 @@ function Row(props: {
     </div>
   );
 }
+
+// With nothing waiting on you, here and on the page / opens on: caught up once an agent's work has come, and before any
+// has, not yet; and how to bring it here.
+export const restingWords = (anyCame: boolean) => (anyCame ? "You're all caught up." : "Nothing here yet.");
+export const SHOW_ME = "To see an agent's work here, tell it: “When you're done, show me with npx playthrough.”";
 
 // Sent, and nothing is listening for it: what to say to your agent, word for word, on a line of its own under the row's.
 // The words copy on a press, said "Copied" in their place for a moment, at their size, so nothing moves.

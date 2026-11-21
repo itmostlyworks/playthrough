@@ -1,10 +1,10 @@
 // A change's card: the page / opens on, what it is and what you asked, over the first moment you haven't seen, softened,
 // so you know what you're judging before you judge it. With nothing waiting on you, that said calmly.
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { latestOf, type Moment } from "@playthrough/change";
 import { picture, readings as readingsOf, type Listed } from "./api.ts";
-import { TellYours } from "./Changes.tsx";
+import { restingWords, SHOW_ME, TellYours } from "./Changes.tsx";
 import { Header, headerRows } from "./Header.tsx";
 import { Key } from "./Key.tsx";
 import { inItsRoom } from "./Moment.tsx";
@@ -103,9 +103,10 @@ function Softened({ listed, moment, screen, fill }: { listed: Listed; moment: Mo
   );
 }
 
-// Nothing waiting on you: said calmly, with what your agents are still on, and apart, what no agent is listening for,
-// so "Your agents are on" is never said over a change nobody is on. Its first line stays where it is as a change goes
-// from one to the other when an agent arrives: what's under it grows and shrinks downwards.
+// Nothing waiting on you: a resting page, said calmly in the middle of the window, with what your agents are still on,
+// and apart, what no agent is listening for, so "Your agents are on" is never said over a change nobody is on. Where
+// there's no list, how to bring an agent's work here is said instead. Its first line stays where it is as a change goes
+// from one list to the other when an agent arrives: what's under it grows and shrinks downwards.
 export function NothingWaiting({ changes, you, opener }: { changes: Listed[]; you: string; opener: ReactNode }) {
   const steps = changes.filter((one) => sectionOf(one, you) === "agents").map((one) => ({ one, step: stepOf(one, you) }));
   const on = steps.filter(({ step }) => !(step.is === "with" && step.tell));
@@ -113,12 +114,16 @@ export function NothingWaiting({ changes, you, opener }: { changes: Listed[]; yo
   return (
     <div className={`grid h-dvh ${headerRows()} bg-ground`}>
       <Header opener={opener} />
-      <div className="grid animate-arrive content-start justify-items-center overflow-y-auto px-6 pt-[30dvh] pb-12">
-        <div className="w-full max-w-[420px]">
-          <p className="text-[17px] leading-[26px] text-fg">Nothing's waiting on you.</p>
+      <div className="grid animate-arrive content-start justify-items-center overflow-y-auto px-6 pt-[calc(44dvh-120px)] pb-12">
+        <div className="flex flex-col items-center text-center">
+          <AtRest done={changes.length > 0} />
+          <p className="mt-5 text-[20px] leading-[28px] font-medium text-fg">{restingWords(changes.length > 0)}</p>
+          {!steps.length && <p className="mt-2 max-w-[42em] text-[15px] leading-[22px] text-balance text-soft">{SHOW_ME}</p>}
+        </div>
+        <div className="mt-10 w-full max-w-[420px] empty:hidden">
           {on.length > 0 && (
             <>
-              <p className="mt-1 text-[15px] leading-[22px] text-soft">Your agents are on:</p>
+              <p className="text-[15px] leading-[22px] text-soft">Your agents are on:</p>
               <ul className="mt-3">
                 {on.map(({ one, step }) => (
                   <li key={one.change.id} className="flex items-baseline gap-x-3 py-1 text-[14px] leading-[22px]">
@@ -131,7 +136,7 @@ export function NothingWaiting({ changes, you, opener }: { changes: Listed[]; yo
           )}
           {unheard.length > 0 && (
             <>
-              <p className={`${on.length ? "mt-5" : "mt-1"} text-[15px] leading-[22px] text-amber-ink`}>No agent listening:</p>
+              <p className={`${on.length ? "mt-5" : ""} text-[15px] leading-[22px] text-amber-ink`}>No agent listening:</p>
               <ul className="mt-3">
                 {unheard.map(({ one, tell }) => (
                   <li key={one.change.id} className="py-1 text-[14px] leading-[22px]">
@@ -142,9 +147,37 @@ export function NothingWaiting({ changes, you, opener }: { changes: Listed[]; yo
               </ul>
             </>
           )}
-          {!changes.length && <p className="mt-1 text-[15px] leading-[22px] text-soft">To see an agent's work here, tell it: “When you're done, show me with npx playthrough.”</p>}
         </div>
       </div>
     </div>
+  );
+}
+
+// Playthrough's mark at rest, quieter than in the header: the hand-backs side by side, and where the note would be, a
+// tick once you've been through what came, landing as the page arrives. Before anything has come, nothing there.
+function AtRest({ done }: { done: boolean }) {
+  const around = useId();
+  return (
+    <svg viewBox="0 0 32 32" className="size-12" aria-hidden>
+      <mask id={around}>
+        <rect width="32" height="32" fill="#fff" />
+        <circle cx="16" cy="16" r="7" fill="#000" />
+      </mask>
+      <g mask={`url(#${CSS.escape(around)})`} fill="var(--fg)">
+        <rect x="2" y="6" width="12" height="20" rx="3" opacity="0.12" />
+        <rect x="18" y="6" width="12" height="20" rx="3" opacity="0.24" />
+      </g>
+      {done && (
+        <path
+          d="M12.6 16.3 15 18.7 19.6 13.8"
+          fill="none"
+          stroke="var(--green)"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="origin-center animate-tick [animation-delay:0.2s] [transform-box:fill-box]"
+        />
+      )}
+    </svg>
   );
 }
