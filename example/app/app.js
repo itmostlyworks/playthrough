@@ -31,10 +31,14 @@ const keep = () => {
 
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 const day = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
-const labels = { open: "Open", paid: "Paid" };
-const statusOf = (invoice) => (invoice.paid ? "paid" : "open");
+const labels = { open: "Open", overdue: "Overdue", paid: "Paid" };
+const DAY = 24 * 60 * 60 * 1000;
+const late = (invoice) => Math.round((new Date(held.today) - new Date(invoice.due)) / DAY);
+const statusOf = (invoice) => (invoice.paid ? "paid" : late(invoice) > 0 ? "overdue" : "open");
+let showing = "all";
 
 function show(status) {
+  showing = status;
   for (const button of document.querySelectorAll(".filters button")) button.setAttribute("aria-pressed", String(button.dataset.status === status));
   document.querySelector("tbody").replaceChildren(
     ...held.invoices
@@ -42,7 +46,24 @@ function show(status) {
       .map((invoice) => {
         const row = document.createElement("tr");
         row.innerHTML = `<td>${invoice.number}</td><td>${invoice.customer}</td><td>${day.format(new Date(invoice.due))}</td>
-          <td class="amount">${money.format(invoice.amount)}</td><td><span class="status ${statusOf(invoice)}">${labels[statusOf(invoice)]}</span></td>`;
+          <td class="amount">${money.format(invoice.amount)}</td><td><span class="status ${statusOf(invoice)}">${labels[statusOf(invoice)]}</span></td><td class="act"></td>`;
+        if (statusOf(invoice) === "overdue") {
+          const tip = document.createElement("span");
+          tip.className = "tip";
+          tip.textContent = `${late(invoice)} days late`;
+          row.querySelector(".status").append(tip);
+        }
+        if (!invoice.paid) {
+          const pay = document.createElement("button");
+          pay.className = "pay";
+          pay.textContent = "Mark paid";
+          pay.addEventListener("click", () => {
+            invoice.paid = true;
+            keep();
+            show(showing);
+          });
+          row.querySelector(".act").append(pay);
+        }
         return row;
       }),
   );
