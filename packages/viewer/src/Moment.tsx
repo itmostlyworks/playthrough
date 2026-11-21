@@ -921,8 +921,8 @@ export function MomentView(props: {
   const wide = takes ? inTheAppsRoom(screen) : "100%";
 
   // Compare, or a note from an earlier hand-back's As it was and Now, or what the moment is to you if neither: in the
-  // recording's top left on hover, or in the bar on a phone, where nothing hovers.
-  // In the corner, Compare stays beside As it was and Now; in a phone's bar, the switch takes Compare's place.
+  // recording's top left on hover, or in the bar on a phone, where nothing hovers. One at a time: both ask how it looked
+  // before, so while the switch is there it takes Compare's place, and Compare, if on, waits under the note (`mode.ts`).
   const offered = anyLook || sent.some(earlier);
   const shownSwitch = flips && (
                 // A note from an earlier hand-back open: how it was, or now, flipped in place. Each part chooses itself.
@@ -964,7 +964,7 @@ export function MomentView(props: {
                 <span className={`${COMPARING} inline-flex cursor-default items-center justify-center text-xs text-soft`}>{looking ? "Unchanged" : "New"}</span>
               ));
   // Only something to press: on a moment with nothing to compare, the corner shows nothing.
-  const inCorner = offered && (then || shownSwitch) ? <>{compareButton}{shownSwitch}</> : undefined;
+  const inCorner = offered ? shownSwitch || compareButton : undefined;
   // Shown in the recording's corner while the pointer is over it, or while Compare or As it was is on, so the way out is
   // in sight; never while it plays or the app is yours.
   const [overRecording, setOverRecording] = useState(false);
@@ -1124,10 +1124,13 @@ export function MomentView(props: {
               )}
             </div>
           </div>
-          {/* Compare, and As it was and Now, in the recording's top left: over the left side's label while comparing. */}
+          {/* Compare, or As it was and Now, in the recording's top left: over the left side's label while comparing. One
+              swapped for the other fades in where it stood, the pill its size. */}
           {!phone && inCorner && (
-            <div data-part="corner" className={`absolute top-2 left-2.5 z-[16] flex rounded-[10px] bg-surface p-0.5 text-xs shadow-[0_0_0_1px_var(--edge),0_2px_8px_var(--drop)] transition-opacity duration-200 ease-calm select-none gap-0.5 ${cornerShown ? "" : "pointer-events-none opacity-0"}`} inert={!cornerShown} onClick={(event) => (event.target as Element).closest("button")?.blur()}>
-              {inCorner}
+            <div data-part="corner" className={`absolute top-2 left-2.5 z-[16] flex rounded-[10px] bg-surface p-0.5 text-xs shadow-[0_0_0_1px_var(--edge),0_2px_8px_var(--drop)] transition-opacity duration-200 ease-calm select-none ${cornerShown ? "" : "pointer-events-none opacity-0"}`} inert={!cornerShown} onClick={(event) => (event.target as Element).closest("button")?.blur()}>
+              <span key={shownSwitch ? "shown" : "compare"} className="flex animate-arrive" style={{ animationDuration: "200ms" }}>
+                {inCorner}
+              </span>
             </div>
           )}
           <Portal
