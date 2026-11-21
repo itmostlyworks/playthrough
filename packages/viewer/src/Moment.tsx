@@ -546,9 +546,8 @@ export function MomentView(props: {
     takeOver.closeCant();
   };
   const toldAgent = mine.some((one) => !!one.on && !madeInApp(one.on) && !!one.on.cantStepIn);
-  // Saved on a moment, the note goes to the Notes edge, and the Moments' last card, saying Send one more as it's saved,
-  // lights where it stands, with its edge at full while it's lit: nothing goes to it, since the note didn't. At the last
-  // stop Send is right there, and on a phone there's no edge.
+  // Saved, the note goes to the Notes edge, and the box beside the bar, saying Send one more as it's saved, lights amber
+  // where it stands: nothing goes to it, since the note didn't. On a phone it's in sight under the bar already.
   const lightSend = () => {
     document.querySelector('[data-part="step"]')?.animate([{ boxShadow: "0 0 0 2px var(--amber), 0 0 0 6px color-mix(in srgb, var(--amber) 30%, transparent)" }, {}], { duration: 700, easing: unmoving() ? "steps(1, end)" : "ease-out" });
   };
@@ -798,7 +797,6 @@ export function MomentView(props: {
     const thing = end && closeTo && end.things.find((one) => one.role === closeTo.role && one.name === closeTo.name)?.box;
     return thing && { x: thing.x / end.screen.width, y: thing.y / end.screen.height, width: thing.width / end.screen.width, height: thing.height / end.screen.height };
   })();
-  // At the last stop you're on no moment: the edge holds the notes on the whole change.
   const noteTiles = (forward: boolean) =>
     onEdge.map(({ note, sent: isSent }) => {
       const { words, stands, fresh, by } = says(note, isSent);
@@ -1174,7 +1172,7 @@ export function MomentView(props: {
               </Notice>
             )}
             {/* Where the change stands, over the bar on every moment, but where Take over or noting has its say there. */}
-            {!takeOver.cant && !takeOver.said && !takeOver.waitingOn && !noting && !writing && <StepNotice step={step} todo={doneAnyway && !step.said ? toDo : undefined} faded={!!playing} />}
+            {!phone && !takeOver.cant && !takeOver.said && !takeOver.waitingOn && !noting && !writing && <StepNotice step={step} todo={doneAnyway && !step.said ? toDo : undefined} faded={!!playing} />}
             {/* The step left, in its own box at the bar's right, on its line: with the bar always, playing or in the app. */}
             {!phone && (
               <div className="absolute top-0 left-full ml-3">
@@ -1248,8 +1246,13 @@ export function MomentView(props: {
       {/* Beside the recording, or under it on a phone: the change's moments, and this one's notes. */}
       <div ref={rows} onScroll={rowsMore.look} className={phone ? "grid min-h-0 grid-cols-[minmax(0,1fr)] content-start gap-6 overflow-y-auto px-4 pt-6 pb-8" : "contents"} style={phone ? rowsMore.fade : undefined}>
         {phone && cards}
-        {/* On a phone, the step left is a row of its own under the bar. */}
-        {phone && <StepBox step={step} anyway={doneAnyway} onPress={pressStep} className="w-full" />}
+        {/* On a phone, the step left is a row of its own under the bar, where the change stands under it. */}
+        {phone && (
+          <div className="grid gap-2">
+            <StepBox step={step} anyway={doneAnyway} onPress={pressStep} className="w-full" />
+            <StepNotice step={step} todo={doneAnyway && !step.said ? toDo : undefined} faded={false} inFlow />
+          </div>
+        )}
         {/* Tab reaches them as they read, left to right; on a phone, the notes come first, nearest what they're on. */}
         {!phone && momentsEdge}
         {(!phone || onEdge.length > 0) && (

@@ -287,13 +287,14 @@ sentence). **`answer`** with no hand-back begun (no `again` since the person spo
 app has changed since the moments the person saw were run (`changedSince`: every file git lists for the app, its own
 and new ones it doesn't ignore, against the first of that hand-back's recordings; outside git, the app is taken as
 changed): those moments go on into the next hand-back as they are, with their files, unrun (`unchangedOn`), and the
-person sees them as seen before, "Unchanged" in Compare's place, with the answer ("Read 1 answer" on its card). Anything changed, it refuses, naming the file: "Run playthrough again
+person sees them as seen before (on a phone, "Unchanged" in Compare's place), with the answer ("Read 1 answer" on its card). Anything changed, it refuses, naming the file: "Run playthrough again
 first: list.tsx has changed since the moments were run, and the answer goes with the moments as they are now." **`wait`**
 refuses while a note has no answer or a moment hasn't been run again, or, for moments that went on unrun, while anything
 has changed since they ran; otherwise it hands back, stops the `as` browser, gives the address of the change's own page, and waits. While
 it waits it keeps a file named by its process in the change's `waiting/`, saying which start of the machine it's on, so
 the page knows an agent is listening. When the person sends, it prints each note on its moment (one written at the
-last stop "on the change as a whole", with no picture and no way to stand there), with its conversation,
+last stop by earlier versions "on the change as a whole", with no picture and no way to stand there; one on the whole
+moment on its moment, with the picture of its end and the way to stand there), with its conversation,
 a picture of what they saw with the thing outlined (`noted.ts`: the frame of the moment it was written on, as the
 hand-back pictured it, `writtenOn` in `followed.ts`, so a note on a picker open partway through shows the picker; until
 18 Nov only the page the moment left was looked in, and such a note went without; or for a note made in the
@@ -431,7 +432,7 @@ static host, which answers only the page itself. **Shown by another page** (hand
 the list of changes: no header (no mark, nothing saying how many wait, no Next), the recording taking the header's room;
 no change's title, that page saying what the change is, and no room kept for it over the recording (`inItsRoom` keeps
 the moment's two lines alone); no sheet of every change (W does nothing); the tab's
-title left as the page has it; after Send or Done, it stays at the last stop; and what it keeps is where that source
+title left as the page has it; after Done, it stays where it was; and what it keeps is where that source
 says, or, where it says nothing, in memory for as long as the page is open, never in the page's own storage unasked.
 `playthrough open`'s keeps it in the browser's `localStorage` and `sessionStorage`. What the app's own frame carries
 across a load after taking over (`playthrough:taken-over`, `:yours`, `:scroll` and the rest, `take-over.ts`) is the app's
@@ -439,19 +440,19 @@ side, in the app's own origin, and isn't the viewer's to keep.
 
 **Inside another page's frame** (`inside.ts`), shown by another page and in a frame, the viewer keeps to its own: the
 picture's window stays whole, so the wheel, a drag and a swipe over it are the page around's; a scroll that has run
-out at an edge or in the last stop's sheet goes on out to it; a note's field takes the keys only once they're already
+out at an edge goes on out to it; a note's field takes the keys only once they're already
 in the frame, as after a press in it; and going anywhere, into a change from its card included, replaces the address
 rather than adding to it, so the page's Back leaves that page instead of stepping back through the change. On its
 own, or at `playthrough open`'s in a frame (an editor's browser), none of this applies.
 
 What another page may find the viewer's parts by is `data-part`, never their words or looks: the bar's `play`,
-`take-over` (`back` once in the app), `note`, `compare`, and `send` (`done` with nothing to send), in Compare's place
-while a note from an earlier hand-back is open the switch `shown` with its `as-it-was` and `now`, the one shown pressed
-(`aria-pressed`), the arrows by Play,
+`take-over` (`back` once in the app), `note`, and noting's `whole-moment`; the step's box beside it, `step`; in the
+recording's `corner`, `compare` and, while a note from an earlier hand-back is open, the switch `shown` with its
+`as-it-was` and `now`, the one shown pressed (`aria-pressed`) (on a phone these are in the bar); the arrows by Play,
 `frame-before` and `next-frame`, and every key drawn on a button, `key` (Back's "Esc ×2" is one); a note's `pin` and
 `note-card`; the rounded box the recording sits in, `picture`, always, where `data-picture` is there only while the
 picture can be moved; `share` top right; the change's `title` over the recording (in the header on a phone; not drawn when shown by another page); the edges, `moments` and `notes`; each
-of the moments' cards, `moment`, and their last, `last-stop`; and over the notes at the last stop, `notes-heading`.
+of the moments' cards, `moment`.
 Nothing in the viewer reads them.
 
 **What's next** (`Moments.tsx`, `Opening.tsx`, `step.ts`). `/` opens on the next change waiting on you, its opening card:
@@ -460,93 +461,38 @@ where the recording will be. Nothing plays. The whole card is one press, as its 
 "See 1 more moment", "Read 1 answer"): it, Space, ↓ or Next go in, to the first moment with something you haven't seen,
 else the first. The next change is one with something you haven't seen or read, then one seen through with something
 unsent, then one seen through with nothing said, each longest waiting first (`waitingInOrder`); one you've finished here
-stays finished as it was handed back, so the next card comes at once. In a change, its moments go one by one with Next,
-and after the last, **the last stop** (`/moments/<copy>/<change>/end`; a reload stays there, Back and forward go as
-between moments), where it's dimmed. The last stop is where the change ends in what you do. The recording's frame
-holds a sheet of your side of the change (`LastStop.tsx`), what isn't already on the page (the moments stay on their
-edge beside it), on Playthrough's own surface, fading in over the last moment and out again as going between moments
-does. Over it, the change's title takes the moment's line, as the sheet's heading, and its own small place above
-rests empty: both lines stay drawn, one faded out, so nothing moves (measured: the frame, both edges and both lines,
-0 px through ↓ and ↑, from a one-line and a two-line last moment). In the sheet, "You asked" and your words hold one
-place whatever comes under them, as you note, keep, open and reply while standing there: 48px from the sheet's top (16
-on a phone), where a moment's own content would begin, bare sheet included, at 21px in a measure of 30em, cut at about
-a third of the frame's height (whole on hover and to the keyboard); with nothing asked, what there is starts there.
-Everything else comes in under them and moves nothing above it; past the frame's foot the whole
-sheet scrolls in its frame, your words going up with it, fading where there's more (`useMore`), the scrollbar's place
-kept on both sides whether it scrolls or not. All of it hangs from one left edge: a measure as wide as the notes
-across, centred in the frame, set by the frame's width alone, never by how many notes there are (`notesAcross`,
-`sheet.ts`): two across once the frame holds two cards of at least 420, each up to 480 (976 at most); below that one,
-up to 560; on a phone one, the whole width. (16 Nov: "You asked" had stood at four heights in four states, the sheet
-centring whatever it held; measured since, one y per size through the bare sheet, the box with one line and six, one
-kept, two kept and the box, a thread, and a reply typed. 18 Nov: it had stood a third of the way down the frame, and on
-a smaller screen that third stood empty while the third note was under the fold, so it went to the top.) Under
-them, "Your notes": the
-notes Send will send and only those (your notes not sent, and sent ones with your reply not sent), so they add up to
-the button's count; sent and answered ones aren't here, they're settled on their moments. Each is a wide, flat card:
-its dot and your words, three lines at most, with the moment it's on, quietly, and its strip beside them at the right,
-as wide as the Notes edge's (160) so it shows the same part of the page (under them on a phone); pressed, it opens on
-its moment, or, on the whole change, in its place, whole. Across, then down, and a row's cards share one height, the
-tallest one's, so a row reads as one whatever's in it (`LastStop.tsx`, measured on each card closed: a box or a note
-open in a row is at least as tall as it, and leaves the card beside it as it was). One kept or a box opened takes the
-next place, and nothing above it or beside it moves. (18 Nov: of the first try, rows of the edge's own cards, the
-picture under the words: "It feels quite unbalanced when looking at a mix of image/non-image notes like that"; so the
-picture went beside the words, and a row's cards took one height.) Sending is said there, by the
-notes that went (`NotesSay`, `LastStop.tsx`): just sent, "Your notes" turns in place into "✓ Sent to your agent" (or,
-with none on the change, "✓ Sent. No agent listening." with the last words in amber), and the cards' dots settle from
-amber to slate one after another, across and down, all inside 400 ms however many (with reduced motion, at once); then,
-once the change says an agent took them and not before 600 ms after (`HELD`, so the first line is read), "● The agent
-is working on your notes", its dot breathing. Every line is held in the one place, the one not true unseen, so the
-heading turns without anything moving (measured: heading, cards, bar and step box the same in every frame through
-1.5 s, one note and three). They stay till the page goes on, about a second after (`SAID`). Come to a change already
-sent, the sheet shows what you sent on this hand-back as it stood just after, the heading already saying where it
-stands, with no motion. Last, what's still to do, as
-quiet lines you can press: "2 moments not watched" (to the first of them), "1 answer not opened" (to it); nothing when
-there's nothing. Only your words: nothing the agent wrote. There you're on no moment, but on the change as a whole, and
-a note there is on it (16 Nov, from twenty user tests: seven remarks weren't about one spot, and two people said "this
-isn't what I meant" by pointing at the page's heading). Note (N) is on the bar beside the step, as on a moment; with
-nothing to point at, it opens the note box at once (the same box, Save, Escape and growth) in "Your notes", in the
-place the next card takes, so kept, the note is its card in that same place, with its words and no picture or moment,
-and Send counts it. A note on the whole change has no `on`; one whose moment was dropped keeps its `on` and is shown on a moment
-(`shownOn`), so neither is ever taken for the other. The Notes edge there holds the notes on the whole change, as a
-moment's holds its own (unsent, sent, answered, the thread, replying, Remove), one opened standing in its own card's
-place in "Your notes", or in the next place if it isn't there; the last card on the Moments edge carries their dots as a moment's card carries its notes' (five at most, as there),
-after its words, which say "Send 2" at rest where words and dots don't both fit; at rest, as many dots as fit in what
-shows of the card, all of them as the edge comes forward. An
-answer to one is counted in "1 answer not opened" and reached by Shift ↑ ↓ (from the last moment's last note, Shift ↓
-goes on to them); the last stop is seen as a moment is (`Seen` with no moment), so coming there reads them; and the
-change opens where it would without it (`firstUnseen`, `seenThrough` leave it out): you meet the answer at the end. On
-a phone the box and the card are under the bar, as a moment's are. The bar's
-place holds the one thing to do (`StepLeft.tsx`, `StepAction`): Send while something's unsent ("Send 2 notes ↵",
-filled) or Done while it waits on you ("Done ↵"). The bar holds only what's pressed, Note and the step, centred; what
-the step does is the bar's notice (`MomentBar.tsx`, `Notice`), a quiet line of its own just over the bar and centred on
-it, drawn as Take over's is ("Your agent starts on them."; "Says every moment looks good, and the change is done."; on
-a phone, none), the sheet's foot leaving room for both so its last lines scroll clear of them. Send's line is true: with no agent on the change (`agentOn`: none listening, and none on notes it took
-before), it says "No agent listening. Kept for when one is." in amber, and it changes as an agent comes or goes, the
-two held in one place so the notice keeps its width. Pressed, or Enter (or Ctrl+Enter from any moment while something's
-unsent), it says Sending… over its own words kept unseen (so the button keeps its width), then "✓ Sent" or "✓ Done"
-in the button's own box, flat and quiet (a faint fill, no edge or shadow, not focusable, nothing on hover), the button
-kept under it unseen so the box is the button's to the pixel; the notice goes, what went is drawn as sent (above), and
-after a pause (`SAID`) it goes on to `/`; not sent, "Not sent: …" in amber, as the notice, by the button it's about,
-the notes' heading unchanged. A change already with your agents or done says so there, with nothing to press: "✓ Sent"
-in the bar, where it stands over the notes that went (above), and only where there are none, in a word in the notice
-("With your agent.", "Agent working", or "No agent listening" in amber, held in one place); "✓ Done" and "Every moment
-looked good.". What to tell a new agent is never in the bar: while what you sent waits with no agent on it
-(`tellOf`), the sheet says "Tell yours: “Pick up my notes in Playthrough.”" in a quiet line under your notes, above
-what's still to do, copying on a press as on the list; it comes and goes under what you asked, which doesn't move. On the Moments edge the list's last card is the way there (`StepCard`), as a moment's
-card is for a moment: one short line (40px), a moment's card in width, corners and gap, tucked and forward with the
-rest, its words held 8px from the screen's edge at rest where the edge's fade leaves room ("Send 2" when "Send 2 notes"
-doesn't fit there). A note saved on a moment has one landing: its card tucks into the Notes edge, saying "not sent",
-and this card, in the same frame, takes its new words ("Done" to "Send 1 note") where it stands and lights amber,
-fading over 700 ms, its edge at full while it's lit; nothing travels to it, since the note didn't go there (with
-reduced motion, lit then unlit; at the last stop, where Send is right there, and on a phone, it doesn't light:
-`lightSend`, `Moment.tsx`). The card is quiet on every moment, and at the last stop full, with the line that says where you are, which
-no moment's card has then; pressed, it goes there. At the last stop on a phone it isn't drawn: Send or Done is in the
-bar's place, a thumb away, and one is enough. Keys there: ↑, K or Escape back to the last moment; Enter the
-step, on this card too when Tab and Enter brought you there by it; N a note on the whole change; Shift ↑ ↓ through the
-notes there, then back into the moments'; Escape closes a note open there first; W as anywhere; nothing else. `/` when the next change is seen all through
-(`seenThrough`) opens at its last stop. Nothing else says anything to the agent: ↓ never does, and Space is never a
-press (`useSpaceStays`). On a phone, the sheet is one note to a row in the frame, the take-over the bar, and the
-card under the Moments strip. With nothing waiting,
+stays finished as it was handed back, so the next card comes at once. In a change, its moments go one by one with Next;
+past the last there's nothing further. **The step left** for the change (`StepLeft.tsx`) is on every moment, in a box of
+its own at the bar's right (`StepBox`): apart from the bar, on its line, of the bar's own material (its surface,
+hairline edge and shadow, 40px, its corners, 13px), so the two read as one bar and its neighbour; and it stays with the
+bar always, while a recording plays and while the app is yours, so you can send from the app. It's one slot that changes
+in place, every face laid in it and all but one unseen, so it's as wide as its widest and nothing moves as it turns:
+"Send 2 notes" while something's unsent, its words in full ink; "Sending…"; "✓ Sent"; "● Agent working" once an agent
+has taken them; "Done" while it waits on you with nothing unsent; "Done anyway"; "✓ Done"; and for a guest with
+nothing to send, "No notes yet", resting. Pointed at, a tint lies over its surface, never in its place. A note saved
+lights it amber where it stands, fading over 700 ms, as its words take one more (with reduced motion, lit then unlit;
+`lightSend`, `Moment.tsx`). Pressed, or Ctrl+Enter from anywhere while something's unsent: Send sends at once and you
+stay where you are, the notes' cards turning from "not sent" to "sent"; Done ends the change and, after a pause
+(`SAID`), goes on to `/`. With moments not watched or answers not opened, Done's first press says so instead: the box
+turns to "Done anyway" and the line over the bar says what's left ("2 moments not watched", "1 answer not opened", each
+pressed going to the first of them, by the same count the Moments edge shows, `unseenOf`, `unreadOf`); the second press
+ends the change, and going to another moment asks again. Where the change stands is the bar's notice (`StepNotice`;
+`Notice`, `MomentBar.tsx`), a quiet line just over the bar, drawn as Take over's is, on every moment once there's
+something to say, fading while a recording plays as everything over it but the bar does, and giving way to Take
+over's and to noting: "With your agent."; "● The agent is working on your notes" once it has taken them; with no agent
+on the change (`agentOn`: none listening, and none on notes it took before), "No agent listening. Kept for when one
+is." in amber, and under it, while what you sent waits for one (`tellOf`), "Tell yours: “Pick up my notes in
+Playthrough.”", copying on a press; "Every moment looked good." once done; "Not sent: …" in amber where a send didn't
+go. On a phone the box is a row of its own under the bar, the whole width, and the notice a line in the page under
+it, so neither covers the other. Nothing
+else says anything to the agent: ↓ never does, and Space is never a press (`useSpaceStays`). `/` when the next change
+is seen all through (`seenThrough`) opens on its last moment, and an address from before, `/…/end`, lands there too.
+(Until 21 Nov there was a last stop after the last moment, a sheet of your side of the change where Send and Done
+were, reached by a last card on the Moments edge; the box took its place: the card was an action listed among
+places, scrolling out of view on a long change.) Notes on the whole change, which the last stop kept with no `on`, are
+on the last moment (`shownOn`) as a note on the whole moment is (**A note**, below): on its Notes edge with no pin,
+reached by Shift ↑ ↓, their answers counted in "1 answer not opened" and read by seeing the last moment (a hand-back
+seen as a whole, as the last stop was, reads nothing now). They reach the agent as they always did. With nothing waiting,
 the page says so calmly, with what your agents are on ("Your agents are on:", each with its words) and apart under
 "No agent listening:" what nobody is on, each with the line to tell yours; a heading shows only over a change it's
 true of. Its first line stays put as a change moves between the two when an agent arrives: the rest grows and shrinks
@@ -577,7 +523,7 @@ waiting and the right corner, and there's no card for what you asked.
 **Download video** (`DownloadVideo.tsx`), left of Share, makes what you're watching an MP4 your browser downloads. Pressed,
 it asks where it is, in a small card hanging from it: **This moment** ("with Compare" when Compare is on: both
 sides), or **The whole change**, its moments in order ("3
-moments"); with one moment, or at the last stop, there's nothing to choose. Then it says "Downloading…", counts down
+moments"); with one moment, there's nothing to choose. Then it says "Downloading…", counts down
 the seconds left where the arrow was, filling as it goes (holding on 1 until it's there), and ends on a tick in the same
 place, "Downloaded", for 2.5 s; one that couldn't be made says "Didn’t work", why when pointed at. Nothing in it moves
 while it does (`DownloadVideo.tsx`, `WORDS`): its four words are held in one place, so it's as wide as "Download video"
@@ -645,17 +591,24 @@ with nothing moving in what's the same). The bar across its bottom edge (on a ph
 covers none of the picture; Take over's few words then come under the bar, not over it): Play (Space), whose slim line along its own bottom edge fills as
 it plays, there only once the moment has left its end, with a small arrow either side, the frame before (←) and the
 next frame (→), their words and keys coming up over them when pointed at a while; Take over (T); Note (N, on the
-recording or in the app); Compare (C), or in its place "Unchanged" or "New", said rather than offered (smaller, in
-the soft ink, nothing to press or reach with Tab, at Compare's width), or while a note from an earlier hand-back is
-open, its "As it was" and "Now" switch; Compare's place is as wide as the switch, and in the app who you are takes
-Play's room and its arrows', so the bar is the same width from one moment to the next, in every state;
-on a phone the keys go, Take over on its way says "Taking…", and the bar fits the room it's given under the picture
+recording or in the app). The bar is one width on every moment and in every state, the width its widest state needs:
+noting's "Point at what it's about", "or the whole moment" and Cancel with its key, whole (measured unseen, `notingWide`),
+the places spreading evenly across it at rest; in the app who you are takes Play's room and its arrows'. Beside it, at
+its right, the step left (**What's next**, above). **Compare** (C) isn't on the bar: it sits in the recording's top
+left (`corner`), on the bar's own material, shown while the pointer is over the recording, fading in and out calmly,
+only on a moment that has something to compare; while Compare is on it stays shown without the pointer, pressed (filled,
+in the ground's ink), so the way out is always in sight, and "When you last saw it" stands just right of it, on the line
+"Now" stands on across the way. While a note from an earlier hand-back is open, its "As it was" and "Now" switch is
+there beside Compare. Like everything over the recording but the bar, it fades while a recording plays, and it's gone
+while the app is yours. With nothing to compare, the corner shows nothing (until 21 Nov "New" or "Unchanged" stood in
+Compare's place on the bar). On a phone, where nothing hovers, Compare, the switch, or "Unchanged" or "New" (smaller,
+in the soft ink, nothing to press) stay in the bar at Compare's width, as before. On a phone the keys go, Take over on its way says "Taking…", and the bar fits the room it's given under the picture
 (`PHONE_BAR`): as wide as at 390, or the room where that's less, each place its words at their widest and a share of the
 rest that's the air it has at 390, so narrower the air goes from every place together, no place moving as its words
 change and no word cut, down to about 285 wide. A click on the recording
-plays and pauses it. Send and Done are at the last stop (above); top right, Share (below, **Sharing a change**). The
-next moment is ↓ (J), its card on the Moments edge (a row under the recording on a phone), and after the last, the
-last stop's card; Next was top right until 19 Nov, when Share took its place. What the page is doing is one value (`mode.ts`): resting, playing, a note open, pointing,
+plays and pauses it. Send and Done are in the box beside the bar (above); top right, Share (below, **Sharing a
+change**). The next moment is ↓ (J), its card on the Moments edge (a row under the recording on a phone), and after the
+last, nothing; Next was top right until 19 Nov, when Share took its place. What the page is doing is one value (`mode.ts`): resting, playing, a note open, pointing,
 writing, comparing, getting there or the app yours; every press is an action on it, carrying where the recording has got
 to, so whatever stops it playing stops it there, and one rule (`can`) says what may be pressed, which the keys and the
 buttons alike ask. **Stepping** (`stepping.ts`) goes by change, not by time: each press rests on the next instant the
@@ -673,14 +626,14 @@ Space does, it acts on the moment and closes the note first, as it was or now. A
 page is that very frame, motion and all (`Replay.show`): rebuilt to just before the changes of the second before it and
 those played back on one at a time, so a fade stepped back into is shown mid-way, not at its end, and what the page set
 moving is placed by when its change was. A note made there keeps that picture. Keys: Space, T, N, C; ← → the frame before and
-the next, along the moment, and never on into another; ↑ ↓ (and K, J) the moment before and next, ↓ on the last
-going to the last stop; with Shift, ↑ ↓ the note before and the next through the whole change, opening each: this
+the next, along the moment, and never on into another; ↑ ↓ (and K, J) the moment before and next, and nothing
+past the first or the last; with Shift, ↑ ↓ the note before and the next through the whole change, opening each: this
 moment's one after another, then on to the nearest moment that has one (its first going on, its last going back), and
 nothing past the change's first or last; W what's waiting; Escape closes what's open, leaves Compare or noting, or
 calls off a take-over on its way; while the app is yours, Escape twice is Back; Ctrl+Enter (⌘↵) sends, wherever the
 keyboard is but in a note or reply being written: there Enter saves, with Ctrl or ⌘ too, Shift+Enter is a new line, and
-neither reaches the page, so one key never both saves and sends. Noting, while the bar says "Point at what it's about", only N and Escape answer, so words typed before
-pointing and the arrows run nothing; there's no key yet to point with. Reduced motion: nothing slides or fades.
+neither reaches the page, so one key never both saves and sends. Noting, while the bar says "Point at what it's about" and, beside it, "or the whole moment", only N and Escape answer,
+so words typed before pointing and the arrows run nothing; there's no key yet to point with. Reduced motion: nothing slides or fades.
 
 **The picture is a canvas.** The wheel over it brings it closer, or further, about the point under the pointer, which
 stays under it: from the whole screen up to three times closer (`CLOSEST`, `view.ts`), a notch about a sixth (`wheeled`:
@@ -729,7 +682,7 @@ It's there only as play starts: it fades in as a moment starts playing, stays 1.
 playing, paused or at the end, the pointer wears nothing; a key pressed as it plays stands where the tag would, so the key is shown
 and the tag waits. It's one size at any closeness, as far from the tip as the pointer has grown, and turns to the left
 of the tip or above it where the picture's right or bottom edge would cut it off (`besideTip`). Never on a still, where
-nobody acts, nor with the pointer out of the picture, in Compare, while noting, at the last stop, on the moment fading
+nobody acts, nor with the pointer out of the picture, in Compare, while noting, on the moment fading
 out as the next comes, or in a downloaded video. Who a moment is signed in as (`setup.ts`'s people, "Maja, the owner")
 is kept with it and told to the agent, but not said on the page for now: nowhere showed it without crowding the moment
 (the Moments edge's cards had "… as Maja", the moment's name "· Your agent, as Maja", the bar "You, as Maja"). Taking
@@ -741,30 +694,32 @@ the page around the picture does what it did before; in the app, the wheel and a
 **The edges** (`Edge.tsx`). On the left, the change's moments; on the right, this moment's notes, sent then unsent, in
 the order said. Over each, what it holds, in a word, "Moments" and "Notes": at its pictures' outer side, or 24px
 from the screen's edge, where the header's words stand, when they run past it; still as the edge comes forward, and
-not there over notes while there are none. The Moments edge ends in a short card, the way to the last stop (above). By each word, on its inner side, the keys that go through what it holds:
+not there over notes while there are none. By each word, on its inner side, the keys that go through what it holds:
 ↑ ↓ by Moments, Shift ↑ ↓ by Notes (not on a phone). Forward, a card has one border, its own, which says the moment
 you're on or the one pointed at; the picture's own border is only there at rest. Each is a picture of one size (176 by 110), one after another, at rest beside the recording and never
 over it, 16px from it, running past the screen's edge where the window is too narrow for them, fading out over its last
-few pixels (never over pictures wholly on the screen). At rest an edge sits back, each of its cards at 40%, its word and
-last card too, so the recording has your eye; the one you're on and an amber dot still tell apart from the rest
+few pixels (never over pictures wholly on the screen). At rest an edge sits back, each of its cards at 40%, its word
+too, all alike, so the recording has your eye; the one you're on and an amber dot still tell apart from the rest
 (`--resting`, `style.css`, the same value the app's resting uses, from that one place; not on a phone). What waits on
-you stays at full: a note's card saying "new answer", and the last card while it says Send. Once it stops waiting (the
-answer opened, the notes sent) it settles back with the rest, in the cards' own calm fade; nothing moves. With every card
-waiting, the edge looks as it did before it sat back (`data-waiting`, `Tile` and `StepCard`, dimmed by `Edge`). Pointed at (after 70 ms; going back after 220 ms), or reached with
-Tab, an edge comes forward, coming to full as it slides (300 ms, calm; with reduced motion, at once): it slides until its pictures are 16px from the screen's edge, a little over the recording,
-its cards alone, each a little apart. A moment's card's words, its name, come up over its picture's
-lower part. A note's card is the same at rest and forward, and leads with what it is as a moment leads with its picture: its dot, its latest words in two lines
+you stays at full: a note's card saying "new answer". Once it stops waiting (the answer opened) it settles back with
+the rest, in the cards' own calm fade; nothing moves (`data-waiting`, `Tile`, dimmed by `Edge`). Pointed at (after 70
+ms; going back after 220 ms), or reached with Tab, an edge comes forward, coming to full as it slides (300 ms, calm; with reduced motion, at once): it slides until its pictures are 16px from the screen's edge, a little over the recording,
+its cards alone, each a little apart. Forward, the moments you've already watched stay softer, at about two thirds,
+under a veil of the card's own ground (so the card stays whole over the recording), until one is pointed at itself;
+those not yet watched, by the count Done uses (`unseenOf`), come to full, so what's left to see stands out only when you
+look for it, never at rest (21 Nov: the edges sit back "to reduce the overwhelming feeling of seeing everything at once
+at the same strength"). On first coming to a change every moment is unwatched, and forward is as it was. Not on a
+phone. A moment's card's words, its name, come up over its picture's lower part. A note's card is the same at rest and forward, and leads with what it is as a moment leads with its picture: its dot, its latest words in two lines
 and where it stands ("not sent", "sent", "answered" in soft ink, "new answer" in full ink and heavier: in faint they
-were hard to read on a dark card; `NoteWords`, the same by its pin and at the last stop), over a slim strip of its picture, set in; a new answer's New mark shows at rest. A touch brings an edge forward first. Many scroll in their
+were hard to read on a dark card; `NoteWords`, the same by its pin), over a slim strip of its picture, set in; a new answer's New mark shows at rest. A touch brings an edge forward first. Many scroll in their
 own column, under the wheel, their cut end fading over 64px; the moment you're on, a note open or one arriving is
 scrolled into view. A moment's picture is its still, the others' quieter than the one you're on, with its notes'
 dots; pressed, the moment changes in place. A note's strip is cut for its own shape (`stripOf`, `Note.tsx`) around its
 thing (a line of words as wide as its words), with no pin on it, as its dot leads its words: a small thing at the size it was recorded, with what's beside it; a wide line from
 its start, a little smaller at most; something far larger than the strip closed in on what its moment is about where
 that's inside it, else from its top left; a spot with no thing, around the spot; never larger than recorded, always
-inside the screen; drawn wider than the edge's strip (a card at the last stop on a phone, about 300 to its 160), the page at the same
-size as on the edge, so as much more of it round the same middle shows (17 Nov: there it had been the same part
-blown up half again, "ks · Oct 3 · $4" across the card); one from an earlier hand-back is cut from the moment's picture now where its thing is found there, as it opens. It's cut from a kept picture of the frame its thing is shown on, never a recording played
+inside the screen; drawn wider than the edge's strip, the page at the same size as on the edge, so as much more of it round the same
+middle shows (17 Nov: a wider one had been the same part blown up half again, "ks · Oct 3 · $4" across the card); one from an earlier hand-back is cut from the moment's picture now where its thing is found there, as it opens. It's cut from a kept picture of the frame its thing is shown on, never a recording played
 (`useFrames`): one made at a moment's end is that hand-back's own picture; any other is drawn once by `playthrough open`
 in a browser of its own from the recording it was made on (`frames.ts`, the page's `?frame=` address, `Frame.tsx`) and
 kept with what the person did (`branches/frames/<note>.png` and `.json`). A note's pin on the recording and its picture
@@ -775,9 +730,8 @@ instead, quieter, each card at the same 40% rather than the row's and its own to
 moments can, with the pointer:
 each stays dimmed until it's pointed at, then comes to full, and pressed it leaves the app as Back does and goes to that
 moment, at rest, in one move (a take-over on its way is called off as Escape does); the moment you're in the app on is
-just Back. The moments' last card (Send, or Done), which doesn't drive the recording, isn't dimmed at all: pressed, it
-leaves the app the same way and goes on to the last stop, the app fading into it (`leaving`, `Moment.tsx`; `answers`,
-`Edge.tsx`). It doesn't press Send or Done. Writing a note in the app, none of them answer, as Back doesn't. The keys
+just Back (`leaving`, `Moment.tsx`; `answers`, `Edge.tsx`). Send and Done are the box's, beside the bar, which stays
+with you in the app and sends from there without leaving. Writing a note in the app, none of them answer, as Back doesn't. The keys
 are the app's all the while. The menu at the top left still opens what's waiting over the app. **On a phone** (820px or less) there's no room beside the
 recording: under the bar, the notes and then the moments are rows of the same pictures, words always under them,
 scrolled sideways. The recording and its bar stay; what's under them scrolls, fading where there's more above or below,
@@ -798,7 +752,13 @@ placed by the height it came in at (`NoteCard`, `Note.tsx`) and placed again in 
 seen grown the wrong way first. Against the recording's top, with no room above, it grows down instead, the mirror of
 its foot, where it's pushed up clear of the bar; a box under a thing too wide to stand beside grows down too, so it
 stays off its thing. At any zoom it's placed the same way by its thing as the view moves. On a phone the box is in the
-page under the bar and grows down as before. Its pin is on the recording at rest whenever its
+page under the bar and grows down as before. Beside "Point at what it's about", **"or the whole moment"** is the
+other way: pressed, the box opens with nothing pointed at, over the bar's middle, as wide as a box (`overTheBar`,
+`Moment.tsx`), the place a note on no thing takes, deliberately; saved, it's a note on the moment as a whole, kept as
+its hand-back and moment alone, at no time and on no thing (`on` with neither, which the kept change has always read as
+"the whole moment"), a card on the Notes edge like any other, its strip the moment's end now, and no pin. Opened, its
+card stands in that same place over the bar. The agent's `wait` prints it on its moment, with the picture of the
+moment's end and how to stand there (`noted.ts`). Its pin is on the recording at rest whenever its
 thing is there: made on this hand-back, that very thing; made on an earlier hand-back, the thing it became, as the two
 hand-backs' readings of its step tell when they're compared for what changed (`foundNow`, `found.ts`: the steps lined up
 by what was done in them, as comparing does, its step gone from the moment meaning no now; worked out once for each two
@@ -818,7 +778,8 @@ its thing was followed to (`shown`, from `wait`), on that moment, the moment res
 there (`shownIn`, `standing.ts`), and its strip on the edge cut from the picture the hand-back took of that frame
 (`framePicture`): a note on an open date picker, in a moment that ends with it closed, opens with the picker open. It's
 rested there before it's drawn, so the end never shows first. How it was is one flip
-away, in place: while it's open, Compare's place on the bar holds a two-part switch, "As it was" and "Now", Now chosen;
+away, in place: while it's open, the recording's corner holds, beside Compare, a two-part switch (on a phone, in
+Compare's place on the bar), "As it was" and "Now", Now chosen;
 pressing it, or C, flips. Where its thing isn't in the moment now (the agent took it away, or you'd taken over and gone
 to another page before noting), there's no now to show it on: it opens as it was, on the frame it was made on, its
 strip on the edge cut from that frame, and Now rests, saying "Not in this moment now" when the switch is pointed at; a
@@ -847,8 +808,8 @@ comes, so the card holds still. Written on this hand-back,
 looking the same now, not found now (it opens as it was), or made in the app (no reading of it is kept), there's
 none and no room for one. It stays through the flip. A reply waits to be clicked into, so ← → go on through the notes. A thread too long
 for its card comes in at its end, already there, so its newest answer is in view, what's before it fading above, the
-Reply box under it where it always is; one that fits whole is as it was. On a phone or at the last stop, where the
-thread runs in the page's flow, the rows or the sheet holding it are scrolled instead, just enough to bring the newest in
+Reply box under it where it always is; one that fits whole is as it was. On a phone, where the thread runs in the
+page's flow, the rows holding it are scrolled instead, just enough to bring the newest in
 clear of their fade. A note just saved
 arrives at the foot of the edge, alone: its card comes out of the edge whole, as it is forward and clear of the
 screen's edge's fade (`--clear`, `Edge.tsx`; 94px at 1440), holds 1.1 s and folds back into its place to sit back with
@@ -1237,10 +1198,9 @@ note on the change, anyone's, is on its Notes edge, someone else's saying whose 
 `noteSays`), and in its thread, by name.
 
 **What a guest is told** is what they can use (`isGuest`, `api.ts`, the one rule: a source that asks your name). Done
-is never offered: the step left is Send while something's unsent, and with nothing, "No notes yet" in Send's place, at
-its size, on the bar and on the Moments' last card, over it "Your notes go to the agent with your name." Sent, it's
-"Sent to the agent" and "With the agent.", never whether one is listening nor what to tell one, which are the person's
-to act on. The last stop's heading is "What was asked", not "You asked". When nothing at the link answers (sharing
+is never offered: the step left is Send while something's unsent, and with nothing, "No notes yet" in the box, resting.
+Sent, it's "✓ Sent" and "With the agent.", never whether one is listening nor what to tell one, which are the
+person's to act on. When nothing at the link answers (sharing
 stopped, `playthrough open` ended, the computer off), a send says "The person who shared this has stopped sharing, or
 their computer is off. Ask them for a new link." and Take over "Sharing has stopped here. Ask for a new link." (`gone`,
 `server.ts`), where the person is told to start `playthrough open` again. The frame's own words when the app doesn't

@@ -8,7 +8,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { standingOf, type Note } from "@playthrough/change";
 import { isGuest, type Listed } from "./api.ts";
 import { TellYours } from "./Changes.tsx";
-import { Notice } from "./MomentBar.tsx";
+import { Notice as OverTheBar } from "./MomentBar.tsx";
 import { SAID, take, tick } from "./Send.tsx";
 import { toSend } from "./standing.ts";
 import { agentOn, NO_AGENT, stepOf, tellOf } from "./step.ts";
@@ -69,9 +69,11 @@ export type Step = ReturnType<typeof useStepLeft>;
 
 // Over the bar on every moment, where the change stands once you've said something: sent, and whether an agent has it
 // (with none, what to tell a new one); done; or, Done pressed with something not yet seen, what that is, each pressed
-// going to the first of it. Nothing before then. Faded while the recording plays, as all over it but the bar is.
-export function StepNotice({ step, todo, faded }: { step: Step; todo?: { words: string; go: () => void }[]; faded: boolean }) {
+// going to the first of it. Nothing before then. Faded while the recording plays, as all over it but the bar is. On a
+// phone, where under the bar is the box, it's a line in the page under the box instead (`inFlow`).
+export function StepNotice({ step, todo, faded, inFlow = false }: { step: Step; todo?: { words: string; go: () => void }[]; faded: boolean; inFlow?: boolean }) {
   const { taken, said, standing } = step;
+  const Notice = inFlow ? Line : OverTheBar;
   const fade = `transition-opacity duration-200 ease-calm ${faded ? "opacity-0" : ""}`;
   if (Array.isArray(said)) return <Notice className={`text-amber-ink ${fade}`}>Not sent: {said[0]}</Notice>;
   if (todo?.length)
@@ -145,5 +147,14 @@ export function StepBox({ step, anyway, onPress, className = "" }: { step: Step;
         </span>
       ))}
     </button>
+  );
+}
+
+// The notice's words as a line in the page.
+function Line({ children, className = "text-soft" }: { children: ReactNode; className?: string }) {
+  return (
+    <p role="status" className={`grid justify-items-center text-center text-xs leading-[18px] ${className}`}>
+      {children}
+    </p>
   );
 }

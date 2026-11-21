@@ -39,12 +39,11 @@ The page opens on the next change waiting on you, from any app and agent on your
 | Space, or a click | Play and pause |
 | ← → | The frame before, the next: each where the screen changed |
 | T | Take over: the real app at this moment, yours to use |
-| N | Note: click what it's about, say what's off |
+| N | Note: click what it's about, or take the whole moment, and say what's off |
 | C | Compare with how it was when you last saw it |
-| ↓ ↑ | The next moment, the one before; after the last, your notes and Send or Done |
+| ↓ ↑ | The next moment, the one before |
 | Shift ↓ ↑ | The next note, the one before |
-| Enter | After the last moment: Send, or Done |
-| Ctrl+Enter | Send, from any moment |
+| Ctrl+Enter | Send, from any moment; Send or Done is also beside the bar |
 | W | Every change waiting |
 | Escape | Close what's open; in the app, twice for Back |
 
