@@ -546,7 +546,7 @@ export function MomentView(props: {
     takeOver.closeCant();
   };
   const toldAgent = mine.some((one) => !!one.on && !madeInApp(one.on) && !!one.on.cantStepIn);
-  // Saved, the note goes to the Notes edge, and the box beside the bar, saying Send one more as it's saved, lights amber
+  // Saved, the note goes to the Notes edge, and the box at the Moments' foot, saying Send one more as it's saved, lights amber
   // where it stands: nothing goes to it, since the note didn't. On a phone it's in sight under the bar already.
   const lightSend = () => {
     document.querySelector('[data-part="step"]')?.animate([{ boxShadow: "0 0 0 2px var(--amber), 0 0 0 6px color-mix(in srgb, var(--amber) 30%, transparent)" }, {}], { duration: 700, easing: unmoving() ? "steps(1, end)" : "ease-out" });
@@ -902,6 +902,15 @@ export function MomentView(props: {
       phone={phone}
       showing={moment.name}
       answers={away && may.back}
+      // Under the change's moments, what's done with the change: the step left, and over it what it can't say itself.
+      foot={
+        !phone && (
+          <>
+            <StepNotice step={step} todo={doneAnyway && !step.said ? toDo : undefined} faded={!!playing} inFlow />
+            <StepBox step={step} anyway={doneAnyway} onPress={pressStep} flat className="w-full px-2.5!" />
+          </>
+        )
+      }
     >
       {momentTiles}
     </Edge>
@@ -1171,14 +1180,6 @@ export function MomentView(props: {
                 )}
               </Notice>
             )}
-            {/* Where the change stands, over the bar on every moment, but where Take over or noting has its say there. */}
-            {!phone && !takeOver.cant && !takeOver.said && !takeOver.waitingOn && !noting && !writing && <StepNotice step={step} todo={doneAnyway && !step.said ? toDo : undefined} faded={!!playing} />}
-            {/* The step left, in its own box at the bar's right, on its line: with the bar always, playing or in the app. */}
-            {!phone && (
-              <div className="absolute top-0 left-full ml-3">
-                <StepBox step={step} anyway={doneAnyway} onPress={pressStep} />
-              </div>
-            )}
             {/* What noting says, laid out unseen, so the bar is always as wide as its widest state and never cuts it. */}
             {!phone && (
               <div ref={notingRuler} aria-hidden className="pointer-events-none invisible absolute top-0 left-0 flex w-max items-center gap-2 pl-2.5">
@@ -1283,7 +1284,8 @@ const GAP = 20;
 const UNDER = BAR / 2 + GAP;
 
 // Beside the recording, room for each edge's pictures at rest.
-const SIDE = "clamp(104px, 10vw, 160px)";
+// At least as wide as the step's box at its widest, which stands at the Moments' foot.
+const SIDE = "clamp(148px, 10vw, 160px)";
 
 // Over the recording, room for the change's title, and the moment's name in two lines, and the gap under them. Shown by
 // another page, that page says what the change is: no title, and no room for it.
