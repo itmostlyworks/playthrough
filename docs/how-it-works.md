@@ -446,7 +446,7 @@ rather than adding to it, so the page's Back leaves that page instead of steppin
 own, or at `playthrough open`'s in a frame (an editor's browser), none of this applies.
 
 What another page may find the viewer's parts by is `data-part`, never their words or looks: the bar's `play`,
-`take-over` (`back` once in the app), `note`, and noting's `whole-moment`; the step's box beside it, `step`; in the
+`take-over` (`back` once in the app), `note`, and noting's `whole-moment`; the step's box at the Moments side's foot, `step`; in the
 recording's `corner`, `compare` and, while a note from an earlier hand-back is open, the switch `shown` with its
 `as-it-was` and `now`, the one shown pressed (`aria-pressed`) (on a phone these are in the bar); the arrows by Play,
 `frame-before` and `next-frame`, and every key drawn on a button, `key` (Back's "Esc ×2" is one); a note's `pin` and
@@ -463,9 +463,10 @@ else the first. The next change is one with something you haven't seen or read, 
 unsent, then one seen through with nothing said, each longest waiting first (`waitingInOrder`); one you've finished here
 stays finished as it was handed back, so the next card comes at once. In a change, its moments go one by one with Next;
 past the last there's nothing further. **The step left** for the change (`StepLeft.tsx`) is on every moment, in a box of
-its own at the bar's right (`StepBox`): apart from the bar, on its line, of the bar's own material (its surface,
-hairline edge and shadow, 40px, its corners, 13px), so the two read as one bar and its neighbour; and it stays with the
-bar always, while a recording plays and while the app is yours, so you can send from the app. It's one slot that changes
+its own at the foot of the Moments side (`StepBox`, on desktop): pinned under a hairline while the list of moments scrolls
+above it, flat (its surface and hairline edge, no shadow, 40px, its corners, 13px) as wide as the side, and so the bar
+holds only this moment's actions. It stays while a recording plays; while the app is yours it goes with the side, so Send
+and Done wait until you're back. It's one slot that changes
 in place, every face laid in it and all but one unseen, so it's as wide as its widest and nothing moves as it turns:
 "Send 2 notes" while something's unsent, its words in full ink; "Sending…"; "✓ Sent"; "● Agent working" once an agent
 has taken them; "Done" while it waits on you with nothing unsent; "Done anyway"; "✓ Done"; and for a guest with
@@ -474,16 +475,14 @@ lights it amber where it stands, fading over 700 ms, as its words take one more 
 `lightSend`, `Moment.tsx`). Pressed, or Ctrl+Enter from anywhere while something's unsent: Send sends at once and you
 stay where you are, the notes' cards turning from "not sent" to "sent"; Done ends the change and, after a pause
 (`SAID`), goes on to `/`. With moments not watched or answers not opened, Done's first press says so instead: the box
-turns to "Done anyway" and the line over the bar says what's left ("2 moments not watched", "1 answer not opened", each
+turns to "Done anyway" and the line over the box says what's left ("2 moments not watched", "1 answer not opened", each
 pressed going to the first of them, by the same count the Moments edge shows, `unseenOf`, `unreadOf`); the second press
-ends the change, and going to another moment asks again. What the box can't hold is the bar's notice (`StepNotice`;
-`Notice`, `MomentBar.tsx`), a quiet line just over the bar, drawn as Take over's is, on every moment while it's true,
-fading while a recording plays as everything over it but the bar does, and giving way to Take over's and to noting:
-what's left before Done (above); sent with no agent on the change (`agentOn`: none listening, and none on notes it took
+ends the change, and going to another moment asks again. What the box can't hold is the step's notice (`StepNotice`),
+a quiet line directly over the box at the Moments side's foot, wrapping in the side's width, on every moment while it's
+true, fading while a recording plays as everything over it but the bar does: what's left before Done (above); sent with no agent on the change (`agentOn`: none listening, and none on notes it took
 before), "No agent listening. Kept for when one is." in amber, and under it, while what you sent waits for one
 (`tellOf`), "Tell yours:" and the words with Copy beside them; "Not sent: …" in amber where a send
-didn't go. Sent, the agent working and Done are the box's alone, said once (21 Nov: "The agent is working on your
-notes" had stood over the bar beside the box's "Agent working"). On a phone the box is a row of its own under the bar, the whole width, and the notice a line in the page under
+didn't go. Sent, the agent working and Done are the box's alone, said once. On a phone the box is a row of its own under the bar, the whole width, and the notice a line in the page under
 it, so neither covers the other. Nothing
 else says anything to the agent: ↓ never does, and Space is never a press (`useSpaceStays`). `/` when the next change
 is seen all through (`seenThrough`) opens on its last moment, and an address from before, `/…/end`, lands there too.
@@ -591,7 +590,7 @@ recording is just the recording: nothing is drawn on what the moment is about (u
 end). **A moment is only
 what it shows:** its recording plays from `from` to its end; one with nothing done from `from` on is a still: Play and
 its arrows rest there, dimmed where they always are, and Play says "A still: nothing to play" when pointed at. The recording sits in the middle, as large as the room beside its edges lets it be
-(`SIDE`, 10vw, 104 to 160px each side), and never moves or changes size: not as an edge comes forward, a note opens or
+(`SIDE`, 10vw, 148 to 160px each side), and never moves or changes size: not as an edge comes forward, a note opens or
 the moment changes (its shape is kept until the next one's is known, and the one you were on stays under the new one,
 drawn just as it was, never swapped for its picture, until the new one has faded in: two moments that look alike change
 with nothing moving in what's the same). The bar across its bottom edge (on a phone, just under it, touching it, so it
@@ -615,7 +614,7 @@ in the soft ink, nothing to press) stay in the bar at Compare's width, as before
 (`PHONE_BAR`): as wide as at 390, or the room where that's less, each place its words at their widest and a share of the
 rest that's the air it has at 390, so narrower the air goes from every place together, no place moving as its words
 change and no word cut, down to about 285 wide. A click on the recording
-plays and pauses it. Send and Done are in the box beside the bar (above); top right, Share (below, **Sharing a
+plays and pauses it. Send and Done are in the box at the Moments side's foot (above); top right, Share (below, **Sharing a
 change**). The next moment is ↓ (J), its card on the Moments edge (a row under the recording on a phone), and after the
 last, nothing; Next was top right until 19 Nov, when Share took its place. What the page is doing is one value (`mode.ts`): resting, playing, a note open, pointing,
 writing, comparing, getting there or the app yours; every press is an action on it, carrying where the recording has got
@@ -739,8 +738,8 @@ instead, quieter, each card at the same 40% rather than the row's and its own to
 moments can, with the pointer:
 each stays dimmed until it's pointed at, then comes to full, and pressed it leaves the app as Back does and goes to that
 moment, at rest, in one move (a take-over on its way is called off as Escape does); the moment you're in the app on is
-just Back (`leaving`, `Moment.tsx`; `answers`, `Edge.tsx`). Send and Done are the box's, beside the bar, which stays
-with you in the app and sends from there without leaving. Writing a note in the app, none of them answer, as Back doesn't. The keys
+just Back (`leaving`, `Moment.tsx`; `answers`, `Edge.tsx`). Send and Done are the box's: at a desktop size it goes with the Moments side, so they're back when you are; on a phone
+it stays under the bar. Writing a note in the app, none of them answer, as Back doesn't. The keys
 are the app's all the while. The menu at the top left still opens what's waiting over the app. **On a phone** (820px or less) there's no room beside the
 recording: under the bar, the notes and then the moments are rows of the same pictures, words always under them,
 scrolled sideways. The recording and its bar stay; what's under them scrolls, fading where there's more above or below,

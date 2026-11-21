@@ -1,5 +1,5 @@
-// A moment's page: the recording as large as the window lets it be, the bar across its foot and beside it the step left
-// for the change, the change's moments on the left, and this one's notes on the right. From here: play the few seconds
+// A moment's page: the recording as large as the window lets it be, the bar across its foot, the change's moments on the left
+// with the step left for the change at their foot, and this one's notes on the right. From here: play the few seconds
 // that led here, take over (the real app there, as that person), note what you click or the moment as a whole, compare
 // with how it was when you last saw it, go on, or say Send or Done.
 
@@ -80,7 +80,7 @@ export function MomentView(props: {
   const [justSent, setJustSent] = useState<Note[]>([]);
   const sent = [...props.sent, ...justSent.filter((note) => !props.sent.some((one) => one.id === note.id))];
   const unsent = notes.length + replies.length;
-  // The step left: its box beside the bar, pressed; from anywhere, Ctrl+Enter while something's unsent.
+  // The step left: its box at the Moments' foot, pressed; from anywhere, Ctrl+Enter while something's unsent.
   const step = useStepLeft(props.listed, you, (going) => setJustSent((now) => [...now, ...going]), props.goOn);
   // Done pressed with moments not watched or answers not opened: the bar says which, and the box says Done anyway.
   // Gone to another moment, it's asked again.
@@ -495,7 +495,7 @@ export function MomentView(props: {
   // While the app is yours, or on its way, a moment pressed leaves it as Back does, on the way there: one press for Back
   // and the press. The keys stay the app's. It says whether to go on.
   const leaving = () => (away ? may.back && (takeOver.back(), true) : may.move);
-  // Past the first moment or the last, nothing: the step left is the box beside the bar.
+  // Past the first moment or the last, nothing: the step left is the box at the Moments' foot.
   const next = (by: number) => {
     if (!may.move) return;
     const to = n + by;

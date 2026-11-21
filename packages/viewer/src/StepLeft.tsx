@@ -1,6 +1,6 @@
 // The step left for a change, Send while something's unsent, Done while it waits on you: what the change ends in. It
-// stands in a box of its own beside the bar on every moment (`StepBox`), and the line just over the bar says only what
-// the box can't hold (`StepNotice`). Sent, you stay where you are; Done says it was, then goes on to
+// stands in a box of its own at the foot of the Moments side on every moment (`StepBox`), and the line over it says only
+// what the box can't hold (`StepNotice`). Sent, you stay where you are; Done says it was, then goes on to
 // what's next. Already with your agents, or done, it says so, and there's nothing to press. A guest on a shared change
 // only sends: with nothing to send, there's nothing to press.
 
@@ -13,7 +13,7 @@ import { SAID, take, tick } from "./Send.tsx";
 import { toSend } from "./standing.ts";
 import { agentOn, NO_AGENT, stepOf, tellOf } from "./step.ts";
 
-// Over the bar, once sent with no agent on the change.
+// Over the box, once sent with no agent on the change.
 const NOT_LISTENING = "No agent listening. Kept for when one is.";
 const NOTHING_YET = "No notes yet";
 // Just sent, how long the notes say they're sent before they say the agent is on them, so it's read.
@@ -22,7 +22,7 @@ const HELD = 600;
 // What came of a send: sent to your agent; sent with no agent listening; the agent working on them.
 type Went = "sent" | "no agent" | "working";
 
-// The step, and what pressing it has come to: one for the page, read by its box and the line over the bar alike.
+// The step, and what pressing it has come to: one for the page, read by its box and the line over it alike.
 export function useStepLeft(listed: Listed, you: string, onSent: (notes: Note[]) => void, goOn: () => void) {
   const { change } = listed;
   const step = stepOf(listed, you);
@@ -64,9 +64,9 @@ export function useStepLeft(listed: Listed, you: string, onSent: (notes: Note[])
 }
 export type Step = ReturnType<typeof useStepLeft>;
 
-// Over the bar, what the box beside it can't hold: sent with no agent listening, and what to tell a new one; Done
-// pressed with something not yet seen, what that is, each pressed going to the first of it; a send that didn't go. Faded while the recording plays, as all over it but the bar is. On a
-// phone, where under the bar is the box, it's a line in the page under the box instead (`inFlow`).
+// Over the box, what it can't hold: sent with no agent listening, and what to tell a new one; Done
+// pressed with something not yet seen, what that is, each pressed going to the first of it; a send that didn't go. Faded while the recording plays, as all over it but the bar is. Always
+// a line in the page (`inFlow`): over the box at the Moments' foot, and on a phone, where the box is a row under the bar, under it.
 export function StepNotice({ step, todo, faded, inFlow = false }: { step: Step; todo?: { words: string; go: () => void }[]; faded: boolean; inFlow?: boolean }) {
   const { taken, said, standing } = step;
   const Notice = inFlow ? Line : OverTheBar;
@@ -84,7 +84,7 @@ export function StepNotice({ step, todo, faded, inFlow = false }: { step: Step; 
         </span>
       </Notice>
     );
-  // The box says Sent, the agent working and Done itself: over the bar only what it can't hold, nobody listening, with
+  // The box says Sent, the agent working and Done itself: over it only what it can't hold, nobody listening, with
   // what to tell a new agent. A guest isn't told it: it's the person's to start one.
   if ((taken !== "Sent" && standing.is !== "sent") || isGuest() || !(step.went === "no agent" || (!step.went && !step.agentOn))) return null;
   return (
@@ -99,7 +99,7 @@ export function StepNotice({ step, todo, faded, inFlow = false }: { step: Step; 
   );
 }
 
-// The step left, in a box of its own beside the bar, one slot that changes in place: Send, Sent, the agent working once
+// The step left, in a box of its own at the Moments' foot, one slot that changes in place: Send, Sent, the agent working once
 // it has them, Done, Done anyway, Done with its tick. Every face is laid in it, all but one unseen, so it's as wide as
 // its widest and nothing moves as it turns. Pressed: what it says.
 // Flat, it lies on the page rather than floating over it, as at the Moments' foot.
