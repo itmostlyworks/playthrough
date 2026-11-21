@@ -38,6 +38,36 @@ const statusOf = (invoice) => (invoice.paid ? "paid" : late(invoice) > 0 ? "over
 // Overdue first, as they're the ones to chase; otherwise by when they're due.
 const order = (a, b) => (statusOf(b) === "overdue") - (statusOf(a) === "overdue") || a.due.localeCompare(b.due);
 let showing = "all";
+// The invoice whose Mark paid was pressed, asked about before it's marked.
+let asking;
+
+function payButton(invoice) {
+  const pay = document.createElement("button");
+  pay.className = "pay";
+  pay.textContent = "Mark paid";
+  pay.addEventListener("click", () => {
+    asking = invoice;
+    show(showing);
+  });
+  return pay;
+}
+
+function ask(invoice) {
+  const sure = document.createElement("span");
+  sure.className = "sure";
+  sure.innerHTML = `Mark paid? <button class="yes">Yes</button><button class="no">No</button>`;
+  sure.querySelector(".yes").addEventListener("click", () => {
+    invoice.paid = true;
+    asking = undefined;
+    keep();
+    show(showing);
+  });
+  sure.querySelector(".no").addEventListener("click", () => {
+    asking = undefined;
+    show(showing);
+  });
+  return sure;
+}
 
 function show(status) {
   showing = status;
@@ -56,41 +86,15 @@ function show(status) {
           tip.textContent = `${late(invoice)} days late`;
           row.querySelector(".status").append(tip);
         }
-        if (!invoice.paid) {
-          const pay = document.createElement("button");
-          pay.className = "pay";
-          pay.textContent = "Mark paid";
-          pay.addEventListener("click", () => {
-            invoice.paid = true;
-            keep();
-            show(showing);
-            say(`${invoice.number} is marked paid.`, () => {
-              invoice.paid = false;
-              keep();
-              show(showing);
-            });
-          });
-          row.querySelector(".act").append(pay);
-        }
+        if (!invoice.paid) row.querySelector(".act").append(asking === invoice ? ask(invoice) : payButton(invoice));
         return row;
       }),
   );
 }
 
-// What was just done, with a way to take it back, until something else is done.
-const toast = document.querySelector(".toast");
-function say(words, undo) {
-  toast.querySelector("span").textContent = words;
-  toast.querySelector("button").onclick = () => {
-    undo();
-    toast.hidden = true;
-  };
-  toast.hidden = false;
-}
-
 for (const button of document.querySelectorAll(".filters button"))
   button.addEventListener("click", () => {
-    toast.hidden = true;
+    asking = undefined;
     show(button.dataset.status);
   });
 show("all");
