@@ -447,7 +447,7 @@ own, or at `playthrough open`'s in a frame (an editor's browser), none of this a
 
 What another page may find the viewer's parts by is `data-part`, never their words or looks: the bar's `play`,
 `take-over` (`back` once in the app), `note`, and noting's `whole-moment`; the step's box at the Moments side's foot, `step`; in the
-recording's `corner`, `compare` and, while a note from an earlier hand-back is open, the switch `shown` with its
+recording's `corner`, `compare` or, while a note from an earlier hand-back is open, in its place the switch `shown` with its
 `as-it-was` and `now`, the one shown pressed (`aria-pressed`) (on a phone these are in the bar); the arrows by Play,
 `frame-before` and `next-frame`, and every key drawn on a button, `key` (Back's "Esc ×2" is one); a note's `pin` and
 `note-card`; the rounded box the recording sits in, `picture`, always, where `data-picture` is there only while the
@@ -611,8 +611,11 @@ recording, fading in and out calmly, only on a moment that has something to comp
 says off or on (its track filled and knob over when on, its word soft till then), so it reads at a glance; until 21 Nov
 it was a bar-sized button filled in the ground's ink when on, too big over the recording and unclear which it was.
 While Compare is on it stays shown without the pointer, so the way out is always in sight, and "When you last saw it"
-stands just right of it, on the line "Now" stands on across the way. While a note from an earlier hand-back is open, its "As it was" and "Now" switch is
-there beside Compare. Like everything over the recording but the bar, it fades while a recording plays, and it's gone
+stands just right of it, on the line "Now" stands on across the way. While a note from an earlier hand-back is open, its "As it was" and "Now" switch
+takes Compare's place, one at a time, as on a phone: both ask how it looked before, and side by side (until 21 Nov) they
+read as three choices. The one coming in fades in where the other stood, the corner its size. A note opened while
+Compare is on shows the one picture, and put away, Compare is on again as you left it (`fromCompare`, `mode.ts`), so it's
+never turned off where you can't see it. Like everything over the recording but the bar, it fades while a recording plays, and it's gone
 while the app is yours. With nothing to compare, the corner shows nothing (until 21 Nov "New" or "Unchanged" stood in
 Compare's place on the bar). On a phone, where nothing hovers, Compare, the switch, or "Unchanged" or "New" (smaller,
 in the soft ink, nothing to press) stay in the bar at Compare's width, as before. On a phone the keys go, Take over on its way says "Taking…", and the bar fits the room it's given under the picture
@@ -791,8 +794,8 @@ its thing was followed to (`shown`, from `wait`), on that moment, the moment res
 there (`shownIn`, `standing.ts`), and its strip on the edge cut from the picture the hand-back took of that frame
 (`framePicture`): a note on an open date picker, in a moment that ends with it closed, opens with the picker open. It's
 rested there before it's drawn, so the end never shows first. How it was is one flip
-away, in place: while it's open, the recording's corner holds, beside Compare, a two-part switch (on a phone, in
-Compare's place on the bar), "As it was" and "Now", Now chosen;
+away, in place: while it's open, the recording's corner holds, in Compare's place (on a phone, in the bar), a
+two-part switch, "As it was" and "Now", Now chosen;
 pressing it, or C, flips. Where its thing isn't in the moment now (the agent took it away, or you'd taken over and gone
 to another page before noting), there's no now to show it on: it opens as it was, on the frame it was made on, its
 strip on the edge cut from that frame, and Now rests, saying "Not in this moment now" when the switch is pointed at; a

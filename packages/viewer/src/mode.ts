@@ -13,8 +13,9 @@ export type Mode =
   // Still, at its end, or wherever it was paused.
   | { is: "resting" }
   | { is: "playing"; until: number }
-  // A note from an earlier hand-back opens on the moment as it is now; flipped, on the frame it was made on.
-  | { is: "a note open"; note: string; asItWas?: true }
+  // A note from an earlier hand-back opens on the moment as it is now; flipped, on the frame it was made on. Opened
+  // from Compare, putting it away goes back to Compare, as you left it.
+  | { is: "a note open"; note: string; asItWas?: true; fromCompare?: true }
   // Note pressed: pointing at what it's on.
   | { is: "pointing" }
   | { is: "writing"; writing: Writing }
@@ -65,6 +66,9 @@ export function reduce(page: Page, action: Action & Now): Page {
   // Whatever stops it playing stops it where it has got to.
   const stopped: Page = playing(mode) ? { ...page, at: action.now, along: mode.is === "comparing" ? action.along : undefined } : page;
   const resting: Page = { ...stopped, mode: { is: "resting" } };
+  // Compare on, or kept for when the note open over it is put away: whatever acts on the moment does it compared.
+  const compared = mode.is === "comparing" || (mode.is === "a note open" && !!mode.fromCompare);
+  const putAway: Page = compared ? { ...stopped, mode: { is: "comparing" } } : resting;
   switch (action.type) {
     case "moment":
       return arrived(action.moment, action.starts, action.end, action.open);
@@ -74,7 +78,7 @@ export function reduce(page: Page, action: Action & Now): Page {
       const from = page.at >= page.end - 0.02 || page.at < page.starts ? page.starts : page.at;
       const along = from === page.at ? page.along : undefined;
       const until = { until: page.end };
-      return { ...page, at: from, along, mode: mode.is === "comparing" ? { is: "comparing", playing: until } : { is: "playing", ...until } };
+      return { ...page, at: from, along, mode: compared ? { is: "comparing", playing: until } : { is: "playing", ...until } };
     }
     case "played":
       if (mode.is === "playing") return { ...page, at: mode.until, mode: { is: "resting" } };
@@ -83,7 +87,7 @@ export function reduce(page: Page, action: Action & Now): Page {
     case "rest":
       return { ...(playing(mode) ? resting : page), at: action.at, along: undefined };
     case "step":
-      return { ...stopped, at: action.at, along: undefined, mode: mode.is === "comparing" ? { is: "comparing" } : { is: "resting" } };
+      return { ...stopped, at: action.at, along: undefined, mode: compared ? { is: "comparing" } : { is: "resting" } };
     case "note":
       if (mode.is === "the app yours") return { ...page, mode: { ...mode, pointing: mode.pointing ? undefined : true } };
       return { ...stopped, mode: mode.is === "pointing" ? { is: "resting" } : { is: "pointing" } };
@@ -94,11 +98,15 @@ export function reduce(page: Page, action: Action & Now): Page {
       if (mode.is === "the app yours") return { ...page, mode: { is: "the app yours", since: mode.since } };
       return mode.is === "writing" ? resting : page;
     case "open":
-      return { ...stopped, mode: mode.is === "a note open" && mode.note === action.note ? { is: "resting" } : { is: "a note open", note: action.note } };
+      if (mode.is === "a note open" && mode.note === action.note) return putAway;
+      return { ...stopped, mode: { is: "a note open", note: action.note, ...(compared && { fromCompare: true }) } };
     case "close":
-      return mode.is === "a note open" ? resting : page;
-    case "flip":
-      return mode.is === "a note open" ? { ...page, mode: { is: "a note open", note: mode.note, ...(!mode.asItWas && { asItWas: true }) } } : page;
+      return mode.is === "a note open" ? putAway : page;
+    case "flip": {
+      if (mode.is !== "a note open") return page;
+      const { asItWas, ...now } = mode;
+      return { ...page, mode: asItWas ? now : { ...now, asItWas: true } };
+    }
     case "compare":
       return { ...stopped, mode: mode.is === "comparing" ? { is: "resting" } : { is: "comparing" } };
     case "take over":

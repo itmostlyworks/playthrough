@@ -67,6 +67,16 @@ test("a note from an earlier hand-back opens on the moment as it is now, flips t
   assert.deepEqual(press(flipped, { type: "open", note: "n2" }).mode, { is: "a note open", note: "n2" });
 });
 
+test("a note opened from Compare shows one picture, and put away, Compare is on again as it was left", () => {
+  const open = press(press(moment(), { type: "compare" }), { type: "open", note: "n1" });
+  assert.equal(open.mode.is, "a note open");
+  const flipped = press(press(open, { type: "open", note: "n2" }), { type: "flip" });
+  assert.deepEqual(press(flipped, { type: "close" }).mode, { is: "comparing" }, "through another note and a flip");
+  assert.deepEqual(press(open, { type: "open", note: "n1" }).mode, { is: "comparing" }, "pressed again, it closes back to Compare");
+  assert.deepEqual(press(open, { type: "play" }).mode, { is: "comparing", playing: { until: 10 } }, "played, it's compared");
+  assert.deepEqual(press(press(moment(), { type: "open", note: "n1" }), { type: "close" }).mode, { is: "resting" }, "opened without Compare, it rests");
+});
+
 test("while writing a note, nothing but the note answers: not Play, Take over, Note, Compare or another moment", () => {
   const page = press(press(moment(), { type: "note" }), { type: "pointed", writing });
   const may = can(page, facts);
