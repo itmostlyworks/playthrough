@@ -65,7 +65,7 @@ export const states: State[] = [
   {
     name: "a-new-version-lands",
     title: "A new version lands",
-    says: "The same, and the next version lands by itself, five seconds after you arrive.",
+    says: "You're on a moment, your notes with the agent. The next version lands by itself, five seconds after you arrive.",
     group: "The loop",
     version: "noted",
     notes: "taken",
