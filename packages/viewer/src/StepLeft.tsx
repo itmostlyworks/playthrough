@@ -21,7 +21,11 @@ const NOTHING_YET = "No notes yet";
 type Went = "sent" | "no agent" | "working";
 
 // The step, and what pressing it has come to: one for the page, read by its box and the line over it alike.
-export function useStepLeft(listed: Listed, you: string, onSent: (notes: Note[]) => void, goOn: () => void) {
+// A newer version handed back while you're on this one: what it holds, in a line, and the way to it. Until you go,
+// it's the step, whatever else is: what you'd send may already be answered in it.
+export type Newer = { line: string; go: () => void };
+
+export function useStepLeft(listed: Listed, you: string, onSent: (notes: Note[]) => void, goOn: () => void, newer?: Newer) {
   const { change } = listed;
   const step = stepOf(listed, you);
   const standing = standingOf(change, you);
@@ -35,6 +39,7 @@ export function useStepLeft(listed: Listed, you: string, onSent: (notes: Note[])
   const unsent = useRef({ notes: 0, replies: 0 });
   if (step.is === "send") unsent.current = step;
   const press = async () => {
+    if (newer && said !== "sending") return newer.go();
     if (!what || said === "sending" || said === "Sent" || said === "Done") return;
     setPressed(what);
     setSaid("sending");
@@ -60,7 +65,7 @@ export function useStepLeft(listed: Listed, you: string, onSent: (notes: Note[])
     taken !== "Sent" ? undefined : step.is !== "with" ? (agentOn(listed) || isGuest() ? "sent" : "no agent") : step.words === NO_AGENT ? (isGuest() ? "sent" : "no agent") : step.words === "Agent working" && !held ? "working" : "sent";
   // Just sent, it says Sent until that's been read, even when the change comes back with the agent already on it.
   const working = went ? went === "working" : step.is === "with" && step.words === "Agent working";
-  return { what, said, taken, went, working, step, standing, count, agentOn: agentOn(listed), tell: isGuest() ? undefined : tellOf(listed, you), words: `Send ${toSend(unsent.current.notes, unsent.current.replies)}`, press: () => void press() };
+  return { newer: said === "sending" ? undefined : newer, what, said, taken, went, working, step, standing, count, agentOn: agentOn(listed), tell: isGuest() ? undefined : tellOf(listed, you), words: `Send ${toSend(unsent.current.notes, unsent.current.replies)}`, press: () => void press() };
 }
 export type Step = ReturnType<typeof useStepLeft>;
 
@@ -72,6 +77,7 @@ export function StepNotice({ step, todo, faded, inFlow = false }: { step: Step; 
   const Notice = inFlow ? Line : OverTheBar;
   const fade = `transition-opacity duration-200 ease-calm ${faded ? "opacity-0" : ""}`;
   if (Array.isArray(said)) return <Notice className={`text-amber-ink ${fade}`}>Not sent: {said[0]}</Notice>;
+  if (step.newer) return <Notice className={`text-soft ${fade}`}>{step.newer.line}</Notice>;
   if (todo?.length)
     return (
       <Notice className={`text-soft ${fade}`}>
@@ -100,12 +106,13 @@ export function StepNotice({ step, todo, faded, inFlow = false }: { step: Step; 
 }
 
 // The step left, in a box of its own at the Moments' foot, one slot that changes in place: Send, Sent, the agent working once
-// it has them, Done, Done anyway, Done with its tick. Every face is laid in it, all but one unseen, so it's as wide as
+// it has them, a new version once it's handed back, Done, Done anyway, Done with its tick. Every face is laid in it, all but one unseen, so it's as wide as
 // its widest and nothing moves as it turns. Pressed: what it says.
 // Flat, it lies on the page rather than floating over it, as at the Moments' foot.
 export function StepBox({ step, anyway, onPress, flat = false, className = "" }: { step: Step; anyway: boolean; onPress: () => void; flat?: boolean; className?: string }) {
-  const { what, said, taken, working } = step;
+  const { what, said, taken, working, newer } = step;
   const faces: [string, ReactNode][] = [
+    ["newer", "New version"],
     ["send", step.words],
     ["sending", "Sending…"],
     ["sent", <>{tick}Sent</>],
@@ -116,8 +123,8 @@ export function StepBox({ step, anyway, onPress, flat = false, className = "" }:
     ["nothing", NOTHING_YET],
   ];
   const now =
-    said === "sending" ? "sending" : taken === "Sent" ? (working ? "working" : "sent") : taken === "Done" ? "done taken" : what === "send" ? "send" : what === "done" ? (anyway ? "anyway" : "done") : "nothing";
-  const pressable = !!what && !taken && said !== "sending";
+    said === "sending" ? "sending" : newer ? "newer" : taken === "Sent" ? (working ? "working" : "sent") : taken === "Done" ? "done taken" : what === "send" ? "send" : what === "done" ? (anyway ? "anyway" : "done") : "nothing";
+  const pressable = !!newer || (!!what && !taken && said !== "sending");
   return (
     <button
       data-part="step"
