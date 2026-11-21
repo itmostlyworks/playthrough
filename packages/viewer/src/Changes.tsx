@@ -148,7 +148,7 @@ export function Changes({ changes, you, keyboardOn, onOpen }: { changes: Listed[
         {!waiting.length && (
           <div className="mt-3 animate-arrive text-[15px] leading-[22px]">
             <p className="text-fg">{restingWords(all.length > 0)}</p>
-            {!all.length && <p className="text-soft">{SHOW_ME}</p>}
+            {!all.length && <ShowMe />}
           </div>
         )}
         <div className="-mt-1.5">{waiting.map(row)}</div>
@@ -351,13 +351,31 @@ function Row(props: {
 }
 
 // With nothing waiting on you, here and on the page / opens on: caught up once an agent's work has come, and before any
-// has, not yet; and how to bring it here.
+// has, not yet; and how to bring it here, the words to say copied on a press as "Tell yours" copies them.
 export const restingWords = (anyCame: boolean) => (anyCame ? "You're all caught up." : "Nothing here yet.");
-export const SHOW_ME = "To see an agent's work here, tell it: “When you're done, show me with npx playthrough.”";
+export function ShowMe() {
+  return (
+    <>
+      <p className="text-soft">To see an agent's work here, tell it:</p>
+      <p>
+        <Copyable words="When you're done, show me with npx playthrough." />
+      </p>
+    </>
+  );
+}
 
 // Sent, and nothing is listening for it: what to say to your agent, word for word, on a line of its own under the row's.
-// The words copy on a press, said "Copied" in their place for a moment, at their size, so nothing moves.
 export function TellYours({ words }: { words: string }) {
+  return (
+    <span className="pointer-events-none w-full text-[13px] leading-5 text-soft">
+      Tell yours: <Copyable words={words} />
+    </span>
+  );
+}
+
+// Words to say to an agent, in quotes. They copy on a press, said "Copied" in their place for a moment, at their size,
+// so nothing moves.
+function Copyable({ words }: { words: string }) {
   const [copied, setCopied] = useState(false);
   const sentence = useRef<HTMLSpanElement>(null);
   const shown = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -371,23 +389,20 @@ export function TellYours({ words }: { words: string }) {
     shown.current = setTimeout(() => setCopied(false), 1400);
   };
   return (
-    <span className="pointer-events-none w-full text-[13px] leading-5 text-soft">
-      Tell yours:{" "}
-      <button
-        onClick={copy}
-        aria-label={`Copy “${words}”`}
-        // Its hover and ring are drawn round it, not padded into it: it takes up only its words' room, in a line that
-        // cuts what doesn't fit.
-        className="pointer-events-auto relative cursor-pointer rounded-sm text-left text-fg transition-[background-color,box-shadow] duration-150 ease-calm hover:bg-hover hover:shadow-[0_0_0_3px_var(--hover)] focus-visible:shadow-[0_0_0_2px_var(--amber)] focus-visible:outline-none"
-      >
-        <span className={`transition-opacity duration-150 ease-calm ${copied ? "opacity-0" : ""}`}>
-          “<span ref={sentence}>{words}</span>”
-        </span>
-        <span aria-live="polite" className={`absolute inset-y-0 left-0 text-soft transition-opacity duration-150 ease-calm ${copied ? "" : "opacity-0"}`}>
-          {copied ? "Copied" : ""}
-        </span>
-      </button>
-    </span>
+    <button
+      onClick={copy}
+      aria-label={`Copy “${words}”`}
+      // Its hover and ring are drawn round it, not padded into it: it takes up only its words' room, in a line that
+      // cuts what doesn't fit.
+      className="pointer-events-auto relative cursor-pointer rounded-sm text-left text-fg transition-[background-color,box-shadow] duration-150 ease-calm hover:bg-hover hover:shadow-[0_0_0_3px_var(--hover)] focus-visible:shadow-[0_0_0_2px_var(--amber)] focus-visible:outline-none"
+    >
+      <span className={`transition-opacity duration-150 ease-calm ${copied ? "opacity-0" : ""}`}>
+        “<span ref={sentence}>{words}</span>”
+      </span>
+      <span aria-live="polite" className={`absolute inset-y-0 left-0 text-soft transition-opacity duration-150 ease-calm ${copied ? "" : "opacity-0"}`}>
+        {copied ? "Copied" : ""}
+      </span>
+    </button>
   );
 }
 

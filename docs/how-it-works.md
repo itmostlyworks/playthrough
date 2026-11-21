@@ -497,8 +497,9 @@ the page rests: in the middle of the window, Playthrough's mark quietly, with a 
 lands once, as the page arrives), and "You're all caught up." (Before any agent's work has come: the mark with nothing
 in it, and "Nothing here yet.") Under it, what your agents are on ("Your agents are on:", each with its words) and apart
 under "No agent listening:" what nobody is on, each with the line to tell yours; a heading shows only over a change it's
-true of. With neither list, how to bring an agent's work here instead: "To see an agent's work here, tell it: “When
-you're done, show me with npx playthrough.”" The every-change sheet says the same words under "Waiting on you". The
+true of. With neither list, how to bring an agent's work here instead: "To see an agent's work here, tell it:" and
+under it “When you're done, show me with npx playthrough.”, which copies on a press as "Tell yours" does. The
+every-change sheet says the same words under "Waiting on you". The
 mark and first line stay put as a change moves between the lists when an agent arrives: the rest grows and shrinks
 under them, rather than the whole being centred.
 

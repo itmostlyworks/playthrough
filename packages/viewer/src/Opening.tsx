@@ -4,7 +4,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { latestOf, type Moment } from "@playthrough/change";
 import { picture, readings as readingsOf, type Listed } from "./api.ts";
-import { restingWords, SHOW_ME, TellYours } from "./Changes.tsx";
+import { restingWords, ShowMe, TellYours } from "./Changes.tsx";
 import { Header, headerRows } from "./Header.tsx";
 import { Key } from "./Key.tsx";
 import { inItsRoom } from "./Moment.tsx";
@@ -118,7 +118,11 @@ export function NothingWaiting({ changes, you, opener }: { changes: Listed[]; yo
         <div className="flex flex-col items-center text-center">
           <AtRest done={changes.length > 0} />
           <p className="mt-5 text-[20px] leading-[28px] font-medium text-fg">{restingWords(changes.length > 0)}</p>
-          {!steps.length && <p className="mt-2 max-w-[42em] text-[15px] leading-[22px] text-balance text-soft">{SHOW_ME}</p>}
+          {!steps.length && (
+            <div className="mt-2 text-[15px] leading-[22px]">
+              <ShowMe />
+            </div>
+          )}
         </div>
         <div className="mt-10 w-full max-w-[420px] empty:hidden">
           {on.length > 0 && (
