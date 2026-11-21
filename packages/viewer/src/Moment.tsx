@@ -270,7 +270,8 @@ export function MomentView(props: {
   useLayoutEffect(() => {
     const ruler = notingRuler.current;
     if (!ruler) return;
-    const measure = () => setNotingWide(ruler.offsetWidth);
+    // Up to the next whole pixel, never down as offsetWidth rounds: words a fraction wider than their room are cut.
+    const measure = () => setNotingWide(Math.ceil(ruler.getBoundingClientRect().width));
     measure();
     const watching = new ResizeObserver(measure);
     watching.observe(ruler);
