@@ -35,13 +35,16 @@ const labels = { open: "Open", overdue: "Overdue", paid: "Paid" };
 const DAY = 24 * 60 * 60 * 1000;
 const late = (invoice) => Math.round((new Date(held.today) - new Date(invoice.due)) / DAY);
 const statusOf = (invoice) => (invoice.paid ? "paid" : late(invoice) > 0 ? "overdue" : "open");
+// Overdue first, as they're the ones to chase; otherwise by when they're due.
+const order = (a, b) => (statusOf(b) === "overdue") - (statusOf(a) === "overdue") || a.due.localeCompare(b.due);
 let showing = "all";
 
 function show(status) {
   showing = status;
   for (const button of document.querySelectorAll(".filters button")) button.setAttribute("aria-pressed", String(button.dataset.status === status));
   document.querySelector("tbody").replaceChildren(
-    ...held.invoices
+    ...[...held.invoices]
+      .sort(order)
       .filter((invoice) => status === "all" || statusOf(invoice) === status)
       .map((invoice) => {
         const row = document.createElement("tr");
@@ -61,6 +64,11 @@ function show(status) {
             invoice.paid = true;
             keep();
             show(showing);
+            say(`${invoice.number} is marked paid.`, () => {
+              invoice.paid = false;
+              keep();
+              show(showing);
+            });
           });
           row.querySelector(".act").append(pay);
         }
@@ -69,5 +77,20 @@ function show(status) {
   );
 }
 
-for (const button of document.querySelectorAll(".filters button")) button.addEventListener("click", () => show(button.dataset.status));
+// What was just done, with a way to take it back, until something else is done.
+const toast = document.querySelector(".toast");
+function say(words, undo) {
+  toast.querySelector("span").textContent = words;
+  toast.querySelector("button").onclick = () => {
+    undo();
+    toast.hidden = true;
+  };
+  toast.hidden = false;
+}
+
+for (const button of document.querySelectorAll(".filters button"))
+  button.addEventListener("click", () => {
+    toast.hidden = true;
+    show(button.dataset.status);
+  });
 show("all");
