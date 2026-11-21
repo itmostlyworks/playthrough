@@ -30,8 +30,9 @@ const INSET = 8 + 6;
 const SIDE = 10;
 // Its word's line, and the room between it and the first picture.
 const WORD = 20 + 12;
-// Where more runs on past the edge's top or foot, it fades over this much, so it reads as more to come.
-export const MORE = 64;
+// Where more runs on past the edge's top or foot, its very edge fades over this much, so it reads as more to come:
+// only the cut itself, never a moment's worth, so a card brought forward over the recording stays whole and solid.
+export const MORE = 16;
 
 // A list that scrolls, fading where more runs on past its top or foot, and sharp where nothing does: an edge's
 // pictures, the rows under the recording on a phone, a note's thread. Its look is called as it scrolls.

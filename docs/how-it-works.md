@@ -721,7 +721,7 @@ at the same strength"). On first coming to a change every moment is unwatched, a
 phone. A moment's card's words, its name, come up over its picture's lower part. A note's card is the same at rest and forward, and leads with what it is as a moment leads with its picture: its dot, its latest words in two lines
 and where it stands ("not sent", "sent", "answered" in soft ink, "new answer" in full ink and heavier: in faint they
 were hard to read on a dark card; `NoteWords`, the same by its pin), over a slim strip of its picture, set in; a new answer's New mark shows at rest. A touch brings an edge forward first. Many scroll in their
-own column, under the wheel, their cut end fading over 64px; the moment you're on, a note open or one arriving is
+own column, under the wheel, their cut end fading over its last 16px only, never a moment's worth, so a card forward over the recording stays solid (the same short fade on a note's thread and the rows under a phone's bar); the moment you're on, a note open or one arriving is
 scrolled into view. A moment's picture is its still, the others' quieter than the one you're on, with its notes'
 dots; pressed, the moment changes in place. A note's strip is cut for its own shape (`stripOf`, `Note.tsx`) around its
 thing (a line of words as wide as its words), with no pin on it, as its dot leads its words: a small thing at the size it was recorded, with what's beside it; a wide line from
