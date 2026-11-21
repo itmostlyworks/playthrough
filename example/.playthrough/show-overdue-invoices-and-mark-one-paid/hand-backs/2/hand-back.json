@@ -1,0 +1,133 @@
+{
+  "number": 2,
+  "by": "Claude Code",
+  "moments": [
+    {
+      "name": "Overdue invoices are marked",
+      "length": 3.381,
+      "recording": "overdue-invoices-are-marked.json",
+      "person": "Rosa",
+      "about": {
+        "role": "text",
+        "name": "Status"
+      },
+      "from": 1.056,
+      "actions": []
+    },
+    {
+      "name": "Only overdue invoices show",
+      "length": 5.169,
+      "recording": "only-overdue-invoices-show.json",
+      "person": "Rosa",
+      "acted": {
+        "role": "button",
+        "name": "Overdue"
+      },
+      "from": 1.066,
+      "actions": [
+        {
+          "at": 2.919,
+          "what": "click button “Overdue”",
+          "began": 2.878
+        }
+      ]
+    },
+    {
+      "name": "Alder Dental's invoice is marked paid",
+      "length": 7.572,
+      "recording": "alder-dentals-invoice-is-marked-paid.json",
+      "person": "Rosa",
+      "acted": {
+        "role": "button",
+        "name": "Mark paid"
+      },
+      "from": 2.125,
+      "actions": [
+        {
+          "at": 3.752,
+          "what": "click button “All”",
+          "began": 3.706
+        },
+        {
+          "at": 5.279,
+          "what": "click button “Mark paid”",
+          "began": 5.234
+        }
+      ]
+    },
+    {
+      "name": "How late an invoice is",
+      "length": 6.047,
+      "recording": "how-late-an-invoice-is.json",
+      "person": "Rosa",
+      "acted": {
+        "role": "button",
+        "name": "Overdue"
+      },
+      "from": 2.132,
+      "actions": [
+        {
+          "at": 3.784,
+          "what": "hover cell “Overdue 69 days late”",
+          "began": 3.738
+        }
+      ]
+    },
+    {
+      "name": "Undo puts the invoice back",
+      "length": 6.951,
+      "recording": "undo-puts-the-invoice-back.json",
+      "person": "Rosa",
+      "acted": {
+        "role": "button",
+        "name": "Mark paid"
+      },
+      "from": 1.082,
+      "actions": [
+        {
+          "at": 2.834,
+          "what": "click button “Mark paid”",
+          "began": 2.737
+        },
+        {
+          "at": 4.673,
+          "what": "click button “Undo”",
+          "began": 4.627
+        }
+      ]
+    }
+  ],
+  "replies": [
+    {
+      "note": "qjqji2w3",
+      "words": "Overdue invoices now come first, oldest at the top; the rest stay in due-date order."
+    },
+    {
+      "note": "qyv9a5qq",
+      "words": "Marking one paid now says so at the bottom with an Undo, until you do something else. The new moment shows it.",
+      "shown": {
+        "moment": "Alder Dental's invoice is marked paid",
+        "at": 7.572,
+        "element": {
+          "role": "text",
+          "name": "Paid",
+          "node": 459
+        }
+      }
+    },
+    {
+      "note": "srrt5wwe",
+      "words": "From the due date: today minus the due date, so one due today isn't late yet. When it was sent doesn't count.",
+      "shown": {
+        "moment": "How late an invoice is",
+        "at": 6.047,
+        "element": {
+          "role": "text",
+          "name": "Status",
+          "node": 54
+        }
+      }
+    }
+  ],
+  "finished": "2026-11-21T16:31:02.920Z"
+}

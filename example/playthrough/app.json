@@ -1,1 +1,1 @@
-{ "start": "node serve.ts", "url": "http://localhost:4400" }
+{ "start": "node serve.ts {port}", "url": "http://localhost:{port}" }

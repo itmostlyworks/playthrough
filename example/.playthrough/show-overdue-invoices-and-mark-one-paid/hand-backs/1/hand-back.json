@@ -1,0 +1,79 @@
+{
+  "number": 1,
+  "by": "Claude Code",
+  "moments": [
+    {
+      "name": "Overdue invoices are marked",
+      "length": 3.36,
+      "recording": "overdue-invoices-are-marked.json",
+      "person": "Rosa",
+      "about": {
+        "role": "text",
+        "name": "Status"
+      },
+      "from": 1.042,
+      "actions": []
+    },
+    {
+      "name": "Only overdue invoices show",
+      "length": 5.159,
+      "recording": "only-overdue-invoices-show.json",
+      "person": "Rosa",
+      "acted": {
+        "role": "button",
+        "name": "Overdue"
+      },
+      "from": 1.021,
+      "actions": [
+        {
+          "at": 2.882,
+          "what": "click button “Overdue”",
+          "began": 2.836
+        }
+      ]
+    },
+    {
+      "name": "Alder Dental's invoice is marked paid",
+      "length": 7.504,
+      "recording": "alder-dentals-invoice-is-marked-paid.json",
+      "person": "Rosa",
+      "acted": {
+        "role": "button",
+        "name": "Mark paid"
+      },
+      "from": 2.038,
+      "actions": [
+        {
+          "at": 3.667,
+          "what": "click button “All”",
+          "began": 3.623
+        },
+        {
+          "at": 5.232,
+          "what": "click button “Mark paid”",
+          "began": 5.189
+        }
+      ]
+    },
+    {
+      "name": "How late an invoice is",
+      "length": 5.974,
+      "recording": "how-late-an-invoice-is.json",
+      "person": "Rosa",
+      "acted": {
+        "role": "button",
+        "name": "Overdue"
+      },
+      "from": 2.038,
+      "actions": [
+        {
+          "at": 3.703,
+          "what": "hover cell “Overdue 69 days late”",
+          "began": 3.661
+        }
+      ]
+    }
+  ],
+  "replies": [],
+  "finished": "2026-11-21T16:26:05.331Z"
+}

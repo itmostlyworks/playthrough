@@ -1,0 +1,28 @@
+{
+  "id": "t6e3m36s",
+  "handBack": 2,
+  "by": "Ludwig Bäcklund",
+  "sent": "2026-11-21T16:32:14.441Z",
+  "notes": [
+    {
+      "id": "i9eqqxm9",
+      "on": {
+        "handBack": 2,
+        "moment": "Alder Dental's invoice is marked paid",
+        "at": 7.522,
+        "element": {
+          "role": "text",
+          "name": "INV-1043 is marked paid.",
+          "node": 191
+        }
+      },
+      "words": "On second thought, I'd rather it just asked me first than pop this up after."
+    }
+  ],
+  "replies": [
+    {
+      "note": "srrt5wwe",
+      "words": "Good. Weekends count too?"
+    }
+  ]
+}

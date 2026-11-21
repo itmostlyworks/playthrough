@@ -1,0 +1,44 @@
+{
+  "id": "gzsj6crq",
+  "handBack": 1,
+  "by": "Ludwig Bäcklund",
+  "sent": "2026-11-21T16:28:33.793Z",
+  "notes": [
+    {
+      "id": "qjqji2w3",
+      "on": {
+        "handBack": 1,
+        "moment": "Overdue invoices are marked"
+      },
+      "words": "Put the overdue ones at the top, they're the ones I need to chase."
+    },
+    {
+      "id": "qyv9a5qq",
+      "on": {
+        "handBack": 1,
+        "moment": "Alder Dental's invoice is marked paid",
+        "at": 7.454,
+        "element": {
+          "role": "text",
+          "name": "Paid",
+          "node": 420
+        }
+      },
+      "words": "One click and it's paid, easy to hit by mistake. Can I undo it?"
+    },
+    {
+      "id": "srrt5wwe",
+      "on": {
+        "handBack": 1,
+        "moment": "How late an invoice is",
+        "at": 5.924,
+        "element": {
+          "role": "text",
+          "name": "Status",
+          "node": 54
+        }
+      },
+      "words": "Is this counted from the due date, or from when we sent it?"
+    }
+  ]
+}
