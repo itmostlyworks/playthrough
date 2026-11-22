@@ -46,7 +46,7 @@ export function findingsAt(then: Reading, now: Reading, unsteady = new Set<strin
   const { reordered, left } = rowsReordered(readings, items.left);
   const { shifts, loose } = layoutShifts(left, carried);
   readings.shifts = shifts.map((shift) => shift.by);
-  const widened = widenedTogether(others, caused, along);
+  const widened = widenedTogether(readings, others, caused, along);
   const told = [
     ...items.reordered,
     ...reordered,
@@ -269,14 +269,17 @@ function layoutShifts(moves: Move[], carried: Map<Difference, number>): { shifts
 
 // One thing moved straight up or down on its own, by something above it that took room or gave it, is part of that
 // change, as many moved alike are: the close's heading, pushed down by a new section, isn't a change of its own, and on
-// the newer hand-back its outline showed nothing. Two that went opposite ways may have swapped, and stay.
+// the newer hand-back its outline showed nothing. So is one moved straight left or right by something beside it on its
+// row that grew or shrank: Import, moved over by the button beside it now saying “New board”. Two that went opposite
+// ways may have swapped, and stay.
 function madeRoom(loose: Move[], others: Difference[], caused: Set<Difference>, along: Map<Difference, With>): Move[] {
   const candidates = others.filter((difference) => !caused.has(difference));
   return loose.filter((move) => {
     const by = movedBy(move);
-    if (!near(by.x, 0) || loose.some((other) => Math.sign(movedBy(other).y) === -Math.sign(by.y))) return true;
-    const cause = causeOf(spanOf([move.now]), { vertical: true, by: by.y, moving: true }, candidates);
-    if (cause) addAlong(along, cause, "pushed", [move.now], wayOf(0, by.y));
+    const axis = near(by.x, 0) ? "y" : near(by.y, 0) ? "x" : undefined;
+    if (!axis || loose.some((other) => Math.sign(movedBy(other)[axis]) === -Math.sign(by[axis]))) return true;
+    const cause = causeOf(spanOf([move.now]), { vertical: axis === "y", by: by[axis], moving: true }, candidates);
+    if (cause) addAlong(along, cause, "pushed", [move.now], axis === "y" ? wayOf(0, by.y) : wayOf(by.x, 0));
     return !cause;
   });
 }
@@ -309,9 +312,11 @@ function swappedOrMoved(readings: ThenAndNow, loose: Move[]): Told[] {
 }
 
 // Things made wider or narrower by the same amount, sharing an edge (a heading and a table beside a new panel), are one
-// change: the biggest stands for them, and it belongs to what made them so, beside them.
+// change: the biggest stands for them, and it belongs to what made them so, beside them: one thing about as wide, or the
+// things that came or went beside it in what it's in, together (Kan's list name, narrower by a new button on its left
+// and a count on its right, each smaller than the room they took).
 type Widened = { by: number; top: Pair; cause?: Difference };
-function widenedTogether(others: Difference[], caused: Set<Difference>, along: Map<Difference, With>): Widened[] {
+function widenedTogether(readings: ThenAndNow, others: Difference[], caused: Set<Difference>, along: Map<Difference, With>): Widened[] {
   const groups: { by: number; pairs: Pair[] }[] = [];
   for (const difference of others) {
     if (difference.what !== "resized" || caused.has(difference)) continue;
@@ -327,7 +332,8 @@ function widenedTogether(others: Difference[], caused: Set<Difference>, along: M
     const [top, ...more] = [...pairs].sort(holdersFirst) as [Pair, ...Pair[]];
     for (const pair of more) caused.add(pair);
     const candidates = others.filter((d) => !caused.has(d) && !pairs.includes(d as Pair));
-    const cause = causeOf(spanOf(pairs.map((pair) => pair.now)), { vertical: false, by, kinds: /^(new|gone)$/, share: 0.8 }, candidates);
+    const looking = { vertical: false, by, kinds: /^(new|gone)$/, share: 0.8 };
+    const cause = causeOf(spanOf(pairs.map((pair) => pair.now)), looking, candidates) ?? tookItsRoom(readings, top, looking, candidates);
     if (cause) {
       addAlong(along, cause, "sized", pairs.map((pair) => pair.now), by > 0 ? "wider" : "narrower");
       caused.add(top);
@@ -447,6 +453,21 @@ function causeOf(span: Span, { vertical, by, kinds = /^(new|gone|resized|reworde
     .filter((d) => kinds.test(d.what) && (vertical ? tall(d) > NEAR && (!moving || by > 0 === down(d)) : wide(d) >= Math.abs(by) * share))
     .filter((d) => (vertical ? above(d) : beside(d)))
     .sort((p, q) => (vertical ? thingOf(q).page.y - thingOf(p).page.y : offCentre(thingOf(p)) - offCentre(thingOf(q))))[0];
+}
+
+// What took the room something gave up, or gave it the room it took, when no one thing beside it is big enough: the things
+// new beside it in what it's in, on its rows, together as wide as a share of it, for one narrower; for one wider, those
+// gone. The widest of them stands for them.
+function tookItsRoom({ then, now }: ThenAndNow, pair: Pair, { by, share = 0.5 }: Looking, candidates: Difference[]): Difference | undefined {
+  const [reading, thing] = by < 0 ? [now, pair.now] : [then, pair.then];
+  const parent = parentOf(reading, thing);
+  const beside = candidates.filter((d) => {
+    if (d.what !== (by < 0 ? "new" : "gone")) return false;
+    const other = thingOf(d);
+    return !!parent && parentOf(reading, other) === parent && other.page.y < bottom(thing) && bottom(other) > thing.page.y;
+  });
+  const width = beside.reduce((sum, d) => sum + thingOf(d).box.width, 0);
+  return beside.length && width >= Math.abs(by) * share ? beside.sort((p, q) => thingOf(q).box.width - thingOf(p).box.width)[0] : undefined;
 }
 
 // A change of its own, in words, with what came with it.

@@ -263,6 +263,31 @@ describe("What changed at a moment", () => {
     assert.deepEqual(await said(page(""), page(`<aside aria-label="Filters" class="panel" style="width: 240px"><p>Overdue only</p></aside>`)), ["“Filters” area is new, and made 2 things narrower"]);
   });
 
+  test("something made narrower by the things new beside it in what it's in, each smaller than the room they took, follows from them (Kan's list name, with a button and a count beside it)", async () => {
+    const list = (collapse: string, count: string) =>
+      `<div role="group" aria-label="To do" class="panel" style="display: flex; align-items: center; width: 288px">${collapse}<input aria-label="List name" style="flex: 1; min-width: 0">${count}<button aria-label="Add card" style="width: 28px">+</button></div>`;
+    const collapse = `<button aria-label="Collapse list" style="width: 28px; padding: 0">‹</button>`;
+    assert.deepEqual(await said(list("", ""), list(collapse, "<span>0</span>")), ["Collapse list is new, and made the List name field narrower", "“0” is new"]);
+  });
+
+  test("something narrower by far more than what's new beside it is a change of its own", async () => {
+    const list = (count: string, width: number) =>
+      `<div role="group" aria-label="To do" class="panel" style="display: flex; align-items: center; width: 288px"><input aria-label="List name" style="width: ${width}px">${count}</div>`;
+    assert.deepEqual(await said(list("", 200), list("<span>0</span>", 120)), ["List name field is narrower", "“0” is new"]);
+  });
+
+  const header = (more: string, label: string) =>
+    `<section aria-label="Boards" class="panel" style="display: flex; justify-content: flex-end; gap: 8px">${more}<button><span>${label}</span></button></section>`;
+
+  test("a control now saying something else is one change, with the words on it that changed as its name did (Kan's “New” now saying “New board”)", async () => {
+    assert.deepEqual(await said(header("", "New"), header("", "New board")), ["New now says “New board”"]);
+  });
+
+  test("something moved left or right on its own by a neighbour on its row that got wider is part of that change (Kan's Import, beside “New board”)", async () => {
+    const more = "<button>Import</button>";
+    assert.deepEqual(await said(header(more, "New"), header(more, "New board")), ["New now says “New board”, and moved the Import button left"]);
+  });
+
   test("something now inside a panel it wasn't in has moved into it", async () => {
     const page = (inside: string, outside: string) => `<aside aria-label="Kettle Works" class="panel"><p>3 invoices</p>${inside}</aside>${outside}`;
     const bar = `<p>2 selected</p>`;

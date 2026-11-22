@@ -2,6 +2,7 @@
 // each one that changed. A thing is the same one when it's what it was, called what it was, saying what it said; one that's
 // gone where something like it is new may be the same one, reworded or renamed.
 
+import { rewordedPart } from "./names.ts";
 import type { Reading, Thing } from "./reading.ts";
 
 export type Difference =
@@ -198,19 +199,26 @@ export function differences(then: Reading, now: Reading): { differences: Differe
   }
 
   // What's inside something new is part of it, and what's inside something gone went with it. What's marked inside
-  // reworded words, the amount in “Total for 2026 $56,145.00”, is part of their rewording.
+  // reworded words, the amount in “Total for 2026 $56,145.00”, is part of their rewording; so are the words on a
+  // control that now says something else, where they changed as its name did: the “New” button now saying “New board”
+  // is one change, not the button and its words each.
   const fresh = new Set(found.flatMap((difference) => (difference.what === "new" ? [difference.now] : [])));
   const lost = new Set(found.flatMap((difference) => (difference.what === "gone" ? [difference.then] : [])));
-  const rewordedNow = new Set(found.flatMap((difference) => (difference.what === "reworded" && difference.now.role === "text" ? [difference.now] : [])));
-  const rewordedThen = new Set(found.flatMap((difference) => (difference.what === "reworded" && difference.then.role === "text" ? [difference.then] : [])));
+  const reworded = new Map(found.flatMap((difference) => (difference.what === "reworded" ? [[difference.now, difference] as const, [difference.then, difference] as const] : [])));
   const within = (reading: Reading, thing: Thing, set: Set<Thing>) => [holderOf(reading, thing), parentOf(reading, thing)].some((around) => around && set.has(around));
+  const partOfItsRewording = (reading: Reading, thing: Thing, difference: Difference) => {
+    const parent = parentOf(reading, thing);
+    const around = thing.role === "text" && parent ? reworded.get(parent) : undefined;
+    if (!around) return false;
+    if (around.now.role === "text") return true;
+    return difference.what === "reworded" && rewordedPart(difference.then.words, difference.now.words) === rewordedPart(around.then.name, around.now.name);
+  };
   const told = found.filter((difference) => {
     if (difference.what === "new" && within(now, difference.now, fresh)) return false;
     if (difference.what === "gone" && within(then, difference.then, lost)) return false;
     if (difference.what === "looks different") return true;
-    const [reading, thing, reworded] = difference.what === "gone" ? [then, difference.then, rewordedThen] : [now, difference.now, rewordedNow];
-    const parent = parentOf(reading, thing);
-    return !(thing.role === "text" && parent && reworded.has(parent));
+    const [reading, thing] = difference.what === "gone" ? [then, difference.then] : [now, difference.now];
+    return !partOfItsRewording(reading, thing, difference);
   });
   return { differences: asLines(told, then, now), was };
 }

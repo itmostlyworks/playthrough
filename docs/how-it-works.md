@@ -403,7 +403,9 @@ Each `again` compares the hand-back it makes with every one before it (`compare.
 by moment: the two readings of its end pair thing by thing, and what changed is said in Playthrough's own words, never the
 agent's: “Export button is new”, “Status column looks different” where only the pictures differ, “Clear completed
 button now says “Clear 2 completed””. What only follows from another is told with it (what was pushed along by
-something new above it); things that swapped places, rows in a new order (the fewest that moved: “moved down 2
+something new above it, or by a neighbour on its row that got wider; what was made narrower by what's new beside it,
+one thing or several together); a control now saying something else, and the words on it that changed as it did, are
+one change, on the control; things that swapped places, rows in a new order (the fewest that moved: “moved down 2
 places”), and alike things changed alike are one change each; a row, a list's item or a card is read as one thing, so
 one new or gone is one change and the same change in each is one change, in as many places. Past five changes inside one
 table or list, they're one change to it, counted (“Table: 8 things changed inside”), kept on the table with each thing
